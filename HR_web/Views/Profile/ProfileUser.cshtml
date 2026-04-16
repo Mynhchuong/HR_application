@@ -1,0 +1,132 @@
+@model HR_web.Models.Account.UserDetailModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Hồ Sơ Cá Nhân";
+}
+
+<div class="container mt-3">
+    <h2 class="mb-3">Thông tin cá nhân</h2>
+    <div class="row">
+        <!-- Cột trái: hình + chữ ký -->
+        <div class="col-12 col-md-5 mb-3">
+            <div class="card p-3 text-center">
+                <h5>Hình nhân viên</h5>
+                <img src="@Url.Action("GetEmployeeImage", "Image", new { empCd = Model.EmpCd })"
+                     class="img-fluid rounded mb-3" style="height:200px; width:100%; object-fit:contain;" />
+
+                <h5>Chữ ký</h5>
+                <img src="@Url.Action("GetSignature", "Image", new { empCd = Model.EmpCd })"
+                     class="img-fluid mb-2" style="height:200px; width:100%; object-fit:contain;" />
+
+                <!-- Upload chữ ký: dùng IFormFile name="file" (thay signatureFile) -->
+                <form asp-controller="Image" asp-action="UploadSignature" method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="empCd" value="@Model.EmpCd" />
+                    <input type="file" id="fileInput" name="file"
+                           accept="image/jpeg" style="display:none;"
+                           onchange="this.form.submit()" />
+                    <button type="button" onclick="triggerUpload()" class="btn btn-primary w-100">
+                        📷 Cập nhật chữ ký
+                    </button>
+                </form>
+
+                <button type="button" class="btn btn-success mt-2 w-100"
+                        data-bs-toggle="modal" data-bs-target="#changePassModal">
+                    <i class="fas fa-key me-1"></i> Đổi mật khẩu
+                </button>
+            </div>
+        </div>
+
+        <!-- Cột phải: thông tin read-only -->
+        <div class="col-12 col-md-7 mb-3">
+            <div class="card p-3">
+                <h5>Thông tin chi tiết</h5>
+                <table class="table table-borderless mb-0">
+                    <tr><th>Họ và tên</th><td>@Model.FullName</td></tr>
+                    <tr><th>Phòng ban</th><td>@Model.DeptName</td></tr>
+                    <tr><th>Line</th><td>@Model.LineName</td></tr>
+                    <tr><th>Work</th><td>@Model.WorkName</td></tr>
+                    <tr><th>Ngày sinh</th><td>@(Model.BirthDate?.ToString("dd/MM/yyyy") ?? "-")</td></tr>
+                    <tr><th>Giới tính</th><td>@(Model.Sex == "M" ? "Nam" : "Nữ")</td></tr>
+                    <tr><th>Tình trạng hôn nhân</th><td>@(Model.MaritalStatus == "Single" ? "Chưa kết hôn" : Model.MaritalStatus)</td></tr>
+                    <tr><th>Số điện thoại</th><td>@Model.Phone</td></tr>
+                    <tr>
+                        <th>Thâm niên</th>
+                        <td>
+                            @{
+                                string seniorityText = "-";
+                                if (!string.IsNullOrWhiteSpace(Model.Seniority))
+                                {
+                                    var parts = Model.Seniority.Split('.');
+                                    int years = 0, months = 0;
+                                    if (parts.Length > 0) int.TryParse(parts[0], out years);
+                                    if (parts.Length > 1) int.TryParse(parts[1], out months);
+                                    if (years > 0 && months > 0) seniorityText = $"{years} năm {months} tháng";
+                                    else if (years > 0) seniorityText = $"{years} năm";
+                                    else if (months > 0) seniorityText = $"{months} tháng";
+                                }
+                            }
+                            @seniorityText
+                        </td>
+                    </tr>
+                    <tr><th>Quê quán</th><td>@Model.HomeTown</td></tr>
+                    <tr><th>Loại hợp đồng</th><td>@Model.ContractType</td></tr>
+                    <tr><th>Ngày ký hợp đồng</th><td>@(Model.ContractDate?.ToString("dd/MM/yyyy") ?? "-")</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal đổi mật khẩu -->
+<div class="modal fade" id="changePassModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title">Đổi mật khẩu</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form asp-controller="Profile" asp-action="ChangePassword" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label>Mật khẩu cũ</label>
+                        <input type="password" name="oldPassword" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label>Mật khẩu mới</label>
+                        <input type="password" name="newPassword" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label>Xác nhận mật khẩu mới</label>
+                        <input type="password" name="confirmPassword" class="form-control" required />
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-save me-1"></i> Lưu mật khẩu
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    @@media (max-width: 768px) {
+        .row > [class*='col-'] { margin-bottom: 1rem; }
+        table.table td, table.table th { font-size: 0.875rem; }
+        .card img { max-width: 100%; height: auto; }
+    }
+</style>
+<script>
+    function isMobile() {
+        return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    }
+    function triggerUpload() {
+        const input = document.getElementById("fileInput");
+        if (isMobile()) {
+            input.setAttribute("capture", "environment");
+        } else {
+            input.removeAttribute("capture");
+        }
+        input.click();
+    }
+</script>

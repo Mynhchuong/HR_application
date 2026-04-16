@@ -1,0 +1,186 @@
+@model HR_web.Models.OT.OTTodayModel
+@using HR_web.Helpers
+
+@{
+    ViewData["Title"] = "Xác Nhận Tăng Ca";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+        .ot-card { border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); background-color: #ffffff; }
+        .ot-label { color: #64748b; font-size: 1.1rem; font-weight: 500; }
+        .ot-value { color: #0f172a; font-size: 1.3rem; font-weight: 700; }
+        .ot-status-badge { font-size: 1.1rem; padding: 8px 16px; border-radius: 50rem; }
+        .ot-btn { font-size: 1.1rem; border-radius: 12px; padding: 12px 20px; font-weight: 600; }
+        .ios-padding { padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+        .main-content { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .alert-warning-box { display: block; background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; color: #334155; padding: 15px; }
+        .alert-warning-box img { float: left; width: 75px; height: auto; object-fit: contain; margin-right: 12px; margin-bottom: 5px; }
+        .alert-warning-text { text-align: justify; font-size: 0.9rem; line-height: 1.6; }
+    </style>
+}
+
+<div class="container-fluid py-4 ios-padding">
+    @if (Model == null)
+    {
+        <div class="alert alert-warning text-center fs-5 shadow-sm" style="border-radius: 12px;" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-1 d-block mb-3 text-warning"></i>
+            Hôm nay không có dữ liệu tăng ca hoặc có lỗi xảy ra.
+        </div>
+    }
+    else
+    {
+        <!-- Khối tích lũy giờ tăng ca -->
+        <div class="card ot-card p-4 mb-3">
+            <h5 class="fw-bold mb-3 text-center" style="color: #475569; font-size: 1.2rem;">
+                <i class="bi bi-clock-history me-1"></i> Tích lũy giờ Tăng Ca
+            </h5>
+            <div class="row text-center mt-2">
+                <div class="col-4 border-end border-2">
+                    <div class="ot-label" style="font-size: 1rem;">Tuần</div>
+                    <div class="ot-value text-info mt-2">@Model.SUM_WEEK</div>
+                </div>
+                <div class="col-4 border-end border-2">
+                    <div class="ot-label" style="font-size: 1rem;">Tháng</div>
+                    <div class="ot-value text-primary mt-2">@Model.SUM_MONTH</div>
+                </div>
+                <div class="col-4">
+                    <div class="ot-label" style="font-size: 1rem;">Năm</div>
+                    <div class="ot-value text-warning mt-2">@Model.SUM_YEAR</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Khối Phiếu xác nhận -->
+        <div class="card ot-card p-4 mb-5">
+            <h4 class="text-center fw-bold mb-4" style="color: #1e293b; font-size: 1.5rem;">
+                PHIẾU XÁC NHẬN TĂNG CA
+            </h4>
+
+            <div class="row align-items-center mb-3">
+                <div class="col-5 ot-label">Ngày làm:</div>
+                <div class="col-7 text-end ot-value text-primary">
+                    @(Model.WORK_DATE.HasValue ? Model.WORK_DATE.Value.ToString("dd/MM/yyyy") : "-")
+                </div>
+            </div>
+
+            <div class="row align-items-center mb-3">
+                <div class="col-5 ot-label">Mã thẻ:</div>
+                <div class="col-7 text-end ot-value">@Model.EMPCD</div>
+            </div>
+
+            <div class="row align-items-center mb-3">
+                <div class="col-7 ot-label">Tổng giờ tăng ca:</div>
+                <div class="col-5 text-end ot-value text-success" style="font-size: 1.8rem;">
+                    @Model.OT_HOURS <span style="font-size: 1.1rem; color: #64748b; font-weight: normal;">giờ</span>
+                </div>
+            </div>
+
+            @if (Model.START_OT.HasValue || Model.END_OT.HasValue)
+            {
+                <div class="row align-items-center mb-3">
+                    <div class="col-5 ot-label">Giờ tăng ca:</div>
+                    <div class="col-7 text-end">
+                        <span class="badge border border-secondary text-secondary fw-normal" style="font-size: 0.95rem; padding: 6px 12px;">
+                            <i class="bi bi-clock me-1"></i>
+                            @(Model.START_OT.HasValue ? Model.START_OT.Value.ToString("HH:mm") : "--:--")
+                            &nbsp;&#8594;&nbsp;
+                            @(Model.END_OT.HasValue ? Model.END_OT.Value.ToString("HH:mm") : "--:--")
+                        </span>
+                    </div>
+                </div>
+            }
+
+            <div class="bg-light p-3 rounded text-center mb-3" style="font-size: 1.05rem; color: #334155;">
+                @{
+                    var details = new List<string>();
+                    if (!string.IsNullOrEmpty(Model.OT_BEFORE_TIME) && Model.OT_BEFORE_TIME != "0")
+                        details.Add($"Ca trước: <strong>{Model.OT_BEFORE_TIME}h</strong>");
+                    if (!string.IsNullOrEmpty(Model.OT_AFTER_TIME) && Model.OT_AFTER_TIME != "0")
+                        details.Add($"Ca sau: <strong>{Model.OT_AFTER_TIME}h</strong>");
+                    if (!string.IsNullOrEmpty(Model.OT_REST) && Model.OT_REST != "0" && Model.OT_REST != "0.0")
+                    {
+                        string restFormatted = Model.OT_REST.Replace(" ", "");
+                        if (restFormatted.Contains("-"))
+                        {
+                            var pts = restFormatted.Split('-');
+                            if (pts.Length == 2 && pts[0].Length == 4 && pts[1].Length == 4)
+                                restFormatted = $"{pts[0].Substring(0,2)}:{pts[0].Substring(2,2)} - {pts[1].Substring(0,2)}:{pts[1].Substring(2,2)}";
+                            else
+                                restFormatted = Model.OT_REST;
+                        }
+                        else { restFormatted = Model.OT_REST; }
+                        details.Add($"Nghỉ: <strong>{restFormatted}</strong>");
+                    }
+                    if (details.Count > 0)
+                    {
+                        @Html.Raw(string.Join(" <span class='text-muted mx-2'>|</span> ", details))
+                    }
+                    else
+                    {
+                        <span class="text-muted">Không có chi tiết ca</span>
+                    }
+                }
+            </div>
+
+            <div class="row align-items-center mb-3">
+                <div class="col-5 ot-label">Trạng thái:</div>
+                <div class="col-7 text-end">
+                    @{
+                        string statusClass = "bg-secondary";
+                        string statusText = string.IsNullOrEmpty(Model.CONFIRM_STATUS) ? "Chưa có dữ liệu" : Model.CONFIRM_STATUS;
+                        if (Model.CONFIRM_STATUS == "PENDING")   { statusClass = "bg-warning text-dark"; statusText = "Chờ xác nhận"; }
+                        if (Model.CONFIRM_STATUS == "CONFIRMED") { statusClass = "bg-success";           statusText = "Đã đồng ý"; }
+                        if (Model.CONFIRM_STATUS == "REJECTED")  { statusClass = "bg-danger";            statusText = "Đã từ chối"; }
+                    }
+                    <span class="badge @statusClass ot-status-badge">@statusText</span>
+                </div>
+            </div>
+
+            @if (Model.CONFIRM_STATUS == "REJECTED" && !string.IsNullOrEmpty(Model.REJECT_REASON))
+            {
+                <div class="alert alert-danger mt-3" style="font-size: 1.1rem; border-radius: 12px;">
+                    <strong>Lý do từ chối:</strong> @Model.REJECT_REASON
+                </div>
+            }
+
+            @if (Model.CONFIRM_STATUS == "PENDING")
+            {
+                <form asp-controller="OT" asp-action="OtConfirmForm" method="post" id="frmOtConfirm" class="mt-4">
+                    <input type="hidden" name="empcd" value="@Model.EMPCD" />
+                    <input type="hidden" name="confirmStatus" id="confirmStatus" value="" />
+
+                    <div class="alert-warning-box mt-3 mb-4 shadow-sm">
+                        <img src="~/assets/img/illustrations/chi.png" alt="Lưu ý" />
+                        <div class="alert-warning-text">
+                            "Tôi biết được rằng làm tăng ca là <strong>do tự nguyện</strong>, nếu tôi không thích tăng ca tôi chỉ cần không ký nhận và hoàn toàn tự do ra về sau khi hoàn tất giờ làm việc bình thường..."
+                        </div>
+                        <div class="clearfix"></div>
+                    </div>
+
+                    <div class="d-grid flex-column" id="divActionButtons">
+                        @* Html.Partial → await Html.PartialAsync *@
+                        @await Html.PartialAsync("_ConfirmButton", new ConfirmButtonModel
+                        {
+                            Url = "javascript:$('#confirmStatus').val('CONFIRMED'); $('#frmOtConfirm').submit();",
+                            Text = "CHẤP NHẬN TĂNG CA",
+                            ButtonClass = "btn btn-success py-3 rounded-pill mb-3 fw-bold",
+                            Icon = "bi bi-check-circle-fill",
+                            ConfirmMessage = "Bạn có chắc chắn CHẤP NHẬN TĂNG CA với số giờ này?"
+                        })
+
+                        @await Html.PartialAsync("_ConfirmButton", new ConfirmButtonModel
+                        {
+                            Url = "javascript:$('#confirmStatus').val('REJECTED'); $('#frmOtConfirm').submit();",
+                            Text = "KHÔNG CHẤP NHẬN",
+                            ButtonClass = "btn btn-outline-danger py-3 rounded-pill fw-bold bg-white",
+                            Icon = "bi bi-x-circle",
+                            ConfirmMessage = "Bạn có chắc chắn KHÔNG CHẤP NHẬN số giờ tăng ca này?"
+                        })
+                    </div>
+                </form>
+            }
+        </div>
+    }
+</div>

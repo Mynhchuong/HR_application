@@ -1,0 +1,72 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Hệ thống tạm gián đoạn - HR App</title>
+    <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" rel="stylesheet" />
+    <style>
+        :root {
+            --ios-safe-top: env(safe-area-inset-top, 20px);
+            --ios-safe-bottom: env(safe-area-inset-bottom, 20px);
+        }
+        body {
+            margin: 0; font-family: 'Inter', sans-serif;
+            background-color: #fce8e8;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            min-height: 100vh;
+            padding: var(--ios-safe-top) 16px var(--ios-safe-bottom) 16px;
+            text-align: center; box-sizing: border-box;
+        }
+        .error-card {
+            background: #ffffff; border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            padding: 32px 24px; max-width: 90%; width: 400px;
+            border-bottom: 5px solid #ff416c;
+        }
+        .error-card img { max-width: 140px; height: auto; margin: 0 auto 16px; display: block; }
+        h1 { font-size: 1.6rem; color: #d93838; margin: 0 0 12px; font-weight: 700; }
+        .description { font-size: 0.95rem; color: #4a5568; margin-bottom: 24px; line-height: 1.6; }
+        .instruction-box {
+            background-color: #fff5f5; border: 1px dashed #fc8181;
+            border-radius: 12px; padding: 16px; margin-bottom: 24px; text-align: left;
+        }
+        .instruction-box p { margin: 0 0 12px; font-size: 0.9rem; color: #c53030; font-weight: 600; line-height: 1.4; }
+        .code-snippet {
+            font-family: monospace; background: #ffe3e3; color: #822727;
+            padding: 10px; border-radius: 8px; font-size: 0.8rem; word-break: break-all; margin: 0;
+        }
+        .btn-home {
+            display: block; width: 100%; padding: 14px; font-size: 1rem; font-weight: 600;
+            background: linear-gradient(135deg, #FF416C 0%, #FF4B2B 100%);
+            color: #fff; border-radius: 12px; text-decoration: none;
+            box-shadow: 0 4px 15px rgba(255,65,108,0.3);
+            text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.2s;
+        }
+        .btn-home:active { transform: scale(0.98); }
+        footer { margin-top: 24px; font-size: 0.75rem; color: #a0aec0; }
+    </style>
+</head>
+<body>
+    <div class="error-card">
+        <img src="/assets/img/illustrations/danhlon.png" alt="Lỗi hệ thống" />
+        <h1>Oops! Nút thắt hệ thống</h1>
+        <div class="description">
+            Web/App hiện đang gặp một sự cố nhỏ ngoài ý muốn. Đừng lo lắng, dữ liệu của bạn vẫn an toàn tuyệt đối!
+        </div>
+        <div class="instruction-box">
+            <p>📸 Vui lòng chụp màn hình này và gửi cho bộ phận Nhân Sự ngay lập tức.</p>
+            <div class="code-snippet">
+                <strong>📍 Đường dẫn:</strong> @Context.Request.Path <br />
+                <strong>⚠️ Thời gian:</strong> @DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+            </div>
+        </div>
+        <a href="/" class="btn-home">Trở về Trang Chủ</a>
+    </div>
+    <footer>© 2026 VietNam Samho Co., LTD · Powered by IT Team</footer>
+</body>
+</html>

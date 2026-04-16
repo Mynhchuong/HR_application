@@ -1,0 +1,11 @@
+@model HR_web.Helpers.ConfirmButtonModel
+
+<a href="@Model.Url"
+   class="@Model.ButtonClass btn-confirm"
+   data-message="@Model.ConfirmMessage">
+    @if (!string.IsNullOrEmpty(Model.Icon))
+    {
+        <i class="@Model.Icon me-1"></i>
+    }
+    @Model.Text
+</a>

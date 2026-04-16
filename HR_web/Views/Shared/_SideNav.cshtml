@@ -1,0 +1,108 @@
+@using HR_web.Helpers
+@using HR_web.Models.Account
+
+@{
+    var user = AuthHelper.GetCurrentUser(User);
+    var currentPath = Context.Request.Path.Value?.ToLower().TrimEnd('/') ?? "";
+    var menus = SideMenuBuilder.Build(user);
+
+    // Tìm tiêu đề trang từ menu đang active
+    string pageTitle = "";
+    foreach (var menu in menus.Where(m => m.VisibleWhen?.Invoke() == true))
+    {
+        foreach (var item in menu.Children)
+        {
+            if (string.IsNullOrEmpty(item.Url)) continue;
+            var menuPath = Url.Content(item.Url).ToLower().TrimEnd('/');
+            if (currentPath.StartsWith(menuPath))
+            {
+                pageTitle = item.Title;
+                break;
+            }
+        }
+        if (!string.IsNullOrEmpty(pageTitle)) break;
+    }
+}
+
+<!-- ===== SIDENAV HEADER ===== -->
+<div class="sidenav-header">
+    <i class="fas fa-times p-3 cursor-pointer text-dark opacity-5 position-absolute end-0 top-0 d-none d-xl-none"
+       id="iconSidenav"></i>
+
+    <a class="navbar-brand px-4 py-3 m-0">
+        <img src="~/assets/img/logowebsmTO.png"
+             class="navbar-brand-img"
+             width="26" height="26" alt="logo" />
+        <span class="ms-1 text-sm text-dark">HR Application</span>
+    </a>
+</div>
+
+<hr class="horizontal dark mt-0 mb-2" />
+
+<!-- ===== SIDENAV MENU ===== -->
+<div class="collapse navbar-collapse w-auto" id="sidenav-collapse-main">
+    <ul class="navbar-nav">
+
+        @foreach (var menu in menus.Where(m => m.VisibleWhen?.Invoke() == true))
+        {
+            bool open = menu.Children.Any(c =>
+                !string.IsNullOrEmpty(c.Url) &&
+                currentPath.StartsWith(Url.Content(c.Url).ToLower())
+            );
+
+            <li class="nav-item mt-2">
+                <a class="nav-link text-dark d-flex justify-content-between align-items-center"
+                   data-bs-toggle="collapse"
+                   href="#@menu.Id"
+                   aria-expanded="@open.ToString().ToLower()">
+
+                    <span>
+                        <i class="material-symbols-rounded me-2">@menu.Icon</i>
+                        <span class="nav-link-text">@menu.Title</span>
+                    </span>
+
+                    <i class="material-symbols-rounded">expand_more</i>
+                </a>
+
+                <div class="collapse ps-3 @(open ? "show" : "")" id="@menu.Id">
+                    <ul class="navbar-nav">
+                        @foreach (var item in menu.Children.Where(c => c.VisibleWhen == null || c.VisibleWhen()))
+                        {
+                            bool active = !string.IsNullOrEmpty(item.Url) &&
+                                          currentPath.StartsWith(Url.Content(item.Url).ToLower());
+
+                            <li class="nav-item">
+                                <a class="nav-link text-dark rounded px-2 py-1 @(active ? "active fw-bold bg-light" : "")"
+                                   href="@Url.Content(item.Url ?? "#")">
+                                    <i class="material-symbols-rounded me-2 opacity-6">@item.Icon</i>
+                                    <span class="nav-link-text">@item.Title</span>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </li>
+        }
+
+    </ul>
+</div>
+
+<!-- ===== SIDENAV FOOTER ===== -->
+<div class="sidenav-footer position-absolute w-100 bottom-0">
+    <div class="mx-3 mb-3">
+        <!-- Dùng TagHelper thay Html.AntiForgeryToken() cũ -->
+        <form asp-controller="Account" asp-action="Logout" method="post"
+              onsubmit="return confirmLogout();">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-danger w-100">
+                <i class="fas fa-sign-out-alt me-1"></i> Logout
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function confirmLogout() {
+        return confirm("Are you sure you want to logout?");
+    }
+</script>

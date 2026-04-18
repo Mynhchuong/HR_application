@@ -27,9 +27,12 @@ public class PayslipService
         return string.IsNullOrWhiteSpace(json) ? default : JsonConvert.DeserializeObject<T>(json);
     }
 
-    public async Task<List<PayrollPeriodModel>> GetPeriodsAsync()
+    public async Task<List<PayrollPeriodModel>> GetPeriodsAsync(string? empcd = null)
     {
-        var result = await _api.GetAsync<PayslipResponse<List<PayrollPeriodModel>>>("payslip/periods");
+        string query = "";
+        if (!string.IsNullOrEmpty(empcd)) query = $"empcd={empcd}";
+
+        var result = await _api.GetAsync<PayslipResponse<List<PayrollPeriodModel>>>("payslip/periods", query);
         return (result != null && result.success) ? result.data ?? new() : new();
     }
 

@@ -46,8 +46,10 @@ $(document).ready(function () {
 
         if (isPublished) {
             $('#btnRelease').prop('disabled', true).text('Đã công bố');
+            $('#btnConfigColumns, #btnUploadExcel').prop('disabled', true);
         } else {
             $('#btnRelease').prop('disabled', false).html('<i class="fas fa-paper-plane me-1"></i> Công bố');
+            $('#btnConfigColumns, #btnUploadExcel').prop('disabled', false);
         }
     });
 

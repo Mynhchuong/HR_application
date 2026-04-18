@@ -106,8 +106,8 @@
         </div>
 
         <div id="divNoData" class="col-12 text-center py-5" style="display:none;">
-            <img src="~/assets/img/illustrations/Sayhii.png" style="max-width: 200px;" class="mb-3 opacity-5" />
-            <h6 class="text-secondary">Ch&#x1B0;a c&#xF3; d&#x1EEF; li&#x1EC7;u cho k&#x1EF3; l&#x1B0;&#x1A1;ng n&#xE0;y ho&#x1EB7;c phi&#x1EBF;u l&#x1B0;&#x1A1;ng ch&#x1B0;a &#x111;&#x1B0;&#x1EE3;c c&#xF4;ng b&#x1ED1;.</h6>
+            <img id="imgNoData" src="" style="max-width: 350px;" class="mb-3" />
+            <h6 class="text-secondary">Tháng này chưa có lương, lương sẽ phát vào ngày 10 hàng tháng.</h6>
         </div>
     </div>
 </div>
@@ -421,4 +421,23 @@
 
 @section Scripts {
     <script src="~/Scripts/payslip_user.js" asp-append-version="true"></script>
+    <script>
+        $(document).ready(function () {
+            // Ngẫu nhiên hình ảnh không có lương (50:50)
+            const illustrations = [
+                '/assets/img/illustrations/H-koluong.png',
+                '/assets/img/illustrations/A-koluong.png'
+            ];
+            const randomImg = illustrations[Math.floor(Math.random() * illustrations.length)];
+            $('#imgNoData').attr('src', randomImg);
+
+            const defaultId = '@(ViewBag.DefaultPeriodId?.ToString(System.Globalization.CultureInfo.InvariantCulture))';
+            if (defaultId) {
+                $('#selectPeriod').val(defaultId).trigger('change');
+                $('#btnViewPayslip').click();
+            } else {
+                $('#divNoData').show();
+            }
+        });
+    </script>
 }

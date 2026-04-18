@@ -3,11 +3,6 @@ using System.Text;
 
 namespace HR_web.API;
 
-/// <summary>
-/// ApiService - thay thế static ApiService cũ.
-/// Dùng IHttpClientFactory (inject qua DI) thay static HttpClient để tránh socket exhaustion.
-/// BaseUrl được đọc từ appsettings.json thay vì const string cứng.
-/// </summary>
 public class ApiService
 {
     private readonly IHttpClientFactory _httpClientFactory;

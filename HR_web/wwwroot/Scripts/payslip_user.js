@@ -35,8 +35,12 @@ $(document).ready(function () {
 
         $.get('/Payslip/GetMyPayslip', { periodId: periodId }, function (res) {
             if (res.success && res.data && res.data.length > 0) {
-                renderPayslip(res.data);
-                $('#divPayslipDetail').fadeIn();
+                const hasData = renderPayslip(res.data);
+                if (hasData) {
+                    $('#divPayslipDetail').fadeIn();
+                } else {
+                    $('#divNoData').fadeIn();
+                }
             } else {
                 $('#divNoData').fadeIn();
             }
@@ -92,5 +96,7 @@ $(document).ready(function () {
         $('#divIncome').html(incomeHtml || '<p class="text-xs text-muted text-center py-3">Không có dữ liệu</p>');
         $('#divDeduct').html(deductHtml || '<p class="text-xs text-muted text-center py-3">Không có dữ liệu</p>');
         $('#divInfo').html(infoHtml || '<p class="text-xs text-muted text-center py-3">Không có dữ liệu</p>');
+
+        return thucLanh > 0;
     }
 });

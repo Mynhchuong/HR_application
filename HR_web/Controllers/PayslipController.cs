@@ -20,13 +20,18 @@ public class PayslipController : BaseController
     // ─────────────────────────────────────────────
     public async Task<IActionResult> Index()
     {
-        var periods = await _payslipService.GetPeriodsAsync();
+        var empCd = CurrentUser?.EmpCd;
+        var periods = await _payslipService.GetPeriodsAsync(empCd);
 
         // Chỉ hiện kỳ đã publish hoặc auto-publish đã đến hạn
-        ViewBag.Periods = periods
+        var filteredPeriods = periods
             .Where(x => x.IS_PUBLISHED == 1 ||
                         (x.IS_AUTO_PUBLISH == 1 && x.PUBLISH_DATE <= DateTime.Now))
+            .OrderByDescending(x => x.INST_DT) // Sắp xếp theo ngày tạo mới nhất (mặc định tháng mới nhất)
             .ToList();
+
+        ViewBag.Periods = filteredPeriods;
+        ViewBag.DefaultPeriodId = filteredPeriods.FirstOrDefault()?.ID;
 
         return View();
     }
@@ -60,7 +65,7 @@ public class PayslipController : BaseController
             return RedirectToAction("Index", "Home");
 
         var periods = await _payslipService.GetPeriodsAsync();
-        ViewBag.Periods = periods;
+        ViewBag.Periods = periods.OrderByDescending(x => x.INST_DT).ToList(); // Mới nhất lên đầu
         return View();
     }
 

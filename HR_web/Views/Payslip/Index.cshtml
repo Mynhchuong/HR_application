@@ -1,91 +1,299 @@
 @{
-    ViewData["Title"] = "Phiếu lương cá nhân";
+    ViewData["Title"] = "Phi\u1ebfu l\u01b0\u01a1ng c\u00e1 nh\u00e2n";
 }
 
-<div class="container-fluid py-4">
-    <div class="row">
-        <!-- 1. Chọn Kỳ lương -->
-        <div class="col-md-5 mx-auto mb-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-body p-3">
-                    <label class="form-label fw-bold">Chọn tháng xem lương</label>
-                    <div class="input-group">
-                        <select id="selectPeriod" class="form-select border ps-3" style="height: 45px;">
-                            <option value="">-- Chọn kỳ lương --</option>
-                            @foreach (var p in ViewBag.Periods)
-                            {
-                                <option value="@p.ID.ToString(System.Globalization.CultureInfo.InvariantCulture)"
-                                        data-remark="@p.REMARK">@p.PERIOD_NAME</option>
-                            }
-                        </select>
-                        <button id="btnViewPayslip" class="btn btn-primary mb-0 px-4">
-                            <i class="fas fa-search"></i> Xem
-                        </button>
+<div class="container-fluid payslip-page py-3 py-lg-4">
+    <div class="row g-3 g-lg-4">
+        <div class="col-12 col-lg-7 col-xl-6 mx-auto">
+            <div class="card shadow-sm border-0 payslip-filter-card">
+                <div class="card-body p-3 p-md-4">
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <span class="payslip-filter-icon">
+                            <i class="fas fa-wallet"></i>
+                        </span>
+                        <div>
+                            <div class="text-uppercase text-xs fw-bold text-primary mb-1">Payslip</div>
+                            <label class="form-label fw-bold mb-0">Ch&#x1ECD;n th&#xE1;ng xem l&#x1B0;&#x1A1;ng</label>
+                        </div>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-12 col-md-8">
+                            <select id="selectPeriod" class="form-select border ps-3 payslip-period-select">
+                                <option value="">-- Ch&#x1ECD;n k&#x1EF3; l&#x1B0;&#x1A1;ng --</option>
+                                @foreach (var p in ViewBag.Periods)
+                                {
+                                    <option value="@p.ID.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-remark="@p.REMARK">@p.PERIOD_NAME</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-4 d-grid">
+                            <button id="btnViewPayslip" class="btn btn-primary mb-0 payslip-view-btn">
+                                <i class="fas fa-search me-2"></i>Xem phi&#x1EBF;u l&#x1B0;&#x1A1;ng
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 2. Hiển thị chi tiết phiếu lương -->
         <div class="col-12" id="divPayslipDetail" style="display:none;">
-            <div class="card shadow-sm border-0 overflow-hidden">
-                <div class="card-header bg-gradient-primary p-4 text-center">
-                    <h5 class="text-white mb-0" id="hPeriodName">---</h5>
-                    <p class="text-white opacity-8 mb-0" id="pEmpInfo">
-                        Mã thẻ: @(ViewBag.CurrentUser?.EmpCd) - @(ViewBag.CurrentUser?.FullName)
+            <div class="card shadow-sm border-0 overflow-hidden payslip-detail-card">
+                <div class="card-header bg-gradient-primary p-3 p-md-4 text-center payslip-hero">
+                    <div class="payslip-hero-chip">Chi ti&#x1EBF;t phi&#x1EBF;u l&#x1B0;&#x1A1;ng</div>
+                    <h5 class="text-white mb-1" id="hPeriodName">---</h5>
+                    <p class="text-white opacity-8 mb-0 payslip-emp-info" id="pEmpInfo">
+                        M&#xE3; th&#x1EBB;: @(ViewBag.CurrentUser?.EmpCd) - @(ViewBag.CurrentUser?.FullName)
                     </p>
                 </div>
-                <div id="divRemark" class="alert alert-info mx-4 mt-3 mb-0 text-white" style="display:none; border:none; border-radius: 8px;">
-                    <i class="fas fa-bullhorn me-2"></i><strong>Thông báo từ HR:</strong> <span id="spanRemark"></span>
+
+                <div id="divRemark" class="alert alert-info mx-3 mx-md-4 mt-3 mb-0 text-white payslip-remark" style="display:none; border:none;">
+                    <i class="fas fa-bullhorn me-2"></i><strong>Th&#xF4;ng b&#xE1;o t&#x1EEB; HR:</strong> <span id="spanRemark"></span>
                 </div>
+
                 <div class="card-body p-0">
-                    <div class="p-4 bg-light text-center border-bottom">
-                        <span class="text-uppercase text-xs font-weight-bold text-secondary">Số tiền thực nhận</span>
-                        <h2 class="text-dark mb-0" id="hThucLanh">0 VNĐ</h2>
+                    <div class="p-3 p-md-4 bg-light text-center border-bottom payslip-total-wrap">
+                        <span class="text-uppercase text-xs font-weight-bold text-secondary">S&#x1ED1; ti&#x1EC1;n th&#x1EF1;c nh&#x1EAD;n</span>
+                        <h2 class="text-dark mb-0 payslip-total-amount" id="hThucLanh">0 VN&#x110;</h2>
                     </div>
-                    <div class="row g-0">
-                        <div class="col-lg-4 border-end">
-                            <div class="p-3 bg-gray-100 border-bottom d-flex align-items-center">
+
+                    <div class="row g-0 payslip-sections">
+                        <div class="col-12 col-lg-4 payslip-section-col">
+                            <div class="p-3 bg-gray-100 border-bottom d-flex align-items-center payslip-section-title">
                                 <i class="fas fa-plus-circle text-success me-2"></i>
-                                <span class="fw-bold text-uppercase text-xs">CÁC KHOẢN THU NHẬP</span>
+                                <span class="fw-bold text-uppercase text-xs">C&#xC1;C KHO&#x1EA2;N THU NH&#x1EAC;P</span>
                             </div>
-                            <div id="divIncome" class="p-3"></div>
+                            <div id="divIncome" class="p-3 payslip-section-body"></div>
                         </div>
-                        <div class="col-lg-4 border-end">
-                            <div class="p-3 bg-gray-100 border-bottom d-flex align-items-center">
+
+                        <div class="col-12 col-lg-4 payslip-section-col">
+                            <div class="p-3 bg-gray-100 border-bottom d-flex align-items-center payslip-section-title">
                                 <i class="fas fa-minus-circle text-danger me-2"></i>
-                                <span class="fw-bold text-uppercase text-xs">CÁC KHOẢN KHẤU TRỪ</span>
+                                <span class="fw-bold text-uppercase text-xs">C&#xC1;C KHO&#x1EA2;N KH&#x1EA4;U TR&#x1EEA;</span>
                             </div>
-                            <div id="divDeduct" class="p-3"></div>
+                            <div id="divDeduct" class="p-3 payslip-section-body"></div>
                         </div>
-                        <div class="col-lg-4">
-                            <div class="p-3 bg-gray-100 border-bottom d-flex align-items-center">
+
+                        <div class="col-12 col-lg-4 payslip-section-col">
+                            <div class="p-3 bg-gray-100 border-bottom d-flex align-items-center payslip-section-title">
                                 <i class="fas fa-info-circle text-info me-2"></i>
-                                <span class="fw-bold text-uppercase text-xs">THÔNG TIN KHÁC (NGÀY CÔNG / PHÉP)</span>
+                                <span class="fw-bold text-uppercase text-xs">TH&#xD4;NG TIN KH&#xC1;C (NG&#xC0;Y C&#xD4;NG / PH&#xC9;P)</span>
                             </div>
-                            <div id="divInfo" class="p-3"></div>
+                            <div id="divInfo" class="p-3 payslip-section-body"></div>
                         </div>
                     </div>
                 </div>
-                <div class="card-footer bg-gray-100 p-3 text-center">
-                    <p class="text-xs text-secondary mb-0">Mọi thắc mắc vui lòng liên hệ phòng Nhân sự để được giải đáp.</p>
+
+                <div class="card-footer bg-gray-100 p-3 text-center payslip-footer">
+                    <p class="text-xs text-secondary mb-0">M&#x1ECD;i th&#x1EAF;c m&#x1EAF;c vui l&#xF2;ng li&#xEA;n h&#x1EC7; ph&#xF2;ng Nh&#xE2;n s&#x1EF1; &#x111;&#x1EC3; &#x111;&#x1B0;&#x1EE3;c gi&#x1EA3;i &#x111;&#xE1;p.</p>
                 </div>
             </div>
         </div>
 
         <div id="divNoData" class="col-12 text-center py-5" style="display:none;">
             <img src="~/assets/img/illustrations/Sayhii.png" style="max-width: 200px;" class="mb-3 opacity-5" />
-            <h6 class="text-secondary">Chưa có dữ liệu cho kỳ lương này hoặc phiếu lương chưa được công bố.</h6>
+            <h6 class="text-secondary">Ch&#x1B0;a c&#xF3; d&#x1EEF; li&#x1EC7;u cho k&#x1EF3; l&#x1B0;&#x1A1;ng n&#xE0;y ho&#x1EB7;c phi&#x1EBF;u l&#x1B0;&#x1A1;ng ch&#x1B0;a &#x111;&#x1B0;&#x1EE3;c c&#xF4;ng b&#x1ED1;.</h6>
         </div>
     </div>
 </div>
 
 <style>
-    .payslip-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #e9ecef; }
-    .payslip-row:last-child { border-bottom: none; }
-    .payslip-label { font-size: 0.85rem; color: #495057; }
-    .payslip-value { font-weight: 600; font-size: 0.85rem; color: #212529; }
-    .text-total { color: #5e72e4 !important; font-weight: 800 !important; }
+    .payslip-page {
+        --payslip-border: rgba(148, 163, 184, 0.18);
+    }
+
+    .payslip-filter-card,
+    .payslip-detail-card {
+        border-radius: 22px;
+    }
+
+    .payslip-filter-icon {
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(37, 99, 235, 0.22);
+    }
+
+    .payslip-period-select,
+    .payslip-view-btn {
+        min-height: 48px;
+        border-radius: 14px;
+    }
+
+    .payslip-view-btn {
+        font-weight: 700;
+        box-shadow: 0 12px 22px rgba(37, 99, 235, 0.22);
+    }
+
+    .payslip-hero {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .payslip-hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -20% -45% auto;
+        width: 180px;
+        height: 180px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .payslip-hero-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.65rem;
+        padding: 0.28rem 0.7rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.14);
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .payslip-emp-info {
+        word-break: break-word;
+    }
+
+    .payslip-remark {
+        border-radius: 12px !important;
+        background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+        box-shadow: 0 12px 20px rgba(37, 99, 235, 0.18);
+    }
+
+    .payslip-total-wrap {
+        background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%) !important;
+    }
+
+    .payslip-total-amount {
+        font-size: clamp(1.65rem, 5vw, 2.5rem);
+        font-weight: 800;
+        line-height: 1.1;
+        word-break: break-word;
+    }
+
+    .payslip-section-col {
+        background: #fff;
+    }
+
+    .payslip-section-col:not(:last-child) {
+        border-right: 1px solid var(--payslip-border);
+    }
+
+    .payslip-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 0.8rem 0;
+        border-bottom: 1px dashed #e2e8f0;
+    }
+
+    .payslip-row:last-child {
+        border-bottom: none;
+    }
+
+    .payslip-label {
+        flex: 1;
+        font-size: 0.9rem;
+        color: #475569;
+        line-height: 1.4;
+    }
+
+    .payslip-value {
+        flex-shrink: 0;
+        max-width: 48%;
+        text-align: right;
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: #0f172a;
+        line-height: 1.4;
+        word-break: break-word;
+    }
+
+    .text-total {
+        color: #2563eb !important;
+        font-weight: 800 !important;
+    }
+
+    .payslip-footer {
+        border-top: 1px solid var(--payslip-border);
+    }
+
+    @@media (max-width: 991.98px) {
+        .payslip-detail-card {
+            border-radius: 20px;
+        }
+
+        .payslip-sections {
+            background: #f8fafc;
+            padding: 0.75rem;
+            gap: 0.75rem;
+        }
+
+        .payslip-section-col {
+            border: 1px solid var(--payslip-border);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        .payslip-section-col:not(:last-child) {
+            border-right: 1px solid var(--payslip-border);
+        }
+
+        .payslip-row {
+            gap: 0.75rem;
+            padding: 0.75rem 0;
+        }
+
+        .payslip-label,
+        .payslip-value {
+            font-size: 0.86rem;
+        }
+
+        .payslip-value {
+            max-width: 46%;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .payslip-page {
+            padding-left: 0.35rem;
+            padding-right: 0.35rem;
+        }
+
+        .payslip-filter-card .card-body {
+            padding: 1rem !important;
+        }
+
+        .payslip-detail-card .card-header,
+        .payslip-detail-card .card-footer,
+        .payslip-total-wrap {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+
+        .payslip-row {
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .payslip-value {
+            max-width: 100%;
+            text-align: left;
+        }
+    }
 </style>
 
 @section Scripts {

@@ -5,6 +5,13 @@
     var user = AuthHelper.GetCurrentUser(User);
     var currentPath = Context.Request.Path.Value?.ToLower().TrimEnd('/') ?? "";
     var menus = SideMenuBuilder.Build(user);
+    var menuThemes = new[]
+    {
+        "menu-theme-personal",
+        "menu-theme-clerk",
+        "menu-theme-manager",
+        "menu-theme-hr"
+    };
 
     // Tìm tiêu đề trang từ menu đang active
     string pageTitle = "";
@@ -24,10 +31,91 @@
     }
 }
 
+<style>
+    .menu-icon-shell,
+    .menu-child-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .menu-icon-shell {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        margin-right: 0.65rem;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.10);
+    }
+
+    .menu-icon-shell .material-symbols-rounded {
+        font-size: 1.1rem;
+        color: #fff;
+    }
+
+    .menu-child-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 10px;
+        margin-right: 0.6rem;
+        background: rgba(148, 163, 184, 0.14);
+    }
+
+    .menu-child-icon .material-symbols-rounded {
+        font-size: 1rem;
+    }
+
+    .nav-link:hover .menu-icon-shell,
+    .nav-link:hover .menu-child-icon {
+        transform: translateY(-1px);
+    }
+
+    .menu-theme-personal > .nav-link .menu-icon-shell {
+        background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
+    }
+
+    .menu-theme-personal .menu-child-icon,
+    .menu-theme-personal .menu-child-icon .material-symbols-rounded {
+        color: #ea580c;
+    }
+
+    .menu-theme-clerk > .nav-link .menu-icon-shell {
+        background: linear-gradient(135deg, #06b6d4 0%, #2563eb 100%);
+    }
+
+    .menu-theme-clerk .menu-child-icon,
+    .menu-theme-clerk .menu-child-icon .material-symbols-rounded {
+        color: #0284c7;
+    }
+
+    .menu-theme-manager > .nav-link .menu-icon-shell {
+        background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    }
+
+    .menu-theme-manager .menu-child-icon,
+    .menu-theme-manager .menu-child-icon .material-symbols-rounded {
+        color: #7c3aed;
+    }
+
+    .menu-theme-hr > .nav-link .menu-icon-shell {
+        background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+    }
+
+    .menu-theme-hr .menu-child-icon,
+    .menu-theme-hr .menu-child-icon .material-symbols-rounded {
+        color: #059669;
+    }
+
+    .nav-link.active .menu-child-icon {
+        background: rgba(255, 255, 255, 0.18);
+    }
+</style>
+
 <!-- ===== SIDENAV HEADER ===== -->
 <div class="sidenav-header">
-    <i class="fas fa-times p-3 cursor-pointer text-dark opacity-5 position-absolute end-0 top-0 d-none d-xl-none"
-       id="iconSidenav"></i>
+    <i class="fas fa-times p-3 cursor-pointer text-dark opacity-5 position-absolute end-0 top-0 d-block d-lg-none"
+       id="hr-iconSidenav"></i>
 
     <a class="navbar-brand px-4 py-3 m-0">
         <img src="~/assets/img/logowebsmTO.png"
@@ -40,24 +128,28 @@
 <hr class="horizontal dark mt-0 mb-2" />
 
 <!-- ===== SIDENAV MENU ===== -->
-<div class="collapse navbar-collapse w-auto" id="sidenav-collapse-main">
+<div class="navbar-collapse w-auto max-height-vh-100 h-100" id="sidenav-collapse-main">
     <ul class="navbar-nav">
 
-        @foreach (var menu in menus.Where(m => m.VisibleWhen?.Invoke() == true))
+        @foreach (var menuEntry in menus.Where(m => m.VisibleWhen?.Invoke() == true).Select((menu, index) => new { menu, index }))
         {
+            var menu = menuEntry.menu;
+            var themeClass = menuThemes[menuEntry.index % menuThemes.Length];
             bool open = menu.Children.Any(c =>
                 !string.IsNullOrEmpty(c.Url) &&
                 currentPath.StartsWith(Url.Content(c.Url).ToLower())
             );
 
-            <li class="nav-item mt-2">
+            <li class="nav-item mt-2 @themeClass">
                 <a class="nav-link text-dark d-flex justify-content-between align-items-center"
                    data-bs-toggle="collapse"
                    href="#@menu.Id"
                    aria-expanded="@open.ToString().ToLower()">
 
-                    <span>
-                        <i class="material-symbols-rounded me-2">@menu.Icon</i>
+                    <span class="d-flex align-items-center">
+                        <span class="menu-icon-shell">
+                            <i class="material-symbols-rounded">@menu.Icon</i>
+                        </span>
                         <span class="nav-link-text">@menu.Title</span>
                     </span>
 
@@ -74,7 +166,9 @@
                             <li class="nav-item">
                                 <a class="nav-link text-dark rounded px-2 py-1 @(active ? "active fw-bold bg-light" : "")"
                                    href="@Url.Content(item.Url ?? "#")">
-                                    <i class="material-symbols-rounded me-2 opacity-6">@item.Icon</i>
+                                    <span class="menu-child-icon">
+                                        <i class="material-symbols-rounded">@item.Icon</i>
+                                    </span>
                                     <span class="nav-link-text">@item.Title</span>
                                 </a>
                             </li>

@@ -78,12 +78,14 @@ public class PayslipController : BaseController
     // POST: /Payslip/UpdateItemsVisibility (AJAX)
     // ─────────────────────────────────────────────
     [HttpPost]
-    public async Task<IActionResult> UpdateItemsVisibility(decimal periodId, [FromBody] List<PayrollItemModel> items)
+    public async Task<IActionResult> UpdateItemsVisibility([FromBody] VisibilityUpdateRequest model)
     {
         if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
             return Json(new { success = false, message = "Từ chối truy cập" });
 
-        var result = await _payslipService.UpdateItemsVisibilityAsync(periodId, items);
+        if (model == null) return Json(new { success = false, message = "Invalid request" });
+
+        var result = await _payslipService.UpdateItemsVisibilityAsync(model.PeriodId, model.Items);
         return Json(result);
     }
 
@@ -92,7 +94,7 @@ public class PayslipController : BaseController
     // Bỏ jsonResult.MaxJsonLength - không cần trong .NET 8
     // ─────────────────────────────────────────────
     [HttpPost]
-    public async Task<IActionResult> UploadData(decimal periodId, [FromBody] List<PayslipUploadRow> data, bool isFirstBatch = false)
+    public async Task<IActionResult> UploadData([FromBody] UploadDataRequest model)
     {
         try
         {
@@ -100,10 +102,10 @@ public class PayslipController : BaseController
                 (CurrentUser.RoleName != "HR" && CurrentUser.RoleName != "Admin"))
                 return Json(new { success = false, message = "Từ chối truy cập" });
 
-            if (data == null || data.Count == 0)
+            if (model == null || model.Data == null || model.Data.Count == 0)
                 return Json(new { success = false, message = "Dữ liệu trống" });
 
-            var result = await _payslipService.UploadPayslipAsync(periodId, data, isFirstBatch);
+            var result = await _payslipService.UploadPayslipAsync(model.PeriodId, model.Data, model.IsFirstBatch);
             return Json(result);
         }
         catch (Exception ex)

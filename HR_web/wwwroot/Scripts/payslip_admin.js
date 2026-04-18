@@ -6,12 +6,12 @@
 const PAYSLIP_ITEMS = [
     'L_CB', 'L_BH_TC', 'NGAY_CONG', 'GIO_CONG', 'TONG_NGAY_LV', 'TIEN_NGAY_LV', 'TONG_CA_DEM', 'PC_CA_DEM',
     'GIO_TC_NGAY', 'L_TC_NGAY', 'GIO_TC_DEM', 'L_TC_DEM', 'GIO_TC_CN', 'L_TC_CN', 'GIO_TC_LE_NGAY', 'L_TC_LE_NGAY',
-    'GIO_TC_LE_DEM', 'L_TC_LE_DEM', 'PC_DAC_BIET', 'PC_TRACH_NHIEM', 'THUONG_TRACH_NHIEM', 'PC_HUAN_LUYEN',
-    'PC_KY_NANG', 'PC_THAM_NIEN', 'THUONG_CHUYEN_CAN', 'PC_DI_LAI', 'PC_CONG_VIEC', 'PC_CON_NHO', 'PC_PHU_NU',
-    'PC_THU_HUT', 'PC_NHA_TRO', 'THUONG_ABC', 'THUONG_MOLD', 'PC_WD', 'THUONG_CNM', 'TRUY_LANH', 'KSK_HS_VEXE',
-    'THUONG_GT_CNM', 'MUNG_CUOI_PD', 'KHAC_TIEN_BH', 'HOAN_THUE_2024', 'TONG_CONG', 'KT_BHXH', 'KT_BHYT',
-    'KT_BHTN', 'KT_TNCN', 'KT_DOAN_PHI', 'SO_NGUOI_PT', 'INFO_NGUOI_PT', 'TONG_KHAU_TRU', 'THUC_LANH',
-    'PN_DUNG_THANG', 'PN_DUNG_NAM', 'TONG_PN_2025', 'PN_2025_CON_LAI'
+    'GIO_TC_LE_DEM', 'L_TC_LE_DEM', 'PC_DAC_BIET', 'PC_TRACH_NHIEM', 'PC_HUAN_LUYEN', 'PC_KY_NANG', 'PC_THAM_NIEN',
+    'THUONG_CHUYEN_CAN', 'PC_DI_LAI', 'PC_CONG_VIEC', 'PC_CON_NHO', 'PC_PHU_NU', 'PC_THU_HUT', 'PC_NHA_TRO',
+    'THUONG_ABC', 'THUONG_MOLD', 'PC_WD', 'THUONG_CNM', 'TRUY_LANH', 'KSK_HS_VEXE', 'THUONG_GT_CNM',
+    'MUNG_CUOI_PD', 'KHAC_TIEN_BH', 'KHAC', 'HOAN_THUE_2025', 'TONG_CONG', 'KT_BHXH', 'KT_BHYT', 'KT_BHTN',
+    'KT_TNCN', 'KT_DOAN_PHI', 'SO_NGUOI_PT', 'INFO_NGUOI_PT', 'KT_THUE_2025', 'TONG_KHAU_TRU', 'THUC_LANH',
+    'TONG_PN_2026', 'PN_2026_THANG', 'PN_DA_DUNG', 'PN_2026_CON_LAI'
 ];
 
 $(document).ready(function () {
@@ -77,8 +77,8 @@ $(document).ready(function () {
         const publishDate = $('#txtPublishDate').val();
         const remark = $('#txtRemark').val();
 
-        if (!name) { alert('Vui lòng nhập tên kỳ lương'); return; }
-        if (isAutoPublish && !publishDate) { alert('Vui lòng chọn ngày giờ tự động công bố'); return; }
+        if (!name) { AlertHelper.warn('Vui lòng nhập tên kỳ lương'); return; }
+        if (isAutoPublish && !publishDate) { AlertHelper.warn('Vui lòng chọn ngày giờ tự động công bố'); return; }
 
         const payload = { 
             periodName: name, 
@@ -91,9 +91,10 @@ $(document).ready(function () {
 
         $.post('/Payslip/CreatePeriod', payload, function (res) {
             if (res.success) {
-                location.reload();
+                AlertHelper.success('Tạo kỳ lương mới thành công');
+                setTimeout(() => location.reload(), 1500);
             } else {
-                alert(res.message);
+                AlertHelper.error(res.message);
             }
         });
     });
@@ -138,12 +139,21 @@ $(document).ready(function () {
             });
         });
 
-        $.post('/Payslip/UpdateItemsVisibility', { periodId: currentPeriodId, items: items }, function (res) {
-            if (res.success) {
-                alert('Đã lưu cấu hình hiển thị');
-                $('#modalConfigColumns').modal('hide');
-            } else {
-                alert(res.message);
+        $.ajax({
+            url: '/Payslip/UpdateItemsVisibility',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ 
+                periodId: currentPeriodId, 
+                items: items 
+            }),
+            success: function (res) {
+                if (res.success) {
+                    AlertHelper.success('Đã lưu cấu hình hiển thị');
+                    $('#modalConfigColumns').modal('hide');
+                } else {
+                    AlertHelper.error(res.message);
+                }
             }
         });
     });
@@ -169,7 +179,7 @@ $(document).ready(function () {
             const json = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
             if (json.length < 2) {
-                alert('File Excel không đúng định dạng hoặc trống');
+                AlertHelper.error('File Excel không đúng định dạng hoặc trống');
                 return;
             }
 
@@ -195,8 +205,8 @@ $(document).ready(function () {
 
                 bodyHtml += `<tr><td class="ps-2 fw-bold text-primary">${empCd}</td>`;
                 
-                // Map cac cot con lai vao list 55 items
-                for (let j = 0; j < 55; j++) {
+                // Map cac cot con lai vao list 56 items
+                for (let j = 0; j < 56; j++) {
                     const cellVal = row[j + 1]; // +1 vi o 0 la EmpCd
                     const numVal = parseExcelNumber(cellVal);
                     
@@ -244,8 +254,8 @@ $(document).ready(function () {
         async function uploadNextBatch() {
             const batch = excelData.slice(processedCount, processedCount + batchSize);
             if (batch.length === 0) {
-                alert('Hoàn tất Import dữ liệu cho ' + processedCount + ' nhân viên!');
-                location.reload();
+                AlertHelper.success('Hoàn tất Import dữ liệu cho ' + processedCount + ' nhân viên!');
+                setTimeout(() => location.reload(), 2000);
                 return;
             }
 
@@ -266,11 +276,11 @@ $(document).ready(function () {
                     $('#excelStatus').text(`Đang Import: ${processedCount}/${excelData.length}...`);
                     uploadNextBatch();
                 } else {
-                    alert('Lỗi: ' + res.message);
+                    AlertHelper.error('Lỗi: ' + res.message);
                     btn.prop('disabled', false).html('<i class="fas fa-check me-1"></i> Import Lại');
                 }
             } catch (err) {
-                alert('Lỗi kết nối server: ' + err.statusText);
+                AlertHelper.error('Lỗi kết nối server: ' + err.statusText);
                 btn.prop('disabled', false).html('<i class="fas fa-check me-1"></i> Import Lại');
             }
         }
@@ -388,7 +398,7 @@ $(document).ready(function () {
                 XLSX.utils.book_append_sheet(wb, ws, "Payslip_Data");
                 XLSX.writeFile(wb, `Payslip_Export_${currentPeriodId}.xlsx`);
             } else {
-                alert('Không có dữ liệu để xuất');
+                AlertHelper.warn('Không có dữ liệu để xuất');
             }
         }).always(() => {
             btn.prop('disabled', false).html(originalHtml);
@@ -400,8 +410,8 @@ $(document).ready(function () {
         if (!confirm('Sau khi công bộ, tất cả nhân viên sẽ thấy phiếu lương này. Bạn chắc chứ?')) return;
         $.post('/Payslip/ReleasePeriod', { id: currentPeriodId }, function (res) {
             if (res.success) {
-                alert(res.message);
-                location.reload();
+                AlertHelper.success(res.message);
+                setTimeout(() => location.reload(), 1500); // Wait for toast
             }
         });
     });

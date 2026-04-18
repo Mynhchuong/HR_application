@@ -66,3 +66,16 @@ public class PayslipAdminPagedResponse
     public int page { get; set; }
     public List<PayslipAdminDetailModel>? data { get; set; }
 }
+
+public class VisibilityUpdateRequest
+{
+    public decimal PeriodId { get; set; }
+    public List<PayrollItemModel> Items { get; set; } = new();
+}
+
+public class UploadDataRequest
+{
+    public decimal PeriodId { get; set; }
+    public List<PayslipUploadRow> Data { get; set; } = new();
+    public bool IsFirstBatch { get; set; }
+}

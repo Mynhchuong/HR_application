@@ -7,7 +7,7 @@ $(document).ready(function () {
     $('#btnViewPayslip').on('click', function () {
         const periodId = $('#selectPeriod').val();
         if (!periodId) {
-            alert('Vui lòng chọn kỳ lương muốn xem');
+            AlertHelper.warn('Vui lòng chọn kỳ lương muốn xem');
             return;
         }
 
@@ -24,8 +24,10 @@ $(document).ready(function () {
         const remark = selectedOption.data('remark');
         
         $('#hPeriodName').text(periodName);
-        if (remark) {
-            $('#spanRemark').text(remark);
+        if (remark && remark.toString().trim()) {
+            const lines = remark.toString().split(/\r\n|\n|\r/).filter(line => line.trim());
+            const html = lines.map(line => $('<div>').text(line).html()).map(text => `<div>${text}</div>`).join('');
+            $('#divRemarkText').html(html);
             $('#divRemark').show();
         } else {
             $('#divRemark').hide();

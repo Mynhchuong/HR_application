@@ -1,63 +1,54 @@
 @{
     ViewData["Title"] = "Phiếu lương";
-    var payslipHeroImages = new[]
-    {
-        Url.Content("~/assets/img/illustrations/a-coluong.png"),
-        Url.Content("~/assets/img/illustrations/H-coluong.png")
-    };
-    var selectedPayslipHeroImage = payslipHeroImages[Random.Shared.Next(payslipHeroImages.Length)];
+    
+    // Logic 50:50 random hero image
+    var randomValue = Random.Shared.Next(0, 100);
+    var selectedHero = randomValue < 50 
+        ? Url.Content("~/assets/img/illustrations/a-coluong.png") 
+        : Url.Content("~/assets/img/illustrations/H-coluong.png");
 }
 
 <style>
     :root {
         --app-primary: #4f46e5;
+        --app-secondary: #7c3aed;
         --app-bg: #f8fafc;
-        --app-card: #ffffff;
         --app-text: #1e293b;
         --app-muted: #64748b;
         --app-income: #10b981;
         --app-deduction: #ef4444;
     }
 
-    .payslip-container {
-        max-width: 800px;
+    .payslip-page {
+        max-width: 600px;
         margin: 0 auto;
-        padding-bottom: 2rem;
+        padding-bottom: 5rem;
     }
 
-    /* Filter Bar - App Native Look */
-    .filter-bar {
+    /* Filter Bar */
+    .filter-section {
         background: #fff;
         border-radius: 24px;
-        padding: 1.25rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
         border: 1px solid rgba(0,0,0,0.05);
     }
 
-    .filter-label {
-        font-size: 0.75rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--app-muted);
-        margin-bottom: 0.75rem;
-        display: block;
-    }
-
-    .select-period-wrapper {
+    .period-select-box {
         display: flex;
-        gap: 0.75rem;
+        gap: 10px;
+        align-items: center;
     }
 
-    .select-period {
+    .custom-select {
         flex: 1;
         height: 52px;
         border-radius: 16px;
         border: 2px solid #f1f5f9;
-        background: #f8fafc;
         padding: 0 1rem;
-        font-weight: 600;
+        font-weight: 700;
+        background: #f8fafc;
         color: var(--app-text);
         appearance: none;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
@@ -66,7 +57,7 @@
         background-size: 1.25rem;
     }
 
-    .btn-view {
+    .btn-search {
         width: 52px;
         height: 52px;
         border-radius: 16px;
@@ -79,211 +70,176 @@
         box-shadow: 0 8px 16px rgba(79, 70, 229, 0.2);
     }
 
-    /* Payslip Header - Hero Style */
-    .payslip-card {
+    /* Hero Section - White Text for Contrast */
+    .payslip-hero {
+        position: relative;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 32px;
+        padding: 2.5rem 1.5rem 4rem;
+        text-align: center;
+        color: #fff !important;
+        overflow: hidden;
+        margin-bottom: -50px;
+        z-index: 0;
+    }
+
+    .hero-img {
+        width: 140px;
+        height: auto;
+        margin: 0 auto 1.5rem;
+        display: block;
+        filter: drop-shadow(0 15px 30px rgba(0,0,0,0.3));
+        animation: heroFloat 3s ease-in-out infinite;
+    }
+
+    @@keyframes heroFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+
+    .hero-period { font-size: 1.75rem; font-weight: 800; margin-bottom: 0.25rem; color: #ffffff !important; }
+    .hero-name { font-size: 0.95rem; opacity: 0.9; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #ffffff !important; }
+
+    /* Summary Card */
+    .summary-card {
         background: #fff;
         border-radius: 32px;
-        overflow: hidden;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.06);
-        border: 1px solid rgba(0,0,0,0.04);
-        animation: slideUp 0.5s ease;
-    }
-
-    @@keyframes slideUp {
-        from { transform: translateY(30px); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
-    }
-
-    .payslip-header {
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         padding: 2.5rem 1.5rem;
-        text-align: center;
-        color: #fff;
+        margin: 0 15px 1.5rem;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.12);
         position: relative;
-    }
-
-    .payslip-header::after {
-        content: '';
-        position: absolute;
-        bottom: -20px;
-        left: 0;
-        right: 0;
-        height: 40px;
-        background: #fff;
-        border-radius: 100% 100% 0 0;
-    }
-
-    .period-name { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.25rem; }
-    .emp-info { font-size: 0.9rem; opacity: 0.7; font-weight: 500; }
-
-    .net-salary-block {
-        padding: 2.5rem 1.5rem 1.5rem;
+        z-index: 1;
         text-align: center;
+        border: 1px solid rgba(0,0,0,0.02);
     }
 
-    .net-salary-label {
-        font-size: 0.8rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        color: var(--app-muted);
-        letter-spacing: 0.1em;
+    .summary-label { font-size: 0.8rem; font-weight: 800; color: var(--app-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem; }
+    .summary-amount { font-size: 2.75rem; font-weight: 900; color: var(--app-primary); line-height: 1; letter-spacing: -0.02em; }
+    .summary-unit { font-size: 1.25rem; color: var(--app-muted); font-weight: 700; margin-left: 5px; }
+
+    /* Data Sections - High Visibility List */
+    .details-container {
+        padding: 0 15px;
     }
 
-    .net-salary-amount {
-        font-size: 2.5rem;
-        font-weight: 900;
-        color: var(--app-text);
-        letter-spacing: -0.02em;
-        margin-top: 0.5rem;
+    .detail-section {
+        background: #fff;
+        border-radius: 28px;
+        padding: 1.5rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.04);
+        border: 1px solid rgba(0,0,0,0.03);
     }
 
-    /* Section Tabs/Lists */
-    .payslip-sections {
-        padding: 1rem;
-    }
-
-    .section-group {
-        margin-bottom: 1.5rem;
-    }
-
-    .section-title {
-        font-size: 0.85rem;
-        font-weight: 800;
-        color: var(--app-muted);
-        padding: 0 0.75rem 0.75rem;
-        border-bottom: 1px solid #f1f5f9;
-        display: flex;
-        justify-content: space-between;
-    }
-
-    .list-item {
+    .section-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 1rem 0.75rem;
-        border-bottom: 1px solid #f8fafc;
+        margin-bottom: 1.25rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #f8fafc;
     }
 
-    .item-label {
-        font-size: 0.95rem;
-        font-weight: 500;
-        color: #475569;
+    .section-title { font-size: 0.9rem; font-weight: 800; text-transform: uppercase; color: var(--app-text); letter-spacing: 0.05em; }
+
+    .payslip-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 1rem 0;
+        border-bottom: 1px dashed #f1f5f9;
+        gap: 15px;
     }
 
-    .item-value {
-        font-size: 1rem;
-        font-weight: 700;
-        color: var(--app-text);
-    }
+    .payslip-row:last-child { border-bottom: none; }
+    .payslip-label { font-size: 0.95rem; font-weight: 500; color: #475569; flex: 1; }
+    .payslip-value { font-size: 1rem; font-weight: 800; color: #0f172a; text-align: right; }
 
-    .item-value.income { color: var(--app-income); }
-    .item-value.deduction { color: var(--app-deduction); }
+    /* Highlights */
+    .text-total-income { color: var(--app-income) !important; font-size: 1.15rem !important; }
+    .text-total-deduct { color: var(--app-deduction) !important; font-size: 1.15rem !important; }
 
-    .total-row {
-        background: #f8fafc;
-        border-radius: 16px;
-        margin-top: 0.5rem;
-    }
-
-    .total-row .item-label { font-weight: 700; color: var(--app-text); }
-
-    .payslip-footer {
-        padding: 2rem 1.5rem;
-        text-align: center;
-        background: #fdfdfd;
-        border-top: 1px solid #f1f5f9;
-    }
-
-    .footer-note { font-size: 0.8rem; color: var(--app-muted); line-height: 1.6; }
-
-    /* Empty States */
     .empty-state { text-align: center; padding: 4rem 2rem; }
-    .empty-state img { width: 240px; margin-bottom: 2rem; opacity: 0.8; }
-    .empty-state h3 { font-weight: 800; color: var(--app-text); margin-bottom: 0.5rem; }
-    .empty-state p { color: var(--app-muted); }
+    .empty-state img { width: 220px; margin-bottom: 2rem; opacity: 0.8; }
+    .empty-state h3 { font-weight: 800; color: var(--app-text); }
 
-    @@media (max-width: 600px) {
-        .net-salary-amount { font-size: 2rem; }
-        .period-name { font-size: 1.5rem; }
-        .item-label { font-size: 0.9rem; }
+    @@media (max-width: 480px) {
+        .summary-amount { font-size: 2.25rem; }
+        .hero-period { font-size: 1.5rem; }
+        .payslip-label { font-size: 0.9rem; }
+        .payslip-value { font-size: 0.95rem; }
     }
 </style>
 
-<div class="payslip-container">
-    <!-- Filter Section -->
-    <div class="filter-bar">
-        <label class="filter-label">Chọn kỳ lương</label>
-        <div class="select-period-wrapper">
-            <select id="selectPeriod" class="select-period">
-                <option value="">-- Chọn kỳ --</option>
-                @foreach (var p in ViewBag.Periods)
-                {
-                    <option value="@p.ID.ToString(System.Globalization.CultureInfo.InvariantCulture)"
-                            data-remark="@p.REMARK">@p.PERIOD_NAME</option>
-                }
-            </select>
-            <button id="btnViewPayslip" class="btn-view">
-                <i class="fas fa-search"></i>
-            </button>
+<div class="payslip-page mt-3">
+    <!-- Filter Bar -->
+    <div class="px-3">
+        <div class="filter-section">
+            <div class="period-select-box">
+                <select id="selectPeriod" class="custom-select">
+                    <option value="">-- Chọn kỳ lương --</option>
+                    @foreach (var p in ViewBag.Periods)
+                    {
+                        <option value="@p.ID.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                data-remark="@p.REMARK">@p.PERIOD_NAME</option>
+                    }
+                </select>
+                <button id="btnViewPayslip" class="btn-search">
+                    <span class="material-symbols-rounded">search</span>
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- Payslip Content -->
+    <!-- Main Content -->
     <div id="divPayslipDetail" style="display:none;">
-        <div class="payslip-card">
-            <div class="payslip-header">
-                <h2 class="period-name" id="hPeriodName">---</h2>
-                <p class="emp-info">@(ViewBag.CurrentUser?.FullName) · @(ViewBag.CurrentUser?.EmpCd)</p>
+        <div class="payslip-hero">
+            <img src="@selectedHero" class="hero-img" alt="Hero" />
+            <div class="hero-name">@(ViewBag.CurrentUser?.FullName)</div>
+            <h2 class="hero-period" id="hPeriodName">---</h2>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-label">Số tiền thực nhận</div>
+            <div class="summary-amount"><span id="hThucLanh">0</span><span class="summary-unit">VNĐ</span></div>
+        </div>
+
+        <div class="details-container">
+            <div class="detail-section">
+                <div class="section-header">
+                    <span class="section-title">Khoản thu nhập</span>
+                    <i class="fas fa-plus-circle text-success fs-5"></i>
+                </div>
+                <div id="divIncome"></div>
             </div>
 
-            <div class="net-salary-block">
-                <div class="net-salary-label">Thực lĩnh bàn giao</div>
-                <div class="net-salary-amount" id="hThucLanh">0 VNĐ</div>
+            <div class="detail-section">
+                <div class="section-header">
+                    <span class="section-title">Khoản khấu trừ</span>
+                    <i class="fas fa-minus-circle text-danger fs-5"></i>
+                </div>
+                <div id="divDeduct"></div>
             </div>
 
-            <div class="payslip-sections">
-                <!-- Thu nhập -->
-                <div class="section-group">
-                    <div class="section-title">
-                        <span>Khoản thu nhập</span>
-                        <i class="fas fa-plus-circle" style="color: var(--app-income);"></i>
-                    </div>
-                    <div id="divIncome"></div>
+            <div class="detail-section">
+                <div class="section-header">
+                    <span class="section-title">Công & Phép</span>
+                    <i class="fas fa-circle-info text-info fs-5"></i>
                 </div>
-
-                <!-- Khấu trừ -->
-                <div class="section-group">
-                    <div class="section-title">
-                        <span>Khoản khấu trừ</span>
-                        <i class="fas fa-minus-circle" style="color: var(--app-deduction);"></i>
-                    </div>
-                    <div id="divDeduct"></div>
-                </div>
-
-                <!-- Thông tin khác -->
-                <div class="section-group">
-                    <div class="section-title">
-                        <span>Công & Phép</span>
-                        <i class="fas fa-info-circle" style="color: #3b82f6;"></i>
-                    </div>
-                    <div id="divInfo"></div>
-                </div>
+                <div id="divInfo"></div>
             </div>
-
-            <div class="payslip-footer">
-                <div class="footer-note">
-                    Mọi thắc mắc về bảng lương vui lòng liên hệ trực tiếp phòng Nhân sự.<br>
-                    <strong>Samho ERP Security Protocol</strong>
-                </div>
-            </div>
+        </div>
+        
+        <div class="text-center pb-4">
+            <p class="text-xs text-muted">Mọi thắc mắc liên hệ phòng Nhân sự.<br><strong>Samho ERP Security</strong></p>
         </div>
     </div>
 
-    <!-- Empty/Loading State -->
+    <!-- Empty State -->
     <div id="divNoData" class="empty-state">
-        <img id="imgNoData" src="/assets/img/illustrations/A-koluong.png" />
+        <img src="/assets/img/illustrations/A-koluong.png" id="imgNoData" />
         <h3>Chưa có dữ liệu</h3>
-        <p>Vui lòng chọn kỳ lương để xem chi tiết thu nhập của bạn.</p>
+        <p class="text-muted">Vui lòng chọn kỳ lương để xem chi tiết.</p>
     </div>
 </div>
 
@@ -291,17 +247,10 @@
     <script src="~/Scripts/payslip_user.js" asp-append-version="true"></script>
     <script>
         $(document).ready(function () {
-            // Helper to format currency
-            window.formatMoney = function(num) {
-                return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,') + ' VNĐ';
-            };
-
             const defaultId = '@(ViewBag.DefaultPeriodId?.ToString(System.Globalization.CultureInfo.InvariantCulture))';
             if (defaultId) {
                 $('#selectPeriod').val(defaultId).trigger('change');
                 $('#btnViewPayslip').click();
-            } else {
-                $('#divNoData').show();
             }
         });
     </script>

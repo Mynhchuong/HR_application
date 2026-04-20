@@ -7,105 +7,216 @@
 <html lang="vi">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>HR System | Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <title>HR Application | Login</title>
 
     <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" rel="stylesheet" />
-    <link href="~/assets/css/material-dashboard.css?v=3.2.0" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
 
     <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #4338ca;
+        }
+
         html, body {
-            margin: 0; padding: 0; height: 100%;
+            margin: 0; padding: 0; min-height: 100vh;
             font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            overflow-x: hidden;
         }
-        body {
-            background: url('/assets/img/Login.jpg') no-repeat center center fixed;
-            background-size: cover;
-        }
-        .login-container {
+
+        .login-wrapper {
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(0,0,0,0.35);
             padding: 20px;
+            position: relative;
+            background: radial-gradient(circle at top right, rgba(79, 70, 229, 0.15), transparent),
+                        radial-gradient(circle at bottom left, rgba(124, 58, 237, 0.15), transparent);
         }
+
+        /* Abstract shapes for app-like background */
+        .shape {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: 0;
+            opacity: 0.4;
+        }
+        .shape-1 { width: 300px; height: 300px; background: var(--primary); top: -100px; right: -50px; }
+        .shape-2 { width: 250px; height: 250px; background: #7c3aed; bottom: -50px; left: -50px; }
+
         .login-card {
-            width: 100%; max-width: 420px;
-            background: #fff; border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             overflow: hidden;
+            z-index: 1;
+            animation: cardAppear 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
+
+        @@keyframes cardAppear {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
         .login-header {
-            padding: 25px; text-align: center;
-            border-bottom: 1px solid #e9ecef;
+            padding: 40px 30px 20px;
+            text-align: center;
         }
-        .login-header img { width: 149px; height: auto; margin-bottom: 15px; }
-        .login-header h4 { margin: 0; font-weight: 600; color: #344767; }
-        .login-header p  { margin-top: 5px; font-size: 13px; color: #6c757d; }
-        .login-body { padding: 25px; }
-        .form-label { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
-        .form-control { height: 56px; font-size: 16px; border-radius: 10px; padding: 10px 12px; }
+
+        .login-logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+        }
+
+        .login-logo img { width: 48px; height: auto; }
+
+        .login-header h4 { font-weight: 800; color: #1e293b; letter-spacing: -0.02em; margin: 0; }
+        .login-header p { color: #64748b; font-size: 0.95rem; margin-top: 8px; }
+
+        .login-body { padding: 0 32px 40px; }
+
+        .input-group-custom {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #475569;
+            margin-bottom: 8px;
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-control-custom {
+            width: 100%;
+            height: 58px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid transparent;
+            border-radius: 16px;
+            padding: 0 20px;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            color: #1e293b;
+        }
+
+        .form-control-custom:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        }
+
         .password-wrap { position: relative; }
         .password-toggle {
-            position: absolute; right: 15px; top: 50%;
-            transform: translateY(-50%); cursor: pointer; font-size: 18px;
+            position: absolute; right: 16px; top: 50%;
+            transform: translateY(-50%); cursor: pointer;
+            color: #94a3b8;
+            padding: 8px;
         }
-        .btn-login { height: 56px; font-size: 18px; font-weight: 600; border-radius: 12px; }
-        @@media (max-width: 576px) {
-            .login-card { max-width: 100%; border-radius: 15px; }
-            .login-body  { padding: 20px; }
+
+        .btn-login {
+            width: 100%;
+            height: 58px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 18px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4);
+            transition: all 0.2s ease;
+            margin-top: 10px;
+        }
+
+        .btn-login:active { transform: scale(0.97); background: var(--primary-dark); }
+
+        .form-check-input { width: 1.25em; height: 1.25em; border-radius: 6px !important; }
+        .form-check-label { font-size: 0.95rem; font-weight: 500; color: #475569; padding-left: 5px; }
+
+        .error-message {
+            color: #ef4444;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        @@media (max-width: 480px) {
+            .login-card { border-radius: 0; border: none; max-width: 100%; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; background: #fff; }
+            .login-wrapper { padding: 0; background: #fff; }
+            .shape { display: none; }
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
+    <div class="login-wrapper">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+
         <div class="login-card">
-            <!-- HEADER -->
             <div class="login-header">
-                <img src="~/assets/img/samho logo.png" alt="Company Logo" />
-                <h4>HR System</h4>
-                <p>Đăng nhập để tiếp tục</p>
+                <div class="login-logo">
+                    <img src="~/assets/img/logowebsmTO.png" alt="Company Logo" />
+                </div>
+                <h4>Samho HR</h4>
+                <p>Hệ thống nhân sự thông minh</p>
             </div>
 
-            <!-- BODY -->
             <div class="login-body">
-                <!-- Dùng TagHelper asp-action thay Html.BeginForm cũ -->
                 <form asp-controller="Account" asp-action="Login" method="post">
                     @Html.AntiForgeryToken()
 
-                    <!-- MÃ NV -->
-                    <div class="mb-3">
+                    <div class="input-group-custom">
                         <label class="form-label">Mã số nhân viên</label>
-                        <input asp-for="EMPCD" class="form-control" placeholder="VD: W001" autocomplete="username" />
-                        <span asp-validation-for="EMPCD" class="text-danger small"></span>
+                        <input asp-for="EMPCD" class="form-control-custom" placeholder="VD: W001" autocomplete="username" />
                     </div>
 
-                    <!-- PASSWORD -->
-                    <div class="mb-3">
+                    <div class="input-group-custom">
                         <label class="form-label">Mật khẩu</label>
                         <div class="password-wrap">
                             <input asp-for="Password" type="password" id="passwordInput"
-                                   class="form-control" placeholder="Nhập mật khẩu"
+                                   class="form-control-custom" placeholder="••••••••"
                                    autocomplete="current-password" />
-                            <span class="password-toggle" onclick="togglePassword()">👁</span>
+                            <span class="password-toggle material-symbols-rounded" onclick="togglePassword()">visibility</span>
                         </div>
-                        <span asp-validation-for="Password" class="text-danger small"></span>
                     </div>
 
-                    <!-- REMEMBER ME -->
-                    <div class="form-check form-switch d-flex align-items-center mb-3">
-                        <input asp-for="RememberMe" class="form-check-input" id="rememberMe" />
-                        <label class="form-check-label ms-2" for="rememberMe">Nhớ đăng nhập</label>
+                    <div class="d-flex align-items-center justify-content-between mb-4">
+                        <div class="form-check">
+                            <input asp-for="RememberMe" class="form-check-input" id="rememberMe" />
+                            <label class="form-check-label" for="rememberMe">Lưu tài khoản</label>
+                        </div>
                     </div>
 
-                    <!-- Validation Summary (lỗi đăng nhập sai) -->
-                    <div asp-validation-summary="All" class="text-danger small mb-2"></div>
+                    @if (!ViewData.ModelState.IsValid)
+                    {
+                        <div class="error-message">
+                            <span class="material-symbols-rounded align-middle me-1" style="font-size: 1.1rem;">error</span>
+                            Sai tài khoản hoặc mật khẩu
+                        </div>
+                    }
 
-                    <!-- BUTTON -->
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-dark btn-login">Đăng nhập</button>
-                    </div>
+                    <button type="submit" class="btn-login">Đăng nhập</button>
                 </form>
             </div>
         </div>
@@ -114,8 +225,20 @@
     <script>
         function togglePassword() {
             const input = document.getElementById("passwordInput");
-            input.type = input.type === "password" ? "text" : "password";
+            const icon = document.querySelector(".password-toggle");
+            if (input.type === "password") {
+                input.type = "text";
+                icon.textContent = "visibility_off";
+            } else {
+                input.type = "password";
+                icon.textContent = "visibility";
+            }
         }
+
+        // Prevent iOS zoom on input focus
+        document.addEventListener('gesturestart', function (e) {
+            e.preventDefault();
+        });
     </script>
 </body>
 </html>

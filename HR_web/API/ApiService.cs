@@ -43,10 +43,16 @@ public class ApiService
                 if (!string.IsNullOrWhiteSpace(json) && !json.Trim().Equals("null", StringComparison.OrdinalIgnoreCase))
                     return JsonConvert.DeserializeObject<T>(json);
             }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"API Error: {response.StatusCode} - {errorText}");
+            }
             return default;
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"Exception calling API: {ex.Message}");
             return default;
         }
     }

@@ -46,7 +46,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient("SamhoAPI", client =>
 {
     var baseUrl = builder.Configuration["ApiSettings:BaseUrl"]
-                  ?? "http://192.168.1.24/SamhoAPI/apiHR/";
+                  ?? "http://192.168.1.24/HR_api/apiHR/";
     client.BaseAddress = new Uri(baseUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });

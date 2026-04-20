@@ -2,185 +2,261 @@
 @using HR_web.Helpers
 
 @{
-    ViewData["Title"] = "Xác Nhận Tăng Ca";
+    ViewData["Title"] = "Xác nhận Tăng ca";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
-@section Styles {
-    <style>
-        .ot-card { border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); background-color: #ffffff; }
-        .ot-label { color: #64748b; font-size: 1.1rem; font-weight: 500; }
-        .ot-value { color: #0f172a; font-size: 1.3rem; font-weight: 700; }
-        .ot-status-badge { font-size: 1.1rem; padding: 8px 16px; border-radius: 50rem; }
-        .ot-btn { font-size: 1.1rem; border-radius: 12px; padding: 12px 20px; font-weight: 600; }
-        .ios-padding { padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
-        .main-content { padding-left: 0.5rem; padding-right: 0.5rem; }
-        .alert-warning-box { display: block; background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; color: #334155; padding: 15px; }
-        .alert-warning-box img { float: left; width: 75px; height: auto; object-fit: contain; margin-right: 12px; margin-bottom: 5px; }
-        .alert-warning-text { text-align: justify; font-size: 0.9rem; line-height: 1.6; }
-    </style>
-}
+<style>
+    :root {
+        --app-primary: #4f46e5;
+        --app-bg: #f8fafc;
+        --app-card: #ffffff;
+    }
 
-<div class="container-fluid py-4 ios-padding">
+    .ot-confirm-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding-bottom: 5rem;
+    }
+
+    /* Stats Card (Week/Month/Year) */
+    .stats-card {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 28px;
+        padding: 1.5rem;
+        color: #fff;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        display: flex;
+        justify-content: space-around;
+        text-align: center;
+    }
+
+    .stat-item { flex: 1; }
+    .stat-item:not(:last-child) { border-right: 1px solid rgba(255,255,255,0.1); }
+    .stat-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; opacity: 0.7; letter-spacing: 0.05em; }
+    .stat-value { font-size: 1.25rem; font-weight: 800; margin-top: 0.25rem; }
+
+    /* Main Ticket Card */
+    .ticket-card {
+        background: #fff;
+        border-radius: 32px;
+        padding: 2rem 1.5rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        border: 1px solid rgba(0,0,0,0.05);
+        position: relative;
+    }
+
+    .ticket-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .ticket-title {
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        color: var(--app-primary);
+        letter-spacing: 0.1em;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .ticket-date {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #1e293b;
+    }
+
+    .hours-display {
+        background: #f8fafc;
+        border-radius: 24px;
+        padding: 1.5rem;
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .hours-label { font-size: 0.85rem; font-weight: 700; color: #64748b; margin-bottom: 0.25rem; }
+    .hours-value { font-size: 3rem; font-weight: 900; color: #1e293b; line-height: 1; }
+    .hours-unit { font-size: 1.25rem; color: #94a3b8; font-weight: 600; margin-left: 4px; }
+
+    .info-list {
+        margin-bottom: 2rem;
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 1rem 0;
+        border-bottom: 1px dashed #f1f5f9;
+    }
+
+    .info-label { color: #64748b; font-weight: 500; font-size: 0.95rem; }
+    .info-value { color: #1e293b; font-weight: 700; font-size: 0.95rem; }
+
+    .status-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 700;
+    }
+
+    /* Action Buttons - Large and Touch Friendly */
+    .action-group {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+
+    .btn-action {
+        height: 64px;
+        border-radius: 20px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        border: none;
+        transition: all 0.2s ease;
+    }
+
+    .btn-approve { background: #10b981; color: #fff; box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2); }
+    .btn-reject { background: #fff; color: #ef4444; border: 2px solid #fee2e2; }
+
+    .btn-action:active { transform: scale(0.96); }
+
+    .note-box {
+        background: #fffbef;
+        border-radius: 20px;
+        padding: 1.25rem;
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        border: 1px solid #fef3c7;
+    }
+
+    .note-icon { width: 48px; flex-shrink: 0; }
+    .note-text { font-size: 0.85rem; color: #92400e; line-height: 1.5; font-style: italic; }
+
+    @@media (max-width: 480px) {
+        .hours-value { font-size: 2.5rem; }
+    }
+</style>
+
+<div class="ot-confirm-container py-3">
     @if (Model == null)
     {
-        <div class="alert alert-warning text-center fs-5 shadow-sm" style="border-radius: 12px;" role="alert">
-            <i class="bi bi-exclamation-triangle-fill fs-1 d-block mb-3 text-warning"></i>
-            Hôm nay không có dữ liệu tăng ca hoặc có lỗi xảy ra.
+        <div class="text-center py-5">
+            <span class="material-symbols-rounded text-warning" style="font-size: 4rem;">event_busy</span>
+            <h4 class="mt-3 fw-bold">Không có dữ liệu</h4>
+            <p class="text-muted">Hôm nay không có lịch tăng ca nào cần xác nhận.</p>
         </div>
     }
     else
     {
-        <!-- Khối tích lũy giờ tăng ca -->
-        <div class="card ot-card p-4 mb-3">
-            <h5 class="fw-bold mb-3 text-center" style="color: #475569; font-size: 1.2rem;">
-                <i class="bi bi-clock-history me-1"></i> Tích lũy giờ Tăng Ca
-            </h5>
-            <div class="row text-center mt-2">
-                <div class="col-4 border-end border-2">
-                    <div class="ot-label" style="font-size: 1rem;">Tuần</div>
-                    <div class="ot-value text-info mt-2">@Model.SUM_WEEK</div>
-                </div>
-                <div class="col-4 border-end border-2">
-                    <div class="ot-label" style="font-size: 1rem;">Tháng</div>
-                    <div class="ot-value text-primary mt-2">@Model.SUM_MONTH</div>
-                </div>
-                <div class="col-4">
-                    <div class="ot-label" style="font-size: 1rem;">Năm</div>
-                    <div class="ot-value text-warning mt-2">@Model.SUM_YEAR</div>
-                </div>
+        <!-- Cumulative Stats -->
+        <div class="stats-card">
+            <div class="stat-item">
+                <div class="stat-label">Tuần</div>
+                <div class="stat-value">@Model.SUM_WEEK</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Tháng</div>
+                <div class="stat-value">@Model.SUM_MONTH</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Năm</div>
+                <div class="stat-value">@Model.SUM_YEAR</div>
             </div>
         </div>
 
-        <!-- Khối Phiếu xác nhận -->
-        <div class="card ot-card p-4 mb-5">
-            <h4 class="text-center fw-bold mb-4" style="color: #1e293b; font-size: 1.5rem;">
-                PHIẾU XÁC NHẬN TĂNG CA
-            </h4>
-
-            <div class="row align-items-center mb-3">
-                <div class="col-5 ot-label">Ngày làm:</div>
-                <div class="col-7 text-end ot-value text-primary">
-                    @(Model.WORK_DATE.HasValue ? Model.WORK_DATE.Value.ToString("dd/MM/yyyy") : "-")
-                </div>
+        <!-- Ticket -->
+        <div class="ticket-card">
+            <div class="ticket-header">
+                <span class="ticket-title">Phiếu xác nhận tăng ca</span>
+                <div class="ticket-date">@(Model.WORK_DATE.HasValue ? Model.WORK_DATE.Value.ToString("dd/MM/yyyy") : "-")</div>
             </div>
 
-            <div class="row align-items-center mb-3">
-                <div class="col-5 ot-label">Mã thẻ:</div>
-                <div class="col-7 text-end ot-value">@Model.EMPCD</div>
+            <div class="hours-display">
+                <div class="hours-label">Tổng số giờ</div>
+                <div class="hours-value">@Model.OT_HOURS<span class="hours-unit">giờ</span></div>
             </div>
 
-            <div class="row align-items-center mb-3">
-                <div class="col-7 ot-label">Tổng giờ tăng ca:</div>
-                <div class="col-5 text-end ot-value text-success" style="font-size: 1.8rem;">
-                    @Model.OT_HOURS <span style="font-size: 1.1rem; color: #64748b; font-weight: normal;">giờ</span>
+            <div class="info-list">
+                <div class="info-row">
+                    <span class="info-label">Mã số thẻ</span>
+                    <span class="info-value">@Model.EMPCD</span>
                 </div>
-            </div>
-
-            @if (Model.START_OT.HasValue || Model.END_OT.HasValue)
-            {
-                <div class="row align-items-center mb-3">
-                    <div class="col-5 ot-label">Giờ tăng ca:</div>
-                    <div class="col-7 text-end">
-                        <span class="badge border border-secondary text-secondary fw-normal" style="font-size: 0.95rem; padding: 6px 12px;">
-                            <i class="bi bi-clock me-1"></i>
-                            @(Model.START_OT.HasValue ? Model.START_OT.Value.ToString("HH:mm") : "--:--")
-                            &nbsp;&#8594;&nbsp;
-                            @(Model.END_OT.HasValue ? Model.END_OT.Value.ToString("HH:mm") : "--:--")
-                        </span>
-                    </div>
+                <div class="info-row">
+                    <span class="info-label">Khung giờ</span>
+                    <span class="info-value">
+                        @(Model.START_OT.HasValue ? Model.START_OT.Value.ToString("HH:mm") : "--:--") - 
+                        @(Model.END_OT.HasValue ? Model.END_OT.Value.ToString("HH:mm") : "--:--")
+                    </span>
                 </div>
-            }
-
-            <div class="bg-light p-3 rounded text-center mb-3" style="font-size: 1.05rem; color: #334155;">
-                @{
-                    var details = new List<string>();
-                    if (!string.IsNullOrEmpty(Model.OT_BEFORE_TIME) && Model.OT_BEFORE_TIME != "0")
-                        details.Add($"Ca trước: <strong>{Model.OT_BEFORE_TIME}h</strong>");
-                    if (!string.IsNullOrEmpty(Model.OT_AFTER_TIME) && Model.OT_AFTER_TIME != "0")
-                        details.Add($"Ca sau: <strong>{Model.OT_AFTER_TIME}h</strong>");
-                    if (!string.IsNullOrEmpty(Model.OT_REST) && Model.OT_REST != "0" && Model.OT_REST != "0.0")
-                    {
-                        string restFormatted = Model.OT_REST.Replace(" ", "");
-                        if (restFormatted.Contains("-"))
-                        {
-                            var pts = restFormatted.Split('-');
-                            if (pts.Length == 2 && pts[0].Length == 4 && pts[1].Length == 4)
-                                restFormatted = $"{pts[0].Substring(0,2)}:{pts[0].Substring(2,2)} - {pts[1].Substring(0,2)}:{pts[1].Substring(2,2)}";
-                            else
-                                restFormatted = Model.OT_REST;
+                <div class="info-row">
+                    <span class="info-label">Thời gian nghỉ</span>
+                    <span class="info-value">@(string.IsNullOrEmpty(Model.OT_REST) ? "0" : Model.OT_REST)</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Trạng thái</span>
+                    <span class="info-value">
+                        @{
+                            string statusClass = "bg-light text-muted";
+                            string statusText = "Chưa rõ";
+                            if (Model.CONFIRM_STATUS == "PENDING") { statusClass = "bg-warning-subtle text-warning-emphasis"; statusText = "Chờ xác nhận"; }
+                            else if (Model.CONFIRM_STATUS == "CONFIRMED") { statusClass = "bg-success-subtle text-success-emphasis"; statusText = "Đã chấp nhận"; }
+                            else if (Model.CONFIRM_STATUS == "REJECTED") { statusClass = "bg-danger-subtle text-danger-emphasis"; statusText = "Đã từ chối"; }
                         }
-                        else { restFormatted = Model.OT_REST; }
-                        details.Add($"Nghỉ: <strong>{restFormatted}</strong>");
-                    }
-                    if (details.Count > 0)
-                    {
-                        @Html.Raw(string.Join(" <span class='text-muted mx-2'>|</span> ", details))
-                    }
-                    else
-                    {
-                        <span class="text-muted">Không có chi tiết ca</span>
-                    }
-                }
-            </div>
-
-            <div class="row align-items-center mb-3">
-                <div class="col-5 ot-label">Trạng thái:</div>
-                <div class="col-7 text-end">
-                    @{
-                        string statusClass = "bg-secondary";
-                        string statusText = string.IsNullOrEmpty(Model.CONFIRM_STATUS) ? "Chưa có dữ liệu" : Model.CONFIRM_STATUS;
-                        if (Model.CONFIRM_STATUS == "PENDING")   { statusClass = "bg-warning text-dark"; statusText = "Chờ xác nhận"; }
-                        if (Model.CONFIRM_STATUS == "CONFIRMED") { statusClass = "bg-success";           statusText = "Đã đồng ý"; }
-                        if (Model.CONFIRM_STATUS == "REJECTED")  { statusClass = "bg-danger";            statusText = "Đã từ chối"; }
-                    }
-                    <span class="badge @statusClass ot-status-badge">@statusText</span>
+                        <span class="status-badge @statusClass">@statusText</span>
+                    </span>
                 </div>
             </div>
-
-            @if (Model.CONFIRM_STATUS == "REJECTED" && !string.IsNullOrEmpty(Model.REJECT_REASON))
-            {
-                <div class="alert alert-danger mt-3" style="font-size: 1.1rem; border-radius: 12px;">
-                    <strong>Lý do từ chối:</strong> @Model.REJECT_REASON
-                </div>
-            }
 
             @if (Model.CONFIRM_STATUS == "PENDING")
             {
-                <form asp-controller="OT" asp-action="OtConfirmForm" method="post" id="frmOtConfirm" class="mt-4">
+                <div class="note-box">
+                    <img src="~/assets/img/illustrations/chi.png" class="note-icon" alt="Note" />
+                    <div class="note-text">
+                        "Việc làm tăng ca là hoàn toàn <strong>tự nguyện</strong>. Nếu không đồng ý, bạn có thể ra về sau giờ làm việc bình thường."
+                    </div>
+                </div>
+
+                <form asp-controller="OT" asp-action="OtConfirmForm" method="post" id="frmOtConfirm">
                     <input type="hidden" name="empcd" value="@Model.EMPCD" />
                     <input type="hidden" name="confirmStatus" id="confirmStatus" value="" />
 
-                    <div class="alert-warning-box mt-3 mb-4 shadow-sm">
-                        <img src="~/assets/img/illustrations/chi.png" alt="Lưu ý" />
-                        <div class="alert-warning-text">
-                            "Tôi biết được rằng làm tăng ca là <strong>do tự nguyện</strong>, nếu tôi không thích tăng ca tôi chỉ cần không ký nhận và hoàn toàn tự do ra về sau khi hoàn tất giờ làm việc bình thường..."
-                        </div>
-                        <div class="clearfix"></div>
-                    </div>
-
-                    <div class="d-grid flex-column" id="divActionButtons">
-                        @* Html.Partial → await Html.PartialAsync *@
-                        @await Html.PartialAsync("_ConfirmButton", new ConfirmButtonModel
-                        {
-                            Url = "javascript:$('#confirmStatus').val('CONFIRMED'); $('#frmOtConfirm').submit();",
-                            Text = "CHẤP NHẬN TĂNG CA",
-                            ButtonClass = "btn btn-success py-3 rounded-pill mb-3 fw-bold",
-                            Icon = "bi bi-check-circle-fill",
-                            ConfirmMessage = "Bạn có chắc chắn CHẤP NHẬN TĂNG CA với số giờ này?"
-                        })
-
-                        @await Html.PartialAsync("_ConfirmButton", new ConfirmButtonModel
-                        {
-                            Url = "javascript:$('#confirmStatus').val('REJECTED'); $('#frmOtConfirm').submit();",
-                            Text = "KHÔNG CHẤP NHẬN",
-                            ButtonClass = "btn btn-outline-danger py-3 rounded-pill fw-bold bg-white",
-                            Icon = "bi bi-x-circle",
-                            ConfirmMessage = "Bạn có chắc chắn KHÔNG CHẤP NHẬN số giờ tăng ca này?"
-                        })
+                    <div class="action-group">
+                        <button type="button" class="btn-action btn-approve" onclick="submitConfirm('CONFIRMED')">
+                            <span class="material-symbols-rounded">check_circle</span>
+                            CHẤP NHẬN TĂNG CA
+                        </button>
+                        <button type="button" class="btn-action btn-reject" onclick="submitConfirm('REJECTED')">
+                            <span class="material-symbols-rounded">cancel</span>
+                            KHÔNG ĐỒNG Ý
+                        </button>
                     </div>
                 </form>
+            }
+            
+            @if (Model.CONFIRM_STATUS == "REJECTED" && !string.IsNullOrEmpty(Model.REJECT_REASON))
+            {
+                <div class="alert alert-danger mt-3 rounded-4">
+                    <strong>Lý do từ chối:</strong> @Model.REJECT_REASON
+                </div>
             }
         </div>
     }
 </div>
+
+<script>
+    function submitConfirm(status) {
+        const msg = status === 'CONFIRMED' ? 'Bạn chắc chắn CHẤP NHẬN tăng ca?' : 'Bạn chắc chắn KHÔNG ĐỒNG Ý tăng ca?';
+        if (confirm(msg)) {
+            document.getElementById('confirmStatus').value = status;
+            document.getElementById('frmOtConfirm').submit();
+        }
+    }
+</script>

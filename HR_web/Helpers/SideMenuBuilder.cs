@@ -21,6 +21,18 @@ public static class SideMenuBuilder
 
         return new List<SideMenuItem>
         {
+            // ──────── TRANG CHỦ ────────
+            new SideMenuItem
+            {
+                Id = "Home",
+                Title = "Trang chủ",
+                Icon = "home",
+                VisibleWhen = () => true,
+                Children = new List<SideMenuItem>
+                {
+                    new SideMenuItem { Title = "Tổng quan", Url = "~/Home/Index", Icon = "dashboard" },
+                }
+            },
             // ──────── CÁ NHÂN (tất cả mọi người) ────────
             new SideMenuItem
             {

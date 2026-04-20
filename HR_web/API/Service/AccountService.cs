@@ -40,12 +40,8 @@ public class AccountService
     #region LOGIN
     public async Task<UserInfoModel?> LoginAsync(string empcd, string password)
     {
-        var formData = new Dictionary<string, string>
-        {
-            { "empcd", empcd },
-            { "password", password }
-        };
-        var response = await _api.PostFormAsync(LoginEndpoint, formData);
+        var payload = new { EmpCd = empcd, Password = password };
+        var response = await _api.PostAsync(LoginEndpoint, payload);
         var result = await ParseResponse<UserInfoModel>(response);
         return (result != null && result.success) ? result.data : null;
     }
@@ -83,10 +79,7 @@ public class AccountService
     #region USER ACTIONS
     public async Task<bool> ResetPasswordAsync(string empCd, string loginUser)
     {
-        var response = await _api.PostFormAsync("Account/reset-password", new Dictionary<string, string>
-        {
-            { "empcd", empCd }, { "loginUser", loginUser }
-        });
+        var response = await _api.PostAsync("Account/reset-password", new { EmpCd = empCd, LoginUser = loginUser });
         var result = await ParseResponse<object>(response);
         return result != null && result.success;
     }

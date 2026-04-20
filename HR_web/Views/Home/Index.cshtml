@@ -1,8 +1,214 @@
+@using HR_web.Helpers
 @{
-    ViewData["Title"] = "Home Page";
+    ViewData["Title"] = "Trang chủ";
+    var user = AuthHelper.GetCurrentUser(User);
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome to HR_web (.NET 8)</h1>
-    <p>Dự án chuyển đổi từ HRApplication sang .NET 8 đã sẵn sàng.</p>
+<style>
+    /* Reset & Base */
+    .dashboard-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1.25rem;
+    }
+
+    /* Welcome Banner - App Style */
+    .app-header-banner {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        border-radius: 28px;
+        color: #fff;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 12px 30px rgba(79, 70, 229, 0.25);
+    }
+
+    .app-header-banner::after {
+        content: '';
+        position: absolute;
+        width: 150px;
+        height: 150px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 50%;
+        top: -30px;
+        right: -30px;
+        filter: blur(20px);
+    }
+
+    .app-header-banner h1 {
+        font-size: 1.5rem;
+        font-weight: 800;
+        margin: 0;
+    }
+
+    .app-header-banner p {
+        font-size: 0.95rem;
+        opacity: 0.9;
+        margin-top: 0.5rem;
+    }
+
+    /* Grid Layout - Mobile Native feel */
+    .app-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr); /* Always 2 columns on mobile */
+        gap: 1rem;
+    }
+
+    @@media (min-width: 768px) {
+        .app-grid {
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 1.5rem;
+        }
+    }
+
+    /* App Card Style */
+    .app-card {
+        background: #fff;
+        border-radius: 24px;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        text-decoration: none !important;
+        color: inherit !important;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        border: 1px solid rgba(0,0,0,0.03);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+
+    .app-card:active {
+        transform: scale(0.92);
+        background-color: #f8fafc;
+    }
+
+    @@media (hover: hover) {
+        .app-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.08);
+            border-color: #4f46e5;
+        }
+    }
+
+    .app-icon-wrapper {
+        width: 64px;
+        height: 64px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1rem;
+        font-size: 1.75rem;
+        transition: transform 0.3s ease;
+    }
+
+    .app-card:hover .app-icon-wrapper {
+        transform: rotate(5deg) scale(1.1);
+    }
+
+    .app-card-title {
+        font-weight: 700;
+        font-size: 1rem;
+        color: #1e293b;
+        margin-bottom: 0.25rem;
+    }
+
+    .app-card-tag {
+        font-size: 0.75rem;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    /* Themes for cards */
+    .bg-soft-blue { background: #eff6ff; color: #2563eb; }
+    .bg-soft-purple { background: #f5f3ff; color: #7c3aed; }
+    .bg-soft-emerald { background: #ecfdf5; color: #10b981; }
+    .bg-soft-orange { background: #fff7ed; color: #f97316; }
+</style>
+
+<div class="dashboard-container">
+    <!-- Header Banner -->
+    <div class="app-header-banner">
+        <div class="d-flex align-items-center gap-3">
+            <div class="bg-white bg-opacity-20 rounded-circle p-2 d-inline-flex">
+                 <span class="material-symbols-rounded" style="font-size: 2rem;">waving_hand</span>
+            </div>
+            <div>
+                <h1>Xin chào, @(user?.FullName?.Split(' ').Last() ?? "Bạn")!</h1>
+                <p>Hôm nay bạn thế nào?</p>
+            </div>
+        </div>
+        <div class="mt-4 pt-2 border-top border-white border-opacity-10">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="badge bg-white text-dark rounded-pill px-3">@(user?.RoleName ?? "Nhân viên")</span>
+                <small class="opacity-75">@(DateTime.Now.ToString("dd/MM/yyyy"))</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions Grid -->
+    <h5 class="fw-bold mb-3 ms-1" style="color: #334155;">Tính năng chính</h5>
+    <div class="app-grid">
+        <!-- Phiếu lương -->
+        <a asp-controller="Payslip" asp-action="Index" class="app-card">
+            <div class="app-icon-wrapper bg-soft-blue">
+                <span class="material-symbols-rounded">payments</span>
+            </div>
+            <div class="app-card-title">Phiếu lương</div>
+            <div class="app-card-tag">Xem thu nhập</div>
+        </a>
+
+        <!-- Xác nhận Tăng ca -->
+        <a asp-controller="OT" asp-action="OtConfirmForm" class="app-card">
+            <div class="app-icon-wrapper bg-soft-purple">
+                <span class="material-symbols-rounded">history_edu</span>
+            </div>
+            <div class="app-card-title">Xác nhận TC</div>
+            <div class="app-card-tag">Giờ làm việc</div>
+        </a>
+
+        <!-- Hồ sơ cá nhân -->
+        <a asp-controller="Profile" asp-action="ProfileUser" class="app-card">
+            <div class="app-icon-wrapper bg-soft-emerald">
+                <span class="material-symbols-rounded">person_search</span>
+            </div>
+            <div class="app-card-title">Cá nhân</div>
+            <div class="app-card-tag">Hồ sơ & Chữ ký</div>
+        </a>
+
+        @if (user?.RoleName == "HR" || user?.RoleName == "Admin" || user?.RoleName == "Manager" || user?.RoleName == "Clerk")
+        {
+            <!-- Danh sách Tăng ca (Quick access for clerks/managers) -->
+            <a asp-controller="OT" asp-action="OtListForClerk" class="app-card">
+                <div class="app-icon-wrapper bg-soft-orange">
+                    <span class="material-symbols-rounded">fact_check</span>
+                </div>
+                <div class="app-card-title">Duyệt TC</div>
+                <div class="app-card-tag">Quản lý</div>
+            </a>
+        }
+        
+        @if (user?.RoleName == "HR" || user?.RoleName == "Admin")
+        {
+            <!-- Quản lý Tài khoản (Dành riêng cho HR/Admin) -->
+            <a asp-controller="User" asp-action="UserManager" class="app-card" style="grid-column: span 2;">
+                <div class="d-flex align-items-center w-100 gap-3">
+                    <div class="app-icon-wrapper bg-dark text-white mb-0" style="width: 48px; height: 48px; border-radius: 14px;">
+                        <span class="material-symbols-rounded">manage_accounts</span>
+                    </div>
+                    <div class="text-start">
+                        <div class="app-card-title mb-0">Quản lý Nhân sự</div>
+                        <div class="app-card-tag">Phân quyền & Tài khoản</div>
+                    </div>
+                    <span class="material-symbols-rounded ms-auto text-muted">chevron_right</span>
+                </div>
+            </a>
+        }
+    </div>
+
+    <!-- Quick Note / Info Section -->
+    <div class="mt-4 p-3 rounded-4 bg-light text-center border border-dashed border-secondary border-opacity-25">
+        <p class="text-muted small m-0">VietNam Samho Co., LTD · Phiên bản Web Mobile 2.0</p>
+    </div>
 </div>

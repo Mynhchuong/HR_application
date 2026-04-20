@@ -24,7 +24,7 @@ public class AccountController : Controller
     {
         // Nếu đã đăng nhập rồi → về trang chủ
         if (User.Identity?.IsAuthenticated == true)
-            return RedirectToAction("UserManager", "User");
+            return RedirectToAction("Index", "Home");
 
         var model = new LoginModel();
 
@@ -86,7 +86,7 @@ public class AccountController : Controller
             return RedirectToAction("ProfileUser", "Profile");
         }
 
-        return RedirectToAction("UserManager", "User");
+        return RedirectToAction("Index", "Home");
     }
 
     // ─────────────────────────────────────────────

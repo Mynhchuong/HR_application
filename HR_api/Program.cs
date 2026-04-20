@@ -47,19 +47,36 @@ var app = builder.Build();
 // 2. MIDDLEWARE PIPELINE
 // ============================================================
 
-// Always show Swagger in this demo/dev phase
+// Luôn hiện lỗi chi tiết để debug trên server
+app.UseDeveloperExceptionPage();
+
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "HR API v1");
-    c.RoutePrefix = string.Empty; // Set Swagger as the default page
+    c.SwaggerEndpoint("swagger/v1/swagger.json", "HR API v1");
+    c.RoutePrefix = string.Empty;
 });
 
 app.UseCors("AllowAll");
 
-app.UseHttpsRedirection();
+// Tạm thời tắt Redirect để tránh lỗi SSL trên mạng nội bộ
+// app.UseHttpsRedirection();
 
 app.UseAuthorization();
+
+// Endpoint kiểm tra kết nối DB nhanh
+app.MapGet("/check-db", async (OracleService db) =>
+{
+    try
+    {
+        await db.ExecuteQueryAsync("SELECT 1 FROM DUAL", r => 1);
+        return Results.Ok(new { success = true, message = "Kết nối Oracle 10g THÀNH CÔNG!" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new { success = false, message = "LỖI KẾT NỐI DB: " + ex.Message, detail = ex.ToString() });
+    }
+});
 
 app.MapControllers();
 

@@ -230,34 +230,49 @@ public class OTController : ControllerBase
             DateTime workDate = string.IsNullOrEmpty(work_date) ? DateTime.Today : DateTime.Parse(work_date);
 
             string sql = @"
-                SELECT EC.DEPTCD DEPT_ID, MAX(B.DEPTNM) DEPT_NAME, COUNT(*) TOTAL,
-                       SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'CONFIRMED' THEN 1 ELSE 0 END) CONFIRMED,
-                       SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'REJECTED'  THEN 1 ELSE 0 END) REJECTED,
-                       SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING'   THEN 1 ELSE 0 END) PENDING,
-                       CASE WHEN SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING' THEN 1 ELSE 0 END) = 0 THEN 'DONE' ELSE 'IN_PROGRESS' END STATUS
-                FROM (SELECT EMPCD, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_AFTER) OT_AFTER
-                      FROM (SELECT EMPCD, OT_BEFORE, OT_AFTER FROM HRMS.EBM300 WHERE DAT = :WORK_DATE
-                            UNION ALL
-                            SELECT EMPCD, OT_BEFORE, OT_AFTER FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2)
-                      GROUP BY EMPCD) OT
-                JOIN HRMS.ECM100 EC ON EC.EMPCD = OT.EMPCD
-                LEFT JOIN HRMS.EAM410 B ON EC.DEPTCD = B.DEPTCD AND EC.LINECD = B.LINECD AND EC.WORKCD = B.WORKCD
-                LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :WORK_DATE3
-                WHERE NVL(EC.RETDAT,'9999') > TO_CHAR(SYSDATE,'YYYYMMDD') AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
+                WITH OT AS (
+                    SELECT EMPCD, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_AFTER) OT_AFTER
+                    FROM (
+                        SELECT EMPCD, OT_BEFORE, OT_AFTER FROM HRMS.EBM300      WHERE DAT = :WORK_DATE
+                        UNION ALL
+                        SELECT EMPCD, OT_BEFORE, OT_AFTER FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2
+                    )
+                    GROUP BY EMPCD
+                )
+                SELECT
+                    EC.DEPTCD                                                                               DEPT_ID,
+                    MAX(B.DEPTNM)                                                                           DEPT_NAME,
+                    COUNT(*)                                                                                TOTAL,
+                    SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'CONFIRMED' THEN 1 ELSE 0 END)         CONFIRMED,
+                    SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'REJECTED'  THEN 1 ELSE 0 END)         REJECTED,
+                    SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING'   THEN 1 ELSE 0 END)         PENDING,
+                    CASE WHEN SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING' THEN 1 ELSE 0 END) = 0
+                         THEN 'DONE' ELSE 'IN_PROGRESS' END                                                STATUS
+                FROM OT
+                JOIN      HRMS.ECM100        EC ON EC.EMPCD = OT.EMPCD
+                LEFT JOIN HRMS.EAM410         B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD  = OT.EMPCD  AND R.WORK_DATE = :WORK_DATE3
+                WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
                   AND (:DEPT_ID IS NULL OR EC.DEPTCD = :DEPT_ID2)
-                GROUP BY EC.DEPTCD ORDER BY STATUS, EC.DEPTCD";
+                GROUP BY EC.DEPTCD
+                ORDER BY STATUS, EC.DEPTCD";
 
-            var result = await _oracleService.ExecuteQueryAsync(sql, r => new OTHRSummaryModel {
-                DEPT_ID = r["DEPT_ID"]?.ToString(),
+            var result = await _oracleService.ExecuteQueryAsync(sql, r => new OTHRSummaryModel
+            {
+                DEPT_ID   = r["DEPT_ID"]?.ToString(),
                 DEPT_NAME = r["DEPT_NAME"]?.ToString(),
-                TOTAL = Convert.ToInt32(r["TOTAL"]),
+                TOTAL     = Convert.ToInt32(r["TOTAL"]),
                 CONFIRMED = Convert.ToInt32(r["CONFIRMED"]),
-                REJECTED = Convert.ToInt32(r["REJECTED"]),
-                PENDING = Convert.ToInt32(r["PENDING"]),
-                STATUS = r["STATUS"]?.ToString()
+                REJECTED  = Convert.ToInt32(r["REJECTED"]),
+                PENDING   = Convert.ToInt32(r["PENDING"]),
+                STATUS    = r["STATUS"]?.ToString()
             },
-            new OracleParameter("WORK_DATE", workDate), new OracleParameter("WORK_DATE2", workDate), new OracleParameter("WORK_DATE3", workDate),
-            new OracleParameter("DEPT_ID", (object?)dept_id ?? DBNull.Value), new OracleParameter("DEPT_ID2", (object?)dept_id ?? DBNull.Value));
+            new OracleParameter("WORK_DATE",  workDate),
+            new OracleParameter("WORK_DATE2", workDate),
+            new OracleParameter("WORK_DATE3", workDate),
+            new OracleParameter("DEPT_ID",    (object?)dept_id ?? DBNull.Value),
+            new OracleParameter("DEPT_ID2",   (object?)dept_id ?? DBNull.Value));
 
             return Ok(new { success = true, data = result });
         }
@@ -268,109 +283,163 @@ public class OTController : ControllerBase
     }
 
     [HttpGet("hr/detail")]
-    public async Task<IActionResult> GetOTHRDetail(string? work_date = null, string? dept_id = null, string? search = null, 
-        string? status = null, string? dept_name = null, string? line_name = null, int page = 1, int page_size = 100)
+    public async Task<IActionResult> GetOTHRDetail(
+        string? work_date  = null,
+        string? dept_id    = null,
+        string? search     = null,
+        string? status     = null,
+        string? dept_name  = null,
+        string? line_name  = null,
+        int     page       = 1,
+        int     page_size  = 100)
     {
         try
         {
             DateTime workDate;
-            if (!DateTime.TryParseExact(work_date, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out workDate))
+            if (!DateTime.TryParseExact(work_date, "yyyy-MM-dd", null,
+                System.Globalization.DateTimeStyles.None, out workDate))
                 workDate = DateTime.Today;
 
             int offset = (page - 1) * page_size;
-            int maxRn = offset + page_size;
+            int maxRn  = offset + page_size;
             string searchPattern = string.IsNullOrEmpty(search) ? "%" : "%" + search.ToUpper() + "%";
 
-            string baseFrom = @"
-                  FROM (SELECT EMPCD, DAT, SHIFTCD, MAX(OVER_TIME) OT_HOURS, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_BEFORE_TIME) OT_BEFORE_TIME, 
-                               MAX(OT_AFTER) OT_AFTER, MAX(OT_AFTER_TIME) OT_AFTER_TIME
-                        FROM (SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME FROM HRMS.EBM300 WHERE DAT = :W_DATE1
-                              UNION ALL
-                              SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME FROM HRMS.EBM300_WAIT WHERE DAT = :W_DATE2)
-                        GROUP BY EMPCD, DAT, SHIFTCD) OT
-                  JOIN HRMS.ECM100 EC ON EC.EMPCD = OT.EMPCD 
-                  JOIN HRMS.EBM100 S  ON S.SHIFTCD = OT.SHIFTCD
-                  LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-                  LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :W_DATE3 ";
+            // Common SQL parts
+            string withSql = @"
+                WITH OT_BASE AS (
+                    SELECT EMPCD, DAT, SHIFTCD,
+                           MAX(OVER_TIME)      OT_HOURS,
+                           MAX(OT_BEFORE)      OT_BEFORE,
+                           MAX(OT_BEFORE_TIME) OT_BEFORE_TIME,
+                           MAX(OT_AFTER)       OT_AFTER,
+                           MAX(OT_AFTER_TIME)  OT_AFTER_TIME
+                    FROM (
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME
+                        FROM HRMS.EBM300      WHERE DAT = :W_DATE1
+                        UNION ALL
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME
+                        FROM HRMS.EBM300_WAIT WHERE DAT = :W_DATE2
+                    )
+                    GROUP BY EMPCD, DAT, SHIFTCD
+                )";
 
-            string filterSql = @"
-                  WHERE NVL(EC.RETDAT,'9999') > TO_CHAR(SYSDATE,'YYYYMMDD') AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
-                    AND (:S_FLAG IS NULL OR (OT.EMPCD LIKE :S_VAL1 OR UPPER(EC.CNAME) LIKE :S_VAL2))
-                    AND (:ST_FLAG IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
-                    AND (:DF_FLAG IS NULL OR UPPER(B.DEPTNM) LIKE '%' || UPPER(:DF_VAL) || '%')
-                    AND (:LF_FLAG IS NULL OR UPPER(B.TEAMNM) LIKE '%' || UPPER(:LF_VAL) || '%')
-                    AND (:DID_FLAG IS NULL OR EC.DEPTCD = :DID_VAL) ";
+            string fromSql = @"
+                FROM OT_BASE OT
+                JOIN      HRMS.ECM100        EC ON EC.EMPCD  = OT.EMPCD
+                JOIN      HRMS.EBM100         S ON S.SHIFTCD = OT.SHIFTCD
+                LEFT JOIN HRMS.EAM410         B ON B.DEPTCD  = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD   = OT.EMPCD  AND R.WORK_DATE = :W_DATE3";
 
-            string sqlCount = "SELECT COUNT(*) CNT " + baseFrom + filterSql;
-            var dataParams = new List<OracleParameter> {
-                new OracleParameter("W_DATE1", workDate), new OracleParameter("W_DATE2", workDate), new OracleParameter("W_DATE3", workDate),
-                new OracleParameter("S_FLAG", (object?)(string.IsNullOrEmpty(search) ? null : "Y") ?? DBNull.Value),
-                new OracleParameter("S_VAL1", searchPattern), new OracleParameter("S_VAL2", searchPattern),
-                new OracleParameter("ST_FLAG", (object?)(string.IsNullOrEmpty(status) ? null : "Y") ?? DBNull.Value),
-                new OracleParameter("ST_VAL", (object?)status ?? DBNull.Value),
-                new OracleParameter("DF_FLAG", (object?)(string.IsNullOrEmpty(dept_name) ? null : "Y") ?? DBNull.Value),
-                new OracleParameter("DF_VAL", (object?)dept_name ?? DBNull.Value),
-                new OracleParameter("LF_FLAG", (object?)(string.IsNullOrEmpty(line_name) ? null : "Y") ?? DBNull.Value),
-                new OracleParameter("LF_VAL", (object?)line_name ?? DBNull.Value),
-                new OracleParameter("DID_FLAG", (object?)(string.IsNullOrEmpty(dept_id) ? null : "Y") ?? DBNull.Value),
-                new OracleParameter("DID_VAL", (object?)dept_id ?? DBNull.Value)
+            string whereSql = @"
+                WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
+                  AND (:S_FLAG  IS NULL OR (OT.EMPCD LIKE :S_VAL1 OR UPPER(EC.CNAME) LIKE :S_VAL2))
+                  AND (:ST_FLAG IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
+                  AND (:DF_FLAG IS NULL OR UPPER(B.DEPTNM) LIKE '%' || UPPER(:DF_VAL) || '%')
+                  AND (:LF_FLAG IS NULL OR UPPER(B.TEAMNM) LIKE '%' || UPPER(:LF_VAL) || '%')
+                  AND (:DID_FLAG IS NULL OR EC.DEPTCD = :DID_VAL)";
+
+            var baseParams = new List<OracleParameter>
+            {
+                new OracleParameter("W_DATE1",  workDate),
+                new OracleParameter("W_DATE2",  workDate),
+                new OracleParameter("W_DATE3",  workDate),
+                new OracleParameter("S_FLAG",   (object?)(string.IsNullOrEmpty(search)    ? null : "Y") ?? DBNull.Value),
+                new OracleParameter("S_VAL1",   searchPattern),
+                new OracleParameter("S_VAL2",   searchPattern),
+                new OracleParameter("ST_FLAG",  (object?)(string.IsNullOrEmpty(status)    ? null : "Y") ?? DBNull.Value),
+                new OracleParameter("ST_VAL",   (object?)status    ?? DBNull.Value),
+                new OracleParameter("DF_FLAG",  (object?)(string.IsNullOrEmpty(dept_name) ? null : "Y") ?? DBNull.Value),
+                new OracleParameter("DF_VAL",   (object?)dept_name ?? DBNull.Value),
+                new OracleParameter("LF_FLAG",  (object?)(string.IsNullOrEmpty(line_name) ? null : "Y") ?? DBNull.Value),
+                new OracleParameter("LF_VAL",   (object?)line_name ?? DBNull.Value),
+                new OracleParameter("DID_FLAG", (object?)(string.IsNullOrEmpty(dept_id)   ? null : "Y") ?? DBNull.Value),
+                new OracleParameter("DID_VAL",  (object?)dept_id   ?? DBNull.Value)
             };
 
-            var totalRows = await _oracleService.ExecuteQueryAsync(sqlCount, r => r["CNT"], dataParams.Select(p => (OracleParameter)p.Clone()).ToArray());
-            int total = totalRows.Count > 0 ? Convert.ToInt32(totalRows[0]) : 0;
+            // 1. GET TOTAL COUNT
+            string sqlCount = withSql + " SELECT COUNT(*) " + fromSql + whereSql;
+            var countResult = await _oracleService.ExecuteQueryAsync(sqlCount, r => Convert.ToInt32(r[0]), baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
+            int total = countResult.FirstOrDefault();
 
-            string sqlPaged = $@"
+            if (total == 0)
+            {
+                return Ok(new { success = true, total = 0, page, page_size, total_pages = 0, data = new List<OTHRDetailModel>() });
+            }
+
+            // 2. GET PAGED DATA
+            string sqlData = withSql + @"
                 SELECT * FROM (
                     SELECT T.*, ROW_NUMBER() OVER (ORDER BY CONFIRM_STATUS, DEPT_ID, LINE_ID, EMPCD) RN
                     FROM (
-                        SELECT OT.*, EC.CNAME EMP_NAME, EC.DEPTCD DEPT_ID, EC.LINECD LINE_ID, EC.WORKCD WORK_ID,
-                               B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
-                               S.STIME, S.ETIME, NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE, R.REJECT_REASON
-                        {baseFrom} {filterSql}
+                        SELECT
+                            OT.EMPCD, OT.DAT, OT.SHIFTCD, OT.OT_HOURS, OT.OT_BEFORE, OT.OT_BEFORE_TIME, OT.OT_AFTER, OT.OT_AFTER_TIME,
+                            EC.CNAME EMP_NAME, EC.DEPTCD DEPT_ID, EC.LINECD LINE_ID, EC.WORKCD WORK_ID,
+                            B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
+                            S.STIME, S.ETIME,
+                            NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE, R.REJECT_REASON
+                        " + fromSql + whereSql + @"
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
 
+            var dataParams = baseParams.Select(p => (OracleParameter)p.Clone()).ToList();
             dataParams.Add(new OracleParameter("R_MIN", offset));
             dataParams.Add(new OracleParameter("R_MAX", maxRn));
 
-            var data = await _oracleService.ExecuteQueryAsync(sqlPaged, r => {
-                var model = new OTHRDetailModel {
-                    EMPCD = r["EMPCD"]?.ToString() ?? string.Empty,
-                    EMP_NAME = r["EMP_NAME"]?.ToString(),
-                    DEPT_ID = r["DEPT_ID"]?.ToString(),
-                    DEPT_NAME = r["DEPT_NAME"]?.ToString(),
-                    LINE_ID = r["LINE_ID"]?.ToString(),
-                    LINE_NAME = r["LINE_NAME"]?.ToString(),
-                    WORK_ID = r["WORK_ID"]?.ToString(),
-                    WORK_NAME = r["WORK_NAME"]?.ToString(),
-                    OT_HOURS = r["OT_HOURS"] == DBNull.Value ? null : Convert.ToDecimal(r["OT_HOURS"]),
-                    OT_BEFORE = r["OT_BEFORE"]?.ToString(),
+            var rows = await _oracleService.ExecuteQueryAsync(sqlData, r =>
+            {
+                var model = new OTHRDetailModel
+                {
+                    EMPCD          = r["EMPCD"]?.ToString() ?? string.Empty,
+                    EMP_NAME       = r["EMP_NAME"]?.ToString(),
+                    DEPT_ID        = r["DEPT_ID"]?.ToString(),
+                    DEPT_NAME      = r["DEPT_NAME"]?.ToString(),
+                    LINE_ID        = r["LINE_ID"]?.ToString(),
+                    LINE_NAME      = r["LINE_NAME"]?.ToString(),
+                    WORK_ID        = r["WORK_ID"]?.ToString(),
+                    WORK_NAME      = r["WORK_NAME"]?.ToString(),
+                    OT_HOURS       = r["OT_HOURS"] == DBNull.Value ? null : Convert.ToDecimal(r["OT_HOURS"]),
+                    OT_BEFORE      = r["OT_BEFORE"]?.ToString(),
                     OT_BEFORE_TIME = r["OT_BEFORE_TIME"]?.ToString(),
-                    OT_AFTER = r["OT_AFTER"]?.ToString(),
-                    OT_AFTER_TIME = r["OT_AFTER_TIME"]?.ToString(),
+                    OT_AFTER       = r["OT_AFTER"]?.ToString(),
+                    OT_AFTER_TIME  = r["OT_AFTER_TIME"]?.ToString(),
                     CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
-                    CONFIRM_DATE = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
-                    REJECT_REASON = r["REJECT_REASON"]?.ToString()
+                    CONFIRM_DATE   = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
+                    REJECT_REASON  = r["REJECT_REASON"]?.ToString(),
+                    TOTAL_COUNT    = total
                 };
-                try {
-                    DateTime baseDate = Convert.ToDateTime(r["DAT"]);
-                    string sTime = r["STIME"]?.ToString() ?? "0000";
-                    string eTime = r["ETIME"]?.ToString() ?? "0000";
-                    if (sTime.Length == 3) sTime = "0" + sTime;
-                    if (eTime.Length == 3) eTime = "0" + eTime;
 
-                    if (model.OT_AFTER == "Y" && eTime.Length == 4) {
+                try
+                {
+                    DateTime baseDate = Convert.ToDateTime(r["DAT"]);
+                    string sTime = (r["STIME"]?.ToString() ?? "0000").PadLeft(4, '0');
+                    string eTime = (r["ETIME"]?.ToString() ?? "0000").PadLeft(4, '0');
+
+                    if (model.OT_AFTER == "Y")
+                    {
                         model.START_OT = DateTime.ParseExact(baseDate.ToString("yyyyMMdd") + eTime, "yyyyMMddHHmm", null);
-                        model.END_OT = model.START_OT.Value.AddHours((double)(model.OT_HOURS ?? 0));
-                    } else if (model.OT_BEFORE == "Y" && sTime.Length == 4) {
-                        model.END_OT = DateTime.ParseExact(baseDate.ToString("yyyyMMdd") + sTime, "yyyyMMddHHmm", null);
+                        model.END_OT   = model.START_OT.Value.AddHours((double)(model.OT_HOURS ?? 0));
+                    }
+                    else if (model.OT_BEFORE == "Y")
+                    {
+                        model.END_OT   = DateTime.ParseExact(baseDate.ToString("yyyyMMdd") + sTime, "yyyyMMddHHmm", null);
                         model.START_OT = model.END_OT.Value.AddHours(-(double)(model.OT_HOURS ?? 0));
                     }
-                } catch { }
+                }
+                catch { }
+
                 return model;
             }, dataParams.ToArray());
 
-            return Ok(new { success = true, total, page, page_size, total_pages = (int)Math.Ceiling((double)total/page_size), data });
+            return Ok(new
+            {
+                success     = true,
+                total,
+                page,
+                page_size,
+                total_pages = page_size > 0 ? (int)Math.Ceiling((double)total / page_size) : 0,
+                data        = rows
+            });
         }
         catch (Exception ex)
         {

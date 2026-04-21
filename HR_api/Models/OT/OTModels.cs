@@ -85,6 +85,7 @@ public class OTHRDetailModel
     public string? REJECT_REASON { get; set; }
     public DateTime? START_OT { get; set; }      
     public DateTime? END_OT { get; set; }       
+    public int TOTAL_COUNT { get; set; }
 }
 
 public class OTConfirmRequest

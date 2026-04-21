@@ -6,9 +6,6 @@ using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ============================================================
-// 1. MVC + Views
-// ============================================================
 builder.Services.AddControllersWithViews(options =>
 {
     // Global filter: thay RequireUpdateProfileAttribute cũ
@@ -19,9 +16,6 @@ builder.Services.AddControllersWithViews(options =>
     options.SerializerSettings.ContractResolver = new Newtonsoft.Json.Serialization.DefaultContractResolver();
 });
 
-// ============================================================
-// 2. Cookie Authentication (thay FormsAuthentication)
-// ============================================================
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
@@ -35,9 +29,6 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.HttpOnly = true;
     });
 
-// ============================================================
-// 3. HttpContextAccessor (để đọc user trong helper/service)
-// ============================================================
 builder.Services.AddHttpContextAccessor();
 
 // ============================================================
@@ -48,7 +39,7 @@ builder.Services.AddHttpClient("SamhoAPI", client =>
     var baseUrl = builder.Configuration["ApiSettings:BaseUrl"]
                   ?? "http://192.168.1.24/HR_api/apiHR/";
     client.BaseAddress = new Uri(baseUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
+    client.Timeout = TimeSpan.FromSeconds(60);
 });
 
 // ============================================================
@@ -75,7 +66,7 @@ builder.WebHost.ConfigureKestrel(k =>
 
 // ============================================================
 // 5. Register Application Services (DI)
-// ============================================================
+// ===========================================================
 builder.Services.AddScoped<HR_web.API.ApiService>();
 builder.Services.AddScoped<HR_web.API.Service.AccountService>();
 builder.Services.AddScoped<HR_web.API.Service.OtService>();

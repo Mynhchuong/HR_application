@@ -66,9 +66,9 @@ public class OTController : BaseController
     {
         try
         {
-            var summary = await _otService.GetOTHRSummaryAsync(work_date, dept_id);
-
-            ViewBag.Summary = summary;
+            // Skipped the slow server-side summary call (7s). 
+            // The dashboard summary will be updated dynamically by Javascript via GetOTHRDetailPage.
+            ViewBag.Summary = new List<OTHRSummaryModel>();
             ViewBag.WorkDate = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
             ViewBag.DeptId = dept_id;
 

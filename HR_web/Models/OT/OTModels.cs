@@ -105,6 +105,14 @@ public class OTHRDetailModel
     public DateTime? END_OT { get; set; }
 }
 
+public class OTHRGlobalSummary
+{
+    public int TOTAL { get; set; }
+    public int CONFIRMED { get; set; }
+    public int REJECTED { get; set; }
+    public int PENDING { get; set; }
+}
+
 public class OTHRDetailPagedResponse
 {
     public bool success { get; set; }
@@ -113,6 +121,7 @@ public class OTHRDetailPagedResponse
     public int page_size { get; set; }
     public int total { get; set; }
     public int total_pages { get; set; }
+    public OTHRGlobalSummary? summary { get; set; }
     public List<OTHRDetailModel>? data { get; set; }
 }
 

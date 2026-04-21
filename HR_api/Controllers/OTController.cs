@@ -304,10 +304,10 @@ public class OTController : ControllerBase
             int maxRn  = offset + page_size;
             string searchPattern = string.IsNullOrEmpty(search) ? "%" : "%" + search.ToUpper() + "%";
 
-            // Common SQL parts
+            // Optimized WITH clause with MATERIALIZE hint for Oracle 10
             string withSql = @"
                 WITH OT_BASE AS (
-                    SELECT EMPCD, DAT, SHIFTCD,
+                    SELECT /*+ MATERIALIZE */ EMPCD, DAT, SHIFTCD,
                            MAX(OVER_TIME)      OT_HOURS,
                            MAX(OT_BEFORE)      OT_BEFORE,
                            MAX(OT_BEFORE_TIME) OT_BEFORE_TIME,
@@ -357,19 +357,34 @@ public class OTController : ControllerBase
                 new OracleParameter("DID_VAL",  (object?)dept_id   ?? DBNull.Value)
             };
 
-            // 1. GET TOTAL COUNT
-            string sqlCount = withSql + " SELECT COUNT(*) " + fromSql + whereSql;
-            var countResult = await _oracleService.ExecuteQueryAsync(sqlCount, r => Convert.ToInt32(r[0]), baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
-            int total = countResult.FirstOrDefault();
+            // 1. GET GLOBAL SUMMARY (Counts by Status)
+            // Note: We use simpler joins for the summary if possible, but here we keep it consistent.
+            string sqlSummary = withSql + @"
+                SELECT 
+                    COUNT(*) TOTAL,
+                    SUM(CASE WHEN NVL(R.CONFIRM_STATUS, 'PENDING') = 'PENDING' THEN 1 ELSE 0 END) PENDING,
+                    SUM(CASE WHEN R.CONFIRM_STATUS = 'DONE' THEN 1 ELSE 0 END) CONFIRMED,
+                    SUM(CASE WHEN R.CONFIRM_STATUS = 'REJECT' THEN 1 ELSE 0 END) REJECTED
+                " + fromSql + whereSql;
 
-            if (total == 0)
+            var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new
             {
-                return Ok(new { success = true, total = 0, page, page_size, total_pages = 0, data = new List<OTHRDetailModel>() });
+                TOTAL     = Convert.ToInt32(r["TOTAL"]),
+                PENDING   = Convert.ToInt32(r["PENDING"]),
+                CONFIRMED = Convert.ToInt32(r["CONFIRMED"]),
+                REJECTED  = Convert.ToInt32(r["REJECTED"])
+            }, baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
+
+            var summary = summaryRows.FirstOrDefault() ?? new { TOTAL = 0, PENDING = 0, CONFIRMED = 0, REJECTED = 0 };
+
+            if (summary.TOTAL == 0)
+            {
+                return Ok(new { success = true, summary, total = 0, page, page_size, total_pages = 0, data = new List<OTHRDetailModel>() });
             }
 
             // 2. GET PAGED DATA
             string sqlData = withSql + @"
-                SELECT * FROM (
+                SELECT /*+ FIRST_ROWS(" + page_size + @") */ * FROM (
                     SELECT T.*, ROW_NUMBER() OVER (ORDER BY CONFIRM_STATUS, DEPT_ID, LINE_ID, EMPCD) RN
                     FROM (
                         SELECT
@@ -406,7 +421,7 @@ public class OTController : ControllerBase
                     CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
                     CONFIRM_DATE   = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
                     REJECT_REASON  = r["REJECT_REASON"]?.ToString(),
-                    TOTAL_COUNT    = total
+                    TOTAL_COUNT    = summary.TOTAL
                 };
 
                 try
@@ -434,10 +449,11 @@ public class OTController : ControllerBase
             return Ok(new
             {
                 success     = true,
-                total,
+                summary,
+                total       = summary.TOTAL,
                 page,
                 page_size,
-                total_pages = page_size > 0 ? (int)Math.Ceiling((double)total / page_size) : 0,
+                total_pages = page_size > 0 ? (int)Math.Ceiling((double)summary.TOTAL / page_size) : 0,
                 data        = rows
             });
         }

@@ -172,22 +172,29 @@
                 page_size: pageSize
             },
             success: function(res) {
-                if (!res || res.success === false || res.success === undefined) { 
+                // Lưu ý: Dùng PascalCase (Success, Summary, Data...) để khớp với cấu hình DefaultContractResolver
+                const isSuccess = res.Success || res.success;
+                const msg = res.Message || res.message;
+                
+                if (!res || isSuccess === false) { 
                     const rawJson = JSON.stringify(res);
-                    $('#otTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${res?.message||'Dữ liệu không hợp lệ'}<br/><small class="text-muted">Raw: ${rawJson}</small></td></tr>`); 
+                    $('#otTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${msg || 'Dữ liệu không hợp lệ'}<br/><small class="text-muted">Raw: ${rawJson}</small></td></tr>`); 
                     return; 
                 }
                 
                 // Update Summary Dashboard
-                if (res.summary) {
-                    $('#summaryTotal').text(res.summary.total.toLocaleString());
-                    $('#summaryPending').text(res.summary.pending.toLocaleString());
-                    $('#summaryConfirmed').text(res.summary.confirmed.toLocaleString());
-                    $('#summaryRejected').text(res.summary.rejected.toLocaleString());
+                const summary = res.Summary || res.summary;
+                if (summary) {
+                    $('#summaryTotal').text((summary.TOTAL || summary.Total || 0).toLocaleString());
+                    $('#summaryPending').text((summary.PENDING || summary.Pending || 0).toLocaleString());
+                    $('#summaryConfirmed').text((summary.CONFIRMED || summary.Confirmed || 0).toLocaleString());
+                    $('#summaryRejected').text((summary.REJECTED || summary.Rejected || 0).toLocaleString());
                 }
 
-                totalRecords = res.total; totalPages = res.total_pages;
-                const html = (res.data || []).map((item, i) => buildRow(item, (page-1)*pageSize+i+1));
+                totalRecords = res.Total || res.total || 0; 
+                totalPages = res.Total_pages || res.TotalPages || res.total_pages || 0;
+                const data = res.Data || res.data || [];
+                const html = data.map((item, i) => buildRow(item, (page-1)*pageSize+i+1));
                 $('#otTableBody').html(html.join('') || `<tr><td colspan="9" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
                 renderPagination();
             },

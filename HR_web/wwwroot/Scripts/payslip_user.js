@@ -55,8 +55,10 @@ $(document).ready(function () {
                 valStr = item.TEXT_VALUE;
             }
 
-            // Append units based on item name/type
-            if (item.AMOUNT !== null && valStr !== '-') {
+            // Append units (Prioritize database UNIT, fallback to hardcoded logic)
+            if (item.UNIT) {
+                valStr += ' ' + item.UNIT;
+            } else if (item.AMOUNT !== null && valStr !== '-') {
                 const nameLower = (item.ITEM_NAME || '').toLowerCase();
                 const code = item.ITEM_CODE || '';
 

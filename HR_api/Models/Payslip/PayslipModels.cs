@@ -27,6 +27,7 @@ public class PayrollItemModel
     public string ITEM_TYPE { get; set; } = string.Empty;
     public int IS_VISIBLE { get; set; }
     public decimal DISPLAY_ORDER { get; set; }
+    public string? UNIT { get; set; }
 }
 
 public class PayrollDataModel
@@ -37,6 +38,7 @@ public class PayrollDataModel
     public decimal? AMOUNT { get; set; }
     public string TEXT_VALUE { get; set; } = string.Empty;
     public int IS_VISIBLE { get; set; }
+    public string? UNIT { get; set; }
 }
 
 public class PayslipUploadRow

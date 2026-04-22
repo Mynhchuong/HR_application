@@ -21,19 +21,21 @@ public class PayrollItemModel
     public decimal ID { get; set; }
     public string? ITEM_CODE { get; set; }
     public string? ITEM_NAME { get; set; }
-    public string? ITEM_TYPE { get; set; }
+    public string ITEM_TYPE { get; set; } = string.Empty;
     public int IS_VISIBLE { get; set; }
     public decimal DISPLAY_ORDER { get; set; }
+    public string? UNIT { get; set; }
 }
 
 public class PayrollDataModel
 {
-    public string? ITEM_CODE { get; set; }
-    public string? ITEM_NAME { get; set; }
-    public string? ITEM_TYPE { get; set; }
+    public string ITEM_CODE { get; set; } = string.Empty;
+    public string ITEM_NAME { get; set; } = string.Empty;
+    public string ITEM_TYPE { get; set; } = string.Empty;
     public decimal? AMOUNT { get; set; }
-    public string? TEXT_VALUE { get; set; }
+    public string TEXT_VALUE { get; set; } = string.Empty;
     public int IS_VISIBLE { get; set; }
+    public string? UNIT { get; set; }
 }
 
 public class PayslipUploadRow

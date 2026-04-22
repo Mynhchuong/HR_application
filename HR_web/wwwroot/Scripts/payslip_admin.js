@@ -112,7 +112,7 @@ $(document).ready(function () {
                             <td class="ps-4">${item.DISPLAY_ORDER}</td>
                             <td>
                                 <div class="d-flex flex-column">
-                                    <h6 class="mb-0 text-sm">${item.ITEM_NAME}</h6>
+                                    <h6 class="mb-0 text-sm">${item.ITEM_NAME} ${item.UNIT ? `<span class="badge bg-light text-secondary ms-1">${item.UNIT}</span>` : ''}</h6>
                                     <p class="text-xs text-secondary mb-0">${item.ITEM_CODE}</p>
                                 </div>
                             </td>
@@ -316,7 +316,6 @@ $(document).ready(function () {
                     html = '<tr><td colspan="3" class="text-center text-muted py-4">Không tìm thấy dữ liệu</td></tr>';
                 } else {
                     res.data.forEach(row => {
-                        const thucLanh = row.Details.find(x => x.ITEM_CODE === 'THUC_LANH')?.AMOUNT || 0;
                         html += `
                             <tr>
                                 <td class="ps-4">
@@ -325,12 +324,9 @@ $(document).ready(function () {
                                         <p class="text-xs text-secondary mb-0">${row.EMPCD}</p>
                                     </div>
                                 </td>
-                                <td class="text-center font-weight-bold">
-                                    <span class="text-dark">${thucLanh.toLocaleString()} VNĐ</span>
-                                </td>
                                 <td class="text-center">
                                     <button class="btn btn-link text-info text-gradient px-3 mb-0 btn-view-detail" 
-                                            data-empcd="${row.EMPCD}">
+                                            data-empcd="${row.EMPCD}" data-name="${row.EMP_NAME}">
                                         <i class="fas fa-eye me-2"></i> Chi tiết
                                     </button>
                                 </td>
@@ -414,6 +410,41 @@ $(document).ready(function () {
             if (res.success) {
                 AlertHelper.success(res.message);
                 setTimeout(() => location.reload(), 1500); // Wait for toast
+            }
+        });
+    });
+
+    // 8. Xem chi tiết
+    $(document).on('click', '.btn-view-detail', function() {
+        const empcd = $(this).data('empcd');
+        const name = $(this).data('name');
+        
+        $('#modalDetailName').text(name);
+        $('#modalDetailEmpCd').text('Mã thẻ: ' + empcd);
+        $('#tbodyDetailItems').html('<tr><td colspan="2" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> Đang tải...</td></tr>');
+        $('#modalViewDetail').modal('show');
+
+        $.get('/Payslip/GetMyPayslip', { empcd: empcd, periodId: currentPeriodId }, function(res) {
+            if (res.success && res.data) {
+                let html = '';
+                res.data.forEach(item => {
+                    let valStr = item.AMOUNT !== null ? item.AMOUNT.toLocaleString() : (item.TEXT_VALUE || '-');
+                    if (item.UNIT && valStr !== '-') valStr += ' ' + item.UNIT;
+                    
+                    html += `
+                        <tr>
+                            <td class="ps-4">
+                                <span class="text-xs font-weight-bold">${item.ITEM_NAME}</span>
+                            </td>
+                            <td class="text-end pe-4">
+                                <span class="text-xs font-weight-bold text-dark">${valStr}</span>
+                            </td>
+                        </tr>
+                    `;
+                });
+                $('#tbodyDetailItems').html(html || '<tr><td colspan="2" class="text-center text-muted py-4">Không có dữ liệu chi tiết</td></tr>');
+            } else {
+                $('#tbodyDetailItems').html('<tr><td colspan="2" class="text-center text-danger py-4">Không thể tải dữ liệu</td></tr>');
             }
         });
     });

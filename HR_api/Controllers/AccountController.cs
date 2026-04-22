@@ -287,6 +287,65 @@ public class AccountController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("dropdown/work")]
+    public async Task<IActionResult> GetWorkDropdown()
+    {
+        string sql = @"SELECT DISTINCT WORKCD, WORKNM FROM HRMS.EAM410 
+                       WHERE WORKCD IS NOT NULL AND USEYN = 'Y' ORDER BY WORKNM";
+
+        var result = await _oracleService.ExecuteQueryAsync(sql, reader => new
+        {
+            id = reader["WORKCD"]?.ToString(),
+            text = reader["WORKNM"]?.ToString()
+        });
+
+        return Ok(result);
+    }
+
+    [HttpGet("dropdown/dept")]
+    public async Task<IActionResult> GetDeptDropdown()
+    {
+        string sql = @"SELECT DISTINCT DEPTCD, DEPTNM FROM HRMS.EAM410 
+                       WHERE DEPTCD IS NOT NULL AND USEYN = 'Y' ORDER BY DEPTNM";
+
+        var result = await _oracleService.ExecuteQueryAsync(sql, reader => new
+        {
+            id = reader["DEPTCD"]?.ToString(),
+            text = reader["DEPTNM"]?.ToString()
+        });
+
+        return Ok(result);
+    }
+
+    [HttpGet("dropdown/line")]
+    public async Task<IActionResult> GetLineDropdown()
+    {
+        string sql = @"SELECT DISTINCT LINECD, TEAMNM FROM HRMS.EAM410 
+                       WHERE LINECD IS NOT NULL AND USEYN = 'Y' ORDER BY TEAMNM";
+
+        var result = await _oracleService.ExecuteQueryAsync(sql, reader => new
+        {
+            id = reader["LINECD"]?.ToString(),
+            text = reader["TEAMNM"]?.ToString()
+        });
+
+        return Ok(result);
+    }
+
+    [HttpGet("dropdown/role")]
+    public async Task<IActionResult> GetRoleDropdown()
+    {
+        string sql = @"SELECT ID, ROLE_NAME FROM HRMS.HR_ROLES ORDER BY ROLE_NAME";
+
+        var result = await _oracleService.ExecuteQueryAsync(sql, reader => new
+        {
+            id = Convert.ToInt32(reader["ID"]),
+            text = reader["ROLE_NAME"]?.ToString()
+        });
+
+        return Ok(result);
+    }
+
     [HttpGet("user-detail")]
     public async Task<IActionResult> GetUserDetail(string empCd)
     {

@@ -66,8 +66,7 @@
                             <thead class="bg-gray-100 position-sticky top-0" style="z-index: 10;">
                                 <tr>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Nhân viên</th>
-                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Thực lãnh</th>
-                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Chi tiết</th>
+                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody id="tbodyAdminData"></tbody>
@@ -184,6 +183,37 @@
                         <tbody id="tbodyExcelPreview"></tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Xem chi tiết phiếu lương -->
+<div class="modal fade" id="modalViewDetail" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-gradient-info text-white">
+                <div>
+                    <h5 class="modal-title text-white" id="modalDetailName">Chi tiết phiếu lương</h5>
+                    <p class="text-xs mb-0 opacity-8" id="modalDetailEmpCd"></p>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-items-center mb-0">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Hạng mục</th>
+                                <th class="text-end text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 pe-4">Giá trị</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyDetailItems"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary mb-0" data-bs-dismiss="modal">Đóng</button>
             </div>
         </div>
     </div>

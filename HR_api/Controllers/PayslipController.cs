@@ -120,7 +120,7 @@ public class PayslipController : ControllerBase
         try
         {
             string sql = @"
-                SELECT I.ID, I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, 
+                SELECT I.ID, I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, I.UNIT,
                        NVL(V.IS_VISIBLE, I.IS_VISIBLE_DEFAULT) IS_VISIBLE,
                        NVL(V.DISPLAY_ORDER, I.DISPLAY_ORDER) DISPLAY_ORDER
                 FROM HRMS.HR_PAYROLL_ITEMS I
@@ -134,7 +134,8 @@ public class PayslipController : ControllerBase
                 ITEM_NAME = r["ITEM_NAME"]?.ToString() ?? string.Empty,
                 ITEM_TYPE = r["ITEM_TYPE"]?.ToString() ?? string.Empty,
                 IS_VISIBLE = Convert.ToInt32(r["IS_VISIBLE"]),
-                DISPLAY_ORDER = Convert.ToDecimal(r["DISPLAY_ORDER"])
+                DISPLAY_ORDER = Convert.ToDecimal(r["DISPLAY_ORDER"]),
+                UNIT = r["UNIT"]?.ToString()
             }, new OracleParameter("PERIOD_ID", periodId));
 
             return Ok(new { success = true, data = result });
@@ -231,8 +232,8 @@ public class PayslipController : ControllerBase
             if (pIds.Count > 0)
             {
                 string sqlInsert = @"
-                    INSERT INTO HRMS.HR_PAYROLL_DATA (ID, PERIOD_ID, EMPCD, ITEM_ID, AMOUNT, TEXT_VALUE)
-                    VALUES (HRMS.SEQ_PAYROLL_DATA.NEXTVAL, :PERIOD_ID, :EMPCD, :ITEM_ID, :AMOUNT, :TEXT_VAL)";
+                    INSERT INTO HRMS.HR_PAYROLL_DATA (PERIOD_ID, EMPCD, ITEM_ID, AMOUNT, TEXT_VALUE)
+                    VALUES (:PERIOD_ID, :EMPCD, :ITEM_ID, :AMOUNT, :TEXT_VAL)";
 
                 await _oracleService.ExecuteBulkInsertAsync(sqlInsert, pIds.Count,
                     new OracleParameter("PERIOD_ID", OracleDbType.Decimal) { Value = pIds.ToArray() },
@@ -257,7 +258,7 @@ public class PayslipController : ControllerBase
         try
         {
             string sql = @"
-                SELECT I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, D.AMOUNT, D.TEXT_VALUE,
+                SELECT I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, I.UNIT, D.AMOUNT, D.TEXT_VALUE,
                        NVL(V.IS_VISIBLE, I.IS_VISIBLE_DEFAULT) IS_VISIBLE
                 FROM HRMS.HR_PAYROLL_ITEMS I
                 LEFT JOIN HRMS.HR_PAYROLL_DATA D ON D.ITEM_ID = I.ID AND D.PERIOD_ID = :PERIOD_ID AND D.EMPCD = :EMPCD
@@ -272,7 +273,8 @@ public class PayslipController : ControllerBase
                 ITEM_TYPE = r["ITEM_TYPE"]?.ToString() ?? string.Empty,
                 AMOUNT = r["AMOUNT"] == DBNull.Value ? null : Convert.ToDecimal(r["AMOUNT"]),
                 TEXT_VALUE = r["TEXT_VALUE"]?.ToString() ?? string.Empty,
-                IS_VISIBLE = Convert.ToInt32(r["IS_VISIBLE"])
+                IS_VISIBLE = Convert.ToInt32(r["IS_VISIBLE"]),
+                UNIT = r["UNIT"]?.ToString()
             },
             new OracleParameter("PERIOD_ID", periodId),
             new OracleParameter("EMPCD", empcd),
@@ -333,7 +335,7 @@ public class PayslipController : ControllerBase
 
             string empList = string.Join("','", emps.Select(x => x.EMPCD));
             string sqlAllDetails = $@"
-                SELECT D.EMPCD, I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, D.AMOUNT, D.TEXT_VALUE
+                SELECT D.EMPCD, I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, I.UNIT, D.AMOUNT, D.TEXT_VALUE
                 FROM HRMS.HR_PAYROLL_ITEMS I
                 LEFT JOIN HRMS.HR_PAYROLL_DATA D ON D.ITEM_ID = I.ID AND D.PERIOD_ID = :PERIOD_ID
                 WHERE D.EMPCD IN ('{empList}')
@@ -347,7 +349,8 @@ public class PayslipController : ControllerBase
                     ITEM_TYPE = r["ITEM_TYPE"]?.ToString() ?? string.Empty,
                     AMOUNT = r["AMOUNT"] == DBNull.Value ? null : Convert.ToDecimal(r["AMOUNT"]),
                     TEXT_VALUE = r["TEXT_VALUE"]?.ToString() ?? string.Empty,
-                    IS_VISIBLE = 1
+                    IS_VISIBLE = 1,
+                    UNIT = r["UNIT"]?.ToString()
                 }
             }, new OracleParameter("PERIOD_ID", periodId));
 
@@ -383,7 +386,7 @@ public class PayslipController : ControllerBase
             if (emps.Count == 0) return Ok(new { success = true, data = new List<object>() });
 
             string sqlAllDetails = @"
-                SELECT D.EMPCD, I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, D.AMOUNT, D.TEXT_VALUE
+                SELECT D.EMPCD, I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, I.UNIT, D.AMOUNT, D.TEXT_VALUE
                 FROM HRMS.HR_PAYROLL_ITEMS I
                 LEFT JOIN HRMS.HR_PAYROLL_DATA D ON D.ITEM_ID = I.ID AND D.PERIOD_ID = :PERIOD_ID
                 ORDER BY D.EMPCD, I.DISPLAY_ORDER";
@@ -396,7 +399,8 @@ public class PayslipController : ControllerBase
                     ITEM_TYPE = r["ITEM_TYPE"]?.ToString() ?? string.Empty,
                     AMOUNT = r["AMOUNT"] == DBNull.Value ? null : Convert.ToDecimal(r["AMOUNT"]),
                     TEXT_VALUE = r["TEXT_VALUE"]?.ToString() ?? string.Empty,
-                    IS_VISIBLE = 1
+                    IS_VISIBLE = 1,
+                    UNIT = r["UNIT"]?.ToString()
                 }
             }, new OracleParameter("PERIOD_ID", periodId));
 

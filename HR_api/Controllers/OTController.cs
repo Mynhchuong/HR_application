@@ -11,10 +11,12 @@ namespace HR_api.Controllers;
 public class OTController : ControllerBase
 {
     private readonly OracleService _oracleService;
+    private readonly Helpers.NotificationHelper _notiHelper;
 
-    public OTController(OracleService oracleService)
+    public OTController(OracleService oracleService, Helpers.NotificationHelper notiHelper)
     {
         _oracleService = oracleService;
+        _notiHelper = notiHelper;
     }
 
     [HttpGet("today")]
@@ -461,5 +463,33 @@ public class OTController : ControllerBase
         {
             return Ok(new { success = false, message = "API Error: " + ex.Message });
         }
+    [HttpPost("hr/notify-pending")]
+    public async Task<IActionResult> NotifyPendingOT([FromBody] dynamic model)
+    {
+        try
+        {
+            string workDateStr = model.work_date;
+            string deptId = model.dept_id;
+            string createdBy = model.created_by;
+
+            // Logic gửi thông báo cho những ai chưa ký OT
+            // Ở đây mình gửi thông báo theo Department cho nhanh
+            _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
+            {
+                TITLE = "Xác nhận tăng ca",
+                BODY = $"Vui lòng kiểm tra và ký xác nhận tăng ca ngày {workDateStr}.",
+                NOTI_TYPE = string.IsNullOrEmpty(deptId) ? "COMPANY" : "DEPT",
+                TARGET_VAL = string.IsNullOrEmpty(deptId) ? "ALL" : deptId,
+                LINK_ACTION = "OT_SIGN",
+                CREATED_BY = createdBy
+            });
+
+            return Ok(new { success = true, message = "Đã gửi thông báo nhắc nhở" });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
     }
+}
 }

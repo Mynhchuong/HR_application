@@ -48,5 +48,11 @@ Apple thường từ chối các app "chỉ là website". Để pass 100%, cần
 4. Đăng ký tài khoản Developer sớm (vì Apple có thể mất vài ngày để xét duyệt tài khoản).
 
 ---
-*Cập nhật ngày: 20/04/2026*
+*Cập nhật ngày: 22/04/2026*
 *Bởi: Antigravity AI Assistant*
+
+## 7. Yêu cầu cho Hệ thống Thông báo (Push Notification)
+Để tính năng thông báo hoạt động trên iOS và Android, sau này khi bạn đăng ký tài khoản Google/Apple, bạn cần cung cấp:
+- **Firebase Project**: Tạo một dự án trên [Firebase Console](https://console.firebase.google.com/).
+- **Service Account Key**: Tải file `service-account.json` từ phần Project Settings > Service Accounts của Firebase. File này giúp Server gửi lệnh thông báo tới điện thoại.
+- **App IDs**: ID của ứng dụng trên iOS (Bundle ID) và Android (Package Name) để cấu hình trong Firebase.

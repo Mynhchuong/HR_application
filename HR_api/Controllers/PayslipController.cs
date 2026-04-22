@@ -10,10 +10,12 @@ namespace HR_api.Controllers;
 public class PayslipController : ControllerBase
 {
     private readonly OracleService _oracleService;
+    private readonly Helpers.NotificationHelper _notiHelper;
 
-    public PayslipController(OracleService oracleService)
+    public PayslipController(OracleService oracleService, Helpers.NotificationHelper notiHelper)
     {
         _oracleService = oracleService;
+        _notiHelper = notiHelper;
     }
 
     [HttpGet("periods")]
@@ -106,6 +108,18 @@ public class PayslipController : ControllerBase
             await _oracleService.ExecuteNonQueryAsync(sql,
                 new OracleParameter("UPDT_ID", (object?)updtId ?? DBNull.Value),
                 new OracleParameter("ID", id));
+
+            // Gửi thông báo cho toàn bộ nhân viên có trong kỳ lương này
+            _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
+            {
+                TITLE = "Thông báo phiếu lương",
+                BODY = "Bạn đã có phiếu lương mới. Vui lòng kiểm tra trên ứng dụng.",
+                NOTI_TYPE = "COMPANY",
+                TARGET_VAL = "ALL",
+                LINK_ACTION = "PAYSLIP",
+                CREATED_BY = updtId
+            });
+
             return Ok(new { success = true, message = "Đã công bố phiếu lương" });
         }
         catch (Exception ex)

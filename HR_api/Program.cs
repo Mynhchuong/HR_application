@@ -23,6 +23,7 @@ builder.Services.AddSwaggerGen(c =>
 
 // Register Oracle Service (Scoped to ensure connection per request)
 builder.Services.AddScoped<OracleService>();
+builder.Services.AddScoped<HR_api.Helpers.NotificationHelper>();
 
 // CORS (Allow access from mobile/web)
 builder.Services.AddCors(options =>

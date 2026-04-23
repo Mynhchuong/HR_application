@@ -119,6 +119,32 @@
     }
 
     .btn-outline-app:active { background: #f8fafc; }
+
+    .btn-signature {
+        background: #f0f9ff;
+        color: #0284c7;
+        border: 2px solid #e0f2fe;
+        border-radius: 16px;
+        padding: 0.75rem 1.25rem;
+        font-weight: 700;
+        font-size: 0.9rem;
+        width: 100%;
+        transition: all 0.2s;
+    }
+    .btn-signature:active { background: #e0f2fe; }
+
+    .btn-password {
+        background: #fffaf5;
+        color: #ea580c;
+        border: 2px solid #ffede5;
+        border-radius: 16px;
+        padding: 0.75rem 1.25rem;
+        font-weight: 700;
+        font-size: 0.9rem;
+        width: 100%;
+        transition: all 0.2s;
+    }
+    .btn-password:active { background: #ffede5; }
 </style>
 
 <div class="profile-container">
@@ -126,7 +152,7 @@
         <div class="avatar-wrapper">
             <img src="@Url.Action("GetEmployeeImage", "Image", new { empCd = Model.EmpCd })" class="avatar-img" />
         </div>
-        <h2 class="user-name" style="font-family:Vni-Times;">@Model.FullName</h2>
+        <h2 class="user-name" style="font-family: 'Inter', sans-serif; text-transform: uppercase;">@HR_web.Helpers.VniHelper.VniToUnicode(Model.FullName)</h2>
         <div class="user-role">@Model.DeptName</div>
     </div>
 
@@ -169,7 +195,7 @@
                         int y = 0, m = 0;
                         if (parts.Length > 0) int.TryParse(parts[0], out y);
                         if (parts.Length > 1) int.TryParse(parts[1], out m);
-                        snText = (y > 0 ? $"{y}y " : "") + (m > 0 ? $"{m}m" : "");
+                        snText = (y > 0 ? $"{y} năm " : "") + (m > 0 ? $"{m} tháng" : "");
                     }
                 }
                 @snText
@@ -186,12 +212,12 @@
             <form asp-controller="Image" asp-action="UploadSignature" method="post" enctype="multipart/form-data" id="sigForm">
                 <input type="hidden" name="empCd" value="@Model.EmpCd" />
                 <input type="file" id="fileInput" name="file" accept="image/jpeg" style="display:none;" onchange="document.getElementById('sigForm').submit()" />
-                <button type="button" onclick="document.getElementById('fileInput').click()" class="btn-outline-app mb-2">
+                <button type="button" onclick="document.getElementById('fileInput').click()" class="btn-signature mb-2">
                     <span class="material-symbols-rounded align-middle me-1">signature</span> Cập nhật chữ ký
                 </button>
             </form>
 
-            <button type="button" class="btn-outline-app" data-bs-toggle="modal" data-bs-target="#changePassModal">
+            <button type="button" class="btn-password" data-bs-toggle="modal" data-bs-target="#changePassModal">
                 <span class="material-symbols-rounded align-middle me-1">lock_reset</span> Đổi mật khẩu
             </button>
         </div>

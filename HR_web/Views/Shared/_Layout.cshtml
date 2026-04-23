@@ -7,7 +7,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>@ViewData["Title"] - HR Application</title>
+    <title>@ViewData["Title"] - My SAMHO</title>
 
     <!-- Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" rel="stylesheet" />
@@ -473,12 +473,9 @@
                         <li><a class="dropdown-item" asp-controller="Profile" asp-action="ProfileUser"><i class="fas fa-user me-2"></i>Hồ sơ</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline" id="logoutFormHeader">
-                                @Html.AntiForgeryToken()
-                                <button type="submit" class="dropdown-item text-danger" onclick="return confirm('Đăng xuất?')">
-                                    <i class="fas fa-sign-out-alt me-2"></i>Đăng xuất
-                                </button>
-                            </form>
+                            <a class="dropdown-item text-danger" href="javascript:;" data-bs-toggle="modal" data-bs-target="#logoutModal">
+                                <i class="fas fa-sign-out-alt me-2"></i>Đăng xuất
+                            </a>
                         </li>
                     </ul>
                 </div>
@@ -624,6 +621,30 @@
             window.hideLoading();
         });
     </script>
+
+    <!-- Logout Modal -->
+    <div class="modal fade" id="logoutModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 28px;">
+                <div class="modal-body p-4 text-center">
+                    <div class="mb-3">
+                        <div class="bg-soft-orange rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
+                            <span class="material-symbols-rounded text-warning" style="font-size: 2.5rem;">logout</span>
+                        </div>
+                    </div>
+                    <h5 class="fw-bold mb-2">Đăng xuất?</h5>
+                    <p class="text-muted small mb-4">Bạn có chắc chắn muốn thoát khỏi hệ thống không?</p>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-light w-100 py-2 rounded-3 fw-bold" data-bs-dismiss="modal">Hủy</button>
+                        <form asp-controller="Account" asp-action="Logout" method="post" class="w-100">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-danger w-100 py-2 rounded-3 fw-bold">Thoát</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>

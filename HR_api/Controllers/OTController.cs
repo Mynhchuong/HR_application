@@ -463,6 +463,8 @@ public class OTController : ControllerBase
         {
             return Ok(new { success = false, message = "API Error: " + ex.Message });
         }
+    }
+
     [HttpPost("hr/notify-pending")]
     public async Task<IActionResult> NotifyPendingOT([FromBody] dynamic model)
     {
@@ -473,7 +475,7 @@ public class OTController : ControllerBase
             string createdBy = model.created_by;
 
             // Logic gửi thông báo cho những ai chưa ký OT
-            // Ở đây mình gửi thông báo theo Department cho nhanh
+            // Ở đây gửi thông báo theo Department 
             _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
             {
                 TITLE = "Xác nhận tăng ca",
@@ -491,5 +493,4 @@ public class OTController : ControllerBase
             return Ok(new { success = false, message = ex.Message });
         }
     }
-}
 }

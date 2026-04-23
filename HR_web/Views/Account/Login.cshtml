@@ -34,29 +34,20 @@
             justify-content: center;
             padding: 20px;
             position: relative;
-            background: radial-gradient(circle at top right, rgba(79, 70, 229, 0.15), transparent),
-                        radial-gradient(circle at bottom left, rgba(124, 58, 237, 0.15), transparent);
+            background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('/assets/img/Login.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
         }
-
-        /* Abstract shapes for app-like background */
-        .shape {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(80px);
-            z-index: 0;
-            opacity: 0.4;
-        }
-        .shape-1 { width: 300px; height: 300px; background: var(--primary); top: -100px; right: -50px; }
-        .shape-2 { width: 250px; height: 250px; background: #7c3aed; bottom: -50px; left: -50px; }
 
         .login-card {
             width: 100%;
             max-width: 400px;
             background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
             border-radius: 32px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.3);
             overflow: hidden;
             z-index: 1;
@@ -162,23 +153,25 @@
         }
 
         @@media (max-width: 480px) {
-            .login-card { border-radius: 0; border: none; max-width: 100%; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; background: #fff; }
-            .login-wrapper { padding: 0; background: #fff; }
-            .shape { display: none; }
+            .login-card { border-radius: 24px; border: none; max-width: 92%; background: rgba(255, 255, 255, 0.9); }
+            .login-wrapper { padding: 15px; background-attachment: fixed; }
+            .login-header { padding: 30px 20px 15px; }
+            .login-body { padding: 0 24px 30px; }
         }
     </style>
 </head>
 <body>
     <div class="login-wrapper">
-        <div class="shape shape-1"></div>
-        <div class="shape shape-2"></div>
 
         <div class="login-card">
             <div class="login-header">
                 <div class="login-logo">
-                    <img src="~/assets/img/logowebsmTO.png" alt="Company Logo" />
+                    <img src="~/assets/img/samho-logo.png" alt="Company Logo" />
                 </div>
-                <h4>Samho HR</h4>
+                <h4 style="font-size: 1.8rem;">
+                    <span style="color: #ed1c24;">My</span> 
+                    <span style="color: #1e293b;">SAMHO</span>
+                </h4>
                 <p>Hệ thống nhân sự thông minh</p>
             </div>
 

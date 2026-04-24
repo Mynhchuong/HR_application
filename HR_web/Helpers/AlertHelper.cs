@@ -6,19 +6,11 @@ using System.Text.Encodings.Web;
 
 namespace HR_web.Helpers;
 
-/// <summary>
-/// AlertHelper - thay thế phiên bản cũ dùng MvcHtmlString + HtmlHelper (System.Web.Mvc).
-/// .NET 8: dùng IHtmlContent + IHtmlHelper thay thế.
-/// VirtualPathUtility.ToAbsolute() → Url.Content() (được gọi từ context của View).
-/// </summary>
+
 public static class AlertHelper
 {
     public enum AlertType { Success, Error, Info, Warning }
 
-    /// <summary>
-    /// Render các toast notification từ TempData.
-    /// Gọi trong Layout bằng: @Html.RenderAlerts()
-    /// </summary>
     public static IHtmlContent RenderAlerts(this IHtmlHelper html)
     {
         var tempData = html.ViewContext.TempData;

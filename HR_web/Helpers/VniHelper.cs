@@ -10,8 +10,7 @@ namespace HR_web.Helpers
 
             string result = vniString;
 
-            // Bảng ánh xạ ưu tiên từ dài đến ngắn để tránh thay thế sai
-            // Dựa trên dữ liệu thực tế từ database (Biến thể VNI-Windows/TQ)
+            // Bảng ánh xạ 
             var map = new Dictionary<string, string> {
                 // Cụm 3 ký tự (Ưu tiên cao nhất)
                 { "öôù", "ướ" }, { "öôø", "ườ" }, { "öôû", "ưở" }, { "öôõ", "ưỡ" }, { "öôï", "ượ" },

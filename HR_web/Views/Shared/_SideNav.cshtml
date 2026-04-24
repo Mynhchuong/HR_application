@@ -4,7 +4,8 @@
 @{
     var user = AuthHelper.GetCurrentUser(User);
     var currentPath = Context.Request.Path.Value?.ToLower().TrimEnd('/') ?? "";
-    var menus = SideMenuBuilder.Build(user);
+    var isMobileApp = MobileHelper.IsMobileApp(Context);
+    var menus = SideMenuBuilder.Build(user, isMobileApp);
     var menuThemes = new[]
     {
         "menu-theme-personal",
@@ -107,8 +108,47 @@
         color: #059669;
     }
 
-    .nav-link.active .menu-child-icon {
-        background: rgba(255, 255, 255, 0.18);
+    .nav-item {
+        margin-bottom: 4px;
+    }
+
+    .nav-link {
+        margin: 0.4rem 0.85rem;
+        padding: 0.85rem 1.1rem !important;
+        border-radius: 20px !important;
+        display: flex;
+        align-items: center;
+        text-decoration: none;
+        color: #64748b !important;
+        font-weight: 500;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid transparent;
+    }
+
+    .nav-link:hover {
+        background-color: #f1f5f9;
+        color: #1e293b !important;
+        transform: translateX(5px);
+    }
+
+    .nav-link.active {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+        color: #fff !important;
+        font-weight: 700;
+        box-shadow: 0 12px 24px rgba(79, 70, 229, 0.25) !important;
+    }
+
+    .nav-link.active .menu-icon-shell {
+        background: rgba(255, 255, 255, 0.2) !important;
+        box-shadow: none;
+    }
+
+    .nav-link.active .material-symbols-rounded {
+        color: #fff !important;
+    }
+
+    .nav-link.active .nav-link-text {
+        color: #fff !important;
     }
 </style>
 

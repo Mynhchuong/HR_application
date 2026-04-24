@@ -3,25 +3,20 @@ using HR_web.Models.Account;
 
 namespace HR_web.Helpers;
 
-/// <summary>
-/// SideMenuBuilder - giữ nguyên 100% logic, chỉ đổi namespace.
-/// URL dạng ~/OT/... vẫn hoạt động trong Razor View .NET 8.
-/// </summary>
 public static class SideMenuBuilder
 {
-    public static List<SideMenuItem> Build(UserInfoModel? user)
+    public static List<SideMenuItem> Build(UserInfoModel? user, bool isMobileApp = false)
     {
         if (user == null) return new List<SideMenuItem>();
 
-        bool isAdmin      = user.RoleName == "Admin";
-        bool isClerk      = user.RoleName == "Clerk";
-        bool isHR         = user.RoleName == "HR";
-        bool isSupervisor = user.RoleName == "Supervisor";
-        bool isManager    = user.RoleName == "Manager";
+        bool isAdmin      = !isMobileApp && user.RoleName == "Admin";
+        bool isClerk      = !isMobileApp && user.RoleName == "Clerk";
+        bool isHR         = !isMobileApp && user.RoleName == "HR";
+        bool isSupervisor = !isMobileApp && user.RoleName == "Supervisor";
+        bool isManager    = !isMobileApp && user.RoleName == "Manager";
 
         return new List<SideMenuItem>
         {
-            // ──────── TRANG CHỦ ────────
             new SideMenuItem
             {
                 Id = "Home",
@@ -33,7 +28,6 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Tổng quan", Url = "~/Home/Index", Icon = "dashboard" },
                 }
             },
-            // ──────── CÁ NHÂN (tất cả mọi người) ────────
             new SideMenuItem
             {
                 Id = "Worker",
@@ -47,7 +41,6 @@ public static class SideMenuBuilder
                 }
             },
 
-            // ──────── THƯ KÝ ────────
             new SideMenuItem
             {
                 Id = "Clerk",
@@ -60,7 +53,6 @@ public static class SideMenuBuilder
                 }
             },
 
-            // ──────── QUẢN LÝ ────────
             new SideMenuItem
             {
                 Id = "Manager",
@@ -73,7 +65,6 @@ public static class SideMenuBuilder
                 }
             },
 
-            // ──────── NHÂN SỰ ────────
             new SideMenuItem
             {
                 Id = "HR",

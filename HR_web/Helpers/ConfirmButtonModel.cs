@@ -1,9 +1,6 @@
 namespace HR_web.Helpers;
 
-/// <summary>
-/// Model dùng cho partial view _ConfirmButton.
-/// Không thay đổi logic so với phiên bản cũ - chỉ cập nhật namespace.
-/// </summary>
+
 public class ConfirmButtonModel
 {
     public string Url { get; set; } = string.Empty;

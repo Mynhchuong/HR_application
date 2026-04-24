@@ -8,11 +8,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews(options =>
 {
-    // Global filter: thay RequireUpdateProfileAttribute cũ
+     
     options.Filters.Add<RequireUpdateProfileFilter>();
 }).AddNewtonsoftJson(options =>
 {
-    // Giữ nguyên PascalCase cho JSON để tương thích với JS cũ
+     
     options.SerializerSettings.ContractResolver = new Newtonsoft.Json.Serialization.DefaultContractResolver();
 });
 
@@ -32,7 +32,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddHttpContextAccessor();
 
 // ============================================================
-// 4. HttpClient (thay static HttpClient trong ApiService cũ)
+// 4. HttpClient  
 // ============================================================
 builder.Services.AddHttpClient("SamhoAPI", client =>
 {
@@ -43,7 +43,7 @@ builder.Services.AddHttpClient("SamhoAPI", client =>
 });
 
 // ============================================================
-// 5. Session (lưu TempData)
+// 5. Session (lưu TempData) 
 // ============================================================
 builder.Services.AddSession(options =>
 {
@@ -100,7 +100,7 @@ app.UseRouting();
 
 app.UseSession();
 
-// Authentication phải đặt TRƯỚC Authorization
+// Authentication phải đặt TRƯỚC Authorization ko sửa nha nha  
 app.UseAuthentication();
 app.UseAuthorization();
 

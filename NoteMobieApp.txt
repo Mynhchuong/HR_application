@@ -56,3 +56,36 @@ Apple thường từ chối các app "chỉ là website". Để pass 100%, cần
 - **Firebase Project**: Tạo một dự án trên [Firebase Console](https://console.firebase.google.com/).
 - **Service Account Key**: Tải file `service-account.json` từ phần Project Settings > Service Accounts của Firebase. File này giúp Server gửi lệnh thông báo tới điện thoại.
 - **App IDs**: ID của ứng dụng trên iOS (Bundle ID) và Android (Package Name) để cấu hình trong Firebase.
+HƯỚNG DẪN TÍCH HỢP WEB VÀO APP MOBILE (WEBVIEW)
+==============================================
+
+1. NHẬN DIỆN APP (IDENTIFICATION)
+---------------------------------
+Để hệ thống web nhận biết yêu cầu đến từ App Mobile (nhằm ẩn các tính năng quản lý và chỉ hiện tính năng cá nhân), 
+App Mobile CẦN thiết lập Custom User-Agent trong cấu hình WebView:
+
+Cấu hình User-Agent: "MySamhoMobile"
+
+Mã nguồn App (ví dụ Flutter/React Native/Swift/Kotlin):
+- Flutter: options: InAppWebViewGroupOptions(crossPlatform: InAppWebViewOptions(userAgent: "MySamhoMobile"))
+- Android: webView.getSettings().setUserAgentString("MySamhoMobile");
+- iOS: webView.customUserAgent = "MySamhoMobile";
+
+2. CHÍNH SÁCH PHÂN QUYỀN TRÊN APP
+---------------------------------
+- Mọi User (bất kể role gì) khi đăng nhập qua App Mobile sẽ CHỈ nhìn thấy:
+  + Trang chủ (Greeting & Personal Summary)
+  + Tính năng Phiếu lương (Payslip)
+  + Tính năng Xác nhận Tăng ca (OT Confirmation)
+  + Hồ sơ cá nhân (Profile)
+- Các tính năng dành cho Thư ký, Quản lý, HR sẽ bị ẩn hoàn toàn trên giao diện App.
+
+3. LƯU Ý KỸ THUẬT (TECHNICAL NOTES)
+-----------------------------------
+- Giao diện Web đã được tối ưu Mobile 2.0 (Glassmorphism, High Contrast).
+- Nên sử dụng WebView hỗ trợ Cookie để duy trì đăng nhập (Persistent Cookie).
+- Hình nền trang Login đã được tối ưu để hiển thị tốt trên màn hình dọc (Portrait).
+
+4. KIỂM TRA (TESTING)
+---------------------
+- Có thể test thử bằng cách đổi User-Agent của trình duyệt Chrome sang "MySamhoMobile" để xem giao diện App sẽ trông như thế nào.

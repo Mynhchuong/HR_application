@@ -2,8 +2,6 @@
 @{
     ViewData["Title"] = "Trang chủ";
     var user = AuthHelper.GetCurrentUser(User);
-    var helloImgs = new[] { "/assets/img/illustrations/Sayhii.png", "/assets/img/illustrations/A-alo.png" };
-    var selectedImg = helloImgs[new Random().Next(helloImgs.Length)];
 }
 
 <style>
@@ -39,18 +37,15 @@
     }
 
     .app-header-banner h1 {
-        font-size: 1.75rem;
+        font-size: 1.5rem;
         font-weight: 800;
         margin: 0;
-        color: #ffffff !important;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
     .app-header-banner p {
-        font-size: 1rem;
-        opacity: 0.95;
-        margin-top: 0.25rem;
-        color: #ffffff !important;
+        font-size: 0.95rem;
+        opacity: 0.9;
+        margin-top: 0.5rem;
     }
 
     /* Grid Layout - Mobile Native feel */
@@ -136,11 +131,11 @@
     <!-- Header Banner -->
     <div class="app-header-banner">
         <div class="d-flex align-items-center gap-3">
-            <div class="bg-white bg-opacity-30 rounded-circle p-1 d-inline-flex overflow-hidden" style="width: 72px; height: 72px; align-items: center; justify-content: center; border: 3px solid rgba(255,255,255,0.2);">
-                 <img src="@selectedImg" style="width: 100%; height: 100%; object-fit: contain; padding: 4px;" />
+            <div class="bg-white bg-opacity-20 rounded-circle p-2 d-inline-flex">
+                 <span class="material-symbols-rounded" style="font-size: 2rem;">waving_hand</span>
             </div>
             <div>
-                <h1>Xin chào, @(HR_web.Helpers.VniHelper.VniToUnicode(user?.FullName?.Split(' ').Last() ?? "Bạn"))!</h1>
+                <h1>Xin chào, @(user?.FullName?.Split(' ').Last() ?? "Bạn")!</h1>
                 <p>Hôm nay bạn thế nào?</p>
             </div>
         </div>
@@ -210,10 +205,5 @@
                 </div>
             </a>
         }
-    </div>
-
-    <!-- Quick Note / Info Section -->
-    <div class="mt-4 p-3 rounded-4 bg-light text-center border border-dashed border-secondary border-opacity-25">
-        <p class="text-muted small m-0">VietNam Samho Co., LTD · Phiên bản Web Mobile 2.0</p>
     </div>
 </div>

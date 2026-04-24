@@ -152,7 +152,7 @@
         <div class="avatar-wrapper">
             <img src="@Url.Action("GetEmployeeImage", "Image", new { empCd = Model.EmpCd })" class="avatar-img" />
         </div>
-        <h2 class="user-name" style="font-family: 'Inter', sans-serif; text-transform: uppercase;">@HR_web.Helpers.VniHelper.VniToUnicode(Model.FullName)</h2>
+        <h2 class="user-name" style="font-family: 'Vni-Timesßß', serif; text-transform: uppercase;">@Model.FullName</h2>
         <div class="user-role">@Model.DeptName</div>
     </div>
 
@@ -195,7 +195,7 @@
                         int y = 0, m = 0;
                         if (parts.Length > 0) int.TryParse(parts[0], out y);
                         if (parts.Length > 1) int.TryParse(parts[1], out m);
-                        snText = (y > 0 ? $"{y} năm " : "") + (m > 0 ? $"{m} tháng" : "");
+                        snText = (y > 0 ? $"{y}y " : "") + (m > 0 ? $"{m}m" : "");
                     }
                 }
                 @snText

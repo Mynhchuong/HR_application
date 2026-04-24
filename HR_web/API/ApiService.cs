@@ -13,9 +13,7 @@ public class ApiService
         _httpClientFactory = httpClientFactory;
     }
 
-    // ============================================================
-    // GET
-    // ============================================================
+
     public async Task<HttpResponseMessage?> GetAsync_Raw(string endpoint, string queryString = "")
     {
         var client = _httpClientFactory.CreateClient(ClientName);
@@ -104,9 +102,7 @@ public class ApiService
         }
     }
 
-    // ============================================================
-    // POST (form-encoded) - dùng cho login
-    // ============================================================
+
     public async Task<HttpResponseMessage?> PostFormAsync(string endpoint, Dictionary<string, string> formData)
     {
         var client = _httpClientFactory.CreateClient(ClientName);
@@ -121,9 +117,7 @@ public class ApiService
         }
     }
 
-    // ============================================================
-    // POST (JSON)
-    // ============================================================
+
     public async Task<HttpResponseMessage?> PostAsync(string endpoint, object data)
     {
         var client = _httpClientFactory.CreateClient(ClientName);
@@ -139,9 +133,7 @@ public class ApiService
         }
     }
 
-    // ============================================================
-    // PUT
-    // ============================================================
+
     public async Task<T?> PutAsync<T>(string endpoint, object data)
     {
         var client = _httpClientFactory.CreateClient(ClientName);
@@ -163,9 +155,7 @@ public class ApiService
         }
     }
 
-    // ============================================================
-    // PATCH
-    // ============================================================
+
     public async Task<T?> PatchAsync<T>(string endpoint, object data)
     {
         var client = _httpClientFactory.CreateClient(ClientName);
@@ -190,9 +180,7 @@ public class ApiService
         }
     }
 
-    // ============================================================
-    // DELETE
-    // ============================================================
+
     public async Task<bool> DeleteAsync(string endpoint, string queryString = "")
     {
         var client = _httpClientFactory.CreateClient(ClientName);

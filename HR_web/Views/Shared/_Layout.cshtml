@@ -467,7 +467,7 @@
                         <span class="header-user-icon">
                             <i class="material-symbols-rounded">account_circle</i>
                         </span>
-                        <span class="header-user-name" title="@(layoutUser?.FullName ?? layoutUser?.EmpCd ?? "User")">@(layoutUser?.FullName ?? layoutUser?.EmpCd ?? "User")</span>
+                        <span class="header-user-name" title="@VniHelper.VniToUnicode(layoutUser?.FullName ?? layoutUser?.EmpCd ?? "User")">@VniHelper.VniToUnicode(layoutUser?.FullName ?? layoutUser?.EmpCd ?? "User")</span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end border-0 shadow">
                         <li><a class="dropdown-item" asp-controller="Profile" asp-action="ProfileUser"><i class="fas fa-user me-2"></i>Hồ sơ</a></li>

@@ -24,7 +24,7 @@ $(document).ready(function () {
         
         $('#hPeriodName').text(periodName);
 
-        $.get('/Payslip/GetMyPayslip', { periodId: periodId }, function (res) {
+        $.get('GetMyPayslip', { periodId: periodId }, function (res) {
             if (res.success && res.data && res.data.length > 0) {
                 const hasData = renderPayslip(res.data);
                 if (hasData) {

@@ -1,3 +1,4 @@
+@using HR_web.Helpers
 @model HR_web.Models.Account.UserDetailModel
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -152,8 +153,8 @@
         <div class="avatar-wrapper">
             <img src="@Url.Action("GetEmployeeImage", "Image", new { empCd = Model.EmpCd })" class="avatar-img" />
         </div>
-        <h2 class="user-name" style="font-family: 'Vni-Timesßß', serif; text-transform: uppercase;">@Model.FullName</h2>
-        <div class="user-role">@Model.DeptName</div>
+        <h2 class="user-name" style="text-transform: uppercase;">@VniHelper.VniToUnicode(Model.FullName)</h2>
+        <div class="user-role">@VniHelper.VniToUnicode(Model.DeptName)</div>
     </div>
 
     <!-- Thông tin cơ bản -->
@@ -171,7 +172,7 @@
             <div class="item-icon"><span class="material-symbols-rounded">category</span></div>
             <div class="item-content">
                 <div class="item-label">Vị trí</div>
-                <div class="item-description">@Model.LineName · @Model.WorkName</div>
+                <div class="item-description">@VniHelper.VniToUnicode(Model.LineName) · @VniHelper.VniToUnicode(Model.WorkName)</div>
             </div>
         </div>
         <div class="setting-item">
@@ -195,7 +196,7 @@
                         int y = 0, m = 0;
                         if (parts.Length > 0) int.TryParse(parts[0], out y);
                         if (parts.Length > 1) int.TryParse(parts[1], out m);
-                        snText = (y > 0 ? $"{y}y " : "") + (m > 0 ? $"{m}m" : "");
+                        snText = (y > 0 ? $"{y} năm " : "") + (m > 0 ? $"{m} tháng" : "");
                     }
                 }
                 @snText

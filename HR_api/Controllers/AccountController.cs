@@ -26,39 +26,118 @@ public class AccountController : ControllerBase
 
         string sql = @"
             SELECT 
+                E.EMPCD AS ECM_EMPCD,
+                E.CNAME AS ECM_NAME,
+                E.JEAJIKGB,
                 U.ID,
                 U.EMPCD,
+                U.PASSWORD,
                 U.FULL_NAME,                      
                 U.ROLE_ID,
                 R.ROLE_NAME,
                 U.IS_ACTIVE,
                 U.LASTED_LOGIN,
                 U.SIGNATUREBLOB
-            FROM HRMS.HR_USERS U
+            FROM HRMS.ECM100 E
+            LEFT JOIN HRMS.HR_USERS U ON E.EMPCD = U.EMPCD
             LEFT JOIN HRMS.HR_ROLES R ON U.ROLE_ID = R.ID
-            LEFT JOIN HRMS.ECM100 E ON E.EMPCD = U.EMPCD
-            WHERE U.EMPCD = :EMPCD
-            AND U.PASSWORD = :PASSWORD
-            AND E.JEAJIKGB = 'Y'";
+            WHERE E.EMPCD = :EMPCD";
 
-        var results = await _oracleService.ExecuteQueryAsync(sql, reader => new UserInfoModel
+        var checkResults = await _oracleService.ExecuteQueryAsync(sql, reader => new 
         {
-            Id = Convert.ToInt32(reader["ID"]),
-            EmpCd = reader["EMPCD"]?.ToString() ?? string.Empty,
-            SIGNATUREBLOB = reader["SIGNATUREBLOB"]?.ToString(),
-            FullName = reader["FULL_NAME"]?.ToString() ?? string.Empty,
+            EcmEmpCd = reader["ECM_EMPCD"]?.ToString(),
+            EcmName = reader["ECM_NAME"]?.ToString(),
+            Jeajikgb = reader["JEAJIKGB"]?.ToString(),
+            Id = reader["ID"] == DBNull.Value ? 0 : Convert.ToInt32(reader["ID"]),
+            EmpCd = reader["EMPCD"]?.ToString(),
+            Password = reader["PASSWORD"]?.ToString(),
+            FullName = reader["FULL_NAME"]?.ToString(),
             RoleId = reader["ROLE_ID"] == DBNull.Value ? null : (int?)Convert.ToInt32(reader["ROLE_ID"]),
             RoleName = reader["ROLE_NAME"]?.ToString(),
-            IsActive = Convert.ToInt32(reader["IS_ACTIVE"]),
-            LastedLogin = reader["LASTED_LOGIN"] == DBNull.Value ? null : (DateTime?)Convert.ToDateTime(reader["LASTED_LOGIN"])
+            IsActive = reader["IS_ACTIVE"] == DBNull.Value ? 1 : Convert.ToInt32(reader["IS_ACTIVE"]),
+            LastedLogin = reader["LASTED_LOGIN"] == DBNull.Value ? null : (DateTime?)Convert.ToDateTime(reader["LASTED_LOGIN"]),
+            SignatureBlob = reader["SIGNATUREBLOB"]?.ToString()
         },
-        new OracleParameter("EMPCD", empcd),
-        new OracleParameter("PASSWORD", password));
+        new OracleParameter("EMPCD", empcd));
 
-        var result = results.FirstOrDefault();
+        var userCheck = checkResults.FirstOrDefault();
 
-        if (result == null)
+        // Kiểm tra xem nhân viên có tồn tại trên ERP và còn làm việc hay không
+        if (userCheck == null || userCheck.Jeajikgb != "Y")
+        {
             return Ok(new { success = false, message = "Sai tài khoản hoặc mật khẩu" });
+        }
+
+        UserInfoModel result = null;
+
+        if (string.IsNullOrEmpty(userCheck.EmpCd))
+        {
+            // Có trong ERP nhưng CHƯA có trong HR_USERS
+            if (password == "123456")
+            {
+                // Tự động insert vào HR_USERS với RoleId = 1
+                string insertSql = @"
+                    INSERT INTO HRMS.HR_USERS (EMPCD, PASSWORD, FULL_NAME, ROLE_ID, INST_ID)
+                    VALUES (:EMPCD, :PASSWORD, :FULL_NAME, 1, 'SYSTEM')";
+
+                await _oracleService.ExecuteNonQueryAsync(insertSql,
+                    new OracleParameter("EMPCD", empcd),
+                    new OracleParameter("PASSWORD", "123456"),
+                    new OracleParameter("FULL_NAME", userCheck.EcmName));
+                
+                // Fetch lại ID sau khi insert
+                var newInserted = await _oracleService.ExecuteQueryAsync(@"
+                    SELECT U.ID, R.ROLE_NAME 
+                    FROM HRMS.HR_USERS U 
+                    LEFT JOIN HRMS.HR_ROLES R ON U.ROLE_ID = R.ID 
+                    WHERE U.EMPCD = :EMPCD", 
+                    r => new { Id = Convert.ToInt32(r["ID"]), RoleName = r["ROLE_NAME"]?.ToString() },
+                    new OracleParameter("EMPCD", empcd));
+
+                var insertedUser = newInserted.FirstOrDefault();
+
+                result = new UserInfoModel
+                {
+                    Id = insertedUser?.Id ?? 0,
+                    EmpCd = empcd,
+                    FullName = userCheck.EcmName,
+                    RoleId = 1,
+                    RoleName = insertedUser?.RoleName ?? "Nhân viên",
+                    IsActive = 1,
+                    SIGNATUREBLOB = "N"
+                };
+            }
+            else
+            {
+                // Nhập sai mật khẩu 123456 đối với user chưa có tài khoản
+                return Ok(new { success = false, message = "Sai tài khoản hoặc mật khẩu" });
+            }
+        }
+        else
+        {
+            // Đã có trong HR_USERS -> So sánh password
+            if (userCheck.Password != password)
+            {
+                return Ok(new { success = false, message = "Sai tài khoản hoặc mật khẩu" });
+            }
+
+            if (userCheck.IsActive == 0)
+            {
+                return Ok(new { success = false, message = "Tài khoản đã bị khóa" });
+            }
+
+            result = new UserInfoModel
+            {
+                Id = userCheck.Id,
+                EmpCd = userCheck.EmpCd,
+                FullName = userCheck.FullName,
+                RoleId = userCheck.RoleId,
+                RoleName = userCheck.RoleName,
+                IsActive = userCheck.IsActive,
+                LastedLogin = userCheck.LastedLogin,
+                SIGNATUREBLOB = userCheck.SignatureBlob
+            };
+        }
 
         string updateSql = @"UPDATE HRMS.HR_USERS SET LASTED_LOGIN = SYSDATE WHERE EMPCD = :EMPCD";
         await _oracleService.ExecuteNonQueryAsync(updateSql, new OracleParameter("EMPCD", empcd));

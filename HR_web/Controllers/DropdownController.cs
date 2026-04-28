@@ -3,10 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers;
 
-/// <summary>
-/// Cung cấp dữ liệu dropdown qua AJAX cho các form (Select2).
-/// GET trả về JSON - không cần JsonRequestBehavior.AllowGet trong .NET 8.
-/// </summary>
+
 public class DropdownController : Controller
 {
     private readonly DropdownService _dropdownService;

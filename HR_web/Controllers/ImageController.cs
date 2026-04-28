@@ -6,11 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers;
 
-/// <summary>
-/// Phục vụ ảnh nhân viên và chữ ký từ network share.
-/// Thay Server.MapPath bằng IWebHostEnvironment.WebRootPath trong .NET 8.
-/// Thay Request.Files bằng IFormFile trong .NET 8.
-/// </summary>
+
 [Authorize]
 public class ImageController : BaseController
 {
@@ -26,9 +22,6 @@ public class ImageController : BaseController
         _env = env;
     }
 
-    // ─────────────────────────────────────────────
-    // GET: /Image/GetEmployeeImage?empCd=xxx
-    // ─────────────────────────────────────────────
     [HttpGet]
     public IActionResult GetEmployeeImage(string empCd)
     {
@@ -47,9 +40,7 @@ public class ImageController : BaseController
         return PhysicalFile(path, "image/jpeg");
     }
 
-    // ─────────────────────────────────────────────
-    // GET: /Image/GetSignature?empCd=xxx
-    // ─────────────────────────────────────────────
+
     [HttpGet]
     public IActionResult GetSignature(string empCd)
     {
@@ -67,10 +58,7 @@ public class ImageController : BaseController
         return PhysicalFile(path, "image/jpeg");
     }
 
-    // ─────────────────────────────────────────────
-    // POST: /Image/UploadSignature
-    // Dùng IFormFile thay Request.Files cũ
-    // ─────────────────────────────────────────────
+    
     [HttpPost]
     public async Task<IActionResult> UploadSignature(string empCd, IFormFile? file)
     {
@@ -103,10 +91,8 @@ public class ImageController : BaseController
                 var updatedUser = CurrentUser;
                 updatedUser.SIGNATUREBLOB = "Y";
 
-                // Cập nhật Cookie (thay AuthHelper.UpdateUserSession cũ)
                 await AuthHelper.UpdateUserSessionAsync(HttpContext, updatedUser);
 
-                // Cập nhật DB
                 await _accountService.UpdateSignatureFlagAsync(empCd, true, CurrentUser.EmpCd);
             }
 

@@ -63,7 +63,6 @@ public class ProfileController : BaseController
             {
                 TempData["SuccessMessage"] = "Đổi mật khẩu thành công!";
 
-                // Cập nhật flag trong Cookie (thay AuthHelper.UpdateUserSession cũ)
                 var updatedUser = CurrentUser;
                 updatedUser!.RequirePasswordChange = false;
                 await AuthHelper.UpdateUserSessionAsync(HttpContext, updatedUser);

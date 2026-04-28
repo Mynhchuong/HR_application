@@ -91,7 +91,7 @@ $(document).ready(function () {
             remark: remark 
         };
 
-        $.post('/Payslip/CreatePeriod', payload, function (res) {
+        $.post('CreatePeriod', payload, function (res) {
             if (res.success) {
                 AlertHelper.success('Tạo kỳ lương mới thành công');
                 setTimeout(() => location.reload(), 1500);
@@ -103,7 +103,7 @@ $(document).ready(function () {
 
     // 3. Cấu hình hiển thị
     $('#btnConfigColumns').on('click', function () {
-        $.get('/Payslip/GetItemsVisibility', { periodId: currentPeriodId }, function (res) {
+        $.get('GetItemsVisibility', { periodId: currentPeriodId }, function (res) {
             if (res.success) {
                 let html = '';
                 res.data.forEach(item => {
@@ -142,7 +142,7 @@ $(document).ready(function () {
         });
 
         $.ajax({
-            url: '/Payslip/UpdateItemsVisibility',
+            url: 'UpdateItemsVisibility',
             type: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ 
@@ -301,7 +301,7 @@ $(document).ready(function () {
 
         $('#tbodyAdminData').html('<tr><td colspan="3" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> Đang tải...</td></tr>');
 
-        $.get('/Payslip/GetAdminList', { 
+        $.get('GetAdminList', { 
             periodId: currentPeriodId, 
             search: search,
             page: page, 
@@ -372,7 +372,7 @@ $(document).ready(function () {
         const originalHtml = btn.html();
         btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Đang tải...');
 
-        $.get('/Payslip/GetExportData', { periodId: currentPeriodId }, function (res) {
+        $.get('GetExportData', { periodId: currentPeriodId }, function (res) {
             if (res.success && res.data.length > 0) {
                 const data = [];
                 const headers = ['STT', 'Mã NV', 'Họ Tên'];
@@ -406,7 +406,7 @@ $(document).ready(function () {
     // 7. Công bố
     $('#btnRelease').on('click', function () {
         if (!confirm('Sau khi công bộ, tất cả nhân viên sẽ thấy phiếu lương này. Bạn chắc chứ?')) return;
-        $.post('/Payslip/ReleasePeriod', { id: currentPeriodId }, function (res) {
+        $.post('ReleasePeriod', { id: currentPeriodId }, function (res) {
             if (res.success) {
                 AlertHelper.success(res.message);
                 setTimeout(() => location.reload(), 1500); // Wait for toast
@@ -424,7 +424,7 @@ $(document).ready(function () {
         $('#tbodyDetailItems').html('<tr><td colspan="2" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> Đang tải...</td></tr>');
         $('#modalViewDetail').modal('show');
 
-        $.get('/Payslip/GetMyPayslip', { empcd: empcd, periodId: currentPeriodId }, function(res) {
+        $.get('GetMyPayslip', { empcd: empcd, periodId: currentPeriodId }, function(res) {
             if (res.success && res.data) {
                 let html = '';
                 res.data.forEach(item => {

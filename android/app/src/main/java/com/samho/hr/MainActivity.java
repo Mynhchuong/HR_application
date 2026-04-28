@@ -7,6 +7,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.activity.OnBackPressedCallback;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -19,6 +23,33 @@ public class MainActivity extends AppCompatActivity {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
+        });
+
+        WebView webView = findViewById(R.id.webView);
+        
+        // Cấu hình WebView
+        WebSettings webSettings = webView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webSettings.setDomStorageEnabled(true); 
+        // Thiết lập Custom User-Agent để server nhận diện App
+        webSettings.setUserAgentString("MySamhoMobile");
+        
+        webView.setWebViewClient(new WebViewClient());
+        
+        // Load trang web
+        webView.loadUrl("http://192.168.1.24/HR_Web");
+
+        // Xử lý nút Back của điện thoại
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    setEnabled(false); 
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
         });
     }
 }

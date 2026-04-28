@@ -22,13 +22,11 @@ public class AccountController : Controller
     [AllowAnonymous]
     public IActionResult Login()
     {
-        // Nếu đã đăng nhập rồi → về trang chủ
         if (User.Identity?.IsAuthenticated == true)
             return RedirectToAction("Index", "Home");
 
         var model = new LoginModel();
 
-        // Nhớ tài khoản từ cookie (thay Request.Cookies["EMP_CD"].Value cũ)
         if (Request.Cookies.TryGetValue("EMP_CD", out var savedEmpCd))
         {
             model.EMPCD = savedEmpCd;
@@ -57,10 +55,8 @@ public class AccountController : Controller
             return View(model);
         }
 
-        // Kiểm tra đổi mật khẩu mặc định
         user.RequirePasswordChange = (model.Password == "123456");
 
-        // Lưu/xóa cookie "Nhớ tài khoản" (thay Response.Cookies[...].Value cũ)
         if (model.RememberMe)
         {
             Response.Cookies.Append("EMP_CD", model.EMPCD,
@@ -71,10 +67,8 @@ public class AccountController : Controller
             Response.Cookies.Delete("EMP_CD");
         }
 
-        // Tạo Cookie Authentication (thay FormsAuthentication.SetAuthCookie)
         await AuthHelper.SignInAsync(HttpContext, user, model.RememberMe);
 
-        // Ưu tiên đổi mật khẩu / cập nhật chữ ký
         if (user.RequirePasswordChange)
         {
             TempData["InfoMessage"] = "Bảo mật hệ thống: Vui lòng đổi mật khẩu để bảo vệ tài khoản của bạn!";
@@ -94,7 +88,6 @@ public class AccountController : Controller
     // ─────────────────────────────────────────────
     public async Task<IActionResult> Logout()
     {
-        // Xóa Cookie Authentication (thay FormsAuthentication.SignOut() + Session.Clear())
         await AuthHelper.SignOutAsync(HttpContext);
         return RedirectToAction("Login");
     }

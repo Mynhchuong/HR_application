@@ -15,19 +15,16 @@ public class PayslipController : BaseController
         _payslipService = payslipService;
     }
 
-    // ─────────────────────────────────────────────
-    // GET: /Payslip/Index (Nhân viên xem phiếu lương)
-    // ─────────────────────────────────────────────
+    
     public async Task<IActionResult> Index()
     {
         var empCd = CurrentUser?.EmpCd;
         var periods = await _payslipService.GetPeriodsAsync(empCd);
 
-        // Chỉ hiện kỳ đã publish hoặc auto-publish đã đến hạn
         var filteredPeriods = periods
             .Where(x => x.IS_PUBLISHED == 1 ||
                         (x.IS_AUTO_PUBLISH == 1 && x.PUBLISH_DATE <= DateTime.Now))
-            .OrderByDescending(x => x.INST_DT) // Sắp xếp theo ngày tạo mới nhất (mặc định tháng mới nhất)
+            .OrderByDescending(x => x.INST_DT) 
             .ToList();
 
         ViewBag.Periods = filteredPeriods;
@@ -36,10 +33,7 @@ public class PayslipController : BaseController
         return View();
     }
 
-    // ─────────────────────────────────────────────
-    // GET: /Payslip/GetMyPayslip?periodId=xxx (AJAX)
-    // Bỏ JsonRequestBehavior.AllowGet - không cần trong .NET 8
-    // ─────────────────────────────────────────────
+    
     [HttpGet]
     public async Task<IActionResult> GetMyPayslip(decimal periodId)
     {
@@ -79,9 +73,7 @@ public class PayslipController : BaseController
         return Json(new { success = true, data = items });
     }
 
-    // ─────────────────────────────────────────────
-    // POST: /Payslip/UpdateItemsVisibility (AJAX)
-    // ─────────────────────────────────────────────
+    
     [HttpPost]
     public async Task<IActionResult> UpdateItemsVisibility([FromBody] VisibilityUpdateRequest model)
     {
@@ -94,10 +86,7 @@ public class PayslipController : BaseController
         return Json(result);
     }
 
-    // ─────────────────────────────────────────────
-    // POST: /Payslip/UploadData (AJAX - upload hàng loạt)
-    // Bỏ jsonResult.MaxJsonLength - không cần trong .NET 8
-    // ─────────────────────────────────────────────
+
     [HttpPost]
     public async Task<IActionResult> UploadData([FromBody] UploadDataRequest model)
     {

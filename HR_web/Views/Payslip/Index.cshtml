@@ -6,6 +6,10 @@
     var selectedHero = randomValue < 50 
         ? Url.Content("~/assets/img/illustrations/a-coluong.png") 
         : Url.Content("~/assets/img/illustrations/H-coluong.png");
+        
+    var selectedEmpty = randomValue < 50 
+        ? Url.Content("~/assets/img/illustrations/A-koluong.png") 
+        : Url.Content("~/assets/img/illustrations/H-koluong.png");
 }
 
 <style>
@@ -231,13 +235,13 @@
         </div>
         
         <div class="text-center pb-4">
-            <p class="text-xs text-muted">Mọi thắc mắc liên hệ phòng Nhân sự.<br><strong>Samho ERP Security</strong></p>
+            <p class="text-xs text-muted">Mọi thắc mắc liên hệ phòng Nhân sự.<br><strong>Lương samho thấp lắm ai ơi</strong></p>
         </div>
     </div>
 
     <!-- Empty State -->
     <div id="divNoData" class="empty-state">
-        <img src="/assets/img/illustrations/A-koluong.png" id="imgNoData" />
+        <img src="@selectedEmpty" id="imgNoData" />
         <h3>Chưa có dữ liệu</h3>
         <p class="text-muted">Vui lòng chọn kỳ lương để xem chi tiết.</p>
     </div>

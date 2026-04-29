@@ -1,17 +1,28 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace HR_web.Helpers
 {
     public static class VniHelper
     {
-        // Dùng List để đảm bảo thứ tự thay thế (dài trước, ngắn sau)
         private static readonly List<(string Vni, string Unicode)> Map = new List<(string, string)>
         {
-            // ===== Nhóm 1: 3 ký tự - ươ có dấu (ưu tiên cao nhất) =====
+            // ===== 5 ký tự =====
+            ("uyeá", "uyế"), ("uyeà", "uyề"), ("uyeå", "uyể"), ("uyeã", "uyễ"), ("uyeä", "uyệ"),
+            ("Uyeá", "Uyế"), ("Uyeà", "Uyề"), ("Uyeå", "Uyể"), ("Uyeã", "Uyễ"), ("Uyeä", "Uyệ"),
+
+            // ===== 4 ký tự =====
+            ("ieàu", "iều"), ("ieáu", "iếu"), ("ieåu", "iểu"), ("ieãu", "iễu"), ("ieäu", "iệu"),
+            ("Ieàu", "Iều"), ("Ieáu", "Iếu"), ("Ieåu", "Iểu"), ("Ieãu", "Iễu"), ("Ieäu", "Iệu"),
+
+            ("uoâù", "uố"), ("uoâø", "uồ"), ("uoâû", "uổ"), ("uoâõ", "uỗ"), ("uoâï", "uộ"),
+            ("Uoâù", "Uố"), ("Uoâø", "Uồ"), ("Uoâû", "Uổ"), ("Uoâõ", "Uỗ"), ("Uoâï", "Uộ"),
+
+            // ===== 3 ký tự =====
             ("öôù", "ướ"), ("öôø", "ườ"), ("öôû", "ưở"), ("öôõ", "ưỡ"), ("öôï", "ượ"),
             ("Öôù", "Ướ"), ("Öôø", "Ườ"), ("Öôû", "Ưở"), ("Öôõ", "Ưỡ"), ("Öôï", "Ượ"),
 
-            // ===== Nhóm 2: 3 ký tự - â/ă/ê/ô có dấu =====
             ("aâù", "ấ"), ("aâø", "ầ"), ("aâû", "ẩ"), ("aâõ", "ẫ"), ("aâï", "ậ"),
             ("Aâù", "Ấ"), ("Aâø", "Ầ"), ("Aâû", "Ẩ"), ("Aâõ", "Ẫ"), ("Aâï", "Ậ"),
 
@@ -24,32 +35,18 @@ namespace HR_web.Helpers
             ("oâù", "ố"), ("oâø", "ồ"), ("oâû", "ổ"), ("oâõ", "ỗ"), ("oâï", "ộ"),
             ("Oâù", "Ố"), ("Oâø", "Ồ"), ("Oâû", "Ổ"), ("Oâõ", "Ỗ"), ("Oâï", "Ộ"),
 
-            // ===== Nhóm 3: 2 ký tự - ư có dấu (ö = ư trong VNI) =====
+            // ===== 2 ký tự =====
             ("öù", "ứ"), ("öø", "ừ"), ("öû", "ử"), ("öõ", "ữ"), ("öï", "ự"),
             ("Öù", "Ứ"), ("Öø", "Ừ"), ("Öû", "Ử"), ("Öõ", "Ữ"), ("Öï", "Ự"),
 
-            // ===== Nhóm 4: 2 ký tự - ơ có dấu (ô = ơ trong VNI) =====
             ("ôù", "ớ"), ("ôø", "ờ"), ("ôû", "ở"), ("ôõ", "ỡ"), ("ôï", "ợ"),
             ("Ôù", "Ớ"), ("Ôø", "Ờ"), ("Ôû", "Ở"), ("Ôõ", "Ỡ"), ("Ôï", "Ợ"),
 
-            // ===== Nhóm 5: Nguyên âm đôi iê, uô có dấu =====
-            ("ieá", "iế"), ("ieà", "iề"), ("ieå", "iể"), ("ieã", "iễ"), ("ieä", "iệ"),
-            ("Ieá", "Iế"), ("Ieà", "Iề"), ("Ieå", "Iể"), ("Ieã", "Iễ"), ("Ieä", "Iệ"),
-
-            ("uoá", "uố"), ("uoà", "uồ"), ("uoå", "uổ"), ("uoã", "uỗ"), ("uoä", "uộ"),
-            ("Uoá", "Uố"), ("Uoà", "Uồ"), ("Uoå", "Uổ"), ("Uoã", "Uỗ"), ("Uoä", "Uộ"),
-
-            // ===== Nhóm 6: Nguyên âm cơ bản có dấu =====
             ("aù", "á"), ("aø", "à"), ("aû", "ả"), ("aõ", "ã"), ("aï", "ạ"),
             ("Aù", "Á"), ("Aø", "À"), ("Aû", "Ả"), ("Aõ", "Ã"), ("Aï", "Ạ"),
 
-            ("aê", "ă"), ("Aê", "Ă"),
-            ("aâ", "â"), ("Aâ", "Â"),
-
             ("eù", "é"), ("eø", "è"), ("eû", "ẻ"), ("eõ", "ẽ"), ("eï", "ẹ"),
             ("Eù", "É"), ("Eø", "È"), ("Eû", "Ẻ"), ("Eõ", "Ẽ"), ("Eï", "Ẹ"),
-
-            ("eâ", "ê"), ("Eâ", "Ê"),
 
             ("iù", "í"), ("iø", "ì"), ("iû", "ỉ"), ("iõ", "ĩ"), ("iï", "ị"),
             ("Iù", "Í"), ("Iø", "Ì"), ("Iû", "Ỉ"), ("Iõ", "Ĩ"), ("Iï", "Ị"),
@@ -57,29 +54,43 @@ namespace HR_web.Helpers
             ("où", "ó"), ("oø", "ò"), ("oû", "ỏ"), ("oõ", "õ"), ("oï", "ọ"),
             ("Où", "Ó"), ("Oø", "Ò"), ("Oû", "Ỏ"), ("Oõ", "Õ"), ("Oï", "Ọ"),
 
-            ("oâ", "ô"), ("Oâ", "Ô"),
-
             ("uù", "ú"), ("uø", "ù"), ("uû", "ủ"), ("uõ", "ũ"), ("uï", "ụ"),
             ("Uù", "Ú"), ("Uø", "Ù"), ("Uû", "Ủ"), ("Uõ", "Ũ"), ("Uï", "Ụ"),
 
             ("yù", "ý"), ("yø", "ỳ"), ("yû", "ỷ"), ("yõ", "ỹ"), ("yï", "ỵ"),
             ("Yù", "Ý"), ("Yø", "Ỳ"), ("Yû", "Ỷ"), ("Yõ", "Ỹ"), ("Yï", "Ỵ"),
 
-            // ===== Nhóm 7: Ký tự đơn (cuối cùng) =====
+            // ===== oa / oe =====
+            ("oaù", "oá"), ("oaø", "oà"), ("oaû", "oả"), ("oaõ", "oã"), ("oaï", "oạ"),
+            ("Oaù", "Oá"), ("Oaø", "Oà"), ("Oaû", "Oả"), ("Oaõ", "Oã"), ("Oaï", "Oạ"),
+
+            // ===== base =====
+            ("aâ", "â"), ("aê", "ă"),
+            ("eâ", "ê"),
+            ("oâ", "ô"),
+            ("uoâ", "uô"),
+            ("uyeâ", "uyê"),
+
+            // ===== ký tự đơn =====
             ("Ñ", "Đ"), ("ñ", "đ"),
-            ("Ö", "Ư"), ("ö", "ư"),
-            ("Ô", "Ơ"), ("ô", "ơ"),  // Phải sau tất cả tổ hợp ô+dấu
+            ("ö", "ư"), ("Ö", "Ư"),
+            ("ô", "ơ"), ("Ô", "Ơ"),
         };
 
-        public static string VniToUnicode(string vniString)
-        {
-            if (string.IsNullOrEmpty(vniString)) return vniString;
+        private static readonly List<(string Vni, string Unicode)> SortedMap =
+            Map.OrderByDescending(x => x.Vni.Length).ToList();
 
-            string result = vniString;
-            foreach (var (vni, unicode) in Map)
+        public static string VniToUnicode(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return input;
+
+            string result = input;
+
+            foreach (var (vni, unicode) in SortedMap)
             {
                 result = result.Replace(vni, unicode);
             }
+
             return result;
         }
     }

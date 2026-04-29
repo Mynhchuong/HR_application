@@ -28,16 +28,22 @@ public class ImageController : BaseController
         if (string.IsNullOrWhiteSpace(empCd))
             return BadRequest();
 
+        string fallback = Path.Combine(_env.WebRootPath, "assets", "img", "illustrations", "danger-chat-ill.png");
         string path = Path.Combine(_employeeImageFolder, empCd + ".jpg");
 
-        if (!System.IO.File.Exists(path))
+        try
         {
-            // Trả về ảnh placeholder từ wwwroot (thay Server.MapPath)
-            string fallback = Path.Combine(_env.WebRootPath, "assets", "img", "illustrations", "danger-chat-ill.png");
-            return PhysicalFile(fallback, "image/png");
+            var credentials = new System.Net.NetworkCredential("localfileserver", "!samh0!!");
+            using (new NetworkShareHelper(@"\\192.168.1.5\vserp_picture", credentials))
+            {
+                var fileBytes = System.IO.File.ReadAllBytes(path);
+                return File(fileBytes, "image/jpeg");
+            }
         }
-
-        return PhysicalFile(path, "image/jpeg");
+        catch (Exception ex)
+        {
+            return Content($"LỖI RỒI: {ex.Message}\n\nChi tiết:\n{ex.StackTrace}");
+        }
     }
 
 
@@ -47,15 +53,22 @@ public class ImageController : BaseController
         if (string.IsNullOrWhiteSpace(empCd))
             return BadRequest();
 
+        string fallback = Path.Combine(_env.WebRootPath, "assets", "img", "illustrations", "danger-chat-ill.png");
         string path = Path.Combine(_signatureFolder, empCd + ".jpg");
 
-        if (!System.IO.File.Exists(path))
+        try
         {
-            string fallback = Path.Combine(_env.WebRootPath, "assets", "img", "illustrations", "danger-chat-ill.png");
-            return PhysicalFile(fallback, "image/png");
+            var credentials = new System.Net.NetworkCredential("localfileserver", "!samh0!!");
+            using (new NetworkShareHelper(@"\\192.168.1.5\vserp_picture", credentials))
+            {
+                var fileBytes = System.IO.File.ReadAllBytes(path);
+                return File(fileBytes, "image/jpeg");
+            }
         }
-
-        return PhysicalFile(path, "image/jpeg");
+        catch (Exception ex)
+        {
+            return Content($"LỖI RỒI: {ex.Message}\n\nChi tiết:\n{ex.StackTrace}");
+        }
     }
 
     
@@ -79,10 +92,14 @@ public class ImageController : BaseController
         {
             string savePath = Path.Combine(_signatureFolder, empCd + ".jpg");
 
-            // Ghi file lên network share (thay file.SaveAs)
-            using (var stream = new FileStream(savePath, FileMode.Create))
+            var credentials = new System.Net.NetworkCredential("localfileserver", "!samh0!!");
+            using (new NetworkShareHelper(@"\\192.168.1.5\vserp_picture", credentials))
             {
-                await file.CopyToAsync(stream);
+                // Ghi file lên network share (thay file.SaveAs)
+                using (var stream = new FileStream(savePath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream);
+                }
             }
 
             // Cập nhật trạng thái chữ ký trong Cookie và DB

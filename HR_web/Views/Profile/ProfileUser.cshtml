@@ -212,7 +212,7 @@
             
             <form asp-controller="Image" asp-action="UploadSignature" method="post" enctype="multipart/form-data" id="sigForm">
                 <input type="hidden" name="empCd" value="@Model.EmpCd" />
-                <input type="file" id="fileInput" name="file" accept="image/jpeg" style="display:none;" onchange="document.getElementById('sigForm').submit()" />
+                <input type="file" id="fileInput" name="file" accept="image/jpeg" capture="camera" style="display:none;" onchange="document.getElementById('sigForm').submit()" />
                 <button type="button" onclick="document.getElementById('fileInput').click()" class="btn-signature mb-2">
                     <span class="material-symbols-rounded align-middle me-1">signature</span> Cập nhật chữ ký
                 </button>

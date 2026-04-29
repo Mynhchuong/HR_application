@@ -19,6 +19,18 @@
     var selectedImg = imageFiles.Length > 0 
         ? Url.Content($"~/assets/img/homeimg/{imageFiles[random.Next(imageFiles.Length)]}") 
         : Url.Content("~/assets/img/illustrations/Sayhii.png");
+
+    string[] greetings = {
+        "Hôm nay bạn thế nào? 🌤️",
+        "Chúc bạn một ngày làm việc thật rực rỡ! 🚀",
+        "tôi là bò sáng phải rống bạn là người sống phải ráng 😊",
+        "Cùng nhau hoàn thành xuất sắc công việc hôm nay nào! 💪",
+        "ráng đi bạn chắc gì sống tới tuổi nghỉ hưu hihi ✨",
+        "Hít thở sâu và bắt đầu ngày mới thật năng suất nhé! 🌈",
+        "mình không sinh ra để đi làm bạn cũng thế 👍",
+        
+    };
+    string randomGreeting = greetings[random.Next(greetings.Length)];
 }
 
 <style>
@@ -152,8 +164,8 @@
                  <img src="@selectedImg" style="width: 100%; height: 100%; object-fit: contain; padding: 4px;" />
             </div>
             <div>
-                <h1>Xin chào, @(user?.FullName?.Split(' ').Last() ?? "Bạn")!</h1>
-                <p>Hôm nay bạn thế nào?</p>
+                <h1>Xin chào, <span class="vni-font">@(user?.FullName?.Split(' ').Last() ?? "Bạn")</span>!</h1>
+                <p>@randomGreeting</p>
             </div>
         </div>
         <div class="mt-4 pt-2 border-top border-white border-opacity-10">

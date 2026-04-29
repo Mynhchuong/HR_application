@@ -153,8 +153,8 @@
         <div class="avatar-wrapper">
             <img src="@Url.Action("GetEmployeeImage", "Image", new { empCd = Model.EmpCd })" class="avatar-img" />
         </div>
-        <h2 class="user-name" style="text-transform: uppercase;">@VniHelper.VniToUnicode(Model.FullName)</h2>
-        <div class="user-role">@VniHelper.VniToUnicode(Model.DeptName)</div>
+        <h2 class="user-name vni-font" style="text-transform: uppercase;">@Model.FullName</h2>
+        <div class="user-role vni-font">@Model.DeptName</div>
     </div>
 
     <!-- Thông tin cơ bản -->
@@ -172,7 +172,7 @@
             <div class="item-icon"><span class="material-symbols-rounded">category</span></div>
             <div class="item-content">
                 <div class="item-label">Vị trí</div>
-                <div class="item-description">@VniHelper.VniToUnicode(Model.LineName) · @VniHelper.VniToUnicode(Model.WorkName)</div>
+                <div class="item-description"><span class="vni-font">@Model.LineName</span> · <span class="vni-font">@Model.WorkName</span></div>
             </div>
         </div>
         <div class="setting-item">

@@ -1,3 +1,7 @@
+# NDK
+obj/
+
+# IntelliJ IDEA / Android Studio
 *.iml
 .gradle
 /local.properties
@@ -7,9 +11,41 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/dictionaries
+.idea/**/setupElements.xml
+
+# macOS
 .DS_Store
+
+# Build output
 /build
+*/build
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+
+# Keystore files
+*.jks
+*.keystore
+
+# External native build folder generated in Android Studio 2.2 and later
+.externalNativeBuild
+.cxx/
+
+# Google Services (e.g. APIs or Firebase)
+google-services.json
+
+# Freeline
+freeline.py
+freeline/
+freeline_project_description.json
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/readme.md

@@ -182,6 +182,14 @@ public class PayslipController : ControllerBase
                     new OracleParameter("PERIOD_ID", periodId),
                     new OracleParameter("ITEM_ID", item.ID),
                     new OracleParameter("IS_VISIBLE", item.IS_VISIBLE));
+
+                if (!string.IsNullOrEmpty(item.ITEM_NAME))
+                {
+                    string sqlUpdateName = "UPDATE HRMS.HR_PAYROLL_ITEMS SET ITEM_NAME = :ITEM_NAME WHERE ID = :ITEM_ID";
+                    await _oracleService.ExecuteNonQueryAsync(sqlUpdateName,
+                        new OracleParameter("ITEM_NAME", item.ITEM_NAME),
+                        new OracleParameter("ITEM_ID", item.ID));
+                }
             }
             return Ok(new { success = true, message = "Cập nhật hiển thị thành công" });
         }

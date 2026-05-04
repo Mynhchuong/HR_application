@@ -27,8 +27,14 @@ public class PayslipController : BaseController
             .OrderByDescending(x => x.INST_DT) 
             .ToList();
 
+        var today = DateTime.Now.Date;
+        var activePeriod = filteredPeriods
+            .FirstOrDefault(x => x.START_DATE.HasValue && x.END_DATE.HasValue &&
+                                 x.START_DATE.Value.Date <= today &&
+                                 x.END_DATE.Value.Date >= today);
+
         ViewBag.Periods = filteredPeriods;
-        ViewBag.DefaultPeriodId = filteredPeriods.FirstOrDefault()?.ID;
+        ViewBag.DefaultPeriodId = activePeriod?.ID;
 
         return View();
     }

@@ -199,8 +199,8 @@
     <div id="divPayslipDetail" style="display:none;">
         <div class="payslip-hero">
             <img src="@selectedHero" class="hero-img" alt="Hero" />
-            <div class="hero-name">@(ViewBag.CurrentUser?.FullName)</div>
-            <h2 class="hero-period" id="hPeriodName">---</h2>
+            <div class="hero-name vni-font" style="text-transform: uppercase;">@(ViewBag.CurrentUser?.FullName)</div>
+            <div class="mt-2 px-3" id="hPeriodRemark" style="font-size: 0.95rem; font-weight: 500; color: #fff; line-height: 1.4; opacity: 0.9;"></div>
         </div>
 
         <div class="summary-card">
@@ -242,7 +242,7 @@
     <!-- Empty State -->
     <div id="divNoData" class="empty-state">
         <img src="@selectedEmpty" id="imgNoData" />
-        <h3>Chưa có dữ liệu</h3>
+        <h3>Chưa có phiếu lương tháng này</h3>
         <p class="text-muted">Vui lòng chọn kỳ lương để xem chi tiết.</p>
     </div>
 </div>

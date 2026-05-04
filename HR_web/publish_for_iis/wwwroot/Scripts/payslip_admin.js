@@ -11,7 +11,7 @@ const PAYSLIP_ITEMS = [
     'THUONG_ABC', 'THUONG_MOLD', 'PC_WD', 'THUONG_CNM', 'TRUY_LANH', 'KSK_HS_VEXE', 'THUONG_GT_CNM',
     'MUNG_CUOI_PD', 'KHAC_TIEN_BH', 'KHAC', 'HOAN_THUE_2025', 'TONG_CONG', 'KT_BHXH', 'KT_BHYT', 'KT_BHTN',
     'KT_TNCN', 'KT_DOAN_PHI', 'SO_NGUOI_PT', 'INFO_NGUOI_PT', 'KT_THUE_2025', 'TONG_KHAU_TRU', 'THUC_LANH',
-    'TONG_PN_2026', 'PN_2026_THANG', 'PN_DA_DUNG', 'PN_2026_CON_LAI'
+    'TONG_PN_2026', 'PN_2026_THANG', 'PN_DA_DUNG', 'PN_2026_CON_LAI', 'PN_2025_DA_DUNG', 'PN_2025_CON_LAI'
 ];
 
 $(document).ready(function () {
@@ -207,8 +207,8 @@ $(document).ready(function () {
 
                 bodyHtml += `<tr><td class="ps-2 fw-bold text-primary">${empCd}</td>`;
                 
-                // Map cac cot con lai vao list 56 items
-                for (let j = 0; j < 56; j++) {
+                // Map cac cot con lai vao list 58 items
+                for (let j = 0; j < 58; j++) {
                     const cellVal = row[j + 1]; // +1 vi o 0 la EmpCd
                     const numVal = parseExcelNumber(cellVal);
                     
@@ -250,7 +250,7 @@ $(document).ready(function () {
         const btn = $(this);
         btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Đang xử lý...');
 
-        const batchSize = 200;
+        const batchSize = 50;
         let processedCount = 0;
 
         async function uploadNextBatch() {
@@ -263,7 +263,7 @@ $(document).ready(function () {
 
             try {
                 const res = await $.ajax({
-                    url: '/Payslip/UploadData',
+                    url: 'UploadData',
                     type: 'POST',
                     contentType: 'application/json',
                     data: JSON.stringify({

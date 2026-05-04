@@ -20,9 +20,9 @@ $(document).ready(function () {
         $('#divNoData').hide();
         
         const selectedOption = $('#selectPeriod').find(':selected');
-        const periodName = selectedOption.text();
+        const periodRemark = selectedOption.data('remark') || '';
         
-        $('#hPeriodName').text(periodName);
+        $('#hPeriodRemark').text(periodRemark);
 
         $.get('GetMyPayslip', { periodId: periodId }, function (res) {
             if (res.success && res.data && res.data.length > 0) {

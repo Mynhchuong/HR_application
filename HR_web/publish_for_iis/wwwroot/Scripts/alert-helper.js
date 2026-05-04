@@ -23,25 +23,25 @@ const AlertHelper = (function () {
         const container = getContainer();
         
         let icon = 'info';
-        let img = '/assets/img/illustrations/inform.png';
+        let img = '../assets/img/illustrations/inform.png';
         let colorClass = 'text-bg-info';
 
         switch (type.toLowerCase()) {
             case 'success':
                 icon = 'check_circle';
-                img = '/assets/img/illustrations/success.png';
+                img = '../assets/img/illustrations/success.png';
                 colorClass = 'text-bg-success';
                 break;
             case 'error':
             case 'danger':
                 icon = 'error';
-                img = '/assets/img/illustrations/error.png';
+                img = '../assets/img/illustrations/error.png';
                 colorClass = 'text-bg-danger';
                 break;
             case 'warning':
             case 'warn':
                 icon = 'warning';
-                img = '/assets/img/illustrations/warning.png';
+                img = '../assets/img/illustrations/warning.png';
                 colorClass = 'text-bg-warning';
                 break;
         }

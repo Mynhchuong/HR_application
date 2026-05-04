@@ -1,4 +1,4 @@
-# GHI CHÚ CHUẨN BỊ ĐƯA HR APPLICATION LÊN MOBILE STORES (APP STORE & PLAY STORE)
+
 
 Dưới đây là các yêu cầu và bước chuẩn bị cần thiết để chuyển đổi HR Web hiện tại thành ứng dụng di động chính thức.
 
@@ -46,10 +46,6 @@ Apple thường từ chối các app "chỉ là website". Để pass 100%, cần
 2. Kiểm tra độ phản hồi (Responsive) trên nhiều thiết bị thực tế.
 3. Chọn công nghệ đóng gói: Khuyên dùng **Capacitor** (Công nghệ của Ionic) vì nó giúp gọi các tính năng Native (FaceID, Thông báo) cực kỳ dễ dàng bằng JavaScript.
 4. Đăng ký tài khoản Developer sớm (vì Apple có thể mất vài ngày để xét duyệt tài khoản).
-
----
-*Cập nhật ngày: 22/04/2026*
-*Bởi: Antigravity AI Assistant*
 
 ## 7. Yêu cầu cho Hệ thống Thông báo (Push Notification)
 Để tính năng thông báo hoạt động trên iOS và Android, sau này khi bạn đăng ký tài khoản Google/Apple, bạn cần cung cấp:

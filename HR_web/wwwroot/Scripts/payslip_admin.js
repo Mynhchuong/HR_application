@@ -330,7 +330,7 @@ $(document).ready(function () {
                             <tr>
                                 <td class="ps-4">
                                     <div class="d-flex flex-column">
-                                        <h6 class="mb-0 text-sm">${row.EMP_NAME || 'Unknown'}</h6>
+                                        <h6 class="mb-0 text-sm user-name vni-font" style="text-transform: uppercase;">${row.EMP_NAME || 'Unknown'}</h6>
                                         <p class="text-xs text-secondary mb-0">${row.EMPCD}</p>
                                     </div>
                                 </td>
@@ -429,7 +429,7 @@ $(document).ready(function () {
         const empcd = $(this).data('empcd');
         const name = $(this).data('name');
         
-        $('#modalDetailName').text(name);
+        $('#modalDetailName').text(name).addClass('user-name vni-font').css('text-transform', 'uppercase');
         $('#modalDetailEmpCd').text('Mã thẻ: ' + empcd);
         $('#tbodyDetailItems').html('<tr><td colspan="2" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> Đang tải...</td></tr>');
         $('#modalViewDetail').modal('show');

@@ -41,11 +41,19 @@ public class PayslipController : BaseController
 
     
     [HttpGet]
-    public async Task<IActionResult> GetMyPayslip(decimal periodId)
+    public async Task<IActionResult> GetMyPayslip(decimal periodId, string? empcd = null)
     {
         try
         {
-            var data = await _payslipService.GetMyPayslipAsync(CurrentUser!.EmpCd, periodId);
+            // Nếu HR/Admin truyền empcd thì dùng empcd đó, ngược lại dùng chính mình
+            string targetEmpCd = CurrentUser!.EmpCd;
+            if (!string.IsNullOrEmpty(empcd) &&
+                (CurrentUser.RoleName == "HR" || CurrentUser.RoleName == "Admin"))
+            {
+                targetEmpCd = empcd;
+            }
+
+            var data = await _payslipService.GetMyPayslipAsync(targetEmpCd, periodId);
             return Json(new { success = true, data });
         }
         catch (Exception ex)

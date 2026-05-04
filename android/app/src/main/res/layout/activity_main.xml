@@ -5,6 +5,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#FFFFFF"
     tools:context=".MainActivity">
 
     <WebView
@@ -15,5 +16,61 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/layoutNoInternet"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone"
+        android:background="#FFFFFF"
+        android:padding="24dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="16dp">
+
+            <ImageView
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/chi"
+                android:layout_marginEnd="16dp"/>
+
+            <ImageView
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/a_hoi"
+                android:layout_marginStart="16dp"/>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="máy chưa có internet cần mạng oe wifi á"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textAlignment="center"
+            android:textColor="#333333"
+            android:layout_marginBottom="24dp"/>
+
+        <Button
+            android:id="@+id/btnRetry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp"
+            android:text="Thử lại" />
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

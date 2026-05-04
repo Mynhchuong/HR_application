@@ -13,6 +13,15 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.view.View;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
@@ -30,6 +39,8 @@ import java.io.IOException;
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
+    private LinearLayout layoutNoInternet;
+    private Button btnRetry;
     private ValueCallback<Uri[]> mFilePathCallback;
     private Uri mCameraPhotoUri;
     private static final int FILE_CHOOSER_RESULT_CODE = 100;
@@ -47,6 +58,15 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView = findViewById(R.id.webView);
+        layoutNoInternet = findViewById(R.id.layoutNoInternet);
+        btnRetry = findViewById(R.id.btnRetry);
+
+        btnRetry.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                checkNetworkAndLoadUrl();
+            }
+        });
         
         // Cấu hình WebView
         WebSettings webSettings = webView.getSettings();
@@ -55,7 +75,22 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setAllowFileAccess(true);
         webSettings.setUserAgentString("MySamhoMobile");
         
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @SuppressWarnings("deprecation")
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                super.onReceivedError(view, errorCode, description, failingUrl);
+                showNoInternetLayout();
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                if (request.isForMainFrame()) {
+                    showNoInternetLayout();
+                }
+            }
+        });
         
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -87,7 +122,7 @@ public class MainActivity extends AppCompatActivity {
         });
         
         // Load trang web
-        webView.loadUrl("http://192.168.1.24/HR_Web");
+        checkNetworkAndLoadUrl();
 
         // Xử lý nút Back của điện thoại
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -101,6 +136,34 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    private void checkNetworkAndLoadUrl() {
+        if (isNetworkAvailable()) {
+            layoutNoInternet.setVisibility(View.GONE);
+            webView.setVisibility(View.VISIBLE);
+            if (webView.getUrl() == null || webView.getUrl().startsWith("file://") || webView.getUrl().startsWith("data:")) {
+                webView.loadUrl("http://192.168.1.24/HR_Web");
+            } else {
+                webView.reload();
+            }
+        } else {
+            showNoInternetLayout();
+        }
+    }
+
+    private void showNoInternetLayout() {
+        webView.setVisibility(View.GONE);
+        layoutNoInternet.setVisibility(View.VISIBLE);
+    }
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connectivityManager != null) {
+            NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+            return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+        }
+        return false;
     }
 
     private boolean checkCameraPermission() {

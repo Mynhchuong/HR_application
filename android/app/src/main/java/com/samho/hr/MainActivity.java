@@ -12,6 +12,8 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+import androidx.appcompat.app.AlertDialog;
+import android.content.DialogInterface;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
@@ -41,6 +43,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private LinearLayout layoutNoInternet;
     private Button btnRetry;
+    private String selectedBaseUrl = "http://192.168.1.24/HR_Web"; // Mặc định là mạng nội bộ
     private ValueCallback<Uri[]> mFilePathCallback;
     private Uri mCameraPhotoUri;
     private static final int FILE_CHOOSER_RESULT_CODE = 100;
@@ -122,7 +125,11 @@ public class MainActivity extends AppCompatActivity {
         });
         
         // Load trang web
-        checkNetworkAndLoadUrl();
+        if (isNetworkAvailable()) {
+            showNetworkSelectionDialog();
+        } else {
+            showNoInternetLayout();
+        }
 
         // Xử lý nút Back của điện thoại
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -143,13 +150,34 @@ public class MainActivity extends AppCompatActivity {
             layoutNoInternet.setVisibility(View.GONE);
             webView.setVisibility(View.VISIBLE);
             if (webView.getUrl() == null || webView.getUrl().startsWith("file://") || webView.getUrl().startsWith("data:")) {
-                webView.loadUrl("http://192.168.1.24/HR_Web");
+                webView.loadUrl(selectedBaseUrl);
             } else {
                 webView.reload();
             }
         } else {
             showNoInternetLayout();
         }
+    }
+
+    private void showNetworkSelectionDialog() {
+        String[] options = {"Mạng công ty Samho (Nội bộ)", "Mạng bên ngoài (Internet/4G/Wifi)"};
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Chọn mạng kết nối");
+        builder.setCancelable(false);
+        builder.setItems(options, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                if (which == 0) {
+                    selectedBaseUrl = "http://192.168.1.24/HR_Web";
+                } else {
+                    selectedBaseUrl = "http://103.82.204.247/HR_Web";
+                }
+                layoutNoInternet.setVisibility(View.GONE);
+                webView.setVisibility(View.VISIBLE);
+                webView.loadUrl(selectedBaseUrl);
+            }
+        });
+        builder.show();
     }
 
     private void showNoInternetLayout() {

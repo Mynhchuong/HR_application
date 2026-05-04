@@ -593,7 +593,7 @@
                 }
             });
 
-            $('a').not('[target="_blank"]').not('[href^="#"]').not('[data-bs-toggle]').on('click', function() {
+            $('a').not('[target="_blank"]').not('[href^="#"]').not('[data-bs-toggle]').not('[download]').on('click', function() {
                 if (!$(this).hasClass('dropdown-toggle')) {
                     window.showLoading();
                 }

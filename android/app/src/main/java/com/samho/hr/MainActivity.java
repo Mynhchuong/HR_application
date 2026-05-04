@@ -53,12 +53,10 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true); 
         webSettings.setAllowFileAccess(true);
-        // Thiết lập Custom User-Agent để server nhận diện App
         webSettings.setUserAgentString("MySamhoMobile");
         
         webView.setWebViewClient(new WebViewClient());
         
-        // Cấu hình WebChromeClient để hỗ trợ File Chooser và Camera
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
@@ -67,7 +65,6 @@ public class MainActivity extends AppCompatActivity {
                 }
                 mFilePathCallback = filePathCallback;
 
-                // Kiểm tra xem thẻ input có thuộc tính capture="camera" không
                 boolean isCapture = fileChooserParams.isCaptureEnabled();
 
                 if (isCapture) {
@@ -77,7 +74,6 @@ public class MainActivity extends AppCompatActivity {
                         requestCameraPermission();
                     }
                 } else {
-                    // Mở trình chọn file bình thường (Gallery)
                     Intent intent = fileChooserParams.createIntent();
                     try {
                         startActivityForResult(intent, FILE_CHOOSER_RESULT_CODE);
@@ -173,12 +169,10 @@ public class MainActivity extends AppCompatActivity {
 
             if (resultCode == RESULT_OK) {
                 if (data == null || data.getData() == null) {
-                    // Nếu không có data trả về, nghĩa là ảnh được chụp từ Camera và lưu vào mCameraPhotoUri
                     if (mCameraPhotoUri != null) {
                         results = new Uri[]{mCameraPhotoUri};
                     }
                 } else {
-                    // Ảnh được chọn từ Gallery
                     String dataString = data.getDataString();
                     if (dataString != null) {
                         results = new Uri[]{Uri.parse(dataString)};

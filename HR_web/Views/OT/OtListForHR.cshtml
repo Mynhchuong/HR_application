@@ -65,35 +65,38 @@
             </div>
         </div>
 
-        <div class="px-4 pt-3 pb-1 d-flex flex-wrap gap-2 align-items-center filter-bar">
-            <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="🔍 Tìm mã NV, tên..." style="max-width:220px;" />
-            <select id="filterStatus" class="form-select form-select-sm">
-                <option value="">Tình Trạng (Tất cả)</option>
-                <option value="PENDING">Chờ ký</option>
-                <option value="CONFIRMED">Đã ký</option>
-                <option value="REJECTED">Từ chối</option>
-            </select>
-            <select id="filterDept" class="form-select form-select-sm">
-                <option value="">Bộ Phận (Tất cả)</option>
-                @if (summaryList != null)
-                {
-                    foreach (var s in summaryList.OrderBy(x => x.DEPT_NAME))
-                    {
-                        <option value="@s.DEPT_NAME">@s.DEPT_NAME</option>
-                    }
-                }
-            </select>
-            <select id="filterLine" class="form-select form-select-sm">
-                <option value="">Chuyền (Tất cả)</option>
-            </select>
-            <div class="ms-auto d-flex align-items-center gap-2">
+        <div class="px-4 pt-3 pb-1 row g-3 align-items-end filter-bar">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0 text-primary">Tìm kiếm</label>
+                <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="🔍 Mã NV, tên..." />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0 text-primary">Tình Trạng</label>
+                <select id="filterStatus" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                    <option value="PENDING">Chờ ký</option>
+                    <option value="CONFIRMED">Đã ký</option>
+                    <option value="REJECTED">Từ chối</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0 text-primary">Phòng ban (Dept)</label>
+                <select id="deptCd" name="deptCd" class="select2 form-control"
+                        data-url="@Url.Action("GetDept", "Dropdown")" data-placeholder="Tất cả"></select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0 text-primary">Line</label>
+                <select id="lineCd" name="lineCd" class="select2 form-control"
+                        data-url="@Url.Action("GetLine", "Dropdown")" data-parent="#deptCd" data-placeholder="Tất cả"></select>
+            </div>
+            <div class="col-md-4 d-flex align-items-center justify-content-end gap-2">
                 <label class="mb-0 text-sm text-secondary text-nowrap">Hiển thị:</label>
-                <select id="pageSizeSelect" class="form-select form-select-sm">
+                <select id="pageSizeSelect" class="form-select form-select-sm" style="width: 80px;">
                     <option value="50">50</option>
                     <option value="100" selected>100</option>
                     <option value="500">500</option>
                 </select>
-                <span id="paginationInfo" class="text-nowrap"></span>
+                <span id="paginationInfo" class="text-nowrap ms-2"></span>
             </div>
         </div>
 
@@ -158,7 +161,7 @@
     function loadData(page = 1) {
         if (isLoading) return;
         isLoading = true; currentPage = page;
-        const search = $('#searchInput').val(), status = $('#filterStatus').val(), dept_nm = $('#filterDept').val(), line_nm = $('#filterLine').val();
+        const search = $('#searchInput').val(), status = $('#filterStatus').val(), dept_nm = $('#deptCd').val(), line_nm = $('#lineCd').val();
         $('#otTableBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải dữ liệu...</div></td></tr>`);
         
         $.ajax({
@@ -166,11 +169,10 @@
             type: 'GET',
             data: {
                 work_date: WORK_DATE,
-                dept_id: DEPT_ID,
+                dept_id: dept_nm || DEPT_ID,
                 search: search,
                 status: status,
-                dept_name: dept_nm,
-                line_name: line_nm,
+                line_id: line_nm,
                 page: page,
                 page_size: pageSize
             },
@@ -237,7 +239,7 @@
 
     $('#pageSizeSelect').on('change', function() { pageSize=parseInt($(this).val()); loadData(1); });
     $('#searchInput').on('input', debounce(() => loadData(1), 500));
-    $('#filterStatus, #filterDept, #filterLine').on('change', () => loadData(1));
+    $('#filterStatus, #deptCd, #lineCd').on('change', () => loadData(1));
 
     $('#exportExcelBtn').on('click', async function() {
         const $btn=$(this), originalHtml=$btn.html();
@@ -295,6 +297,9 @@
     function escHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
     function debounce(fn,d){let t;return function(){clearTimeout(t);t=setTimeout(fn,d);};}
 
-    $(document).ready(() => loadData(1));
+    $(document).ready(() => {
+        Select2Helper.init();
+        loadData(1);
+    });
     </script>
 }

@@ -30,8 +30,8 @@ public class OTController : ControllerBase
             string sql = @"
                 SELECT E.EMPCD, E.DAT WORK_DATE, E.OVER_TIME OT_HOURS, E.OT_BEFORE, E.OT_BEFORE_TIME, E.OT_AFTER, E.OT_AFTER_TIME, E.OT_REST,
                        CASE WHEN E.OT_BEFORE = 'Y' OR E.OT_AFTER = 'Y' THEN 'Y' ELSE 'N' END HAS_OT,
-                       CASE WHEN E.OT_AFTER = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
-                            WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI') - E.OT_BEFORE_TIME / 24
+                       CASE WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI') - E.OT_BEFORE_TIME / 24
+                            WHEN E.OT_AFTER = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
                        END START_OT,
                        CASE WHEN E.OT_AFTER = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI') + E.OT_AFTER_TIME / 24
                             WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
@@ -40,14 +40,20 @@ public class OTController : ControllerBase
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND TO_CHAR(DAT,'YYYYIW') = TO_CHAR(SYSDATE,'YYYYIW') AND DAT <= SYSDATE), 0) SUM_WEEK,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TRUNC(SYSDATE,'MM') AND SYSDATE), 0) SUM_MONTH,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0101','YYYYMMDD') AND SYSDATE), 0) SUM_YEAR
-                FROM (SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, OT_REST
+                FROM (SELECT EMPCD,DAT,SHIFTCD,MAX(OVER_TIME)OVER_TIME,MAX(OT_BEFORE)OT_BEFORE,
+                MAX(OT_BEFORE_TIME)OT_BEFORE_TIME, MAX(OT_AFTER)OT_AFTER, MAX(OT_AFTER_TIME)OT_AFTER_TIME, MAX(OT_REST)OT_REST
+                      FROM (
+                      SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, OT_REST
                       FROM HRMS.EBM300 WHERE DAT = TRUNC(SYSDATE) AND EMPCD = :EMPCD
                       UNION ALL
                       SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, OT_REST
-                      FROM HRMS.EBM300_WAIT WHERE DAT = TRUNC(SYSDATE) AND EMPCD = :EMPCD) E
+                      FROM HRMS.EBM300_WAIT WHERE DAT = TRUNC(SYSDATE) AND EMPCD = :EMPCD)
+                      WHERE OVER_TIME IS NOT NULL
+                      GROUP BY EMPCD,DAT,SHIFTCD) E
                 JOIN HRMS.EBM100 S ON S.SHIFTCD = E.SHIFTCD
                 LEFT JOIN (SELECT EMPCD, CONFIRM_STATUS, CONFIRM_DATE, REJECT_REASON FROM HRMS.HR_OT_REQUEST WHERE WORK_DATE = TRUNC(SYSDATE)) R ON R.EMPCD = E.EMPCD
-                WHERE ROWNUM = 1";
+                WHERE ROWNUM = 1
+                ";
 
             var result = await _oracleService.ExecuteQueryAsync(sql, r => new OTTodayModel
             {
@@ -292,6 +298,7 @@ public class OTController : ControllerBase
         string? status     = null,
         string? dept_name  = null,
         string? line_name  = null,
+        string? line_id    = null,
         int     page       = 1,
         int     page_size  = 100)
     {
@@ -339,24 +346,27 @@ public class OTController : ControllerBase
                   AND (:ST_FLAG IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
                   AND (:DF_FLAG IS NULL OR UPPER(B.DEPTNM) LIKE '%' || UPPER(:DF_VAL) || '%')
                   AND (:LF_FLAG IS NULL OR UPPER(B.TEAMNM) LIKE '%' || UPPER(:LF_VAL) || '%')
-                  AND (:DID_FLAG IS NULL OR EC.DEPTCD = :DID_VAL)";
+                  AND (:DID_FLAG IS NULL OR EC.DEPTCD = :DID_VAL)
+                  AND (:LID_FLAG IS NULL OR EC.LINECD = :LID_VAL)";
 
             var baseParams = new List<OracleParameter>
             {
-                new OracleParameter("W_DATE1",  workDate),
-                new OracleParameter("W_DATE2",  workDate),
-                new OracleParameter("W_DATE3",  workDate),
-                new OracleParameter("S_FLAG",   (object?)(string.IsNullOrEmpty(search)    ? null : "Y") ?? DBNull.Value),
-                new OracleParameter("S_VAL1",   searchPattern),
-                new OracleParameter("S_VAL2",   searchPattern),
-                new OracleParameter("ST_FLAG",  (object?)(string.IsNullOrEmpty(status)    ? null : "Y") ?? DBNull.Value),
-                new OracleParameter("ST_VAL",   (object?)status    ?? DBNull.Value),
-                new OracleParameter("DF_FLAG",  (object?)(string.IsNullOrEmpty(dept_name) ? null : "Y") ?? DBNull.Value),
-                new OracleParameter("DF_VAL",   (object?)dept_name ?? DBNull.Value),
-                new OracleParameter("LF_FLAG",  (object?)(string.IsNullOrEmpty(line_name) ? null : "Y") ?? DBNull.Value),
-                new OracleParameter("LF_VAL",   (object?)line_name ?? DBNull.Value),
-                new OracleParameter("DID_FLAG", (object?)(string.IsNullOrEmpty(dept_id)   ? null : "Y") ?? DBNull.Value),
-                new OracleParameter("DID_VAL",  (object?)dept_id   ?? DBNull.Value)
+                new OracleParameter("W_DATE1",  OracleDbType.Date) { Value = workDate },
+                new OracleParameter("W_DATE2",  OracleDbType.Date) { Value = workDate },
+                new OracleParameter("W_DATE3",  OracleDbType.Date) { Value = workDate },
+                new OracleParameter("S_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("S_VAL1",   OracleDbType.Varchar2) { Value = searchPattern },
+                new OracleParameter("S_VAL2",   OracleDbType.Varchar2) { Value = searchPattern },
+                new OracleParameter("ST_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(status) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("ST_VAL",   OracleDbType.Varchar2) { Value = (object?)status ?? DBNull.Value },
+                new OracleParameter("DF_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(dept_name) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("DF_VAL",   OracleDbType.Varchar2) { Value = (object?)dept_name ?? DBNull.Value },
+                new OracleParameter("LF_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(line_name) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("LF_VAL",   OracleDbType.Varchar2) { Value = (object?)line_name ?? DBNull.Value },
+                new OracleParameter("DID_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(dept_id) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("DID_VAL",  OracleDbType.Varchar2) { Value = (object?)dept_id ?? DBNull.Value },
+                new OracleParameter("LID_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(line_id) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("LID_VAL",  OracleDbType.Varchar2) { Value = (object?)line_id ?? DBNull.Value }
             };
 
             // 1. GET GLOBAL SUMMARY (Counts by Status)
@@ -365,16 +375,16 @@ public class OTController : ControllerBase
                 SELECT 
                     COUNT(*) TOTAL,
                     SUM(CASE WHEN NVL(R.CONFIRM_STATUS, 'PENDING') = 'PENDING' THEN 1 ELSE 0 END) PENDING,
-                    SUM(CASE WHEN R.CONFIRM_STATUS = 'DONE' THEN 1 ELSE 0 END) CONFIRMED,
-                    SUM(CASE WHEN R.CONFIRM_STATUS = 'REJECT' THEN 1 ELSE 0 END) REJECTED
+                    SUM(CASE WHEN R.CONFIRM_STATUS = 'CONFIRMED' THEN 1 ELSE 0 END) CONFIRMED,
+                    SUM(CASE WHEN R.CONFIRM_STATUS = 'REJECTED' THEN 1 ELSE 0 END) REJECTED
                 " + fromSql + whereSql;
 
             var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new
             {
-                TOTAL     = Convert.ToInt32(r["TOTAL"]),
-                PENDING   = Convert.ToInt32(r["PENDING"]),
-                CONFIRMED = Convert.ToInt32(r["CONFIRMED"]),
-                REJECTED  = Convert.ToInt32(r["REJECTED"])
+                TOTAL     = r["TOTAL"]     == DBNull.Value ? 0 : Convert.ToInt32(r["TOTAL"]),
+                PENDING   = r["PENDING"]   == DBNull.Value ? 0 : Convert.ToInt32(r["PENDING"]),
+                CONFIRMED = r["CONFIRMED"] == DBNull.Value ? 0 : Convert.ToInt32(r["CONFIRMED"]),
+                REJECTED  = r["REJECTED"]  == DBNull.Value ? 0 : Convert.ToInt32(r["REJECTED"])
             }, baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
 
             var summary = summaryRows.FirstOrDefault() ?? new { TOTAL = 0, PENDING = 0, CONFIRMED = 0, REJECTED = 0 };

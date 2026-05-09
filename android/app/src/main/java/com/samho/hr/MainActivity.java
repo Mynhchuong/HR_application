@@ -1,4 +1,4 @@
-package com.samho.hr;
+package com.samho.mysamho;
 
 import android.Manifest;
 import android.content.Intent;
@@ -20,9 +20,19 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.graphics.drawable.Drawable;
+import java.io.InputStream;
+import java.util.Random;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.widget.ProgressBar;
+import android.webkit.DownloadListener;
+import android.app.DownloadManager;
+import android.os.Environment;
+import android.webkit.URLUtil;
+import android.webkit.CookieManager;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
@@ -43,6 +53,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private LinearLayout layoutNoInternet;
     private Button btnRetry;
+    private ProgressBar progressBar;
     private String selectedBaseUrl = "http://192.168.1.24/HR_Web"; // Mặc định là mạng nội bộ
     private ValueCallback<Uri[]> mFilePathCallback;
     private Uri mCameraPhotoUri;
@@ -63,6 +74,7 @@ public class MainActivity extends AppCompatActivity {
         webView = findViewById(R.id.webView);
         layoutNoInternet = findViewById(R.id.layoutNoInternet);
         btnRetry = findViewById(R.id.btnRetry);
+        progressBar = findViewById(R.id.progressBar);
 
         btnRetry.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -97,6 +109,16 @@ public class MainActivity extends AppCompatActivity {
         
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
+            public void onProgressChanged(WebView view, int newProgress) {
+                if (newProgress == 100) {
+                    progressBar.setVisibility(View.GONE);
+                } else {
+                    progressBar.setVisibility(View.VISIBLE);
+                    progressBar.setProgress(newProgress);
+                }
+            }
+
+            @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
                 if (mFilePathCallback != null) {
                     mFilePathCallback.onReceiveValue(null);
@@ -121,6 +143,31 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
                 return true;
+            }
+        });
+
+        // Hỗ trợ tải file (Phiếu lương, tài liệu...)
+        webView.setDownloadListener(new DownloadListener() {
+            @Override
+            public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+                try {
+                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                    request.setMimeType(mimetype);
+                    String cookies = CookieManager.getInstance().getCookie(url);
+                    request.addRequestHeader("cookie", cookies);
+                    request.addRequestHeader("User-Agent", userAgent);
+                    request.setDescription("Đang tải file từ HR Samho...");
+                    request.setTitle(URLUtil.guessFileName(url, contentDisposition, mimetype));
+                    request.allowScanningByMediaScanner();
+                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, URLUtil.guessFileName(url, contentDisposition, mimetype));
+                    
+                    DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                    dm.enqueue(request);
+                    Toast.makeText(getApplicationContext(), "Đang tải xuống...", Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    Toast.makeText(getApplicationContext(), "Không thể tải file: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
             }
         });
         
@@ -160,24 +207,50 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showNetworkSelectionDialog() {
-        String[] options = {"Mạng công ty Samho (Nội bộ)", "Mạng bên ngoài (Internet/4G/Wifi)"};
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_network_selection, null);
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Chọn mạng kết nối");
+        builder.setView(dialogView);
         builder.setCancelable(false);
-        builder.setItems(options, new DialogInterface.OnClickListener() {
+
+        AlertDialog dialog = builder.create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+
+        ImageView dialogImage = dialogView.findViewById(R.id.dialogImage);
+        Button btnInternal = dialogView.findViewById(R.id.btnInternal);
+        Button btnExternal = dialogView.findViewById(R.id.btnExternal);
+
+        // Hiển thị hình ngẫu nhiên
+        int[] images = {R.drawable.a_hoi, R.drawable.chi};
+        int randomImageId = images[new Random().nextInt(images.length)];
+        dialogImage.setImageResource(randomImageId);
+
+        btnInternal.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(DialogInterface dialog, int which) {
-                if (which == 0) {
-                    selectedBaseUrl = "http://192.168.1.24/HR_Web";
-                } else {
-                    selectedBaseUrl = "http://103.82.204.247/HR_Web";
-                }
-                layoutNoInternet.setVisibility(View.GONE);
-                webView.setVisibility(View.VISIBLE);
-                webView.loadUrl(selectedBaseUrl);
+            public void onClick(View v) {
+                selectedBaseUrl = "http://192.168.1.24/HR_Web";
+                startApp();
+                dialog.dismiss();
             }
         });
-        builder.show();
+
+        btnExternal.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                selectedBaseUrl = "http://103.82.204.247/HR_Web";
+                startApp();
+                dialog.dismiss();
+            }
+        });
+
+        dialog.show();
+    }
+
+    private void startApp() {
+        layoutNoInternet.setVisibility(View.GONE);
+        webView.setVisibility(View.VISIBLE);
+        webView.loadUrl(selectedBaseUrl);
     }
 
     private void showNoInternetLayout() {

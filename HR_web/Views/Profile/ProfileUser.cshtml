@@ -146,6 +146,17 @@
         transition: all 0.2s;
     }
     .btn-password:active { background: #ffede5; }
+    
+    .form-control {
+        border: 1.5px solid #e2e8f0;
+        background: #f8fafc;
+        transition: all 0.2s;
+    }
+    .form-control:focus {
+        border-color: var(--app-primary);
+        box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        background: #fff;
+    }
 </style>
 
 <div class="profile-container">
@@ -228,7 +239,7 @@
 <!-- Modal đổi mật khẩu -->
 <div class="modal fade" id="changePassModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 28px;">
+        <div class="modal-content shadow-lg" style="border-radius: 28px; border: 1px solid rgba(0,0,0,0.1);">
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title fw-bold">Đổi mật khẩu</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

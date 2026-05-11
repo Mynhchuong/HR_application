@@ -171,9 +171,63 @@
             line-height: 1.5;
         }
     }
+
+    /* Date Picker Styling */
+    .date-picker-container {
+        margin-bottom: 1.5rem;
+    }
+
+    .date-picker-label {
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-bottom: 0.5rem;
+        display: block;
+        letter-spacing: 0.05em;
+    }
+
+    .date-input-wrapper {
+        position: relative;
+        background: #fff;
+        border-radius: 20px;
+        padding: 0.5rem 1rem;
+        border: 1px solid rgba(0,0,0,0.05);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    #workDatePicker {
+        border: none;
+        outline: none;
+        width: 100%;
+        font-weight: 700;
+        color: #1e293b;
+        background: transparent;
+        font-size: 1rem;
+    }
+
+    #workDatePicker::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: 0.6;
+    }
 </style>
 
 <div class="ot-confirm-container py-3">
+    <!-- Date Selector -->
+    <div class="date-picker-container">
+        <label class="date-picker-label">Xem tăng ca ngày</label>
+        <div class="date-input-wrapper">
+            <span class="material-symbols-rounded text-muted">calendar_month</span>
+            <input type="date" id="workDatePicker" 
+                   value="@ViewBag.WorkDate" 
+                   min="@DateTime.Today.ToString("yyyy-MM-dd")" 
+                   onchange="changeWorkDate(this.value)" />
+        </div>
+    </div>
+
     @if (Model == null)
     {
         <div class="text-center py-5">
@@ -266,6 +320,8 @@
 
                     <form asp-controller="OT" asp-action="OtConfirmForm" method="post" id="frmOtConfirm">
                         <input type="hidden" name="empcd" value="@Model.EMPCD" />
+                        <input type="hidden" name="work_date" value="@ViewBag.WorkDate" />
+                        <input type="hidden" name="ot_hours" value="@Model.OT_HOURS" />
                         <input type="hidden" name="confirmStatus" id="confirmStatus" value="" />
 
                         <div class="action-group">
@@ -281,18 +337,17 @@
                     </form>
                 }
                 
-                @if (Model.CONFIRM_STATUS == "REJECTED" && !string.IsNullOrEmpty(Model.REJECT_REASON))
-                {
-                    <div class="alert alert-danger mt-3 rounded-4">
-                        <strong>Lý do từ chối:</strong> @Model.REJECT_REASON
-                    </div>
-                }
+                @* REJECT_REASON removed *@
             </div>
         }
     }
 </div>
 
 <script>
+    function changeWorkDate(date) {
+        window.location.href = '@Url.Action("OtConfirmForm", "OT")?work_date=' + date;
+    }
+
     function submitConfirm(status) {
         const msg = status === 'CONFIRMED' ? 'Bạn chắc chắn CHẤP NHẬN tăng ca?' : 'Bạn chắc chắn KHÔNG ĐỒNG Ý tăng ca?';
         if (confirm(msg)) {

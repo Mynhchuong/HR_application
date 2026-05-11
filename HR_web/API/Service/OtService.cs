@@ -12,21 +12,28 @@ public class OtService
         _api = api;
     }
 
-    public async Task<OTTodayModel?> GetOTTodayAsync(string empcd)
+    public async Task<OTTodayModel?> GetOTTodayAsync(string empcd, string? workDate = null)
     {
         try
         {
-            var result = await _api.GetAsync<OTResponse<OTTodayModel>>("ot/today", $"empcd={empcd}");
+            var query = $"empcd={empcd}";
+            if (!string.IsNullOrEmpty(workDate)) query += $"&work_date={workDate}";
+            var result = await _api.GetAsync<OTResponse<OTTodayModel>>("ot/today", query);
             return (result != null && result.success) ? result.data : null;
         }
         catch { return null; }
     }
 
-    public async Task<OTConfirmResponse> ConfirmOTAsync(string empcd, string confirmStatus, string? rejectReason = null)
+    public async Task<OTConfirmResponse> ConfirmOTAsync(string empcd, string confirmStatus, string? workDate = null, decimal? otHours = null)
     {
         try
         {
-            var payload = new OTConfirmRequest { EMPCD = empcd, CONFIRM_STATUS = confirmStatus, REJECT_REASON = rejectReason };
+            var payload = new OTConfirmRequest { 
+                EMPCD = empcd, 
+                CONFIRM_STATUS = confirmStatus, 
+                WORK_DATE = workDate,
+                OT_HOURS = otHours
+            };
             var response = await _api.PostAsync("ot/confirm", payload);
             if (response != null && response.IsSuccessStatusCode)
             {

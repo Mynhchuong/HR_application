@@ -17,7 +17,6 @@ public class OTTodayModel
     public DateTime? END_OT { get; set; }         
     public string? CONFIRM_STATUS { get; set; }
     public DateTime? CONFIRM_DATE { get; set; }
-    public string? REJECT_REASON { get; set; }
     public decimal SUM_WEEK { get; set; }
     public decimal SUM_MONTH { get; set; }
     public decimal SUM_YEAR { get; set; }
@@ -40,7 +39,6 @@ public class OTClerkModel
     public string? OT_AFTER_TIME { get; set; }     
     public string? CONFIRM_STATUS { get; set; }
     public DateTime? CONFIRM_DATE { get; set; }
-    public string? REJECT_REASON { get; set; }
     public DateTime? START_OT { get; set; }       
     public DateTime? END_OT { get; set; }         
 }
@@ -82,7 +80,6 @@ public class OTHRDetailModel
     public string? OT_AFTER_TIME { get; set; }     
     public string? CONFIRM_STATUS { get; set; }
     public DateTime? CONFIRM_DATE { get; set; }
-    public string? REJECT_REASON { get; set; }
     public DateTime? START_OT { get; set; }      
     public DateTime? END_OT { get; set; }       
     public int TOTAL_COUNT { get; set; }
@@ -92,7 +89,8 @@ public class OTConfirmRequest
 {
     public string EMPCD { get; set; } = string.Empty;
     public string? CONFIRM_STATUS { get; set; }    
-    public string? REJECT_REASON { get; set; }     
+    public string? WORK_DATE { get; set; }
+    public decimal? OT_HOURS { get; set; }
 }
 
 public class OTConfirmResponse

@@ -18,14 +18,17 @@ public class OTController : BaseController
     // ─────────────────────────────────────────────
     // GET: /OT/OtConfirmForm
     // ─────────────────────────────────────────────
-    public async Task<IActionResult> OtConfirmForm()
+    public async Task<IActionResult> OtConfirmForm(string? work_date = null)
     {
         try
         {
             if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
                 return RedirectToAction("Login", "Account");
 
-            var data = await _otService.GetOTTodayAsync(CurrentUser.EmpCd);
+            string selectedDate = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
+            var data = await _otService.GetOTTodayAsync(CurrentUser.EmpCd, selectedDate);
+            
+            ViewBag.WorkDate = selectedDate;
             return View(data);
         }
         catch (Exception ex)
@@ -39,23 +42,23 @@ public class OTController : BaseController
     // POST: /OT/OtConfirmForm
     // ─────────────────────────────────────────────
     [HttpPost]
-    public async Task<IActionResult> OtConfirmForm(string empcd, string confirmStatus, string? rejectReason = null)
+    public async Task<IActionResult> OtConfirmForm(string empcd, string confirmStatus, string work_date, decimal ot_hours)
     {
         try
         {
-            var result = await _otService.ConfirmOTAsync(empcd, confirmStatus, rejectReason);
+            var result = await _otService.ConfirmOTAsync(empcd, confirmStatus, work_date, ot_hours);
 
             if (result.success)
                 TempData["Success"] = result.message;
             else
                 TempData["Error"] = result.message ?? "Có lỗi xảy ra";
 
-            return RedirectToAction("OtConfirmForm");
+            return RedirectToAction("OtConfirmForm", new { work_date });
         }
         catch (Exception ex)
         {
             TempData["Error"] = ex.Message;
-            return RedirectToAction("OtConfirmForm");
+            return RedirectToAction("OtConfirmForm", new { work_date });
         }
     }
 

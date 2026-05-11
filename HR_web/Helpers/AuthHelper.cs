@@ -30,10 +30,10 @@ public static class AuthHelper
 
         var authProperties = new AuthenticationProperties
         {
-            IsPersistent = rememberMe,
+            IsPersistent = true, // Luôn duy trì đăng nhập để ko bị logout khi nghỉ trưa
             ExpiresUtc = rememberMe
                 ? DateTimeOffset.UtcNow.AddDays(30)
-                : DateTimeOffset.UtcNow.AddDays(1),
+                : DateTimeOffset.UtcNow.AddHours(24),
             AllowRefresh = true
         };
 

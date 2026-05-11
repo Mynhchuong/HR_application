@@ -20,12 +20,14 @@ public class OTController : ControllerBase
     }
 
     [HttpGet("today")]
-    public async Task<IActionResult> GetOTToday(string empcd)
+    public async Task<IActionResult> GetOTToday(string empcd, string? work_date = null)
     {
         try
         {
             if (string.IsNullOrEmpty(empcd))
                 return Ok(new { success = false, message = "Thiếu mã nhân viên" });
+
+            DateTime workDate = string.IsNullOrEmpty(work_date) ? DateTime.Today : DateTime.Parse(work_date);
 
             string sql = @"
                 SELECT E.EMPCD, E.DAT WORK_DATE, E.OVER_TIME OT_HOURS, E.OT_BEFORE, E.OT_BEFORE_TIME, E.OT_AFTER, E.OT_AFTER_TIME, E.OT_REST,
@@ -36,7 +38,7 @@ public class OTController : ControllerBase
                        CASE WHEN E.OT_AFTER = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI') + E.OT_AFTER_TIME / 24
                             WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
                        END END_OT,
-                       NVL(R.CONFIRM_STATUS, 'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE, R.REJECT_REASON,
+                       NVL(R.CONFIRM_STATUS, 'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND TO_CHAR(DAT,'YYYYIW') = TO_CHAR(SYSDATE,'YYYYIW') AND DAT <= SYSDATE), 0) SUM_WEEK,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TRUNC(SYSDATE,'MM') AND SYSDATE), 0) SUM_MONTH,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0101','YYYYMMDD') AND SYSDATE), 0) SUM_YEAR
@@ -44,14 +46,14 @@ public class OTController : ControllerBase
                 MAX(OT_BEFORE_TIME)OT_BEFORE_TIME, MAX(OT_AFTER)OT_AFTER, MAX(OT_AFTER_TIME)OT_AFTER_TIME, MAX(OT_REST)OT_REST
                       FROM (
                       SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, OT_REST
-                      FROM HRMS.EBM300 WHERE DAT = TRUNC(SYSDATE) AND EMPCD = :EMPCD
+                      FROM HRMS.EBM300 WHERE DAT = :WORK_DATE AND EMPCD = :EMPCD1
                       UNION ALL
                       SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, OT_REST
-                      FROM HRMS.EBM300_WAIT WHERE DAT = TRUNC(SYSDATE) AND EMPCD = :EMPCD)
+                      FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2 AND EMPCD = :EMPCD2)
                       WHERE OVER_TIME IS NOT NULL
                       GROUP BY EMPCD,DAT,SHIFTCD) E
                 JOIN HRMS.EBM100 S ON S.SHIFTCD = E.SHIFTCD
-                LEFT JOIN (SELECT EMPCD, CONFIRM_STATUS, CONFIRM_DATE, REJECT_REASON FROM HRMS.HR_OT_REQUEST WHERE WORK_DATE = TRUNC(SYSDATE)) R ON R.EMPCD = E.EMPCD
+                LEFT JOIN (SELECT EMPCD, CONFIRM_STATUS, CONFIRM_DATE, OT_HOURS FROM HRMS.HR_OT_REQUEST WHERE WORK_DATE = :WORK_DATE3) R ON R.EMPCD = E.EMPCD AND NVL(R.OT_HOURS,0) = NVL(E.OVER_TIME,0)
                 WHERE ROWNUM = 1
                 ";
 
@@ -70,14 +72,19 @@ public class OTController : ControllerBase
                 END_OT = r["END_OT"] == DBNull.Value ? null : Convert.ToDateTime(r["END_OT"]),
                 CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
                 CONFIRM_DATE = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
-                REJECT_REASON = r["REJECT_REASON"]?.ToString(),
                 SUM_WEEK = Convert.ToDecimal(r["SUM_WEEK"]),
                 SUM_MONTH = Convert.ToDecimal(r["SUM_MONTH"]),
                 SUM_YEAR = Convert.ToDecimal(r["SUM_YEAR"])
-            }, new OracleParameter("EMPCD", empcd));
+            }, 
+            new OracleParameter("EMPCD", empcd),
+            new OracleParameter("WORK_DATE", workDate),
+            new OracleParameter("EMPCD1", empcd),
+            new OracleParameter("WORK_DATE2", workDate),
+            new OracleParameter("EMPCD2", empcd),
+            new OracleParameter("WORK_DATE3", workDate));
 
             if (result.Count == 0)
-                return Ok(new { success = true, data = (object?)null, message = "Không có kế hoạch tăng ca hôm nay" });
+                return Ok(new { success = true, data = (object?)null, message = "Không có kế hoạch tăng ca trong ngày này" });
 
             return Ok(new { success = true, data = result[0] });
         }
@@ -95,39 +102,53 @@ public class OTController : ControllerBase
             if (model == null || string.IsNullOrEmpty(model.EMPCD))
                 return Ok(new { success = false, message = "Thiếu mã nhân viên" });
 
+            DateTime workDate = string.IsNullOrEmpty(model.WORK_DATE) ? DateTime.Today : DateTime.Parse(model.WORK_DATE);
+
             if (model.CONFIRM_STATUS != "CONFIRMED" && model.CONFIRM_STATUS != "REJECTED")
                 return Ok(new { success = false, message = "Trạng thái không hợp lệ" });
 
             string sqlCheckERP = @"
-                SELECT COUNT(*) CNT FROM (SELECT EMPCD FROM HRMS.EBM300 WHERE DAT = TRUNC(SYSDATE) AND EMPCD = :EMPCD
+                SELECT COUNT(*) CNT FROM (SELECT EMPCD FROM HRMS.EBM300 WHERE DAT = :WORK_DATE AND EMPCD = :EMPCD
                                           UNION ALL
-                                          SELECT EMPCD FROM HRMS.EBM300_WAIT WHERE DAT = TRUNC(SYSDATE) AND EMPCD = :EMPCD)";
+                                          SELECT EMPCD FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2 AND EMPCD = :EMPCD1)";
 
-            var hasOT = await _oracleService.ExecuteQueryAsync(sqlCheckERP, r => Convert.ToInt32(r["CNT"]), new OracleParameter("EMPCD", model.EMPCD));
+            var hasOT = await _oracleService.ExecuteQueryAsync(sqlCheckERP, r => Convert.ToInt32(r["CNT"]), 
+                new OracleParameter("WORK_DATE", workDate), 
+                new OracleParameter("WORK_DATE2", workDate), 
+                new OracleParameter("EMPCD", model.EMPCD),
+                new OracleParameter("EMPCD1", model.EMPCD));
+
             if (hasOT.Count == 0 || hasOT[0] == 0)
-                return Ok(new { success = false, message = "Không có kế hoạch tăng ca hôm nay" });
+                return Ok(new { success = false, message = "Không có kế hoạch tăng ca trong ngày này" });
 
-            string sqlCheckConfirm = "SELECT COUNT(*) CNT FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = TRUNC(SYSDATE)";
-            var already = await _oracleService.ExecuteQueryAsync(sqlCheckConfirm, r => Convert.ToInt32(r["CNT"]), new OracleParameter("EMPCD", model.EMPCD));
+            string sqlCheckConfirm = "SELECT COUNT(*) CNT FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND NVL(OT_HOURS,0) = NVL(:OT_HOURS,0)";
+            var already = await _oracleService.ExecuteQueryAsync(sqlCheckConfirm, r => Convert.ToInt32(r["CNT"]), 
+                new OracleParameter("EMPCD", model.EMPCD), 
+                new OracleParameter("WORK_DATE", workDate),
+                new OracleParameter("OT_HOURS", (object?)model.OT_HOURS ?? DBNull.Value));
 
             if (already.Count > 0 && already[0] > 0)
-                return Ok(new { success = false, message = "Bạn đã xác nhận tăng ca hôm nay rồi, không thể thay đổi" });
+                return Ok(new { success = false, message = "Bạn đã xác nhận tăng ca ngày này với số giờ này rồi, không thể thay đổi" });
 
-            string sqlInsertReq = "INSERT INTO HRMS.HR_REQUEST (REQUEST_TYPE, EMPCD, REQUEST_DATE, STATUS, CREATED_BY, CREATED_DATE) VALUES ('OT', :EMPCD, SYSDATE, :STATUS, :EMPCD, SYSDATE)";
-            await _oracleService.ExecuteNonQueryAsync(sqlInsertReq, new OracleParameter("EMPCD", model.EMPCD), new OracleParameter("STATUS", model.CONFIRM_STATUS));
+            string sqlInsertReq = "INSERT INTO HRMS.HR_REQUEST (REQUEST_TYPE, EMPCD, REQUEST_DATE, STATUS, CREATED_BY, CREATED_DATE) VALUES ('OT', :EMPCD, SYSDATE, :STATUS, :EMPCD1, SYSDATE)";
+            await _oracleService.ExecuteNonQueryAsync(sqlInsertReq, 
+                new OracleParameter("EMPCD", model.EMPCD), 
+                new OracleParameter("STATUS", model.CONFIRM_STATUS),
+                new OracleParameter("EMPCD1", model.EMPCD));
 
-            string sqlGetReqId = "SELECT REQUEST_ID FROM HRMS.HR_REQUEST WHERE EMPCD = :EMPCD AND REQUEST_TYPE = 'OT' AND TRUNC(CREATED_DATE) = TRUNC(SYSDATE) AND ROWNUM = 1 ORDER BY CREATED_DATE DESC";
+            string sqlGetReqId = "SELECT REQUEST_ID FROM (SELECT REQUEST_ID FROM HRMS.HR_REQUEST WHERE EMPCD = :EMPCD AND REQUEST_TYPE = 'OT' AND TRUNC(CREATED_DATE) = TRUNC(SYSDATE) ORDER BY CREATED_DATE DESC) WHERE ROWNUM = 1";
             var reqIds = await _oracleService.ExecuteQueryAsync(sqlGetReqId, r => r["REQUEST_ID"]?.ToString(), new OracleParameter("EMPCD", model.EMPCD));
 
             if (reqIds.Count == 0) return Ok(new { success = false, message = "Lỗi tạo REQUEST_ID" });
             string requestId = reqIds[0]!;
 
-            string sqlInsertOT = "INSERT INTO HRMS.HR_OT_REQUEST (REQUEST_ID, EMPCD, WORK_DATE, CONFIRM_STATUS, CONFIRM_DATE, REJECT_REASON, CREATED_DATE) VALUES (:REQUEST_ID, :EMPCD, TRUNC(SYSDATE), :CONFIRM_STATUS, SYSDATE, :REJECT_REASON, SYSDATE)";
+            string sqlInsertOT = "INSERT INTO HRMS.HR_OT_REQUEST (REQUEST_ID, EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, CREATED_DATE) VALUES (:REQUEST_ID, :EMPCD, :WORK_DATE, :OT_HOURS, :CONFIRM_STATUS, SYSDATE, SYSDATE)";
             await _oracleService.ExecuteNonQueryAsync(sqlInsertOT,
                 new OracleParameter("REQUEST_ID", requestId),
                 new OracleParameter("EMPCD", model.EMPCD),
-                new OracleParameter("CONFIRM_STATUS", model.CONFIRM_STATUS),
-                new OracleParameter("REJECT_REASON", (object?)model.REJECT_REASON ?? DBNull.Value));
+                new OracleParameter("WORK_DATE", workDate),
+                new OracleParameter("OT_HOURS", (object?)model.OT_HOURS ?? DBNull.Value),
+                new OracleParameter("CONFIRM_STATUS", model.CONFIRM_STATUS));
 
             string msg = model.CONFIRM_STATUS == "CONFIRMED" ? "Xác nhận tăng ca thành công" : "Từ chối tăng ca thành công";
             return Ok(new { success = true, message = msg, request_id = requestId });
@@ -175,7 +196,7 @@ public class OTController : ControllerBase
                        CASE WHEN OT.OT_AFTER = 'Y' THEN TO_DATE(TO_CHAR(OT.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI') + OT.OT_AFTER_TIME / 24
                             WHEN OT.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(OT.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
                        END END_OT,
-                       NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE, R.REJECT_REASON
+                       NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE
                 FROM (SELECT EMPCD, DAT, SHIFTCD, MAX(OVER_TIME) OT_HOURS, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_BEFORE_TIME) OT_BEFORE_TIME, 
                              MAX(OT_AFTER) OT_AFTER, MAX(OT_AFTER_TIME) OT_AFTER_TIME
                       FROM (SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME FROM HRMS.EBM300 WHERE DAT = :WORK_DATE
@@ -185,7 +206,7 @@ public class OTController : ControllerBase
                 JOIN HRMS.ECM100 EC ON EC.EMPCD = OT.EMPCD
                 JOIN HRMS.EBM100 S  ON S.SHIFTCD = OT.SHIFTCD
                 LEFT JOIN HRMS.EAM410 B ON EC.DEPTCD = B.DEPTCD AND EC.LINECD = B.LINECD AND EC.WORKCD = B.WORKCD
-                LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :WORK_DATE3
+                LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :WORK_DATE3 AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
                 WHERE NVL(EC.RETDAT,'9999') > TO_CHAR(SYSDATE,'YYYYMMDD') AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
                   AND ((:IS_OFFICE = 1 AND EC.LINECD = :FILTER_VAL) OR (:IS_OFFICE2 = 0 AND EC.DEPTCD = :FILTER_VAL2))
                 ORDER BY NVL(R.CONFIRM_STATUS,'PENDING'), EC.LINECD, OT.EMPCD";
@@ -207,8 +228,7 @@ public class OTController : ControllerBase
                 START_OT = r["START_OT"] == DBNull.Value ? null : Convert.ToDateTime(r["START_OT"]),
                 END_OT = r["END_OT"] == DBNull.Value ? null : Convert.ToDateTime(r["END_OT"]),
                 CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
-                CONFIRM_DATE = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
-                REJECT_REASON = r["REJECT_REASON"]?.ToString()
+                CONFIRM_DATE = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"])
             }, 
             new OracleParameter("WORK_DATE", workDate), new OracleParameter("WORK_DATE2", workDate), new OracleParameter("WORK_DATE3", workDate),
             new OracleParameter("IS_OFFICE", isOfficeInt), new OracleParameter("FILTER_VAL", filterVal),
@@ -337,7 +357,7 @@ public class OTController : ControllerBase
                 JOIN      HRMS.ECM100        EC ON EC.EMPCD  = OT.EMPCD
                 JOIN      HRMS.EBM100         S ON S.SHIFTCD = OT.SHIFTCD
                 LEFT JOIN HRMS.EAM410         B ON B.DEPTCD  = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-                LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD   = OT.EMPCD  AND R.WORK_DATE = :W_DATE3";
+                LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD   = OT.EMPCD  AND R.WORK_DATE = :W_DATE3 AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)";
 
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
@@ -404,7 +424,7 @@ public class OTController : ControllerBase
                             EC.CNAME EMP_NAME, EC.DEPTCD DEPT_ID, EC.LINECD LINE_ID, EC.WORKCD WORK_ID,
                             B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                             S.STIME, S.ETIME,
-                            NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE, R.REJECT_REASON
+                            NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE
                         " + fromSql + whereSql + @"
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -432,7 +452,6 @@ public class OTController : ControllerBase
                     OT_AFTER_TIME  = r["OT_AFTER_TIME"]?.ToString(),
                     CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
                     CONFIRM_DATE   = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
-                    REJECT_REASON  = r["REJECT_REASON"]?.ToString(),
                     TOTAL_COUNT    = summary.TOTAL
                 };
 

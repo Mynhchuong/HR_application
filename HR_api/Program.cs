@@ -29,6 +29,8 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.WebHost.UseIISIntegration();
+
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
     serverOptions.Limits.MaxRequestBodySize = 104_857_600; // 100MB

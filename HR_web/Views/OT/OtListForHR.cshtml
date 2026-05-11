@@ -143,7 +143,7 @@
 
         let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ ký</span>`;
         if (item.CONFIRM_STATUS === 'CONFIRMED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Chấp nhận</span>${item.CONFIRM_DATE ? `<div class="text-xs text-muted mt-1">${formatDateTime(item.CONFIRM_DATE)}</div>` : ''}`;
-        else if (item.CONFIRM_STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger" title="${escHtml(item.REJECT_REASON||'')}">Từ chối</span>${item.CONFIRM_DATE ? `<div class="text-xs text-muted mt-1">${formatDateTime(item.CONFIRM_DATE)}</div>` : ''}`;
+        else if (item.CONFIRM_STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger">Từ chối</span>${item.CONFIRM_DATE ? `<div class="text-xs text-muted mt-1">${formatDateTime(item.CONFIRM_DATE)}</div>` : ''}`;
 
         return `<tr>
             <td class="px-2 text-xs text-secondary">${idx}</td>

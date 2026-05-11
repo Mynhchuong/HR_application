@@ -464,6 +464,35 @@ public class AccountController : ControllerBase
         }
     }
 
+    [HttpPost("update-role")]
+    public async Task<IActionResult> UpdateRole([FromBody] UpdateRoleRequest req)
+    {
+        if (req == null || string.IsNullOrEmpty(req.EmpCd) || req.RoleId <= 0)
+            return BadRequest(new { success = false, message = "Dữ liệu không hợp lệ" });
+
+        var roleCheck = await _oracleService.ExecuteQueryAsync(
+            "SELECT ROLE_NAME FROM HRMS.HR_ROLES WHERE ID = :ROLE_ID",
+            r => r["ROLE_NAME"]?.ToString(),
+            new OracleParameter("ROLE_ID", req.RoleId));
+
+        if (roleCheck.Count == 0)
+            return Ok(new { success = false, message = "Role không tồn tại" });
+
+        if (roleCheck[0] == "Admin")
+            return Ok(new { success = false, message = "Không thể cấp quyền Admin" });
+
+        string sql = "UPDATE HRMS.HR_USERS SET ROLE_ID = :ROLE_ID, UPDT_ID = :LOGIN_USER, UPDT_DT = SYSDATE WHERE EMPCD = :EMPCD";
+        int rows = await _oracleService.ExecuteNonQueryAsync(sql,
+            new OracleParameter("ROLE_ID", req.RoleId),
+            new OracleParameter("LOGIN_USER", req.LoginUser),
+            new OracleParameter("EMPCD", req.EmpCd));
+
+        if (rows == 0)
+            return Ok(new { success = false, message = "User không tồn tại" });
+
+        return Ok(new { success = true, message = $"Đã cập nhật role thành công" });
+    }
+
     [HttpPost("update-signature-flag")]
     public async Task<IActionResult> UpdateSignatureFlag([FromBody] UpdateSignatureRequest req)
     {

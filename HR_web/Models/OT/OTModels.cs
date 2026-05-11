@@ -45,8 +45,9 @@ public class OTClerkModel
     public string? LINE_NAME { get; set; }
     public string? WORK_ID { get; set; }
     public string? WORK_NAME { get; set; }
-    public string? OT_TYPE { get; set; }
     public decimal? OT_HOURS { get; set; }
+    public string? OT_BEFORE { get; set; }
+    public string? OT_AFTER { get; set; }
     public string? CONFIRM_STATUS { get; set; }
     public DateTime? CONFIRM_DATE { get; set; }
     public DateTime? START_OT { get; set; }
@@ -60,6 +61,21 @@ public class OTClerkSummary
     public int REJECTED { get; set; }
     public int PENDING { get; set; }
     public bool IS_DONE { get; set; }
+}
+
+public class OTClerkPagedResponse
+{
+    public bool success { get; set; }
+    public string? message { get; set; }
+    public string? dept_id { get; set; }
+    public string? line_id { get; set; }
+    public bool is_office { get; set; }
+    public int total { get; set; }
+    public int page { get; set; }
+    public int page_size { get; set; }
+    public int total_pages { get; set; }
+    public OTClerkSummary? summary { get; set; }
+    public List<OTClerkModel>? data { get; set; }
 }
 
 public class OTClerkResponse

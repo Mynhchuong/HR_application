@@ -161,6 +161,25 @@ public class UserController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // POST: /User/UpdateRole
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateRole(string empCd, int roleId)
+    {
+        try
+        {
+            var (success, message) = await _service.UpdateRoleAsync(empCd, roleId, CurrentUser!.EmpCd);
+            TempData[success ? "SuccessMessage" : "ErrorMessage"] = message;
+        }
+        catch (Exception ex)
+        {
+            TempData["ErrorMessage"] = "Có lỗi xảy ra: " + ex.Message;
+        }
+        return RedirectToAction("UserManager");
+    }
+
+    // ─────────────────────────────────────────────
     // GET+POST: /User/CreateUser
     // ─────────────────────────────────────────────
     public IActionResult CreateUser()

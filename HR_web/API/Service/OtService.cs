@@ -60,6 +60,33 @@ public class OtService
         catch { return null; }
     }
 
+    public async Task<OTClerkPagedResponse> GetOTClerkDetailAsync(
+        string clerkEmpcd, string? workDate = null,
+        string? status = null, int page = 1, int pageSize = 100)
+    {
+        try
+        {
+            var q = new List<string> { $"clerk_empcd={Uri.EscapeDataString(clerkEmpcd)}" };
+            if (!string.IsNullOrEmpty(workDate)) q.Add($"work_date={Uri.EscapeDataString(workDate)}");
+            if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
+            q.Add($"page={page}");
+            q.Add($"page_size={pageSize}");
+
+            var response = await _api.GetAsync_Raw("ot/clerk", string.Join("&", q));
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<OTClerkPagedResponse>(json);
+                if (result != null) return result;
+            }
+            return new OTClerkPagedResponse { success = false, message = "Lỗi kết nối API", data = new() };
+        }
+        catch (Exception ex)
+        {
+            return new OTClerkPagedResponse { success = false, message = ex.Message, data = new() };
+        }
+    }
+
     public async Task<List<OTHRSummaryModel>> GetOTHRSummaryAsync(string? workDate = null, string? deptId = null)
     {
         try
@@ -77,6 +104,7 @@ public class OtService
         string? workDate = null, string? deptId = null,
         string? search = null, string? status = null,
         string? deptName = null, string? lineName = null,
+        string? lineId = null, string? workId = null,
         int page = 1, int pageSize = 50)
     {
         try
@@ -88,6 +116,8 @@ public class OtService
             if (!string.IsNullOrEmpty(status)) queryParams.Add($"status={Uri.EscapeDataString(status)}");
             if (!string.IsNullOrEmpty(deptName)) queryParams.Add($"dept_name={Uri.EscapeDataString(deptName)}");
             if (!string.IsNullOrEmpty(lineName)) queryParams.Add($"line_name={Uri.EscapeDataString(lineName)}");
+            if (!string.IsNullOrEmpty(lineId)) queryParams.Add($"line_id={Uri.EscapeDataString(lineId)}");
+            if (!string.IsNullOrEmpty(workId)) queryParams.Add($"work_id={Uri.EscapeDataString(workId)}");
             queryParams.Add($"page={page}");
             queryParams.Add($"page_size={pageSize}");
 

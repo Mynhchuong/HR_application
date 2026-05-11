@@ -65,23 +65,12 @@ public class OTController : BaseController
     // ─────────────────────────────────────────────
     // GET: /OT/OtListForHR
     // ─────────────────────────────────────────────
-    public async Task<IActionResult> OtListForHR(string? work_date = null, string? dept_id = null)
+    public IActionResult OtListForHR(string? work_date = null, string? dept_id = null)
     {
-        try
-        {
-            // Skipped the slow server-side summary call (7s). 
-            // The dashboard summary will be updated dynamically by Javascript via GetOTHRDetailPage.
-            ViewBag.Summary = new List<OTHRSummaryModel>();
-            ViewBag.WorkDate = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
-            ViewBag.DeptId = dept_id;
-
-            return View();
-        }
-        catch (Exception ex)
-        {
-            ViewBag.Error = ex.Message;
-            return View();
-        }
+        ViewBag.Summary  = new List<OTHRSummaryModel>();
+        ViewBag.WorkDate = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
+        ViewBag.DeptId   = dept_id;
+        return View();
     }
 
     // ─────────────────────────────────────────────
@@ -93,12 +82,13 @@ public class OTController : BaseController
         string? work_date = null, string? dept_id = null,
         string? search = null, string? status = null,
         string? dept_name = null, string? line_name = null,
+        string? line_id = null, string? work_id = null,
         int page = 1, int page_size = 50)
     {
         try
         {
             var result = await _otService.GetOTHRDetailAsync(
-                work_date, dept_id, search, status, dept_name, line_name, page, page_size);
+                work_date, dept_id, search, status, dept_name, line_name, line_id, work_id, page, page_size);
             return Json(result);
         }
         catch (Exception ex)
@@ -110,27 +100,30 @@ public class OTController : BaseController
     // ─────────────────────────────────────────────
     // GET: /OT/OtListForClerk
     // ─────────────────────────────────────────────
-    public async Task<IActionResult> OtListForClerk(string? work_date = null)
+    public IActionResult OtListForClerk(string? work_date = null)
+    {
+        ViewBag.WorkDate = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
+        return View();
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /OT/GetOTClerkDetailPage (AJAX / JSON)
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetOTClerkDetailPage(
+        string? work_date = null, string? status = null,
+        int page = 1, int page_size = 100)
     {
         try
         {
-            var clerk_empcd = CurrentUser?.EmpCd;
-
-            if (string.IsNullOrEmpty(clerk_empcd))
-                return RedirectToAction("Login", "Account");
-
-            var data = await _otService.GetOTClerkAsync(clerk_empcd, work_date);
-
-            ViewBag.Summary = data?.summary;
-            ViewBag.DeptId = data?.dept_id;
-            ViewBag.WorkDate = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
-
-            return View(data?.data);
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            var result = await _otService.GetOTClerkDetailAsync(CurrentUser.EmpCd, work_date, status, page, page_size);
+            return Json(result);
         }
         catch (Exception ex)
         {
-            ViewBag.Error = ex.Message;
-            return View((List<OTClerkModel>?)null);
+            return Json(new { success = false, message = ex.Message });
         }
     }
 }

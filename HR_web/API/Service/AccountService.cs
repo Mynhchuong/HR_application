@@ -122,6 +122,14 @@ public class AccountService
         }
     }
 
+    public async Task<(bool success, string message)> UpdateRoleAsync(string empCd, int roleId, string loginUser)
+    {
+        var response = await _api.PostAsync("Account/update-role", new { EmpCd = empCd, RoleId = roleId, LoginUser = loginUser });
+        var result = await ParseResponse<object>(response);
+        if (result == null) return (false, "Không nhận được phản hồi từ server");
+        return (result.success, result.message ?? string.Empty);
+    }
+
     public async Task<bool> UpdateSignatureFlagAsync(string empCd, bool hasSignature, string loginUser)
     {
         var response = await _api.PostAsync(UpdateSignatureEndpoint, new

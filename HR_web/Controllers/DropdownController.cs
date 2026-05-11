@@ -36,6 +36,18 @@ public class DropdownController : Controller
     }
 
     [HttpGet]
+    public async Task<IActionResult> GetRoleNoAdmin(string? term)
+    {
+        var data = await _dropdownService.GetRoleAsync();
+        var result = data
+            .Where(x => x.text != "Admin" &&
+                        (string.IsNullOrEmpty(term) ||
+                         x.text?.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0))
+            .Select(x => new { id = x.id, text = x.text });
+        return Json(result);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> GetLine(string? term)
     {
         var data = await _dropdownService.GetLineAsync();

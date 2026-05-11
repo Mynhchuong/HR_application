@@ -166,6 +166,22 @@
         </div>
         <h2 class="user-name vni-font" style="text-transform: uppercase;">@Model.FullName</h2>
         <div class="user-role vni-font">@Model.DeptName</div>
+        <div class="mt-1 d-flex justify-content-center flex-wrap gap-2">
+            @if (!string.IsNullOrWhiteSpace(Model.LineName))
+            {
+                <span class="badge rounded-pill text-bg-light text-muted fw-semibold" style="font-size:0.75rem;">
+                    <span class="material-symbols-rounded align-middle" style="font-size:0.8rem;">view_column</span>
+                    @Model.LineName
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.WorkName))
+            {
+                <span class="badge rounded-pill text-bg-light text-muted fw-semibold" style="font-size:0.75rem;">
+                    <span class="material-symbols-rounded align-middle" style="font-size:0.8rem;">work</span>
+                    @Model.WorkName
+                </span>
+            }
+        </div>
     </div>
 
     <!-- Thông tin cơ bản -->
@@ -245,21 +261,30 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
-                <form asp-controller="Profile" asp-action="ChangePassword" method="post">
+                <form asp-controller="Profile" asp-action="ChangePassword" method="post" id="changePassForm" novalidate>
                     @Html.AntiForgeryToken()
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">MẬT KHẨU CŨ</label>
-                        <input type="password" name="oldPassword" class="form-control rounded-4 py-3" required />
+                        <input type="password" name="oldPassword" id="oldPassword"
+                               class="form-control rounded-4 py-3" required autocomplete="current-password" />
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">MẬT KHẨU MỚI</label>
-                        <input type="password" name="newPassword" class="form-control rounded-4 py-3" required />
+                        <input type="password" name="newPassword" id="newPassword"
+                               class="form-control rounded-4 py-3" required autocomplete="new-password" />
+                        <div id="passRules" class="mt-2 ps-1" style="font-size:0.8rem; line-height:1.8;">
+                            <div id="rule-len"  class="text-muted"><span class="me-1">○</span>Ít nhất 6 ký tự</div>
+                            <div id="rule-def"  class="text-muted"><span class="me-1">○</span>Không dùng mật khẩu mặc định (123456)</div>
+                            <div id="rule-char" class="text-muted"><span class="me-1">○</span>Chỉ dùng chữ, số và: @@ # ! . - _</div>
+                        </div>
                     </div>
                     <div class="mb-4">
-                        <label class="form-label fw-bold small text-muted">XÁC NHẬN MẬT KHẨU</label>
-                        <input type="password" name="confirmPassword" class="form-control rounded-4 py-3" required />
+                        <label class="form-label fw-bold small text-muted">XÁC NHẬN MẬT KHẨU MỚI</label>
+                        <input type="password" name="confirmPassword" id="confirmPassword"
+                               class="form-control rounded-4 py-3" required autocomplete="new-password" />
+                        <div id="confirmMsg" class="mt-1 ps-1" style="font-size:0.8rem; display:none;"></div>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100 py-3 rounded-4 fw-bold">
+                    <button type="submit" id="btnSavePass" class="btn btn-primary w-100 py-3 rounded-4 fw-bold" disabled>
                         Lưu mật khẩu mới
                     </button>
                 </form>
@@ -267,3 +292,66 @@
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    // Ky tu cho phep: chu cai, so, va @@ # ! . - _
+    var SAFE_PATTERN = /^[a-zA-Z0-9@@#!.\-_]+$/;
+    var BLOCKED_DEFAULTS = ['123456'];
+
+    function setRule(id, ok) {
+        var el = document.getElementById(id);
+        if (ok) {
+            el.className = 'text-success fw-semibold';
+            el.firstChild.textContent = '✓ ';
+        } else {
+            el.className = 'text-muted';
+            el.firstChild.textContent = '○ ';
+        }
+    }
+
+    function validate() {
+        var np  = document.getElementById('newPassword').value;
+        var cp  = document.getElementById('confirmPassword').value;
+        var msg = document.getElementById('confirmMsg');
+
+        var okLen  = np.length >= 6;
+        var okDef  = !BLOCKED_DEFAULTS.includes(np);
+        var okChar = np.length > 0 && SAFE_PATTERN.test(np);
+
+        setRule('rule-len',  okLen);
+        setRule('rule-def',  okDef);
+        setRule('rule-char', okChar);
+
+        var newOk = okLen && okDef && okChar;
+
+        // Confirm check (chỉ hiện khi confirm có giá trị)
+        if (cp.length > 0) {
+            msg.style.display = 'block';
+            if (np === cp) {
+                msg.innerHTML = '<span class="text-success fw-semibold">✓ Mật khẩu khớp</span>';
+            } else {
+                msg.innerHTML = '<span class="text-danger fw-semibold">✗ Mật khẩu không khớp</span>';
+            }
+        } else {
+            msg.style.display = 'none';
+        }
+
+        var allOk = newOk && cp.length > 0 && np === cp;
+        document.getElementById('btnSavePass').disabled = !allOk;
+    }
+
+    document.getElementById('newPassword').addEventListener('input', validate);
+    document.getElementById('confirmPassword').addEventListener('input', validate);
+
+    // Reset form mỗi lần mở modal
+    document.getElementById('changePassModal').addEventListener('show.bs.modal', function () {
+        document.getElementById('changePassForm').reset();
+        ['rule-len','rule-def','rule-char'].forEach(function(id) { setRule(id, false); });
+        var msg = document.getElementById('confirmMsg');
+        msg.style.display = 'none';
+        msg.innerHTML = '';
+        document.getElementById('btnSavePass').disabled = true;
+    });
+})();
+</script>

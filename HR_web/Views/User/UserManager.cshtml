@@ -140,6 +140,10 @@
                                             ButtonClass = "btn btn-sm btn-warning",
                                             ConfirmMessage = "Reset password?"
                                         })
+                                        <button type="button" class="btn btn-sm btn-info ms-1"
+                                                onclick="openEditRoleModal('@u.EmpCd', '@u.FullName', @(u.RoleId ?? 0))">
+                                            <i class="fas fa-user-tag"></i>
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -219,6 +223,30 @@
     </div>
 </div>
 
+<!-- Modal Đổi Role -->
+<div class="modal fade" id="editRoleModal">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <form method="post" action="@Url.Action("UpdateRole", "User")">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="editRoleEmpCd" name="empCd" />
+                <div class="modal-header">
+                    <h6 class="modal-title">Đổi Role &mdash; <span id="editRoleEmpName" class="text-primary"></span></h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label text-xs fw-bold text-uppercase text-secondary mb-1">Role mới</label>
+                    <select id="editRoleSelect" name="roleId" class="form-select" required></select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script>
         $(document).ready(function () {
@@ -237,5 +265,26 @@
                 <text>new bootstrap.Modal(document.getElementById('@TempData["OpenModal"]')).show();</text>
             }
         });
+
+        function openEditRoleModal(empCd, fullName, currentRoleId) {
+            document.getElementById('editRoleEmpCd').value = empCd;
+            document.getElementById('editRoleEmpName').textContent = fullName;
+
+            var $select = document.getElementById('editRoleSelect');
+            $select.innerHTML = '<option value="">Đang tải...</option>';
+
+            fetch('@Url.Action("GetRoleNoAdmin", "Dropdown")')
+                .then(r => r.json())
+                .then(data => {
+                    $select.innerHTML = '';
+                    data.forEach(function (role) {
+                        var opt = new Option(role.text, role.id);
+                        if (role.id == currentRoleId) opt.selected = true;
+                        $select.appendChild(opt);
+                    });
+                });
+
+            new bootstrap.Modal(document.getElementById('editRoleModal')).show();
+        }
     </script>
 }

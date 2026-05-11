@@ -80,6 +80,13 @@ public class UpdateSignatureRequest
     public string? LoginUser { get; set; }
 }
 
+public class UpdateRoleRequest
+{
+    public string EmpCd { get; set; } = string.Empty;
+    public int RoleId { get; set; }
+    public string LoginUser { get; set; } = string.Empty;
+}
+
 public class UserInfoPagedViewModel
 {
     public List<UserInfoModel> data { get; set; } = new();

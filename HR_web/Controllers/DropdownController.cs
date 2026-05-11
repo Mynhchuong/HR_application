@@ -14,12 +14,13 @@ public class DropdownController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetDept(string? term)
+    public async Task<IActionResult> GetDept(string? term, string? id)
     {
         var data = await _dropdownService.GetDeptAsync();
         var result = data
-            .Where(x => string.IsNullOrEmpty(term) ||
-                        (x.text?.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0))
+            .Where(x => (!string.IsNullOrEmpty(id)  && x.id == id) ||
+                        ( string.IsNullOrEmpty(id)   &&
+                         (string.IsNullOrEmpty(term) || x.text?.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)))
             .Select(x => new { id = x.id, text = x.text });
         return Json(result);
     }
@@ -75,4 +76,5 @@ public class DropdownController : Controller
         var data = await _dropdownService.GetLineByDeptAsync(deptCd);
         return Json(data.Select(x => new { id = x.id, text = x.text }));
     }
+
 }

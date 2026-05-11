@@ -80,6 +80,13 @@
                 </select>
             </div>
             <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0 text-primary">Bộ Phận</label>
+                <select id="filterDept" class="select2 form-control"
+                        data-url="@Url.Action("GetDept", "Dropdown")"
+                        data-placeholder="Tất cả"
+                        data-selected-id="@(deptId ?? "")"></select>
+            </div>
+            <div class="col-md-2">
                 <label class="form-label small fw-bold mb-0 text-primary">Line</label>
                 <select id="lineCd" name="lineCd" class="select2 form-control"
                         data-url="@Url.Action("GetLine", "Dropdown")" data-placeholder="Tất cả"></select>
@@ -89,7 +96,7 @@
                 <select id="workCd" name="workCd" class="select2 form-control"
                         data-url="@Url.Action("GetWork", "Dropdown")" data-placeholder="Tất cả"></select>
             </div>
-            <div class="col-md-4 d-flex align-items-center justify-content-end gap-2">
+            <div class="col-md-2 d-flex align-items-center justify-content-end gap-2">
                 <label class="mb-0 text-sm text-secondary text-nowrap">Hiển thị:</label>
                 <select id="pageSizeSelect" class="form-select form-select-sm" style="width: 80px;">
                     <option value="50">50</option>
@@ -161,7 +168,8 @@
     function loadData(page = 1) {
         if (isLoading) return;
         isLoading = true; currentPage = page;
-        const search = $('#searchInput').val(), status = $('#filterStatus').val(), line_nm = $('#lineCd').val(), work_nm = $('#workCd').val();
+        const search = $('#searchInput').val(), status = $('#filterStatus').val(),
+              deptId = $('#filterDept').val(), line_nm = $('#lineCd').val(), work_nm = $('#workCd').val();
         $('#otTableBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải dữ liệu...</div></td></tr>`);
 
         $.ajax({
@@ -169,7 +177,7 @@
             type: 'GET',
             data: {
                 work_date: WORK_DATE,
-                dept_id: DEPT_ID,
+                dept_id: deptId,
                 search: search,
                 status: status,
                 line_id: line_nm,
@@ -240,7 +248,7 @@
 
     $('#pageSizeSelect').on('change', function() { pageSize=parseInt($(this).val()); loadData(1); });
     $('#searchInput').on('input', debounce(() => loadData(1), 500));
-    $('#filterStatus, #lineCd, #workCd').on('change', () => loadData(1));
+    $('#filterStatus, #filterDept, #lineCd, #workCd').on('change', () => loadData(1));
 
     $('#exportExcelBtn').on('click', async function() {
         const $btn=$(this), originalHtml=$btn.html();
@@ -248,7 +256,7 @@
         try {
             let exportRows=[], pg=1, pgTotal=1;
             do {
-                const res = await $.getJSON(`${PAGE_URL}?work_date=${WORK_DATE}&dept_id=${DEPT_ID}&page=${pg}&page_size=1000`);
+                const res = await $.getJSON(`${PAGE_URL}?work_date=${WORK_DATE}&dept_id=${encodeURIComponent($('#filterDept').val()||'')}&page=${pg}&page_size=1000`);
                 if(!res||!res.success) break;
                 pgTotal=res.total_pages; exportRows=exportRows.concat(res.data||[]);
                 $btn.html(`<span class="spinner-border spinner-border-sm me-1"></span> ${exportRows.length.toLocaleString()}…`);

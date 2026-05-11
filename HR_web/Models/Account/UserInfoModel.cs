@@ -19,4 +19,9 @@ public class UserInfoModel
     public string? LineCd { get; set; }
     public string? SIGNATUREBLOB { get; set; }
     public bool RequirePasswordChange { get; set; }
+    // Populate 1 lần lúc login cho Supervisor/Manager/Assistant
+    // FilterType: "work" (Supervisor) | "dept" (Manager/Assistant)
+    public string?       FilterType      { get; set; }
+    public List<string>? FilterCodes     { get; set; }
+    public List<string>? FilterLineCodes { get; set; }
 }

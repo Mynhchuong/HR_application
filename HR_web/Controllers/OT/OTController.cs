@@ -75,7 +75,6 @@ public class OTController : BaseController
 
     // ─────────────────────────────────────────────
     // GET: /OT/GetOTHRDetailPage (AJAX / JSON)
-    // Bỏ JsonRequestBehavior.AllowGet - không cần trong .NET 8
     // ─────────────────────────────────────────────
     [HttpGet]
     public async Task<IActionResult> GetOTHRDetailPage(
@@ -100,10 +99,56 @@ public class OTController : BaseController
     // ─────────────────────────────────────────────
     // GET: /OT/OtListForClerk
     // ─────────────────────────────────────────────
-    public IActionResult OtListForClerk(string? work_date = null)
+    public IActionResult OtListForClerk(string? work_date = null    )
     {
         ViewBag.WorkDate = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
         return View();
+    }
+    // ─────────────────────────────────────────────
+    // GET: /OT/OtListForClerk
+    // ─────────────────────────────────────────────
+    public IActionResult OtListForSupervisor(string? work_date = null)
+    {
+        ViewBag.WorkDate        = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
+        ViewBag.FilterType      = CurrentUser?.FilterType      ?? "";
+        ViewBag.FilterCodes     = CurrentUser?.FilterCodes     ?? new List<string>();
+        ViewBag.FilterLineCodes = CurrentUser?.FilterLineCodes ?? new List<string>();
+        return View();
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /OT/GetOTSupervisorDetailPage (AJAX / JSON)
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetOTSupervisorDetailPage(
+        string? work_date = null, string? status = null,
+        string? search    = null,
+        string? dept_id   = null,
+        string? line_id   = null, string? work_id = null,
+        int page = 1, int page_size = 100)
+    {
+        try
+        {
+            if (CurrentUser == null)
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+
+            var filterType  = CurrentUser.FilterType;
+            var filterCodes = CurrentUser.FilterCodes;
+
+            if (string.IsNullOrEmpty(filterType) || filterCodes == null || filterCodes.Count == 0)
+                return Json(new { success = true, summary = new { TOTAL=0,PENDING=0,CONFIRMED=0,REJECTED=0 },
+                                  total = 0, page, page_size, total_pages = 0, data = new List<object>(),
+                                  message = "Chưa được phân quyền bộ phận" });
+
+            var filterLineCodes = CurrentUser?.FilterLineCodes;
+            var result = await _otService.GetOTSupervisorDetailAsync(
+                filterType, filterCodes, filterLineCodes, work_date, status, search, dept_id, line_id, work_id, page, page_size);
+            return Json(result);
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -112,13 +157,14 @@ public class OTController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetOTClerkDetailPage(
         string? work_date = null, string? status = null,
+        string? search = null, string? line_id = null, string? work_id = null,
         int page = 1, int page_size = 100)
     {
         try
         {
             if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
                 return Json(new { success = false, message = "Chưa đăng nhập" });
-            var result = await _otService.GetOTClerkDetailAsync(CurrentUser.EmpCd, work_date, status, page, page_size);
+            var result = await _otService.GetOTClerkDetailAsync(CurrentUser.EmpCd, work_date, status, search, line_id, work_id, page, page_size);
             return Json(result);
         }
         catch (Exception ex)

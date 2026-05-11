@@ -62,13 +62,18 @@ public class OtService
 
     public async Task<OTClerkPagedResponse> GetOTClerkDetailAsync(
         string clerkEmpcd, string? workDate = null,
-        string? status = null, int page = 1, int pageSize = 100)
+        string? status = null, string? search = null,
+        string? lineId = null, string? workId = null,
+        int page = 1, int pageSize = 100)
     {
         try
         {
             var q = new List<string> { $"clerk_empcd={Uri.EscapeDataString(clerkEmpcd)}" };
             if (!string.IsNullOrEmpty(workDate)) q.Add($"work_date={Uri.EscapeDataString(workDate)}");
             if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
+            if (!string.IsNullOrEmpty(search))   q.Add($"search={Uri.EscapeDataString(search)}");
+            if (!string.IsNullOrEmpty(lineId))   q.Add($"line_id={Uri.EscapeDataString(lineId)}");
+            if (!string.IsNullOrEmpty(workId))   q.Add($"work_id={Uri.EscapeDataString(workId)}");
             q.Add($"page={page}");
             q.Add($"page_size={pageSize}");
 
@@ -84,6 +89,48 @@ public class OtService
         catch (Exception ex)
         {
             return new OTClerkPagedResponse { success = false, message = ex.Message, data = new() };
+        }
+    }
+
+    public async Task<OTHRDetailPagedResponse> GetOTSupervisorDetailAsync(
+        string filterType, List<string> filterCodes,
+        List<string>? filterLineCodes = null,
+        string? workDate = null, string? status = null,
+        string? search = null,
+        string? deptId = null, string? lineId = null, string? workId = null,
+        int page = 1, int pageSize = 100)
+    {
+        try
+        {
+            var codes = string.Join(",", filterCodes);
+            var q = new List<string>
+            {
+                $"filter_type={Uri.EscapeDataString(filterType)}",
+                $"filter_codes={Uri.EscapeDataString(codes)}"
+            };
+            if (filterLineCodes != null && filterLineCodes.Count > 0)
+                q.Add($"filter_line_codes={Uri.EscapeDataString(string.Join(",", filterLineCodes))}");
+            if (!string.IsNullOrEmpty(workDate)) q.Add($"work_date={Uri.EscapeDataString(workDate)}");
+            if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
+            if (!string.IsNullOrEmpty(search))   q.Add($"search={Uri.EscapeDataString(search)}");
+            if (!string.IsNullOrEmpty(deptId))   q.Add($"dept_id={Uri.EscapeDataString(deptId)}");
+            if (!string.IsNullOrEmpty(lineId))   q.Add($"line_id={Uri.EscapeDataString(lineId)}");
+            if (!string.IsNullOrEmpty(workId))   q.Add($"work_id={Uri.EscapeDataString(workId)}");
+            q.Add($"page={page}");
+            q.Add($"page_size={pageSize}");
+
+            var response = await _api.GetAsync_Raw("ot/supervisor", string.Join("&", q));
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json   = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<OTHRDetailPagedResponse>(json);
+                if (result != null) return result;
+            }
+            return new OTHRDetailPagedResponse { success = false, message = "Lỗi kết nối API", data = new() };
+        }
+        catch (Exception ex)
+        {
+            return new OTHRDetailPagedResponse { success = false, message = ex.Message, data = new() };
         }
     }
 

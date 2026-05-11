@@ -18,6 +18,11 @@ public class UserInfoModel
     public string? DeptCd { get; set; }
     public string? LineCd { get; set; }
     public string? SIGNATUREBLOB { get; set; }
+    // Được populate lúc login cho Supervisor/Manager/Assistant
+    // FilterType: "work" (Supervisor) hoặc "dept" (Manager/Assistant)
+    public string?       FilterType      { get; set; }
+    public List<string>? FilterCodes     { get; set; }
+    public List<string>? FilterLineCodes { get; set; }
 }
 
 public class CreateUserModel

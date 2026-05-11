@@ -142,6 +142,46 @@ public class AccountController : ControllerBase
         string updateSql = @"UPDATE HRMS.HR_USERS SET LASTED_LOGIN = SYSDATE WHERE EMPCD = :EMPCD";
         await _oracleService.ExecuteNonQueryAsync(updateSql, new OracleParameter("EMPCD", empcd));
 
+        // Populate filter codes 1 lần lúc login cho Supervisor / Manager / Assistant
+        var rolesNeedFilter = new[] { "Supervisor", "Manager", "Assistant" };
+        if (rolesNeedFilter.Any(r => string.Equals(result.RoleName, r, StringComparison.OrdinalIgnoreCase)))
+        {
+            bool isSupervisor = string.Equals(result.RoleName, "Supervisor", StringComparison.OrdinalIgnoreCase);
+
+            if (isSupervisor)
+            {
+                // Supervisor: lấy WORKCD + LINECD (để filter hẹp hơn khi work code span nhiều line)
+                string supSql = "SELECT DISTINCT WORKCD, LINECD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD2";
+                var rows = await _oracleService.ExecuteQueryAsync(supSql,
+                    r => new { Work = r["WORKCD"]?.ToString() ?? "", Line = r["LINECD"]?.ToString() ?? "" },
+                    new OracleParameter("EMPCD2", empcd));
+                result.FilterType      = "work";
+                result.FilterCodes     = rows.Select(r => r.Work).Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList();
+                result.FilterLineCodes = rows.Select(r => r.Line).Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList();
+            }
+            else
+            {
+                // Manager/Assistant: lấy DEPTCD + LINECD
+                string mgrSql = "SELECT DISTINCT DEPTCD, LINECD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD2";
+                var rows = await _oracleService.ExecuteQueryAsync(mgrSql,
+                    r => new { Dept = r["DEPTCD"]?.ToString() ?? "", Line = r["LINECD"]?.ToString() ?? "" },
+                    new OracleParameter("EMPCD2", empcd));
+                result.FilterType      = "dept";
+                result.FilterCodes     = rows.Select(r => r.Dept).Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList();
+                result.FilterLineCodes = rows.Select(r => r.Line).Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList();
+
+                // Fallback: HR_USERS_DEPT không có LINECD → lấy LINECD của chính employee từ ECM100
+                if (result.FilterLineCodes.Count == 0)
+                {
+                    var ecmRows = await _oracleService.ExecuteQueryAsync(
+                        "SELECT LINECD FROM HRMS.ECM100 WHERE EMPCD = :EMPCD3 AND ROWNUM = 1",
+                        r => r["LINECD"]?.ToString() ?? "",
+                        new OracleParameter("EMPCD3", empcd));
+                    result.FilterLineCodes = ecmRows.Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList();
+                }
+            }
+        }
+
         return Ok(new { success = true, data = result });
     }
 
@@ -399,7 +439,7 @@ public class AccountController : ControllerBase
     [HttpGet("dropdown/line")]
     public async Task<IActionResult> GetLineDropdown()
     {
-        string sql = @"SELECT DISTINCT LINECD, TEAMNM FROM HRMS.EAM410 
+        string sql = @"SELECT DISTINCT LINECD, TEAMNM FROM HRMS.EAM410
                        WHERE LINECD IS NOT NULL AND USEYN = 'Y' ORDER BY TEAMNM";
 
         var result = await _oracleService.ExecuteQueryAsync(sql, reader => new

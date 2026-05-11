@@ -12,7 +12,7 @@ public static class SideMenuBuilder
         bool isAdmin      = !isMobileApp && user.RoleName == "Admin";
         bool isClerk      = !isMobileApp && user.RoleName == "Clerk";
         bool isHR         = !isMobileApp && user.RoleName == "HR";
-        bool isSupervisor = !isMobileApp && user.RoleName == "Supervisor";
+        bool isSupervisor = user.RoleName == "Supervisor";
         bool isManager    = !isMobileApp && user.RoleName == "Manager";
 
         return new List<SideMenuItem>
@@ -61,7 +61,7 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isSupervisor || isAdmin,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForClerk", Icon = "view_list" },
+                    new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForSupervisor", Icon = "view_list" },
                 }
             },
 

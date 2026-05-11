@@ -7,6 +7,7 @@
     <style>
         .stats-card .icon { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; }
         #otTableBody tr td { vertical-align: middle; }
+        .filter-bar select { min-width: 160px; }
         #paginationInfo { font-size: .82rem; color: #6c757d; }
         .emp-name { font-family: 'Times New Roman', serif; font-weight: 600; }
         @@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -51,7 +52,11 @@
             </div>
         </div>
 
-        <div class="px-4 pt-3 pb-1 row g-3 align-items-end">
+        <div class="px-4 pt-3 pb-1 row g-3 align-items-end filter-bar">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0 text-primary">Mã NV / Tên</label>
+                <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="🔍 Mã NV, tên..." />
+            </div>
             <div class="col-md-2">
                 <label class="form-label small fw-bold mb-0 text-primary">Tình Trạng</label>
                 <select id="filterStatus" class="form-select form-select-sm">
@@ -61,7 +66,17 @@
                     <option value="REJECTED">Từ chối</option>
                 </select>
             </div>
-            <div class="col-md-10 d-flex align-items-center justify-content-end gap-2">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0 text-primary">Line</label>
+                <select id="filterLine" class="select2 form-control"
+                        data-url="@Url.Action("GetLine", "Dropdown")" data-placeholder="Tất cả"></select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0 text-primary">Nhóm Việc</label>
+                <select id="filterWork" class="select2 form-control"
+                        data-url="@Url.Action("GetWork", "Dropdown")" data-placeholder="Tất cả"></select>
+            </div>
+            <div class="col-md-4 d-flex align-items-center justify-content-end gap-2">
                 <label class="mb-0 text-sm text-secondary text-nowrap">Hiển thị:</label>
                 <select id="pageSizeSelect" class="form-select form-select-sm" style="width:80px;">
                     <option value="50">50</option>
@@ -104,7 +119,7 @@
     const WORK_DATE = '@workDate';
     const PAGE_URL  = '@Url.Action("GetOTClerkDetailPage", "OT")';
 
-    let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false, pageSize = 100;
+    let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false, pageSize = 100, lineFilterHidden = false;
 
     function buildRow(item, idx) {
         const otType = item.OT_AFTER === 'Y' ? 'Sau' : (item.OT_BEFORE === 'Y' ? 'Trước' : '');
@@ -136,17 +151,24 @@
     function loadData(page = 1) {
         if (isLoading) return;
         isLoading = true; currentPage = page;
-        const status = $('#filterStatus').val();
+        const search = $('#searchInput').val(),
+              status = $('#filterStatus').val(),
+              lineId = $('#filterLine').val(),
+              workId = $('#filterWork').val();
         $('#otTableBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải dữ liệu...</div></td></tr>`);
         $.ajax({
-            url: PAGE_URL,
-            type: 'GET',
-            data: { work_date: WORK_DATE, status: status, page: page, page_size: pageSize },
+            url: PAGE_URL, type: 'GET',
+            data: { work_date: WORK_DATE, status, search, line_id: lineId, work_id: workId, page, page_size: pageSize },
             success: function(res) {
                 const isSuccess = res.success || res.Success;
                 if (!isSuccess) {
                     $('#otTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${res.message || res.Message || 'Dữ liệu không hợp lệ'}</td></tr>`);
                     return;
+                }
+                // Ẩn line filter nếu clerk thuộc office (backend đã tự filter theo line)
+                if (!lineFilterHidden && (res.is_office || res.IS_OFFICE)) {
+                    lineFilterHidden = true;
+                    $('#filterLine').closest('.col-md-2').hide();
                 }
                 const summary = res.summary || res.Summary;
                 if (summary) {
@@ -158,9 +180,13 @@
                 totalRecords = res.total || res.Total || 0;
                 totalPages   = res.total_pages || res.TotalPages || 0;
                 const data   = res.data || res.Data || [];
-                $('#otTableBody').html(data.length
-                    ? data.map((item, i) => buildRow(item, (page-1)*pageSize+i+1)).join('')
-                    : `<tr><td colspan="9" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
+                const msg    = res.message || res.Message || '';
+                if (!data.length) {
+                    const hint = msg ? `<div class="text-xs text-warning mt-1"><i class="bi bi-exclamation-triangle me-1"></i>${msg}</div>` : '';
+                    $('#otTableBody').html(`<tr><td colspan="9" class="text-center text-muted py-4">Không có dữ liệu${hint}</td></tr>`);
+                } else {
+                    $('#otTableBody').html(data.map((item, i) => buildRow(item, (page-1)*pageSize+i+1)).join(''));
+                }
                 renderPagination();
             },
             error: function(xhr) {
@@ -195,15 +221,20 @@
     }
 
     $('#pageSizeSelect').on('change', function() { pageSize=parseInt($(this).val()); loadData(1); });
-    $('#filterStatus').on('change', () => loadData(1));
+    $('#filterStatus, #filterLine, #filterWork').on('change', () => loadData(1));
+    $('#searchInput').on('input', debounce(() => loadData(1), 400));
 
     $('#exportExcelBtn').on('click', async function() {
         const $btn=$(this), originalHtml=$btn.html();
         $btn.prop('disabled',true).html('<span class="spinner-border spinner-border-sm me-1"></span> Đang nén...');
         try {
+            const statusVal = encodeURIComponent($('#filterStatus').val() || '');
+            const searchVal = encodeURIComponent($('#searchInput').val() || '');
+            const lineId    = encodeURIComponent($('#filterLine').val() || '');
+            const workId    = encodeURIComponent($('#filterWork').val() || '');
             let exportRows=[], pg=1, pgTotal=1;
             do {
-                const res = await $.getJSON(`${PAGE_URL}?work_date=${WORK_DATE}&page=${pg}&page_size=1000`);
+                const res = await $.getJSON(`${PAGE_URL}?work_date=${WORK_DATE}&status=${statusVal}&search=${searchVal}&line_id=${lineId}&work_id=${workId}&page=${pg}&page_size=1000`);
                 if(!res||!res.success) break;
                 pgTotal=res.total_pages; exportRows=exportRows.concat(res.data||[]);
                 $btn.html(`<span class="spinner-border spinner-border-sm me-1"></span> ${exportRows.length.toLocaleString()}…`);
@@ -228,7 +259,11 @@
     function formatTime(s){const d=new Date(s);if(isNaN(d))return'';return('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}
     function formatDateTime(s){const d=new Date(s);if(isNaN(d))return'';return('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+' '+('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2);}
     function escHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+    function debounce(fn,d){let t;return function(){clearTimeout(t);t=setTimeout(fn,d);};}
 
-    $(document).ready(() => loadData(1));
+    $(document).ready(function() {
+        if (typeof Select2Helper !== 'undefined') Select2Helper.init();
+        loadData(1);
+    });
     </script>
 }

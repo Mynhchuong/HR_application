@@ -208,13 +208,22 @@
 
         @if (user?.RoleName == "HR" || user?.RoleName == "Admin" || user?.RoleName == "Manager" || user?.RoleName == "Clerk")
         {
-            <!-- Danh sách Tăng ca (Quick access for clerks/managers) -->
             <a asp-controller="OT" asp-action="OtListForClerk" class="app-card">
                 <div class="app-icon-wrapper bg-soft-orange">
                     <span class="material-symbols-rounded">fact_check</span>
                 </div>
-                <div class="app-card-title">Duyệt TC</div>
+                <div class="app-card-title">Danh sách Tăng ca</div>
                 <div class="app-card-tag">Quản lý</div>
+            </a>
+        }
+        @if (user?.RoleName == "Supervisor")
+        {
+            <a asp-controller="OT" asp-action="OtListForSupervisor" class="app-card">
+                <div class="app-icon-wrapper bg-soft-orange">
+                    <span class="material-symbols-rounded">fact_check</span>
+                </div>
+                <div class="app-card-title">Danh sách Tăng ca</div>
+                <div class="app-card-tag">Bộ phận</div>
             </a>
         }
         

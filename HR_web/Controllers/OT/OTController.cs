@@ -129,20 +129,15 @@ public class OTController : BaseController
     {
         try
         {
-            if (CurrentUser == null)
+            if (CurrentUser == null || string.IsNullOrEmpty(CurrentUser.EmpCd))
                 return Json(new { success = false, message = "Chưa đăng nhập" });
 
-            var filterType  = CurrentUser.FilterType;
-            var filterCodes = CurrentUser.FilterCodes;
+            var filterType = CurrentUser.FilterType;
+            if (string.IsNullOrEmpty(filterType))
+                return Json(new { success = false, message = "Chưa được phân quyền bộ phận" });
 
-            if (string.IsNullOrEmpty(filterType) || filterCodes == null || filterCodes.Count == 0)
-                return Json(new { success = true, summary = new { TOTAL=0,PENDING=0,CONFIRMED=0,REJECTED=0 },
-                                  total = 0, page, page_size, total_pages = 0, data = new List<object>(),
-                                  message = "Chưa được phân quyền bộ phận" });
-
-            var filterLineCodes = CurrentUser?.FilterLineCodes;
             var result = await _otService.GetOTSupervisorDetailAsync(
-                filterType, filterCodes, filterLineCodes, work_date, status, search, dept_id, line_id, work_id, page, page_size);
+                CurrentUser.EmpCd, filterType, work_date, status, search, dept_id, line_id, work_id, page, page_size);
             return Json(result);
         }
         catch (Exception ex)

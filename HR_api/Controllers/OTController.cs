@@ -190,6 +190,7 @@ public class OTController : ControllerBase
 
             bool isOffice = info.DEPTNM == "OFFICE STAFF";
             string filterVal = isOffice ? info.LINECD! : info.DEPTCD!;
+            var clerkFilter = Helpers.OTScopeFilterHelper.ForClerk(isOffice, filterVal);
 
             string withSql = @"
                 WITH OT_BASE AS (
@@ -220,7 +221,7 @@ public class OTController : ControllerBase
             string whereSql = @"
                 WHERE NVL(EC.RETDAT,'9999') > TO_CHAR(SYSDATE,'YYYYMMDD')
                   AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
-                  AND " + (isOffice ? "EC.LINECD = :FILTER_VAL" : "EC.DEPTCD = :FILTER_VAL") + @"
+                  " + clerkFilter.SqlClause + @"
                   AND (:ST_FLAG IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(EC.EMPCD) LIKE :SRCH_VAL1 OR UPPER(EC.CNAME) LIKE :SRCH_VAL2)
                   AND (:LN_FLAG IS NULL OR EC.LINECD = :LN_VAL)
@@ -231,7 +232,6 @@ public class OTController : ControllerBase
                 new OracleParameter("WORK_DATE",  workDate),
                 new OracleParameter("WORK_DATE2", workDate),
                 new OracleParameter("WORK_DATE3", workDate),
-                new OracleParameter("FILTER_VAL", filterVal),
                 new OracleParameter("ST_FLAG",    OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(status) ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("ST_VAL",     OracleDbType.Varchar2) { Value = (object?)status ?? DBNull.Value },
                 new OracleParameter("SRCH_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search) ? null : "Y") ?? DBNull.Value },
@@ -242,6 +242,7 @@ public class OTController : ControllerBase
                 new OracleParameter("WK_FLAG",    OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(work_id) ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("WK_VAL",     OracleDbType.Varchar2) { Value = (object?)work_id ?? DBNull.Value }
             };
+            baseParams.AddRange(clerkFilter.Params);
 
             // 1. Summary COUNT
             string sqlSummary = withSql + @"
@@ -611,15 +612,7 @@ public class OTController : ControllerBase
                 System.Globalization.DateTimeStyles.None, out workDate))
                 workDate = DateTime.Today;
 
-            bool isSupervisor = string.Equals(filter_type, "work", StringComparison.OrdinalIgnoreCase);
-
-            string filterCol   = isSupervisor ? "EC.WORKCD" : "EC.DEPTCD";
-            string autoFilter  = $"AND INSTR(',' || :FILTER_CODES || ',', ',' || {filterCol} || ',') > 0";
-            // Nếu có filter_line_codes thì tự động filter line (cả Supervisor lẫn Manager/Assistant)
-            bool   hasLineFilter = !string.IsNullOrEmpty(filter_line_codes);
-            string autoLineFilter = hasLineFilter
-                ? "AND INSTR(',' || :FILTER_LINE_CODES || ',', ',' || EC.LINECD || ',') > 0"
-                : "";
+            var scopeFilter = Helpers.OTScopeFilterHelper.ForScope(filter_type, filter_codes, filter_line_codes);
 
             int offset = (page - 1) * page_size;
             int maxRn  = offset + page_size;
@@ -659,7 +652,7 @@ public class OTController : ControllerBase
                   AND (:DID_FLAG IS NULL OR EC.DEPTCD = :DID_VAL)
                   AND (:LID_FLAG IS NULL OR EC.LINECD = :LID_VAL)
                   AND (:WID_FLAG IS NULL OR EC.WORKCD = :WID_VAL)
-                  " + autoFilter + " " + autoLineFilter;
+                  " + scopeFilter.SqlClause;
 
             var baseParams = new List<OracleParameter>
             {
@@ -677,9 +670,8 @@ public class OTController : ControllerBase
                 new OracleParameter("LID_VAL",      OracleDbType.Varchar2) { Value = (object?)line_id ?? DBNull.Value },
                 new OracleParameter("WID_FLAG",     OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(work_id) ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("WID_VAL",      OracleDbType.Varchar2) { Value = (object?)work_id ?? DBNull.Value },
-                new OracleParameter("FILTER_CODES",      OracleDbType.Varchar2) { Value = filter_codes },
-                new OracleParameter("FILTER_LINE_CODES", OracleDbType.Varchar2) { Value = (object?)(hasLineFilter ? filter_line_codes : null) ?? DBNull.Value }
             };
+            baseParams.AddRange(scopeFilter.Params);
 
             // 4. Summary
             string sqlSummary = withSql + @"

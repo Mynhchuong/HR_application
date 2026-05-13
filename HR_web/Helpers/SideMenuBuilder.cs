@@ -58,7 +58,7 @@ public static class SideMenuBuilder
                 Id = "Supervisor",
                 Title = "Giám sát",
                 Icon = "engineering",
-                VisibleWhen = () => isSupervisor || isAdmin || isManagers,
+                VisibleWhen = () => isSupervisor || isAdmin || isManager,
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForSupervisor", Icon = "view_list" },

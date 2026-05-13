@@ -38,4 +38,10 @@ public class DropdownService
 
     public async Task<List<DropdownModel>> GetWorkByScopeAsync(string empcd)
         => await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/work-by-scope", $"empcd={Uri.EscapeDataString(empcd)}") ?? new();
+
+    public async Task<List<DropdownModel>> GetEmpAsync(string term)
+    {
+        if (string.IsNullOrEmpty(term) || term.Length < 2) return new();
+        return await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/emp", $"term={Uri.EscapeDataString(term)}") ?? new();
+    }
 }

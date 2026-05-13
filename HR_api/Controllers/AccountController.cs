@@ -508,6 +508,23 @@ public class AccountController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("dropdown/emp")]
+    public async Task<IActionResult> GetEmpDropdown(string? term)
+    {
+        if (string.IsNullOrEmpty(term) || term.Length < 2) return Ok(new List<object>());
+        string sql = @"SELECT EMPCD, CNAME FROM HRMS.ECM100
+                       WHERE USEYN = 'Y'
+                         AND (UPPER(EMPCD) LIKE :TERM1 OR UPPER(CNAME) LIKE :TERM2)
+                       ORDER BY CNAME
+                       FETCH FIRST 30 ROWS ONLY";
+        string like = "%" + term.ToUpper() + "%";
+        var result = await _oracleService.ExecuteQueryAsync(sql,
+            r => new { id = r["EMPCD"]?.ToString(), text = $"{r["EMPCD"]} - {r["CNAME"]}" },
+            new OracleParameter("TERM1", OracleDbType.Varchar2) { Value = like },
+            new OracleParameter("TERM2", OracleDbType.Varchar2) { Value = like });
+        return Ok(result);
+    }
+
     [HttpGet("user-detail")]
     public async Task<IActionResult> GetUserDetail(string empCd)
     {

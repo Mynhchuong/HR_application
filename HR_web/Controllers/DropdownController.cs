@@ -78,6 +78,14 @@ public class DropdownController : BaseController
         return Json(data.Select(x => new { id = x.id, text = x.text }));
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetEmp(string? term)
+    {
+        if (string.IsNullOrEmpty(term) || term.Length < 2) return Json(new List<object>());
+        var data = await _dropdownService.GetEmpAsync(term);
+        return Json(data.Select(x => new { id = x.id, text = x.text }));
+    }
+
     // Scoped dropdowns — chỉ trả về options trong phạm vi HR_USERS_DEPT của user đang đăng nhập
     [Authorize]
     [HttpGet]

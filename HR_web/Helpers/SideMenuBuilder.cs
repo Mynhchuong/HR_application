@@ -58,7 +58,7 @@ public static class SideMenuBuilder
                 Id = "Supervisor",
                 Title = "Giám sát",
                 Icon = "engineering",
-                VisibleWhen = () => isSupervisor || isAdmin,
+                VisibleWhen = () => isSupervisor || isAdmin || isManagers,
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForSupervisor", Icon = "view_list" },
@@ -73,7 +73,7 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isManager || isAdmin,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForClerk", Icon = "view_list" },
+                    new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForSupervisor", Icon = "view_list" },
                 }
             },
 

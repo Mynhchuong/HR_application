@@ -13,3 +13,12 @@ public class UserDeptImportRequest
     public string?              CreatedBy { get; set; }
     public List<UserDeptImportRow> Rows   { get; set; } = new();
 }
+
+public class UserDeptManualRequest
+{
+    public string?      EmpCd     { get; set; }
+    public string?      CreatedBy { get; set; }
+    public List<string> DeptCds   { get; set; } = new();
+    public List<string> LineCds   { get; set; } = new();
+    public List<string> WorkCds   { get; set; } = new();
+}

@@ -106,6 +106,32 @@ public class UserDeptController : BaseController
             "template_HR_USERS_DEPT.xlsx");
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetDeptOptions()
+        => Json(await _service.GetDeptOptionsAsync());
+
+    [HttpGet]
+    public async Task<IActionResult> GetLineOptions(string? deptcds)
+        => Json(await _service.GetLineOptionsAsync(deptcds ?? ""));
+
+    [HttpGet]
+    public async Task<IActionResult> GetWorkOptions(string? deptcds, string? linecds)
+        => Json(await _service.GetWorkOptionsAsync(deptcds ?? "", linecds ?? ""));
+
+    [HttpPost]
+    public async Task<IActionResult> ManualCreate(
+        [FromForm] string empcd,
+        [FromForm] string deptcds,
+        [FromForm] string linecds,
+        [FromForm] string workcds)
+    {
+        var dList = deptcds?.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList() ?? [];
+        var lList = linecds?.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList() ?? [];
+        var wList = workcds?.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList() ?? [];
+        var (success, message, inserted, skipped) = await _service.ManualCreateAsync(empcd, CurrentUser?.EmpCd, dList, lList, wList);
+        return Json(new { success, message, inserted, skipped });
+    }
+
     [HttpDelete]
     public async Task<IActionResult> Delete(string empcd, string? deptcd, string? linecd, string? workcd)
     {

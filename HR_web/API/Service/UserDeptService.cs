@@ -1,3 +1,4 @@
+using HR_web.Models;
 using Newtonsoft.Json;
 
 namespace HR_web.API.Service;
@@ -49,6 +50,37 @@ public class UserDeptService
         {
             return (false, ex.Message, 0, 0);
         }
+    }
+
+    public async Task<List<DropdownModel>> GetDeptOptionsAsync()
+        => await _api.GetAsync<List<DropdownModel>>("UserDept/dept-options") ?? new();
+
+    public async Task<List<DropdownModel>> GetLineOptionsAsync(string deptcds)
+    {
+        if (string.IsNullOrEmpty(deptcds)) return new();
+        return await _api.GetAsync<List<DropdownModel>>("UserDept/line-options", $"deptcds={Uri.EscapeDataString(deptcds)}") ?? new();
+    }
+
+    public async Task<List<DropdownModel>> GetWorkOptionsAsync(string deptcds, string linecds)
+    {
+        if (string.IsNullOrEmpty(deptcds) || string.IsNullOrEmpty(linecds)) return new();
+        return await _api.GetAsync<List<DropdownModel>>("UserDept/work-options",
+            $"deptcds={Uri.EscapeDataString(deptcds)}&linecds={Uri.EscapeDataString(linecds)}") ?? new();
+    }
+
+    public async Task<(bool success, string message, int inserted, int skipped)> ManualCreateAsync(
+        string empcd, string? createdBy, List<string> deptcds, List<string> linecds, List<string> workcds)
+    {
+        try
+        {
+            var payload = new { EmpCd = empcd, CreatedBy = createdBy, DeptCds = deptcds, LineCds = linecds, WorkCds = workcds };
+            var res = await _api.PostAsync("UserDept/manual", payload);
+            if (res == null || !res.IsSuccessStatusCode) return (false, "Lỗi kết nối API", 0, 0);
+            var json = JsonConvert.DeserializeObject<dynamic>(await res.Content.ReadAsStringAsync());
+            bool ok = (bool)(json?.success ?? false);
+            return (ok, (string)(json?.message ?? ""), (int)(json?.inserted ?? 0), (int)(json?.skipped ?? 0));
+        }
+        catch (Exception ex) { return (false, ex.Message, 0, 0); }
     }
 
     public async Task<bool> DeleteAsync(string empcd, string? deptcd, string? linecd, string? workcd)

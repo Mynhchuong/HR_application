@@ -78,6 +78,7 @@ builder.Services.AddScoped<HR_web.API.Service.AccountService>();
 builder.Services.AddScoped<HR_web.API.Service.OtService>();
 builder.Services.AddScoped<HR_web.API.Service.PayslipService>();
 builder.Services.AddScoped<HR_web.API.Service.DropdownService>();
+builder.Services.AddScoped<HR_web.API.Service.UserDeptService>();
 
 // ============================================================
 var app = builder.Build();

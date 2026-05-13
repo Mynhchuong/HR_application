@@ -465,6 +465,49 @@ public class AccountController : ControllerBase
         return Ok(result);
     }
 
+    // Scoped dropdowns — chỉ trả về dept/line/work mà user được phân quyền (HR_USERS_DEPT)
+    [HttpGet("dropdown/dept-by-scope")]
+    public async Task<IActionResult> GetDeptByScope(string empcd)
+    {
+        if (string.IsNullOrEmpty(empcd)) return Ok(new List<object>());
+        string sql = @"SELECT DISTINCT DEPTCD, DEPTNM FROM HRMS.EAM410
+                       WHERE (DEPTCD, LINECD, WORKCD) IN (
+                           SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
+                       ) ORDER BY DEPTNM";
+        var result = await _oracleService.ExecuteQueryAsync(sql,
+            r => new { id = r["DEPTCD"]?.ToString(), text = r["DEPTNM"]?.ToString() },
+            new OracleParameter("EMPCD", empcd));
+        return Ok(result);
+    }
+
+    [HttpGet("dropdown/line-by-scope")]
+    public async Task<IActionResult> GetLineByScope(string empcd)
+    {
+        if (string.IsNullOrEmpty(empcd)) return Ok(new List<object>());
+        string sql = @"SELECT DISTINCT LINECD, TEAMNM FROM HRMS.EAM410
+                       WHERE (DEPTCD, LINECD, WORKCD) IN (
+                           SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
+                       ) ORDER BY TEAMNM";
+        var result = await _oracleService.ExecuteQueryAsync(sql,
+            r => new { id = r["LINECD"]?.ToString(), text = r["TEAMNM"]?.ToString() },
+            new OracleParameter("EMPCD", empcd));
+        return Ok(result);
+    }
+
+    [HttpGet("dropdown/work-by-scope")]
+    public async Task<IActionResult> GetWorkByScope(string empcd)
+    {
+        if (string.IsNullOrEmpty(empcd)) return Ok(new List<object>());
+        string sql = @"SELECT DISTINCT WORKCD, WORKNM FROM HRMS.EAM410
+                       WHERE (DEPTCD, LINECD, WORKCD) IN (
+                           SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
+                       ) ORDER BY WORKNM";
+        var result = await _oracleService.ExecuteQueryAsync(sql,
+            r => new { id = r["WORKCD"]?.ToString(), text = r["WORKNM"]?.ToString() },
+            new OracleParameter("EMPCD", empcd));
+        return Ok(result);
+    }
+
     [HttpGet("user-detail")]
     public async Task<IActionResult> GetUserDetail(string empCd)
     {

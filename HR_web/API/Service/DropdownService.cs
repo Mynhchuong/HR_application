@@ -29,4 +29,13 @@ public class DropdownService
         if (string.IsNullOrEmpty(deptCd)) return new();
         return await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/line-by-dept", $"deptcd={Uri.EscapeDataString(deptCd)}") ?? new();
     }
+
+    public async Task<List<DropdownModel>> GetDeptByScopeAsync(string empcd)
+        => await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/dept-by-scope", $"empcd={Uri.EscapeDataString(empcd)}") ?? new();
+
+    public async Task<List<DropdownModel>> GetLineByScopeAsync(string empcd)
+        => await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/line-by-scope", $"empcd={Uri.EscapeDataString(empcd)}") ?? new();
+
+    public async Task<List<DropdownModel>> GetWorkByScopeAsync(string empcd)
+        => await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/work-by-scope", $"empcd={Uri.EscapeDataString(empcd)}") ?? new();
 }

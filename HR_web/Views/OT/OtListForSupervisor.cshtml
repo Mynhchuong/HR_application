@@ -82,19 +82,19 @@
             <div class="col-6 col-md-2" id="deptFilterWrapper">
                 <label class="form-label small fw-bold mb-0 text-primary">Bộ Phận</label>
                 <select id="filterDept" class="select2 form-control"
-                        data-url="@Url.Action("GetDept", "Dropdown")"
+                        data-url="@Url.Action("GetDeptByScope", "Dropdown")"
                         data-placeholder="Tất cả"
                         data-selected-id="@(isDept ? firstCode : "")"></select>
             </div>
             <div class="col-6 col-md-2" id="lineFilterWrapper">
                 <label class="form-label small fw-bold mb-0 text-primary">Line</label>
                 <select id="filterLine" class="select2 form-control"
-                        data-url="@Url.Action("GetLine", "Dropdown")" data-placeholder="Tất cả"></select>
+                        data-url="@Url.Action("GetLineByScope", "Dropdown")" data-placeholder="Tất cả"></select>
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label small fw-bold mb-0 text-primary">Nhóm Việc</label>
                 <select id="filterWork" class="select2 form-control"
-                        data-url="@Url.Action("GetWork", "Dropdown")" data-placeholder="Tất cả"></select>
+                        data-url="@Url.Action("GetWorkByScope", "Dropdown")" data-placeholder="Tất cả"></select>
             </div>
             <div class="col-6 col-md-2 d-flex align-items-center justify-content-end gap-2">
                 <label class="mb-0 text-sm text-secondary text-nowrap">Hiển thị:</label>

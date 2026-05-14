@@ -174,23 +174,24 @@ public class OTController : ControllerBase
             int maxRn  = offset + page_size;
 
             string sqlGetInfo = @"
-                SELECT E.DEPTCD, E.LINECD, E.WORKCD, B.DEPTNM FROM HRMS.HR_USERS U
-                JOIN HRMS.ECM100 E ON E.EMPCD = U.EMPCD
-                LEFT JOIN HRMS.EAM410 B ON E.DEPTCD = B.DEPTCD AND E.LINECD = B.LINECD AND E.WORKCD = B.WORKCD
-                WHERE U.EMPCD = :CLERK_EMPCD AND ROWNUM = 1";
+                SELECT DEPTCD, LINECD FROM HRMS.HR_USERS_DEPT
+                WHERE EMPCD = :CLERK_EMPCD AND ROWNUM = 1";
 
             var clerkInfos = await _oracleService.ExecuteQueryAsync(sqlGetInfo, r => new {
                 DEPTCD = r["DEPTCD"]?.ToString(),
-                LINECD = r["LINECD"]?.ToString(),
-                DEPTNM = r["DEPTNM"]?.ToString()
+                LINECD = r["LINECD"]?.ToString()
             }, new OracleParameter("CLERK_EMPCD", clerk_empcd));
 
             if (clerkInfos.Count == 0) return Ok(new { success = false, message = "Không tìm thấy thông tin clerk" });
             var info = clerkInfos[0];
 
-            bool isOffice = info.DEPTNM == "OFFICE STAFF";
-            string filterVal = isOffice ? info.LINECD! : info.DEPTCD!;
-            var clerkFilter = Helpers.OTScopeFilterHelper.ForClerk(isOffice, filterVal);
+            if (!Helpers.OTScopeFilterHelper.IsAuthorized(info.DEPTCD))
+                return Ok(Helpers.OTScopeFilterHelper.NotAuthorizedResponse(page, page_size));
+
+            // A01001 là dept lớn → tự động filter thêm theo LINECD, ẩn line dropdown ở frontend
+            bool autoLineFilter = info.DEPTCD == "A01001";
+            var clerkFilter = Helpers.OTScopeFilterHelper.ForClerkByDept(
+                info.DEPTCD!, autoLineFilter ? info.LINECD : null);
 
             string withSql = @"
                 WITH OT_BASE AS (
@@ -219,7 +220,7 @@ public class OTController : ControllerBase
                                                AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)";
 
             string whereSql = @"
-                WHERE NVL(EC.RETDAT,'9999') > TO_CHAR(SYSDATE,'YYYYMMDD')
+                WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
                   " + clerkFilter.SqlClause + @"
                   AND (:ST_FLAG IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
@@ -229,9 +230,9 @@ public class OTController : ControllerBase
 
             var baseParams = new List<OracleParameter>
             {
-                new OracleParameter("WORK_DATE",  workDate),
-                new OracleParameter("WORK_DATE2", workDate),
-                new OracleParameter("WORK_DATE3", workDate),
+                new OracleParameter("WORK_DATE",  OracleDbType.Date) { Value = workDate },
+                new OracleParameter("WORK_DATE2", OracleDbType.Date) { Value = workDate },
+                new OracleParameter("WORK_DATE3", OracleDbType.Date) { Value = workDate },
                 new OracleParameter("ST_FLAG",    OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(status) ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("ST_VAL",     OracleDbType.Varchar2) { Value = (object?)status ?? DBNull.Value },
                 new OracleParameter("SRCH_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search) ? null : "Y") ?? DBNull.Value },
@@ -264,7 +265,7 @@ public class OTController : ControllerBase
             summary.IS_DONE = summary.PENDING == 0;
 
             if (summary.TOTAL == 0)
-                return Ok(new { success = true, dept_id = info.DEPTCD, line_id = info.LINECD, is_office = isOffice,
+                return Ok(new { success = true, dept_id = info.DEPTCD, line_id = info.LINECD, is_office = autoLineFilter,
                                 summary, total = 0, page, page_size, total_pages = 0, data = new List<OTClerkModel>() });
 
             // 2. Paged data
@@ -324,7 +325,7 @@ public class OTController : ControllerBase
                 return model;
             }, dataParams.ToArray());
 
-            return Ok(new { success = true, dept_id = info.DEPTCD, line_id = info.LINECD, is_office = isOffice,
+            return Ok(new { success = true, dept_id = info.DEPTCD, line_id = info.LINECD, is_office = autoLineFilter,
                             summary, total = summary.TOTAL, page, page_size,
                             total_pages = page_size > 0 ? (int)Math.Ceiling((double)summary.TOTAL / page_size) : 0,
                             data = list });
@@ -588,9 +589,8 @@ public class OTController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet("supervisor")]
     public async Task<IActionResult> GetOTSupervisor(
+        string  supervisor_empcd,
         string  filter_type,
-        string  filter_codes,
-        string? filter_line_codes = null,
         string? work_date = null,
         string? status    = null,
         string? search    = null,
@@ -602,17 +602,23 @@ public class OTController : ControllerBase
     {
         try
         {
-            if (string.IsNullOrEmpty(filter_codes))
-                return Ok(new { success = true, summary = new { TOTAL=0,PENDING=0,CONFIRMED=0,REJECTED=0 },
-                                total = 0, page, page_size, total_pages = 0, data = new List<OTHRDetailModel>(),
-                                message = "Chưa được phân quyền bộ phận" });
+            if (!Helpers.OTScopeFilterHelper.IsAuthorized(supervisor_empcd))
+                return Ok(Helpers.OTScopeFilterHelper.NotAuthorizedResponse(page, page_size));
+
+            // Check xem có row trong HR_USERS_DEPT không
+            var hasDept = await _oracleService.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :E AND ROWNUM <= 1",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("E", supervisor_empcd));
+            if (hasDept.FirstOrDefault() == 0)
+                return Ok(Helpers.OTScopeFilterHelper.NotAuthorizedResponse(page, page_size));
 
             DateTime workDate;
             if (!DateTime.TryParseExact(work_date, "yyyy-MM-dd", null,
                 System.Globalization.DateTimeStyles.None, out workDate))
                 workDate = DateTime.Today;
 
-            var scopeFilter = Helpers.OTScopeFilterHelper.ForScope(filter_type, filter_codes, filter_line_codes);
+            var scopeFilter = Helpers.OTScopeFilterHelper.ForScopeByEmpcd(filter_type, supervisor_empcd);
 
             int offset = (page - 1) * page_size;
             int maxRn  = offset + page_size;

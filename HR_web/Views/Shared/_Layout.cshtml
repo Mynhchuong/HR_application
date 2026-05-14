@@ -32,6 +32,8 @@
 
     <!-- Select2 CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />
+    <!-- Mobile Table Helper CSS -->
+    <link href="~/css/mobile-table.css" rel="stylesheet" asp-append-version="true" />
 
     @RenderSection("Styles", required: false)
 
@@ -303,28 +305,41 @@
         }
         @@media (max-width: 991.98px) {
             .main-header {
-                padding: 0.75rem 1rem;
+                padding: 0.35rem 0.75rem;
+                min-height: unset;
             }
 
             .main-header-bar {
-                padding: 0.4rem 0.75rem;
-                border-radius: 16px;
+                padding: 0.2rem 0.6rem;
+                border-radius: 12px;
             }
 
             .header-title {
-                font-size: 1rem;
+                font-size: 0.9rem;
+            }
+
+            .header-toggle-btn {
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+            }
+
+            .header-user-icon {
+                width: 22px;
+                height: 22px;
+                font-size: 0.85rem;
             }
 
             .header-user-toggle {
                 border: none;
                 box-shadow: none;
-                padding: 0.25rem !important;
+                padding: 0.2rem 0.4rem !important;
             }
 
             .header-user-name {
-                display: none; /* Hide full name on mobile */
+                display: none;
             }
-            
+
             .header-user-toggle::after {
                 display: none;
             }
@@ -513,6 +528,8 @@
     <script src="~/Scripts/alert-helper.js" asp-append-version="true"></script>
     <!-- Select2 Helper -->
     <script src="~/assets/js/select2-helper.js" asp-append-version="true"></script>
+    <!-- Mobile Table Helper -->
+    <script src="~/js/mobile-table.js" asp-append-version="true"></script>
 
     <!-- Material Dashboard JS -->
     <script src="~/assets/js/plugins/perfect-scrollbar.min.js" asp-append-version="true"></script>
@@ -603,6 +620,41 @@
         window.addEventListener('load', function () {
             window.hideLoading();
         });
+    </script>
+
+    <!-- Global Confirm Modal -->
+    <div class="modal fade" id="globalConfirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 28px;">
+                <div class="modal-body p-4 text-center">
+                    <div class="mb-3">
+                        <div class="bg-soft-orange rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
+                            <span class="material-symbols-rounded text-danger" style="font-size: 2.5rem;">delete</span>
+                        </div>
+                    </div>
+                    <h5 class="fw-bold mb-2" id="globalConfirmTitle">Xác nhận</h5>
+                    <p class="text-muted small mb-4" id="globalConfirmMessage"></p>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-light w-100 py-2 rounded-3 fw-bold" data-bs-dismiss="modal">Hủy</button>
+                        <button type="button" class="btn btn-danger w-100 py-2 rounded-3 fw-bold" id="globalConfirmOk">Xóa</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        window.showConfirm = function(message, onConfirm, options) {
+            const opts = options || {};
+            document.getElementById('globalConfirmTitle').textContent   = opts.title   || 'Xác nhận';
+            document.getElementById('globalConfirmMessage').textContent = message;
+            document.getElementById('globalConfirmOk').textContent      = opts.okText  || 'Xóa';
+            document.getElementById('globalConfirmOk').className        = 'btn w-100 py-2 rounded-3 fw-bold ' + (opts.okClass || 'btn-danger');
+            const modal   = new bootstrap.Modal(document.getElementById('globalConfirmModal'));
+            const okBtn   = document.getElementById('globalConfirmOk');
+            const handler = function() { modal.hide(); onConfirm(); okBtn.removeEventListener('click', handler); };
+            okBtn.addEventListener('click', handler);
+            modal.show();
+        };
     </script>
 
     <!-- Logout Modal -->

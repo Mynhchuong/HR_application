@@ -82,19 +82,19 @@
             <div class="col-6 col-md-2" id="deptFilterWrapper">
                 <label class="form-label small fw-bold mb-0 text-primary">Bộ Phận</label>
                 <select id="filterDept" class="select2 form-control"
-                        data-url="@Url.Action("GetDept", "Dropdown")"
+                        data-url="@Url.Action("GetDeptByScope", "Dropdown")"
                         data-placeholder="Tất cả"
                         data-selected-id="@(isDept ? firstCode : "")"></select>
             </div>
             <div class="col-6 col-md-2" id="lineFilterWrapper">
                 <label class="form-label small fw-bold mb-0 text-primary">Line</label>
                 <select id="filterLine" class="select2 form-control"
-                        data-url="@Url.Action("GetLine", "Dropdown")" data-placeholder="Tất cả"></select>
+                        data-url="@Url.Action("GetLineByScope", "Dropdown")" data-placeholder="Tất cả"></select>
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label small fw-bold mb-0 text-primary">Nhóm Việc</label>
                 <select id="filterWork" class="select2 form-control"
-                        data-url="@Url.Action("GetWork", "Dropdown")" data-placeholder="Tất cả"></select>
+                        data-url="@Url.Action("GetWorkByScope", "Dropdown")" data-placeholder="Tất cả"></select>
             </div>
             <div class="col-6 col-md-2 d-flex align-items-center justify-content-end gap-2">
                 <label class="mb-0 text-sm text-secondary text-nowrap">Hiển thị:</label>
@@ -112,13 +112,20 @@
                 <table class="table align-items-center mb-0 w-100 table-hover table-striped">
                     <thead class="bg-light">
                         <tr>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">#</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Mã NV</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Họ &amp; Tên</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell">Chuyền</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell">Nhóm Việc</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 text-center">Tăng Ca</th>
-                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Tình Trạng</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                data-mobile="hidden">#</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
+                                data-mobile="detail" data-mobile-label="Chuyền">Chuyền</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
+                                data-mobile="detail" data-mobile-label="Nhóm Việc">Nhóm Việc</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 text-center"
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tăng Ca">Tăng Ca</th>
+                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tình Trạng">Tình Trạng</th>
                         </tr>
                     </thead>
                     <tbody id="otTableBody"></tbody>
@@ -172,6 +179,7 @@ function loadData(page = 1) {
           workId = $('#filterWork').val();
 
     $('#otTableBody').html(`<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải dữ liệu...</div></td></tr>`);
+    MobileTableHelper.refresh('otTableBody');
     $.ajax({
         url: PAGE_URL, type: 'GET',
         data: { work_date: WORK_DATE, status, search, dept_id: deptId, line_id: lineId, work_id: workId, page, page_size: pageSize },
@@ -179,6 +187,7 @@ function loadData(page = 1) {
             const ok = res.success || res.Success;
             if (!ok) {
                 $('#otTableBody').html(`<tr><td colspan="7" class="text-center text-danger py-4">Lỗi: ${res.message||res.Message||'Không hợp lệ'}</td></tr>`);
+                MobileTableHelper.refresh('otTableBody');
                 return;
             }
             const summary = res.summary || res.Summary;
@@ -199,9 +208,11 @@ function loadData(page = 1) {
                 $('#otTableBody').html(data.map((item, i) => buildRow(item, (page-1)*pageSize+i+1)).join(''));
             }
             renderPagination();
+            MobileTableHelper.refresh('otTableBody');
         },
         error: function(xhr) {
             $('#otTableBody').html(`<tr><td colspan="7" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            MobileTableHelper.refresh('otTableBody');
         },
         complete: function() { isLoading = false; }
     });
@@ -269,6 +280,8 @@ function escHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt
 function debounce(fn,d){let t;return function(){clearTimeout(t);t=setTimeout(fn,d);};}
 
 $(document).ready(function() {
+    MobileTableHelper.init('otTableBody');
+
     // Supervisor: ẩn dept filter
     if (FILTER_TYPE === 'work') $('#deptFilterWrapper').hide();
 

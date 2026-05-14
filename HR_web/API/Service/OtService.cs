@@ -93,8 +93,7 @@ public class OtService
     }
 
     public async Task<OTHRDetailPagedResponse> GetOTSupervisorDetailAsync(
-        string filterType, List<string> filterCodes,
-        List<string>? filterLineCodes = null,
+        string supervisorEmpcd, string filterType,
         string? workDate = null, string? status = null,
         string? search = null,
         string? deptId = null, string? lineId = null, string? workId = null,
@@ -102,14 +101,11 @@ public class OtService
     {
         try
         {
-            var codes = string.Join(",", filterCodes);
             var q = new List<string>
             {
-                $"filter_type={Uri.EscapeDataString(filterType)}",
-                $"filter_codes={Uri.EscapeDataString(codes)}"
+                $"supervisor_empcd={Uri.EscapeDataString(supervisorEmpcd)}",
+                $"filter_type={Uri.EscapeDataString(filterType)}"
             };
-            if (filterLineCodes != null && filterLineCodes.Count > 0)
-                q.Add($"filter_line_codes={Uri.EscapeDataString(string.Join(",", filterLineCodes))}");
             if (!string.IsNullOrEmpty(workDate)) q.Add($"work_date={Uri.EscapeDataString(workDate)}");
             if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
             if (!string.IsNullOrEmpty(search))   q.Add($"search={Uri.EscapeDataString(search)}");

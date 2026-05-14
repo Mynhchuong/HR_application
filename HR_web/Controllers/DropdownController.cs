@@ -1,10 +1,11 @@
 using HR_web.API.Service;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers;
 
 
-public class DropdownController : Controller
+public class DropdownController : BaseController
 {
     private readonly DropdownService _dropdownService;
 
@@ -75,6 +76,51 @@ public class DropdownController : Controller
     {
         var data = await _dropdownService.GetLineByDeptAsync(deptCd);
         return Json(data.Select(x => new { id = x.id, text = x.text }));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetEmp(string? term)
+    {
+        if (string.IsNullOrEmpty(term) || term.Length < 2) return Json(new List<object>());
+        var data = await _dropdownService.GetEmpAsync(term);
+        return Json(data.Select(x => new { id = x.id, text = x.text }));
+    }
+
+    // Scoped dropdowns — chỉ trả về options trong phạm vi HR_USERS_DEPT của user đang đăng nhập
+    [Authorize]
+    [HttpGet]
+    public async Task<IActionResult> GetDeptByScope(string? term)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return Json(new List<object>());
+        var data = await _dropdownService.GetDeptByScopeAsync(empcd);
+        return Json(data
+            .Where(x => string.IsNullOrEmpty(term) || x.text?.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
+            .Select(x => new { id = x.id, text = x.text }));
+    }
+
+    [Authorize]
+    [HttpGet]
+    public async Task<IActionResult> GetLineByScope(string? term)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return Json(new List<object>());
+        var data = await _dropdownService.GetLineByScopeAsync(empcd);
+        return Json(data
+            .Where(x => string.IsNullOrEmpty(term) || x.text?.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
+            .Select(x => new { id = x.id, text = x.text }));
+    }
+
+    [Authorize]
+    [HttpGet]
+    public async Task<IActionResult> GetWorkByScope(string? term)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return Json(new List<object>());
+        var data = await _dropdownService.GetWorkByScopeAsync(empcd);
+        return Json(data
+            .Where(x => string.IsNullOrEmpty(term) || x.text?.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
+            .Select(x => new { id = x.id, text = x.text }));
     }
 
 }

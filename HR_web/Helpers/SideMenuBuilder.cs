@@ -58,7 +58,7 @@ public static class SideMenuBuilder
                 Id = "Supervisor",
                 Title = "Giám sát",
                 Icon = "engineering",
-                VisibleWhen = () => isSupervisor || isAdmin,
+                VisibleWhen = () => isSupervisor || isAdmin || isManager,
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForSupervisor", Icon = "view_list" },
@@ -73,7 +73,7 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isManager || isAdmin,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForClerk", Icon = "view_list" },
+                    new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForSupervisor", Icon = "view_list" },
                 }
             },
 
@@ -85,9 +85,10 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isHR || isAdmin,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",   Icon = "manage_accounts"       },
-                    new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",     Icon = "view_list"             },
-                    new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",      Icon = "account_balance_wallet" },
+                    new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",       Icon = "manage_accounts"        },
+                    new SideMenuItem { Title = "Phân Quyền Phạm Vi",   Url = "~/UserDept/Index",         Icon = "shield"                 },
+                    new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",         Icon = "view_list"              },
+                    new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",          Icon = "account_balance_wallet" },
                 }
             },
         };

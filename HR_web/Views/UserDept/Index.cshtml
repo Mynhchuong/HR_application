@@ -1,0 +1,394 @@
+@{
+    ViewData["Title"] = "Phân Quyền Phạm Vi";
+}
+
+@section Styles {
+<style>
+    #deptTableBody tr td { vertical-align: middle; }
+    .filter-bar select { min-width: 0; }
+    #paginationInfo { font-size: .82rem; color: #6c757d; }
+    .import-zone { border: 2px dashed #adb5bd; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: border-color .2s; }
+    .import-zone:hover, .import-zone.dragover { border-color: #5e72e4; background: #f0f3ff; }
+    .emp-name { font-family: 'Times New Roman', serif; font-weight: 600; }
+</style>
+}
+
+<div class="container-fluid py-4">
+
+    <div class="card my-4">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="text-white text-capitalize mb-0"><i class="bi bi-shield-lock me-1"></i> Phân Quyền Phạm Vi (HR_USERS_DEPT)</h6>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="@Url.Action("DownloadTemplate", "UserDept")"
+                       class="btn btn-sm btn-light mb-0 text-nowrap">
+                        <i class="bi bi-download me-1"></i> Tải Mẫu
+                    </a>
+                    <button type="button" class="btn btn-sm btn-warning mb-0 text-nowrap" data-bs-toggle="modal" data-bs-target="#manualModal">
+                        <i class="bi bi-plus-circle me-1"></i> Thêm 
+                    </button>
+                    <button type="button" class="btn btn-sm btn-success mb-0 text-nowrap" data-bs-toggle="modal" data-bs-target="#importModal">
+                        <i class="bi bi-file-earmark-arrow-up me-1"></i> Import Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="px-4 pt-3 pb-1 row g-3 align-items-end filter-bar">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold mb-0 text-primary">Mã NV / Tên</label>
+                <input type="text" id="searchEmpcd" class="form-control form-control-sm" placeholder="🔍 Mã NV..." />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold mb-0 text-primary">Bộ Phận</label>
+                <select id="filterDept" class="select2 form-control"
+                        data-url="@Url.Action("GetDept", "Dropdown")"
+                        data-placeholder="Tất cả"></select>
+            </div>
+            <div class="col-md-2 d-flex align-items-center justify-content-end gap-2">
+                <label class="mb-0 text-sm text-secondary text-nowrap">Hiển thị:</label>
+                <select id="pageSizeSelect" class="form-select form-select-sm" style="width:80px;">
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                </select>
+                <span id="paginationInfo" class="text-nowrap ms-2"></span>
+            </div>
+        </div>
+
+        <div class="card-body px-0 pt-0 pb-2 mt-1">
+            <div class="table-responsive p-0 px-4">
+                <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">#</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Mã NV</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Họ &amp; Tên</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Bộ Phận</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Line</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Nhóm Việc</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell">Ngày Tạo</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell">Cập Nhật</th>
+                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="deptTableBody"></tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center px-4 mt-3 mb-2">
+                <div id="paginationCount" class="text-sm text-secondary"></div>
+                <nav><ul class="pagination pagination-sm mb-0" id="paginationBar"></ul></nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Create Modal -->
+<div class="modal fade" id="manualModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle text-warning me-2"></i>Thêm Thủ Công</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label small fw-bold mb-0 text-primary">Mã NV <span class="text-danger">*</span></label>
+                        <input type="text" id="manualEmpcd" class="form-control" placeholder="Nhập mã nhân viên..." autocomplete="off" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold mb-0 text-primary">Bộ Phận <span class="text-danger">*</span></label>
+                        <select id="manualDeptcds" class="form-control" multiple style="width:100%"></select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold mb-0 text-primary">Line <span class="text-danger">*</span></label>
+                        <select id="manualLinecds" class="form-control" multiple style="width:100%"></select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold mb-0 text-primary">Nhóm Việc <span class="text-danger">*</span></label>
+                        <select id="manualWorkcds" class="form-control" multiple style="width:100%"></select>
+                    </div>
+                </div>
+                <div id="manualResult" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-warning btn-sm" id="manualBtn">
+                    <i class="bi bi-plus-circle me-1"></i> Thêm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-excel text-success me-2"></i>Import Excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <a href="@Url.Action("DownloadTemplate", "UserDept")" class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-download me-1"></i> Tải file mẫu (.xlsx)
+                    </a>
+                    <div class="text-xs text-muted mt-1">Cột: EMPCD | DEPTCD | LINECD | WORKCD</div>
+                </div>
+                <div class="import-zone" id="importZone" onclick="$('#importFile').click()">
+                    <i class="bi bi-cloud-upload fs-2 text-primary"></i>
+                    <div class="mt-2 text-sm text-secondary">Kéo thả hoặc click để chọn file <strong>.xlsx</strong></div>
+                    <div id="importFileName" class="mt-1 text-xs text-primary fw-bold"></div>
+                </div>
+                <input type="file" id="importFile" accept=".xlsx" class="d-none" />
+                <div id="importResult" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-success btn-sm" id="importBtn" disabled>
+                    <i class="bi bi-upload me-1"></i> Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const LIST_URL         = '@Url.Action("GetList",      "UserDept")';
+const IMPORT_URL       = '@Url.Action("Import",       "UserDept")';
+const DELETE_URL       = '@Url.Action("Delete",       "UserDept")';
+const MANUAL_URL       = '@Url.Action("ManualCreate", "UserDept")';
+const EMP_URL          = '@Url.Action("GetEmp",       "Dropdown")';
+const DEPT_OPTIONS_URL = '@Url.Action("GetDeptOptions","UserDept")';
+const LINE_OPTIONS_URL = '@Url.Action("GetLineOptions","UserDept")';
+const WORK_OPTIONS_URL = '@Url.Action("GetWorkOptions","UserDept")';
+
+let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false, pageSize = 50;
+
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function debounce(fn,d){let t;return function(){clearTimeout(t);t=setTimeout(fn,d);};}
+
+function buildRow(item, idx) {
+    return `<tr>
+        <td class="px-2 text-xs text-secondary">${idx}</td>
+        <td class="px-2 text-sm fw-bold">${escHtml(item.EMPCD||'')}</td>
+        <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
+        <td class="px-2 text-sm"><span class="badge bg-info text-white">${escHtml(item.DEPTCD||'')}</span> <span class="text-xs text-muted">${escHtml(item.DEPT_NAME||'')}</span></td>
+        <td class="px-2 text-sm">${item.LINECD ? `<span class="badge bg-secondary">${escHtml(item.LINECD)}</span> <span class="text-xs text-muted">${escHtml(item.LINE_NAME||'')}</span>` : '<span class="text-muted">-</span>'}</td>
+        <td class="px-2 text-sm">${item.WORKCD ? `<span class="badge bg-secondary">${escHtml(item.WORKCD)}</span> <span class="text-xs text-muted">${escHtml(item.WORK_NAME||'')}</span>` : '<span class="text-muted">-</span>'}</td>
+        <td class="px-2 text-xs text-muted d-none d-md-table-cell">${item.CREATEDATE ? `${escHtml(item.CREATEDATE)}<br><span class="text-xxs">${escHtml(item.CREATEBY||'')}</span>` : '-'}</td>
+        <td class="px-2 text-xs text-muted d-none d-md-table-cell">${item.UPDATEDATE ? `${escHtml(item.UPDATEDATE)}<br><span class="text-xxs">${escHtml(item.UPDATEBY||'')}</span>` : '-'}</td>
+        <td class="text-center px-2">
+            <button class="btn btn-sm btn-outline-danger py-0 px-2 btn-delete"
+                data-empcd="${escHtml(item.EMPCD||'')}"
+                data-deptcd="${escHtml(item.DEPTCD||'')}"
+                data-linecd="${escHtml(item.LINECD||'')}"
+                data-workcd="${escHtml(item.WORKCD||'')}">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    </tr>`;
+}
+
+function loadData(page = 1) {
+    if (isLoading) return;
+    isLoading = true; currentPage = page;
+    const empcd  = $('#searchEmpcd').val();
+    const deptcd = $('#filterDept').val();
+
+    $('#deptTableBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
+    $.ajax({
+        url: LIST_URL, type: 'GET',
+        data: { empcd, deptcd, page, page_size: pageSize },
+        success: function(res) {
+            const ok = res.success || res.Success;
+            if (!ok) {
+                $('#deptTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                return;
+            }
+            totalRecords = res.total || 0;
+            totalPages   = res.total_pages || 0;
+            const data   = res.data || [];
+            if (!data.length) {
+                $('#deptTableBody').html(`<tr><td colspan="9" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
+            } else {
+                $('#deptTableBody').html(data.map((item, i) => buildRow(item, (page-1)*pageSize+i+1)).join(''));
+            }
+            renderPagination();
+        },
+        error: function(xhr) {
+            $('#deptTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+        },
+        complete: function() { isLoading = false; }
+    });
+}
+
+function renderPagination() {
+    if (totalRecords === 0) {
+        $('#paginationInfo').html(`<strong>0</strong> trong <strong>0</strong>`);
+        $('#paginationCount').html('');
+        $('#paginationBar').empty(); return;
+    }
+    const start = (currentPage-1)*pageSize+1, end = Math.min(currentPage*pageSize, totalRecords);
+    $('#paginationInfo').html(`<strong>${start.toLocaleString()} - ${end.toLocaleString()}</strong> trong <strong>${totalRecords.toLocaleString()}</strong>`);
+    $('#paginationCount').html(`Trang <strong>${currentPage}</strong> / ${totalPages}`);
+    const $bar = $('#paginationBar').empty();
+    const mkBtn = (label, p, disabled, active) => {
+        const li = $('<li class="page-item">').toggleClass('disabled',!!disabled).toggleClass('active',!!active);
+        $('<a class="page-link">').html(label).on('click', () => { if(!disabled&&!active) loadData(p); }).appendTo(li);
+        return li;
+    };
+    $bar.append(mkBtn('&laquo;',1,currentPage<=1)).append(mkBtn('&lsaquo;',currentPage-1,currentPage<=1));
+    let from=Math.max(1,currentPage-2), to=Math.min(totalPages,currentPage+2);
+    if(from>1) $bar.append(mkBtn('1',1)).append('<li class="page-item disabled"><a class="page-link">…</a></li>');
+    for(let p=from;p<=to;p++) $bar.append(mkBtn(p,p,false,p===currentPage));
+    if(to<totalPages) $bar.append('<li class="page-item disabled"><a class="page-link">…</a></li>').append(mkBtn(totalPages,totalPages));
+    $bar.append(mkBtn('&rsaquo;',currentPage+1,currentPage>=totalPages)).append(mkBtn('&raquo;',totalPages,currentPage>=totalPages));
+}
+
+// Delete
+$(document).on('click', '.btn-delete', function() {
+    const empcd  = $(this).data('empcd');
+    const deptcd = $(this).data('deptcd');
+    const linecd = $(this).data('linecd');
+    const workcd = $(this).data('workcd');
+    showConfirm(`Xóa phân quyền: ${empcd} / ${deptcd} / ${linecd} / ${workcd}?`, function() {
+        $.ajax({
+            url: DELETE_URL, type: 'DELETE',
+            data: { empcd, deptcd, linecd, workcd },
+            success: function(res) {
+                if (res.success) loadData(currentPage);
+                else AlertHelper.error(res.message || 'Không xóa được');
+            }
+        });
+    });
+});
+
+// Import file
+$('#importFile').on('change', function() {
+    const f = this.files[0];
+    if (f) { $('#importFileName').text(f.name); $('#importBtn').prop('disabled', false); }
+});
+const zone = document.getElementById('importZone');
+zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f) { document.getElementById('importFile').files = e.dataTransfer.files; $('#importFileName').text(f.name); $('#importBtn').prop('disabled', false); }
+});
+
+$('#importBtn').on('click', function() {
+    const file = $('#importFile')[0].files[0];
+    if (!file) return;
+    const $btn = $(this);
+    $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Đang xử lý...');
+    $('#importResult').html('');
+    const fd = new FormData();
+    fd.append('file', file);
+    $.ajax({
+        url: IMPORT_URL, type: 'POST',
+        data: fd, processData: false, contentType: false,
+        success: function(res) {
+            if (res.success) {
+                $('#importResult').html(`<div class="alert alert-success py-2"><i class="bi bi-check-circle me-1"></i>${res.message}</div>`);
+                loadData(1);
+            } else {
+                $('#importResult').html(`<div class="alert alert-danger py-2"><i class="bi bi-x-circle me-1"></i>${res.message}</div>`);
+            }
+        },
+        error: function() {
+            $('#importResult').html(`<div class="alert alert-danger py-2">Lỗi kết nối</div>`);
+        },
+        complete: function() {
+            $btn.prop('disabled', false).html('<i class="bi bi-upload me-1"></i> Import');
+        }
+    });
+});
+
+$('#importModal').on('hidden.bs.modal', function() {
+    $('#importFile').val(''); $('#importFileName').text(''); $('#importBtn').prop('disabled', true); $('#importResult').html('');
+});
+
+$('#pageSizeSelect').on('change', function() { pageSize = parseInt($(this).val()); loadData(1); });
+$('#filterDept').on('change', () => loadData(1));
+$('#searchEmpcd').on('input', debounce(() => loadData(1), 400));
+
+// ── Manual Create ────────────────────────────────────────────────────────────
+function initManualModal() {
+    // Load all dept options once
+    $.get(DEPT_OPTIONS_URL, function(data) {
+        $('#manualDeptcds').empty();
+        data.forEach(item => $('#manualDeptcds').append(new Option(item.text, item.id)));
+        $('#manualDeptcds').select2({ dropdownParent: $('#manualModal'), placeholder: 'Chọn bộ phận...' });
+    });
+
+    // Dept → reload Line
+    $('#manualDeptcds').on('change', function() {
+        const deptcds = ($(this).val() || []).join(',');
+        $('#manualLinecds').empty().select2({ dropdownParent: $('#manualModal'), placeholder: 'Chọn line...' });
+        $('#manualWorkcds').empty().select2({ dropdownParent: $('#manualModal'), placeholder: 'Chọn nhóm việc...' });
+        if (!deptcds) return;
+        $.get(LINE_OPTIONS_URL, { deptcds }, function(data) {
+            data.forEach(item => $('#manualLinecds').append(new Option(item.text, item.id)));
+        });
+    });
+
+    // Line → reload Work
+    $('#manualLinecds').on('change', function() {
+        const deptcds = ($('#manualDeptcds').val() || []).join(',');
+        const linecds = ($(this).val() || []).join(',');
+        $('#manualWorkcds').empty().select2({ dropdownParent: $('#manualModal'), placeholder: 'Chọn nhóm việc...' });
+        if (!deptcds || !linecds) return;
+        $.get(WORK_OPTIONS_URL, { deptcds, linecds }, function(data) {
+            data.forEach(item => $('#manualWorkcds').append(new Option(item.text, item.id)));
+        });
+    });
+}
+
+$('#manualBtn').on('click', function() {
+    const empcd   = $('#manualEmpcd').val();
+    const deptcds = ($('#manualDeptcds').val() || []).join(',');
+    const linecds = ($('#manualLinecds').val() || []).join(',');
+    const workcds = ($('#manualWorkcds').val() || []).join(',');
+    if (!empcd)   { $('#manualResult').html('<div class="alert alert-warning py-2">Chưa chọn nhân viên</div>'); return; }
+    if (!deptcds) { $('#manualResult').html('<div class="alert alert-warning py-2">Chưa chọn bộ phận</div>'); return; }
+    if (!linecds) { $('#manualResult').html('<div class="alert alert-warning py-2">Chưa chọn line</div>'); return; }
+    if (!workcds) { $('#manualResult').html('<div class="alert alert-warning py-2">Chưa chọn nhóm việc</div>'); return; }
+
+    const $btn = $('#manualBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Đang xử lý...');
+    $('#manualResult').html('');
+    $.ajax({
+        url: MANUAL_URL, type: 'POST',
+        data: { empcd, deptcds, linecds, workcds },
+        success: function(res) {
+            if (res.success) {
+                $('#manualResult').html(`<div class="alert alert-success py-2"><i class="bi bi-check-circle me-1"></i>${res.message}</div>`);
+                loadData(1);
+            } else {
+                $('#manualResult').html(`<div class="alert alert-danger py-2"><i class="bi bi-x-circle me-1"></i>${res.message}</div>`);
+            }
+        },
+        error: () => $('#manualResult').html('<div class="alert alert-danger py-2">Lỗi kết nối</div>'),
+        complete: () => $btn.prop('disabled', false).html('<i class="bi bi-plus-circle me-1"></i> Thêm')
+    });
+});
+
+$('#manualModal').on('shown.bs.modal', function() {
+    if (!$('#manualDeptcds').hasClass('select2-hidden-accessible')) initManualModal();
+    $('#manualEmpcd').focus();
+}).on('hidden.bs.modal', function() {
+    $('#manualEmpcd').val('');
+    $('#manualDeptcds, #manualLinecds, #manualWorkcds').val(null).trigger('change');
+    $('#manualResult').html('');
+});
+
+$(document).ready(function() {
+    if (typeof Select2Helper !== 'undefined') Select2Helper.init();
+    loadData(1);
+});
+</script>
+}

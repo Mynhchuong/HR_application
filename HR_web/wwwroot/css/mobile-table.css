@@ -1,0 +1,177 @@
+/* ================================================================
+   mobile-table.css — card layout for MobileTableHelper
+   Used by: MobileTableHelper.init() / MobileTableHelper.refresh()
+   ================================================================ */
+
+/* ── Card list container ─────────────────────────────────────── */
+.mt-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px 12px;
+}
+
+/* ── Single card ─────────────────────────────────────────────── */
+.mt-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 11px 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
+    cursor: pointer;
+    transition: box-shadow 0.15s ease, transform 0.1s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mt-card:active {
+    transform: scale(0.985);
+    box-shadow: 0 2px 8px rgba(99,102,241,0.15);
+}
+
+/* ── Card body ───────────────────────────────────────────────── */
+.mt-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* ── Header row: code chip + name ────────────────────────────── */
+.mt-header-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+}
+
+.mt-chip {
+    display: inline-flex;
+    align-items: center;
+    background: #ede9fe;
+    color: #5b21b6;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 2px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.mt-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'Vnitbi__', 'Times New Roman', serif !important;
+}
+
+/* ── Badges row ─────────────────────────────────────────────── */
+.mt-badges-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+}
+
+.mt-badge-item {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* keep existing badge sizes inside cards */
+.mt-badge-item .badge {
+    font-size: 0.72rem;
+    padding: 0.28em 0.55em;
+}
+
+/* ── Detail chevron button ───────────────────────────────────── */
+.mt-more-btn {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 8px;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    padding: 0;
+}
+
+.mt-more-btn:hover,
+.mt-more-btn:focus {
+    background: #e0e7ff;
+    color: #6366f1;
+    outline: none;
+}
+
+/* ── Empty / loading state ───────────────────────────────────── */
+.mt-empty {
+    text-align: center;
+    padding: 36px 16px;
+    color: #94a3b8;
+    font-size: 0.88rem;
+}
+
+/* ── Detail modal ────────────────────────────────────────────── */
+.mt-modal-content {
+    border-radius: 22px !important;
+    overflow: hidden;
+}
+
+.mt-modal-icon {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #ede9fe;
+    border-radius: 8px;
+    color: #6366f1;
+    font-size: 1rem;
+}
+
+.mt-detail-row {
+    display: flex;
+    align-items: flex-start;
+    padding: 7px 0;
+    border-bottom: 1px solid #f1f5f9;
+    gap: 10px;
+}
+
+.mt-detail-row:last-child {
+    border-bottom: none;
+}
+
+.mt-detail-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    min-width: 80px;
+    flex-shrink: 0;
+    padding-top: 3px;
+}
+
+.mt-detail-value {
+    font-size: 0.83rem;
+    color: #334155;
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+}
+
+.mt-detail-value .badge {
+    font-size: 0.75rem;
+}

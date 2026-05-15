@@ -139,6 +139,24 @@ public class PayslipController : BaseController
         return Json(result);
     }
 
+    [HttpPost]
+    public async Task<IActionResult> DeletePeriod(decimal id)
+    {
+        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+            return Json(new { success = false, message = "Từ chối truy cập" });
+        var result = await _payslipService.DeletePeriodAsync(id, CurrentUser!.EmpCd);
+        return Json(result);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> UpdatePeriodName(decimal id, string periodName)
+    {
+        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+            return Json(new { success = false, message = "Từ chối truy cập" });
+        var result = await _payslipService.UpdatePeriodNameAsync(id, periodName, CurrentUser!.EmpCd);
+        return Json(result);
+    }
+
     // ─────────────────────────────────────────────
     // POST: /Payslip/ReleasePeriod (AJAX)
     // ─────────────────────────────────────────────

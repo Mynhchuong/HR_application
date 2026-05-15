@@ -99,6 +99,67 @@ public class PayslipController : ControllerBase
         }
     }
 
+    [HttpPost("delete-period")]
+    public async Task<IActionResult> DeletePeriod([FromBody] dynamic model)
+    {
+        try
+        {
+            decimal id = model.ID;
+
+            var check = await _oracleService.ExecuteQueryAsync(
+                "SELECT IS_PUBLISHED FROM HRMS.HR_PAYROLL_PERIOD WHERE ID = :ID",
+                r => Convert.ToInt32(r["IS_PUBLISHED"]),
+                new OracleParameter("ID", id));
+
+            if (check.Count == 0) return Ok(new { success = false, message = "Không tìm thấy kỳ lương" });
+            if (check[0] == 1) return Ok(new { success = false, message = "Không thể xóa kỳ đã công bố" });
+
+            await _oracleService.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_PAYROLL_DATA WHERE PERIOD_ID = :ID", new OracleParameter("ID", id));
+            await _oracleService.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_PAYROLL_PERIOD_ITEMS WHERE PERIOD_ID = :ID", new OracleParameter("ID", id));
+            await _oracleService.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_PAYROLL_PERIOD WHERE ID = :ID", new OracleParameter("ID", id));
+
+            return Ok(new { success = true, message = "Đã xóa kỳ lương" });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost("update-period-name")]
+    public async Task<IActionResult> UpdatePeriodName([FromBody] dynamic model)
+    {
+        try
+        {
+            decimal id = model.ID;
+            string newName = model.PERIOD_NAME;
+            string updtId = model.UPDT_ID;
+
+            if (string.IsNullOrEmpty(newName))
+                return Ok(new { success = false, message = "Tên kỳ lương không được để trống" });
+
+            var check = await _oracleService.ExecuteQueryAsync(
+                "SELECT IS_PUBLISHED FROM HRMS.HR_PAYROLL_PERIOD WHERE ID = :ID",
+                r => Convert.ToInt32(r["IS_PUBLISHED"]),
+                new OracleParameter("ID", id));
+
+            if (check.Count == 0) return Ok(new { success = false, message = "Không tìm thấy kỳ lương" });
+            if (check[0] == 1) return Ok(new { success = false, message = "Không thể sửa tên kỳ đã công bố" });
+
+            await _oracleService.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_PAYROLL_PERIOD SET PERIOD_NAME = :PERIOD_NAME, UPDT_ID = :UPDT_ID, UPDT_DT = SYSDATE WHERE ID = :ID",
+                new OracleParameter("PERIOD_NAME", newName),
+                new OracleParameter("UPDT_ID", (object?)updtId ?? DBNull.Value),
+                new OracleParameter("ID", id));
+
+            return Ok(new { success = true, message = "Đã cập nhật tên kỳ lương" });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     [HttpPost("release")]
     public async Task<IActionResult> ReleasePeriod([FromBody] dynamic model)
     {

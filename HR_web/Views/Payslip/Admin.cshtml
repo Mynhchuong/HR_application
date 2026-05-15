@@ -16,11 +16,20 @@
                                 @foreach (var p in ViewBag.Periods ?? new List<dynamic>())
                                 {
                                     <option value="@p.ID.ToString(System.Globalization.CultureInfo.InvariantCulture)"
-                                            data-published="@p.IS_PUBLISHED">
+                                            data-published="@p.IS_PUBLISHED"
+                                            data-name="@p.PERIOD_NAME">
                                         @p.PERIOD_NAME @(p.IS_PUBLISHED == 1 ? "(Đã công bố)" : "(Nháp)")
                                     </option>
                                 }
                             </select>
+                            <div id="divPeriodDraftActions" class="mt-2" style="display:none">
+                                <button id="btnEditPeriodName" class="btn btn-sm btn-outline-warning mb-0" title="Sửa tên kỳ lương">
+                                    <i class="fas fa-edit me-1"></i> Sửa tên
+                                </button>
+                                <button id="btnDeletePeriod" class="btn btn-sm btn-outline-danger mb-0 ms-1" title="Xóa kỳ lương này">
+                                    <i class="fas fa-trash me-1"></i> Xóa kỳ
+                                </button>
+                            </div>
                         </div>
                         <div class="col-md-8 text-end pt-4">
                             <button class="btn btn-outline-primary mb-0" data-bs-toggle="modal" data-bs-target="#modalNewPeriod">
@@ -162,19 +171,29 @@
 <div class="modal fade" id="modalUploadExcel" tabindex="-1">
     <div class="modal-dialog modal-fullscreen">
         <div class="modal-content border-0">
-            <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title">Upload dữ liệu Excel</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-gradient-dark text-white py-3">
+                <h5 class="modal-title"><i class="fas fa-file-upload me-2"></i>Upload dữ liệu Excel</h5>
+                <button type="button" data-bs-dismiss="modal"
+                        class="btn btn-sm btn-outline-light mb-0 ms-auto"
+                        style="line-height:1; padding:4px 10px; font-size:1.1rem;">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             <div class="modal-body p-0 d-flex flex-column">
-                <div class="p-3 bg-light border-bottom">
-                    <div class="row align-items-center">
-                        <div class="col-md-6">
-                            <input type="file" id="fileInputExcel" class="form-control" accept=".xlsx, .xls">
+                <div class="p-3 border-bottom" style="background:#f8f9fa;">
+                    <div class="row align-items-center g-2">
+                        <div class="col-md-5">
+                            <label for="fileInputExcel"
+                                   class="btn btn-outline-primary mb-0 w-100 text-start"
+                                   style="border-style:dashed;">
+                                <i class="fas fa-file-excel me-2 text-success"></i>
+                                <span id="fileInputLabel">Chọn file Excel (.xlsx, .xls)</span>
+                            </label>
+                            <input type="file" id="fileInputExcel" class="d-none" accept=".xlsx, .xls">
                         </div>
-                        <div class="col-md-6 text-end">
-                            <span id="excelStatus" class="me-3 fw-bold"></span>
-                            <button id="btnStartUpload" class="btn btn-success mb-0" disabled>
+                        <div class="col-md-7 d-flex align-items-center justify-content-end gap-2">
+                            <span id="excelStatus" class="fw-bold text-sm text-success"></span>
+                            <button id="btnStartUpload" class="btn btn-success mb-0 px-4" disabled>
                                 <i class="fas fa-check me-1"></i> Bắt đầu Import
                             </button>
                         </div>
@@ -217,6 +236,28 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary mb-0" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Sửa tên kỳ lương -->
+<div class="modal fade" id="modalEditPeriodName" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning">
+                <h6 class="modal-title fw-bold"><i class="fas fa-edit me-1"></i> Sửa tên kỳ lương</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label fw-bold text-sm">Tên kỳ lương mới</label>
+                <input type="text" id="txtEditPeriodName" class="form-control border ps-2" placeholder="Nhập tên mới...">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary btn-sm mb-0" data-bs-dismiss="modal">Hủy</button>
+                <button id="btnSavePeriodName" class="btn btn-warning btn-sm mb-0">
+                    <i class="fas fa-save me-1"></i> Lưu lại
+                </button>
             </div>
         </div>
     </div>

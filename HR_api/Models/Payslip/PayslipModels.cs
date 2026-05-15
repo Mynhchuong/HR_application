@@ -16,7 +16,7 @@ public class PayrollPeriodModel
     public DateTime? UPDT_DT { get; set; }
     public DateTime? PUBLISH_DATE { get; set; }
     public int IS_AUTO_PUBLISH { get; set; }
-    public string REMARK { get; set; } = string.Empty;
+    public string? REMARK { get; set; }
 }
 
 public class PayrollItemModel

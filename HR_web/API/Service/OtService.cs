@@ -21,7 +21,7 @@ public class OtService
             var result = await _api.GetAsync<OTResponse<OTTodayModel>>("ot/today", query);
             return (result != null && result.success) ? result.data : null;
         }
-        catch { return null; }
+        catch (Exception ex) { Console.WriteLine($"[OtService] GetOTTodayAsync error: {ex.Message}"); return null; }
     }
 
     public async Task<OTConfirmResponse> ConfirmOTAsync(string empcd, string confirmStatus, string? workDate = null, decimal? otHours = null)
@@ -57,7 +57,7 @@ public class OtService
             if (!string.IsNullOrEmpty(workDate)) query += $"&work_date={workDate}";
             return await _api.GetAsync<OTClerkResponse>("ot/clerk", query);
         }
-        catch { return null; }
+        catch (Exception ex) { Console.WriteLine($"[OtService] GetOTClerkAsync error: {ex.Message}"); return null; }
     }
 
     public async Task<OTClerkPagedResponse> GetOTClerkDetailAsync(
@@ -140,7 +140,7 @@ public class OtService
             var result = await _api.GetAsync<OTResponse<List<OTHRSummaryModel>>>("ot/hr/summary", string.Join("&", queryParams));
             return (result != null && result.success) ? result.data ?? new() : new();
         }
-        catch { return new(); }
+        catch (Exception ex) { Console.WriteLine($"[OtService] GetOTHRSummaryAsync error: {ex.Message}"); return new(); }
     }
 
     public async Task<OTHRDetailPagedResponse> GetOTHRDetailAsync(

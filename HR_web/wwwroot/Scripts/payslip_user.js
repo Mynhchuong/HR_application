@@ -35,6 +35,8 @@ $(document).ready(function () {
             } else {
                 $('#divNoData').fadeIn();
             }
+        }).fail(function () {
+            $('#divNoData').fadeIn();
         });
     }
 

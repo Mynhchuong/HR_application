@@ -27,7 +27,7 @@ public class OTController : ControllerBase
             if (string.IsNullOrEmpty(empcd))
                 return Ok(new { success = false, message = "Thiếu mã nhân viên" });
 
-            DateTime workDate = string.IsNullOrEmpty(work_date) ? DateTime.Today : DateTime.Parse(work_date);
+            DateTime workDate = (!string.IsNullOrEmpty(work_date) && DateTime.TryParse(work_date, out var _wd)) ? _wd : DateTime.Today;
 
             string sql = @"
                 SELECT E.EMPCD, E.DAT WORK_DATE, E.OVER_TIME OT_HOURS, E.OT_BEFORE, E.OT_BEFORE_TIME, E.OT_AFTER, E.OT_AFTER_TIME, E.OT_REST,
@@ -102,7 +102,7 @@ public class OTController : ControllerBase
             if (model == null || string.IsNullOrEmpty(model.EMPCD))
                 return Ok(new { success = false, message = "Thiếu mã nhân viên" });
 
-            DateTime workDate = string.IsNullOrEmpty(model.WORK_DATE) ? DateTime.Today : DateTime.Parse(model.WORK_DATE);
+            DateTime workDate = (!string.IsNullOrEmpty(model.WORK_DATE) && DateTime.TryParse(model.WORK_DATE, out var _wd2)) ? _wd2 : DateTime.Today;
 
             if (model.CONFIRM_STATUS != "CONFIRMED" && model.CONFIRM_STATUS != "REJECTED")
                 return Ok(new { success = false, message = "Trạng thái không hợp lệ" });
@@ -169,7 +169,7 @@ public class OTController : ControllerBase
         {
             if (string.IsNullOrEmpty(clerk_empcd)) return Ok(new { success = false, message = "Thiếu mã clerk" });
 
-            DateTime workDate = string.IsNullOrEmpty(work_date) ? DateTime.Today : DateTime.Parse(work_date);
+            DateTime workDate = (!string.IsNullOrEmpty(work_date) && DateTime.TryParse(work_date, out var _wd)) ? _wd : DateTime.Today;
             int offset = (page - 1) * page_size;
             int maxRn  = offset + page_size;
 
@@ -341,7 +341,7 @@ public class OTController : ControllerBase
     {
         try
         {
-            DateTime workDate = string.IsNullOrEmpty(work_date) ? DateTime.Today : DateTime.Parse(work_date);
+            DateTime workDate = (!string.IsNullOrEmpty(work_date) && DateTime.TryParse(work_date, out var _wd)) ? _wd : DateTime.Today;
 
             string sql = @"
                 WITH OT AS (

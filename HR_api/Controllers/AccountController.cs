@@ -62,7 +62,7 @@ public class AccountController : ControllerBase
 
         var userCheck = checkResults.FirstOrDefault();
 
-        // Kiểm tra xem nhân viên có tồn tại trên ERP và còn làm việc hay không
+        // Kiểm tra xem nhân  viên có tồn tại trên ERP và còn làm việc hay không
         if (userCheck == null || userCheck.Jeajikgb != "Y")
         {
             return Ok(new { success = false, message = "Sai tài khoản hoặc mật khẩu" });

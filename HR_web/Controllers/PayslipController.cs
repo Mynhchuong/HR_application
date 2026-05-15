@@ -43,10 +43,12 @@ public class PayslipController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetMyPayslip(decimal periodId, string? empcd = null)
     {
+        if (CurrentUser == null)
+            return Json(new { success = false, message = "Phiên đăng nhập hết hạn" });
+
         try
         {
-            // Nếu HR/Admin truyền empcd thì dùng empcd đó, ngược lại dùng chính mình
-            string targetEmpCd = CurrentUser!.EmpCd;
+            string targetEmpCd = CurrentUser.EmpCd;
             if (!string.IsNullOrEmpty(empcd) &&
                 (CurrentUser.RoleName == "HR" || CurrentUser.RoleName == "Admin"))
             {

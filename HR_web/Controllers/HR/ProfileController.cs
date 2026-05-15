@@ -30,8 +30,9 @@ public class ProfileController : BaseController
                 TempData["ErrorMessage"] = "Không tìm thấy thông tin người dùng!";
                 return RedirectToAction("UserManager", "User");
             }
-
-            model.EmpCd = CurrentUser.EmpCd;
+        
+            model.EmpCd = CurrentUser!.EmpCd;
+            model.HasSignature = CurrentUser.SIGNATUREBLOB == "Y";
             return View(model);
         }
         catch (Exception ex)
@@ -55,16 +56,22 @@ public class ProfileController : BaseController
             return RedirectToAction("ProfileUser");
         }
 
+        if (CurrentUser == null)
+        {
+            TempData["ErrorMessage"] = "Phiên đăng nhập hết hạn, vui lòng đăng nhập lại!";
+            return RedirectToAction("ProfileUser");
+        }
+
         try
         {
-            var result = await _service.ChangePasswordAsync(CurrentUser!.EmpCd, oldPassword, newPassword);
+            var result = await _service.ChangePasswordAsync(CurrentUser.EmpCd, oldPassword, newPassword);
 
             if (result)
             {
                 TempData["SuccessMessage"] = "Đổi mật khẩu thành công!";
 
                 var updatedUser = CurrentUser;
-                updatedUser!.RequirePasswordChange = false;
+                updatedUser.RequirePasswordChange = false;
                 await AuthHelper.UpdateUserSessionAsync(HttpContext, updatedUser);
             }
             else

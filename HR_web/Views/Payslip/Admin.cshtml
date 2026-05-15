@@ -13,7 +13,7 @@
                             <label class="form-label fw-bold">Chọn kỳ lương <span class="text-danger">*</span></label>
                             <select id="selectPeriod" class="form-select border ps-2">
                                 <option value="">-- Chọn tháng/năm --</option>
-                                @foreach (var p in ViewBag.Periods)
+                                @foreach (var p in ViewBag.Periods ?? new List<dynamic>())
                                 {
                                     <option value="@p.ID.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                                             data-published="@p.IS_PUBLISHED">
@@ -26,19 +26,19 @@
                             <button class="btn btn-outline-primary mb-0" data-bs-toggle="modal" data-bs-target="#modalNewPeriod">
                                 <i class="fas fa-plus me-1"></i> Kỳ mới
                             </button>
-                            <button id="btnConfigColumns" class="btn btn-outline-info mb-0 ms-2" disabled>
+                            <button id="btnConfigColumns" class="btn btn-outline-info mb-0 ms-2" style="display:none">
                                 <i class="fas fa-cog me-1"></i> Cấu hình cột
                             </button>
                             <a href="~/form/OtForm.xlsx" download class="btn btn-outline-warning mb-0 ms-2" title="Tải mẫu input lương">
                                 <i class="fas fa-download me-1"></i> Tải Mẫu
                             </a>
-                            <button id="btnUploadExcel" class="btn btn-outline-dark mb-0 ms-2" disabled title="Tải dữ liệu từ Excel lên hệ thống">
+                            <button id="btnUploadExcel" class="btn btn-outline-dark mb-0 ms-2" style="display:none" title="Tải dữ liệu từ Excel lên hệ thống">
                                 <i class="fas fa-upload me-1"></i> Upload
                             </button>
-                            <button id="btnExportExcel" class="btn btn-outline-success mb-0 ms-2" disabled title="Tải toàn bộ dữ liệu của kỳ này về máy">
+                            <button id="btnExportExcel" class="btn btn-outline-success mb-0 ms-2" style="display:none" title="Tải toàn bộ dữ liệu của kỳ này về máy">
                                 <i class="fas fa-file-excel me-1"></i> Xuất Excel Data
                             </button>
-                            <button id="btnRelease" class="btn btn-primary mb-0 ms-2" disabled>
+                            <button id="btnRelease" class="btn btn-primary mb-0 ms-2" style="display:none">
                                 <i class="fas fa-paper-plane me-1"></i> Công bố
                             </button>
                         </div>

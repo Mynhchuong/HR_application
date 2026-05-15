@@ -27,7 +27,9 @@ public class OTController : BaseController
 
             string selectedDate = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
             var data = await _otService.GetOTTodayAsync(CurrentUser.EmpCd, selectedDate);
-            
+            if (data == null)
+                ViewBag.Error = "Không có dữ liệu OT hoặc không thể kết nối máy chủ.";
+
             ViewBag.WorkDate = selectedDate;
             return View(data);
         }

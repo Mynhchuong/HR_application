@@ -36,20 +36,19 @@ $(document).ready(function () {
         const isPublished = $(this).find(':selected').data('published') == 1;
 
         if (currentPeriodId) {
-            $('#btnConfigColumns, #btnUploadExcel, #btnExportExcel, #btnRelease').prop('disabled', false);
+            $('#btnExportExcel').show();
             $('#divDataPreview').show();
             loadAdminData(1);
-        } else {
-            $('#btnConfigColumns, #btnUploadExcel, #btnExportExcel, #btnRelease').prop('disabled', true);
-            $('#divDataPreview').hide();
-        }
 
-        if (isPublished) {
-            $('#btnRelease').prop('disabled', true).text('Đã công bố');
-            $('#btnConfigColumns, #btnUploadExcel').prop('disabled', true);
+            if (isPublished) {
+                $('#btnRelease, #btnConfigColumns, #btnUploadExcel').hide();
+            } else {
+                $('#btnRelease').show().html('<i class="fas fa-paper-plane me-1"></i> Công bố');
+                $('#btnConfigColumns, #btnUploadExcel').show();
+            }
         } else {
-            $('#btnRelease').prop('disabled', false).html('<i class="fas fa-paper-plane me-1"></i> Công bố');
-            $('#btnConfigColumns, #btnUploadExcel').prop('disabled', false);
+            $('#btnConfigColumns, #btnUploadExcel, #btnExportExcel, #btnRelease').hide();
+            $('#divDataPreview').hide();
         }
     });
 
@@ -184,6 +183,9 @@ $(document).ready(function () {
         if (!file) return;
 
         const reader = new FileReader();
+        reader.onerror = function () {
+            AlertHelper.error('Không thể đọc file, vui lòng thử lại');
+        };
         reader.onload = function (e) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });

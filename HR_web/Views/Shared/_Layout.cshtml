@@ -493,10 +493,22 @@
     </main>
 
     <!-- Mobile Bottom Navigation -->
+    @{
+        var mobileRole   = layoutUser?.RoleName ?? "";
+        bool isMobSupervisor = mobileRole == "Supervisor" || mobileRole == "Manager" || mobileRole == "Assistant";
+        bool isMobClerk      = mobileRole == "Clerk";
+        string otUrl   = isMobSupervisor ? "~/OT/OtListForSupervisor"
+                       : isMobClerk      ? "~/OT/OtListForClerk"
+                       :                   "~/OT/OtConfirmForm";
+        string otLabel = isMobSupervisor ? "Giám sát"
+                       : isMobClerk      ? "Danh sách"
+                       :                   "Tăng ca";
+        string otIcon  = isMobSupervisor || isMobClerk ? "view_list" : "history_edu";
+    }
     <nav class="mobile-bottom-nav">
         <a href="@Url.Content("~/Home/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Home") == true ? "active" : "")">
             <div class="icon-wrap">
-                <span class="material-symbols-rounded">@(Context.Request.Path.Value?.Contains("/Home") == true ? "home" : "home")</span>
+                <span class="material-symbols-rounded">home</span>
             </div>
             <span class="nav-text">Home</span>
         </a>
@@ -506,11 +518,11 @@
             </div>
             <span class="nav-text">Lương</span>
         </a>
-        <a href="@Url.Content("~/OT/OtConfirmForm")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/OT") == true ? "active" : "")">
+        <a href="@Url.Content(otUrl)" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/OT") == true ? "active" : "")">
             <div class="icon-wrap">
-                <span class="material-symbols-rounded">history_edu</span>
+                <span class="material-symbols-rounded">@otIcon</span>
             </div>
-            <span class="nav-text">Tăng ca</span>
+            <span class="nav-text">@otLabel</span>
         </a>
         <a href="@Url.Content("~/Profile/ProfileUser")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Profile") == true ? "active" : "")">
             <div class="icon-wrap">

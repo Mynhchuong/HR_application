@@ -62,10 +62,42 @@ public class AccountController : ControllerBase
 
         var userCheck = checkResults.FirstOrDefault();
 
-        // Kiểm tra xem nhân  viên có tồn tại trên ERP và còn làm việc hay không
+        // Fallback: không có trong ECM100 → thử check thẳng HR_USERS (tài khoản hệ thống như admin)
         if (userCheck == null || userCheck.Jeajikgb != "Y")
         {
-            return Ok(new { success = false, message = "Sai tài khoản hoặc mật khẩu" });
+            var directUser = await _oracleService.ExecuteQueryAsync(@"
+                SELECT U.ID, U.EMPCD, U.PASSWORD, U.FULL_NAME, U.ROLE_ID, R.ROLE_NAME,
+                       U.IS_ACTIVE, U.LASTED_LOGIN, U.SIGNATUREBLOB
+                FROM HRMS.HR_USERS U
+                LEFT JOIN HRMS.HR_ROLES R ON U.ROLE_ID = R.ID
+                WHERE U.EMPCD = :EMPCD",
+                r => new {
+                    Id = Convert.ToInt32(r["ID"]),
+                    EmpCd = r["EMPCD"]?.ToString(),
+                    Password = r["PASSWORD"]?.ToString(),
+                    FullName = r["FULL_NAME"]?.ToString(),
+                    RoleId = r["ROLE_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["ROLE_ID"]),
+                    RoleName = r["ROLE_NAME"]?.ToString(),
+                    IsActive = r["IS_ACTIVE"] == DBNull.Value ? 1 : Convert.ToInt32(r["IS_ACTIVE"]),
+                    LastedLogin = r["LASTED_LOGIN"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["LASTED_LOGIN"]),
+                    SignatureBlob = r["SIGNATUREBLOB"]?.ToString()
+                },
+                new OracleParameter("EMPCD", empcd));
+
+            var du = directUser.FirstOrDefault();
+            if (du == null || du.Password != password || du.IsActive == 0)
+                return Ok(new { success = false, message = "Sai tài khoản hoặc mật khẩu" });
+
+            await _oracleService.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_USERS SET LASTED_LOGIN = SYSDATE WHERE EMPCD = :EMPCD",
+                new OracleParameter("EMPCD", empcd));
+
+            return Ok(new { success = true, data = new UserInfoModel {
+                Id = du.Id, EmpCd = du.EmpCd, FullName = du.FullName,
+                RoleId = du.RoleId, RoleName = du.RoleName,
+                IsActive = du.IsActive, LastedLogin = du.LastedLogin,
+                SIGNATUREBLOB = du.SignatureBlob ?? "N"
+            }});
         }
 
         UserInfoModel result = null;

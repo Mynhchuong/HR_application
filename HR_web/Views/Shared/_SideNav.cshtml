@@ -173,6 +173,19 @@
 
 <hr class="horizontal dark mt-0 mb-2" />
 
+<!-- ===== SEARCH ===== -->
+<div class="px-3 pb-2">
+    <div style="position:relative;">
+        <i class="material-symbols-rounded"
+           style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:1.05rem;color:#94a3b8;pointer-events:none;">search</i>
+        <input type="text" id="sidenavSearch" placeholder="Tìm chức năng..."
+               autocomplete="off"
+               style="width:100%;height:38px;border:1.5px solid #e2e8f0;border-radius:12px;
+                      padding:0 12px 0 34px;font-size:0.85rem;color:#1e293b;
+                      background:#f8fafc;outline:none;transition:all 0.2s;">
+    </div>
+</div>
+
 <!-- ===== SIDENAV MENU ===== -->
 <div class="navbar-collapse w-auto max-height-vh-100 h-100" id="sidenav-collapse-main">
     <ul class="navbar-nav">
@@ -209,7 +222,7 @@
                             bool active = !string.IsNullOrEmpty(item.Url) &&
                                           currentPath.StartsWith(Url.Content(item.Url).ToLower());
 
-                            <li class="nav-item">
+                            <li class="nav-item menu-child-item" data-search="@item.Title.ToLower()">
                                 <a class="nav-link text-dark rounded px-2 py-1 @(active ? "active fw-bold bg-light" : "")"
                                    href="@Url.Content(item.Url ?? "#")">
                                     <span class="menu-child-icon">
@@ -226,4 +239,62 @@
 
     </ul>
 </div>
+
+<script>
+(function () {
+    var input = document.getElementById('sidenavSearch');
+    if (!input) return;
+
+    input.addEventListener('focus', function () {
+        this.style.borderColor = '#6366f1';
+        this.style.background = '#fff';
+        this.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)';
+    });
+    input.addEventListener('blur', function () {
+        this.style.borderColor = '#e2e8f0';
+        this.style.background = '#f8fafc';
+        this.style.boxShadow = 'none';
+    });
+
+    input.addEventListener('input', function () {
+        var q = this.value.trim().toLowerCase();
+        var groups = document.querySelectorAll('#sidenav-collapse-main > ul > .nav-item');
+
+        groups.forEach(function (group) {
+            var collapseEl = group.querySelector('.collapse');
+            var children = group.querySelectorAll('.menu-child-item');
+            if (!children.length) return;
+
+            if (q === '') {
+                // Khôi phục trạng thái gốc
+                children.forEach(function (c) { c.style.display = ''; });
+                group.style.display = '';
+                if (collapseEl && !collapseEl.classList.contains('show')) {
+                    collapseEl.classList.remove('force-show');
+                    collapseEl.style.display = '';
+                }
+                return;
+            }
+
+            var matched = 0;
+            children.forEach(function (c) {
+                var title = c.getAttribute('data-search') || '';
+                if (title.includes(q)) {
+                    c.style.display = '';
+                    matched++;
+                } else {
+                    c.style.display = 'none';
+                }
+            });
+
+            if (matched > 0) {
+                group.style.display = '';
+                if (collapseEl) { collapseEl.style.display = 'block'; }
+            } else {
+                group.style.display = 'none';
+            }
+        });
+    });
+})();
+</script>
 

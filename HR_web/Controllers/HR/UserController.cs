@@ -29,6 +29,8 @@ public class UserController : BaseController
         int page = 1,
         int pageSize = 50)
     {
+        await _service.SyncResignedUsersAsync();
+
         var modelPaged = await _service.GetUserListAsync(
             fullName: null,
             deptCd: deptCd,

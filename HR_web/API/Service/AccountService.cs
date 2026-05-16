@@ -141,5 +141,10 @@ public class AccountService
         var result = await ParseResponse<object>(response);
         return result != null && result.success;
     }
+    public async Task SyncResignedUsersAsync()
+    {
+        try { await _api.PostAsync("Account/sync-resigned", new { }); }
+        catch { /* silent — không block UI */ }
+    }
     #endregion
 }

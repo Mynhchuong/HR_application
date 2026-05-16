@@ -62,8 +62,17 @@ public class AccountController : ControllerBase
 
         var userCheck = checkResults.FirstOrDefault();
 
+        // Có trong ECM100 nhưng đã nghỉ việc (JEAJIKGB != "Y") → chặn login + tự động disable
+        if (userCheck != null && userCheck.Jeajikgb != "Y")
+        {
+            await _oracleService.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_USERS SET IS_ACTIVE = 0, UPDT_ID = 'SYSTEM', UPDT_DT = SYSDATE WHERE EMPCD = :EMPCD AND IS_ACTIVE = 1",
+                new OracleParameter("EMPCD", empcd));
+            return Ok(new { success = false, message = "Tài khoản này đã nghỉ việc" });
+        }
+
         // Fallback: không có trong ECM100 → thử check thẳng HR_USERS (tài khoản hệ thống như admin)
-        if (userCheck == null || userCheck.Jeajikgb != "Y")
+        if (userCheck == null)
         {
             var directUser = await _oracleService.ExecuteQueryAsync(@"
                 SELECT U.ID, U.EMPCD, U.PASSWORD, U.FULL_NAME, U.ROLE_ID, R.ROLE_NAME,
@@ -85,8 +94,10 @@ public class AccountController : ControllerBase
                 new OracleParameter("EMPCD", empcd));
 
             var du = directUser.FirstOrDefault();
-            if (du == null || du.Password != password || du.IsActive == 0)
+            if (du == null || du.Password != password)
                 return Ok(new { success = false, message = "Sai tài khoản hoặc mật khẩu" });
+            if (du.IsActive == 0)
+                return Ok(new { success = false, message = "Tài khoản này đã nghỉ việc" });
 
             await _oracleService.ExecuteNonQueryAsync(
                 "UPDATE HRMS.HR_USERS SET LASTED_LOGIN = SYSDATE WHERE EMPCD = :EMPCD",
@@ -639,6 +650,28 @@ public class AccountController : ControllerBase
 
         if (rows == 0) return Ok(new { success = false, message = "User không tồn tại" });
         return Ok(new { success = true, message = "Cập nhật chữ ký thành công" });
+    }
+
+    // ─────────────────────────────────────────────
+    // POST: account/sync-resigned
+    // Tự động disable HR_USERS cho nhân viên đã nghỉ (JEAJIKGB != "Y" trong ECM100)
+    // ─────────────────────────────────────────────
+    [HttpPost("sync-resigned")]
+    public async Task<IActionResult> SyncResignedUsers()
+    {
+        try
+        {
+            string sql = @"
+                UPDATE HRMS.HR_USERS SET IS_ACTIVE = 0, UPDT_ID = 'SYSTEM', UPDT_DT = SYSDATE
+                WHERE IS_ACTIVE = 1
+                  AND EMPCD IN (SELECT EMPCD FROM HRMS.ECM100 WHERE NVL(JEAJIKGB, 'N') != 'Y')";
+            int updated = await _oracleService.ExecuteNonQueryAsync(sql);
+            return Ok(new { success = true, updated });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
     }
 
     private DateTime? SafeToDate(object value)

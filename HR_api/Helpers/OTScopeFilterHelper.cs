@@ -55,33 +55,24 @@ public static class OTScopeFilterHelper
     };
 
     // ─────────────────────────────────────────────────────────────
-    // Build IN-clause scope filter từ danh sách code đã pre-fetch.
-    // mainCol  : "DEPTCD" (Clerk/Manager) hoặc "WORKCD" (Supervisor)
-    // mainCodes: list giá trị IN cho cột chính
-    // lineCodes: list giá trị IN cho LINECD (bỏ trống = không filter line)
-    // prefix   : tránh trùng tên param khi ghép nhiều filter
+    // Filter bằng exact tuple (DEPTCD, LINECD, WORKCD) từ HR_USERS_DEPT.
+    // Tránh false-positive khi cùng code (LINECD/WORKCD) bị reuse
+    // ở các DEPT khác nhau trong EAM410.
+    // prefix: tránh trùng tên param khi ghép nhiều filter trong 1 query.
     // ─────────────────────────────────────────────────────────────
-    public static FilterResult ForScopeByInList(
-        string       mainCol,
-        List<string> mainCodes,
-        List<string> lineCodes,
-        string       empAlias = "EC",
-        string       prefix   = "SC")
+    public static FilterResult ForScopeByTuple(
+        string empCd,
+        string empAlias = "EC",
+        string prefix   = "SC")
     {
-        var mainIn = string.Join(", ", mainCodes.Select((_, i) => $":{prefix}_M{i}"));
-        string sql = $"AND {empAlias}.{mainCol} IN ({mainIn})";
-        var p = mainCodes
-            .Select((v, i) => new OracleParameter($"{prefix}_M{i}", OracleDbType.Varchar2) { Value = v })
-            .ToList<OracleParameter>();
-
-        if (lineCodes.Count > 0)
+        string paramName = $"{prefix}_EMPCD";
+        string sql = $@"AND ({empAlias}.DEPTCD, {empAlias}.LINECD, {empAlias}.WORKCD) IN (
+        SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :{paramName}
+    )";
+        var p = new List<OracleParameter>
         {
-            var lineIn = string.Join(", ", lineCodes.Select((_, i) => $":{prefix}_L{i}"));
-            sql += $"\n  AND {empAlias}.LINECD IN ({lineIn})";
-            p.AddRange(lineCodes.Select((v, i) =>
-                new OracleParameter($"{prefix}_L{i}", OracleDbType.Varchar2) { Value = v }));
-        }
-
+            new OracleParameter(paramName, OracleDbType.Varchar2) { Value = empCd }
+        };
         return new FilterResult(sql, p);
     }
 }

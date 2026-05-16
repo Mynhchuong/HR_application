@@ -173,22 +173,16 @@ public class OTController : ControllerBase
             int offset = (page - 1) * page_size;
             int maxRn  = offset + page_size;
 
-            // Pre-fetch toàn bộ dept + line của clerk từ HR_USERS_DEPT
-            var clerkDepts = await _oracleService.ExecuteQueryAsync(
-                "SELECT DISTINCT DEPTCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :CE AND DEPTCD IS NOT NULL",
-                r => r["DEPTCD"]!.ToString()!,
+            var hasClerkScope = await _oracleService.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :CE AND ROWNUM = 1",
+                r => Convert.ToInt32(r["CNT"]),
                 new OracleParameter("CE", clerk_empcd));
 
-            if (clerkDepts.Count == 0)
+            if (hasClerkScope.FirstOrDefault() == 0)
                 return Ok(new { success = false, message = "Không tìm thấy thông tin clerk" });
 
-            var clerkLines = await _oracleService.ExecuteQueryAsync(
-                "SELECT DISTINCT LINECD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :CE2 AND LINECD IS NOT NULL",
-                r => r["LINECD"]!.ToString()!,
-                new OracleParameter("CE2", clerk_empcd));
-
-            // EC.DEPTCD IN (A01, A02, ...) AND EC.LINECD IN (L01, L03, ...)
-            var clerkFilter = Helpers.OTScopeFilterHelper.ForScopeByInList("DEPTCD", clerkDepts, clerkLines);
+            // Filter exact (DEPTCD, LINECD, WORKCD) tuple — tránh false-positive khi code bị reuse
+            var clerkFilter = Helpers.OTScopeFilterHelper.ForScopeByTuple(clerk_empcd, prefix: "CK");
 
             string withSql = @"
                 WITH OT_BASE AS (
@@ -606,25 +600,16 @@ public class OTController : ControllerBase
                 System.Globalization.DateTimeStyles.None, out workDate))
                 workDate = DateTime.Today;
 
-            bool isSupervisor = string.Equals(filter_type, "work", StringComparison.OrdinalIgnoreCase);
-            string mainCol    = isSupervisor ? "WORKCD" : "DEPTCD";
-
-            // Pre-fetch toàn bộ main code (WORKCD hoặc DEPTCD) + LINECD từ HR_USERS_DEPT
-            var scopeMains = await _oracleService.ExecuteQueryAsync(
-                $"SELECT DISTINCT {mainCol} VAL FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :SE AND {mainCol} IS NOT NULL",
-                r => r["VAL"]!.ToString()!,
+            var hasSvScope = await _oracleService.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :SE AND ROWNUM = 1",
+                r => Convert.ToInt32(r["CNT"]),
                 new OracleParameter("SE", supervisor_empcd));
 
-            if (scopeMains.Count == 0)
+            if (hasSvScope.FirstOrDefault() == 0)
                 return Ok(Helpers.OTScopeFilterHelper.NotAuthorizedResponse(page, page_size));
 
-            var scopeLines = await _oracleService.ExecuteQueryAsync(
-                "SELECT DISTINCT LINECD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :SE2 AND LINECD IS NOT NULL",
-                r => r["LINECD"]!.ToString()!,
-                new OracleParameter("SE2", supervisor_empcd));
-
-            // EC.WORKCD IN (...) AND EC.LINECD IN (...)  hoặc  EC.DEPTCD IN (...)
-            var scopeFilter = Helpers.OTScopeFilterHelper.ForScopeByInList(mainCol, scopeMains, scopeLines);
+            // Filter exact (DEPTCD, LINECD, WORKCD) tuple — tránh false-positive khi code bị reuse
+            var scopeFilter = Helpers.OTScopeFilterHelper.ForScopeByTuple(supervisor_empcd, prefix: "SV");
 
             int offset = (page - 1) * page_size;
             int maxRn  = offset + page_size;

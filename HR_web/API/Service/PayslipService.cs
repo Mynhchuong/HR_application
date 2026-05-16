@@ -86,6 +86,20 @@ public class PayslipService
         return result ?? new PayslipAdminPagedResponse { success = false, data = new() };
     }
 
+    public async Task<PayslipApiResponse<object>> DeletePeriodAsync(decimal id, string updtId)
+    {
+        var response = await _api.PostAsync("payslip/delete-period", new { ID = id, UPDT_ID = updtId });
+        return await ParseResponse<PayslipApiResponse<object>>(response)
+               ?? new PayslipApiResponse<object> { success = false, message = "Lỗi server" };
+    }
+
+    public async Task<PayslipApiResponse<object>> UpdatePeriodNameAsync(decimal id, string periodName, string updtId)
+    {
+        var response = await _api.PostAsync("payslip/update-period-name", new { ID = id, PERIOD_NAME = periodName, UPDT_ID = updtId });
+        return await ParseResponse<PayslipApiResponse<object>>(response)
+               ?? new PayslipApiResponse<object> { success = false, message = "Lỗi server" };
+    }
+
     public async Task<PayslipApiResponse<object>> ReleasePeriodAsync(decimal id, string updtId)
     {
         var response = await _api.PostAsync("payslip/release", new { ID = id, UPDT_ID = updtId });

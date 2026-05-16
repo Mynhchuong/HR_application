@@ -46,6 +46,10 @@ builder.Services.AddHttpClient("SamhoAPI", client =>
                   ?? "http://192.168.1.24/HR_api/apiHR/";
     client.BaseAddress = new Uri(baseUrl);
     client.Timeout = TimeSpan.FromSeconds(60);
+
+    var apiKey = builder.Configuration["ApiSettings:ApiKey"] ?? "";
+    if (!string.IsNullOrEmpty(apiKey))
+        client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
 });
 
 // ============================================================

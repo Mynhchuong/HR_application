@@ -27,7 +27,9 @@ public class OTController : BaseController
 
             string selectedDate = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
             var data = await _otService.GetOTTodayAsync(CurrentUser.EmpCd, selectedDate);
-            
+            if (data == null)
+                ViewBag.Error = "Không có dữ liệu OT hoặc không thể kết nối máy chủ.";
+
             ViewBag.WorkDate = selectedDate;
             return View(data);
         }
@@ -152,14 +154,14 @@ public class OTController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetOTClerkDetailPage(
         string? work_date = null, string? status = null,
-        string? search = null, string? line_id = null, string? work_id = null,
+        string? search = null, string? dept_id = null, string? line_id = null, string? work_id = null,
         int page = 1, int page_size = 100)
     {
         try
         {
             if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
                 return Json(new { success = false, message = "Chưa đăng nhập" });
-            var result = await _otService.GetOTClerkDetailAsync(CurrentUser.EmpCd, work_date, status, search, line_id, work_id, page, page_size);
+            var result = await _otService.GetOTClerkDetailAsync(CurrentUser.EmpCd, work_date, status, search, dept_id, line_id, work_id, page, page_size);
             return Json(result);
         }
         catch (Exception ex)

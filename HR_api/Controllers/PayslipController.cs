@@ -67,7 +67,9 @@ public class PayslipController : ControllerBase
                 return Ok(new { success = false, message = "Thiếu tên kỳ lương" });
 
             var idResults = await _oracleService.ExecuteQueryAsync("SELECT HRMS.SEQ_PAYROLL_PERIOD.NEXTVAL FROM DUAL", r => Convert.ToDecimal(r[0]));
-            var id = idResults.First();
+            if (idResults.Count == 0)
+                return Ok(new { success = false, message = "Không thể tạo ID kỳ lương" });
+            var id = idResults[0];
 
             string sqlInsert = @"
                 INSERT INTO HRMS.HR_PAYROLL_PERIOD (ID, PERIOD_NAME, START_DATE, END_DATE, INST_ID, INST_DT, PUBLISH_DATE, IS_AUTO_PUBLISH, REMARK)
@@ -81,7 +83,7 @@ public class PayslipController : ControllerBase
                 new OracleParameter("INST_ID", (object?)model.INST_ID ?? DBNull.Value),
                 new OracleParameter("PUBLISH_DATE", (object?)model.PUBLISH_DATE ?? DBNull.Value),
                 new OracleParameter("IS_AUTO_PUBLISH", model.IS_AUTO_PUBLISH),
-                new OracleParameter("REMARK", (object?)model.REMARK ?? DBNull.Value));
+                new OracleParameter("REMARK", string.IsNullOrEmpty(model.REMARK) ? DBNull.Value : (object)model.REMARK));
 
             string sqlInitVisibility = @"
                 INSERT INTO HRMS.HR_PAYROLL_PERIOD_ITEMS (PERIOD_ID, ITEM_ID, IS_VISIBLE, DISPLAY_ORDER)
@@ -90,6 +92,67 @@ public class PayslipController : ControllerBase
             await _oracleService.ExecuteNonQueryAsync(sqlInitVisibility, new OracleParameter("PERIOD_ID", id));
 
             return Ok(new { success = true, message = "Tạo kỳ lương thành công", id = id });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost("delete-period")]
+    public async Task<IActionResult> DeletePeriod([FromBody] dynamic model)
+    {
+        try
+        {
+            decimal id = model.ID;
+
+            var check = await _oracleService.ExecuteQueryAsync(
+                "SELECT IS_PUBLISHED FROM HRMS.HR_PAYROLL_PERIOD WHERE ID = :ID",
+                r => Convert.ToInt32(r["IS_PUBLISHED"]),
+                new OracleParameter("ID", id));
+
+            if (check.Count == 0) return Ok(new { success = false, message = "Không tìm thấy kỳ lương" });
+            if (check[0] == 1) return Ok(new { success = false, message = "Không thể xóa kỳ đã công bố" });
+
+            await _oracleService.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_PAYROLL_DATA WHERE PERIOD_ID = :ID", new OracleParameter("ID", id));
+            await _oracleService.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_PAYROLL_PERIOD_ITEMS WHERE PERIOD_ID = :ID", new OracleParameter("ID", id));
+            await _oracleService.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_PAYROLL_PERIOD WHERE ID = :ID", new OracleParameter("ID", id));
+
+            return Ok(new { success = true, message = "Đã xóa kỳ lương" });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost("update-period-name")]
+    public async Task<IActionResult> UpdatePeriodName([FromBody] dynamic model)
+    {
+        try
+        {
+            decimal id = model.ID;
+            string newName = model.PERIOD_NAME;
+            string updtId = model.UPDT_ID;
+
+            if (string.IsNullOrEmpty(newName))
+                return Ok(new { success = false, message = "Tên kỳ lương không được để trống" });
+
+            var check = await _oracleService.ExecuteQueryAsync(
+                "SELECT IS_PUBLISHED FROM HRMS.HR_PAYROLL_PERIOD WHERE ID = :ID",
+                r => Convert.ToInt32(r["IS_PUBLISHED"]),
+                new OracleParameter("ID", id));
+
+            if (check.Count == 0) return Ok(new { success = false, message = "Không tìm thấy kỳ lương" });
+            if (check[0] == 1) return Ok(new { success = false, message = "Không thể sửa tên kỳ đã công bố" });
+
+            await _oracleService.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_PAYROLL_PERIOD SET PERIOD_NAME = :PERIOD_NAME, UPDT_ID = :UPDT_ID, UPDT_DT = SYSDATE WHERE ID = :ID",
+                new OracleParameter("PERIOD_NAME", newName),
+                new OracleParameter("UPDT_ID", (object?)updtId ?? DBNull.Value),
+                new OracleParameter("ID", id));
+
+            return Ok(new { success = true, message = "Đã cập nhật tên kỳ lương" });
         }
         catch (Exception ex)
         {
@@ -355,13 +418,17 @@ public class PayslipController : ControllerBase
 
             if (emps.Count == 0) return Ok(new { success = true, total = total, data = new List<object>() });
 
-            string empList = string.Join("','", emps.Select(x => x.EMPCD));
+            var empParams = emps.Select((e, i) => new OracleParameter($"EMP{i}", e.EMPCD)).ToList();
+            var inClause  = string.Join(",", empParams.Select(p => ":" + p.ParameterName));
             string sqlAllDetails = $@"
                 SELECT D.EMPCD, I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, I.UNIT, D.AMOUNT, D.TEXT_VALUE
                 FROM HRMS.HR_PAYROLL_ITEMS I
                 LEFT JOIN HRMS.HR_PAYROLL_DATA D ON D.ITEM_ID = I.ID AND D.PERIOD_ID = :PERIOD_ID
-                WHERE D.EMPCD IN ('{empList}')
+                WHERE D.EMPCD IN ({inClause})
                 ORDER BY D.EMPCD, I.DISPLAY_ORDER";
+
+            var allParams = new List<OracleParameter> { new OracleParameter("PERIOD_ID", periodId) };
+            allParams.AddRange(empParams);
 
             var allDetails = await _oracleService.ExecuteQueryAsync(sqlAllDetails, r => new {
                 EMPCD = r["EMPCD"]?.ToString() ?? string.Empty,
@@ -374,7 +441,7 @@ public class PayslipController : ControllerBase
                     IS_VISIBLE = 1,
                     UNIT = r["UNIT"]?.ToString()
                 }
-            }, new OracleParameter("PERIOD_ID", periodId));
+            }, allParams.ToArray());
 
             var list = emps.Select(e => new PayslipAdminDetailModel {
                 EMPCD = e.EMPCD,

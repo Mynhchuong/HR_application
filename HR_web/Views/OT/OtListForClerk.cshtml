@@ -52,40 +52,12 @@
             </div>
         </div>
 
-        <div class="px-4 pt-3 pb-1 row g-3 align-items-end filter-bar">
-            <div class="col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Mã NV / Tên</label>
-                <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="🔍 Mã NV, tên..." />
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Tình Trạng</label>
-                <select id="filterStatus" class="form-select form-select-sm">
-                    <option value="">Tất cả</option>
-                    <option value="PENDING">Chờ ký</option>
-                    <option value="CONFIRMED">Đã ký</option>
-                    <option value="REJECTED">Từ chối</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Line</label>
-                <select id="filterLine" class="select2 form-control"
-                        data-url="@Url.Action("GetLineByScope", "Dropdown")" data-placeholder="Tất cả"></select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Nhóm Việc</label>
-                <select id="filterWork" class="select2 form-control"
-                        data-url="@Url.Action("GetWorkByScope", "Dropdown")" data-placeholder="Tất cả"></select>
-            </div>
-            <div class="col-md-4 d-flex align-items-center justify-content-end gap-2">
-                <label class="mb-0 text-sm text-secondary text-nowrap">Hiển thị:</label>
-                <select id="pageSizeSelect" class="form-select form-select-sm" style="width:80px;">
-                    <option value="50">50</option>
-                    <option value="100" selected>100</option>
-                    <option value="500">500</option>
-                </select>
-                <span id="paginationInfo" class="text-nowrap ms-2"></span>
-            </div>
-        </div>
+        @await Html.PartialAsync("_OTFilterBar", new HR_web.Models.OT.OTFilterBarModel
+        {
+            DeptUrl = Url.Action("GetDeptByScope", "Dropdown")!,
+            LineUrl = Url.Action("GetLineByScope", "Dropdown")!,
+            WorkUrl = Url.Action("GetWorkByScope", "Dropdown")!
+        })
 
         <div class="card-body px-0 pt-0 pb-2 mt-1">
             <div class="table-responsive p-0 px-4">
@@ -119,7 +91,7 @@
     const WORK_DATE = '@workDate';
     const PAGE_URL  = '@Url.Action("GetOTClerkDetailPage", "OT")';
 
-    let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false, pageSize = 100, lineFilterHidden = false;
+    let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false, pageSize = 100;
 
     function buildRow(item, idx) {
         const otType = item.OT_AFTER === 'Y' ? 'Sau' : (item.OT_BEFORE === 'Y' ? 'Trước' : '');
@@ -153,22 +125,18 @@
         isLoading = true; currentPage = page;
         const search = $('#searchInput').val(),
               status = $('#filterStatus').val(),
+              deptId = $('#filterDept').val(),
               lineId = $('#filterLine').val(),
               workId = $('#filterWork').val();
         $('#otTableBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải dữ liệu...</div></td></tr>`);
         $.ajax({
             url: PAGE_URL, type: 'GET',
-            data: { work_date: WORK_DATE, status, search, line_id: lineId, work_id: workId, page, page_size: pageSize },
+            data: { work_date: WORK_DATE, status, search, dept_id: deptId, line_id: lineId, work_id: workId, page, page_size: pageSize },
             success: function(res) {
                 const isSuccess = res.success || res.Success;
                 if (!isSuccess) {
                     $('#otTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${res.message || res.Message || 'Dữ liệu không hợp lệ'}</td></tr>`);
                     return;
-                }
-                // Ẩn line filter nếu clerk thuộc office (backend đã tự filter theo line)
-                if (!lineFilterHidden && (res.is_office || res.IS_OFFICE)) {
-                    lineFilterHidden = true;
-                    $('#filterLine').closest('.col-md-2').hide();
                 }
                 const summary = res.summary || res.Summary;
                 if (summary) {
@@ -221,7 +189,7 @@
     }
 
     $('#pageSizeSelect').on('change', function() { pageSize=parseInt($(this).val()); loadData(1); });
-    $('#filterStatus, #filterLine, #filterWork').on('change', () => loadData(1));
+    $('#filterStatus, #filterDept, #filterLine, #filterWork').on('change', () => loadData(1));
     $('#searchInput').on('input', debounce(() => loadData(1), 400));
 
     $('#exportExcelBtn').on('click', async function() {
@@ -230,11 +198,12 @@
         try {
             const statusVal = encodeURIComponent($('#filterStatus').val() || '');
             const searchVal = encodeURIComponent($('#searchInput').val() || '');
+            const deptId    = encodeURIComponent($('#filterDept').val() || '');
             const lineId    = encodeURIComponent($('#filterLine').val() || '');
             const workId    = encodeURIComponent($('#filterWork').val() || '');
             let exportRows=[], pg=1, pgTotal=1;
             do {
-                const res = await $.getJSON(`${PAGE_URL}?work_date=${WORK_DATE}&status=${statusVal}&search=${searchVal}&line_id=${lineId}&work_id=${workId}&page=${pg}&page_size=1000`);
+                const res = await $.getJSON(`${PAGE_URL}?work_date=${WORK_DATE}&status=${statusVal}&search=${searchVal}&dept_id=${deptId}&line_id=${lineId}&work_id=${workId}&page=${pg}&page_size=1000`);
                 if(!res||!res.success) break;
                 pgTotal=res.total_pages; exportRows=exportRows.concat(res.data||[]);
                 $btn.html(`<span class="spinner-border spinner-border-sm me-1"></span> ${exportRows.length.toLocaleString()}…`);

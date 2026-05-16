@@ -1,4 +1,5 @@
 using HR_api.Data;
+using HR_api.Middleware;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json.Serialization;
 
@@ -14,6 +15,25 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "HR API - Samho", Version = "v1" });
+
+    // Thêm ô nhập API Key trên Swagger UI
+    c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
+    {
+        Name = "X-Api-Key",
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Description = "Nhập API Key vào đây"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "ApiKey" }
+            },
+            []
+        }
+    });
 });
 
 builder.Services.AddScoped<OracleService>();
@@ -49,6 +69,8 @@ app.UseSwaggerUI(c =>
 });
 
 app.UseCors("AllowAll");
+
+app.UseMiddleware<ApiKeyMiddleware>();
 
 app.UseAuthorization();
 

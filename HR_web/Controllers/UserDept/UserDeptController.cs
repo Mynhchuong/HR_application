@@ -64,7 +64,10 @@ public class UserDeptController : BaseController
             if (rows.Count == 0)
                 return Json(new { success = false, message = "File không có dữ liệu" });
 
-            var (success, message, inserted, skipped) = await _service.ImportAsync(rows, CurrentUser?.EmpCd);
+            if (CurrentUser == null)
+                return Json(new { success = false, message = "Phiên đăng nhập hết hạn" });
+
+            var (success, message, inserted, skipped) = await _service.ImportAsync(rows, CurrentUser.EmpCd);
             return Json(new { success, message, inserted, skipped });
         }
         catch (Exception ex)
@@ -125,10 +128,13 @@ public class UserDeptController : BaseController
         [FromForm] string linecds,
         [FromForm] string workcds)
     {
+        if (CurrentUser == null)
+            return Json(new { success = false, message = "Phiên đăng nhập hết hạn" });
+
         var dList = deptcds?.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList() ?? [];
         var lList = linecds?.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList() ?? [];
         var wList = workcds?.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList() ?? [];
-        var (success, message, inserted, skipped) = await _service.ManualCreateAsync(empcd, CurrentUser?.EmpCd, dList, lList, wList);
+        var (success, message, inserted, skipped) = await _service.ManualCreateAsync(empcd, CurrentUser.EmpCd, dList, lList, wList);
         return Json(new { success, message, inserted, skipped });
     }
 

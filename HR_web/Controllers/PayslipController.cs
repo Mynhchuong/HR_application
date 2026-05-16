@@ -43,10 +43,12 @@ public class PayslipController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetMyPayslip(decimal periodId, string? empcd = null)
     {
+        if (CurrentUser == null)
+            return Json(new { success = false, message = "Phiên đăng nhập hết hạn" });
+
         try
         {
-            // Nếu HR/Admin truyền empcd thì dùng empcd đó, ngược lại dùng chính mình
-            string targetEmpCd = CurrentUser!.EmpCd;
+            string targetEmpCd = CurrentUser.EmpCd;
             if (!string.IsNullOrEmpty(empcd) &&
                 (CurrentUser.RoleName == "HR" || CurrentUser.RoleName == "Admin"))
             {
@@ -134,6 +136,24 @@ public class PayslipController : BaseController
 
         var result = await _payslipService.CreatePeriodAsync(
             periodName, start, end, publishDate, isAutoPublish, remark, CurrentUser!.EmpCd);
+        return Json(result);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DeletePeriod(decimal id)
+    {
+        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+            return Json(new { success = false, message = "Từ chối truy cập" });
+        var result = await _payslipService.DeletePeriodAsync(id, CurrentUser!.EmpCd);
+        return Json(result);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> UpdatePeriodName(decimal id, string periodName)
+    {
+        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+            return Json(new { success = false, message = "Từ chối truy cập" });
+        var result = await _payslipService.UpdatePeriodNameAsync(id, periodName, CurrentUser!.EmpCd);
         return Json(result);
     }
 

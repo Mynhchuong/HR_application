@@ -280,8 +280,9 @@ public class PayslipController : ControllerBase
                 await _oracleService.ExecuteNonQueryAsync(sqlClear, new OracleParameter("PERIOD_ID", periodId));
             }
 
-            string sqlItems = "SELECT ID, ITEM_CODE FROM HRMS.HR_PAYROLL_ITEMS ORDER BY DISPLAY_ORDER";
-            var items = await _oracleService.ExecuteQueryAsync(sqlItems, r => new { ID = Convert.ToDecimal(r["ID"]), CODE = r["ITEM_CODE"]?.ToString() });
+            string sqlItems = "SELECT ID, ITEM_CODE FROM HRMS.HR_PAYROLL_ITEMS";
+            var items = await _oracleService.ExecuteQueryAsync(sqlItems, r => new { ID = Convert.ToDecimal(r["ID"]), CODE = r["ITEM_CODE"]?.ToString() ?? "" });
+            var codeToId = items.ToDictionary(x => x.CODE, x => x.ID, StringComparer.OrdinalIgnoreCase);
 
             int successCount = 0;
 
@@ -294,19 +295,20 @@ public class PayslipController : ControllerBase
             foreach (var row in data)
             {
                 if (string.IsNullOrEmpty(row.EmpCd)) continue;
-                
-                bool hasDataForRow = false;
-                for (int i = 0; i < items.Count; i++)
-                {
-                    var item = items[i];
-                    var val = (row.Values != null && i < row.Values.Count) ? row.Values[i] : null;
-                    var textVal = (row.TextValues != null && i < row.TextValues.Count) ? row.TextValues[i] : null;
 
+                bool hasDataForRow = false;
+                foreach (var uploadItem in row.Items)
+                {
+                    if (string.IsNullOrEmpty(uploadItem.Code)) continue;
+                    if (!codeToId.TryGetValue(uploadItem.Code, out decimal itemId)) continue;
+
+                    var val = uploadItem.NumValue;
+                    var textVal = uploadItem.TextValue;
                     if (val == null && string.IsNullOrEmpty(textVal)) continue;
 
                     pIds.Add(periodId);
                     eCodes.Add(row.EmpCd);
-                    iIds.Add(item.ID);
+                    iIds.Add(itemId);
                     amts.Add((object?)val ?? DBNull.Value);
                     tVals.Add((object?)textVal ?? DBNull.Value);
                     hasDataForRow = true;

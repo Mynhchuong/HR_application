@@ -224,79 +224,105 @@ $(document).ready(function () {
         const file = e.target.files[0];
         if (!file) return;
         $('#fileInputLabel').text(file.name);
+        $('#btnStartUpload').prop('disabled', true);
+        $('#excelStatus').text('Đang tải danh sách items...');
 
-        const reader = new FileReader();
-        reader.onerror = function () {
-            AlertHelper.error('Không thể đọc file, vui lòng thử lại');
-        };
-        reader.onload = function (e) {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const json = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-
-            if (json.length < 2) {
-                AlertHelper.error('File Excel không đúng định dạng hoặc trống');
+        $.get('GetItemsVisibility', { periodId: currentPeriodId }, function (res) {
+            if (!res.success) {
+                AlertHelper.error('Không thể tải danh sách items: ' + (res.message || ''));
+                $('#excelStatus').text('');
                 return;
             }
 
-            // Headers (Dòng 1)
-            const headers = json[0];
-            let headHtml = '<tr><th class="ps-2">EMPCD</th>';
-            for (let i = 1; i < headers.length; i++) {
-                headHtml += `<th>${headers[i] || 'N/A'}</th>`;
-            }
-            headHtml += '</tr>';
-            $('#theadExcelPreview').html(headHtml);
+            // Build ITEM_NAME (trimmed, lowercase) → ITEM_CODE lookup
+            const nameToCode = {};
+            res.data.forEach(item => {
+                nameToCode[item.ITEM_NAME.trim().toLowerCase()] = item.ITEM_CODE;
+            });
 
-            // Dữ liệu (Bắt đầu từ dòng 2)
-            excelData = [];
-            let bodyHtml = '';
-            for (let i = 1; i < json.length; i++) {
-                const row = json[i];
-                if (!row[0]) continue; // Skip empty EMPCD
+            const reader = new FileReader();
+            reader.onerror = function () {
+                AlertHelper.error('Không thể đọc file, vui lòng thử lại');
+            };
+            reader.onload = function (evt) {
+                const data = new Uint8Array(evt.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
-                const empCd = String(row[0]).trim();
-                const values = [];
-                const textValues = [];
+                if (json.length < 2) {
+                    AlertHelper.error('File Excel không đúng định dạng hoặc trống');
+                    return;
+                }
 
-                bodyHtml += `<tr><td class="ps-2 fw-bold text-primary">${empCd}</td>`;
-                
-                // Map cac cot con lai vao list 58 items
-                for (let j = 0; j < 58; j++) {
-                    const cellVal = row[j + 1]; // +1 vi o 0 la EmpCd
-                    const numVal = parseExcelNumber(cellVal);
-                    
-                    if (numVal !== null) {
-                        values.push(numVal);
-                        textValues.push(null);
-                        if (i <= 50) bodyHtml += `<td>${numVal.toLocaleString()}</td>`;
-                    } else {
-                        values.push(null);
-                        const textVal = cellVal !== undefined && cellVal !== null ? String(cellVal).trim() : null;
-                        textValues.push(textVal);
-                        if (i <= 50) bodyHtml += `<td>${textVal || '-'}</td>`;
+                // Col 0 = EMPCD, rest = item names matched to ITEM_CODE
+                const headers = json[0];
+                const colCodes = [null]; // index 0 is EmpCd
+                const unmatchedHeaders = [];
+                for (let i = 1; i < headers.length; i++) {
+                    const headerName = headers[i] ? String(headers[i]).trim() : '';
+                    const code = nameToCode[headerName.toLowerCase()] || null;
+                    colCodes.push(code);
+                    if (headerName && !code) unmatchedHeaders.push(headerName);
+                }
+
+                let headHtml = '<tr><th class="ps-2">EMPCD</th>';
+                for (let i = 1; i < headers.length; i++) {
+                    const cls = colCodes[i] ? '' : ' class="text-danger"';
+                    headHtml += `<th${cls}>${headers[i] || 'N/A'}</th>`;
+                }
+                headHtml += '</tr>';
+                $('#theadExcelPreview').html(headHtml);
+
+                excelData = [];
+                let bodyHtml = '';
+                for (let i = 1; i < json.length; i++) {
+                    const row = json[i];
+                    if (!row[0]) continue;
+
+                    const empCd = String(row[0]).trim();
+                    const items = [];
+
+                    bodyHtml += `<tr><td class="ps-2 fw-bold text-primary">${empCd}</td>`;
+
+                    for (let j = 1; j < colCodes.length; j++) {
+                        const code = colCodes[j];
+                        const cellVal = row[j];
+                        const numVal = parseExcelNumber(cellVal);
+                        const displayVal = numVal !== null
+                            ? numVal.toLocaleString()
+                            : (cellVal !== undefined && cellVal !== null ? String(cellVal).trim() : '-');
+
+                        if (i <= 50) bodyHtml += `<td>${displayVal}</td>`;
+
+                        if (!code) continue;
+                        if (numVal !== null) {
+                            items.push({ Code: code, NumValue: numVal, TextValue: null });
+                        } else {
+                            const textVal = cellVal !== undefined && cellVal !== null ? String(cellVal).trim() : null;
+                            if (textVal) items.push({ Code: code, NumValue: null, TextValue: textVal });
+                        }
+                    }
+                    bodyHtml += '</tr>';
+
+                    excelData.push({ EmpCd: empCd, Items: items });
+
+                    if (i === 50) {
+                        bodyHtml += '<tr><td colspan="100" class="text-center text-muted">... chỉ hiển thị 50 dòng nháp ...</td></tr>';
                     }
                 }
-                bodyHtml += '</tr>';
+                $('#tbodyExcelPreview').html(bodyHtml);
 
-                excelData.push({
-                    EmpCd: empCd,
-                    Values: values,
-                    TextValues: textValues
-                });
-
-                if (i === 50) {
-                    bodyHtml += '<tr><td colspan="100" class="text-center text-muted">... chỉ hiển thị 50 dòng nháp ...</td></tr>';
+                let statusMsg = `Đã đọc ${excelData.length} nhân viên. Sẵn sàng Import.`;
+                if (unmatchedHeaders.length > 0) {
+                    const shown = unmatchedHeaders.slice(0, 3).join(', ');
+                    statusMsg += ` ⚠ ${unmatchedHeaders.length} cột không khớp: ${shown}${unmatchedHeaders.length > 3 ? '...' : ''}`;
                 }
-            }
-            if (json.length <= 50) $('#tbodyExcelPreview').html(bodyHtml);
-            else $('#tbodyExcelPreview').html(bodyHtml); // Re-set anyway
-
-            $('#excelStatus').text(`Đã đọc ${excelData.length} nhân viên. Sẵn sàng Import.`);
-            $('#btnStartUpload').prop('disabled', false);
-        };
-        reader.readAsArrayBuffer(file);
+                $('#excelStatus').text(statusMsg);
+                $('#btnStartUpload').prop('disabled', false);
+            };
+            reader.readAsArrayBuffer(file);
+        });
     });
 
     $('#btnStartUpload').on('click', function () {

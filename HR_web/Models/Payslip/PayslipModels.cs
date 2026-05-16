@@ -38,11 +38,17 @@ public class PayrollDataModel
     public string? UNIT { get; set; }
 }
 
+public class PayslipUploadItem
+{
+    public string Code { get; set; } = string.Empty;
+    public decimal? NumValue { get; set; }
+    public string? TextValue { get; set; }
+}
+
 public class PayslipUploadRow
 {
     public string? EmpCd { get; set; }
-    public List<decimal?> Values { get; set; } = new();
-    public List<string> TextValues { get; set; } = new();
+    public List<PayslipUploadItem> Items { get; set; } = new();
 }
 
 public class PayslipAdminDetailModel

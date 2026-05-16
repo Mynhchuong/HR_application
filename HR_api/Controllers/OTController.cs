@@ -162,7 +162,7 @@ public class OTController : ControllerBase
     [HttpGet("clerk")]
     public async Task<IActionResult> GetOTClerk(string clerk_empcd, string? work_date = null,
         string? status = null, string? search = null,
-        string? line_id = null, string? work_id = null,
+        string? dept_id = null, string? line_id = null, string? work_id = null,
         int page = 1, int page_size = 100)
     {
         try
@@ -173,25 +173,22 @@ public class OTController : ControllerBase
             int offset = (page - 1) * page_size;
             int maxRn  = offset + page_size;
 
-            string sqlGetInfo = @"
-                SELECT DEPTCD, LINECD FROM HRMS.HR_USERS_DEPT
-                WHERE EMPCD = :CLERK_EMPCD AND ROWNUM = 1";
+            // Pre-fetch toàn bộ dept + line của clerk từ HR_USERS_DEPT
+            var clerkDepts = await _oracleService.ExecuteQueryAsync(
+                "SELECT DISTINCT DEPTCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :CE AND DEPTCD IS NOT NULL",
+                r => r["DEPTCD"]!.ToString()!,
+                new OracleParameter("CE", clerk_empcd));
 
-            var clerkInfos = await _oracleService.ExecuteQueryAsync(sqlGetInfo, r => new {
-                DEPTCD = r["DEPTCD"]?.ToString(),
-                LINECD = r["LINECD"]?.ToString()
-            }, new OracleParameter("CLERK_EMPCD", clerk_empcd));
+            if (clerkDepts.Count == 0)
+                return Ok(new { success = false, message = "Không tìm thấy thông tin clerk" });
 
-            if (clerkInfos.Count == 0) return Ok(new { success = false, message = "Không tìm thấy thông tin clerk" });
-            var info = clerkInfos[0];
+            var clerkLines = await _oracleService.ExecuteQueryAsync(
+                "SELECT DISTINCT LINECD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :CE2 AND LINECD IS NOT NULL",
+                r => r["LINECD"]!.ToString()!,
+                new OracleParameter("CE2", clerk_empcd));
 
-            if (!Helpers.OTScopeFilterHelper.IsAuthorized(info.DEPTCD))
-                return Ok(Helpers.OTScopeFilterHelper.NotAuthorizedResponse(page, page_size));
-
-            // A01001 là dept lớn → tự động filter thêm theo LINECD, ẩn line dropdown ở frontend
-            bool autoLineFilter = info.DEPTCD == "A01001";
-            var clerkFilter = Helpers.OTScopeFilterHelper.ForClerkByDept(
-                info.DEPTCD!, autoLineFilter ? info.LINECD : null);
+            // EC.DEPTCD IN (A01, A02, ...) AND EC.LINECD IN (L01, L03, ...)
+            var clerkFilter = Helpers.OTScopeFilterHelper.ForScopeByInList("DEPTCD", clerkDepts, clerkLines);
 
             string withSql = @"
                 WITH OT_BASE AS (
@@ -224,7 +221,8 @@ public class OTController : ControllerBase
                   AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
                   " + clerkFilter.SqlClause + @"
                   AND (:ST_FLAG IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
-                  AND (:SRCH_FLAG IS NULL OR UPPER(EC.EMPCD) LIKE :SRCH_VAL1 OR UPPER(EC.CNAME) LIKE :SRCH_VAL2)
+                  AND (:SRCH_FLAG IS NULL OR UPPER(EC.EMPCD) LIKE :SRCH_VAL1)
+                  AND (:DPT_FLAG IS NULL OR EC.DEPTCD = :DPT_VAL)
                   AND (:LN_FLAG IS NULL OR EC.LINECD = :LN_VAL)
                   AND (:WK_FLAG IS NULL OR EC.WORKCD = :WK_VAL)";
 
@@ -237,7 +235,8 @@ public class OTController : ControllerBase
                 new OracleParameter("ST_VAL",     OracleDbType.Varchar2) { Value = (object?)status ?? DBNull.Value },
                 new OracleParameter("SRCH_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search) ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("SRCH_VAL1",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search) ? null : "%" + search.ToUpper() + "%") ?? DBNull.Value },
-                new OracleParameter("SRCH_VAL2",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search) ? null : "%" + search.ToUpper() + "%") ?? DBNull.Value },
+                new OracleParameter("DPT_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(dept_id) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("DPT_VAL",    OracleDbType.Varchar2) { Value = (object?)dept_id ?? DBNull.Value },
                 new OracleParameter("LN_FLAG",    OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(line_id) ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("LN_VAL",     OracleDbType.Varchar2) { Value = (object?)line_id ?? DBNull.Value },
                 new OracleParameter("WK_FLAG",    OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(work_id) ? null : "Y") ?? DBNull.Value },
@@ -265,8 +264,7 @@ public class OTController : ControllerBase
             summary.IS_DONE = summary.PENDING == 0;
 
             if (summary.TOTAL == 0)
-                return Ok(new { success = true, dept_id = info.DEPTCD, line_id = info.LINECD, is_office = autoLineFilter,
-                                summary, total = 0, page, page_size, total_pages = 0, data = new List<OTClerkModel>() });
+                return Ok(new { success = true, summary, total = 0, page, page_size, total_pages = 0, data = new List<OTClerkModel>() });
 
             // 2. Paged data
             string sqlData = withSql + @"
@@ -325,8 +323,7 @@ public class OTController : ControllerBase
                 return model;
             }, dataParams.ToArray());
 
-            return Ok(new { success = true, dept_id = info.DEPTCD, line_id = info.LINECD, is_office = autoLineFilter,
-                            summary, total = summary.TOTAL, page, page_size,
+            return Ok(new { success = true, summary, total = summary.TOTAL, page, page_size,
                             total_pages = page_size > 0 ? (int)Math.Ceiling((double)summary.TOTAL / page_size) : 0,
                             data = list });
         }
@@ -449,7 +446,7 @@ public class OTController : ControllerBase
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
-                  AND (:S_FLAG  IS NULL OR (OT.EMPCD LIKE :S_VAL1 OR UPPER(EC.CNAME) LIKE :S_VAL2))
+                  AND (:S_FLAG  IS NULL OR UPPER(OT.EMPCD) LIKE :S_VAL1)
                   AND (:ST_FLAG IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
                   AND (:DF_FLAG IS NULL OR UPPER(B.DEPTNM) LIKE '%' || UPPER(:DF_VAL) || '%')
                   AND (:LF_FLAG IS NULL OR UPPER(B.TEAMNM) LIKE '%' || UPPER(:LF_VAL) || '%')
@@ -464,7 +461,6 @@ public class OTController : ControllerBase
                 new OracleParameter("W_DATE3",  OracleDbType.Date) { Value = workDate },
                 new OracleParameter("S_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search) ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("S_VAL1",   OracleDbType.Varchar2) { Value = searchPattern },
-                new OracleParameter("S_VAL2",   OracleDbType.Varchar2) { Value = searchPattern },
                 new OracleParameter("ST_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(status) ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("ST_VAL",   OracleDbType.Varchar2) { Value = (object?)status ?? DBNull.Value },
                 new OracleParameter("DF_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(dept_name) ? null : "Y") ?? DBNull.Value },
@@ -605,20 +601,30 @@ public class OTController : ControllerBase
             if (!Helpers.OTScopeFilterHelper.IsAuthorized(supervisor_empcd))
                 return Ok(Helpers.OTScopeFilterHelper.NotAuthorizedResponse(page, page_size));
 
-            // Check xem có row trong HR_USERS_DEPT không
-            var hasDept = await _oracleService.ExecuteQueryAsync(
-                "SELECT COUNT(*) CNT FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :E AND ROWNUM <= 1",
-                r => Convert.ToInt32(r["CNT"]),
-                new OracleParameter("E", supervisor_empcd));
-            if (hasDept.FirstOrDefault() == 0)
-                return Ok(Helpers.OTScopeFilterHelper.NotAuthorizedResponse(page, page_size));
-
             DateTime workDate;
             if (!DateTime.TryParseExact(work_date, "yyyy-MM-dd", null,
                 System.Globalization.DateTimeStyles.None, out workDate))
                 workDate = DateTime.Today;
 
-            var scopeFilter = Helpers.OTScopeFilterHelper.ForScopeByEmpcd(filter_type, supervisor_empcd);
+            bool isSupervisor = string.Equals(filter_type, "work", StringComparison.OrdinalIgnoreCase);
+            string mainCol    = isSupervisor ? "WORKCD" : "DEPTCD";
+
+            // Pre-fetch toàn bộ main code (WORKCD hoặc DEPTCD) + LINECD từ HR_USERS_DEPT
+            var scopeMains = await _oracleService.ExecuteQueryAsync(
+                $"SELECT DISTINCT {mainCol} VAL FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :SE AND {mainCol} IS NOT NULL",
+                r => r["VAL"]!.ToString()!,
+                new OracleParameter("SE", supervisor_empcd));
+
+            if (scopeMains.Count == 0)
+                return Ok(Helpers.OTScopeFilterHelper.NotAuthorizedResponse(page, page_size));
+
+            var scopeLines = await _oracleService.ExecuteQueryAsync(
+                "SELECT DISTINCT LINECD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :SE2 AND LINECD IS NOT NULL",
+                r => r["LINECD"]!.ToString()!,
+                new OracleParameter("SE2", supervisor_empcd));
+
+            // EC.WORKCD IN (...) AND EC.LINECD IN (...)  hoặc  EC.DEPTCD IN (...)
+            var scopeFilter = Helpers.OTScopeFilterHelper.ForScopeByInList(mainCol, scopeMains, scopeLines);
 
             int offset = (page - 1) * page_size;
             int maxRn  = offset + page_size;
@@ -653,7 +659,7 @@ public class OTController : ControllerBase
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
-                  AND (:S_FLAG   IS NULL OR (OT.EMPCD LIKE :S_VAL1 OR UPPER(EC.CNAME) LIKE :S_VAL2))
+                  AND (:S_FLAG   IS NULL OR UPPER(OT.EMPCD) LIKE :S_VAL1)
                   AND (:ST_FLAG  IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
                   AND (:DID_FLAG IS NULL OR EC.DEPTCD = :DID_VAL)
                   AND (:LID_FLAG IS NULL OR EC.LINECD = :LID_VAL)
@@ -667,7 +673,6 @@ public class OTController : ControllerBase
                 new OracleParameter("W_DATE3",      OracleDbType.Date)     { Value = workDate },
                 new OracleParameter("S_FLAG",       OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)  ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("S_VAL1",       OracleDbType.Varchar2) { Value = searchPattern },
-                new OracleParameter("S_VAL2",       OracleDbType.Varchar2) { Value = searchPattern },
                 new OracleParameter("ST_FLAG",      OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(status)  ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("ST_VAL",       OracleDbType.Varchar2) { Value = (object?)status  ?? DBNull.Value },
                 new OracleParameter("DID_FLAG",     OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(dept_id) ? null : "Y") ?? DBNull.Value },

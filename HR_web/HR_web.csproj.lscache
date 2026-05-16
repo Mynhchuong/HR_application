@@ -89,7 +89,9 @@ Models/Account/
  UserInfoPagedViewModel.cs
 Models/
  DropdownModel.cs
- OT/OTModels.cs
+ OT/
+  OTFilterBarModel.cs
+  OTModels.cs
  Payslip/PayslipModels.cs
  SideMenuItem.cs
 obj/Debug/net9.0/
@@ -470,6 +472,7 @@ Views/
   Error.cshtml
   _ConfirmButton.cshtml
   _Layout.cshtml
+  _OTFilterBar.cshtml
   _SideNav.cshtml
  User/UserManager.cshtml
  UserDept/Index.cshtml
@@ -493,6 +496,7 @@ Views/
   Error.cshtml
   _ConfirmButton.cshtml
   _Layout.cshtml
+  _OTFilterBar.cshtml
   _SideNav.cshtml
  User/UserManager.cshtml
  UserDept/Index.cshtml

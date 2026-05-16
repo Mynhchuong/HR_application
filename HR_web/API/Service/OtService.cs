@@ -63,7 +63,7 @@ public class OtService
     public async Task<OTClerkPagedResponse> GetOTClerkDetailAsync(
         string clerkEmpcd, string? workDate = null,
         string? status = null, string? search = null,
-        string? lineId = null, string? workId = null,
+        string? deptId = null, string? lineId = null, string? workId = null,
         int page = 1, int pageSize = 100)
     {
         try
@@ -72,6 +72,7 @@ public class OtService
             if (!string.IsNullOrEmpty(workDate)) q.Add($"work_date={Uri.EscapeDataString(workDate)}");
             if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
             if (!string.IsNullOrEmpty(search))   q.Add($"search={Uri.EscapeDataString(search)}");
+            if (!string.IsNullOrEmpty(deptId))   q.Add($"dept_id={Uri.EscapeDataString(deptId)}");
             if (!string.IsNullOrEmpty(lineId))   q.Add($"line_id={Uri.EscapeDataString(lineId)}");
             if (!string.IsNullOrEmpty(workId))   q.Add($"work_id={Uri.EscapeDataString(workId)}");
             q.Add($"page={page}");

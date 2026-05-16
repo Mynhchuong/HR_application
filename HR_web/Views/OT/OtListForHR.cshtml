@@ -65,47 +65,13 @@
             </div>
         </div>
 
-        <div class="px-4 pt-3 pb-1 row g-3 align-items-end filter-bar">
-            <div class="col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Tìm kiếm</label>
-                <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="🔍 Mã NV, tên..." />
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Tình Trạng</label>
-                <select id="filterStatus" class="form-select form-select-sm">
-                    <option value="">Tất cả</option>
-                    <option value="PENDING">Chờ ký</option>
-                    <option value="CONFIRMED">Đã ký</option>
-                    <option value="REJECTED">Từ chối</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Bộ Phận</label>
-                <select id="filterDept" class="select2 form-control"
-                        data-url="@Url.Action("GetDept", "Dropdown")"
-                        data-placeholder="Tất cả"
-                        data-selected-id="@(deptId ?? "")"></select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Line</label>
-                <select id="lineCd" name="lineCd" class="select2 form-control"
-                        data-url="@Url.Action("GetLine", "Dropdown")" data-placeholder="Tất cả"></select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Nhóm Việc</label>
-                <select id="workCd" name="workCd" class="select2 form-control"
-                        data-url="@Url.Action("GetWork", "Dropdown")" data-placeholder="Tất cả"></select>
-            </div>
-            <div class="col-md-2 d-flex align-items-center justify-content-end gap-2">
-                <label class="mb-0 text-sm text-secondary text-nowrap">Hiển thị:</label>
-                <select id="pageSizeSelect" class="form-select form-select-sm" style="width: 80px;">
-                    <option value="50">50</option>
-                    <option value="100" selected>100</option>
-                    <option value="500">500</option>
-                </select>
-                <span id="paginationInfo" class="text-nowrap ms-2"></span>
-            </div>
-        </div>
+        @await Html.PartialAsync("_OTFilterBar", new HR_web.Models.OT.OTFilterBarModel
+        {
+            DeptUrl        = Url.Action("GetDept", "Dropdown")!,
+            LineUrl        = Url.Action("GetLine", "Dropdown")!,
+            WorkUrl        = Url.Action("GetWork", "Dropdown")!,
+            DeptSelectedId = deptId ?? ""
+        })
 
         <div class="card-body px-0 pt-0 pb-2 mt-1">
             <div class="table-responsive p-0 px-4">
@@ -169,7 +135,7 @@
         if (isLoading) return;
         isLoading = true; currentPage = page;
         const search = $('#searchInput').val(), status = $('#filterStatus').val(),
-              deptId = $('#filterDept').val(), line_nm = $('#lineCd').val(), work_nm = $('#workCd').val();
+              deptId = $('#filterDept').val(), line_nm = $('#filterLine').val(), work_nm = $('#filterWork').val();
         $('#otTableBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải dữ liệu...</div></td></tr>`);
 
         $.ajax({
@@ -248,7 +214,7 @@
 
     $('#pageSizeSelect').on('change', function() { pageSize=parseInt($(this).val()); loadData(1); });
     $('#searchInput').on('input', debounce(() => loadData(1), 500));
-    $('#filterStatus, #filterDept, #lineCd, #workCd').on('change', () => loadData(1));
+    $('#filterStatus, #filterDept, #filterLine, #filterWork').on('change', () => loadData(1));
 
     $('#exportExcelBtn').on('click', async function() {
         const $btn=$(this), originalHtml=$btn.html();

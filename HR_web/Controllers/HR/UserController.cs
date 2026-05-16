@@ -21,7 +21,6 @@ public class UserController : BaseController
     // GET: /User/UserManager
     // ─────────────────────────────────────────────
     public async Task<IActionResult> UserManager(
-        string? fullName = null,
         string? deptCd = null,
         string? lineCd = null,
         string? workCd = null,
@@ -31,7 +30,7 @@ public class UserController : BaseController
         int pageSize = 50)
     {
         var modelPaged = await _service.GetUserListAsync(
-            fullName: fullName,
+            fullName: null,
             deptCd: deptCd,
             lineCd: lineCd,
             workCd: workCd,
@@ -49,7 +48,6 @@ public class UserController : BaseController
             modelPaged.Total
         );
 
-        ViewBag.FullName = fullName;
         ViewBag.DeptCd = deptCd;
         ViewBag.LineCd = lineCd;
         ViewBag.WorkCd = workCd;

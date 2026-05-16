@@ -235,8 +235,18 @@
     <div class="group-title">Bảo mật & Chữ ký</div>
     <div class="settings-group p-3">
         <div class="signature-card">
-            <img src="@Url.Action("GetSignature", "Image", new { empCd = Model.EmpCd })" class="signature-img" />
-            
+            @if (Model.HasSignature)
+            {
+                <img src="@Url.Action("GetSignature", "Image", new { empCd = Model.EmpCd })" class="signature-img" />
+            }
+            else
+            {
+                <div class="signature-img d-flex align-items-center justify-content-center text-muted" style="background:#f8fafc; border-radius:16px; height:120px; margin-bottom:1rem;">
+                    <span class="material-symbols-rounded me-1" style="font-size:1.2rem;">draw</span>
+                    <span style="font-size:0.85rem;">Chưa có chữ ký</span>
+                </div>
+            }
+
             <form asp-controller="Image" asp-action="UploadSignature" method="post" enctype="multipart/form-data" id="sigForm">
                 <input type="hidden" name="empCd" value="@Model.EmpCd" />
                 <input type="file" id="fileInput" name="file" accept="image/jpeg" capture="camera" style="display:none;" onchange="document.getElementById('sigForm').submit()" />

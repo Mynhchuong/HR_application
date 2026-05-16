@@ -36,20 +36,22 @@ $(document).ready(function () {
         const isPublished = $(this).find(':selected').data('published') == 1;
 
         if (currentPeriodId) {
-            $('#btnConfigColumns, #btnUploadExcel, #btnExportExcel, #btnRelease').prop('disabled', false);
+            $('#btnExportExcel').show();
             $('#divDataPreview').show();
             loadAdminData(1);
-        } else {
-            $('#btnConfigColumns, #btnUploadExcel, #btnExportExcel, #btnRelease').prop('disabled', true);
-            $('#divDataPreview').hide();
-        }
 
-        if (isPublished) {
-            $('#btnRelease').prop('disabled', true).text('Đã công bố');
-            $('#btnConfigColumns, #btnUploadExcel').prop('disabled', true);
+            if (isPublished) {
+                $('#btnRelease, #btnConfigColumns, #btnUploadExcel').hide();
+                $('#divPeriodDraftActions').hide();
+            } else {
+                $('#btnRelease').show().html('<i class="fas fa-paper-plane me-1"></i> Công bố');
+                $('#btnConfigColumns, #btnUploadExcel').show();
+                $('#divPeriodDraftActions').show();
+            }
         } else {
-            $('#btnRelease').prop('disabled', false).html('<i class="fas fa-paper-plane me-1"></i> Công bố');
-            $('#btnConfigColumns, #btnUploadExcel').prop('disabled', false);
+            $('#btnConfigColumns, #btnUploadExcel, #btnExportExcel, #btnRelease').hide();
+            $('#divDataPreview').hide();
+            $('#divPeriodDraftActions').hide();
         }
     });
 
@@ -170,9 +172,48 @@ $(document).ready(function () {
         });
     });
 
+    // Sửa tên kỳ lương
+    $('#btnEditPeriodName').on('click', function () {
+        const currentName = $('#selectPeriod').find(':selected').data('name') || '';
+        $('#txtEditPeriodName').val(currentName);
+        $('#modalEditPeriodName').modal('show');
+    });
+
+    $('#btnSavePeriodName').on('click', function () {
+        const newName = $('#txtEditPeriodName').val().trim();
+        if (!newName) { AlertHelper.warn('Vui lòng nhập tên kỳ lương'); return; }
+
+        $.post('UpdatePeriodName', { id: currentPeriodId, periodName: newName }, function (res) {
+            if (res.success) {
+                AlertHelper.success('Đã cập nhật tên kỳ lương');
+                const $opt = $('#selectPeriod').find(':selected');
+                $opt.text(newName + ' (Nháp)').data('name', newName);
+                $('#modalEditPeriodName').modal('hide');
+            } else {
+                AlertHelper.error(res.message);
+            }
+        });
+    });
+
+    // Xóa kỳ lương
+    $('#btnDeletePeriod').on('click', function () {
+        const name = $('#selectPeriod').find(':selected').data('name') || 'kỳ này';
+        if (!confirm(`Xóa kỳ lương "${name}"? Toàn bộ dữ liệu phiếu lương sẽ bị xóa vĩnh viễn!`)) return;
+
+        $.post('DeletePeriod', { id: currentPeriodId }, function (res) {
+            if (res.success) {
+                AlertHelper.success('Đã xóa kỳ lương');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                AlertHelper.error(res.message);
+            }
+        });
+    });
+
     // 4. Excel Import Logic
     $('#btnUploadExcel').on('click', function () {
         $('#fileInputExcel').val('');
+        $('#fileInputLabel').text('Chọn file Excel (.xlsx, .xls)');
         $('#theadExcelPreview, #tbodyExcelPreview').empty();
         $('#excelStatus').text('');
         $('#btnStartUpload').prop('disabled', true);
@@ -182,8 +223,12 @@ $(document).ready(function () {
     $('#fileInputExcel').on('change', function (e) {
         const file = e.target.files[0];
         if (!file) return;
+        $('#fileInputLabel').text(file.name);
 
         const reader = new FileReader();
+        reader.onerror = function () {
+            AlertHelper.error('Không thể đọc file, vui lòng thử lại');
+        };
         reader.onload = function (e) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });

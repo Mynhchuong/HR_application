@@ -349,10 +349,7 @@
     }
 
     function submitConfirm(status) {
-        const msg = status === 'CONFIRMED' ? 'Bạn chắc chắn CHẤP NHẬN tăng ca?' : 'Bạn chắc chắn KHÔNG ĐỒNG Ý tăng ca?';
-        if (confirm(msg)) {
-            document.getElementById('confirmStatus').value = status;
-            document.getElementById('frmOtConfirm').submit();
-        }
+        document.getElementById('confirmStatus').value = status;
+        document.getElementById('frmOtConfirm').submit();
     }
 </script>

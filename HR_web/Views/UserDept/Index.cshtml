@@ -10,6 +10,7 @@
     .import-zone { border: 2px dashed #adb5bd; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: border-color .2s; }
     .import-zone:hover, .import-zone.dragover { border-color: #5e72e4; background: #f0f3ff; }
     .emp-name { font-family: 'Times New Roman', serif; font-weight: 600; }
+    .empcd-input { border: 1px solid #cecece; padding: 5px 10px; max-width: 250px; }
 </style>
 }
 
@@ -95,7 +96,7 @@
                 <div class="row g-3">
                     <div class="col-12">
                         <label class="form-label small fw-bold mb-0 text-primary">Mã NV <span class="text-danger">*</span></label>
-                        <input type="text" id="manualEmpcd" class="form-control" placeholder="Nhập mã nhân viên..." autocomplete="off" />
+                        <input type="text" id="manualEmpcd" class="form-control empcd-input" placeholder="Nhập mã nhân viên..." autocomplete="off" />
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small fw-bold mb-0 text-primary">Bộ Phận <span class="text-danger">*</span></label>

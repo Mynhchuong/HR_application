@@ -65,47 +65,13 @@
             </div>
         </div>
 
-        <div class="px-4 pt-3 pb-1 row g-3 align-items-end filter-bar">
-            <div class="col-6 col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Mã NV / Tên</label>
-                <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="🔍 Mã NV, tên..." />
-            </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Tình Trạng</label>
-                <select id="filterStatus" class="form-select form-select-sm">
-                    <option value="">Tất cả</option>
-                    <option value="PENDING">Chờ ký</option>
-                    <option value="CONFIRMED">Đã ký</option>
-                    <option value="REJECTED">Từ chối</option>
-                </select>
-            </div>
-            <div class="col-6 col-md-2" id="deptFilterWrapper">
-                <label class="form-label small fw-bold mb-0 text-primary">Bộ Phận</label>
-                <select id="filterDept" class="select2 form-control"
-                        data-url="@Url.Action("GetDeptByScope", "Dropdown")"
-                        data-placeholder="Tất cả"
-                        data-selected-id="@(isDept ? firstCode : "")"></select>
-            </div>
-            <div class="col-6 col-md-2" id="lineFilterWrapper">
-                <label class="form-label small fw-bold mb-0 text-primary">Line</label>
-                <select id="filterLine" class="select2 form-control"
-                        data-url="@Url.Action("GetLineByScope", "Dropdown")" data-placeholder="Tất cả"></select>
-            </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label small fw-bold mb-0 text-primary">Nhóm Việc</label>
-                <select id="filterWork" class="select2 form-control"
-                        data-url="@Url.Action("GetWorkByScope", "Dropdown")" data-placeholder="Tất cả"></select>
-            </div>
-            <div class="col-6 col-md-2 d-flex align-items-center justify-content-end gap-2">
-                <label class="mb-0 text-sm text-secondary text-nowrap">Hiển thị:</label>
-                <select id="pageSizeSelect" class="form-select form-select-sm" style="width:80px;">
-                    <option value="50">50</option>
-                    <option value="100" selected>100</option>
-                    <option value="500">500</option>
-                </select>
-                <span id="paginationInfo" class="text-nowrap ms-2"></span>
-            </div>
-        </div>
+        @await Html.PartialAsync("_OTFilterBar", new HR_web.Models.OT.OTFilterBarModel
+        {
+            DeptUrl        = Url.Action("GetDeptByScope", "Dropdown")!,
+            LineUrl        = Url.Action("GetLineByScope", "Dropdown")!,
+            WorkUrl        = Url.Action("GetWorkByScope", "Dropdown")!,
+            DeptSelectedId = isDept ? firstCode : ""
+        })
 
         <div class="card-body px-0 pt-0 pb-2 mt-1">
             <div class="table-responsive p-0 px-4">
@@ -281,12 +247,6 @@ function debounce(fn,d){let t;return function(){clearTimeout(t);t=setTimeout(fn,
 
 $(document).ready(function() {
     MobileTableHelper.init('otTableBody');
-
-    // Supervisor: ẩn dept filter
-    if (FILTER_TYPE === 'work') $('#deptFilterWrapper').hide();
-
-    // Ẩn line filter khi user đã bị giới hạn line tự động ở backend
-    if (FILTER_LINE_CODES.length > 0) $('#lineFilterWrapper').hide();
 
     // Manager/Assistant 1 dept: thay URL line dropdown theo dept
     if (FILTER_TYPE === 'dept' && FILTER_CODES.length === 1 && FILTER_LINE_CODES.length === 0) {

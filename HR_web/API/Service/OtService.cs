@@ -21,7 +21,7 @@ public class OtService
             var result = await _api.GetAsync<OTResponse<OTTodayModel>>("ot/today", query);
             return (result != null && result.success) ? result.data : null;
         }
-        catch { return null; }
+        catch (Exception ex) { Console.WriteLine($"[OtService] GetOTTodayAsync error: {ex.Message}"); return null; }
     }
 
     public async Task<OTConfirmResponse> ConfirmOTAsync(string empcd, string confirmStatus, string? workDate = null, decimal? otHours = null)
@@ -57,13 +57,13 @@ public class OtService
             if (!string.IsNullOrEmpty(workDate)) query += $"&work_date={workDate}";
             return await _api.GetAsync<OTClerkResponse>("ot/clerk", query);
         }
-        catch { return null; }
+        catch (Exception ex) { Console.WriteLine($"[OtService] GetOTClerkAsync error: {ex.Message}"); return null; }
     }
 
     public async Task<OTClerkPagedResponse> GetOTClerkDetailAsync(
         string clerkEmpcd, string? workDate = null,
         string? status = null, string? search = null,
-        string? lineId = null, string? workId = null,
+        string? deptId = null, string? lineId = null, string? workId = null,
         int page = 1, int pageSize = 100)
     {
         try
@@ -72,6 +72,7 @@ public class OtService
             if (!string.IsNullOrEmpty(workDate)) q.Add($"work_date={Uri.EscapeDataString(workDate)}");
             if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
             if (!string.IsNullOrEmpty(search))   q.Add($"search={Uri.EscapeDataString(search)}");
+            if (!string.IsNullOrEmpty(deptId))   q.Add($"dept_id={Uri.EscapeDataString(deptId)}");
             if (!string.IsNullOrEmpty(lineId))   q.Add($"line_id={Uri.EscapeDataString(lineId)}");
             if (!string.IsNullOrEmpty(workId))   q.Add($"work_id={Uri.EscapeDataString(workId)}");
             q.Add($"page={page}");
@@ -140,7 +141,7 @@ public class OtService
             var result = await _api.GetAsync<OTResponse<List<OTHRSummaryModel>>>("ot/hr/summary", string.Join("&", queryParams));
             return (result != null && result.success) ? result.data ?? new() : new();
         }
-        catch { return new(); }
+        catch (Exception ex) { Console.WriteLine($"[OtService] GetOTHRSummaryAsync error: {ex.Message}"); return new(); }
     }
 
     public async Task<OTHRDetailPagedResponse> GetOTHRDetailAsync(

@@ -95,14 +95,16 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                 super.onReceivedError(view, errorCode, description, failingUrl);
-                showNoInternetLayout();
+                if (!isFinishing() && !isDestroyed()) {
+                    runOnUiThread(() -> showNoInternetLayout());
+                }
             }
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 super.onReceivedError(view, request, error);
-                if (request.isForMainFrame()) {
-                    showNoInternetLayout();
+                if (request.isForMainFrame() && !isFinishing() && !isDestroyed()) {
+                    runOnUiThread(() -> showNoInternetLayout());
                 }
             }
         });
@@ -110,12 +112,15 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
-                if (newProgress == 100) {
-                    progressBar.setVisibility(View.GONE);
-                } else {
-                    progressBar.setVisibility(View.VISIBLE);
-                    progressBar.setProgress(newProgress);
-                }
+                if (isFinishing() || isDestroyed()) return;
+                runOnUiThread(() -> {
+                    if (newProgress == 100) {
+                        progressBar.setVisibility(View.GONE);
+                    } else {
+                        progressBar.setVisibility(View.VISIBLE);
+                        progressBar.setProgress(newProgress);
+                    }
+                });
             }
 
             @Override
@@ -158,7 +163,6 @@ public class MainActivity extends AppCompatActivity {
                     request.addRequestHeader("User-Agent", userAgent);
                     request.setDescription("Đang tải file từ HR Samho...");
                     request.setTitle(URLUtil.guessFileName(url, contentDisposition, mimetype));
-                    request.allowScanningByMediaScanner();
                     request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                     request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, URLUtil.guessFileName(url, contentDisposition, mimetype));
                     
@@ -319,6 +323,30 @@ public class MainActivity extends AppCompatActivity {
                 mFilePathCallback = null;
             }
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) webView.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (webView != null) webView.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (webView != null) {
+            webView.stopLoading();
+            webView.setWebViewClient(null);
+            webView.setWebChromeClient(null);
+            webView.destroy();
+            webView = null;
+        }
+        super.onDestroy();
     }
 
     @Override

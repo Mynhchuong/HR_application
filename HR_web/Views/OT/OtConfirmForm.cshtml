@@ -296,7 +296,18 @@
                     </div>
                     <div class="info-row">
                         <span class="info-label">Thời gian nghỉ</span>
-                        <span class="info-value">@(string.IsNullOrEmpty(Model.OT_REST) ? "0" : Model.OT_REST)</span>
+                        <span class="info-value">
+                        @{
+                            string restDisplay = "-";
+                            if (!string.IsNullOrEmpty(Model.OT_REST))
+                            {
+                                var parts = Model.OT_REST.Split('-');
+                                string Fmt(string t) => t.Length == 4 ? t[..2] + ":" + t[2..] : t;
+                                restDisplay = parts.Length == 2 ? $"{Fmt(parts[0])} - {Fmt(parts[1])}" : Model.OT_REST;
+                            }
+                        }
+                        @restDisplay
+                        </span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">Trạng thái</span>
@@ -331,22 +342,22 @@
                         <div class="action-group">
                             @if (Model.CONFIRM_STATUS == "CONFIRMED")
                             {
-                                <button type="button" class="btn-action btn-approve" style="background: #059669; color: #fff; pointer-events: none; cursor: default; box-shadow: none; opacity: 0.55;" disabled>
+                                <button type="button" class="btn-action btn-approve" style="pointer-events: none; cursor: default; box-shadow: none; opacity: 0.5;" disabled>
                                     <span class="material-symbols-rounded">check_circle</span>
                                     ĐÃ ĐỒNG Ý TĂNG CA
                                 </button>
-                                <button type="button" class="btn-action btn-reject" onclick="submitConfirm('REJECTED')">
-                                    <span class="material-symbols-rounded">cancel</span>
-                                    ĐỔI Ý: KHÔNG ĐỒNG Ý
+                                <button type="button" class="btn-action" style="background:#fff1f2; color:#dc2626; border:2px solid #fecdd3; font-size:0.95rem;" onclick="submitConfirm('REJECTED')">
+                                    <span class="material-symbols-rounded">undo</span>
+                                    Đổi ý &mdash; Từ chối tăng ca
                                 </button>
                             }
                             else if (Model.CONFIRM_STATUS == "REJECTED")
                             {
-                                <button type="button" class="btn-action btn-approve" onclick="submitConfirm('CONFIRMED')">
-                                    <span class="material-symbols-rounded">check_circle</span>
-                                    ĐỔI Ý: ĐỒNG Ý TĂNG CA
+                                <button type="button" class="btn-action" style="background:#f0fdf4; color:#16a34a; border:2px solid #bbf7d0; font-size:0.95rem;" onclick="submitConfirm('CONFIRMED')">
+                                    <span class="material-symbols-rounded">undo</span>
+                                    Đổi ý &mdash; Đồng ý tăng ca
                                 </button>
-                                <button type="button" class="btn-action btn-reject" style="background: #dc2626; color: #fff; border: none; pointer-events: none; cursor: default; opacity: 0.55;" disabled>
+                                <button type="button" class="btn-action btn-reject" style="background:#dc2626; color:#fff; border:none; pointer-events:none; cursor:default; opacity:0.5;" disabled>
                                     <span class="material-symbols-rounded">cancel</span>
                                     ĐÃ TỪ CHỐI TĂNG CA
                                 </button>

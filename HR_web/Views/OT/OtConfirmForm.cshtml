@@ -127,6 +127,10 @@
 
     .btn-action:active { transform: scale(0.96); }
 
+    .btn-action:disabled {
+        opacity: 0.55;
+    }
+
     .note-box {
         background: #fffbef;
         border-radius: 24px;
@@ -309,7 +313,7 @@
                     </div>
                 </div>
 
-                @if (Model.CONFIRM_STATUS == "PENDING")
+                @if (Model.IS_EDITABLE)
                 {
                     <div class="note-box">
                         <img src="~/assets/img/illustrations/chi.png" class="note-icon" alt="Note" />
@@ -325,14 +329,39 @@
                         <input type="hidden" name="confirmStatus" id="confirmStatus" value="" />
 
                         <div class="action-group">
-                            <button type="button" class="btn-action btn-approve" onclick="submitConfirm('CONFIRMED')">
-                                <span class="material-symbols-rounded">check_circle</span>
-                                CHẤP NHẬN TĂNG CA
-                            </button>
-                            <button type="button" class="btn-action btn-reject" onclick="submitConfirm('REJECTED')">
-                                <span class="material-symbols-rounded">cancel</span>
-                                KHÔNG ĐỒNG Ý
-                            </button>
+                            @if (Model.CONFIRM_STATUS == "CONFIRMED")
+                            {
+                                <button type="button" class="btn-action btn-approve" style="background: #059669; color: #fff; pointer-events: none; cursor: default; box-shadow: none; opacity: 0.55;" disabled>
+                                    <span class="material-symbols-rounded">check_circle</span>
+                                    ĐÃ ĐỒNG Ý TĂNG CA
+                                </button>
+                                <button type="button" class="btn-action btn-reject" onclick="submitConfirm('REJECTED')">
+                                    <span class="material-symbols-rounded">cancel</span>
+                                    ĐỔI Ý: KHÔNG ĐỒNG Ý
+                                </button>
+                            }
+                            else if (Model.CONFIRM_STATUS == "REJECTED")
+                            {
+                                <button type="button" class="btn-action btn-approve" onclick="submitConfirm('CONFIRMED')">
+                                    <span class="material-symbols-rounded">check_circle</span>
+                                    ĐỔI Ý: ĐỒNG Ý TĂNG CA
+                                </button>
+                                <button type="button" class="btn-action btn-reject" style="background: #dc2626; color: #fff; border: none; pointer-events: none; cursor: default; opacity: 0.55;" disabled>
+                                    <span class="material-symbols-rounded">cancel</span>
+                                    ĐÃ TỪ CHỐI TĂNG CA
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn-action btn-approve" onclick="submitConfirm('CONFIRMED')">
+                                    <span class="material-symbols-rounded">check_circle</span>
+                                    CHẤP NHẬN TĂNG CA
+                                </button>
+                                <button type="button" class="btn-action btn-reject" onclick="submitConfirm('REJECTED')">
+                                    <span class="material-symbols-rounded">cancel</span>
+                                    KHÔNG ĐỒNG Ý
+                                </button>
+                            }
                         </div>
                     </form>
                 }

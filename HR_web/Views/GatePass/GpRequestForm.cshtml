@@ -1,0 +1,241 @@
+@{
+    ViewData["Title"] = "Đăng Ký Ra Vào Cổng";
+    var today    = ViewBag.Today    as string ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var tomorrow = ViewBag.Tomorrow as string ?? DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
+}
+
+@section Styles {
+<style>
+    #formCard { max-width: 560px; margin: 0 auto; }
+
+    .gp-label { font-size: 1rem; font-weight: 700; color: #374151; margin-bottom: 6px; }
+    .gp-input { font-size: 1.05rem; padding: 0.65rem 0.85rem; border-radius: 10px; border: 1.5px solid #d1d5db; }
+    .gp-input:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+    .gp-select { font-size: 1.05rem; padding: 0.65rem 0.85rem; border-radius: 10px; border: 1.5px solid #d1d5db; }
+    .gp-select:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+    .gp-textarea { font-size: 1rem; padding: 0.65rem 0.85rem; border-radius: 10px; border: 1.5px solid #d1d5db; }
+    .gp-textarea:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+
+    .date-radio-card { border: 2px solid #e5e7eb; border-radius: 12px; padding: 12px 16px; cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 10px; }
+    .date-radio-card:hover { border-color: #f59e0b; background: #fffbeb; }
+    .date-radio-card.selected { border-color: #f59e0b; background: #fffbeb; }
+    .date-radio-card .date-label { font-size: 1rem; font-weight: 600; color: #374151; }
+    .date-radio-card .date-sub { font-size: 0.85rem; color: #6b7280; }
+    .date-radio-card input[type=radio] { width: 18px; height: 18px; accent-color: #f59e0b; flex-shrink: 0; }
+
+    .auto-time { background: #f0f4ff !important; color: #3a5fcf; font-weight: 600; border-color: #93c5fd !important; }
+    .time-field { transition: all .25s; }
+    .time-hint { font-size: 0.82rem; color: #6b7280; margin-top: 4px; }
+
+    .gp-type-option { border: 2px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; cursor: pointer; margin-bottom: 10px; transition: all .2s; display: flex; align-items: center; gap: 12px; }
+    .gp-type-option:hover { border-color: #f59e0b; background: #fffbeb; }
+    .gp-type-option.selected { border-color: #f59e0b; background: #fffbeb; }
+    .gp-type-option input[type=radio] { width: 18px; height: 18px; accent-color: #f59e0b; flex-shrink: 0; }
+    .gp-type-option .type-icon { font-size: 1.4rem; width: 36px; text-align: center; }
+    .gp-type-option .type-title { font-size: 1rem; font-weight: 700; color: #1f2937; }
+    .gp-type-option .type-desc { font-size: 0.82rem; color: #6b7280; }
+
+    .btn-submit { font-size: 1.1rem; padding: 0.75rem; border-radius: 12px; font-weight: 700; }
+    .btn-back   { font-size: 1rem;   padding: 0.65rem; border-radius: 12px; }
+</style>
+}
+
+<div class="container-fluid py-3">
+    <div id="formCard">
+
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+                <i class="bi bi-check-circle-fill me-1"></i> @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <div class="card">
+            <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+                <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3">
+                    <h6 class="text-white mb-0"><i class="bi bi-door-open me-1"></i> Đăng Ký Ra Vào Cổng</h6>
+                </div>
+            </div>
+            <div class="card-body pt-4 pb-4 px-3">
+                <form method="post" action="@Url.Action("GpRequestForm", "GatePass")" id="gpForm">
+                    @Html.AntiForgeryToken()
+
+                    <div class="mb-4">
+                        <div class="gp-label mb-2">Ngày Đăng Ký</div>
+                        <div class="d-flex gap-2">
+                            <label class="date-radio-card selected flex-fill" id="cardToday" onclick="selectDate(this,'@today')">
+                                <input class="form-check-input" type="radio" name="reg_date" id="rdToday" value="@today" checked />
+                                <div>
+                                    <div class="date-label">Hôm nay</div>
+                                    <div class="date-sub">@DateTime.Today.ToString("dd/MM/yyyy")</div>
+                                </div>
+                            </label>
+                            <label class="date-radio-card flex-fill" id="cardTomorrow" onclick="selectDate(this,'@tomorrow')">
+                                <input class="form-check-input" type="radio" name="reg_date" id="rdTomorrow" value="@tomorrow" />
+                                <div>
+                                    <div class="date-label">Ngày mai</div>
+                                    <div class="date-sub">@DateTime.Today.AddDays(1).ToString("dd/MM/yyyy")</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="gp-label mb-2">Loại Gate Pass <span class="text-danger">*</span></div>
+
+                        <label class="gp-type-option" id="opt_LATE_IN" onclick="selectType('LATE_IN')">
+                            <input type="radio" name="gp_type" value="LATE_IN" id="rd_LATE_IN" />
+                            <span class="type-icon">🕐</span>
+                            <div>
+                                <div class="type-title">Đến trễ</div>
+                                <div class="type-desc">Nhân viên đến muộn hơn giờ ca</div>
+                            </div>
+                        </label>
+
+                        <label class="gp-type-option" id="opt_EARLY_OUT" onclick="selectType('EARLY_OUT')">
+                            <input type="radio" name="gp_type" value="EARLY_OUT" id="rd_EARLY_OUT" />
+                            <span class="type-icon">🚪</span>
+                            <div>
+                                <div class="type-title">Về sớm</div>
+                                <div class="type-desc">Nhân viên ra về trước giờ tan ca</div>
+                            </div>
+                        </label>
+
+                        <label class="gp-type-option" id="opt_OUT_IN" onclick="selectType('OUT_IN')">
+                            <input type="radio" name="gp_type" value="OUT_IN" id="rd_OUT_IN" />
+                            <span class="type-icon">🔄</span>
+                            <div>
+                                <div class="type-title">Ra/Vào trong giờ làm việc</div>
+                                <div class="type-desc">Ra ngoài rồi vào lại trong ca</div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="time-field mb-4" id="outTimeWrap" style="display:none;">
+                        <label class="gp-label" id="outTimeLabel">Giờ Ra</label>
+                        <input type="time" name="out_time" id="outTime" class="form-control gp-input" />
+                        <div class="time-hint" id="outTimeHint"></div>
+                    </div>
+
+                    <div class="time-field mb-4" id="inTimeWrap" style="display:none;">
+                        <label class="gp-label" id="inTimeLabel">Giờ Vào</label>
+                        <input type="time" name="in_time" id="inTime" class="form-control gp-input" />
+                        <div class="time-hint" id="inTimeHint"></div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="gp-label">Lý Do</label>
+                        <textarea name="reason" id="reason" class="form-control gp-textarea" rows="3" maxlength="500" placeholder="Nhập lý do... (bắt buộc)"></textarea>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-3">
+                        <button type="submit" class="btn btn-primary btn-submit" id="submitBtn">
+                            <i class="bi bi-send me-1"></i> Gửi Đăng Ký
+                        </button>
+                        <a href="@Url.Action("GpMyRequests", "GatePass")" class="btn btn-outline-secondary btn-back">
+                            <i class="bi bi-list-ul me-1"></i> Xem Lịch Sử
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const SHIFT_URL = '@Url.Action("GetShiftInfo", "GatePass")';
+let shiftStart = '', shiftEnd = '', currentDate = '@today', currentType = '';
+
+function selectDate(el, date) {
+    document.querySelectorAll('.date-radio-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    currentDate = date;
+    fetchShift(date);
+}
+
+function selectType(type) {
+    document.querySelectorAll('.gp-type-option').forEach(c => c.classList.remove('selected'));
+    document.getElementById('opt_' + type).classList.add('selected');
+    document.getElementById('rd_' + type).checked = true;
+    currentType = type;
+    onTypeChange(type);
+}
+
+async function fetchShift(date) {
+    try {
+        const res = await $.getJSON(SHIFT_URL, { reg_date: date });
+        if (res.success && res.data) {
+            shiftStart = formatShift(res.data.STIME);
+            shiftEnd   = formatShift(res.data.ETIME);
+        } else {
+            shiftStart = shiftEnd = '';
+        }
+    } catch { shiftStart = shiftEnd = ''; }
+    if (currentType) onTypeChange(currentType);
+}
+
+function formatShift(t) {
+    if (!t || t.length < 4) return '';
+    return t.substring(0, 2) + ':' + t.substring(2, 4);
+}
+
+function onTypeChange(type) {
+    const $outWrap = $('#outTimeWrap'), $inWrap = $('#inTimeWrap');
+    const $out = $('#outTime'), $in = $('#inTime');
+
+    $outWrap.hide(); $inWrap.hide();
+    $out.prop('readonly', false).removeClass('auto-time').val('');
+    $in.prop('readonly', false).removeClass('auto-time').val('');
+    $out.prop('required', false); $in.prop('required', false);
+    $('#outTimeHint').text(''); $('#inTimeHint').text('');
+
+    if (type === 'LATE_IN') {
+        $inWrap.show();
+        $('#inTimeLabel').text('Giờ Đến Thực Tế ✱');
+        $in.prop('required', true);
+
+    } else if (type === 'EARLY_OUT') {
+        $outWrap.show();
+        $('#outTimeLabel').text('Giờ Về Sớm ✱');
+        $out.prop('required', true);
+
+    } else if (type === 'OUT_IN') {
+        $outWrap.show(); $inWrap.show();
+        $('#outTimeLabel').text('Giờ Ra Ngoài ✱');
+        $('#inTimeLabel').text('Giờ Vào Lại ✱');
+        $out.prop('required', true);
+        $in.prop('required', true);
+    }
+}
+
+$('#gpForm').on('submit', function(e) {
+    const type = $('input[name="gp_type"]:checked').val();
+    if (!type) { e.preventDefault(); showToast('Vui lòng chọn loại phiếu ra vào', 'warning'); return; }
+    if (type === 'LATE_IN'   && !$('#inTime').val())  { e.preventDefault(); showToast('Vui lòng nhập giờ đến thực tế', 'warning'); return; }
+    if (type === 'EARLY_OUT' && !$('#outTime').val()) { e.preventDefault(); showToast('Vui lòng nhập giờ về sớm', 'warning'); return; }
+    if (type === 'OUT_IN') {
+        if (!$('#outTime').val() || !$('#inTime').val()) {
+            e.preventDefault(); showToast('Vui lòng nhập đầy đủ giờ ra và giờ vào', 'warning'); return;
+        }
+        if ($('#outTime').val() >= $('#inTime').val()) {
+            e.preventDefault(); showToast('Giờ ra ngoài phải nhỏ hơn giờ vào lại', 'warning'); return;
+        }
+    }
+    if (!$('#reason').val().trim()) { e.preventDefault(); showToast('Vui lòng nhập lý do', 'warning'); return; }
+    $('#submitBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang gửi...');
+});
+
+$(document).ready(function() {
+    fetchShift(currentDate);
+});
+</script>
+}

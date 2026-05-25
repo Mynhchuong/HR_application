@@ -1,0 +1,326 @@
+@{
+    ViewData["Title"] = "Phiếu Ra Vào Của Tôi";
+    var today = DateTime.Today.ToString("yyyy-MM-dd");
+}
+
+@section Styles {
+<style>
+    .pagination .page-link { cursor: pointer; border-radius: 8px !important; margin: 0 2px; }
+    .pagination .page-item.disabled .page-link { cursor: default; }
+    .pagination .page-item.active .page-link { background: #ef4444; border-color: #ef4444; }
+
+    /* Date filter mobile */
+    @@media (max-width: 576px) {
+        .filter-bar { flex-direction: column; align-items: stretch !important; gap: 8px !important; }
+        .filter-bar .btn-light, .filter-bar .input-group { width: 100%; }
+        .filter-date-wrap { width: 100% !important; height: auto !important; padding: 8px 10px !important; }
+        .filter-date-wrap input[type=date] { width: 100% !important; }
+    }
+
+    /* Mobile card layout */
+    @@media (max-width: 768px) {
+        .gp-table-wrap { display: none; }
+        .gp-card-list  { display: block; }
+    }
+    @@media (min-width: 769px) {
+        .gp-table-wrap { display: block; }
+        .gp-card-list  { display: none; }
+    }
+    .gp-card { border: 1px solid #e5e7eb; border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; background: #fff; }
+    .gp-card .gp-card-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .gp-card .gp-card-label { font-size: 0.78rem; color: #9ca3af; font-weight: 600; text-transform: uppercase; }
+    .gp-card .gp-card-val   { font-size: 0.95rem; color: #1f2937; font-weight: 500; }
+    .gp-card .gp-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f3f4f6; }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 filter-bar">
+                    <h6 class="text-white mb-0"><i class="bi bi-list-check me-1"></i> Phiếu Ra Vào Của Tôi</h6>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <a href="@Url.Action("GpRequestForm", "GatePass")" class="btn btn-sm btn-light mb-0">
+                            <i class="bi bi-plus-circle me-1"></i> Đăng Ký Mới
+                        </a>
+                        <div class="filter-date-wrap d-flex align-items-center bg-white border-radius-md px-2 py-1 shadow-sm flex-wrap gap-1" style="height:auto;min-height:36px;">
+                            <label class="mb-0 text-dark fw-bold me-1 text-nowrap"><i class="bi bi-calendar3 text-danger me-1"></i> Từ:</label>
+                            <input type="date" id="dateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@today" />
+                            <label class="mb-0 text-dark fw-bold mx-1 text-nowrap">Đến:</label>
+                            <input type="date" id="dateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@today" />
+                            <button class="btn btn-sm btn-danger ms-1 py-0 px-2" onclick="loadData(1)"><i class="bi bi-search"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body px-0 pt-0 pb-2 mt-3">
+            <!-- Desktop table -->
+            <div class="gp-table-wrap table-responsive p-0 px-4">
+                <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">#</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Loại</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ngày</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Giờ Ra</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Giờ Vào</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Lý Do</th>
+                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Tình Trạng</th>
+                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Thao Tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gpTableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Mobile cards -->
+            <div class="gp-card-list px-3" id="gpCardList"></div>
+
+            <div class="d-flex justify-content-between align-items-center px-4 mt-3 mb-2">
+                <div id="paginationCount" class="text-sm text-secondary"></div>
+                <nav><ul class="pagination pagination-sm mb-0" id="paginationBar"></ul></nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h6 class="modal-title mb-0"><i class="bi bi-pencil-square me-1"></i> Sửa Phiếu Ra Vào</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editRequestId" />
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Loại</label>
+                    <select id="editGpType" class="form-select" onchange="onEditTypeChange(this.value)">
+                        <option value="LATE_IN">Đến trễ</option>
+                        <option value="EARLY_OUT">Về sớm</option>
+                        <option value="OUT_IN">Ra/Vào trong giờ</option>
+                    </select>
+                </div>
+                <div class="mb-3" id="editOutWrap">
+                    <label class="form-label fw-bold" id="editOutLabel">Giờ Ra</label>
+                    <input type="time" id="editOutTime" class="form-control" />
+                </div>
+                <div class="mb-3" id="editInWrap">
+                    <label class="form-label fw-bold" id="editInLabel">Giờ Vào</label>
+                    <input type="time" id="editInTime" class="form-control" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Lý Do</label>
+                    <textarea id="editReason" class="form-control" rows="2" maxlength="500"></textarea>
+                </div>
+                <div id="editError" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+                <button class="btn btn-warning text-white btn-sm" id="saveEditBtn" onclick="saveEdit()">
+                    <i class="bi bi-check-lg me-1"></i> Lưu
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const PAGE_URL   = '@Url.Action("GetMyRequestsPage", "GatePass")';
+const UPDATE_URL = '@Url.Action("UpdateRequest",     "GatePass")';
+const DELETE_URL = '@Url.Action("DeleteRequest",     "GatePass")';
+
+let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 20;
+
+const GP_LABEL = { LATE_IN: 'Đến trễ', EARLY_OUT: 'Về sớm', OUT_IN: 'Ra/Vào trong giờ' };
+const GP_COLOR = { LATE_IN: 'info',    EARLY_OUT: 'warning', OUT_IN: 'primary' };
+
+function gpBadge(t) {
+    return `<span class="badge bg-${GP_COLOR[t]||'secondary'}">${GP_LABEL[t]||t||'-'}</span>`;
+}
+function statusBadge(s) {
+    if (s === 'APPROVED') return `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>`;
+    if (s === 'REJECTED') return `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Từ chối</span>`;
+    return `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>`;
+}
+
+function actionBtns(item) {
+    if (!item.IS_EDITABLE) return '<span class="text-muted text-xs">-</span>';
+    return `<button class="btn btn-xs btn-outline-warning me-1" data-id="${item.REQUEST_ID}" data-type="${item.GP_TYPE||''}" data-out="${item.OUT_TIME||''}" data-in="${item.IN_TIME||''}" data-reason="${escHtml(item.REASON||'')}" onclick="openEditBtn(this)"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-xs btn-outline-danger" onclick="confirmDelete('${item.REQUEST_ID}')"><i class="bi bi-trash"></i></button>`;
+}
+
+function buildRow(item, idx) {
+    const dateStr = formatDate(item.OUT_TIME || item.IN_TIME);
+    const outStr  = item.OUT_TIME ? formatTime(item.OUT_TIME) : '-';
+    const inStr   = item.IN_TIME  ? formatTime(item.IN_TIME)  : '-';
+    return `<tr>
+        <td class="px-2 text-xs text-secondary">${idx}</td>
+        <td class="px-2">${gpBadge(item.GP_TYPE)}</td>
+        <td class="px-2 text-sm">${dateStr}</td>
+        <td class="px-2 text-sm">${outStr}</td>
+        <td class="px-2 text-sm">${inStr}</td>
+        <td class="px-2 text-sm" style="max-width:160px;white-space:normal;">${escHtml(item.REASON||'-')}</td>
+        <td class="text-center">${statusBadge(item.STATUS)}</td>
+        <td class="text-center">${actionBtns(item)}</td>
+    </tr>`;
+}
+
+function buildCard(item, idx) {
+    const dateStr = formatDate(item.OUT_TIME || item.IN_TIME);
+    const outStr  = item.OUT_TIME ? formatTime(item.OUT_TIME) : '-';
+    const inStr   = item.IN_TIME  ? formatTime(item.IN_TIME)  : '-';
+    return `<div class="gp-card">
+        <div class="gp-card-row">
+            <div>${gpBadge(item.GP_TYPE)}</div>
+            <div>${statusBadge(item.STATUS)}</div>
+        </div>
+        <div class="gp-card-row">
+            <span class="gp-card-label">Ngày</span><span class="gp-card-val">${dateStr}</span>
+        </div>
+        <div class="gp-card-row">
+            <span class="gp-card-label">Giờ ra</span><span class="gp-card-val">${outStr}</span>
+            <span class="gp-card-label ms-3">Giờ vào</span><span class="gp-card-val">${inStr}</span>
+        </div>
+        <div class="gp-card-row"><span class="gp-card-label">Lý do</span></div>
+        <div class="text-sm text-dark mb-0">${escHtml(item.REASON||'-')}</div>
+        <div class="gp-card-footer">
+            <span class="text-xs text-secondary">#${idx}</span>
+            <div>${actionBtns(item)}</div>
+        </div>
+    </div>`;
+}
+
+function loadData(page = 1) {
+    currentPage = page;
+    const spinner = `<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-warning" role="status"></div></td></tr>`;
+    $('#gpTableBody').html(spinner);
+    $('#gpCardList').html('<div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div></div>');
+    $.ajax({
+        url: PAGE_URL, type: 'GET',
+        data: { page, page_size: pageSize, date_from: $('#dateFrom').val(), date_to: $('#dateTo').val() },
+        success: function(res) {
+            if (!res.success) {
+                const err = `<tr><td colspan="8" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`;
+                $('#gpTableBody').html(err);
+                $('#gpCardList').html(`<div class="text-center text-danger py-4">Lỗi: ${res.message||''}</div>`);
+                return;
+            }
+            totalRecords = res.total || 0;
+            totalPages   = res.total_pages || 0;
+            const data   = res.data || [];
+            if (!data.length) {
+                $('#gpTableBody').html(`<tr><td colspan="8" class="text-center text-muted py-4">Chưa có phiếu nào</td></tr>`);
+                $('#gpCardList').html(`<div class="text-center text-muted py-4">Chưa có phiếu nào</div>`);
+            } else {
+                $('#gpTableBody').html(data.map((item, i) => buildRow(item, (page-1)*pageSize+i+1)).join(''));
+                $('#gpCardList').html(data.map((item, i) => buildCard(item, (page-1)*pageSize+i+1)).join(''));
+            }
+            renderPagination();
+        },
+        error: function(xhr) {
+            const err = `Lỗi kết nối (${xhr.status})`;
+            $('#gpTableBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">${err}</td></tr>`);
+            $('#gpCardList').html(`<div class="text-center text-danger py-4">${err}</div>`);
+        }
+    });
+}
+
+function renderPagination() {
+    if (totalRecords === 0) { $('#paginationCount').text(''); $('#paginationBar').empty(); return; }
+    const s = (currentPage-1)*pageSize+1, e = Math.min(currentPage*pageSize, totalRecords);
+    $('#paginationCount').html(`<span class="text-xs">${s}-${e} / <strong>${totalRecords}</strong> phiếu</span>`);
+    const $bar = $('#paginationBar').empty();
+    const mk = (label, p, disabled, active) => {
+        const li = $('<li class="page-item">').toggleClass('disabled', !!disabled).toggleClass('active', !!active);
+        $('<a class="page-link">').html(label).on('click', () => { if (!disabled && !active) loadData(p); }).appendTo(li);
+        return li;
+    };
+    $bar.append(mk('&lsaquo;', currentPage-1, currentPage <= 1));
+    const from = Math.max(1, currentPage-2), to = Math.min(totalPages, currentPage+2);
+    for (let p = from; p <= to; p++) $bar.append(mk(p, p, false, p === currentPage));
+    $bar.append(mk('&rsaquo;', currentPage+1, currentPage >= totalPages));
+}
+
+function openEditBtn(btn) {
+    const $b = $(btn);
+    openEdit($b.data('id'), $b.data('type'), $b.data('out'), $b.data('in'), $b.data('reason'));
+}
+
+function openEdit(id, type, outTime, inTime, reason) {
+    $('#editRequestId').val(id);
+    $('#editGpType').val(type);
+    $('#editReason').val(reason || '');
+    onEditTypeChange(type, outTime, inTime);
+    $('#editError').addClass('d-none').text('');
+    new bootstrap.Modal('#editModal').show();
+}
+
+function onEditTypeChange(type, outTime, inTime) {
+    $('#editOutWrap').show(); $('#editInWrap').show();
+    if (type === 'LATE_IN') {
+        $('#editOutWrap').hide();
+        $('#editInLabel').text('Giờ Đến Thực Tế *');
+    } else if (type === 'EARLY_OUT') {
+        $('#editInWrap').hide();
+        $('#editOutLabel').text('Giờ Về Sớm *');
+    } else {
+        $('#editOutLabel').text('Giờ Ra *'); $('#editInLabel').text('Giờ Vào Lại *');
+    }
+    if (outTime) $('#editOutTime').val(formatTime(outTime));
+    if (inTime)  $('#editInTime').val(formatTime(inTime));
+}
+
+async function saveEdit() {
+    const $btn = $('#saveEditBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...');
+    try {
+        const payload = {
+            REQUEST_ID: $('#editRequestId').val(),
+            EMPCD: '',
+            GP_TYPE: $('#editGpType').val(),
+            OUT_TIME: $('#editOutTime').val() || null,
+            IN_TIME:  $('#editInTime').val()  || null,
+            REASON:   $('#editReason').val()  || null
+        };
+        const res = await $.ajax({ url: UPDATE_URL, type: 'POST', contentType: 'application/json', data: JSON.stringify(payload) });
+        if (res.success) {
+            bootstrap.Modal.getInstance('#editModal').hide();
+            showToast('Cập nhật phiếu thành công', 'success');
+            loadData(currentPage);
+        } else {
+            $('#editError').removeClass('d-none').text(res.message || 'Lỗi cập nhật');
+        }
+    } catch { $('#editError').removeClass('d-none').text('Lỗi kết nối'); }
+    finally  { $btn.prop('disabled', false).html('<i class="bi bi-check-lg me-1"></i> Lưu'); }
+}
+
+function confirmDelete(id) {
+    showConfirm('Bạn có chắc muốn xoá phiếu này?', async function() {
+        try {
+            const res = await $.ajax({
+                url: DELETE_URL, type: 'POST',
+                data: { request_id: id },
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() }
+            });
+            if (res.success) {
+                showToast('Đã xoá phiếu thành công', 'success');
+                loadData(currentPage);
+            } else {
+                showToast(res.message || 'Lỗi xoá', 'error');
+            }
+        } catch { showToast('Lỗi kết nối', 'error'); }
+    }, { title: 'Xoá Phiếu', okText: 'Xoá', okClass: 'btn-danger' });
+}
+
+function formatTime(s) { const d = new Date(s); if (isNaN(d)) return s||''; return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+function formatDate(s) { const d = new Date(s); if (isNaN(d)) return ''; return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
+function escHtml(str)  { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+$(document).ready(function() { loadData(1); });
+</script>
+@Html.AntiForgeryToken()
+}

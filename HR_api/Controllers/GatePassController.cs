@@ -79,11 +79,11 @@ public class GatePassController : ControllerBase
             var inTime  = ParseDateTime(regDate, model.IN_TIME);
 
             // Validate time fields theo GP_TYPE
-            if (model.GP_TYPE == "LATE_IN" && inTime == null)
+            if (model.GP_TYPE == "IN" && inTime == null)
                 return Ok(new { success = false, message = "Vui lòng nhập giờ đến thực tế" });
-            if (model.GP_TYPE == "EARLY_OUT" && outTime == null)
+            if (model.GP_TYPE == "OUT" && outTime == null)
                 return Ok(new { success = false, message = "Vui lòng nhập giờ ra sớm" });
-            if (model.GP_TYPE == "OUT_IN" && (outTime == null || inTime == null))
+            if (model.GP_TYPE == "MID" && (outTime == null || inTime == null))
                 return Ok(new { success = false, message = "Vui lòng nhập đầy đủ giờ ra và giờ vào" });
 
             // Lấy thông tin nhân viên từ ECM100
@@ -254,14 +254,16 @@ public class GatePassController : ControllerBase
 
             await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_GATEPASS_REQUEST
-                SET GP_TYPE = :GP_TYPE, OUT_TIME = :OUT_TIME, IN_TIME = :IN_TIME, REASON = :REASON
+                SET GP_TYPE = :GP_TYPE, OUT_TIME = :OUT_TIME, IN_TIME = :IN_TIME, REASON = :REASON,
+                    UPDATED_BY = :UPDATED_BY, UPDATED_DATE = SYSDATE
                 WHERE REQUEST_ID = :REQUEST_ID AND EMPCD = :EMPCD",
-                new OracleParameter("GP_TYPE",    model.GP_TYPE),
-                new OracleParameter("OUT_TIME",   (object?)outTime ?? DBNull.Value),
-                new OracleParameter("IN_TIME",    (object?)inTime  ?? DBNull.Value),
-                new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value),
-                new OracleParameter("REQUEST_ID", model.REQUEST_ID),
-                new OracleParameter("EMPCD",      model.EMPCD));
+                new OracleParameter("GP_TYPE",     model.GP_TYPE),
+                new OracleParameter("OUT_TIME",    (object?)outTime ?? DBNull.Value),
+                new OracleParameter("IN_TIME",     (object?)inTime  ?? DBNull.Value),
+                new OracleParameter("REASON",      (object?)model.REASON ?? DBNull.Value),
+                new OracleParameter("UPDATED_BY",  model.EMPCD),
+                new OracleParameter("REQUEST_ID",  model.REQUEST_ID),
+                new OracleParameter("EMPCD",       model.EMPCD));
 
             await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_REQUEST SET UPDATED_BY = :EMPCD, UPDATED_DATE = SYSDATE
@@ -478,10 +480,10 @@ public class GatePassController : ControllerBase
             int rows = await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_REQUEST
                 SET STATUS = 'APPROVED', FINAL_APPROVER = :APPROVER, FINAL_DATE = SYSDATE,
-                    REMARK = :COMMENT, UPDATED_BY = :APPROVER1, UPDATED_DATE = SYSDATE
+                    REMARK = :REMARK_VAL, UPDATED_BY = :APPROVER1, UPDATED_DATE = SYSDATE
                 WHERE REQUEST_ID = :REQUEST_ID AND STATUS = 'PENDING'",
                 new OracleParameter("APPROVER",   model.APPROVER_EMPCD),
-                new OracleParameter("COMMENT",    (object?)model.COMMENT ?? DBNull.Value),
+                new OracleParameter("REMARK_VAL", (object?)model.COMMENT ?? DBNull.Value),
                 new OracleParameter("APPROVER1",  model.APPROVER_EMPCD),
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
@@ -529,10 +531,10 @@ public class GatePassController : ControllerBase
             int rows = await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_REQUEST
                 SET STATUS = 'REJECTED', FINAL_APPROVER = :APPROVER, FINAL_DATE = SYSDATE,
-                    REMARK = :COMMENT, UPDATED_BY = :APPROVER1, UPDATED_DATE = SYSDATE
+                    REMARK = :REMARK_VAL, UPDATED_BY = :APPROVER1, UPDATED_DATE = SYSDATE
                 WHERE REQUEST_ID = :REQUEST_ID AND STATUS = 'PENDING'",
                 new OracleParameter("APPROVER",   model.APPROVER_EMPCD),
-                new OracleParameter("COMMENT",    (object?)model.COMMENT ?? DBNull.Value),
+                new OracleParameter("REMARK_VAL", (object?)model.COMMENT ?? DBNull.Value),
                 new OracleParameter("APPROVER1",  model.APPROVER_EMPCD),
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 

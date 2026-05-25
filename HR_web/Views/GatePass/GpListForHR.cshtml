@@ -90,7 +90,7 @@
 const PAGE_URL = '@Url.Action("GetHRPage", "GatePass")';
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 
-const GP_TYPE_LABEL = { LATE_IN: 'Đến trễ', EARLY_OUT: 'Về sớm', OUT_IN: 'Ra/Vào trong giờ' };
+const GP_TYPE_LABEL = { IN: 'Đến trễ', OUT: 'Về sớm', MID: 'Ra/Vào trong giờ làm' };
 
 function buildRow(item, idx) {
     const dateStr = formatDate(item.OUT_TIME || item.IN_TIME);

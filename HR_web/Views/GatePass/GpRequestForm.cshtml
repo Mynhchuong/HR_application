@@ -91,8 +91,8 @@
                     <div class="mb-4">
                         <div class="gp-label mb-2">Loại Gate Pass <span class="text-danger">*</span></div>
 
-                        <label class="gp-type-option" id="opt_LATE_IN" onclick="selectType('LATE_IN')">
-                            <input type="radio" name="gp_type" value="LATE_IN" id="rd_LATE_IN" />
+                        <label class="gp-type-option" id="opt_IN" onclick="selectType('IN')">
+                            <input type="radio" name="gp_type" value="IN" id="rd_IN" />
                             <span class="type-icon">🕐</span>
                             <div>
                                 <div class="type-title">Đến trễ</div>
@@ -100,8 +100,8 @@
                             </div>
                         </label>
 
-                        <label class="gp-type-option" id="opt_EARLY_OUT" onclick="selectType('EARLY_OUT')">
-                            <input type="radio" name="gp_type" value="EARLY_OUT" id="rd_EARLY_OUT" />
+                        <label class="gp-type-option" id="opt_OUT" onclick="selectType('OUT')">
+                            <input type="radio" name="gp_type" value="OUT" id="rd_OUT" />
                             <span class="type-icon">🚪</span>
                             <div>
                                 <div class="type-title">Về sớm</div>
@@ -109,11 +109,11 @@
                             </div>
                         </label>
 
-                        <label class="gp-type-option" id="opt_OUT_IN" onclick="selectType('OUT_IN')">
-                            <input type="radio" name="gp_type" value="OUT_IN" id="rd_OUT_IN" />
+                        <label class="gp-type-option" id="opt_MID" onclick="selectType('MID')">
+                            <input type="radio" name="gp_type" value="MID" id="rd_MID" />
                             <span class="type-icon">🔄</span>
                             <div>
-                                <div class="type-title">Ra/Vào trong giờ làm việc</div>
+                                <div class="type-title">Ra/Vào trong giờ làm</div>
                                 <div class="type-desc">Ra ngoài rồi vào lại trong ca</div>
                             </div>
                         </label>
@@ -198,17 +198,17 @@ function onTypeChange(type) {
     $out.prop('required', false); $in.prop('required', false);
     $('#outTimeHint').text(''); $('#inTimeHint').text('');
 
-    if (type === 'LATE_IN') {
+    if (type === 'IN') {
         $inWrap.show();
         $('#inTimeLabel').text('Giờ Đến Thực Tế ✱');
         $in.prop('required', true);
 
-    } else if (type === 'EARLY_OUT') {
+    } else if (type === 'OUT') {
         $outWrap.show();
         $('#outTimeLabel').text('Giờ Về Sớm ✱');
         $out.prop('required', true);
 
-    } else if (type === 'OUT_IN') {
+    } else if (type === 'MID') {
         $outWrap.show(); $inWrap.show();
         $('#outTimeLabel').text('Giờ Ra Ngoài ✱');
         $('#inTimeLabel').text('Giờ Vào Lại ✱');
@@ -220,9 +220,9 @@ function onTypeChange(type) {
 $('#gpForm').on('submit', function(e) {
     const type = $('input[name="gp_type"]:checked').val();
     if (!type) { e.preventDefault(); showToast('Vui lòng chọn loại phiếu ra vào', 'warning'); return; }
-    if (type === 'LATE_IN'   && !$('#inTime').val())  { e.preventDefault(); showToast('Vui lòng nhập giờ đến thực tế', 'warning'); return; }
-    if (type === 'EARLY_OUT' && !$('#outTime').val()) { e.preventDefault(); showToast('Vui lòng nhập giờ về sớm', 'warning'); return; }
-    if (type === 'OUT_IN') {
+    if (type === 'IN'   && !$('#inTime').val())  { e.preventDefault(); showToast('Vui lòng nhập giờ đến thực tế', 'warning'); return; }
+    if (type === 'OUT' && !$('#outTime').val()) { e.preventDefault(); showToast('Vui lòng nhập giờ về sớm', 'warning'); return; }
+    if (type === 'MID') {
         if (!$('#outTime').val() || !$('#inTime').val()) {
             e.preventDefault(); showToast('Vui lòng nhập đầy đủ giờ ra và giờ vào', 'warning'); return;
         }

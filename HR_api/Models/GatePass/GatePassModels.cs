@@ -10,7 +10,7 @@ public class GpSubmitRequest
 {
     public string EMPCD { get; set; } = string.Empty;
     public string REG_DATE { get; set; } = string.Empty;  // yyyy-MM-dd
-    public string GP_TYPE { get; set; } = string.Empty;   // LATE_IN | EARLY_OUT | OUT_IN
+    public string GP_TYPE { get; set; } = string.Empty;   // IN | OUT | MID
     public string? OUT_TIME { get; set; }                  // HH:mm
     public string? IN_TIME { get; set; }                   // HH:mm
     public string? REASON { get; set; }

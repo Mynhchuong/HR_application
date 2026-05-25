@@ -65,8 +65,7 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">#</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Loại</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ngày</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Giờ Ra</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Giờ Vào</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Giờ</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Lý Do</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Tình Trạng</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Thao Tác</th>
@@ -99,9 +98,9 @@
                 <div class="mb-3">
                     <label class="form-label fw-bold">Loại</label>
                     <select id="editGpType" class="form-select" onchange="onEditTypeChange(this.value)">
-                        <option value="LATE_IN">Đến trễ</option>
-                        <option value="EARLY_OUT">Về sớm</option>
-                        <option value="OUT_IN">Ra/Vào trong giờ</option>
+                        <option value="IN">Đến trễ</option>
+                        <option value="OUT">Về sớm</option>
+                        <option value="MID">Ra/Vào trong giờ làm</option>
                     </select>
                 </div>
                 <div class="mb-3" id="editOutWrap">
@@ -136,8 +135,8 @@ const DELETE_URL = '@Url.Action("DeleteRequest",     "GatePass")';
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 20;
 
-const GP_LABEL = { LATE_IN: 'Đến trễ', EARLY_OUT: 'Về sớm', OUT_IN: 'Ra/Vào trong giờ' };
-const GP_COLOR = { LATE_IN: 'info',    EARLY_OUT: 'warning', OUT_IN: 'primary' };
+const GP_LABEL = { IN: 'Đến trễ', OUT: 'Về sớm', MID: 'Ra/Vào trong giờ làm' };
+const GP_COLOR = { IN: 'info',    OUT: 'warning', MID: 'primary' };
 
 function gpBadge(t) {
     return `<span class="badge bg-${GP_COLOR[t]||'secondary'}">${GP_LABEL[t]||t||'-'}</span>`;
@@ -154,16 +153,22 @@ function actionBtns(item) {
             <button class="btn btn-xs btn-outline-danger" onclick="confirmDelete('${item.REQUEST_ID}')"><i class="bi bi-trash"></i></button>`;
 }
 
+function timeCell(item) {
+    const t = item.GP_TYPE;
+    if (t === 'IN')  return item.IN_TIME  ? `<span class="text-muted small">Vào:</span> ${formatTime(item.IN_TIME)}`  : '-';
+    if (t === 'OUT') return item.OUT_TIME ? `<span class="text-muted small">Ra:</span> ${formatTime(item.OUT_TIME)}` : '-';
+    const out = item.OUT_TIME ? formatTime(item.OUT_TIME) : '-';
+    const inn = item.IN_TIME  ? formatTime(item.IN_TIME)  : '-';
+    return `<span class="text-muted small">Ra:</span> ${out} <span class="text-muted small ms-1">Vào:</span> ${inn}`;
+}
+
 function buildRow(item, idx) {
     const dateStr = formatDate(item.OUT_TIME || item.IN_TIME);
-    const outStr  = item.OUT_TIME ? formatTime(item.OUT_TIME) : '-';
-    const inStr   = item.IN_TIME  ? formatTime(item.IN_TIME)  : '-';
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2">${gpBadge(item.GP_TYPE)}</td>
         <td class="px-2 text-sm">${dateStr}</td>
-        <td class="px-2 text-sm">${outStr}</td>
-        <td class="px-2 text-sm">${inStr}</td>
+        <td class="px-2 text-sm text-nowrap">${timeCell(item)}</td>
         <td class="px-2 text-sm" style="max-width:160px;white-space:normal;">${escHtml(item.REASON||'-')}</td>
         <td class="text-center">${statusBadge(item.STATUS)}</td>
         <td class="text-center">${actionBtns(item)}</td>
@@ -172,8 +177,6 @@ function buildRow(item, idx) {
 
 function buildCard(item, idx) {
     const dateStr = formatDate(item.OUT_TIME || item.IN_TIME);
-    const outStr  = item.OUT_TIME ? formatTime(item.OUT_TIME) : '-';
-    const inStr   = item.IN_TIME  ? formatTime(item.IN_TIME)  : '-';
     return `<div class="gp-card">
         <div class="gp-card-row">
             <div>${gpBadge(item.GP_TYPE)}</div>
@@ -183,8 +186,7 @@ function buildCard(item, idx) {
             <span class="gp-card-label">Ngày</span><span class="gp-card-val">${dateStr}</span>
         </div>
         <div class="gp-card-row">
-            <span class="gp-card-label">Giờ ra</span><span class="gp-card-val">${outStr}</span>
-            <span class="gp-card-label ms-3">Giờ vào</span><span class="gp-card-val">${inStr}</span>
+            <span class="gp-card-label">Giờ</span><span class="gp-card-val">${timeCell(item)}</span>
         </div>
         <div class="gp-card-row"><span class="gp-card-label">Lý do</span></div>
         <div class="text-sm text-dark mb-0">${escHtml(item.REASON||'-')}</div>
@@ -197,7 +199,7 @@ function buildCard(item, idx) {
 
 function loadData(page = 1) {
     currentPage = page;
-    const spinner = `<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-warning" role="status"></div></td></tr>`;
+    const spinner = `<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-warning" role="status"></div></td></tr>`;
     $('#gpTableBody').html(spinner);
     $('#gpCardList').html('<div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div></div>');
     $.ajax({
@@ -205,7 +207,7 @@ function loadData(page = 1) {
         data: { page, page_size: pageSize, date_from: $('#dateFrom').val(), date_to: $('#dateTo').val() },
         success: function(res) {
             if (!res.success) {
-                const err = `<tr><td colspan="8" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`;
+                const err = `<tr><td colspan="7" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`;
                 $('#gpTableBody').html(err);
                 $('#gpCardList').html(`<div class="text-center text-danger py-4">Lỗi: ${res.message||''}</div>`);
                 return;
@@ -214,7 +216,7 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#gpTableBody').html(`<tr><td colspan="8" class="text-center text-muted py-4">Chưa có phiếu nào</td></tr>`);
+                $('#gpTableBody').html(`<tr><td colspan="7" class="text-center text-muted py-4">Chưa có phiếu nào</td></tr>`);
                 $('#gpCardList').html(`<div class="text-center text-muted py-4">Chưa có phiếu nào</div>`);
             } else {
                 $('#gpTableBody').html(data.map((item, i) => buildRow(item, (page-1)*pageSize+i+1)).join(''));
@@ -224,7 +226,7 @@ function loadData(page = 1) {
         },
         error: function(xhr) {
             const err = `Lỗi kết nối (${xhr.status})`;
-            $('#gpTableBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">${err}</td></tr>`);
+            $('#gpTableBody').html(`<tr><td colspan="7" class="text-center text-danger py-4">${err}</td></tr>`);
             $('#gpCardList').html(`<div class="text-center text-danger py-4">${err}</div>`);
         }
     });
@@ -262,10 +264,10 @@ function openEdit(id, type, outTime, inTime, reason) {
 
 function onEditTypeChange(type, outTime, inTime) {
     $('#editOutWrap').show(); $('#editInWrap').show();
-    if (type === 'LATE_IN') {
+    if (type === 'IN') {
         $('#editOutWrap').hide();
         $('#editInLabel').text('Giờ Đến Thực Tế *');
-    } else if (type === 'EARLY_OUT') {
+    } else if (type === 'OUT') {
         $('#editInWrap').hide();
         $('#editOutLabel').text('Giờ Về Sớm *');
     } else {

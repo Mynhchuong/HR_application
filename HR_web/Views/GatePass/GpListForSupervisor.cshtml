@@ -40,13 +40,15 @@
             <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="text-white mb-0"><i class="bi bi-shield-check me-1"></i> Duyệt Phiếu Ra Vào Nhân Viên</h6>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <div class="input-group input-group-sm bg-white border-radius-md px-2 py-1 align-items-center shadow-sm" style="height:36px;">
-                        <label class="mb-0 text-dark fw-bold me-2 text-nowrap"><i class="bi bi-calendar3 text-primary me-1"></i> Từ:</label>
-                        <input type="date" id="dateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:120px;" value="@dateFrom" />
-                        <label class="mb-0 text-dark fw-bold mx-2 text-nowrap">Đến:</label>
-                        <input type="date" id="dateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:120px;" value="@dateTo" />
-                        <button class="btn btn-sm btn-primary ms-2 py-0 px-2" onclick="loadData(1)"><i class="bi bi-search"></i></button>
+                    <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
+                        <span class="text-dark fw-bold small text-nowrap"><i class="bi bi-calendar3 text-primary me-1"></i>Từ:</span>
+                        <input type="date" id="dateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateFrom" />
                     </div>
+                    <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
+                        <span class="text-dark fw-bold small text-nowrap">Đến:</span>
+                        <input type="date" id="dateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateTo" />
+                    </div>
+                    <button class="btn btn-sm btn-light py-0 px-2 mb-0" style="height:34px;" onclick="loadData(1)"><i class="bi bi-search"></i></button>
                 </div>
             </div>
         </div>
@@ -103,7 +105,6 @@
         <div class="modal-content">
             <div class="modal-header" id="actionModalHeader">
                 <h6 class="modal-title mb-0" id="actionModalTitle"></h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="actionRequestId" />
@@ -130,7 +131,7 @@ const REJECT_URL  = '@Url.Action("RejectRequest",      "GatePass")';
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 
-const GP_TYPE_LABEL = { LATE_IN: 'Đến trễ', EARLY_OUT: 'Về sớm', OUT_IN: 'Ra/Vào trong giờ' };
+const GP_TYPE_LABEL = { IN: 'Đến trễ', OUT: 'Về sớm', MID: 'Ra/Vào trong giờ làm' };
 
 function buildRow(item, idx) {
     const dateStr = formatDate(item.OUT_TIME || item.IN_TIME);
@@ -143,8 +144,8 @@ function buildRow(item, idx) {
     if (item.STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Từ chối</span>`;
 
     const actions = item.STATUS === 'PENDING'
-        ? `<button class="btn btn-xs btn-success me-1" onclick="openAction('${item.REQUEST_ID}','approve')"><i class="bi bi-check-lg"></i></button>
-           <button class="btn btn-xs btn-danger"  onclick="openAction('${item.REQUEST_ID}','reject')"><i class="bi bi-x-lg"></i></button>`
+        ? `<button class="btn btn-xs btn-success me-1" onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','approve')"><i class="bi bi-check-lg"></i></button>
+           <button class="btn btn-xs btn-danger"  onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','reject')"><i class="bi bi-x-lg"></i></button>`
         : '<span class="text-muted text-xs">-</span>';
 
     return `<tr>

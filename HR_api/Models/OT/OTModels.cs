@@ -20,6 +20,7 @@ public class OTTodayModel
     public decimal SUM_WEEK { get; set; }
     public decimal SUM_MONTH { get; set; }
     public decimal SUM_YEAR { get; set; }
+    public bool IS_EDITABLE { get; set; } = true;
 }
 
 public class OTClerkModel

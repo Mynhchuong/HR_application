@@ -74,7 +74,8 @@ public class OTController : ControllerBase
                 CONFIRM_DATE = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
                 SUM_WEEK = Convert.ToDecimal(r["SUM_WEEK"]),
                 SUM_MONTH = Convert.ToDecimal(r["SUM_MONTH"]),
-                SUM_YEAR = Convert.ToDecimal(r["SUM_YEAR"])
+                SUM_YEAR = Convert.ToDecimal(r["SUM_YEAR"]),
+                IS_EDITABLE = workDate.Date >= DateTime.Today.Date
             }, 
             new OracleParameter("EMPCD", empcd),
             new OracleParameter("WORK_DATE", workDate),
@@ -121,27 +122,79 @@ public class OTController : ControllerBase
             if (hasOT.Count == 0 || hasOT[0] == 0)
                 return Ok(new { success = false, message = "Không có kế hoạch tăng ca trong ngày này" });
 
-            string sqlCheckConfirm = "SELECT COUNT(*) CNT FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND NVL(OT_HOURS,0) = NVL(:OT_HOURS,0)";
-            var already = await _oracleService.ExecuteQueryAsync(sqlCheckConfirm, r => Convert.ToInt32(r["CNT"]), 
-                new OracleParameter("EMPCD", model.EMPCD), 
-                new OracleParameter("WORK_DATE", workDate),
-                new OracleParameter("OT_HOURS", (object?)model.OT_HOURS ?? DBNull.Value));
+            // Bước 1: Kiểm tra xem HR_OT_REQUEST đã có dòng cho EMPCD + WORK_DATE chưa
+            string sqlGetExisting = "SELECT REQUEST_ID, CONFIRM_STATUS FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND ROWNUM = 1";
+            var existingRows = await _oracleService.ExecuteQueryAsync(sqlGetExisting, r => new {
+                REQUEST_ID = r["REQUEST_ID"]?.ToString(),
+                CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString()
+            },
+                new OracleParameter("EMPCD", model.EMPCD),
+                new OracleParameter("WORK_DATE", workDate));
 
-            if (already.Count > 0 && already[0] > 0)
-                return Ok(new { success = false, message = "Bạn đã xác nhận tăng ca ngày này với số giờ này rồi, không thể thay đổi" });
+            if (existingRows.Count > 0 && existingRows[0] != null)
+            {
+                // Đã có trong HR_OT_REQUEST → UPDATE cả hai bảng
+                var existing = existingRows[0];
+                if (existing.CONFIRM_STATUS != model.CONFIRM_STATUS)
+                {
+                    string sqlUpdateOT = "UPDATE HRMS.HR_OT_REQUEST SET CONFIRM_STATUS = :CONFIRM_STATUS, CONFIRM_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID";
+                    await _oracleService.ExecuteNonQueryAsync(sqlUpdateOT,
+                        new OracleParameter("CONFIRM_STATUS", model.CONFIRM_STATUS),
+                        new OracleParameter("REQUEST_ID", existing.REQUEST_ID));
 
-            string sqlInsertReq = "INSERT INTO HRMS.HR_REQUEST (REQUEST_TYPE, EMPCD, REQUEST_DATE, STATUS, CREATED_BY, CREATED_DATE) VALUES ('OT', :EMPCD, SYSDATE, :STATUS, :EMPCD1, SYSDATE)";
-            await _oracleService.ExecuteNonQueryAsync(sqlInsertReq, 
-                new OracleParameter("EMPCD", model.EMPCD), 
-                new OracleParameter("STATUS", model.CONFIRM_STATUS),
-                new OracleParameter("EMPCD1", model.EMPCD));
+                    string sqlUpdateReq = "UPDATE HRMS.HR_REQUEST SET STATUS = :STATUS, UPDATED_BY = :EMPCD, UPDATED_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID";
+                    await _oracleService.ExecuteNonQueryAsync(sqlUpdateReq,
+                        new OracleParameter("STATUS", model.CONFIRM_STATUS),
+                        new OracleParameter("EMPCD", model.EMPCD),
+                        new OracleParameter("REQUEST_ID", existing.REQUEST_ID));
 
-            string sqlGetReqId = "SELECT REQUEST_ID FROM (SELECT REQUEST_ID FROM HRMS.HR_REQUEST WHERE EMPCD = :EMPCD AND REQUEST_TYPE = 'OT' AND TRUNC(CREATED_DATE) = TRUNC(SYSDATE) ORDER BY CREATED_DATE DESC) WHERE ROWNUM = 1";
-            var reqIds = await _oracleService.ExecuteQueryAsync(sqlGetReqId, r => r["REQUEST_ID"]?.ToString(), new OracleParameter("EMPCD", model.EMPCD));
+                    string msgUpdate = model.CONFIRM_STATUS == "CONFIRMED" ? "Cập nhật xác nhận tăng ca thành công" : "Cập nhật từ chối tăng ca thành công";
+                    return Ok(new { success = true, message = msgUpdate, request_id = existing.REQUEST_ID });
+                }
+                else
+                {
+                    string msgSame = model.CONFIRM_STATUS == "CONFIRMED" ? "Bạn đã xác nhận tăng ca ngày này rồi" : "Bạn đã từ chối tăng ca ngày này rồi";
+                    return Ok(new { success = true, message = msgSame, request_id = existing.REQUEST_ID });
+                }
+            }
 
-            if (reqIds.Count == 0) return Ok(new { success = false, message = "Lỗi tạo REQUEST_ID" });
-            string requestId = reqIds[0]!;
+            // Bước 2: HR_OT_REQUEST chưa có → tìm dòng OT gốc trong HR_REQUEST (có thể đã tồn tại với STATUS='OT')
+            string sqlGetExistingReq = @"SELECT REQUEST_ID FROM HRMS.HR_REQUEST 
+                WHERE EMPCD = :EMPCD AND REQUEST_TYPE = 'OT' AND TRUNC(REQUEST_DATE) = TRUNC(:WORK_DATE)
+                AND ROWNUM = 1
+                ORDER BY CREATED_DATE ASC";
+            var existingReqIds = await _oracleService.ExecuteQueryAsync(sqlGetExistingReq,
+                r => r["REQUEST_ID"]?.ToString(),
+                new OracleParameter("EMPCD", model.EMPCD),
+                new OracleParameter("WORK_DATE", workDate));
 
+            string requestId;
+            if (existingReqIds.Count > 0 && !string.IsNullOrEmpty(existingReqIds[0]))
+            {
+                // Có dòng OT gốc trong HR_REQUEST → UPDATE dòng đó thay vì INSERT mới
+                requestId = existingReqIds[0]!;
+                string sqlUpdateReqStatus = "UPDATE HRMS.HR_REQUEST SET STATUS = :STATUS, UPDATED_BY = :EMPCD, UPDATED_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID";
+                await _oracleService.ExecuteNonQueryAsync(sqlUpdateReqStatus,
+                    new OracleParameter("STATUS", model.CONFIRM_STATUS),
+                    new OracleParameter("EMPCD", model.EMPCD),
+                    new OracleParameter("REQUEST_ID", requestId));
+            }
+            else
+            {
+                // Không có gì cả → INSERT hoàn toàn mới vào HR_REQUEST
+                string sqlInsertReq = "INSERT INTO HRMS.HR_REQUEST (REQUEST_TYPE, EMPCD, REQUEST_DATE, STATUS, CREATED_BY, CREATED_DATE) VALUES ('OT', :EMPCD, SYSDATE, :STATUS, :EMPCD1, SYSDATE)";
+                await _oracleService.ExecuteNonQueryAsync(sqlInsertReq,
+                    new OracleParameter("EMPCD", model.EMPCD),
+                    new OracleParameter("STATUS", model.CONFIRM_STATUS),
+                    new OracleParameter("EMPCD1", model.EMPCD));
+
+                string sqlGetReqId = "SELECT REQUEST_ID FROM (SELECT REQUEST_ID FROM HRMS.HR_REQUEST WHERE EMPCD = :EMPCD AND REQUEST_TYPE = 'OT' AND TRUNC(CREATED_DATE) = TRUNC(SYSDATE) ORDER BY CREATED_DATE DESC) WHERE ROWNUM = 1";
+                var reqIds = await _oracleService.ExecuteQueryAsync(sqlGetReqId, r => r["REQUEST_ID"]?.ToString(), new OracleParameter("EMPCD", model.EMPCD));
+                if (reqIds.Count == 0) return Ok(new { success = false, message = "Lỗi tạo REQUEST_ID" });
+                requestId = reqIds[0]!;
+            }
+
+            // Bước 3: INSERT vào HR_OT_REQUEST với REQUEST_ID đã có hoặc vừa tạo
             string sqlInsertOT = "INSERT INTO HRMS.HR_OT_REQUEST (REQUEST_ID, EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, CREATED_DATE) VALUES (:REQUEST_ID, :EMPCD, :WORK_DATE, :OT_HOURS, :CONFIRM_STATUS, SYSDATE, SYSDATE)";
             await _oracleService.ExecuteNonQueryAsync(sqlInsertOT,
                 new OracleParameter("REQUEST_ID", requestId),

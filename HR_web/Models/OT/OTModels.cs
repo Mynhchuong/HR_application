@@ -18,6 +18,7 @@ public class OTTodayModel
     public DateTime? CONFIRM_DATE { get; set; }
     public DateTime? START_OT { get; set; }
     public DateTime? END_OT { get; set; }
+    public bool IS_EDITABLE { get; set; } = true;
 }
 
 public class OTConfirmRequest

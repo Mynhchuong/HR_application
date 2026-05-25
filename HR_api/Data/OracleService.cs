@@ -54,7 +54,9 @@ public class OracleService
         using var conn = new OracleConnection(_connStr);
         await conn.OpenAsync();
 
+        //using var transaction = conn.BeginTransaction();
         using var cmd = new OracleCommand(sql, conn);
+        //cmd.Transaction = transaction;
         cmd.BindByName = true;
 
         if (parameters != null)
@@ -67,6 +69,18 @@ public class OracleService
         }
 
         return await cmd.ExecuteNonQueryAsync();
+
+        // try
+        // {
+        //     int result = await cmd.ExecuteNonQueryAsync();
+        //     await transaction.CommitAsync();
+        //     return result;
+        // }
+        // catch
+        // {
+        //     await transaction.RollbackAsync();
+        //     throw;
+        // }
     }
 
     // ============================================================

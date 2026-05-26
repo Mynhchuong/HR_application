@@ -49,15 +49,15 @@ public class GatePassController : BaseController
             var result = await _gpService.SubmitAsync(request);
 
             if (result.success)
-                TempData["Success"] = result.message ?? "Đăng ký Gate Pass thành công";
+                TempData["SuccessMessage"] = result.message ?? "Đăng ký Gate Pass thành công";
             else
-                TempData["Error"] = result.message ?? "Có lỗi xảy ra";
+                TempData["ErrorMessage"] = result.message ?? "Có lỗi xảy ra";
 
             return RedirectToAction("GpRequestForm");
         }
         catch (Exception ex)
         {
-            TempData["Error"] = ex.Message;
+            TempData["ErrorMessage"] = ex.Message;
             return RedirectToAction("GpRequestForm");
         }
     }

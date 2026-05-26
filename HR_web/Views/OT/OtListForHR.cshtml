@@ -111,8 +111,8 @@
     function buildRow(item, idx) {
         const otType = item.OT_AFTER === 'Y' ? 'Sau' : (item.OT_BEFORE === 'Y' ? 'Trước' : '');
         let timeHtml = '<span class="text-muted text-xs">-</span>';
-        if (item.START_OT && item.END_OT) timeHtml = `<span class="badge border border-secondary text-secondary fw-normal"><i class="bi bi-clock me-1"></i>${formatTime(item.START_OT)} - ${formatTime(item.END_OT)}</span>`;
-        else if (item.START_OT) timeHtml = `<span class="badge border border-secondary text-secondary fw-normal"><i class="bi bi-clock me-1"></i>${formatTime(item.START_OT)}</span>`;
+        if (item.START_OT && item.END_OT) timeHtml = `<span class="badge bg-light text-dark fw-normal"><i class="bi bi-clock me-1"></i>${formatTime(item.START_OT)} - ${formatTime(item.END_OT)}</span>`;
+        else if (item.START_OT) timeHtml = `<span class="badge bg-light text-dark fw-normal"><i class="bi bi-clock me-1"></i>${formatTime(item.START_OT)}</span>`;
 
         let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ ký</span>`;
         if (item.CONFIRM_STATUS === 'CONFIRMED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Chấp nhận</span>${item.CONFIRM_DATE ? `<div class="text-xs text-muted mt-1">${formatDateTime(item.CONFIRM_DATE)}</div>` : ''}`;

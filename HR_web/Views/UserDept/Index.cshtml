@@ -178,8 +178,8 @@ function buildRow(item, idx) {
         <td class="px-2 text-sm fw-bold">${escHtml(item.EMPCD||'')}</td>
         <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
         <td class="px-2 text-sm"><span class="badge bg-info text-white">${escHtml(item.DEPTCD||'')}</span> <span class="text-xs text-muted">${escHtml(item.DEPT_NAME||'')}</span></td>
-        <td class="px-2 text-sm">${item.LINECD ? `<span class="badge bg-secondary">${escHtml(item.LINECD)}</span> <span class="text-xs text-muted">${escHtml(item.LINE_NAME||'')}</span>` : '<span class="text-muted">-</span>'}</td>
-        <td class="px-2 text-sm">${item.WORKCD ? `<span class="badge bg-secondary">${escHtml(item.WORKCD)}</span> <span class="text-xs text-muted">${escHtml(item.WORK_NAME||'')}</span>` : '<span class="text-muted">-</span>'}</td>
+        <td class="px-2 text-sm">${item.LINECD ? `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">${escHtml(item.LINECD)}</span> <span class="text-xs text-muted">${escHtml(item.LINE_NAME||'')}</span>` : '<span class="text-muted">-</span>'}</td>
+        <td class="px-2 text-sm">${item.WORKCD ? `<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">${escHtml(item.WORKCD)}</span> <span class="text-xs text-muted">${escHtml(item.WORK_NAME||'')}</span>` : '<span class="text-muted">-</span>'}</td>
         <td class="px-2 text-xs text-muted d-none d-md-table-cell">${item.CREATEDATE ? `${escHtml(item.CREATEDATE)}<br><span class="text-xxs">${escHtml(item.CREATEBY||'')}</span>` : '-'}</td>
         <td class="px-2 text-xs text-muted d-none d-md-table-cell">${item.UPDATEDATE ? `${escHtml(item.UPDATEDATE)}<br><span class="text-xxs">${escHtml(item.UPDATEBY||'')}</span>` : '-'}</td>
         <td class="text-center px-2">

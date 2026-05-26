@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(identify /Users/minhtruong/Documents/Project/HR_application/android/app/src/main/res/drawable/a_hoi.png)",
+      "Bash(identify /Users/minhtruong/Documents/Project/HR_application/android/app/src/main/res/drawable/chi.png)",
+      "Bash(sips -g pixelWidth -g pixelHeight /Users/minhtruong/Documents/Project/HR_application/android/app/src/main/res/drawable/a_hoi.png /Users/minhtruong/Documents/Project/HR_application/android/app/src/main/res/drawable/chi.png)"
+    ]
+  }
+}

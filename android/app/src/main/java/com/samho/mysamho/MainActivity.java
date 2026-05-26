@@ -33,6 +33,8 @@ import android.app.DownloadManager;
 import android.os.Environment;
 import android.webkit.URLUtil;
 import android.webkit.CookieManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
@@ -225,10 +227,15 @@ public class MainActivity extends AppCompatActivity {
         Button btnInternal = dialogView.findViewById(R.id.btnInternal);
         Button btnExternal = dialogView.findViewById(R.id.btnExternal);
 
-        // Hiển thị hình ngẫu nhiên
+        // Hiển thị hình ngẫu nhiên (downsample để tránh OOM/canvas crash)
         int[] images = {R.drawable.a_hoi, R.drawable.chi};
         int randomImageId = images[new Random().nextInt(images.length)];
-        dialogImage.setImageResource(randomImageId);
+        Bitmap scaled = loadScaledBitmap(randomImageId, 800, 800);
+        if (scaled != null) {
+            dialogImage.setImageBitmap(scaled);
+        } else {
+            dialogImage.setImageResource(randomImageId);
+        }
 
         btnInternal.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -347,6 +354,31 @@ public class MainActivity extends AppCompatActivity {
             webView = null;
         }
         super.onDestroy();
+    }
+
+    private Bitmap loadScaledBitmap(int resId, int maxWidth, int maxHeight) {
+        try {
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inJustDecodeBounds = true;
+            BitmapFactory.decodeResource(getResources(), resId, options);
+            options.inSampleSize = calculateInSampleSize(options, maxWidth, maxHeight);
+            options.inJustDecodeBounds = false;
+            return BitmapFactory.decodeResource(getResources(), resId, options);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        int inSampleSize = 1;
+        if (options.outHeight > reqHeight || options.outWidth > reqWidth) {
+            final int halfHeight = options.outHeight / 2;
+            final int halfWidth = options.outWidth / 2;
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+        return inSampleSize;
     }
 
     @Override

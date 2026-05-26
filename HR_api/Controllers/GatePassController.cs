@@ -663,7 +663,8 @@ END;";
                 FROM HRMS.HR_GATEPASS_REQUEST GP
                 JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID  = GP.REQUEST_ID
                 JOIN HRMS.ECM100    EC  ON EC.EMPCD       = GP.EMPCD
-                LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD";
+                LEFT JOIN HRMS.EAM410 B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                LEFT JOIN HRMS.ECM100 AP ON AP.EMPCD = R.FINAL_APPROVER";
 
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
@@ -721,7 +722,8 @@ END;";
                                EC.LINECD LINE_ID, B.TEAMNM LINE_NAME,
                                EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
                                GP.GP_TYPE, GP.OUT_TIME, GP.IN_TIME, GP.REASON,
-                               R.STATUS, GP.CREATED_DATE
+                               R.STATUS, GP.CREATED_DATE,
+                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK
                         " + fromSql + whereSql + @"
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -746,7 +748,11 @@ END;";
                 IN_TIME      = r["IN_TIME"]      == DBNull.Value ? null : Convert.ToDateTime(r["IN_TIME"]),
                 REASON       = r["REASON"]?.ToString(),
                 STATUS       = r["STATUS"]?.ToString(),
-                CREATED_DATE = r["CREATED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CREATED_DATE"])
+                CREATED_DATE   = r["CREATED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CREATED_DATE"]),
+                FINAL_APPROVER = r["FINAL_APPROVER"]?.ToString(),
+                APPROVER_NAME  = r["APPROVER_NAME"]?.ToString(),
+                FINAL_DATE     = r["FINAL_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
+                REMARK         = r["REMARK"]?.ToString()
             }, dataParams.ToArray());
 
             return Ok(new

@@ -26,6 +26,12 @@
     .auto-time { background: #f0f4ff !important; color: #3a5fcf; font-weight: 600; border-color: #93c5fd !important; }
     .time-field { transition: all .25s; }
     .time-hint { font-size: 0.82rem; color: #6b7280; margin-top: 4px; }
+    .time-picker { display: flex; align-items: center; gap: 8px; }
+    .time-picker select { width: 90px; font-size: 1.3rem; font-weight: 700; text-align: center; padding: 0.55rem 0.4rem; border-radius: 10px; border: 1.5px solid #d1d5db; cursor: pointer; }
+    .time-picker select:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); outline: none; }
+    .time-picker select.auto-time { background: #f0f4ff; color: #3a5fcf; border-color: #93c5fd; }
+    .time-colon { font-size: 1.8rem; font-weight: 900; color: #374151; line-height: 1; }
+    .time-label-hint { font-size: 0.78rem; color: #9ca3af; margin-top: 2px; text-align: center; }
 
     .gp-type-option { border: 2px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; cursor: pointer; margin-bottom: 10px; transition: all .2s; display: flex; align-items: center; gap: 12px; }
     .gp-type-option:hover { border-color: #f59e0b; background: #fffbeb; }
@@ -106,13 +112,35 @@
 
                     <div class="time-field mb-4" id="outTimeWrap" style="display:none;">
                         <label class="gp-label" id="outTimeLabel">Giờ Ra</label>
-                        <input type="time" name="out_time" id="outTime" class="form-control gp-input" />
+                        <div class="time-picker">
+                            <div>
+                                <select id="outHour" onchange="syncTime('out')"></select>
+                                <div class="time-label-hint">Giờ</div>
+                            </div>
+                            <span class="time-colon">:</span>
+                            <div>
+                                <select id="outMin" onchange="syncTime('out')"></select>
+                                <div class="time-label-hint">Phút</div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="out_time" id="outTime" />
                         <div class="time-hint" id="outTimeHint"></div>
                     </div>
 
                     <div class="time-field mb-4" id="inTimeWrap" style="display:none;">
                         <label class="gp-label" id="inTimeLabel">Giờ Vào</label>
-                        <input type="time" name="in_time" id="inTime" class="form-control gp-input" />
+                        <div class="time-picker">
+                            <div>
+                                <select id="inHour" onchange="syncTime('in')"></select>
+                                <div class="time-label-hint">Giờ</div>
+                            </div>
+                            <span class="time-colon">:</span>
+                            <div>
+                                <select id="inMin" onchange="syncTime('in')"></select>
+                                <div class="time-label-hint">Phút</div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="in_time" id="inTime" />
                         <div class="time-hint" id="inTimeHint"></div>
                     </div>
 
@@ -139,6 +167,55 @@
 <script>
 const SHIFT_URL = '@Url.Action("GetShiftInfo", "GatePass")';
 let shiftStart = '', shiftEnd = '', currentDate = '@today', currentType = '';
+
+// Khởi tạo dropdown giờ (00-23) và phút (00-59)
+function initTimePickers() {
+    ['outHour', 'inHour'].forEach(id => {
+        const sel = document.getElementById(id);
+        for (let h = 0; h < 24; h++) {
+            const o = document.createElement('option');
+            o.value = String(h).padStart(2, '0');
+            o.text  = String(h).padStart(2, '0');
+            sel.appendChild(o);
+        }
+    });
+    ['outMin', 'inMin'].forEach(id => {
+        const sel = document.getElementById(id);
+        for (let m = 0; m < 60; m++) {
+            const o = document.createElement('option');
+            o.value = String(m).padStart(2, '0');
+            o.text  = String(m).padStart(2, '0');
+            sel.appendChild(o);
+        }
+    });
+}
+
+function syncTime(prefix) {
+    const h = document.getElementById(prefix + 'Hour').value;
+    const m = document.getElementById(prefix + 'Min').value;
+    document.getElementById(prefix + 'Time').value = h + ':' + m;
+}
+
+function setTimePicker(prefix, hhmm, locked) {
+    const parts = (hhmm || '').split(':');
+    const h = parts[0] || '00', m = parts[1] || '00';
+    const selH = document.getElementById(prefix + 'Hour');
+    const selM = document.getElementById(prefix + 'Min');
+    selH.value = h; selM.value = m;
+    selH.disabled = !!locked; selM.disabled = !!locked;
+    selH.classList.toggle('auto-time', !!locked);
+    selM.classList.toggle('auto-time', !!locked);
+    syncTime(prefix);
+}
+
+function resetTimePicker(prefix) {
+    const selH = document.getElementById(prefix + 'Hour');
+    const selM = document.getElementById(prefix + 'Min');
+    selH.value = '00'; selM.value = '00';
+    selH.disabled = false; selM.disabled = false;
+    selH.classList.remove('auto-time'); selM.classList.remove('auto-time');
+    document.getElementById(prefix + 'Time').value = '';
+}
 
 function selectDate(el, date) {
     document.querySelectorAll('.date-radio-card').forEach(c => c.classList.remove('selected'));
@@ -174,43 +251,31 @@ function formatShift(t) {
 }
 
 function onTypeChange(type) {
-    const $outWrap = $('#outTimeWrap'), $inWrap = $('#inTimeWrap');
-    const $out = $('#outTime'), $in = $('#inTime');
-
-    $outWrap.hide(); $inWrap.hide();
-    $out.prop('readonly', false).removeClass('auto-time').val('');
-    $in.prop('readonly', false).removeClass('auto-time').val('');
-    $out.prop('required', false); $in.prop('required', false);
+    $('#outTimeWrap').hide(); $('#inTimeWrap').hide();
+    resetTimePicker('out'); resetTimePicker('in');
     $('#outTimeHint').text(''); $('#inTimeHint').text('');
 
     if (type === 'IN') {
-        $inWrap.show();
+        $('#inTimeWrap').show();
         $('#inTimeLabel').text('Giờ Đến Thực Tế ✱');
-        $in.prop('required', true);
-        // tự lấy giờ thiết bị, không cho sửa
         const now = new Date();
-        const hh = String(now.getHours()).padStart(2, '0');
-        const mm = String(now.getMinutes()).padStart(2, '0');
-        $in.val(`${hh}:${mm}`).prop('readonly', true).addClass('auto-time');
+        setTimePicker('in', String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0'), true);
 
     } else if (type === 'OUT') {
-        $outWrap.show();
+        $('#outTimeWrap').show();
         $('#outTimeLabel').text('Giờ Về Sớm ✱');
-        $out.prop('required', true);
 
     } else if (type === 'MID') {
-        $outWrap.show(); $inWrap.show();
+        $('#outTimeWrap').show(); $('#inTimeWrap').show();
         $('#outTimeLabel').text('Giờ Ra Ngoài ✱');
         $('#inTimeLabel').text('Giờ Vào Lại ✱');
-        $out.prop('required', true);
-        $in.prop('required', true);
     }
 }
 
 $('#gpForm').on('submit', function(e) {
     const type = $('input[name="gp_type"]:checked').val();
     if (!type) { e.preventDefault(); showToast('Vui lòng chọn loại phiếu ra vào', 'warning'); return; }
-    if (type === 'IN'   && !$('#inTime').val())  { e.preventDefault(); showToast('Vui lòng nhập giờ đến thực tế', 'warning'); return; }
+    if (type === 'IN'  && !$('#inTime').val())  { e.preventDefault(); showToast('Vui lòng nhập giờ đến thực tế', 'warning'); return; }
     if (type === 'OUT' && !$('#outTime').val()) { e.preventDefault(); showToast('Vui lòng nhập giờ về sớm', 'warning'); return; }
     if (type === 'MID') {
         if (!$('#outTime').val() || !$('#inTime').val()) {
@@ -225,6 +290,7 @@ $('#gpForm').on('submit', function(e) {
 });
 
 $(document).ready(function() {
+    initTimePickers();
     fetchShift(currentDate);
 });
 </script>

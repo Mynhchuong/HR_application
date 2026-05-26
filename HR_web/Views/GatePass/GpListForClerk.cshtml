@@ -186,13 +186,16 @@ $('#exportExcelBtn').on('click', async function() {
             pg++;
         } while (pg <= pgTotal);
         if (!exportRows.length) { alert('Không có dữ liệu để xuất'); return; }
-        const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Loại GP','Ngày','Giờ Ra','Giờ Vào','Lý Do','Tình Trạng'];
+        const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Loại GP','Ngày','Giờ Ra','Giờ Vào','Lý Do','Tình Trạng','Người Ký','Giờ Ký','Ghi Chú'];
         let html = '<html><head><meta charset="utf-8"/></head><body><table border="1"><thead><tr>';
         html += headers.map(h=>`<th style="background:#cfe2ff;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
         exportRows.forEach((r,i) => {
             const s = r.STATUS==='APPROVED'?'Đã duyệt':(r.STATUS==='REJECTED'?'Từ chối':'Chờ duyệt');
             const gp = GP_TYPE_LABEL[r.GP_TYPE]||r.GP_TYPE||'';
-            html += `<tr><td>${i+1}</td><td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${gp}</td><td>${formatDate(r.OUT_TIME||r.IN_TIME)}</td><td>${r.OUT_TIME?formatTime(r.OUT_TIME):''}</td><td>${r.IN_TIME?formatTime(r.IN_TIME):''}</td><td>${escHtml(r.REASON||'')}</td><td>${s}</td></tr>`;
+            const approver = escHtml(r.APPROVER_NAME || r.FINAL_APPROVER || '');
+            const signTime = r.FINAL_DATE ? formatDateTime(r.FINAL_DATE) : '';
+            const remark   = escHtml(r.REMARK || '');
+            html += `<tr><td>${i+1}</td><td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${gp}</td><td>${formatDate(r.OUT_TIME||r.IN_TIME)}</td><td>${r.OUT_TIME?formatTime(r.OUT_TIME):''}</td><td>${r.IN_TIME?formatTime(r.IN_TIME):''}</td><td>${escHtml(r.REASON||'')}</td><td>${s}</td><td>${approver}</td><td>${signTime}</td><td>${remark}</td></tr>`;
         });
         html += '</tbody></table></body></html>';
         const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
@@ -204,6 +207,7 @@ $('#exportExcelBtn').on('click', async function() {
 
 function formatTime(s){ const d=new Date(s); if(isNaN(d)) return''; return('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
 function formatDate(s){ if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return ''; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
+function formatDateTime(s){ if(!s) return ''; const d=new Date(s); if(isNaN(d)) return ''; return formatDate(s)+' '+formatTime(s); }
 function escHtml(str){ return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function debounce(fn,d){ let t; return function(){ clearTimeout(t); t=setTimeout(fn,d); }; }
 

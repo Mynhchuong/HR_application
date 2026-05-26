@@ -202,6 +202,11 @@ function onTypeChange(type) {
         $inWrap.show();
         $('#inTimeLabel').text('Giờ Đến Thực Tế ✱');
         $in.prop('required', true);
+        // tự lấy giờ thiết bị, không cho sửa
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        $in.val(`${hh}:${mm}`).prop('readonly', true).addClass('auto-time');
 
     } else if (type === 'OUT') {
         $outWrap.show();

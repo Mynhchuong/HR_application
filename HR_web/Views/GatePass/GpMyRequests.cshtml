@@ -41,15 +41,12 @@
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 filter-bar">
                     <h6 class="text-white mb-0"><i class="bi bi-list-check me-1"></i> Phiếu Ra Vào Của Tôi</h6>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <a href="@Url.Action("GpRequestForm", "GatePass")" class="btn btn-sm btn-light mb-0">
+                        <a href="@Url.Action("GpRequestForm", "GatePass")" class="btn btn-sm mb-0" style="background:#fff;color:#344767;font-weight:600;">
                             <i class="bi bi-plus-circle me-1"></i> Đăng Ký Mới
                         </a>
-                        <div class="filter-date-wrap d-flex align-items-center bg-white border-radius-md px-2 py-1 shadow-sm flex-wrap gap-1" style="height:auto;min-height:36px;">
-                            <label class="mb-0 text-dark fw-bold me-1 text-nowrap"><i class="bi bi-calendar3 text-danger me-1"></i> Từ:</label>
-                            <input type="date" id="dateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@today" />
-                            <label class="mb-0 text-dark fw-bold mx-1 text-nowrap">Đến:</label>
-                            <input type="date" id="dateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@today" />
-                            <button class="btn btn-sm btn-danger ms-1 py-0 px-2" onclick="loadData(1)"><i class="bi bi-search"></i></button>
+                        <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
+                            <i class="bi bi-calendar3 text-warning"></i>
+                            <input type="date" id="filterDate" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:120px;" value="@today" onchange="loadData(1)" />
                         </div>
                     </div>
                 </div>
@@ -146,6 +143,11 @@ function statusBadge(s) {
     if (s === 'REJECTED') return `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Từ chối</span>`;
     return `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>`;
 }
+function remarkHtml(item) {
+    if (!item.REMARK) return '';
+    const color = item.STATUS === 'REJECTED' ? 'danger' : 'info';
+    return `<div class="mt-1 px-2 py-1 rounded text-xs bg-${color} bg-opacity-10 border border-${color} text-${color}"><i class="bi bi-chat-left-text me-1"></i>${escHtml(item.REMARK)}</div>`;
+}
 
 function actionBtns(item) {
     if (!item.IS_EDITABLE) return '<span class="text-muted text-xs">-</span>';
@@ -170,7 +172,7 @@ function buildRow(item, idx) {
         <td class="px-2 text-sm">${dateStr}</td>
         <td class="px-2 text-sm text-nowrap">${timeCell(item)}</td>
         <td class="px-2 text-sm" style="max-width:160px;white-space:normal;">${escHtml(item.REASON||'-')}</td>
-        <td class="text-center">${statusBadge(item.STATUS)}</td>
+        <td class="text-center">${statusBadge(item.STATUS)}${remarkHtml(item)}</td>
         <td class="text-center">${actionBtns(item)}</td>
     </tr>`;
 }
@@ -190,8 +192,9 @@ function buildCard(item, idx) {
         </div>
         <div class="gp-card-row"><span class="gp-card-label">Lý do</span></div>
         <div class="text-sm text-dark mb-0">${escHtml(item.REASON||'-')}</div>
+        ${remarkHtml(item)}
         <div class="gp-card-footer">
-            <span class="text-xs text-secondary">#${idx}</span>
+            <span></span>
             <div>${actionBtns(item)}</div>
         </div>
     </div>`;
@@ -204,7 +207,7 @@ function loadData(page = 1) {
     $('#gpCardList').html('<div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div></div>');
     $.ajax({
         url: PAGE_URL, type: 'GET',
-        data: { page, page_size: pageSize, date_from: $('#dateFrom').val(), date_to: $('#dateTo').val() },
+        data: { page, page_size: pageSize, date_from: $('#filterDate').val(), date_to: $('#filterDate').val() },
         success: function(res) {
             if (!res.success) {
                 const err = `<tr><td colspan="7" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`;

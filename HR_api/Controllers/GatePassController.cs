@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
 using HR_api.Models.GatePass;
+using System.Data;
 
 namespace HR_api.Controllers;
 
@@ -174,7 +175,7 @@ public class GatePassController : ControllerBase
                     SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.CREATED_DATE DESC) RN
                     FROM (
                         SELECT GP.REQUEST_ID, GP.GP_TYPE, GP.OUT_TIME, GP.IN_TIME, GP.REASON,
-                               R.STATUS, GP.CREATED_DATE
+                               R.STATUS, R.REMARK, GP.CREATED_DATE
                         FROM HRMS.HR_GATEPASS_REQUEST GP
                         JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = GP.REQUEST_ID
                         WHERE GP.EMPCD = :EMPCD1" + dateFilter.Replace(":D_FROM", ":D_FROM1").Replace(":D_TO", ":D_TO1") + @"
@@ -188,6 +189,7 @@ public class GatePassController : ControllerBase
                 OUT_TIME     = r["OUT_TIME"]    == DBNull.Value ? null : Convert.ToDateTime(r["OUT_TIME"]),
                 IN_TIME      = r["IN_TIME"]     == DBNull.Value ? null : Convert.ToDateTime(r["IN_TIME"]),
                 REASON       = r["REASON"]?.ToString(),
+                REMARK       = r["REMARK"]?.ToString(),
                 STATUS       = r["STATUS"]?.ToString(),
                 CREATED_DATE = r["CREATED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CREATED_DATE"]),
                 IS_EDITABLE  = (r["STATUS"]?.ToString() ?? "PENDING") == "PENDING"
@@ -477,35 +479,88 @@ public class GatePassController : ControllerBase
             if (model == null || string.IsNullOrEmpty(model.REQUEST_ID) || string.IsNullOrEmpty(model.APPROVER_EMPCD))
                 return Ok(new { success = false, message = "Thiếu thông tin duyệt" });
 
-            int rows = await _oracleService.ExecuteNonQueryAsync(@"
-                UPDATE HRMS.HR_REQUEST
-                SET STATUS = 'APPROVED', FINAL_APPROVER = :APPROVER, FINAL_DATE = SYSDATE,
-                    REMARK = :REMARK_VAL, UPDATED_BY = :APPROVER1, UPDATED_DATE = SYSDATE
-                WHERE REQUEST_ID = :REQUEST_ID AND STATUS = 'PENDING'",
-                new OracleParameter("APPROVER",   model.APPROVER_EMPCD),
-                new OracleParameter("REMARK_VAL", (object?)model.COMMENT ?? DBNull.Value),
-                new OracleParameter("APPROVER1",  model.APPROVER_EMPCD),
-                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
+            // Single PL/SQL block: UPDATE + SP_INSERT_GATE_PASS atomically.
+            // If SP raises exception the whole block fails → no autocommit → UPDATE rolled back.
+            string plsql = @"
+DECLARE
+    v_rows    NUMBER;
+    v_nls_fmt VARCHAR2(100);
+    v_empcd   HRMS.HR_REQUEST.EMPCD%TYPE;
+    v_gp_type HRMS.HR_GATEPASS_REQUEST.GP_TYPE%TYPE;
+    v_out_dt  HRMS.HR_GATEPASS_REQUEST.OUT_TIME%TYPE;
+    v_in_dt   HRMS.HR_GATEPASS_REQUEST.IN_TIME%TYPE;
+    v_dat     VARCHAR2(8);
+    v_timeout VARCHAR2(4);
+    v_timein  VARCHAR2(4);
+BEGIN
+    SELECT VALUE INTO v_nls_fmt FROM NLS_SESSION_PARAMETERS WHERE PARAMETER = 'NLS_DATE_FORMAT';
+    EXECUTE IMMEDIATE 'ALTER SESSION SET NLS_DATE_FORMAT = ''YYYYMMDD''';
+
+    UPDATE HRMS.HR_REQUEST
+    SET STATUS = 'APPROVED', FINAL_APPROVER = :APPROVER, FINAL_DATE = SYSDATE,
+        REMARK = :REMARK_VAL, UPDATED_BY = :APPROVER, UPDATED_DATE = SYSDATE
+    WHERE REQUEST_ID = :REQUEST_ID AND STATUS = 'PENDING';
+
+    v_rows := SQL%ROWCOUNT;
+    :ROW_COUNT := v_rows;
+
+    IF v_rows > 0 THEN
+        SELECT R.EMPCD, G.GP_TYPE, G.OUT_TIME, G.IN_TIME
+        INTO v_empcd, v_gp_type, v_out_dt, v_in_dt
+        FROM HRMS.HR_REQUEST R
+        JOIN HRMS.HR_GATEPASS_REQUEST G ON G.REQUEST_ID = R.REQUEST_ID
+        WHERE R.REQUEST_ID = :REQUEST_ID;
+
+        -- lấy ngày thực tế từ OUT_TIME/IN_TIME, không phải ngày tạo đơn
+        v_dat     := COALESCE(TO_CHAR(v_out_dt, 'YYYYMMDD'), TO_CHAR(v_in_dt, 'YYYYMMDD'));
+        v_timeout := CASE WHEN v_out_dt IS NOT NULL THEN TO_CHAR(v_out_dt, 'HH24MI') ELSE NULL END;
+        v_timein  := CASE WHEN v_in_dt  IS NOT NULL THEN TO_CHAR(v_in_dt,  'HH24MI') ELSE NULL END;
+
+        HRMS.SP_INSERT_GATE_PASS(
+            P_EMPCD       => v_empcd,
+            P_DAT         => v_dat,
+            P_TYPE        => v_gp_type,
+            P_TIMEIN      => v_timein,
+            P_TIMEOUT     => v_timeout,
+            P_INID        => v_empcd,
+            P_APPROVED_ID => :APPROVER
+        );
+
+        :EMP_CD := v_empcd;
+    END IF;
+
+    EXECUTE IMMEDIATE 'ALTER SESSION SET NLS_DATE_FORMAT = ''' || v_nls_fmt || '''';
+EXCEPTION WHEN OTHERS THEN
+    EXECUTE IMMEDIATE 'ALTER SESSION SET NLS_DATE_FORMAT = ''' || v_nls_fmt || '''';
+    RAISE;
+END;";
+
+            var pApprover  = new OracleParameter("APPROVER",   model.APPROVER_EMPCD);
+            var pRemark    = new OracleParameter("REMARK_VAL", (object?)model.COMMENT ?? DBNull.Value);
+            var pReqId     = new OracleParameter("REQUEST_ID", model.REQUEST_ID);
+            var pRowCount  = new OracleParameter("ROW_COUNT",  OracleDbType.Int32)
+                             { Direction = ParameterDirection.Output };
+            var pEmpCd     = new OracleParameter("EMP_CD",     OracleDbType.Varchar2, 20)
+                             { Direction = ParameterDirection.Output };
+
+            await _oracleService.ExecuteNonQueryAsync(plsql, pApprover, pRemark, pReqId, pRowCount, pEmpCd);
+
+            int rows = pRowCount.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od ? (int)od.Value : 0;
 
             if (rows == 0)
                 return Ok(new { success = false, message = "Không tìm thấy hoặc đã được xử lý rồi" });
 
-            // Push notification cho worker
-            var empRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT R.EMPCD FROM HRMS.HR_REQUEST R WHERE R.REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
-                r => r["EMPCD"]?.ToString(),
-                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
-
-            if (empRows.Count > 0 && !string.IsNullOrEmpty(empRows[0]))
+            string? empCd = pEmpCd.Value?.ToString();
+            if (!string.IsNullOrEmpty(empCd) && empCd != "null")
             {
                 _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
                 {
-                    TITLE      = "Gate Pass được duyệt",
-                    BODY       = "Yêu cầu ra/vào cổng của bạn đã được phê duyệt.",
-                    NOTI_TYPE  = "EMPCD",
-                    TARGET_VAL = empRows[0],
+                    TITLE       = "Gate Pass được duyệt",
+                    BODY        = "Yêu cầu ra/vào cổng của bạn đã được phê duyệt.",
+                    NOTI_TYPE   = "EMPCD",
+                    TARGET_VAL  = empCd,
                     LINK_ACTION = "GP_MY",
-                    CREATED_BY = model.APPROVER_EMPCD
+                    CREATED_BY  = model.APPROVER_EMPCD
                 });
             }
 

@@ -1,7 +1,6 @@
 @{
     ViewData["Title"] = "Theo Dõi Ra Vào Cổng";
-    var dateFrom = ViewBag.DateFrom as string ?? DateTime.Today.ToString("yyyy-MM-dd");
-    var dateTo   = ViewBag.DateTo   as string ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var filterDate = DateTime.Today.ToString("yyyy-MM-dd");
 }
 
 @section Styles {
@@ -37,12 +36,9 @@
                     <button type="button" id="exportExcelBtn" class="btn btn-sm btn-success mb-0 text-nowrap d-flex align-items-center" style="height:36px;">
                         <i class="bi bi-file-earmark-excel me-1 fs-6"></i> Xuất Excel
                     </button>
-                    <div class="input-group input-group-sm bg-white border-radius-md px-2 py-1 align-items-center shadow-sm" style="height:36px;">
-                        <label class="mb-0 text-dark fw-bold me-2 text-nowrap"><i class="bi bi-calendar3 text-primary me-1"></i> Từ:</label>
-                        <input type="date" id="dateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:120px;" value="@dateFrom" />
-                        <label class="mb-0 text-dark fw-bold mx-2 text-nowrap">Đến:</label>
-                        <input type="date" id="dateTo"   class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:120px;" value="@dateTo" />
-                        <button class="btn btn-sm btn-primary ms-2 py-0 px-2" onclick="loadData(1)"><i class="bi bi-search"></i></button>
+                    <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
+                        <i class="bi bi-calendar3 text-info"></i>
+                        <input type="date" id="filterDate" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:120px;" value="@filterDate" onchange="loadData(1)" />
                     </div>
                 </div>
             </div>
@@ -123,8 +119,8 @@ function getParams(page) {
         dept_id:   $('#filterDept').val(),
         line_id:   $('#filterLine').val(),
         work_id:   $('#filterWork').val(),
-        date_from: $('#dateFrom').val(),
-        date_to:   $('#dateTo').val(),
+        date_from: $('#filterDate').val(),
+        date_to:   $('#filterDate').val(),
         page,
         page_size: pageSize
     };
@@ -201,7 +197,7 @@ $('#exportExcelBtn').on('click', async function() {
         html += '</tbody></table></body></html>';
         const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
         const link=document.createElement('a'); link.href=URL.createObjectURL(blob);
-        link.download=`GatePass_Export_${$('#dateFrom').val()}_${$('#dateTo').val()}.xls`; link.click();
+        link.download=`GatePass_Export_${$('#filterDate').val()}.xls`; link.click();
     } catch(err) { alert('Lỗi xuất file: '+err.message); }
     finally { $btn.prop('disabled',false).html(originalHtml); }
 });

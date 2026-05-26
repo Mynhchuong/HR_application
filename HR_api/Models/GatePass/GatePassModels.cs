@@ -40,6 +40,7 @@ public class GpMyRequestModel
     public DateTime? OUT_TIME { get; set; }
     public DateTime? IN_TIME { get; set; }
     public string? REASON { get; set; }
+    public string? REMARK { get; set; }
     public string? STATUS { get; set; }
     public DateTime? CREATED_DATE { get; set; }
     public bool IS_EDITABLE { get; set; }

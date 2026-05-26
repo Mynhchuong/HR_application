@@ -8,6 +8,7 @@
     .stats-card .icon { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; }
     #gpTableBody tr td { vertical-align: middle; }
     .pagination .page-link { cursor: pointer; border-radius: 8px !important; margin: 0 2px; }
+    .txt-clamp { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:160px; cursor:default; }
     .pagination .page-item.disabled .page-link { cursor: default; }
     .pagination .page-item.active .page-link { background: #ef4444; border-color: #ef4444; }
 </style>
@@ -47,9 +48,9 @@
 
         @await Html.PartialAsync("_GPFilterBar", new HR_web.Models.GatePass.GpFilterBarModel
         {
-            DeptUrl = Url.Action("GetDeptByScope", "Dropdown")!,
-            LineUrl = Url.Action("GetLineByScope", "Dropdown")!,
-            WorkUrl = Url.Action("GetWorkByScope", "Dropdown")!
+            DeptUrl = Url.Action("GetDept", "Dropdown")!,
+            LineUrl = Url.Action("GetLine", "Dropdown")!,
+            WorkUrl = Url.Action("GetWork", "Dropdown")!
         })
 
         <div class="card-body px-0 pt-0 pb-2 mt-1">
@@ -60,14 +61,14 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">#</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Mã NV</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Họ &amp; Tên</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Bộ Phận</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Line</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Loại</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ngày</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Giờ Ra</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Giờ Vào</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Lý Do</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Tình Trạng</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Người Ký</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ghi Chú</th>
                         </tr>
                     </thead>
                     <tbody id="gpTableBody"></tbody>
@@ -89,27 +90,37 @@ let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 const GP_TYPE_LABEL = { IN: 'Đến trễ', OUT: 'Về sớm', MID: 'Ra/Vào trong giờ làm' };
 
 function buildRow(item, idx) {
-    const dateStr = formatDate(item.OUT_TIME || item.IN_TIME);
-    const outStr  = item.OUT_TIME ? formatTime(item.OUT_TIME) : '-';
-    const inStr   = item.IN_TIME  ? formatTime(item.IN_TIME)  : '-';
-    const gpLabel = GP_TYPE_LABEL[item.GP_TYPE] || item.GP_TYPE || '-';
+    const dateStr  = formatDate(item.OUT_TIME || item.IN_TIME);
+    const outStr   = item.OUT_TIME ? formatTime(item.OUT_TIME) : '-';
+    const inStr    = item.IN_TIME  ? formatTime(item.IN_TIME)  : '-';
+    const gpLabel  = GP_TYPE_LABEL[item.GP_TYPE] || item.GP_TYPE || '-';
+    const approver = escHtml(item.APPROVER_NAME || item.FINAL_APPROVER || '-');
+    const signTime = item.FINAL_DATE ? formatDateTime(item.FINAL_DATE) : '-';
+    const remark   = escHtml(item.REMARK || '-');
 
     let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>`;
     if (item.STATUS === 'APPROVED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>`;
     if (item.STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Từ chối</span>`;
 
+    const deptLine = [item.DEPT_NAME, item.LINE_NAME].filter(Boolean).join(' • ');
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
-        <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
-        <td class="px-2 text-sm">${escHtml(item.DEPT_NAME||'')}</td>
-        <td class="px-2 text-sm">${escHtml(item.LINE_NAME||'')}</td>
+        <td class="px-2">
+            <div class="emp-name vni-font" style="text-transform:uppercase;font-size:.9rem;">${escHtml(item.EMP_NAME||'')}</div>
+            ${deptLine ? `<div class="text-xxs text-secondary">${escHtml(deptLine)}</div>` : ''}
+        </td>
         <td class="px-2 text-sm"><span class="badge bg-info">${gpLabel}</span></td>
         <td class="px-2 text-sm">${dateStr}</td>
         <td class="px-2 text-sm">${outStr}</td>
         <td class="px-2 text-sm">${inStr}</td>
-        <td class="px-2 text-sm" style="max-width:140px;white-space:normal;">${escHtml(item.REASON||'-')}</td>
+        <td class="px-2 text-sm"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
         <td class="text-center">${statusHtml}</td>
+        <td class="px-2">
+            <div class="emp-name vni-font" style="text-transform:uppercase;font-size:.9rem;">${approver}</div>
+            ${signTime !== '-' ? `<div class="text-xxs text-secondary">${signTime}</div>` : ''}
+        </td>
+        <td class="px-2 text-sm"><div class="txt-clamp" title="${escHtml(item.REMARK||'')}">${remark}</div></td>
     </tr>`;
 }
 
@@ -187,13 +198,16 @@ $('#exportExcelBtn').on('click', async function() {
             pg++;
         } while (pg <= pgTotal);
         if (!exportRows.length) { showToast('Không có dữ liệu để xuất', 'warning'); return; }
-        const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Loại','Ngày','Giờ Ra','Giờ Vào','Lý Do','Tình Trạng'];
+        const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Loại','Ngày','Giờ Ra','Giờ Vào','Lý Do','Tình Trạng','Người Ký','Giờ Ký','Ghi Chú'];
         let html = '<html><head><meta charset="utf-8"/></head><body><table border="1"><thead><tr>';
         html += headers.map(h=>`<th style="background:#d1fae5;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
         exportRows.forEach((r,i) => {
-            const s = r.STATUS==='APPROVED'?'Đã duyệt':(r.STATUS==='REJECTED'?'Từ chối':'Chờ duyệt');
-            const gp = GP_TYPE_LABEL[r.GP_TYPE]||r.GP_TYPE||'';
-            html += `<tr><td>${i+1}</td><td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${gp}</td><td>${formatDate(r.OUT_TIME||r.IN_TIME)}</td><td>${r.OUT_TIME?formatTime(r.OUT_TIME):''}</td><td>${r.IN_TIME?formatTime(r.IN_TIME):''}</td><td>${escHtml(r.REASON||'')}</td><td>${s}</td></tr>`;
+            const s        = r.STATUS==='APPROVED'?'Đã duyệt':(r.STATUS==='REJECTED'?'Từ chối':'Chờ duyệt');
+            const gp       = GP_TYPE_LABEL[r.GP_TYPE]||r.GP_TYPE||'';
+            const approver = escHtml(r.APPROVER_NAME || r.FINAL_APPROVER || '');
+            const signTime = r.FINAL_DATE ? formatDateTime(r.FINAL_DATE) : '';
+            const remark   = escHtml(r.REMARK || '');
+            html += `<tr><td>${i+1}</td><td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${gp}</td><td>${formatDate(r.OUT_TIME||r.IN_TIME)}</td><td>${r.OUT_TIME?formatTime(r.OUT_TIME):''}</td><td>${r.IN_TIME?formatTime(r.IN_TIME):''}</td><td>${escHtml(r.REASON||'')}</td><td>${s}</td><td>${approver}</td><td>${signTime}</td><td>${remark}</td></tr>`;
         });
         html += '</tbody></table></body></html>';
         const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
@@ -205,6 +219,7 @@ $('#exportExcelBtn').on('click', async function() {
 
 function formatTime(s){ const d=new Date(s); if(isNaN(d)) return''; return('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
 function formatDate(s){ if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return ''; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
+function formatDateTime(s){ if(!s) return ''; const d=new Date(s); if(isNaN(d)) return ''; return formatDate(s)+' '+formatTime(s); }
 function escHtml(str){ return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function debounce(fn,d){ let t; return function(){ clearTimeout(t); t=setTimeout(fn,d); }; }
 

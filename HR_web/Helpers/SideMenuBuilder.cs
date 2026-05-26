@@ -36,10 +36,9 @@ public static class SideMenuBuilder
                 VisibleWhen = () => true,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Xác nhận Tăng ca",  Url = "~/OT/OtConfirmForm",         Icon = "fact_check" },
-                    new SideMenuItem { Title = "Phiếu lương",        Url = "~/Payslip/Index",            Icon = "payments"   },
-                    new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",    Icon = "door_front" },
-                   // new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",    Icon = "door_front", VisibleWhen = () => isAdmin },
+                    new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",      Icon = "fact_check" },
+                    new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",          Icon = "payments"   },
+                    new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",  Icon = "door_front", VisibleWhen = () => isAdmin },
                 }
             },
 
@@ -51,8 +50,8 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isClerk || isAdmin,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForClerk",        Icon = "view_list" },
-                    new SideMenuItem { Title = "Theo dõi ra vào cổng", Url = "~/GatePass/GpListForClerk",  Icon = "door_front"},
+                    new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForClerk",       Icon = "view_list"  },
+                    new SideMenuItem { Title = "Theo dõi ra vào cổng", Url = "~/GatePass/GpListForClerk", Icon = "door_front", VisibleWhen = () => isAdmin },
                 }
             },
 
@@ -64,8 +63,8 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isSupervisor || isAdmin || isManager,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Danh sách Tăng ca",  Url = "~/OT/OtListForSupervisor",        Icon = "view_list" },
-                    new SideMenuItem { Title = "Duyệt ra vào cổng",   Url = "~/GatePass/GpListForSupervisor",  Icon = "door_front"},
+                    new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForSupervisor",       Icon = "view_list"  },
+                    new SideMenuItem { Title = "Duyệt ra vào cổng",  Url = "~/GatePass/GpListForSupervisor", Icon = "door_front", VisibleWhen = () => isAdmin },
                 }
             },
 
@@ -93,7 +92,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Phân Quyền Phạm Vi",   Url = "~/UserDept/Index",         Icon = "shield"                 },
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",              Icon = "view_list"              },
                     new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",               Icon = "account_balance_wallet" },
-                    new SideMenuItem { Title = "Phiếu Ra Vào",         Url = "~/GatePass/GpListForHR",        Icon = "door_front"            },
+                    new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",        Icon = "door_front", VisibleWhen = () => isAdmin },
                 }
             },
         };

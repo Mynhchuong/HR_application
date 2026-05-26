@@ -8,6 +8,7 @@
     .pagination .page-link { cursor: pointer; border-radius: 8px !important; margin: 0 2px; }
     .pagination .page-item.disabled .page-link { cursor: default; }
     .pagination .page-item.active .page-link { background: #ef4444; border-color: #ef4444; }
+    .txt-clamp { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:180px; cursor:default; }
 
     /* Date filter mobile */
     @@media (max-width: 576px) {
@@ -145,8 +146,11 @@ function statusBadge(s) {
 }
 function remarkHtml(item) {
     if (!item.REMARK) return '';
-    const color = item.STATUS === 'REJECTED' ? 'danger' : 'info';
-    return `<div class="mt-1 px-2 py-1 rounded text-xs bg-${color} bg-opacity-10 border border-${color} text-${color}"><i class="bi bi-chat-left-text me-1"></i>${escHtml(item.REMARK)}</div>`;
+    const isRejected = item.STATUS === 'REJECTED';
+    const style = isRejected
+        ? 'background:#fff0f0;border-left:3px solid #dc3545;color:#842029;'
+        : 'background:#e8f4fd;border-left:3px solid #0d6efd;color:#084298;';
+    return `<div class="mt-1 px-2 py-1 rounded-end text-xs" style="${style}"><i class="bi bi-chat-left-text me-1"></i>${escHtml(item.REMARK)}</div>`;
 }
 
 function actionBtns(item) {
@@ -171,7 +175,7 @@ function buildRow(item, idx) {
         <td class="px-2">${gpBadge(item.GP_TYPE)}</td>
         <td class="px-2 text-sm">${dateStr}</td>
         <td class="px-2 text-sm text-nowrap">${timeCell(item)}</td>
-        <td class="px-2 text-sm" style="max-width:160px;white-space:normal;">${escHtml(item.REASON||'-')}</td>
+        <td class="px-2 text-sm"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
         <td class="text-center">${statusBadge(item.STATUS)}${remarkHtml(item)}</td>
         <td class="text-center">${actionBtns(item)}</td>
     </tr>`;

@@ -181,7 +181,7 @@ function initTimePickers() {
     });
     ['outMin', 'inMin'].forEach(id => {
         const sel = document.getElementById(id);
-        for (let m = 0; m < 60; m++) {
+        for (let m = 0; m < 60; m += 5) {
             const o = document.createElement('option');
             o.value = String(m).padStart(2, '0');
             o.text  = String(m).padStart(2, '0');

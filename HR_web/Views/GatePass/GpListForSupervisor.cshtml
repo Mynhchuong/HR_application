@@ -8,6 +8,7 @@
     .stats-card .icon { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; }
     #gpTableBody tr td { vertical-align: middle; }
     .pagination .page-link { cursor: pointer; }
+    .txt-clamp { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:160px; cursor:default; }
     .pagination .page-item.disabled .page-link { cursor: default; }
     @@media (max-width: 767px) {
         .container-fluid { padding-left: 8px !important; padding-right: 8px !important; }
@@ -77,6 +78,8 @@
                                 data-mobile="detail" data-mobile-label="Giờ Vào">Giờ Vào</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
                                 data-mobile="detail" data-mobile-label="Lý Do">Lý Do</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
+                                data-mobile="detail" data-mobile-label="Ghi Chú Duyệt">Ghi Chú Duyệt</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
                                 data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tình Trạng">Tình Trạng</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
@@ -105,7 +108,8 @@
                 <input type="hidden" id="actionType" />
                 <div class="mb-2">
                     <label class="form-label small fw-bold">Ghi Chú (không bắt buộc)</label>
-                    <textarea id="actionComment" class="form-control form-control-sm" rows="2" maxlength="500"></textarea>
+                    <textarea id="actionComment" class="form-control form-control-sm" rows="2" maxlength="200" oninput="$('#commentCount').text(this.value.length+'/200')"></textarea>
+                    <div class="text-end text-xxs text-secondary mt-1"><span id="commentCount">0/200</span></div>
                 </div>
                 <div id="actionError" class="alert alert-danger d-none py-1 px-2 text-sm"></div>
             </div>
@@ -137,6 +141,20 @@ function buildRow(item, idx) {
     if (item.STATUS === 'APPROVED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>`;
     if (item.STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Từ chối</span>`;
 
+    let signInfo = '';
+    if (item.STATUS !== 'PENDING') {
+        const signTime = item.FINAL_DATE ? `<div class="text-xxs text-secondary mt-1">${formatDateTime(item.FINAL_DATE)}</div>` : '';
+        let remarkDiv = '';
+        if (item.REMARK) {
+            const isRejected = item.STATUS === 'REJECTED';
+            const rkStyle = isRejected
+                ? 'background:#fff0f0;border-left:3px solid #dc3545;color:#842029;'
+                : 'background:#e8f4fd;border-left:3px solid #0d6efd;color:#084298;';
+            remarkDiv = `<div class="mt-1 px-2 py-1 rounded-end text-xs" style="${rkStyle}"><i class="bi bi-chat-left-text me-1"></i>${escHtml(item.REMARK)}</div>`;
+        }
+        signInfo = `${signTime}${remarkDiv}`;
+    }
+
     const actions = item.STATUS === 'PENDING'
         ? `<button class="btn btn-xs btn-success me-1" onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','approve')"><i class="bi bi-check-lg"></i></button>
            <button class="btn btn-xs btn-danger"  onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','reject')"><i class="bi bi-x-lg"></i></button>`
@@ -151,7 +169,8 @@ function buildRow(item, idx) {
         <td class="px-2 text-sm">${dateStr}</td>
         <td class="px-2 text-sm d-none d-md-table-cell">${outStr}</td>
         <td class="px-2 text-sm d-none d-md-table-cell">${inStr}</td>
-        <td class="px-2 text-sm d-none d-md-table-cell" style="max-width:140px;white-space:normal;">${escHtml(item.REASON||'-')}</td>
+        <td class="px-2 text-sm d-none d-md-table-cell"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
+        <td class="px-2 text-sm d-none d-md-table-cell">${signInfo || '<span class="text-muted text-xs">-</span>'}</td>
         <td class="text-center">${statusHtml}</td>
         <td class="text-center">${actions}</td>
     </tr>`;
@@ -173,13 +192,13 @@ function getParams(page) {
 
 function loadData(page = 1) {
     currentPage = page;
-    $('#gpTableBody').html(`<tr><td colspan="11" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải...</div></td></tr>`);
+    $('#gpTableBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải...</div></td></tr>`);
     MobileTableHelper.refresh('gpTableBody');
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),
         success: function(res) {
             if (!res.success) {
-                $('#gpTableBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                $('#gpTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
                 MobileTableHelper.refresh('gpTableBody');
                 return;
             }
@@ -192,7 +211,7 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#gpTableBody').html(`<tr><td colspan="11" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
+                $('#gpTableBody').html(`<tr><td colspan="12" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
             } else {
                 $('#gpTableBody').html(data.map((item,i) => buildRow(item,(page-1)*pageSize+i+1)).join(''));
             }
@@ -200,7 +219,7 @@ function loadData(page = 1) {
             MobileTableHelper.refresh('gpTableBody');
         },
         error: function(xhr) {
-            $('#gpTableBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#gpTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('gpTableBody');
         }
     });
@@ -252,6 +271,7 @@ $('#pageSizeSelect').on('change', function() { pageSize = parseInt($(this).val()
 
 function formatTime(s){ const d=new Date(s); if(isNaN(d)) return''; return('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
 function formatDate(s){ if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return ''; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
+function formatDateTime(s){ if(!s) return ''; const d=new Date(s); if(isNaN(d)) return ''; return formatDate(s)+' '+formatTime(s); }
 function escHtml(str){ return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function debounce(fn,d){ let t; return function(){ clearTimeout(t); t=setTimeout(fn,d); }; }
 

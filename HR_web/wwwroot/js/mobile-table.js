@@ -28,7 +28,7 @@
         if (_modalEl) return;
         var div = document.createElement('div');
         div.innerHTML = [
-            '<div class="modal fade" id="mtDetailModal" tabindex="-1" aria-hidden="true">',
+            '<div class="modal fade" id="mtDetailModal" tabindex="-1">',
             '  <div class="modal-dialog modal-dialog-centered" style="max-width:340px">',
             '    <div class="modal-content border-0 shadow-lg mt-modal-content">',
             '      <div class="modal-header border-0 pb-0 pt-3 px-4">',

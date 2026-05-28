@@ -1,7 +1,8 @@
 @{
     ViewData["Title"] = "Đăng Ký Ra Vào Cổng";
-    var today    = ViewBag.Today    as string ?? DateTime.Today.ToString("yyyy-MM-dd");
-    var tomorrow = ViewBag.Tomorrow as string ?? DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
+    var today     = DateTime.Today.ToString("yyyy-MM-dd");
+    var yesterday = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd");
+    var tomorrow  = DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
 }
 
 @section Styles {
@@ -60,20 +61,24 @@
                     @Html.AntiForgeryToken()
 
                     <div class="mb-4">
-                        <div class="gp-label mb-2">Ngày Đăng Ký</div>
+                        <div class="gp-label mb-2">
+                            Ngày Đăng Ký
+                            <span id="shiftLoadingBadge" class="badge bg-secondary text-white ms-1" style="font-size:.72rem;display:none;"><span class="spinner-border spinner-border-sm me-1" style="width:.65rem;height:.65rem;"></span>Đang xác định ca...</span>
+                            <span id="shiftInfoBadge" class="badge bg-info text-white ms-1" style="font-size:.72rem;display:none;"></span>
+                        </div>
                         <div class="d-flex gap-2">
-                            <label class="date-radio-card selected flex-fill" id="cardToday" onclick="selectDate(this,'@today')">
-                                <input class="form-check-input" type="radio" name="reg_date" id="rdToday" value="@today" checked />
+                            <label class="date-radio-card selected flex-fill" id="cardDate1">
+                                <input class="form-check-input" type="radio" name="reg_date" id="rdDate1" value="@today" checked onchange="onDateCardChange(this.value)" />
                                 <div>
-                                    <div class="date-label">Hôm nay</div>
-                                    <div class="date-sub">@DateTime.Today.ToString("dd/MM/yyyy")</div>
+                                    <div class="date-label" id="labelDate1">Hôm nay</div>
+                                    <div class="date-sub"   id="subDate1">@DateTime.Today.ToString("dd/MM/yyyy")</div>
                                 </div>
                             </label>
-                            <label class="date-radio-card flex-fill" id="cardTomorrow" onclick="selectDate(this,'@tomorrow')">
-                                <input class="form-check-input" type="radio" name="reg_date" id="rdTomorrow" value="@tomorrow" />
+                            <label class="date-radio-card flex-fill" id="cardDate2">
+                                <input class="form-check-input" type="radio" name="reg_date" id="rdDate2" value="@tomorrow" onchange="onDateCardChange(this.value)" />
                                 <div>
-                                    <div class="date-label">Ngày mai</div>
-                                    <div class="date-sub">@DateTime.Today.AddDays(1).ToString("dd/MM/yyyy")</div>
+                                    <div class="date-label" id="labelDate2">Ngày mai</div>
+                                    <div class="date-sub"   id="subDate2">@DateTime.Today.AddDays(1).ToString("dd/MM/yyyy")</div>
                                 </div>
                             </label>
                         </div>
@@ -166,7 +171,55 @@
 @section Scripts {
 <script>
 const SHIFT_URL = '@Url.Action("GetShiftInfo", "GatePass")';
-let shiftStart = '', shiftEnd = '', currentDate = '@today', currentType = '';
+let shiftStart = '', shiftEnd = '', shiftCd = '', currentDate = '@today', currentType = '';
+
+function isNightShift() {
+    if (!shiftStart || !shiftEnd) return false;
+    return shiftEnd < shiftStart; // ví dụ 06:00 < 22:00
+}
+
+function updateShiftBadge() {
+    const el = document.getElementById('shiftInfoBadge');
+    if (!el) return;
+    if (shiftStart && shiftEnd) {
+        const night = isNightShift();
+        el.innerHTML = `<i class="bi bi-clock me-1"></i>${shiftCd ? shiftCd + ': ' : ''}${shiftStart} – ${shiftEnd}${night ? ' <span class="text-warning">(ca đêm)</span>' : ''}`;
+        el.style.display = 'inline-block';
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+function fmtDate(isoStr) {
+    if (!isoStr) return '';
+    const [y, m, d] = isoStr.split('-');
+    return `${d}/${m}/${y}`;
+}
+
+function setDateCards(date1Val, date1Label, date2Val, date2Label) {
+    document.getElementById('rdDate1').value = date1Val;
+    document.getElementById('labelDate1').textContent = date1Label;
+    document.getElementById('subDate1').textContent = fmtDate(date1Val);
+    document.getElementById('cardDate1').onclick = () => selectDate(document.getElementById('cardDate1'), date1Val);
+
+    document.getElementById('rdDate2').value = date2Val;
+    document.getElementById('labelDate2').textContent = date2Label;
+    document.getElementById('subDate2').textContent = fmtDate(date2Val);
+    document.getElementById('cardDate2').onclick = () => selectDate(document.getElementById('cardDate2'), date2Val);
+}
+
+function selectDateCard(val) {
+    if (document.getElementById('rdDate1').value === val) {
+        document.getElementById('rdDate1').checked = true;
+        document.getElementById('cardDate1').classList.add('selected');
+        document.getElementById('cardDate2').classList.remove('selected');
+    } else {
+        document.getElementById('rdDate2').checked = true;
+        document.getElementById('cardDate2').classList.add('selected');
+        document.getElementById('cardDate1').classList.remove('selected');
+    }
+    currentDate = val;
+}
 
 // Khởi tạo dropdown giờ (00-23) và phút (00-59)
 function initTimePickers() {
@@ -217,6 +270,12 @@ function resetTimePicker(prefix) {
     document.getElementById(prefix + 'Time').value = '';
 }
 
+function onDateCardChange(date) {
+    selectDate(date === document.getElementById('rdDate1').value
+        ? document.getElementById('cardDate1')
+        : document.getElementById('cardDate2'), date);
+}
+
 function selectDate(el, date) {
     document.querySelectorAll('.date-radio-card').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
@@ -233,15 +292,35 @@ function selectType(type) {
 }
 
 async function fetchShift(date) {
+    const isAutoDetect = !date;
+    if (isAutoDetect) $('#shiftLoadingBadge').show();
     try {
-        const res = await $.getJSON(SHIFT_URL, { reg_date: date });
+        const params = isAutoDetect ? {} : { reg_date: date };
+        const res = await $.getJSON(SHIFT_URL, params);
         if (res.success && res.data) {
             shiftStart = formatShift(res.data.STIME);
             shiftEnd   = formatShift(res.data.ETIME);
+            shiftCd    = res.data.SHIFTCD || '';
+            updateShiftBadge();
+
+            if (isAutoDetect && res.data.WORK_DATE) {
+                const wd  = res.data.WORK_DATE;
+                const wd2 = res.data.WORK_DATE_TOMORROW || '';
+                const today = '@today';
+
+                // Xác định nhãn tùy ngày ca
+                const label1 = wd < today ? 'Hôm qua (ca đêm)' : 'Hôm nay';
+                const label2 = wd2 === today ? 'Hôm nay' : 'Ngày mai';
+
+                setDateCards(wd, label1, wd2, label2);
+                selectDateCard(wd);
+            }
         } else {
-            shiftStart = shiftEnd = '';
+            shiftStart = shiftEnd = shiftCd = '';
+            updateShiftBadge();
         }
     } catch { shiftStart = shiftEnd = ''; }
+    if (isAutoDetect) $('#shiftLoadingBadge').hide();
     if (currentType) onTypeChange(currentType);
 }
 
@@ -259,7 +338,7 @@ function onTypeChange(type) {
         $('#inTimeWrap').show();
         $('#inTimeLabel').text('Giờ Đến Thực Tế ✱');
         const now = new Date();
-        setTimePicker('in', String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0'), true);
+        setTimePicker('in', String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0'), false);
 
     } else if (type === 'OUT') {
         $('#outTimeWrap').show();
@@ -281,7 +360,10 @@ $('#gpForm').on('submit', function(e) {
         if (!$('#outTime').val() || !$('#inTime').val()) {
             e.preventDefault(); showToast('Vui lòng nhập đầy đủ giờ ra và giờ vào', 'warning'); return;
         }
-        if ($('#outTime').val() >= $('#inTime').val()) {
+        const outVal = $('#outTime').val(), inVal = $('#inTime').val();
+        // Ca đêm (ETIME < STIME): cho phép giờ ra > giờ vào nếu qua nửa đêm
+        const midnightCross = isNightShift() && outVal > inVal;
+        if (!midnightCross && outVal >= inVal) {
             e.preventDefault(); showToast('Giờ ra ngoài phải nhỏ hơn giờ vào lại', 'warning'); return;
         }
     }
@@ -291,7 +373,7 @@ $('#gpForm').on('submit', function(e) {
 
 $(document).ready(function() {
     initTimePickers();
-    fetchShift(currentDate);
+    fetchShift(); // auto-detect ca đêm
 });
 </script>
 }

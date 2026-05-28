@@ -66,7 +66,7 @@ public class GatePassController : BaseController
     // GET: /GatePass/GetShiftInfo (AJAX)
     // ─────────────────────────────────────────────
     [HttpGet]
-    public async Task<IActionResult> GetShiftInfo(string reg_date)
+    public async Task<IActionResult> GetShiftInfo(string? reg_date)
     {
         try
         {
@@ -156,8 +156,10 @@ public class GatePassController : BaseController
     // ─────────────────────────────────────────────
     public IActionResult GpListForSupervisor()
     {
-        ViewBag.DateFrom = DateTime.Today.ToString("yyyy-MM-dd");
-        ViewBag.DateTo   = DateTime.Today.ToString("yyyy-MM-dd");
+        ViewBag.DateFrom     = DateTime.Today.ToString("yyyy-MM-dd");
+        ViewBag.DateTo       = DateTime.Today.ToString("yyyy-MM-dd");
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
+        ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
         return View();
     }
 

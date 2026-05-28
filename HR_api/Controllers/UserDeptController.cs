@@ -32,7 +32,9 @@ public class UserDeptController : ControllerBase
             string fromSql = @"
                 FROM HRMS.HR_USERS_DEPT D
                 JOIN HRMS.ECM100 E ON E.EMPCD = D.EMPCD
-                LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = D.DEPTCD AND B.LINECD = D.LINECD AND B.WORKCD = D.WORKCD";
+                LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = D.DEPTCD AND B.LINECD = D.LINECD AND B.WORKCD = D.WORKCD
+                LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = D.EMPCD
+                LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID";
 
             string whereSql = @"
                 WHERE (:EMPCD_FLAG IS NULL OR UPPER(D.EMPCD) LIKE :EMPCD_VAL)
@@ -64,6 +66,7 @@ public class UserDeptController : ControllerBase
                                B.DEPTNM      DEPT_NAME,
                                B.TEAMNM      LINE_NAME,
                                B.WORKNM      WORK_NAME,
+                               RR.ROLE_NAME,
                                D.CREATEDATE, D.CREATEBY, D.UPDATEDATE, D.UPDATEBY
                         {fromSql} {whereSql}
                     ) T
@@ -77,6 +80,7 @@ public class UserDeptController : ControllerBase
             {
                 EMPCD       = r["EMPCD"]?.ToString(),
                 EMP_NAME    = r["EMP_NAME"]?.ToString(),
+                ROLE_NAME   = r["ROLE_NAME"]?.ToString(),
                 DEPTCD      = r["DEPTCD"]?.ToString(),
                 DEPT_NAME   = r["DEPT_NAME"]?.ToString(),
                 LINECD      = r["LINECD"]?.ToString(),

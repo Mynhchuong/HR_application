@@ -123,9 +123,12 @@
 
 @section Scripts {
 <script>
-const PAGE_URL    = '@Url.Action("GetSupervisorPage",  "GatePass")';
-const APPROVE_URL = '@Url.Action("ApproveRequest",     "GatePass")';
-const REJECT_URL  = '@Url.Action("RejectRequest",      "GatePass")';
+const PAGE_URL      = '@Url.Action("GetSupervisorPage",  "GatePass")';
+const APPROVE_URL   = '@Url.Action("ApproveRequest",     "GatePass")';
+const REJECT_URL    = '@Url.Action("RejectRequest",      "GatePass")';
+const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
+const CURRENT_ROLE  = '@ViewBag.CurrentRole';
+const CAN_APPROVE   = CURRENT_ROLE === 'Manager' || CURRENT_ROLE === 'Admin';
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 
@@ -155,10 +158,15 @@ function buildRow(item, idx) {
         signInfo = `${signTime}${remarkDiv}`;
     }
 
-    const actions = item.STATUS === 'PENDING'
-        ? `<button class="btn btn-xs btn-success me-1" onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','approve')"><i class="bi bi-check-lg"></i></button>
-           <button class="btn btn-xs btn-danger"  onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','reject')"><i class="bi bi-x-lg"></i></button>`
-        : '<span class="text-muted text-xs">-</span>';
+    const isSelf  = item.EMPCD === CURRENT_EMPCD;
+    const actions = item.STATUS !== 'PENDING'
+        ? '<span class="text-muted text-xs">-</span>'
+        : isSelf
+            ? `<span class="text-warning text-xxs d-inline-block lh-sm" title="Lời nhắn: Hãy liên hệ quản lý cấp cao hơn để được phê duyệt"><i class="bi bi-exclamation-triangle-fill me-1"></i>Cần QLC<br>duyệt</span>`
+            : CAN_APPROVE
+                ? `<button class="btn btn-xs btn-success me-1" onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','approve')"><i class="bi bi-check-lg"></i></button>
+                   <button class="btn btn-xs btn-danger"  onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','reject')"><i class="bi bi-x-lg"></i></button>`
+                : `<span class="text-muted text-xxs d-inline-block lh-sm" title="Chỉ Manager mới có quyền duyệt"><i class="bi bi-lock-fill me-1"></i>Chỉ Manager<br>duyệt được</span>`;
 
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>

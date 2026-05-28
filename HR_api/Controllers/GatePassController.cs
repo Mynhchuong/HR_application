@@ -30,28 +30,68 @@ public class GatePassController : ControllerBase
             if (string.IsNullOrEmpty(empcd))
                 return Ok(new { success = false, message = "Thiếu mã nhân viên" });
 
-            DateTime regDate = (!string.IsNullOrEmpty(reg_date) && DateTime.TryParse(reg_date, out var _rd)) ? _rd : DateTime.Today;
+            GpShiftInfoModel? info;
 
-            string sql = @"
-                SELECT S.STIME, S.ETIME FROM (
-                    SELECT SHIFTCD FROM HRMS.EBM300      WHERE EMPCD = :EMPCD  AND DAT = :REG_DATE  AND ROWNUM = 1
-                    UNION ALL
-                    SELECT SHIFTCD FROM HRMS.EBM300_WAIT WHERE EMPCD = :EMPCD1 AND DAT = :REG_DATE1 AND ROWNUM = 1
-                ) T
-                JOIN HRMS.EBM100 S ON S.SHIFTCD = T.SHIFTCD
-                WHERE ROWNUM = 1";
-
-            var result = await _oracleService.ExecuteQueryAsync(sql, r => new GpShiftInfoModel
+            if (string.IsNullOrEmpty(reg_date))
             {
-                STIME = r["STIME"]?.ToString(),
-                ETIME = r["ETIME"]?.ToString()
-            },
-            new OracleParameter("EMPCD",     empcd),
-            new OracleParameter("REG_DATE",  regDate),
-            new OracleParameter("EMPCD1",    empcd),
-            new OracleParameter("REG_DATE1", regDate));
+                // Auto-detect: dùng logic ca đêm của sếp
+                // Nếu giờ hiện tại < STIME và đây là ca đêm (STIME > ETIME) → đang ở phần sáng hôm sau → DAT = hôm qua
+                string autoSql = @"
+                    SELECT TO_CHAR(A.DAT, 'YYYY-MM-DD')     WORK_DATE,
+                           TO_CHAR(A.DAT + 1, 'YYYY-MM-DD') WORK_DATE_TOMORROW,
+                           A.SHIFTCD, B.STIME, B.ETIME
+                    FROM HRMS.EBM300 A, HRMS.EBM100 B
+                    WHERE A.SHIFTCD = B.SHIFTCD
+                      AND A.EMPCD = :EMPCD
+                      AND A.DAT = CASE
+                                    WHEN TO_NUMBER(TO_CHAR(SYSDATE,'HH24MI')) < TO_NUMBER(B.STIME)
+                                         AND TO_NUMBER(B.STIME) > TO_NUMBER(B.ETIME)
+                                    THEN TRUNC(SYSDATE) - 1
+                                    ELSE TRUNC(SYSDATE)
+                                  END
+                    AND ROWNUM = 1";
 
-            return Ok(new { success = true, data = result.FirstOrDefault() });
+                var autoResult = await _oracleService.ExecuteQueryAsync(autoSql, r => new GpShiftInfoModel
+                {
+                    SHIFTCD           = r["SHIFTCD"]?.ToString(),
+                    STIME             = r["STIME"]?.ToString(),
+                    ETIME             = r["ETIME"]?.ToString(),
+                    WORK_DATE         = r["WORK_DATE"]?.ToString(),
+                    WORK_DATE_TOMORROW = r["WORK_DATE_TOMORROW"]?.ToString()
+                }, new OracleParameter("EMPCD", empcd));
+
+                info = autoResult.FirstOrDefault();
+            }
+            else
+            {
+                DateTime regDate = DateTime.TryParse(reg_date, out var _rd) ? _rd : DateTime.Today;
+
+                string sql = @"
+                    SELECT T.SHIFTCD, S.STIME, S.ETIME FROM (
+                        SELECT SHIFTCD FROM HRMS.EBM300      WHERE EMPCD = :EMPCD  AND DAT = :REG_DATE  AND ROWNUM = 1
+                        UNION ALL
+                        SELECT SHIFTCD FROM HRMS.EBM300_WAIT WHERE EMPCD = :EMPCD1 AND DAT = :REG_DATE1 AND ROWNUM = 1
+                    ) T
+                    JOIN HRMS.EBM100 S ON S.SHIFTCD = T.SHIFTCD
+                    WHERE ROWNUM = 1";
+
+                var result = await _oracleService.ExecuteQueryAsync(sql, r => new GpShiftInfoModel
+                {
+                    SHIFTCD           = r["SHIFTCD"]?.ToString(),
+                    STIME             = r["STIME"]?.ToString(),
+                    ETIME             = r["ETIME"]?.ToString(),
+                    WORK_DATE         = regDate.ToString("yyyy-MM-dd"),
+                    WORK_DATE_TOMORROW = regDate.AddDays(1).ToString("yyyy-MM-dd")
+                },
+                new OracleParameter("EMPCD",     empcd),
+                new OracleParameter("REG_DATE",  regDate),
+                new OracleParameter("EMPCD1",    empcd),
+                new OracleParameter("REG_DATE1", regDate));
+
+                info = result.FirstOrDefault();
+            }
+
+            return Ok(new { success = true, data = info });
         }
         catch (Exception ex)
         {
@@ -481,6 +521,27 @@ public class GatePassController : ControllerBase
         {
             if (model == null || string.IsNullOrEmpty(model.REQUEST_ID) || string.IsNullOrEmpty(model.APPROVER_EMPCD))
                 return Ok(new { success = false, message = "Thiếu thông tin duyệt" });
+
+            // Chỉ Manager hoặc Admin mới được duyệt
+            var approverRoleRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U
+                LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID
+                WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => r["ROLE_NAME"]?.ToString(),
+                new OracleParameter("EMPCD", model.APPROVER_EMPCD));
+
+            string? approverRole = approverRoleRows.FirstOrDefault();
+            if (approverRole != "Manager" && approverRole != "Admin")
+                return Ok(new { success = false, message = "Chỉ Manager mới có quyền phê duyệt Gate Pass" });
+
+            // Không cho phép supervisor tự duyệt phiếu của chính mình
+            var requestEmpRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT GP.EMPCD FROM HRMS.HR_GATEPASS_REQUEST GP WHERE GP.REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
+                r => r["EMPCD"]?.ToString(),
+                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
+
+            if (requestEmpRows.Count > 0 && requestEmpRows[0] == model.APPROVER_EMPCD)
+                return Ok(new { success = false, message = "Lời nhắn: Hãy liên hệ quản lý cấp cao hơn để được phê duyệt" });
 
             // Single PL/SQL block: UPDATE + SP_INSERT_GATE_PASS atomically.
             // If SP raises exception the whole block fails → no autocommit → UPDATE rolled back.

@@ -2,8 +2,11 @@ namespace HR_api.Models.GatePass;
 
 public class GpShiftInfoModel
 {
-    public string? STIME { get; set; }
-    public string? ETIME { get; set; }
+    public string? SHIFTCD           { get; set; }
+    public string? STIME             { get; set; }
+    public string? ETIME             { get; set; }
+    public string? WORK_DATE         { get; set; }  // yyyy-MM-dd — ngày ca (có thể là hôm qua nếu ca đêm)
+    public string? WORK_DATE_TOMORROW { get; set; } // yyyy-MM-dd — ngày kế tiếp
 }
 
 public class GpSubmitRequest

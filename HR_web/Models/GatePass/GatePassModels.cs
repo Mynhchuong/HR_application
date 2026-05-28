@@ -10,8 +10,11 @@ public class GpFilterBarModel
 
 public class GpShiftInfoModel
 {
-    public string? STIME { get; set; }
-    public string? ETIME { get; set; }
+    public string? SHIFTCD            { get; set; }
+    public string? STIME              { get; set; }
+    public string? ETIME              { get; set; }
+    public string? WORK_DATE          { get; set; }
+    public string? WORK_DATE_TOMORROW { get; set; }
 }
 
 public class GpMyRequestModel

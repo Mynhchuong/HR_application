@@ -12,11 +12,13 @@ public class GatePassService
         _api = api;
     }
 
-    public async Task<GpShiftInfoModel?> GetShiftInfoAsync(string empcd, string regDate)
+    public async Task<GpShiftInfoModel?> GetShiftInfoAsync(string empcd, string? regDate)
     {
         try
         {
-            var q = $"empcd={Uri.EscapeDataString(empcd)}&reg_date={Uri.EscapeDataString(regDate)}";
+            var q = string.IsNullOrEmpty(regDate)
+                ? $"empcd={Uri.EscapeDataString(empcd)}"
+                : $"empcd={Uri.EscapeDataString(empcd)}&reg_date={Uri.EscapeDataString(regDate)}";
             var result = await _api.GetAsync<GpShiftResponse>("gatepass/shift-info", q);
             return (result != null && result.success) ? result.data : null;
         }

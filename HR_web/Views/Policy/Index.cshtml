@@ -1,0 +1,310 @@
+@model List<HR_web.Models.Policy.CompanyPolicyModel>
+@{
+    ViewData["Title"] = "Quy định công ty";
+    var grouped = Model.GroupBy(p => p.CATEGORY).OrderBy(g => g.Key).ToList();
+    var lastUpdated = Model.Where(p => p.UPDT_DT.HasValue).OrderByDescending(p => p.UPDT_DT).FirstOrDefault();
+}
+
+<style>
+    :root {
+        --policy-primary: #4f46e5;
+        --policy-bg: #f8fafc;
+        --policy-text: #1e293b;
+        --policy-muted: #64748b;
+        --policy-border: #e2e8f0;
+        --policy-active: #ede9fe;
+    }
+
+    .policy-page {
+        max-width: 600px;
+        margin: 0 auto;
+        padding-bottom: 5rem;
+    }
+
+    /* ── Hero ─────────────────────────────────── */
+    .policy-hero {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        border-radius: 24px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        color: #fff;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .policy-hero::after {
+        content: 'policy';
+        font-family: 'Material Symbols Rounded';
+        font-size: 100px;
+        position: absolute;
+        right: -10px;
+        bottom: -15px;
+        opacity: 0.12;
+        line-height: 1;
+    }
+
+    .policy-hero h5 {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin: 0 0 0.25rem;
+    }
+
+    .policy-hero .last-update {
+        font-size: 0.78rem;
+        opacity: 0.85;
+    }
+
+    /* ── Accordion ────────────────────────────── */
+    .policy-accordion {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .policy-group {
+        background: #fff;
+        border-radius: 20px;
+        border: 1px solid var(--policy-border);
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .policy-group-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.25rem;
+        cursor: pointer;
+        user-select: none;
+        gap: 0.75rem;
+    }
+
+    .policy-group-header:active {
+        background: var(--policy-active);
+    }
+
+    .group-icon-wrap {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: var(--policy-active);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .group-icon-wrap .material-symbols-rounded {
+        font-size: 20px;
+        color: var(--policy-primary);
+    }
+
+    .group-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--policy-text);
+        flex: 1;
+    }
+
+    .group-badge {
+        font-size: 0.72rem;
+        background: var(--policy-active);
+        color: var(--policy-primary);
+        border-radius: 20px;
+        padding: 2px 10px;
+        font-weight: 600;
+    }
+
+    .chevron-icon {
+        font-size: 20px;
+        color: var(--policy-muted);
+        transition: transform 0.25s ease;
+    }
+
+    .policy-group.open .chevron-icon {
+        transform: rotate(180deg);
+    }
+
+    /* ── Items ────────────────────────────────── */
+    .policy-items {
+        display: none;
+        border-top: 1px solid var(--policy-border);
+    }
+
+    .policy-group.open .policy-items {
+        display: block;
+    }
+
+    .policy-item {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--policy-border);
+    }
+
+    .policy-item:last-child {
+        border-bottom: none;
+    }
+
+    .item-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        gap: 0.5rem;
+    }
+
+    .item-title {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--policy-text);
+        flex: 1;
+    }
+
+    .item-chevron {
+        font-size: 18px;
+        color: var(--policy-muted);
+        transition: transform 0.2s ease;
+        flex-shrink: 0;
+    }
+
+    .policy-item.open .item-chevron {
+        transform: rotate(180deg);
+    }
+
+    .item-content {
+        display: none;
+        margin-top: 0.75rem;
+        font-size: 0.85rem;
+        color: #475569;
+        line-height: 1.7;
+    }
+
+    .policy-item.open .item-content {
+        display: block;
+    }
+
+    /* rich text content overrides */
+    .item-content p { margin-bottom: 0.5rem; }
+    .item-content ul, .item-content ol { padding-left: 1.25rem; margin-bottom: 0.5rem; }
+    .item-content strong { color: var(--policy-text); }
+    .item-content table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 0.5rem 0; }
+    .item-content table td, .item-content table th {
+        border: 1px solid var(--policy-border);
+        padding: 6px 8px;
+    }
+    .item-content table th { background: var(--policy-active); font-weight: 600; color: var(--policy-primary); }
+
+    .item-meta {
+        margin-top: 0.75rem;
+        font-size: 0.75rem;
+        color: var(--policy-muted);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* ── Empty state ──────────────────────────── */
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--policy-muted);
+    }
+
+    .empty-state .material-symbols-rounded {
+        font-size: 64px;
+        opacity: 0.3;
+        display: block;
+        margin-bottom: 0.75rem;
+    }
+</style>
+
+<div class="policy-page">
+
+    <!-- Hero -->
+    <div class="policy-hero">
+        <h5>Quy định công ty</h5>
+        @if (lastUpdated != null)
+        {
+            var updaterName = !string.IsNullOrEmpty(lastUpdated.UPDT_FULL_NAME)
+                ? lastUpdated.UPDT_FULL_NAME
+                : lastUpdated.UPDT_ID;
+            <div class="last-update">
+                <span class="material-symbols-rounded" style="font-size:14px;vertical-align:middle;">update</span>
+                Cập nhật @lastUpdated.UPDT_DT?.ToString("dd/MM/yyyy")
+                @if (!string.IsNullOrEmpty(updaterName))
+                {
+                    <span>— @updaterName</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="last-update">
+                <span class="material-symbols-rounded" style="font-size:14px;vertical-align:middle;">info</span>
+                @Model.Count mục quy định
+            </div>
+        }
+    </div>
+
+    @if (!grouped.Any())
+    {
+        <div class="empty-state">
+            <span class="material-symbols-rounded">policy</span>
+            <p>Chưa có quy định nào được công bố</p>
+        </div>
+    }
+    else
+    {
+        <div class="policy-accordion">
+            @foreach (var group in grouped)
+            {
+                var groupId = $"group-{group.Key.Replace(" ", "-").ToLower()}";
+                <div class="policy-group" id="@groupId">
+                    <div class="policy-group-header" onclick="toggleGroup('@groupId')">
+                        <div class="group-icon-wrap">
+                            <span class="material-symbols-rounded">article</span>
+                        </div>
+                        <span class="group-title">@group.Key</span>
+                        <span class="group-badge">@group.Count() mục</span>
+                        <span class="material-symbols-rounded chevron-icon">expand_more</span>
+                    </div>
+                    <div class="policy-items">
+                        @foreach (var item in group)
+                        {
+                            var itemId = $"item-{item.ID}";
+                            <div class="policy-item" id="@itemId">
+                                <div class="item-header" onclick="toggleItem('@itemId')">
+                                    <span class="item-title">@item.TITLE</span>
+                                    <span class="material-symbols-rounded item-chevron">expand_more</span>
+                                </div>
+                                <div class="item-content">
+                                    @Html.Raw(item.CONTENT)
+                                    @if (item.UPDT_DT.HasValue)
+                                    {
+                                        var name = !string.IsNullOrEmpty(item.UPDT_FULL_NAME) ? item.UPDT_FULL_NAME : item.UPDT_ID;
+                                        <div class="item-meta">
+                                            <span class="material-symbols-rounded" style="font-size:13px;">update</span>
+                                            Cập nhật @item.UPDT_DT.Value.ToString("dd/MM/yyyy")
+                                            @if (!string.IsNullOrEmpty(name)) { <span>— @name</span> }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<script>
+    function toggleGroup(id) {
+        const el = document.getElementById(id);
+        el.classList.toggle('open');
+    }
+
+    function toggleItem(id) {
+        const el = document.getElementById(id);
+        el.classList.toggle('open');
+    }
+</script>

@@ -132,7 +132,8 @@ const CURRENT_ROLE  = '@ViewBag.CurrentRole';
 const CAN_APPROVE   = ['Expat', 'Admin'].includes(CURRENT_ROLE);
 
 // Role hierarchy — mirrors RoleHierarchyHelper
-const ROLE_LEVELS = { Admin:99, Expat:4, Manager:3, Supervisor:2, Assistant:1, HR:1, Clerk:1, Worker:1, Employee:1 };
+// Worker/Clerk/HR(1) → Supervisor(2) → DeputyManager(3) → Manager(4) → Expat(5) → Admin(99)
+const ROLE_LEVELS = { Admin:99, Expat:5, Manager:4, DeputyManager:3, Supervisor:2, HR:1, Clerk:1, Worker:1 };
 const MY_LEVEL    = ROLE_LEVELS[CURRENT_ROLE] || 1;
 function canApproveRole(requesterRole) {
     return CAN_APPROVE && (ROLE_LEVELS[requesterRole] || 1) < MY_LEVEL;

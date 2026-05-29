@@ -9,12 +9,13 @@ public static class SideMenuBuilder
     {
         if (user == null) return new List<SideMenuItem>();
 
-        bool isAdmin      = !isMobileApp && user.RoleName == "Admin";
-        bool isClerk      = !isMobileApp && user.RoleName == "Clerk";
-        bool isHR         = !isMobileApp && user.RoleName == "HR";
-        bool isSupervisor = user.RoleName == "Supervisor" || user.RoleName == "Assistant";
-        bool isManager    = user.RoleName == "Manager";
-        bool isExpat      = user.RoleName == "Expat";
+        bool isAdmin         = !isMobileApp && user.RoleName == "Admin";
+        bool isClerk         = !isMobileApp && user.RoleName == "Clerk";
+        bool isHR            = !isMobileApp && user.RoleName == "HR";
+        bool isSupervisor    = user.RoleName == "Supervisor";
+        bool isDeputyManager = user.RoleName == "DeputyManager";
+        bool isManager       = user.RoleName == "Manager";
+        bool isExpat         = user.RoleName == "Expat";
 
         return new List<SideMenuItem>
         {
@@ -40,6 +41,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",      Icon = "fact_check" },
                     new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",          Icon = "payments"   },
                     new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",  Icon = "door_front" },
+                   // new SideMenuItem { Title = "Quy định công ty",    Url = "~/Policy/Index",           Icon = "policy"     },
                 }
             },
 
@@ -74,7 +76,7 @@ public static class SideMenuBuilder
                 Id = "Supervisor",
                 Title = "Giám sát",
                 Icon = "engineering",
-                VisibleWhen = () => isSupervisor || isAdmin || isManager,
+                VisibleWhen = () => isSupervisor || isAdmin || isManager || isDeputyManager,
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForSupervisor",       Icon = "view_list"  },
@@ -87,7 +89,7 @@ public static class SideMenuBuilder
                 Id = "Manager",
                 Title = "Quản lý",
                 Icon = "supervisor_account",
-                VisibleWhen = () => isManager || isAdmin,
+                VisibleWhen = () => isManager || isAdmin || isDeputyManager,
                 Children = new List<SideMenuItem>
                 {
                     
@@ -107,6 +109,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",              Icon = "view_list"              },
                     new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",               Icon = "account_balance_wallet" },
                     new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",        Icon = "door_front" },
+                    //new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",               Icon = "policy" },
                 }
             },
         };

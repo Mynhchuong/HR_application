@@ -1,0 +1,263 @@
+@model List<HR_web.Models.Policy.CompanyPolicyModel>
+@{
+    ViewData["Title"] = "Quản lý quy định công ty";
+}
+
+<style>
+    :root {
+        --mp-primary: #4f46e5;
+        --mp-bg: #f8fafc;
+        --mp-text: #1e293b;
+        --mp-muted: #64748b;
+        --mp-border: #e2e8f0;
+        --mp-active-bg: #ede9fe;
+    }
+
+    .manage-page { max-width: 900px; margin: 0 auto; padding-bottom: 4rem; }
+
+    .page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .page-header h4 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--mp-text);
+        margin: 0;
+    }
+
+    .btn-add {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--mp-primary);
+        color: #fff;
+        border: none;
+        border-radius: 14px;
+        padding: 0.55rem 1.25rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .btn-add:hover { background: #4338ca; color: #fff; }
+
+    /* ── Table card ──────────────────────────── */
+    .table-card {
+        background: #fff;
+        border-radius: 20px;
+        border: 1px solid var(--mp-border);
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .policy-table { width: 100%; border-collapse: collapse; }
+
+    .policy-table thead tr {
+        background: var(--mp-active-bg);
+    }
+
+    .policy-table th {
+        padding: 0.85rem 1rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--mp-primary);
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .policy-table td {
+        padding: 0.85rem 1rem;
+        font-size: 0.85rem;
+        color: var(--mp-text);
+        border-top: 1px solid var(--mp-border);
+        vertical-align: middle;
+    }
+
+    .policy-table tbody tr:hover { background: #f8fafc; }
+
+    .badge-active {
+        background: #dcfce7;
+        color: #16a34a;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-inactive {
+        background: #fee2e2;
+        color: #dc2626;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 16px;
+    }
+
+    .btn-edit  { background: var(--mp-active-bg); color: var(--mp-primary); }
+    .btn-toggle-on  { background: #fee2e2; color: #dc2626; }
+    .btn-toggle-off { background: #dcfce7; color: #16a34a; }
+
+    .action-btn:hover { opacity: 0.8; }
+
+    .td-content-preview {
+        max-width: 200px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--mp-muted);
+        font-size: 0.8rem;
+    }
+
+    .meta-text {
+        font-size: 0.78rem;
+        color: var(--mp-muted);
+    }
+
+    /* ── Mobile responsive ───────────────────── */
+    @@media (max-width: 600px) {
+        .hide-mobile { display: none; }
+        .policy-table th, .policy-table td { padding: 0.7rem 0.75rem; }
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--mp-muted);
+    }
+</style>
+
+<div class="manage-page">
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show border-0 rounded-4 mb-3" role="alert">
+            <span class="material-symbols-rounded align-middle me-1" style="font-size:18px;">check_circle</span>
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show border-0 rounded-4 mb-3" role="alert">
+            <span class="material-symbols-rounded align-middle me-1" style="font-size:18px;">error</span>
+            @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="page-header">
+        <h4>
+            <span class="material-symbols-rounded align-middle me-1" style="font-size:22px;color:#4f46e5;">policy</span>
+            Quản lý quy định công ty
+        </h4>
+        <a href="@Url.Action("Edit", "Policy")" class="btn-add">
+            <span class="material-symbols-rounded" style="font-size:18px;">add</span>
+            Thêm mới
+        </a>
+    </div>
+
+    <div class="table-card">
+        @if (!Model.Any())
+        {
+            <div class="empty-state">
+                <span class="material-symbols-rounded" style="font-size:56px;opacity:.3;display:block;margin-bottom:.75rem;">policy</span>
+                <p>Chưa có quy định nào. Nhấn <strong>Thêm mới</strong> để bắt đầu.</p>
+            </div>
+        }
+        else
+        {
+            <table class="policy-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Nhóm / Tiêu đề</th>
+                        <th class="hide-mobile">Nội dung</th>
+                        <th class="hide-mobile">Thứ tự</th>
+                        <th>Trạng thái</th>
+                        <th class="hide-mobile">Cập nhật</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < Model.Count; i++)
+                    {
+                        var item = Model[i];
+                        var updaterName = !string.IsNullOrEmpty(item.UPDT_FULL_NAME) ? item.UPDT_FULL_NAME : item.UPDT_ID;
+                        <tr>
+                            <td style="color:#94a3b8;font-size:.78rem;">@(i + 1)</td>
+                            <td>
+                                <div style="font-size:.72rem;color:#7c3aed;font-weight:600;margin-bottom:2px;">@item.CATEGORY</div>
+                                <div style="font-weight:600;">@item.TITLE</div>
+                            </td>
+                            <td class="hide-mobile">
+                                <div class="td-content-preview">@System.Text.RegularExpressions.Regex.Replace(item.CONTENT, "<.*?>", "")</div>
+                            </td>
+                            <td class="hide-mobile" style="text-align:center;">@item.DISPLAY_ORDER</td>
+                            <td>
+                                @if (item.IS_ACTIVE == 1)
+                                {
+                                    <span class="badge-active">Hiện</span>
+                                }
+                                else
+                                {
+                                    <span class="badge-inactive">Ẩn</span>
+                                }
+                            </td>
+                            <td class="hide-mobile">
+                                @if (item.UPDT_DT.HasValue)
+                                {
+                                    <div class="meta-text">@item.UPDT_DT.Value.ToString("dd/MM/yyyy")</div>
+                                    <div class="meta-text">@updaterName</div>
+                                }
+                                else if (item.INST_DT.HasValue)
+                                {
+                                    <div class="meta-text">@item.INST_DT.Value.ToString("dd/MM/yyyy")</div>
+                                    <div class="meta-text">@item.INST_ID</div>
+                                }
+                            </td>
+                            <td>
+                                <div style="display:flex;gap:6px;align-items:center;">
+                                    <a href="@Url.Action("Edit", "Policy", new { id = item.ID })"
+                                       class="action-btn btn-edit" title="Sửa">
+                                        <span class="material-symbols-rounded" style="font-size:16px;">edit</span>
+                                    </a>
+                                    <form asp-action="Toggle" asp-route-id="@item.ID" method="post" style="margin:0;">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit"
+                                                class="action-btn @(item.IS_ACTIVE == 1 ? "btn-toggle-on" : "btn-toggle-off")"
+                                                title="@(item.IS_ACTIVE == 1 ? "Ẩn" : "Hiện")"
+                                                onclick="return confirm('@(item.IS_ACTIVE == 1 ? "Ẩn quy định này?" : "Hiện quy định này?")')">
+                                            <span class="material-symbols-rounded" style="font-size:16px;">
+                                                @(item.IS_ACTIVE == 1 ? "visibility_off" : "visibility")
+                                            </span>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

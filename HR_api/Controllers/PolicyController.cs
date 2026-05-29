@@ -25,7 +25,8 @@ public class PolicyController : ControllerBase
         try
         {
             const string sql = @"
-                SELECT P.ID, P.CATEGORY, P.TITLE, P.CONTENT,
+                SELECT P.ID, P.CATEGORY, P.TITLE,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 32767, 1) AS CONTENT,
                        P.DISPLAY_ORDER, P.IS_ACTIVE,
                        P.INST_ID, P.INST_DT, P.UPDT_ID, P.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -52,7 +53,8 @@ public class PolicyController : ControllerBase
         try
         {
             const string sql = @"
-                SELECT P.ID, P.CATEGORY, P.TITLE, P.CONTENT,
+                SELECT P.ID, P.CATEGORY, P.TITLE,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 32767, 1) AS CONTENT,
                        P.DISPLAY_ORDER, P.IS_ACTIVE,
                        P.INST_ID, P.INST_DT, P.UPDT_ID, P.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -78,7 +80,8 @@ public class PolicyController : ControllerBase
         try
         {
             const string sql = @"
-                SELECT P.ID, P.CATEGORY, P.TITLE, P.CONTENT,
+                SELECT P.ID, P.CATEGORY, P.TITLE,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 32767, 1) AS CONTENT,
                        P.DISPLAY_ORDER, P.IS_ACTIVE,
                        P.INST_ID, P.INST_DT, P.UPDT_ID, P.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -123,12 +126,12 @@ public class PolicyController : ControllerBase
                         (:CATEGORY, :TITLE, :CONTENT, :DISPLAY_ORDER, :IS_ACTIVE, :INST_ID, SYSDATE)";
 
                 await _oracleService.ExecuteNonQueryAsync(sqlInsert,
-                    new OracleParameter("CATEGORY", model.CATEGORY),
-                    new OracleParameter("TITLE", model.TITLE),
-                    new OracleParameter("CONTENT", model.CONTENT),
+                    new OracleParameter("CATEGORY",      model.CATEGORY),
+                    new OracleParameter("TITLE",         model.TITLE),
+                    new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = model.CONTENT },
                     new OracleParameter("DISPLAY_ORDER", model.DISPLAY_ORDER),
-                    new OracleParameter("IS_ACTIVE", model.IS_ACTIVE),
-                    new OracleParameter("INST_ID", (object?)model.LOGIN_USER ?? DBNull.Value));
+                    new OracleParameter("IS_ACTIVE",     model.IS_ACTIVE),
+                    new OracleParameter("INST_ID",       (object?)model.LOGIN_USER ?? DBNull.Value));
 
                 return Ok(new { success = true, message = "Tạo quy định thành công" });
             }
@@ -146,13 +149,13 @@ public class PolicyController : ControllerBase
                     WHERE ID = :ID";
 
                 int rows = await _oracleService.ExecuteNonQueryAsync(sqlUpdate,
-                    new OracleParameter("CATEGORY", model.CATEGORY),
-                    new OracleParameter("TITLE", model.TITLE),
-                    new OracleParameter("CONTENT", model.CONTENT),
+                    new OracleParameter("CATEGORY",      model.CATEGORY),
+                    new OracleParameter("TITLE",         model.TITLE),
+                    new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = model.CONTENT },
                     new OracleParameter("DISPLAY_ORDER", model.DISPLAY_ORDER),
-                    new OracleParameter("IS_ACTIVE", model.IS_ACTIVE),
-                    new OracleParameter("UPDT_ID", (object?)model.LOGIN_USER ?? DBNull.Value),
-                    new OracleParameter("ID", model.ID));
+                    new OracleParameter("IS_ACTIVE",     model.IS_ACTIVE),
+                    new OracleParameter("UPDT_ID",       (object?)model.LOGIN_USER ?? DBNull.Value),
+                    new OracleParameter("ID",            model.ID));
 
                 if (rows == 0)
                     return Ok(new { success = false, message = "Không tìm thấy quy định để cập nhật" });
@@ -195,16 +198,16 @@ public class PolicyController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
     private static CompanyPolicyModel Map(Oracle.ManagedDataAccess.Client.OracleDataReader r) => new()
     {
-        ID            = Convert.ToInt32(r["ID"]),
-        CATEGORY      = r["CATEGORY"]?.ToString() ?? string.Empty,
-        TITLE         = r["TITLE"]?.ToString() ?? string.Empty,
-        CONTENT       = r["CONTENT"]?.ToString() ?? string.Empty,
-        DISPLAY_ORDER = r["DISPLAY_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["DISPLAY_ORDER"]),
-        IS_ACTIVE     = r["IS_ACTIVE"] == DBNull.Value ? 0 : Convert.ToInt32(r["IS_ACTIVE"]),
-        INST_ID       = r["INST_ID"]?.ToString(),
-        INST_DT       = r["INST_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["INST_DT"]),
-        UPDT_ID       = r["UPDT_ID"]?.ToString(),
-        UPDT_DT       = r["UPDT_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["UPDT_DT"]),
+        ID             = Convert.ToInt32(r["ID"]),
+        CATEGORY       = r["CATEGORY"]?.ToString() ?? string.Empty,
+        TITLE          = r["TITLE"]?.ToString() ?? string.Empty,
+        CONTENT        = r["CONTENT"]?.ToString() ?? string.Empty,
+        DISPLAY_ORDER  = r["DISPLAY_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["DISPLAY_ORDER"]),
+        IS_ACTIVE      = r["IS_ACTIVE"] == DBNull.Value ? 0 : Convert.ToInt32(r["IS_ACTIVE"]),
+        INST_ID        = r["INST_ID"]?.ToString(),
+        INST_DT        = r["INST_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["INST_DT"]),
+        UPDT_ID        = r["UPDT_ID"]?.ToString(),
+        UPDT_DT        = r["UPDT_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["UPDT_DT"]),
         UPDT_FULL_NAME = r["UPDT_FULL_NAME"]?.ToString()
     };
 }

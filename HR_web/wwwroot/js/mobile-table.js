@@ -28,13 +28,13 @@
         if (_modalEl) return;
         var div = document.createElement('div');
         div.innerHTML = [
-            '<div class="modal fade" id="mtDetailModal" tabindex="-1">',
+            '<div class="modal fade" id="mtDetailModal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="mtDetailTitle">',
             '  <div class="modal-dialog modal-dialog-centered" style="max-width:340px">',
             '    <div class="modal-content border-0 shadow-lg mt-modal-content">',
             '      <div class="modal-header border-0 pb-0 pt-3 px-4">',
             '        <span class="mt-modal-icon"><i class="bi bi-card-list"></i></span>',
-            '        <h6 class="modal-title fw-bold ms-2 text-primary">Chi tiết</h6>',
-            '        <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button>',
+            '        <h6 class="modal-title fw-bold ms-2 text-primary" id="mtDetailTitle">Chi tiết</h6>',
+            '        <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Đóng"></button>',
             '      </div>',
             '      <div class="modal-body px-4 pt-2 pb-4" id="mtDetailBody"></div>',
             '    </div>',
@@ -43,6 +43,12 @@
         ].join('');
         document.body.appendChild(div.firstElementChild);
         _modalEl = document.getElementById('mtDetailModal');
+        _modalEl.addEventListener('show.bs.modal', function () {
+            _modalEl.removeAttribute('aria-hidden');
+        });
+        _modalEl.addEventListener('hidden.bs.modal', function () {
+            _modalEl.setAttribute('aria-hidden', 'true');
+        });
     }
 
     function _getColConfig(tbodyId) {

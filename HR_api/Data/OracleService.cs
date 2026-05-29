@@ -27,6 +27,7 @@ public class OracleService
 
         using var cmd = new OracleCommand(sql, conn);
         cmd.BindByName = true;
+        cmd.InitialLOBFetchSize = -1;
 
         if (parameters != null)
         {
@@ -37,10 +38,10 @@ public class OracleService
             }
         }
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        using var reader = (OracleDataReader)await cmd.ExecuteReaderAsync();
+        while (reader.Read())
         {
-            list.Add(map((OracleDataReader)reader));
+            list.Add(map(reader));
         }
 
         return list;

@@ -5,257 +5,157 @@
 }
 
 @section Styles {
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.20/summernote-bs5.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jodit@3.24.6/build/jodit.min.css" />
     <style>
-        :root {
-            --ep-primary: #4f46e5;
-            --ep-text: #1e293b;
-            --ep-muted: #64748b;
-            --ep-border: #e2e8f0;
-            --ep-bg: #f8fafc;
-        }
+        #formCard { max-width: 720px; margin: 0 auto; }
 
-        .edit-page { max-width: 720px; margin: 0 auto; padding-bottom: 4rem; }
-
-        .page-back {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            color: var(--ep-muted);
-            font-size: 0.85rem;
-            text-decoration: none;
-            margin-bottom: 1rem;
-        }
-
-        .page-back:hover { color: var(--ep-primary); }
-
-        .form-card {
-            background: #fff;
-            border-radius: 20px;
-            border: 1px solid var(--ep-border);
-            padding: 1.5rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-
-        .form-card h5 {
-            font-size: 1rem;
-            font-weight: 700;
-            color: var(--ep-text);
-            margin-bottom: 1.25rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .form-label {
-            font-size: 0.82rem;
-            font-weight: 600;
-            color: var(--ep-text);
-            margin-bottom: 0.35rem;
-        }
-
-        .form-control, .form-select {
-            border-radius: 12px;
-            border: 1.5px solid var(--ep-border);
-            font-size: 0.88rem;
-            padding: 0.6rem 0.9rem;
-            color: var(--ep-text);
-            background: var(--ep-bg);
-        }
-
-        .form-control:focus, .form-select:focus {
-            border-color: var(--ep-primary);
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
-            background: #fff;
-        }
-
-        /* Summernote toolbar override */
-        .note-editor.note-bs5 {
-            border-radius: 12px;
-            border: 1.5px solid var(--ep-border);
+        .jodit-container {
+            border-radius: 8px !important;
+            border: 1.5px solid #d1d5db !important;
             overflow: hidden;
         }
 
-        .note-editor.note-bs5:focus-within {
-            border-color: var(--ep-primary);
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+        .jodit-container:focus-within {
+            border-color: #4f46e5 !important;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.1) !important;
         }
 
-        .note-toolbar {
+        .jodit-toolbar__box {
             background: #f8fafc !important;
-            border-bottom: 1px solid var(--ep-border) !important;
+            border-bottom: 1px solid #e2e8f0 !important;
         }
 
-        .note-editing-area .note-editable {
-            min-height: 220px;
-            font-size: 0.88rem;
-            color: var(--ep-text);
-            padding: 1rem;
-        }
-
-        .form-footer {
-            display: flex;
-            gap: 0.75rem;
-            margin-top: 1.5rem;
-            flex-wrap: wrap;
-        }
-
-        .btn-save {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: var(--ep-primary);
-            color: #fff;
-            border: none;
-            border-radius: 14px;
-            padding: 0.6rem 1.5rem;
-            font-size: 0.88rem;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .btn-save:hover { background: #4338ca; }
-
-        .btn-cancel {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: #f1f5f9;
-            color: var(--ep-muted);
-            border: none;
-            border-radius: 14px;
-            padding: 0.6rem 1.25rem;
-            font-size: 0.88rem;
-            font-weight: 600;
-            text-decoration: none;
-            cursor: pointer;
-        }
-
-        .btn-cancel:hover { background: #e2e8f0; color: var(--ep-text); }
-
-        .toggle-row {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .form-check-input:checked {
-            background-color: var(--ep-primary);
-            border-color: var(--ep-primary);
+        .jodit-wysiwyg {
+            font-size: 0.9rem !important;
+            color: #1e293b !important;
         }
     </style>
 }
 
-<div class="edit-page">
+<div class="container-fluid py-3">
+    <div id="formCard">
 
-    <a href="@Url.Action("Manage", "Policy")" class="page-back">
-        <span class="material-symbols-rounded" style="font-size:18px;">arrow_back</span>
-        Quay lại danh sách
-    </a>
+        <a href="@Url.Action("Manage", "Policy")" class="d-inline-flex align-items-center gap-1 text-secondary text-sm mb-3 text-decoration-none">
+            <i class="bi bi-arrow-left"></i> Quay lại danh sách
+        </a>
 
-    @if (TempData["ErrorMessage"] != null)
-    {
-        <div class="alert alert-danger border-0 rounded-4 mb-3">
-            <span class="material-symbols-rounded align-middle me-1" style="font-size:18px;">error</span>
-            @TempData["ErrorMessage"]
-        </div>
-    }
-
-    <div class="form-card">
-        <h5>
-            <span class="material-symbols-rounded" style="color:#4f46e5;font-size:22px;">@(isNew ? "add_circle" : "edit")</span>
-            @(isNew ? "Thêm quy định mới" : "Sửa quy định")
-        </h5>
-
-        <form asp-action="Edit" method="post">
-            @Html.AntiForgeryToken()
-            <input type="hidden" asp-for="ID" />
-
-            <div class="row g-3">
-                <!-- Nhóm -->
-                <div class="col-12 col-md-6">
-                    <label class="form-label">Nhóm <span style="color:red">*</span></label>
-                    <input asp-for="CATEGORY" class="form-control"
-                           placeholder="Ví dụ: Nội quy lao động"
-                           list="category-list" autocomplete="off" />
-                    <datalist id="category-list">
-                        <option value="Nội quy lao động" />
-                        <option value="An toàn lao động" />
-                        <option value="Phúc lợi & lương" />
-                        <option value="Kỷ luật" />
-                        <option value="Khác" />
-                    </datalist>
+        <div class="card">
+            <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+                <div class="bg-gradient-success shadow-success border-radius-lg pt-3 pb-2 px-3">
+                    <h6 class="text-white mb-0">
+                        <i class="bi @(isNew ? "bi-plus-circle" : "bi-pencil-square") me-1"></i>
+                        @(isNew ? "Thêm quy định mới" : "Sửa quy định")
+                    </h6>
                 </div>
+            </div>
 
-                <!-- Thứ tự -->
-                <div class="col-12 col-md-6">
-                    <label class="form-label">Thứ tự hiển thị</label>
-                    <input asp-for="DISPLAY_ORDER" type="number" min="0" class="form-control" />
-                </div>
+            <div class="card-body pt-4 pb-4 px-4">
+                <form asp-action="Edit" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="ID" />
 
-                <!-- Tiêu đề -->
-                <div class="col-12">
-                    <label class="form-label">Tiêu đề <span style="color:red">*</span></label>
-                    <input asp-for="TITLE" class="form-control"
-                           placeholder="Ví dụ: Điều 1 - Giờ làm việc" />
-                </div>
-
-                <!-- Nội dung (Summernote) -->
-                <div class="col-12">
-                    <label class="form-label">Nội dung <span style="color:red">*</span></label>
-                    <textarea asp-for="CONTENT" id="editor-content"></textarea>
-                </div>
-
-                <!-- Trạng thái -->
-                <div class="col-12">
-                    <div class="toggle-row">
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input" type="checkbox" id="isActiveCheck"
-                                   @(Model.IS_ACTIVE == 1 ? "checked" : "")
-                                   onchange="document.getElementById('IS_ACTIVE').value = this.checked ? 1 : 0" />
-                            <label class="form-check-label" for="isActiveCheck" style="font-size:.85rem;font-weight:600;">
-                                Hiển thị cho nhân viên
-                            </label>
+                    <div class="row g-3">
+                        <!-- Nhóm -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label text-sm font-weight-bold">Nhóm <span class="text-danger">*</span></label>
+                            <input asp-for="CATEGORY" class="form-control"
+                                   placeholder="Ví dụ: Nội quy lao động"
+                                   list="category-list" autocomplete="off" />
+                            <datalist id="category-list">
+                                <option value="Nội quy lao động" />
+                                <option value="An toàn lao động" />
+                                <option value="Phúc lợi & lương" />
+                                <option value="Kỷ luật" />
+                                <option value="Khác" />
+                            </datalist>
                         </div>
-                        <input type="hidden" asp-for="IS_ACTIVE" id="IS_ACTIVE" />
-                    </div>
-                </div>
-            </div>
 
-            <div class="form-footer">
-                <button type="submit" class="btn-save">
-                    <span class="material-symbols-rounded" style="font-size:18px;">save</span>
-                    @(isNew ? "Tạo mới" : "Lưu thay đổi")
-                </button>
-                <a href="@Url.Action("Manage", "Policy")" class="btn-cancel">Hủy</a>
+                        <!-- Thứ tự -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label text-sm font-weight-bold">Thứ tự hiển thị</label>
+                            <input asp-for="DISPLAY_ORDER" type="number" min="0" class="form-control" />
+                        </div>
+
+                        <!-- Tiêu đề -->
+                        <div class="col-12">
+                            <label class="form-label text-sm font-weight-bold">Tiêu đề <span class="text-danger">*</span></label>
+                            <input asp-for="TITLE" class="form-control"
+                                   placeholder="Ví dụ: Điều 1 - Giờ làm việc" />
+                        </div>
+
+                        <!-- Nội dung (Jodit) -->
+                        <div class="col-12">
+                            <label class="form-label text-sm font-weight-bold">Nội dung <span class="text-danger">*</span></label>
+                            <textarea asp-for="CONTENT" id="editor-content"></textarea>
+                        </div>
+
+                        <!-- Trạng thái -->
+                        <div class="col-12">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" id="isActiveCheck"
+                                           @(Model.IS_ACTIVE == 1 ? "checked" : "")
+                                           onchange="document.getElementById('IS_ACTIVE').value = this.checked ? 1 : 0" />
+                                    <label class="form-check-label text-sm font-weight-bold" for="isActiveCheck">
+                                        Hiển thị cho nhân viên
+                                    </label>
+                                </div>
+                                <input type="hidden" asp-for="IS_ACTIVE" id="IS_ACTIVE" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-4 flex-wrap">
+                        <button type="submit" class="btn btn-success mb-0">
+                            <i class="bi bi-save me-1"></i>
+                            @(isNew ? "Tạo mới" : "Lưu thay đổi")
+                        </button>
+                        <a href="@Url.Action("Manage", "Policy")" class="btn btn-outline-secondary mb-0">Hủy</a>
+                    </div>
+                </form>
             </div>
-        </form>
+        </div>
     </div>
 </div>
 
 @section Scripts {
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.20/summernote-bs5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.20/lang/summernote-vi-VN.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jodit@3.24.6/build/jodit.min.js"></script>
     <script>
-        $(document).ready(function () {
-            $('#editor-content').summernote({
-                lang: 'vi-VN',
-                height: 250,
-                toolbar: [
-                    ['style',   ['bold', 'italic', 'underline', 'clear']],
-                    ['color',   ['color']],
-                    ['para',    ['ul', 'ol', 'paragraph']],
-                    ['table',   ['table']],
-                    ['insert',  ['link']],
-                    ['view',    ['codeview', 'help']]
-                ],
-                placeholder: 'Nhập nội dung quy định...',
-                callbacks: {
-                    onInit: function () {
-                        // fix: đảm bảo content được load đúng
-                    }
-                }
-            });
+        Jodit.make('#editor-content', {
+            height: 380,
+            language: 'en',
+            toolbarButtonSize: 'middle',
+            showCharsCounter: false,
+            showWordsCounter: false,
+            showXPathInStatusbar: false,
+            buttons: [
+                'bold', 'italic', 'underline', 'strikethrough', '|',
+                'brush', 'fontsize', '|',
+                'ul', 'ol', '|',
+                'left', 'center', 'right', '|',
+                'table', '|',
+                'link', 'hr', '|',
+                'undo', 'redo', '|',
+                'fullsize'
+            ],
+            buttonsMD: [
+                'bold', 'italic', 'underline', '|',
+                'brush', 'fontsize', '|',
+                'ul', 'ol', '|',
+                'table', 'link', '|',
+                'undo', 'redo', '|',
+                'fullsize'
+            ],
+            buttonsSM: [
+                'bold', 'italic', '|',
+                'brush', '|',
+                'ul', 'ol', '|',
+                'fullsize'
+            ],
+            uploader: { insertImageAsBase64URI: false },
+            removeButtons: ['image', 'video', 'file', 'copyformat', 'speechRecognize', 'spellcheck', 'print', 'about'],
+            disablePlugins: ['image', 'video', 'file', 'speech-recognize', 'spellcheck', 'print'],
+            placeholder: 'Nhập nội dung quy định...',
         });
     </script>
 }

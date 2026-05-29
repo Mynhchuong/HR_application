@@ -41,7 +41,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",      Icon = "fact_check" },
                     new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",          Icon = "payments"   },
                     new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",  Icon = "door_front" },
-                   // new SideMenuItem { Title = "Quy định công ty",    Url = "~/Policy/Index",           Icon = "policy"     },
+                    new SideMenuItem { Title = "Quy định công ty",    Url = "~/Policy/Index",           Icon = "policy"     },
                 }
             },
 
@@ -109,7 +109,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",              Icon = "view_list"              },
                     new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",               Icon = "account_balance_wallet" },
                     new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",        Icon = "door_front" },
-                    //new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",               Icon = "policy" },
+                    new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",               Icon = "policy" },
                 }
             },
         };

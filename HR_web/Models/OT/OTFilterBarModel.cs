@@ -6,4 +6,5 @@ public class OTFilterBarModel
     public string LineUrl        { get; set; } = "";
     public string WorkUrl        { get; set; } = "";
     public string DeptSelectedId { get; set; } = "";
+    public string Lang           { get; set; } = "vi";  // "vi" | "en"
 }

@@ -107,9 +107,21 @@ public class OTController : BaseController
         return View();
     }
     // ─────────────────────────────────────────────
-    // GET: /OT/OtListForClerk
+    // GET: /OT/OtListForSupervisor
     // ─────────────────────────────────────────────
     public IActionResult OtListForSupervisor(string? work_date = null)
+    {
+        ViewBag.WorkDate        = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
+        ViewBag.FilterType      = CurrentUser?.FilterType      ?? "";
+        ViewBag.FilterCodes     = CurrentUser?.FilterCodes     ?? new List<string>();
+        ViewBag.FilterLineCodes = CurrentUser?.FilterLineCodes ?? new List<string>();
+        return View();
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /OT/OtListForExpat
+    // ─────────────────────────────────────────────
+    public IActionResult OtListForExpat(string? work_date = null)
     {
         ViewBag.WorkDate        = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
         ViewBag.FilterType      = CurrentUser?.FilterType      ?? "";

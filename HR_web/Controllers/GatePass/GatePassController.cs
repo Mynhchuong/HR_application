@@ -287,6 +287,18 @@ public class GatePassController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET: /GatePass/GpListForExpat
+    // ─────────────────────────────────────────────
+    public IActionResult GpListForExpat()
+    {
+        ViewBag.DateFrom     = DateTime.Today.ToString("yyyy-MM-dd");
+        ViewBag.DateTo       = DateTime.Today.ToString("yyyy-MM-dd");
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
+        ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
+        return View();
+    }
+
+    // ─────────────────────────────────────────────
     // GET: /GatePass/GpListForHR
     // ─────────────────────────────────────────────
     public IActionResult GpListForHR()

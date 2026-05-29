@@ -70,6 +70,7 @@ public class GpListModel
     public string? APPROVER_NAME { get; set; }
     public DateTime? FINAL_DATE { get; set; }
     public string? REMARK { get; set; }
+    public string? REQUESTER_ROLE { get; set; }  // Role của người gửi đơn (dùng để kiểm tra phân cấp ở frontend)
 }
 
 public class GpSummary

@@ -6,6 +6,7 @@ public class GpFilterBarModel
     public string LineUrl { get; set; } = "";
     public string WorkUrl { get; set; } = "";
     public string? DeptSelectedId { get; set; }
+    public string Lang { get; set; } = "vi";   // "vi" | "en"
 }
 
 public class GpShiftInfoModel
@@ -62,6 +63,7 @@ public class GpListModel
     public string? APPROVER_NAME { get; set; }
     public DateTime? FINAL_DATE { get; set; }
     public string? REMARK { get; set; }
+    public string? REQUESTER_ROLE { get; set; }
 }
 
 public class GpSummary

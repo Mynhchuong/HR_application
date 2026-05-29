@@ -14,6 +14,7 @@ public static class SideMenuBuilder
         bool isHR         = !isMobileApp && user.RoleName == "HR";
         bool isSupervisor = user.RoleName == "Supervisor" || user.RoleName == "Assistant";
         bool isManager    = user.RoleName == "Manager";
+        bool isExpat      = user.RoleName == "Expat";
 
         return new List<SideMenuItem>
         {
@@ -22,7 +23,7 @@ public static class SideMenuBuilder
                 Id = "Home",
                 Title = "Trang chủ",
                 Icon = "home",
-                VisibleWhen = () => true,
+                VisibleWhen = () => !isExpat,
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Tổng quan", Url = "~/Home/Index", Icon = "dashboard" },
@@ -33,12 +34,25 @@ public static class SideMenuBuilder
                 Id = "Worker",
                 Title = "Cá nhân",
                 Icon = "person",
-                VisibleWhen = () => true,
+                VisibleWhen = () => !isExpat,
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",      Icon = "fact_check" },
                     new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",          Icon = "payments"   },
                     new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",  Icon = "door_front" },
+                }
+            },
+
+            new SideMenuItem
+            {
+                Id = "Expat",
+                Title = "Expat",
+                Icon = "manage_accounts",
+                VisibleWhen = () => isExpat || isAdmin,
+                Children = new List<SideMenuItem>
+                {
+                    new SideMenuItem { Title = "OT List",           Url = "~/OT/OtListForExpat",         Icon = "view_list"  },
+                    new SideMenuItem { Title = "Gate Pass Approval", Url = "~/GatePass/GpListForExpat",   Icon = "door_front" },
                 }
             },
 
@@ -76,7 +90,7 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isManager || isAdmin,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForSupervisor", Icon = "view_list" },
+                    
                 }
             },
 

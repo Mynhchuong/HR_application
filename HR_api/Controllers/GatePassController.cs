@@ -405,7 +405,9 @@ public class GatePassController : ControllerBase
                 FROM HRMS.HR_GATEPASS_REQUEST GP
                 JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID  = GP.REQUEST_ID
                 JOIN HRMS.ECM100    EC  ON EC.EMPCD       = GP.EMPCD
-                LEFT JOIN HRMS.EAM410 B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD";
+                LEFT JOIN HRMS.EAM410   B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                LEFT JOIN HRMS.HR_USERS UR ON UR.EMPCD   = GP.EMPCD
+                LEFT JOIN HRMS.HR_ROLES RR ON RR.ID       = UR.ROLE_ID";
 
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
@@ -464,7 +466,8 @@ public class GatePassController : ControllerBase
                                EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
                                GP.GP_TYPE, GP.OUT_TIME, GP.IN_TIME, GP.REASON,
                                R.STATUS, GP.CREATED_DATE,
-                               R.FINAL_DATE, R.REMARK
+                               R.FINAL_DATE, R.REMARK,
+                               RR.ROLE_NAME REQUESTER_ROLE
                         " + fromSql + whereSql + @"
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -475,23 +478,24 @@ public class GatePassController : ControllerBase
 
             var list = await _oracleService.ExecuteQueryAsync(sqlData, r => new GpListModel
             {
-                REQUEST_ID   = r["REQUEST_ID"]?.ToString()  ?? "",
-                EMPCD        = r["EMPCD"]?.ToString()        ?? "",
-                EMP_NAME     = r["EMP_NAME"]?.ToString(),
-                DEPT_ID      = r["DEPT_ID"]?.ToString(),
-                DEPT_NAME    = r["DEPT_NAME"]?.ToString(),
-                LINE_ID      = r["LINE_ID"]?.ToString(),
-                LINE_NAME    = r["LINE_NAME"]?.ToString(),
-                WORK_ID      = r["WORK_ID"]?.ToString(),
-                WORK_NAME    = r["WORK_NAME"]?.ToString(),
-                GP_TYPE      = r["GP_TYPE"]?.ToString(),
-                OUT_TIME     = r["OUT_TIME"]     == DBNull.Value ? null : Convert.ToDateTime(r["OUT_TIME"]),
-                IN_TIME      = r["IN_TIME"]      == DBNull.Value ? null : Convert.ToDateTime(r["IN_TIME"]),
-                REASON       = r["REASON"]?.ToString(),
-                STATUS       = r["STATUS"]?.ToString(),
-                CREATED_DATE = r["CREATED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CREATED_DATE"]),
-                FINAL_DATE   = r["FINAL_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
-                REMARK       = r["REMARK"]?.ToString()
+                REQUEST_ID     = r["REQUEST_ID"]?.ToString()  ?? "",
+                EMPCD          = r["EMPCD"]?.ToString()        ?? "",
+                EMP_NAME       = r["EMP_NAME"]?.ToString(),
+                DEPT_ID        = r["DEPT_ID"]?.ToString(),
+                DEPT_NAME      = r["DEPT_NAME"]?.ToString(),
+                LINE_ID        = r["LINE_ID"]?.ToString(),
+                LINE_NAME      = r["LINE_NAME"]?.ToString(),
+                WORK_ID        = r["WORK_ID"]?.ToString(),
+                WORK_NAME      = r["WORK_NAME"]?.ToString(),
+                GP_TYPE        = r["GP_TYPE"]?.ToString(),
+                OUT_TIME       = r["OUT_TIME"]     == DBNull.Value ? null : Convert.ToDateTime(r["OUT_TIME"]),
+                IN_TIME        = r["IN_TIME"]      == DBNull.Value ? null : Convert.ToDateTime(r["IN_TIME"]),
+                REASON         = r["REASON"]?.ToString(),
+                STATUS         = r["STATUS"]?.ToString(),
+                CREATED_DATE   = r["CREATED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CREATED_DATE"]),
+                FINAL_DATE     = r["FINAL_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
+                REMARK         = r["REMARK"]?.ToString(),
+                REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString()
             }, dataParams.ToArray());
 
             return Ok(new
@@ -522,7 +526,7 @@ public class GatePassController : ControllerBase
             if (model == null || string.IsNullOrEmpty(model.REQUEST_ID) || string.IsNullOrEmpty(model.APPROVER_EMPCD))
                 return Ok(new { success = false, message = "Thiếu thông tin duyệt" });
 
-            // Chỉ Manager hoặc Admin mới được duyệt
+            // Phân cấp: Supervisor(2)→Worker(1), Manager(3)→Supervisor, Expat(4)→Manager, Admin(99)→tất cả
             var approverRoleRows = await _oracleService.ExecuteQueryAsync(@"
                 SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U
                 LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID
@@ -531,17 +535,31 @@ public class GatePassController : ControllerBase
                 new OracleParameter("EMPCD", model.APPROVER_EMPCD));
 
             string? approverRole = approverRoleRows.FirstOrDefault();
-            if (approverRole != "Manager" && approverRole != "Admin")
-                return Ok(new { success = false, message = "Chỉ Manager mới có quyền phê duyệt Gate Pass" });
 
-            // Không cho phép supervisor tự duyệt phiếu của chính mình
-            var requestEmpRows = await _oracleService.ExecuteQueryAsync(
-                "SELECT GP.EMPCD FROM HRMS.HR_GATEPASS_REQUEST GP WHERE GP.REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
-                r => r["EMPCD"]?.ToString(),
+            if (!Helpers.RoleHierarchyHelper.HasApprovalPermission(approverRole))
+                return Ok(new { success = false, message = "Bạn không có quyền phê duyệt Gate Pass" });
+
+            // Lấy EMPCD + role của người gửi phiếu
+            var requestInfoRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT GP.EMPCD, RR.ROLE_NAME REQ_ROLE
+                FROM HRMS.HR_GATEPASS_REQUEST GP
+                LEFT JOIN HRMS.HR_USERS UR ON UR.EMPCD = GP.EMPCD
+                LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = UR.ROLE_ID
+                WHERE GP.REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
+                r => new { Empcd = r["EMPCD"]?.ToString(), Role = r["REQ_ROLE"]?.ToString() },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
-            if (requestEmpRows.Count > 0 && requestEmpRows[0] == model.APPROVER_EMPCD)
+            var requestInfo = requestInfoRows.FirstOrDefault();
+            if (requestInfo == null)
+                return Ok(new { success = false, message = "Không tìm thấy yêu cầu" });
+
+            // Không được tự duyệt phiếu của mình
+            if (requestInfo.Empcd == model.APPROVER_EMPCD)
                 return Ok(new { success = false, message = "Lời nhắn: Hãy liên hệ quản lý cấp cao hơn để được phê duyệt" });
+
+            // Phân cấp: người duyệt phải ở cấp cao hơn người gửi
+            if (!Helpers.RoleHierarchyHelper.CanApprove(approverRole, requestInfo.Role))
+                return Ok(new { success = false, message = $"Phiếu này cần {Helpers.RoleHierarchyHelper.RequiredApproverName(requestInfo.Role)} phê duyệt." });
 
             // Single PL/SQL block: UPDATE + SP_INSERT_GATE_PASS atomically.
             // If SP raises exception the whole block fails → no autocommit → UPDATE rolled back.
@@ -646,6 +664,38 @@ END;";
         {
             if (model == null || string.IsNullOrEmpty(model.REQUEST_ID) || string.IsNullOrEmpty(model.APPROVER_EMPCD))
                 return Ok(new { success = false, message = "Thiếu thông tin từ chối" });
+
+            // Phân cấp từ chối — cùng quy tắc như approve
+            var rejectRoleRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U
+                LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID
+                WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => r["ROLE_NAME"]?.ToString(),
+                new OracleParameter("EMPCD", model.APPROVER_EMPCD));
+
+            string? rejectRole = rejectRoleRows.FirstOrDefault();
+
+            if (!Helpers.RoleHierarchyHelper.HasApprovalPermission(rejectRole))
+                return Ok(new { success = false, message = "Bạn không có quyền từ chối Gate Pass" });
+
+            var rejectInfoRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT GP.EMPCD, RR.ROLE_NAME REQ_ROLE
+                FROM HRMS.HR_GATEPASS_REQUEST GP
+                LEFT JOIN HRMS.HR_USERS UR ON UR.EMPCD = GP.EMPCD
+                LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = UR.ROLE_ID
+                WHERE GP.REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
+                r => new { Empcd = r["EMPCD"]?.ToString(), Role = r["REQ_ROLE"]?.ToString() },
+                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
+
+            var rejectInfo = rejectInfoRows.FirstOrDefault();
+            if (rejectInfo == null)
+                return Ok(new { success = false, message = "Không tìm thấy yêu cầu" });
+
+            if (rejectInfo.Empcd == model.APPROVER_EMPCD)
+                return Ok(new { success = false, message = "Lời nhắn: Hãy liên hệ quản lý cấp cao hơn để được phê duyệt" });
+
+            if (!Helpers.RoleHierarchyHelper.CanApprove(rejectRole, rejectInfo.Role))
+                return Ok(new { success = false, message = $"Phiếu này cần {Helpers.RoleHierarchyHelper.RequiredApproverName(rejectInfo.Role)} xử lý." });
 
             int rows = await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_REQUEST

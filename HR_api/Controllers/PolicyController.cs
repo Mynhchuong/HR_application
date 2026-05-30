@@ -196,6 +196,36 @@ public class PolicyController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Policy/delete?id=  — chỉ xóa khi IS_ACTIVE = 0
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("delete")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        try
+        {
+            const string checkSql = "SELECT IS_ACTIVE FROM HRMS.HR_COMPANY_POLICY WHERE ID = :ID";
+            var check = await _oracleService.ExecuteQueryAsync(checkSql,
+                r => Convert.ToInt32(r["IS_ACTIVE"]),
+                new OracleParameter("ID", id));
+
+            if (check.Count == 0)
+                return Ok(new { success = false, message = "Không tìm thấy quy định" });
+
+            if (check[0] != 0)
+                return Ok(new { success = false, message = "Chỉ được xóa quy định đang ẩn" });
+
+            const string deleteSql = "DELETE FROM HRMS.HR_COMPANY_POLICY WHERE ID = :ID";
+            await _oracleService.ExecuteNonQueryAsync(deleteSql, new OracleParameter("ID", id));
+
+            return Ok(new { success = true, message = "Đã xóa quy định" });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     private static CompanyPolicyModel Map(Oracle.ManagedDataAccess.Client.OracleDataReader r) => new()
     {
         ID             = Convert.ToInt32(r["ID"]),

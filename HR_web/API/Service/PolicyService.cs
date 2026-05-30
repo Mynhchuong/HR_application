@@ -57,4 +57,11 @@ public class PolicyService
         var parsed = await Parse<PolicyResponse<object>>(response);
         return (parsed?.success ?? false, parsed?.message ?? "Lỗi server");
     }
+
+    public async Task<(bool success, string message)> DeleteAsync(int id)
+    {
+        var response = await _api.PostAsync($"policy/delete?id={id}", new { });
+        var parsed = await Parse<PolicyResponse<object>>(response);
+        return (parsed?.success ?? false, parsed?.message ?? "Lỗi server");
+    }
 }

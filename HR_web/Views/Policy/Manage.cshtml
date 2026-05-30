@@ -112,6 +112,18 @@
                                                     <i class="bi @(item.IS_ACTIVE == 1 ? "bi-eye-slash" : "bi-eye") me-1"></i>@(item.IS_ACTIVE == 1 ? "Ẩn" : "Hiện")
                                                 </button>
                                             </form>
+                                            @if (item.IS_ACTIVE == 0)
+                                            {
+                                                <form id="delete-form-@item.ID" asp-action="Delete" asp-route-id="@item.ID" method="post" style="margin:0;">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="button"
+                                                            class="btn btn-sm btn-outline-danger mb-0 px-2"
+                                                            title="Xóa"
+                                                            onclick="showConfirm('Xóa vĩnh viễn quy định này?', function(){ document.getElementById('delete-form-@item.ID').submit(); }, { title: 'Xóa quy định', okText: 'Xóa', okClass: 'btn-danger' })">
+                                                        <i class="bi bi-trash3 me-1"></i>Xóa
+                                                    </button>
+                                                </form>
+                                            }
                                         </div>
                                     </td>
                                 </tr>

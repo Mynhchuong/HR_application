@@ -91,4 +91,15 @@ public class PolicyController : BaseController
         TempData[success ? "SuccessMessage" : "ErrorMessage"] = message;
         return RedirectToAction("Manage");
     }
+
+    // ─────────────────────────────────────────────
+    // POST /Policy/Delete?id=
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var (success, message) = await _service.DeleteAsync(id);
+        TempData[success ? "SuccessMessage" : "ErrorMessage"] = message;
+        return RedirectToAction("Manage");
+    }
 }

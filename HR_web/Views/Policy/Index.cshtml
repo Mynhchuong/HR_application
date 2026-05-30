@@ -274,7 +274,7 @@
 
     <!-- Hero -->
     <div class="policy-hero">
-        <img src="/assets/img/illustrations/@heroImg" class="policy-hero-img" alt="" />
+        <img src="@Url.Content("~/assets/img/illustrations/" + heroImg)" class="policy-hero-img" alt="" />
         <h5>Quy định công ty</h5>
         @if (lastUpdated != null)
         {
@@ -302,7 +302,7 @@
     @if (!grouped.Any())
     {
         <div class="empty-state">
-            <img src="/assets/img/illustrations/A-hoi.png" alt="" />
+            <img src="@Url.Content("~/assets/img/illustrations/A-hoi.png")" alt="" />
             <p>Chưa có quy định nào được công bố</p>
         </div>
     }
@@ -320,7 +320,7 @@
 
         <!-- No results -->
         <div id="noResults" class="empty-state" style="display:none;">
-            <img src="/assets/img/illustrations/A-hoi.png" alt="" />
+            <img src="@Url.Content("~/assets/img/illustrations/A-hoi.png")" alt="" />
             <p>Không tìm thấy kết quả phù hợp</p>
         </div>
 

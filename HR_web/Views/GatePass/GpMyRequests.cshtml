@@ -133,6 +133,21 @@ const DELETE_URL = '@Url.Action("DeleteRequest",     "GatePass")';
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 20;
 
+const NO_DATA_IMGS = ['@Url.Content("~/assets/img/illustrations/Chi_nodata.png")', '@Url.Content("~/assets/img/illustrations/A_nodata.png")'];
+function renderNoData(subtitle, colspan) {
+    const img = NO_DATA_IMGS[Math.floor(Math.random() * NO_DATA_IMGS.length)];
+    const sub = subtitle ? `<p class="text-muted mt-1 mb-0" style="font-size:0.95rem;">${subtitle}</p>` : '';
+    const inner = `<div class="text-center py-5">
+        <img src="${img}" alt="Không có dữ liệu" style="max-width:160px;margin-bottom:1rem;opacity:0.9;" />
+        <div class="d-flex align-items-center justify-content-center gap-2 mt-1">
+            <span class="material-symbols-rounded text-secondary" style="font-size:1.5rem;">event_busy</span>
+            <h5 class="fw-bold mb-0 text-secondary">Không có dữ liệu</h5>
+        </div>
+        ${sub}
+    </div>`;
+    return colspan ? `<tr><td colspan="${colspan}">${inner}</td></tr>` : inner;
+}
+
 const GP_LABEL = { IN: 'Đến trễ', OUT: 'Về sớm', MID: 'Ra/Vào trong giờ làm' };
 const GP_COLOR = { IN: 'info',    OUT: 'warning', MID: 'primary' };
 
@@ -223,8 +238,8 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#gpTableBody').html(`<tr><td colspan="7" class="text-center text-muted py-4">Chưa có phiếu nào</td></tr>`);
-                $('#gpCardList').html(`<div class="text-center text-muted py-4">Chưa có phiếu nào</div>`);
+                $('#gpTableBody').html(renderNoData('Không có phiếu ra vào nào trong ngày này.', 7));
+                $('#gpCardList').html(renderNoData('Không có phiếu ra vào nào trong ngày này.'));
             } else {
                 $('#gpTableBody').html(data.map((item, i) => buildRow(item, (page-1)*pageSize+i+1)).join(''));
                 $('#gpCardList').html(data.map((item, i) => buildCard(item, (page-1)*pageSize+i+1)).join(''));

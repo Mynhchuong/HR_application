@@ -5,39 +5,150 @@
 }
 
 @section Styles {
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jodit@3.24.6/build/jodit.min.css" />
-    <style>
-        #formCard { max-width: 720px; margin: 0 auto; }
+<style>
+    #formCard { }
 
-        .jodit-container {
-            border-radius: 8px !important;
-            border: 1.5px solid #d1d5db !important;
-            overflow: hidden;
-        }
+    .ep-label { font-size: .9rem; font-weight: 700; color: #374151; margin-bottom: 6px; }
+    .ep-input { border-radius: 10px; border: 1.5px solid #d1d5db; font-size: .95rem; padding: .55rem .8rem; }
+    .ep-input:focus { border-color: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.12); }
 
-        .jodit-container:focus-within {
-            border-color: #4f46e5 !important;
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.1) !important;
-        }
+    /* ── TipTap wrapper ─────────────────────────── */
+    .tiptap-wrap {
+        border: 1.5px solid #d1d5db;
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    .tiptap-wrap:focus-within {
+        border-color: #22c55e;
+        box-shadow: 0 0 0 3px rgba(34,197,94,.12);
+    }
 
-        .jodit-toolbar__box {
-            background: #f8fafc !important;
-            border-bottom: 1px solid #e2e8f0 !important;
-        }
+    /* ── Toolbar ────────────────────────────────── */
+    .tt-toolbar {
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 6px 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    .tt-btn {
+        min-width: 30px; height: 30px;
+        border: none; background: transparent; border-radius: 6px;
+        cursor: pointer; display: inline-flex; align-items: center;
+        justify-content: center; font-size: 15px; color: #374151;
+        padding: 0 5px; transition: background .15s; line-height: 1;
+        white-space: nowrap;
+    }
+    .tt-btn:hover     { background: #e2e8f0; }
+    .tt-btn.is-active { background: #dcfce7; color: #16a34a; }
+    .tt-sep { width: 1px; height: 22px; background: #e2e8f0; margin: 0 3px; flex-shrink: 0; }
 
-        .jodit-wysiwyg {
-            font-size: 0.9rem !important;
-            color: #1e293b !important;
-        }
-    </style>
+    .tt-clr-btn {
+        min-width: 30px; height: 30px; padding: 2px 5px;
+        border: none; background: transparent; border-radius: 6px;
+        cursor: pointer; display: inline-flex; align-items: center;
+        justify-content: center; flex-direction: column; gap: 1px;
+        position: relative;
+    }
+    .tt-clr-btn:hover { background: #e2e8f0; }
+    .tt-clr-bar { width: 16px; height: 3px; border-radius: 2px; }
+
+    /* ── Table ops bar ──────────────────────────── */
+    #tt-tbl-ops {
+        display: none;
+        background: #fffbeb;
+        border-bottom: 1px solid #fde68a;
+        padding: 4px 10px;
+        flex-wrap: wrap;
+        gap: 2px;
+        align-items: center;
+        position: sticky;
+        top: 42px;
+        z-index: 9;
+    }
+    #tt-tbl-ops.show { display: flex; }
+    #tt-tbl-ops .tt-btn { font-size: 12px; height: 26px; padding: 0 7px; }
+    #tt-tbl-ops .tt-sep { height: 18px; }
+
+    /* ── Editor body ────────────────────────────── */
+    .ProseMirror {
+        padding: 1rem 1.25rem;
+        min-height: 420px;
+        outline: none;
+        font-size: .92rem;
+        color: #1e293b;
+        line-height: 1.75;
+        flex: 1;
+    }
+    .ProseMirror > * + * { margin-top: .4rem; }
+    .ProseMirror p.is-editor-empty:first-child::before {
+        content: attr(data-placeholder);
+        float: left; color: #94a3b8;
+        pointer-events: none; height: 0;
+    }
+    .ProseMirror h1 { font-size: 1.5rem; font-weight: 700; }
+    .ProseMirror h2 { font-size: 1.2rem; font-weight: 700; }
+    .ProseMirror h3 { font-size: 1rem;   font-weight: 700; }
+    .ProseMirror ul, .ProseMirror ol { padding-left: 1.4rem; }
+    .ProseMirror hr { border: none; border-top: 2px solid #e2e8f0; margin: .75rem 0; }
+    .ProseMirror a  { color: #16a34a; text-decoration: underline; }
+    .ProseMirror mark { border-radius: 2px; padding: 0 2px; }
+    .ProseMirror table { border-collapse: collapse; width: 100%; margin: .5rem 0; }
+    .ProseMirror table td,
+    .ProseMirror table th { border: 1px solid #e2e8f0; padding: 5px 9px; min-width: 40px; }
+    .ProseMirror table th { background: #dcfce7; font-weight: 600; color: #16a34a; }
+    .ProseMirror .selectedCell { background: rgba(34,197,94,.08); }
+
+    /* ── Table grid picker ──────────────────────── */
+    .tt-tbl-picker-wrap { position: relative; }
+    #tt-tbl-picker {
+        display: none;
+        position: absolute;
+        top: 34px; left: 0;
+        z-index: 999;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 10px;
+        box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    }
+    #tt-tbl-picker.open { display: block; }
+    #tt-grid { display: grid; grid-template-columns: repeat(8,18px); gap: 2px; }
+    .tt-grid-cell {
+        width: 18px; height: 18px;
+        border: 1px solid #e2e8f0; border-radius: 2px;
+        background: #f8fafc; cursor: pointer;
+        transition: background .1s, border-color .1s;
+    }
+    .tt-grid-cell.hl { background: #dcfce7; border-color: #22c55e; }
+    #tt-grid-label { text-align: center; font-size: 11px; color: #64748b; margin-top: 6px; }
+
+    /* ── Word count ─────────────────────────────── */
+    .tt-footer {
+        padding: 5px 1.25rem;
+        background: #f8fafc;
+        border-top: 1px solid #e2e8f0;
+        font-size: 11px;
+        color: #94a3b8;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    /* ── Submit buttons ─────────────────────────── */
+    .btn-save { font-size: 1rem; padding: .65rem 1.5rem; border-radius: 10px; font-weight: 700; }
+    .btn-back { font-size: .95rem; padding: .65rem 1.2rem; border-radius: 10px; }
+</style>
 }
 
 <div class="container-fluid py-3">
     <div id="formCard">
-
-        <a href="@Url.Action("Manage", "Policy")" class="d-inline-flex align-items-center gap-1 text-secondary text-sm mb-3 text-decoration-none">
-            <i class="bi bi-arrow-left"></i> Quay lại danh sách
-        </a>
 
         <div class="card">
             <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
@@ -50,15 +161,15 @@
             </div>
 
             <div class="card-body pt-4 pb-4 px-4">
-                <form asp-action="Edit" method="post">
+                <form asp-action="Edit" method="post" id="editForm">
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="ID" />
 
-                    <div class="row g-3">
-                        <!-- Nhóm -->
-                        <div class="col-12 col-md-6">
-                            <label class="form-label text-sm font-weight-bold">Nhóm <span class="text-danger">*</span></label>
-                            <input asp-for="CATEGORY" class="form-control"
+                    <!-- Row 1: Nhóm + Tiêu đề -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-5">
+                            <label class="ep-label">Nhóm <span class="text-danger">*</span></label>
+                            <input asp-for="CATEGORY" class="form-control ep-input"
                                    placeholder="Ví dụ: Nội quy lao động"
                                    list="category-list" autocomplete="off" />
                             <datalist id="category-list">
@@ -69,93 +180,225 @@
                                 <option value="Khác" />
                             </datalist>
                         </div>
-
-                        <!-- Thứ tự -->
-                        <div class="col-12 col-md-6">
-                            <label class="form-label text-sm font-weight-bold">Thứ tự hiển thị</label>
-                            <input asp-for="DISPLAY_ORDER" type="number" min="0" class="form-control" />
+                        <div class="col-12 col-md-7">
+                            <label class="ep-label">Tiêu đề <span class="text-danger">*</span></label>
+                            <input asp-for="TITLE" class="form-control ep-input" placeholder="Ví dụ: Điều 1 - Giờ làm việc" />
                         </div>
+                    </div>
 
-                        <!-- Tiêu đề -->
-                        <div class="col-12">
-                            <label class="form-label text-sm font-weight-bold">Tiêu đề <span class="text-danger">*</span></label>
-                            <input asp-for="TITLE" class="form-control"
-                                   placeholder="Ví dụ: Điều 1 - Giờ làm việc" />
+                    <!-- Row 2: Thứ tự + Toggle -->
+                    <div class="d-flex align-items-center gap-4 mb-4">
+                        <div>
+                            <label class="ep-label">Thứ tự hiển thị</label>
+                            <input asp-for="DISPLAY_ORDER" type="number" min="0" class="form-control ep-input" style="width:100px;" />
                         </div>
-
-                        <!-- Nội dung (Jodit) -->
-                        <div class="col-12">
-                            <label class="form-label text-sm font-weight-bold">Nội dung <span class="text-danger">*</span></label>
-                            <textarea asp-for="CONTENT" id="editor-content"></textarea>
-                        </div>
-
-                        <!-- Trạng thái -->
-                        <div class="col-12">
-                            <div class="d-flex align-items-center gap-3">
-                                <div class="form-check form-switch mb-0">
-                                    <input class="form-check-input" type="checkbox" id="isActiveCheck"
-                                           @(Model.IS_ACTIVE == 1 ? "checked" : "")
-                                           onchange="document.getElementById('IS_ACTIVE').value = this.checked ? 1 : 0" />
-                                    <label class="form-check-label text-sm font-weight-bold" for="isActiveCheck">
-                                        Hiển thị cho nhân viên
-                                    </label>
-                                </div>
-                                <input type="hidden" asp-for="IS_ACTIVE" id="IS_ACTIVE" />
+                        <div class="pt-3">
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="isActiveCheck" style="width:2.4em;height:1.3em;"
+                                       @(Model.IS_ACTIVE == 1 ? "checked" : "")
+                                       onchange="document.getElementById('IS_ACTIVE').value = this.checked ? 1 : 0" />
+                                <label class="form-check-label ep-label ms-1" for="isActiveCheck" style="margin-bottom:0;">
+                                    Hiển thị cho nhân viên
+                                </label>
                             </div>
+                            <input type="hidden" asp-for="IS_ACTIVE" id="IS_ACTIVE" />
                         </div>
                     </div>
 
-                    <div class="d-flex gap-2 mt-4 flex-wrap">
-                        <button type="submit" class="btn btn-success mb-0">
-                            <i class="bi bi-save me-1"></i>
-                            @(isNew ? "Tạo mới" : "Lưu thay đổi")
-                        </button>
-                        <a href="@Url.Action("Manage", "Policy")" class="btn btn-outline-secondary mb-0">Hủy</a>
+                    <!-- Editor -->
+                    <div class="mb-4">
+                        <label class="ep-label mb-2">Nội dung <span class="text-danger">*</span></label>
+                        <input type="hidden" asp-for="CONTENT" id="tt-val" />
+                        <div class="tiptap-wrap">
+                            <!-- Toolbar -->
+                            <div class="tt-toolbar">
+                                <button type="button" class="tt-btn" id="tt-bold"      title="Đậm"        onclick="window._tt.chain().focus().toggleBold().run()"><i class="bi bi-type-bold"></i></button>
+                                <button type="button" class="tt-btn" id="tt-italic"    title="Nghiêng"    onclick="window._tt.chain().focus().toggleItalic().run()"><i class="bi bi-type-italic"></i></button>
+                                <button type="button" class="tt-btn" id="tt-underline" title="Gạch chân"  onclick="window._tt.chain().focus().toggleUnderline().run()"><i class="bi bi-type-underline"></i></button>
+                                <button type="button" class="tt-btn" id="tt-strike"    title="Gạch ngang" onclick="window._tt.chain().focus().toggleStrike().run()"><i class="bi bi-type-strikethrough"></i></button>
+                                <div class="tt-sep"></div>
+                                <button type="button" class="tt-btn" id="tt-h1" title="Tiêu đề 1" onclick="window._tt.chain().focus().toggleHeading({level:1}).run()" style="font-size:11px;font-weight:800;">H1</button>
+                                <button type="button" class="tt-btn" id="tt-h2" title="Tiêu đề 2" onclick="window._tt.chain().focus().toggleHeading({level:2}).run()" style="font-size:11px;font-weight:800;">H2</button>
+                                <button type="button" class="tt-btn" id="tt-h3" title="Tiêu đề 3" onclick="window._tt.chain().focus().toggleHeading({level:3}).run()" style="font-size:11px;font-weight:800;">H3</button>
+                                <div class="tt-sep"></div>
+                                <label class="tt-clr-btn" title="Màu chữ">
+                                    <span style="font-weight:800;font-size:13px;line-height:1;">A</span>
+                                    <div class="tt-clr-bar" id="tt-clr-bar" style="background:#000;"></div>
+                                    <input type="color" id="tt-clr" style="position:absolute;opacity:0;width:0;height:0;"
+                                           oninput="window._tt.chain().focus().setColor(this.value).run();document.getElementById('tt-clr-bar').style.background=this.value;" />
+                                </label>
+                                <label class="tt-clr-btn" title="Highlight">
+                                    <i class="bi bi-highlighter" style="font-size:13px;line-height:1;"></i>
+                                    <div class="tt-clr-bar" id="tt-hl-bar" style="background:#fbbf24;"></div>
+                                    <input type="color" id="tt-hl" value="#fbbf24" style="position:absolute;opacity:0;width:0;height:0;"
+                                           oninput="window._tt.chain().focus().toggleHighlight({color:this.value}).run();document.getElementById('tt-hl-bar').style.background=this.value;" />
+                                </label>
+                                <div class="tt-sep"></div>
+                                <button type="button" class="tt-btn" id="tt-ul"     title="Danh sách chấm" onclick="window._tt.chain().focus().toggleBulletList().run()"><i class="bi bi-list-ul"></i></button>
+                                <button type="button" class="tt-btn" id="tt-ol"     title="Danh sách số"   onclick="window._tt.chain().focus().toggleOrderedList().run()"><i class="bi bi-list-ol"></i></button>
+                                <div class="tt-sep"></div>
+                                <button type="button" class="tt-btn" id="tt-left"   title="Căn trái"  onclick="window._tt.chain().focus().setTextAlign('left').run()"><i class="bi bi-text-left"></i></button>
+                                <button type="button" class="tt-btn" id="tt-center" title="Căn giữa"  onclick="window._tt.chain().focus().setTextAlign('center').run()"><i class="bi bi-text-center"></i></button>
+                                <button type="button" class="tt-btn" id="tt-right"  title="Căn phải"  onclick="window._tt.chain().focus().setTextAlign('right').run()"><i class="bi bi-text-right"></i></button>
+                                <div class="tt-sep"></div>
+                                <div class="tt-tbl-picker-wrap">
+                                    <button type="button" class="tt-btn" id="tt-table" title="Chèn bảng" onclick="toggleTblPicker(event)"><i class="bi bi-table"></i></button>
+                                    <div id="tt-tbl-picker">
+                                        <div id="tt-grid"></div>
+                                        <div id="tt-grid-label">Di chuột để chọn</div>
+                                    </div>
+                                </div>
+                                <button type="button" class="tt-btn" id="tt-link" title="Chèn link"      onclick="ttSetLink()"><i class="bi bi-link-45deg"></i></button>
+                                <button type="button" class="tt-btn"              title="Đường kẻ ngang" onclick="window._tt.chain().focus().setHorizontalRule().run()"><i class="bi bi-dash-lg"></i></button>
+                                <div class="tt-sep"></div>
+                                <button type="button" class="tt-btn" title="Undo" onclick="window._tt.chain().focus().undo().run()"><i class="bi bi-arrow-counterclockwise"></i></button>
+                                <button type="button" class="tt-btn" title="Redo" onclick="window._tt.chain().focus().redo().run()"><i class="bi bi-arrow-clockwise"></i></button>
+                            </div>
+                            <!-- Table ops bar -->
+                            <div id="tt-tbl-ops">
+                                <span style="font-size:11px;color:#92400e;font-weight:700;padding:0 4px;"><i class="bi bi-table me-1"></i>Bảng:</span>
+                                <div class="tt-sep"></div>
+                                <button type="button" class="tt-btn" title="Thêm hàng trên"  onclick="window._tt.chain().focus().addRowBefore().run()">+Hàng↑</button>
+                                <button type="button" class="tt-btn" title="Thêm hàng dưới"  onclick="window._tt.chain().focus().addRowAfter().run()">+Hàng↓</button>
+                                <button type="button" class="tt-btn text-danger" title="Xóa hàng" onclick="window._tt.chain().focus().deleteRow().run()">−Hàng</button>
+                                <div class="tt-sep"></div>
+                                <button type="button" class="tt-btn" title="Thêm cột trái"   onclick="window._tt.chain().focus().addColumnBefore().run()">+Cột←</button>
+                                <button type="button" class="tt-btn" title="Thêm cột phải"   onclick="window._tt.chain().focus().addColumnAfter().run()">+Cột→</button>
+                                <button type="button" class="tt-btn text-danger" title="Xóa cột" onclick="window._tt.chain().focus().deleteColumn().run()">−Cột</button>
+                                <div class="tt-sep"></div>
+                                <button type="button" class="tt-btn text-danger" title="Xóa bảng" onclick="window._tt.chain().focus().deleteTable().run()"><i class="bi bi-trash3 me-1"></i>Xóa bảng</button>
+                            </div>
+                            <!-- Editor area -->
+                            <div id="tiptap-editor"></div>
+                            <!-- Footer -->
+                            <div class="tt-footer"><span id="tt-wordcount">0 từ · 0 ký tự</span></div>
+                        </div>
                     </div>
+
+                    <!-- Action buttons -->
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a href="@Url.Action("Manage", "Policy")" class="btn btn-outline-secondary btn-back mb-0">Hủy</a>
+                        <button type="submit" class="btn btn-success btn-save mb-0">
+                            <i class="bi bi-save me-1"></i>@(isNew ? "Tạo mới" : "Lưu thay đổi")
+                        </button>
+                    </div>
+
                 </form>
             </div>
         </div>
+
     </div>
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/jodit@3.24.6/build/jodit.min.js"></script>
-    <script>
-        Jodit.make('#editor-content', {
-            height: 380,
-            language: 'en',
-            toolbarButtonSize: 'middle',
-            showCharsCounter: false,
-            showWordsCounter: false,
-            showXPathInStatusbar: false,
-            buttons: [
-                'bold', 'italic', 'underline', 'strikethrough', '|',
-                'brush', 'fontsize', '|',
-                'ul', 'ol', '|',
-                'left', 'center', 'right', '|',
-                'table', '|',
-                'link', 'hr', '|',
-                'undo', 'redo', '|',
-                'fullsize'
-            ],
-            buttonsMD: [
-                'bold', 'italic', 'underline', '|',
-                'brush', 'fontsize', '|',
-                'ul', 'ol', '|',
-                'table', 'link', '|',
-                'undo', 'redo', '|',
-                'fullsize'
-            ],
-            buttonsSM: [
-                'bold', 'italic', '|',
-                'brush', '|',
-                'ul', 'ol', '|',
-                'fullsize'
-            ],
-            uploader: { insertImageAsBase64URI: false },
-            removeButtons: ['image', 'video', 'file', 'copyformat', 'speechRecognize', 'spellcheck', 'print', 'about'],
-            disablePlugins: ['image', 'video', 'file', 'speech-recognize', 'spellcheck', 'print'],
-            placeholder: 'Nhập nội dung quy định...',
+<script type="module">
+import { Editor }  from 'https://esm.sh/@@tiptap/core@@2';
+import StarterKit  from 'https://esm.sh/@@tiptap/starter-kit@@2';
+import Underline   from 'https://esm.sh/@@tiptap/extension-underline@@2';
+import TextStyle   from 'https://esm.sh/@@tiptap/extension-text-style@@2';
+import Color       from 'https://esm.sh/@@tiptap/extension-color@@2';
+import Highlight   from 'https://esm.sh/@@tiptap/extension-highlight@@2';
+import TextAlign   from 'https://esm.sh/@@tiptap/extension-text-align@@2';
+import Link        from 'https://esm.sh/@@tiptap/extension-link@@2';
+import Placeholder from 'https://esm.sh/@@tiptap/extension-placeholder@@2';
+import Table       from 'https://esm.sh/@@tiptap/extension-table@@2';
+import TableRow    from 'https://esm.sh/@@tiptap/extension-table-row@@2';
+import TableCell   from 'https://esm.sh/@@tiptap/extension-table-cell@@2';
+import TableHeader from 'https://esm.sh/@@tiptap/extension-table-header@@2';
+
+const val = document.getElementById('tt-val');
+
+const editor = new Editor({
+    element: document.getElementById('tiptap-editor'),
+    extensions: [
+        StarterKit,
+        Underline, TextStyle, Color,
+        Highlight.configure({ multicolor: true }),
+        TextAlign.configure({ types: ['heading', 'paragraph'] }),
+        Link.configure({ openOnClick: false }),
+        Placeholder.configure({ placeholder: 'Nhập nội dung quy định...' }),
+        Table.configure({ resizable: false }),
+        TableRow, TableCell, TableHeader,
+    ],
+    content: val.value || '',
+    onUpdate({ editor })          { val.value = editor.getHTML(); _updateWordCount(editor); },
+    onSelectionUpdate({ editor }) { _sync(editor); },
+    onTransaction({ editor })     { _sync(editor); },
+});
+
+window._tt = editor;
+
+function _sync(e) {
+    const map = {
+        'tt-bold':      () => e.isActive('bold'),
+        'tt-italic':    () => e.isActive('italic'),
+        'tt-underline': () => e.isActive('underline'),
+        'tt-strike':    () => e.isActive('strike'),
+        'tt-h1':        () => e.isActive('heading', { level: 1 }),
+        'tt-h2':        () => e.isActive('heading', { level: 2 }),
+        'tt-h3':        () => e.isActive('heading', { level: 3 }),
+        'tt-ul':        () => e.isActive('bulletList'),
+        'tt-ol':        () => e.isActive('orderedList'),
+        'tt-left':      () => e.isActive({ textAlign: 'left' }),
+        'tt-center':    () => e.isActive({ textAlign: 'center' }),
+        'tt-right':     () => e.isActive({ textAlign: 'right' }),
+        'tt-link':      () => e.isActive('link'),
+        'tt-table':     () => e.isActive('table'),
+    };
+    for (const [id, fn] of Object.entries(map)) {
+        document.getElementById(id)?.classList.toggle('is-active', fn());
+    }
+    document.getElementById('tt-tbl-ops').classList.toggle('show', e.isActive('table'));
+}
+
+function _updateWordCount(e) {
+    const text  = e.getText().trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    const chars = text.length;
+    document.getElementById('tt-wordcount').textContent = `${words} từ · ${chars} ký tự`;
+}
+
+const gridEl  = document.getElementById('tt-grid');
+const gridLbl = document.getElementById('tt-grid-label');
+for (let r = 1; r <= 8; r++) {
+    for (let c = 1; c <= 8; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'tt-grid-cell';
+        cell.dataset.r = r; cell.dataset.c = c;
+        cell.addEventListener('mouseover', () => {
+            document.querySelectorAll('.tt-grid-cell').forEach(el =>
+                el.classList.toggle('hl', +el.dataset.r <= r && +el.dataset.c <= c)
+            );
+            gridLbl.textContent = `${r} × ${c}`;
         });
-    </script>
+        cell.addEventListener('click', () => {
+            editor.chain().focus().insertTable({ rows: r, cols: c, withHeaderRow: true }).run();
+            document.getElementById('tt-tbl-picker').classList.remove('open');
+        });
+        gridEl.appendChild(cell);
+    }
+}
+
+window.toggleTblPicker = (e) => {
+    e.stopPropagation();
+    document.getElementById('tt-tbl-picker').classList.toggle('open');
+};
+document.addEventListener('click', () => {
+    document.getElementById('tt-tbl-picker').classList.remove('open');
+});
+
+window.ttSetLink = () => {
+    const prev = editor.getAttributes('link').href || '';
+    const url  = prompt('Nhập URL:', prev);
+    if (url === null) return;
+    url ? editor.chain().focus().setLink({ href: url }).run()
+        : editor.chain().focus().unsetLink().run();
+};
+
+document.getElementById('editForm').addEventListener('submit', () => {
+    val.value = editor.getHTML();
+});
+
+_updateWordCount(editor);
+</script>
 }

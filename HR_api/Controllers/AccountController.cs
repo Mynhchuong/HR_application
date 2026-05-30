@@ -185,8 +185,8 @@ public class AccountController : ControllerBase
         string updateSql = @"UPDATE HRMS.HR_USERS SET LASTED_LOGIN = SYSDATE WHERE EMPCD = :EMPCD";
         await _oracleService.ExecuteNonQueryAsync(updateSql, new OracleParameter("EMPCD", empcd));
 
-        // Populate filter codes 1 lần lúc login cho Supervisor / Manager / Assistant
-        var rolesNeedFilter = new[] { "Supervisor", "Manager", "Assistant" };
+        // Populate filter codes 1 lần lúc login cho Supervisor / DeputyManager / Manager / Assistant
+        var rolesNeedFilter = new[] { "Supervisor", "DeputyManager", "Manager", "Assistant" };
         if (rolesNeedFilter.Any(r => string.Equals(result.RoleName, r, StringComparison.OrdinalIgnoreCase)))
         {
             bool isSupervisor = string.Equals(result.RoleName, "Supervisor", StringComparison.OrdinalIgnoreCase);

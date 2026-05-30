@@ -1,0 +1,270 @@
+@{
+    ViewData["Title"] = "Lịch Nghỉ Team";
+    int curMonth = (int)(ViewBag.CurrentMonth ?? DateTime.Today.Month);
+    int curYear  = (int)(ViewBag.CurrentYear  ?? DateTime.Today.Year);
+}
+
+@section Styles {
+<style>
+    .month-nav { display:flex; align-items:center; gap:8px; }
+    .month-nav button { border:none; background:rgba(255,255,255,.2); color:#fff; border-radius:6px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-size:1rem; cursor:pointer; }
+    .month-nav button:hover { background:rgba(255,255,255,.35); }
+    .month-nav span { font-weight:700; font-size:1rem; color:#fff; min-width:120px; text-align:center; }
+    .leave-bar { display:inline-block; padding:2px 8px; border-radius:4px; font-size:.72rem; font-weight:600; margin:1px 0; white-space:nowrap; }
+    #assignPanel .form-label { font-size:.83rem; font-weight:600; }
+    .result-item { padding:6px 10px; border-radius:6px; margin-bottom:4px; font-size:.82rem; }
+    .result-item.ok  { background:#ecfdf5; border-left:3px solid #10b981; color:#065f46; }
+    .result-item.err { background:#fff0f0; border-left:3px solid #ef4444; color:#7f1d1d; }
+    .pagination .page-link { cursor: pointer; }
+    @@media (max-width: 767px) {
+        .container-fluid { padding-left: 8px !important; padding-right: 8px !important; }
+        .month-nav span { min-width: 90px; font-size:.9rem; }
+    }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- Left: Team schedule table -->
+        <div class="col-lg-8 mb-4">
+            <div class="card h-100">
+                <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+                    <div class="bg-gradient-info shadow-info border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center">
+                        <h6 class="text-white mb-0"><i class="bi bi-calendar3-range me-1"></i> Lịch Nghỉ Team</h6>
+                        <div class="month-nav">
+                            <button onclick="changeMonth(-1)" title="Tháng trước"><i class="bi bi-chevron-left"></i></button>
+                            <span id="monthLabel"></span>
+                            <button onclick="changeMonth(1)"  title="Tháng sau"><i class="bi bi-chevron-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body px-0 pt-0 pb-2 mt-3">
+                    <div class="table-responsive px-4">
+                        <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="hidden">#</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Loại">Loại</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="detail" data-mobile-label="Nguồn">Nguồn</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Từ ngày">Từ ngày</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="detail" data-mobile-label="Đến ngày">Đến ngày</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Số ngày">Số ngày</th>
+                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tình trạng">Tình trạng</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scheduleBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="px-4 mt-2 text-sm text-secondary" id="scheduleCount"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Assign panel -->
+        <div class="col-lg-4 mb-4" id="assignPanel">
+            <div class="card h-100">
+                <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+                    <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3">
+                        <h6 class="text-white mb-0"><i class="bi bi-calendar2-plus me-1"></i> Sắp Lịch Nghỉ Phép</h6>
+                        <p class="text-white text-xs mt-1 mb-0 opacity-8">Nghỉ phép năm (AL) · Nhập nhiều mã NV, mỗi dòng 1 mã</p>
+                    </div>
+                </div>
+                <div class="card-body mt-3">
+                    <div class="mb-3">
+                        <label class="form-label">Mã nhân viên <span class="text-danger">*</span></label>
+                        <textarea id="assignEmpcds" class="form-control form-control-sm" rows="4"
+                                  placeholder="VD:&#10;24092522&#10;08012400&#10;15090709" style="font-family:monospace;font-size:.85rem;"></textarea>
+                        <div class="text-xxs text-secondary mt-1">Mỗi dòng 1 mã nhân viên</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Từ ngày <span class="text-danger">*</span></label>
+                            <input type="date" id="assignFromDate" class="form-control form-control-sm" onchange="calcAssignDays()" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Đến ngày <span class="text-danger">*</span></label>
+                            <input type="date" id="assignToDate" class="form-control form-control-sm" onchange="calcAssignDays()" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Số ngày nghỉ <span class="text-danger">*</span></label>
+                        <input type="number" id="assignTotalDays" class="form-control form-control-sm" min="0.5" step="0.5" placeholder="VD: 3" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Lý do / Ghi chú</label>
+                        <input type="text" id="assignReason" class="form-control form-control-sm" maxlength="300" placeholder="Nghỉ phép năm..." />
+                    </div>
+                    <button class="btn btn-warning text-white w-100" id="assignBtn" onclick="submitAssign()">
+                        <i class="bi bi-send me-1"></i> Sắp Lịch Nghỉ
+                    </button>
+                    <div id="assignResults" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const SCHEDULE_URL = '@Url.Action("GetTeamSchedulePage", "Leave")';
+const ASSIGN_URL   = '@Url.Action("AssignLeave",         "Leave")';
+const CURRENT_ROLE = '@ViewBag.CurrentRole';
+
+const CAN_ASSIGN = ['Supervisor','DeputyManager','Manager','Admin'].includes(CURRENT_ROLE);
+
+let curMonth = @curMonth, curYear = @curYear;
+
+const MONTHS_VI = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                   'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
+
+function updateMonthLabel() {
+    $('#monthLabel').text(MONTHS_VI[curMonth-1] + ' ' + curYear);
+}
+
+function changeMonth(delta) {
+    curMonth += delta;
+    if (curMonth > 12) { curMonth = 1;  curYear++; }
+    if (curMonth < 1)  { curMonth = 12; curYear--; }
+    updateMonthLabel();
+    loadSchedule();
+}
+
+function statusBadge(item) {
+    const s = item.STATUS, src = item.SOURCE;
+    if (src === 'ASSIGNED') {
+        if (s === 'ASSIGNED')        return `<span class="badge bg-info text-dark">Chờ xác nhận</span>`;
+        if (s === 'CONFIRMED')       return `<span class="badge bg-success">Đã xác nhận</span>`;
+        if (s === 'WORKER_REJECTED') return `<span class="badge bg-danger">Từ chối</span>`;
+    }
+    if (s === 'PENDING')  return `<span class="badge bg-warning text-dark">Chờ duyệt</span>`;
+    if (s === 'APPROVED') return `<span class="badge bg-success">Đã duyệt</span>`;
+    if (s === 'REJECTED') return `<span class="badge bg-danger">Từ chối</span>`;
+    return `<span class="badge bg-secondary">${escHtml(s||'-')}</span>`;
+}
+
+function buildScheduleRow(item, idx) {
+    const ltLabel = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
+    const ltColor = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
+    const srcBadge = item.SOURCE === 'ASSIGNED'
+        ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:.7rem;">Sắp lịch</span>`
+        : `<span class="badge bg-light text-dark border" style="font-size:.7rem;">Tự nộp</span>`;
+    return `<tr>
+        <td class="px-2 text-xs text-secondary">${idx}</td>
+        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+        <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
+        <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
+        <td class="px-2">${srcBadge}</td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
+        <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS ?? '-'}</td>
+        <td class="text-center">${statusBadge(item)}</td>
+    </tr>`;
+}
+
+function loadSchedule() {
+    $('#scheduleBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-info" role="status"></div></td></tr>`);
+    MobileTableHelper.refresh('scheduleBody');
+    $('#scheduleCount').text('');
+    $.ajax({
+        url: SCHEDULE_URL, type: 'GET', data: { month: curMonth, year: curYear },
+        success: function(res) {
+            if (!res.success) {
+                $('#scheduleBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                MobileTableHelper.refresh('scheduleBody');
+                return;
+            }
+            const data = res.data || [];
+            if (!data.length) {
+                $('#scheduleBody').html(`<tr><td colspan="9" class="text-center text-muted py-5"><i class="bi bi-calendar-x fs-4 d-block mb-2"></i>Không có lịch nghỉ trong tháng này</td></tr>`);
+            } else {
+                $('#scheduleBody').html(data.map((item,i) => buildScheduleRow(item, i+1)).join(''));
+                $('#scheduleCount').html(`<span class="text-xs">Tổng <strong>${res.total}</strong> lịch nghỉ</span>`);
+            }
+            MobileTableHelper.refresh('scheduleBody');
+        },
+        error: function(xhr) {
+            $('#scheduleBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            MobileTableHelper.refresh('scheduleBody');
+        }
+    });
+}
+
+function calcAssignDays() {
+    const f = $('#assignFromDate').val(), t = $('#assignToDate').val();
+    if (f && t) {
+        const diff = (new Date(t) - new Date(f)) / 86400000 + 1;
+        if (diff > 0) $('#assignTotalDays').val(diff);
+    }
+}
+
+async function submitAssign() {
+    const raw     = $('#assignEmpcds').val().trim();
+    const empList = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+    const from    = $('#assignFromDate').val();
+    const to      = $('#assignToDate').val();
+    const days    = parseFloat($('#assignTotalDays').val());
+    const reason  = $('#assignReason').val().trim() || null;
+
+    if (!empList.length)    { showToast('Vui lòng nhập mã nhân viên', 'warning'); return; }
+    if (!from || !to)       { showToast('Vui lòng chọn ngày', 'warning'); return; }
+    if (!days || days <= 0) { showToast('Số ngày nghỉ không hợp lệ', 'warning'); return; }
+
+    const $btn = $('#assignBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang xử lý...');
+    $('#assignResults').empty();
+    try {
+        const payload = {
+            ASSIGNER_EMPCD: '',
+            TARGET_EMPCDS:  empList,
+            FROM_DATE:      from,
+            TO_DATE:        to,
+            TOTAL_DAYS:     days,
+            REASON:         reason
+        };
+        const res = await $.ajax({ url: ASSIGN_URL, type: 'POST', contentType: 'application/json', data: JSON.stringify(payload) });
+
+        if (res.results && res.results.length) {
+            const html = res.results.map(r => {
+                const cls = r.success ? 'ok' : 'err';
+                const icon = r.success ? '<i class="bi bi-check-circle me-1"></i>' : '<i class="bi bi-x-circle me-1"></i>';
+                return `<div class="result-item ${cls}">${icon}<strong>${escHtml(r.empcd||'')}</strong>: ${escHtml(r.message||'')} ${r.request_id ? `<span class="text-xs opacity-7">(${r.request_id})</span>` : ''}</div>`;
+            }).join('');
+            $('#assignResults').html(html);
+        }
+
+        if (res.success) {
+            showToast(res.message || 'Đã sắp lịch thành công', 'success');
+            loadSchedule();
+        } else {
+            showToast(res.message || 'Có lỗi xảy ra', 'error');
+        }
+    } catch { showToast('Lỗi kết nối', 'error'); }
+    finally  { $btn.prop('disabled', false).html('<i class="bi bi-send me-1"></i> Sắp Lịch Nghỉ'); }
+}
+
+if (!CAN_ASSIGN) {
+    document.getElementById('assignPanel').remove();
+}
+
+function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
+function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+$(document).ready(function() {
+    MobileTableHelper.init('scheduleBody');
+    updateMonthLabel();
+    loadSchedule();
+});
+</script>
+}

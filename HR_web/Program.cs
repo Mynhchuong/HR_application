@@ -85,6 +85,7 @@ builder.Services.AddScoped<HR_web.API.Service.DropdownService>();
 builder.Services.AddScoped<HR_web.API.Service.UserDeptService>();
 builder.Services.AddScoped<HR_web.API.Service.GatePassService>();
 builder.Services.AddScoped<HR_web.API.Service.PolicyService>();
+builder.Services.AddScoped<HR_web.API.Service.LeaveService>();
 
 // ============================================================
 var app = builder.Build();

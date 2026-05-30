@@ -1,138 +1,86 @@
 using HR_web.API.Service;
-using HR_web.Models.GatePass;
+using HR_web.Models.Leave;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace HR_web.Controllers.GatePass;
+namespace HR_web.Controllers.Leave;
 
 [Authorize]
-public class GatePassController : BaseController
+public class LeaveController : BaseController
 {
-    private readonly GatePassService _gpService;
+    private readonly LeaveService _leaveService;
 
-    public GatePassController(GatePassService gpService)
+    public LeaveController(LeaveService leaveService)
     {
-        _gpService = gpService;
+        _leaveService = leaveService;
     }
 
     // ─────────────────────────────────────────────
-    // GET: /GatePass/GpRequestForm
+    // GET: /Leave/LeaveMyRequests
     // ─────────────────────────────────────────────
-    public IActionResult GpRequestForm()
+    public IActionResult LeaveMyRequests()
     {
-        ViewBag.Today    = DateTime.Today.ToString("yyyy-MM-dd");
-        ViewBag.Tomorrow = DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
+        ViewBag.DateFrom = DateTime.Today.AddMonths(-3).ToString("yyyy-MM-dd");
+        ViewBag.DateTo   = DateTime.Today.AddMonths(3).ToString("yyyy-MM-dd");
         return View();
     }
 
     // ─────────────────────────────────────────────
-    // POST: /GatePass/GpRequestForm
-    // ─────────────────────────────────────────────
-    [HttpPost]
-    public async Task<IActionResult> GpRequestForm(string gp_type, string reg_date, string? out_time, string? in_time, string? reason)
-    {
-        try
-        {
-            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
-                return RedirectToAction("Login", "Account");
-
-            var request = new GpSubmitRequest
-            {
-                EMPCD    = CurrentUser.EmpCd,
-                REG_DATE = reg_date,
-                GP_TYPE  = gp_type,
-                OUT_TIME = out_time,
-                IN_TIME  = in_time,
-                REASON   = reason
-            };
-
-            var result = await _gpService.SubmitAsync(request);
-
-            if (result.success)
-                TempData["SuccessMessage"] = result.message ?? "Đăng ký Gate Pass thành công";
-            else
-                TempData["ErrorMessage"] = result.message ?? "Có lỗi xảy ra";
-
-            return RedirectToAction("GpRequestForm");
-        }
-        catch (Exception ex)
-        {
-            TempData["ErrorMessage"] = ex.Message;
-            return RedirectToAction("GpRequestForm");
-        }
-    }
-
-    // ─────────────────────────────────────────────
-    // GET: /GatePass/GetShiftInfo (AJAX)
+    // GET: /Leave/GetMyRequestsPage (AJAX)
     // ─────────────────────────────────────────────
     [HttpGet]
-    public async Task<IActionResult> GetShiftInfo(string? reg_date)
-    {
-        try
-        {
-            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
-                return Json(new { success = false });
-
-            var result = await _gpService.GetShiftInfoAsync(CurrentUser.EmpCd, reg_date);
-            return Json(new { success = true, data = result });
-        }
-        catch (Exception ex)
-        {
-            return Json(new { success = false, message = ex.Message });
-        }
-    }
-
-    // ─────────────────────────────────────────────
-    // GET: /GatePass/GpMyRequests
-    // ─────────────────────────────────────────────
-    public IActionResult GpMyRequests()
-    {
-        return View();
-    }
-
-    // ─────────────────────────────────────────────
-    // GET: /GatePass/GetMyRequestsPage (AJAX)
-    // ─────────────────────────────────────────────
-    [HttpGet]
-    public async Task<IActionResult> GetMyRequestsPage(int page = 1, int page_size = 20, string? date_from = null, string? date_to = null)
+    public async Task<IActionResult> GetMyRequestsPage(
+        string? source = null, int page = 1, int page_size = 20,
+        string? date_from = null, string? date_to = null)
     {
         try
         {
             if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
                 return Json(new { success = false, message = "Chưa đăng nhập" });
 
-            var result = await _gpService.GetMyRequestsAsync(CurrentUser.EmpCd, page, page_size, date_from, date_to);
+            var result = await _leaveService.GetMyRequestsAsync(
+                CurrentUser.EmpCd, source, page, page_size, date_from, date_to);
             return Json(result);
         }
-        catch (Exception ex)
-        {
-            return Json(new { success = false, message = ex.Message });
-        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
     }
 
     // ─────────────────────────────────────────────
-    // POST: /GatePass/UpdateRequest (AJAX)
+    // POST: /Leave/CreateRequest (AJAX)
     // ─────────────────────────────────────────────
     [HttpPost]
-    public async Task<IActionResult> UpdateRequest([FromBody] GpUpdateRequest model)
+    public async Task<IActionResult> CreateRequest([FromBody] LeaveCreateRequest model)
     {
         try
         {
             if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
                 return Json(new { success = false, message = "Chưa đăng nhập" });
-
             model.EMPCD = CurrentUser.EmpCd;
-            var result  = await _gpService.UpdateAsync(model);
+            var result  = await _leaveService.CreateAsync(model);
             return Json(result);
         }
-        catch (Exception ex)
-        {
-            return Json(new { success = false, message = ex.Message });
-        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
     }
 
     // ─────────────────────────────────────────────
-    // POST: /GatePass/DeleteRequest (AJAX)
+    // POST: /Leave/UpdateRequest (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> UpdateRequest([FromBody] LeaveUpdateRequest model)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            model.EMPCD = CurrentUser.EmpCd;
+            var result  = await _leaveService.UpdateAsync(model);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
+    // POST: /Leave/DeleteRequest (AJAX)
     // ─────────────────────────────────────────────
     [HttpPost]
     public async Task<IActionResult> DeleteRequest(string request_id)
@@ -141,33 +89,61 @@ public class GatePassController : BaseController
         {
             if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
                 return Json(new { success = false, message = "Chưa đăng nhập" });
-
-            var result = await _gpService.DeleteAsync(request_id, CurrentUser.EmpCd);
+            var result = await _leaveService.DeleteAsync(request_id, CurrentUser.EmpCd);
             return Json(result);
         }
-        catch (Exception ex)
-        {
-            return Json(new { success = false, message = ex.Message });
-        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
     }
 
     // ─────────────────────────────────────────────
-    // GET: /GatePass/GpListForSupervisor
+    // POST: /Leave/ConfirmLeave (AJAX)
     // ─────────────────────────────────────────────
-    public IActionResult GpListForSupervisor()
+    [HttpPost]
+    public async Task<IActionResult> ConfirmLeave(string request_id)
     {
-        ViewBag.DateFrom     = DateTime.Today.ToString("yyyy-MM-dd");
-        ViewBag.DateTo       = DateTime.Today.ToString("yyyy-MM-dd");
-        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            var result = await _leaveService.ConfirmAsync(request_id, CurrentUser.EmpCd);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
+    // POST: /Leave/WorkerRejectLeave (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> WorkerRejectLeave(string request_id)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            var result = await _leaveService.WorkerRejectAsync(request_id, CurrentUser.EmpCd);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/LeaveApprovalList
+    // ─────────────────────────────────────────────
+    public IActionResult LeaveApprovalList()
+    {
+        ViewBag.DateFrom     = DateTime.Today.AddMonths(-1).ToString("yyyy-MM-dd");
+        ViewBag.DateTo       = DateTime.Today.AddMonths(2).ToString("yyyy-MM-dd");
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd  ?? "";
         ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
         return View();
     }
 
     // ─────────────────────────────────────────────
-    // GET: /GatePass/GetSupervisorPage (AJAX)
+    // GET: /Leave/GetApprovalListPage (AJAX)
     // ─────────────────────────────────────────────
     [HttpGet]
-    public async Task<IActionResult> GetSupervisorPage(
+    public async Task<IActionResult> GetApprovalListPage(
         string? status = null, string? search = null,
         string? dept_id = null, string? line_id = null, string? work_id = null,
         string? date_from = null, string? date_to = null,
@@ -178,30 +154,24 @@ public class GatePassController : BaseController
             if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
                 return Json(new { success = false, message = "Chưa đăng nhập" });
 
-            // Admin bypass: dùng HR endpoint (toàn công ty, không cần scope)
             if (CurrentUser.RoleName == "Admin")
             {
-                var adminResult = await _gpService.GetHRListAsync(
-                    status, search, dept_id, line_id, work_id,
+                var adminRes = await _leaveService.GetHRListAsync(
+                    status, null, search, dept_id, line_id, work_id,
                     date_from, date_to, page, page_size);
-                return Json(adminResult);
+                return Json(adminRes);
             }
 
-            // filterType có thể empty với session cũ — API tự check HR_USERS_DEPT bằng empCd
-
-            var result = await _gpService.GetSupervisorListAsync(
+            var result = await _leaveService.GetApprovalListAsync(
                 CurrentUser.EmpCd, status, search, dept_id, line_id, work_id,
                 date_from, date_to, page, page_size);
             return Json(result);
         }
-        catch (Exception ex)
-        {
-            return Json(new { success = false, message = ex.Message });
-        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
     }
 
     // ─────────────────────────────────────────────
-    // POST: /GatePass/ApproveRequest (AJAX)
+    // POST: /Leave/ApproveRequest (AJAX)
     // ─────────────────────────────────────────────
     [HttpPost]
     public async Task<IActionResult> ApproveRequest(string request_id, string? comment = null)
@@ -210,18 +180,14 @@ public class GatePassController : BaseController
         {
             if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
                 return Json(new { success = false, message = "Chưa đăng nhập" });
-
-            var result = await _gpService.ApproveAsync(request_id, CurrentUser.EmpCd, comment);
+            var result = await _leaveService.ApproveAsync(request_id, CurrentUser.EmpCd, comment);
             return Json(result);
         }
-        catch (Exception ex)
-        {
-            return Json(new { success = false, message = ex.Message });
-        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
     }
 
     // ─────────────────────────────────────────────
-    // POST: /GatePass/RejectRequest (AJAX)
+    // POST: /Leave/RejectRequest (AJAX)
     // ─────────────────────────────────────────────
     [HttpPost]
     public async Task<IActionResult> RejectRequest(string request_id, string? comment = null)
@@ -230,89 +196,73 @@ public class GatePassController : BaseController
         {
             if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
                 return Json(new { success = false, message = "Chưa đăng nhập" });
-
-            var result = await _gpService.RejectAsync(request_id, CurrentUser.EmpCd, comment);
+            var result = await _leaveService.RejectAsync(request_id, CurrentUser.EmpCd, comment);
             return Json(result);
         }
-        catch (Exception ex)
-        {
-            return Json(new { success = false, message = ex.Message });
-        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
     }
 
     // ─────────────────────────────────────────────
-    // GET: /GatePass/GpListForClerk
+    // GET: /Leave/TeamSchedule
     // ─────────────────────────────────────────────
-    public IActionResult GpListForClerk()
+    public IActionResult TeamSchedule()
     {
-        ViewBag.DateFrom = DateTime.Today.ToString("yyyy-MM-dd");
-        ViewBag.DateTo   = DateTime.Today.ToString("yyyy-MM-dd");
-        return View();
-    }
-
-    // ─────────────────────────────────────────────
-    // GET: /GatePass/GetClerkPage (AJAX)
-    // ─────────────────────────────────────────────
-    [HttpGet]
-    public async Task<IActionResult> GetClerkPage(
-        string? status = null, string? search = null,
-        string? dept_id = null, string? line_id = null, string? work_id = null,
-        string? date_from = null, string? date_to = null,
-        int page = 1, int page_size = 50)
-    {
-        try
-        {
-            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
-                return Json(new { success = false, message = "Chưa đăng nhập" });
-
-            // Admin bypass
-            if (CurrentUser.RoleName == "Admin")
-            {
-                var adminResult = await _gpService.GetHRListAsync(
-                    status, search, dept_id, line_id, work_id,
-                    date_from, date_to, page, page_size);
-                return Json(adminResult);
-            }
-
-            var result = await _gpService.GetClerkListAsync(
-                CurrentUser.EmpCd, status, search, dept_id, line_id, work_id,
-                date_from, date_to, page, page_size);
-            return Json(result);
-        }
-        catch (Exception ex)
-        {
-            return Json(new { success = false, message = ex.Message });
-        }
-    }
-
-    // ─────────────────────────────────────────────
-    // GET: /GatePass/GpListForExpat
-    // ─────────────────────────────────────────────
-    public IActionResult GpListForExpat()
-    {
-        ViewBag.DateFrom     = DateTime.Today.ToString("yyyy-MM-dd");
-        ViewBag.DateTo       = DateTime.Today.ToString("yyyy-MM-dd");
-        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd   ?? "";
         ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
+        ViewBag.CurrentMonth = DateTime.Today.Month;
+        ViewBag.CurrentYear  = DateTime.Today.Year;
         return View();
     }
 
     // ─────────────────────────────────────────────
-    // GET: /GatePass/GpListForHR
-    // ─────────────────────────────────────────────
-    public IActionResult GpListForHR()
-    {
-        ViewBag.DateFrom = DateTime.Today.ToString("yyyy-MM-dd");
-        ViewBag.DateTo   = DateTime.Today.ToString("yyyy-MM-dd");
-        return View();
-    }
-
-    // ─────────────────────────────────────────────
-    // GET: /GatePass/GetHRPage (AJAX)
+    // GET: /Leave/GetTeamSchedulePage (AJAX)
     // ─────────────────────────────────────────────
     [HttpGet]
-    public async Task<IActionResult> GetHRPage(
-        string? status = null, string? search = null,
+    public async Task<IActionResult> GetTeamSchedulePage(int? month = null, int? year = null)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            var result = await _leaveService.GetTeamScheduleAsync(CurrentUser.EmpCd, month, year);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
+    // POST: /Leave/AssignLeave (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> AssignLeave([FromBody] LeaveAssignRequest model)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            model.ASSIGNER_EMPCD = CurrentUser.EmpCd;
+            var result = await _leaveService.AssignAsync(model);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/LeaveListForHR
+    // ─────────────────────────────────────────────
+    public IActionResult LeaveListForHR()
+    {
+        ViewBag.DateFrom = DateTime.Today.AddMonths(-1).ToString("yyyy-MM-dd");
+        ViewBag.DateTo   = DateTime.Today.AddMonths(2).ToString("yyyy-MM-dd");
+        return View();
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/GetHRListPage (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetHRListPage(
+        string? status = null, string? source = null, string? search = null,
         string? dept_id = null, string? line_id = null, string? work_id = null,
         string? date_from = null, string? date_to = null,
         int page = 1, int page_size = 50)
@@ -321,15 +271,11 @@ public class GatePassController : BaseController
         {
             if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
                 return Json(new { success = false, message = "Chưa đăng nhập" });
-
-            var result = await _gpService.GetHRListAsync(
-                status, search, dept_id, line_id, work_id,
+            var result = await _leaveService.GetHRListAsync(
+                status, source, search, dept_id, line_id, work_id,
                 date_from, date_to, page, page_size);
             return Json(result);
         }
-        catch (Exception ex)
-        {
-            return Json(new { success = false, message = ex.Message });
-        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
     }
 }

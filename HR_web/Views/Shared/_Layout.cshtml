@@ -495,7 +495,7 @@
     <!-- Mobile Bottom Navigation -->
     @{
         var mobileRole   = layoutUser?.RoleName ?? "";
-        bool isMobSupervisor = mobileRole == "Supervisor" || mobileRole == "Manager" || mobileRole == "Assistant";
+        bool isMobSupervisor = mobileRole == "Supervisor" || mobileRole == "Manager" || mobileRole == "DeputyManager" || mobileRole == "Assistant";
         bool isMobClerk      = mobileRole == "Clerk";
         string otUrl   = isMobSupervisor ? "~/OT/OtListForSupervisor"
                        : isMobClerk      ? "~/OT/OtListForClerk"

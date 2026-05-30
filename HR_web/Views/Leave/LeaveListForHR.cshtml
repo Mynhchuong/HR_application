@@ -1,0 +1,313 @@
+@{
+    ViewData["Title"] = "Danh Sách Nghỉ Phép Toàn Công Ty";
+    var dateFrom = (string)(ViewBag.DateFrom ?? DateTime.Today.AddMonths(-1).ToString("yyyy-MM-dd"));
+    var dateTo   = (string)(ViewBag.DateTo   ?? DateTime.Today.AddMonths(2).ToString("yyyy-MM-dd"));
+}
+
+@section Styles {
+<style>
+    .stats-card .icon { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; }
+    #lvTableBody tr td { vertical-align: middle; }
+    .pagination .page-link { cursor: pointer; border-radius: 8px !important; margin: 0 2px; }
+    .txt-clamp { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:160px; cursor:default; }
+    .pagination .page-item.disabled .page-link { cursor: default; }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <!-- Stats cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
+            <div class="card stats-card"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-secondary">Tổng</p><h5 class="font-weight-bolder mb-0" id="summaryTotal">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-info text-white shadow-info ms-auto"><i class="bi bi-calendar-check fs-4"></i></div></div></div></div></div>
+        </div>
+        <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
+            <div class="card stats-card"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-warning">Chờ Duyệt</p><h5 class="font-weight-bolder mb-0" id="summaryPending">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-warning text-white shadow-warning ms-auto"><i class="bi bi-hourglass-split fs-4"></i></div></div></div></div></div>
+        </div>
+        <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
+            <div class="card stats-card"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-success">Đã Duyệt</p><h5 class="font-weight-bolder mb-0" id="summaryApproved">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-success text-white shadow-success ms-auto"><i class="bi bi-check-circle-fill fs-4"></i></div></div></div></div></div>
+        </div>
+        <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
+            <div class="card stats-card"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-danger">Từ Chối</p><h5 class="font-weight-bolder mb-0" id="summaryRejected">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-danger text-white shadow-danger ms-auto"><i class="bi bi-x-circle-fill fs-4"></i></div></div></div></div></div>
+        </div>
+    </div>
+
+    <div class="card my-4">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-success shadow-success border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="text-white mb-0"><i class="bi bi-building me-1"></i> Nghỉ Phép Toàn Công Ty</h6>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" id="exportBtn" class="btn btn-sm mb-0" style="background:#fff;color:#344767;font-weight:600;height:36px;">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel
+                    </button>
+                    <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
+                        <i class="bi bi-calendar3 text-success"></i>
+                        <input type="date" id="filterDateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateFrom" onchange="loadData(1)" />
+                    </div>
+                    <span class="text-white small">→</span>
+                    <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
+                        <i class="bi bi-calendar3 text-success"></i>
+                        <input type="date" id="filterDateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateTo" onchange="loadData(1)" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="px-3 pt-3 pb-2 d-flex flex-wrap align-items-end gap-2" style="background:#f8fafc;border-bottom:1px solid #e9ecef;">
+            <div style="min-width:140px;flex:1 1 140px;max-width:180px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Mã NV</label>
+                <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="🔍 Tìm mã NV..." />
+            </div>
+            <div style="min-width:120px;flex:1 1 120px;max-width:160px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Tình Trạng</label>
+                <select id="filterStatus" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                    <option value="PENDING">Chờ duyệt</option>
+                    <option value="APPROVED">Đã duyệt</option>
+                    <option value="REJECTED">Từ chối</option>
+                    <option value="ASSIGNED">Được sắp (chờ XN)</option>
+                    <option value="CONFIRMED">Đã xác nhận</option>
+                    <option value="WORKER_REJECTED">Công nhân từ chối</option>
+                </select>
+            </div>
+            <div style="min-width:120px;flex:1 1 120px;max-width:160px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Nguồn</label>
+                <select id="filterSource" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                    <option value="SELF">Tự nộp</option>
+                    <option value="ASSIGNED">Sắp lịch</option>
+                </select>
+            </div>
+            <div style="min-width:120px;flex:1 1 120px;max-width:160px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Loại nghỉ</label>
+                <select id="filterLeaveType" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                    <option value="AL">Phép năm (AL)</option>
+                    <option value="CL">BHXH (CL)</option>
+                    <option value="SL">Bệnh (SL)</option>
+                    <option value="NPL">Không lương (NPL)</option>
+                    <option value="OTH">Khác (OTH)</option>
+                </select>
+            </div>
+            <div style="min-width:150px;flex:2 1 150px;max-width:220px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Bộ Phận</label>
+                <select id="filterDept" class="select2 form-control"
+                        data-url="@Url.Action("GetDept", "Dropdown")"
+                        data-placeholder="Tất cả"></select>
+            </div>
+            <div style="min-width:140px;flex:2 1 140px;max-width:200px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Line</label>
+                <select id="filterLine" class="select2 form-control"
+                        data-url="@Url.Action("GetLine", "Dropdown")"
+                        data-placeholder="Tất cả"></select>
+            </div>
+            <div style="min-width:140px;flex:2 1 140px;max-width:200px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Nhóm Việc</label>
+                <select id="filterWork" class="select2 form-control"
+                        data-url="@Url.Action("GetWork", "Dropdown")"
+                        data-placeholder="Tất cả"></select>
+            </div>
+            <div class="d-flex align-items-end gap-2 ms-auto">
+                <div>
+                    <label class="form-label small fw-bold mb-1 text-secondary">Hiển thị</label>
+                    <select id="pageSizeSelect" class="form-select form-select-sm" style="width:80px;">
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="500">500</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body px-0 pt-0 pb-2 mt-1">
+            <div class="table-responsive p-0 px-4">
+                <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">#</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Mã NV</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Họ &amp; Tên</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Loại nghỉ</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Nguồn</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Từ ngày</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Đến ngày</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Số ngày</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Lý do</th>
+                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Tình Trạng</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Người duyệt</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ghi chú</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lvTableBody"></tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center px-4 mt-3 mb-2">
+                <div id="paginationCount" class="text-sm text-secondary"></div>
+                <nav><ul class="pagination pagination-sm mb-0" id="paginationBar"></ul></nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const PAGE_URL = '@Url.Action("GetHRListPage", "Leave")';
+let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
+
+const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
+
+function statusBadge(item) {
+    const s = item.STATUS, src = item.SOURCE;
+    if (src === 'ASSIGNED') {
+        if (s === 'ASSIGNED')        return `<span class="badge bg-info text-dark">Chờ xác nhận</span>`;
+        if (s === 'CONFIRMED')       return `<span class="badge bg-success">Đã xác nhận</span>`;
+        if (s === 'WORKER_REJECTED') return `<span class="badge bg-danger">CN từ chối</span>`;
+    }
+    if (s === 'PENDING')  return `<span class="badge bg-warning text-dark">Chờ duyệt</span>`;
+    if (s === 'APPROVED') return `<span class="badge bg-success">Đã duyệt</span>`;
+    if (s === 'REJECTED') return `<span class="badge bg-danger">Từ chối</span>`;
+    return `<span class="badge bg-secondary">${escHtml(s||'-')}</span>`;
+}
+
+function buildRow(item, idx) {
+    const ltLabel   = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
+    const ltColor   = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
+    const approver  = escHtml(item.APPROVER_NAME || item.FINAL_APPROVER || '-');
+    const signTime  = item.FINAL_DATE ? `<div class="text-xxs text-secondary">${formatDate(item.FINAL_DATE)}</div>` : '';
+    const srcBadge  = item.SOURCE === 'ASSIGNED'
+        ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;">Sắp lịch</span>`
+        : `<span class="badge bg-light text-dark border">Tự nộp</span>`;
+    return `<tr>
+        <td class="px-2 text-xs text-secondary">${idx}</td>
+        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+        <td class="px-2">
+            <div class="emp-name vni-font" style="text-transform:uppercase;font-size:.9rem;">${escHtml(item.EMP_NAME||'')}</div>
+            <div class="text-xxs text-secondary">${escHtml(item.DEPT_NAME||'')}${item.LINE_NAME ? ' · '+escHtml(item.LINE_NAME) : ''}</div>
+        </td>
+        <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
+        <td class="px-2">${srcBadge}</td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
+        <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS ?? '-'}</td>
+        <td class="px-2 text-sm"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
+        <td class="text-center">${statusBadge(item)}</td>
+        <td class="px-2">
+            <div class="emp-name vni-font" style="text-transform:uppercase;font-size:.9rem;">${approver}</div>
+            ${signTime}
+        </td>
+        <td class="px-2 text-sm"><div class="txt-clamp" title="${escHtml(item.REMARK||'')}">${escHtml(item.REMARK||'-')}</div></td>
+    </tr>`;
+}
+
+function getParams(page) {
+    return {
+        status:    $('#filterStatus').val(),
+        source:    $('#filterSource').val(),
+        search:    $('#searchInput').val(),
+        dept_id:   $('#filterDept').val(),
+        line_id:   $('#filterLine').val(),
+        work_id:   $('#filterWork').val(),
+        date_from: $('#filterDateFrom').val(),
+        date_to:   $('#filterDateTo').val(),
+        page,
+        page_size: pageSize
+    };
+}
+
+function loadData(page = 1) {
+    currentPage = page;
+    $('#lvTableBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-success" role="status"></div></td></tr>`);
+    $.ajax({
+        url: PAGE_URL, type: 'GET', data: getParams(page),
+        success: function(res) {
+            if (!res.success) {
+                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                return;
+            }
+            const s = res.summary || {};
+            $('#summaryTotal').text((s.TOTAL||0).toLocaleString());
+            $('#summaryPending').text((s.PENDING||0).toLocaleString());
+            $('#summaryApproved').text((s.APPROVED||0).toLocaleString());
+            $('#summaryRejected').text((s.REJECTED||0).toLocaleString());
+            totalRecords = res.total || 0;
+            totalPages   = res.total_pages || 0;
+            const data   = res.data || [];
+            if (!data.length) {
+                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
+            } else {
+                $('#lvTableBody').html(data.map((item,i) => buildRow(item,(page-1)*pageSize+i+1)).join(''));
+            }
+            renderPagination();
+        },
+        error: function(xhr) {
+            $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+        }
+    });
+}
+
+function renderPagination() {
+    if (!totalRecords) { $('#paginationCount').text(''); $('#paginationBar').empty(); return; }
+    const s=(currentPage-1)*pageSize+1, e=Math.min(currentPage*pageSize,totalRecords);
+    $('#paginationCount').html(`<span class="text-xs">${s}-${e} / <strong>${totalRecords}</strong> phiếu</span>`);
+    const $bar=$('#paginationBar').empty();
+    const mk=(label,p,disabled,active)=>{const li=$('<li class="page-item">').toggleClass('disabled',!!disabled).toggleClass('active',!!active);$('<a class="page-link">').html(label).on('click',()=>{if(!disabled&&!active)loadData(p);}).appendTo(li);return li;};
+    $bar.append(mk('&lsaquo;',currentPage-1,currentPage<=1));
+    let from=Math.max(1,currentPage-2),to=Math.min(totalPages,currentPage+2);
+    for(let p=from;p<=to;p++) $bar.append(mk(p,p,false,p===currentPage));
+    $bar.append(mk('&rsaquo;',currentPage+1,currentPage>=totalPages));
+}
+
+$('#filterStatus, #filterSource, #filterLeaveType, #filterDept, #filterLine, #filterWork').on('change', () => loadData(1));
+$('#searchInput').on('input', debounce(() => loadData(1), 400));
+$('#pageSizeSelect').on('change', function() { pageSize = parseInt($(this).val()); loadData(1); });
+
+$('#exportBtn').on('click', async function() {
+    const $btn = $(this), orig = $btn.html();
+    $btn.prop('disabled',true).html('<span class="spinner-border spinner-border-sm me-1"></span> Đang xuất...');
+    try {
+        let rows=[], pg=1, pgTotal=1;
+        do {
+            const p = getParams(pg); p.page_size = 1000;
+            const res = await $.getJSON(PAGE_URL, p);
+            if (!res || !res.success) break;
+            pgTotal = res.total_pages; rows = rows.concat(res.data||[]);
+            pg++;
+        } while (pg <= pgTotal);
+        if (!rows.length) { showToast('Không có dữ liệu để xuất', 'warning'); return; }
+        const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Loại','Nguồn','Từ ngày','Đến ngày','Số ngày','Lý do','Tình trạng','Người duyệt','Ghi chú'];
+        let html = '<html><head><meta charset="utf-8"/></head><body><table border="1"><thead><tr>';
+        html += headers.map(h=>`<th style="background:#bbf7d0;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
+        rows.forEach((r,i) => {
+            const lt  = LEAVE_LABEL[r.LEAVE_TYPE]||r.LEAVE_TYPE||'';
+            const src = r.SOURCE==='ASSIGNED'?'Sắp lịch':'Tự nộp';
+            let st = r.STATUS||'';
+            if (r.SOURCE==='ASSIGNED') {
+                if (st==='ASSIGNED') st='Chờ xác nhận';
+                else if (st==='CONFIRMED') st='Đã xác nhận';
+                else if (st==='WORKER_REJECTED') st='CN từ chối';
+            } else {
+                if (st==='PENDING') st='Chờ duyệt';
+                else if (st==='APPROVED') st='Đã duyệt';
+                else if (st==='REJECTED') st='Từ chối';
+            }
+            html += `<tr><td>${i+1}</td><td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${lt}</td><td>${src}</td><td>${formatDate(r.FROM_DATE)}</td><td>${formatDate(r.TO_DATE)}</td><td>${r.TOTAL_DAYS??''}</td><td>${escHtml(r.REASON||'')}</td><td>${st}</td><td>${escHtml(r.APPROVER_NAME||r.FINAL_APPROVER||'')}</td><td>${escHtml(r.REMARK||'')}</td></tr>`;
+        });
+        html += '</tbody></table></body></html>';
+        const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
+        const link=document.createElement('a'); link.href=URL.createObjectURL(blob);
+        link.download=`NghiPhep_${$('#filterDateFrom').val()}_${$('#filterDateTo').val()}.xls`; link.click();
+    } catch(err) { showToast('Lỗi xuất file: '+err.message, 'error'); }
+    finally { $btn.prop('disabled',false).html(orig); }
+});
+
+function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
+function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function debounce(fn,d) { let t; return function(){ clearTimeout(t); t=setTimeout(fn,d); }; }
+
+$(document).ready(function() {
+    if (typeof Select2Helper !== 'undefined') Select2Helper.init();
+    loadData(1);
+});
+</script>
+}

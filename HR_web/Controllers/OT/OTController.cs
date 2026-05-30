@@ -146,9 +146,8 @@ public class OTController : BaseController
             if (CurrentUser == null || string.IsNullOrEmpty(CurrentUser.EmpCd))
                 return Json(new { success = false, message = "Chưa đăng nhập" });
 
-            var filterType = CurrentUser.FilterType;
-            if (string.IsNullOrEmpty(filterType))
-                return Json(new { success = false, message = "Chưa được phân quyền bộ phận" });
+            // filterType có thể empty với session cũ — API tự check HR_USERS_DEPT bằng empCd
+            var filterType = CurrentUser.FilterType ?? "dept";
 
             var result = await _otService.GetOTSupervisorDetailAsync(
                 CurrentUser.EmpCd, filterType, work_date, status, search, dept_id, line_id, work_id, page, page_size);

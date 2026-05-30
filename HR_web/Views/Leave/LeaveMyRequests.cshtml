@@ -1,0 +1,491 @@
+@{
+    ViewData["Title"] = "Đơn Nghỉ Phép Của Tôi";
+    var dateFrom = (string)(ViewBag.DateFrom ?? DateTime.Today.AddMonths(-3).ToString("yyyy-MM-dd"));
+    var dateTo   = (string)(ViewBag.DateTo   ?? DateTime.Today.AddMonths(3).ToString("yyyy-MM-dd"));
+}
+
+@section Styles {
+<style>
+    .pagination .page-link { cursor: pointer; border-radius: 8px !important; margin: 0 2px; }
+    .pagination .page-item.disabled .page-link { cursor: default; }
+    .pagination .page-item.active .page-link { background: #3b82f6; border-color: #3b82f6; }
+    .txt-clamp { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:180px; cursor:default; }
+    .source-tab { cursor: pointer; padding: 6px 14px; border-radius: 20px; font-size: .8rem; font-weight: 600; border: 1.5px solid transparent; transition: all .2s; }
+    .source-tab.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+    .source-tab:not(.active) { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+    .source-tab:not(.active):hover { background: #e2e8f0; }
+
+    /* Mobile card layout */
+    @@media (max-width: 768px) {
+        .lv-table-wrap { display: none; }
+        .lv-card-list  { display: block; }
+    }
+    @@media (min-width: 769px) {
+        .lv-table-wrap { display: block; }
+        .lv-card-list  { display: none; }
+    }
+    .lv-card { border:1px solid #e5e7eb; border-radius:14px; padding:14px 16px; margin-bottom:12px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+    .lv-card .lv-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; }
+    .lv-card .lv-lbl { font-size:.76rem; color:#9ca3af; font-weight:600; text-transform:uppercase; }
+    .lv-card .lv-val { font-size:.92rem; color:#1f2937; }
+    .lv-card .lv-foot { display:flex; justify-content:space-between; align-items:center; padding-top:10px; margin-top:8px; border-top:1px solid #f3f4f6; }
+    /* Header filter mobile */
+    @@media (max-width: 576px) {
+        .header-filter-row { flex-direction: column !important; align-items: stretch !important; gap: 6px !important; }
+        .header-filter-row > div { width: 100%; }
+        .source-tab { padding: 5px 10px; font-size: .75rem; }
+    }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h6 class="text-white mb-0"><i class="bi bi-calendar-check me-1"></i> Đơn Nghỉ Phép Của Tôi</h6>
+                    <div class="d-flex align-items-center gap-2 flex-wrap header-filter-row">
+                        <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
+                            <i class="bi bi-calendar3 text-primary"></i>
+                            <input type="date" id="filterDateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0"
+                                   style="width:120px;" value="@dateFrom" onchange="loadData(1)" />
+                        </div>
+                        <span class="text-white small">→</span>
+                        <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
+                            <i class="bi bi-calendar3 text-primary"></i>
+                            <input type="date" id="filterDateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0"
+                                   style="width:120px;" value="@dateTo" onchange="loadData(1)" />
+                        </div>
+                        <button class="btn btn-sm btn-light text-primary fw-bold shadow-sm" onclick="openCreateModal()" style="height:34px;">
+                            <i class="bi bi-plus-lg me-1"></i>Tạo đơn
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body px-0 pt-0 pb-2 mt-3">
+            <!-- Source filter tabs -->
+            <div class="px-4 pb-2 pt-1 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid #f1f5f9;">
+                <span class="source-tab active" onclick="setSource('')"  id="tab-all">Tất cả</span>
+                <span class="source-tab" onclick="setSource('SELF')"     id="tab-self"><i class="bi bi-person-fill me-1"></i>Tự nộp</span>
+                <span class="source-tab" onclick="setSource('ASSIGNED')" id="tab-assigned"><i class="bi bi-calendar2-plus me-1"></i>Được sắp lịch</span>
+            </div>
+
+            <!-- Desktop table -->
+            <div class="lv-table-wrap table-responsive p-0 px-4 mt-2">
+                <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">#</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Nguồn</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Loại nghỉ</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Từ ngày</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Đến ngày</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Số ngày</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell">Lý do</th>
+                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Tình trạng</th>
+                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lvTableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Mobile cards -->
+            <div class="lv-card-list px-3 mt-2" id="lvCardList"></div>
+
+            <div class="d-flex justify-content-between align-items-center px-4 mt-3 mb-2">
+                <div id="paginationCount" class="text-sm text-secondary"></div>
+                <nav><ul class="pagination pagination-sm mb-0" id="paginationBar"></ul></nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Modal -->
+<div class="modal fade" id="createModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h6 class="modal-title mb-0"><i class="bi bi-calendar-plus me-1"></i> Tạo Đơn Nghỉ Phép</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Loại nghỉ <span class="text-danger">*</span></label>
+                    <select id="createLeaveType" class="form-select">
+                        <option value="AL">Nghỉ phép năm (AL)</option>
+                        <option value="CL">Nghỉ BHXH (CL)</option>
+                        <option value="SL">Nghỉ bệnh (SL)</option>
+                        <option value="NPL">Nghỉ không lương (NPL)</option>
+                        <option value="OTH">Khác (OTH)</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold">Từ ngày <span class="text-danger">*</span></label>
+                        <input type="date" id="createFromDate" class="form-control" onchange="calcCreateDays()" />
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold">Đến ngày <span class="text-danger">*</span></label>
+                        <input type="date" id="createToDate" class="form-control" onchange="calcCreateDays()" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Số ngày nghỉ <span class="text-danger">*</span></label>
+                    <input type="number" id="createTotalDays" class="form-control" min="0.5" step="0.5" placeholder="VD: 1" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Lý do</label>
+                    <textarea id="createReason" class="form-control" rows="2" maxlength="500" placeholder="Nghỉ phép năm..."></textarea>
+                </div>
+                <div id="createError" class="alert alert-danger d-none py-2"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+                <button class="btn btn-success btn-sm" id="saveCreateBtn" onclick="saveCreate()">
+                    <i class="bi bi-send me-1"></i> Gửi đơn
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h6 class="modal-title mb-0"><i class="bi bi-pencil-square me-1"></i> Sửa Đơn Nghỉ Phép</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editRequestId" />
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Loại nghỉ <span class="text-danger">*</span></label>
+                    <select id="editLeaveType" class="form-select">
+                        <option value="AL">Nghỉ phép năm (AL)</option>
+                        <option value="CL">Nghỉ BHXH (CL)</option>
+                        <option value="SL">Nghỉ bệnh (SL)</option>
+                        <option value="NPL">Nghỉ không lương (NPL)</option>
+                        <option value="OTH">Khác (OTH)</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold">Từ ngày <span class="text-danger">*</span></label>
+                        <input type="date" id="editFromDate" class="form-control" onchange="calcDays()" />
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold">Đến ngày <span class="text-danger">*</span></label>
+                        <input type="date" id="editToDate" class="form-control" onchange="calcDays()" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Số ngày nghỉ <span class="text-danger">*</span></label>
+                    <input type="number" id="editTotalDays" class="form-control" min="0.5" step="0.5" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Lý do</label>
+                    <textarea id="editReason" class="form-control" rows="2" maxlength="500"></textarea>
+                </div>
+                <div id="editError" class="alert alert-danger d-none py-2"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+                <button class="btn btn-primary btn-sm" id="saveEditBtn" onclick="saveEdit()">
+                    <i class="bi bi-check-lg me-1"></i> Lưu
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const PAGE_URL         = '@Url.Action("GetMyRequestsPage", "Leave")';
+const CREATE_URL       = '@Url.Action("CreateRequest",    "Leave")';
+const UPDATE_URL       = '@Url.Action("UpdateRequest",    "Leave")';
+const DELETE_URL       = '@Url.Action("DeleteRequest",    "Leave")';
+const CONFIRM_URL      = '@Url.Action("ConfirmLeave",     "Leave")';
+const WK_REJECT_URL    = '@Url.Action("WorkerRejectLeave","Leave")';
+
+let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 20;
+let currentSource = '';
+
+const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
+
+function leaveBadge(t) {
+    return `<span class="badge bg-${LEAVE_COLOR[t]||'secondary'}">${LEAVE_LABEL[t]||t||'-'}</span>`;
+}
+
+function statusBadge(item) {
+    const s = item.STATUS, cs = item.CONFIRM_STATUS, src = item.SOURCE;
+    if (src === 'ASSIGNED') {
+        if (s === 'ASSIGNED')        return `<span class="badge bg-info text-dark"><i class="bi bi-clock-history me-1"></i>Chờ xác nhận</span>`;
+        if (s === 'CONFIRMED')       return `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã xác nhận</span>`;
+        if (s === 'WORKER_REJECTED') return `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Đã từ chối</span>`;
+    }
+    if (s === 'PENDING')  return `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>`;
+    if (s === 'APPROVED') return `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>`;
+    if (s === 'REJECTED') return `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Từ chối</span>`;
+    return `<span class="badge bg-secondary">${escHtml(s||'-')}</span>`;
+}
+
+function sourceBadge(src) {
+    if (src === 'SELF')     return `<span class="badge bg-light text-dark border"><i class="bi bi-person-fill me-1"></i>Tự nộp</span>`;
+    if (src === 'ASSIGNED') return `<span class="badge" style="background:#e0f2fe;color:#0369a1;"><i class="bi bi-calendar2-plus me-1"></i>Được sắp</span>`;
+    return '';
+}
+
+function remarkHtml(item) {
+    if (!item.REMARK) return '';
+    const isRejected = item.STATUS === 'REJECTED' || item.STATUS === 'WORKER_REJECTED';
+    const style = isRejected
+        ? 'background:#fff0f0;border-left:3px solid #dc3545;color:#842029;'
+        : 'background:#e8f4fd;border-left:3px solid #0d6efd;color:#084298;';
+    return `<div class="mt-1 px-2 py-1 rounded-end text-xs" style="${style}"><i class="bi bi-chat-left-text me-1"></i>${escHtml(item.REMARK)}</div>`;
+}
+
+function actionBtns(item) {
+    const s = item.STATUS;
+    if (item.SOURCE === 'ASSIGNED' && s === 'ASSIGNED') {
+        return `<button class="btn btn-xs btn-success me-1" title="Xác nhận" onclick="confirmLeave('${item.REQUEST_ID}')"><i class="bi bi-check-lg"></i></button>
+                <button class="btn btn-xs btn-outline-danger" title="Từ chối" onclick="workerReject('${item.REQUEST_ID}')"><i class="bi bi-x-lg"></i></button>`;
+    }
+    if (item.IS_EDITABLE) {
+        return `<button class="btn btn-xs btn-outline-primary me-1" title="Sửa"
+                    data-id="${item.REQUEST_ID}" data-type="${escHtml(item.LEAVE_TYPE||'AL')}"
+                    data-from="${item.FROM_DATE||''}" data-to="${item.TO_DATE||''}"
+                    data-days="${item.TOTAL_DAYS||1}" data-reason="${escHtml(item.REASON||'')}"
+                    onclick="openEditBtn(this)"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-xs btn-outline-danger" title="Xoá" onclick="confirmDelete('${item.REQUEST_ID}')"><i class="bi bi-trash"></i></button>`;
+    }
+    return '<span class="text-muted text-xs">-</span>';
+}
+
+function buildRow(item, idx) {
+    return `<tr>
+        <td class="px-2 text-xs text-secondary">${idx}</td>
+        <td class="px-2">${sourceBadge(item.SOURCE)}</td>
+        <td class="px-2">${leaveBadge(item.LEAVE_TYPE)}</td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
+        <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS ?? '-'}</td>
+        <td class="px-2 text-sm d-none d-md-table-cell"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
+        <td class="text-center">${statusBadge(item)}${remarkHtml(item)}</td>
+        <td class="text-center">${actionBtns(item)}</td>
+    </tr>`;
+}
+
+function buildCard(item, idx) {
+    const remark = remarkHtml(item);
+    return `<div class="lv-card">
+        <div class="lv-row">
+            <div class="d-flex gap-1 flex-wrap">${sourceBadge(item.SOURCE)} ${leaveBadge(item.LEAVE_TYPE)}</div>
+            <div>${statusBadge(item)}</div>
+        </div>
+        <div class="lv-row">
+            <span class="lv-lbl">Từ ngày</span><span class="lv-val">${formatDate(item.FROM_DATE)}</span>
+        </div>
+        <div class="lv-row">
+            <span class="lv-lbl">Đến ngày</span><span class="lv-val">${formatDate(item.TO_DATE)}</span>
+        </div>
+        <div class="lv-row">
+            <span class="lv-lbl">Số ngày</span><span class="lv-val fw-bold">${item.TOTAL_DAYS ?? '-'} ngày</span>
+        </div>
+        ${item.REASON ? `<div class="text-sm text-secondary mb-2">${escHtml(item.REASON)}</div>` : ''}
+        ${remark}
+        <div class="lv-foot"><span></span><div>${actionBtns(item)}</div></div>
+    </div>`;
+}
+
+function setSource(src) {
+    currentSource = src;
+    ['all','self','assigned'].forEach(k => document.getElementById('tab-'+k).classList.remove('active'));
+    const key = src === '' ? 'all' : src.toLowerCase();
+    document.getElementById('tab-'+key).classList.add('active');
+    loadData(1);
+}
+
+function loadData(page = 1) {
+    currentPage = page;
+    const spinner = `<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
+    $('#lvTableBody').html(spinner);
+    $('#lvCardList').html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>');
+    const data = { page, page_size: pageSize, date_from: $('#filterDateFrom').val(), date_to: $('#filterDateTo').val() };
+    if (currentSource) data.source = currentSource;
+    $.ajax({
+        url: PAGE_URL, type: 'GET', data,
+        success: function(res) {
+            if (!res.success) {
+                $('#lvTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                $('#lvCardList').html(`<div class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</div>`);
+                return;
+            }
+            totalRecords = res.total || 0;
+            totalPages   = res.total_pages || 0;
+            const rows   = res.data || [];
+            if (!rows.length) {
+                $('#lvTableBody').html(`<tr><td colspan="9" class="text-center text-muted py-5">Không có dữ liệu</td></tr>`);
+                $('#lvCardList').html('<div class="text-center text-muted py-5"><i class="bi bi-calendar-x fs-4 d-block mb-2"></i>Không có đơn nghỉ nào</div>');
+            } else {
+                $('#lvTableBody').html(rows.map((r,i) => buildRow(r,(page-1)*pageSize+i+1)).join(''));
+                $('#lvCardList').html(rows.map((r,i) => buildCard(r,(page-1)*pageSize+i+1)).join(''));
+            }
+            renderPagination();
+        },
+        error: function(xhr) {
+            const err = `Lỗi kết nối (${xhr.status})`;
+            $('#lvTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">${err}</td></tr>`);
+            $('#lvCardList').html(`<div class="text-center text-danger py-4">${err}</div>`);
+        }
+    });
+}
+
+function renderPagination() {
+    if (!totalRecords) { $('#paginationCount').text(''); $('#paginationBar').empty(); return; }
+    const s=(currentPage-1)*pageSize+1, e=Math.min(currentPage*pageSize,totalRecords);
+    $('#paginationCount').html(`<span class="text-xs">${s}-${e} / <strong>${totalRecords}</strong> phiếu</span>`);
+    const $bar=$('#paginationBar').empty();
+    const mk=(label,p,disabled,active)=>{const li=$('<li class="page-item">').toggleClass('disabled',!!disabled).toggleClass('active',!!active);$('<a class="page-link">').html(label).on('click',()=>{if(!disabled&&!active)loadData(p);}).appendTo(li);return li;};
+    $bar.append(mk('&lsaquo;',currentPage-1,currentPage<=1));
+    let from=Math.max(1,currentPage-2),to=Math.min(totalPages,currentPage+2);
+    for(let p=from;p<=to;p++) $bar.append(mk(p,p,false,p===currentPage));
+    $bar.append(mk('&rsaquo;',currentPage+1,currentPage>=totalPages));
+}
+
+function openCreateModal() {
+    const today = new Date().toISOString().slice(0,10);
+    $('#createLeaveType').val('AL');
+    $('#createFromDate').val(today);
+    $('#createToDate').val(today);
+    $('#createTotalDays').val(1);
+    $('#createReason').val('');
+    $('#createError').addClass('d-none').text('');
+    new bootstrap.Modal('#createModal').show();
+}
+
+function calcCreateDays() {
+    const f = $('#createFromDate').val(), t = $('#createToDate').val();
+    if (f && t) {
+        const diff = (new Date(t) - new Date(f)) / 86400000 + 1;
+        if (diff > 0) $('#createTotalDays').val(diff);
+    }
+}
+
+async function saveCreate() {
+    const from  = $('#createFromDate').val();
+    const to    = $('#createToDate').val();
+    const days  = parseFloat($('#createTotalDays').val());
+    if (!from || !to)       { $('#createError').removeClass('d-none').text('Vui lòng chọn ngày'); return; }
+    if (!days || days <= 0) { $('#createError').removeClass('d-none').text('Số ngày nghỉ không hợp lệ'); return; }
+
+    const $btn = $('#saveCreateBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang gửi...');
+    $('#createError').addClass('d-none').text('');
+    try {
+        const payload = {
+            EMPCD:      '',
+            LEAVE_TYPE: $('#createLeaveType').val(),
+            FROM_DATE:  from,
+            TO_DATE:    to,
+            TOTAL_DAYS: days,
+            REASON:     $('#createReason').val() || null
+        };
+        const res = await $.ajax({ url: CREATE_URL, type: 'POST', contentType: 'application/json', data: JSON.stringify(payload) });
+        if (res.success) {
+            bootstrap.Modal.getInstance('#createModal').hide();
+            showToast('Đã gửi đơn nghỉ phép thành công', 'success');
+            loadData(1);
+        } else {
+            $('#createError').removeClass('d-none').text(res.message || 'Lỗi tạo đơn');
+        }
+    } catch { $('#createError').removeClass('d-none').text('Lỗi kết nối'); }
+    finally  { $btn.prop('disabled', false).html('<i class="bi bi-send me-1"></i> Gửi đơn'); }
+}
+
+function calcDays() {
+    const f = $('#editFromDate').val(), t = $('#editToDate').val();
+    if (f && t) {
+        const diff = (new Date(t) - new Date(f)) / 86400000 + 1;
+        if (diff > 0) $('#editTotalDays').val(diff);
+    }
+}
+
+function openEditBtn(btn) {
+    const $b = $(btn);
+    $('#editRequestId').val($b.data('id'));
+    $('#editLeaveType').val($b.data('type'));
+    const fromStr = $b.data('from') ? new Date($b.data('from')).toISOString().slice(0,10) : '';
+    const toStr   = $b.data('to')   ? new Date($b.data('to')).toISOString().slice(0,10)   : '';
+    $('#editFromDate').val(fromStr);
+    $('#editToDate').val(toStr);
+    $('#editTotalDays').val($b.data('days'));
+    $('#editReason').val($b.data('reason') || '');
+    $('#editError').addClass('d-none').text('');
+    new bootstrap.Modal('#editModal').show();
+}
+
+async function saveEdit() {
+    const $btn = $('#saveEditBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...');
+    try {
+        const payload = {
+            REQUEST_ID: $('#editRequestId').val(),
+            EMPCD: '',
+            LEAVE_TYPE: $('#editLeaveType').val(),
+            FROM_DATE:  $('#editFromDate').val(),
+            TO_DATE:    $('#editToDate').val(),
+            TOTAL_DAYS: parseFloat($('#editTotalDays').val()) || 1,
+            REASON:     $('#editReason').val() || null
+        };
+        const res = await $.ajax({ url: UPDATE_URL, type: 'POST', contentType: 'application/json', data: JSON.stringify(payload) });
+        if (res.success) {
+            bootstrap.Modal.getInstance('#editModal').hide();
+            showToast('Cập nhật đơn nghỉ phép thành công', 'success');
+            loadData(currentPage);
+        } else {
+            $('#editError').removeClass('d-none').text(res.message || 'Lỗi cập nhật');
+        }
+    } catch { $('#editError').removeClass('d-none').text('Lỗi kết nối'); }
+    finally  { $btn.prop('disabled', false).html('<i class="bi bi-check-lg me-1"></i> Lưu'); }
+}
+
+function confirmDelete(id) {
+    showConfirm('Bạn có chắc muốn xoá đơn nghỉ này?', async function() {
+        try {
+            const res = await $.ajax({ url: DELETE_URL, type: 'POST', data: { request_id: id } });
+            if (res.success) { showToast('Đã xoá đơn nghỉ', 'success'); loadData(currentPage); }
+            else showToast(res.message || 'Lỗi xoá', 'error');
+        } catch { showToast('Lỗi kết nối', 'error'); }
+    }, { title: 'Xoá Đơn Nghỉ', okText: 'Xoá', okClass: 'btn-danger' });
+}
+
+function confirmLeave(id) {
+    showConfirm('Xác nhận lịch nghỉ phép này?', async function() {
+        try {
+            const res = await $.ajax({ url: CONFIRM_URL, type: 'POST', data: { request_id: id } });
+            if (res.success) { showToast('Đã xác nhận lịch nghỉ', 'success'); loadData(currentPage); }
+            else showToast(res.message || 'Lỗi xác nhận', 'error');
+        } catch { showToast('Lỗi kết nối', 'error'); }
+    }, { title: 'Xác Nhận Nghỉ Phép', okText: 'Xác Nhận', okClass: 'btn-success' });
+}
+
+function workerReject(id) {
+    showConfirm('Từ chối lịch nghỉ phép này?', async function() {
+        try {
+            const res = await $.ajax({ url: WK_REJECT_URL, type: 'POST', data: { request_id: id } });
+            if (res.success) { showToast('Đã từ chối lịch nghỉ', 'warning'); loadData(currentPage); }
+            else showToast(res.message || 'Lỗi từ chối', 'error');
+        } catch { showToast('Lỗi kết nối', 'error'); }
+    }, { title: 'Từ Chối Lịch Nghỉ', okText: 'Từ Chối', okClass: 'btn-danger' });
+}
+
+function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
+function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+$(document).ready(function() { loadData(1); });
+</script>
+@Html.AntiForgeryToken()
+}

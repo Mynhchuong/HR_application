@@ -556,7 +556,7 @@ public class AccountController : ControllerBase
     {
         if (string.IsNullOrEmpty(term) || term.Length < 2) return Ok(new List<object>());
         string sql = @"SELECT EMPCD, CNAME FROM HRMS.ECM100
-                       WHERE USEYN = 'Y'
+                       WHERE JEAJIKGB = 'Y'
                          AND (UPPER(EMPCD) LIKE :TERM1 OR UPPER(CNAME) LIKE :TERM2)
                        ORDER BY CNAME
                        FETCH FIRST 30 ROWS ONLY";
@@ -565,6 +565,32 @@ public class AccountController : ControllerBase
             r => new { id = r["EMPCD"]?.ToString(), text = $"{r["EMPCD"]} - {r["CNAME"]}" },
             new OracleParameter("TERM1", OracleDbType.Varchar2) { Value = like },
             new OracleParameter("TERM2", OracleDbType.Varchar2) { Value = like });
+        return Ok(result);
+    }
+
+    [HttpGet("dropdown/emp-by-scope")]
+    public async Task<IActionResult> GetEmpByScope(string empcd)
+    {
+        if (string.IsNullOrEmpty(empcd)) return Ok(new List<object>());
+        string sql = @"
+            SELECT EC.EMPCD, EC.CNAME,
+                   EA.DEPTNM, EA.TEAMNM
+            FROM HRMS.ECM100 EC
+            LEFT JOIN HRMS.EAM410 EA ON EA.DEPTCD = EC.DEPTCD AND EA.LINECD = EC.LINECD AND EA.WORKCD = EC.WORKCD
+            WHERE EC.JEAJIKGB = 'Y'
+              AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+              AND (EC.DEPTCD, EC.LINECD, EC.WORKCD) IN (
+                  SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
+              )
+            ORDER BY EA.DEPTNM, EA.TEAMNM, EC.CNAME";
+        var result = await _oracleService.ExecuteQueryAsync(sql,
+            r => new {
+                empcd     = r["EMPCD"]?.ToString(),
+                name      = r["CNAME"]?.ToString(),
+                dept_name = r["DEPTNM"]?.ToString(),
+                line_name = r["TEAMNM"]?.ToString()
+            },
+            new OracleParameter("EMPCD", empcd));
         return Ok(result);
     }
 

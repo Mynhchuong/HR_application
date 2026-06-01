@@ -6,39 +6,116 @@
 
 @section Styles {
 <style>
+    .pagination .page-link { cursor:pointer; border-radius:8px !important; margin:0 2px; }
+    .pagination .page-item.disabled .page-link { cursor:default; }
+    .pagination .page-item.active .page-link { background:#3b82f6; border-color:#3b82f6; }
     .month-nav { display:flex; align-items:center; gap:8px; }
     .month-nav button { border:none; background:rgba(255,255,255,.2); color:#fff; border-radius:6px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-size:1rem; cursor:pointer; }
     .month-nav button:hover { background:rgba(255,255,255,.35); }
     .month-nav span { font-weight:700; font-size:1rem; color:#fff; min-width:120px; text-align:center; }
-    .leave-bar { display:inline-block; padding:2px 8px; border-radius:4px; font-size:.72rem; font-weight:600; margin:1px 0; white-space:nowrap; }
-    #assignPanel .form-label { font-size:.83rem; font-weight:600; }
     .result-item { padding:6px 10px; border-radius:6px; margin-bottom:4px; font-size:.82rem; }
     .result-item.ok  { background:#ecfdf5; border-left:3px solid #10b981; color:#065f46; }
     .result-item.err { background:#fff0f0; border-left:3px solid #ef4444; color:#7f1d1d; }
-    .pagination .page-link { cursor: pointer; }
-    @@media (max-width: 767px) {
+    /* Emp checklist */
+    .emp-list-wrap { max-height:340px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; background:#fafafa; }
+    .emp-item { display:flex; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background .15s; }
+    .emp-item:last-child { border-bottom:none; }
+    .emp-item:hover { background:#f0f7ff; }
+    .emp-item input[type=checkbox] { width:16px; height:16px; accent-color:#6366f1; flex-shrink:0; cursor:pointer; }
+    .emp-item .emp-info { display:flex; flex-direction:column; min-width:0; }
+    .emp-item .emp-name { font-size:.83rem; font-weight:600; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .emp-item .emp-dept { font-size:.73rem; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .emp-item .emp-code { font-size:.75rem; color:#94a3b8; font-family:monospace; flex-shrink:0; }
+    .sel-count { font-size:.8rem; color:#6366f1; font-weight:600; }
+    /* Approval status pills */
+    .apv-tab { cursor:pointer; padding:5px 13px; border-radius:20px; font-size:.78rem; font-weight:600; border:1.5px solid transparent; transition:all .18s; }
+    .apv-tab.active { background:#3b82f6; color:#fff; border-color:#3b82f6; }
+    .apv-tab:not(.active) { background:#f1f5f9; color:#64748b; border-color:#e2e8f0; }
+    .apv-tab:not(.active):hover { background:#e2e8f0; }
+    /* Empcd filter input */
+    .empcd-filter { width:110px; font-size:.8rem; height:30px; border-radius:8px; border:1.5px solid #e2e8f0; padding:0 8px 0 26px; outline:none; background:#fff; transition:border-color .18s; }
+    .empcd-filter:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.14); }
+    .empcd-wrap { position:relative; display:inline-flex; align-items:center; }
+    .empcd-wrap i { position:absolute; left:7px; font-size:.75rem; color:#94a3b8; pointer-events:none; }
+    /* Tab segmented control */
+    #scheduleTab { background:#f1f5f9; border-radius:12px; padding:4px !important; gap:0 !important; margin-bottom:1rem !important; }
+    #scheduleTab .nav-item { flex:1; }
+    #scheduleTab .nav-link { width:100%; text-align:center; border-radius:9px; font-size:.85rem; font-weight:600; color:#64748b; padding:8px 12px; transition:all .2s; }
+    #scheduleTab .nav-link.active { background:#fff; color:#3b82f6; box-shadow:0 1px 4px rgba(0,0,0,.12); }
+    #scheduleTab .nav-link:not(.active):hover { color:#3b82f6; background:rgba(255,255,255,.5); }
+    @@media (max-width: 576px) {
         .container-fluid { padding-left: 8px !important; padding-right: 8px !important; }
+        #scheduleTab .nav-link { font-size:.75rem; padding:7px 4px; }
+        #scheduleTab .nav-link .tab-text-full { display:none; }
+        #scheduleTab .nav-link .tab-text-short { display:inline; }
         .month-nav span { min-width: 90px; font-size:.9rem; }
+        .emp-list-wrap { max-height:220px; }
+    }
+    @@media (min-width: 577px) {
+        #scheduleTab .nav-link .tab-text-short { display:none; }
+        #scheduleTab .nav-link .tab-text-full { display:inline; }
     }
 </style>
 }
 
 <div class="container-fluid py-4">
-    <div class="row">
-        <!-- Left: Team schedule table -->
-        <div class="col-lg-8 mb-4">
-            <div class="card h-100">
+
+    <!-- Nav tabs -->
+    <ul class="nav nav-pills d-flex" id="scheduleTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-view-btn" data-bs-toggle="pill" data-bs-target="#tab-view" type="button">
+                <i class="bi bi-calendar3-range me-1"></i>
+                <span class="tab-text-full">Xem lịch Team</span>
+                <span class="tab-text-short">Xem lịch</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation" id="tabAssignLi">
+            <button class="nav-link" id="tab-assign-btn" data-bs-toggle="pill" data-bs-target="#tab-assign" type="button">
+                <i class="bi bi-calendar2-plus me-1"></i>
+                <span class="tab-text-full">Sắp lịch nghỉ</span>
+                <span class="tab-text-short">Sắp lịch</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation" id="tabApproveLi">
+            <button class="nav-link" id="tab-approve-btn" data-bs-toggle="pill" data-bs-target="#tab-approve" type="button">
+                <i class="bi bi-shield-check me-1"></i>
+                <span class="tab-text-full">Duyệt nghỉ phép</span>
+                <span class="tab-text-short">Duyệt</span>
+                <span id="pendingBadge" class="badge rounded-pill ms-1 d-none" style="background:#ef4444;font-size:.65rem;padding:2px 6px;"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation" id="tabMyAssignLi">
+            <button class="nav-link" id="tab-myassign-btn" data-bs-toggle="pill" data-bs-target="#tab-myassign" type="button">
+                <i class="bi bi-person-check me-1"></i>
+                <span class="tab-text-full">Lịch tôi sắp</span>
+                <span class="tab-text-short">Tôi sắp</span>
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+
+        <!-- ══════════════════ TAB 1: XEM LỊCH ══════════════════ -->
+        <div class="tab-pane fade show active" id="tab-view" role="tabpanel">
+            <div class="card">
                 <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
                     <div class="bg-gradient-info shadow-info border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center">
                         <h6 class="text-white mb-0"><i class="bi bi-calendar3-range me-1"></i> Lịch Nghỉ Team</h6>
                         <div class="month-nav">
                             <button onclick="changeMonth(-1)" title="Tháng trước"><i class="bi bi-chevron-left"></i></button>
-                            <span id="monthLabel"></span>
-                            <button onclick="changeMonth(1)"  title="Tháng sau"><i class="bi bi-chevron-right"></i></button>
+                            <span class="month-label-display"></span>
+                            <button onclick="changeMonth(1)" title="Tháng sau"><i class="bi bi-chevron-right"></i></button>
                         </div>
                     </div>
                 </div>
                 <div class="card-body px-0 pt-0 pb-2 mt-3">
+                    <div class="px-4 pt-1 pb-2 d-flex align-items-center gap-2">
+                        <div class="empcd-wrap">
+                            <i class="bi bi-search"></i>
+                            <input type="text" id="scheduleEmpFilter" class="empcd-filter" placeholder="Mã NV..." oninput="schPage=1;renderSchedule()">
+                        </div>
+                        <span class="text-xs text-muted" id="scheduleFilterHint"></span>
+                    </div>
                     <div class="table-responsive px-4">
                         <table class="table align-items-center mb-0 w-100 table-hover table-striped">
                             <thead class="bg-light">
@@ -66,50 +143,251 @@
                             <tbody id="scheduleBody"></tbody>
                         </table>
                     </div>
-                    <div class="px-4 mt-2 text-sm text-secondary" id="scheduleCount"></div>
+                    <div class="d-flex justify-content-between align-items-center px-4 mt-2 mb-2">
+                        <div id="scheduleCount" class="text-sm text-secondary"></div>
+                        <nav><ul class="pagination pagination-sm mb-0" id="schedulePagination"></ul></nav>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Right: Assign panel -->
-        <div class="col-lg-4 mb-4" id="assignPanel">
-            <div class="card h-100">
+        <!-- ══════════════════ TAB 2: SẮP LỊCH ══════════════════ -->
+        <div class="tab-pane fade" id="tab-assign" role="tabpanel">
+            <div class="card">
                 <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
-                    <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3">
-                        <h6 class="text-white mb-0"><i class="bi bi-calendar2-plus me-1"></i> Sắp Lịch Nghỉ Phép</h6>
-                        <p class="text-white text-xs mt-1 mb-0 opacity-8">Nghỉ phép năm (AL) · Nhập nhiều mã NV, mỗi dòng 1 mã</p>
+                    <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <h6 class="text-white mb-0"><i class="bi bi-calendar2-plus me-1"></i> Sắp Lịch Nghỉ Phép</h6>
+                            <p class="text-white text-xs mt-1 mb-0 opacity-8">Chọn nhân viên → Điền ngày → Gửi</p>
+                        </div>
+                        <span class="badge bg-white text-warning sel-count" id="selCount">0 NV được chọn</span>
                     </div>
                 </div>
                 <div class="card-body mt-3">
-                    <div class="mb-3">
-                        <label class="form-label">Mã nhân viên <span class="text-danger">*</span></label>
-                        <textarea id="assignEmpcds" class="form-control form-control-sm" rows="4"
-                                  placeholder="VD:&#10;24092522&#10;08012400&#10;15090709" style="font-family:monospace;font-size:.85rem;"></textarea>
-                        <div class="text-xxs text-secondary mt-1">Mỗi dòng 1 mã nhân viên</div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-6">
-                            <label class="form-label">Từ ngày <span class="text-danger">*</span></label>
-                            <input type="date" id="assignFromDate" class="form-control form-control-sm" onchange="calcAssignDays()" />
+                    <div class="row g-3">
+                        <!-- LEFT: emp list -->
+                        <div class="col-lg-6">
+                            <label class="form-label small fw-bold mb-1">Nhân viên <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-2 mb-2">
+                                <div class="flex-grow-1 position-relative">
+                                    <i class="bi bi-search position-absolute" style="left:9px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:.8rem;"></i>
+                                    <input type="text" id="empSearch" class="form-control form-control-sm ps-4" placeholder="Nhập mã NV..." oninput="filterEmps()" />
+                                </div>
+                                <button class="btn btn-outline-secondary btn-sm text-nowrap" onclick="selectAllEmps()">Chọn tất cả</button>
+                                <button class="btn btn-outline-secondary btn-sm text-nowrap" onclick="clearAllEmps()">Bỏ chọn</button>
+                            </div>
+                            <div class="emp-list-wrap" id="empList">
+                                <div class="text-center py-4 text-secondary text-sm">
+                                    <div class="spinner-border spinner-border-sm me-2" role="status"></div> Đang tải...
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label">Đến ngày <span class="text-danger">*</span></label>
-                            <input type="date" id="assignToDate" class="form-control form-control-sm" onchange="calcAssignDays()" />
+                        <!-- RIGHT: date + submit -->
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold mb-1">Loại nghỉ <span class="text-danger">*</span></label>
+                                <select id="assignLeaveType" class="form-select form-select-sm">
+                                    <option value="AL">Phép năm (AL)</option>
+                                    <option value="CL">Bảo hiểm xã hội (CL)</option>
+                                    <option value="SL">Nghỉ bệnh (SL)</option>
+                                    <option value="NPL">Không lương (NPL)</option>
+                                    <option value="OTH">Khác (OTH)</option>
+                                </select>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold mb-1">Từ ngày <span class="text-danger">*</span></label>
+                                    <input type="date" id="assignFromDate" class="form-control form-control-sm" onchange="calcAssignDays()" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold mb-1">Đến ngày <span class="text-danger">*</span></label>
+                                    <input type="date" id="assignToDate" class="form-control form-control-sm" onchange="calcAssignDays()" />
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold mb-1">Số ngày nghỉ <span class="text-danger">*</span></label>
+                                <input type="number" id="assignTotalDays" class="form-control form-control-sm" min="0.5" step="0.5" placeholder="VD: 3" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold mb-1">Lý do / Ghi chú</label>
+                                <input type="text" id="assignReason" class="form-control form-control-sm" maxlength="300" placeholder="Nghỉ phép năm..." />
+                            </div>
+                            <button class="btn btn-warning text-white w-100" id="assignBtn" onclick="submitAssign()">
+                                <i class="bi bi-send me-1"></i> Sắp Lịch Nghỉ
+                            </button>
+                            <div id="assignResults" class="mt-3"></div>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Số ngày nghỉ <span class="text-danger">*</span></label>
-                        <input type="number" id="assignTotalDays" class="form-control form-control-sm" min="0.5" step="0.5" placeholder="VD: 3" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Lý do / Ghi chú</label>
-                        <input type="text" id="assignReason" class="form-control form-control-sm" maxlength="300" placeholder="Nghỉ phép năm..." />
-                    </div>
-                    <button class="btn btn-warning text-white w-100" id="assignBtn" onclick="submitAssign()">
-                        <i class="bi bi-send me-1"></i> Sắp Lịch Nghỉ
-                    </button>
-                    <div id="assignResults" class="mt-3"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════ TAB 3: DUYỆT NGHỈ PHÉP ══════════════════ -->
+        <div class="tab-pane fade" id="tab-approve" role="tabpanel">
+            <div class="card">
+                <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+                    <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <h6 class="text-white mb-0"><i class="bi bi-shield-check me-1"></i> Duyệt Đơn Nghỉ Phép</h6>
+                        <div class="month-nav">
+                            <button onclick="changeApprovalMonth(-1)" title="Tháng trước"><i class="bi bi-chevron-left"></i></button>
+                            <span class="month-label-display"></span>
+                            <button onclick="changeApprovalMonth(1)" title="Tháng sau"><i class="bi bi-chevron-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Status filter -->
+                <div class="px-3 pt-3 pb-2 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid #f1f5f9;">
+                    <span class="apv-tab active" id="apv-all"     onclick="setApvStatus('')">Tất cả</span>
+                    <span class="apv-tab"        id="apv-pending" onclick="setApvStatus('PENDING')"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>
+                    <span class="apv-tab"        id="apv-approved"onclick="setApvStatus('APPROVED')"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>
+                    <span class="apv-tab"        id="apv-rejected"onclick="setApvStatus('REJECTED')"><i class="bi bi-x-circle me-1"></i>Từ chối</span>
+                    <div class="empcd-wrap ms-auto">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="apvEmpFilter" class="empcd-filter" placeholder="Mã NV..." oninput="onApvEmpInput()">
+                    </div>
+                </div>
+                <div class="card-body px-0 pt-0 pb-2 mt-1">
+                    <div class="table-responsive px-4 mt-2">
+                        <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="hidden">#</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Loại nghỉ">Loại nghỉ</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Từ ngày">Từ ngày</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="detail" data-mobile-label="Đến ngày">Đến ngày</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Số ngày">Số ngày</th>
+                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tình trạng">Tình trạng</th>
+                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Thao tác">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="approvalBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center px-4 mt-3 mb-2">
+                        <div id="apvCount" class="text-sm text-secondary"></div>
+                        <nav><ul class="pagination pagination-sm mb-0" id="apvPagination"></ul></nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════ TAB 4: LỊCH TÔI SẮP ══════════════════ -->
+        <div class="tab-pane fade" id="tab-myassign" role="tabpanel">
+            <!-- Summary cards -->
+            <div class="row mb-3" id="myAssignSummary">
+                <div class="col-6 col-xl-3 mb-3">
+                    <div class="card text-center py-3 h-100">
+                        <div class="text-xs text-uppercase text-secondary fw-bold mb-1">Tổng sắp lịch</div>
+                        <div class="h4 fw-bold mb-0" id="maTotal">-</div>
+                    </div>
+                </div>
+                <div class="col-6 col-xl-3 mb-3">
+                    <div class="card text-center py-3 h-100" style="border-left:4px solid #f59e0b;">
+                        <div class="text-xs text-uppercase fw-bold mb-1" style="color:#b45309;">Chờ xác nhận</div>
+                        <div class="h4 fw-bold mb-0 text-warning" id="maPending">-</div>
+                    </div>
+                </div>
+                <div class="col-6 col-xl-3 mb-3">
+                    <div class="card text-center py-3 h-100" style="border-left:4px solid #10b981;">
+                        <div class="text-xs text-uppercase fw-bold mb-1 text-success">Đã xác nhận</div>
+                        <div class="h4 fw-bold mb-0 text-success" id="maConfirmed">-</div>
+                    </div>
+                </div>
+                <div class="col-6 col-xl-3 mb-3">
+                    <div class="card text-center py-3 h-100" style="border-left:4px solid #ef4444;">
+                        <div class="text-xs text-uppercase fw-bold mb-1 text-danger">Không đồng ý</div>
+                        <div class="h4 fw-bold mb-0 text-danger" id="maRejected">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+                    <div class="bg-gradient-dark shadow-dark border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <h6 class="text-white mb-0"><i class="bi bi-person-check me-1"></i> Lịch Nghỉ Tôi Đã Sắp</h6>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <select id="maStatusFilter" class="form-select form-select-sm" style="width:150px;height:30px;font-size:.8rem;" onchange="loadMyAssign(1)">
+                                <option value="">Tất cả</option>
+                                <option value="ASSIGNED">Chờ xác nhận</option>
+                                <option value="CONFIRMED">Đã xác nhận</option>
+                                <option value="WORKER_REJECTED">Không đồng ý</option>
+                            </select>
+                            <div class="empcd-wrap">
+                                <i class="bi bi-search"></i>
+                                <input type="text" id="maEmpFilter" class="empcd-filter" placeholder="Mã NV..." oninput="onMaEmpInput()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body px-0 pt-0 pb-2 mt-3">
+                    <div class="table-responsive px-4">
+                        <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="hidden">#</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Loại">Loại</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Từ ngày">Từ ngày</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="detail" data-mobile-label="Đến ngày">Đến ngày</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="detail" data-mobile-label="Số ngày">Số ngày</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="detail" data-mobile-label="Ngày sắp">Ngày sắp</th>
+                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Trạng thái">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody id="myAssignBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center px-4 mt-2 mb-2">
+                        <div id="maCount" class="text-sm text-secondary"></div>
+                        <nav><ul class="pagination pagination-sm mb-0" id="maPagination"></ul></nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /tab-content -->
+</div>
+
+<!-- Action Modal (Tab 3) -->
+<div class="modal fade" id="tsActionModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header" id="tsActionHeader">
+                <h6 class="modal-title mb-0" id="tsActionTitle"></h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="tsActionId" />
+                <input type="hidden" id="tsActionType" />
+                <div class="mb-2">
+                    <label class="form-label small fw-bold">Ghi chú (không bắt buộc)</label>
+                    <textarea id="tsActionComment" class="form-control form-control-sm" rows="2" maxlength="200"></textarea>
+                </div>
+                <div id="tsActionError" class="alert alert-danger d-none py-1 px-2 text-sm"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+                <button class="btn btn-sm text-white" id="tsActionConfirm" onclick="submitApprovalAction()">Xác Nhận</button>
             </div>
         </div>
     </div>
@@ -117,27 +395,61 @@
 
 @section Scripts {
 <script>
-const SCHEDULE_URL = '@Url.Action("GetTeamSchedulePage", "Leave")';
-const ASSIGN_URL   = '@Url.Action("AssignLeave",         "Leave")';
-const CURRENT_ROLE = '@ViewBag.CurrentRole';
+const NO_DATA_IMG = '@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))';
+function emptyRow(msg, cols=9) {
+    return `<tr><td colspan="${cols}" class="text-center py-5">
+        <img src="${NO_DATA_IMG}" style="width:130px;opacity:.85;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">
+        <div class="text-muted text-sm">${msg}</div>
+    </td></tr>`;
+}
 
-const CAN_ASSIGN = ['Supervisor','DeputyManager','Manager','Admin'].includes(CURRENT_ROLE);
+const MY_ASSIGN_URL = '@Url.Action("GetMyAssignmentsPage", "Leave")';
+const SCHEDULE_URL  = '@Url.Action("GetTeamSchedulePage", "Leave")';
+const ASSIGN_URL    = '@Url.Action("AssignLeave",         "Leave")';
+const APPROVE_URL   = '@Url.Action("ApproveRequest",      "Leave")';
+const REJECT_URL    = '@Url.Action("RejectRequest",       "Leave")';
+const PAGE_URL      = '@Url.Action("GetApprovalListPage", "Leave")';
+const EMP_SCOPE_URL = '@Url.Action("GetEmpByScope",       "Dropdown")';
+const CURRENT_ROLE  = '@ViewBag.CurrentRole';
+const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
+const CAN_ASSIGN    = ['Supervisor','DeputyManager','Manager','Admin'].includes(CURRENT_ROLE);
+const CAN_APPROVE   = ['Supervisor','DeputyManager','Manager','Admin'].includes(CURRENT_ROLE);
+const ROLE_LEVELS   = { Admin:99, Expat:5, Manager:4, DeputyManager:3, Supervisor:2, HR:1, Clerk:1, Worker:1 };
+const MY_LEVEL      = ROLE_LEVELS[CURRENT_ROLE] || 1;
 
 let curMonth = @curMonth, curYear = @curYear;
+let allEmps      = [];
+let scheduleData = [];
+let empLoaded    = false;
+let apvLoaded    = false;
+let maLoaded     = false;
+let schPage = 1, schPageSize = 20;
+let apvStatus = '', apvPage = 1, apvTotal = 0, apvTotalPages = 0, apvPageSize = 20;
+let maPage = 1, maTotal = 0, maTotalPages = 0, maPageSize = 20;
+let apvEmpTimeout, maEmpTimeout;
 
-const MONTHS_VI = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
-                   'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+const MONTHS_VI  = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                    'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
 const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác' };
 const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
 
-function updateMonthLabel() {
-    $('#monthLabel').text(MONTHS_VI[curMonth-1] + ' ' + curYear);
+function getMonthRange() {
+    const firstDay = new Date(curYear, curMonth - 1, 1);
+    const lastDay  = new Date(curYear, curMonth, 0);
+    const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    return { from: fmt(firstDay), to: fmt(lastDay) };
 }
 
+function updateMonthLabel() {
+    $('.month-label-display').text(MONTHS_VI[curMonth-1] + ' / ' + curYear);
+}
+
+// ─── Tab 1 ───────────────────────────────────────────────────────
 function changeMonth(delta) {
     curMonth += delta;
-    if (curMonth > 12) { curMonth = 1;  curYear++; }
+    if (curMonth > 12) { curMonth = 1; curYear++; }
     if (curMonth < 1)  { curMonth = 12; curYear--; }
+    schPage = 1;
     updateMonthLabel();
     loadSchedule();
 }
@@ -156,8 +468,8 @@ function statusBadge(item) {
 }
 
 function buildScheduleRow(item, idx) {
-    const ltLabel = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
-    const ltColor = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
+    const ltLabel  = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
+    const ltColor  = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
     const srcBadge = item.SOURCE === 'ASSIGNED'
         ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:.7rem;">Sắp lịch</span>`
         : `<span class="badge bg-light text-dark border" style="font-size:.7rem;">Tự nộp</span>`;
@@ -169,7 +481,7 @@ function buildScheduleRow(item, idx) {
         <td class="px-2">${srcBadge}</td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
-        <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS ?? '-'}</td>
+        <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
         <td class="text-center">${statusBadge(item)}</td>
     </tr>`;
 }
@@ -178,6 +490,7 @@ function loadSchedule() {
     $('#scheduleBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-info" role="status"></div></td></tr>`);
     MobileTableHelper.refresh('scheduleBody');
     $('#scheduleCount').text('');
+    $('#scheduleEmpFilter').val('');
     $.ajax({
         url: SCHEDULE_URL, type: 'GET', data: { month: curMonth, year: curYear },
         success: function(res) {
@@ -186,14 +499,8 @@ function loadSchedule() {
                 MobileTableHelper.refresh('scheduleBody');
                 return;
             }
-            const data = res.data || [];
-            if (!data.length) {
-                $('#scheduleBody').html(`<tr><td colspan="9" class="text-center text-muted py-5"><i class="bi bi-calendar-x fs-4 d-block mb-2"></i>Không có lịch nghỉ trong tháng này</td></tr>`);
-            } else {
-                $('#scheduleBody').html(data.map((item,i) => buildScheduleRow(item, i+1)).join(''));
-                $('#scheduleCount').html(`<span class="text-xs">Tổng <strong>${res.total}</strong> lịch nghỉ</span>`);
-            }
-            MobileTableHelper.refresh('scheduleBody');
+            scheduleData = res.data || [];
+            renderSchedule();
         },
         error: function(xhr) {
             $('#scheduleBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
@@ -202,69 +509,356 @@ function loadSchedule() {
     });
 }
 
+function renderSchedule() {
+    const q        = ($('#scheduleEmpFilter').val() || '').trim().toUpperCase();
+    const filtered = q ? scheduleData.filter(d => (d.EMPCD||'').toUpperCase().includes(q)) : scheduleData;
+    const total    = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / schPageSize));
+    if (schPage > totalPages) schPage = totalPages;
+    const start    = (schPage - 1) * schPageSize;
+    const pageData = filtered.slice(start, start + schPageSize);
+
+    if (!pageData.length) {
+        const msg = q ? `Không tìm thấy mã NV "<strong>${q}</strong>"` : 'Không có lịch nghỉ trong tháng này';
+        $('#scheduleBody').html(emptyRow(msg));
+    } else {
+        $('#scheduleBody').html(pageData.map((item,i) => buildScheduleRow(item, start+i+1)).join(''));
+    }
+
+    // count
+    if (total > 0) {
+        const s = start + 1, e = Math.min(start + schPageSize, total);
+        const extra = q ? ` (lọc từ ${scheduleData.length})` : '';
+        $('#scheduleCount').html(`<span class="text-xs">${s}-${e} / <strong>${total}</strong> lịch nghỉ${extra}</span>`);
+    } else {
+        $('#scheduleCount').text('');
+    }
+
+    // pagination bar
+    const $bar = $('#schedulePagination').empty();
+    if (totalPages > 1) {
+        const mk = (label, p, disabled, active) => {
+            const li = $('<li class="page-item">').toggleClass('disabled', !!disabled).toggleClass('active', !!active);
+            $('<a class="page-link">').html(label).on('click', () => { if (!disabled && !active) { schPage = p; renderSchedule(); } }).appendTo(li);
+            return li;
+        };
+        $bar.append(mk('&lsaquo;', schPage-1, schPage<=1));
+        let from = Math.max(1, schPage-2), to = Math.min(totalPages, schPage+2);
+        for (let p = from; p <= to; p++) $bar.append(mk(p, p, false, p === schPage));
+        $bar.append(mk('&rsaquo;', schPage+1, schPage>=totalPages));
+    }
+
+    MobileTableHelper.refresh('scheduleBody');
+}
+
+// ─── Tab 2 ───────────────────────────────────────────────────────
+function loadEmps() {
+    if (empLoaded) return;
+    empLoaded = true;
+    $.get(EMP_SCOPE_URL, function(data) {
+        allEmps = data || [];
+        renderEmpList(allEmps);
+    }).fail(function() {
+        $('#empList').html('<div class="text-center py-3 text-danger text-sm"><i class="bi bi-exclamation-triangle me-1"></i>Lỗi tải danh sách nhân viên</div>');
+    });
+}
+
+function renderEmpList(emps) {
+    if (!emps.length) {
+        $('#empList').html('<div class="text-center py-4 text-muted text-sm"><i class="bi bi-people fs-4 d-block mb-2"></i>Không có nhân viên trong phạm vi</div>');
+        return;
+    }
+    $('#empList').html(emps.map(e => `
+        <label class="emp-item" data-empcd="${escHtml(e.empcd||'')}" data-name="${escHtml(e.name||'')}">
+            <input type="checkbox" class="emp-chk" value="${escHtml(e.empcd||'')}" onchange="updateSelCount()" />
+            <div class="emp-info flex-grow-1 min-width-0">
+                <div class="emp-name vni-font">${escHtml(e.name||'')}</div>
+                <div class="emp-dept">${escHtml(e.dept_name||'')}${e.line_name ? ' / ' + escHtml(e.line_name) : ''}</div>
+            </div>
+            <span class="emp-code">${escHtml(e.empcd||'')}</span>
+        </label>`).join(''));
+    updateSelCount();
+}
+
+function filterEmps() {
+    const q = ($('#empSearch').val() || '').trim().toUpperCase();
+    if (!q) { renderEmpList(allEmps); return; }
+    renderEmpList(allEmps.filter(e => (e.empcd||'').toUpperCase().includes(q)));
+}
+function selectAllEmps()  { $('#empList .emp-chk:visible').prop('checked', true); updateSelCount(); }
+function clearAllEmps()   { $('#empList .emp-chk').prop('checked', false); updateSelCount(); }
+function updateSelCount() { $('#selCount').text($('#empList .emp-chk:checked').length + ' NV được chọn'); }
+function getSelectedEmpcds() { return $('#empList .emp-chk:checked').map(function() { return $(this).val(); }).get(); }
+
 function calcAssignDays() {
     const f = $('#assignFromDate').val(), t = $('#assignToDate').val();
-    if (f && t) {
-        const diff = (new Date(t) - new Date(f)) / 86400000 + 1;
-        if (diff > 0) $('#assignTotalDays').val(diff);
-    }
+    if (f && t) { const diff = (new Date(t)-new Date(f))/86400000+1; if(diff>0) $('#assignTotalDays').val(diff); }
 }
 
 async function submitAssign() {
-    const raw     = $('#assignEmpcds').val().trim();
-    const empList = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
-    const from    = $('#assignFromDate').val();
-    const to      = $('#assignToDate').val();
-    const days    = parseFloat($('#assignTotalDays').val());
-    const reason  = $('#assignReason').val().trim() || null;
-
-    if (!empList.length)    { showToast('Vui lòng nhập mã nhân viên', 'warning'); return; }
+    const empList  = getSelectedEmpcds();
+    const leaveType = $('#assignLeaveType').val();
+    const from     = $('#assignFromDate').val();
+    const to       = $('#assignToDate').val();
+    const days     = parseFloat($('#assignTotalDays').val());
+    const reason   = $('#assignReason').val().trim() || null;
+    if (!empList.length)    { showToast('Chọn ít nhất 1 nhân viên', 'warning'); return; }
     if (!from || !to)       { showToast('Vui lòng chọn ngày', 'warning'); return; }
     if (!days || days <= 0) { showToast('Số ngày nghỉ không hợp lệ', 'warning'); return; }
-
     const $btn = $('#assignBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang xử lý...');
     $('#assignResults').empty();
     try {
-        const payload = {
-            ASSIGNER_EMPCD: '',
-            TARGET_EMPCDS:  empList,
-            FROM_DATE:      from,
-            TO_DATE:        to,
-            TOTAL_DAYS:     days,
-            REASON:         reason
-        };
-        const res = await $.ajax({ url: ASSIGN_URL, type: 'POST', contentType: 'application/json', data: JSON.stringify(payload) });
-
-        if (res.results && res.results.length) {
-            const html = res.results.map(r => {
+        const res = await $.ajax({ url: ASSIGN_URL, type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ ASSIGNER_EMPCD: '', TARGET_EMPCDS: empList, LEAVE_TYPE: leaveType, FROM_DATE: from, TO_DATE: to, TOTAL_DAYS: days, REASON: reason }) });
+        if (res.results?.length) {
+            $('#assignResults').html(res.results.map(r => {
                 const cls = r.success ? 'ok' : 'err';
-                const icon = r.success ? '<i class="bi bi-check-circle me-1"></i>' : '<i class="bi bi-x-circle me-1"></i>';
-                return `<div class="result-item ${cls}">${icon}<strong>${escHtml(r.empcd||'')}</strong>: ${escHtml(r.message||'')} ${r.request_id ? `<span class="text-xs opacity-7">(${r.request_id})</span>` : ''}</div>`;
-            }).join('');
-            $('#assignResults').html(html);
+                const ico = r.success ? '<i class="bi bi-check-circle me-1"></i>' : '<i class="bi bi-x-circle me-1"></i>';
+                return `<div class="result-item ${cls}">${ico}<strong>${escHtml(r.empcd||'')}</strong>: ${escHtml(r.message||'')}</div>`;
+            }).join(''));
         }
-
-        if (res.success) {
-            showToast(res.message || 'Đã sắp lịch thành công', 'success');
-            loadSchedule();
-        } else {
-            showToast(res.message || 'Có lỗi xảy ra', 'error');
-        }
+        if (res.success) { showToast(res.message || 'Đã sắp lịch thành công', 'success'); clearAllEmps(); loadSchedule(); }
+        else showToast(res.message || 'Có lỗi xảy ra', 'error');
     } catch { showToast('Lỗi kết nối', 'error'); }
     finally  { $btn.prop('disabled', false).html('<i class="bi bi-send me-1"></i> Sắp Lịch Nghỉ'); }
 }
 
-if (!CAN_ASSIGN) {
-    document.getElementById('assignPanel').remove();
+// ─── Tab 3 ───────────────────────────────────────────────────────
+function changeApprovalMonth(delta) {
+    curMonth += delta;
+    if (curMonth > 12) { curMonth = 1; curYear++; }
+    if (curMonth < 1)  { curMonth = 12; curYear--; }
+    updateMonthLabel();
+    loadApproval(1);
 }
 
+function setApvStatus(s) {
+    apvStatus = s;
+    ['all','pending','approved','rejected'].forEach(k => document.getElementById('apv-'+k).classList.remove('active'));
+    document.getElementById('apv-' + (s||'all').toLowerCase()).classList.add('active');
+    loadApproval(1);
+}
+
+function onApvEmpInput() {
+    clearTimeout(apvEmpTimeout);
+    apvEmpTimeout = setTimeout(() => loadApproval(1), 400);
+}
+
+function buildApprovalRow(item, idx) {
+    const ltLabel = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
+    const ltColor = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
+    let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>`;
+    if (item.STATUS === 'APPROVED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>`;
+    if (item.STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Từ chối</span>`;
+    const isSelf    = item.EMPCD === CURRENT_EMPCD;
+    const canAct    = !isSelf && CAN_APPROVE && (ROLE_LEVELS[item.REQUESTER_ROLE]||1) < MY_LEVEL;
+    const actions   = item.STATUS !== 'PENDING'
+        ? '<span class="text-muted text-xs">-</span>'
+        : canAct
+            ? `<button class="btn btn-xs btn-success me-1" onclick="event.stopPropagation();openApvAction('${item.REQUEST_ID}','approve')"><i class="bi bi-check-lg"></i></button>
+               <button class="btn btn-xs btn-danger"       onclick="event.stopPropagation();openApvAction('${item.REQUEST_ID}','reject')"><i class="bi bi-x-lg"></i></button>`
+            : `<span class="text-warning text-xxs"><i class="bi bi-exclamation-triangle-fill me-1"></i>Cần cấp cao hơn</span>`;
+    return `<tr>
+        <td class="px-2 text-xs text-secondary">${idx}</td>
+        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+        <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
+        <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
+        <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
+        <td class="text-center">${statusHtml}</td>
+        <td class="text-center">${actions}</td>
+    </tr>`;
+}
+
+function loadApproval(page = 1) {
+    apvPage = page;
+    $('#approvalBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
+    MobileTableHelper.refresh('approvalBody');
+    const range = getMonthRange();
+    $.ajax({
+        url: PAGE_URL, type: 'GET',
+        data: { status: apvStatus, search: ($('#apvEmpFilter').val()||'').trim(), date_from: range.from, date_to: range.to, page, page_size: apvPageSize },
+        success: function(res) {
+            if (!res.success) {
+                $('#approvalBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                MobileTableHelper.refresh('approvalBody');
+                return;
+            }
+            apvTotal = res.total || 0;
+            apvTotalPages = res.total_pages || 0;
+            const data = res.data || [];
+            if (!data.length) {
+                $('#approvalBody').html(emptyRow('Không có đơn nghỉ nào'));
+            } else {
+                $('#approvalBody').html(data.map((item,i) => buildApprovalRow(item,(page-1)*apvPageSize+i+1)).join(''));
+            }
+            renderApvPagination();
+            MobileTableHelper.refresh('approvalBody');
+        },
+        error: function(xhr) {
+            $('#approvalBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            MobileTableHelper.refresh('approvalBody');
+        }
+    });
+}
+
+function renderApvPagination() {
+    if (!apvTotal) { $('#apvCount').text(''); $('#apvPagination').empty(); return; }
+    const s=(apvPage-1)*apvPageSize+1, e=Math.min(apvPage*apvPageSize,apvTotal);
+    $('#apvCount').html(`<span class="text-xs">${s}-${e} / <strong>${apvTotal}</strong> phiếu</span>`);
+    const $bar=$('#apvPagination').empty();
+    const mk=(label,p,disabled,active)=>{const li=$('<li class="page-item">').toggleClass('disabled',!!disabled).toggleClass('active',!!active);$('<a class="page-link">').html(label).on('click',()=>{if(!disabled&&!active)loadApproval(p);}).appendTo(li);return li;};
+    $bar.append(mk('&lsaquo;',apvPage-1,apvPage<=1));
+    let from=Math.max(1,apvPage-2),to=Math.min(apvTotalPages,apvPage+2);
+    for(let p=from;p<=to;p++) $bar.append(mk(p,p,false,p===apvPage));
+    $bar.append(mk('&rsaquo;',apvPage+1,apvPage>=apvTotalPages));
+}
+
+function openApvAction(id, type) {
+    $('#tsActionId').val(id); $('#tsActionType').val(type);
+    $('#tsActionComment').val(''); $('#tsActionError').addClass('d-none').text('');
+    const isApprove = type === 'approve';
+    $('#tsActionHeader').removeClass('bg-success bg-danger text-white').addClass(isApprove ? 'bg-success text-white' : 'bg-danger text-white');
+    $('#tsActionTitle').text(isApprove ? 'Duyệt Đơn Nghỉ Phép' : 'Từ Chối Đơn Nghỉ Phép');
+    $('#tsActionConfirm').removeClass('btn-success btn-danger').addClass(isApprove ? 'btn-success' : 'btn-danger');
+    new bootstrap.Modal('#tsActionModal').show();
+}
+
+async function submitApprovalAction() {
+    const id      = $('#tsActionId').val();
+    const type    = $('#tsActionType').val();
+    const comment = $('#tsActionComment').val();
+    const url     = type === 'approve' ? APPROVE_URL : REJECT_URL;
+    const $btn    = $('#tsActionConfirm').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>...');
+    try {
+        const res = await $.ajax({ url, type: 'POST', data: { request_id: id, comment } });
+        if (res.success) {
+            bootstrap.Modal.getInstance('#tsActionModal').hide();
+            showToast(type === 'approve' ? 'Đã duyệt đơn nghỉ' : 'Đã từ chối đơn nghỉ', type === 'approve' ? 'success' : 'warning');
+            loadApproval(apvPage);
+            loadPendingBadge();
+        } else {
+            $('#tsActionError').removeClass('d-none').text(res.message || 'Lỗi xử lý');
+        }
+    } catch { $('#tsActionError').removeClass('d-none').text('Lỗi kết nối'); }
+    finally  { $btn.prop('disabled', false).text('Xác Nhận'); }
+}
+
+// ─── Tab 4 ───────────────────────────────────────────────────────
+function onMaEmpInput() {
+    clearTimeout(maEmpTimeout);
+    maEmpTimeout = setTimeout(() => loadMyAssign(1), 400);
+}
+
+function buildMyAssignRow(item, idx) {
+    const lt = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
+    const lc = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
+    let statusHtml;
+    if (item.STATUS === 'CONFIRMED')
+        statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã xác nhận</span>`;
+    else if (item.STATUS === 'WORKER_REJECTED')
+        statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Không đồng ý</span>`;
+    else
+        statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ xác nhận</span>`;
+    return `<tr>
+        <td class="px-2 text-xs text-secondary">${idx}</td>
+        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+        <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
+        <td class="px-2"><span class="badge bg-${lc}">${lt}</span></td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
+        <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
+        <td class="px-2 text-sm text-nowrap text-secondary">${formatDate(item.ASSIGN_DATE)}</td>
+        <td class="text-center">${statusHtml}</td>
+    </tr>`;
+}
+
+function loadMyAssign(page = 1) {
+    maPage = page;
+    $('#myAssignBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-dark" role="status"></div></td></tr>`);
+    MobileTableHelper.refresh('myAssignBody');
+    $.ajax({
+        url: MY_ASSIGN_URL, type: 'GET',
+        data: {
+            status: $('#maStatusFilter').val(),
+            search: ($('#maEmpFilter').val()||'').trim(),
+            page, page_size: maPageSize
+        },
+        success: function(res) {
+            if (!res.success) {
+                $('#myAssignBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                MobileTableHelper.refresh('myAssignBody');
+                return;
+            }
+            const s = res.summary || {};
+            $('#maTotal').text((s.TOTAL||0).toLocaleString());
+            $('#maPending').text((s.PENDING_CONFIRM||0).toLocaleString());
+            $('#maConfirmed').text((s.CONFIRMED||0).toLocaleString());
+            $('#maRejected').text((s.WORKER_REJECTED||0).toLocaleString());
+            maTotal      = res.total      || 0;
+            maTotalPages = res.total_pages || 0;
+            const data   = res.data || [];
+            if (!data.length) {
+                $('#myAssignBody').html(emptyRow('Chưa sắp lịch cho ai', 9));
+            } else {
+                $('#myAssignBody').html(data.map((item,i) => buildMyAssignRow(item,(page-1)*maPageSize+i+1)).join(''));
+            }
+            renderMaPagination();
+            MobileTableHelper.refresh('myAssignBody');
+        },
+        error: function(xhr) {
+            $('#myAssignBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            MobileTableHelper.refresh('myAssignBody');
+        }
+    });
+}
+
+function renderMaPagination() {
+    if (!maTotal) { $('#maCount').text(''); $('#maPagination').empty(); return; }
+    const s=(maPage-1)*maPageSize+1, e=Math.min(maPage*maPageSize,maTotal);
+    $('#maCount').html(`<span class="text-xs">${s}-${e} / <strong>${maTotal}</strong> lịch sắp</span>`);
+    const $bar=$('#maPagination').empty();
+    const mk=(label,p,disabled,active)=>{const li=$('<li class="page-item">').toggleClass('disabled',!!disabled).toggleClass('active',!!active);$('<a class="page-link">').html(label).on('click',()=>{if(!disabled&&!active)loadMyAssign(p);}).appendTo(li);return li;};
+    $bar.append(mk('&lsaquo;',maPage-1,maPage<=1));
+    let from=Math.max(1,maPage-2),to=Math.min(maTotalPages,maPage+2);
+    for(let p=from;p<=to;p++) $bar.append(mk(p,p,false,p===maPage));
+    $bar.append(mk('&rsaquo;',maPage+1,maPage>=maTotalPages));
+}
+
+// ─── Init ────────────────────────────────────────────────────────
+if (!CAN_ASSIGN)   document.getElementById('tabAssignLi')?.classList.add('d-none');
+if (!CAN_APPROVE)  document.getElementById('tabApproveLi')?.classList.add('d-none');
+if (!CAN_ASSIGN)   document.getElementById('tabMyAssignLi')?.classList.add('d-none');
+
+document.getElementById('tab-assign-btn')?.addEventListener('shown.bs.tab', loadEmps);
+document.getElementById('tab-approve-btn')?.addEventListener('shown.bs.tab', function() {
+    if (!apvLoaded) { apvLoaded = true; loadApproval(1); }
+});
+document.getElementById('tab-myassign-btn')?.addEventListener('shown.bs.tab', function() {
+    if (!maLoaded) { maLoaded = true; loadMyAssign(1); }
+});
+
 function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
-function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escHtml(str)  { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function loadPendingBadge() {
+    if (!CAN_APPROVE) return;
+    $.get(PAGE_URL, { page: 1, page_size: 1, status: 'PENDING' }, function(res) {
+        const n = res.success ? (res.total || 0) : 0;
+        const $b = $('#pendingBadge');
+        if (n > 0) $b.text(n > 99 ? '99+' : n).removeClass('d-none');
+        else $b.addClass('d-none');
+    });
+}
 
 $(document).ready(function() {
     MobileTableHelper.init('scheduleBody');
+    MobileTableHelper.init('approvalBody');
+    MobileTableHelper.init('myAssignBody');
     updateMonthLabel();
     loadSchedule();
+    loadPendingBadge();
 });
 </script>
 }

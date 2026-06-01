@@ -1,7 +1,7 @@
 @{
     ViewData["Title"] = "Đơn Nghỉ Phép Của Tôi";
-    var dateFrom = (string)(ViewBag.DateFrom ?? DateTime.Today.AddMonths(-3).ToString("yyyy-MM-dd"));
-    var dateTo   = (string)(ViewBag.DateTo   ?? DateTime.Today.AddMonths(3).ToString("yyyy-MM-dd"));
+    int initMonth = DateTime.Today.Month;
+    int initYear  = DateTime.Today.Year;
 }
 
 @section Styles {
@@ -15,6 +15,25 @@
     .source-tab:not(.active) { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
     .source-tab:not(.active):hover { background: #e2e8f0; }
 
+    /* Leave type card picker */
+    .lt-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .lt-card { position:relative; }
+    .lt-card input[type=radio] { position:absolute; opacity:0; width:0; height:0; }
+    .lt-card label { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:10px 6px; min-height:76px; border:2px solid #e2e8f0; border-radius:12px; cursor:pointer; background:#f8fafc; transition:all .18s; text-align:center; }
+    .lt-emoji { font-size:1.9rem; font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif; font-style:normal; line-height:1.1; display:block; transition:transform .18s; }
+    .lt-card label .lt-name { font-size:.75rem; font-weight:700; color:#374151; line-height:1.2; }
+    .lt-card label .lt-code { font-size:.65rem; color:#9ca3af; font-family:monospace; }
+    .lt-card label:hover { border-color:#94a3b8; background:#f1f5f9; }
+    .lt-card input:checked + label { border-color:var(--lc); background:var(--lb); box-shadow:0 0 0 3px color-mix(in srgb,var(--lc) 18%,transparent); }
+    .lt-card input:checked + label .lt-emoji { transform:scale(1.18); }
+    .lt-card input:checked + label .lt-name { color:var(--lc); }
+    @@media (max-width:400px) { .lt-cards { grid-template-columns:repeat(2,1fr); } }
+
+    .month-nav { display:flex; align-items:center; gap:6px; }
+    .month-nav button { border:none; background:rgba(255,255,255,.22); color:#fff; border-radius:6px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:.95rem; cursor:pointer; }
+    .month-nav button:hover { background:rgba(255,255,255,.38); }
+    .month-nav span { font-weight:700; font-size:.9rem; color:#fff; min-width:130px; text-align:center; }
+
     /* Mobile card layout */
     @@media (max-width: 768px) {
         .lv-table-wrap { display: none; }
@@ -25,6 +44,11 @@
         .lv-card-list  { display: none; }
     }
     .lv-card { border:1px solid #e5e7eb; border-radius:14px; padding:14px 16px; margin-bottom:12px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+    .lv-card.lv-pending-confirm { border:2px solid #f59e0b; background:#fffbeb; box-shadow:0 2px 12px rgba(245,158,11,.18); }
+    .lv-card.lv-pending-confirm::before { content:''; display:block; width:4px; border-radius:4px 0 0 4px; background:#f59e0b; position:absolute; top:0; left:0; bottom:0; }
+    .lv-card { position:relative; overflow:hidden; }
+    tr.tr-pending-confirm td { background:#fffbeb !important; border-left:none; }
+    tr.tr-pending-confirm td:first-child { border-left:4px solid #f59e0b; }
     .lv-card .lv-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; }
     .lv-card .lv-lbl { font-size:.76rem; color:#9ca3af; font-weight:600; text-transform:uppercase; }
     .lv-card .lv-val { font-size:.92rem; color:#1f2937; }
@@ -44,19 +68,13 @@
             <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h6 class="text-white mb-0"><i class="bi bi-calendar-check me-1"></i> Đơn Nghỉ Phép Của Tôi</h6>
-                    <div class="d-flex align-items-center gap-2 flex-wrap header-filter-row">
-                        <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
-                            <i class="bi bi-calendar3 text-primary"></i>
-                            <input type="date" id="filterDateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0"
-                                   style="width:120px;" value="@dateFrom" onchange="loadData(1)" />
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="month-nav">
+                            <button onclick="changeMonth(-1)" title="Tháng trước"><i class="bi bi-chevron-left"></i></button>
+                            <span id="monthLabel"></span>
+                            <button onclick="changeMonth(1)"  title="Tháng sau"><i class="bi bi-chevron-right"></i></button>
                         </div>
-                        <span class="text-white small">→</span>
-                        <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
-                            <i class="bi bi-calendar3 text-primary"></i>
-                            <input type="date" id="filterDateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0"
-                                   style="width:120px;" value="@dateTo" onchange="loadData(1)" />
-                        </div>
-                        <button class="btn btn-sm btn-light text-primary fw-bold shadow-sm" onclick="openCreateModal()" style="height:34px;">
+                        <button class="btn btn-sm btn-light text-primary fw-bold shadow-sm" onclick="openCreateModal()" style="height:32px;">
                             <i class="bi bi-plus-lg me-1"></i>Tạo đơn
                         </button>
                     </div>
@@ -113,14 +131,29 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Loại nghỉ <span class="text-danger">*</span></label>
-                    <select id="createLeaveType" class="form-select">
-                        <option value="AL">Nghỉ phép năm (AL)</option>
-                        <option value="CL">Nghỉ BHXH (CL)</option>
-                        <option value="SL">Nghỉ bệnh (SL)</option>
-                        <option value="NPL">Nghỉ không lương (NPL)</option>
-                        <option value="OTH">Khác (OTH)</option>
-                    </select>
+                    <label class="form-label fw-bold mb-2">Loại nghỉ <span class="text-danger">*</span></label>
+                    <div class="lt-cards">
+                        <div class="lt-card" style="--lc:#3b82f6;--lb:#eff6ff;">
+                            <input type="radio" name="createLT" id="clt-AL" value="AL" checked>
+                            <label for="clt-AL"><span class="lt-emoji">🌴</span><span class="lt-name">Phép năm</span><span class="lt-code">AL</span></label>
+                        </div>
+                        <div class="lt-card" style="--lc:#0891b2;--lb:#ecfeff;">
+                            <input type="radio" name="createLT" id="clt-CL" value="CL">
+                            <label for="clt-CL"><span class="lt-emoji">🏥</span><span class="lt-name">Nghỉ chế độ BHXH</span><span class="lt-code">CL</span></label>
+                        </div>
+                        <div class="lt-card" style="--lc:#ef4444;--lb:#fff0f0;">
+                            <input type="radio" name="createLT" id="clt-SL" value="SL">
+                            <label for="clt-SL"><span class="lt-emoji">🤒</span><span class="lt-name">Nghỉ bệnh</span><span class="lt-code">SL</span></label>
+                        </div>
+                        <div class="lt-card" style="--lc:#64748b;--lb:#f1f5f9;">
+                            <input type="radio" name="createLT" id="clt-NPL" value="NPL">
+                            <label for="clt-NPL"><span class="lt-emoji">💼</span><span class="lt-name">Không lương</span><span class="lt-code">NPL</span></label>
+                        </div>
+                        <div class="lt-card" style="--lc:#d97706;--lb:#fffbeb;">
+                            <input type="radio" name="createLT" id="clt-OTH" value="OTH">
+                            <label for="clt-OTH"><span class="lt-emoji">📋</span><span class="lt-name">Khác</span><span class="lt-code">OTH</span></label>
+                        </div>
+                    </div>
                 </div>
                 <div class="row">
                     <div class="col-6 mb-3">
@@ -137,8 +170,8 @@
                     <input type="number" id="createTotalDays" class="form-control" min="0.5" step="0.5" placeholder="VD: 1" />
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Lý do</label>
-                    <textarea id="createReason" class="form-control" rows="2" maxlength="500" placeholder="Nghỉ phép năm..."></textarea>
+                    <label class="form-label fw-bold">Lý do <span class="text-danger">*</span></label>
+                    <textarea id="createReason" class="form-control" rows="2" maxlength="500" placeholder="Nhập lý do nghỉ phép..."></textarea>
                 </div>
                 <div id="createError" class="alert alert-danger d-none py-2"></div>
             </div>
@@ -163,14 +196,29 @@
             <div class="modal-body">
                 <input type="hidden" id="editRequestId" />
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Loại nghỉ <span class="text-danger">*</span></label>
-                    <select id="editLeaveType" class="form-select">
-                        <option value="AL">Nghỉ phép năm (AL)</option>
-                        <option value="CL">Nghỉ BHXH (CL)</option>
-                        <option value="SL">Nghỉ bệnh (SL)</option>
-                        <option value="NPL">Nghỉ không lương (NPL)</option>
-                        <option value="OTH">Khác (OTH)</option>
-                    </select>
+                    <label class="form-label fw-bold mb-2">Loại nghỉ <span class="text-danger">*</span></label>
+                    <div class="lt-cards">
+                        <div class="lt-card" style="--lc:#3b82f6;--lb:#eff6ff;">
+                            <input type="radio" name="editLT" id="elt-AL" value="AL">
+                            <label for="elt-AL"><span class="lt-emoji">🌴</span><span class="lt-name">Phép năm</span><span class="lt-code">AL</span></label>
+                        </div>
+                        <div class="lt-card" style="--lc:#0891b2;--lb:#ecfeff;">
+                            <input type="radio" name="editLT" id="elt-CL" value="CL">
+                            <label for="elt-CL"><span class="lt-emoji">🏥</span><span class="lt-name">Nghỉ chế độ BHXH</span><span class="lt-code">CL</span></label>
+                        </div>
+                        <div class="lt-card" style="--lc:#ef4444;--lb:#fff0f0;">
+                            <input type="radio" name="editLT" id="elt-SL" value="SL">
+                            <label for="elt-SL"><span class="lt-emoji">🤒</span><span class="lt-name">Nghỉ bệnh</span><span class="lt-code">SL</span></label>
+                        </div>
+                        <div class="lt-card" style="--lc:#64748b;--lb:#f1f5f9;">
+                            <input type="radio" name="editLT" id="elt-NPL" value="NPL">
+                            <label for="elt-NPL"><span class="lt-emoji">💼</span><span class="lt-name">Không lương</span><span class="lt-code">NPL</span></label>
+                        </div>
+                        <div class="lt-card" style="--lc:#d97706;--lb:#fffbeb;">
+                            <input type="radio" name="editLT" id="elt-OTH" value="OTH">
+                            <label for="elt-OTH"><span class="lt-emoji">📋</span><span class="lt-name">Khác</span><span class="lt-code">OTH</span></label>
+                        </div>
+                    </div>
                 </div>
                 <div class="row">
                     <div class="col-6 mb-3">
@@ -204,6 +252,7 @@
 
 @section Scripts {
 <script>
+const NO_DATA_IMG = '@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))';
 const PAGE_URL         = '@Url.Action("GetMyRequestsPage", "Leave")';
 const CREATE_URL       = '@Url.Action("CreateRequest",    "Leave")';
 const UPDATE_URL       = '@Url.Action("UpdateRequest",    "Leave")';
@@ -211,10 +260,46 @@ const DELETE_URL       = '@Url.Action("DeleteRequest",    "Leave")';
 const CONFIRM_URL      = '@Url.Action("ConfirmLeave",     "Leave")';
 const WK_REJECT_URL    = '@Url.Action("WorkerRejectLeave","Leave")';
 
+function emptyRow(msg, cols=9) {
+    return `<tr><td colspan="${cols}" class="text-center py-5">
+        <img src="${NO_DATA_IMG}" style="width:130px;opacity:.85;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">
+        <div class="text-muted text-sm">${msg}</div>
+    </td></tr>`;
+}
+function emptyDiv(msg) {
+    return `<div class="text-center py-5">
+        <img src="${NO_DATA_IMG}" style="width:130px;opacity:.85;margin-bottom:12px;">
+        <div class="text-muted text-sm">${msg}</div>
+    </div>`;
+}
+
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 20;
 let currentSource = '';
+let curMonth = @initMonth, curYear = @initYear;
 
-const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác' };
+const MONTHS_VI = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                   'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+
+function updateMonthLabel() {
+    $('#monthLabel').text(MONTHS_VI[curMonth-1] + ' / ' + curYear);
+}
+
+function changeMonth(delta) {
+    curMonth += delta;
+    if (curMonth > 12) { curMonth = 1;  curYear++; }
+    if (curMonth < 1)  { curMonth = 12; curYear--; }
+    updateMonthLabel();
+    loadData(1);
+}
+
+function getMonthRange() {
+    const firstDay = new Date(curYear, curMonth - 1, 1);
+    const lastDay  = new Date(curYear, curMonth, 0);
+    const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    return { from: fmt(firstDay), to: fmt(lastDay) };
+}
+
+const LEAVE_LABEL = { AL:'Phép năm', CL:'Chế độ BHXH', SL:'Nghỉ bệnh', NPL:'Không lương', OTH:'Khác' };
 const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
 
 function leaveBadge(t) {
@@ -249,9 +334,18 @@ function remarkHtml(item) {
     return `<div class="mt-1 px-2 py-1 rounded-end text-xs" style="${style}"><i class="bi bi-chat-left-text me-1"></i>${escHtml(item.REMARK)}</div>`;
 }
 
+function isPastDate(dateStr) {
+    if (!dateStr) return false;
+    const today = new Date(); today.setHours(0,0,0,0);
+    return new Date(dateStr) <= today;
+}
+
 function actionBtns(item) {
     const s = item.STATUS;
     if (item.SOURCE === 'ASSIGNED' && s === 'ASSIGNED') {
+        if (isPastDate(item.FROM_DATE)) {
+            return `<span class="text-muted text-xs"><i class="bi bi-clock-history me-1"></i>Đã quá hạn</span>`;
+        }
         return `<button class="btn btn-xs btn-success me-1" title="Xác nhận" onclick="confirmLeave('${item.REQUEST_ID}')"><i class="bi bi-check-lg"></i></button>
                 <button class="btn btn-xs btn-outline-danger" title="Từ chối" onclick="workerReject('${item.REQUEST_ID}')"><i class="bi bi-x-lg"></i></button>`;
     }
@@ -267,7 +361,8 @@ function actionBtns(item) {
 }
 
 function buildRow(item, idx) {
-    return `<tr>
+    const needsAction = item.SOURCE === 'ASSIGNED' && item.STATUS === 'ASSIGNED';
+    return `<tr class="${needsAction ? 'tr-pending-confirm' : ''}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2">${sourceBadge(item.SOURCE)}</td>
         <td class="px-2">${leaveBadge(item.LEAVE_TYPE)}</td>
@@ -282,10 +377,24 @@ function buildRow(item, idx) {
 
 function buildCard(item, idx) {
     const remark = remarkHtml(item);
-    return `<div class="lv-card">
+    const isAssigned = item.SOURCE === 'ASSIGNED' && item.STATUS === 'ASSIGNED';
+    const isPast     = isAssigned && isPastDate(item.FROM_DATE);
+    const alertBanner = isAssigned
+        ? isPast
+            ? `<div class="d-flex align-items-center gap-1 mb-2 px-2 py-1 rounded" style="background:#fde8e8;border-left:3px solid #ef4444;">
+                   <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size:.8rem;"></i>
+                   <span class="text-xs fw-bold" style="color:#7f1d1d;">Đã quá hạn xác nhận lịch nghỉ này</span>
+               </div>`
+            : `<div class="d-flex align-items-center gap-1 mb-2 px-2 py-1 rounded" style="background:#fef3c7;border-left:3px solid #f59e0b;">
+                   <i class="bi bi-bell-fill text-warning" style="font-size:.8rem;"></i>
+                   <span class="text-xs fw-bold" style="color:#92400e;">Bạn đã được sắp lịch, vui lòng xác nhận ngay!</span>
+               </div>`
+        : '';
+    return `<div class="lv-card${isAssigned ? ' lv-pending-confirm' : ''}">
+        ${alertBanner}
         <div class="lv-row">
-            <div class="d-flex gap-1 flex-wrap">${sourceBadge(item.SOURCE)} ${leaveBadge(item.LEAVE_TYPE)}</div>
-            <div>${statusBadge(item)}</div>
+            <div class="d-flex gap-1">${sourceBadge(item.SOURCE)} ${leaveBadge(item.LEAVE_TYPE)}</div>
+            <div class="flex-shrink-0">${statusBadge(item)}</div>
         </div>
         <div class="lv-row">
             <span class="lv-lbl">Từ ngày</span><span class="lv-val">${formatDate(item.FROM_DATE)}</span>
@@ -315,7 +424,8 @@ function loadData(page = 1) {
     const spinner = `<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
     $('#lvTableBody').html(spinner);
     $('#lvCardList').html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>');
-    const data = { page, page_size: pageSize, date_from: $('#filterDateFrom').val(), date_to: $('#filterDateTo').val() };
+    const range = getMonthRange();
+    const data = { page, page_size: pageSize, date_from: range.from, date_to: range.to };
     if (currentSource) data.source = currentSource;
     $.ajax({
         url: PAGE_URL, type: 'GET', data,
@@ -329,8 +439,8 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const rows   = res.data || [];
             if (!rows.length) {
-                $('#lvTableBody').html(`<tr><td colspan="9" class="text-center text-muted py-5">Không có dữ liệu</td></tr>`);
-                $('#lvCardList').html('<div class="text-center text-muted py-5"><i class="bi bi-calendar-x fs-4 d-block mb-2"></i>Không có đơn nghỉ nào</div>');
+                $('#lvTableBody').html(emptyRow('Không có đơn nghỉ nào trong tháng này'));
+                $('#lvCardList').html(emptyDiv('Không có đơn nghỉ nào trong tháng này'));
             } else {
                 $('#lvTableBody').html(rows.map((r,i) => buildRow(r,(page-1)*pageSize+i+1)).join(''));
                 $('#lvCardList').html(rows.map((r,i) => buildCard(r,(page-1)*pageSize+i+1)).join(''));
@@ -359,9 +469,9 @@ function renderPagination() {
 
 function openCreateModal() {
     const today = new Date().toISOString().slice(0,10);
-    $('#createLeaveType').val('AL');
-    $('#createFromDate').val(today);
-    $('#createToDate').val(today);
+    $('#clt-AL').prop('checked', true);
+    $('#createFromDate').attr('min', today).val(today);
+    $('#createToDate').attr('min', today).val(today);
     $('#createTotalDays').val(1);
     $('#createReason').val('');
     $('#createError').addClass('d-none').text('');
@@ -370,29 +480,37 @@ function openCreateModal() {
 
 function calcCreateDays() {
     const f = $('#createFromDate').val(), t = $('#createToDate').val();
+    if (f) $('#createToDate').attr('min', f);
     if (f && t) {
-        const diff = (new Date(t) - new Date(f)) / 86400000 + 1;
+        if (t < f) { $('#createToDate').val(f); }
+        const tFinal = $('#createToDate').val();
+        const diff = (new Date(tFinal) - new Date(f)) / 86400000 + 1;
         if (diff > 0) $('#createTotalDays').val(diff);
     }
 }
 
 async function saveCreate() {
-    const from  = $('#createFromDate').val();
-    const to    = $('#createToDate').val();
-    const days  = parseFloat($('#createTotalDays').val());
+    const today  = new Date().toISOString().slice(0,10);
+    const from   = $('#createFromDate').val();
+    const to     = $('#createToDate').val();
+    const days   = parseFloat($('#createTotalDays').val());
+    const reason = $('#createReason').val().trim();
     if (!from || !to)       { $('#createError').removeClass('d-none').text('Vui lòng chọn ngày'); return; }
+    if (from < today)       { $('#createError').removeClass('d-none').text('Không được chọn ngày trong quá khứ'); $('#createFromDate').focus(); return; }
+    if (to < from)          { $('#createError').removeClass('d-none').text('Đến ngày phải lớn hơn hoặc bằng Từ ngày'); $('#createToDate').focus(); return; }
     if (!days || days <= 0) { $('#createError').removeClass('d-none').text('Số ngày nghỉ không hợp lệ'); return; }
+    if (!reason)            { $('#createError').removeClass('d-none').text('Vui lòng nhập lý do nghỉ phép'); $('#createReason').focus(); return; }
 
     const $btn = $('#saveCreateBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang gửi...');
     $('#createError').addClass('d-none').text('');
     try {
         const payload = {
             EMPCD:      '',
-            LEAVE_TYPE: $('#createLeaveType').val(),
+            LEAVE_TYPE: $('input[name=createLT]:checked').val() || 'AL',
             FROM_DATE:  from,
             TO_DATE:    to,
             TOTAL_DAYS: days,
-            REASON:     $('#createReason').val() || null
+            REASON:     reason
         };
         const res = await $.ajax({ url: CREATE_URL, type: 'POST', contentType: 'application/json', data: JSON.stringify(payload) });
         if (res.success) {
@@ -408,20 +526,24 @@ async function saveCreate() {
 
 function calcDays() {
     const f = $('#editFromDate').val(), t = $('#editToDate').val();
+    if (f) $('#editToDate').attr('min', f);
     if (f && t) {
-        const diff = (new Date(t) - new Date(f)) / 86400000 + 1;
+        if (t < f) { $('#editToDate').val(f); }
+        const tFinal = $('#editToDate').val();
+        const diff = (new Date(tFinal) - new Date(f)) / 86400000 + 1;
         if (diff > 0) $('#editTotalDays').val(diff);
     }
 }
 
 function openEditBtn(btn) {
-    const $b = $(btn);
+    const $b    = $(btn);
+    const today = new Date().toISOString().slice(0,10);
     $('#editRequestId').val($b.data('id'));
-    $('#editLeaveType').val($b.data('type'));
+    $('input[name=editLT][value="' + ($b.data('type') || 'AL') + '"]').prop('checked', true);
     const fromStr = $b.data('from') ? new Date($b.data('from')).toISOString().slice(0,10) : '';
     const toStr   = $b.data('to')   ? new Date($b.data('to')).toISOString().slice(0,10)   : '';
-    $('#editFromDate').val(fromStr);
-    $('#editToDate').val(toStr);
+    $('#editFromDate').attr('min', today).val(fromStr);
+    $('#editToDate').attr('min', fromStr || today).val(toStr);
     $('#editTotalDays').val($b.data('days'));
     $('#editReason').val($b.data('reason') || '');
     $('#editError').addClass('d-none').text('');
@@ -429,14 +551,19 @@ function openEditBtn(btn) {
 }
 
 async function saveEdit() {
+    const today = new Date().toISOString().slice(0,10);
+    const from  = $('#editFromDate').val();
+    const to    = $('#editToDate').val();
+    if (from < today) { $('#editError').removeClass('d-none').text('Không được chọn ngày trong quá khứ'); $('#editFromDate').focus(); return; }
+    if (to < from)    { $('#editError').removeClass('d-none').text('Đến ngày phải lớn hơn hoặc bằng Từ ngày'); $('#editToDate').focus(); return; }
     const $btn = $('#saveEditBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...');
     try {
         const payload = {
             REQUEST_ID: $('#editRequestId').val(),
             EMPCD: '',
-            LEAVE_TYPE: $('#editLeaveType').val(),
-            FROM_DATE:  $('#editFromDate').val(),
-            TO_DATE:    $('#editToDate').val(),
+            LEAVE_TYPE: $('input[name=editLT]:checked').val() || 'AL',
+            FROM_DATE:  from,
+            TO_DATE:    to,
             TOTAL_DAYS: parseFloat($('#editTotalDays').val()) || 1,
             REASON:     $('#editReason').val() || null
         };
@@ -485,7 +612,7 @@ function workerReject(id) {
 function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
 function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-$(document).ready(function() { loadData(1); });
+$(document).ready(function() { updateMonthLabel(); loadData(1); });
 </script>
 @Html.AntiForgeryToken()
 }

@@ -310,10 +310,14 @@ public class LeaveController : ControllerBase
                 return Ok(new { success = false, message = "Thiếu thông tin xác nhận" });
 
             var infoRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT R.STATUS, R.CREATED_BY FROM HRMS.HR_REQUEST R
+                SELECT R.STATUS, R.CREATED_BY, L.FROM_DATE FROM HRMS.HR_REQUEST R
                 JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
                 WHERE R.REQUEST_ID = :REQUEST_ID AND L.EMPCD = :EMPCD AND L.SOURCE = 'ASSIGNED' AND ROWNUM = 1",
-                r => new { Status = r["STATUS"]?.ToString(), Assigner = r["CREATED_BY"]?.ToString() },
+                r => new {
+                    Status   = r["STATUS"]?.ToString(),
+                    Assigner = r["CREATED_BY"]?.ToString(),
+                    FromDate = r["FROM_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["FROM_DATE"])
+                },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID),
                 new OracleParameter("EMPCD",      model.EMPCD));
 
@@ -323,6 +327,9 @@ public class LeaveController : ControllerBase
 
             if (info.Status != "ASSIGNED")
                 return Ok(new { success = false, message = "Lịch nghỉ đã được xử lý rồi" });
+
+            if (info.FromDate.HasValue && info.FromDate.Value.Date <= DateTime.Today)
+                return Ok(new { success = false, message = "Ngày nghỉ đã bắt đầu hoặc đã qua, không thể xác nhận" });
 
             await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_REQUEST
@@ -373,10 +380,14 @@ public class LeaveController : ControllerBase
                 return Ok(new { success = false, message = "Thiếu thông tin từ chối" });
 
             var infoRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT R.STATUS, R.CREATED_BY FROM HRMS.HR_REQUEST R
+                SELECT R.STATUS, R.CREATED_BY, L.FROM_DATE FROM HRMS.HR_REQUEST R
                 JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
                 WHERE R.REQUEST_ID = :REQUEST_ID AND L.EMPCD = :EMPCD AND L.SOURCE = 'ASSIGNED' AND ROWNUM = 1",
-                r => new { Status = r["STATUS"]?.ToString(), Assigner = r["CREATED_BY"]?.ToString() },
+                r => new {
+                    Status   = r["STATUS"]?.ToString(),
+                    Assigner = r["CREATED_BY"]?.ToString(),
+                    FromDate = r["FROM_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["FROM_DATE"])
+                },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID),
                 new OracleParameter("EMPCD",      model.EMPCD));
 
@@ -386,6 +397,9 @@ public class LeaveController : ControllerBase
 
             if (info.Status != "ASSIGNED")
                 return Ok(new { success = false, message = "Lịch nghỉ đã được xử lý rồi" });
+
+            if (info.FromDate.HasValue && info.FromDate.Value.Date <= DateTime.Today)
+                return Ok(new { success = false, message = "Ngày nghỉ đã bắt đầu hoặc đã qua, không thể từ chối" });
 
             await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_REQUEST
@@ -757,6 +771,10 @@ public class LeaveController : ControllerBase
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
 
+            var validLeaveTypes = new[] { "AL", "CL", "SL", "NPL", "OTH" };
+            if (string.IsNullOrEmpty(model.LEAVE_TYPE) || !validLeaveTypes.Contains(model.LEAVE_TYPE))
+                model.LEAVE_TYPE = "AL";
+
             var assignerRoleRows = await _oracleService.ExecuteQueryAsync(@"
                 SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U
                 LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID
@@ -813,18 +831,25 @@ public class LeaveController : ControllerBase
                     await _oracleService.ExecuteNonQueryAsync(@"
                         INSERT INTO HRMS.HR_LEAVE_REQUEST
                             (REQUEST_ID, EMPCD, LEAVE_TYPE, FROM_DATE, TO_DATE, TOTAL_DAYS, REASON, CREATED_DATE, SOURCE)
-                        VALUES (:REQUEST_ID, :EMPCD, 'AL', :FROM_DATE, :TO_DATE, :TOTAL_DAYS, :REASON, SYSDATE, 'ASSIGNED')",
+                        VALUES (:REQUEST_ID, :EMPCD, :LEAVE_TYPE, :FROM_DATE, :TO_DATE, :TOTAL_DAYS, :REASON, SYSDATE, 'ASSIGNED')",
                         new OracleParameter("REQUEST_ID", requestId),
                         new OracleParameter("EMPCD",      targetEmpcd),
+                        new OracleParameter("LEAVE_TYPE", model.LEAVE_TYPE),
                         new OracleParameter("FROM_DATE",  fromDate),
                         new OracleParameter("TO_DATE",    toDate),
                         new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
                         new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
 
+                    var leaveTypeNames = new Dictionary<string,string>
+                    {
+                        ["AL"] = "Phép năm", ["CL"] = "BHXH", ["SL"] = "Nghỉ bệnh",
+                        ["NPL"] = "Không lương", ["OTH"] = "Khác"
+                    };
+                    string leaveTypeName = leaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE);
                     _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
                     {
                         TITLE       = "Bạn được sắp lịch nghỉ phép",
-                        BODY        = $"Lịch nghỉ phép năm {fromDate:dd/MM/yyyy} – {toDate:dd/MM/yyyy} đã được sắp. Vui lòng xác nhận.",
+                        BODY        = $"Lịch {leaveTypeName} {fromDate:dd/MM/yyyy} – {toDate:dd/MM/yyyy} đã được sắp. Vui lòng xác nhận.",
                         NOTI_TYPE   = "EMPCD",
                         TARGET_VAL  = targetEmpcd,
                         LINK_ACTION = "LEAVE_ASSIGNED",
@@ -921,6 +946,256 @@ public class LeaveController : ControllerBase
             }, p.ToArray());
 
             return Ok(new { success = true, month = m, year = y, total = list.Count, data = list });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Leave/my-assignments — Supervisor xem lịch mình đã sắp
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("my-assignments")]
+    public async Task<IActionResult> GetMyAssignments(
+        string  assigner_empcd,
+        string? status    = null,
+        string? search    = null,
+        string? date_from = null,
+        string? date_to   = null,
+        int     page      = 1,
+        int     page_size = 20)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(assigner_empcd))
+                return Ok(new { success = false, message = "Thiếu mã người sắp lịch" });
+
+            int offset = (page - 1) * page_size;
+            int maxRn  = offset + page_size;
+
+            DateTime dfrom = (!string.IsNullOrEmpty(date_from) && DateTime.TryParse(date_from, out var _df)) ? _df : DateTime.Today.AddMonths(-3);
+            DateTime dto   = (!string.IsNullOrEmpty(date_to)   && DateTime.TryParse(date_to,   out var _dt)) ? _dt : DateTime.Today.AddMonths(3);
+
+            string fromSql = @"
+                FROM HRMS.HR_LEAVE_REQUEST L
+                JOIN HRMS.HR_REQUEST  R  ON R.REQUEST_ID = L.REQUEST_ID
+                JOIN HRMS.ECM100      EC ON EC.EMPCD     = L.EMPCD
+                LEFT JOIN HRMS.EAM410 B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD";
+
+            string whereSql = @"
+                WHERE R.REQUEST_TYPE = 'LEAVE'
+                  AND L.SOURCE       = 'ASSIGNED'
+                  AND R.CREATED_BY   = :ASSIGNER
+                  AND L.FROM_DATE BETWEEN :D_FROM AND :D_TO
+                  AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
+                  AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)";
+
+            var baseParams = new List<OracleParameter>
+            {
+                new OracleParameter("ASSIGNER",  OracleDbType.Varchar2) { Value = assigner_empcd },
+                new OracleParameter("D_FROM",    OracleDbType.Date)     { Value = dfrom },
+                new OracleParameter("D_TO",      OracleDbType.Date)     { Value = dto },
+                new OracleParameter("ST_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(status) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("ST_VAL",    OracleDbType.Varchar2) { Value = (object?)status ?? DBNull.Value },
+                new OracleParameter("SRCH_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("SRCH_VAL",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search) ? null : "%" + search.ToUpper() + "%") ?? DBNull.Value },
+            };
+
+            string sqlSummary = $@"
+                SELECT COUNT(*) TOTAL,
+                       SUM(CASE WHEN R.STATUS = 'ASSIGNED'        THEN 1 ELSE 0 END) PENDING_CONFIRM,
+                       SUM(CASE WHEN R.STATUS = 'CONFIRMED'       THEN 1 ELSE 0 END) CONFIRMED,
+                       SUM(CASE WHEN R.STATUS = 'WORKER_REJECTED' THEN 1 ELSE 0 END) WORKER_REJECTED
+                {fromSql}{whereSql}";
+
+            var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new LeaveAssignSummary
+            {
+                TOTAL           = r["TOTAL"]           == DBNull.Value ? 0 : Convert.ToInt32(r["TOTAL"]),
+                PENDING_CONFIRM = r["PENDING_CONFIRM"]  == DBNull.Value ? 0 : Convert.ToInt32(r["PENDING_CONFIRM"]),
+                CONFIRMED       = r["CONFIRMED"]       == DBNull.Value ? 0 : Convert.ToInt32(r["CONFIRMED"]),
+                WORKER_REJECTED = r["WORKER_REJECTED"] == DBNull.Value ? 0 : Convert.ToInt32(r["WORKER_REJECTED"])
+            }, baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
+
+            var summary = summaryRows.FirstOrDefault() ?? new LeaveAssignSummary();
+
+            if (summary.TOTAL == 0)
+                return Ok(new { success = true, summary, total = 0, page, page_size, total_pages = 0, data = new List<object>() });
+
+            string sqlData = $@"
+                SELECT /*+ FIRST_ROWS({page_size}) */ * FROM (
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.FROM_DATE DESC) RN
+                    FROM (
+                        SELECT L.REQUEST_ID, L.EMPCD, EC.CNAME EMP_NAME,
+                               B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME,
+                               L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS, L.REASON,
+                               R.STATUS, L.CONFIRM_STATUS, L.CONFIRM_DATE, R.CREATED_DATE ASSIGN_DATE
+                        {fromSql}{whereSql}
+                    ) T
+                ) WHERE RN > :R_MIN AND RN <= :R_MAX";
+
+            var dataParams = baseParams.Select(p => (OracleParameter)p.Clone()).ToList();
+            dataParams.Add(new OracleParameter("R_MIN", offset));
+            dataParams.Add(new OracleParameter("R_MAX", maxRn));
+
+            var list = await _oracleService.ExecuteQueryAsync(sqlData, r => new LeaveAssignmentModel
+            {
+                REQUEST_ID     = r["REQUEST_ID"]?.ToString()    ?? "",
+                EMPCD          = r["EMPCD"]?.ToString()          ?? "",
+                EMP_NAME       = r["EMP_NAME"]?.ToString(),
+                DEPT_NAME      = r["DEPT_NAME"]?.ToString(),
+                LINE_NAME      = r["LINE_NAME"]?.ToString(),
+                LEAVE_TYPE     = r["LEAVE_TYPE"]?.ToString(),
+                FROM_DATE      = r["FROM_DATE"]     == DBNull.Value ? null : Convert.ToDateTime(r["FROM_DATE"]),
+                TO_DATE        = r["TO_DATE"]       == DBNull.Value ? null : Convert.ToDateTime(r["TO_DATE"]),
+                TOTAL_DAYS     = r["TOTAL_DAYS"]    == DBNull.Value ? null : Convert.ToDecimal(r["TOTAL_DAYS"]),
+                REASON         = r["REASON"]?.ToString(),
+                STATUS         = r["STATUS"]?.ToString(),
+                CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
+                CONFIRM_DATE   = r["CONFIRM_DATE"]  == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
+                ASSIGN_DATE    = r["ASSIGN_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["ASSIGN_DATE"]),
+            }, dataParams.ToArray());
+
+            return Ok(new
+            {
+                success     = true,
+                summary,
+                total       = summary.TOTAL,
+                page,
+                page_size,
+                total_pages = page_size > 0 ? (int)Math.Ceiling((double)summary.TOTAL / page_size) : 0,
+                data        = list
+            });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Leave/assignment-log — HR xem log toàn bộ việc sắp lịch
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("assignment-log")]
+    public async Task<IActionResult> GetAssignmentLog(
+        string? assigner_cd = null,
+        string? search      = null,
+        string? dept_id     = null,
+        string? line_id     = null,
+        string? work_id     = null,
+        string? status      = null,
+        string? date_from   = null,
+        string? date_to     = null,
+        int     page        = 1,
+        int     page_size   = 50)
+    {
+        try
+        {
+            int offset = (page - 1) * page_size;
+            int maxRn  = offset + page_size;
+
+            DateTime dfrom = (!string.IsNullOrEmpty(date_from) && DateTime.TryParse(date_from, out var _df)) ? _df : DateTime.Today.AddMonths(-3);
+            DateTime dto   = (!string.IsNullOrEmpty(date_to)   && DateTime.TryParse(date_to,   out var _dt)) ? _dt : DateTime.Today.AddMonths(3);
+
+            string fromSql = @"
+                FROM HRMS.HR_LEAVE_REQUEST L
+                JOIN HRMS.HR_REQUEST  R   ON R.REQUEST_ID = L.REQUEST_ID
+                JOIN HRMS.ECM100      EC  ON EC.EMPCD     = L.EMPCD
+                LEFT JOIN HRMS.EAM410 B   ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                LEFT JOIN HRMS.ECM100 ASN ON ASN.EMPCD   = R.CREATED_BY";
+
+            string whereSql = @"
+                WHERE R.REQUEST_TYPE = 'LEAVE'
+                  AND L.SOURCE       = 'ASSIGNED'
+                  AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND L.FROM_DATE BETWEEN :D_FROM AND :D_TO
+                  AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
+                  AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
+                  AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
+                  AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
+                  AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)
+                  AND (:ASN_FLAG  IS NULL OR R.CREATED_BY    = :ASN_VAL)";
+
+            var baseParams = new List<OracleParameter>
+            {
+                new OracleParameter("D_FROM",    OracleDbType.Date)     { Value = dfrom },
+                new OracleParameter("D_TO",      OracleDbType.Date)     { Value = dto },
+                new OracleParameter("ST_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(status)      ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("ST_VAL",    OracleDbType.Varchar2) { Value = (object?)status      ?? DBNull.Value },
+                new OracleParameter("SRCH_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)      ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("SRCH_VAL",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)      ? null : "%" + search.ToUpper() + "%") ?? DBNull.Value },
+                new OracleParameter("DPT_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(dept_id)     ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("DPT_VAL",   OracleDbType.Varchar2) { Value = (object?)dept_id     ?? DBNull.Value },
+                new OracleParameter("LN_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(line_id)     ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("LN_VAL",    OracleDbType.Varchar2) { Value = (object?)line_id     ?? DBNull.Value },
+                new OracleParameter("WK_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(work_id)     ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("WK_VAL",    OracleDbType.Varchar2) { Value = (object?)work_id     ?? DBNull.Value },
+                new OracleParameter("ASN_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(assigner_cd) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("ASN_VAL",   OracleDbType.Varchar2) { Value = (object?)assigner_cd ?? DBNull.Value },
+            };
+
+            string sqlCount = $"SELECT COUNT(*) CNT {fromSql}{whereSql}";
+            var totalRows = await _oracleService.ExecuteQueryAsync(sqlCount,
+                r => Convert.ToInt32(r["CNT"]),
+                baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
+
+            int total = totalRows.FirstOrDefault();
+
+            if (total == 0)
+                return Ok(new { success = true, total = 0, page, page_size, total_pages = 0, data = new List<object>() });
+
+            string sqlData = $@"
+                SELECT /*+ FIRST_ROWS({page_size}) */ * FROM (
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.ASSIGN_DATE DESC) RN
+                    FROM (
+                        SELECT L.REQUEST_ID, L.EMPCD, EC.CNAME EMP_NAME,
+                               EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
+                               EC.LINECD LINE_ID, B.TEAMNM LINE_NAME,
+                               EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
+                               L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS, L.REASON,
+                               R.STATUS, L.CONFIRM_DATE,
+                               R.CREATED_BY ASSIGNED_BY, ASN.CNAME ASSIGNER_NAME,
+                               R.CREATED_DATE ASSIGN_DATE
+                        {fromSql}{whereSql}
+                    ) T
+                ) WHERE RN > :R_MIN AND RN <= :R_MAX";
+
+            var dataParams = baseParams.Select(p => (OracleParameter)p.Clone()).ToList();
+            dataParams.Add(new OracleParameter("R_MIN", offset));
+            dataParams.Add(new OracleParameter("R_MAX", maxRn));
+
+            var list = await _oracleService.ExecuteQueryAsync(sqlData, r => new LeaveAssignmentLogModel
+            {
+                REQUEST_ID    = r["REQUEST_ID"]?.ToString()    ?? "",
+                EMPCD         = r["EMPCD"]?.ToString()          ?? "",
+                EMP_NAME      = r["EMP_NAME"]?.ToString(),
+                DEPT_ID       = r["DEPT_ID"]?.ToString(),
+                DEPT_NAME     = r["DEPT_NAME"]?.ToString(),
+                LINE_ID       = r["LINE_ID"]?.ToString(),
+                LINE_NAME     = r["LINE_NAME"]?.ToString(),
+                WORK_ID       = r["WORK_ID"]?.ToString(),
+                WORK_NAME     = r["WORK_NAME"]?.ToString(),
+                LEAVE_TYPE    = r["LEAVE_TYPE"]?.ToString(),
+                FROM_DATE     = r["FROM_DATE"]    == DBNull.Value ? null : Convert.ToDateTime(r["FROM_DATE"]),
+                TO_DATE       = r["TO_DATE"]      == DBNull.Value ? null : Convert.ToDateTime(r["TO_DATE"]),
+                TOTAL_DAYS    = r["TOTAL_DAYS"]   == DBNull.Value ? null : Convert.ToDecimal(r["TOTAL_DAYS"]),
+                REASON        = r["REASON"]?.ToString(),
+                STATUS        = r["STATUS"]?.ToString(),
+                CONFIRM_DATE  = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]).ToString("yyyy-MM-ddTHH:mm:ss"),
+                ASSIGNED_BY   = r["ASSIGNED_BY"]?.ToString(),
+                ASSIGNER_NAME = r["ASSIGNER_NAME"]?.ToString(),
+                ASSIGN_DATE   = r["ASSIGN_DATE"]  == DBNull.Value ? null : Convert.ToDateTime(r["ASSIGN_DATE"]),
+            }, dataParams.ToArray());
+
+            return Ok(new
+            {
+                success     = true,
+                total,
+                page,
+                page_size,
+                total_pages = page_size > 0 ? (int)Math.Ceiling((double)total / page_size) : 0,
+                data        = list
+            });
         }
         catch (Exception ex)
         {

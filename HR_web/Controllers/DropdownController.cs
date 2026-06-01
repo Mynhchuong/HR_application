@@ -123,4 +123,14 @@ public class DropdownController : BaseController
             .Select(x => new { id = x.id, text = x.text }));
     }
 
+    [Authorize]
+    [HttpGet]
+    public async Task<IActionResult> GetEmpByScope()
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return Json(new List<object>());
+        var data = await _dropdownService.GetEmpByScopeAsync(empcd);
+        return Json(data);
+    }
+
 }

@@ -54,9 +54,9 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isExpat || isAdmin,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "OT List",           Url = "~/OT/OtListForExpat",          Icon = "view_list"     },
-                    new SideMenuItem { Title = "Gate Pass Approval", Url = "~/GatePass/GpListForExpat",   Icon = "door_front"    },
-                    new SideMenuItem { Title = "Duyệt nghỉ phép",   Url = "~/Leave/LeaveApprovalList",   Icon = "event_available"},
+                    new SideMenuItem { Title = "Danh sách Tăng ca",  Url = "~/OT/OtListForExpat",            Icon = "view_list"      },
+                    new SideMenuItem { Title = "Duyệt ra vào cổng", Url = "~/GatePass/GpListForExpat",     Icon = "door_front"     },
+                    new SideMenuItem { Title = "Duyệt nghỉ phép",   Url = "~/Leave/LeaveApprovalForExpat", Icon = "event_available"},
                 }
             },
 
@@ -84,7 +84,6 @@ public static class SideMenuBuilder
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForSupervisor",        Icon = "view_list"     },
                     new SideMenuItem { Title = "Duyệt ra vào cổng",  Url = "~/GatePass/GpListForSupervisor", Icon = "door_front"    },
-                    new SideMenuItem { Title = "Duyệt nghỉ phép",    Url = "~/Leave/LeaveApprovalList",     Icon = "event_available"},
                     new SideMenuItem { Title = "Lịch nghỉ Team",     Url = "~/Leave/TeamSchedule",          Icon = "calendar_month" },
                 }
             },
@@ -92,15 +91,14 @@ public static class SideMenuBuilder
             new SideMenuItem
             {
                 Id = "Manager",
-                Title = "Manager",
+                Title = "Quản lý",
                 Icon = "supervisor_account",
                 VisibleWhen = () => isManager || isDeputyManager,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "OT List",            Url = "~/OT/OtListForSupervisor",        Icon = "view_list"      },
-                    new SideMenuItem { Title = "Gate Pass Approval",  Url = "~/GatePass/GpListForSupervisor",  Icon = "door_front"     },
-                    new SideMenuItem { Title = "Leave Approval",      Url = "~/Leave/LeaveApprovalList",       Icon = "event_available"},
-                    new SideMenuItem { Title = "Team Schedule",       Url = "~/Leave/TeamSchedule",            Icon = "calendar_month" },
+                    new SideMenuItem { Title = "Danh sách Tăng ca",  Url = "~/OT/OtListForSupervisor",        Icon = "view_list"      },
+                    new SideMenuItem { Title = "Duyệt ra vào cổng",  Url = "~/GatePass/GpListForSupervisor",  Icon = "door_front"     },
+                    new SideMenuItem { Title = "Lịch nghỉ Team",     Url = "~/Leave/TeamSchedule",            Icon = "calendar_month" },
                 }
             },
 
@@ -119,6 +117,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",       Icon = "door_front"             },
                     new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy"             },
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy"                 },
+                    new SideMenuItem { Title = "Log Sắp Lịch Nghỉ",    Url = "~/Leave/LeaveAssignmentLog",   Icon = "assignment_late"        },
                 }
             },
         };

@@ -208,6 +208,64 @@ public class LeaveService
         catch (Exception ex) { return new LeaveActionResponse { success = false, message = ex.Message }; }
     }
 
+    public async Task<LeaveAssignPagedResponse> GetMyAssignmentsAsync(
+        string assigner_empcd,
+        string? status = null, string? search = null,
+        string? dateFrom = null, string? dateTo = null,
+        int page = 1, int pageSize = 20)
+    {
+        try
+        {
+            var q = new List<string> { $"assigner_empcd={Uri.EscapeDataString(assigner_empcd)}" };
+            if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
+            if (!string.IsNullOrEmpty(search))   q.Add($"search={Uri.EscapeDataString(search)}");
+            if (!string.IsNullOrEmpty(dateFrom)) q.Add($"date_from={Uri.EscapeDataString(dateFrom)}");
+            if (!string.IsNullOrEmpty(dateTo))   q.Add($"date_to={Uri.EscapeDataString(dateTo)}");
+            q.Add($"page={page}");
+            q.Add($"page_size={pageSize}");
+            var response = await _api.GetAsync_Raw("leave/my-assignments", string.Join("&", q));
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json   = await response.Content.ReadAsStringAsync();
+                var result = Newtonsoft.Json.JsonConvert.DeserializeObject<LeaveAssignPagedResponse>(json);
+                if (result != null) return result;
+            }
+            return new LeaveAssignPagedResponse { success = false, message = "Lỗi kết nối API", data = new() };
+        }
+        catch (Exception ex) { return new LeaveAssignPagedResponse { success = false, message = ex.Message, data = new() }; }
+    }
+
+    public async Task<LeaveAssignmentLogPagedResponse> GetAssignmentLogAsync(
+        string? assignerCd = null, string? search = null,
+        string? deptId = null, string? lineId = null, string? workId = null,
+        string? status = null, string? dateFrom = null, string? dateTo = null,
+        int page = 1, int pageSize = 50)
+    {
+        try
+        {
+            var q = new List<string>();
+            if (!string.IsNullOrEmpty(assignerCd)) q.Add($"assigner_cd={Uri.EscapeDataString(assignerCd)}");
+            if (!string.IsNullOrEmpty(search))     q.Add($"search={Uri.EscapeDataString(search)}");
+            if (!string.IsNullOrEmpty(deptId))     q.Add($"dept_id={Uri.EscapeDataString(deptId)}");
+            if (!string.IsNullOrEmpty(lineId))     q.Add($"line_id={Uri.EscapeDataString(lineId)}");
+            if (!string.IsNullOrEmpty(workId))     q.Add($"work_id={Uri.EscapeDataString(workId)}");
+            if (!string.IsNullOrEmpty(status))     q.Add($"status={Uri.EscapeDataString(status)}");
+            if (!string.IsNullOrEmpty(dateFrom))   q.Add($"date_from={Uri.EscapeDataString(dateFrom)}");
+            if (!string.IsNullOrEmpty(dateTo))     q.Add($"date_to={Uri.EscapeDataString(dateTo)}");
+            q.Add($"page={page}");
+            q.Add($"page_size={pageSize}");
+            var response = await _api.GetAsync_Raw("leave/assignment-log", string.Join("&", q));
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json   = await response.Content.ReadAsStringAsync();
+                var result = Newtonsoft.Json.JsonConvert.DeserializeObject<LeaveAssignmentLogPagedResponse>(json);
+                if (result != null) return result;
+            }
+            return new LeaveAssignmentLogPagedResponse { success = false, message = "Lỗi kết nối API", data = new() };
+        }
+        catch (Exception ex) { return new LeaveAssignmentLogPagedResponse { success = false, message = ex.Message, data = new() }; }
+    }
+
     public async Task<LeaveListPagedResponse> GetHRListAsync(
         string? status = null, string? source = null, string? search = null,
         string? deptId = null, string? lineId = null, string? workId = null,

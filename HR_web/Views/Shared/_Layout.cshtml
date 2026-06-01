@@ -548,6 +548,17 @@
     <script src="~/assets/js/material-dashboard.min.js?v=3.2.0" asp-append-version="true"></script>
 
     <script>
+    // Fix: Material Dashboard 3 ripple cleanup crashes when element is removed from DOM
+    // before the animation setTimeout fires (e.g. Bootstrap modal close).
+    (function () {
+        const _orig = Node.prototype.removeChild;
+        Node.prototype.removeChild = function (child) {
+            if (child && this.contains(child)) return _orig.call(this, child);
+        };
+    })();
+    </script>
+
+    <script>
         window.showLoading = function () {
             document.getElementById('pageLoadingOverlay')?.classList.add('show');
         };

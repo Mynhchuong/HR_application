@@ -128,6 +128,18 @@ public class LeaveController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET: /Leave/LeaveApprovalForExpat
+    // ─────────────────────────────────────────────
+    public IActionResult LeaveApprovalForExpat()
+    {
+        ViewBag.DateFrom     = DateTime.Today.AddMonths(-1).ToString("yyyy-MM-dd");
+        ViewBag.DateTo       = DateTime.Today.AddMonths(2).ToString("yyyy-MM-dd");
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd  ?? "";
+        ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
+        return View();
+    }
+
+    // ─────────────────────────────────────────────
     // GET: /Leave/LeaveApprovalList
     // ─────────────────────────────────────────────
     public IActionResult LeaveApprovalList()
@@ -242,6 +254,58 @@ public class LeaveController : BaseController
                 return Json(new { success = false, message = "Chưa đăng nhập" });
             model.ASSIGNER_EMPCD = CurrentUser.EmpCd;
             var result = await _leaveService.AssignAsync(model);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/GetMyAssignmentsPage (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetMyAssignmentsPage(
+        string? status = null, string? search = null,
+        string? date_from = null, string? date_to = null,
+        int page = 1, int page_size = 20)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            var result = await _leaveService.GetMyAssignmentsAsync(
+                CurrentUser.EmpCd, status, search, date_from, date_to, page, page_size);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/LeaveAssignmentLog
+    // ─────────────────────────────────────────────
+    public IActionResult LeaveAssignmentLog()
+    {
+        ViewBag.DateFrom = DateTime.Today.AddMonths(-3).ToString("yyyy-MM-dd");
+        ViewBag.DateTo   = DateTime.Today.AddMonths(3).ToString("yyyy-MM-dd");
+        return View();
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/GetAssignmentLogPage (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetAssignmentLogPage(
+        string? assigner_cd = null, string? search = null,
+        string? dept_id = null, string? line_id = null, string? work_id = null,
+        string? status = null, string? date_from = null, string? date_to = null,
+        int page = 1, int page_size = 50)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            var result = await _leaveService.GetAssignmentLogAsync(
+                assigner_cd, search, dept_id, line_id, work_id,
+                status, date_from, date_to, page, page_size);
             return Json(result);
         }
         catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }

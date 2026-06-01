@@ -75,6 +75,78 @@ public class LeaveListPagedResponse
     public List<LeaveListModel> data { get; set; } = new();
 }
 
+public class LeaveAssignSummary
+{
+    public int TOTAL           { get; set; }
+    public int PENDING_CONFIRM { get; set; }
+    public int CONFIRMED       { get; set; }
+    public int WORKER_REJECTED { get; set; }
+}
+
+public class LeaveAssignmentModel
+{
+    public string    REQUEST_ID     { get; set; } = string.Empty;
+    public string    EMPCD          { get; set; } = string.Empty;
+    public string?   EMP_NAME       { get; set; }
+    public string?   DEPT_NAME      { get; set; }
+    public string?   LINE_NAME      { get; set; }
+    public string?   LEAVE_TYPE     { get; set; }
+    public DateTime? FROM_DATE      { get; set; }
+    public DateTime? TO_DATE        { get; set; }
+    public decimal?  TOTAL_DAYS     { get; set; }
+    public string?   REASON         { get; set; }
+    public string?   STATUS         { get; set; }
+    public string?   CONFIRM_STATUS { get; set; }
+    public DateTime? CONFIRM_DATE   { get; set; }
+    public DateTime? ASSIGN_DATE    { get; set; }
+}
+
+public class LeaveAssignPagedResponse
+{
+    public bool              success     { get; set; }
+    public string?           message     { get; set; }
+    public LeaveAssignSummary? summary   { get; set; }
+    public int               total       { get; set; }
+    public int               page        { get; set; }
+    public int               page_size   { get; set; }
+    public int               total_pages { get; set; }
+    public List<LeaveAssignmentModel> data { get; set; } = new();
+}
+
+public class LeaveAssignmentLogModel
+{
+    public string    REQUEST_ID    { get; set; } = string.Empty;
+    public string    EMPCD         { get; set; } = string.Empty;
+    public string?   EMP_NAME      { get; set; }
+    public string?   DEPT_ID       { get; set; }
+    public string?   DEPT_NAME     { get; set; }
+    public string?   LINE_ID       { get; set; }
+    public string?   LINE_NAME     { get; set; }
+    public string?   WORK_ID       { get; set; }
+    public string?   WORK_NAME     { get; set; }
+    public string?   LEAVE_TYPE    { get; set; }
+    public DateTime? FROM_DATE     { get; set; }
+    public DateTime? TO_DATE       { get; set; }
+    public decimal?  TOTAL_DAYS    { get; set; }
+    public string?   REASON        { get; set; }
+    public string?   STATUS        { get; set; }
+    public string?   CONFIRM_DATE  { get; set; }
+    public string?   ASSIGNED_BY   { get; set; }
+    public string?   ASSIGNER_NAME { get; set; }
+    public DateTime? ASSIGN_DATE   { get; set; }
+}
+
+public class LeaveAssignmentLogPagedResponse
+{
+    public bool      success     { get; set; }
+    public string?   message     { get; set; }
+    public int       total       { get; set; }
+    public int       page        { get; set; }
+    public int       page_size   { get; set; }
+    public int       total_pages { get; set; }
+    public List<LeaveAssignmentLogModel> data { get; set; } = new();
+}
+
 public class LeaveScheduleModel
 {
     public string    REQUEST_ID     { get; set; } = string.Empty;
@@ -127,6 +199,7 @@ public class LeaveAssignRequest
     public string       TO_DATE        { get; set; } = string.Empty;
     public decimal      TOTAL_DAYS     { get; set; }
     public string?      REASON         { get; set; }
+    public string       LEAVE_TYPE     { get; set; } = "AL";
 }
 
 public class LeaveCreateRequest

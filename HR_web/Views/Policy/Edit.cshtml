@@ -140,6 +140,9 @@
         display: flex;
         justify-content: flex-end;
     }
+    .tt-footer.warn  #tt-wordcount { color: #f59e0b; font-weight: 600; }
+    .tt-footer.over  #tt-wordcount { color: #ef4444; font-weight: 700; }
+    .tiptap-wrap.over { border-color: #ef4444 !important; box-shadow: 0 0 0 3px rgba(239,68,68,.12) !important; }
 
     /* ── Submit buttons ─────────────────────────── */
     .btn-save { font-size: 1rem; padding: .65rem 1.5rem; border-radius: 10px; font-weight: 700; }
@@ -306,6 +309,7 @@ import TableRow    from 'https://esm.sh/@@tiptap/extension-table-row@@2';
 import TableCell   from 'https://esm.sh/@@tiptap/extension-table-cell@@2';
 import TableHeader from 'https://esm.sh/@@tiptap/extension-table-header@@2';
 
+const MAX_WORDS = 2000;
 const val = document.getElementById('tt-val');
 
 const editor = new Editor({
@@ -352,10 +356,18 @@ function _sync(e) {
 }
 
 function _updateWordCount(e) {
-    const text  = e.getText().trim();
-    const words = text ? text.split(/\s+/).length : 0;
-    const chars = text.length;
-    document.getElementById('tt-wordcount').textContent = `${words} từ · ${chars} ký tự`;
+    const text   = e.getText().trim();
+    const words  = text ? text.split(/\s+/).length : 0;
+    const chars  = text.length;
+    const footer = document.querySelector('.tt-footer');
+    const wrap   = document.querySelector('.tiptap-wrap');
+
+    document.getElementById('tt-wordcount').textContent =
+        `${words.toLocaleString()} / ${MAX_WORDS.toLocaleString()} từ · ${chars.toLocaleString()} ký tự`;
+
+    footer.classList.toggle('warn', words >= MAX_WORDS * 0.9 && words <= MAX_WORDS);
+    footer.classList.toggle('over', words > MAX_WORDS);
+    wrap.classList.toggle('over', words > MAX_WORDS);
 }
 
 const gridEl  = document.getElementById('tt-grid');
@@ -395,7 +407,14 @@ window.ttSetLink = () => {
         : editor.chain().focus().unsetLink().run();
 };
 
-document.getElementById('editForm').addEventListener('submit', () => {
+document.getElementById('editForm').addEventListener('submit', (e) => {
+    const text  = editor.getText().trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    if (words > MAX_WORDS) {
+        e.preventDefault();
+        alert(`Nội dung quá dài (${words.toLocaleString()} từ). Vui lòng rút ngắn xuống dưới ${MAX_WORDS.toLocaleString()} từ.`);
+        return;
+    }
     val.value = editor.getHTML();
 });
 

@@ -296,4 +296,36 @@ public class LeaveService
         }
         catch (Exception ex) { return new LeaveListPagedResponse { success = false, message = ex.Message, data = new() }; }
     }
+
+    public async Task<object?> GetAnnualLeaveBalanceAsync(string approverEmpcd)
+    {
+        try
+        {
+            var response = await _api.GetAsync_Raw("leave/annual-balance",
+                $"approver_empcd={Uri.EscapeDataString(approverEmpcd)}");
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return Newtonsoft.Json.JsonConvert.DeserializeObject(json);
+            }
+            return new { success = false, message = "Lỗi kết nối API" };
+        }
+        catch (Exception ex) { return new { success = false, message = ex.Message }; }
+    }
+
+    public async Task<object?> GetMyBalanceAsync(string empcd)
+    {
+        try
+        {
+            var response = await _api.GetAsync_Raw("leave/my-balance",
+                $"empcd={Uri.EscapeDataString(empcd)}");
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return Newtonsoft.Json.JsonConvert.DeserializeObject(json);
+            }
+            return new { success = false, message = "Lỗi kết nối API" };
+        }
+        catch (Exception ex) { return new { success = false, message = ex.Message }; }
+    }
 }

@@ -312,6 +312,38 @@ public class LeaveController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET: /Leave/GetAnnualLeaveBalance (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetAnnualLeaveBalance()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            var result = await _leaveService.GetAnnualLeaveBalanceAsync(CurrentUser.EmpCd);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/GetMyBalance (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetMyBalance()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            var result = await _leaveService.GetMyBalanceAsync(CurrentUser.EmpCd);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
     // GET: /Leave/LeaveListForHR
     // ─────────────────────────────────────────────
     public IActionResult LeaveListForHR()

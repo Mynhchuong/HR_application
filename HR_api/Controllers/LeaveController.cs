@@ -140,7 +140,12 @@ public class LeaveController : ControllerBase
 
             string dataSql = @"
                 SELECT * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.FROM_DATE DESC) RN
+                    SELECT T.*, ROW_NUMBER() OVER (
+                        ORDER BY
+                            CASE WHEN T.FROM_DATE >= TRUNC(SYSDATE) THEN 0 ELSE 1 END ASC,
+                            CASE WHEN T.FROM_DATE >= TRUNC(SYSDATE) THEN T.FROM_DATE END ASC,
+                            T.FROM_DATE DESC
+                    ) RN
                     FROM (
                         SELECT L.REQUEST_ID, L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS,
                                L.REASON, L.SOURCE, L.CONFIRM_STATUS, L.CONFIRM_DATE,
@@ -1196,6 +1201,132 @@ public class LeaveController : ControllerBase
                 total_pages = page_size > 0 ? (int)Math.Ceiling((double)total / page_size) : 0,
                 data        = list
             });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Leave/annual-balance?approver_empcd=
+    // Trả về phép năm (RECEIVE/USED/LEFT) cho toàn bộ nhân viên trong phạm vi
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("annual-balance")]
+    public async Task<IActionResult> GetAnnualBalance(string approver_empcd)
+    {
+        try
+        {
+            if (!Helpers.OTScopeFilterHelper.IsAuthorized(approver_empcd))
+                return Ok(new { success = false, message = "Chưa đăng nhập" });
+
+            var hasSvScope = await _oracleService.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :SE AND ROWNUM = 1",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("SE", approver_empcd));
+
+            if (hasSvScope.FirstOrDefault() == 0)
+                return Ok(new { success = false, message = "Chưa được phân quyền bộ phận" });
+
+            const string sql = @"
+                WITH SCOPE_EMP AS (
+                    SELECT DISTINCT EC.EMPCD
+                    FROM HRMS.HR_USERS_DEPT UD
+                    JOIN HRMS.ECM100 EC
+                        ON EC.DEPTCD = UD.DEPTCD
+                       AND EC.LINECD = UD.LINECD
+                       AND EC.WORKCD = UD.WORKCD
+                    WHERE UD.EMPCD = :APPROVER
+                      AND EC.JEAJIKGB = 'Y'
+                      AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                ),
+                USED AS (
+                    SELECT EMPCD,
+                           COUNT(CASE WHEN LEAVECD IN ('PN','LP') AND REMAR IN ('VR','ASSIGNED') THEN 1 END) AS USED_NUM
+                    FROM HRMS.EFM410
+                    WHERE TO_CHAR(FR_DAT,'YYYY') = TO_CHAR(SYSDATE,'YYYY')
+                      AND EMPCD IN (SELECT EMPCD FROM SCOPE_EMP)
+                    GROUP BY EMPCD
+                ),
+                ALLOC AS (
+                    SELECT EMPCD, MAX(RECEIVE_NUM) AS RECEIVE_NUM
+                    FROM HRMS.EFM100
+                    WHERE SUBSTR(CAL_MONTH,1,4) = TO_CHAR(SYSDATE,'YYYY')
+                      AND EMPCD IN (SELECT EMPCD FROM SCOPE_EMP)
+                    GROUP BY EMPCD
+                )
+                SELECT EC.EMPCD, EC.CNAME EMP_NAME,
+                       B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME,
+                       NVL(AL.RECEIVE_NUM, 0)                       AS RECEIVE_NUM,
+                       NVL(U.USED_NUM, 0)                           AS USED_NUM,
+                       NVL(AL.RECEIVE_NUM, 0) - NVL(U.USED_NUM, 0) AS LEFT_NUM
+                FROM SCOPE_EMP SE
+                JOIN HRMS.ECM100 EC  ON EC.EMPCD = SE.EMPCD
+                LEFT JOIN HRMS.EAM410 B
+                    ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                LEFT JOIN ALLOC AL ON AL.EMPCD = EC.EMPCD
+                LEFT JOIN USED  U  ON U.EMPCD  = EC.EMPCD
+                ORDER BY EC.CNAME";
+
+            var list = await _oracleService.ExecuteQueryAsync(sql, r => new
+            {
+                EMPCD       = r["EMPCD"]?.ToString()     ?? "",
+                EMP_NAME    = r["EMP_NAME"]?.ToString()  ?? "",
+                DEPT_NAME   = r["DEPT_NAME"]?.ToString(),
+                LINE_NAME   = r["LINE_NAME"]?.ToString(),
+                RECEIVE_NUM = r["RECEIVE_NUM"] == DBNull.Value ? 0 : Convert.ToInt32(r["RECEIVE_NUM"]),
+                USED_NUM    = r["USED_NUM"]    == DBNull.Value ? 0 : Convert.ToInt32(r["USED_NUM"]),
+                LEFT_NUM    = r["LEFT_NUM"]    == DBNull.Value ? 0 : Convert.ToInt32(r["LEFT_NUM"])
+            }, new OracleParameter("APPROVER", approver_empcd));
+
+            return Ok(new { success = true, total = list.Count, data = list });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Leave/my-balance?empcd= — Số ngày phép năm của 1 nhân viên
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("my-balance")]
+    public async Task<IActionResult> GetMyBalance(string empcd)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd))
+                return Ok(new { success = false, message = "Thiếu mã nhân viên" });
+
+            const string sql = @"
+                WITH ALLOC AS (
+                    SELECT MAX(RECEIVE_NUM) AS RECEIVE_NUM
+                    FROM HRMS.EFM100
+                    WHERE EMPCD = :EMPCD
+                      AND SUBSTR(CAL_MONTH,1,4) = TO_CHAR(SYSDATE,'YYYY')
+                ),
+                USED AS (
+                    SELECT COUNT(CASE WHEN LEAVECD IN ('PN','LP') AND REMAR IN ('VR','ASSIGNED') THEN 1 END) AS USED_NUM
+                    FROM HRMS.EFM410
+                    WHERE EMPCD = :EMPCD2
+                      AND TO_CHAR(FR_DAT,'YYYY') = TO_CHAR(SYSDATE,'YYYY')
+                )
+                SELECT NVL(A.RECEIVE_NUM, 0) AS RECEIVE_NUM,
+                       NVL(U.USED_NUM, 0)    AS USED_NUM,
+                       NVL(A.RECEIVE_NUM, 0) - NVL(U.USED_NUM, 0) AS LEFT_NUM
+                FROM ALLOC A, USED U";
+
+            var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
+            {
+                RECEIVE_NUM = r["RECEIVE_NUM"] == DBNull.Value ? 0 : Convert.ToInt32(r["RECEIVE_NUM"]),
+                USED_NUM    = r["USED_NUM"]    == DBNull.Value ? 0 : Convert.ToInt32(r["USED_NUM"]),
+                LEFT_NUM    = r["LEFT_NUM"]    == DBNull.Value ? 0 : Convert.ToInt32(r["LEFT_NUM"])
+            },
+            new OracleParameter("EMPCD",  empcd),
+            new OracleParameter("EMPCD2", empcd));
+
+            var row = rows.FirstOrDefault() ?? new { RECEIVE_NUM = 0, USED_NUM = 0, LEFT_NUM = 0 };
+            return Ok(new { success = true, data = row });
         }
         catch (Exception ex)
         {

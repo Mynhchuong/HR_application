@@ -27,7 +27,6 @@ public class OracleService
 
         using var cmd = new OracleCommand(sql, conn);
         cmd.BindByName = true;
-        cmd.InitialLOBFetchSize = -1;
 
         if (parameters != null)
         {

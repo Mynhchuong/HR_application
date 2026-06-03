@@ -2,6 +2,7 @@
     ViewData["Title"] = "Đơn Nghỉ Phép Của Tôi";
     int initMonth = DateTime.Today.Month;
     int initYear  = DateTime.Today.Year;
+    string todayMin = DateTime.Today.ToString("yyyy-MM-dd");
 }
 
 @section Styles {
@@ -83,6 +84,14 @@
         </div>
 
         <div class="card-body px-0 pt-0 pb-2 mt-3">
+            <!-- Annual leave balance bar -->
+            <div class="px-4 py-2 d-flex align-items-center gap-3 flex-wrap" id="balanceBar" style="border-bottom:1px solid #e9ecef; background:#f8fafc;">
+                <span class="text-xs fw-bold text-secondary"><i class="bi bi-calendar-heart me-1"></i>Phép năm:</span>
+                <span class="text-xs text-secondary">Được cấp: <strong id="balReceive" class="text-dark">-</strong> ngày</span>
+                <span class="text-xs text-secondary">Đã dùng: <strong id="balUsed" class="text-dark">-</strong> ngày</span>
+                <span class="text-xs fw-bold" id="balLeftWrap">Còn lại: <strong id="balLeft">-</strong> ngày</span>
+            </div>
+
             <!-- Source filter tabs -->
             <div class="px-4 pb-2 pt-1 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid #f1f5f9;">
                 <span class="source-tab active" onclick="setSource('')"  id="tab-all">Tất cả</span>
@@ -158,11 +167,11 @@
                 <div class="row">
                     <div class="col-6 mb-3">
                         <label class="form-label fw-bold">Từ ngày <span class="text-danger">*</span></label>
-                        <input type="date" id="createFromDate" class="form-control" onchange="calcCreateDays()" />
+                        <input type="date" id="createFromDate" class="form-control" min="@todayMin" onkeydown="return false" onchange="calcCreateDays()" />
                     </div>
                     <div class="col-6 mb-3">
                         <label class="form-label fw-bold">Đến ngày <span class="text-danger">*</span></label>
-                        <input type="date" id="createToDate" class="form-control" onchange="calcCreateDays()" />
+                        <input type="date" id="createToDate" class="form-control" min="@todayMin" onkeydown="return false" onchange="calcCreateDays()" />
                     </div>
                 </div>
                 <div class="mb-3">
@@ -223,11 +232,11 @@
                 <div class="row">
                     <div class="col-6 mb-3">
                         <label class="form-label fw-bold">Từ ngày <span class="text-danger">*</span></label>
-                        <input type="date" id="editFromDate" class="form-control" onchange="calcDays()" />
+                        <input type="date" id="editFromDate" class="form-control" min="@todayMin" onkeydown="return false" onchange="calcDays()" />
                     </div>
                     <div class="col-6 mb-3">
                         <label class="form-label fw-bold">Đến ngày <span class="text-danger">*</span></label>
-                        <input type="date" id="editToDate" class="form-control" onchange="calcDays()" />
+                        <input type="date" id="editToDate" class="form-control" min="@todayMin" onkeydown="return false" onchange="calcDays()" />
                     </div>
                 </div>
                 <div class="mb-3">
@@ -259,6 +268,25 @@ const UPDATE_URL       = '@Url.Action("UpdateRequest",    "Leave")';
 const DELETE_URL       = '@Url.Action("DeleteRequest",    "Leave")';
 const CONFIRM_URL      = '@Url.Action("ConfirmLeave",     "Leave")';
 const WK_REJECT_URL    = '@Url.Action("WorkerRejectLeave","Leave")';
+const BALANCE_URL      = '@Url.Action("GetMyBalance",     "Leave")';
+
+let myBalance = null; // { RECEIVE_NUM, USED_NUM, LEFT_NUM }
+
+function loadBalance() {
+    $.get(BALANCE_URL, function(res) {
+        if (res && res.success && res.data) {
+            myBalance = res.data;
+            const left = myBalance.LEFT_NUM ?? 0;
+            $('#balReceive').text(myBalance.RECEIVE_NUM ?? 0);
+            $('#balUsed').text(myBalance.USED_NUM ?? 0);
+            $('#balLeft').text(left);
+            const $w = $('#balLeftWrap');
+            if      (left <= 0) $w.css('color','#b91c1c');
+            else if (left <= 3) $w.css('color','#92400e');
+            else                $w.css('color','#166534');
+        }
+    });
+}
 
 function emptyRow(msg, cols=9) {
     return `<tr><td colspan="${cols}" class="text-center py-5">
@@ -334,10 +362,16 @@ function remarkHtml(item) {
     return `<div class="mt-1 px-2 py-1 rounded-end text-xs" style="${style}"><i class="bi bi-chat-left-text me-1"></i>${escHtml(item.REMARK)}</div>`;
 }
 
+function localDateStr(d) {
+    const dt = d ? new Date(d) : new Date();
+    return dt.getFullYear() + '-'
+        + String(dt.getMonth() + 1).padStart(2, '0') + '-'
+        + String(dt.getDate()).padStart(2, '0');
+}
+
 function isPastDate(dateStr) {
     if (!dateStr) return false;
-    const today = new Date(); today.setHours(0,0,0,0);
-    return new Date(dateStr) <= today;
+    return dateStr.slice(0, 10) <= localDateStr();
 }
 
 function actionBtns(item) {
@@ -361,7 +395,8 @@ function actionBtns(item) {
 }
 
 function buildRow(item, idx) {
-    const needsAction = item.SOURCE === 'ASSIGNED' && item.STATUS === 'ASSIGNED';
+    const isAssigned  = item.SOURCE === 'ASSIGNED' && item.STATUS === 'ASSIGNED';
+    const needsAction = isAssigned && !isPastDate(item.TO_DATE);
     return `<tr class="${needsAction ? 'tr-pending-confirm' : ''}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2">${sourceBadge(item.SOURCE)}</td>
@@ -468,7 +503,7 @@ function renderPagination() {
 }
 
 function openCreateModal() {
-    const today = new Date().toISOString().slice(0,10);
+    const today = localDateStr();
     $('#clt-AL').prop('checked', true);
     $('#createFromDate').attr('min', today).val(today);
     $('#createToDate').attr('min', today).val(today);
@@ -490,7 +525,7 @@ function calcCreateDays() {
 }
 
 async function saveCreate() {
-    const today  = new Date().toISOString().slice(0,10);
+    const today  = localDateStr();
     const from   = $('#createFromDate').val();
     const to     = $('#createToDate').val();
     const days   = parseFloat($('#createTotalDays').val());
@@ -501,12 +536,24 @@ async function saveCreate() {
     if (!days || days <= 0) { $('#createError').removeClass('d-none').text('Số ngày nghỉ không hợp lệ'); return; }
     if (!reason)            { $('#createError').removeClass('d-none').text('Vui lòng nhập lý do nghỉ phép'); $('#createReason').focus(); return; }
 
+    const createLT = $('input[name=createLT]:checked').val() || 'AL';
+    if (createLT === 'AL' && myBalance != null) {
+        const left = myBalance.LEFT_NUM ?? 0;
+        if (days > left) {
+            $('#createError').removeClass('d-none').html(
+                `Bạn chỉ còn <strong>${left} ngày</strong> phép năm, không đủ để nghỉ <strong>${days} ngày</strong>.<br>` +
+                `<small class="text-muted">Vui lòng điều chỉnh số ngày hoặc chọn loại nghỉ khác.</small>`
+            );
+            return;
+        }
+    }
+
     const $btn = $('#saveCreateBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang gửi...');
     $('#createError').addClass('d-none').text('');
     try {
         const payload = {
             EMPCD:      '',
-            LEAVE_TYPE: $('input[name=createLT]:checked').val() || 'AL',
+            LEAVE_TYPE: createLT,
             FROM_DATE:  from,
             TO_DATE:    to,
             TOTAL_DAYS: days,
@@ -537,11 +584,11 @@ function calcDays() {
 
 function openEditBtn(btn) {
     const $b    = $(btn);
-    const today = new Date().toISOString().slice(0,10);
+    const today = localDateStr();
     $('#editRequestId').val($b.data('id'));
     $('input[name=editLT][value="' + ($b.data('type') || 'AL') + '"]').prop('checked', true);
-    const fromStr = $b.data('from') ? new Date($b.data('from')).toISOString().slice(0,10) : '';
-    const toStr   = $b.data('to')   ? new Date($b.data('to')).toISOString().slice(0,10)   : '';
+    const fromStr = $b.data('from') ? localDateStr($b.data('from')) : '';
+    const toStr   = $b.data('to')   ? localDateStr($b.data('to'))   : '';
     $('#editFromDate').attr('min', today).val(fromStr);
     $('#editToDate').attr('min', fromStr || today).val(toStr);
     $('#editTotalDays').val($b.data('days'));
@@ -551,11 +598,25 @@ function openEditBtn(btn) {
 }
 
 async function saveEdit() {
-    const today = new Date().toISOString().slice(0,10);
+    const today = localDateStr();
     const from  = $('#editFromDate').val();
     const to    = $('#editToDate').val();
     if (from < today) { $('#editError').removeClass('d-none').text('Không được chọn ngày trong quá khứ'); $('#editFromDate').focus(); return; }
     if (to < from)    { $('#editError').removeClass('d-none').text('Đến ngày phải lớn hơn hoặc bằng Từ ngày'); $('#editToDate').focus(); return; }
+
+    const editLT   = $('input[name=editLT]:checked').val() || 'AL';
+    const editDays = parseFloat($('#editTotalDays').val()) || 1;
+    if (editLT === 'AL' && myBalance != null) {
+        const left = myBalance.LEFT_NUM ?? 0;
+        if (editDays > left) {
+            $('#editError').removeClass('d-none').html(
+                `Bạn chỉ còn <strong>${left} ngày</strong> phép năm, không đủ để nghỉ <strong>${editDays} ngày</strong>.<br>` +
+                `<small class="text-muted">Vui lòng điều chỉnh số ngày hoặc chọn loại nghỉ khác.</small>`
+            );
+            return;
+        }
+    }
+
     const $btn = $('#saveEditBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...');
     try {
         const payload = {
@@ -612,7 +673,7 @@ function workerReject(id) {
 function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
 function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-$(document).ready(function() { updateMonthLabel(); loadData(1); });
+$(document).ready(function() { updateMonthLabel(); loadData(1); loadBalance(); });
 </script>
 @Html.AntiForgeryToken()
 }

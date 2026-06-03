@@ -26,7 +26,7 @@ public class PolicyController : ControllerBase
         {
             const string sql = @"
                 SELECT P.ID, P.CATEGORY, P.TITLE,
-                       DBMS_LOB.SUBSTR(P.CONTENT, 32767, 1) AS CONTENT,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 1) AS CONTENT,
                        P.DISPLAY_ORDER, P.IS_ACTIVE,
                        P.INST_ID, P.INST_DT, P.UPDT_ID, P.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -54,7 +54,7 @@ public class PolicyController : ControllerBase
         {
             const string sql = @"
                 SELECT P.ID, P.CATEGORY, P.TITLE,
-                       DBMS_LOB.SUBSTR(P.CONTENT, 32767, 1) AS CONTENT,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 1) AS CONTENT,
                        P.DISPLAY_ORDER, P.IS_ACTIVE,
                        P.INST_ID, P.INST_DT, P.UPDT_ID, P.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -81,7 +81,7 @@ public class PolicyController : ControllerBase
         {
             const string sql = @"
                 SELECT P.ID, P.CATEGORY, P.TITLE,
-                       DBMS_LOB.SUBSTR(P.CONTENT, 32767, 1) AS CONTENT,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 1) AS CONTENT,
                        P.DISPLAY_ORDER, P.IS_ACTIVE,
                        P.INST_ID, P.INST_DT, P.UPDT_ID, P.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME

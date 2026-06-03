@@ -41,7 +41,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",         Icon = "fact_check"    },
                     new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",           Icon = "payments"      },
                     new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",   Icon = "door_front"    },
-                    new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",   Icon = "event_busy"    },
+                    //new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",   Icon = "event_busy"    },
                     new SideMenuItem { Title = "Quy định công ty",    Url = "~/Policy/Index",            Icon = "policy"        },
                 }
             },
@@ -56,7 +56,7 @@ public static class SideMenuBuilder
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca",  Url = "~/OT/OtListForExpat",            Icon = "view_list"      },
                     new SideMenuItem { Title = "Duyệt ra vào cổng", Url = "~/GatePass/GpListForExpat",     Icon = "door_front"     },
-                    new SideMenuItem { Title = "Duyệt nghỉ phép",   Url = "~/Leave/LeaveApprovalForExpat", Icon = "event_available"},
+                   // new SideMenuItem { Title = "Duyệt nghỉ phép",   Url = "~/Leave/LeaveApprovalForExpat", Icon = "event_available"},
                 }
             },
 
@@ -70,7 +70,7 @@ public static class SideMenuBuilder
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForClerk",       Icon = "view_list"  },
                     new SideMenuItem { Title = "Theo dõi ra vào cổng", Url = "~/GatePass/GpListForClerk", Icon = "door_front" },
-                    new SideMenuItem { Title = "Lịch nghỉ Team",     Url = "~/Leave/TeamSchedule",          Icon = "calendar_month" },
+                    //new SideMenuItem { Title = "Lịch nghỉ Team",     Url = "~/Leave/TeamSchedule",          Icon = "calendar_month" },
                 }
             },
 
@@ -84,7 +84,7 @@ public static class SideMenuBuilder
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca", Url = "~/OT/OtListForSupervisor",        Icon = "view_list"     },
                     new SideMenuItem { Title = "Duyệt ra vào cổng",  Url = "~/GatePass/GpListForSupervisor", Icon = "door_front"    },
-                    new SideMenuItem { Title = "Lịch nghỉ Team",     Url = "~/Leave/TeamSchedule",          Icon = "calendar_month" },
+                    //new SideMenuItem { Title = "Lịch nghỉ Team",     Url = "~/Leave/TeamSchedule",          Icon = "calendar_month" },
                 }
             },
 
@@ -98,7 +98,7 @@ public static class SideMenuBuilder
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca",  Url = "~/OT/OtListForSupervisor",        Icon = "view_list"      },
                     new SideMenuItem { Title = "Duyệt ra vào cổng",  Url = "~/GatePass/GpListForSupervisor",  Icon = "door_front"     },
-                    new SideMenuItem { Title = "Lịch nghỉ Team",     Url = "~/Leave/TeamSchedule",            Icon = "calendar_month" },
+                   // new SideMenuItem { Title = "Lịch nghỉ Team",     Url = "~/Leave/TeamSchedule",            Icon = "calendar_month" },
                 }
             },
 
@@ -115,9 +115,9 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",             Icon = "view_list"              },
                     new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",              Icon = "account_balance_wallet" },
                     new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",       Icon = "door_front"             },
-                    new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy"             },
+                   // new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy"             },
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy"                 },
-                    new SideMenuItem { Title = "Log Sắp Lịch Nghỉ",    Url = "~/Leave/LeaveAssignmentLog",   Icon = "assignment_late"        },
+                    //new SideMenuItem { Title = "Log Sắp Lịch Nghỉ",    Url = "~/Leave/LeaveAssignmentLog",   Icon = "assignment_late"        },
                 }
             },
         };

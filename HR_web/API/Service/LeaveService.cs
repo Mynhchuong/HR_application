@@ -91,23 +91,6 @@ public class LeaveService
         catch (Exception ex) { return new LeaveActionResponse { success = false, message = ex.Message }; }
     }
 
-    public async Task<LeaveActionResponse> WorkerRejectAsync(string requestId, string empcd)
-    {
-        try
-        {
-            var payload  = new { REQUEST_ID = requestId, EMPCD = empcd };
-            var response = await _api.PostAsync("leave/worker-reject", payload);
-            if (response != null && response.IsSuccessStatusCode)
-            {
-                var json = await response.Content.ReadAsStringAsync();
-                return JsonConvert.DeserializeObject<LeaveActionResponse>(json)
-                       ?? new LeaveActionResponse { success = false, message = "Lỗi parse response" };
-            }
-            return new LeaveActionResponse { success = false, message = "Lỗi kết nối server" };
-        }
-        catch (Exception ex) { return new LeaveActionResponse { success = false, message = ex.Message }; }
-    }
-
     public async Task<LeaveListPagedResponse> GetApprovalListAsync(
         string approverEmpcd,
         string? status = null, string? search = null,

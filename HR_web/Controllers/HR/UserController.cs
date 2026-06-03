@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using HR_web.API.Service;
 using HR_web.Models.Account;
 using HR_web.ViewModels;
@@ -177,6 +178,57 @@ public class UserController : BaseController
             TempData["ErrorMessage"] = "Có lỗi xảy ra: " + ex.Message;
         }
         return RedirectToAction("UserManager");
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /User/ExportExcel
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> ExportExcel(
+        string? deptCd = null, string? lineCd = null, string? workCd = null,
+        int? roleId = null, string? empCd = null)
+    {
+        var result = await _service.GetUserListAsync(
+            fullName: null, deptCd: deptCd, lineCd: lineCd, workCd: workCd,
+            roleId: roleId, empCd: empCd, page: 1, pageSize: 9999);
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("User Manager");
+
+        string[] headers = { "STT", "Mã NV", "Họ & Tên", "Phòng Ban", "Line", "Work", "Role", "Trạng Thái", "Lần Cuối Đăng Nhập" };
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var cell = ws.Cell(1, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#217346");
+            cell.Style.Font.FontColor = XLColor.White;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        int row = 2;
+        foreach (var u in result.Data)
+        {
+            ws.Cell(row, 1).Value = row - 1;
+            ws.Cell(row, 2).Value = u.EmpCd;
+            ws.Cell(row, 3).Value = u.FullName;
+            ws.Cell(row, 4).Value = u.DeptCd ?? "";
+            ws.Cell(row, 5).Value = u.LineCd ?? "";
+            ws.Cell(row, 6).Value = u.WorkCd ?? "";
+            ws.Cell(row, 7).Value = u.RoleName ?? "";
+            ws.Cell(row, 8).Value = u.IsActive == 1 ? "Active" : "Inactive";
+            ws.Cell(row, 9).Value = u.LastedLogin?.ToString("dd/MM/yyyy HH:mm") ?? "";
+            row++;
+        }
+
+        ws.Range(1, 1, 1, headers.Length).SetAutoFilter();
+        ws.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"UserManager_{DateTime.Now:yyyyMMdd}.xlsx");
     }
 
     // ─────────────────────────────────────────────

@@ -102,7 +102,6 @@ public class LeaveAssignSummary
     public int TOTAL           { get; set; }
     public int PENDING_CONFIRM { get; set; }
     public int CONFIRMED       { get; set; }
-    public int WORKER_REJECTED { get; set; }
 }
 
 public class LeaveAssignmentModel

@@ -2,6 +2,7 @@ using ClosedXML.Excel;
 using HR_web.API.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
 
 namespace HR_web.Controllers.UserDept;
 
@@ -136,6 +137,58 @@ public class UserDeptController : BaseController
         var wList = workcds?.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList() ?? [];
         var (success, message, inserted, skipped) = await _service.ManualCreateAsync(empcd, CurrentUser.EmpCd, dList, lList, wList);
         return Json(new { success, message, inserted, skipped });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExportExcel(string? empcd, string? deptcd)
+    {
+        var raw  = await _service.GetListAsync(empcd, deptcd, 1, 9999);
+        var json = Newtonsoft.Json.JsonConvert.SerializeObject(raw);
+        var root = JObject.Parse(json);
+        var data = root["data"] as JArray ?? new JArray();
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Phân Quyền Phạm Vi");
+
+        string[] headers = { "STT", "Mã NV", "Họ & Tên", "Role", "Bộ Phận", "Tên BP", "Line", "Tên Line", "Nhóm Việc", "Tên NV", "Ngày Tạo", "Tạo Bởi", "Ngày Cập Nhật", "Cập Nhật Bởi" };
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var cell = ws.Cell(1, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#217346");
+            cell.Style.Font.FontColor = XLColor.White;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        int row = 2;
+        foreach (var item in data)
+        {
+            ws.Cell(row, 1).Value  = row - 1;
+            ws.Cell(row, 2).Value  = item["EMPCD"]?.ToString()       ?? "";
+            ws.Cell(row, 3).Value  = item["EMP_NAME"]?.ToString()    ?? "";
+            ws.Cell(row, 4).Value  = item["ROLE_NAME"]?.ToString()   ?? "";
+            ws.Cell(row, 5).Value  = item["DEPTCD"]?.ToString()      ?? "";
+            ws.Cell(row, 6).Value  = item["DEPT_NAME"]?.ToString()   ?? "";
+            ws.Cell(row, 7).Value  = item["LINECD"]?.ToString()      ?? "";
+            ws.Cell(row, 8).Value  = item["LINE_NAME"]?.ToString()   ?? "";
+            ws.Cell(row, 9).Value  = item["WORKCD"]?.ToString()      ?? "";
+            ws.Cell(row, 10).Value = item["WORK_NAME"]?.ToString()   ?? "";
+            ws.Cell(row, 11).Value = item["CREATEDATE"]?.ToString()  ?? "";
+            ws.Cell(row, 12).Value = item["CREATEBY"]?.ToString()    ?? "";
+            ws.Cell(row, 13).Value = item["UPDATEDATE"]?.ToString()  ?? "";
+            ws.Cell(row, 14).Value = item["UPDATEBY"]?.ToString()    ?? "";
+            row++;
+        }
+
+        ws.Range(1, 1, 1, headers.Length).SetAutoFilter();
+        ws.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"PhanQuyenPhamVi_{DateTime.Now:yyyyMMdd}.xlsx");
     }
 
     [HttpDelete]

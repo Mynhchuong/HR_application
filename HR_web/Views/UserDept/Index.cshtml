@@ -21,6 +21,9 @@
             <div class="bg-gradient-success shadow-success border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="text-white text-capitalize mb-0"><i class="bi bi-shield-lock me-1"></i> Phân Quyền Phạm Vi</h6>
                 <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" id="exportBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#1d6f42;color:#fff;">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel
+                    </button>
                     <a href="@Url.Action("DownloadTemplate", "UserDept")"
                        class="btn btn-sm btn-white mb-0 text-nowrap">
                         <i class="bi bi-download me-1"></i> Tải Mẫu
@@ -160,6 +163,7 @@
 @section Scripts {
 <script>
 const LIST_URL         = '@Url.Action("GetList",      "UserDept")';
+const EXPORT_URL       = '@Url.Action("ExportExcel",  "UserDept")';
 const IMPORT_URL       = '@Url.Action("Import",       "UserDept")';
 const DELETE_URL       = '@Url.Action("Delete",       "UserDept")';
 const MANUAL_URL       = '@Url.Action("ManualCreate", "UserDept")';
@@ -402,6 +406,15 @@ $('#manualModal').on('shown.bs.modal', function() {
     $('#manualEmpcd').val('');
     $('#manualDeptcds, #manualLinecds, #manualWorkcds').val(null).trigger('change');
     $('#manualResult').html('');
+});
+
+$('#exportBtn').on('click', function() {
+    const empcd  = $('#searchEmpcd').val();
+    const deptcd = $('#filterDept').val();
+    const params = [];
+    if (empcd)  params.push('empcd='  + encodeURIComponent(empcd));
+    if (deptcd) params.push('deptcd=' + encodeURIComponent(deptcd));
+    window.location.href = EXPORT_URL + (params.length ? '?' + params.join('&') : '');
 });
 
 $(document).ready(function() {

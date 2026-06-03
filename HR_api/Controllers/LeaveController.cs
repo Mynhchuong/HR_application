@@ -304,7 +304,7 @@ public class LeaveController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // POST /apiHR/Leave/confirm — worker confirms ASSIGNED leave
+    // POST /apiHR/Leave/confirm — worker acknowledges ASSIGNED leave notification
     // ─────────────────────────────────────────────────────────────────────────
     [HttpPost("confirm")]
     public async Task<IActionResult> Confirm([FromBody] LeaveConfirmRequest model)
@@ -315,13 +315,12 @@ public class LeaveController : ControllerBase
                 return Ok(new { success = false, message = "Thiếu thông tin xác nhận" });
 
             var infoRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT R.STATUS, R.CREATED_BY, L.FROM_DATE FROM HRMS.HR_REQUEST R
+                SELECT L.CONFIRM_STATUS, R.CREATED_BY FROM HRMS.HR_REQUEST R
                 JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
                 WHERE R.REQUEST_ID = :REQUEST_ID AND L.EMPCD = :EMPCD AND L.SOURCE = 'ASSIGNED' AND ROWNUM = 1",
                 r => new {
-                    Status   = r["STATUS"]?.ToString(),
-                    Assigner = r["CREATED_BY"]?.ToString(),
-                    FromDate = r["FROM_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["FROM_DATE"])
+                    ConfirmStatus = r["CONFIRM_STATUS"]?.ToString(),
+                    Assigner      = r["CREATED_BY"]?.ToString()
                 },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID),
                 new OracleParameter("EMPCD",      model.EMPCD));
@@ -330,18 +329,8 @@ public class LeaveController : ControllerBase
             if (info == null)
                 return Ok(new { success = false, message = "Không tìm thấy lịch nghỉ được sắp" });
 
-            if (info.Status != "ASSIGNED")
-                return Ok(new { success = false, message = "Lịch nghỉ đã được xử lý rồi" });
-
-            if (info.FromDate.HasValue && info.FromDate.Value.Date <= DateTime.Today)
-                return Ok(new { success = false, message = "Ngày nghỉ đã bắt đầu hoặc đã qua, không thể xác nhận" });
-
-            await _oracleService.ExecuteNonQueryAsync(@"
-                UPDATE HRMS.HR_REQUEST
-                SET STATUS = 'CONFIRMED', UPDATED_BY = :EMPCD, UPDATED_DATE = SYSDATE
-                WHERE REQUEST_ID = :REQUEST_ID",
-                new OracleParameter("EMPCD",      model.EMPCD),
-                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
+            if (info.ConfirmStatus == "CONFIRMED")
+                return Ok(new { success = false, message = "Đã nhận thông báo rồi" });
 
             await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_LEAVE_REQUEST
@@ -356,8 +345,8 @@ public class LeaveController : ControllerBase
             {
                 _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
                 {
-                    TITLE       = "Công nhân đã xác nhận lịch nghỉ",
-                    BODY        = $"Nhân viên {model.EMPCD} đã xác nhận lịch nghỉ phép được sắp.",
+                    TITLE       = "Công nhân đã nhận thông báo nghỉ",
+                    BODY        = $"Nhân viên {model.EMPCD} đã nhận thông báo lịch nghỉ phép được sắp.",
                     NOTI_TYPE   = "EMPCD",
                     TARGET_VAL  = info.Assigner,
                     LINK_ACTION = "LEAVE_TEAM",
@@ -365,77 +354,7 @@ public class LeaveController : ControllerBase
                 });
             }
 
-            return Ok(new { success = true, message = "Đã xác nhận lịch nghỉ phép" });
-        }
-        catch (Exception ex)
-        {
-            return Ok(new { success = false, message = ex.Message });
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // POST /apiHR/Leave/worker-reject — worker rejects ASSIGNED leave
-    // ─────────────────────────────────────────────────────────────────────────
-    [HttpPost("worker-reject")]
-    public async Task<IActionResult> WorkerReject([FromBody] LeaveConfirmRequest model)
-    {
-        try
-        {
-            if (model == null || string.IsNullOrEmpty(model.REQUEST_ID) || string.IsNullOrEmpty(model.EMPCD))
-                return Ok(new { success = false, message = "Thiếu thông tin từ chối" });
-
-            var infoRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT R.STATUS, R.CREATED_BY, L.FROM_DATE FROM HRMS.HR_REQUEST R
-                JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
-                WHERE R.REQUEST_ID = :REQUEST_ID AND L.EMPCD = :EMPCD AND L.SOURCE = 'ASSIGNED' AND ROWNUM = 1",
-                r => new {
-                    Status   = r["STATUS"]?.ToString(),
-                    Assigner = r["CREATED_BY"]?.ToString(),
-                    FromDate = r["FROM_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["FROM_DATE"])
-                },
-                new OracleParameter("REQUEST_ID", model.REQUEST_ID),
-                new OracleParameter("EMPCD",      model.EMPCD));
-
-            var info = infoRows.FirstOrDefault();
-            if (info == null)
-                return Ok(new { success = false, message = "Không tìm thấy lịch nghỉ được sắp" });
-
-            if (info.Status != "ASSIGNED")
-                return Ok(new { success = false, message = "Lịch nghỉ đã được xử lý rồi" });
-
-            if (info.FromDate.HasValue && info.FromDate.Value.Date <= DateTime.Today)
-                return Ok(new { success = false, message = "Ngày nghỉ đã bắt đầu hoặc đã qua, không thể từ chối" });
-
-            await _oracleService.ExecuteNonQueryAsync(@"
-                UPDATE HRMS.HR_REQUEST
-                SET STATUS = 'WORKER_REJECTED', UPDATED_BY = :EMPCD, UPDATED_DATE = SYSDATE
-                WHERE REQUEST_ID = :REQUEST_ID",
-                new OracleParameter("EMPCD",      model.EMPCD),
-                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
-
-            await _oracleService.ExecuteNonQueryAsync(@"
-                UPDATE HRMS.HR_LEAVE_REQUEST
-                SET CONFIRM_STATUS = 'WORKER_REJECTED', CONFIRM_DATE = SYSDATE,
-                    UPDATED_BY = :UPDATED_BY, UPDATED_DATE = SYSDATE
-                WHERE REQUEST_ID = :REQUEST_ID AND EMPCD = :EMPCD",
-                new OracleParameter("UPDATED_BY",  model.EMPCD),
-                new OracleParameter("REQUEST_ID",  model.REQUEST_ID),
-                new OracleParameter("EMPCD",       model.EMPCD));
-
-            if (!string.IsNullOrEmpty(info.Assigner))
-            {
-                _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
-                {
-                    TITLE       = "Công nhân từ chối lịch nghỉ",
-                    BODY        = $"Nhân viên {model.EMPCD} đã từ chối lịch nghỉ phép được sắp.",
-                    NOTI_TYPE   = "EMPCD",
-                    TARGET_VAL  = info.Assigner,
-                    LINK_ACTION = "LEAVE_TEAM",
-                    CREATED_BY  = model.EMPCD
-                });
-            }
-
-            return Ok(new { success = true, message = "Đã từ chối lịch nghỉ phép" });
+            return Ok(new { success = true, message = "Đã nhận thông báo lịch nghỉ phép" });
         }
         catch (Exception ex)
         {
@@ -845,6 +764,8 @@ public class LeaveController : ControllerBase
                         new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
                         new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
 
+                    // TODO: ERP insert — SQL sẽ được cung cấp sau
+
                     var leaveTypeNames = new Dictionary<string,string>
                     {
                         ["AL"] = "Phép năm", ["CL"] = "BHXH", ["SL"] = "Nghỉ bệnh",
@@ -1009,17 +930,15 @@ public class LeaveController : ControllerBase
 
             string sqlSummary = $@"
                 SELECT COUNT(*) TOTAL,
-                       SUM(CASE WHEN R.STATUS = 'ASSIGNED'        THEN 1 ELSE 0 END) PENDING_CONFIRM,
-                       SUM(CASE WHEN R.STATUS = 'CONFIRMED'       THEN 1 ELSE 0 END) CONFIRMED,
-                       SUM(CASE WHEN R.STATUS = 'WORKER_REJECTED' THEN 1 ELSE 0 END) WORKER_REJECTED
+                       SUM(CASE WHEN L.CONFIRM_STATUS IS NULL       THEN 1 ELSE 0 END) PENDING_CONFIRM,
+                       SUM(CASE WHEN L.CONFIRM_STATUS = 'CONFIRMED' THEN 1 ELSE 0 END) CONFIRMED
                 {fromSql}{whereSql}";
 
             var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new LeaveAssignSummary
             {
                 TOTAL           = r["TOTAL"]           == DBNull.Value ? 0 : Convert.ToInt32(r["TOTAL"]),
-                PENDING_CONFIRM = r["PENDING_CONFIRM"]  == DBNull.Value ? 0 : Convert.ToInt32(r["PENDING_CONFIRM"]),
-                CONFIRMED       = r["CONFIRMED"]       == DBNull.Value ? 0 : Convert.ToInt32(r["CONFIRMED"]),
-                WORKER_REJECTED = r["WORKER_REJECTED"] == DBNull.Value ? 0 : Convert.ToInt32(r["WORKER_REJECTED"])
+                PENDING_CONFIRM = r["PENDING_CONFIRM"] == DBNull.Value ? 0 : Convert.ToInt32(r["PENDING_CONFIRM"]),
+                CONFIRMED       = r["CONFIRMED"]       == DBNull.Value ? 0 : Convert.ToInt32(r["CONFIRMED"])
             }, baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
 
             var summary = summaryRows.FirstOrDefault() ?? new LeaveAssignSummary();

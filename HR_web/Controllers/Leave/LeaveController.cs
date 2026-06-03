@@ -112,22 +112,6 @@ public class LeaveController : BaseController
     }
 
     // ─────────────────────────────────────────────
-    // POST: /Leave/WorkerRejectLeave (AJAX)
-    // ─────────────────────────────────────────────
-    [HttpPost]
-    public async Task<IActionResult> WorkerRejectLeave(string request_id)
-    {
-        try
-        {
-            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
-                return Json(new { success = false, message = "Chưa đăng nhập" });
-            var result = await _leaveService.WorkerRejectAsync(request_id, CurrentUser.EmpCd);
-            return Json(result);
-        }
-        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
-    }
-
-    // ─────────────────────────────────────────────
     // GET: /Leave/LeaveApprovalForExpat
     // ─────────────────────────────────────────────
     public IActionResult LeaveApprovalForExpat()

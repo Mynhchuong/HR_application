@@ -845,6 +845,10 @@ public class LeaveController : ControllerBase
                 WHERE R.REQUEST_TYPE = 'LEAVE'
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND L.FROM_DATE <= :D_TO AND L.TO_DATE >= :D_FROM
+                  AND (
+                      (L.SOURCE = 'SELF'     AND R.STATUS = 'APPROVED') OR
+                      (L.SOURCE = 'ASSIGNED')
+                  )
                   {scopeFilter.SqlClause}
                 ORDER BY L.FROM_DATE, L.EMPCD";
 

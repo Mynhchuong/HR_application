@@ -45,23 +45,78 @@
     .empcd-filter:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.14); }
     .empcd-wrap { position:relative; display:inline-flex; align-items:center; }
     .empcd-wrap i { position:absolute; left:7px; font-size:.75rem; color:#94a3b8; pointer-events:none; }
+    /* Calendar */
+    .cal-wrap { padding:0 1rem 1rem; }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+    .cal-hdr  { text-align:center; font-size:.65rem; font-weight:700; color:#94a3b8; padding:2px 0; }
+    .cal-cell { border-radius:6px; padding:5px 2px 4px; text-align:center; min-height:42px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:2px; background:#f8fafc; border:1px solid #e9ecef; cursor:default; transition:background .12s; }
+    .cal-cell.cal-today  { background:#eff6ff; border-color:#3b82f6 !important; }
+    .cal-cell.cal-past   { opacity:.55; }
+    .cal-cell.cal-has    { border-color:#bfdbfe; background:#f0f9ff; cursor:pointer; }
+    .cal-cell.cal-today.cal-has { background:#dbeafe; }
+    .cal-cell.cal-has:hover { background:#e0f2fe; }
+    .cal-cell.cal-selected { background:#3b82f6 !important; border-color:#1d4ed8 !important; }
+    .cal-cell.cal-selected .cal-daynum { color:#fff !important; }
+    .cal-cell.cal-selected .cal-count  { background:#fff !important; color:#1d4ed8 !important; }
+    .cal-daynum { font-size:.73rem; font-weight:600; color:#374151; line-height:1; }
+    .cal-cell.cal-past  .cal-daynum { color:#9ca3af; }
+    .cal-cell.cal-today .cal-daynum { color:#1d4ed8; font-weight:800; }
+    .cal-count { font-size:.58rem; padding:1px 5px; border-radius:8px; font-weight:700; color:#fff; line-height:1.3; }
+    .cal-empty { opacity:0; pointer-events:none; }
+    /* Row state in schedule table */
+    tr.sch-past   td { color:#9ca3af !important; }
+    tr.sch-past   .badge { opacity:.5; }
+    tr.sch-active { background:#f0fdf4 !important; }
     /* Tab segmented control */
     #scheduleTab { background:#f1f5f9; border-radius:12px; padding:4px !important; gap:0 !important; margin-bottom:1rem !important; }
     #scheduleTab .nav-item { flex:1; }
     #scheduleTab .nav-link { width:100%; text-align:center; border-radius:9px; font-size:.85rem; font-weight:600; color:#64748b; padding:8px 12px; transition:all .2s; }
     #scheduleTab .nav-link.active { background:#fff; color:#3b82f6; box-shadow:0 1px 4px rgba(0,0,0,.12); }
     #scheduleTab .nav-link:not(.active):hover { color:#3b82f6; background:rgba(255,255,255,.5); }
-    @@media (max-width: 576px) {
-        .container-fluid { padding-left: 8px !important; padding-right: 8px !important; }
-        #scheduleTab .nav-link { font-size:.75rem; padding:7px 4px; }
-        #scheduleTab .nav-link .tab-text-full { display:none; }
+    @@media (max-width:576px) {
+        /* General */
+        .container-fluid { padding-left:8px !important; padding-right:8px !important; }
+        /* Tab nav */
+        #scheduleTab { border-radius:10px; }
+        #scheduleTab .nav-link { font-size:.7rem; padding:7px 2px; }
+        #scheduleTab .nav-link .tab-text-full  { display:none; }
         #scheduleTab .nav-link .tab-text-short { display:inline; }
-        .month-nav span { min-width: 90px; font-size:.9rem; }
-        .emp-list-wrap { max-height:220px; }
+        #scheduleTab .nav-link i { font-size:.85rem; }
+        /* Month nav */
+        .month-nav span { min-width:76px; font-size:.82rem; }
+        .month-nav button { width:26px; height:26px; }
+        /* Calendar */
+        .cal-wrap { padding:0 .3rem .55rem; }
+        .cal-grid { gap:2px; }
+        .cal-cell { min-height:38px; padding:3px 1px 2px; border-radius:4px; }
+        .cal-daynum { font-size:.6rem; }
+        .cal-count  { font-size:.5rem; padding:1px 3px; border-radius:5px; }
+        .cal-hdr    { font-size:.54rem; padding:1px 0; }
+        #calLegend  { font-size:.7rem !important; gap:8px !important; }
+        /* Tables — reduce side padding */
+        #tab-view    .table-responsive { padding-left:.35rem !important; padding-right:.35rem !important; }
+        #tab-approve .table-responsive { padding-left:.35rem !important; padding-right:.35rem !important; }
+        #tab-myassign .table-responsive { padding-left:.35rem !important; padding-right:.35rem !important; }
+        /* Filter + count bars reduce padding */
+        #tab-view .card-body .d-flex { padding-left:.6rem !important; padding-right:.6rem !important; }
+        /* Approval filter: horizontal scroll, no wrap */
+        #apvFilterBar { overflow-x:auto; flex-wrap:nowrap !important; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding-bottom:6px; }
+        #apvFilterBar::-webkit-scrollbar { display:none; }
+        #apvFilterBar .apv-tab    { flex-shrink:0; font-size:.72rem; padding:4px 9px; }
+        #apvFilterBar .empcd-wrap { flex-shrink:0; }
+        /* Emp list */
+        .emp-list-wrap { max-height:200px; }
+        /* Pagination */
+        .pagination-sm .page-link { padding:.2rem .38rem; font-size:.72rem; }
+        /* py-4 container */
+        .py-4 { padding-top:1rem !important; padding-bottom:1rem !important; }
+        /* Summary cards (Tab 4) */
+        #myAssignSummary .card { padding-top:.75rem !important; padding-bottom:.75rem !important; }
+        #myAssignSummary .h4   { font-size:1.2rem; }
     }
-    @@media (min-width: 577px) {
+    @@media (min-width:577px) {
         #scheduleTab .nav-link .tab-text-short { display:none; }
-        #scheduleTab .nav-link .tab-text-full { display:inline; }
+        #scheduleTab .nav-link .tab-text-full  { display:inline; }
     }
 </style>
 }
@@ -117,12 +172,39 @@
                     </div>
                 </div>
                 <div class="card-body px-0 pt-0 pb-2 mt-3">
-                    <div class="px-4 pt-1 pb-2 d-flex align-items-center gap-2">
+                    <!-- Calendar -->
+                    <div class="cal-wrap">
+                        <div class="d-flex align-items-center justify-content-between mb-2 px-2">
+                            <span class="text-xs text-uppercase text-secondary fw-bold" style="letter-spacing:.05em;">
+                                <i class="bi bi-calendar3 me-1"></i>Số người nghỉ theo ngày
+                            </span>
+                            <button class="btn btn-link btn-sm p-0 text-secondary text-xs" id="calToggleBtn" onclick="toggleCalendar()">
+                                <i class="bi bi-chevron-up" id="calToggleIcon"></i> Thu gọn
+                            </button>
+                        </div>
+                        <div id="calWrapInner">
+                            <div class="cal-grid" id="calGrid"></div>
+                            <div class="text-xs text-muted mt-1 px-1" id="calLegend" style="display:flex;gap:10px;">
+                                <span><span class="cal-count" style="background:#2563eb;">1-3</span> ít</span>
+                                <span><span class="cal-count" style="background:#d97706;">4-7</span> vừa</span>
+                                <span><span class="cal-count" style="background:#dc2626;">8+</span> nhiều</span>
+                            </div>
+                        </div>
+                    </div>
+                    <hr class="my-0 mx-3">
+                    <div class="px-4 pt-2 pb-2 d-flex align-items-center gap-2 flex-wrap">
                         <div class="empcd-wrap">
                             <i class="bi bi-search"></i>
                             <input type="text" id="scheduleEmpFilter" class="empcd-filter" placeholder="Mã NV..." oninput="schPage=1;renderSchedule()">
                         </div>
-                        <span class="text-xs text-muted" id="scheduleFilterHint"></span>
+                        <span id="calDayBadge" class="d-none badge d-inline-flex align-items-center gap-1" style="background:#e0f2fe;color:#0369a1;font-size:.78rem;padding:4px 8px;border-radius:20px;">
+                            <i class="bi bi-calendar3" style="font-size:.75rem;"></i>
+                            <span id="calDayBadgeText"></span>
+                        </span>
+                        <button id="viewAllBtn" class="btn btn-outline-secondary btn-sm d-none" style="font-size:.78rem;height:30px;border-radius:20px;" onclick="clearCalDay()">
+                            <i class="bi bi-grid3x3 me-1"></i>Xem hết
+                        </button>
+                        <span class="text-xs text-muted ms-auto" id="scheduleFilterHint"></span>
                     </div>
                     <div class="table-responsive px-4">
                         <table class="table align-items-center mb-0 w-100 table-hover table-striped">
@@ -144,8 +226,6 @@
                                         data-mobile="detail" data-mobile-label="Đến ngày">Đến ngày</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                         data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Số ngày">Số ngày</th>
-                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tình trạng">Tình trạng</th>
                                 </tr>
                             </thead>
                             <tbody id="scheduleBody"></tbody>
@@ -244,7 +324,7 @@
                     </div>
                 </div>
                 <!-- Status filter -->
-                <div class="px-3 pt-3 pb-2 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid #f1f5f9;">
+                <div id="apvFilterBar" class="px-3 pt-3 pb-2 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid #f1f5f9;">
                     <span class="apv-tab active" id="apv-all"     onclick="setApvStatus('')">Tất cả</span>
                     <span class="apv-tab"        id="apv-pending" onclick="setApvStatus('PENDING')"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>
                     <span class="apv-tab"        id="apv-approved"onclick="setApvStatus('APPROVED')"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>
@@ -312,12 +392,6 @@
                         <div class="h4 fw-bold mb-0 text-success" id="maConfirmed">-</div>
                     </div>
                 </div>
-                <div class="col-6 col-xl-3 mb-3">
-                    <div class="card text-center py-3 h-100" style="border-left:4px solid #ef4444;">
-                        <div class="text-xs text-uppercase fw-bold mb-1 text-danger">Không đồng ý</div>
-                        <div class="h4 fw-bold mb-0 text-danger" id="maRejected">-</div>
-                    </div>
-                </div>
             </div>
             <div class="card">
                 <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
@@ -328,7 +402,6 @@
                                 <option value="">Tất cả</option>
                                 <option value="ASSIGNED">Chờ xác nhận</option>
                                 <option value="CONFIRMED">Đã xác nhận</option>
-                                <option value="WORKER_REJECTED">Không đồng ý</option>
                             </select>
                             <div class="empcd-wrap">
                                 <i class="bi bi-search"></i>
@@ -374,6 +447,11 @@
         </div>
 
     </div><!-- /tab-content -->
+</div>
+
+<!-- Calendar hover box -->
+<div id="calHoverBox" style="display:none;position:fixed;background:#1e293b;color:#fff;border-radius:10px;padding:8px 12px;font-size:.78rem;z-index:9999;max-width:230px;box-shadow:0 4px 16px rgba(0,0,0,.25);pointer-events:none;line-height:1.6;">
+    <div id="calHoverContent"></div>
 </div>
 
 <!-- Action Modal (Tab 3) -->
@@ -464,40 +542,142 @@ function changeMonth(delta) {
     loadSchedule();
 }
 
-function statusBadge(item) {
-    const s = item.STATUS, src = item.SOURCE;
-    if (src === 'ASSIGNED') {
-        if (s === 'ASSIGNED')        return `<span class="badge bg-info text-dark">Chờ xác nhận</span>`;
-        if (s === 'CONFIRMED')       return `<span class="badge bg-success">Đã xác nhận</span>`;
-        if (s === 'WORKER_REJECTED') return `<span class="badge bg-danger">Từ chối</span>`;
-    }
-    if (s === 'PENDING')  return `<span class="badge bg-warning text-dark">Chờ duyệt</span>`;
-    if (s === 'APPROVED') return `<span class="badge bg-success">Đã duyệt</span>`;
-    if (s === 'REJECTED') return `<span class="badge bg-danger">Từ chối</span>`;
-    return `<span class="badge bg-secondary">${escHtml(s||'-')}</span>`;
-}
-
-function buildScheduleRow(item, idx) {
+function buildScheduleRow(item, idx, today) {
     const ltLabel  = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
     const ltColor  = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
     const srcBadge = item.SOURCE === 'ASSIGNED'
         ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:.7rem;">Sắp lịch</span>`
         : `<span class="badge bg-light text-dark border" style="font-size:.7rem;">Tự nộp</span>`;
-    return `<tr>
+    const from = item.FROM_DATE ? new Date(item.FROM_DATE) : null;
+    const to   = item.TO_DATE   ? new Date(item.TO_DATE)   : null;
+    const isPast   = to   && to   < today;
+    const isActive = from && to && from <= today && to >= today;
+    const rowClass = isPast ? 'sch-past' : isActive ? 'sch-active' : '';
+    const activeBadge = isActive ? `<i class="bi bi-circle-fill text-success ms-1" style="font-size:.5rem;vertical-align:middle;" title="Đang nghỉ"></i>` : '';
+    return `<tr class="${rowClass}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
-        <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
+        <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}${activeBadge}</td>
         <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
         <td class="px-2">${srcBadge}</td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
         <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
-        <td class="text-center">${statusBadge(item)}</td>
     </tr>`;
 }
 
+let calVisible    = true;
+let selectedCalDay = null;
+
+function toggleCalendar() {
+    calVisible = !calVisible;
+    $('#calWrapInner').toggle(calVisible);
+    $('#calToggleBtn').html(calVisible
+        ? '<i class="bi bi-chevron-up"></i> Thu gọn'
+        : '<i class="bi bi-chevron-down"></i> Mở rộng');
+}
+
+function selectCalDay(key) {
+    selectedCalDay = (selectedCalDay === key) ? null : key;
+    schPage = 1;
+    buildCalendar(scheduleData);
+    renderSchedule();
+    // On touch devices: show hover info briefly after selecting a day
+    if (selectedCalDay && window.matchMedia('(hover:none)').matches) {
+        const sel = document.querySelector('#calGrid .cal-cell.cal-selected');
+        if (sel) {
+            showCalHover(sel, selectedCalDay);
+            setTimeout(hideCalHover, 2800);
+        }
+    }
+}
+
+function clearCalDay() {
+    selectedCalDay = null;
+    schPage = 1;
+    buildCalendar(scheduleData);
+    renderSchedule();
+}
+
+let calDayNames = {};
+
+function showCalHover(el, key) {
+    const names = calDayNames[key];
+    if (!names || !names.length) return;
+    const html = `<div style="font-weight:700;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.2);padding-bottom:4px;">${names.length} người nghỉ</div>`
+               + names.map(n => `<span class="vni-font">${escHtml(n)}</span>`).join('<br>');
+    const box  = document.getElementById('calHoverBox');
+    document.getElementById('calHoverContent').innerHTML = html;
+    box.style.visibility = 'hidden';
+    box.style.display    = 'block';
+    const rect  = el.getBoundingClientRect();
+    const bw    = box.offsetWidth  || 210;
+    const bh    = box.offsetHeight || 80;
+    let left    = rect.left + (rect.width - bw) / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - bw - 8));
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow > bh + 12 ? rect.bottom + 6 : rect.top - bh - 6;
+    box.style.left       = left + 'px';
+    box.style.top        = top  + 'px';
+    box.style.visibility = 'visible';
+}
+function hideCalHover() {
+    document.getElementById('calHoverBox').style.display = 'none';
+}
+
+function buildCalendar(data) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const dayMap = {};
+    calDayNames  = {};
+    data.forEach(item => {
+        if (!item.FROM_DATE || !item.TO_DATE) return;
+        let d = new Date(item.FROM_DATE); d.setHours(0,0,0,0);
+        const endD = new Date(item.TO_DATE); endD.setHours(0,0,0,0);
+        while (d <= endD) {
+            if (d.getMonth()+1 === curMonth && d.getFullYear() === curYear) {
+                const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+                dayMap[key] = (dayMap[key]||0) + 1;
+                if (!calDayNames[key]) calDayNames[key] = [];
+                calDayNames[key].push(item.EMP_NAME||item.EMPCD||'');
+            }
+            d.setDate(d.getDate()+1);
+        }
+    });
+    const firstDay    = new Date(curYear, curMonth-1, 1);
+    const daysInMonth = new Date(curYear, curMonth, 0).getDate();
+    const startDow    = (firstDay.getDay() + 6) % 7;
+    const hdrs = ['T2','T3','T4','T5','T6','T7','CN'].map(h => `<div class="cal-hdr">${h}</div>`).join('');
+    let cells = '';
+    for (let i = 0; i < startDow; i++) cells += `<div class="cal-cell cal-empty"></div>`;
+    for (let day = 1; day <= daysInMonth; day++) {
+        const key   = curYear+'-'+String(curMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+        const count = dayMap[key] || 0;
+        const d     = new Date(curYear, curMonth-1, day); d.setHours(0,0,0,0);
+        const isToday    = d.getTime() === today.getTime();
+        const isPast     = d < today && !isToday;
+        const isSelected = selectedCalDay === key;
+        let countBadge = '';
+        if (count > 0) {
+            const bg = count >= 8 ? '#dc2626' : count >= 4 ? '#d97706' : '#2563eb';
+            countBadge = `<span class="cal-count" style="background:${bg};">${count}</span>`;
+        }
+        const cls = ['cal-cell',
+            isToday    ? 'cal-today'    : '',
+            isPast     ? 'cal-past'     : '',
+            count > 0  ? 'cal-has'      : '',
+            isSelected ? 'cal-selected' : ''
+        ].filter(Boolean).join(' ');
+        const interactAttrs = count > 0
+            ? ` onmouseenter="showCalHover(this,'${key}')" onmouseleave="hideCalHover()" onclick="selectCalDay('${key}')"`
+            : '';
+        cells += `<div class="${cls}"${interactAttrs}><span class="cal-daynum">${day}</span>${countBadge}</div>`;
+    }
+    $('#calGrid').html(hdrs + cells);
+}
+
 function loadSchedule() {
-    $('#scheduleBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-info" role="status"></div></td></tr>`);
+    selectedCalDay = null;
+    $('#scheduleBody').html(`<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-info" role="status"></div></td></tr>`);
     MobileTableHelper.refresh('scheduleBody');
     $('#scheduleCount').text('');
     $('#scheduleEmpFilter').val('');
@@ -505,37 +685,72 @@ function loadSchedule() {
         url: SCHEDULE_URL, type: 'GET', data: { month: curMonth, year: curYear },
         success: function(res) {
             if (!res.success) {
-                $('#scheduleBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                $('#scheduleBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
                 MobileTableHelper.refresh('scheduleBody');
                 return;
             }
             scheduleData = res.data || [];
+            buildCalendar(scheduleData);
             renderSchedule();
         },
         error: function(xhr) {
-            $('#scheduleBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#scheduleBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('scheduleBody');
         }
     });
 }
 
 function renderSchedule() {
-    const q        = ($('#scheduleEmpFilter').val() || '').trim().toUpperCase();
-    const filtered = q ? scheduleData.filter(d => (d.EMPCD||'').toUpperCase().includes(q)) : scheduleData;
-    const total    = filtered.length;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const q     = ($('#scheduleEmpFilter').val() || '').trim().toUpperCase();
+    let filtered = q ? scheduleData.filter(d => (d.EMPCD||'').toUpperCase().includes(q) || (d.EMP_NAME||'').toUpperCase().includes(q)) : [...scheduleData];
+
+    // Filter by selected calendar day
+    if (selectedCalDay) {
+        const selDate = new Date(selectedCalDay); selDate.setHours(0,0,0,0);
+        filtered = filtered.filter(item => {
+            if (!item.FROM_DATE || !item.TO_DATE) return false;
+            const from = new Date(item.FROM_DATE); from.setHours(0,0,0,0);
+            const to   = new Date(item.TO_DATE);   to.setHours(0,0,0,0);
+            return from <= selDate && to >= selDate;
+        });
+        const [y, m, d] = selectedCalDay.split('-');
+        $('#calDayBadge').removeClass('d-none');
+        $('#calDayBadgeText').text(`Ngày ${d}/${m}/${y} · ${filtered.length} người`);
+        $('#viewAllBtn').removeClass('d-none');
+    } else {
+        $('#calDayBadge').addClass('d-none');
+        $('#viewAllBtn').addClass('d-none');
+    }
+
+    // Sort: currently on leave → upcoming → past
+    const priority = item => {
+        if (!item.FROM_DATE || !item.TO_DATE) return 1;
+        const from = new Date(item.FROM_DATE); from.setHours(0,0,0,0);
+        const to   = new Date(item.TO_DATE);   to.setHours(0,0,0,0);
+        if (from <= today && to >= today) return 0;
+        if (from > today) return 1;
+        return 2;
+    };
+    filtered.sort((a, b) => {
+        const pa = priority(a), pb = priority(b);
+        if (pa !== pb) return pa - pb;
+        return new Date(a.FROM_DATE) - new Date(b.FROM_DATE);
+    });
+
+    const total      = filtered.length;
     const totalPages = Math.max(1, Math.ceil(total / schPageSize));
     if (schPage > totalPages) schPage = totalPages;
     const start    = (schPage - 1) * schPageSize;
     const pageData = filtered.slice(start, start + schPageSize);
 
     if (!pageData.length) {
-        const msg = q ? `Không tìm thấy mã NV "<strong>${q}</strong>"` : 'Không có lịch nghỉ trong tháng này';
-        $('#scheduleBody').html(emptyRow(msg));
+        const msg = q ? `Không tìm thấy "<strong>${q}</strong>"` : 'Không có lịch nghỉ đã duyệt trong tháng này';
+        $('#scheduleBody').html(emptyRow(msg, 8));
     } else {
-        $('#scheduleBody').html(pageData.map((item,i) => buildScheduleRow(item, start+i+1)).join(''));
+        $('#scheduleBody').html(pageData.map((item,i) => buildScheduleRow(item, start+i+1, today)).join(''));
     }
 
-    // count
     if (total > 0) {
         const s = start + 1, e = Math.min(start + schPageSize, total);
         const extra = q ? ` (lọc từ ${scheduleData.length})` : '';
@@ -544,7 +759,6 @@ function renderSchedule() {
         $('#scheduleCount').text('');
     }
 
-    // pagination bar
     const $bar = $('#schedulePagination').empty();
     if (totalPages > 1) {
         const mk = (label, p, disabled, active) => {
@@ -624,8 +838,24 @@ function clearAllEmps()   { $('#empList .emp-chk').prop('checked', false); updat
 function updateSelCount() { $('#selCount').text($('#empList .emp-chk:checked').length + ' NV được chọn'); }
 function getSelectedEmpcds() { return $('#empList .emp-chk:checked').map(function() { return $(this).val(); }).get(); }
 
+function isSunday(dateStr) {
+    if (!dateStr) return false;
+    const p = dateStr.split('-');
+    return new Date(Date.UTC(+p[0], +p[1]-1, +p[2])).getUTCDay() === 0;
+}
+
 function calcAssignDays() {
     const f = $('#assignFromDate').val(), t = $('#assignToDate').val();
+    if (f && isSunday(f)) {
+        $('#assignFromDate').val('');
+        showToast('Từ ngày không được là Chủ Nhật (công ty làm T2–T7)', 'warning');
+        return;
+    }
+    if (t && isSunday(t)) {
+        $('#assignToDate').val('');
+        showToast('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)', 'warning');
+        return;
+    }
     if (f && t) { const diff = (new Date(t)-new Date(f))/86400000+1; if(diff>0) $('#assignTotalDays').val(diff); }
 }
 
@@ -638,6 +868,8 @@ async function submitAssign() {
     const reason    = $('#assignReason').val().trim() || null;
     if (!empList.length)    { showToast('Chọn ít nhất 1 nhân viên', 'warning'); return; }
     if (!from || !to)       { showToast('Vui lòng chọn ngày', 'warning'); return; }
+    if (isSunday(from))     { showToast('Từ ngày không được là Chủ Nhật (công ty làm T2–T7)', 'warning'); return; }
+    if (isSunday(to))       { showToast('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)', 'warning'); return; }
     if (!days || days <= 0) { showToast('Số ngày nghỉ không hợp lệ', 'warning'); return; }
 
     // Cảnh báo nhân viên không đủ phép năm nếu chọn loại AL
@@ -827,8 +1059,6 @@ function buildMyAssignRow(item, idx) {
     let statusHtml;
     if (item.STATUS === 'CONFIRMED')
         statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã xác nhận</span>`;
-    else if (item.STATUS === 'WORKER_REJECTED')
-        statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Không đồng ý</span>`;
     else
         statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ xác nhận</span>`;
     return `<tr>
@@ -865,7 +1095,6 @@ function loadMyAssign(page = 1) {
             $('#maTotal').text((s.TOTAL||0).toLocaleString());
             $('#maPending').text((s.PENDING_CONFIRM||0).toLocaleString());
             $('#maConfirmed').text((s.CONFIRMED||0).toLocaleString());
-            $('#maRejected').text((s.WORKER_REJECTED||0).toLocaleString());
             maTotal      = res.total      || 0;
             maTotalPages = res.total_pages || 0;
             const data   = res.data || [];
@@ -930,6 +1159,9 @@ $(document).ready(function() {
     updateMonthLabel();
     loadSchedule();
     loadPendingBadge();
+    // Hide calendar hover box on scroll (mobile)
+    window.addEventListener('scroll', hideCalHover, { passive:true });
+    document.addEventListener('touchmove', hideCalHover, { passive:true });
 });
 </script>
 }

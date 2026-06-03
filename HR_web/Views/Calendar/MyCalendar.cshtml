@@ -1,0 +1,593 @@
+@{
+    ViewBag.Title = "Lịch cá nhân";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+/* ── Layout ─────────────────────────────────────────── */
+.my-cal-wrap {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* ── Month nav ──────────────────────────────────────── */
+.cal-month-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 12px 0 8px;
+}
+.cal-month-btn {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s;
+    color: #64748b;
+}
+.cal-month-btn:hover { background: #f1f5f9; }
+.cal-month-label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    min-width: 150px;
+    text-align: center;
+}
+
+/* ── Grid ───────────────────────────────────────────── */
+.my-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+    padding: 0 4px 4px;
+}
+.my-cal-hdr {
+    text-align: center;
+    font-size: .7rem;
+    font-weight: 700;
+    color: #64748b;
+    padding: 6px 0 4px;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+}
+.my-cal-hdr.sun { color: #ef4444; }
+
+.my-cal-cell {
+    min-height: 72px;
+    border-radius: 8px;
+    padding: 5px 5px 4px;
+    background: #f8fafc;
+    cursor: pointer;
+    transition: background .12s, box-shadow .12s;
+    position: relative;
+    border: 1.5px solid transparent;
+}
+.my-cal-cell:hover { background: #e0f2fe; }
+.my-cal-cell.is-today { border-color: #3b82f6; background: #eff6ff; }
+.my-cal-cell.is-sunday { background: #f8fafc; cursor: default; opacity: .45; }
+.my-cal-cell.is-other-month { opacity: .3; cursor: default; }
+.my-cal-cell.is-selected { background: #dbeafe !important; border-color: #2563eb !important; box-shadow: 0 0 0 2px #bfdbfe; }
+.my-cal-cell.is-past { opacity: .7; }
+
+.my-cal-daynum {
+    font-size: .75rem;
+    font-weight: 700;
+    color: #334155;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+.my-cal-cell.is-today .my-cal-daynum {
+    color: #2563eb;
+}
+.my-cal-cell.is-sunday .my-cal-daynum {
+    color: #ef4444;
+}
+
+/* ── Event dots ─────────────────────────────────────── */
+.my-cal-dots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+}
+.my-cal-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.dot-ot    { background: #f97316; }
+.dot-gp    { background: #3b82f6; }
+.dot-leave { background: #22c55e; }
+.dot-leave-pending  { background: #eab308; }
+.dot-leave-rejected { background: #ef4444; }
+
+/* ── Event chips (compact) ──────────────────────────── */
+.my-cal-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 2px;
+}
+.my-cal-chip {
+    font-size: .6rem;
+    padding: 1px 4px;
+    border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+}
+.chip-ot    { background: #fff7ed; color: #c2410c; }
+.chip-gp    { background: #eff6ff; color: #1d4ed8; }
+.chip-leave { background: #f0fdf4; color: #15803d; }
+.chip-leave-p { background: #fefce8; color: #854d0e; }
+.chip-leave-r { background: #fef2f2; color: #991b1b; }
+
+/* ── Legend ─────────────────────────────────────────── */
+.cal-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 8px 8px 4px;
+    font-size: .72rem;
+    color: #64748b;
+}
+.cal-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.cal-legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* ── Detail panel ───────────────────────────────────── */
+.cal-detail-panel {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.08);
+    padding: 16px;
+    margin-top: 12px;
+}
+.cal-detail-title {
+    font-size: .85rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.cal-detail-section {
+    margin-bottom: 10px;
+}
+.cal-detail-section-label {
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #94a3b8;
+    margin-bottom: 5px;
+}
+.cal-detail-card {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: .78rem;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.cal-detail-card .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.cal-detail-empty {
+    color: #94a3b8;
+    font-size: .78rem;
+    font-style: italic;
+    text-align: center;
+    padding: 20px 0;
+}
+
+/* ── Status badges ──────────────────────────────────── */
+.cal-badge {
+    font-size: .65rem;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+.badge-approved  { background: #dcfce7; color: #166534; }
+.badge-pending   { background: #fef9c3; color: #854d0e; }
+.badge-rejected  { background: #fee2e2; color: #991b1b; }
+.badge-confirmed { background: #dcfce7; color: #166534; }
+
+/* ── Mobile ─────────────────────────────────────────── */
+@@media (max-width: 576px) {
+    .my-cal-grid { gap: 2px; padding: 0 2px 2px; }
+    .my-cal-cell { min-height: 52px; padding: 3px 3px 2px; border-radius: 6px; }
+    .my-cal-daynum { font-size: .65rem; }
+    .my-cal-dot { width: 6px; height: 6px; }
+    .my-cal-chips { display: none; }
+    .cal-month-label { font-size: .9rem; min-width: 130px; }
+    .cal-detail-panel { padding: 12px; }
+}
+</style>
+
+<div class="container-fluid py-3">
+    <div class="my-cal-wrap">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white pb-0 pt-3 border-0">
+                <h6 class="fw-bold text-dark mb-0">
+                    <i class="bi bi-calendar-week me-2 text-primary"></i>Lịch cá nhân
+                </h6>
+                <p class="text-xs text-muted mb-0 mt-1">Tăng ca · Ra vào cổng · Nghỉ phép</p>
+            </div>
+            <div class="card-body pt-2">
+
+                <!-- Month navigation -->
+                <div class="cal-month-nav">
+                    <button class="cal-month-btn" onclick="changeMonth(-1)" title="Tháng trước">
+                        <i class="bi bi-chevron-left" style="font-size:.75rem;"></i>
+                    </button>
+                    <span class="cal-month-label" id="calMonthLabel"></span>
+                    <button class="cal-month-btn" onclick="changeMonth(1)" title="Tháng sau">
+                        <i class="bi bi-chevron-right" style="font-size:.75rem;"></i>
+                    </button>
+                </div>
+
+                <!-- Legend -->
+                <div class="cal-legend px-2">
+                    <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#f97316;"></span> Tăng ca</span>
+                    <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#3b82f6;"></span> Ra vào cổng</span>
+                    <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#22c55e;"></span> Nghỉ phép (duyệt)</span>
+                    <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#eab308;"></span> Nghỉ phép (chờ)</span>
+                </div>
+
+                <!-- Calendar grid -->
+                <div id="myCalGrid" class="my-cal-grid mt-2">
+                    <!-- built by JS -->
+                </div>
+
+                <!-- Loading state -->
+                <div id="calLoading" class="text-center py-4 d-none">
+                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                    <span class="text-muted text-xs">Đang tải...</span>
+                </div>
+
+                <!-- Detail panel -->
+                <div id="calDetailPanel" class="cal-detail-panel d-none">
+                    <div class="cal-detail-title">
+                        <i class="bi bi-calendar3 text-primary"></i>
+                        <span id="calDetailDate"></span>
+                    </div>
+                    <div id="calDetailBody"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const VI_MONTHS = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                       'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+    const DOW_LABELS = ['T2','T3','T4','T5','T6','T7','CN'];
+
+    const LEAVE_TYPE_LABEL = {
+        'AL': 'Nghỉ phép năm', 'CL': 'Nghỉ bù', 'SL': 'Nghỉ bệnh',
+        'NPL': 'Nghỉ không lương', 'ML': 'Nghỉ thai sản', 'BL': 'Tang lễ'
+    };
+    const GP_TYPE_LABEL = { 'OUT': 'Ra ngoài', 'IN': 'Vào trong', 'MID': 'Giữa ca' };
+
+    let curYear  = new Date().getFullYear();
+    let curMonth = new Date().getMonth() + 1;
+    let calData  = null;
+    let selectedDay = null;
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    function fmtDate(y, m, d) {
+        return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+
+    function parseDate(s) {
+        if (!s) return null;
+        const p = s.split('-');
+        return new Date(Date.UTC(+p[0], +p[1]-1, +p[2]));
+    }
+
+    function viDate(s) {
+        const d = parseDate(s);
+        if (!d) return s;
+        return `${d.getUTCDate()}/${d.getUTCMonth()+1}/${d.getUTCFullYear()}`;
+    }
+
+    function statusBadge(st) {
+        if (!st) return '';
+        const map = {
+            'APPROVED':  ['badge-approved',  'Đã duyệt'],
+            'CONFIRMED': ['badge-confirmed', 'Xác nhận'],
+            'PENDING':   ['badge-pending',   'Chờ duyệt'],
+            'REJECTED':  ['badge-rejected',  'Từ chối']
+        };
+        const [cls, lbl] = map[st.toUpperCase()] ?? ['badge-pending', st];
+        return `<span class="cal-badge ${cls}">${lbl}</span>`;
+    }
+
+    function escHtml(s) {
+        return (s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ── data fetch ────────────────────────────────────────────────────────────
+
+    function loadMonth(y, m) {
+        calData = null;
+        selectedDay = null;
+        document.getElementById('calDetailPanel').classList.add('d-none');
+        document.getElementById('calLoading').classList.remove('d-none');
+        document.getElementById('myCalGrid').innerHTML = '';
+
+        $.get(`/Calendar/GetMonthly`, { year: y, month: m })
+            .done(function(res) {
+                document.getElementById('calLoading').classList.add('d-none');
+                if (res && res.success) {
+                    calData = res.data;
+                    buildCalendar(y, m);
+                } else {
+                    document.getElementById('myCalGrid').innerHTML =
+                        `<div class="text-danger text-xs p-3" style="grid-column:1/-1;">${escHtml(res?.message ?? 'Lỗi tải dữ liệu')}</div>`;
+                }
+            })
+            .fail(function() {
+                document.getElementById('calLoading').classList.add('d-none');
+                document.getElementById('myCalGrid').innerHTML =
+                    `<div class="text-danger text-xs p-3" style="grid-column:1/-1;">Lỗi kết nối server</div>`;
+            });
+    }
+
+    // ── calendar builder ──────────────────────────────────────────────────────
+
+    function buildCalendar(y, m) {
+        // update month label
+        document.getElementById('calMonthLabel').textContent = `${VI_MONTHS[m-1]}, ${y}`;
+
+        const grid    = document.getElementById('myCalGrid');
+        const today   = new Date(); today.setHours(0,0,0,0);
+        const todayStr = fmtDate(today.getFullYear(), today.getMonth()+1, today.getDate());
+
+        // index by date string: { ot:[...], gp:[...], leave:[...] }
+        const dayMap = {};
+
+        function ensureDay(key) {
+            if (!dayMap[key]) dayMap[key] = { ot: [], gp: [], leave: [] };
+        }
+
+        (calData?.ot ?? []).forEach(item => {
+            ensureDay(item.date);
+            dayMap[item.date].ot.push(item);
+        });
+
+        (calData?.gatePass ?? []).forEach(item => {
+            ensureDay(item.date);
+            dayMap[item.date].gp.push(item);
+        });
+
+        (calData?.leave ?? []).forEach(item => {
+            // expand multi-day leaves
+            let d = parseDate(item.from);
+            const end = parseDate(item.to);
+            while (d <= end) {
+                const key = fmtDate(d.getUTCFullYear(), d.getUTCMonth()+1, d.getUTCDate());
+                ensureDay(key);
+                dayMap[key].leave.push(item);
+                d.setUTCDate(d.getUTCDate() + 1);
+            }
+        });
+
+        // first day of month (Mon=1 … Sun=0 in JS, remap to Mon=0 … Sun=6)
+        const firstDow = new Date(Date.UTC(y, m-1, 1)).getUTCDay(); // 0=Sun
+        const offset   = (firstDow + 6) % 7; // Mon-based offset
+        const daysInMonth  = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        const daysInPrevMo = new Date(Date.UTC(y, m-1, 0)).getUTCDate();
+
+        let cells = '';
+
+        // header
+        DOW_LABELS.forEach((lbl, i) => {
+            cells += `<div class="my-cal-hdr${i===6?' sun':''}">${lbl}</div>`;
+        });
+
+        // prev month fill
+        for (let i = 0; i < offset; i++) {
+            const d = daysInPrevMo - offset + 1 + i;
+            cells += `<div class="my-cal-cell is-other-month"><div class="my-cal-daynum">${d}</div></div>`;
+        }
+
+        // current month days
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dow    = new Date(Date.UTC(y, m-1, d)).getUTCDay(); // 0=Sun
+            const isSun  = dow === 0;
+            const key    = fmtDate(y, m, d);
+            const isPast = key < todayStr;
+            const isToday = key === todayStr;
+            const isSel  = key === selectedDay;
+            const events = dayMap[key];
+
+            let cls = 'my-cal-cell';
+            if (isSun)    cls += ' is-sunday';
+            if (isToday)  cls += ' is-today';
+            if (isPast)   cls += ' is-past';
+            if (isSel)    cls += ' is-selected';
+
+            let dotHtml  = '';
+            let chipHtml = '';
+
+            if (!isSun && events) {
+                // dots
+                let dots = '';
+                if (events.ot.length > 0)    dots += `<span class="my-cal-dot dot-ot"></span>`;
+                if (events.gp.length > 0)    dots += `<span class="my-cal-dot dot-gp"></span>`;
+                events.leave.forEach(lv => {
+                    const dc = lv.status === 'APPROVED' ? 'dot-leave' : lv.status === 'REJECTED' ? 'dot-leave-rejected' : 'dot-leave-pending';
+                    dots += `<span class="my-cal-dot ${dc}"></span>`;
+                });
+                if (dots) dotHtml = `<div class="my-cal-dots">${dots}</div>`;
+
+                // chips (desktop only via CSS)
+                let chips = '';
+                if (events.ot.length > 0)
+                    chips += `<span class="my-cal-chip chip-ot">TC ${events.ot[0].hours}h</span>`;
+                if (events.gp.length > 0)
+                    chips += `<span class="my-cal-chip chip-gp">Ra vào</span>`;
+                if (events.leave.length > 0) {
+                    const lv = events.leave[0];
+                    const cc = lv.status === 'APPROVED' ? 'chip-leave' : lv.status === 'REJECTED' ? 'chip-leave-r' : 'chip-leave-p';
+                    chips += `<span class="my-cal-chip ${cc}">Nghỉ</span>`;
+                }
+                if (chips) chipHtml = `<div class="my-cal-chips">${chips}</div>`;
+            }
+
+            const clickAttr = isSun ? '' : `onclick="selectDay('${key}')"`;
+            cells += `
+                <div class="${cls}" ${clickAttr}>
+                    <div class="my-cal-daynum">${d}</div>
+                    ${dotHtml}
+                    ${chipHtml}
+                </div>`;
+        }
+
+        // next month fill
+        const totalCells = offset + daysInMonth;
+        const remainder  = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+        for (let i = 1; i <= remainder; i++) {
+            cells += `<div class="my-cal-cell is-other-month"><div class="my-cal-daynum">${i}</div></div>`;
+        }
+
+        grid.innerHTML = cells;
+
+        // restore detail if selectedDay still in view
+        if (selectedDay) showDetail(selectedDay);
+    }
+
+    // ── day select ────────────────────────────────────────────────────────────
+
+    window.selectDay = function(key) {
+        if (selectedDay === key) {
+            selectedDay = null;
+            document.getElementById('calDetailPanel').classList.add('d-none');
+        } else {
+            selectedDay = key;
+            showDetail(key);
+        }
+        buildCalendar(curYear, curMonth);
+    };
+
+    function showDetail(key) {
+        const panel  = document.getElementById('calDetailPanel');
+        const title  = document.getElementById('calDetailDate');
+        const body   = document.getElementById('calDetailBody');
+
+        title.textContent = `Chi tiết: ${viDate(key)}`;
+        panel.classList.remove('d-none');
+
+        // ── OT section
+        const today   = new Date(); today.setHours(0,0,0,0);
+        const todayStr = fmtDate(today.getFullYear(), today.getMonth()+1, today.getDate());
+
+        // find events for this key
+        let otItems    = (calData?.ot ?? []).filter(x => x.date === key);
+        let gpItems    = (calData?.gatePass ?? []).filter(x => x.date === key);
+        let leaveItems = (calData?.leave ?? []).filter(lv => {
+            const s = parseDate(lv.from), e = parseDate(lv.to), d = parseDate(key);
+            return s && e && d && d >= s && d <= e;
+        });
+
+        if (otItems.length === 0 && gpItems.length === 0 && leaveItems.length === 0) {
+            body.innerHTML = `<div class="cal-detail-empty">Không có sự kiện nào trong ngày này</div>`;
+            return;
+        }
+
+        let html = '';
+
+        // OT
+        if (otItems.length > 0) {
+            html += `<div class="cal-detail-section">
+                <div class="cal-detail-section-label"><i class="bi bi-clock me-1"></i>Tăng ca</div>`;
+            otItems.forEach(item => {
+                html += `<div class="cal-detail-card">
+                    <span class="dot" style="background:#f97316;"></span>
+                    <span>${item.hours}h tăng ca</span>
+                    ${statusBadge(item.status)}
+                </div>`;
+            });
+            html += `</div>`;
+        }
+
+        // Gate Pass
+        if (gpItems.length > 0) {
+            html += `<div class="cal-detail-section">
+                <div class="cal-detail-section-label"><i class="bi bi-door-open me-1"></i>Ra vào cổng</div>`;
+            gpItems.forEach(item => {
+                const typeLabel = GP_TYPE_LABEL[item.type ?? ''] ?? item.type ?? '';
+                html += `<div class="cal-detail-card">
+                    <span class="dot" style="background:#3b82f6;"></span>
+                    <span>${escHtml(typeLabel)}</span>
+                    ${statusBadge(item.status)}
+                </div>`;
+            });
+            html += `</div>`;
+        }
+
+        // Leave
+        if (leaveItems.length > 0) {
+            html += `<div class="cal-detail-section">
+                <div class="cal-detail-section-label"><i class="bi bi-calendar-x me-1"></i>Nghỉ phép</div>`;
+            leaveItems.forEach(item => {
+                const dotClr = item.status === 'APPROVED' ? '#22c55e' : item.status === 'REJECTED' ? '#ef4444' : '#eab308';
+                const typeLbl = LEAVE_TYPE_LABEL[item.leaveType ?? ''] ?? (item.leaveType ?? '');
+                const dateRange = item.from === item.to
+                    ? viDate(item.from)
+                    : `${viDate(item.from)} – ${viDate(item.to)}`;
+                html += `<div class="cal-detail-card flex-wrap gap-1">
+                    <span class="dot" style="background:${dotClr};"></span>
+                    <span>${escHtml(typeLbl)}</span>
+                    <span class="text-muted" style="font-size:.7rem;">${escHtml(dateRange)} (${item.days} ngày)</span>
+                    ${statusBadge(item.status)}
+                </div>`;
+            });
+            html += `</div>`;
+        }
+
+        body.innerHTML = html;
+
+        // scroll to panel on mobile
+        if (window.innerWidth <= 576) {
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    // ── month navigation ──────────────────────────────────────────────────────
+
+    window.changeMonth = function(delta) {
+        curMonth += delta;
+        if (curMonth > 12) { curMonth = 1;  curYear++; }
+        if (curMonth < 1)  { curMonth = 12; curYear--; }
+        loadMonth(curYear, curMonth);
+    };
+
+    // ── init ──────────────────────────────────────────────────────────────────
+
+    loadMonth(curYear, curMonth);
+})();
+</script>
+}

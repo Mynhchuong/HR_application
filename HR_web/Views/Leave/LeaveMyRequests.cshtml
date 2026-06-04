@@ -60,6 +60,8 @@
         .header-filter-row > div { width: 100%; }
         .source-tab { padding: 5px 10px; font-size: .75rem; }
     }
+    tr.tr-expired-pending td { background:#f1f5f9 !important; color:#9ca3af !important; }
+    tr.tr-expired-pending .badge { opacity:.55; }
 </style>
 }
 
@@ -96,7 +98,7 @@
             <div class="px-4 pb-2 pt-1 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid #f1f5f9;">
                 <span class="source-tab active" onclick="setSource('')"  id="tab-all">Tất cả</span>
                 <span class="source-tab" onclick="setSource('SELF')"     id="tab-self"><i class="bi bi-person-fill me-1"></i>Tự nộp</span>
-                <span class="source-tab" onclick="setSource('ASSIGNED')" id="tab-assigned"><i class="bi bi-calendar2-plus me-1"></i>Được sắp lịch</span>
+                <span class="source-tab d-none" onclick="setSource('ASSIGNED')" id="tab-assigned"><i class="bi bi-calendar2-plus me-1"></i>Được sắp lịch</span>
             </div>
 
             <!-- Desktop table -->
@@ -337,8 +339,8 @@ function leaveBadge(t) {
 function statusBadge(item) {
     const s = item.STATUS, cs = item.CONFIRM_STATUS, src = item.SOURCE;
     if (src === 'ASSIGNED') {
-        if (s === 'ASSIGNED')        return `<span class="badge bg-info text-dark"><i class="bi bi-clock-history me-1"></i>Chờ xác nhận</span>`;
-        if (s === 'CONFIRMED')       return `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã xác nhận</span>`;
+        if (s === 'ASSIGNED')        return `<span class="badge bg-info text-dark"><i class="bi bi-hourglass-split me-1"></i>Chưa tiếp nhận thông tin</span>`;
+        if (s === 'CONFIRMED')       return `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã tiếp nhận thông tin</span>`;
         if (s === 'WORKER_REJECTED') return `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Đã từ chối</span>`;
     }
     if (s === 'PENDING')  return `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>`;
@@ -374,16 +376,20 @@ function isPastDate(dateStr) {
     return dateStr.slice(0, 10) <= localDateStr();
 }
 
+function isExpiredPending(item) {
+    if (!item.FROM_DATE) return false;
+    return item.FROM_DATE.slice(0, 10) < localDateStr() && item.STATUS === 'PENDING';
+}
+
 function actionBtns(item) {
     const s = item.STATUS;
     if (item.SOURCE === 'ASSIGNED' && s === 'ASSIGNED') {
         if (isPastDate(item.FROM_DATE)) {
             return `<span class="text-muted text-xs"><i class="bi bi-clock-history me-1"></i>Đã quá hạn</span>`;
         }
-        return `<button class="btn btn-xs btn-success me-1" title="Xác nhận" onclick="confirmLeave('${item.REQUEST_ID}')"><i class="bi bi-check-lg"></i></button>
-                <button class="btn btn-xs btn-outline-danger" title="Từ chối" onclick="workerReject('${item.REQUEST_ID}')"><i class="bi bi-x-lg"></i></button>`;
+        return `<button class="btn btn-xs btn-success" title="Tiếp nhận thông tin" onclick="confirmLeave('${item.REQUEST_ID}')"><i class="bi bi-check-lg"></i></button>`;
     }
-    if (item.IS_EDITABLE) {
+    if (item.IS_EDITABLE && !isExpiredPending(item)) {
         return `<button class="btn btn-xs btn-outline-primary me-1" title="Sửa"
                     data-id="${item.REQUEST_ID}" data-type="${escHtml(item.LEAVE_TYPE||'AL')}"
                     data-from="${item.FROM_DATE||''}" data-to="${item.TO_DATE||''}"
@@ -397,7 +403,8 @@ function actionBtns(item) {
 function buildRow(item, idx) {
     const isAssigned  = item.SOURCE === 'ASSIGNED' && item.STATUS === 'ASSIGNED';
     const needsAction = isAssigned && !isPastDate(item.TO_DATE);
-    return `<tr class="${needsAction ? 'tr-pending-confirm' : ''}">
+    const expired     = isExpiredPending(item);
+    return `<tr class="${needsAction ? 'tr-pending-confirm' : expired ? 'tr-expired-pending' : ''}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2">${sourceBadge(item.SOURCE)}</td>
         <td class="px-2">${leaveBadge(item.LEAVE_TYPE)}</td>
@@ -414,18 +421,20 @@ function buildCard(item, idx) {
     const remark = remarkHtml(item);
     const isAssigned = item.SOURCE === 'ASSIGNED' && item.STATUS === 'ASSIGNED';
     const isPast     = isAssigned && isPastDate(item.FROM_DATE);
+    const expired    = isExpiredPending(item);
     const alertBanner = isAssigned
         ? isPast
             ? `<div class="d-flex align-items-center gap-1 mb-2 px-2 py-1 rounded" style="background:#fde8e8;border-left:3px solid #ef4444;">
                    <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size:.8rem;"></i>
-                   <span class="text-xs fw-bold" style="color:#7f1d1d;">Đã quá hạn xác nhận lịch nghỉ này</span>
+                   <span class="text-xs fw-bold" style="color:#7f1d1d;">Đã quá hạn tiếp nhận thông tin lịch nghỉ này</span>
                </div>`
             : `<div class="d-flex align-items-center gap-1 mb-2 px-2 py-1 rounded" style="background:#fef3c7;border-left:3px solid #f59e0b;">
                    <i class="bi bi-bell-fill text-warning" style="font-size:.8rem;"></i>
-                   <span class="text-xs fw-bold" style="color:#92400e;">Bạn đã được sắp lịch, vui lòng xác nhận ngay!</span>
+                   <span class="text-xs fw-bold" style="color:#92400e;">Bạn đã được sắp lịch, vui lòng tiếp nhận thông tin ngay!</span>
                </div>`
         : '';
-    return `<div class="lv-card${isAssigned ? ' lv-pending-confirm' : ''}">
+    const expiredStyle = expired ? ' style="background:#f1f5f9;opacity:.75;"' : '';
+    return `<div class="lv-card${isAssigned ? ' lv-pending-confirm' : ''}"${expiredStyle}>
         ${alertBanner}
         <div class="lv-row">
             <div class="d-flex gap-1">${sourceBadge(item.SOURCE)} ${leaveBadge(item.LEAVE_TYPE)}</div>
@@ -687,13 +696,13 @@ function confirmDelete(id) {
 }
 
 function confirmLeave(id) {
-    showConfirm('Xác nhận lịch nghỉ phép này?', async function() {
+    showConfirm('Tiếp nhận thông tin lịch nghỉ phép này?', async function() {
         try {
             const res = await $.ajax({ url: CONFIRM_URL, type: 'POST', data: { request_id: id } });
-            if (res.success) { showToast('Đã xác nhận lịch nghỉ', 'success'); loadData(currentPage); }
-            else showToast(res.message || 'Lỗi xác nhận', 'error');
+            if (res.success) { showToast('Đã tiếp nhận thông tin lịch nghỉ', 'success'); loadData(currentPage); }
+            else showToast(res.message || 'Lỗi tiếp nhận', 'error');
         } catch { showToast('Lỗi kết nối', 'error'); }
-    }, { title: 'Xác Nhận Nghỉ Phép', okText: 'Xác Nhận', okClass: 'btn-success' });
+    }, { title: 'Tiếp Nhận Thông Tin', okText: 'Tiếp Nhận', okClass: 'btn-success' });
 }
 
 function workerReject(id) {

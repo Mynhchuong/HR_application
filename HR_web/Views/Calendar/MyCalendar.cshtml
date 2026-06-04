@@ -4,590 +4,639 @@
 }
 
 <style>
-/* ── Layout ─────────────────────────────────────────── */
-.my-cal-wrap {
-    max-width: 900px;
-    margin: 0 auto;
-}
+/* ── Wrap ──────────────────────────────────────────────── */
+.pca-wrap { max-width: 960px; margin: 0 auto; }
 
-/* ── Month nav ──────────────────────────────────────── */
-.cal-month-nav {
+/* ── Summary cards ─────────────────────────────────────── */
+.pca-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 4px 0 12px;
+}
+.pca-sum-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.07);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.pca-sum-icon { font-size: 1rem; margin-bottom: 2px; }
+.pca-sum-val  { font-size: 1.25rem; font-weight: 700; color: #1e293b; line-height: 1.2; }
+.pca-sum-lbl  { font-size: .68rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
+
+/* ── Month nav ─────────────────────────────────────────── */
+.pca-month-nav {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 16px;
-    padding: 12px 0 8px;
+    gap: 14px;
+    padding: 8px 0;
 }
-.cal-month-btn {
-    width: 32px; height: 32px;
+.pca-nav-btn {
+    width: 30px; height: 30px;
     border-radius: 50%;
     border: 1px solid #e2e8f0;
     background: #fff;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    transition: background .15s;
     color: #64748b;
+    transition: background .12s;
 }
-.cal-month-btn:hover { background: #f1f5f9; }
-.cal-month-label {
-    font-size: 1rem;
-    font-weight: 600;
+.pca-nav-btn:hover { background: #f1f5f9; }
+.pca-month-lbl {
+    font-size: .95rem;
+    font-weight: 700;
     color: #1e293b;
-    min-width: 150px;
+    min-width: 140px;
     text-align: center;
 }
 
-/* ── Grid ───────────────────────────────────────────── */
-.my-cal-grid {
+/* ── Legend ─────────────────────────────────────────────── */
+.pca-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 4px 2px 6px;
+    font-size: .7rem;
+    color: #64748b;
+}
+.pca-legend span { display: flex; align-items: center; gap: 4px; }
+.pca-ldot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── Calendar grid ──────────────────────────────────────── */
+.pca-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 3px;
-    padding: 0 4px 4px;
 }
-.my-cal-hdr {
+.pca-hdr {
     text-align: center;
-    font-size: .7rem;
+    font-size: .65rem;
     font-weight: 700;
-    color: #64748b;
-    padding: 6px 0 4px;
-    letter-spacing: .03em;
+    color: #94a3b8;
+    padding: 5px 0 3px;
     text-transform: uppercase;
+    letter-spacing: .04em;
 }
-.my-cal-hdr.sun { color: #ef4444; }
+.pca-hdr.sun { color: #f87171; }
 
-.my-cal-cell {
-    min-height: 72px;
+.pca-cell {
+    min-height: 86px;
     border-radius: 8px;
-    padding: 5px 5px 4px;
     background: #f8fafc;
-    cursor: pointer;
-    transition: background .12s, box-shadow .12s;
-    position: relative;
     border: 1.5px solid transparent;
+    padding: 5px 6px 4px;
+    cursor: pointer;
+    transition: background .1s, border-color .1s;
+    overflow: hidden;
+    position: relative;
 }
-.my-cal-cell:hover { background: #e0f2fe; }
-.my-cal-cell.is-today { border-color: #3b82f6; background: #eff6ff; }
-.my-cal-cell.is-sunday { background: #f8fafc; cursor: default; opacity: .45; }
-.my-cal-cell.is-other-month { opacity: .3; cursor: default; }
-.my-cal-cell.is-selected { background: #dbeafe !important; border-color: #2563eb !important; box-shadow: 0 0 0 2px #bfdbfe; }
-.my-cal-cell.is-past { opacity: .7; }
+.pca-cell:hover:not(.pca-sun):not(.pca-other) { background: #e0f2fe; }
+.pca-cell.pca-today    { border-color: #3b82f6; background: #eff6ff; }
+.pca-cell.pca-sun      { background: #fafafa; cursor: default; opacity: .4; }
+.pca-cell.pca-other    { opacity: .25; cursor: default; }
+.pca-cell.pca-past     { opacity: .8; }
+.pca-cell.pca-selected { background: #dbeafe !important; border-color: #2563eb !important; box-shadow: 0 0 0 2px #bfdbfe; }
+.pca-cell.pca-gray-day { background: #e2e8f0; }
 
-.my-cal-daynum {
-    font-size: .75rem;
+/* day number */
+.pca-daynum {
+    font-size: .72rem;
     font-weight: 700;
-    color: #334155;
+    color: #475569;
     line-height: 1;
-    margin-bottom: 4px;
 }
-.my-cal-cell.is-today .my-cal-daynum {
-    color: #2563eb;
-}
-.my-cal-cell.is-sunday .my-cal-daynum {
-    color: #ef4444;
-}
+.pca-cell.pca-today   .pca-daynum { color: #2563eb; }
+.pca-cell.pca-sun     .pca-daynum { color: #f87171; }
 
-/* ── Event dots ─────────────────────────────────────── */
-.my-cal-dots {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px;
-}
-.my-cal-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-.dot-ot    { background: #f97316; }
-.dot-gp    { background: #3b82f6; }
-.dot-leave { background: #22c55e; }
-.dot-leave-pending  { background: #eab308; }
-.dot-leave-rejected { background: #ef4444; }
-
-/* ── Event chips (compact) ──────────────────────────── */
-.my-cal-chips {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    margin-top: 2px;
-}
-.my-cal-chip {
-    font-size: .6rem;
-    padding: 1px 4px;
-    border-radius: 4px;
+/* shift */
+.pca-shift {
+    font-size: .62rem;
+    color: #64748b;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1.4;
+    margin-top: 2px;
 }
-.chip-ot    { background: #fff7ed; color: #c2410c; }
-.chip-gp    { background: #eff6ff; color: #1d4ed8; }
-.chip-leave { background: #f0fdf4; color: #15803d; }
-.chip-leave-p { background: #fefce8; color: #854d0e; }
-.chip-leave-r { background: #fef2f2; color: #991b1b; }
 
-/* ── Legend ─────────────────────────────────────────── */
-.cal-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 8px 8px 4px;
-    font-size: .72rem;
-    color: #64748b;
-}
-.cal-legend-item {
+/* times */
+.pca-times {
+    font-size: .62rem;
+    color: #334155;
+    margin-top: 1px;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
 }
-.cal-legend-dot {
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
+.pca-times .arr { color: #94a3b8; font-size: .55rem; }
+
+/* OT badge */
+.pca-ot {
+    display: inline-block;
+    font-size: .58rem;
+    font-weight: 700;
+    background: #fff7ed;
+    color: #c2410c;
+    border-radius: 4px;
+    padding: 0 4px;
+    margin-top: 2px;
+    line-height: 1.6;
 }
 
-/* ── Detail panel ───────────────────────────────────── */
-.cal-detail-panel {
+/* dots row */
+.pca-dots {
+    display: flex;
+    gap: 2px;
+    margin-top: 3px;
+    flex-wrap: wrap;
+}
+.pca-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+/* leave bottom bar */
+.pca-leave-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 0 0 6px 6px;
+}
+
+/* ── Detail panel ───────────────────────────────────────── */
+.pca-detail {
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 2px 12px rgba(0,0,0,.08);
-    padding: 16px;
+    padding: 16px 18px;
     margin-top: 12px;
 }
-.cal-detail-title {
+.pca-detail-title {
     font-size: .85rem;
     font-weight: 700;
     color: #1e293b;
-    margin-bottom: 12px;
     display: flex;
     align-items: center;
     gap: 6px;
+    margin-bottom: 12px;
 }
-.cal-detail-section {
-    margin-bottom: 10px;
-}
-.cal-detail-section-label {
-    font-size: .68rem;
+.pca-section-lbl {
+    font-size: .65rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .05em;
     color: #94a3b8;
-    margin-bottom: 5px;
+    margin: 10px 0 5px;
 }
-.cal-detail-card {
+.pca-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     background: #f8fafc;
     border-radius: 8px;
     padding: 8px 12px;
     font-size: .78rem;
     color: #334155;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+}
+.pca-row .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.pca-row .muted { color: #94a3b8; font-size: .7rem; }
+.pca-badge {
+    font-size: .63rem;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 10px;
+}
+.badge-ok  { background: #dcfce7; color: #166534; }
+.badge-pnd { background: #fef9c3; color: #854d0e; }
+.badge-rej { background: #fee2e2; color: #991b1b; }
+.pca-empty { color: #94a3b8; font-size: .78rem; font-style: italic; text-align: center; padding: 16px 0; }
+
+/* ── Attendance detail grid ─────────────────────────────── */
+.att-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 10px 12px;
     margin-bottom: 4px;
 }
-.cal-detail-card .dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-.cal-detail-empty {
-    color: #94a3b8;
-    font-size: .78rem;
-    font-style: italic;
-    text-align: center;
-    padding: 20px 0;
-}
+.att-item label { display: block; font-size: .62rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
+.att-item span  { font-size: .8rem; font-weight: 600; color: #1e293b; }
 
-/* ── Status badges ──────────────────────────────────── */
-.cal-badge {
-    font-size: .65rem;
-    padding: 1px 6px;
-    border-radius: 10px;
-    font-weight: 600;
+/* ── Missed-punch state ─────────────────────────────────── */
+.pca-warn-badge {
+    display: inline-block; font-size: .58rem; font-weight: 700;
+    background: #dc2626; color: #fff;
+    border-radius: 4px; padding: 0 4px; line-height: 1.6; margin-top: 2px;
 }
-.badge-approved  { background: #dcfce7; color: #166534; }
-.badge-pending   { background: #fef9c3; color: #854d0e; }
-.badge-rejected  { background: #fee2e2; color: #991b1b; }
-.badge-confirmed { background: #dcfce7; color: #166534; }
+.pca-time-warn { color: #f97316 !important; font-weight: 700; }
 
-/* ── Mobile ─────────────────────────────────────────── */
+/* ── Mobile ─────────────────────────────────────────────── */
 @@media (max-width: 576px) {
-    .my-cal-grid { gap: 2px; padding: 0 2px 2px; }
-    .my-cal-cell { min-height: 52px; padding: 3px 3px 2px; border-radius: 6px; }
-    .my-cal-daynum { font-size: .65rem; }
-    .my-cal-dot { width: 6px; height: 6px; }
-    .my-cal-chips { display: none; }
-    .cal-month-label { font-size: .9rem; min-width: 130px; }
-    .cal-detail-panel { padding: 12px; }
+    .pca-summary { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .pca-sum-card { padding: 10px 12px; }
+    .pca-sum-val  { font-size: 1.1rem; }
+    .pca-grid { gap: 2px; }
+    .pca-cell { min-height: 54px; padding: 3px 4px 3px; border-radius: 6px; }
+    .pca-shift, .pca-times, .pca-ot { display: none; }
+    .pca-dots { margin-top: 4px; gap: 2px; }
+    .pca-daynum { font-size: .68rem; }
+    .pca-month-lbl { font-size: .85rem; min-width: 120px; }
+    .pca-legend { gap: 8px; font-size: .68rem; }
+    .att-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@@media (max-width: 375px) {
+    .pca-cell { min-height: 46px; }
 }
 </style>
 
 <div class="container-fluid py-3">
-    <div class="my-cal-wrap">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white pb-0 pt-3 border-0">
-                <h6 class="fw-bold text-dark mb-0">
-                    <i class="bi bi-calendar-week me-2 text-primary"></i>Lịch cá nhân
-                </h6>
-                <p class="text-xs text-muted mb-0 mt-1">Tăng ca · Ra vào cổng · Nghỉ phép</p>
-            </div>
-            <div class="card-body pt-2">
+<div class="pca-wrap">
 
-                <!-- Month navigation -->
-                <div class="cal-month-nav">
-                    <button class="cal-month-btn" onclick="changeMonth(-1)" title="Tháng trước">
-                        <i class="bi bi-chevron-left" style="font-size:.75rem;"></i>
-                    </button>
-                    <span class="cal-month-label" id="calMonthLabel"></span>
-                    <button class="cal-month-btn" onclick="changeMonth(1)" title="Tháng sau">
-                        <i class="bi bi-chevron-right" style="font-size:.75rem;"></i>
-                    </button>
-                </div>
-
-                <!-- Legend -->
-                <div class="cal-legend px-2">
-                    <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#f97316;"></span> Tăng ca</span>
-                    <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#3b82f6;"></span> Ra vào cổng</span>
-                    <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#22c55e;"></span> Nghỉ phép (duyệt)</span>
-                    <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#eab308;"></span> Nghỉ phép (chờ)</span>
-                </div>
-
-                <!-- Calendar grid -->
-                <div id="myCalGrid" class="my-cal-grid mt-2">
-                    <!-- built by JS -->
-                </div>
-
-                <!-- Loading state -->
-                <div id="calLoading" class="text-center py-4 d-none">
-                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>
-                    <span class="text-muted text-xs">Đang tải...</span>
-                </div>
-
-                <!-- Detail panel -->
-                <div id="calDetailPanel" class="cal-detail-panel d-none">
-                    <div class="cal-detail-title">
-                        <i class="bi bi-calendar3 text-primary"></i>
-                        <span id="calDetailDate"></span>
-                    </div>
-                    <div id="calDetailBody"></div>
-                </div>
-
-            </div>
+    <!-- Summary -->
+    <div class="pca-summary" id="pcaSummary">
+        <div class="pca-sum-card">
+            <div class="pca-sum-icon text-success"><i class="bi bi-calendar-check"></i></div>
+            <div class="pca-sum-val" id="sumWork">--</div>
+            <div class="pca-sum-lbl">Ngày làm việc</div>
+        </div>
+        <div class="pca-sum-card">
+            <div class="pca-sum-icon text-primary"><i class="bi bi-calendar-x"></i></div>
+            <div class="pca-sum-val" id="sumLeave">--</div>
+            <div class="pca-sum-lbl">Ngày nghỉ phép</div>
+        </div>
+        <div class="pca-sum-card">
+            <div class="pca-sum-icon text-warning"><i class="bi bi-clock-history"></i></div>
+            <div class="pca-sum-val" id="sumOt">--</div>
+            <div class="pca-sum-lbl">Tổng tăng ca</div>
         </div>
     </div>
+
+    <!-- Calendar card -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-3">
+
+            <!-- Month nav -->
+            <div class="pca-month-nav">
+                <button class="pca-nav-btn" onclick="changeMonth(-1)">
+                    <i class="bi bi-chevron-left" style="font-size:.7rem;"></i>
+                </button>
+                <span class="pca-month-lbl" id="pcaMonthLbl"></span>
+                <button class="pca-nav-btn" onclick="changeMonth(1)">
+                    <i class="bi bi-chevron-right" style="font-size:.7rem;"></i>
+                </button>
+            </div>
+
+            <!-- Legend -->
+            <div class="pca-legend px-1">
+                <span><span class="pca-ldot" style="background:#22c55e;"></span>Chấm công</span>
+                <span><span class="pca-ldot" style="background:#f97316;"></span>Tăng ca</span>
+                <span><span class="pca-ldot" style="background:#3b82f6;"></span>Ra vào cổng</span>
+                <span><span class="pca-ldot" style="background:#a78bfa;"></span>Nghỉ phép</span>
+                <span><span class="pca-ldot" style="background:#dc2626;"></span>Quên chấm</span>
+            </div>
+
+            <!-- Grid -->
+            <div id="pcaGrid" class="pca-grid mt-1"></div>
+
+            <!-- Loading -->
+            <div id="pcaLoading" class="text-center py-5 d-none">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+                <div class="text-muted text-xs mt-2">Đang tải...</div>
+            </div>
+
+            <!-- Detail panel -->
+            <div id="pcaDetail" class="pca-detail d-none">
+                <div class="pca-detail-title">
+                    <i class="bi bi-calendar-event text-primary"></i>
+                    <span id="pcaDetailDate"></span>
+                </div>
+                <div id="pcaDetailBody"></div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
 </div>
 
 @section Scripts {
 <script>
-(function () {
-    const VI_MONTHS = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
-                       'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
-    const DOW_LABELS = ['T2','T3','T4','T5','T6','T7','CN'];
+(function(){
+    const VI_MO = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                   'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+    const DOW   = ['T2','T3','T4','T5','T6','T7','CN'];
 
-    const LEAVE_TYPE_LABEL = {
-        'AL': 'Nghỉ phép năm', 'CL': 'Nghỉ bù', 'SL': 'Nghỉ bệnh',
-        'NPL': 'Nghỉ không lương', 'ML': 'Nghỉ thai sản', 'BL': 'Tang lễ'
-    };
-    const GP_TYPE_LABEL = { 'OUT': 'Ra ngoài', 'IN': 'Vào trong', 'MID': 'Giữa ca' };
+    const LEAVE_LBL = { AL:'Nghỉ phép năm',CL:'Nghỉ bù',SL:'Nghỉ bệnh',NPL:'Không lương',ML:'Thai sản',BL:'Tang lễ' };
+    const GP_LBL    = { OUT:'Ra ngoài',IN:'Vào trong',MID:'Giữa ca' };
 
-    let curYear  = new Date().getFullYear();
-    let curMonth = new Date().getMonth() + 1;
-    let calData  = null;
-    let selectedDay = null;
+    let curY = new Date().getFullYear();
+    let curM = new Date().getMonth() + 1;
+    let calData   = null;
+    let selDay    = null;
 
-    // ── helpers ──────────────────────────────────────────────────────────────
+    /* ── helpers ── */
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function fmtKey(y,m,d){ return `${y}-${pad(m)}-${pad(d)}`; }
 
-    function fmtDate(y, m, d) {
-        return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    }
-
-    function parseDate(s) {
-        if (!s) return null;
+    function parseD(s){
+        if(!s) return null;
         const p = s.split('-');
-        return new Date(Date.UTC(+p[0], +p[1]-1, +p[2]));
+        return new Date(Date.UTC(+p[0],+p[1]-1,+p[2]));
     }
 
-    function viDate(s) {
-        const d = parseDate(s);
-        if (!d) return s;
+    function viDate(s){
+        const d = parseD(s); if(!d) return s;
         return `${d.getUTCDate()}/${d.getUTCMonth()+1}/${d.getUTCFullYear()}`;
     }
 
-    function statusBadge(st) {
-        if (!st) return '';
-        const map = {
-            'APPROVED':  ['badge-approved',  'Đã duyệt'],
-            'CONFIRMED': ['badge-confirmed', 'Xác nhận'],
-            'PENDING':   ['badge-pending',   'Chờ duyệt'],
-            'REJECTED':  ['badge-rejected',  'Từ chối']
-        };
-        const [cls, lbl] = map[st.toUpperCase()] ?? ['badge-pending', st];
-        return `<span class="cal-badge ${cls}">${lbl}</span>`;
+    function esc(s){ return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function badge(st){
+        if(!st) return '';
+        const m = {APPROVED:['badge-ok','Đã duyệt'],CONFIRMED:['badge-ok','Xác nhận'],
+                   PENDING:['badge-pnd','Chờ duyệt'],REJECTED:['badge-rej','Từ chối']};
+        const [c,l] = m[st.toUpperCase()]??['badge-pnd',st];
+        return `<span class="pca-badge ${c}">${l}</span>`;
     }
 
-    function escHtml(s) {
-        return (s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    /* ── load ── */
+    function loadMonth(y, m){
+        calData = null; selDay = null;
+        document.getElementById('pcaDetail').classList.add('d-none');
+        document.getElementById('pcaLoading').classList.remove('d-none');
+        document.getElementById('pcaGrid').innerHTML = '';
+        resetSummary();
+
+        $.get('/Calendar/GetMonthly', {year:y, month:m})
+         .done(function(res){
+            document.getElementById('pcaLoading').classList.add('d-none');
+            if(res?.success){
+                calData = res.data;
+                buildSummary(y, m);
+                buildCalendar(y, m);
+            } else {
+                document.getElementById('pcaGrid').innerHTML =
+                    `<div class="text-danger text-xs p-3" style="grid-column:1/-1;">${esc(res?.message??'Lỗi tải dữ liệu')}</div>`;
+            }
+         })
+         .fail(function(){
+            document.getElementById('pcaLoading').classList.add('d-none');
+            document.getElementById('pcaGrid').innerHTML =
+                `<div class="text-danger text-xs p-3" style="grid-column:1/-1;">Lỗi kết nối server</div>`;
+         });
     }
 
-    // ── data fetch ────────────────────────────────────────────────────────────
+    /* ── summary ── */
+    function resetSummary(){
+        ['sumWork','sumLeave','sumOt'].forEach(id => {
+            document.getElementById(id).textContent = '--';
+        });
+    }
 
-    function loadMonth(y, m) {
-        calData = null;
-        selectedDay = null;
-        document.getElementById('calDetailPanel').classList.add('d-none');
-        document.getElementById('calLoading').classList.remove('d-none');
-        document.getElementById('myCalGrid').innerHTML = '';
+    function buildSummary(y, m){
+        const att   = calData?.attendance ?? [];
+        const leave = calData?.leave ?? [];
 
-        $.get(`/Calendar/GetMonthly`, { year: y, month: m })
-            .done(function(res) {
-                document.getElementById('calLoading').classList.add('d-none');
-                if (res && res.success) {
-                    calData = res.data;
-                    buildCalendar(y, m);
-                } else {
-                    document.getElementById('myCalGrid').innerHTML =
-                        `<div class="text-danger text-xs p-3" style="grid-column:1/-1;">${escHtml(res?.message ?? 'Lỗi tải dữ liệu')}</div>`;
+        const workDays = att.filter(a => a.timeIn !== null || a.timeOut !== null).length;
+        const totalOt  = att.reduce((s,a) => s + (a.tOt||0), 0);
+
+        // count leave days overlapping this month
+        const dFrom = new Date(Date.UTC(y,m-1,1));
+        const dTo   = new Date(Date.UTC(y,m-1, new Date(Date.UTC(y,m,0)).getUTCDate()));
+        let leaveDays = 0;
+        leave.forEach(lv => {
+            const s = parseD(lv.from), e = parseD(lv.to);
+            if(!s||!e) return;
+            const os = s < dFrom ? dFrom : s;
+            const oe = e > dTo   ? dTo   : e;
+            if(os <= oe){
+                // count working days (Mon-Sat) in overlap
+                let d = new Date(os.getTime());
+                while(d <= oe){
+                    if(d.getUTCDay() !== 0) leaveDays++;
+                    d.setUTCDate(d.getUTCDate()+1);
                 }
-            })
-            .fail(function() {
-                document.getElementById('calLoading').classList.add('d-none');
-                document.getElementById('myCalGrid').innerHTML =
-                    `<div class="text-danger text-xs p-3" style="grid-column:1/-1;">Lỗi kết nối server</div>`;
-            });
-    }
-
-    // ── calendar builder ──────────────────────────────────────────────────────
-
-    function buildCalendar(y, m) {
-        // update month label
-        document.getElementById('calMonthLabel').textContent = `${VI_MONTHS[m-1]}, ${y}`;
-
-        const grid    = document.getElementById('myCalGrid');
-        const today   = new Date(); today.setHours(0,0,0,0);
-        const todayStr = fmtDate(today.getFullYear(), today.getMonth()+1, today.getDate());
-
-        // index by date string: { ot:[...], gp:[...], leave:[...] }
-        const dayMap = {};
-
-        function ensureDay(key) {
-            if (!dayMap[key]) dayMap[key] = { ot: [], gp: [], leave: [] };
-        }
-
-        (calData?.ot ?? []).forEach(item => {
-            ensureDay(item.date);
-            dayMap[item.date].ot.push(item);
-        });
-
-        (calData?.gatePass ?? []).forEach(item => {
-            ensureDay(item.date);
-            dayMap[item.date].gp.push(item);
-        });
-
-        (calData?.leave ?? []).forEach(item => {
-            // expand multi-day leaves
-            let d = parseDate(item.from);
-            const end = parseDate(item.to);
-            while (d <= end) {
-                const key = fmtDate(d.getUTCFullYear(), d.getUTCMonth()+1, d.getUTCDate());
-                ensureDay(key);
-                dayMap[key].leave.push(item);
-                d.setUTCDate(d.getUTCDate() + 1);
             }
         });
 
-        // first day of month (Mon=1 … Sun=0 in JS, remap to Mon=0 … Sun=6)
-        const firstDow = new Date(Date.UTC(y, m-1, 1)).getUTCDay(); // 0=Sun
-        const offset   = (firstDow + 6) % 7; // Mon-based offset
-        const daysInMonth  = new Date(Date.UTC(y, m, 0)).getUTCDate();
-        const daysInPrevMo = new Date(Date.UTC(y, m-1, 0)).getUTCDate();
+        document.getElementById('sumWork').textContent  = workDays + ' ngày';
+        document.getElementById('sumLeave').textContent = leaveDays + ' ngày';
+        document.getElementById('sumOt').textContent    = totalOt.toFixed(1) + 'h';
+    }
 
-        let cells = '';
+    /* ── calendar ── */
+    function buildCalendar(y, m){
+        document.getElementById('pcaMonthLbl').textContent = `${VI_MO[m-1]}, ${y}`;
 
-        // header
-        DOW_LABELS.forEach((lbl, i) => {
-            cells += `<div class="my-cal-hdr${i===6?' sun':''}">${lbl}</div>`;
+        const todayStr = fmtKey(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate());
+        const daysInM  = new Date(Date.UTC(y,m,0)).getUTCDate();
+        const dPrevM   = new Date(Date.UTC(y,m-1,0)).getUTCDate();
+        const firstDow = new Date(Date.UTC(y,m-1,1)).getUTCDay(); // 0=Sun
+        const offset   = (firstDow+6)%7; // Mon-based
+
+        // index maps
+        const attMap  = {};
+        const gpMap   = {};
+        const leaveSet = new Set(); // dates covered by any approved leave
+
+        (calData?.attendance??[]).forEach(a => { attMap[a.date] = a; });
+        (calData?.gatePass??[]).forEach(g => {
+            if(!gpMap[g.date]) gpMap[g.date] = [];
+            gpMap[g.date].push(g);
         });
+        (calData?.leave??[]).forEach(lv => {
+            let d = parseD(lv.from);
+            const e = parseD(lv.to);
+            while(d && e && d <= e){
+                leaveSet.add(fmtKey(d.getUTCFullYear(), d.getUTCMonth()+1, d.getUTCDate()));
+                d.setUTCDate(d.getUTCDate()+1);
+            }
+        });
+
+        let html = '';
+
+        // headers
+        DOW.forEach((h,i) => { html += `<div class="pca-hdr${i===6?' sun':''}">${h}</div>`; });
 
         // prev month fill
-        for (let i = 0; i < offset; i++) {
-            const d = daysInPrevMo - offset + 1 + i;
-            cells += `<div class="my-cal-cell is-other-month"><div class="my-cal-daynum">${d}</div></div>`;
+        for(let i=0; i<offset; i++){
+            html += `<div class="pca-cell pca-other"><div class="pca-daynum">${dPrevM-offset+1+i}</div></div>`;
         }
 
-        // current month days
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dow    = new Date(Date.UTC(y, m-1, d)).getUTCDay(); // 0=Sun
-            const isSun  = dow === 0;
-            const key    = fmtDate(y, m, d);
-            const isPast = key < todayStr;
-            const isToday = key === todayStr;
-            const isSel  = key === selectedDay;
-            const events = dayMap[key];
+        // current month
+        for(let d=1; d<=daysInM; d++){
+            const key  = fmtKey(y,m,d);
+            const dow  = new Date(Date.UTC(y,m-1,d)).getUTCDay();
+            const isSun  = dow===0;
+            const isToday = key===todayStr;
+            const isPast  = key<todayStr;
+            const isSel   = key===selDay;
+            const att     = attMap[key];
+            const hasGp   = !!gpMap[key];
+            const hasLeave = leaveSet.has(key);
 
-            let cls = 'my-cal-cell';
-            if (isSun)    cls += ' is-sunday';
-            if (isToday)  cls += ' is-today';
-            if (isPast)   cls += ' is-past';
-            if (isSel)    cls += ' is-selected';
+            const isAbsent      = att && att.timeIn === null && att.timeOut === null;
+            const isMissedPunch = att && !isAbsent && !isToday && (att.timeIn === null || att.timeOut === null);
 
-            let dotHtml  = '';
-            let chipHtml = '';
+            const isGrayDay = isAbsent || hasLeave;
 
-            if (!isSun && events) {
+            let cls = 'pca-cell';
+            if(isSun)      cls += ' pca-sun';
+            if(isToday)    cls += ' pca-today';
+            if(isPast)     cls += ' pca-past';
+            if(isSel)      cls += ' pca-selected';
+            if(isGrayDay)  cls += ' pca-gray-day';
+
+            let inner = `<div class="pca-daynum">${d}</div>`;
+
+            if(!isSun){
+                if(isAbsent){
+                } else if(att){
+                    // one or both times present (missed punch = one is null)
+                    const inClass  = att.timeIn  === null ? ' pca-time-warn' : '';
+                    const outClass = att.timeOut === null ? ' pca-time-warn' : '';
+                    inner += `<div class="pca-times">
+                        <span class="${inClass.trim()}">${esc(att.timeIn??'?')}</span>
+                        <span class="arr">→</span>
+                        <span class="${outClass.trim()}">${esc(att.timeOut??'?')}</span>
+                    </div>`;
+                    if(isMissedPunch)
+                        inner += `<div class="pca-warn-badge">${att.timeIn===null ? 'Quên chấm vào' : 'Quên chấm ra'}</div>`;
+                    else if(att.tOt > 0)
+                        inner += `<div class="pca-ot">OT +${att.tOt}h</div>`;
+                }
+
                 // dots
                 let dots = '';
-                if (events.ot.length > 0)    dots += `<span class="my-cal-dot dot-ot"></span>`;
-                if (events.gp.length > 0)    dots += `<span class="my-cal-dot dot-gp"></span>`;
-                events.leave.forEach(lv => {
-                    const dc = lv.status === 'APPROVED' ? 'dot-leave' : lv.status === 'REJECTED' ? 'dot-leave-rejected' : 'dot-leave-pending';
-                    dots += `<span class="my-cal-dot ${dc}"></span>`;
-                });
-                if (dots) dotHtml = `<div class="my-cal-dots">${dots}</div>`;
+                if(isMissedPunch)       dots += `<span class="pca-dot" style="background:#dc2626;"></span>`;
+                else if(att && !isAbsent) dots += `<span class="pca-dot" style="background:#22c55e;"></span>`;
+                if(att?.tOt > 0 && !isAbsent) dots += `<span class="pca-dot" style="background:#f97316;"></span>`;
+                if(hasGp)              dots += `<span class="pca-dot" style="background:#3b82f6;"></span>`;
+                if(hasLeave)           dots += `<span class="pca-dot" style="background:#a78bfa;"></span>`;
+                if(dots) inner += `<div class="pca-dots">${dots}</div>`;
 
-                // chips (desktop only via CSS)
-                let chips = '';
-                if (events.ot.length > 0)
-                    chips += `<span class="my-cal-chip chip-ot">TC ${events.ot[0].hours}h</span>`;
-                if (events.gp.length > 0)
-                    chips += `<span class="my-cal-chip chip-gp">Ra vào</span>`;
-                if (events.leave.length > 0) {
-                    const lv = events.leave[0];
-                    const cc = lv.status === 'APPROVED' ? 'chip-leave' : lv.status === 'REJECTED' ? 'chip-leave-r' : 'chip-leave-p';
-                    chips += `<span class="my-cal-chip ${cc}">Nghỉ</span>`;
-                }
-                if (chips) chipHtml = `<div class="my-cal-chips">${chips}</div>`;
+                // leave bottom bar
+                if(hasLeave) inner += `<div class="pca-leave-bar" style="background:#a78bfa;"></div>`;
             }
 
-            const clickAttr = isSun ? '' : `onclick="selectDay('${key}')"`;
-            cells += `
-                <div class="${cls}" ${clickAttr}>
-                    <div class="my-cal-daynum">${d}</div>
-                    ${dotHtml}
-                    ${chipHtml}
-                </div>`;
+            const click = isSun ? '' : `onclick="selectDay('${key}')"`;
+            html += `<div class="${cls}" ${click}>${inner}</div>`;
         }
 
         // next month fill
-        const totalCells = offset + daysInMonth;
-        const remainder  = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-        for (let i = 1; i <= remainder; i++) {
-            cells += `<div class="my-cal-cell is-other-month"><div class="my-cal-daynum">${i}</div></div>`;
+        const total = offset + daysInM;
+        const rem   = total%7===0 ? 0 : 7-(total%7);
+        for(let i=1; i<=rem; i++){
+            html += `<div class="pca-cell pca-other"><div class="pca-daynum">${i}</div></div>`;
         }
 
-        grid.innerHTML = cells;
-
-        // restore detail if selectedDay still in view
-        if (selectedDay) showDetail(selectedDay);
+        document.getElementById('pcaGrid').innerHTML = html;
     }
 
-    // ── day select ────────────────────────────────────────────────────────────
-
-    window.selectDay = function(key) {
-        if (selectedDay === key) {
-            selectedDay = null;
-            document.getElementById('calDetailPanel').classList.add('d-none');
-        } else {
-            selectedDay = key;
-            showDetail(key);
-        }
-        buildCalendar(curYear, curMonth);
+    /* ── day select ── */
+    window.selectDay = function(key){
+        if(selDay===key){ selDay=null; document.getElementById('pcaDetail').classList.add('d-none'); }
+        else { selDay=key; showDetail(key); }
+        buildCalendar(curY, curM);
     };
 
-    function showDetail(key) {
-        const panel  = document.getElementById('calDetailPanel');
-        const title  = document.getElementById('calDetailDate');
-        const body   = document.getElementById('calDetailBody');
-
-        title.textContent = `Chi tiết: ${viDate(key)}`;
+    function showDetail(key){
+        const panel = document.getElementById('pcaDetail');
+        document.getElementById('pcaDetailDate').textContent = 'Chi tiết: ' + viDate(key);
         panel.classList.remove('d-none');
 
-        // ── OT section
-        const today   = new Date(); today.setHours(0,0,0,0);
-        const todayStr = fmtDate(today.getFullYear(), today.getMonth()+1, today.getDate());
-
-        // find events for this key
-        let otItems    = (calData?.ot ?? []).filter(x => x.date === key);
-        let gpItems    = (calData?.gatePass ?? []).filter(x => x.date === key);
-        let leaveItems = (calData?.leave ?? []).filter(lv => {
-            const s = parseDate(lv.from), e = parseDate(lv.to), d = parseDate(key);
-            return s && e && d && d >= s && d <= e;
+        const att    = (calData?.attendance??[]).find(a => a.date===key);
+        const gpItems= (calData?.gatePass??[]).filter(g => g.date===key);
+        const leaveItems = (calData?.leave??[]).filter(lv => {
+            const s=parseD(lv.from), e=parseD(lv.to), d=parseD(key);
+            return s&&e&&d&&d>=s&&d<=e;
         });
 
-        if (otItems.length === 0 && gpItems.length === 0 && leaveItems.length === 0) {
-            body.innerHTML = `<div class="cal-detail-empty">Không có sự kiện nào trong ngày này</div>`;
+        if(!att && gpItems.length===0 && leaveItems.length===0){
+            document.getElementById('pcaDetailBody').innerHTML =
+                `<div class="pca-empty">Không có dữ liệu cho ngày này</div>`;
             return;
         }
 
         let html = '';
 
-        // OT
-        if (otItems.length > 0) {
-            html += `<div class="cal-detail-section">
-                <div class="cal-detail-section-label"><i class="bi bi-clock me-1"></i>Tăng ca</div>`;
-            otItems.forEach(item => {
-                html += `<div class="cal-detail-card">
-                    <span class="dot" style="background:#f97316;"></span>
-                    <span>${item.hours}h tăng ca</span>
-                    ${statusBadge(item.status)}
+        // Chấm công
+        if(att){
+            const isAbsent      = att.timeIn === null && att.timeOut === null;
+            const isMissedPunch = !isAbsent && (att.timeIn === null || att.timeOut === null);
+
+            if(isAbsent){
+                html += `<div class="pca-section-lbl"><i class="bi bi-person-x me-1"></i>Chấm công</div>
+                <div class="pca-row" style="background:#e2e8f0;">
+                    <span class="dot" style="background:#94a3b8;"></span>
+                    <span style="color:#475569;font-weight:600;">Không có dữ liệu chấm công</span>
                 </div>`;
-            });
-            html += `</div>`;
+            } else {
+                const inStyle  = att.timeIn  === null ? 'color:#f97316;font-weight:700;' : '';
+                const outStyle = att.timeOut === null ? 'color:#f97316;font-weight:700;' : '';
+                html += `<div class="pca-section-lbl"><i class="bi bi-person-check me-1"></i>Chấm công</div>
+                <div class="att-grid">
+                    <div class="att-item"><label>Tăng ca Thực tế</label><span>${att.tOt > 0 ? att.tOt+'h' : '--'}</span></div>
+                    <div class="att-item"><label>Giờ vào</label><span style="${inStyle}">${esc(att.timeIn??'Chưa chấm')}</span></div>
+                    <div class="att-item"><label>Giờ ra</label><span style="${outStyle}">${esc(att.timeOut??'Chưa chấm')}</span></div>
+                </div>`;
+
+                if(isMissedPunch){
+                    html += `<div class="pca-row" style="background:#fffbeb;">
+                        <span class="dot" style="background:#f59e0b;"></span>
+                        <span style="color:#b45309;font-weight:600;">⚠ ${att.timeIn===null ? 'Quên chấm công vào' : 'Quên chấm công ra'}</span>
+                    </div>`;
+                }
+            }
+
         }
 
-        // Gate Pass
-        if (gpItems.length > 0) {
-            html += `<div class="cal-detail-section">
-                <div class="cal-detail-section-label"><i class="bi bi-door-open me-1"></i>Ra vào cổng</div>`;
-            gpItems.forEach(item => {
-                const typeLabel = GP_TYPE_LABEL[item.type ?? ''] ?? item.type ?? '';
-                html += `<div class="cal-detail-card">
+        // Gate pass
+        if(gpItems.length > 0){
+            html += `<div class="pca-section-lbl"><i class="bi bi-door-open me-1"></i>Ra vào cổng</div>`;
+            gpItems.forEach(g => {
+                html += `<div class="pca-row">
                     <span class="dot" style="background:#3b82f6;"></span>
-                    <span>${escHtml(typeLabel)}</span>
-                    ${statusBadge(item.status)}
+                    <span>${esc(GP_LBL[g.type??'']??g.type??'')}</span>
+                    ${badge(g.status)}
                 </div>`;
             });
-            html += `</div>`;
         }
 
         // Leave
-        if (leaveItems.length > 0) {
-            html += `<div class="cal-detail-section">
-                <div class="cal-detail-section-label"><i class="bi bi-calendar-x me-1"></i>Nghỉ phép</div>`;
-            leaveItems.forEach(item => {
-                const dotClr = item.status === 'APPROVED' ? '#22c55e' : item.status === 'REJECTED' ? '#ef4444' : '#eab308';
-                const typeLbl = LEAVE_TYPE_LABEL[item.leaveType ?? ''] ?? (item.leaveType ?? '');
-                const dateRange = item.from === item.to
-                    ? viDate(item.from)
-                    : `${viDate(item.from)} – ${viDate(item.to)}`;
-                html += `<div class="cal-detail-card flex-wrap gap-1">
-                    <span class="dot" style="background:${dotClr};"></span>
-                    <span>${escHtml(typeLbl)}</span>
-                    <span class="text-muted" style="font-size:.7rem;">${escHtml(dateRange)} (${item.days} ngày)</span>
-                    ${statusBadge(item.status)}
+        if(leaveItems.length > 0){
+            html += `<div class="pca-section-lbl"><i class="bi bi-calendar-x me-1"></i>Nghỉ phép</div>`;
+            leaveItems.forEach(lv => {
+                const range = lv.from===lv.to ? viDate(lv.from) : `${viDate(lv.from)} – ${viDate(lv.to)}`;
+                html += `<div class="pca-row">
+                    <span class="dot" style="background:#a78bfa;"></span>
+                    <span>${esc(LEAVE_LBL[lv.leaveType??'']??lv.leaveType??'')}</span>
+                    <span class="muted">${esc(range)} · ${lv.days} ngày</span>
+                    ${badge(lv.status)}
                 </div>`;
             });
-            html += `</div>`;
         }
 
-        body.innerHTML = html;
+        document.getElementById('pcaDetailBody').innerHTML = html;
 
-        // scroll to panel on mobile
-        if (window.innerWidth <= 576) {
-            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+        if(window.innerWidth <= 576)
+            panel.scrollIntoView({behavior:'smooth', block:'start'});
     }
 
-    // ── month navigation ──────────────────────────────────────────────────────
-
-    window.changeMonth = function(delta) {
-        curMonth += delta;
-        if (curMonth > 12) { curMonth = 1;  curYear++; }
-        if (curMonth < 1)  { curMonth = 12; curYear--; }
-        loadMonth(curYear, curMonth);
+    /* ── month nav ── */
+    window.changeMonth = function(delta){
+        curM += delta;
+        if(curM>12){ curM=1; curY++; }
+        if(curM<1) { curM=12; curY--; }
+        loadMonth(curY, curM);
     };
 
-    // ── init ──────────────────────────────────────────────────────────────────
-
-    loadMonth(curYear, curMonth);
+    /* ── init ── */
+    loadMonth(curY, curM);
 })();
 </script>
 }

@@ -1,10 +1,18 @@
 namespace HR_web.Models.Calendar;
 
-public class CalendarOtItem
+public class CalendarAttendanceItem
 {
-    public string  date   { get; set; } = "";
-    public decimal hours  { get; set; }
-    public string? status { get; set; }
+    public string   date         { get; set; } = "";
+    public string?  shiftCode    { get; set; }
+    public string?  shiftLabel   { get; set; }
+    public string?  timeIn       { get; set; }
+    public string?  timeOut      { get; set; }
+    public decimal  tFormal      { get; set; }
+    public decimal  tOt          { get; set; }
+    public decimal  tRot         { get; set; }
+    public decimal  otPlan       { get; set; }
+    public decimal  otBeforeTime { get; set; }
+    public decimal  otAfterTime  { get; set; }
 }
 
 public class CalendarGpItem
@@ -25,9 +33,9 @@ public class CalendarLeaveItem
 
 public class CalendarMonthlyData
 {
-    public List<CalendarOtItem>    ot       { get; set; } = new();
-    public List<CalendarGpItem>    gatePass { get; set; } = new();
-    public List<CalendarLeaveItem> leave    { get; set; } = new();
+    public List<CalendarAttendanceItem> attendance { get; set; } = new();
+    public List<CalendarGpItem>         gatePass   { get; set; } = new();
+    public List<CalendarLeaveItem>      leave      { get; set; } = new();
 }
 
 public class CalendarMonthlyResponse

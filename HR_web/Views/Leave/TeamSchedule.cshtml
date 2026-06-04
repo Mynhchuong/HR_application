@@ -382,13 +382,13 @@
                 </div>
                 <div class="col-6 col-xl-3 mb-3">
                     <div class="card text-center py-3 h-100" style="border-left:4px solid #f59e0b;">
-                        <div class="text-xs text-uppercase fw-bold mb-1" style="color:#b45309;">Chờ xác nhận</div>
+                        <div class="text-xs text-uppercase fw-bold mb-1" style="color:#b45309;">Chưa tiếp nhận</div>
                         <div class="h4 fw-bold mb-0 text-warning" id="maPending">-</div>
                     </div>
                 </div>
                 <div class="col-6 col-xl-3 mb-3">
                     <div class="card text-center py-3 h-100" style="border-left:4px solid #10b981;">
-                        <div class="text-xs text-uppercase fw-bold mb-1 text-success">Đã xác nhận</div>
+                        <div class="text-xs text-uppercase fw-bold mb-1 text-success">Đã tiếp nhận</div>
                         <div class="h4 fw-bold mb-0 text-success" id="maConfirmed">-</div>
                     </div>
                 </div>
@@ -400,8 +400,8 @@
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <select id="maStatusFilter" class="form-select form-select-sm" style="width:150px;height:30px;font-size:.8rem;" onchange="loadMyAssign(1)">
                                 <option value="">Tất cả</option>
-                                <option value="ASSIGNED">Chờ xác nhận</option>
-                                <option value="CONFIRMED">Đã xác nhận</option>
+                                <option value="ASSIGNED">Chưa tiếp nhận thông tin</option>
+                                <option value="CONFIRMED">Đã tiếp nhận thông tin</option>
                             </select>
                             <div class="empcd-wrap">
                                 <i class="bi bi-search"></i>
@@ -1058,9 +1058,9 @@ function buildMyAssignRow(item, idx) {
     const lc = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
     let statusHtml;
     if (item.STATUS === 'CONFIRMED')
-        statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã xác nhận</span>`;
+        statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã tiếp nhận thông tin</span>`;
     else
-        statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ xác nhận</span>`;
+        statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chưa tiếp nhận thông tin</span>`;
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
@@ -1126,9 +1126,9 @@ function renderMaPagination() {
 }
 
 // ─── Init ────────────────────────────────────────────────────────
-if (!CAN_ASSIGN)   document.getElementById('tabAssignLi')?.classList.add('d-none');
+document.getElementById('tabAssignLi')?.classList.add('d-none');
 if (!CAN_APPROVE)  document.getElementById('tabApproveLi')?.classList.add('d-none');
-if (!CAN_ASSIGN)   document.getElementById('tabMyAssignLi')?.classList.add('d-none');
+document.getElementById('tabMyAssignLi')?.classList.add('d-none');
 
 document.getElementById('tab-assign-btn')?.addEventListener('shown.bs.tab', loadEmps);
 document.getElementById('tab-approve-btn')?.addEventListener('shown.bs.tab', function() {

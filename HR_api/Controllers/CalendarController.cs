@@ -30,35 +30,66 @@ public class CalendarController : ControllerBase
             var dFrom = new DateTime(y, m, 1);
             var dTo   = dFrom.AddMonths(1).AddDays(-1);
 
-            // ── OT ─────────────────────────────────────────────────────────────
-            string sqlOT = @"
-                SELECT TRUNC(E.DAT) OT_DATE,
-                       MAX(E.OVER_TIME) OT_HOURS,
-                       MAX(NVL(R.CONFIRM_STATUS, 'PENDING')) CONFIRM_STATUS
-                FROM (
-                    SELECT EMPCD, DAT, OVER_TIME
-                    FROM HRMS.EBM300
-                    WHERE EMPCD = :E1 AND TRUNC(DAT) BETWEEN :F1 AND :T1
-                      AND (OT_BEFORE = 'Y' OR OT_AFTER = 'Y' OR OVER_TIME IS NOT NULL)
-                    UNION ALL
-                    SELECT EMPCD, DAT, OVER_TIME
-                    FROM HRMS.EBM300_WAIT
-                    WHERE EMPCD = :E2 AND TRUNC(DAT) BETWEEN :F2 AND :T2
-                      AND (OT_BEFORE = 'Y' OR OT_AFTER = 'Y' OR OVER_TIME IS NOT NULL)
-                ) E
-                LEFT JOIN HRMS.HR_OT_REQUEST R
-                    ON R.EMPCD = E.EMPCD AND TRUNC(R.WORK_DATE) = TRUNC(E.DAT)
-                GROUP BY TRUNC(E.DAT)
-                ORDER BY TRUNC(E.DAT)";
+            // ── Chấm công (bao gồm OT) ─────────────────────────────────────────
+            string sqlAtt = @"
+                SELECT TO_CHAR(A.DAT,'YYYY-MM-DD')                        ATT_DATE,
+                       B.SHIFTCD                                           SHIFT_CODE,
+                       TRIM(C.STIME) || '-' || TRIM(C.ETIME)              SHIFT_TIMES,
+                       A.TIME_IN,
+                       A.TIME_OUT,
+                       NVL(A.T_FORMAL, 0)                                 T_FORMAL,
+                       NVL(A.T_OT,    0)                                  T_OT,
+                       NVL(A.T_ROT,   0)                                  T_ROT,
+                       NVL(B.OVER_TIME, 0)                                OT_PLAN,
+                       NVL(A.OT_BEFORE_TIME, 0)                           OT_BEFORE_TIME,
+                       NVL(A.OT_AFTER_TIME,  0)                           OT_AFTER_TIME
+                FROM HRMS.EBM200 A
+                INNER JOIN HRMS.EBM300 B ON A.EMPCD = B.EMPCD AND A.DAT = B.DAT
+                INNER JOIN HRMS.EBM100 C ON B.SHIFTCD = C.SHIFTCD
+                WHERE A.EMPCD = :EMPCD
+                  AND A.DAT BETWEEN :D_FROM AND :D_TO
+                ORDER BY A.DAT";
 
-            var otList = await _oracleService.ExecuteQueryAsync(sqlOT, r => new
+            static string? fmtTime(object val)
             {
-                date   = ((DateTime)r["OT_DATE"]).ToString("yyyy-MM-dd"),
-                hours  = r["OT_HOURS"] == DBNull.Value ? 0m : Convert.ToDecimal(r["OT_HOURS"]),
-                status = r["CONFIRM_STATUS"]?.ToString() ?? "PENDING"
+                if (val == DBNull.Value || val == null) return null;
+                var dt = Convert.ToDateTime(val);
+                return dt.ToString("HH:mm");
+            }
+
+            // EBM100 STIME/ETIME are stored as "0730" — insert colon
+            static string fmtShiftTime(string? raw)
+            {
+                if (string.IsNullOrWhiteSpace(raw)) return raw ?? "";
+                raw = raw.Trim();
+                return raw.Length == 4 ? raw[..2] + ":" + raw[2..] : raw;
+            }
+
+            var attList = await _oracleService.ExecuteQueryAsync(sqlAtt, r =>
+            {
+                var shiftTimes = r["SHIFT_TIMES"]?.ToString() ?? "";
+                var parts      = shiftTimes.Split('-');
+                var start      = parts.Length > 0 ? fmtShiftTime(parts[0]) : "";
+                var end        = parts.Length > 1 ? fmtShiftTime(parts[1]) : "";
+
+                return new
+                {
+                    date          = r["ATT_DATE"]?.ToString() ?? "",
+                    shiftCode     = r["SHIFT_CODE"]?.ToString() ?? "",
+                    shiftLabel    = (r["SHIFT_CODE"]?.ToString() ?? "") + " " + start + "-" + end,
+                    timeIn        = fmtTime(r["TIME_IN"]),
+                    timeOut       = fmtTime(r["TIME_OUT"]),
+                    tFormal       = Convert.ToDecimal(r["T_FORMAL"]),
+                    tOt           = Convert.ToDecimal(r["T_OT"]),
+                    tRot          = Convert.ToDecimal(r["T_ROT"]),
+                    otPlan        = Convert.ToDecimal(r["OT_PLAN"]),
+                    otBeforeTime  = Convert.ToDecimal(r["OT_BEFORE_TIME"]),
+                    otAfterTime   = Convert.ToDecimal(r["OT_AFTER_TIME"])
+                };
             },
-            new OracleParameter("E1", empcd), new OracleParameter("F1", dFrom), new OracleParameter("T1", dTo),
-            new OracleParameter("E2", empcd), new OracleParameter("F2", dFrom), new OracleParameter("T2", dTo));
+            new OracleParameter("EMPCD",  empcd),
+            new OracleParameter("D_FROM", dFrom),
+            new OracleParameter("D_TO",   dTo));
 
             // ── Gate Pass ───────────────────────────────────────────────────────
             string sqlGP = @"
@@ -80,7 +111,7 @@ public class CalendarController : ControllerBase
             new OracleParameter("D_FROM", dFrom),
             new OracleParameter("D_TO",   dTo));
 
-            // ── Leave ───────────────────────────────────────────────────────────
+            // ── Nghỉ phép (chỉ APPROVED) ────────────────────────────────────────
             string sqlLeave = @"
                 SELECT TO_CHAR(L.FROM_DATE,'YYYY-MM-DD') FROM_DATE,
                        TO_CHAR(L.TO_DATE,'YYYY-MM-DD')   TO_DATE,
@@ -91,6 +122,7 @@ public class CalendarController : ControllerBase
                 WHERE L.EMPCD = :EMPCD
                   AND L.FROM_DATE <= :D_TO
                   AND L.TO_DATE   >= :D_FROM
+                  AND R.STATUS = 'APPROVED'
                 ORDER BY L.FROM_DATE";
 
             var leaveList = await _oracleService.ExecuteQueryAsync(sqlLeave, r => new
@@ -108,7 +140,7 @@ public class CalendarController : ControllerBase
             return Ok(new
             {
                 success = true,
-                data    = new { ot = otList, gatePass = gpList, leave = leaveList }
+                data    = new { attendance = attList, gatePass = gpList, leave = leaveList }
             });
         }
         catch (Exception ex)

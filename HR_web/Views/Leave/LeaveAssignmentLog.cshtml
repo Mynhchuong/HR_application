@@ -18,7 +18,7 @@
 
     <div class="card my-4">
         <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
-            <div class="bg-gradient-dark shadow-dark border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="text-white mb-0"><i class="bi bi-journal-text me-1"></i> Log Sắp Lịch Nghỉ Phép</h6>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <button type="button" id="exportBtn" class="btn btn-sm mb-0" style="background:#fff;color:#344767;font-weight:600;height:36px;">
@@ -51,8 +51,8 @@
                 <label class="form-label small fw-bold mb-1 text-primary">Tình Trạng</label>
                 <select id="filterStatus" class="form-select form-select-sm">
                     <option value="">Tất cả</option>
-                    <option value="ASSIGNED">Chờ xác nhận</option>
-                    <option value="CONFIRMED">Đã xác nhận</option>
+                    <option value="ASSIGNED">Chưa tiếp nhận thông tin</option>
+                    <option value="CONFIRMED">Đã tiếp nhận thông tin</option>
                     <option value="WORKER_REJECTED">Không đồng ý</option>
                 </select>
             </div>
@@ -90,8 +90,8 @@
             <!-- Count summary bar -->
             <div class="px-4 pt-2 pb-1 d-flex flex-wrap gap-3 align-items-center" id="summaryBar" style="border-bottom:1px solid #f1f5f9;background:#f8fafc;">
                 <span class="text-sm"><i class="bi bi-list-ul me-1 text-secondary"></i> Tổng: <strong id="sumTotal">-</strong></span>
-                <span class="text-sm text-warning"><i class="bi bi-hourglass-split me-1"></i> Chờ xác nhận: <strong id="sumPending">-</strong></span>
-                <span class="text-sm text-success"><i class="bi bi-check-circle me-1"></i> Đã xác nhận: <strong id="sumConfirmed">-</strong></span>
+                <span class="text-sm text-warning"><i class="bi bi-hourglass-split me-1"></i> Chưa tiếp nhận: <strong id="sumPending">-</strong></span>
+                <span class="text-sm text-success"><i class="bi bi-check-circle me-1"></i> Đã tiếp nhận: <strong id="sumConfirmed">-</strong></span>
                 <span class="text-sm text-danger"><i class="bi bi-x-circle me-1"></i> Không đồng ý: <strong id="sumRejected">-</strong></span>
             </div>
             <div class="table-responsive p-0 px-4 mt-2">
@@ -109,7 +109,7 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Người sắp</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ngày sắp</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Trạng thái</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ngày XN</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ngày tiếp nhận</th>
                         </tr>
                     </thead>
                     <tbody id="logTableBody"></tbody>
@@ -133,9 +133,9 @@ const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lươ
 const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
 
 function statusBadge(status) {
-    if (status === 'CONFIRMED')       return `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã xác nhận</span>`;
+    if (status === 'CONFIRMED')       return `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã tiếp nhận thông tin</span>`;
     if (status === 'WORKER_REJECTED') return `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Không đồng ý</span>`;
-    return `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ xác nhận</span>`;
+    return `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chưa tiếp nhận thông tin</span>`;
 }
 
 function buildRow(item, idx) {
@@ -260,8 +260,8 @@ $('#exportBtn').on('click', async function() {
         rows.forEach((r,i) => {
             const lt = LEAVE_LABEL[r.LEAVE_TYPE]||r.LEAVE_TYPE||'';
             let st = r.STATUS||'';
-            if (st==='ASSIGNED') st='Chờ xác nhận';
-            else if (st==='CONFIRMED') st='Đã xác nhận';
+            if (st==='ASSIGNED') st='Chưa tiếp nhận thông tin';
+            else if (st==='CONFIRMED') st='Đã tiếp nhận thông tin';
             else if (st==='WORKER_REJECTED') st='Không đồng ý';
             html += `<tr>
                 <td>${i+1}</td>

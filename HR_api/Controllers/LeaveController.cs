@@ -458,7 +458,7 @@ public class LeaveController : ControllerBase
 
             string sqlData = $@"
                 SELECT /*+ FIRST_ROWS({page_size}) */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS, T.FROM_DATE DESC) RN
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY CASE WHEN T.STATUS = 'PENDING' AND T.FROM_DATE >= TRUNC(SYSDATE) THEN 0 WHEN T.STATUS = 'PENDING' AND T.FROM_DATE < TRUNC(SYSDATE) THEN 2 ELSE 1 END, T.FROM_DATE DESC) RN
                     FROM (
                         SELECT L.REQUEST_ID, L.EMPCD, EC.CNAME EMP_NAME,
                                EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
@@ -572,7 +572,54 @@ public class LeaveController : ControllerBase
             if (rows == 0)
                 return Ok(new { success = false, message = "Không tìm thấy hoặc đã được xử lý rồi" });
 
-            // TODO: ERP insert — SQL sẽ được cung cấp sau
+            // ERP: call SP_015_NEW after approval
+            var ldRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT FROM_DATE, TO_DATE, LEAVE_TYPE FROM HRMS.HR_LEAVE_REQUEST
+                WHERE REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
+                r => new {
+                    FromDate  = Convert.ToDateTime(r["FROM_DATE"]),
+                    ToDate    = Convert.ToDateTime(r["TO_DATE"]),
+                    LeaveType = r["LEAVE_TYPE"]?.ToString()
+                },
+                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
+
+            var ld = ldRows.FirstOrDefault();
+            if (ld != null && !string.IsNullOrEmpty(requestInfo.Empcd))
+            {
+                static string leaveTypeName(string? code) => code switch
+                {
+                    "SL"  => "Nghỉ bệnh",
+                    "NPL" => "Không lương",
+                    "OTH" => "Khác",
+                    _     => code ?? ""
+                };
+
+                string erpCd     = ld.LeaveType switch { "AL" => "PN", "CL" => "BH", _ => "CP" };
+                string erpRemark = erpCd == "CP" ? "VR " + leaveTypeName(ld.LeaveType) : "VR";
+
+                string? erpError = null;
+                try
+                {
+                    await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
+                        new OracleParameter("AS_EMPCD",   requestInfo.Empcd),
+                        new OracleParameter("AS_LEAVECD", erpCd),
+                        new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = ld.FromDate },
+                        new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = ld.ToDate },
+                        new OracleParameter("AS_IN_ID",   model.APPROVER_EMPCD),
+                        new OracleParameter("AS_REMAR",   erpRemark));
+
+                    await _oracleService.ExecuteNonQueryAsync(
+                        "UPDATE HRMS.EFM410 SET APPROVED_BY = :APPROVED_BY WHERE EMPCD = :EMPCD AND FR_DAT BETWEEN :FR_DAT AND :TO_DAT",
+                        new OracleParameter("APPROVED_BY", model.APPROVER_EMPCD),
+                        new OracleParameter("EMPCD",       requestInfo.Empcd),
+                        new OracleParameter { ParameterName = "FR_DAT", OracleDbType = OracleDbType.Date, Value = ld.FromDate },
+                        new OracleParameter { ParameterName = "TO_DAT", OracleDbType = OracleDbType.Date, Value = ld.ToDate });
+                }
+                catch (Exception ex) { erpError = ex.Message; }
+
+                if (erpError != null)
+                    return Ok(new { success = true, message = "Đã duyệt đơn nghỉ phép", erpError });
+            }
 
             if (!string.IsNullOrEmpty(requestInfo.Empcd))
             {
@@ -764,7 +811,33 @@ public class LeaveController : ControllerBase
                         new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
                         new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
 
-                    // TODO: ERP insert — SQL sẽ được cung cấp sau
+                    // ERP: call SP_015_NEW immediately after assign (no worker confirm needed)
+                    var erpLeaveNames = new Dictionary<string,string>
+                    {
+                        ["SL"] = "Nghỉ bệnh", ["NPL"] = "Không lương", ["OTH"] = "Khác"
+                    };
+                    string erpCd     = model.LEAVE_TYPE switch { "AL" => "PN", "CL" => "BH", _ => "CP" };
+                    string erpRemark = erpCd == "CP"
+                        ? "ASSIGNED " + erpLeaveNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE)
+                        : "ASSIGNED";
+                    try
+                    {
+                        await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
+                            new OracleParameter("AS_EMPCD",   targetEmpcd),
+                            new OracleParameter("AS_LEAVECD", erpCd),
+                            new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = fromDate },
+                            new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = toDate },
+                            new OracleParameter("AS_IN_ID",   model.ASSIGNER_EMPCD),
+                            new OracleParameter("AS_REMAR",   erpRemark));
+
+                        await _oracleService.ExecuteNonQueryAsync(
+                            "UPDATE HRMS.EFM410 SET APPROVED_BY = :APPROVED_BY WHERE EMPCD = :EMPCD AND FR_DAT BETWEEN :FR_DAT AND :TO_DAT",
+                            new OracleParameter("APPROVED_BY", model.ASSIGNER_EMPCD),
+                            new OracleParameter("EMPCD",       targetEmpcd),
+                            new OracleParameter { ParameterName = "FR_DAT", OracleDbType = OracleDbType.Date, Value = fromDate },
+                            new OracleParameter { ParameterName = "TO_DAT", OracleDbType = OracleDbType.Date, Value = toDate });
+                    }
+                    catch { /* ERP failure không block assign */ }
 
                     var leaveTypeNames = new Dictionary<string,string>
                     {
@@ -1399,3 +1472,5 @@ public class LeaveController : ControllerBase
         }
     }
 }
+
+// ── TEMP TEST: remove after testing ──────────────────────────────────────────

@@ -371,7 +371,7 @@
         document.getElementById('pcaGrid').innerHTML = '';
         resetSummary();
 
-        $.get('/Calendar/GetMonthly', {year:y, month:m})
+        $.get('@Url.Action("GetMonthly", "Calendar")', {year:y, month:m})
          .done(function(res){
             document.getElementById('pcaLoading').classList.add('d-none');
             if(res?.success){

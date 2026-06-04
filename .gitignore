@@ -54,6 +54,7 @@ $RECYCLE.BIN/
 
 # Published output
 publish/
+publish_iis/
 planproject.csv
 
 docs/

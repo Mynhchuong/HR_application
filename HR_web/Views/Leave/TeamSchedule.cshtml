@@ -135,10 +135,21 @@
                         <!-- LEFT: emp list -->
                         <div class="col-lg-6">
                             <label class="form-label small fw-bold mb-1">Nhân viên <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-2 mb-2 flex-wrap">
+                                <select id="filterEmpDept" class="form-select form-select-sm" style="min-width:120px;flex:1;" onchange="onDeptFilter()">
+                                    <option value="">Tất cả bộ phận</option>
+                                </select>
+                                <select id="filterEmpLine" class="form-select form-select-sm" style="min-width:100px;flex:1;" onchange="onLineFilter()">
+                                    <option value="">Tất cả line</option>
+                                </select>
+                                <select id="filterEmpWork" class="form-select form-select-sm" style="min-width:110px;flex:1;" onchange="filterEmps()">
+                                    <option value="">Tất cả nhóm việc</option>
+                                </select>
+                            </div>
                             <div class="d-flex gap-2 mb-2">
                                 <div class="flex-grow-1 position-relative">
                                     <i class="bi bi-search position-absolute" style="left:9px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:.8rem;"></i>
-                                    <input type="text" id="empSearch" class="form-control form-control-sm ps-4" placeholder="Nhập mã NV..." oninput="filterEmps()" />
+                                    <input type="text" id="empSearch" class="form-control form-control-sm ps-4" placeholder="Mã NV hoặc tên..." oninput="filterEmps()" />
                                 </div>
                                 <button class="btn btn-outline-secondary btn-sm text-nowrap" onclick="selectAllEmps()">Chọn tất cả</button>
                                 <button class="btn btn-outline-secondary btn-sm text-nowrap" onclick="clearAllEmps()">Bỏ chọn</button>
@@ -415,6 +426,7 @@ function loadEmps() {
         const balData = (balRes[0]?.data) || [];
         empBalanceMap = {};
         balData.forEach(b => { empBalanceMap[b.EMPCD] = b; });
+        buildDeptOptions();
         renderEmpList(allEmps);
     }).fail(function() {
         $('#empList').html('<div class="text-center py-3 text-danger text-sm"><i class="bi bi-exclamation-triangle me-1"></i>Lỗi tải danh sách nhân viên</div>');
@@ -456,10 +468,54 @@ function renderEmpList(emps) {
     updateSelCount();
 }
 
+function buildDeptOptions() {
+    const depts = [...new Set(allEmps.map(e => e.dept_name||'').filter(Boolean))].sort();
+    const $d = $('#filterEmpDept').empty().append('<option value="">Tất cả bộ phận</option>');
+    depts.forEach(d => $d.append(`<option value="${escHtml(d)}">${escHtml(d)}</option>`));
+    buildLineOptions('');
+    buildWorkOptions('', '');
+}
+
+function buildLineOptions(dept) {
+    const src = dept ? allEmps.filter(e => (e.dept_name||'') === dept) : allEmps;
+    const lines = [...new Set(src.map(e => e.line_name||'').filter(Boolean))].sort();
+    const $l = $('#filterEmpLine').empty().append('<option value="">Tất cả line</option>');
+    lines.forEach(l => $l.append(`<option value="${escHtml(l)}">${escHtml(l)}</option>`));
+    $l.prop('disabled', !lines.length);
+}
+
+function buildWorkOptions(dept, line) {
+    let src = allEmps;
+    if (dept) src = src.filter(e => (e.dept_name||'') === dept);
+    if (line) src = src.filter(e => (e.line_name||'') === line);
+    const works = [...new Set(src.map(e => e.work_name||'').filter(Boolean))].sort();
+    const $w = $('#filterEmpWork').empty().append('<option value="">Tất cả nhóm việc</option>');
+    works.forEach(w => $w.append(`<option value="${escHtml(w)}">${escHtml(w)}</option>`));
+    $w.prop('disabled', !works.length);
+}
+
+function onDeptFilter() {
+    buildLineOptions($('#filterEmpDept').val());
+    buildWorkOptions($('#filterEmpDept').val(), '');
+    filterEmps();
+}
+
+function onLineFilter() {
+    buildWorkOptions($('#filterEmpDept').val(), $('#filterEmpLine').val());
+    filterEmps();
+}
+
 function filterEmps() {
-    const q = ($('#empSearch').val() || '').trim().toUpperCase();
-    if (!q) { renderEmpList(allEmps); return; }
-    renderEmpList(allEmps.filter(e => (e.empcd||'').toUpperCase().includes(q)));
+    const q    = ($('#empSearch').val() || '').trim().toUpperCase();
+    const dept = $('#filterEmpDept').val() || '';
+    const line = $('#filterEmpLine').val() || '';
+    const work = $('#filterEmpWork').val() || '';
+    let list = allEmps;
+    if (dept) list = list.filter(e => (e.dept_name||'') === dept);
+    if (line) list = list.filter(e => (e.line_name||'') === line);
+    if (work) list = list.filter(e => (e.work_name||'') === work);
+    if (q)    list = list.filter(e => (e.empcd||'').toUpperCase().includes(q) || (e.name||'').toUpperCase().includes(q));
+    renderEmpList(list);
 }
 function selectAllEmps()  { $('#empList .emp-chk:visible').prop('checked', true); updateSelCount(); }
 function clearAllEmps()   { $('#empList .emp-chk').prop('checked', false); updateSelCount(); }
@@ -754,7 +810,7 @@ function renderMaPagination() {
 }
 
 // ─── Init ────────────────────────────────────────────────────────
-document.getElementById('tabAssignLi')?.classList.add('d-none');
+// document.getElementById('tabAssignLi')?.classList.add('d-none');
 document.getElementById('tabMyAssignLi')?.classList.add('d-none');
 
 document.getElementById('tab-assign-btn')?.addEventListener('shown.bs.tab', loadEmps);

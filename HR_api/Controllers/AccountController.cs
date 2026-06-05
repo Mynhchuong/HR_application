@@ -574,7 +574,7 @@ public class AccountController : ControllerBase
         if (string.IsNullOrEmpty(empcd)) return Ok(new List<object>());
         string sql = @"
             SELECT EC.EMPCD, EC.CNAME,
-                   EA.DEPTNM, EA.TEAMNM
+                   EA.DEPTNM, EA.TEAMNM, EA.WORKNM
             FROM HRMS.ECM100 EC
             LEFT JOIN HRMS.EAM410 EA ON EA.DEPTCD = EC.DEPTCD AND EA.LINECD = EC.LINECD AND EA.WORKCD = EC.WORKCD
             WHERE EC.JEAJIKGB = 'Y'
@@ -582,13 +582,14 @@ public class AccountController : ControllerBase
               AND (EC.DEPTCD, EC.LINECD, EC.WORKCD) IN (
                   SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
               )
-            ORDER BY EA.DEPTNM, EA.TEAMNM, EC.CNAME";
+            ORDER BY EA.DEPTNM, EA.TEAMNM, EA.WORKNM, EC.CNAME";
         var result = await _oracleService.ExecuteQueryAsync(sql,
             r => new {
                 empcd     = r["EMPCD"]?.ToString(),
                 name      = r["CNAME"]?.ToString(),
                 dept_name = r["DEPTNM"]?.ToString(),
-                line_name = r["TEAMNM"]?.ToString()
+                line_name = r["TEAMNM"]?.ToString(),
+                work_name = r["WORKNM"]?.ToString()
             },
             new OracleParameter("EMPCD", empcd));
         return Ok(result);

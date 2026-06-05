@@ -44,6 +44,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",   Icon = "door_front"    },
                     new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",   Icon = "event_busy"    },
                     new SideMenuItem { Title = "Quy định công ty",    Url = "~/Policy/Index",            Icon = "policy"        },
+                    new SideMenuItem { Title = "Hướng dẫn sử dụng",  Url = "~/Guide/Index",             Icon = "menu_book"     },
                 }
             },
 
@@ -58,7 +59,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "OT List",            Url = "~/OT/OtListForExpat",               Icon = "view_list"      },
                     new SideMenuItem { Title = "Gate Pass Approval",  Url = "~/GatePass/GpListForExpat",         Icon = "door_front"     },
                     new SideMenuItem { Title = "Leave Approval",      Url = "~/Leave/LeaveApprovalForExpat",     Icon = "event_available"},
-                    new SideMenuItem { Title = "Lịch nghỉ & Cổng",   Url = "~/Leave/TeamCalendarForExpat",      Icon = "calendar_month" },
+                    new SideMenuItem { Title = "Calendar leave & gate pass",   Url = "~/Leave/TeamCalendarForExpat",      Icon = "calendar_month" },
                 }
             },
 
@@ -122,8 +123,18 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",       Icon = "door_front"             },
                     // new SideMenuItem { Title = "Log Sắp Lịch Nghỉ",    Url = "~/Leave/LeaveAssignmentLog",   Icon = "assignment_late"        },
                     new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy"             },
-
                 }
+            },
+
+            new()
+            {
+                Id = "Admin",
+                Title = "Quản trị",
+                Icon = "admin_panel_settings",
+                VisibleWhen = () => isAdmin,
+                Children = [
+                    new() { Title = "Quản lý Hướng dẫn", Url = "~/Guide/Manage", Icon = "menu_book" },
+                ]
             },
         };
     }

@@ -1,0 +1,189 @@
+@model HR_web.Models.Guide.GuideModel
+@{
+    ViewData["Title"] = Model.TITLE;
+}
+
+<style>
+    :root {
+        --guide-primary: #0ea5e9;
+        --guide-dark:    #0284c7;
+        --guide-bg:      #f0f9ff;
+        --guide-border:  #e0f2fe;
+    }
+
+    .detail-page {
+        max-width: 680px;
+        margin: 0 auto;
+        padding-bottom: 5rem;
+    }
+
+    /* ── Back bar ─────────────────────────────── */
+    .detail-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--guide-dark);
+        font-size: 0.88rem;
+        font-weight: 700;
+        text-decoration: none;
+        padding: 8px 14px 8px 8px;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        -webkit-tap-highlight-color: transparent;
+        transition: background .15s;
+    }
+    .detail-back:hover { background: var(--guide-bg); color: var(--guide-dark); }
+    .detail-back i { font-size: 1.1rem; }
+
+    /* ── Header card ──────────────────────────── */
+    .detail-header {
+        background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+        border-radius: 20px;
+        padding: 1.25rem 1.4rem;
+        color: #fff;
+        margin-bottom: 1.25rem;
+    }
+    .detail-cat {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        opacity: .85;
+        margin-bottom: 0.3rem;
+    }
+    .detail-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        line-height: 1.3;
+        margin: 0;
+    }
+
+    /* ── Content card ─────────────────────────── */
+    .detail-content-card {
+        background: #fff;
+        border: 1px solid var(--guide-border);
+        border-radius: 18px;
+        padding: 1.25rem 1.25rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        margin-bottom: 1rem;
+    }
+
+    .guide-content {
+        font-size: 0.9rem;
+        color: #374151;
+        line-height: 1.8;
+    }
+    .guide-content p  { margin-bottom: 0.6rem; }
+    .guide-content ul,
+    .guide-content ol { padding-left: 1.4rem; margin-bottom: 0.6rem; }
+    .guide-content h1 { font-size: 1.3rem; font-weight: 700; margin: .75rem 0 .3rem; }
+    .guide-content h2 { font-size: 1.1rem; font-weight: 700; margin: .6rem 0 .25rem; }
+    .guide-content h3 { font-size: 0.95rem; font-weight: 700; margin: .5rem 0 .2rem; }
+    .guide-content a  { color: var(--guide-dark); text-decoration: underline; }
+    .guide-content mark { border-radius: 3px; padding: 0 2px; }
+    .guide-content-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: .5rem 0; border-radius: 8px; }
+    .guide-content table { width: 100%; border-collapse: collapse; font-size: 0.83rem; min-width: 280px; }
+    .guide-content table td,
+    .guide-content table th { border: 1px solid var(--guide-border); padding: 6px 10px; }
+    .guide-content table th { background: var(--guide-bg); font-weight: 700; color: var(--guide-dark); }
+
+    /* ── Video ────────────────────────────────── */
+    .detail-video-card {
+        background: #000;
+        border-radius: 18px;
+        overflow: hidden;
+        aspect-ratio: 16 / 9;
+        box-shadow: 0 4px 16px rgba(0,0,0,.2);
+        margin-bottom: 1rem;
+    }
+    .detail-video-card video {
+        width: 100%; height: 100%; display: block;
+    }
+    .video-section-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--guide-dark);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .no-content {
+        text-align: center;
+        color: #94a3b8;
+        padding: 1.5rem 0;
+        font-size: 0.88rem;
+    }
+</style>
+
+<div class="detail-page px-2">
+
+    <!-- Back -->
+    <a href="@Url.Action("Index", "Guide")" class="detail-back">
+        <i class="bi bi-arrow-left-circle-fill"></i>
+        Danh sách hướng dẫn
+    </a>
+
+    <!-- Header -->
+    <div class="detail-header">
+        @if (!string.IsNullOrEmpty(Model.CATEGORY))
+        {
+            <div class="detail-cat">
+                <i class="bi bi-folder2-open me-1"></i>@Model.CATEGORY
+            </div>
+        }
+        <div class="detail-title">@Model.TITLE</div>
+    </div>
+
+    <!-- Video (nếu có — hiện trước) -->
+    @if (!string.IsNullOrEmpty(Model.VIDEO_PATH))
+    {
+        <div class="video-section-label">
+            <i class="bi bi-play-circle-fill"></i> Video hướng dẫn
+        </div>
+        <div class="detail-video-card">
+            <video controls preload="metadata" playsinline controlsList="nodownload">
+                <source src="@Url.Content("~" + Model.VIDEO_PATH)"
+                        type="@(Model.VIDEO_PATH.EndsWith(".webm") ? "video/webm" : Model.VIDEO_PATH.EndsWith(".mov") ? "video/quicktime" : "video/mp4")" />
+                Trình duyệt không hỗ trợ phát video.
+            </video>
+        </div>
+    }
+
+    <!-- Nội dung text -->
+    @if (!string.IsNullOrEmpty(Model.CONTENT))
+    {
+        <div class="detail-content-card">
+            <div class="guide-content" id="guideContent">
+                @Html.Raw(Model.CONTENT)
+            </div>
+        </div>
+    }
+    else if (string.IsNullOrEmpty(Model.VIDEO_PATH))
+    {
+        <div class="no-content">
+            <i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:.5rem;opacity:.3;"></i>
+            Chưa có nội dung cho mục này.
+        </div>
+    }
+
+    <!-- Back bottom -->
+    <div class="text-center mt-2">
+        <a href="@Url.Action("Index", "Guide")" class="btn btn-outline-secondary btn-sm mb-0" style="border-radius:10px;">
+            <i class="bi bi-grid me-1"></i>Xem tất cả hướng dẫn
+        </a>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // Wrap table để scroll ngang trên mobile
+    document.querySelectorAll('#guideContent table').forEach(tbl => {
+        const wrap = document.createElement('div');
+        wrap.className = 'guide-content-table-wrap';
+        tbl.parentNode.insertBefore(wrap, tbl);
+        wrap.appendChild(tbl);
+    });
+</script>
+}

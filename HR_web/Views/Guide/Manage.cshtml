@@ -1,0 +1,176 @@
+@model List<HR_web.Models.Guide.GuideModel>
+@{
+    ViewData["Title"] = "Quản lý hướng dẫn sử dụng";
+}
+
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-info shadow-info border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="text-white mb-0">
+                    <i class="bi bi-book-half me-1"></i> Quản lý Hướng Dẫn Sử Dụng
+                </h6>
+                <a href="@Url.Action("Edit", "Guide")" class="btn btn-sm btn-white mb-0 d-flex align-items-center" style="height:36px;">
+                    <i class="bi bi-plus-lg me-1"></i> Thêm mới
+                </a>
+            </div>
+        </div>
+
+        <div class="card-body px-0 pt-0 pb-2 mt-1">
+
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success mx-4 mt-3 py-2">@TempData["SuccessMessage"]</div>
+            }
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger mx-4 mt-3 py-2">@TempData["ErrorMessage"]</div>
+            }
+
+            @if (!Model.Any())
+            {
+                <div class="text-center py-5 text-secondary">
+                    <i class="bi bi-book-half" style="font-size:48px;opacity:.3;display:block;margin-bottom:.75rem;"></i>
+                    <p>Chưa có mục nào. Nhấn <strong>Thêm mới</strong> để bắt đầu.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive p-0 px-4">
+                    <table class="table align-items-center mb-0 w-100 table-hover">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">#</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Nhóm / Tiêu đề</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell text-center">Video</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell text-center">Thứ tự</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Trạng thái</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell">Cập nhật</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < Model.Count; i++)
+                            {
+                                var item = Model[i];
+                                var updaterName = !string.IsNullOrEmpty(item.UPDT_FULL_NAME) ? item.UPDT_FULL_NAME : item.UPDT_ID;
+                                <tr>
+                                    <td class="px-2 text-xs text-secondary">@(i + 1)</td>
+                                    <td class="px-2">
+                                        <div class="text-xxs font-weight-bold text-info mb-1">@(item.CATEGORY ?? "—")</div>
+                                        <div class="text-sm font-weight-bold text-dark">@item.TITLE</div>
+                                    </td>
+                                    <td class="px-2 d-none d-md-table-cell text-center">
+                                        @if (!string.IsNullOrEmpty(item.VIDEO_PATH))
+                                        {
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-info mb-0 px-2"
+                                                    title="Xem video"
+                                                    onclick="previewVideo('@Url.Content("~" + item.VIDEO_PATH)', '@Html.Encode(item.TITLE)')">
+                                                <i class="bi bi-play-circle-fill"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-secondary text-xs">—</span>
+                                        }
+                                    </td>
+                                    <td class="px-2 d-none d-md-table-cell text-center text-sm">@item.DISPLAY_ORDER</td>
+                                    <td class="px-2">
+                                        @if (item.IS_ACTIVE == 1)
+                                        {
+                                            <span class="badge badge-sm bg-gradient-info">Hiện</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-sm bg-gradient-secondary">Ẩn</span>
+                                        }
+                                    </td>
+                                    <td class="px-2 d-none d-md-table-cell">
+                                        @if (item.UPDT_DT.HasValue)
+                                        {
+                                            <p class="text-xs text-secondary mb-0">@item.UPDT_DT.Value.ToString("dd/MM/yyyy")</p>
+                                            <p class="text-xs text-secondary mb-0">@updaterName</p>
+                                        }
+                                        else if (item.INST_DT.HasValue)
+                                        {
+                                            <p class="text-xs text-secondary mb-0">@item.INST_DT.Value.ToString("dd/MM/yyyy")</p>
+                                            <p class="text-xs text-secondary mb-0">@item.INST_ID</p>
+                                        }
+                                    </td>
+                                    <td class="px-2">
+                                        <div class="d-flex gap-1 align-items-center flex-wrap">
+                                            <a href="@Url.Action("Edit", "Guide", new { id = item.ID })"
+                                               class="btn btn-sm btn-outline-warning mb-0 px-2">
+                                                <i class="bi bi-pencil me-1"></i>Sửa
+                                            </a>
+
+                                            <form asp-action="Toggle" asp-controller="Guide" method="post" style="display:inline;">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@item.ID" />
+                                                <button type="submit"
+                                                        class="btn btn-sm @(item.IS_ACTIVE == 1 ? "btn-outline-secondary" : "btn-outline-info") mb-0 px-2"
+                                                        title="@(item.IS_ACTIVE == 1 ? "Ẩn" : "Hiện")">
+                                                    <i class="bi @(item.IS_ACTIVE == 1 ? "bi-eye-slash" : "bi-eye")"></i>
+                                                </button>
+                                            </form>
+
+                                            @if (item.IS_ACTIVE == 0)
+                                            {
+                                                <form asp-action="Delete" asp-controller="Guide" method="post" style="display:inline;"
+                                                      onsubmit="return confirm('Xóa mục «@Html.Encode(item.TITLE)»?\nHành động này không thể hoàn tác.')">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@item.ID" />
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger mb-0 px-2">
+                                                        <i class="bi bi-trash3"></i>
+                                                    </button>
+                                                </form>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Video preview modal -->
+<div class="modal fade" id="videoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0" id="videoModalTitle"></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="stopVideo()"></button>
+            </div>
+            <div class="modal-body p-0" style="background:#000;">
+                <video id="previewVideoEl" controls style="width:100%;display:block;max-height:70vh;" controlsList="nodownload">
+                    Trình duyệt không hỗ trợ phát video.
+                </video>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function previewVideo(path, title) {
+        const v = document.getElementById('previewVideoEl');
+        document.getElementById('videoModalTitle').textContent = title;
+        v.src = path;
+        v.load();
+        new bootstrap.Modal(document.getElementById('videoModal')).show();
+    }
+
+    function stopVideo() {
+        const v = document.getElementById('previewVideoEl');
+        v.pause();
+        v.src = '';
+    }
+
+    document.getElementById('videoModal').addEventListener('hidden.bs.modal', stopVideo);
+</script>
+}

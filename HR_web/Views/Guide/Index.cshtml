@@ -1,0 +1,206 @@
+@model List<HR_web.Models.Guide.GuideModel>
+@{
+    ViewData["Title"] = "Hướng dẫn sử dụng";
+    if (!User.Identity!.IsAuthenticated)
+    {
+        Layout = "~/Views/Shared/_LayoutPublic.cshtml";
+    }
+    var grouped = Model.GroupBy(g => g.CATEGORY ?? "Chung").OrderBy(g => g.Key).ToList();
+}
+
+<style>
+    :root {
+        --guide-primary: #0ea5e9;
+        --guide-dark:    #0284c7;
+        --guide-bg:      #f0f9ff;
+        --guide-border:  #e0f2fe;
+    }
+
+    .guide-page {
+        max-width: 680px;
+        margin: 0 auto;
+        padding-bottom: 5rem;
+    }
+
+    /* ── Hero ─────────────────────────────────── */
+    .guide-hero {
+        background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+        border-radius: 20px;
+        padding: 1.25rem 1.25rem 1.25rem 1.4rem;
+        margin-bottom: 1.5rem;
+        color: #fff;
+        position: relative;
+        overflow: hidden;
+    }
+    .guide-hero h5   { font-size: 1.1rem; font-weight: 800; margin: 0 0 0.2rem; }
+    .guide-hero small{ font-size: 0.78rem; opacity: 0.85; }
+    .guide-hero-img  {
+        position: absolute; right: 0; bottom: -4px;
+        height: 90px; pointer-events: none; user-select: none;
+    }
+
+    /* ── Section label ────────────────────────── */
+    .guide-section-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: .07em;
+        text-transform: uppercase;
+        color: #64748b;
+        padding: 0 4px;
+        margin: 1.25rem 0 0.6rem;
+    }
+
+    /* ── Feature card ─────────────────────────── */
+    .guide-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+    @@media (min-width: 540px) {
+        .guide-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .guide-card {
+        background: #fff;
+        border: 1.5px solid var(--guide-border);
+        border-radius: 18px;
+        padding: 1.1rem 0.9rem 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        text-decoration: none !important;
+        color: inherit !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        transition: transform .2s, box-shadow .2s, border-color .2s;
+        -webkit-tap-highlight-color: transparent;
+        cursor: pointer;
+    }
+    .guide-card:active {
+        transform: scale(0.95);
+        background: var(--guide-bg);
+    }
+    @@media (hover: hover) {
+        .guide-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(14,165,233,.15);
+            border-color: var(--guide-primary);
+        }
+    }
+
+    .guide-card-icon {
+        width: 52px; height: 52px;
+        border-radius: 14px;
+        background: var(--guide-bg);
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 0.65rem;
+        font-size: 1.5rem;
+        color: var(--guide-dark);
+        transition: transform .2s;
+    }
+    .guide-card:hover .guide-card-icon { transform: rotate(5deg) scale(1.1); }
+
+    .guide-card-title {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #1e293b;
+        line-height: 1.3;
+    }
+    .guide-card-cat {
+        font-size: 0.7rem;
+        color: #64748b;
+        margin-top: 3px;
+    }
+    .guide-card-video {
+        margin-top: 5px;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: var(--guide-dark);
+        background: var(--guide-bg);
+        border-radius: 20px;
+        padding: 1px 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+    }
+
+    /* ── Empty ────────────────────────────────── */
+    .guide-empty {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #94a3b8;
+    }
+    .guide-empty i { font-size: 3rem; opacity: .25; display: block; margin-bottom: .75rem; }
+
+    /* ── Back to login ────────────────────────── */
+    .btn-back-login {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        height: 52px;
+        background: #1e293b;
+        color: #fff !important;
+        font-size: 1rem;
+        font-weight: 700;
+        border-radius: 16px;
+        text-decoration: none !important;
+        margin-top: 1.5rem;
+        transition: background .2s;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .btn-back-login:active { background: #0f172a; }
+</style>
+
+<div class="guide-page px-2">
+
+    <!-- Hero -->
+    <div class="guide-hero">
+        <h5><i class="bi bi-book-half me-2"></i>Hướng Dẫn Sử Dụng</h5>
+        <small>Chọn chức năng bạn muốn xem hướng dẫn</small>
+        <img src="~/assets/img/illustrations/A-alo.png" class="guide-hero-img" alt="" />
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="guide-empty">
+            <i class="bi bi-book"></i>
+            <p>Chưa có hướng dẫn nào.<br>Vui lòng liên hệ Admin để được hỗ trợ.</p>
+        </div>
+    }
+    else
+    {
+        @foreach (var group in grouped)
+        {
+            <div class="guide-section-label">
+                <i class="bi bi-folder2 me-1"></i>@group.Key
+            </div>
+            <div class="guide-grid">
+                @foreach (var item in group.OrderBy(i => i.DISPLAY_ORDER).ThenBy(i => i.ID))
+                {
+                    <a href="@Url.Action("Detail", "Guide", new { id = item.ID })" class="guide-card">
+                        <div class="guide-card-icon">
+                            <span class="material-symbols-rounded">menu_book</span>
+                        </div>
+                        <div class="guide-card-title">@item.TITLE</div>
+                        @if (!string.IsNullOrEmpty(item.VIDEO_PATH))
+                        {
+                            <div class="guide-card-video">
+                                <i class="bi bi-play-circle-fill"></i> Video
+                            </div>
+                        }
+                    </a>
+                }
+            </div>
+        }
+    }
+
+    @if (!User.Identity!.IsAuthenticated)
+    {
+        <a href="@Url.Action("Login", "Account")" class="btn-back-login">
+            <span class="material-symbols-rounded">login</span>
+            Quay lại đăng nhập
+        </a>
+    }
+</div>

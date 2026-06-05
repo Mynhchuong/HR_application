@@ -1,0 +1,437 @@
+@model HR_web.Models.Guide.GuideModel
+@{
+    var isNew = Model.ID == 0;
+    ViewData["Title"] = isNew ? "Thêm hướng dẫn" : "Sửa hướng dẫn";
+}
+
+@section Styles {
+<style>
+    .ep-label { font-size: .9rem; font-weight: 700; color: #374151; margin-bottom: 6px; }
+    .ep-input { border-radius: 10px; border: 1.5px solid #d1d5db; font-size: .95rem; padding: .55rem .8rem; }
+    .ep-input:focus { border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14,165,233,.12); }
+
+    /* ── TipTap ──────────────────────────────────── */
+    .tiptap-wrap { border: 1.5px solid #d1d5db; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+    .tiptap-wrap:focus-within { border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14,165,233,.12); }
+    .tiptap-wrap.over { border-color: #ef4444 !important; box-shadow: 0 0 0 3px rgba(239,68,68,.12) !important; }
+    .tt-toolbar { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 6px 10px; display: flex; flex-wrap: wrap; gap: 2px; align-items: center; position: sticky; top: 0; z-index: 10; }
+    .tt-btn { min-width: 30px; height: 30px; border: none; background: transparent; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; color: #374151; padding: 0 5px; transition: background .15s; line-height: 1; white-space: nowrap; }
+    .tt-btn:hover { background: #e2e8f0; }
+    .tt-btn.is-active { background: #e0f2fe; color: #0284c7; }
+    .tt-sep { width: 1px; height: 22px; background: #e2e8f0; margin: 0 3px; flex-shrink: 0; }
+    .tt-clr-btn { min-width: 30px; height: 30px; padding: 2px 5px; border: none; background: transparent; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-direction: column; gap: 1px; position: relative; }
+    .tt-clr-btn:hover { background: #e2e8f0; }
+    .tt-clr-bar { width: 16px; height: 3px; border-radius: 2px; }
+    #tt-tbl-ops { display: none; background: #fffbeb; border-bottom: 1px solid #fde68a; padding: 4px 10px; flex-wrap: wrap; gap: 2px; align-items: center; position: sticky; top: 42px; z-index: 9; }
+    #tt-tbl-ops.show { display: flex; }
+    #tt-tbl-ops .tt-btn { font-size: 12px; height: 26px; padding: 0 7px; }
+    #tt-tbl-ops .tt-sep { height: 18px; }
+    .ProseMirror { padding: 1rem 1.25rem; min-height: 320px; outline: none; font-size: .92rem; color: #1e293b; line-height: 1.75; flex: 1; }
+    .ProseMirror > * + * { margin-top: .4rem; }
+    .ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; color: #94a3b8; pointer-events: none; height: 0; }
+    .ProseMirror h1 { font-size: 1.5rem; font-weight: 700; }
+    .ProseMirror h2 { font-size: 1.2rem; font-weight: 700; }
+    .ProseMirror h3 { font-size: 1rem; font-weight: 700; }
+    .ProseMirror ul, .ProseMirror ol { padding-left: 1.4rem; }
+    .ProseMirror hr { border: none; border-top: 2px solid #e2e8f0; margin: .75rem 0; }
+    .ProseMirror a { color: #0284c7; text-decoration: underline; }
+    .ProseMirror mark { border-radius: 2px; padding: 0 2px; }
+    .ProseMirror table { border-collapse: collapse; width: 100%; margin: .5rem 0; }
+    .ProseMirror table td, .ProseMirror table th { border: 1px solid #e2e8f0; padding: 5px 9px; min-width: 40px; }
+    .ProseMirror table th { background: #e0f2fe; font-weight: 600; color: #0284c7; }
+    .ProseMirror .selectedCell { background: rgba(14,165,233,.08); }
+    .tt-tbl-picker-wrap { position: relative; }
+    #tt-tbl-picker { display: none; position: absolute; top: 34px; left: 0; z-index: 999; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+    #tt-tbl-picker.open { display: block; }
+    #tt-grid { display: grid; grid-template-columns: repeat(8,18px); gap: 2px; }
+    .tt-grid-cell { width: 18px; height: 18px; border: 1px solid #e2e8f0; border-radius: 2px; background: #f8fafc; cursor: pointer; transition: background .1s, border-color .1s; }
+    .tt-grid-cell.hl { background: #e0f2fe; border-color: #0ea5e9; }
+    #tt-grid-label { text-align: center; font-size: 11px; color: #64748b; margin-top: 6px; }
+    .tt-footer { padding: 5px 1.25rem; background: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; display: flex; justify-content: flex-end; }
+    .tt-footer.warn #tt-wordcount { color: #f59e0b; font-weight: 600; }
+    .tt-footer.over #tt-wordcount { color: #ef4444; font-weight: 700; }
+
+    /* ── Video upload ────────────────────────────── */
+    .video-upload-zone {
+        border: 2px dashed #bae6fd;
+        border-radius: 14px;
+        padding: 1.5rem;
+        text-align: center;
+        background: #f0f9ff;
+        cursor: pointer;
+        transition: border-color .2s, background .2s;
+        position: relative;
+    }
+    .video-upload-zone:hover { border-color: #0ea5e9; background: #e0f2fe; }
+    .video-upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+    .current-video-wrap {
+        border-radius: 14px;
+        overflow: hidden;
+        background: #000;
+        aspect-ratio: 16 / 9;
+        margin-bottom: 0.75rem;
+    }
+    .current-video-wrap video { width: 100%; height: 100%; display: block; }
+
+    .btn-save { font-size: 1rem; padding: .65rem 1.5rem; border-radius: 10px; font-weight: 700; }
+    .btn-back { font-size: .95rem; padding: .65rem 1.2rem; border-radius: 10px; }
+</style>
+}
+
+<div class="container-fluid py-3">
+    <div class="card">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-info shadow-info border-radius-lg pt-3 pb-2 px-3">
+                <h6 class="text-white mb-0">
+                    <i class="bi @(isNew ? "bi-plus-circle" : "bi-pencil-square") me-1"></i>
+                    @(isNew ? "Thêm hướng dẫn mới" : "Sửa hướng dẫn")
+                </h6>
+            </div>
+        </div>
+
+        <div class="card-body pt-4 pb-4 px-4">
+            <form asp-action="Edit" method="post" enctype="multipart/form-data" id="editForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="ID" />
+                <input type="hidden" asp-for="VIDEO_PATH" id="currentVideoPath" />
+
+                <!-- Row 1: Nhóm + Tiêu đề -->
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-5">
+                        <label class="ep-label">Nhóm / Danh mục</label>
+                        <input asp-for="CATEGORY" class="form-control ep-input"
+                               placeholder="Ví dụ: Nghỉ phép, Tăng ca..."
+                               list="category-list" autocomplete="off" />
+                        <datalist id="category-list">
+                            <option value="Tổng quan hệ thống" />
+                            <option value="Đăng nhập & Hồ sơ" />
+                            <option value="Xác nhận tăng ca" />
+                            <option value="Đơn nghỉ phép" />
+                            <option value="Phiếu ra vào cổng" />
+                            <option value="Phiếu lương" />
+                            <option value="Quy định công ty" />
+                            <option value="Dành cho Giám sát" />
+                            <option value="Dành cho HR" />
+                        </datalist>
+                    </div>
+                    <div class="col-12 col-md-7">
+                        <label class="ep-label">Tiêu đề <span class="text-danger">*</span></label>
+                        <input asp-for="TITLE" class="form-control ep-input" placeholder="Ví dụ: Cách xác nhận tăng ca" />
+                    </div>
+                </div>
+
+                <!-- Row 2: Thứ tự + Toggle -->
+                <div class="d-flex align-items-center gap-4 mb-4">
+                    <div>
+                        <label class="ep-label">Thứ tự hiển thị</label>
+                        <input asp-for="DISPLAY_ORDER" type="number" min="0" class="form-control ep-input" style="width:100px;" />
+                    </div>
+                    <div class="pt-3">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="isActiveCheck" style="width:2.4em;height:1.3em;"
+                                   @(Model.IS_ACTIVE == 1 ? "checked" : "")
+                                   onchange="document.getElementById('IS_ACTIVE').value = this.checked ? 1 : 0" />
+                            <label class="form-check-label ep-label ms-1" for="isActiveCheck" style="margin-bottom:0;">
+                                Hiển thị cho nhân viên
+                            </label>
+                        </div>
+                        <input type="hidden" asp-for="IS_ACTIVE" id="IS_ACTIVE" />
+                    </div>
+                </div>
+
+                <!-- Rich text editor -->
+                <div class="mb-4">
+                    <label class="ep-label mb-2">Nội dung hướng dẫn</label>
+                    <input type="hidden" asp-for="CONTENT" id="tt-val" />
+                    <div class="tiptap-wrap">
+                        <div class="tt-toolbar">
+                            <button type="button" class="tt-btn" id="tt-bold"      title="Đậm"        onclick="window._tt.chain().focus().toggleBold().run()"><i class="bi bi-type-bold"></i></button>
+                            <button type="button" class="tt-btn" id="tt-italic"    title="Nghiêng"    onclick="window._tt.chain().focus().toggleItalic().run()"><i class="bi bi-type-italic"></i></button>
+                            <button type="button" class="tt-btn" id="tt-underline" title="Gạch chân"  onclick="window._tt.chain().focus().toggleUnderline().run()"><i class="bi bi-type-underline"></i></button>
+                            <button type="button" class="tt-btn" id="tt-strike"    title="Gạch ngang" onclick="window._tt.chain().focus().toggleStrike().run()"><i class="bi bi-type-strikethrough"></i></button>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn" id="tt-h1" title="Tiêu đề 1" onclick="window._tt.chain().focus().toggleHeading({level:1}).run()" style="font-size:11px;font-weight:800;">H1</button>
+                            <button type="button" class="tt-btn" id="tt-h2" title="Tiêu đề 2" onclick="window._tt.chain().focus().toggleHeading({level:2}).run()" style="font-size:11px;font-weight:800;">H2</button>
+                            <button type="button" class="tt-btn" id="tt-h3" title="Tiêu đề 3" onclick="window._tt.chain().focus().toggleHeading({level:3}).run()" style="font-size:11px;font-weight:800;">H3</button>
+                            <div class="tt-sep"></div>
+                            <label class="tt-clr-btn" title="Màu chữ">
+                                <span style="font-weight:800;font-size:13px;line-height:1;">A</span>
+                                <div class="tt-clr-bar" id="tt-clr-bar" style="background:#000;"></div>
+                                <input type="color" id="tt-clr" style="position:absolute;opacity:0;width:0;height:0;"
+                                       oninput="window._tt.chain().focus().setColor(this.value).run();document.getElementById('tt-clr-bar').style.background=this.value;" />
+                            </label>
+                            <label class="tt-clr-btn" title="Highlight">
+                                <i class="bi bi-highlighter" style="font-size:13px;line-height:1;"></i>
+                                <div class="tt-clr-bar" id="tt-hl-bar" style="background:#fbbf24;"></div>
+                                <input type="color" id="tt-hl" value="#fbbf24" style="position:absolute;opacity:0;width:0;height:0;"
+                                       oninput="window._tt.chain().focus().toggleHighlight({color:this.value}).run();document.getElementById('tt-hl-bar').style.background=this.value;" />
+                            </label>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn" id="tt-ul"     title="Danh sách chấm" onclick="window._tt.chain().focus().toggleBulletList().run()"><i class="bi bi-list-ul"></i></button>
+                            <button type="button" class="tt-btn" id="tt-ol"     title="Danh sách số"   onclick="window._tt.chain().focus().toggleOrderedList().run()"><i class="bi bi-list-ol"></i></button>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn" id="tt-left"   title="Căn trái"  onclick="window._tt.chain().focus().setTextAlign('left').run()"><i class="bi bi-text-left"></i></button>
+                            <button type="button" class="tt-btn" id="tt-center" title="Căn giữa"  onclick="window._tt.chain().focus().setTextAlign('center').run()"><i class="bi bi-text-center"></i></button>
+                            <button type="button" class="tt-btn" id="tt-right"  title="Căn phải"  onclick="window._tt.chain().focus().setTextAlign('right').run()"><i class="bi bi-text-right"></i></button>
+                            <div class="tt-sep"></div>
+                            <div class="tt-tbl-picker-wrap">
+                                <button type="button" class="tt-btn" id="tt-table" title="Chèn bảng" onclick="toggleTblPicker(event)"><i class="bi bi-table"></i></button>
+                                <div id="tt-tbl-picker">
+                                    <div id="tt-grid"></div>
+                                    <div id="tt-grid-label">Di chuột để chọn</div>
+                                </div>
+                            </div>
+                            <button type="button" class="tt-btn" id="tt-link" title="Chèn link"      onclick="ttSetLink()"><i class="bi bi-link-45deg"></i></button>
+                            <button type="button" class="tt-btn"              title="Đường kẻ ngang" onclick="window._tt.chain().focus().setHorizontalRule().run()"><i class="bi bi-dash-lg"></i></button>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn" title="Undo" onclick="window._tt.chain().focus().undo().run()"><i class="bi bi-arrow-counterclockwise"></i></button>
+                            <button type="button" class="tt-btn" title="Redo" onclick="window._tt.chain().focus().redo().run()"><i class="bi bi-arrow-clockwise"></i></button>
+                        </div>
+                        <div id="tt-tbl-ops">
+                            <span style="font-size:11px;color:#92400e;font-weight:700;padding:0 4px;"><i class="bi bi-table me-1"></i>Bảng:</span>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn" title="Thêm hàng trên"  onclick="window._tt.chain().focus().addRowBefore().run()">+Hàng↑</button>
+                            <button type="button" class="tt-btn" title="Thêm hàng dưới"  onclick="window._tt.chain().focus().addRowAfter().run()">+Hàng↓</button>
+                            <button type="button" class="tt-btn text-danger" title="Xóa hàng" onclick="window._tt.chain().focus().deleteRow().run()">−Hàng</button>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn" title="Thêm cột trái"   onclick="window._tt.chain().focus().addColumnBefore().run()">+Cột←</button>
+                            <button type="button" class="tt-btn" title="Thêm cột phải"   onclick="window._tt.chain().focus().addColumnAfter().run()">+Cột→</button>
+                            <button type="button" class="tt-btn text-danger" title="Xóa cột" onclick="window._tt.chain().focus().deleteColumn().run()">−Cột</button>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn text-danger" title="Xóa bảng" onclick="window._tt.chain().focus().deleteTable().run()"><i class="bi bi-trash3 me-1"></i>Xóa bảng</button>
+                        </div>
+                        <div id="tiptap-editor"></div>
+                        <div class="tt-footer"><span id="tt-wordcount">0 / 2.000 từ · 0 ký tự</span></div>
+                    </div>
+                </div>
+
+                <!-- Video upload -->
+                <div class="mb-4">
+                    <label class="ep-label mb-2">
+                        <i class="bi bi-camera-video me-1"></i>Video hướng dẫn
+                        <small class="text-secondary fw-normal ms-1">(MP4 / WebM / MOV, tối đa 500 MB)</small>
+                    </label>
+
+                    @if (!string.IsNullOrEmpty(Model.VIDEO_PATH))
+                    {
+                        <div id="currentVideoSection" class="mb-3">
+                            <div class="current-video-wrap">
+                                <video id="currentVideoEl" controls preload="metadata" controlsList="nodownload">
+                                    <source src="@Url.Content("~" + Model.VIDEO_PATH)" type="video/mp4" />
+                                </video>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger mb-0"
+                                    onclick="removeCurrentVideo()">
+                                <i class="bi bi-trash3 me-1"></i>Xóa video hiện tại
+                            </button>
+                        </div>
+                    }
+
+                    <div class="video-upload-zone" id="uploadZone">
+                        <input type="file" name="VideoFile" id="videoFileInput"
+                               accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime"
+                               onchange="onVideoSelected(this)" />
+                        <i class="bi bi-cloud-upload" style="font-size:2rem;color:#0ea5e9;display:block;margin-bottom:.5rem;"></i>
+                        <div class="fw-bold text-secondary" id="uploadLabel">Nhấn hoặc kéo file video vào đây</div>
+                        <div class="text-secondary" style="font-size:.8rem;" id="uploadSub">MP4 · WebM · MOV &nbsp;·&nbsp; Tối đa 500 MB</div>
+                    </div>
+
+                    <!-- Preview video mới chọn -->
+                    <div id="newVideoPreview" style="display:none;margin-top:0.75rem;">
+                        <div class="current-video-wrap">
+                            <video id="newVideoEl" controls preload="auto" style="width:100%;height:100%;display:block;">
+                                Trình duyệt không hỗ trợ phát video.
+                            </video>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-2 mb-0"
+                                onclick="clearNewVideo()">
+                            <i class="bi bi-x-circle me-1"></i>Hủy chọn video
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="d-flex gap-2 justify-content-end">
+                    <a href="@Url.Action("Manage", "Guide")" class="btn btn-outline-secondary btn-back mb-0">Hủy</a>
+                    <button type="submit" class="btn btn-info btn-save mb-0" id="submitBtn">
+                        <i class="bi bi-save me-1"></i>@(isNew ? "Tạo mới" : "Lưu thay đổi")
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script type="module">
+import { Editor }  from 'https://esm.sh/@@tiptap/core@@2';
+import StarterKit  from 'https://esm.sh/@@tiptap/starter-kit@@2';
+import Underline   from 'https://esm.sh/@@tiptap/extension-underline@@2';
+import TextStyle   from 'https://esm.sh/@@tiptap/extension-text-style@@2';
+import Color       from 'https://esm.sh/@@tiptap/extension-color@@2';
+import Highlight   from 'https://esm.sh/@@tiptap/extension-highlight@@2';
+import TextAlign   from 'https://esm.sh/@@tiptap/extension-text-align@@2';
+import Link        from 'https://esm.sh/@@tiptap/extension-link@@2';
+import Placeholder from 'https://esm.sh/@@tiptap/extension-placeholder@@2';
+import Table       from 'https://esm.sh/@@tiptap/extension-table@@2';
+import TableRow    from 'https://esm.sh/@@tiptap/extension-table-row@@2';
+import TableCell   from 'https://esm.sh/@@tiptap/extension-table-cell@@2';
+import TableHeader from 'https://esm.sh/@@tiptap/extension-table-header@@2';
+
+const MAX_WORDS = 2000;
+const val = document.getElementById('tt-val');
+
+const editor = new Editor({
+    element: document.getElementById('tiptap-editor'),
+    extensions: [
+        StarterKit,
+        Underline, TextStyle, Color,
+        Highlight.configure({ multicolor: true }),
+        TextAlign.configure({ types: ['heading', 'paragraph'] }),
+        Link.configure({ openOnClick: false }),
+        Placeholder.configure({ placeholder: 'Nhập nội dung hướng dẫn cho mục này...' }),
+        Table.configure({ resizable: false }),
+        TableRow, TableCell, TableHeader,
+    ],
+    content: val.value || '',
+    onUpdate({ editor })          { val.value = editor.getHTML(); _updateWordCount(editor); },
+    onSelectionUpdate({ editor }) { _sync(editor); },
+    onTransaction({ editor })     { _sync(editor); },
+});
+
+window._tt = editor;
+
+function _sync(e) {
+    const map = {
+        'tt-bold':      () => e.isActive('bold'),
+        'tt-italic':    () => e.isActive('italic'),
+        'tt-underline': () => e.isActive('underline'),
+        'tt-strike':    () => e.isActive('strike'),
+        'tt-h1':        () => e.isActive('heading', { level: 1 }),
+        'tt-h2':        () => e.isActive('heading', { level: 2 }),
+        'tt-h3':        () => e.isActive('heading', { level: 3 }),
+        'tt-ul':        () => e.isActive('bulletList'),
+        'tt-ol':        () => e.isActive('orderedList'),
+        'tt-left':      () => e.isActive({ textAlign: 'left' }),
+        'tt-center':    () => e.isActive({ textAlign: 'center' }),
+        'tt-right':     () => e.isActive({ textAlign: 'right' }),
+        'tt-link':      () => e.isActive('link'),
+        'tt-table':     () => e.isActive('table'),
+    };
+    for (const [id, fn] of Object.entries(map))
+        document.getElementById(id)?.classList.toggle('is-active', fn());
+    document.getElementById('tt-tbl-ops').classList.toggle('show', e.isActive('table'));
+}
+
+function _updateWordCount(e) {
+    const text   = e.getText().trim();
+    const words  = text ? text.split(/\s+/).length : 0;
+    const chars  = text.length;
+    const footer = document.querySelector('.tt-footer');
+    const wrap   = document.querySelector('.tiptap-wrap');
+    document.getElementById('tt-wordcount').textContent =
+        `${words.toLocaleString('vi-VN')} / ${MAX_WORDS.toLocaleString('vi-VN')} từ · ${chars.toLocaleString('vi-VN')} ký tự`;
+    footer.classList.toggle('warn', words >= MAX_WORDS * 0.9 && words <= MAX_WORDS);
+    footer.classList.toggle('over', words > MAX_WORDS);
+    wrap.classList.toggle('over', words > MAX_WORDS);
+}
+
+const gridEl  = document.getElementById('tt-grid');
+const gridLbl = document.getElementById('tt-grid-label');
+for (let r = 1; r <= 8; r++) {
+    for (let c = 1; c <= 8; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'tt-grid-cell';
+        cell.dataset.r = r; cell.dataset.c = c;
+        cell.addEventListener('mouseover', () => {
+            document.querySelectorAll('.tt-grid-cell').forEach(el =>
+                el.classList.toggle('hl', +el.dataset.r <= r && +el.dataset.c <= c)
+            );
+            gridLbl.textContent = `${r} × ${c}`;
+        });
+        cell.addEventListener('click', () => {
+            editor.chain().focus().insertTable({ rows: r, cols: c, withHeaderRow: true }).run();
+            document.getElementById('tt-tbl-picker').classList.remove('open');
+        });
+        gridEl.appendChild(cell);
+    }
+}
+
+window.toggleTblPicker = (e) => {
+    e.stopPropagation();
+    document.getElementById('tt-tbl-picker').classList.toggle('open');
+};
+document.addEventListener('click', () => {
+    document.getElementById('tt-tbl-picker').classList.remove('open');
+});
+
+window.ttSetLink = () => {
+    const prev = editor.getAttributes('link').href || '';
+    const url  = prompt('Nhập URL:', prev);
+    if (url === null) return;
+    url ? editor.chain().focus().setLink({ href: url }).run()
+        : editor.chain().focus().unsetLink().run();
+};
+
+document.getElementById('editForm').addEventListener('submit', (e) => {
+    const text  = editor.getText().trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    if (words > MAX_WORDS) {
+        e.preventDefault();
+        alert(`Nội dung quá dài (${words.toLocaleString('vi-VN')} từ). Vui lòng rút ngắn xuống dưới ${MAX_WORDS.toLocaleString('vi-VN')} từ.`);
+        return;
+    }
+    val.value = editor.getHTML();
+});
+
+_updateWordCount(editor);
+</script>
+
+<script>
+function onVideoSelected(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const maxBytes = 500 * 1024 * 1024;
+    if (file.size > maxBytes) {
+        alert('File video quá lớn! Tối đa 500 MB.');
+        input.value = '';
+        return;
+    }
+
+    const url = URL.createObjectURL(file);
+    const vEl = document.getElementById('newVideoEl');
+    vEl.src = url;
+    vEl.load();
+
+    document.getElementById('newVideoPreview').style.display = 'block';
+    document.getElementById('uploadLabel').textContent = file.name;
+    document.getElementById('uploadSub').textContent = (file.size / 1048576).toFixed(1) + ' MB';
+
+    // Hiển thị thanh tiến trình khi submit
+    document.getElementById('editForm').addEventListener('submit', () => {
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang upload...';
+    }, { once: true });
+}
+
+function clearNewVideo() {
+    document.getElementById('videoFileInput').value = '';
+    const vEl = document.getElementById('newVideoEl');
+    URL.revokeObjectURL(vEl.src);
+    vEl.src = '';
+    document.getElementById('newVideoPreview').style.display = 'none';
+    document.getElementById('uploadLabel').textContent = 'Nhấn hoặc kéo file video vào đây';
+    document.getElementById('uploadSub').textContent = 'MP4 · WebM · MOV · Tối đa 500 MB';
+}
+
+function removeCurrentVideo() {
+    if (!confirm('Xóa video hiện tại? Thay đổi sẽ được lưu ngay khi bạn bấm Lưu.')) return;
+    document.getElementById('currentVideoPath').value = '';
+    const section = document.getElementById('currentVideoSection');
+    if (section) section.remove();
+}
+</script>
+}

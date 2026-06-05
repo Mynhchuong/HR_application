@@ -22,6 +22,7 @@ public static class AuthHelper
         {
             new Claim(ClaimTypes.Name, user.EmpCd),
             new Claim(ClaimTypes.GivenName, user.FullName ?? string.Empty),
+            new Claim(ClaimTypes.Role, user.RoleName ?? string.Empty),
             new Claim(UserInfoClaimType, userJson)
         };
 

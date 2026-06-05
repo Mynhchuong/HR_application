@@ -51,9 +51,16 @@ public class AccountController : Controller
 
         if (user == null)
         {
-            ModelState.AddModelError(string.Empty, "Sai tài khoản hoặc mật khẩu");
+            var fails = HttpContext.Session.GetInt32("LoginFails") ?? 0;
+            fails++;
+            HttpContext.Session.SetInt32("LoginFails", fails);
+            ModelState.AddModelError(string.Empty, fails >= 3
+                ? $"Sai tài khoản hoặc mật khẩu (lần {fails}). Nếu quên mật khẩu, vui lòng liên hệ phòng HR để được hỗ trợ."
+                : "Sai tài khoản hoặc mật khẩu.");
             return View(model);
         }
+
+        HttpContext.Session.Remove("LoginFails");
 
         user.RequirePasswordChange = (model.Password == "123456");
 
@@ -90,5 +97,14 @@ public class AccountController : Controller
     {
         await AuthHelper.SignOutAsync(HttpContext);
         return RedirectToAction("Login");
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Account/AccessDenied
+    // ─────────────────────────────────────────────
+    [AllowAnonymous]
+    public IActionResult AccessDenied()
+    {
+        return View();
     }
 }

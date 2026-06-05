@@ -205,6 +205,18 @@
             <div class="app-card-tag">Hồ sơ & Chữ ký</div>
         </a>
 
+        <!-- Hướng dẫn sử dụng -->
+        @if (user?.RoleName != "Expat")
+        {
+            <a asp-controller="Guide" asp-action="Index" class="app-card">
+                <div class="app-icon-wrapper" style="background: linear-gradient(135deg,#e0f2fe,#bae6fd);">
+                    <span class="material-symbols-rounded" style="color:#0284c7;">menu_book</span>
+                </div>
+                <div class="app-card-title">Hướng dẫn</div>
+                <div class="app-card-tag">Sử dụng hệ thống</div>
+            </a>
+        }
+
         @if (user?.RoleName == "HR" || user?.RoleName == "Admin" || user?.RoleName == "Manager" || user?.RoleName == "Clerk")
         {
             <a asp-controller="OT" asp-action="OtListForClerk" class="app-card">

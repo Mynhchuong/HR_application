@@ -604,9 +604,11 @@ public class AccountController : ControllerBase
             string sql = @"
                 SELECT B.DEPTNM, B.TEAMNM, B.WORKNM, A.CNAME, A.BIRTHDAT, A.SEXGB, A.MARRGB,
                        A.HOMETEL AS PHONE, A.SENIORITY AS SENIORITY_DESC, A.JUMINNO_PLACE AS HOMETOWN,
-                       A.CONTRACT_TYPE, A.CONTRACT_DATE
+                       A.CONTRACT_TYPE, A.CONTRACT_DATE,
+                       A.ADDRESS_ETC, C.CODE_NAME1_N, C.CODE_NAME3_N
                 FROM HRMS.ECM100 A
                 JOIN HRMS.EAM410 B ON A.DEPTCD = B.DEPTCD AND A.LINECD = B.LINECD AND A.WORKCD = B.WORKCD AND B.USEYN = 'Y'
+                LEFT JOIN HRMS.EAM510 C ON A.BONADDR3 = C.CODE1 AND A.BONADDR1 = C.CODE3
                 WHERE A.EMPCD = :EMPCD";
 
             var results = await _oracleService.ExecuteQueryAsync(sql, reader => new UserDetailModel
@@ -622,13 +624,22 @@ public class AccountController : ControllerBase
                 Seniority = reader["SENIORITY_DESC"]?.ToString(),
                 HomeTown = reader["HOMETOWN"]?.ToString(),
                 ContractType = reader["CONTRACT_TYPE"]?.ToString(),
-                ContractDate = SafeToDate(reader["CONTRACT_DATE"])
+                ContractDate = SafeToDate(reader["CONTRACT_DATE"]),
+                Address = string.Join(", ",
+                    new[] {
+                        reader["ADDRESS_ETC"]?.ToString()?.Trim(),
+                        reader["CODE_NAME3_N"]?.ToString()?.Trim(),
+                        reader["CODE_NAME1_N"]?.ToString()?.Trim()
+                    }.Where(s => !string.IsNullOrEmpty(s)))
             }, new OracleParameter("EMPCD", empCd.Trim()));
 
-            return Ok(results.FirstOrDefault());
+            var r = results.FirstOrDefault();
+            Console.WriteLine($"[user-detail] empCd={empCd} | addr_etc={r?.Address} | rows={results.Count}");
+            return Ok(r);
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[user-detail] EXCEPTION: {ex.Message}");
             return Ok(new { error = ex.Message });
         }
     }

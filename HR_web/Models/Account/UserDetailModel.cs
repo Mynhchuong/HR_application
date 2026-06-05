@@ -14,6 +14,7 @@ public class UserDetailModel
     public string? HomeTown { get; set; }
     public string? ContractType { get; set; }
     public DateTime? ContractDate { get; set; }
+    public string? Address { get; set; }
     public bool HasImage { get; set; }
     public string? ImageUrl { get; set; }
     public bool HasSignature { get; set; }

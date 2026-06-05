@@ -1,0 +1,673 @@
+@{
+    ViewData["Title"] = "Lịch nghỉ & Cổng";
+    int curMonth = (int)(ViewBag.CurrentMonth ?? DateTime.Today.Month);
+    int curYear  = (int)(ViewBag.CurrentYear  ?? DateTime.Today.Year);
+    string currentRole = ViewBag.CurrentRole ?? "";
+    string todayStr    = DateTime.Today.ToString("yyyy-MM-dd");
+    string gpEndpoint  = (currentRole == "Clerk") ? "GetClerkPage" : "GetSupervisorPage";
+}
+
+@section Styles {
+<style>
+    .pagination .page-link { cursor:pointer; border-radius:8px !important; margin:0 2px; }
+    .pagination .page-item.disabled .page-link { cursor:default; }
+    .pagination .page-item.active .page-link { background:#3b82f6; border-color:#3b82f6; }
+    .month-nav { display:flex; align-items:center; gap:8px; }
+    .month-nav button { border:none; background:rgba(255,255,255,.2); color:#fff; border-radius:6px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-size:1rem; cursor:pointer; }
+    .month-nav button:hover { background:rgba(255,255,255,.35); }
+    .month-nav span { font-weight:700; font-size:1rem; color:#fff; min-width:120px; text-align:center; }
+    .empcd-filter { width:110px; font-size:.8rem; height:30px; border-radius:8px; border:1.5px solid #e2e8f0; padding:0 8px 0 26px; outline:none; background:#fff; transition:border-color .18s; }
+    .empcd-filter:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.14); }
+    .empcd-wrap { position:relative; display:inline-flex; align-items:center; }
+    .empcd-wrap i { position:absolute; left:7px; font-size:.75rem; color:#94a3b8; pointer-events:none; }
+    /* Calendar */
+    .cal-wrap { padding:0 1rem 1rem; }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+    .cal-hdr  { text-align:center; font-size:.65rem; font-weight:700; color:#94a3b8; padding:2px 0; }
+    .cal-cell { border-radius:6px; padding:5px 2px 4px; text-align:center; min-height:52px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:2px; background:#f8fafc; border:1px solid #e9ecef; cursor:default; transition:background .12s; }
+    .cal-cell.cal-today  { background:#eff6ff; border-color:#3b82f6 !important; }
+    .cal-cell.cal-past   { opacity:.55; }
+    .cal-cell.cal-has    { border-color:#bfdbfe; background:#f0f9ff; cursor:pointer; }
+    .cal-cell.cal-today.cal-has { background:#dbeafe; }
+    .cal-cell.cal-has:hover { background:#e0f2fe; }
+    .cal-cell.cal-selected { background:#3b82f6 !important; border-color:#1d4ed8 !important; }
+    .cal-cell.cal-selected .cal-daynum   { color:#fff !important; }
+    .cal-cell.cal-selected .cal-count    { background:#fff !important; color:#1d4ed8 !important; }
+    .cal-cell.cal-selected .cal-gp-count { background:#fff !important; color:#0369a1 !important; }
+    .cal-daynum { font-size:.73rem; font-weight:600; color:#374151; line-height:1; }
+    .cal-cell.cal-past  .cal-daynum { color:#9ca3af; }
+    .cal-cell.cal-today .cal-daynum { color:#1d4ed8; font-weight:800; }
+    .cal-count    { font-size:.55rem; padding:1px 5px; border-radius:8px; font-weight:700; color:#fff; line-height:1.3; }
+    .cal-gp-count { font-size:.55rem; padding:1px 5px; border-radius:8px; font-weight:700; color:#fff; line-height:1.3; background:#0ea5e9; }
+    .cal-empty { opacity:0; pointer-events:none; }
+    tr.sch-past   td { color:#9ca3af !important; }
+    tr.sch-past   .badge { opacity:.5; }
+    tr.sch-active { background:#f0fdf4 !important; }
+    /* Table tabs below calendar */
+    #tableTabs { border-bottom:2px solid #f1f5f9; }
+    #tableTabs .nav-link { color:#64748b; font-size:.82rem; padding:8px 20px; border-radius:0; font-weight:600; border:none; border-bottom:3px solid transparent; margin-bottom:-2px; background:transparent; transition:all .18s; }
+    #tableTabs .nav-link:hover { color:#3b82f6; background:#f8faff; }
+    #tableTabs .nav-link.active { color:#3b82f6; border-bottom-color:#3b82f6; background:transparent; }
+    /* GP filter */
+    .gp-filter-input { height:32px; font-size:.8rem; border-radius:8px; border:1.5px solid #e2e8f0; padding:0 10px; outline:none; background:#fff; transition:border-color .18s; }
+    .gp-filter-input:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.12); }
+    .gp-filter-input[type=date] { padding:0 6px; width:130px; }
+    @@media (max-width:576px) {
+        .container-fluid { padding-left:8px !important; padding-right:8px !important; }
+        .month-nav span { min-width:76px; font-size:.82rem; }
+        .month-nav button { width:26px; height:26px; }
+        .cal-wrap { padding:0 .3rem .55rem; }
+        .cal-grid { gap:2px; }
+        .cal-cell { min-height:48px; padding:3px 1px 2px; border-radius:4px; }
+        .cal-daynum { font-size:.6rem; }
+        .cal-count,.cal-gp-count { font-size:.5rem; padding:1px 3px; border-radius:5px; }
+        .cal-hdr    { font-size:.54rem; padding:1px 0; }
+        #calLegend  { font-size:.7rem !important; gap:8px !important; }
+        .table-responsive { padding-left:.35rem !important; padding-right:.35rem !important; }
+        .pagination-sm .page-link { padding:.2rem .38rem; font-size:.72rem; }
+        .py-4 { padding-top:1rem !important; padding-bottom:1rem !important; }
+        .gp-filter-input[type=date] { width:110px; }
+        #gpFilterRow { overflow-x:auto; flex-wrap:nowrap !important; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+        #gpFilterRow::-webkit-scrollbar { display:none; }
+    }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <div class="card">
+
+        <!-- ─── Header ─── -->
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center">
+                <h6 class="text-white mb-0"><i class="bi bi-calendar3-range me-1"></i> Lịch Team</h6>
+                <div class="month-nav">
+                    <button onclick="changeMonth(-1)" title="Tháng trước"><i class="bi bi-chevron-left"></i></button>
+                    <span class="month-label-display"></span>
+                    <button onclick="changeMonth(1)" title="Tháng sau"><i class="bi bi-chevron-right"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body px-0 pt-0 pb-2 mt-3">
+
+            <!-- ─── Shared Calendar ─── -->
+            <div class="cal-wrap">
+                <div class="d-flex align-items-center justify-content-between mb-2 px-2">
+                    <span class="text-xs text-uppercase text-secondary fw-bold" style="letter-spacing:.05em;">
+                        <i class="bi bi-calendar3 me-1"></i>Số người nghỉ / ra cổng theo ngày
+                    </span>
+                    <button class="btn btn-link btn-sm p-0 text-secondary text-xs" id="calToggleBtn" onclick="toggleCalendar()">
+                        <i class="bi bi-chevron-up"></i> Thu gọn
+                    </button>
+                </div>
+                <div id="calWrapInner">
+                    <div class="cal-grid" id="calGrid"></div>
+                    <div class="text-xs text-muted mt-1 px-1" id="calLegend" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <span><span class="cal-count" style="background:#2563eb;">1-3</span> nghỉ ít</span>
+                        <span><span class="cal-count" style="background:#d97706;">4-7</span> nghỉ vừa</span>
+                        <span><span class="cal-count" style="background:#dc2626;">8+</span> nghỉ nhiều</span>
+                        <span><span class="cal-gp-count">N</span> ra cổng</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Shared Day Badge ─── -->
+            <div class="px-4 pb-1 d-flex align-items-center gap-2 flex-wrap" id="calDayRow" style="min-height:28px;">
+                <span id="calDayBadge" class="d-none badge d-inline-flex align-items-center gap-1"
+                      style="background:#e0f2fe;color:#0369a1;font-size:.78rem;padding:4px 10px;border-radius:20px;">
+                    <i class="bi bi-calendar3" style="font-size:.75rem;"></i>
+                    <span id="calDayBadgeText"></span>
+                </span>
+                <button id="viewAllBtn" class="btn btn-outline-secondary btn-sm d-none"
+                        style="font-size:.78rem;height:28px;border-radius:20px;" onclick="clearCalDay()">
+                    <i class="bi bi-grid3x3 me-1"></i>Xem hết
+                </button>
+            </div>
+
+            <!-- ─── Tab Nav ─── -->
+            <ul class="nav mb-0 px-3" id="tableTabs">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tabLeave">
+                        <i class="bi bi-calendar3-range me-1"></i>Lịch Nghỉ
+                        <span class="badge bg-primary ms-1" id="leaveCountBadge" style="font-size:.65rem;display:none;"></span>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabGp">
+                        <i class="bi bi-door-open me-1"></i>Ra Vào Cổng
+                        <span class="badge ms-1" id="gpCountBadge" style="font-size:.65rem;background:#0ea5e9;display:none;"></span>
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+
+                <!-- ─── Tab 1: Lịch Nghỉ ─── -->
+                <div class="tab-pane fade show active" id="tabLeave">
+                    <div class="px-4 pt-2 pb-2 d-flex align-items-center gap-2 flex-wrap">
+                        <div class="empcd-wrap">
+                            <i class="bi bi-search"></i>
+                            <input type="text" id="scheduleEmpFilter" class="empcd-filter" placeholder="Mã NV..."
+                                   oninput="schPage=1;renderSchedule()">
+                        </div>
+                    </div>
+                    <div class="table-responsive px-4">
+                        <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="hidden">#</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Loại">Loại</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Nguồn">Nguồn</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Từ ngày">Từ ngày</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Đến ngày">Đến ngày</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Số ngày">Số ngày</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scheduleBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center px-4 mt-2 mb-2">
+                        <div id="scheduleCount" class="text-sm text-secondary"></div>
+                        <nav><ul class="pagination pagination-sm mb-0" id="schedulePagination"></ul></nav>
+                    </div>
+                </div>
+
+                <!-- ─── Tab 2: Ra Vào Cổng (Approved only) ─── -->
+                <div class="tab-pane fade" id="tabGp">
+                    <div id="gpFilterRow" class="px-4 pt-2 pb-2 d-flex align-items-center gap-2 flex-wrap">
+                        <span class="text-xs fw-bold" style="color:#059669;">
+                            <i class="bi bi-check-circle-fill me-1"></i>Đã duyệt
+                        </span>
+                        <div class="ms-auto d-flex align-items-center gap-2">
+                            <input type="date" id="gpDateFrom" class="gp-filter-input" value="@todayStr"
+                                   onchange="onGpDateChange()">
+                            <span class="text-xs text-secondary">→</span>
+                            <input type="date" id="gpDateTo"   class="gp-filter-input" value="@todayStr"
+                                   onchange="onGpDateChange()">
+                            <input type="text" id="gpSearch"   class="gp-filter-input" placeholder="Mã NV..."
+                                   style="width:90px;" oninput="onGpSearchInput()">
+                        </div>
+                    </div>
+                    <div class="table-responsive px-4">
+                        <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="hidden">#</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Loại">Loại</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Giờ ra">Giờ ra</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Giờ vào">Giờ vào</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Lý do">Lý do</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gpBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center px-4 mt-2 mb-2">
+                        <div id="gpCount" class="text-sm text-secondary"></div>
+                        <nav><ul class="pagination pagination-sm mb-0" id="gpPagination"></ul></nav>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="calHoverBox" style="display:none;position:fixed;background:#1e293b;color:#fff;border-radius:10px;padding:8px 12px;font-size:.78rem;z-index:9999;max-width:240px;box-shadow:0 4px 16px rgba(0,0,0,.25);pointer-events:none;line-height:1.7;">
+    <div id="calHoverContent"></div>
+</div>
+
+@section Scripts {
+<script>
+const NO_DATA_IMG = '@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))';
+function emptyRow(msg, cols) {
+    return `<tr><td colspan="${cols}" class="text-center py-5">
+        <img src="${NO_DATA_IMG}" style="width:130px;opacity:.85;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">
+        <div class="text-muted text-sm">${msg}</div>
+    </td></tr>`;
+}
+
+const SCHEDULE_URL = '@Url.Action("GetTeamSchedulePage","Leave")';
+const GP_URL       = '@Url.Action(gpEndpoint,"GatePass")';
+const MONTHS_VI    = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                      'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+const LEAVE_LABEL  = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác' };
+const LEAVE_COLOR  = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
+const GP_TYPE_LABEL = { OUT:'Ra ngoài', IN:'Vào trong', MID:'Ra - Vào' };
+const GP_TYPE_COLOR = { OUT:'warning', IN:'info', MID:'primary' };
+
+let curMonth = @curMonth, curYear = @curYear;
+let scheduleData = [], gpCalData = [];
+let schPage = 1, schPageSize = 20;
+let calVisible = true, selectedCalDay = null, calDayNames = {};
+const GP_PAGE_SZ = 20;
+let gpPage = 1, gpTotal = 0, gpTotalPages = 0, gpSearchTimeout;
+
+// ─── Month nav ────────────────────────────────────────────────
+function updateMonthLabel() {
+    document.querySelector('.month-label-display').textContent = MONTHS_VI[curMonth-1] + ' / ' + curYear;
+}
+
+function changeMonth(delta) {
+    curMonth += delta;
+    if (curMonth > 12) { curMonth = 1; curYear++; }
+    if (curMonth < 1)  { curMonth = 12; curYear--; }
+    schPage = 1; gpPage = 1;
+    updateMonthLabel();
+    loadSchedule();
+    loadGpForCalendar();
+}
+
+// ─── Calendar ─────────────────────────────────────────────────
+function dayKey(d) {
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function buildCalendar(data) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const dayMap = {}, gpDayMap = {};
+    calDayNames = {};
+
+    data.forEach(item => {
+        if (!item.FROM_DATE || !item.TO_DATE) return;
+        let d = new Date(item.FROM_DATE); d.setHours(0,0,0,0);
+        const endD = new Date(item.TO_DATE); endD.setHours(0,0,0,0);
+        while (d <= endD) {
+            if (d.getMonth()+1 === curMonth && d.getFullYear() === curYear) {
+                const key = dayKey(d);
+                dayMap[key] = (dayMap[key]||0) + 1;
+                if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[] };
+                calDayNames[key].leave.push(item.EMP_NAME||item.EMPCD||'');
+            }
+            d.setDate(d.getDate()+1);
+        }
+    });
+
+    gpCalData.forEach(item => {
+        const dt = item.OUT_TIME || item.GP_DATE;
+        if (!dt) return;
+        const d = new Date(dt); d.setHours(0,0,0,0);
+        if (d.getMonth()+1 === curMonth && d.getFullYear() === curYear) {
+            const key = dayKey(d);
+            gpDayMap[key] = (gpDayMap[key]||0) + 1;
+            if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[] };
+            calDayNames[key].gp.push(item.EMP_NAME||item.EMPCD||'');
+        }
+    });
+
+    const firstDay    = new Date(curYear, curMonth-1, 1);
+    const daysInMonth = new Date(curYear, curMonth, 0).getDate();
+    const startDow    = (firstDay.getDay() + 6) % 7;
+    const hdrs = ['T2','T3','T4','T5','T6','T7','CN'].map(h => `<div class="cal-hdr">${h}</div>`).join('');
+    let cells = '';
+    for (let i = 0; i < startDow; i++) cells += `<div class="cal-cell cal-empty"></div>`;
+    for (let day = 1; day <= daysInMonth; day++) {
+        const key     = curYear+'-'+String(curMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+        const count   = dayMap[key]   || 0;
+        const gpCount = gpDayMap[key] || 0;
+        const d       = new Date(curYear, curMonth-1, day); d.setHours(0,0,0,0);
+        const isToday    = d.getTime() === today.getTime();
+        const isPast     = d < today && !isToday;
+        const isSelected = selectedCalDay === key;
+        const hasData    = count > 0 || gpCount > 0;
+
+        let badges = '';
+        if (count > 0) {
+            const bg = count >= 8 ? '#dc2626' : count >= 4 ? '#d97706' : '#2563eb';
+            badges += `<span class="cal-count" style="background:${bg};">${count} nghỉ</span>`;
+        }
+        if (gpCount > 0) {
+            badges += `<span class="cal-gp-count">${gpCount} cổng</span>`;
+        }
+
+        const cls = ['cal-cell', isToday?'cal-today':'', isPast?'cal-past':'',
+                     hasData?'cal-has':'', isSelected?'cal-selected':''].filter(Boolean).join(' ');
+        const interact = hasData
+            ? ` onmouseenter="showCalHover(this,'${key}')" onmouseleave="hideCalHover()" onclick="selectCalDay('${key}')"`
+            : '';
+        cells += `<div class="${cls}"${interact}><span class="cal-daynum">${day}</span>${badges}</div>`;
+    }
+    document.getElementById('calGrid').innerHTML = hdrs + cells;
+}
+
+function toggleCalendar() {
+    calVisible = !calVisible;
+    document.getElementById('calWrapInner').style.display = calVisible ? '' : 'none';
+    document.getElementById('calToggleBtn').innerHTML = calVisible
+        ? '<i class="bi bi-chevron-up"></i> Thu gọn'
+        : '<i class="bi bi-chevron-down"></i> Mở rộng';
+}
+
+function selectCalDay(key) {
+    selectedCalDay = (selectedCalDay === key) ? null : key;
+    schPage = 1; gpPage = 1;
+    buildCalendar(scheduleData);
+    updateDayBadge();
+    renderSchedule();
+    // Sync GP date inputs to selected day
+    if (selectedCalDay) {
+        document.getElementById('gpDateFrom').value = selectedCalDay;
+        document.getElementById('gpDateTo').value   = selectedCalDay;
+    }
+    loadGatePass();
+    if (selectedCalDay && window.matchMedia('(hover:none)').matches) {
+        const sel = document.querySelector('#calGrid .cal-cell.cal-selected');
+        if (sel) { showCalHover(sel, selectedCalDay); setTimeout(hideCalHover, 2800); }
+    }
+}
+
+function clearCalDay() {
+    selectedCalDay = null;
+    schPage = 1; gpPage = 1;
+    buildCalendar(scheduleData);
+    updateDayBadge();
+    renderSchedule();
+    const t = '@todayStr';
+    document.getElementById('gpDateFrom').value = t;
+    document.getElementById('gpDateTo').value   = t;
+    loadGatePass();
+}
+
+function updateDayBadge() {
+    if (selectedCalDay) {
+        const [y, m, d] = selectedCalDay.split('-');
+        document.getElementById('calDayBadge').classList.remove('d-none');
+        document.getElementById('calDayBadgeText').textContent = `${d}/${m}/${y}`;
+        document.getElementById('viewAllBtn').classList.remove('d-none');
+    } else {
+        document.getElementById('calDayBadge').classList.add('d-none');
+        document.getElementById('viewAllBtn').classList.add('d-none');
+    }
+}
+
+function showCalHover(el, key) {
+    const info = calDayNames[key];
+    if (!info) return;
+    const leaveList = info.leave || [], gpList = info.gp || [];
+    if (!leaveList.length && !gpList.length) return;
+    let html = '';
+    if (leaveList.length) {
+        html += `<div style="font-weight:700;margin-bottom:3px;border-bottom:1px solid rgba(255,255,255,.2);padding-bottom:3px;"><i class="bi bi-calendar3 me-1"></i>${leaveList.length} nghỉ phép</div>`;
+        html += leaveList.map(n => `<span class="vni-font">${escHtml(n)}</span>`).join('<br>');
+    }
+    if (gpList.length) {
+        if (html) html += '<hr style="border-color:rgba(255,255,255,.2);margin:5px 0 4px;">';
+        html += `<div style="font-weight:700;margin-bottom:3px;"><i class="bi bi-door-open me-1"></i>${gpList.length} ra vào cổng</div>`;
+        html += gpList.map(n => `<span class="vni-font">${escHtml(n)}</span>`).join('<br>');
+    }
+    const box = document.getElementById('calHoverBox');
+    document.getElementById('calHoverContent').innerHTML = html;
+    box.style.visibility = 'hidden';
+    box.style.display    = 'block';
+    const rect = el.getBoundingClientRect();
+    const bw = box.offsetWidth || 210, bh = box.offsetHeight || 80;
+    let left = rect.left + (rect.width - bw) / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - bw - 8));
+    const top = (window.innerHeight - rect.bottom > bh + 12) ? rect.bottom + 6 : rect.top - bh - 6;
+    box.style.left = left + 'px';
+    box.style.top  = top  + 'px';
+    box.style.visibility = 'visible';
+}
+
+function hideCalHover() { document.getElementById('calHoverBox').style.display = 'none'; }
+
+// ─── Leave schedule ───────────────────────────────────────────
+function buildScheduleRow(item, idx, today) {
+    const ltLabel  = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
+    const ltColor  = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
+    const srcBadge = item.SOURCE === 'ASSIGNED'
+        ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:.7rem;">Sắp lịch</span>`
+        : `<span class="badge bg-light text-dark border" style="font-size:.7rem;">Tự nộp</span>`;
+    const from = item.FROM_DATE ? new Date(item.FROM_DATE) : null;
+    const to   = item.TO_DATE   ? new Date(item.TO_DATE)   : null;
+    const isPast   = to   && to   < today;
+    const isActive = from && to && from <= today && to >= today;
+    const rowClass = isPast ? 'sch-past' : isActive ? 'sch-active' : '';
+    const activeBadge = isActive
+        ? `<i class="bi bi-circle-fill text-success ms-1" style="font-size:.5rem;vertical-align:middle;" title="Đang nghỉ"></i>` : '';
+    return `<tr class="${rowClass}">
+        <td class="px-2 text-xs text-secondary">${idx}</td>
+        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+        <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}${activeBadge}</td>
+        <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
+        <td class="px-2">${srcBadge}</td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
+        <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
+        <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
+    </tr>`;
+}
+
+function loadSchedule() {
+    selectedCalDay = null;
+    document.getElementById('scheduleBody').innerHTML =
+        `<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-info" role="status"></div></td></tr>`;
+    MobileTableHelper.refresh('scheduleBody');
+    document.getElementById('scheduleCount').textContent = '';
+    document.getElementById('scheduleEmpFilter').value = '';
+    updateDayBadge();
+    $.ajax({
+        url: SCHEDULE_URL, type: 'GET', data: { month: curMonth, year: curYear },
+        success: function(res) {
+            if (!res.success) {
+                document.getElementById('scheduleBody').innerHTML =
+                    `<tr><td colspan="8" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`;
+                MobileTableHelper.refresh('scheduleBody');
+                return;
+            }
+            scheduleData = res.data || [];
+            buildCalendar(scheduleData);
+            renderSchedule();
+        },
+        error: function(xhr) {
+            document.getElementById('scheduleBody').innerHTML =
+                `<tr><td colspan="8" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`;
+            MobileTableHelper.refresh('scheduleBody');
+        }
+    });
+}
+
+function loadGpForCalendar() {
+    const firstDay = new Date(curYear, curMonth-1, 1);
+    const lastDay  = new Date(curYear, curMonth, 0);
+    const fmt = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    $.ajax({
+        url: GP_URL, type: 'GET',
+        data: { status:'APPROVED', date_from:fmt(firstDay), date_to:fmt(lastDay), page:1, page_size:500 },
+        success: function(res) {
+            gpCalData = (res.success && res.data) ? res.data : [];
+            buildCalendar(scheduleData);
+        }
+    });
+}
+
+function renderSchedule() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const q = (document.getElementById('scheduleEmpFilter').value || '').trim().toUpperCase();
+    let filtered = q
+        ? scheduleData.filter(d => (d.EMPCD||'').toUpperCase().includes(q) || (d.EMP_NAME||'').toUpperCase().includes(q))
+        : [...scheduleData];
+
+    if (selectedCalDay) {
+        const selDate = new Date(selectedCalDay); selDate.setHours(0,0,0,0);
+        filtered = filtered.filter(item => {
+            if (!item.FROM_DATE || !item.TO_DATE) return false;
+            const from = new Date(item.FROM_DATE); from.setHours(0,0,0,0);
+            const to   = new Date(item.TO_DATE);   to.setHours(0,0,0,0);
+            return from <= selDate && to >= selDate;
+        });
+    }
+
+    const priority = item => {
+        if (!item.FROM_DATE || !item.TO_DATE) return 1;
+        const from = new Date(item.FROM_DATE); from.setHours(0,0,0,0);
+        const to   = new Date(item.TO_DATE);   to.setHours(0,0,0,0);
+        if (from <= today && to >= today) return 0;
+        if (from > today) return 1;
+        return 2;
+    };
+    filtered.sort((a, b) => {
+        const pa = priority(a), pb = priority(b);
+        return pa !== pb ? pa - pb : new Date(a.FROM_DATE) - new Date(b.FROM_DATE);
+    });
+
+    const total      = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / schPageSize));
+    if (schPage > totalPages) schPage = totalPages;
+    const start    = (schPage - 1) * schPageSize;
+    const pageData = filtered.slice(start, start + schPageSize);
+
+    if (!pageData.length) {
+        const msg = selectedCalDay ? 'Không có lịch nghỉ ngày này' : (q ? `Không tìm thấy "<strong>${q}</strong>"` : 'Không có lịch nghỉ đã duyệt trong tháng này');
+        document.getElementById('scheduleBody').innerHTML = emptyRow(msg, 8);
+    } else {
+        document.getElementById('scheduleBody').innerHTML =
+            pageData.map((item, i) => buildScheduleRow(item, start+i+1, today)).join('');
+    }
+
+    const $badge = document.getElementById('leaveCountBadge');
+    if (total > 0) {
+        const s = start + 1, e = Math.min(start + schPageSize, total);
+        document.getElementById('scheduleCount').innerHTML =
+            `<span class="text-xs">${s}-${e} / <strong>${total}</strong> lịch nghỉ</span>`;
+        $badge.textContent = total; $badge.style.display = '';
+    } else {
+        document.getElementById('scheduleCount').textContent = '';
+        $badge.style.display = 'none';
+    }
+
+    const $bar = $('#schedulePagination').empty();
+    if (totalPages > 1) {
+        const mk = (label, p, disabled, active) => {
+            const li = $('<li class="page-item">').toggleClass('disabled', !!disabled).toggleClass('active', !!active);
+            $('<a class="page-link">').html(label).on('click', () => { if (!disabled && !active) { schPage = p; renderSchedule(); } }).appendTo(li);
+            return li;
+        };
+        $bar.append(mk('&lsaquo;', schPage-1, schPage<=1));
+        let from = Math.max(1, schPage-2), to = Math.min(totalPages, schPage+2);
+        for (let p = from; p <= to; p++) $bar.append(mk(p, p, false, p === schPage));
+        $bar.append(mk('&rsaquo;', schPage+1, schPage>=totalPages));
+    }
+    MobileTableHelper.refresh('scheduleBody');
+}
+
+// ─── Gate Pass table (Approved only) ──────────────────────────
+function onGpSearchInput() {
+    clearTimeout(gpSearchTimeout);
+    gpSearchTimeout = setTimeout(() => { gpPage = 1; loadGatePass(); }, 400);
+}
+
+function onGpDateChange() {
+    // User manually changed dates → deselect calendar day
+    if (selectedCalDay) {
+        selectedCalDay = null;
+        buildCalendar(scheduleData);
+        renderSchedule();
+        updateDayBadge();
+    }
+    gpPage = 1;
+    loadGatePass();
+}
+
+function buildGpRow(item, idx) {
+    const gpLabel = GP_TYPE_LABEL[item.GP_TYPE] || item.GP_TYPE || '-';
+    const gpColor = GP_TYPE_COLOR[item.GP_TYPE] || 'secondary';
+    return `<tr>
+        <td class="px-2 text-xs text-secondary">${idx}</td>
+        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+        <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
+        <td class="px-2"><span class="badge bg-${gpColor}">${gpLabel}</span></td>
+        <td class="px-2 text-sm text-nowrap">${formatTime(item.OUT_TIME)}</td>
+        <td class="px-2 text-sm text-nowrap">${formatTime(item.IN_TIME)}</td>
+        <td class="px-2 text-sm" style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+            title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</td>
+    </tr>`;
+}
+
+function loadGatePass() {
+    document.getElementById('gpBody').innerHTML =
+        `<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-info spinner-border-sm" role="status"></div></td></tr>`;
+    MobileTableHelper.refresh('gpBody');
+    document.getElementById('gpCount').textContent = '';
+    $.ajax({
+        url: GP_URL, type: 'GET',
+        data: {
+            status:    'APPROVED',
+            search:    (document.getElementById('gpSearch').value||'').trim() || null,
+            date_from: document.getElementById('gpDateFrom').value,
+            date_to:   document.getElementById('gpDateTo').value,
+            page:      gpPage,
+            page_size: GP_PAGE_SZ
+        },
+        success: function(res) {
+            if (!res.success) {
+                document.getElementById('gpBody').innerHTML =
+                    `<tr><td colspan="7" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`;
+                MobileTableHelper.refresh('gpBody');
+                return;
+            }
+            const data = res.data || [];
+            gpTotal      = res.total      || 0;
+            gpTotalPages = res.total_pages || 0;
+
+            if (!data.length) {
+                document.getElementById('gpBody').innerHTML = emptyRow('Không có phiếu ra vào cổng đã duyệt', 7);
+            } else {
+                document.getElementById('gpBody').innerHTML =
+                    data.map((item, i) => buildGpRow(item, (gpPage-1)*GP_PAGE_SZ + i + 1)).join('');
+            }
+            renderGpPagination();
+            MobileTableHelper.refresh('gpBody');
+
+            const $badge = document.getElementById('gpCountBadge');
+            if (gpTotal > 0) {
+                const s = (gpPage-1)*GP_PAGE_SZ + 1, e = Math.min(gpPage*GP_PAGE_SZ, gpTotal);
+                document.getElementById('gpCount').innerHTML =
+                    `<span class="text-xs">${s}-${e} / <strong>${gpTotal}</strong> phiếu đã duyệt</span>`;
+                $badge.textContent = gpTotal; $badge.style.display = '';
+            } else {
+                $badge.style.display = 'none';
+            }
+        },
+        error: function(xhr) {
+            document.getElementById('gpBody').innerHTML =
+                `<tr><td colspan="7" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`;
+            MobileTableHelper.refresh('gpBody');
+        }
+    });
+}
+
+function renderGpPagination() {
+    const $bar = $('#gpPagination').empty();
+    if (gpTotalPages <= 1) return;
+    const mk = (label, p, disabled, active) => {
+        const li = $('<li class="page-item">').toggleClass('disabled', !!disabled).toggleClass('active', !!active);
+        $('<a class="page-link">').html(label).on('click', () => { if (!disabled && !active) { gpPage = p; loadGatePass(); } }).appendTo(li);
+        return li;
+    };
+    $bar.append(mk('&lsaquo;', gpPage-1, gpPage<=1));
+    let from = Math.max(1, gpPage-2), to = Math.min(gpTotalPages, gpPage+2);
+    for (let p = from; p <= to; p++) $bar.append(mk(p, p, false, p === gpPage));
+    $bar.append(mk('&rsaquo;', gpPage+1, gpPage>=gpTotalPages));
+}
+
+// ─── Utilities ────────────────────────────────────────────────
+function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
+function formatTime(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+function escHtml(str)  { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+$(document).ready(function() {
+    MobileTableHelper.init('scheduleBody');
+    MobileTableHelper.init('gpBody');
+    updateMonthLabel();
+    loadSchedule();
+    loadGpForCalendar();
+    loadGatePass();
+    window.addEventListener('scroll', hideCalHover, { passive:true });
+    document.addEventListener('touchmove', hideCalHover, { passive:true });
+});
+</script>
+}

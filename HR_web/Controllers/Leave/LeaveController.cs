@@ -199,6 +199,30 @@ public class LeaveController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET: /Leave/TeamCalendar
+    // ─────────────────────────────────────────────
+    public IActionResult TeamCalendar()
+    {
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd   ?? "";
+        ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
+        ViewBag.CurrentMonth = DateTime.Today.Month;
+        ViewBag.CurrentYear  = DateTime.Today.Year;
+        return View();
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/TeamCalendarForExpat
+    // ─────────────────────────────────────────────
+    public IActionResult TeamCalendarForExpat()
+    {
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd   ?? "";
+        ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
+        ViewBag.CurrentMonth = DateTime.Today.Month;
+        ViewBag.CurrentYear  = DateTime.Today.Year;
+        return View();
+    }
+
+    // ─────────────────────────────────────────────
     // GET: /Leave/TeamSchedule
     // ─────────────────────────────────────────────
     public IActionResult TeamSchedule()

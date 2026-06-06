@@ -98,7 +98,7 @@
             <div class="px-4 pb-2 pt-1 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid #f1f5f9;">
                 <span class="source-tab active" onclick="setSource('')"  id="tab-all">Tất cả</span>
                 <span class="source-tab" onclick="setSource('SELF')"     id="tab-self"><i class="bi bi-person-fill me-1"></i>Tự nộp</span>
-                <span class="source-tab d-none" onclick="setSource('ASSIGNED')" id="tab-assigned"><i class="bi bi-calendar2-plus me-1"></i>Được sắp lịch</span>
+                <span class="source-tab" onclick="setSource('ASSIGNED')" id="tab-assigned"><i class="bi bi-calendar2-plus me-1"></i>Được sắp lịch</span>
             </div>
 
             <!-- Desktop table -->
@@ -146,7 +146,7 @@
                     <div class="lt-cards">
                         <div class="lt-card" style="--lc:#3b82f6;--lb:#eff6ff;">
                             <input type="radio" name="createLT" id="clt-AL" value="AL" checked>
-                            <label for="clt-AL"><img src="~/assets/img/icons/@(new Random().Next(2) == 0 ? "A_AL" : "C_AL").png" style="width:48px;height:48px;object-fit:contain;" alt="AL" /><span class="lt-name">Phép năm</span></label>
+                            <label for="clt-AL"><img src="~/assets/img/icons/@(new Random().Next(2) == 0 ? "A_AL" : "C_AL").png" style="width:64px;height:64px;object-fit:contain;" alt="AL" /><span class="lt-name">Phép năm</span></label>
                         </div>
                         <div class="lt-card d-none" style="--lc:#0891b2;--lb:#ecfeff;">
                             <input type="radio" name="createLT" id="clt-CL" value="CL">
@@ -211,7 +211,7 @@
                     <div class="lt-cards">
                         <div class="lt-card" style="--lc:#3b82f6;--lb:#eff6ff;">
                             <input type="radio" name="editLT" id="elt-AL" value="AL">
-                            <label for="elt-AL"><img src="~/assets/img/icons/@(new Random().Next(2) == 0 ? "A_AL" : "C_AL").png" style="width:48px;height:48px;object-fit:contain;" alt="AL" /><span class="lt-name">Phép năm</span></label>
+                            <label for="elt-AL"><img src="~/assets/img/icons/@(new Random().Next(2) == 0 ? "A_AL" : "C_AL").png" style="width:64px;height:64px;object-fit:contain;" alt="AL" /><span class="lt-name">Phép năm</span></label>
                         </div>
                         <div class="lt-card d-none" style="--lc:#0891b2;--lb:#ecfeff;">
                             <input type="radio" name="editLT" id="elt-CL" value="CL">
@@ -387,7 +387,7 @@ function actionBtns(item) {
         if (isPastDate(item.FROM_DATE)) {
             return `<span class="text-muted text-xs"><i class="bi bi-clock-history me-1"></i>Đã quá hạn</span>`;
         }
-        return `<button class="btn btn-xs btn-success" title="Tiếp nhận thông tin" onclick="confirmLeave('${item.REQUEST_ID}')"><i class="bi bi-check-lg"></i></button>`;
+        return `<button class="btn btn-xs btn-success" title="Tiếp nhận thông tin" onclick="confirmLeave('${item.REQUEST_ID}')"><i class="bi bi-check-lg me-1"></i>Đã nhận lịch nghỉ sắp xếp</button>`;
     }
     if (item.IS_EDITABLE && !isExpiredPending(item)) {
         return `<button class="btn btn-xs btn-outline-primary me-1" title="Sửa"
@@ -527,6 +527,17 @@ function isSunday(dateStr) {
     const p = dateStr.split('-');
     return new Date(Date.UTC(+p[0], +p[1]-1, +p[2])).getUTCDay() === 0;
 }
+function countDaysNoSunday(fromStr, toStr) {
+    const p1 = fromStr.split('-'), p2 = toStr.split('-');
+    let cur = new Date(Date.UTC(+p1[0], +p1[1]-1, +p1[2]));
+    const end = new Date(Date.UTC(+p2[0], +p2[1]-1, +p2[2]));
+    let count = 0;
+    while (cur <= end) {
+        if (cur.getUTCDay() !== 0) count++;
+        cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return count;
+}
 function showDateError(errId, msg, focusId) {
     $('#'+errId).removeClass('d-none').text(msg);
     if (focusId) setTimeout(() => $('#'+focusId).focus(), 50);
@@ -549,7 +560,7 @@ function calcCreateDays() {
     if (f && t) {
         if (t < f) { $('#createToDate').val(f); }
         const tFinal = $('#createToDate').val();
-        const diff = (new Date(tFinal) - new Date(f)) / 86400000 + 1;
+        const diff = countDaysNoSunday(f, tFinal);
         if (diff > 0) $('#createTotalDays').val(diff);
     }
 }
@@ -620,7 +631,7 @@ function calcDays() {
     if (f && t) {
         if (t < f) { $('#editToDate').val(f); }
         const tFinal = $('#editToDate').val();
-        const diff = (new Date(tFinal) - new Date(f)) / 86400000 + 1;
+        const diff = countDaysNoSunday(f, tFinal);
         if (diff > 0) $('#editTotalDays').val(diff);
     }
 }

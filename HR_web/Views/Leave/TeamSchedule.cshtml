@@ -694,7 +694,7 @@ function isFromDateExpired(fromDate) {
     if (!fromDate) return false;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const fd = new Date(fromDate); fd.setHours(0, 0, 0, 0);
-    return fd <= today;
+    return fd < today;
 }
 
 function openApvAction(id, type, fromDate) {
@@ -811,7 +811,7 @@ function renderMaPagination() {
 
 // ─── Init ────────────────────────────────────────────────────────
 // document.getElementById('tabAssignLi')?.classList.add('d-none');
-document.getElementById('tabMyAssignLi')?.classList.add('d-none');
+// document.getElementById('tabMyAssignLi')?.classList.add('d-none');
 
 document.getElementById('tab-assign-btn')?.addEventListener('shown.bs.tab', loadEmps);
 document.getElementById('tab-myassign-btn')?.addEventListener('shown.bs.tab', function() {

@@ -546,3 +546,134 @@ BEGIN
 END;
 /
 ALTER TRIGGER "HRMS"."TRG_HR_GUIDE_BI" ENABLE;
+
+-- ============================================================
+-- WEEKLY MENU SYSTEM TABLES (ADDED 05/06/2026)
+-- Hệ thống quản lý thực đơn hằng tuần
+-- ============================================================
+
+-- 1. HR_MENU_FOOD: Danh mục món ăn (master) + hình ảnh
+--    HR nhập món ăn 1 lần, dùng lại nhiều tuần
+CREATE TABLE "HRMS"."HR_MENU_FOOD"
+(
+    "ID"            NUMBER,
+    "FOOD_NAME"     NVARCHAR2(200)  NOT NULL ENABLE,
+    "FOOD_TYPE"     VARCHAR2(20),
+    -- MAN=Món mặn | NHE=Món nhẹ | CHAY=Món chay | DU_KIEN=Món dự kiến
+    "IMAGE_PATH"    VARCHAR2(500),
+    -- Đường dẫn file ảnh trên server, VD: /uploads/menu/pho-bo.jpg
+    "IS_ACTIVE"     NUMBER(1,0)     DEFAULT 1,
+    "INST_ID"       VARCHAR2(50),
+    "INST_DT"       DATE            DEFAULT SYSDATE,
+    "UPDT_ID"       VARCHAR2(50),
+    "UPDT_DT"       DATE,
+    PRIMARY KEY ("ID")
+  USING INDEX TABLESPACE "HRMSD" ENABLE
+) TABLESPACE "HRMSD";
+
+CREATE SEQUENCE "HRMS"."SEQ_HR_MENU_FOOD" START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER "HRMS"."TRG_HR_MENU_FOOD_BI"
+BEFORE INSERT OR UPDATE ON "HRMS"."HR_MENU_FOOD"
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT "HRMS"."SEQ_HR_MENU_FOOD".NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER "HRMS"."TRG_HR_MENU_FOOD_BI" ENABLE;
+
+
+-- 2. HR_MENU_WEEK: Quản lý thực đơn theo tuần
+CREATE TABLE "HRMS"."HR_MENU_WEEK"
+(
+    "ID"            NUMBER,
+    "WEEK_NAME"     NVARCHAR2(100),
+    -- VD: "Tuần 01/06 - 06/06/2026"
+    "FROM_DATE"     DATE            NOT NULL ENABLE,
+    "TO_DATE"       DATE            NOT NULL ENABLE,
+    "STATUS"        VARCHAR2(20)    DEFAULT 'DRAFT',
+    -- DRAFT=đang soạn | PUBLISHED=đã đăng cho công nhân xem
+    "REMARK"        NVARCHAR2(500),
+    "INST_ID"       VARCHAR2(50),
+    "INST_DT"       DATE            DEFAULT SYSDATE,
+    "UPDT_ID"       VARCHAR2(50),
+    "UPDT_DT"       DATE,
+    PRIMARY KEY ("ID"),
+    CONSTRAINT "UK_MENU_WEEK_DATE" UNIQUE ("FROM_DATE", "TO_DATE")
+  USING INDEX TABLESPACE "HRMSD" ENABLE
+) TABLESPACE "HRMSD";
+
+CREATE SEQUENCE "HRMS"."SEQ_HR_MENU_WEEK" START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER "HRMS"."TRG_HR_MENU_WEEK_BI"
+BEFORE INSERT OR UPDATE ON "HRMS"."HR_MENU_WEEK"
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT "HRMS"."SEQ_HR_MENU_WEEK".NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER "HRMS"."TRG_HR_MENU_WEEK_BI" ENABLE;
+
+
+-- 3. HR_MENU_DETAIL: Chi tiết từng món theo ngày / ca / loại
+--    Mỗi row = 1 món ăn trong 1 ô của bảng thực đơn
+--    (1 ô có thể có nhiều món → nhiều rows cùng WEEK_ID+DAY_NO+SHIFT+MEAL_TYPE)
+CREATE TABLE "HRMS"."HR_MENU_DETAIL"
+(
+    "ID"            NUMBER,
+    "WEEK_ID"       NUMBER          NOT NULL ENABLE,
+    "DAY_NO"        NUMBER(1,0)     NOT NULL ENABLE,
+    -- 2=Thứ 2 | 3=Thứ 3 | 4=Thứ 4 | 5=Thứ 5 | 6=Thứ 6 | 7=Thứ 7
+    "SHIFT"         VARCHAR2(10)    NOT NULL ENABLE,
+    -- CA1 | CA2 (Tăng ca) | CA3
+    "MEAL_TYPE"     VARCHAR2(20)    NOT NULL ENABLE,
+    -- MAN | NHE | CHAY | DU_KIEN
+    "FOOD_ID"       NUMBER,
+    -- NULL nếu nhập tự do (free text)
+    "FOOD_TEXT"     NVARCHAR2(500),
+    -- Tên món nhập tay (dùng khi không map vào FOOD_ID, hoặc ghi chú thêm)
+    -- VD: "PHỞ BÒ NẠM, BÒ VIÊN" hoặc "BÒ XÀO SẢ ỚT + SỮA BỊCH"
+    "DISPLAY_ORDER" NUMBER          DEFAULT 1,
+    -- Thứ tự hiển thị khi 1 ô có nhiều món
+    "INST_ID"       VARCHAR2(50),
+    "INST_DT"       DATE            DEFAULT SYSDATE,
+    PRIMARY KEY ("ID"),
+    CONSTRAINT "FK_MENU_DETAIL_WEEK" FOREIGN KEY ("WEEK_ID")
+        REFERENCES "HRMS"."HR_MENU_WEEK" ("ID") ENABLE,
+    CONSTRAINT "FK_MENU_DETAIL_FOOD" FOREIGN KEY ("FOOD_ID")
+        REFERENCES "HRMS"."HR_MENU_FOOD" ("ID") ENABLE
+) TABLESPACE "HRMSD";
+
+CREATE SEQUENCE "HRMS"."SEQ_HR_MENU_DETAIL" START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER "HRMS"."TRG_HR_MENU_DETAIL_BI"
+BEFORE INSERT ON "HRMS"."HR_MENU_DETAIL"
+FOR EACH ROW
+BEGIN
+    IF :NEW.ID IS NULL THEN
+        SELECT "HRMS"."SEQ_HR_MENU_DETAIL".NEXTVAL INTO :NEW.ID FROM DUAL;
+    END IF;
+    IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER "HRMS"."TRG_HR_MENU_DETAIL_BI" ENABLE;
+
+-- Index tìm nhanh thực đơn theo tuần + ngày + ca
+CREATE INDEX "HRMS"."IDX_MENU_DETAIL_WEEK_DAY"
+    ON "HRMS"."HR_MENU_DETAIL" ("WEEK_ID", "DAY_NO", "SHIFT");
+
+-- Index tìm thực đơn theo ngày thực tế (dùng cho view "hôm nay ăn gì")
+CREATE INDEX "HRMS"."IDX_MENU_WEEK_DATE"
+    ON "HRMS"."HR_MENU_WEEK" ("FROM_DATE", "TO_DATE", "STATUS");

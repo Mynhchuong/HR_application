@@ -68,6 +68,8 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = string.Empty;
 });
 
+app.UseStaticFiles();  // serve /uploads/menu/...
+
 app.UseCors("AllowAll");
 
 app.UseMiddleware<ApiKeyMiddleware>();

@@ -342,7 +342,7 @@ public class AccountController : ControllerBase
         {
             if (page <= 0) page = 1;
             if (pageSize <= 0) pageSize = 50;
-            if (pageSize > 100) pageSize = 100;
+            if (pageSize > 9999) pageSize = 9999;
 
             string where = " WHERE 1=1 ";
             var parameters = new List<OracleParameter>();

@@ -150,7 +150,7 @@ public class UserDeptController : BaseController
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Phân Quyền Phạm Vi");
 
-        string[] headers = { "STT", "Mã NV", "Họ & Tên", "Role", "Bộ Phận", "Tên BP", "Line", "Tên Line", "Nhóm Việc", "Tên NV", "Ngày Tạo", "Tạo Bởi", "Ngày Cập Nhật", "Cập Nhật Bởi" };
+        string[] headers = { "STT", "Mã NV", "Họ & Tên", "Role", "Bộ Phận", "Tên BP", "Line", "Tên Line", "Nhóm Việc", "Tên Nhóm Việc", "Ngày Tạo", "Tạo Bởi", "Ngày Cập Nhật", "Cập Nhật Bởi" };
         for (int i = 0; i < headers.Length; i++)
         {
             var cell = ws.Cell(1, i + 1);

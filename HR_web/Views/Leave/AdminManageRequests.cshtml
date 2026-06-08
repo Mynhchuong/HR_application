@@ -1,5 +1,5 @@
 @{
-    ViewData["Title"] = "Quản Lý Đơn Đã Xác Nhận";
+    ViewData["Title"] = "Theo Dõi Yêu Cầu";
     string adminEmpCd = ViewBag.CurrentEmpCd ?? "";
 }
 
@@ -55,6 +55,10 @@
         <div class="card mb-3">
             <div class="card-body pb-2">
                 <div class="row g-2">
+                    <div class="col-sm-3">
+                        <label class="filter-label">Tìm Mã NV </label>
+                        <input type="text" id="lv_search" class="form-control form-control-sm" placeholder="🔍 Nhập để tìm..." oninput="renderLeaves()">
+                    </div>
                     <div class="col-sm-2">
                         <label class="filter-label">Trạng thái ERP</label>
                         <select id="lv_status" class="form-select form-select-sm" onchange="renderLeaves()">
@@ -75,11 +79,11 @@
                         <label class="filter-label">Tổ</label>
                         <select id="lv_work" class="form-select form-select-sm" onchange="renderLeaves()"><option value="">-- Tất cả --</option></select>
                     </div>
-                    <div class="col-sm-2">
+                    <div class="col-sm-1">
                         <label class="filter-label">Từ ngày</label>
                         <input type="date" id="lv_from" class="form-control form-control-sm" onchange="loadLeaves()">
                     </div>
-                    <div class="col-sm-2">
+                    <div class="col-sm-1">
                         <label class="filter-label">Đến ngày</label>
                         <input type="date" id="lv_to" class="form-control form-control-sm" onchange="loadLeaves()">
                     </div>
@@ -136,6 +140,10 @@
         <div class="card mb-3">
             <div class="card-body pb-2">
                 <div class="row g-2">
+                    <div class="col-sm-3">
+                        <label class="filter-label">Tìm Mã NV</label>
+                        <input type="text" id="gp_search" class="form-control form-control-sm" placeholder="🔍 Nhập để tìm..." oninput="renderGp()">
+                    </div>
                     <div class="col-sm-2">
                         <label class="filter-label">Trạng thái ERP</label>
                         <select id="gp_status" class="form-select form-select-sm" onchange="renderGp()">
@@ -156,11 +164,11 @@
                         <label class="filter-label">Tổ</label>
                         <select id="gp_work" class="form-select form-select-sm" onchange="renderGp()"><option value="">-- Tất cả --</option></select>
                     </div>
-                    <div class="col-sm-2">
+                    <div class="col-sm-1">
                         <label class="filter-label">Từ ngày</label>
                         <input type="date" id="gp_from" class="form-control form-control-sm" onchange="loadGp()">
                     </div>
-                    <div class="col-sm-2">
+                    <div class="col-sm-1">
                         <label class="filter-label">Đến ngày</label>
                         <input type="date" id="gp_to" class="form-control form-control-sm" onchange="loadGp()">
                     </div>
@@ -238,6 +246,7 @@
 @section Scripts {
 <script>
 const ADMIN_EMPCD = '@adminEmpCd';
+const FILTER_SCOPE_URL = '@Url.Action("GetFilterScope", "UserDept")';
 
 function statusBadge(s) {
     if (s === 'APPROVED')  return '<span class="badge" style="background:#dcfce7;color:#166534;">Đã XN</span>';
@@ -250,6 +259,57 @@ function statusBadge(s) {
 let lvData = [], lvSelected = new Set(), lvLoaded = false;
 let gpData = [], gpSelected = new Set(), gpLoaded = false;
 
+// ── Scope: shared giữa 2 tab ─────────────────────────────────────────────────
+// Mỗi phần tử: { DEPTCD, DEPT_NAME, LINECD, LINE_NAME, WORKCD, WORK_NAME }
+let scopeTuples = [];
+
+async function loadScope() {
+    try {
+        const res  = await fetch(FILTER_SCOPE_URL);
+        const data = await res.json();
+        scopeTuples = (data?.success && data.data) ? data.data : [];
+    } catch(e) {
+        scopeTuples = [];
+    }
+    initScopeDropdowns();
+}
+
+function initScopeDropdowns() {
+    const depts = distinctBy(scopeTuples, t => t.DEPTCD, t => ({ id: t.DEPTCD, name: t.DEPT_NAME || t.DEPTCD }));
+    ['lv', 'gp'].forEach(p => {
+        const sel = document.getElementById(`${p}_dept`);
+        sel.innerHTML = '<option value="">-- Tất cả --</option>';
+        depts.forEach(d => sel.innerHTML += `<option value="${d.id}">${d.name}</option>`);
+        refreshLines(p);
+    });
+}
+
+function refreshLines(prefix) {
+    const dept = document.getElementById(`${prefix}_dept`).value;
+    const pool = dept ? scopeTuples.filter(t => t.DEPTCD === dept) : scopeTuples;
+    const lines = distinctBy(pool.filter(t => t.LINECD), t => t.LINECD, t => ({ id: t.LINECD, name: t.LINE_NAME || t.LINECD }));
+    const sel = document.getElementById(`${prefix}_line`);
+    sel.innerHTML = '<option value="">-- Tất cả --</option>';
+    lines.forEach(l => sel.innerHTML += `<option value="${l.id}">${l.name}</option>`);
+    refreshWorks(prefix);
+}
+
+function refreshWorks(prefix) {
+    const dept = document.getElementById(`${prefix}_dept`).value;
+    const line = document.getElementById(`${prefix}_line`).value;
+    let pool = scopeTuples;
+    if (dept) pool = pool.filter(t => t.DEPTCD === dept);
+    if (line) pool = pool.filter(t => t.LINECD === line);
+    const works = distinctBy(pool.filter(t => t.WORKCD), t => t.WORKCD, t => ({ id: t.WORKCD, name: t.WORK_NAME || t.WORKCD }));
+    const sel = document.getElementById(`${prefix}_work`);
+    sel.innerHTML = '<option value="">-- Tất cả --</option>';
+    works.forEach(w => sel.innerHTML += `<option value="${w.id}">${w.name}</option>`);
+}
+
+function distinctBy(arr, keyFn, mapFn) {
+    return [...new Map(arr.map(x => [keyFn(x), mapFn(x)])).values()];
+}
+
 // ── Tab change ───────────────────────────────────────────────────────────────
 function onTabChange(tab) {
     if (tab === 'leave' && !lvLoaded) loadLeaves();
@@ -257,13 +317,14 @@ function onTabChange(tab) {
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
     const today = new Date().toISOString().slice(0, 10);
     const y = today.slice(0, 4);
     document.getElementById('lv_from').value = `${y}-01-01`;
     document.getElementById('lv_to').value   = today;
     document.getElementById('gp_from').value = `${y}-01-01`;
     document.getElementById('gp_to').value   = today;
+    await loadScope();
     loadLeaves();
 });
 
@@ -280,7 +341,6 @@ async function loadLeaves() {
         if (!data.success) { lvSetError(data.message || 'Lỗi tải dữ liệu'); return; }
         lvData = data.data || [];
         lvLoaded = true;
-        buildLvDropdowns();
         renderLeaves();
     } catch(e) { lvSetError('Lỗi kết nối: ' + e.message); }
 }
@@ -290,44 +350,17 @@ function lvSetError(msg) {
     lvUpdateCounts();
 }
 
-function buildLvDropdowns() {
-    const depts = [...new Map(lvData.filter(r => r.DEPT_ID).map(r => [r.DEPT_ID, { id: r.DEPT_ID, name: r.DEPT_NAME || r.DEPT_ID }])).values()];
-    const sel = document.getElementById('lv_dept');
-    const curDept = sel.value;
-    sel.innerHTML = '<option value="">-- Tất cả --</option>';
-    depts.forEach(d => sel.innerHTML += `<option value="${d.id}" ${d.id===curDept?'selected':''}>${d.name}</option>`);
-    refreshLvLines();
-}
-
-function onLvDeptChange() { refreshLvLines(); lvApplyFilter(); }
-
-function refreshLvLines() {
-    const dept = document.getElementById('lv_dept').value;
-    const lines = [...new Map(lvData.filter(r => r.LINE_ID && (!dept || r.DEPT_ID === dept)).map(r => [r.LINE_ID, { id: r.LINE_ID, name: r.LINE_NAME || r.LINE_ID }])).values()];
-    const sel = document.getElementById('lv_line');
-    sel.innerHTML = '<option value="">-- Tất cả --</option>';
-    lines.forEach(l => sel.innerHTML += `<option value="${l.id}">${l.name}</option>`);
-    refreshLvWorks();
-}
-
-function onLvLineChange() { refreshLvWorks(); lvApplyFilter(); }
-
-function refreshLvWorks() {
-    const dept = document.getElementById('lv_dept').value;
-    const line = document.getElementById('lv_line').value;
-    const works = [...new Map(lvData.filter(r => r.WORK_ID && (!dept || r.DEPT_ID === dept) && (!line || r.LINE_ID === line)).map(r => [r.WORK_ID, { id: r.WORK_ID, name: r.WORK_NAME || r.WORK_ID }])).values()];
-    const sel = document.getElementById('lv_work');
-    sel.innerHTML = '<option value="">-- Tất cả --</option>';
-    works.forEach(w => sel.innerHTML += `<option value="${w.id}">${w.name}</option>`);
-}
+function onLvDeptChange() { document.getElementById('lv_line').value = ''; document.getElementById('lv_work').value = ''; refreshLines('lv'); lvApplyFilter(); }
+function onLvLineChange() { document.getElementById('lv_work').value = ''; refreshWorks('lv'); lvApplyFilter(); }
 
 function lvApplyFilter() { renderLeaves(); }
 
 function renderLeaves() {
     const stFilter = document.getElementById('lv_status').value;
-    const dept = document.getElementById('lv_dept').value;
-    const line = document.getElementById('lv_line').value;
-    const work = document.getElementById('lv_work').value;
+    const dept     = document.getElementById('lv_dept').value;
+    const line     = document.getElementById('lv_line').value;
+    const work     = document.getElementById('lv_work').value;
+    const kw       = document.getElementById('lv_search').value.trim().toUpperCase();
 
     const filtered = lvData.filter(r => {
         if (stFilter === 'confirmed' && r.STATUS === 'PENDING')  return false;
@@ -335,6 +368,7 @@ function renderLeaves() {
         if (dept && r.DEPT_ID !== dept) return false;
         if (line && r.LINE_ID !== line) return false;
         if (work && r.WORK_ID !== work) return false;
+        if (kw && !(r.EMPCD?.toUpperCase().includes(kw) || r.EMP_NAME?.toUpperCase().includes(kw))) return false;
         return true;
     });
 
@@ -438,7 +472,6 @@ async function loadGp() {
         if (!data.success) { gpSetError(data.message || 'Lỗi tải dữ liệu'); return; }
         gpData = data.data || [];
         gpLoaded = true;
-        buildGpDropdowns();
         renderGp();
     } catch(e) { gpSetError('Lỗi kết nối: ' + e.message); }
 }
@@ -448,41 +481,15 @@ function gpSetError(msg) {
     gpUpdateCounts();
 }
 
-function buildGpDropdowns() {
-    const depts = [...new Map(gpData.filter(r => r.DEPT_ID).map(r => [r.DEPT_ID, { id: r.DEPT_ID, name: r.DEPT_NAME || r.DEPT_ID }])).values()];
-    const sel = document.getElementById('gp_dept');
-    sel.innerHTML = '<option value="">-- Tất cả --</option>';
-    depts.forEach(d => sel.innerHTML += `<option value="${d.id}">${d.name}</option>`);
-    refreshGpLines();
-}
-
-function onGpDeptChange() { refreshGpLines(); renderGp(); }
-
-function refreshGpLines() {
-    const dept = document.getElementById('gp_dept').value;
-    const lines = [...new Map(gpData.filter(r => r.LINE_ID && (!dept || r.DEPT_ID === dept)).map(r => [r.LINE_ID, { id: r.LINE_ID, name: r.LINE_NAME || r.LINE_ID }])).values()];
-    const sel = document.getElementById('gp_line');
-    sel.innerHTML = '<option value="">-- Tất cả --</option>';
-    lines.forEach(l => sel.innerHTML += `<option value="${l.id}">${l.name}</option>`);
-    refreshGpWorks();
-}
-
-function onGpLineChange() { refreshGpWorks(); renderGp(); }
-
-function refreshGpWorks() {
-    const dept = document.getElementById('gp_dept').value;
-    const line = document.getElementById('gp_line').value;
-    const works = [...new Map(gpData.filter(r => r.WORK_ID && (!dept || r.DEPT_ID === dept) && (!line || r.LINE_ID === line)).map(r => [r.WORK_ID, { id: r.WORK_ID, name: r.WORK_NAME || r.WORK_ID }])).values()];
-    const sel = document.getElementById('gp_work');
-    sel.innerHTML = '<option value="">-- Tất cả --</option>';
-    works.forEach(w => sel.innerHTML += `<option value="${w.id}">${w.name}</option>`);
-}
+function onGpDeptChange() { document.getElementById('gp_line').value = ''; document.getElementById('gp_work').value = ''; refreshLines('gp'); renderGp(); }
+function onGpLineChange() { document.getElementById('gp_work').value = ''; refreshWorks('gp'); renderGp(); }
 
 function renderGp() {
     const stFilter = document.getElementById('gp_status').value;
-    const dept = document.getElementById('gp_dept').value;
-    const line = document.getElementById('gp_line').value;
-    const work = document.getElementById('gp_work').value;
+    const dept     = document.getElementById('gp_dept').value;
+    const line     = document.getElementById('gp_line').value;
+    const work     = document.getElementById('gp_work').value;
+    const kw       = document.getElementById('gp_search').value.trim().toUpperCase();
 
     const filtered = gpData.filter(r => {
         if (stFilter === 'confirmed' && r.STATUS === 'PENDING')  return false;
@@ -490,6 +497,7 @@ function renderGp() {
         if (dept && r.DEPT_ID !== dept) return false;
         if (line && r.LINE_ID !== line) return false;
         if (work && r.WORK_ID !== work) return false;
+        if (kw && !(r.EMPCD?.toUpperCase().includes(kw) || r.EMP_NAME?.toUpperCase().includes(kw))) return false;
         return true;
     });
 

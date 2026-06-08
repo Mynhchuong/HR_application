@@ -159,6 +159,53 @@ public class UserDeptController : ControllerBase
         }
     }
 
+    // GET /apiHR/UserDept/filter-scope?empcd=
+    // empcd = null/empty → toàn công ty (EAM410)
+    // empcd có giá trị     → scope của user đó (HR_USERS_DEPT)
+    [HttpGet("filter-scope")]
+    public async Task<IActionResult> GetFilterScope(string? empcd)
+    {
+        string sql;
+        OracleParameter[] ps;
+
+        if (string.IsNullOrEmpty(empcd))
+        {
+            sql = @"
+                SELECT DISTINCT DEPTCD, MAX(DEPTNM) DEPT_NAME,
+                                LINECD, MAX(TEAMNM) LINE_NAME,
+                                WORKCD, MAX(WORKNM) WORK_NAME
+                FROM HRMS.EAM410
+                WHERE USEYN = 'Y'
+                  AND DEPTCD IS NOT NULL AND LINECD IS NOT NULL AND WORKCD IS NOT NULL
+                GROUP BY DEPTCD, LINECD, WORKCD
+                ORDER BY DEPTCD, LINECD, WORKCD";
+            ps = Array.Empty<OracleParameter>();
+        }
+        else
+        {
+            sql = @"
+                SELECT UD.DEPTCD, B.DEPTNM DEPT_NAME, UD.LINECD, B.TEAMNM LINE_NAME, UD.WORKCD, B.WORKNM WORK_NAME
+                FROM HRMS.HR_USERS_DEPT UD
+                LEFT JOIN HRMS.EAM410 B
+                    ON B.DEPTCD = UD.DEPTCD AND B.LINECD = UD.LINECD AND B.WORKCD = UD.WORKCD
+                WHERE UD.EMPCD = :EMPCD
+                ORDER BY UD.DEPTCD, UD.LINECD, UD.WORKCD";
+            ps = new[] { new OracleParameter("EMPCD", empcd) };
+        }
+
+        var data = await _oracleService.ExecuteQueryAsync(sql, r => new
+        {
+            DEPTCD    = r["DEPTCD"]?.ToString(),
+            DEPT_NAME = r["DEPT_NAME"]?.ToString(),
+            LINECD    = r["LINECD"]?.ToString(),
+            LINE_NAME = r["LINE_NAME"]?.ToString(),
+            WORKCD    = r["WORKCD"]?.ToString(),
+            WORK_NAME = r["WORK_NAME"]?.ToString()
+        }, ps);
+
+        return Ok(new { success = true, data });
+    }
+
     // GET /apiHR/UserDept/dept-options
     [HttpGet("dept-options")]
     public async Task<IActionResult> GetDeptOptions()

@@ -111,6 +111,16 @@ public class UserDeptController : BaseController
     }
 
     [HttpGet]
+    public async Task<IActionResult> GetFilterScope()
+    {
+        // Admin xem toàn công ty → không truyền empcd (API sẽ query EAM410)
+        // Role khác → truyền empcd để lấy scope từ HR_USERS_DEPT
+        var empcd = CurrentUser?.RoleName == "Admin" ? null : CurrentUser?.EmpCd;
+        var result = await _service.GetFilterScopeAsync(empcd ?? "");
+        return Json(result);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> GetDeptOptions()
         => Json(await _service.GetDeptOptionsAsync());
 

@@ -83,6 +83,18 @@ public class UserDeptService
         catch (Exception ex) { return (false, ex.Message, 0, 0); }
     }
 
+    public async Task<object?> GetFilterScopeAsync(string empcd)
+    {
+        try
+        {
+            var res = await _api.GetAsync_Raw("UserDept/filter-scope", $"empcd={Uri.EscapeDataString(empcd)}");
+            if (res == null || !res.IsSuccessStatusCode)
+                return new { success = false, data = new List<object>() };
+            return JsonConvert.DeserializeObject(await res.Content.ReadAsStringAsync());
+        }
+        catch { return new { success = false, data = new List<object>() }; }
+    }
+
     public async Task<bool> DeleteAsync(string empcd, string? deptcd, string? linecd, string? workcd)
     {
         try

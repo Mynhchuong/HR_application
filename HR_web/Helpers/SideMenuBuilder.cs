@@ -134,7 +134,7 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isAdmin,
                 Children = [
                     new() { Title = "Sắp Lịch Toàn Công Ty", Url = "~/Leave/AdminAssignLeave",    Icon = "event_available" },
-                    new() { Title = "Quản Lý Đơn Đã Xác Nhận", Url = "~/Leave/AdminManageRequests", Icon = "manage_history"  },
+                    new() { Title = "Theo Dõi Yêu Cầu",        Url = "~/Leave/AdminManageRequests", Icon = "manage_history"  },
                     new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",             Icon = "menu_book"       },
                 ]
             },

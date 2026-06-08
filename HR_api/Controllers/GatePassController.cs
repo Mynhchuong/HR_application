@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
 using HR_api.Models.GatePass;
+using HR_api.Models.Leave;
 using System.Data;
 
 namespace HR_api.Controllers;
@@ -1032,6 +1033,120 @@ END;";
         {
             return Ok(new { success = false, message = ex.Message });
         }
+    }
+
+    // GET /apiHR/GatePass/admin-confirmed-gp
+    [HttpGet("admin-confirmed-gp")]
+    public async Task<IActionResult> GetAdminConfirmedGp(
+        string? dept_id = null, string? line_id = null, string? work_id = null,
+        string? date_from = null, string? date_to = null,
+        int page = 1, int page_size = 50)
+    {
+        try
+        {
+            DateTime? dFrom = null, dTo = null;
+            if (!string.IsNullOrEmpty(date_from) && DateTime.TryParse(date_from, out var df)) dFrom = df;
+            if (!string.IsNullOrEmpty(date_to)   && DateTime.TryParse(date_to,   out var dt)) dTo   = dt;
+
+            const string baseSql = @"
+                SELECT R.REQUEST_ID, GP.EMPCD, EC.CNAME EMP_NAME,
+                       EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
+                       EC.LINECD LINE_ID, B.TEAMNM LINE_NAME,
+                       EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
+                       GP.GP_TYPE, GP.OUT_TIME, GP.IN_TIME, GP.REASON,
+                       R.STATUS, R.FINAL_DATE, R.FINAL_APPROVER, R.CREATED_DATE
+                FROM HRMS.HR_REQUEST R
+                JOIN HRMS.HR_GATEPASS_REQUEST GP ON GP.REQUEST_ID = R.REQUEST_ID
+                JOIN HRMS.ECM100 EC               ON EC.EMPCD     = GP.EMPCD
+                LEFT JOIN HRMS.EAM410 B           ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                WHERE R.STATUS != 'REJECTED'
+                  AND (:DPT_FLAG IS NULL OR EC.DEPTCD = :DPT_VAL)
+                  AND (:LN_FLAG  IS NULL OR EC.LINECD = :LN_VAL)
+                  AND (:WK_FLAG  IS NULL OR EC.WORKCD = :WK_VAL)
+                  AND (:FR_FLAG  IS NULL OR TRUNC(NVL(GP.OUT_TIME, GP.IN_TIME)) >= :FR_VAL)
+                  AND (:TO_FLAG  IS NULL OR TRUNC(NVL(GP.OUT_TIME, GP.IN_TIME)) <= :TO_VAL)";
+
+            OracleParameter[] MakePs() => new[]
+            {
+                new OracleParameter("DPT_FLAG", (object?)(dept_id != null ? "Y" : null) ?? DBNull.Value),
+                new OracleParameter("DPT_VAL",  (object?)dept_id ?? DBNull.Value),
+                new OracleParameter("LN_FLAG",  (object?)(line_id != null ? "Y" : null) ?? DBNull.Value),
+                new OracleParameter("LN_VAL",   (object?)line_id ?? DBNull.Value),
+                new OracleParameter("WK_FLAG",  (object?)(work_id != null ? "Y" : null) ?? DBNull.Value),
+                new OracleParameter("WK_VAL",   (object?)work_id ?? DBNull.Value),
+                new OracleParameter("FR_FLAG",  (object?)(dFrom != null ? "Y" : null) ?? DBNull.Value),
+                new OracleParameter("FR_VAL",   (object?)dFrom ?? DBNull.Value),
+                new OracleParameter("TO_FLAG",  (object?)(dTo   != null ? "Y" : null) ?? DBNull.Value),
+                new OracleParameter("TO_VAL",   (object?)dTo   ?? DBNull.Value),
+            };
+
+            var cntRows = await _oracleService.ExecuteQueryAsync(
+                $"SELECT COUNT(*) CNT FROM ({baseSql})",
+                r => Convert.ToInt32(r["CNT"]), MakePs());
+            int total = cntRows.FirstOrDefault();
+
+            if (total == 0)
+                return Ok(new { success = true, total = 0, page, page_size, total_pages = 0, data = Array.Empty<object>() });
+
+            var dataPs = MakePs().ToList();
+            dataPs.Add(new OracleParameter("P_END",   page * page_size));
+            dataPs.Add(new OracleParameter("P_START", (page - 1) * page_size));
+
+            var rows = await _oracleService.ExecuteQueryAsync($@"
+                SELECT * FROM (
+                    SELECT A.*, ROWNUM RN
+                    FROM ({baseSql} ORDER BY R.FINAL_DATE DESC NULLS LAST, R.CREATED_DATE DESC) A
+                    WHERE ROWNUM <= :P_END
+                ) WHERE RN > :P_START",
+                r => new
+                {
+                    REQUEST_ID     = r["REQUEST_ID"]?.ToString() ?? "",
+                    EMPCD          = r["EMPCD"]?.ToString() ?? "",
+                    EMP_NAME       = r["EMP_NAME"]?.ToString(),
+                    DEPT_ID        = r["DEPT_ID"]?.ToString(),
+                    DEPT_NAME      = r["DEPT_NAME"]?.ToString(),
+                    LINE_ID        = r["LINE_ID"]?.ToString(),
+                    LINE_NAME      = r["LINE_NAME"]?.ToString(),
+                    WORK_ID        = r["WORK_ID"]?.ToString(),
+                    WORK_NAME      = r["WORK_NAME"]?.ToString(),
+                    GP_TYPE        = r["GP_TYPE"]?.ToString(),
+                    OUT_TIME       = r["OUT_TIME"]     == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["OUT_TIME"]),
+                    IN_TIME        = r["IN_TIME"]      == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["IN_TIME"]),
+                    REASON         = r["REASON"]?.ToString(),
+                    STATUS         = r["STATUS"]?.ToString(),
+                    FINAL_DATE     = r["FINAL_DATE"]   == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["FINAL_DATE"]),
+                    FINAL_APPROVER = r["FINAL_APPROVER"]?.ToString(),
+                    CREATED_DATE   = r["CREATED_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CREATED_DATE"]),
+                }, dataPs.ToArray());
+
+            return Ok(new { success = true, total, page, page_size, total_pages = (int)Math.Ceiling((double)total / page_size), data = rows });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST /apiHR/GatePass/admin-delete-gp
+    [HttpPost("admin-delete-gp")]
+    public async Task<IActionResult> AdminDeleteGp([FromBody] AdminBulkDeleteRequest model)
+    {
+        if (model.REQUEST_IDS == null || model.REQUEST_IDS.Count == 0)
+            return Ok(new { success = false, message = "Không có phiếu nào được chọn" });
+        try
+        {
+            var roleRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => r["ROLE_NAME"]?.ToString(),
+                new OracleParameter("EMPCD", model.ACTOR_EMPCD));
+            if (roleRows.FirstOrDefault() != "Admin")
+                return Ok(new { success = false, message = "Chỉ Admin mới có quyền xóa" });
+
+            var ids = string.Join(",", model.REQUEST_IDS.Select(id =>
+                $"'{System.Text.RegularExpressions.Regex.Replace(id, "[^A-Za-z0-9_-]", "")}'"));
+            await _oracleService.ExecuteNonQueryAsync($"DELETE FROM HRMS.HR_GATEPASS_REQUEST WHERE REQUEST_ID IN ({ids})");
+            await _oracleService.ExecuteNonQueryAsync($"DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID IN ({ids}) AND REQUEST_TYPE = 'GATEPASS'");
+
+            return Ok(new { success = true, message = $"Đã xóa {model.REQUEST_IDS.Count} phiếu ra/vào cổng khỏi hệ thống", total_deleted = model.REQUEST_IDS.Count });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

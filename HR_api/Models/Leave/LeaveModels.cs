@@ -45,6 +45,12 @@ public class LeaveAssignRequest
     public string       LEAVE_TYPE     { get; set; } = "AL";
 }
 
+public class AdminBulkDeleteRequest
+{
+    public string       ACTOR_EMPCD  { get; set; } = string.Empty;
+    public List<string> REQUEST_IDS  { get; set; } = new();
+}
+
 public class LeaveMyRequestModel
 {
     public string    REQUEST_ID     { get; set; } = string.Empty;

@@ -118,3 +118,35 @@ public class GpShiftResponse
     public bool success { get; set; }
     public GpShiftInfoModel? data { get; set; }
 }
+
+public class AdminConfirmedGpModel
+{
+    public string    REQUEST_ID     { get; set; } = string.Empty;
+    public string    EMPCD          { get; set; } = string.Empty;
+    public string?   EMP_NAME       { get; set; }
+    public string?   DEPT_ID        { get; set; }
+    public string?   DEPT_NAME      { get; set; }
+    public string?   LINE_ID        { get; set; }
+    public string?   LINE_NAME      { get; set; }
+    public string?   WORK_ID        { get; set; }
+    public string?   WORK_NAME      { get; set; }
+    public string?   GP_TYPE        { get; set; }
+    public DateTime? OUT_TIME       { get; set; }
+    public DateTime? IN_TIME        { get; set; }
+    public string?   REASON         { get; set; }
+    public string?   STATUS         { get; set; }
+    public DateTime? FINAL_DATE     { get; set; }
+    public string?   FINAL_APPROVER { get; set; }
+    public DateTime? CREATED_DATE   { get; set; }
+}
+
+public class AdminConfirmedGpPagedResponse
+{
+    public bool   success     { get; set; }
+    public string? message    { get; set; }
+    public int    total       { get; set; }
+    public int    page        { get; set; }
+    public int    page_size   { get; set; }
+    public int    total_pages { get; set; }
+    public List<AdminConfirmedGpModel> data { get; set; } = new();
+}

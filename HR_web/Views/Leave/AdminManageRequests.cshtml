@@ -1,0 +1,618 @@
+@{
+    ViewData["Title"] = "Quản Lý Đơn Đã Xác Nhận";
+    string adminEmpCd = ViewBag.CurrentEmpCd ?? "";
+}
+
+@section Styles {
+<style>
+    .warn-banner { background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:10px 14px; font-size:.82rem; color:#78350f; display:flex; align-items:flex-start; gap:8px; margin-bottom:1rem; }
+    .filter-label { font-size:.78rem; font-weight:600; color:#6b7280; margin-bottom:3px; }
+    .sel-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .tbl-wrap { max-height:520px; overflow-y:auto; }
+    table { font-size:.8rem; }
+    table thead th { position:sticky; top:0; background:#f8fafc; z-index:1; font-size:.75rem; color:#64748b; font-weight:600; padding:6px 8px; }
+    table tbody td { padding:5px 8px; vertical-align:middle; }
+    .emp-name-cell { font-family:'Vnitbi__',system-ui,sans-serif; font-weight:600; color:#1e293b; font-size:.82rem; }
+    .badge-source-self     { background:#dbeafe; color:#1d4ed8; }
+    .badge-source-assigned { background:#ede9fe; color:#6d28d9; }
+    .badge-gp-out { background:#fef3c7; color:#92400e; }
+    .badge-gp-in  { background:#dcfce7; color:#166534; }
+    .badge-gp-mid { background:#e0f2fe; color:#0c4a6e; }
+    .count-badge { font-size:.78rem; background:#6366f1; color:#fff; border-radius:12px; padding:1px 9px; font-weight:700; }
+    .nav-tabs .nav-link { font-size:.85rem; font-weight:600; }
+    .empty-msg { text-align:center; padding:40px; color:#94a3b8; font-size:.85rem; }
+</style>
+}
+
+<div class="warn-banner">
+    <span class="material-symbols-rounded" style="font-size:1.1rem;color:#f59e0b;flex-shrink:0;">warning</span>
+    <div>
+        <strong>Lưu ý quan trọng:</strong> Các đơn đã xác nhận có thể đã được nhập vào hệ thống ERP.
+        Sau khi xóa tại đây, vui lòng vào ERP để xóa thủ công các dữ liệu tương ứng.
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3" id="mainTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="leave-tab" data-bs-toggle="tab" data-bs-target="#leaveTab" type="button" role="tab" onclick="onTabChange('leave')">
+            <span class="material-symbols-rounded align-middle me-1" style="font-size:1rem;">event_busy</span>
+            Nghỉ phép
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="gp-tab" data-bs-toggle="tab" data-bs-target="#gpTab" type="button" role="tab" onclick="onTabChange('gp')">
+            <span class="material-symbols-rounded align-middle me-1" style="font-size:1rem;">door_front</span>
+            Ra vào cổng
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- ── LEAVE TAB ─────────────────────────────────────────── -->
+    <div class="tab-pane fade show active" id="leaveTab" role="tabpanel">
+        <!-- Filter -->
+        <div class="card mb-3">
+            <div class="card-body pb-2">
+                <div class="row g-2">
+                    <div class="col-sm-2">
+                        <label class="filter-label">Trạng thái ERP</label>
+                        <select id="lv_status" class="form-select form-select-sm" onchange="renderLeaves()">
+                            <option value="">-- Tất cả --</option>
+                            <option value="confirmed">Đã XN (đã insert ERP)</option>
+                            <option value="pending">Chưa XN (chưa insert ERP)</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="filter-label">Phòng ban</label>
+                        <select id="lv_dept" class="form-select form-select-sm" onchange="onLvDeptChange()"><option value="">-- Tất cả --</option></select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="filter-label">Chuyền</label>
+                        <select id="lv_line" class="form-select form-select-sm" onchange="onLvLineChange()"><option value="">-- Tất cả --</option></select>
+                    </div>
+                    <div class="col-sm-1">
+                        <label class="filter-label">Tổ</label>
+                        <select id="lv_work" class="form-select form-select-sm" onchange="renderLeaves()"><option value="">-- Tất cả --</option></select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="filter-label">Từ ngày</label>
+                        <input type="date" id="lv_from" class="form-control form-control-sm" onchange="loadLeaves()">
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="filter-label">Đến ngày</label>
+                        <input type="date" id="lv_to" class="form-control form-control-sm" onchange="loadLeaves()">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Action bar -->
+        <div class="card">
+            <div class="card-header py-2">
+                <div class="sel-bar">
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" id="lv_chkAll" onchange="lvToggleAll(this)">
+                        <label class="form-check-label" for="lv_chkAll" style="font-size:.82rem;font-weight:600;">Chọn tất cả</label>
+                    </div>
+                    <span class="count-badge" id="lv_selCount">0</span>
+                    <span style="font-size:.82rem;color:#64748b;">đã chọn</span>
+                    <span class="ms-auto text-muted" id="lv_totalCount" style="font-size:.78rem;"></span>
+                    <button class="btn btn-danger btn-sm py-0 px-3" id="lv_btnDelete" disabled onclick="lvDelete()">
+                        <span class="material-symbols-rounded align-middle me-1" style="font-size:.95rem;">delete</span>
+                        Xóa khỏi MySamho
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="tbl-wrap">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width:36px;"></th>
+                                <th>Mã NV</th>
+                                <th>Họ tên</th>
+                                <th>Phòng / Chuyền / Tổ</th>
+                                <th>Loại phép</th>
+                                <th>Từ ngày</th>
+                                <th>Đến ngày</th>
+                                <th>Số ngày</th>
+                                <th>Nguồn</th>
+                                <th>Trạng thái</th>
+                                <th>Ngày XN</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lv_tbody">
+                            <tr><td colspan="10" class="empty-msg"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── GATE PASS TAB ─────────────────────────────────────── -->
+    <div class="tab-pane fade" id="gpTab" role="tabpanel">
+        <!-- Filter -->
+        <div class="card mb-3">
+            <div class="card-body pb-2">
+                <div class="row g-2">
+                    <div class="col-sm-2">
+                        <label class="filter-label">Trạng thái ERP</label>
+                        <select id="gp_status" class="form-select form-select-sm" onchange="renderGp()">
+                            <option value="">-- Tất cả --</option>
+                            <option value="confirmed">Đã XN (đã insert ERP)</option>
+                            <option value="pending">Chưa XN (chưa insert ERP)</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="filter-label">Phòng ban</label>
+                        <select id="gp_dept" class="form-select form-select-sm" onchange="onGpDeptChange()"><option value="">-- Tất cả --</option></select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="filter-label">Chuyền</label>
+                        <select id="gp_line" class="form-select form-select-sm" onchange="onGpLineChange()"><option value="">-- Tất cả --</option></select>
+                    </div>
+                    <div class="col-sm-1">
+                        <label class="filter-label">Tổ</label>
+                        <select id="gp_work" class="form-select form-select-sm" onchange="renderGp()"><option value="">-- Tất cả --</option></select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="filter-label">Từ ngày</label>
+                        <input type="date" id="gp_from" class="form-control form-control-sm" onchange="loadGp()">
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="filter-label">Đến ngày</label>
+                        <input type="date" id="gp_to" class="form-control form-control-sm" onchange="loadGp()">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Action bar -->
+        <div class="card">
+            <div class="card-header py-2">
+                <div class="sel-bar">
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" id="gp_chkAll" onchange="gpToggleAll(this)">
+                        <label class="form-check-label" for="gp_chkAll" style="font-size:.82rem;font-weight:600;">Chọn tất cả</label>
+                    </div>
+                    <span class="count-badge" id="gp_selCount">0</span>
+                    <span style="font-size:.82rem;color:#64748b;">đã chọn</span>
+                    <span class="ms-auto text-muted" id="gp_totalCount" style="font-size:.78rem;"></span>
+                    <button class="btn btn-danger btn-sm py-0 px-3" id="gp_btnDelete" disabled onclick="gpDelete()">
+                        <span class="material-symbols-rounded align-middle me-1" style="font-size:.95rem;">delete</span>
+                        Xóa khỏi MySamho
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="tbl-wrap">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width:36px;"></th>
+                                <th>Mã NV</th>
+                                <th>Họ tên</th>
+                                <th>Phòng / Chuyền / Tổ</th>
+                                <th>Loại</th>
+                                <th>Giờ ra</th>
+                                <th>Giờ vào</th>
+                                <th>Trạng thái</th>
+                                <th>Ngày XN</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gp_tbody">
+                            <tr><td colspan="8" class="empty-msg">Chuyển sang tab Ra vào cổng để tải dữ liệu</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm delete modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2" style="background:#fee2e2;">
+                <h5 class="modal-title" style="font-size:.9rem;color:#b91c1c;display:flex;align-items:center;gap:6px;">
+                    <span class="material-symbols-rounded" style="font-size:1.1rem;">warning</span>
+                    Xác nhận xóa
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="font-size:.84rem;">
+                <p id="confirmMsg"></p>
+                <div class="alert alert-warning py-2 mb-0" style="font-size:.78rem;">
+                    Sau khi xóa, vui lòng vào ERP để xóa thủ công dữ liệu tương ứng.
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-danger btn-sm" id="confirmOkBtn">Xóa</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const ADMIN_EMPCD = '@adminEmpCd';
+
+function statusBadge(s) {
+    if (s === 'APPROVED')  return '<span class="badge" style="background:#dcfce7;color:#166534;">Đã XN</span>';
+    if (s === 'ASSIGNED')  return '<span class="badge" style="background:#ede9fe;color:#6d28d9;">Đã sắp</span>';
+    if (s === 'PENDING')   return '<span class="badge" style="background:#fef3c7;color:#92400e;">Chờ duyệt</span>';
+    return `<span class="badge bg-secondary">${s || ''}</span>`;
+}
+
+// ── Data stores ──────────────────────────────────────────────────────────────
+let lvData = [], lvSelected = new Set(), lvLoaded = false;
+let gpData = [], gpSelected = new Set(), gpLoaded = false;
+
+// ── Tab change ───────────────────────────────────────────────────────────────
+function onTabChange(tab) {
+    if (tab === 'leave' && !lvLoaded) loadLeaves();
+    if (tab === 'gp'    && !gpLoaded) loadGp();
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const y = today.slice(0, 4);
+    document.getElementById('lv_from').value = `${y}-01-01`;
+    document.getElementById('lv_to').value   = today;
+    document.getElementById('gp_from').value = `${y}-01-01`;
+    document.getElementById('gp_to').value   = today;
+    loadLeaves();
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// LEAVE
+// ════════════════════════════════════════════════════════════════════════════
+async function loadLeaves() {
+    lvData = []; lvSelected.clear(); lvLoaded = false;
+    document.getElementById('lv_tbody').innerHTML = '<tr><td colspan="10" class="empty-msg"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>';
+    const params = buildParams('lv');
+    try {
+        const res  = await fetch('/Leave/GetAdminConfirmedLeaves?' + params);
+        const data = await res.json();
+        if (!data.success) { lvSetError(data.message || 'Lỗi tải dữ liệu'); return; }
+        lvData = data.data || [];
+        lvLoaded = true;
+        buildLvDropdowns();
+        renderLeaves();
+    } catch(e) { lvSetError('Lỗi kết nối: ' + e.message); }
+}
+
+function lvSetError(msg) {
+    document.getElementById('lv_tbody').innerHTML = `<tr><td colspan="10" class="empty-msg text-danger">${msg}</td></tr>`;
+    lvUpdateCounts();
+}
+
+function buildLvDropdowns() {
+    const depts = [...new Map(lvData.filter(r => r.DEPT_ID).map(r => [r.DEPT_ID, { id: r.DEPT_ID, name: r.DEPT_NAME || r.DEPT_ID }])).values()];
+    const sel = document.getElementById('lv_dept');
+    const curDept = sel.value;
+    sel.innerHTML = '<option value="">-- Tất cả --</option>';
+    depts.forEach(d => sel.innerHTML += `<option value="${d.id}" ${d.id===curDept?'selected':''}>${d.name}</option>`);
+    refreshLvLines();
+}
+
+function onLvDeptChange() { refreshLvLines(); lvApplyFilter(); }
+
+function refreshLvLines() {
+    const dept = document.getElementById('lv_dept').value;
+    const lines = [...new Map(lvData.filter(r => r.LINE_ID && (!dept || r.DEPT_ID === dept)).map(r => [r.LINE_ID, { id: r.LINE_ID, name: r.LINE_NAME || r.LINE_ID }])).values()];
+    const sel = document.getElementById('lv_line');
+    sel.innerHTML = '<option value="">-- Tất cả --</option>';
+    lines.forEach(l => sel.innerHTML += `<option value="${l.id}">${l.name}</option>`);
+    refreshLvWorks();
+}
+
+function onLvLineChange() { refreshLvWorks(); lvApplyFilter(); }
+
+function refreshLvWorks() {
+    const dept = document.getElementById('lv_dept').value;
+    const line = document.getElementById('lv_line').value;
+    const works = [...new Map(lvData.filter(r => r.WORK_ID && (!dept || r.DEPT_ID === dept) && (!line || r.LINE_ID === line)).map(r => [r.WORK_ID, { id: r.WORK_ID, name: r.WORK_NAME || r.WORK_ID }])).values()];
+    const sel = document.getElementById('lv_work');
+    sel.innerHTML = '<option value="">-- Tất cả --</option>';
+    works.forEach(w => sel.innerHTML += `<option value="${w.id}">${w.name}</option>`);
+}
+
+function lvApplyFilter() { renderLeaves(); }
+
+function renderLeaves() {
+    const stFilter = document.getElementById('lv_status').value;
+    const dept = document.getElementById('lv_dept').value;
+    const line = document.getElementById('lv_line').value;
+    const work = document.getElementById('lv_work').value;
+
+    const filtered = lvData.filter(r => {
+        if (stFilter === 'confirmed' && r.STATUS === 'PENDING')  return false;
+        if (stFilter === 'pending'   && r.STATUS !== 'PENDING')  return false;
+        if (dept && r.DEPT_ID !== dept) return false;
+        if (line && r.LINE_ID !== line) return false;
+        if (work && r.WORK_ID !== work) return false;
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        document.getElementById('lv_tbody').innerHTML = '<tr><td colspan="10" class="empty-msg">Không có dữ liệu</td></tr>';
+        lvUpdateCounts(0);
+        return;
+    }
+
+    const leaveTypeLabel = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'KL', OTH:'Khác' };
+    let html = '';
+    filtered.forEach(r => {
+        const chk     = lvSelected.has(r.REQUEST_ID) ? 'checked' : '';
+        const selCls  = lvSelected.has(r.REQUEST_ID) ? 'table-primary' : '';
+        const srcBadge = r.SOURCE === 'ASSIGNED'
+            ? '<span class="badge badge-source-assigned">Assign</span>'
+            : '<span class="badge badge-source-self">Tự tạo</span>';
+        const dept = [r.DEPT_NAME, r.LINE_NAME, r.WORK_NAME].filter(Boolean).join(' / ');
+        const fmtDate = d => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
+        html += `<tr class="${selCls}" style="cursor:pointer;" onclick="lvToggle('${r.REQUEST_ID}')">
+            <td><input type="checkbox" ${chk} onclick="event.stopPropagation();lvToggle('${r.REQUEST_ID}')"></td>
+            <td style="font-family:monospace;font-size:.75rem;">${r.EMPCD}</td>
+            <td class="emp-name-cell">${r.EMP_NAME || ''}</td>
+            <td style="font-size:.72rem;color:#64748b;">${dept}</td>
+            <td><span class="badge bg-secondary">${leaveTypeLabel[r.LEAVE_TYPE] || r.LEAVE_TYPE || ''}</span></td>
+            <td>${fmtDate(r.FROM_DATE)}</td>
+            <td>${fmtDate(r.TO_DATE)}</td>
+            <td style="text-align:center;">${r.TOTAL_DAYS ?? ''}</td>
+            <td>${srcBadge}</td>
+            <td>${statusBadge(r.STATUS)}</td>
+            <td style="font-size:.75rem;">${fmtDate(r.FINAL_DATE)}</td>
+        </tr>`;
+    });
+    document.getElementById('lv_tbody').innerHTML = html;
+    lvUpdateCounts(filtered.length);
+    syncLvChkAll(filtered);
+}
+
+function lvToggle(id) {
+    if (lvSelected.has(id)) lvSelected.delete(id); else lvSelected.add(id);
+    renderLeaves();
+}
+
+function lvToggleAll(chk) {
+    const dept = document.getElementById('lv_dept').value;
+    const line = document.getElementById('lv_line').value;
+    const work = document.getElementById('lv_work').value;
+    const filtered = lvData.filter(r =>
+        (!dept || r.DEPT_ID === dept) && (!line || r.LINE_ID === line) && (!work || r.WORK_ID === work));
+    if (chk.checked) filtered.forEach(r => lvSelected.add(r.REQUEST_ID));
+    else             filtered.forEach(r => lvSelected.delete(r.REQUEST_ID));
+    renderLeaves();
+}
+
+function syncLvChkAll(filtered) {
+    const total = filtered.length;
+    const sel   = filtered.filter(r => lvSelected.has(r.REQUEST_ID)).length;
+    const chk   = document.getElementById('lv_chkAll');
+    chk.checked       = total > 0 && sel === total;
+    chk.indeterminate = sel > 0 && sel < total;
+}
+
+function lvUpdateCounts(filteredTotal) {
+    document.getElementById('lv_selCount').textContent  = lvSelected.size;
+    document.getElementById('lv_totalCount').textContent = filteredTotal !== undefined
+        ? `(hiển thị ${filteredTotal} / tổng ${lvData.length})` : '';
+    document.getElementById('lv_btnDelete').disabled = lvSelected.size === 0;
+}
+
+async function lvDelete() {
+    if (lvSelected.size === 0) return;
+    const ids = [...lvSelected];
+    showConfirm(`Bạn chắc chắn muốn xóa <strong>${ids.length} đơn nghỉ phép</strong> khỏi hệ thống?`, async () => {
+        try {
+            const res  = await fetch('/Leave/AdminDeleteLeaves', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ACTOR_EMPCD: ADMIN_EMPCD, REQUEST_IDS: ids })
+            });
+            const data = await res.json();
+            if (data.success) {
+                lvSelected.clear();
+                await loadLeaves();
+                showToast(`Đã xóa ${data.total_deleted} đơn nghỉ phép. Vui lòng kiểm tra và xóa trên ERP.`, 'success');
+            } else {
+                showToast(data.message || 'Lỗi xóa dữ liệu', 'error');
+            }
+        } catch(e) { showToast('Lỗi kết nối: ' + e.message, 'error'); }
+    });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// GATE PASS
+// ════════════════════════════════════════════════════════════════════════════
+async function loadGp() {
+    gpData = []; gpSelected.clear(); gpLoaded = false;
+    document.getElementById('gp_tbody').innerHTML = '<tr><td colspan="8" class="empty-msg"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>';
+    const params = buildParams('gp');
+    try {
+        const res  = await fetch('/Leave/GetAdminConfirmedGp?' + params);
+        const data = await res.json();
+        if (!data.success) { gpSetError(data.message || 'Lỗi tải dữ liệu'); return; }
+        gpData = data.data || [];
+        gpLoaded = true;
+        buildGpDropdowns();
+        renderGp();
+    } catch(e) { gpSetError('Lỗi kết nối: ' + e.message); }
+}
+
+function gpSetError(msg) {
+    document.getElementById('gp_tbody').innerHTML = `<tr><td colspan="8" class="empty-msg text-danger">${msg}</td></tr>`;
+    gpUpdateCounts();
+}
+
+function buildGpDropdowns() {
+    const depts = [...new Map(gpData.filter(r => r.DEPT_ID).map(r => [r.DEPT_ID, { id: r.DEPT_ID, name: r.DEPT_NAME || r.DEPT_ID }])).values()];
+    const sel = document.getElementById('gp_dept');
+    sel.innerHTML = '<option value="">-- Tất cả --</option>';
+    depts.forEach(d => sel.innerHTML += `<option value="${d.id}">${d.name}</option>`);
+    refreshGpLines();
+}
+
+function onGpDeptChange() { refreshGpLines(); renderGp(); }
+
+function refreshGpLines() {
+    const dept = document.getElementById('gp_dept').value;
+    const lines = [...new Map(gpData.filter(r => r.LINE_ID && (!dept || r.DEPT_ID === dept)).map(r => [r.LINE_ID, { id: r.LINE_ID, name: r.LINE_NAME || r.LINE_ID }])).values()];
+    const sel = document.getElementById('gp_line');
+    sel.innerHTML = '<option value="">-- Tất cả --</option>';
+    lines.forEach(l => sel.innerHTML += `<option value="${l.id}">${l.name}</option>`);
+    refreshGpWorks();
+}
+
+function onGpLineChange() { refreshGpWorks(); renderGp(); }
+
+function refreshGpWorks() {
+    const dept = document.getElementById('gp_dept').value;
+    const line = document.getElementById('gp_line').value;
+    const works = [...new Map(gpData.filter(r => r.WORK_ID && (!dept || r.DEPT_ID === dept) && (!line || r.LINE_ID === line)).map(r => [r.WORK_ID, { id: r.WORK_ID, name: r.WORK_NAME || r.WORK_ID }])).values()];
+    const sel = document.getElementById('gp_work');
+    sel.innerHTML = '<option value="">-- Tất cả --</option>';
+    works.forEach(w => sel.innerHTML += `<option value="${w.id}">${w.name}</option>`);
+}
+
+function renderGp() {
+    const stFilter = document.getElementById('gp_status').value;
+    const dept = document.getElementById('gp_dept').value;
+    const line = document.getElementById('gp_line').value;
+    const work = document.getElementById('gp_work').value;
+
+    const filtered = gpData.filter(r => {
+        if (stFilter === 'confirmed' && r.STATUS === 'PENDING')  return false;
+        if (stFilter === 'pending'   && r.STATUS !== 'PENDING')  return false;
+        if (dept && r.DEPT_ID !== dept) return false;
+        if (line && r.LINE_ID !== line) return false;
+        if (work && r.WORK_ID !== work) return false;
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        document.getElementById('gp_tbody').innerHTML = '<tr><td colspan="8" class="empty-msg">Không có dữ liệu</td></tr>';
+        gpUpdateCounts(0);
+        return;
+    }
+
+    const gpLabel = { OUT:'Ra cổng', IN:'Vào cổng', MID:'Ra+Vào' };
+    const gpBadge = { OUT:'badge-gp-out', IN:'badge-gp-in', MID:'badge-gp-mid' };
+    const fmtDt = d => d ? new Date(d).toLocaleString('vi-VN', { dateStyle:'short', timeStyle:'short' }) : '—';
+    const fmtDate = d => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
+
+    let html = '';
+    filtered.forEach(r => {
+        const chk    = gpSelected.has(r.REQUEST_ID) ? 'checked' : '';
+        const selCls = gpSelected.has(r.REQUEST_ID) ? 'table-primary' : '';
+        const dept   = [r.DEPT_NAME, r.LINE_NAME, r.WORK_NAME].filter(Boolean).join(' / ');
+        html += `<tr class="${selCls}" style="cursor:pointer;" onclick="gpToggle('${r.REQUEST_ID}')">
+            <td><input type="checkbox" ${chk} onclick="event.stopPropagation();gpToggle('${r.REQUEST_ID}')"></td>
+            <td style="font-family:monospace;font-size:.75rem;">${r.EMPCD}</td>
+            <td class="emp-name-cell">${r.EMP_NAME || ''}</td>
+            <td style="font-size:.72rem;color:#64748b;">${dept}</td>
+            <td><span class="badge ${gpBadge[r.GP_TYPE] || 'bg-secondary'}">${gpLabel[r.GP_TYPE] || r.GP_TYPE || ''}</span></td>
+            <td style="font-size:.75rem;">${fmtDt(r.OUT_TIME)}</td>
+            <td style="font-size:.75rem;">${fmtDt(r.IN_TIME)}</td>
+            <td>${statusBadge(r.STATUS)}</td>
+            <td style="font-size:.75rem;">${fmtDate(r.FINAL_DATE)}</td>
+        </tr>`;
+    });
+    document.getElementById('gp_tbody').innerHTML = html;
+    gpUpdateCounts(filtered.length);
+    syncGpChkAll(filtered);
+}
+
+function gpToggle(id) {
+    if (gpSelected.has(id)) gpSelected.delete(id); else gpSelected.add(id);
+    renderGp();
+}
+
+function gpToggleAll(chk) {
+    const dept = document.getElementById('gp_dept').value;
+    const line = document.getElementById('gp_line').value;
+    const work = document.getElementById('gp_work').value;
+    const filtered = gpData.filter(r =>
+        (!dept || r.DEPT_ID === dept) && (!line || r.LINE_ID === line) && (!work || r.WORK_ID === work));
+    if (chk.checked) filtered.forEach(r => gpSelected.add(r.REQUEST_ID));
+    else             filtered.forEach(r => gpSelected.delete(r.REQUEST_ID));
+    renderGp();
+}
+
+function syncGpChkAll(filtered) {
+    const total = filtered.length;
+    const sel   = filtered.filter(r => gpSelected.has(r.REQUEST_ID)).length;
+    const chk   = document.getElementById('gp_chkAll');
+    chk.checked       = total > 0 && sel === total;
+    chk.indeterminate = sel > 0 && sel < total;
+}
+
+function gpUpdateCounts(filteredTotal) {
+    document.getElementById('gp_selCount').textContent  = gpSelected.size;
+    document.getElementById('gp_totalCount').textContent = filteredTotal !== undefined
+        ? `(hiển thị ${filteredTotal} / tổng ${gpData.length})` : '';
+    document.getElementById('gp_btnDelete').disabled = gpSelected.size === 0;
+}
+
+async function gpDelete() {
+    if (gpSelected.size === 0) return;
+    const ids = [...gpSelected];
+    showConfirm(`Bạn chắc chắn muốn xóa <strong>${ids.length} phiếu ra/vào cổng</strong> khỏi hệ thống?`, async () => {
+        try {
+            const res  = await fetch('/Leave/AdminDeleteGp', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ACTOR_EMPCD: ADMIN_EMPCD, REQUEST_IDS: ids })
+            });
+            const data = await res.json();
+            if (data.success) {
+                gpSelected.clear();
+                await loadGp();
+                showToast(`Đã xóa ${data.total_deleted} phiếu. Vui lòng kiểm tra và xóa trên ERP.`, 'success');
+            } else {
+                showToast(data.message || 'Lỗi xóa dữ liệu', 'error');
+            }
+        } catch(e) { showToast('Lỗi kết nối: ' + e.message, 'error'); }
+    });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function buildParams(prefix) {
+    const q = [];
+    const dept = document.getElementById(`${prefix}_dept`).value;
+    const line = document.getElementById(`${prefix}_line`).value;
+    const work = document.getElementById(`${prefix}_work`).value;
+    const from = document.getElementById(`${prefix}_from`).value;
+    const to   = document.getElementById(`${prefix}_to`).value;
+    if (dept) q.push(`dept_id=${encodeURIComponent(dept)}`);
+    if (line) q.push(`line_id=${encodeURIComponent(line)}`);
+    if (work) q.push(`work_id=${encodeURIComponent(work)}`);
+    if (from) q.push(`date_from=${encodeURIComponent(from)}`);
+    if (to)   q.push(`date_to=${encodeURIComponent(to)}`);
+    q.push('page_size=500');
+    return q.join('&');
+}
+
+let _confirmCb = null;
+function showConfirm(msg, cb) {
+    document.getElementById('confirmMsg').innerHTML = msg;
+    _confirmCb = cb;
+    new bootstrap.Modal(document.getElementById('confirmModal')).show();
+}
+document.getElementById('confirmOkBtn').addEventListener('click', () => {
+    bootstrap.Modal.getInstance(document.getElementById('confirmModal'))?.hide();
+    if (_confirmCb) { _confirmCb(); _confirmCb = null; }
+});
+
+function showToast(msg, type) {
+    const bg = type === 'success' ? '#10b981' : '#ef4444';
+    const div = document.createElement('div');
+    div.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;background:${bg};color:#fff;padding:12px 18px;border-radius:8px;font-size:.84rem;max-width:380px;box-shadow:0 4px 12px rgba(0,0,0,.2);`;
+    div.textContent = msg;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 5000);
+}
+</script>
+}

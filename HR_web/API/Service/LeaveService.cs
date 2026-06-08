@@ -349,4 +349,39 @@ public class LeaveService
         }
         catch (Exception ex) { return new AdminAssignResponse { success = false, message = ex.Message }; }
     }
+
+    public async Task<AdminConfirmedLeavePagedResponse> GetAdminConfirmedLeavesAsync(
+        string? deptId = null, string? lineId = null, string? workId = null,
+        string? dateFrom = null, string? dateTo = null, int page = 1, int pageSize = 50)
+    {
+        try
+        {
+            var q = new List<string>();
+            if (!string.IsNullOrEmpty(deptId))   q.Add($"dept_id={Uri.EscapeDataString(deptId)}");
+            if (!string.IsNullOrEmpty(lineId))   q.Add($"line_id={Uri.EscapeDataString(lineId)}");
+            if (!string.IsNullOrEmpty(workId))   q.Add($"work_id={Uri.EscapeDataString(workId)}");
+            if (!string.IsNullOrEmpty(dateFrom)) q.Add($"date_from={Uri.EscapeDataString(dateFrom)}");
+            if (!string.IsNullOrEmpty(dateTo))   q.Add($"date_to={Uri.EscapeDataString(dateTo)}");
+            q.Add($"page={page}"); q.Add($"page_size={pageSize}");
+            var res = await _api.GetAsync_Raw("leave/admin-confirmed-leaves", string.Join("&", q));
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<AdminConfirmedLeavePagedResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new AdminConfirmedLeavePagedResponse { success = false };
+            return new AdminConfirmedLeavePagedResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new AdminConfirmedLeavePagedResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<AdminBulkDeleteResponse> AdminDeleteLeavesAsync(AdminBulkDeleteRequest request)
+    {
+        try
+        {
+            var res = await _api.PostAsync("leave/admin-delete-leaves", request);
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<AdminBulkDeleteResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new AdminBulkDeleteResponse { success = false };
+            return new AdminBulkDeleteResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new AdminBulkDeleteResponse { success = false, message = ex.Message }; }
+    }
 }

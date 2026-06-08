@@ -215,4 +215,39 @@ public class GatePassService
         }
         catch (Exception ex) { return new GpListPagedResponse { success = false, message = ex.Message, data = new() }; }
     }
+
+    public async Task<AdminConfirmedGpPagedResponse> GetAdminConfirmedGpAsync(
+        string? deptId = null, string? lineId = null, string? workId = null,
+        string? dateFrom = null, string? dateTo = null, int page = 1, int pageSize = 50)
+    {
+        try
+        {
+            var q = new List<string>();
+            if (!string.IsNullOrEmpty(deptId))   q.Add($"dept_id={Uri.EscapeDataString(deptId)}");
+            if (!string.IsNullOrEmpty(lineId))   q.Add($"line_id={Uri.EscapeDataString(lineId)}");
+            if (!string.IsNullOrEmpty(workId))   q.Add($"work_id={Uri.EscapeDataString(workId)}");
+            if (!string.IsNullOrEmpty(dateFrom)) q.Add($"date_from={Uri.EscapeDataString(dateFrom)}");
+            if (!string.IsNullOrEmpty(dateTo))   q.Add($"date_to={Uri.EscapeDataString(dateTo)}");
+            q.Add($"page={page}"); q.Add($"page_size={pageSize}");
+            var res = await _api.GetAsync_Raw("gatepass/admin-confirmed-gp", string.Join("&", q));
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<AdminConfirmedGpPagedResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new AdminConfirmedGpPagedResponse { success = false };
+            return new AdminConfirmedGpPagedResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new AdminConfirmedGpPagedResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<HR_web.Models.Leave.AdminBulkDeleteResponse> AdminDeleteGpAsync(HR_web.Models.Leave.AdminBulkDeleteRequest request)
+    {
+        try
+        {
+            var res = await _api.PostAsync("gatepass/admin-delete-gp", request);
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<HR_web.Models.Leave.AdminBulkDeleteResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new HR_web.Models.Leave.AdminBulkDeleteResponse { success = false };
+            return new HR_web.Models.Leave.AdminBulkDeleteResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new HR_web.Models.Leave.AdminBulkDeleteResponse { success = false, message = ex.Message }; }
+    }
 }

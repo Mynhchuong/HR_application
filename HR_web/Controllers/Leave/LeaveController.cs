@@ -8,11 +8,13 @@ namespace HR_web.Controllers.Leave;
 [Authorize]
 public class LeaveController : BaseController
 {
-    private readonly LeaveService _leaveService;
+    private readonly LeaveService    _leaveService;
+    private readonly GatePassService _gatePassService;
 
-    public LeaveController(LeaveService leaveService)
+    public LeaveController(LeaveService leaveService, GatePassService gatePassService)
     {
-        _leaveService = leaveService;
+        _leaveService    = leaveService;
+        _gatePassService = gatePassService;
     }
 
     // ─────────────────────────────────────────────
@@ -427,5 +429,53 @@ public class LeaveController : BaseController
             return Json(result);
         }
         catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/AdminManageRequests
+    // ─────────────────────────────────────────────
+    public IActionResult AdminManageRequests()
+    {
+        if (CurrentUser?.RoleName != "Admin") return Forbid();
+        ViewBag.CurrentEmpCd = CurrentUser.EmpCd;
+        return View();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAdminConfirmedLeaves(
+        string? dept_id = null, string? line_id = null, string? work_id = null,
+        string? date_from = null, string? date_to = null, int page = 1, int page_size = 100)
+    {
+        if (CurrentUser?.RoleName != "Admin") return Forbid();
+        var result = await _leaveService.GetAdminConfirmedLeavesAsync(dept_id, line_id, work_id, date_from, date_to, page, page_size);
+        return Json(result);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> AdminDeleteLeaves([FromBody] AdminBulkDeleteRequest model)
+    {
+        if (CurrentUser?.RoleName != "Admin") return Forbid();
+        model.ACTOR_EMPCD = CurrentUser.EmpCd ?? "";
+        var result = await _leaveService.AdminDeleteLeavesAsync(model);
+        return Json(result);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAdminConfirmedGp(
+        string? dept_id = null, string? line_id = null, string? work_id = null,
+        string? date_from = null, string? date_to = null, int page = 1, int page_size = 100)
+    {
+        if (CurrentUser?.RoleName != "Admin") return Forbid();
+        var result = await _gatePassService.GetAdminConfirmedGpAsync(dept_id, line_id, work_id, date_from, date_to, page, page_size);
+        return Json(result);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> AdminDeleteGp([FromBody] AdminBulkDeleteRequest model)
+    {
+        if (CurrentUser?.RoleName != "Admin") return Forbid();
+        model.ACTOR_EMPCD = CurrentUser.EmpCd ?? "";
+        var result = await _gatePassService.AdminDeleteGpAsync(model);
+        return Json(result);
     }
 }

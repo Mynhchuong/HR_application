@@ -339,9 +339,9 @@ function leaveBadge(t) {
 function statusBadge(item) {
     const s = item.STATUS, cs = item.CONFIRM_STATUS, src = item.SOURCE;
     if (src === 'ASSIGNED') {
-        if (s === 'ASSIGNED')        return `<span class="badge bg-info text-dark"><i class="bi bi-hourglass-split me-1"></i>Chưa tiếp nhận thông tin</span>`;
-        if (s === 'CONFIRMED')       return `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã tiếp nhận thông tin</span>`;
         if (s === 'WORKER_REJECTED') return `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Đã từ chối</span>`;
+        if (cs === 'CONFIRMED')      return `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã tiếp nhận thông tin</span>`;
+        return `<span class="badge bg-info text-dark"><i class="bi bi-hourglass-split me-1"></i>Chưa tiếp nhận thông tin</span>`;
     }
     if (s === 'PENDING')  return `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>`;
     if (s === 'APPROVED') return `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>`;
@@ -384,6 +384,7 @@ function isExpiredPending(item) {
 function actionBtns(item) {
     const s = item.STATUS;
     if (item.SOURCE === 'ASSIGNED' && s === 'ASSIGNED') {
+        if (item.CONFIRM_STATUS === 'CONFIRMED') return '<span class="text-muted text-xs">-</span>';
         if (isPastDate(item.FROM_DATE)) {
             return `<span class="text-muted text-xs"><i class="bi bi-clock-history me-1"></i>Đã quá hạn</span>`;
         }
@@ -401,7 +402,7 @@ function actionBtns(item) {
 }
 
 function buildRow(item, idx) {
-    const isAssigned  = item.SOURCE === 'ASSIGNED' && item.STATUS === 'ASSIGNED';
+    const isAssigned  = item.SOURCE === 'ASSIGNED' && item.STATUS === 'ASSIGNED' && !item.CONFIRM_STATUS;
     const needsAction = isAssigned && !isPastDate(item.TO_DATE);
     const expired     = isExpiredPending(item);
     return `<tr class="${needsAction ? 'tr-pending-confirm' : expired ? 'tr-expired-pending' : ''}">
@@ -419,7 +420,7 @@ function buildRow(item, idx) {
 
 function buildCard(item, idx) {
     const remark = remarkHtml(item);
-    const isAssigned = item.SOURCE === 'ASSIGNED' && item.STATUS === 'ASSIGNED';
+    const isAssigned = item.SOURCE === 'ASSIGNED' && item.STATUS === 'ASSIGNED' && !item.CONFIRM_STATUS;
     const isPast     = isAssigned && isPastDate(item.FROM_DATE);
     const expired    = isExpiredPending(item);
     const alertBanner = isAssigned

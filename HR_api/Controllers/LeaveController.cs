@@ -458,7 +458,9 @@ public class LeaveController : ControllerBase
 
             string sqlData = $@"
                 SELECT /*+ FIRST_ROWS({page_size}) */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY CASE WHEN T.STATUS = 'PENDING' AND T.FROM_DATE >= TRUNC(SYSDATE) THEN 0 WHEN T.STATUS = 'PENDING' AND T.FROM_DATE < TRUNC(SYSDATE) THEN 2 ELSE 1 END, T.FROM_DATE DESC) RN
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY CASE WHEN T.STATUS = 'PENDING' AND T.FROM_DATE >= TRUNC(SYSDATE) THEN 0 WHEN T.STATUS = 'PENDING' AND T.FROM_DATE < TRUNC(SYSDATE) THEN 2 ELSE 1 END,
+                                                             CASE WHEN T.REQUESTER_ROLE = 'Expat' THEN 1 WHEN T.REQUESTER_ROLE = 'Manager' THEN 2 WHEN T.REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN T.REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN T.REQUESTER_ROLE = 'HR' THEN 5 WHEN T.REQUESTER_ROLE = 'Clerk' THEN 6 WHEN T.REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                                                             T.FROM_DATE DESC) RN
                     FROM (
                         SELECT L.REQUEST_ID, L.EMPCD, EC.CNAME EMP_NAME,
                                EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
@@ -1110,7 +1112,7 @@ public class LeaveController : ControllerBase
                   AND L.SOURCE       = 'ASSIGNED'
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND L.FROM_DATE BETWEEN :D_FROM AND :D_TO
-                  AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
+                  AND (:ST_FLAG   IS NULL OR NVL(L.CONFIRM_STATUS,'ASSIGNED') = :ST_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
                   AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
                   AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
@@ -1154,7 +1156,7 @@ public class LeaveController : ControllerBase
                                EC.LINECD LINE_ID, B.TEAMNM LINE_NAME,
                                EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
                                L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS, L.REASON,
-                               R.STATUS, L.CONFIRM_DATE,
+                               R.STATUS, L.CONFIRM_STATUS, L.CONFIRM_DATE,
                                R.CREATED_BY ASSIGNED_BY, ASN.CNAME ASSIGNER_NAME,
                                R.CREATED_DATE ASSIGN_DATE
                         {fromSql}{whereSql}
@@ -1181,9 +1183,10 @@ public class LeaveController : ControllerBase
                 TO_DATE       = r["TO_DATE"]      == DBNull.Value ? null : Convert.ToDateTime(r["TO_DATE"]),
                 TOTAL_DAYS    = r["TOTAL_DAYS"]   == DBNull.Value ? null : Convert.ToDecimal(r["TOTAL_DAYS"]),
                 REASON        = r["REASON"]?.ToString(),
-                STATUS        = r["STATUS"]?.ToString(),
-                CONFIRM_DATE  = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]).ToString("yyyy-MM-ddTHH:mm:ss"),
-                ASSIGNED_BY   = r["ASSIGNED_BY"]?.ToString(),
+                STATUS         = r["STATUS"]?.ToString(),
+                CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
+                CONFIRM_DATE   = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]).ToString("yyyy-MM-ddTHH:mm:ss"),
+                ASSIGNED_BY    = r["ASSIGNED_BY"]?.ToString(),
                 ASSIGNER_NAME = r["ASSIGNER_NAME"]?.ToString(),
                 ASSIGN_DATE   = r["ASSIGN_DATE"]  == DBNull.Value ? null : Convert.ToDateTime(r["ASSIGN_DATE"]),
             }, dataParams.ToArray());
@@ -1359,7 +1362,9 @@ public class LeaveController : ControllerBase
                 JOIN HRMS.HR_REQUEST  R  ON R.REQUEST_ID = L.REQUEST_ID
                 JOIN HRMS.ECM100      EC ON EC.EMPCD     = L.EMPCD
                 LEFT JOIN HRMS.EAM410    B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-                LEFT JOIN HRMS.ECM100    AP ON AP.EMPCD  = R.FINAL_APPROVER";
+                LEFT JOIN HRMS.ECM100    AP ON AP.EMPCD  = R.FINAL_APPROVER
+                LEFT JOIN HRMS.HR_USERS  UR ON UR.EMPCD  = L.EMPCD
+                LEFT JOIN HRMS.HR_ROLES  RR ON RR.ID     = UR.ROLE_ID";
 
             string whereSql = @"
                 WHERE R.REQUEST_TYPE = 'LEAVE'
@@ -1412,7 +1417,9 @@ public class LeaveController : ControllerBase
 
             string sqlData = $@"
                 SELECT /*+ FIRST_ROWS({page_size}) */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS, T.FROM_DATE DESC) RN
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS,
+                                                             CASE WHEN T.REQUESTER_ROLE = 'Expat' THEN 1 WHEN T.REQUESTER_ROLE = 'Manager' THEN 2 WHEN T.REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN T.REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN T.REQUESTER_ROLE = 'HR' THEN 5 WHEN T.REQUESTER_ROLE = 'Clerk' THEN 6 WHEN T.REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                                                             T.FROM_DATE DESC) RN
                     FROM (
                         SELECT L.REQUEST_ID, L.EMPCD, EC.CNAME EMP_NAME,
                                EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
@@ -1420,7 +1427,8 @@ public class LeaveController : ControllerBase
                                EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
                                L.LEAVE_TYPE, L.SOURCE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS, L.REASON,
                                R.STATUS, L.CONFIRM_STATUS, L.CREATED_DATE,
-                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK
+                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK,
+                               RR.ROLE_NAME REQUESTER_ROLE
                         {fromSql}{whereSql}
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -1452,7 +1460,8 @@ public class LeaveController : ControllerBase
                 FINAL_APPROVER = r["FINAL_APPROVER"]?.ToString(),
                 APPROVER_NAME  = r["APPROVER_NAME"]?.ToString(),
                 FINAL_DATE     = r["FINAL_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
-                REMARK         = r["REMARK"]?.ToString()
+                REMARK         = r["REMARK"]?.ToString(),
+                REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString()
             }, dataParams.ToArray());
 
             return Ok(new
@@ -1464,6 +1473,290 @@ public class LeaveController : ControllerBase
                 page_size,
                 total_pages = page_size > 0 ? (int)Math.Ceiling((double)summary.TOTAL / page_size) : 0,
                 data        = list
+            });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Leave/admin-emp-list — Toàn bộ NV + phép năm còn lại (Admin)
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("admin-emp-list")]
+    public async Task<IActionResult> GetAdminEmpList(
+        string? search  = null,
+        string? dept_id = null,
+        string? line_id = null,
+        string? work_id = null)
+    {
+        try
+        {
+            var whereParts = new List<string>
+            {
+                "EC.JEAJIKGB = 'Y'",
+                "(EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))"
+            };
+            var parameters = new List<OracleParameter>();
+
+            if (!string.IsNullOrEmpty(dept_id))
+            {
+                whereParts.Add("EC.DEPTCD = :DEPT_ID");
+                parameters.Add(new OracleParameter("DEPT_ID", dept_id));
+            }
+            if (!string.IsNullOrEmpty(line_id))
+            {
+                whereParts.Add("EC.LINECD = :LINE_ID");
+                parameters.Add(new OracleParameter("LINE_ID", line_id));
+            }
+            if (!string.IsNullOrEmpty(work_id))
+            {
+                whereParts.Add("EC.WORKCD = :WORK_ID");
+                parameters.Add(new OracleParameter("WORK_ID", work_id));
+            }
+            if (!string.IsNullOrEmpty(search))
+            {
+                whereParts.Add("(UPPER(EC.CNAME) LIKE '%' || UPPER(:SEARCH) || '%' OR EC.EMPCD LIKE '%' || :SEARCH2 || '%')");
+                parameters.Add(new OracleParameter("SEARCH",  search));
+                parameters.Add(new OracleParameter("SEARCH2", search));
+            }
+
+            string whereClause = string.Join(" AND ", whereParts);
+
+            string sql = $@"
+                WITH ALLOC AS (
+                    SELECT EMPCD, MAX(RECEIVE_NUM) AS RECEIVE_NUM
+                    FROM HRMS.EFM100
+                    WHERE SUBSTR(CAL_MONTH,1,4) = TO_CHAR(SYSDATE,'YYYY')
+                    GROUP BY EMPCD
+                ),
+                USED AS (
+                    SELECT EMPCD,
+                           COUNT(CASE WHEN LEAVECD IN ('PN','LP') AND REMAR IN ('VR','ASSIGNED') THEN 1 END) AS USED_NUM
+                    FROM HRMS.EFM410
+                    WHERE TO_CHAR(FR_DAT,'YYYY') = TO_CHAR(SYSDATE,'YYYY')
+                    GROUP BY EMPCD
+                )
+                SELECT EC.EMPCD,
+                       EC.CNAME  AS EMP_NAME,
+                       EC.DEPTCD AS DEPT_ID,
+                       EA.DEPTNM AS DEPT_NAME,
+                       EC.LINECD AS LINE_ID,
+                       EA.TEAMNM AS LINE_NAME,
+                       EC.WORKCD AS WORK_ID,
+                       EA.WORKNM AS WORK_NAME,
+                       NVL(AL.RECEIVE_NUM, 0)                        AS RECEIVE_NUM,
+                       NVL(U.USED_NUM, 0)                            AS USED_NUM,
+                       NVL(AL.RECEIVE_NUM, 0) - NVL(U.USED_NUM, 0)  AS LEFT_NUM
+                FROM HRMS.ECM100 EC
+                LEFT JOIN HRMS.EAM410 EA
+                    ON EA.DEPTCD = EC.DEPTCD AND EA.LINECD = EC.LINECD AND EA.WORKCD = EC.WORKCD
+                LEFT JOIN ALLOC AL ON AL.EMPCD = EC.EMPCD
+                LEFT JOIN USED  U  ON U.EMPCD  = EC.EMPCD
+                WHERE {whereClause}
+                ORDER BY EA.DEPTNM, EA.TEAMNM, EA.WORKNM, EC.CNAME";
+
+            var list = await _oracleService.ExecuteQueryAsync(sql, r => new
+            {
+                EMPCD       = r["EMPCD"]?.ToString()    ?? "",
+                EMP_NAME    = r["EMP_NAME"]?.ToString() ?? "",
+                DEPT_ID     = r["DEPT_ID"]?.ToString(),
+                DEPT_NAME   = r["DEPT_NAME"]?.ToString(),
+                LINE_ID     = r["LINE_ID"]?.ToString(),
+                LINE_NAME   = r["LINE_NAME"]?.ToString(),
+                WORK_ID     = r["WORK_ID"]?.ToString(),
+                WORK_NAME   = r["WORK_NAME"]?.ToString(),
+                RECEIVE_NUM = r["RECEIVE_NUM"] == DBNull.Value ? 0 : Convert.ToInt32(r["RECEIVE_NUM"]),
+                USED_NUM    = r["USED_NUM"]    == DBNull.Value ? 0 : Convert.ToInt32(r["USED_NUM"]),
+                LEFT_NUM    = r["LEFT_NUM"]    == DBNull.Value ? 0 : Convert.ToInt32(r["LEFT_NUM"])
+            }, parameters.ToArray());
+
+            return Ok(new { success = true, total = list.Count, data = list });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Leave/admin-assign — Admin sắp lịch nghỉ toàn công ty
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("admin-assign")]
+    public async Task<IActionResult> AdminAssign([FromBody] LeaveAssignRequest model)
+    {
+        try
+        {
+            if (model == null || string.IsNullOrEmpty(model.ASSIGNER_EMPCD))
+                return Ok(new { success = false, message = "Thiếu thông tin người sắp lịch" });
+
+            if (model.TARGET_EMPCDS == null || model.TARGET_EMPCDS.Count == 0)
+                return Ok(new { success = false, message = "Chưa chọn nhân viên" });
+
+            if (!DateTime.TryParse(model.FROM_DATE, out DateTime fromDate) ||
+                !DateTime.TryParse(model.TO_DATE,   out DateTime toDate))
+                return Ok(new { success = false, message = "Ngày không hợp lệ" });
+
+            if (fromDate > toDate)
+                return Ok(new { success = false, message = "Ngày kết thúc phải sau ngày bắt đầu" });
+
+            if (model.TOTAL_DAYS <= 0)
+                return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
+
+            var validLeaveTypes = new[] { "AL", "CL", "SL", "NPL", "OTH" };
+            if (string.IsNullOrEmpty(model.LEAVE_TYPE) || !validLeaveTypes.Contains(model.LEAVE_TYPE))
+                model.LEAVE_TYPE = "AL";
+
+            var assignerRoleRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U
+                LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID
+                WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => r["ROLE_NAME"]?.ToString(),
+                new OracleParameter("EMPCD", model.ASSIGNER_EMPCD));
+
+            string? assignerRole = assignerRoleRows.FirstOrDefault();
+            if (!string.Equals(assignerRole, "Admin", StringComparison.OrdinalIgnoreCase))
+                return Ok(new { success = false, message = "Chỉ Admin mới có quyền sắp lịch toàn công ty" });
+
+            var leaveTypeNames = new Dictionary<string, string>
+            {
+                ["AL"] = "Phép năm", ["CL"] = "BHXH", ["SL"] = "Nghỉ bệnh",
+                ["NPL"] = "Không lương", ["OTH"] = "Khác"
+            };
+            var erpLeaveNames = new Dictionary<string, string>
+            {
+                ["SL"] = "Nghỉ bệnh", ["NPL"] = "Không lương", ["OTH"] = "Khác"
+            };
+            string erpCd         = model.LEAVE_TYPE switch { "AL" => "PN", "CL" => "BH", _ => "CP" };
+            string erpRemark     = erpCd == "CP"
+                ? "ASSIGNED " + erpLeaveNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE)
+                : "ASSIGNED";
+            string leaveTypeName = leaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE);
+
+            var results   = new List<object>();
+            var warnings  = new List<object>();
+            int successCt = 0;
+
+            foreach (var targetEmpcd in model.TARGET_EMPCDS)
+            {
+                try
+                {
+                    var empRows = await _oracleService.ExecuteQueryAsync(
+                        "SELECT CNAME FROM HRMS.ECM100 WHERE EMPCD = :EMPCD AND ROWNUM = 1",
+                        r => r["CNAME"]?.ToString(),
+                        new OracleParameter("EMPCD", targetEmpcd));
+                    string empName = empRows.FirstOrDefault() ?? "";
+
+                    if (model.LEAVE_TYPE == "AL")
+                    {
+                        var balRows = await _oracleService.ExecuteQueryAsync(@"
+                            WITH ALLOC AS (
+                                SELECT MAX(RECEIVE_NUM) AS RECEIVE_NUM
+                                FROM HRMS.EFM100
+                                WHERE EMPCD = :EMPCD
+                                  AND SUBSTR(CAL_MONTH,1,4) = TO_CHAR(SYSDATE,'YYYY')
+                            ),
+                            USED AS (
+                                SELECT COUNT(CASE WHEN LEAVECD IN ('PN','LP') AND REMAR IN ('VR','ASSIGNED') THEN 1 END) AS USED_NUM
+                                FROM HRMS.EFM410
+                                WHERE EMPCD = :EMPCD2
+                                  AND TO_CHAR(FR_DAT,'YYYY') = TO_CHAR(SYSDATE,'YYYY')
+                            )
+                            SELECT NVL(A.RECEIVE_NUM, 0) - NVL(U.USED_NUM, 0) AS LEFT_NUM
+                            FROM ALLOC A, USED U",
+                            r => r["LEFT_NUM"] == DBNull.Value ? 0 : Convert.ToInt32(r["LEFT_NUM"]),
+                            new OracleParameter("EMPCD",  targetEmpcd),
+                            new OracleParameter("EMPCD2", targetEmpcd));
+
+                        int leftNum = balRows.FirstOrDefault();
+                        if (leftNum <= 0)
+                            warnings.Add(new { empcd = targetEmpcd, emp_name = empName, left_num = leftNum });
+                    }
+
+                    await _oracleService.ExecuteNonQueryAsync(@"
+                        INSERT INTO HRMS.HR_REQUEST
+                            (REQUEST_TYPE, EMPCD, EMP_NAME, REQUEST_DATE, STATUS, CREATED_BY, CREATED_DATE)
+                        VALUES ('LEAVE', :EMPCD, :EMP_NAME, SYSDATE, 'ASSIGNED', :CREATED_BY, SYSDATE)",
+                        new OracleParameter("EMPCD",      targetEmpcd),
+                        new OracleParameter("EMP_NAME",   empName),
+                        new OracleParameter("CREATED_BY", model.ASSIGNER_EMPCD));
+
+                    var reqIds = await _oracleService.ExecuteQueryAsync(@"
+                        SELECT REQUEST_ID FROM (
+                            SELECT REQUEST_ID FROM HRMS.HR_REQUEST
+                            WHERE EMPCD = :EMPCD AND REQUEST_TYPE = 'LEAVE' AND STATUS = 'ASSIGNED'
+                              AND TRUNC(CREATED_DATE) = TRUNC(SYSDATE)
+                            ORDER BY CREATED_DATE DESC
+                        ) WHERE ROWNUM = 1",
+                        r => r["REQUEST_ID"]?.ToString(),
+                        new OracleParameter("EMPCD", targetEmpcd));
+
+                    if (reqIds.Count == 0 || string.IsNullOrEmpty(reqIds[0]))
+                    {
+                        results.Add(new { empcd = targetEmpcd, success = false, message = "Lỗi tạo REQUEST_ID" });
+                        continue;
+                    }
+
+                    string requestId = reqIds[0]!;
+
+                    await _oracleService.ExecuteNonQueryAsync(@"
+                        INSERT INTO HRMS.HR_LEAVE_REQUEST
+                            (REQUEST_ID, EMPCD, LEAVE_TYPE, FROM_DATE, TO_DATE, TOTAL_DAYS, REASON, CREATED_DATE, SOURCE)
+                        VALUES (:REQUEST_ID, :EMPCD, :LEAVE_TYPE, :FROM_DATE, :TO_DATE, :TOTAL_DAYS, :REASON, SYSDATE, 'ASSIGNED')",
+                        new OracleParameter("REQUEST_ID", requestId),
+                        new OracleParameter("EMPCD",      targetEmpcd),
+                        new OracleParameter("LEAVE_TYPE", model.LEAVE_TYPE),
+                        new OracleParameter("FROM_DATE",  fromDate),
+                        new OracleParameter("TO_DATE",    toDate),
+                        new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
+                        new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
+
+                    try
+                    {
+                        await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
+                            new OracleParameter("AS_EMPCD",   targetEmpcd),
+                            new OracleParameter("AS_LEAVECD", erpCd),
+                            new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = fromDate },
+                            new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = toDate },
+                            new OracleParameter("AS_IN_ID",   model.ASSIGNER_EMPCD),
+                            new OracleParameter("AS_REMAR",   erpRemark));
+
+                        await _oracleService.ExecuteNonQueryAsync(
+                            "UPDATE HRMS.EFM410 SET APPROVED_BY = :APPROVED_BY WHERE EMPCD = :EMPCD AND FR_DAT BETWEEN :FR_DAT AND :TO_DAT",
+                            new OracleParameter("APPROVED_BY", model.ASSIGNER_EMPCD),
+                            new OracleParameter("EMPCD",       targetEmpcd),
+                            new OracleParameter { ParameterName = "FR_DAT", OracleDbType = OracleDbType.Date, Value = fromDate },
+                            new OracleParameter { ParameterName = "TO_DAT", OracleDbType = OracleDbType.Date, Value = toDate });
+                    }
+                    catch { /* ERP failure không block assign */ }
+
+                    _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
+                    {
+                        TITLE       = "Bạn được sắp lịch nghỉ phép",
+                        BODY        = $"Lịch {leaveTypeName} {fromDate:dd/MM/yyyy} – {toDate:dd/MM/yyyy} đã được sắp. Vui lòng xác nhận.",
+                        NOTI_TYPE   = "EMPCD",
+                        TARGET_VAL  = targetEmpcd,
+                        LINK_ACTION = "LEAVE_ASSIGNED",
+                        CREATED_BY  = model.ASSIGNER_EMPCD
+                    });
+
+                    results.Add(new { empcd = targetEmpcd, success = true, request_id = requestId });
+                    successCt++;
+                }
+                catch (Exception ex)
+                {
+                    results.Add(new { empcd = targetEmpcd, success = false, message = ex.Message });
+                }
+            }
+
+            return Ok(new
+            {
+                success        = successCt > 0,
+                message        = $"Đã sắp lịch cho {successCt}/{model.TARGET_EMPCDS.Count} nhân viên",
+                total_inserted = successCt,
+                warnings,
+                results
             });
         }
         catch (Exception ex)

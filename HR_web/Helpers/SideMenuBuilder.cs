@@ -133,7 +133,8 @@ public static class SideMenuBuilder
                 Icon = "admin_panel_settings",
                 VisibleWhen = () => isAdmin,
                 Children = [
-                    new() { Title = "Quản lý Hướng dẫn", Url = "~/Guide/Manage", Icon = "menu_book" },
+                    new() { Title = "Sắp Lịch Toàn Công Ty", Url = "~/Leave/AdminAssignLeave", Icon = "event_available" },
+                    new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",           Icon = "menu_book"       },
                 ]
             },
         };

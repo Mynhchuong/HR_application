@@ -741,7 +741,7 @@ function buildMyAssignRow(item, idx) {
     const lt = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
     const lc = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
     let statusHtml;
-    if (item.STATUS === 'CONFIRMED')
+    if (item.CONFIRM_STATUS === 'CONFIRMED')
         statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã tiếp nhận thông tin</span>`;
     else
         statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chưa tiếp nhận thông tin</span>`;

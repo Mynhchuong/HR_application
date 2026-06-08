@@ -160,7 +160,7 @@ function buildRow(item, idx) {
             <div class="text-xxs text-secondary vni-font">${assignerName}</div>
         </td>
         <td class="px-2 text-sm text-nowrap text-secondary">${formatDate(item.ASSIGN_DATE)}</td>
-        <td class="text-center">${statusBadge(item.STATUS)}</td>
+        <td class="text-center">${statusBadge(item.CONFIRM_STATUS)}</td>
         <td class="px-2 text-sm text-nowrap text-secondary">${item.CONFIRM_DATE ? formatDate(item.CONFIRM_DATE) : '<span class="text-muted">-</span>'}</td>
     </tr>`;
 }

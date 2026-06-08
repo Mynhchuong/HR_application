@@ -138,11 +138,12 @@ public class LeaveAssignmentLogModel
     public DateTime? TO_DATE       { get; set; }
     public decimal?  TOTAL_DAYS    { get; set; }
     public string?   REASON        { get; set; }
-    public string?   STATUS        { get; set; }
-    public string?   CONFIRM_DATE  { get; set; }
-    public string?   ASSIGNED_BY   { get; set; }
-    public string?   ASSIGNER_NAME { get; set; }
-    public DateTime? ASSIGN_DATE   { get; set; }
+    public string?   STATUS         { get; set; }
+    public string?   CONFIRM_STATUS { get; set; }
+    public string?   CONFIRM_DATE   { get; set; }
+    public string?   ASSIGNED_BY    { get; set; }
+    public string?   ASSIGNER_NAME  { get; set; }
+    public DateTime? ASSIGN_DATE    { get; set; }
 }
 
 public class LeaveScheduleModel

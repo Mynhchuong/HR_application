@@ -362,6 +362,52 @@ public class LeaveController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET: /Leave/AdminAssignLeave
+    // ─────────────────────────────────────────────
+    public IActionResult AdminAssignLeave()
+    {
+        if (CurrentUser?.RoleName != "Admin")
+            return Forbid();
+        ViewBag.CurrentEmpCd = CurrentUser.EmpCd;
+        return View();
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/GetAdminEmpList (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetAdminEmpList(
+        string? search = null, string? dept_id = null,
+        string? line_id = null, string? work_id = null)
+    {
+        try
+        {
+            if (CurrentUser?.RoleName != "Admin")
+                return Json(new { success = false, message = "Không có quyền truy cập" });
+            var result = await _leaveService.GetAdminEmpListAsync(search, dept_id, line_id, work_id);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
+    // POST: /Leave/AdminAssign (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> AdminAssign([FromBody] LeaveAssignRequest model)
+    {
+        try
+        {
+            if (CurrentUser?.RoleName != "Admin")
+                return Json(new { success = false, message = "Không có quyền truy cập" });
+            model.ASSIGNER_EMPCD = CurrentUser.EmpCd;
+            var result = await _leaveService.AdminAssignAsync(model);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
     // GET: /Leave/GetHRListPage (AJAX)
     // ─────────────────────────────────────────────
     [HttpGet]

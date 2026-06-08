@@ -128,11 +128,12 @@ public class LeaveAssignmentLogModel
     public DateTime? TO_DATE       { get; set; }
     public decimal?  TOTAL_DAYS    { get; set; }
     public string?   REASON        { get; set; }
-    public string?   STATUS        { get; set; }
-    public string?   CONFIRM_DATE  { get; set; }
-    public string?   ASSIGNED_BY   { get; set; }
-    public string?   ASSIGNER_NAME { get; set; }
-    public DateTime? ASSIGN_DATE   { get; set; }
+    public string?   STATUS         { get; set; }
+    public string?   CONFIRM_STATUS { get; set; }
+    public string?   CONFIRM_DATE   { get; set; }
+    public string?   ASSIGNED_BY    { get; set; }
+    public string?   ASSIGNER_NAME  { get; set; }
+    public DateTime? ASSIGN_DATE    { get; set; }
 }
 
 public class LeaveAssignmentLogPagedResponse
@@ -209,4 +210,42 @@ public class LeaveCreateRequest
     public string  TO_DATE    { get; set; } = string.Empty;
     public decimal TOTAL_DAYS { get; set; }
     public string? REASON     { get; set; }
+}
+
+public class AdminEmpModel
+{
+    public string  EMPCD       { get; set; } = string.Empty;
+    public string? EMP_NAME    { get; set; }
+    public string? DEPT_ID     { get; set; }
+    public string? DEPT_NAME   { get; set; }
+    public string? LINE_ID     { get; set; }
+    public string? LINE_NAME   { get; set; }
+    public string? WORK_ID     { get; set; }
+    public string? WORK_NAME   { get; set; }
+    public int     RECEIVE_NUM { get; set; }
+    public int     USED_NUM    { get; set; }
+    public int     LEFT_NUM    { get; set; }
+}
+
+public class AdminEmpListResponse
+{
+    public bool   success { get; set; }
+    public string? message { get; set; }
+    public int    total   { get; set; }
+    public List<AdminEmpModel> data { get; set; } = new();
+}
+
+public class AdminAssignWarning
+{
+    public string? empcd    { get; set; }
+    public string? emp_name { get; set; }
+    public int     left_num { get; set; }
+}
+
+public class AdminAssignResponse
+{
+    public bool   success        { get; set; }
+    public string? message       { get; set; }
+    public int    total_inserted { get; set; }
+    public List<AdminAssignWarning> warnings { get; set; } = new();
 }

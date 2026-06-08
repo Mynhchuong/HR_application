@@ -311,4 +311,42 @@ public class LeaveService
         }
         catch (Exception ex) { return new { success = false, message = ex.Message }; }
     }
+
+    public async Task<AdminEmpListResponse> GetAdminEmpListAsync(
+        string? search = null, string? deptId = null, string? lineId = null, string? workId = null)
+    {
+        try
+        {
+            var q = new List<string>();
+            if (!string.IsNullOrEmpty(search))  q.Add($"search={Uri.EscapeDataString(search)}");
+            if (!string.IsNullOrEmpty(deptId))  q.Add($"dept_id={Uri.EscapeDataString(deptId)}");
+            if (!string.IsNullOrEmpty(lineId))  q.Add($"line_id={Uri.EscapeDataString(lineId)}");
+            if (!string.IsNullOrEmpty(workId))  q.Add($"work_id={Uri.EscapeDataString(workId)}");
+            var response = await _api.GetAsync_Raw("leave/admin-emp-list", string.Join("&", q));
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json   = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<AdminEmpListResponse>(json);
+                if (result != null) return result;
+            }
+            return new AdminEmpListResponse { success = false, message = "Lỗi kết nối API", data = new() };
+        }
+        catch (Exception ex) { return new AdminEmpListResponse { success = false, message = ex.Message, data = new() }; }
+    }
+
+    public async Task<AdminAssignResponse> AdminAssignAsync(LeaveAssignRequest request)
+    {
+        try
+        {
+            var response = await _api.PostAsync("leave/admin-assign", request);
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<AdminAssignResponse>(json)
+                       ?? new AdminAssignResponse { success = false, message = "Lỗi parse response" };
+            }
+            return new AdminAssignResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new AdminAssignResponse { success = false, message = ex.Message }; }
+    }
 }

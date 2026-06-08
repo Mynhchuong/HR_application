@@ -1,0 +1,463 @@
+@{
+    ViewData["Title"] = "Sắp Lịch Nghỉ Phép Toàn Công Ty";
+    string adminEmpCd = ViewBag.CurrentEmpCd ?? "";
+}
+
+@section Styles {
+<style>
+    .emp-list-wrap { max-height:420px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; background:#fafafa; }
+    .emp-item { display:flex; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background .15s; }
+    .emp-item:last-child { border-bottom:none; }
+    .emp-item:hover { background:#f0f7ff; }
+    .emp-item.selected { background:#eff6ff !important; }
+    .emp-item.leave-empty  { background:#fff5f5; }
+    .emp-item.leave-empty:hover, .emp-item.leave-empty.selected { background:#fed7d7 !important; }
+    .emp-item.leave-low    { background:#fffbeb; }
+    .emp-item.leave-low:hover, .emp-item.leave-low.selected { background:#fde68a !important; }
+    .emp-item.leave-ok     { background:#f0fdf4; }
+    .emp-item.leave-ok:hover, .emp-item.leave-ok.selected  { background:#bbf7d0 !important; }
+    .emp-item input[type=checkbox] { width:16px; height:16px; accent-color:#6366f1; flex-shrink:0; cursor:pointer; }
+    .emp-info { display:flex; flex-direction:column; min-width:0; flex:1; }
+    .emp-name { font-size:.85rem; font-weight:600; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:'Vnitbi__',system-ui,sans-serif; }
+    .emp-sub  { font-size:.72rem; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .emp-code { font-size:.73rem; color:#94a3b8; font-family:monospace; flex-shrink:0; }
+    .leave-badge { font-size:.67rem; font-weight:700; padding:2px 7px; border-radius:10px; flex-shrink:0; white-space:nowrap; }
+    .badge-empty { background:#fee2e2; color:#b91c1c; }
+    .badge-low   { background:#fef3c7; color:#92400e; }
+    .badge-ok    { background:#dcfce7; color:#15803d; }
+    .sel-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .result-item { padding:6px 10px; border-radius:6px; margin-bottom:4px; font-size:.82rem; }
+    .result-item.ok  { background:#ecfdf5; border-left:3px solid #10b981; color:#065f46; }
+    .result-item.err { background:#fff0f0; border-left:3px solid #ef4444; color:#7f1d1d; }
+    .warn-item { padding:8px 12px; border-radius:6px; margin-bottom:5px; font-size:.83rem; background:#fffbeb; border-left:3px solid #f59e0b; color:#78350f; }
+    #empCount { font-size:.82rem; color:#64748b; }
+    .form-label { font-size:.82rem; font-weight:600; color:#374151; margin-bottom:4px; }
+    .filter-label { font-size:.78rem; font-weight:600; color:#6b7280; margin-bottom:3px; }
+    .section-header { display:flex; align-items:center; gap:6px; font-size:.88rem; font-weight:700; color:#fff; }
+</style>
+}
+
+<div class="row g-3">
+    <!-- ── LEFT: Filter + Employee list ─────────────────────────── -->
+    <div class="col-lg-7">
+        <!-- Filter card -->
+        <div class="card mb-3">
+            <div class="card-body pb-2">
+                <div class="row g-2 mb-2">
+                    <div class="col-12">
+                        <label class="filter-label">Tìm kiếm theo Mã NV</label>
+                        <input type="text" id="filterSearch" class="form-control form-control-sm"
+                               placeholder="Nhập mã nhân viên..." oninput="applyFilter()">
+                    </div>
+                    <div class="col-sm-4">
+                        <label class="filter-label">Phòng ban</label>
+                        <select id="filterDept" class="form-select form-select-sm" onchange="onDeptChange()">
+                            <option value="">-- Tất cả --</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-4">
+                        <label class="filter-label">Chuyền</label>
+                        <select id="filterLine" class="form-select form-select-sm" onchange="onLineChange()">
+                            <option value="">-- Tất cả --</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-4">
+                        <label class="filter-label">Tổ</label>
+                        <select id="filterWork" class="form-select form-select-sm" onchange="applyFilter()">
+                            <option value="">-- Tất cả --</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Employee list card -->
+        <div class="card">
+            <div class="card-header py-2">
+                <div class="sel-bar">
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" id="chkSelectAll" onchange="toggleSelectAll(this)">
+                        <label class="form-check-label" for="chkSelectAll" style="font-size:.82rem;font-weight:600;">Chọn tất cả</label>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="deselectAll()">Bỏ tất cả</button>
+                    <span class="badge bg-primary rounded-pill" id="selCount">0</span>
+                    <span style="font-size:.82rem;">đã chọn</span>
+                    <span class="ms-auto text-muted" id="empCount"></span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="empListWrap" class="emp-list-wrap">
+                    <div class="text-center py-5 text-muted" id="empLoadingMsg">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        Đang tải danh sách nhân viên...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── RIGHT: Leave form ─────────────────────────────────────── -->
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header py-2" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);">
+                <div class="section-header">
+                    <span class="material-symbols-rounded" style="font-size:1.1rem;">event_available</span>
+                    Thông tin sắp lịch
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Loại phép</label>
+                    <select id="leaveType" class="form-select form-select-sm">
+                        <option value="AL">Phép năm (AL)</option>
+                        <option value="CL">BHXH (CL)</option>
+                        <option value="SL">Nghỉ bệnh (SL)</option>
+                        <option value="NPL">Không lương (NPL)</option>
+                        <option value="OTH">Khác (OTH)</option>
+                    </select>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Từ ngày</label>
+                        <input type="date" id="fromDate" class="form-control form-control-sm" onchange="autoCalcDays()">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Đến ngày</label>
+                        <input type="date" id="toDate" class="form-control form-control-sm" onchange="autoCalcDays()">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Số ngày nghỉ</label>
+                    <input type="number" id="totalDays" class="form-control form-control-sm" min="0.5" step="0.5" placeholder="Nhập số ngày">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Lý do</label>
+                    <textarea id="reason" class="form-control form-control-sm" rows="3" placeholder="Nghỉ lễ toàn công ty..."></textarea>
+                </div>
+
+                <button id="btnSubmit" class="btn btn-primary w-100" disabled onclick="submitAssign()">
+                    <span class="material-symbols-rounded align-middle me-1" style="font-size:1rem;vertical-align:middle;">send</span>
+                    Sắp lịch nghỉ
+                </button>
+                <div id="submitInfo" class="text-center mt-2 text-muted" style="font-size:.78rem;">
+                    Chọn nhân viên để kích hoạt nút sắp lịch
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Warning modal -->
+<div class="modal fade" id="warningModal" tabindex="-1" aria-labelledby="warningModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#fef3c7;border-bottom:1px solid #fde68a;">
+                <h5 class="modal-title" id="warningModalLabel" style="color:#92400e;font-size:.92rem;display:flex;align-items:center;gap:6px;">
+                    <span class="material-symbols-rounded" style="font-size:1.1rem;color:#f59e0b;">warning</span>
+                    Cảnh báo — Nhân viên hết phép năm
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:.83rem;color:#6b7280;margin-bottom:.75rem;">
+                    Các nhân viên dưới đây đã hết phép năm nhưng vẫn được sắp lịch thành công:
+                </p>
+                <div id="warningList"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đã hiểu</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Result modal -->
+<div class="modal fade" id="resultModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h5 class="modal-title" style="font-size:.95rem;" id="resultModalTitle">Kết quả sắp lịch</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="resultList"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">Xong</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const ADMIN_EMPCD = '@adminEmpCd';
+    let allEmps     = [];
+    let filtered    = [];
+    let selectedSet = new Set();
+
+    // ─── Vietnamese accent removal for fuzzy search ───────────────
+    function removeAccents(str) {
+        return (str || '')
+            .normalize('NFD')
+            .replace(/[̀-ͯ]/g, '')
+            .replace(/đ/g, 'd').replace(/Đ/g, 'd');
+    }
+
+    // ─── Load all employees on page load ─────────────────────────
+    window.addEventListener('DOMContentLoaded', () => {
+        const today = new Date();
+        document.getElementById('fromDate').value = today.toISOString().slice(0, 10);
+        document.getElementById('toDate').value   = today.toISOString().slice(0, 10);
+        loadEmps();
+    });
+
+    async function loadEmps() {
+        try {
+            const res  = await fetch('/Leave/GetAdminEmpList');
+            const data = await res.json();
+            if (!data.success) { showEmpError(data.message); return; }
+            allEmps = data.data || [];
+            buildDropdowns();
+            applyFilter();
+        } catch (e) {
+            showEmpError('Lỗi kết nối: ' + e.message);
+        }
+    }
+
+    function showEmpError(msg) {
+        document.getElementById('empListWrap').innerHTML =
+            `<div class="text-center py-4 text-danger" style="font-size:.83rem;">${msg}</div>`;
+    }
+
+    // ─── Build dept/line/work dropdowns from loaded data ─────────
+    function buildDropdowns() {
+        const depts = [...new Map(allEmps.filter(e => e.DEPT_ID)
+            .map(e => [e.DEPT_ID, { id: e.DEPT_ID, name: e.DEPT_NAME || e.DEPT_ID }])).values()];
+        const selDept = document.getElementById('filterDept');
+        selDept.innerHTML = '<option value="">-- Tất cả --</option>';
+        depts.forEach(d => selDept.innerHTML += `<option value="${d.id}">${d.name}</option>`);
+    }
+
+    function onDeptChange() {
+        const dept  = document.getElementById('filterDept').value;
+        const lines = [...new Map(allEmps.filter(e => e.LINE_ID && (!dept || e.DEPT_ID === dept))
+            .map(e => [e.LINE_ID, { id: e.LINE_ID, name: e.LINE_NAME || e.LINE_ID }])).values()];
+        const selLine = document.getElementById('filterLine');
+        selLine.innerHTML = '<option value="">-- Tất cả --</option>';
+        lines.forEach(l => selLine.innerHTML += `<option value="${l.id}">${l.name}</option>`);
+        onLineChange();
+    }
+
+    function onLineChange() {
+        const dept  = document.getElementById('filterDept').value;
+        const line  = document.getElementById('filterLine').value;
+        const works = [...new Map(allEmps.filter(e => e.WORK_ID && (!dept || e.DEPT_ID === dept) && (!line || e.LINE_ID === line))
+            .map(e => [e.WORK_ID, { id: e.WORK_ID, name: e.WORK_NAME || e.WORK_ID }])).values()];
+        const selWork = document.getElementById('filterWork');
+        selWork.innerHTML = '<option value="">-- Tất cả --</option>';
+        works.forEach(w => selWork.innerHTML += `<option value="${w.id}">${w.name}</option>`);
+        applyFilter();
+    }
+
+    // ─── Filter (search both code + name, Vietnamese-aware) ──────
+    function applyFilter() {
+        const raw  = (document.getElementById('filterSearch').value || '').trim();
+        const qNorm = removeAccents(raw).toLowerCase();
+        const dept = document.getElementById('filterDept').value;
+        const line = document.getElementById('filterLine').value;
+        const work = document.getElementById('filterWork').value;
+
+        filtered = allEmps.filter(e => {
+            if (dept && e.DEPT_ID !== dept) return false;
+            if (line && e.LINE_ID !== line) return false;
+            if (work && e.WORK_ID !== work) return false;
+            if (qNorm) {
+                const byCode = (e.EMPCD || '').toLowerCase().includes(qNorm);
+                if (!byCode) return false;
+            }
+            return true;
+        });
+
+        renderEmpList();
+        updateCounts();
+        syncSelectAllCheckbox();
+    }
+
+    function renderEmpList() {
+        const wrap = document.getElementById('empListWrap');
+        if (filtered.length === 0) {
+            wrap.innerHTML = '<div class="text-center py-4 text-muted" style="font-size:.83rem;">Không tìm thấy nhân viên phù hợp</div>';
+            return;
+        }
+
+        let html = '';
+        filtered.forEach(e => {
+            const left    = e.LEFT_NUM;
+            const cls     = left > 3 ? 'leave-ok' : left > 0 ? 'leave-low' : 'leave-empty';
+            const badgeCls = left > 3 ? 'badge-ok' : left > 0 ? 'badge-low' : 'badge-empty';
+            const badgeTxt = left <= 0 ? 'Hết phép' : `${left} ngày`;
+            const chk     = selectedSet.has(e.EMPCD) ? 'checked' : '';
+            const selCls  = selectedSet.has(e.EMPCD) ? ' selected' : '';
+            const subTxt  = [e.DEPT_NAME, e.LINE_NAME, e.WORK_NAME].filter(Boolean).join(' / ');
+            html += `
+            <div class="emp-item ${cls}${selCls}" data-empcd="${e.EMPCD}" onclick="toggleEmp('${e.EMPCD}')">
+                <input type="checkbox" ${chk} onclick="event.stopPropagation(); toggleEmp('${e.EMPCD}')">
+                <div class="emp-info">
+                    <span class="emp-name">${e.EMP_NAME || ''}</span>
+                    <span class="emp-sub">${subTxt}</span>
+                </div>
+                <span class="emp-code">${e.EMPCD}</span>
+                <span class="leave-badge ${badgeCls}">${badgeTxt}</span>
+            </div>`;
+        });
+        wrap.innerHTML = html;
+    }
+
+    function toggleEmp(empcd) {
+        if (selectedSet.has(empcd)) selectedSet.delete(empcd);
+        else selectedSet.add(empcd);
+        renderEmpList();
+        updateCounts();
+        syncSelectAllCheckbox();
+    }
+
+    function toggleSelectAll(chk) {
+        if (chk.checked) filtered.forEach(e => selectedSet.add(e.EMPCD));
+        else             filtered.forEach(e => selectedSet.delete(e.EMPCD));
+        renderEmpList();
+        updateCounts();
+    }
+
+    function deselectAll() {
+        selectedSet.clear();
+        renderEmpList();
+        updateCounts();
+        document.getElementById('chkSelectAll').checked = false;
+    }
+
+    function syncSelectAllCheckbox() {
+        const total     = filtered.length;
+        const selInView = filtered.filter(e => selectedSet.has(e.EMPCD)).length;
+        const chk = document.getElementById('chkSelectAll');
+        chk.checked       = total > 0 && selInView === total;
+        chk.indeterminate = selInView > 0 && selInView < total;
+    }
+
+    function updateCounts() {
+        document.getElementById('selCount').textContent = selectedSet.size;
+        document.getElementById('empCount').textContent = `(hiển thị ${filtered.length} / tổng ${allEmps.length} NV)`;
+        const btn = document.getElementById('btnSubmit');
+        const inf = document.getElementById('submitInfo');
+        btn.disabled    = selectedSet.size === 0;
+        inf.textContent = selectedSet.size > 0
+            ? `Sẽ sắp lịch cho ${selectedSet.size} nhân viên`
+            : 'Chọn nhân viên để kích hoạt nút sắp lịch';
+    }
+
+    // ─── Auto-calc days from date range ──────────────────────────
+    function autoCalcDays() {
+        const from = document.getElementById('fromDate').value;
+        const to   = document.getElementById('toDate').value;
+        if (!from || !to) return;
+        const ms = new Date(to) - new Date(from);
+        if (ms >= 0) document.getElementById('totalDays').value = Math.round(ms / 86400000) + 1;
+    }
+
+    // ─── Submit ──────────────────────────────────────────────────
+    async function submitAssign() {
+        const fromDate  = document.getElementById('fromDate').value;
+        const toDate    = document.getElementById('toDate').value;
+        const totalDays = parseFloat(document.getElementById('totalDays').value);
+        const leaveType = document.getElementById('leaveType').value;
+        const reason    = document.getElementById('reason').value.trim() || null;
+
+        if (!fromDate || !toDate)             { alert('Vui lòng chọn ngày bắt đầu và kết thúc.'); return; }
+        if (isNaN(totalDays) || totalDays <= 0) { alert('Số ngày nghỉ không hợp lệ.'); return; }
+        if (selectedSet.size === 0)           { alert('Chưa chọn nhân viên.'); return; }
+
+        const btn = document.getElementById('btnSubmit');
+        btn.disabled  = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang xử lý...';
+
+        try {
+            const payload = {
+                ASSIGNER_EMPCD: ADMIN_EMPCD,
+                TARGET_EMPCDS:  [...selectedSet],
+                FROM_DATE:      fromDate,
+                TO_DATE:        toDate,
+                TOTAL_DAYS:     totalDays,
+                LEAVE_TYPE:     leaveType,
+                REASON:         reason
+            };
+
+            const res  = await fetch('/Leave/AdminAssign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+
+            btn.disabled  = false;
+            btn.innerHTML = '<span class="material-symbols-rounded align-middle me-1" style="font-size:1rem;vertical-align:middle;">send</span> Sắp lịch nghỉ';
+
+            if (data.success) {
+                selectedSet.clear();
+                renderEmpList();
+                updateCounts();
+                loadEmps();
+            }
+
+            showResults(data);
+
+            if (data.warnings && data.warnings.length > 0) {
+                setTimeout(() => showWarnings(data.warnings), 400);
+            }
+
+        } catch (e) {
+            btn.disabled  = false;
+            btn.innerHTML = '<span class="material-symbols-rounded align-middle me-1" style="font-size:1rem;vertical-align:middle;">send</span> Sắp lịch nghỉ';
+            alert('Lỗi kết nối: ' + e.message);
+        }
+    }
+
+    function showWarnings(warnings) {
+        let html = '';
+        warnings.forEach(w => {
+            html += `<div class="warn-item">
+                <span class="vni-font" style="font-weight:600;">${w.emp_name || ''}</span>
+                <span class="text-muted ms-1">(${w.empcd})</span>
+                <span class="ms-2" style="font-size:.78rem;">— Phép còn lại: <strong>${w.left_num} ngày</strong></span>
+            </div>`;
+        });
+        document.getElementById('warningList').innerHTML = html;
+        new bootstrap.Modal(document.getElementById('warningModal')).show();
+    }
+
+    function showResults(data) {
+        const isOk = data.success;
+        document.getElementById('resultModalTitle').innerHTML = isOk
+            ? `<span class="text-success">✓ Hoàn thành — đã sắp lịch cho ${data.total_inserted} nhân viên</span>`
+            : `<span class="text-danger">✗ Lỗi: ${data.message}</span>`;
+
+        let html = '';
+        if (data.message) {
+            html += `<div class="alert alert-${isOk ? 'success' : 'danger'} py-2 mb-3" style="font-size:.83rem;">${data.message}</div>`;
+        }
+        if (data.warnings && data.warnings.length > 0) {
+            html += `<div class="alert alert-warning py-2 mb-3" style="font-size:.83rem;">
+                <strong>${data.warnings.length} nhân viên</strong> hết phép năm đã được sắp lịch. Xem chi tiết trong cửa sổ cảnh báo.
+            </div>`;
+        }
+        if (data.results && data.results.length > 0) {
+            data.results.forEach(r => {
+                html += `<div class="result-item ${r.success ? 'ok' : 'err'}">
+                    <strong>${r.empcd}</strong> — ${r.success ? 'Sắp lịch thành công' : (r.message || 'Lỗi')}
+                </div>`;
+            });
+        }
+        document.getElementById('resultList').innerHTML = html;
+        new bootstrap.Modal(document.getElementById('resultModal')).show();
+    }
+</script>
+}

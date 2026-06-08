@@ -235,7 +235,9 @@ public class OTController : ControllerBase
                 JOIN HRMS.EBM100 S  ON S.SHIFTCD = OT.SHIFTCD
                 LEFT JOIN HRMS.EAM410        B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
                 LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD  = OT.EMPCD  AND R.WORK_DATE = :WORK_DATE3
-                                               AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)";
+                                               AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
+                LEFT JOIN HRMS.HR_USERS      UR ON UR.EMPCD = OT.EMPCD
+                LEFT JOIN HRMS.HR_ROLES      RR ON RR.ID    = UR.ROLE_ID";
 
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
@@ -290,12 +292,15 @@ public class OTController : ControllerBase
             // 2. Paged data
             string sqlData = withSql + @"
                 SELECT /*+ FIRST_ROWS(" + page_size + @") */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.CONFIRM_STATUS, T.LINE_ID, T.EMPCD) RN
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.CONFIRM_STATUS,
+                                                             CASE WHEN T.REQUESTER_ROLE = 'Expat' THEN 1 WHEN T.REQUESTER_ROLE = 'Manager' THEN 2 WHEN T.REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN T.REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN T.REQUESTER_ROLE = 'HR' THEN 5 WHEN T.REQUESTER_ROLE = 'Clerk' THEN 6 WHEN T.REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                                                             T.LINE_ID, T.EMPCD) RN
                     FROM (
                         SELECT OT.EMPCD, EC.CNAME EMP_NAME, EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
                                EC.LINECD LINE_ID, B.TEAMNM LINE_NAME, EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
                                OT.OT_HOURS, OT.OT_BEFORE, OT.OT_BEFORE_TIME, OT.OT_AFTER, OT.OT_AFTER_TIME,
-                               S.STIME, S.ETIME, NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE
+                               S.STIME, S.ETIME, NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE,
+                               RR.ROLE_NAME REQUESTER_ROLE
                         " + fromSql + whereSql + @"
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -462,7 +467,9 @@ public class OTController : ControllerBase
                 JOIN      HRMS.ECM100        EC ON EC.EMPCD  = OT.EMPCD
                 JOIN      HRMS.EBM100         S ON S.SHIFTCD = OT.SHIFTCD
                 LEFT JOIN HRMS.EAM410         B ON B.DEPTCD  = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-                LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD   = OT.EMPCD  AND R.WORK_DATE = :W_DATE3 AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)";
+                LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD   = OT.EMPCD  AND R.WORK_DATE = :W_DATE3 AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
+                LEFT JOIN HRMS.HR_USERS       UR ON UR.EMPCD  = OT.EMPCD
+                LEFT JOIN HRMS.HR_ROLES       RR ON RR.ID     = UR.ROLE_ID";
 
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
@@ -524,14 +531,17 @@ public class OTController : ControllerBase
             // 2. GET PAGED DATA
             string sqlData = withSql + @"
                 SELECT /*+ FIRST_ROWS(" + page_size + @") */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY CONFIRM_STATUS, DEPT_ID, LINE_ID, EMPCD) RN
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY CONFIRM_STATUS,
+                                                             CASE WHEN REQUESTER_ROLE = 'Expat' THEN 1 WHEN REQUESTER_ROLE = 'Manager' THEN 2 WHEN REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN REQUESTER_ROLE = 'HR' THEN 5 WHEN REQUESTER_ROLE = 'Clerk' THEN 6 WHEN REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                                                             DEPT_ID, LINE_ID, EMPCD) RN
                     FROM (
                         SELECT
                             OT.EMPCD, OT.DAT, OT.SHIFTCD, OT.OT_HOURS, OT.OT_BEFORE, OT.OT_BEFORE_TIME, OT.OT_AFTER, OT.OT_AFTER_TIME,
                             EC.CNAME EMP_NAME, EC.DEPTCD DEPT_ID, EC.LINECD LINE_ID, EC.WORKCD WORK_ID,
                             B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                             S.STIME, S.ETIME,
-                            NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE
+                            NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE,
+                            RR.ROLE_NAME REQUESTER_ROLE
                         " + fromSql + whereSql + @"
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -666,7 +676,9 @@ public class OTController : ControllerBase
                 JOIN      HRMS.EBM100        S ON S.SHIFTCD = OT.SHIFTCD
                 LEFT JOIN HRMS.EAM410        B ON B.DEPTCD  = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
                 LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD   = OT.EMPCD  AND R.WORK_DATE = :W_DATE3
-                                               AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)";
+                                               AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
+                LEFT JOIN HRMS.HR_USERS      UR ON UR.EMPCD  = OT.EMPCD
+                LEFT JOIN HRMS.HR_ROLES      RR ON RR.ID     = UR.ROLE_ID";
 
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
@@ -720,13 +732,16 @@ public class OTController : ControllerBase
             // 5. Paged data
             string sqlData = withSql + @"
                 SELECT /*+ FIRST_ROWS(" + page_size + @") */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY CONFIRM_STATUS, DEPT_ID, LINE_ID, EMPCD) RN
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY CONFIRM_STATUS,
+                                                             CASE WHEN REQUESTER_ROLE = 'Expat' THEN 1 WHEN REQUESTER_ROLE = 'Manager' THEN 2 WHEN REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN REQUESTER_ROLE = 'HR' THEN 5 WHEN REQUESTER_ROLE = 'Clerk' THEN 6 WHEN REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                                                             DEPT_ID, LINE_ID, EMPCD) RN
                     FROM (
                         SELECT OT.EMPCD, OT.DAT, OT.SHIFTCD, OT.OT_HOURS, OT.OT_BEFORE, OT.OT_BEFORE_TIME, OT.OT_AFTER, OT.OT_AFTER_TIME,
                                EC.CNAME EMP_NAME, EC.DEPTCD DEPT_ID, EC.LINECD LINE_ID, EC.WORKCD WORK_ID,
                                B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                                S.STIME, S.ETIME,
-                               NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE
+                               NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE,
+                               RR.ROLE_NAME REQUESTER_ROLE
                         " + fromSql + whereSql + @"
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";

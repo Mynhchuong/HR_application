@@ -458,7 +458,9 @@ public class GatePassController : ControllerBase
 
             string sqlData = @"
                 SELECT /*+ FIRST_ROWS(" + page_size + @") */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS, T.EMPCD) RN
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS,
+                                                             CASE WHEN T.REQUESTER_ROLE = 'Expat' THEN 1 WHEN T.REQUESTER_ROLE = 'Manager' THEN 2 WHEN T.REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN T.REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN T.REQUESTER_ROLE = 'HR' THEN 5 WHEN T.REQUESTER_ROLE = 'Clerk' THEN 6 WHEN T.REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                                                             T.EMPCD) RN
                     FROM (
                         SELECT GP.REQUEST_ID, GP.EMPCD, EC.CNAME EMP_NAME,
                                EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
@@ -778,7 +780,9 @@ END;";
                 JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID  = GP.REQUEST_ID
                 JOIN HRMS.ECM100    EC  ON EC.EMPCD       = GP.EMPCD
                 LEFT JOIN HRMS.EAM410 B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-                LEFT JOIN HRMS.ECM100 AP ON AP.EMPCD = R.FINAL_APPROVER";
+                LEFT JOIN HRMS.ECM100    AP ON AP.EMPCD = R.FINAL_APPROVER
+                LEFT JOIN HRMS.HR_USERS  UR ON UR.EMPCD = GP.EMPCD
+                LEFT JOIN HRMS.HR_ROLES  RR ON RR.ID    = UR.ROLE_ID";
 
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
@@ -829,7 +833,9 @@ END;";
 
             string sqlData = @"
                 SELECT /*+ FIRST_ROWS(" + page_size + @") */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS, T.EMPCD) RN
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS,
+                                                             CASE WHEN T.REQUESTER_ROLE = 'Expat' THEN 1 WHEN T.REQUESTER_ROLE = 'Manager' THEN 2 WHEN T.REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN T.REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN T.REQUESTER_ROLE = 'HR' THEN 5 WHEN T.REQUESTER_ROLE = 'Clerk' THEN 6 WHEN T.REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                                                             T.EMPCD) RN
                     FROM (
                         SELECT GP.REQUEST_ID, GP.EMPCD, EC.CNAME EMP_NAME,
                                EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
@@ -837,7 +843,8 @@ END;";
                                EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
                                GP.GP_TYPE, GP.OUT_TIME, GP.IN_TIME, GP.REASON,
                                R.STATUS, GP.CREATED_DATE,
-                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK
+                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK,
+                               RR.ROLE_NAME REQUESTER_ROLE
                         " + fromSql + whereSql + @"
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -866,7 +873,8 @@ END;";
                 FINAL_APPROVER = r["FINAL_APPROVER"]?.ToString(),
                 APPROVER_NAME  = r["APPROVER_NAME"]?.ToString(),
                 FINAL_DATE     = r["FINAL_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
-                REMARK         = r["REMARK"]?.ToString()
+                REMARK         = r["REMARK"]?.ToString(),
+                REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString()
             }, dataParams.ToArray());
 
             return Ok(new
@@ -914,7 +922,9 @@ END;";
                 JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID  = GP.REQUEST_ID
                 JOIN HRMS.ECM100    EC  ON EC.EMPCD       = GP.EMPCD
                 LEFT JOIN HRMS.EAM410 B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-                LEFT JOIN HRMS.ECM100 AP ON AP.EMPCD = R.FINAL_APPROVER";
+                LEFT JOIN HRMS.ECM100    AP ON AP.EMPCD = R.FINAL_APPROVER
+                LEFT JOIN HRMS.HR_USERS  UR ON UR.EMPCD = GP.EMPCD
+                LEFT JOIN HRMS.HR_ROLES  RR ON RR.ID    = UR.ROLE_ID";
 
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
@@ -963,7 +973,9 @@ END;";
 
             string sqlData = @"
                 SELECT /*+ FIRST_ROWS(" + page_size + @") */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS, T.EMPCD) RN
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS,
+                                                             CASE WHEN T.REQUESTER_ROLE = 'Expat' THEN 1 WHEN T.REQUESTER_ROLE = 'Manager' THEN 2 WHEN T.REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN T.REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN T.REQUESTER_ROLE = 'HR' THEN 5 WHEN T.REQUESTER_ROLE = 'Clerk' THEN 6 WHEN T.REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                                                             T.EMPCD) RN
                     FROM (
                         SELECT GP.REQUEST_ID, GP.EMPCD, EC.CNAME EMP_NAME,
                                EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
@@ -971,7 +983,8 @@ END;";
                                EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
                                GP.GP_TYPE, GP.OUT_TIME, GP.IN_TIME, GP.REASON,
                                R.STATUS, GP.CREATED_DATE,
-                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK
+                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK,
+                               RR.ROLE_NAME REQUESTER_ROLE
                         " + fromSql + whereSql + @"
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -1000,7 +1013,8 @@ END;";
                 FINAL_APPROVER = r["FINAL_APPROVER"]?.ToString(),
                 APPROVER_NAME  = r["APPROVER_NAME"]?.ToString(),
                 FINAL_DATE     = r["FINAL_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
-                REMARK         = r["REMARK"]?.ToString()
+                REMARK         = r["REMARK"]?.ToString(),
+                REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString()
             }, dataParams.ToArray());
 
             return Ok(new

@@ -581,6 +581,10 @@ async function saveCreate() {
     if (!reason)            { $('#createError').removeClass('d-none').text('Vui lòng nhập lý do nghỉ phép'); $('#createReason').focus(); return; }
 
     const createLT = $('input[name=createLT]:checked').val() || 'AL';
+    if (createLT === 'AL' && from <= today) {
+        $('#createError').removeClass('d-none').text('Phép năm phải đăng ký trước ít nhất 1 ngày');
+        $('#createFromDate').focus(); return;
+    }
     if (createLT === 'AL' && myBalance != null) {
         const left = myBalance.LEFT_NUM ?? 0;
         if (days > left) {

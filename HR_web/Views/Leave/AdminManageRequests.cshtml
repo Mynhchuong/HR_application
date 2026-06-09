@@ -246,7 +246,11 @@
 @section Scripts {
 <script>
 const ADMIN_EMPCD = '@adminEmpCd';
-const FILTER_SCOPE_URL = '@Url.Action("GetFilterScope", "UserDept")';
+const FILTER_SCOPE_URL          = '@Url.Action("GetFilterScope",          "UserDept")';
+const URL_GET_CONFIRMED_LEAVES  = '@Url.Action("GetAdminConfirmedLeaves", "Leave")';
+const URL_DELETE_LEAVES         = '@Url.Action("AdminDeleteLeaves",       "Leave")';
+const URL_GET_CONFIRMED_GP      = '@Url.Action("GetAdminConfirmedGp",     "Leave")';
+const URL_DELETE_GP             = '@Url.Action("AdminDeleteGp",           "Leave")';
 
 function statusBadge(s) {
     if (s === 'APPROVED')  return '<span class="badge" style="background:#dcfce7;color:#166534;">Đã XN</span>';
@@ -336,7 +340,8 @@ async function loadLeaves() {
     document.getElementById('lv_tbody').innerHTML = '<tr><td colspan="10" class="empty-msg"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>';
     const params = buildParams('lv');
     try {
-        const res  = await fetch('/Leave/GetAdminConfirmedLeaves?' + params);
+        const res  = await fetch(URL_GET_CONFIRMED_LEAVES + '?' + params);
+        if (!res.ok) { lvSetError(`Lỗi server: HTTP ${res.status}`); return; }
         const data = await res.json();
         if (!data.success) { lvSetError(data.message || 'Lỗi tải dữ liệu'); return; }
         lvData = data.data || [];
@@ -443,7 +448,7 @@ async function lvDelete() {
     const ids = [...lvSelected];
     showConfirm(`Bạn chắc chắn muốn xóa <strong>${ids.length} đơn nghỉ phép</strong> khỏi hệ thống?`, async () => {
         try {
-            const res  = await fetch('/Leave/AdminDeleteLeaves', {
+            const res  = await fetch(URL_DELETE_LEAVES, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ACTOR_EMPCD: ADMIN_EMPCD, REQUEST_IDS: ids })
             });
@@ -467,7 +472,7 @@ async function loadGp() {
     document.getElementById('gp_tbody').innerHTML = '<tr><td colspan="8" class="empty-msg"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>';
     const params = buildParams('gp');
     try {
-        const res  = await fetch('/Leave/GetAdminConfirmedGp?' + params);
+        const res  = await fetch(URL_GET_CONFIRMED_GP + '?' + params);
         const data = await res.json();
         if (!data.success) { gpSetError(data.message || 'Lỗi tải dữ liệu'); return; }
         gpData = data.data || [];
@@ -570,7 +575,7 @@ async function gpDelete() {
     const ids = [...gpSelected];
     showConfirm(`Bạn chắc chắn muốn xóa <strong>${ids.length} phiếu ra/vào cổng</strong> khỏi hệ thống?`, async () => {
         try {
-            const res  = await fetch('/Leave/AdminDeleteGp', {
+            const res  = await fetch(URL_DELETE_GP, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ACTOR_EMPCD: ADMIN_EMPCD, REQUEST_IDS: ids })
             });

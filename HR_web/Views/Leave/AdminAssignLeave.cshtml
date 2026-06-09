@@ -191,7 +191,9 @@
 
 @section Scripts {
 <script>
-    const ADMIN_EMPCD = '@adminEmpCd';
+    const ADMIN_EMPCD          = '@adminEmpCd';
+    const URL_GET_ADMIN_EMPLIST = '@Url.Action("GetAdminEmpList", "Leave")';
+    const URL_ADMIN_ASSIGN      = '@Url.Action("AdminAssign",     "Leave")';
     let allEmps     = [];
     let filtered    = [];
     let selectedSet = new Set();
@@ -214,7 +216,8 @@
 
     async function loadEmps() {
         try {
-            const res  = await fetch('/Leave/GetAdminEmpList');
+            const res  = await fetch(URL_GET_ADMIN_EMPLIST);
+            if (!res.ok) { showEmpError(`Lỗi server: HTTP ${res.status}`); return; }
             const data = await res.json();
             if (!data.success) { showEmpError(data.message); return; }
             allEmps = data.data || [];
@@ -391,7 +394,7 @@
                 REASON:         reason
             };
 
-            const res  = await fetch('/Leave/AdminAssign', {
+            const res  = await fetch(URL_ADMIN_ASSIGN, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

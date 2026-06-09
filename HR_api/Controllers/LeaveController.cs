@@ -599,16 +599,28 @@ public class LeaveController : ControllerBase
                 string erpCd     = ld.LeaveType switch { "AL" => "PN", "CL" => "BH", _ => "CP" };
                 string erpRemark = erpCd == "CP" ? "VR " + leaveTypeName(ld.LeaveType) : "VR";
 
+                var erpHolidays = (await _oracleService.ExecuteQueryAsync(
+                    @"SELECT TRUNC(HUILDAY) AS HUILDAY FROM HRMS.EAM800
+                      WHERE TRUNC(HUILDAY) BETWEEN TRUNC(:FROM_DATE) AND TRUNC(:TO_DATE)",
+                    r => Convert.ToDateTime(r["HUILDAY"]).Date,
+                    new OracleParameter { ParameterName = "FROM_DATE", OracleDbType = OracleDbType.Date, Value = ld.FromDate },
+                    new OracleParameter { ParameterName = "TO_DATE",   OracleDbType = OracleDbType.Date, Value = ld.ToDate }
+                )).ToHashSet();
+
                 string? erpError = null;
                 try
                 {
-                    await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
-                        new OracleParameter("AS_EMPCD",   requestInfo.Empcd),
-                        new OracleParameter("AS_LEAVECD", erpCd),
-                        new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = ld.FromDate },
-                        new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = ld.ToDate },
-                        new OracleParameter("AS_IN_ID",   model.APPROVER_EMPCD),
-                        new OracleParameter("AS_REMAR",   erpRemark));
+                    for (var day = ld.FromDate.Date; day <= ld.ToDate.Date; day = day.AddDays(1))
+                    {
+                        if (erpHolidays.Contains(day)) continue;
+                        await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
+                            new OracleParameter("AS_EMPCD",   requestInfo.Empcd),
+                            new OracleParameter("AS_LEAVECD", erpCd),
+                            new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
+                            new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
+                            new OracleParameter("AS_IN_ID",   model.APPROVER_EMPCD),
+                            new OracleParameter("AS_REMAR",   erpRemark));
+                    }
 
                     await _oracleService.ExecuteNonQueryAsync(
                         "UPDATE HRMS.EFM410 SET APPROVED_BY = :APPROVED_BY WHERE EMPCD = :EMPCD AND FR_DAT BETWEEN :FR_DAT AND :TO_DAT",
@@ -822,15 +834,26 @@ public class LeaveController : ControllerBase
                     string erpRemark = erpCd == "CP"
                         ? "ASSIGNED " + erpLeaveNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE)
                         : "ASSIGNED";
+                    var erpHolidays = (await _oracleService.ExecuteQueryAsync(
+                        @"SELECT TRUNC(HUILDAY) AS HUILDAY FROM HRMS.EAM800
+                          WHERE TRUNC(HUILDAY) BETWEEN TRUNC(:FROM_DATE) AND TRUNC(:TO_DATE)",
+                        r => Convert.ToDateTime(r["HUILDAY"]).Date,
+                        new OracleParameter { ParameterName = "FROM_DATE", OracleDbType = OracleDbType.Date, Value = fromDate },
+                        new OracleParameter { ParameterName = "TO_DATE",   OracleDbType = OracleDbType.Date, Value = toDate }
+                    )).ToHashSet();
                     try
                     {
-                        await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
-                            new OracleParameter("AS_EMPCD",   targetEmpcd),
-                            new OracleParameter("AS_LEAVECD", erpCd),
-                            new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = fromDate },
-                            new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = toDate },
-                            new OracleParameter("AS_IN_ID",   model.ASSIGNER_EMPCD),
-                            new OracleParameter("AS_REMAR",   erpRemark));
+                        for (var day = fromDate.Date; day <= toDate.Date; day = day.AddDays(1))
+                        {
+                            if (erpHolidays.Contains(day)) continue;
+                            await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
+                                new OracleParameter("AS_EMPCD",   targetEmpcd),
+                                new OracleParameter("AS_LEAVECD", erpCd),
+                                new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
+                                new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
+                                new OracleParameter("AS_IN_ID",   model.ASSIGNER_EMPCD),
+                                new OracleParameter("AS_REMAR",   erpRemark));
+                        }
 
                         await _oracleService.ExecuteNonQueryAsync(
                             "UPDATE HRMS.EFM410 SET APPROVED_BY = :APPROVED_BY WHERE EMPCD = :EMPCD AND FR_DAT BETWEEN :FR_DAT AND :TO_DAT",
@@ -1712,15 +1735,26 @@ public class LeaveController : ControllerBase
                         new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
                         new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
 
+                    var erpHolidays = (await _oracleService.ExecuteQueryAsync(
+                        @"SELECT TRUNC(HUILDAY) AS HUILDAY FROM HRMS.EAM800
+                          WHERE TRUNC(HUILDAY) BETWEEN TRUNC(:FROM_DATE) AND TRUNC(:TO_DATE)",
+                        r => Convert.ToDateTime(r["HUILDAY"]).Date,
+                        new OracleParameter { ParameterName = "FROM_DATE", OracleDbType = OracleDbType.Date, Value = fromDate },
+                        new OracleParameter { ParameterName = "TO_DATE",   OracleDbType = OracleDbType.Date, Value = toDate }
+                    )).ToHashSet();
                     try
                     {
-                        await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
-                            new OracleParameter("AS_EMPCD",   targetEmpcd),
-                            new OracleParameter("AS_LEAVECD", erpCd),
-                            new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = fromDate },
-                            new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = toDate },
-                            new OracleParameter("AS_IN_ID",   model.ASSIGNER_EMPCD),
-                            new OracleParameter("AS_REMAR",   erpRemark));
+                        for (var day = fromDate.Date; day <= toDate.Date; day = day.AddDays(1))
+                        {
+                            if (erpHolidays.Contains(day)) continue;
+                            await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
+                                new OracleParameter("AS_EMPCD",   targetEmpcd),
+                                new OracleParameter("AS_LEAVECD", erpCd),
+                                new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
+                                new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
+                                new OracleParameter("AS_IN_ID",   model.ASSIGNER_EMPCD),
+                                new OracleParameter("AS_REMAR",   erpRemark));
+                        }
 
                         await _oracleService.ExecuteNonQueryAsync(
                             "UPDATE HRMS.EFM410 SET APPROVED_BY = :APPROVED_BY WHERE EMPCD = :EMPCD AND FR_DAT BETWEEN :FR_DAT AND :TO_DAT",

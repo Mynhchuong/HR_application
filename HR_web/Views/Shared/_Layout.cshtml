@@ -684,10 +684,14 @@
             document.getElementById('globalConfirmMessage').textContent = message;
             document.getElementById('globalConfirmOk').textContent      = opts.okText  || 'Xóa';
             document.getElementById('globalConfirmOk').className        = 'btn w-100 py-2 rounded-3 fw-bold ' + (opts.okClass || 'btn-danger');
-            const modal   = new bootstrap.Modal(document.getElementById('globalConfirmModal'));
+            const modalEl = document.getElementById('globalConfirmModal');
+            const modal   = new bootstrap.Modal(modalEl);
             const okBtn   = document.getElementById('globalConfirmOk');
-            const handler = function() { modal.hide(); onConfirm(); okBtn.removeEventListener('click', handler); };
-            okBtn.addEventListener('click', handler);
+            const handler = function() { modal.hide(); onConfirm(); };
+            okBtn.addEventListener('click', handler, { once: true });
+            modalEl.addEventListener('hidden.bs.modal', function() {
+                okBtn.removeEventListener('click', handler);
+            }, { once: true });
             modal.show();
         };
     </script>

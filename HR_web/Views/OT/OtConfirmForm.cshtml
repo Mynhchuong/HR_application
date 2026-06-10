@@ -384,8 +384,25 @@
         window.location.href = '@Url.Action("OtConfirmForm", "OT")?work_date=' + date;
     }
 
-    function submitConfirm(status) {
+    async function submitConfirm(status) {
         document.getElementById('confirmStatus').value = status;
-        document.getElementById('frmOtConfirm').submit();
+        const form = document.getElementById('frmOtConfirm');
+        const formData = new FormData(form);
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: new URLSearchParams(formData)
+            });
+            const result = await response.json();
+            if (result.success) {
+                showToast(result.message, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(result.message || 'Có lỗi xảy ra. Vui lòng thử lại.', 'danger');
+            }
+        } catch {
+            showToast('Lỗi kết nối. Vui lòng thử lại.', 'danger');
+        }
     }
 </script>

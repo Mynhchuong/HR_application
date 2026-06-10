@@ -49,18 +49,11 @@ public class OTController : BaseController
         try
         {
             var result = await _otService.ConfirmOTAsync(empcd, confirmStatus, work_date, ot_hours);
-
-            if (result.success)
-                TempData["Success"] = result.message;
-            else
-                TempData["Error"] = result.message ?? "Có lỗi xảy ra";
-
-            return RedirectToAction("OtConfirmForm", new { work_date });
+            return Json(new { success = result.success, message = result.message ?? (result.success ? "Thành công" : "Có lỗi xảy ra") });
         }
         catch (Exception ex)
         {
-            TempData["Error"] = ex.Message;
-            return RedirectToAction("OtConfirmForm", new { work_date });
+            return Json(new { success = false, message = ex.Message });
         }
     }
 

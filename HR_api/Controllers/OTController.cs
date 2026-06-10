@@ -160,29 +160,46 @@ public class OTController : ControllerBase
 
             // Bước 2: HR_OT_REQUEST chưa có → tự generate REQUEST_ID rồi INSERT thẳng
             string requestId = DateTime.Now.ToString("yyyyMMddHHmmss") + model.EMPCD;
-            string sqlInsertReq = @"INSERT INTO HRMS.HR_REQUEST (REQUEST_ID, REQUEST_TYPE, EMPCD, REQUEST_DATE, STATUS, CREATED_BY, CREATED_DATE)
-                VALUES (:REQUEST_ID, 'OT', :EMPCD, SYSDATE, :STATUS, :EMPCD1, SYSDATE)";
-            await _oracleService.ExecuteNonQueryAsync(sqlInsertReq,
-                new OracleParameter("REQUEST_ID", requestId),
-                new OracleParameter("EMPCD",      model.EMPCD),
-                new OracleParameter("STATUS",     model.CONFIRM_STATUS),
-                new OracleParameter("EMPCD1",     model.EMPCD));
 
-            // Bước 3: INSERT vào HR_OT_REQUEST với REQUEST_ID đã có hoặc vừa tạo
-            string sqlInsertOT = "INSERT INTO HRMS.HR_OT_REQUEST (REQUEST_ID, EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, CREATED_DATE) VALUES (:REQUEST_ID, :EMPCD, :WORK_DATE, :OT_HOURS, :CONFIRM_STATUS, SYSDATE, SYSDATE)";
-            await _oracleService.ExecuteNonQueryAsync(sqlInsertOT,
-                new OracleParameter("REQUEST_ID", requestId),
-                new OracleParameter("EMPCD", model.EMPCD),
-                new OracleParameter("WORK_DATE", workDate),
-                new OracleParameter("OT_HOURS", (object?)model.OT_HOURS ?? DBNull.Value),
-                new OracleParameter("CONFIRM_STATUS", model.CONFIRM_STATUS));
+            // INSERT HR_REQUEST
+            try
+            {
+                string sqlInsertReq = @"INSERT INTO HRMS.HR_REQUEST (REQUEST_ID, REQUEST_TYPE, EMPCD, REQUEST_DATE, STATUS, CREATED_BY, CREATED_DATE)
+                    VALUES (:REQUEST_ID, 'OT', :EMPCD, SYSDATE, :STATUS, :EMPCD1, SYSDATE)";
+                await _oracleService.ExecuteNonQueryAsync(sqlInsertReq,
+                    new OracleParameter("REQUEST_ID", requestId),
+                    new OracleParameter("EMPCD",      model.EMPCD),
+                    new OracleParameter("STATUS",     model.CONFIRM_STATUS),
+                    new OracleParameter("EMPCD1",     model.EMPCD));
+            }
+            catch (Exception ex)
+            {
+                return Ok(new { success = false, message = $"Lỗi hệ thống, vui lòng thử lại. ({ex.Message})" });
+            }
+
+            // INSERT HR_OT_REQUEST — nếu lỗi thì xoá HR_REQUEST vừa tạo
+            try
+            {
+                string sqlInsertOT = "INSERT INTO HRMS.HR_OT_REQUEST (REQUEST_ID, EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, CREATED_DATE) VALUES (:REQUEST_ID, :EMPCD, :WORK_DATE, :OT_HOURS, :CONFIRM_STATUS, SYSDATE, SYSDATE)";
+                await _oracleService.ExecuteNonQueryAsync(sqlInsertOT,
+                    new OracleParameter("REQUEST_ID", requestId),
+                    new OracleParameter("EMPCD", model.EMPCD),
+                    new OracleParameter("WORK_DATE", workDate),
+                    new OracleParameter("OT_HOURS", (object?)model.OT_HOURS ?? DBNull.Value),
+                    new OracleParameter("CONFIRM_STATUS", model.CONFIRM_STATUS));
+            }
+            catch (Exception ex)
+            {
+                try { await _oracleService.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :ID", new OracleParameter("ID", requestId)); } catch { }
+                return Ok(new { success = false, message = $"Lỗi hệ thống, vui lòng thử lại. ({ex.Message})" });
+            }
 
             string msg = model.CONFIRM_STATUS == "CONFIRMED" ? "Xác nhận tăng ca thành công" : "Từ chối tăng ca thành công";
             return Ok(new { success = true, message = msg, request_id = requestId });
         }
         catch (Exception ex)
         {
-            return Ok(new { success = false, message = ex.Message });
+            return Ok(new { success = false, message = $"Lỗi hệ thống, vui lòng thử lại. ({ex.Message})" });
         }
     }
 

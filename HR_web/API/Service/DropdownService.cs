@@ -30,14 +30,28 @@ public class DropdownService
         return await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/line-by-dept", $"deptcd={Uri.EscapeDataString(deptCd)}") ?? new();
     }
 
+    public async Task<List<DropdownModel>> GetWorkByLineAsync(string lineCd)
+    {
+        if (string.IsNullOrEmpty(lineCd)) return new();
+        return await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/work-by-line", $"lineCd={Uri.EscapeDataString(lineCd)}") ?? new();
+    }
+
     public async Task<List<DropdownModel>> GetDeptByScopeAsync(string empcd)
         => await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/dept-by-scope", $"empcd={Uri.EscapeDataString(empcd)}") ?? new();
 
-    public async Task<List<DropdownModel>> GetLineByScopeAsync(string empcd)
-        => await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/line-by-scope", $"empcd={Uri.EscapeDataString(empcd)}") ?? new();
+    public async Task<List<DropdownModel>> GetLineByScopeAsync(string empcd, string? deptCd = null)
+    {
+        var q = $"empcd={Uri.EscapeDataString(empcd)}";
+        if (!string.IsNullOrEmpty(deptCd)) q += $"&deptCd={Uri.EscapeDataString(deptCd)}";
+        return await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/line-by-scope", q) ?? new();
+    }
 
-    public async Task<List<DropdownModel>> GetWorkByScopeAsync(string empcd)
-        => await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/work-by-scope", $"empcd={Uri.EscapeDataString(empcd)}") ?? new();
+    public async Task<List<DropdownModel>> GetWorkByScopeAsync(string empcd, string? lineCd = null)
+    {
+        var q = $"empcd={Uri.EscapeDataString(empcd)}";
+        if (!string.IsNullOrEmpty(lineCd)) q += $"&lineCd={Uri.EscapeDataString(lineCd)}";
+        return await _api.GetAsync<List<DropdownModel>>($"{BaseEndpoint}/work-by-scope", q) ?? new();
+    }
 
     public async Task<List<DropdownModel>> GetEmpAsync(string term)
     {

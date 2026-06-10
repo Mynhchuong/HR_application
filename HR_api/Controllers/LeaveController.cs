@@ -1803,7 +1803,7 @@ public class LeaveController : ControllerBase
     [HttpGet("admin-confirmed-leaves")]
     public async Task<IActionResult> GetAdminConfirmedLeaves(
         string? dept_id = null, string? line_id = null, string? work_id = null,
-        string? date_from = null, string? date_to = null,
+        string? date_from = null, string? date_to = null, string? status = null,
         int page = 1, int page_size = 50)
     {
         try
@@ -1811,6 +1811,10 @@ public class LeaveController : ControllerBase
             DateTime? dFrom = null, dTo = null;
             if (!string.IsNullOrEmpty(date_from) && DateTime.TryParse(date_from, out var df)) dFrom = df;
             if (!string.IsNullOrEmpty(date_to)   && DateTime.TryParse(date_to,   out var dt)) dTo   = dt;
+
+            var validStatuses = new[] { "PENDING", "APPROVED", "ASSIGNED" };
+            string? statusFilter = !string.IsNullOrEmpty(status) && validStatuses.Contains(status.ToUpper())
+                ? status.ToUpper() : null;
 
             const string baseSql = @"
                 SELECT R.REQUEST_ID, R.EMPCD, EC.CNAME EMP_NAME,
@@ -1824,6 +1828,7 @@ public class LeaveController : ControllerBase
                 JOIN HRMS.ECM100 EC           ON EC.EMPCD    = R.EMPCD
                 LEFT JOIN HRMS.EAM410 B       ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
                 WHERE R.STATUS != 'REJECTED'
+                  AND (:ST_FLAG  IS NULL OR R.STATUS      = :ST_VAL)
                   AND (:DPT_FLAG IS NULL OR EC.DEPTCD    = :DPT_VAL)
                   AND (:LN_FLAG  IS NULL OR EC.LINECD    = :LN_VAL)
                   AND (:WK_FLAG  IS NULL OR EC.WORKCD    = :WK_VAL)
@@ -1832,6 +1837,8 @@ public class LeaveController : ControllerBase
 
             OracleParameter[] MakePs() => new[]
             {
+                new OracleParameter("ST_FLAG",  (object?)(statusFilter != null ? "Y" : null) ?? DBNull.Value),
+                new OracleParameter("ST_VAL",   (object?)statusFilter ?? DBNull.Value),
                 new OracleParameter("DPT_FLAG", (object?)(dept_id != null ? "Y" : null) ?? DBNull.Value),
                 new OracleParameter("DPT_VAL",  (object?)dept_id ?? DBNull.Value),
                 new OracleParameter("LN_FLAG",  (object?)(line_id != null ? "Y" : null) ?? DBNull.Value),

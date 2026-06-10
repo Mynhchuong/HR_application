@@ -352,7 +352,8 @@ public class LeaveService
 
     public async Task<AdminConfirmedLeavePagedResponse> GetAdminConfirmedLeavesAsync(
         string? deptId = null, string? lineId = null, string? workId = null,
-        string? dateFrom = null, string? dateTo = null, int page = 1, int pageSize = 50)
+        string? dateFrom = null, string? dateTo = null, string? status = null,
+        int page = 1, int pageSize = 50)
     {
         try
         {
@@ -362,6 +363,7 @@ public class LeaveService
             if (!string.IsNullOrEmpty(workId))   q.Add($"work_id={Uri.EscapeDataString(workId)}");
             if (!string.IsNullOrEmpty(dateFrom)) q.Add($"date_from={Uri.EscapeDataString(dateFrom)}");
             if (!string.IsNullOrEmpty(dateTo))   q.Add($"date_to={Uri.EscapeDataString(dateTo)}");
+            if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
             q.Add($"page={page}"); q.Add($"page_size={pageSize}");
             var res = await _api.GetAsync_Raw("leave/admin-confirmed-leaves", string.Join("&", q));
             if (res?.IsSuccessStatusCode == true)

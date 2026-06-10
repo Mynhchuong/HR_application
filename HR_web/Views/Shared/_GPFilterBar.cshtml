@@ -42,6 +42,7 @@
         <label class="form-label small fw-bold mb-1 text-primary">Line</label>
         <select id="filterLine" class="select2 form-control"
                 data-url="@Model.LineUrl"
+                data-parent="#filterDept"
                 data-placeholder="@(en ? "All" : "Tất cả")"></select>
     </div>
 
@@ -49,6 +50,8 @@
         <label class="form-label small fw-bold mb-1 text-primary">@(en ? "Work Group" : "Nhóm Việc")</label>
         <select id="filterWork" class="select2 form-control"
                 data-url="@Model.WorkUrl"
+                data-parent="#filterLine"
+                data-parent-key="lineCd"
                 data-placeholder="@(en ? "All" : "Tất cả")"></select>
     </div>
 

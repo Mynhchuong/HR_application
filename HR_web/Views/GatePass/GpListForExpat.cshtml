@@ -281,7 +281,9 @@ async function submitAction() {
     finally  { $btn.prop('disabled', false).text('Confirm'); }
 }
 
-$('#filterStatus, #filterGpType, #filterDept, #filterLine, #filterWork').on('change', () => loadData(1));
+$('#filterDept').on('change', function() { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });
+$('#filterLine').on('change', function() { $('#filterWork').val(null).trigger('change.select2'); loadData(1); });
+$('#filterStatus, #filterGpType, #filterWork').on('change', () => loadData(1));
 $('#searchInput').on('input', debounce(() => loadData(1), 400));
 $('#pageSizeSelect').on('change', function() { pageSize = parseInt($(this).val()); loadData(1); });
 

@@ -50,9 +50,11 @@ public class DropdownController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetLine(string? term)
+    public async Task<IActionResult> GetLine(string? term, string? deptCd = null)
     {
-        var data = await _dropdownService.GetLineAsync();
+        var data = !string.IsNullOrEmpty(deptCd)
+            ? await _dropdownService.GetLineByDeptAsync(deptCd)
+            : await _dropdownService.GetLineAsync();
         var result = data
             .Where(x => string.IsNullOrEmpty(term) ||
                         (x.text?.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0))
@@ -61,9 +63,11 @@ public class DropdownController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetWork(string? term)
+    public async Task<IActionResult> GetWork(string? term, string? lineCd = null)
     {
-        var data = await _dropdownService.GetWorkAsync();
+        var data = !string.IsNullOrEmpty(lineCd)
+            ? await _dropdownService.GetWorkByLineAsync(lineCd)
+            : await _dropdownService.GetWorkAsync();
         var result = data
             .Where(x => string.IsNullOrEmpty(term) ||
                         (x.text?.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0))
@@ -101,11 +105,11 @@ public class DropdownController : BaseController
 
     [Authorize]
     [HttpGet]
-    public async Task<IActionResult> GetLineByScope(string? term)
+    public async Task<IActionResult> GetLineByScope(string? term, string? deptCd = null)
     {
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return Json(new List<object>());
-        var data = await _dropdownService.GetLineByScopeAsync(empcd);
+        var data = await _dropdownService.GetLineByScopeAsync(empcd, deptCd);
         return Json(data
             .Where(x => string.IsNullOrEmpty(term) || x.text?.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
             .Select(x => new { id = x.id, text = x.text }));
@@ -113,11 +117,11 @@ public class DropdownController : BaseController
 
     [Authorize]
     [HttpGet]
-    public async Task<IActionResult> GetWorkByScope(string? term)
+    public async Task<IActionResult> GetWorkByScope(string? term, string? lineCd = null)
     {
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return Json(new List<object>());
-        var data = await _dropdownService.GetWorkByScopeAsync(empcd);
+        var data = await _dropdownService.GetWorkByScopeAsync(empcd, lineCd);
         return Json(data
             .Where(x => string.IsNullOrEmpty(term) || x.text?.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
             .Select(x => new { id = x.id, text = x.text }));

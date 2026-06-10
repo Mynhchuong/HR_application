@@ -192,7 +192,9 @@
 
     $('#pageSizeSelect').on('change', function() { pageSize=parseInt($(this).val()); loadData(1); });
     $('#searchInput').on('input', debounce(() => loadData(1), 400));
-    $('#filterStatus, #filterDept, #filterLine, #filterWork').on('change', () => loadData(1));
+    $('#filterDept').on('change', function() { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });
+    $('#filterLine').on('change', function() { $('#filterWork').val(null).trigger('change.select2'); loadData(1); });
+    $('#filterStatus, #filterWork').on('change', () => loadData(1));
 
     $('#exportExcelBtn').on('click', async function() {
         const $btn=$(this), originalHtml=$btn.html();

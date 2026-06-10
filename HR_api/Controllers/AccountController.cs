@@ -494,6 +494,30 @@ public class AccountController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("dropdown/line-by-dept")]
+    public async Task<IActionResult> GetLineByDept(string? deptcd)
+    {
+        if (string.IsNullOrEmpty(deptcd)) return Ok(new List<object>());
+        var result = await _oracleService.ExecuteQueryAsync(
+            @"SELECT DISTINCT LINECD, TEAMNM FROM HRMS.EAM410
+              WHERE DEPTCD = :DEPTCD AND LINECD IS NOT NULL AND USEYN = 'Y' ORDER BY TEAMNM",
+            r => new { id = r["LINECD"]?.ToString(), text = r["TEAMNM"]?.ToString() },
+            new OracleParameter("DEPTCD", deptcd));
+        return Ok(result);
+    }
+
+    [HttpGet("dropdown/work-by-line")]
+    public async Task<IActionResult> GetWorkByLine(string? lineCd)
+    {
+        if (string.IsNullOrEmpty(lineCd)) return Ok(new List<object>());
+        var result = await _oracleService.ExecuteQueryAsync(
+            @"SELECT DISTINCT WORKCD, WORKNM FROM HRMS.EAM410
+              WHERE LINECD = :LINECD AND WORKCD IS NOT NULL AND USEYN = 'Y' ORDER BY WORKNM",
+            r => new { id = r["WORKCD"]?.ToString(), text = r["WORKNM"]?.ToString() },
+            new OracleParameter("LINECD", lineCd));
+        return Ok(result);
+    }
+
     [HttpGet("dropdown/role")]
     public async Task<IActionResult> GetRoleDropdown()
     {
@@ -524,30 +548,44 @@ public class AccountController : ControllerBase
     }
 
     [HttpGet("dropdown/line-by-scope")]
-    public async Task<IActionResult> GetLineByScope(string empcd)
+    public async Task<IActionResult> GetLineByScope(string empcd, string? deptCd = null)
     {
         if (string.IsNullOrEmpty(empcd)) return Ok(new List<object>());
-        string sql = @"SELECT DISTINCT LINECD, TEAMNM FROM HRMS.EAM410
-                       WHERE (DEPTCD, LINECD, WORKCD) IN (
-                           SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
-                       ) ORDER BY TEAMNM";
+        string sql = string.IsNullOrEmpty(deptCd)
+            ? @"SELECT DISTINCT LINECD, TEAMNM FROM HRMS.EAM410
+                WHERE (DEPTCD, LINECD, WORKCD) IN (
+                    SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
+                ) ORDER BY TEAMNM"
+            : @"SELECT DISTINCT LINECD, TEAMNM FROM HRMS.EAM410
+                WHERE DEPTCD = :DEPTCD AND (DEPTCD, LINECD, WORKCD) IN (
+                    SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
+                ) ORDER BY TEAMNM";
+        var ps = string.IsNullOrEmpty(deptCd)
+            ? new[] { new OracleParameter("EMPCD", empcd) }
+            : new[] { new OracleParameter("EMPCD", empcd), new OracleParameter("DEPTCD", deptCd) };
         var result = await _oracleService.ExecuteQueryAsync(sql,
-            r => new { id = r["LINECD"]?.ToString(), text = r["TEAMNM"]?.ToString() },
-            new OracleParameter("EMPCD", empcd));
+            r => new { id = r["LINECD"]?.ToString(), text = r["TEAMNM"]?.ToString() }, ps);
         return Ok(result);
     }
 
     [HttpGet("dropdown/work-by-scope")]
-    public async Task<IActionResult> GetWorkByScope(string empcd)
+    public async Task<IActionResult> GetWorkByScope(string empcd, string? lineCd = null)
     {
         if (string.IsNullOrEmpty(empcd)) return Ok(new List<object>());
-        string sql = @"SELECT DISTINCT WORKCD, WORKNM FROM HRMS.EAM410
-                       WHERE (DEPTCD, LINECD, WORKCD) IN (
-                           SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
-                       ) ORDER BY WORKNM";
+        string sql = string.IsNullOrEmpty(lineCd)
+            ? @"SELECT DISTINCT WORKCD, WORKNM FROM HRMS.EAM410
+                WHERE (DEPTCD, LINECD, WORKCD) IN (
+                    SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
+                ) ORDER BY WORKNM"
+            : @"SELECT DISTINCT WORKCD, WORKNM FROM HRMS.EAM410
+                WHERE LINECD = :LINECD AND (DEPTCD, LINECD, WORKCD) IN (
+                    SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
+                ) ORDER BY WORKNM";
+        var ps = string.IsNullOrEmpty(lineCd)
+            ? new[] { new OracleParameter("EMPCD", empcd) }
+            : new[] { new OracleParameter("EMPCD", empcd), new OracleParameter("LINECD", lineCd) };
         var result = await _oracleService.ExecuteQueryAsync(sql,
-            r => new { id = r["WORKCD"]?.ToString(), text = r["WORKNM"]?.ToString() },
-            new OracleParameter("EMPCD", empcd));
+            r => new { id = r["WORKCD"]?.ToString(), text = r["WORKNM"]?.ToString() }, ps);
         return Ok(result);
     }
 

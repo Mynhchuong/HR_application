@@ -60,11 +60,12 @@
                         <input type="text" id="lv_search" class="form-control form-control-sm" placeholder="🔍 Nhập để tìm..." oninput="renderLeaves()">
                     </div>
                     <div class="col-sm-2">
-                        <label class="filter-label">Trạng thái ERP</label>
-                        <select id="lv_status" class="form-select form-select-sm" onchange="renderLeaves()">
+                        <label class="filter-label">Trạng thái</label>
+                        <select id="lv_status" class="form-select form-select-sm" onchange="loadLeaves()">
                             <option value="">-- Tất cả --</option>
-                            <option value="confirmed">Đã XN (đã insert ERP)</option>
-                            <option value="pending">Chưa XN (chưa insert ERP)</option>
+                            <option value="PENDING">Chờ duyệt</option>
+                            <option value="APPROVED">Đã duyệt</option>
+                            <option value="ASSIGNED">Đã sắp lịch</option>
                         </select>
                     </div>
                     <div class="col-sm-2">
@@ -355,10 +356,8 @@ function lvSetError(msg) {
     lvUpdateCounts();
 }
 
-function onLvDeptChange() { document.getElementById('lv_line').value = ''; document.getElementById('lv_work').value = ''; refreshLines('lv'); lvApplyFilter(); }
-function onLvLineChange() { document.getElementById('lv_work').value = ''; refreshWorks('lv'); lvApplyFilter(); }
-
-function lvApplyFilter() { renderLeaves(); }
+function onLvDeptChange() { document.getElementById('lv_line').value = ''; document.getElementById('lv_work').value = ''; refreshLines('lv'); loadLeaves(); }
+function onLvLineChange() { document.getElementById('lv_work').value = ''; refreshWorks('lv'); loadLeaves(); }
 
 function renderLeaves() {
     const stFilter = document.getElementById('lv_status').value;
@@ -368,8 +367,6 @@ function renderLeaves() {
     const kw       = document.getElementById('lv_search').value.trim().toUpperCase();
 
     const filtered = lvData.filter(r => {
-        if (stFilter === 'confirmed' && r.STATUS === 'PENDING')  return false;
-        if (stFilter === 'pending'   && r.STATUS !== 'PENDING')  return false;
         if (dept && r.DEPT_ID !== dept) return false;
         if (line && r.LINE_ID !== line) return false;
         if (work && r.WORK_ID !== work) return false;
@@ -594,16 +591,18 @@ async function gpDelete() {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function buildParams(prefix) {
     const q = [];
-    const dept = document.getElementById(`${prefix}_dept`).value;
-    const line = document.getElementById(`${prefix}_line`).value;
-    const work = document.getElementById(`${prefix}_work`).value;
-    const from = document.getElementById(`${prefix}_from`).value;
-    const to   = document.getElementById(`${prefix}_to`).value;
-    if (dept) q.push(`dept_id=${encodeURIComponent(dept)}`);
-    if (line) q.push(`line_id=${encodeURIComponent(line)}`);
-    if (work) q.push(`work_id=${encodeURIComponent(work)}`);
-    if (from) q.push(`date_from=${encodeURIComponent(from)}`);
-    if (to)   q.push(`date_to=${encodeURIComponent(to)}`);
+    const dept   = document.getElementById(`${prefix}_dept`).value;
+    const line   = document.getElementById(`${prefix}_line`).value;
+    const work   = document.getElementById(`${prefix}_work`).value;
+    const from   = document.getElementById(`${prefix}_from`).value;
+    const to     = document.getElementById(`${prefix}_to`).value;
+    const status = document.getElementById(`${prefix}_status`)?.value;
+    if (dept)   q.push(`dept_id=${encodeURIComponent(dept)}`);
+    if (line)   q.push(`line_id=${encodeURIComponent(line)}`);
+    if (work)   q.push(`work_id=${encodeURIComponent(work)}`);
+    if (from)   q.push(`date_from=${encodeURIComponent(from)}`);
+    if (to)     q.push(`date_to=${encodeURIComponent(to)}`);
+    if (status) q.push(`status=${encodeURIComponent(status)}`);
     q.push('page_size=500');
     return q.join('&');
 }

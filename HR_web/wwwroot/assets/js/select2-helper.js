@@ -72,7 +72,7 @@ var Select2Helper = (function () {
                     delay: 300,
                     data: function (params) {
                         let query = { term: params.term };
-                        if (parent) query.deptCd = $(parent).val();
+                        if (parent) { const key = $el.data('parent-key') || 'deptCd'; query[key] = $(parent).val(); }
                         // nếu params.term rỗng và có selectedId, gửi id để load text
                         if (!params.term && selectedId) query.id = selectedId;
                         return query;

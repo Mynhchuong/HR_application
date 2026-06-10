@@ -74,12 +74,15 @@
                 <label class="form-label small fw-bold mb-1 text-primary">Line</label>
                 <select id="filterLine" class="select2 form-control"
                         data-url="@Url.Action("GetLineByScope", "Dropdown")"
+                        data-parent="#filterDept"
                         data-placeholder="All"></select>
             </div>
             <div style="min-width:140px;flex:2 1 140px;max-width:200px;">
                 <label class="form-label small fw-bold mb-1 text-primary">Work Group</label>
                 <select id="filterWork" class="select2 form-control"
                         data-url="@Url.Action("GetWorkByScope", "Dropdown")"
+                        data-parent="#filterLine"
+                        data-parent-key="lineCd"
                         data-placeholder="All"></select>
             </div>
             <div class="d-flex align-items-end ms-auto">
@@ -325,7 +328,9 @@ async function submitAction() {
     finally  { $btn.prop('disabled', false).text('Confirm'); }
 }
 
-$('#filterMonth, #filterStatus, #filterDept, #filterLine, #filterWork').on('change', () => loadData(1));
+$('#filterDept').on('change', function() { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });
+$('#filterLine').on('change', function() { $('#filterWork').val(null).trigger('change.select2'); loadData(1); });
+$('#filterMonth, #filterStatus, #filterWork').on('change', () => loadData(1));
 $('#searchInput').on('input', debounce(() => loadData(1), 400));
 $('#pageSizeSelect').on('change', function() { pageSize = parseInt($(this).val()); loadData(1); });
 

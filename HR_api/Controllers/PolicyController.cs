@@ -26,7 +26,7 @@ public class PolicyController : ControllerBase
         {
             const string sql = @"
                 SELECT P.ID, P.CATEGORY, P.TITLE,
-                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 1) AS CONTENT,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 32767, 1) AS CONTENT,
                        P.DISPLAY_ORDER, P.IS_ACTIVE,
                        P.INST_ID, P.INST_DT, P.UPDT_ID, P.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -54,7 +54,7 @@ public class PolicyController : ControllerBase
         {
             const string sql = @"
                 SELECT P.ID, P.CATEGORY, P.TITLE,
-                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 1) AS CONTENT,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 32767, 1) AS CONTENT,
                        P.DISPLAY_ORDER, P.IS_ACTIVE,
                        P.INST_ID, P.INST_DT, P.UPDT_ID, P.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -81,7 +81,7 @@ public class PolicyController : ControllerBase
         {
             const string sql = @"
                 SELECT P.ID, P.CATEGORY, P.TITLE,
-                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 1) AS CONTENT,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 32767, 1) AS CONTENT,
                        P.DISPLAY_ORDER, P.IS_ACTIVE,
                        P.INST_ID, P.INST_DT, P.UPDT_ID, P.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -116,6 +116,9 @@ public class PolicyController : ControllerBase
                 string.IsNullOrWhiteSpace(model.CONTENT))
                 return Ok(new { success = false, message = "Vui lòng điền đầy đủ thông tin" });
 
+            // Oracle 10g không chấp nhận null byte (\0) trong NCLOB — strip trước khi bind
+            var content = model.CONTENT.Replace("\0", "");
+
             if (model.ID == null || model.ID == 0)
             {
                 // INSERT
@@ -128,7 +131,7 @@ public class PolicyController : ControllerBase
                 await _oracleService.ExecuteNonQueryAsync(sqlInsert,
                     new OracleParameter("CATEGORY",      model.CATEGORY),
                     new OracleParameter("TITLE",         model.TITLE),
-                    new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = model.CONTENT },
+                    new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = content },
                     new OracleParameter("DISPLAY_ORDER", model.DISPLAY_ORDER),
                     new OracleParameter("IS_ACTIVE",     model.IS_ACTIVE),
                     new OracleParameter("INST_ID",       (object?)model.LOGIN_USER ?? DBNull.Value));
@@ -151,7 +154,7 @@ public class PolicyController : ControllerBase
                 int rows = await _oracleService.ExecuteNonQueryAsync(sqlUpdate,
                     new OracleParameter("CATEGORY",      model.CATEGORY),
                     new OracleParameter("TITLE",         model.TITLE),
-                    new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = model.CONTENT },
+                    new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = content },
                     new OracleParameter("DISPLAY_ORDER", model.DISPLAY_ORDER),
                     new OracleParameter("IS_ACTIVE",     model.IS_ACTIVE),
                     new OracleParameter("UPDT_ID",       (object?)model.LOGIN_USER ?? DBNull.Value),

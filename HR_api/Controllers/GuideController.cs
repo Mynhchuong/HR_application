@@ -24,7 +24,7 @@ public class GuideController : ControllerBase
         {
             const string sql = @"
                 SELECT G.ID, G.CATEGORY, G.TITLE,
-                       DBMS_LOB.SUBSTR(G.CONTENT, 2000, 1) AS CONTENT,
+                       DBMS_LOB.SUBSTR(G.CONTENT, 32767, 1) AS CONTENT,
                        G.VIDEO_PATH, G.DISPLAY_ORDER, G.IS_ACTIVE,
                        G.INST_ID, G.INST_DT, G.UPDT_ID, G.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -50,7 +50,7 @@ public class GuideController : ControllerBase
         {
             const string sql = @"
                 SELECT G.ID, G.CATEGORY, G.TITLE,
-                       DBMS_LOB.SUBSTR(G.CONTENT, 2000, 1) AS CONTENT,
+                       DBMS_LOB.SUBSTR(G.CONTENT, 32767, 1) AS CONTENT,
                        G.VIDEO_PATH, G.DISPLAY_ORDER, G.IS_ACTIVE,
                        G.INST_ID, G.INST_DT, G.UPDT_ID, G.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -75,7 +75,7 @@ public class GuideController : ControllerBase
         {
             const string sql = @"
                 SELECT G.ID, G.CATEGORY, G.TITLE,
-                       DBMS_LOB.SUBSTR(G.CONTENT, 2000, 1) AS CONTENT,
+                       DBMS_LOB.SUBSTR(G.CONTENT, 32767, 1) AS CONTENT,
                        G.VIDEO_PATH, G.DISPLAY_ORDER, G.IS_ACTIVE,
                        G.INST_ID, G.INST_DT, G.UPDT_ID, G.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -117,7 +117,7 @@ public class GuideController : ControllerBase
                 await _oracleService.ExecuteNonQueryAsync(sqlInsert,
                     new OracleParameter("CATEGORY",      (object?)model.CATEGORY      ?? DBNull.Value),
                     new OracleParameter("TITLE",         model.TITLE),
-                    new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = (object?)model.CONTENT ?? DBNull.Value },
+                    new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = (object?)(model.CONTENT?.Replace("\0", "")) ?? DBNull.Value },
                     new OracleParameter("VIDEO_PATH",    (object?)model.VIDEO_PATH    ?? DBNull.Value),
                     new OracleParameter("DISPLAY_ORDER", model.DISPLAY_ORDER),
                     new OracleParameter("IS_ACTIVE",     model.IS_ACTIVE),
@@ -141,7 +141,7 @@ public class GuideController : ControllerBase
                 int rows = await _oracleService.ExecuteNonQueryAsync(sqlUpdate,
                     new OracleParameter("CATEGORY",      (object?)model.CATEGORY   ?? DBNull.Value),
                     new OracleParameter("TITLE",         model.TITLE),
-                    new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = (object?)model.CONTENT ?? DBNull.Value },
+                    new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = (object?)(model.CONTENT?.Replace("\0", "")) ?? DBNull.Value },
                     new OracleParameter("VIDEO_PATH",    (object?)model.VIDEO_PATH ?? DBNull.Value),
                     new OracleParameter("DISPLAY_ORDER", model.DISPLAY_ORDER),
                     new OracleParameter("IS_ACTIVE",     model.IS_ACTIVE),

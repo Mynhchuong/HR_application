@@ -1,0 +1,234 @@
+@model List<HR_web.Models.Menu.MenuDayViewModel>
+@{
+    ViewData["Title"] = "Thực đơn tuần này";
+    Layout = null;
+
+    var today   = DateTime.Today;
+    int todayNo = (int)today.DayOfWeek == 0 ? 0 : (int)today.DayOfWeek + 1;
+
+    var dayConfig = new[]
+    {
+        (2, "Thứ Hai"),  (3, "Thứ Ba"),  (4, "Thứ Tư"),
+        (5, "Thứ Năm"),  (6, "Thứ Sáu"), (7, "Thứ Bảy"),
+    };
+    var shifts     = new[] { ("CA1","CA 1 — Ca sáng","#1F4E79"), ("CA2","CA 2 / Tăng ca","#375623"), ("CA3","CA 3 — Ca tối","#7B3F00") };
+    var mealLabels = new Dictionary<string,string>
+    {
+        { "MAN","🍖 Mặn" }, { "DU_KIEN","🔄 Dự kiến" }, { "NHE","🍜 Nhẹ" }, { "CHAY","🥗 Chay" }
+    };
+
+    // Lấy các ngày thực sự có dữ liệu
+    var activeDays = Model.Select(m => m.DAY_NO).Distinct().OrderBy(d => d).ToHashSet();
+    bool isEmpty   = !Model.Any();
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>Thực đơn tuần này</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+               background: #f5f5f5; color: #1a1a1a; }
+
+        .top-bar { background: linear-gradient(135deg, #c00000, #8b0000);
+                   color: white; padding: 16px; position: sticky; top: 0; z-index: 10;
+                   box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+        .top-bar h1 { font-size: 20px; font-weight: 700; }
+        .top-bar small { font-size: 12px; opacity: .8; }
+
+        /* Tab ngày */
+        .day-tabs { display: flex; overflow-x: auto; background: white;
+                    border-bottom: 1px solid #e0e0e0; position: sticky; top: 62px; z-index: 9;
+                    box-shadow: 0 2px 4px rgba(0,0,0,.06); scrollbar-width: none; }
+        .day-tabs::-webkit-scrollbar { display: none; }
+        .day-tab { flex-shrink: 0; padding: 10px 16px; font-size: 13px;
+                   font-weight: 600; color: #666; border-bottom: 3px solid transparent;
+                   cursor: pointer; white-space: nowrap; transition: all .2s; }
+        .day-tab.active   { color: #c00000; border-bottom-color: #c00000; }
+        .day-tab.today    { background: #fff8f8; }
+        .day-tab.no-data  { color: #bbb; }
+        .day-tab .dot     { display:inline-block; width:6px; height:6px; border-radius:50%;
+                            background:#c00000; margin-left:4px; vertical-align:middle; }
+
+        /* Nội dung ngày */
+        .day-content { display: none; padding-bottom: 24px; }
+        .day-content.active { display: block; }
+
+        .holiday-msg { text-align: center; padding: 48px 24px; color: #aaa; font-size: 15px; }
+
+        /* Ca */
+        .shift-block { margin: 12px 12px 0; border-radius: 14px; overflow: hidden;
+                       box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+        .shift-header { padding: 11px 16px; color: white;
+                        font-weight: 700; font-size: 14px; }
+        .meal-list { background: white; }
+
+        /* Món ăn */
+        .meal-row { display: flex; align-items: flex-start;
+                    padding: 12px 14px; border-bottom: 1px solid #f0f0f0; gap: 12px; }
+        .meal-row:last-child { border-bottom: none; }
+
+        .meal-img { width: 58px; height: 58px; border-radius: 10px;
+                    object-fit: cover; flex-shrink: 0; }
+        .meal-img-ph { width:58px; height:58px; border-radius:10px; background:#f5f5f5;
+                       display:flex; align-items:center; justify-content:center;
+                       flex-shrink:0; font-size:24px; }
+        .meal-info { flex:1; min-width:0; }
+        .meal-type { font-size: 11px; font-weight: 600; color: #888;
+                     text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; }
+        .meal-name { font-size: 14px; font-weight: 600; line-height: 1.4; }
+        .meal-name-sub { font-size: 12px; color: #666; margin-top: 2px; }
+
+        /* Today badge */
+        .today-badge { display:inline-block; background:#c00000; color:white;
+                       font-size:10px; font-weight:700; border-radius:4px;
+                       padding:2px 6px; margin-left:6px; vertical-align:middle; }
+
+        .back-link { display:block; margin:14px 12px 8px; background:white;
+                     border-radius:12px; padding:13px 16px; text-align:center;
+                     color:#c00000; font-weight:600; font-size:14px;
+                     text-decoration:none; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+    </style>
+</head>
+<body>
+
+<div class="top-bar">
+    <h1>📅 Thực đơn tuần này</h1>
+    <small>Nhấn vào ngày để xem chi tiết</small>
+</div>
+
+@if (isEmpty)
+{
+    <div class="holiday-msg">
+        <div style="font-size:56px;margin-bottom:12px;">🍽️</div>
+        <p>Chưa có thực đơn tuần này.</p>
+    </div>
+}
+else
+{
+    <!-- Tab ngày -->
+    <div class="day-tabs" id="dayTabs">
+        @foreach (var (dayNo, dayName) in dayConfig)
+        {
+            bool hasData  = activeDays.Contains(dayNo);
+            bool isToday  = dayNo == todayNo;
+            <div class="day-tab @(isToday ? "today" : "") @(hasData ? "" : "no-data")"
+                 data-day="@dayNo" onclick="switchDay(@dayNo)">
+                @dayName
+                @if (isToday) { <span class="dot"></span> }
+            </div>
+        }
+    </div>
+
+    <!-- Nội dung từng ngày -->
+    @foreach (var (dayNo, dayName) in dayConfig)
+    {
+        bool isToday    = dayNo == todayNo;
+        var  dayItems   = Model.Where(m => m.DAY_NO == dayNo).ToList();
+        bool hasData    = dayItems.Any();
+
+        <div class="day-content @(isToday ? "active" : "")" id="day-@dayNo">
+
+            @if (!hasData)
+            {
+                <div class="holiday-msg">
+                    <div style="font-size:48px;margin-bottom:8px;">🏖️</div>
+                    <p>Ngày nghỉ — không có thực đơn</p>
+                </div>
+            }
+            else
+            {
+                if (isToday)
+                {
+                    <div style="text-align:center;padding:10px 0 2px;font-size:13px;color:#c00000;font-weight:600;">
+                        Hôm nay — @DateTime.Today.ToString("dd/MM/yyyy")
+                    </div>
+                }
+
+                @foreach (var (shiftKey, shiftLabel, shiftColor) in shifts)
+                {
+                    var shiftItems = dayItems.Where(m => m.SHIFT == shiftKey).ToList();
+                    if (!shiftItems.Any()) continue;
+
+                    var byMeal = shiftItems
+                        .GroupBy(m => m.MEAL_TYPE)
+                        .OrderBy(g => g.Key == "MAN" ? 0 : g.Key == "DU_KIEN" ? 1 : g.Key == "NHE" ? 2 : 3);
+
+                    <div class="shift-block">
+                        <div class="shift-header" style="background:@shiftColor;">@shiftLabel</div>
+                        <div class="meal-list">
+                            @foreach (var mealGroup in byMeal)
+                            {
+                                var lbl   = mealLabels.GetValueOrDefault(mealGroup.Key, mealGroup.Key);
+                                var foods = mealGroup.OrderBy(f => f.DISPLAY_ORDER).ToList();
+                                var first = foods.First();
+                                var rest  = foods.Skip(1).ToList();
+
+                                <div class="meal-row">
+                                    @if (!string.IsNullOrEmpty(first.IMAGE_PATH))
+                                    {
+                                        <img class="meal-img"
+                                             src="@Url.Action("GetImage", new { fileName = first.IMAGE_PATH })"
+                                             alt="@first.FOOD_NAME" loading="lazy"
+                                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                                        <div class="meal-img-ph" style="display:none;">🍴</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="meal-img-ph">🍴</div>
+                                    }
+                                    <div class="meal-info">
+                                        <div class="meal-type">@lbl</div>
+                                        <div class="meal-name">@(first.FOOD_NAME ?? first.FOOD_TEXT)</div>
+                                        @foreach (var extra in rest)
+                                        {
+                                            <div class="meal-name-sub">· @(extra.FOOD_NAME ?? extra.FOOD_TEXT)</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    }
+}
+
+<a href="@Url.Action("Today")" class="back-link">🍽️ Xem thực đơn hôm nay</a>
+
+<script>
+// Mở đúng tab ngày hiện tại khi load
+const todayNo = @todayNo;
+
+function switchDay(dayNo) {
+    document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.day-content').forEach(c => c.classList.remove('active'));
+
+    const tab = document.querySelector(`.day-tab[data-day="${dayNo}"]`);
+    const content = document.getElementById('day-' + dayNo);
+    tab?.classList.add('active');
+    content?.classList.add('active');
+
+    // Scroll tab vào giữa
+    tab?.scrollIntoView({ inline: 'center', behavior: 'smooth' });
+}
+
+// Khi load: nếu hôm nay không có dữ liệu thì mở tab đầu tiên có dữ liệu
+window.addEventListener('DOMContentLoaded', () => {
+    const activeDays = [@string.Join(",", Model.Select(m => m.DAY_NO).Distinct().OrderBy(d=>d))];
+    const hasToday   = activeDays.includes(todayNo);
+
+    if (!hasToday && activeDays.length > 0) {
+        switchDay(activeDays[0]);
+    } else if (todayNo > 0) {
+        switchDay(todayNo);
+    } else if (activeDays.length > 0) {
+        switchDay(activeDays[0]);
+    }
+});
+</script>
+</body>
+</html>

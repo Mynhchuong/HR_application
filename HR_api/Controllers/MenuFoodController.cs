@@ -76,16 +76,23 @@ public class MenuFoodController : ControllerBase
                     INSERT INTO HRMS.HR_MENU_FOOD
                         (FOOD_NAME, FOOD_TYPE, IMAGE_PATH, IS_ACTIVE, INST_ID, INST_DT)
                     VALUES
-                        (:FOOD_NAME, :FOOD_TYPE, :IMAGE_PATH, :IS_ACTIVE, :INST_ID, SYSDATE)";
+                        (:FOOD_NAME, :FOOD_TYPE, :IMAGE_PATH, :IS_ACTIVE, :INST_ID, SYSDATE)
+                    RETURNING ID INTO :newId";
 
+                var newIdParam = new OracleParameter("newId", Oracle.ManagedDataAccess.Client.OracleDbType.Int32)
+                {
+                    Direction = System.Data.ParameterDirection.Output
+                };
                 await _db.ExecuteNonQueryAsync(sql,
                     new OracleParameter("FOOD_NAME",  model.FOOD_NAME),
                     new OracleParameter("FOOD_TYPE",  (object?)model.FOOD_TYPE  ?? DBNull.Value),
                     new OracleParameter("IMAGE_PATH", (object?)model.IMAGE_PATH ?? DBNull.Value),
                     new OracleParameter("IS_ACTIVE",  model.IS_ACTIVE),
-                    new OracleParameter("INST_ID",    (object?)model.LOGIN_USER ?? DBNull.Value));
+                    new OracleParameter("INST_ID",    (object?)model.LOGIN_USER ?? DBNull.Value),
+                    newIdParam);
 
-                return Ok(new { success = true, message = "Thêm món ăn thành công" });
+                int newId = Convert.ToInt32(newIdParam.Value.ToString());
+                return Ok(new { success = true, message = "Thêm món ăn thành công", newId });
             }
             else
             {

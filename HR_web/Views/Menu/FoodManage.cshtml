@@ -1,0 +1,259 @@
+@model List<HR_web.Models.Menu.MenuFoodModel>
+@{
+    ViewData["Title"] = "Danh mục Món ăn";
+}
+
+<div class="container-fluid py-4">
+    <div class="card">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-info shadow-info border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="text-white mb-0"><i class="bi bi-egg-fried me-1"></i> Danh mục Món ăn</h6>
+                <div class="d-flex gap-2">
+                    <a href="@Url.Action("Manage")" class="btn btn-sm btn-outline-white mb-0">
+                        <i class="bi bi-arrow-left me-1"></i> Thực đơn
+                    </a>
+                    <button class="btn btn-sm btn-white mb-0" onclick="openModal()">
+                        <i class="bi bi-plus-lg me-1"></i> Thêm món
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body px-0 pt-0 pb-2 mt-1">
+            <div id="alertArea" class="px-4"></div>
+
+            @if (!Model.Any())
+            {
+                <div class="text-center py-5 text-secondary">
+                    <i class="bi bi-egg-fried" style="font-size:48px;opacity:.3;display:block;margin-bottom:.75rem;"></i>
+                    <p>Chưa có món ăn nào. Nhấn <strong>Thêm món</strong> để bắt đầu.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive px-3">
+                    <table class="table align-items-center mb-0 table-hover" id="foodTable">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2">#</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2">Ảnh</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2">Tên món</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2 text-center">Loại</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2 text-center">Trạng thái</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="foodTableBody">
+                            @for (int i = 0; i < Model.Count; i++)
+                            {
+                                var f = Model[i];
+                                <tr id="row-@f.ID">
+                                    <td class="px-2 text-xs text-secondary">@(i + 1)</td>
+                                    <td class="px-2">
+                                        @if (!string.IsNullOrEmpty(f.IMAGE_PATH))
+                                        {
+                                            <img src="@Url.Action("GetImage", "Menu", new { fileName = f.IMAGE_PATH })"
+                                                 alt="@f.FOOD_NAME"
+                                                 style="width:50px;height:50px;object-fit:cover;border-radius:8px;" />
+                                        }
+                                        else
+                                        {
+                                            <div style="width:50px;height:50px;background:#f0f0f0;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                                <i class="bi bi-image text-secondary"></i>
+                                            </div>
+                                        }
+                                    </td>
+                                    <td class="px-2">
+                                        <div class="text-sm font-weight-bold">@f.FOOD_NAME</div>
+                                    </td>
+                                    <td class="px-2 text-center">
+                                        @{
+                                            var typeLabel = f.FOOD_TYPE switch
+                                            {
+                                                "MAN"     => "Mặn",
+                                                "NHE"     => "Nhẹ",
+                                                "CHAY"    => "Chay",
+                                                "DU_KIEN" => "Dự kiến",
+                                                _         => f.FOOD_TYPE ?? "—"
+                                            };
+                                        }
+                                        <span class="badge badge-sm bg-gradient-secondary">@typeLabel</span>
+                                    </td>
+                                    <td class="px-2 text-center">
+                                        <span id="badge-@f.ID" class="badge badge-sm @(f.IS_ACTIVE == 1 ? "bg-gradient-success" : "bg-gradient-secondary")">
+                                            @(f.IS_ACTIVE == 1 ? "Hiện" : "Ẩn")
+                                        </span>
+                                    </td>
+                                    <td class="px-2 text-end">
+                                        <div class="d-flex gap-1 justify-content-end">
+                                            <button class="btn btn-sm btn-outline-dark mb-0 px-2"
+                                                    onclick="openModal(@f.ID, '@Html.Encode(f.FOOD_NAME)', '@f.FOOD_TYPE', '@f.IMAGE_PATH', @f.IS_ACTIVE)"
+                                                    title="Sửa">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-warning mb-0 px-2"
+                                                    onclick="toggleFood(@f.ID)" title="Bật/Tắt">
+                                                <i class="bi bi-toggle-on"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger mb-0 px-2"
+                                                    onclick="deleteFood(@f.ID, '@Html.Encode(f.FOOD_NAME)')" title="Xóa">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+{{!-- ── MODAL THÊM / SỬA MÓN ── --}}
+<div class="modal fade" id="modalFood" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalFoodTitle">Thêm món ăn</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="fId" />
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Tên món <span class="text-danger">*</span></label>
+                    <input type="text" id="fName" class="form-control" placeholder="VD: Cá kho rau răm" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Loại món</label>
+                    <select id="fType" class="form-select">
+                        <option value="">— Chọn loại —</option>
+                        <option value="MAN">Món mặn</option>
+                        <option value="NHE">Món nhẹ</option>
+                        <option value="CHAY">Món chay</option>
+                        <option value="DU_KIEN">Món dự kiến</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Hình ảnh</label>
+                    <input type="file" id="fImage" class="form-control" accept=".jpg,.jpeg,.png,.webp" />
+                    <div class="form-text">JPG, PNG, WEBP — tối đa 5MB</div>
+                    <div id="imgPreview" class="mt-2"></div>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="fActive" checked />
+                    <label class="form-check-label" for="fActive">Hiển thị (active)</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-info" id="btnSaveFood">
+                    <i class="bi bi-floppy me-1"></i> Lưu
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const antiForgery = '@Html.AntiForgeryToken()'.match(/value="([^"]+)"/)?.[1] ?? '';
+let currentImagePath = null;
+
+function showAlert(msg, type='success') {
+    const a = document.getElementById('alertArea');
+    a.innerHTML = `<div class="alert alert-${type} py-2 mt-2">${msg}</div>`;
+    setTimeout(() => a.innerHTML = '', 4000);
+}
+
+function openModal(id=0, name='', type='', imgPath='', active=1) {
+    document.getElementById('fId').value    = id;
+    document.getElementById('fName').value  = name;
+    document.getElementById('fType').value  = type;
+    document.getElementById('fActive').checked = active == 1;
+    document.getElementById('fImage').value = '';
+    currentImagePath = imgPath || null;
+    const prev = document.getElementById('imgPreview');
+    const imgUrl = imgPath ? `/Menu/GetImage?fileName=${encodeURIComponent(imgPath)}` : '';
+    prev.innerHTML = imgUrl
+        ? `<img src="${imgUrl}" style="height:80px;border-radius:8px;" />`
+        : '';
+    document.getElementById('modalFoodTitle').textContent = id ? 'Sửa món ăn' : 'Thêm món ăn';
+    new bootstrap.Modal(document.getElementById('modalFood')).show();
+}
+
+document.getElementById('fImage').addEventListener('change', function() {
+    const f = this.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        document.getElementById('imgPreview').innerHTML =
+            `<img src="${e.target.result}" style="height:80px;border-radius:8px;" />`;
+    };
+    reader.readAsDataURL(f);
+});
+
+document.getElementById('btnSaveFood').addEventListener('click', async () => {
+    const name = document.getElementById('fName').value.trim();
+    if (!name) { showAlert('Vui lòng nhập tên món ăn', 'danger'); return; }
+
+    const btn = document.getElementById('btnSaveFood');
+    btn.disabled = true;
+
+    try {
+        const fd = new FormData();
+        fd.append('ID',        document.getElementById('fId').value);
+        fd.append('FOOD_NAME', name);
+        fd.append('FOOD_TYPE', document.getElementById('fType').value);
+        fd.append('IS_ACTIVE', document.getElementById('fActive').checked ? '1' : '0');
+        if (currentImagePath) fd.append('IMAGE_PATH', currentImagePath);
+        const imgFile = document.getElementById('fImage').files[0];
+        if (imgFile) fd.append('imageFile', imgFile);
+
+        const res  = await fetch('@Url.Action("SaveFood")', {
+            method:  'POST',
+            headers: { 'RequestVerificationToken': antiForgery },
+            body:    fd
+        });
+        const data = await res.json();
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('modalFood')).hide();
+            showAlert(data.message);
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showAlert(data.message, 'danger');
+        }
+    } catch(e) {
+        showAlert('Lỗi kết nối: ' + e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+    }
+});
+
+async function toggleFood(id) {
+    const res  = await fetch('@Url.Action("ToggleFood")?id=' + id, {
+        method: 'POST', headers: { 'RequestVerificationToken': antiForgery }
+    });
+    const data = await res.json();
+    if (data.success) {
+        showAlert(data.message);
+        setTimeout(() => location.reload(), 500);
+    } else {
+        showAlert(data.message, 'danger');
+    }
+}
+
+async function deleteFood(id, name) {
+    if (!confirm(`Xóa món "${name}"?`)) return;
+    const res  = await fetch('@Url.Action("DeleteFood")?id=' + id, {
+        method: 'POST', headers: { 'RequestVerificationToken': antiForgery }
+    });
+    const data = await res.json();
+    if (data.success) {
+        document.getElementById('row-' + id)?.remove();
+        showAlert(data.message);
+    } else {
+        showAlert(data.message, 'danger');
+    }
+}
+</script>

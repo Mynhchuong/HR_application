@@ -10,7 +10,6 @@
 
 <div class="container-fluid py-4">
 
-    {{!-- ── THÔNG BÁO ── --}}
     @if (TempData["SuccessMessage"] != null)
     {
         <div class="alert alert-success mx-2 py-2">@TempData["SuccessMessage"]</div>
@@ -24,7 +23,6 @@
         <div class="alert alert-danger mx-2 py-2"><i class="bi bi-exclamation-triangle me-1"></i>@TempData["ImportError"]</div>
     }
 
-    {{!-- ── LỖI IMPORT ── --}}
     @if (errors.Any())
     {
         <div class="card border-danger mx-2 mb-3">
@@ -59,7 +57,6 @@
 
     <div class="row g-3">
 
-        {{!-- ── DANH SÁCH TUẦN ── --}}
         <div class="col-12 col-xl-8">
             <div class="card">
                 <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
@@ -159,7 +156,6 @@
             </div>
         </div>
 
-        {{!-- ── IMPORT / TẢI MẪU ── --}}
         <div class="col-12 col-xl-4">
             <div class="card">
                 <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
@@ -205,7 +201,6 @@
     </div>
 </div>
 
-{{!-- ── MODAL TẠO TUẦN ── --}}
 <div class="modal fade" id="modalCreateWeek" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">

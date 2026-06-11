@@ -1,7 +1,6 @@
 @model List<HR_web.Models.Menu.MenuDayViewModel>
 @{
     ViewData["Title"] = "Thực đơn hôm nay";
-    Layout = null; // full mobile layout riêng
 
     var today    = DateTime.Today;
     var dayNames = new Dictionary<DayOfWeek, string>
@@ -15,139 +14,160 @@
         { DayOfWeek.Sunday,    "Chủ Nhật" },
     };
     var todayLabel = dayNames.GetValueOrDefault(today.DayOfWeek, "Hôm nay");
-
-    var shifts = new[] { ("CA1","CA 1 — Ca sáng","#1F4E79"), ("CA2","CA 2 / Tăng ca","#375623"), ("CA3","CA 3 — Ca tối","#7B3F00") };
+    var shifts     = new[] { ("CA1","CA 1 — Ca sáng","#1F4E79"), ("CA2","CA 2 / Tăng ca","#375623"), ("CA3","CA 3 — Ca tối","#7B3F00") };
     var mealLabels = new Dictionary<string,string>
     {
-        { "MAN","🍖 Món mặn" }, { "DU_KIEN","🔄 Dự kiến" }, { "NHE","🍜 Món nhẹ" }, { "CHAY","🥗 Món chay" }
+        { "MAN","Món mặn" }, { "DU_KIEN","Dự kiến" }, { "NHE","Món nhẹ" }, { "CHAY","Món chay" }
     };
-
     bool isEmpty = !Model.Any();
 }
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>Thực đơn hôm nay</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-               background: #f5f5f5; color: #1a1a1a; }
 
-        .top-bar {
-            background: linear-gradient(135deg, #c00000, #8b0000);
-            color: white; padding: 16px 16px 12px;
-            position: sticky; top: 0; z-index: 10;
-            box-shadow: 0 2px 8px rgba(0,0,0,.25);
-        }
-        .top-bar .date { font-size: 13px; opacity: .85; }
-        .top-bar h1   { font-size: 20px; font-weight: 700; margin-top: 2px; }
-        .top-bar .link { position:absolute; right:16px; top:50%; transform:translateY(-50%);
-                         color:rgba(255,255,255,.85); font-size:13px; text-decoration:none; }
+<style>
+    :root {
+        --fr:  #c00000;
+        --frd: #8b0000;
+        --fbg: #fff8f8;
+        --fbo: #fde8e8;
+    }
 
-        .empty-state { text-align:center; padding: 60px 24px; color: #888; }
-        .empty-state .icon { font-size: 64px; display:block; margin-bottom:12px; opacity:.4; }
-        .empty-state p { font-size: 15px; }
+    .menu-page { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
 
-        .shift-block { margin: 12px 12px 0; border-radius: 14px; overflow: hidden;
-                       box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-        .shift-header { padding: 12px 16px; color: white;
-                        font-weight: 700; font-size: 15px; letter-spacing: .3px; }
-        .meal-list { background: white; }
+    /* ── Hero ── */
+    .food-hero {
+        background: linear-gradient(135deg, var(--frd) 0%, var(--fr) 100%);
+        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
+        color: #fff; display: flex; align-items: center; justify-content: space-between;
+    }
+    .food-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; }
+    .food-hero small { font-size: .75rem; opacity: .85; }
+    .food-hero-icon  { font-size: 2.4rem; line-height: 1; }
 
-        .meal-row { display: flex; align-items: flex-start; padding: 12px 16px;
-                    border-bottom: 1px solid #f0f0f0; gap: 12px; }
-        .meal-row:last-child { border-bottom: none; }
+    /* ── Tab toggle ── */
+    .food-tabs {
+        display: flex; background: #f1f5f9; border-radius: 12px;
+        padding: 4px; margin-bottom: .75rem; gap: 3px;
+        touch-action: manipulation;
+    }
+    .food-tab {
+        flex: 1; text-align: center; min-height: 44px;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 9px; font-size: .88rem; font-weight: 700;
+        text-decoration: none !important; color: #64748b;
+        transition: background .15s, color .15s, box-shadow .15s;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none; cursor: pointer;
+    }
+    .food-tab.active { background: white; color: var(--fr); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+    .food-tab:active  { opacity: .75; }
 
-        .meal-img { width: 64px; height: 64px; border-radius: 10px;
-                    object-fit: cover; flex-shrink: 0; background: #f0f0f0; }
-        .meal-img-placeholder { width:64px; height:64px; border-radius:10px;
-                                 background:#f5f5f5; display:flex; align-items:center;
-                                 justify-content:center; flex-shrink:0; font-size:28px; }
+    /* ── Empty ── */
+    .food-empty { text-align: center; padding: 3rem 1rem; color: #94a3b8; }
+    .food-empty .ei { font-size: 3rem; display: block; margin-bottom: .5rem; }
 
-        .meal-info { flex: 1; min-width: 0; }
-        .meal-type { font-size: 11px; font-weight: 600; color: #888;
-                     text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
-        .meal-name { font-size: 15px; font-weight: 600; line-height: 1.4; color: #1a1a1a; }
-        .meal-name-sub { font-size: 13px; color: #555; margin-top: 3px; }
+    /* ── Shift block ── */
+    .shift-block { border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.08); margin-bottom: .625rem; }
+    .shift-header { padding: .6rem 1rem; color: white; font-weight: 700; font-size: .85rem; letter-spacing: .2px; }
+    .meal-list { background: white; }
 
-        .week-link { display:block; margin: 14px 12px 20px;
-                     background: white; border-radius: 12px;
-                     padding: 14px 16px; text-align: center;
-                     color: #c00000; font-weight: 600; font-size: 14px;
-                     text-decoration: none; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-        .week-link:active { background: #fef0f0; }
-    </style>
-</head>
-<body>
+    /* ── Meal row ── */
+    .meal-row {
+        display: flex; align-items: center;
+        padding: .7rem .9rem; gap: .75rem;
+        border-bottom: 1px solid #f5f5f5;
+        -webkit-tap-highlight-color: transparent;
+        min-height: 52px;
+    }
+    .meal-row:last-child { border-bottom: none; }
+    .meal-row:active { background: #fafafa; }
 
-<div class="top-bar">
-    <div class="date">@todayLabel, @today.ToString("dd/MM/yyyy")</div>
-    <h1>🍽️ Hôm nay ăn gì?</h1>
-    <a href="@Url.Action("ThisWeek")" class="link">Xem cả tuần →</a>
-</div>
+    .meal-img    { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: #f0f0f0; }
+    .meal-img-ph { width: 56px; height: 56px; border-radius: 10px; background: #f5f5f5;
+                   display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 24px; }
 
-@if (isEmpty)
-{
-    <div class="empty-state">
-        <span class="icon">🍽️</span>
-        <p>Chưa có thực đơn hôm nay<br />hoặc hôm nay là ngày nghỉ.</p>
+    .meal-info { flex: 1; min-width: 0; }
+    .meal-type { font-size: .65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+    .meal-name { font-size: .9rem; font-weight: 700; line-height: 1.35; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .meal-name-multi { font-size: .9rem; font-weight: 700; line-height: 1.35; color: #1e293b; }
+    .meal-name-sub { font-size: .78rem; color: #64748b; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+
+<div class="menu-page px-2 py-2">
+
+    <div class="food-hero">
+        <div>
+            <h5>Hôm nay ăn gì?</h5>
+            <small>@todayLabel, @today.ToString("dd/MM/yyyy")</small>
+        </div>
+        <span class="food-hero-icon">🍽️</span>
     </div>
-}
-else
-{
-    @foreach (var (shiftKey, shiftLabel, shiftColor) in shifts)
+
+    <div class="food-tabs">
+        <div class="food-tab active">Hôm nay</div>
+        <a href="@Url.Action("ThisWeek")" class="food-tab">Cả tuần</a>
+    </div>
+
+    @if (isEmpty)
     {
-        var shiftItems = Model.Where(m => m.SHIFT == shiftKey).ToList();
-        if (!shiftItems.Any()) continue;
-
-        // Nhóm theo meal type
-        var byMeal = shiftItems
-            .GroupBy(m => m.MEAL_TYPE)
-            .OrderBy(g => g.Key == "MAN" ? 0 : g.Key == "DU_KIEN" ? 1 : g.Key == "NHE" ? 2 : 3)
-            .ToList();
-
-        <div class="shift-block">
-            <div class="shift-header" style="background:@shiftColor;">@shiftLabel</div>
-            <div class="meal-list">
-                @foreach (var mealGroup in byMeal)
-                {
-                    var label = mealLabels.GetValueOrDefault(mealGroup.Key, mealGroup.Key);
-                    var foods = mealGroup.OrderBy(f => f.DISPLAY_ORDER).ToList();
-                    var firstFood = foods.First();
-                    var restFoods = foods.Skip(1).ToList();
-
-                    <div class="meal-row">
-                        @if (!string.IsNullOrEmpty(firstFood.IMAGE_PATH))
-                        {
-                            <img class="meal-img"
-                                 src="@Url.Action("GetImage", new { fileName = firstFood.IMAGE_PATH })"
-                                 alt="@firstFood.FOOD_NAME"
-                                 loading="lazy"
-                                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-                            <div class="meal-img-placeholder" style="display:none;">🍴</div>
-                        }
-                        else
-                        {
-                            <div class="meal-img-placeholder">🍴</div>
-                        }
-                        <div class="meal-info">
-                            <div class="meal-type">@label</div>
-                            <div class="meal-name">@(firstFood.FOOD_NAME ?? firstFood.FOOD_TEXT)</div>
-                            @foreach (var extra in restFoods)
-                            {
-                                <div class="meal-name-sub">· @(extra.FOOD_NAME ?? extra.FOOD_TEXT)</div>
-                            }
-                        </div>
-                    </div>
-                }
-            </div>
+        <div class="food-empty">
+            <span class="ei">🍽️</span>
+            <p>Chưa có thực đơn hôm nay<br/>hoặc hôm nay là ngày nghỉ.</p>
         </div>
     }
-}
+    else
+    {
+        @foreach (var (shiftKey, shiftLabel, shiftColor) in shifts)
+        {
+            var shiftItems = Model.Where(m => m.SHIFT == shiftKey).ToList();
+            if (!shiftItems.Any()) continue;
 
-<a href="@Url.Action("ThisWeek")" class="week-link">📅 Xem thực đơn cả tuần</a>
+            var byMeal = shiftItems
+                .GroupBy(m => m.MEAL_TYPE)
+                .OrderBy(g => g.Key == "MAN" ? 0 : g.Key == "DU_KIEN" ? 1 : g.Key == "NHE" ? 2 : 3)
+                .ToList();
 
-</body>
-</html>
+            <div class="shift-block">
+                <div class="shift-header" style="background:@shiftColor;">@shiftLabel</div>
+                <div class="meal-list">
+                    @foreach (var mealGroup in byMeal)
+                    {
+                        var label = mealLabels.GetValueOrDefault(mealGroup.Key, mealGroup.Key);
+                        var foods = mealGroup.OrderBy(f => f.DISPLAY_ORDER).ToList();
+                        var first = foods.First();
+                        var rest  = foods.Skip(1).ToList();
+
+                        <div class="meal-row">
+                            @if (!string.IsNullOrEmpty(first.IMAGE_PATH))
+                            {
+                                <img class="meal-img"
+                                     src="@Url.Action("GetImage", new { fileName = first.IMAGE_PATH })"
+                                     alt="@first.FOOD_NAME" loading="lazy"
+                                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                                <div class="meal-img-ph" style="display:none;">🍴</div>
+                            }
+                            else
+                            {
+                                <div class="meal-img-ph">🍴</div>
+                            }
+                            <div class="meal-info">
+                                <div class="meal-type">@label</div>
+                                @if (!rest.Any())
+                                {
+                                    <div class="meal-name">@(first.FOOD_NAME ?? first.FOOD_TEXT)</div>
+                                }
+                                else
+                                {
+                                    <div class="meal-name-multi">@(first.FOOD_NAME ?? first.FOOD_TEXT)</div>
+                                    @foreach (var extra in rest)
+                                    {
+                                        <div class="meal-name-sub">· @(extra.FOOD_NAME ?? extra.FOOD_TEXT)</div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+</div>

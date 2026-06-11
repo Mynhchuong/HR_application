@@ -48,6 +48,12 @@ public class OTController : BaseController
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(work_date) || !DateTime.TryParse(work_date, out _))
+                return Json(new { success = false, message = "Ngày tăng ca không hợp lệ" });
+
+            if (ot_hours <= 0)
+                return Json(new { success = false, message = "Số giờ tăng ca không hợp lệ" });
+
             var result = await _otService.ConfirmOTAsync(empcd, confirmStatus, work_date, ot_hours);
             return Json(new { success = result.success, message = result.message ?? (result.success ? "Thành công" : "Có lỗi xảy ra") });
         }

@@ -25,6 +25,59 @@ public class PolicyController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET /Policy/Detail?ids=8,9,10
+    // ─────────────────────────────────────────────
+    public async Task<IActionResult> Detail(string ids)
+    {
+        if (string.IsNullOrWhiteSpace(ids))
+            return RedirectToAction("Index");
+
+        var idList = ids.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => int.TryParse(s.Trim(), out var n) ? n : 0)
+                        .Where(n => n > 0).ToList();
+
+        if (!idList.Any())
+            return RedirectToAction("Index");
+
+        var items = new List<CompanyPolicyModel>();
+        foreach (var id in idList)
+        {
+            var item = await _service.GetByIdAsync(id);
+            if (item != null) items.Add(item);
+        }
+
+        if (!items.Any())
+            return RedirectToAction("Index");
+
+        // Build prev/next navigation within same category
+        var allPolicies = await _service.GetListAsync();
+        var category = items.First().CATEGORY;
+        var titleGroups = allPolicies
+            .Where(p => p.CATEGORY == category)
+            .GroupBy(p => p.TITLE)
+            .OrderBy(tg => tg.Min(p => p.DISPLAY_ORDER))
+            .ToList();
+
+        var currentTitle = items.First().TITLE;
+        var currentIdx = titleGroups.FindIndex(tg => tg.Key == currentTitle);
+
+        if (currentIdx >= 0 && currentIdx < titleGroups.Count - 1)
+        {
+            var next = titleGroups[currentIdx + 1];
+            ViewBag.NextIds   = string.Join(",", next.Select(p => p.ID));
+            ViewBag.NextTitle = next.Key;
+        }
+        if (currentIdx > 0)
+        {
+            var prev = titleGroups[currentIdx - 1];
+            ViewBag.PrevIds   = string.Join(",", prev.Select(p => p.ID));
+            ViewBag.PrevTitle = prev.Key;
+        }
+
+        return View(items);
+    }
+
+    // ─────────────────────────────────────────────
     // GET /Policy/Manage  — HR quản lý
     // ─────────────────────────────────────────────
     public async Task<IActionResult> Manage()

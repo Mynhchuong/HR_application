@@ -16,238 +16,132 @@
 
 <style>
     :root {
-        --pp: #4f46e5;
-        --pp-bg: #f8fafc;
-        --pp-text: #1e293b;
-        --pp-muted: #64748b;
-        --pp-border: #e2e8f0;
-        --pp-active: #ede9fe;
+        --pp:        #4f46e5;
+        --pp-dark:   #4338ca;
+        --pp-bg:     #eef2ff;
+        --pp-border: #e0e7ff;
     }
 
     .policy-page {
-        max-width: 600px;
+        max-width: 680px;
         margin: 0 auto;
-        padding: 0 0 5rem;
+        padding-bottom: 5rem;
     }
 
-    /* ── Hero ─────────────────────────────────────────── */
+    /* ── Hero ─────────────────────────────────── */
     .pp-hero {
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        background: linear-gradient(135deg, #4338ca 0%, #818cf8 100%);
         border-radius: 20px;
-        padding: 1.25rem 1.25rem 1.25rem 1.25rem;
-        padding-right: 120px;
-        margin-bottom: 1rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1.5rem;
         color: #fff;
         position: relative;
         overflow: hidden;
     }
+    .pp-hero h5    { font-size: 1.1rem; font-weight: 800; margin: 0 0 .2rem; }
+    .pp-hero small { font-size: .78rem; opacity: .85; }
     .pp-hero-img {
-        position: absolute;
-        right: -6px;
-        bottom: -4px;
-        height: 100px;
-        pointer-events: none;
-        user-select: none;
+        position: absolute; right: -6px; bottom: -4px;
+        height: 100px; pointer-events: none; user-select: none;
     }
-    .pp-hero h5 { font-size: 1.1rem; font-weight: 700; margin: 0 0 0.2rem; }
-    .pp-hero .pp-meta { font-size: 0.77rem; opacity: .85; }
 
-    /* ── Search ───────────────────────────────────────── */
-    .pp-search {
-        position: relative;
-        margin-bottom: 0.875rem;
-    }
+    /* ── Search ───────────────────────────────── */
+    .pp-search { position: relative; margin-bottom: 1rem; }
     .pp-search input {
-        width: 100%;
-        border-radius: 14px;
-        border: 1.5px solid var(--pp-border);
-        padding: 0.65rem 2.5rem 0.65rem 2.5rem;
-        font-size: 0.9rem;
-        background: #fff;
-        color: var(--pp-text);
-        outline: none;
-        box-shadow: 0 2px 8px rgba(0,0,0,.04);
-        transition: border-color .2s;
-        box-sizing: border-box;
+        width: 100%; border-radius: 14px;
+        border: 1.5px solid #e2e8f0;
+        padding: .65rem 2.5rem .65rem 2.5rem;
+        font-size: .9rem; background: #fff; color: #1e293b;
+        outline: none; box-shadow: 0 2px 8px rgba(0,0,0,.04);
+        transition: border-color .2s; box-sizing: border-box;
     }
     .pp-search input:focus { border-color: var(--pp); box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
     .pp-search .s-icon {
         position: absolute; left: .75rem; top: 50%; transform: translateY(-50%);
-        color: var(--pp-muted); font-size: 20px; pointer-events: none;
+        color: #64748b; font-size: 20px; pointer-events: none;
     }
     .pp-search .s-clear {
         position: absolute; right: .75rem; top: 50%; transform: translateY(-50%);
-        color: var(--pp-muted); font-size: 18px; cursor: pointer;
+        color: #64748b; font-size: 18px; cursor: pointer;
         background: none; border: none; padding: 0; display: none;
     }
-    .pp-search .s-clear:hover { color: var(--pp-text); }
 
-    /* ── Accordion groups ─────────────────────────────── */
-    .pp-accordion { display: flex; flex-direction: column; gap: 0.625rem; }
+    /* ── Section label ────────────────────────── */
+    .pp-section-label {
+        font-size: .72rem; font-weight: 700; letter-spacing: .07em;
+        text-transform: uppercase; color: #64748b;
+        padding: 0 4px; margin: 1.25rem 0 .6rem;
+    }
 
-    .pp-group {
+    /* ── Grid ─────────────────────────────────── */
+    .pp-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: .75rem;
+    }
+    @@media (min-width: 540px) {
+        .pp-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    /* ── Card ─────────────────────────────────── */
+    .pp-card {
         background: #fff;
+        border: 1.5px solid var(--pp-border);
         border-radius: 18px;
-        border: 1px solid var(--pp-border);
-        overflow: hidden;
-        box-shadow: 0 2px 6px rgba(0,0,0,.04);
-    }
-    .pp-group-hd {
-        display: flex;
-        align-items: center;
-        gap: 0.625rem;
-        padding: .875rem 1rem;
+        padding: 1.1rem .9rem 1rem;
+        display: flex; flex-direction: column; align-items: center;
+        text-align: center;
+        text-decoration: none !important;
+        color: inherit !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,.04);
+        transition: transform .2s, box-shadow .2s, border-color .2s;
+        -webkit-tap-highlight-color: transparent;
         cursor: pointer;
-        user-select: none;
-        -webkit-tap-highlight-color: transparent;
     }
-    .pp-group-hd:active { background: var(--pp-active); }
-
-    .pp-icon-wrap {
-        width: 36px; height: 36px; border-radius: 10px;
-        background: var(--pp-active);
-        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    .pp-card:active { transform: scale(0.95); background: var(--pp-bg); }
+    @@media (hover: hover) {
+        .pp-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(79,70,229,.15);
+            border-color: var(--pp);
+        }
     }
-    .pp-icon-wrap .material-symbols-rounded { font-size: 18px; color: var(--pp); }
 
-    .pp-group-title { font-size: .9rem; font-weight: 700; color: var(--pp-text); flex: 1; }
-
-    .pp-badge {
-        font-size: 0.7rem; background: var(--pp-active); color: var(--pp);
-        border-radius: 20px; padding: 2px 9px; font-weight: 600; white-space: nowrap;
-    }
-    .pp-chevron {
-        font-size: 20px; color: var(--pp-muted);
-        transition: transform .25s ease; flex-shrink: 0;
-    }
-    .pp-group.open .pp-chevron { transform: rotate(180deg); }
-
-    /* ── Items list ───────────────────────────────────── */
-    .pp-items {
-        display: none;
-        border-top: 1px solid var(--pp-border);
-        padding: .5rem .625rem;
-        display: flex;
-        flex-direction: column;
-        gap: .375rem;
-    }
-    .pp-group.open .pp-items { display: flex; }
-
-    .pp-item {
+    .pp-card-icon {
+        width: 52px; height: 52px; border-radius: 14px;
         background: var(--pp-bg);
-        border-radius: 12px;
-        border: 1px solid var(--pp-border);
-        overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: .65rem; font-size: 1.5rem;
+        color: var(--pp-dark);
+        transition: transform .2s;
+    }
+    .pp-card:hover .pp-card-icon { transform: rotate(5deg) scale(1.1); }
+
+    .pp-card-title {
+        font-size: .82rem; font-weight: 700; color: #1e293b; line-height: 1.3;
     }
 
-    .pp-item-hd {
-        display: flex; align-items: center; gap: .5rem;
-        padding: .75rem .875rem;
-        cursor: pointer; user-select: none;
-        -webkit-tap-highlight-color: transparent;
-        min-height: 48px;
-    }
-    .pp-item-hd:active { background: var(--pp-active); }
-
-    .pp-item-title {
-        font-size: .85rem; font-weight: 600; color: var(--pp-text);
-        flex: 1; line-height: 1.4;
-    }
-    .pp-item-chevron {
-        font-size: 17px; color: var(--pp-muted);
-        transition: transform .2s ease; flex-shrink: 0;
-    }
-    .pp-item.open .pp-item-chevron { transform: rotate(180deg); }
-    .pp-item.open { border-color: #c7d2fe; }
-
-    .pp-item-body {
-        display: none;
-        border-top: 1px solid #c7d2fe;
-        padding: .75rem .875rem;
-        margin-top: 0;
-        font-size: .83rem;
-        color: #475569;
-        line-height: 1.75;
-    }
-    .pp-item.open .pp-item-body { display: block; }
-
-    /* ── Rich content overrides ───────────────────────── */
-    body .pp-item-body h1,
-    body .pp-item-body h2,
-    body .pp-item-body h3,
-    body .pp-item-body h4,
-    body .pp-item-body h5,
-    body .pp-item-body h6 {
-        font-size: .88rem !important;
-        font-weight: 700 !important;
-        margin: .5rem 0 .25rem !important;
-        color: var(--pp-text) !important;
-        line-height: 1.5 !important;
-        display: block !important;
-    }
-    .pp-item-body p { margin-bottom: .4rem; }
-    .pp-item-body ul,
-    .pp-item-body ol  { padding-left: 1.1rem; margin-bottom: .4rem; }
-    .pp-item-body strong { color: var(--pp-text); }
-
-    /* scrollable table wrapper (injected by JS) */
-    .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: .5rem 0; }
-    .tbl-wrap table,
-    .pp-item-body table {
-        border-collapse: collapse;
-        font-size: .8rem;
-        min-width: 280px;
-        width: 100%;
-    }
-    .pp-item-body table td,
-    .pp-item-body table th {
-        border: 1px solid var(--pp-border);
-        padding: 5px 7px;
-        vertical-align: top;
-    }
-    .pp-item-body table th {
-        background: var(--pp-active);
-        font-weight: 600;
-        color: var(--pp);
-        text-align: left;
-    }
-
-    .content-divider { border: none; border-top: 1px dashed var(--pp-border); margin: .6rem 0; }
-
-    .pp-item-meta {
-        margin-top: .6rem; font-size: .73rem; color: var(--pp-muted);
-        display: flex; align-items: center; gap: 3px;
-    }
-    .pp-item-meta .material-symbols-rounded { font-size: 13px; }
-
-    /* ── Empty state ──────────────────────────────────── */
-    .pp-empty { text-align: center; padding: 2rem 1rem; color: var(--pp-muted); }
+    /* ── Empty ────────────────────────────────── */
+    .pp-empty { text-align: center; padding: 3rem 1rem; color: #94a3b8; }
     .pp-empty img { height: 110px; width: auto; margin-bottom: .75rem; opacity: .85; }
 </style>
 
-<div class="policy-page">
+<div class="policy-page px-2">
 
-    <!-- Hero -->
     <div class="pp-hero">
-        <img src="@Url.Content("~/assets/img/illustrations/" + heroImg)" class="pp-hero-img" alt="" />
-        <h5>Quy định công ty</h5>
-        @if (lastUpdated != null)
+        <h5><i class="bi bi-journal-text me-2"></i>Quy định công ty</h5>
+        <small>Chọn mục bạn muốn xem chi tiết</small>
+        @if (lastUpdated?.UPDT_DT.HasValue == true)
         {
             var updName = !string.IsNullOrEmpty(lastUpdated.UPDT_FULL_NAME)
                 ? lastUpdated.UPDT_FULL_NAME : lastUpdated.UPDT_ID;
-            <div class="pp-meta">
-                <span class="material-symbols-rounded" style="font-size:13px;vertical-align:middle;">update</span>
-                Cập nhật @lastUpdated.UPDT_DT?.ToString("dd/MM/yyyy")
-                @if (!string.IsNullOrEmpty(updName)) { <span>— @updName</span> }
-            </div>
+            <small style="opacity:.7;">
+                <span class="material-symbols-rounded" style="font-size:12px;vertical-align:middle;">update</span>
+                Cập nhật @lastUpdated.UPDT_DT!.Value.ToString("dd/MM/yyyy")
+                @if (!string.IsNullOrEmpty(updName)) { <text>— @updName</text> }
+            </small>
         }
-        else
-        {
-            <div class="pp-meta">
-                <span class="material-symbols-rounded" style="font-size:13px;vertical-align:middle;">info</span>
-                @Model.Count mục quy định
-            </div>
-        }
+        <img src="@Url.Content("~/assets/img/illustrations/" + heroImg)" class="pp-hero-img" alt="" />
     </div>
 
     @if (!catGroups.Any())
@@ -259,7 +153,6 @@
     }
     else
     {
-        <!-- Search -->
         <div class="pp-search">
             <span class="material-symbols-rounded s-icon">search</span>
             <input type="text" id="ppSearch" placeholder="Tìm kiếm quy định…"
@@ -273,61 +166,31 @@
             <p>Không tìm thấy kết quả phù hợp</p>
         </div>
 
-        <div class="pp-accordion" id="ppAccordion">
-        @for (int gi = 0; gi < catGroups.Count; gi++)
+        <div id="ppContent">
+        @foreach (var cat in catGroups)
         {
-            var cat        = catGroups[gi];
-            var gId        = $"ppg-{gi}";
-
-            // Group same-title items together within a category
             var titleGroups = cat
                 .GroupBy(p => p.TITLE)
                 .OrderBy(tg => tg.Min(p => p.DISPLAY_ORDER))
                 .ToList();
 
-            <div class="pp-group" id="@gId" data-total="@titleGroups.Count">
-                <div class="pp-group-hd" onclick="ppToggleGroup('@gId')">
-                    <div class="pp-icon-wrap">
-                        <span class="material-symbols-rounded">article</span>
-                    </div>
-                    <span class="pp-group-title">@cat.Key</span>
-                    <span class="pp-badge" id="badge-@gId">@titleGroups.Count mục</span>
-                    <span class="material-symbols-rounded pp-chevron">expand_more</span>
+            <div class="pp-section" data-cat="@cat.Key.ToLower()">
+                <div class="pp-section-label">
+                    <i class="bi bi-folder2 me-1"></i>@cat.Key
                 </div>
-
-                <div class="pp-items">
-                @for (int ti = 0; ti < titleGroups.Count; ti++)
+                <div class="pp-grid">
+                @foreach (var tg in titleGroups)
                 {
-                    var tg      = titleGroups[ti];
-                    var itemId  = $"ppi-{gi}-{ti}";
-                    var combined = string.Join(
-                        "<hr class='content-divider'>",
-                        tg.Select(p => p.CONTENT ?? ""));
-                    var meta    = tg.OrderByDescending(p => p.UPDT_DT).First();
-                    var searchTxt = System.Text.RegularExpressions.Regex
-                        .Replace(combined, "<.*?>", " ").ToLower();
-
-                    <div class="pp-item" id="@itemId"
-                         data-title="@tg.Key.ToLower()"
-                         data-content="@searchTxt.Substring(0, Math.Min(searchTxt.Length, 500))">
-                        <div class="pp-item-hd" onclick="ppToggleItem('@itemId')">
-                            <span class="pp-item-title">@tg.Key</span>
-                            <span class="material-symbols-rounded pp-item-chevron">expand_more</span>
+                    var ids = string.Join(",", tg.Select(p => p.ID));
+                    <a href="@Url.Action("Detail", "Policy", new { ids })"
+                       class="pp-card"
+                       data-title="@tg.Key.ToLower()"
+                       data-cat="@cat.Key.ToLower()">
+                        <div class="pp-card-icon">
+                            <span class="material-symbols-rounded">description</span>
                         </div>
-                        <div class="pp-item-body">
-                            @Html.Raw(combined)
-                            @if (meta.UPDT_DT.HasValue)
-                            {
-                                var mname = !string.IsNullOrEmpty(meta.UPDT_FULL_NAME)
-                                    ? meta.UPDT_FULL_NAME : meta.UPDT_ID;
-                                <div class="pp-item-meta">
-                                    <span class="material-symbols-rounded">update</span>
-                                    Cập nhật @meta.UPDT_DT.Value.ToString("dd/MM/yyyy")
-                                    @if (!string.IsNullOrEmpty(mname)) { <span>— @mname</span> }
-                                </div>
-                            }
-                        </div>
-                    </div>
+                        <div class="pp-card-title">@tg.Key</div>
+                    </a>
                 }
                 </div>
             </div>
@@ -337,82 +200,32 @@
 </div>
 
 <script>
-    // Force heading sizes regardless of inline styles from rich-text editor
-    function fixHeadings(el) {
-        el.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(h => {
-            h.style.setProperty('font-size',   '.88rem',  'important');
-            h.style.setProperty('font-weight', '700',     'important');
-            h.style.setProperty('line-height', '1.5',     'important');
-            h.style.setProperty('margin',      '.5rem 0 .25rem', 'important');
-            h.style.setProperty('color',       '#1e293b', 'important');
-            h.style.setProperty('display',     'block',   'important');
-        });
-    }
-
-    // Wrap bare tables in scrollable container
-    function wrapTables(el) {
-        el.querySelectorAll('table:not([data-wrapped])').forEach(t => {
-            t.dataset.wrapped = '1';
-            const w = document.createElement('div');
-            w.className = 'tbl-wrap';
-            t.parentNode.insertBefore(w, t);
-            w.appendChild(t);
-        });
-    }
-
-    // Apply to all bodies on load (handles pre-opened items)
-    document.querySelectorAll('.pp-item-body').forEach(el => {
-        fixHeadings(el);
-        wrapTables(el);
-    });
-
-    function ppToggleGroup(id) {
-        document.getElementById(id).classList.toggle('open');
-    }
-
-    function ppToggleItem(id) {
-        const el   = document.getElementById(id);
-        el.classList.toggle('open');
-        if (el.classList.contains('open')) {
-            const body = el.querySelector('.pp-item-body');
-            fixHeadings(body);
-            wrapTables(body);
-        }
-    }
-
     function ppDoSearch(q) {
         q = q.trim().toLowerCase();
         document.getElementById('ppClear').style.display = q ? 'block' : 'none';
 
-        const groups = document.querySelectorAll('.pp-group');
+        const cards = document.querySelectorAll('.pp-card');
         let total = 0;
 
-        groups.forEach(g => {
-            const items = g.querySelectorAll('.pp-item');
-            let hit = 0;
-            items.forEach(it => {
-                const match = !q
-                    || (it.dataset.title   || '').includes(q)
-                    || (it.dataset.content || '').includes(q);
-                it.style.display = match ? '' : 'none';
-                if (match) hit++;
-            });
-
-            if (q && hit === 0) {
-                g.style.display = 'none';
-            } else {
-                g.style.display = '';
-                if (q) g.classList.add('open');
-                else   g.classList.remove('open');
-            }
-
-            const badge = document.getElementById('badge-' + g.id);
-            if (badge) badge.textContent = (q ? hit : +g.dataset.total) + ' mục';
-            total += hit;
+        cards.forEach(c => {
+            const match = !q
+                || (c.dataset.title || '').includes(q)
+                || (c.dataset.cat   || '').includes(q);
+            c.style.display = match ? '' : 'none';
+            if (match) total++;
         });
 
-        document.getElementById('ppNoResult').style.display  = (q && total === 0) ? '' : 'none';
-        document.getElementById('ppAccordion').style.display = (q && total === 0) ? 'none' : '';
+        // Hide section labels when all cards inside are hidden
+        document.querySelectorAll('.pp-section').forEach(sec => {
+            const visible = [...sec.querySelectorAll('.pp-card')]
+                .some(c => c.style.display !== 'none');
+            sec.style.display = visible ? '' : 'none';
+        });
+
+        const noResult = document.getElementById('ppNoResult');
+        const content  = document.getElementById('ppContent');
+        noResult.style.display = (q && total === 0) ? '' : 'none';
+        if (content) content.style.display = (q && total === 0) ? 'none' : '';
     }
 
     function ppClearSearch() {

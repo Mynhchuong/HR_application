@@ -10,14 +10,28 @@ public class GuideController : BaseController
 {
     private readonly GuideService _service;
     private readonly IWebHostEnvironment _env;
+    private readonly IConfiguration _config;
 
     private static readonly string[] AllowedVideoExts = { ".mp4", ".webm", ".mov" };
     private const long MaxVideoBytes = 500 * 1024 * 1024; // 500 MB
 
-    public GuideController(GuideService service, IWebHostEnvironment env)
+    private string GuideVideoFolder =>
+        _config["GuideVideoPath"] ?? Path.Combine(_env.WebRootPath, "video", "guides");
+
+    // Tìm file vật lý: ưu tiên network share, fallback về wwwroot
+    private string GetPhysicalVideoPath(string videoPath)
+    {
+        var fileName = Path.GetFileName(videoPath);
+        var networkPath = Path.Combine(GuideVideoFolder, fileName);
+        if (System.IO.File.Exists(networkPath)) return networkPath;
+        return Path.Combine(_env.WebRootPath, videoPath.TrimStart('/'));
+    }
+
+    public GuideController(GuideService service, IWebHostEnvironment env, IConfiguration config)
     {
         _service = service;
         _env = env;
+        _config = config;
     }
 
     // GET /Guide/Index  — tất cả đều xem được (kể cả chưa login)
@@ -91,13 +105,13 @@ public class GuideController : BaseController
                 return View(model);
             }
 
-            var guidesFolder = Path.Combine(_env.WebRootPath, "video", "guides");
+            var guidesFolder = GuideVideoFolder;
             Directory.CreateDirectory(guidesFolder);
 
             // Xóa video cũ nếu có
             if (!string.IsNullOrEmpty(model.VIDEO_PATH))
             {
-                var oldFile = Path.Combine(_env.WebRootPath, model.VIDEO_PATH.TrimStart('/'));
+                var oldFile = GetPhysicalVideoPath(model.VIDEO_PATH);
                 if (System.IO.File.Exists(oldFile))
                     System.IO.File.Delete(oldFile);
             }
@@ -138,7 +152,7 @@ public class GuideController : BaseController
 
         if (!string.IsNullOrEmpty(guide.VIDEO_PATH))
         {
-            var oldFile = Path.Combine(_env.WebRootPath, guide.VIDEO_PATH.TrimStart('/'));
+            var oldFile = GetPhysicalVideoPath(guide.VIDEO_PATH);
             if (System.IO.File.Exists(oldFile))
                 System.IO.File.Delete(oldFile);
         }
@@ -178,7 +192,7 @@ public class GuideController : BaseController
 
         if (success && !string.IsNullOrEmpty(videoPath))
         {
-            var filePath = Path.Combine(_env.WebRootPath, videoPath.TrimStart('/'));
+            var filePath = GetPhysicalVideoPath(videoPath);
             if (System.IO.File.Exists(filePath))
                 System.IO.File.Delete(filePath);
         }

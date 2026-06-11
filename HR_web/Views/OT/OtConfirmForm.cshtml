@@ -45,6 +45,19 @@
         box-shadow: 0 4px 20px rgba(0,0,0,0.03);
         border: 1px solid rgba(0,0,0,0.05);
         position: relative;
+        transition: background 0.3s ease, border-color 0.3s ease;
+    }
+
+    .ticket-card.status-confirmed {
+        background: linear-gradient(160deg, #f0fdf4 0%, #dcfce7 100%);
+        border-color: #86efac;
+        box-shadow: 0 4px 20px rgba(16, 185, 129, 0.1);
+    }
+
+    .ticket-card.status-rejected {
+        background: linear-gradient(160deg, #fffbeb 0%, #fef9c3 100%);
+        border-color: #fde047;
+        box-shadow: 0 4px 20px rgba(234, 179, 8, 0.1);
     }
 
     .ticket-header {
@@ -267,7 +280,7 @@
         else
         {
             <!-- Ticket -->
-            <div class="ticket-card">
+            <div class="ticket-card @(Model.CONFIRM_STATUS == "CONFIRMED" ? "status-confirmed" : Model.CONFIRM_STATUS == "REJECTED" ? "status-rejected" : "")" >
                 <div class="ticket-header">
                     <span class="ticket-title">Phiếu xác nhận tăng ca</span>
                     <div class="ticket-date">@(Model.WORK_DATE.HasValue ? Model.WORK_DATE.Value.ToString("dd/MM/yyyy") : "-")</div>

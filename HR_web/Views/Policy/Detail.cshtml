@@ -1,0 +1,211 @@
+@model List<HR_web.Models.Policy.CompanyPolicyModel>
+@using HR_web.Helpers
+@{
+    ViewData["Title"] = Model.First().TITLE;
+    var first   = Model.First();
+    var combined = string.Join("<hr class='content-divider'>", Model.Select(p => p.CONTENT ?? ""));
+    var meta    = Model.Where(p => p.UPDT_DT.HasValue).OrderByDescending(p => p.UPDT_DT).FirstOrDefault();
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+    :root {
+        --pp: #4f46e5;
+        --pp-bg: #f8fafc;
+        --pp-text: #1e293b;
+        --pp-muted: #64748b;
+        --pp-border: #e2e8f0;
+        --pp-active: #ede9fe;
+    }
+
+    .detail-page {
+        max-width: 600px;
+        margin: 0 auto;
+        padding-bottom: 5rem;
+    }
+
+    /* ── Header ── */
+    .detail-header {
+        display: flex;
+        align-items: flex-start;
+        gap: .875rem;
+        margin-bottom: 1.25rem;
+    }
+    .detail-back {
+        width: 40px; height: 40px; border-radius: 12px;
+        background: #fff; border: 1.5px solid var(--pp-border);
+        display: flex; align-items: center; justify-content: center;
+        color: var(--pp-text); text-decoration: none; flex-shrink: 0;
+        -webkit-tap-highlight-color: transparent;
+        transition: background .15s;
+        margin-top: 2px;
+    }
+    .detail-back:active { background: var(--pp-active); }
+    .detail-back .material-symbols-rounded { font-size: 22px; }
+
+    .detail-meta-cat {
+        font-size: .7rem; font-weight: 800; text-transform: uppercase;
+        color: var(--pp); letter-spacing: .08em; margin-bottom: .25rem;
+    }
+    .detail-title {
+        font-size: 1rem; font-weight: 800; color: var(--pp-text); line-height: 1.35;
+    }
+
+    /* ── Content card ── */
+    .detail-card {
+        background: #fff; border-radius: 20px;
+        border: 1px solid var(--pp-border);
+        box-shadow: 0 2px 10px rgba(0,0,0,.04);
+        padding: 1.25rem;
+    }
+
+    .pp-item-body {
+        font-size: .88rem; color: #475569; line-height: 1.75;
+    }
+    .pp-item-body p { margin-bottom: .4rem; }
+    .pp-item-body ul, .pp-item-body ol { padding-left: 1.1rem; margin-bottom: .4rem; }
+    .pp-item-body strong { color: var(--pp-text); }
+
+    .pp-item-body h1, .pp-item-body h2, .pp-item-body h3,
+    .pp-item-body h4, .pp-item-body h5, .pp-item-body h6 {
+        font-size: .9rem !important; font-weight: 700 !important;
+        margin: .6rem 0 .25rem !important; color: var(--pp-text) !important;
+        line-height: 1.5 !important; display: block !important;
+    }
+
+    .content-divider { border: none; border-top: 1px dashed var(--pp-border); margin: .75rem 0; }
+
+    .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: .5rem 0; }
+    .tbl-wrap table, .pp-item-body table {
+        border-collapse: collapse; font-size: .8rem; min-width: 280px; width: 100%;
+    }
+    .pp-item-body table td, .pp-item-body table th {
+        border: 1px solid var(--pp-border); padding: 6px 8px; vertical-align: top;
+    }
+    .pp-item-body table th {
+        background: var(--pp-active); font-weight: 600; color: var(--pp); text-align: left;
+    }
+
+    .pp-item-meta {
+        margin-top: 1rem; padding-top: .75rem;
+        border-top: 1px dashed var(--pp-border);
+        font-size: .73rem; color: var(--pp-muted);
+        display: flex; align-items: center; gap: 3px;
+    }
+    .pp-item-meta .material-symbols-rounded { font-size: 13px; }
+
+    /* ── Nav prev/next ── */
+    .detail-nav {
+        display: flex; justify-content: space-between; gap: .75rem;
+        margin-top: 1rem;
+    }
+    .nav-btn {
+        flex: 1; display: flex; align-items: center; gap: .5rem;
+        background: #fff; border: 1.5px solid var(--pp-border);
+        border-radius: 16px; padding: .75rem .9rem;
+        text-decoration: none !important; color: var(--pp-text) !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,.04);
+        transition: border-color .2s, box-shadow .2s;
+        min-width: 0;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .nav-btn:active { background: var(--pp-active); }
+    @@media (hover: hover) {
+        .nav-btn:hover { border-color: var(--pp); box-shadow: 0 4px 14px rgba(79,70,229,.12); }
+    }
+    .nav-btn .material-symbols-rounded { font-size: 18px; color: var(--pp); flex-shrink: 0; }
+    .nav-btn-text { display: flex; flex-direction: column; min-width: 0; }
+    .nav-label { font-size: .68rem; font-weight: 700; text-transform: uppercase;
+                 letter-spacing: .06em; color: var(--pp); }
+    .nav-title { font-size: .78rem; font-weight: 600; color: var(--pp-text);
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nav-next { text-align: right; justify-content: flex-end; }
+    .nav-next .nav-btn-text { align-items: flex-end; }
+</style>
+
+<div class="detail-page py-3">
+
+    <div class="detail-header">
+        <a href="@Url.Action("Index", "Policy")" class="detail-back">
+            <span class="material-symbols-rounded">arrow_back</span>
+        </a>
+        <div>
+            <div class="detail-meta-cat">@first.CATEGORY</div>
+            <div class="detail-title">@first.TITLE</div>
+        </div>
+    </div>
+
+    @if (ViewBag.PrevIds != null || ViewBag.NextIds != null)
+    {
+        <div class="detail-nav">
+            @if (ViewBag.PrevIds != null)
+            {
+                <a href="@Url.Action("Detail", "Policy", new { ids = (string)ViewBag.PrevIds })" class="nav-btn nav-prev">
+                    <span class="material-symbols-rounded">arrow_back_ios</span>
+                    <div class="nav-btn-text">
+                        <span class="nav-label">Trước</span>
+                        <span class="nav-title">@ViewBag.PrevTitle</span>
+                    </div>
+                </a>
+            }
+            else { <div style="flex:1"></div> }
+            @if (ViewBag.NextIds != null)
+            {
+                <a href="@Url.Action("Detail", "Policy", new { ids = (string)ViewBag.NextIds })" class="nav-btn nav-next">
+                    <div class="nav-btn-text">
+                        <span class="nav-label">Tiếp theo</span>
+                        <span class="nav-title">@ViewBag.NextTitle</span>
+                    </div>
+                    <span class="material-symbols-rounded">arrow_forward_ios</span>
+                </a>
+            }
+        </div>
+    }
+
+    <div class="detail-card">
+        <div class="pp-item-body">
+            <template class="pp-tpl">@Html.Raw(combined)</template>
+        </div>
+
+        @if (meta?.UPDT_DT.HasValue == true)
+        {
+            var mname = !string.IsNullOrEmpty(meta.UPDT_FULL_NAME) ? meta.UPDT_FULL_NAME : meta.UPDT_ID;
+            <div class="pp-item-meta">
+                <span class="material-symbols-rounded">update</span>
+                Cập nhật @meta.UPDT_DT!.Value.ToString("dd/MM/yyyy")
+                @if (!string.IsNullOrEmpty(mname)) { <span>— @mname</span> }
+            </div>
+        }
+    </div>
+
+</div>
+
+<script>
+    function fixHeadings(el) {
+        el.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(h => {
+            h.style.setProperty('font-size',   '.9rem',  'important');
+            h.style.setProperty('font-weight', '700',    'important');
+            h.style.setProperty('line-height', '1.5',    'important');
+            h.style.setProperty('margin',      '.6rem 0 .25rem', 'important');
+            h.style.setProperty('color',       '#1e293b','important');
+            h.style.setProperty('display',     'block',  'important');
+        });
+    }
+
+    function wrapTables(el) {
+        el.querySelectorAll('table:not([data-wrapped])').forEach(t => {
+            t.dataset.wrapped = '1';
+            const w = document.createElement('div');
+            w.className = 'tbl-wrap';
+            t.parentNode.insertBefore(w, t);
+            w.appendChild(t);
+        });
+    }
+
+    document.querySelectorAll('.pp-item-body').forEach(el => {
+        const tpl = el.querySelector('template.pp-tpl');
+        if (tpl) { el.insertBefore(tpl.content.cloneNode(true), tpl); tpl.remove(); }
+        fixHeadings(el);
+        wrapTables(el);
+    });
+</script>

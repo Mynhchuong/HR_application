@@ -26,7 +26,11 @@ public class PolicyController : ControllerBase
         {
             const string sql = @"
                 SELECT P.ID, P.CATEGORY, P.TITLE,
-                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 1) AS CONTENT,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 1)    AS C1,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 2001) AS C2,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 4001) AS C3,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 6001) AS C4,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 8001) AS C5,
                        P.DISPLAY_ORDER, P.IS_ACTIVE,
                        P.INST_ID, P.INST_DT, P.UPDT_ID, P.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -35,7 +39,7 @@ public class PolicyController : ControllerBase
                 WHERE P.IS_ACTIVE = 1
                 ORDER BY P.CATEGORY, P.DISPLAY_ORDER, P.ID";
 
-            var result = await _oracleService.ExecuteQueryAsync(sql, Map);
+            var result = await _oracleService.ExecuteQueryAsync(sql, MapFull);
             return Ok(new { success = true, data = result });
         }
         catch (Exception ex)
@@ -54,7 +58,11 @@ public class PolicyController : ControllerBase
         {
             const string sql = @"
                 SELECT P.ID, P.CATEGORY, P.TITLE,
-                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 1) AS CONTENT,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 1)    AS C1,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 2001) AS C2,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 4001) AS C3,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 6001) AS C4,
+                       DBMS_LOB.SUBSTR(P.CONTENT, 2000, 8001) AS C5,
                        P.DISPLAY_ORDER, P.IS_ACTIVE,
                        P.INST_ID, P.INST_DT, P.UPDT_ID, P.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
@@ -62,7 +70,7 @@ public class PolicyController : ControllerBase
                 LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = P.UPDT_ID
                 ORDER BY P.CATEGORY, P.DISPLAY_ORDER, P.ID";
 
-            var result = await _oracleService.ExecuteQueryAsync(sql, Map);
+            var result = await _oracleService.ExecuteQueryAsync(sql, MapFull);
             return Ok(new { success = true, data = result });
         }
         catch (Exception ex)
@@ -234,24 +242,7 @@ public class PolicyController : ControllerBase
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Used by list endpoints — CONTENT is already NVARCHAR2 from DBMS_LOB.SUBSTR(4000)
-    private static CompanyPolicyModel Map(Oracle.ManagedDataAccess.Client.OracleDataReader r) => new()
-    {
-        ID             = Convert.ToInt32(r["ID"]),
-        CATEGORY       = r["CATEGORY"]?.ToString() ?? string.Empty,
-        TITLE          = r["TITLE"]?.ToString() ?? string.Empty,
-        CONTENT        = r["CONTENT"]?.ToString() ?? string.Empty,
-        DISPLAY_ORDER  = r["DISPLAY_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["DISPLAY_ORDER"]),
-        IS_ACTIVE      = r["IS_ACTIVE"] == DBNull.Value ? 0 : Convert.ToInt32(r["IS_ACTIVE"]),
-        INST_ID        = r["INST_ID"]?.ToString(),
-        INST_DT        = r["INST_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["INST_DT"]),
-        UPDT_ID        = r["UPDT_ID"]?.ToString(),
-        UPDT_DT        = r["UPDT_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["UPDT_DT"]),
-        UPDT_FULL_NAME = r["UPDT_FULL_NAME"]?.ToString()
-    };
-
-    // Used by GetById — reads NCLOB in 5×2000-char chunks (Oracle 10g SQL limit per DBMS_LOB.SUBSTR)
+    // Reads NCLOB in 5×2000-char chunks (Oracle 10g SQL limit per DBMS_LOB.SUBSTR)
     private static CompanyPolicyModel MapFull(Oracle.ManagedDataAccess.Client.OracleDataReader r) => new()
     {
         ID             = Convert.ToInt32(r["ID"]),

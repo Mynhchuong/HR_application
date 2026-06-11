@@ -28,6 +28,8 @@ public static class SideMenuBuilder
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Tổng quan", Url = "~/Home/Index", Icon = "dashboard" },
+                    new SideMenuItem { Title = "Quy định công ty",    Url = "~/Policy/Index",            Icon = "policy"        },
+                    new SideMenuItem { Title = "Hướng dẫn sử dụng",  Url = "~/Guide/Index",             Icon = "menu_book"     },
                 }
             },
             new SideMenuItem
@@ -43,8 +45,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",           Icon = "payments"      },
                     new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",   Icon = "door_front"    },
                     new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",   Icon = "event_busy"    },
-                    new SideMenuItem { Title = "Quy định công ty",    Url = "~/Policy/Index",            Icon = "policy"        },
-                    new SideMenuItem { Title = "Hướng dẫn sử dụng",  Url = "~/Guide/Index",             Icon = "menu_book"     },
+                   
                 }
             },
 
@@ -117,9 +118,9 @@ public static class SideMenuBuilder
                 {
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy"                 },
                     new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",            Icon = "manage_accounts"        },
+                    new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",              Icon = "account_balance_wallet" },
                     new SideMenuItem { Title = "Phân Quyền Phạm Vi",   Url = "~/UserDept/Index",              Icon = "shield"                 },
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",             Icon = "view_list"              },
-                    new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",              Icon = "account_balance_wallet" },
                     new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",       Icon = "door_front"             },
                     new SideMenuItem { Title = "Log Sắp Lịch Nghỉ",    Url = "~/Leave/LeaveAssignmentLog",   Icon = "assignment_late"        },
                     new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy"             },

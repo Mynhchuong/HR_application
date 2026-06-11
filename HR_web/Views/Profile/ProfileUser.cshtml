@@ -1,4 +1,3 @@
-@using HR_web.Helpers
 @model HR_web.Models.Account.UserDetailModel
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -223,17 +222,7 @@
                 <div class="item-description">Thời gian công tác tại Samho</div>
             </div>
             <div class="item-value">
-                @{
-                    string snText = "-";
-                    if (!string.IsNullOrWhiteSpace(Model.Seniority)) {
-                        var parts = Model.Seniority.Split('.');
-                        int y = 0, m = 0;
-                        if (parts.Length > 0) int.TryParse(parts[0], out y);
-                        if (parts.Length > 1) int.TryParse(parts[1], out m);
-                        snText = (y > 0 ? $"{y} năm " : "") + (m > 0 ? $"{m} tháng" : "");
-                    }
-                }
-                @snText
+                @(string.IsNullOrWhiteSpace(Model.Seniority) ? "-" : Model.Seniority)
             </div>
         </div>
     </div>

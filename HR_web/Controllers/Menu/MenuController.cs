@@ -164,13 +164,11 @@ public class MenuController : BaseController
         ws.Range("C2:D2").Merge();
         StyleCell(ws.Cell("C2"), colorInput, 11);
         ws.Cell("C2").Style.DateFormat.Format = "DD/MM/YYYY";
-        ws.Cell("C2").Comment.AddText("Nhập ngày bắt đầu tuần (DD/MM/YYYY)");
 
         ws.Cell("E2").Value = "Đến ngày:";
         StyleCell(ws.Cell("E2"), colorDay, 11, true);
         StyleCell(ws.Cell("F2"), colorInput, 11);
         ws.Cell("F2").Style.DateFormat.Format = "DD/MM/YYYY";
-        ws.Cell("F2").Comment.AddText("Nhập ngày kết thúc tuần (DD/MM/YYYY)");
         ws.Row(2).Height = 22;
 
         // Row 3: hướng dẫn
@@ -611,7 +609,7 @@ public class MenuController : BaseController
             ws.Cell(r, 2).Value = days[i];
             ws.Cell(r, 2).Style.Fill.SetBackgroundColor(dayColor).Font.SetBold(true);
             ws.Cell(r, 2).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center)
-                                         .SetVertical(XLAlignmentVerticalValues.Center);
+                                         .Alignment.SetVertical(XLAlignmentVerticalValues.Center);
             for (int c = 3; c <= 6; c++)
             {
                 ws.Cell(r, c).Style
@@ -625,26 +623,26 @@ public class MenuController : BaseController
         ws.Range(hr + 1, 1, hr + 6, 1).Merge().Value = label;
         ws.Range(hr + 1, 1, hr + 6, 1).Style
             .Fill.SetBackgroundColor(caColor)
-            .Font.SetBold(true).SetFontColor(XLColor.White)
+            .Font.SetBold(true).Font.SetFontColor(XLColor.White)
             .Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center)
-                       .SetVertical(XLAlignmentVerticalValues.Center)
-                       .SetWrapText(true);
+                       .Alignment.SetVertical(XLAlignmentVerticalValues.Center)
+                       .Alignment.SetWrapText(true);
     }
 
     private static void StyleHeader(IXLRange range, XLColor bg, int size, bool bold)
     {
         range.Style
             .Fill.SetBackgroundColor(bg)
-            .Font.SetBold(bold).SetFontColor(XLColor.White).SetFontSize(size)
+            .Font.SetBold(bold).Font.SetFontColor(XLColor.White).Font.SetFontSize(size)
             .Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center)
-                       .SetVertical(XLAlignmentVerticalValues.Center);
+                       .Alignment.SetVertical(XLAlignmentVerticalValues.Center);
     }
 
     private static void StyleCell(IXLCell cell, XLColor bg, int size, bool bold = false)
     {
         cell.Style
             .Fill.SetBackgroundColor(bg)
-            .Font.SetBold(bold).SetFontSize(size)
+            .Font.SetBold(bold).Font.SetFontSize(size)
             .Alignment.SetVertical(XLAlignmentVerticalValues.Center);
     }
 }

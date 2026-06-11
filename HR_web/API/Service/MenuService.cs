@@ -78,7 +78,7 @@ public class MenuService
         var json   = await res.Content.ReadAsStringAsync();
         var parsed = JsonConvert.DeserializeObject<Resp<object>>(json);
         var jobj   = Newtonsoft.Json.Linq.JObject.Parse(json);
-        int newId  = jobj["newId"]?.Value<int>() ?? 0;
+        int newId  = jobj["newId"]?.ToObject<int>() ?? 0;
         return (parsed?.success ?? false, parsed?.message ?? "Lỗi server", newId);
     }
 

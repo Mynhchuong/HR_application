@@ -188,10 +188,10 @@
                                     var rest  = foods.Skip(1).ToList();
 
                                     <div class="meal-row">
-                                        @if (!string.IsNullOrEmpty(first.IMAGE_PATH))
+                                        @if (first.FOOD_ID.HasValue)
                                         {
                                             <img class="meal-img"
-                                                 src="@Url.Action("GetFoodImage", "Image", new { fileName = first.IMAGE_PATH })"
+                                                 src="@Url.Action("GetFoodImage", "Image", new { fileName = first.FOOD_ID + ".jpg" })"
                                                  alt="@first.FOOD_NAME" loading="lazy"
                                                  onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
                                             <div class="meal-img-ph" style="display:none;">🍴</div>

@@ -10,12 +10,10 @@ namespace HR_api.Controllers;
 public class MenuFoodController : ControllerBase
 {
     private readonly OracleService _db;
-    private readonly IWebHostEnvironment _env;
 
-    public MenuFoodController(OracleService db, IWebHostEnvironment env)
+    public MenuFoodController(OracleService db)
     {
-        _db  = db;
-        _env = env;
+        _db = db;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -27,7 +25,7 @@ public class MenuFoodController : ControllerBase
         try
         {
             const string sql = @"
-                SELECT ID, FOOD_NAME, FOOD_TYPE, IMAGE_PATH, IS_ACTIVE,
+                SELECT ID, FOOD_NAME, FOOD_TYPE, IS_ACTIVE,
                        INST_ID, INST_DT, UPDT_ID, UPDT_DT
                 FROM HRMS.HR_MENU_FOOD
                 ORDER BY IS_ACTIVE DESC, FOOD_TYPE, FOOD_NAME";
@@ -47,7 +45,7 @@ public class MenuFoodController : ControllerBase
         try
         {
             const string sql = @"
-                SELECT ID, FOOD_NAME, FOOD_TYPE, IMAGE_PATH, IS_ACTIVE,
+                SELECT ID, FOOD_NAME, FOOD_TYPE, IS_ACTIVE,
                        INST_ID, INST_DT, UPDT_ID, UPDT_DT
                 FROM HRMS.HR_MENU_FOOD
                 WHERE IS_ACTIVE = 1
@@ -74,9 +72,9 @@ public class MenuFoodController : ControllerBase
             {
                 const string sql = @"
                     INSERT INTO HRMS.HR_MENU_FOOD
-                        (FOOD_NAME, FOOD_TYPE, IMAGE_PATH, IS_ACTIVE, INST_ID, INST_DT)
+                        (FOOD_NAME, FOOD_TYPE, IS_ACTIVE, INST_ID, INST_DT)
                     VALUES
-                        (:FOOD_NAME, :FOOD_TYPE, :IMAGE_PATH, :IS_ACTIVE, :INST_ID, SYSDATE)
+                        (:FOOD_NAME, :FOOD_TYPE, :IS_ACTIVE, :INST_ID, SYSDATE)
                     RETURNING ID INTO :newId";
 
                 var newIdParam = new OracleParameter("newId", Oracle.ManagedDataAccess.Client.OracleDbType.Int32)
@@ -86,7 +84,6 @@ public class MenuFoodController : ControllerBase
                 await _db.ExecuteNonQueryAsync(sql,
                     new OracleParameter("FOOD_NAME",  model.FOOD_NAME),
                     new OracleParameter("FOOD_TYPE",  (object?)model.FOOD_TYPE  ?? DBNull.Value),
-                    new OracleParameter("IMAGE_PATH", (object?)model.IMAGE_PATH ?? DBNull.Value),
                     new OracleParameter("IS_ACTIVE",  model.IS_ACTIVE),
                     new OracleParameter("INST_ID",    (object?)model.LOGIN_USER ?? DBNull.Value),
                     newIdParam);
@@ -100,7 +97,6 @@ public class MenuFoodController : ControllerBase
                     UPDATE HRMS.HR_MENU_FOOD
                     SET FOOD_NAME  = :FOOD_NAME,
                         FOOD_TYPE  = :FOOD_TYPE,
-                        IMAGE_PATH = :IMAGE_PATH,
                         IS_ACTIVE  = :IS_ACTIVE,
                         UPDT_ID    = :UPDT_ID,
                         UPDT_DT    = SYSDATE
@@ -109,7 +105,6 @@ public class MenuFoodController : ControllerBase
                 int rows = await _db.ExecuteNonQueryAsync(sql,
                     new OracleParameter("FOOD_NAME",  model.FOOD_NAME),
                     new OracleParameter("FOOD_TYPE",  (object?)model.FOOD_TYPE  ?? DBNull.Value),
-                    new OracleParameter("IMAGE_PATH", (object?)model.IMAGE_PATH ?? DBNull.Value),
                     new OracleParameter("IS_ACTIVE",  model.IS_ACTIVE),
                     new OracleParameter("UPDT_ID",    (object?)model.LOGIN_USER ?? DBNull.Value),
                     new OracleParameter("ID",         model.ID));
@@ -118,39 +113,6 @@ public class MenuFoodController : ControllerBase
                     ? new { success = true,  message = "Cập nhật thành công" }
                     : new { success = false, message = "Không tìm thấy món ăn" });
             }
-        }
-        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // POST /apiHR/MenuFood/upload-image  — upload ảnh món ăn
-    // ─────────────────────────────────────────────────────────────────────────
-    [HttpPost("upload-image")]
-    public async Task<IActionResult> UploadImage(IFormFile file)
-    {
-        try
-        {
-            if (file == null || file.Length == 0)
-                return Ok(new { success = false, message = "Không có file được chọn" });
-
-            var ext = Path.GetExtension(file.FileName).ToLower();
-            if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp")
-                return Ok(new { success = false, message = "Chỉ chấp nhận file JPG, PNG, WEBP" });
-
-            if (file.Length > 5 * 1024 * 1024)
-                return Ok(new { success = false, message = "File không được vượt quá 5MB" });
-
-            var uploadDir = Path.Combine(_env.WebRootPath, "uploads", "menu");
-            Directory.CreateDirectory(uploadDir);
-
-            var fileName  = $"{Guid.NewGuid()}{ext}";
-            var filePath  = Path.Combine(uploadDir, fileName);
-
-            using (var stream = new FileStream(filePath, FileMode.Create))
-                await file.CopyToAsync(stream);
-
-            var relativePath = $"/uploads/menu/{fileName}";
-            return Ok(new { success = true, imagePath = relativePath });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }
@@ -210,7 +172,6 @@ public class MenuFoodController : ControllerBase
         ID         = Convert.ToInt32(r["ID"]),
         FOOD_NAME  = r["FOOD_NAME"]?.ToString()  ?? string.Empty,
         FOOD_TYPE  = r["FOOD_TYPE"]?.ToString(),
-        IMAGE_PATH = r["IMAGE_PATH"]?.ToString(),
         IS_ACTIVE  = r["IS_ACTIVE"]  == DBNull.Value ? 0 : Convert.ToInt32(r["IS_ACTIVE"]),
         INST_ID    = r["INST_ID"]?.ToString(),
         INST_DT    = r["INST_DT"]   == DBNull.Value ? null : Convert.ToDateTime(r["INST_DT"]),

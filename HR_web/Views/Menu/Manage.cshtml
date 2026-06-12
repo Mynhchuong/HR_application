@@ -168,9 +168,10 @@
                         Tải mẫu Excel, điền thực đơn theo tuần, rồi upload lại để import vào hệ thống.
                     </p>
 
-                    <a href="@Url.Action("DownloadTemplate")" class="btn btn-outline-success w-100 mb-3">
+                    <button type="button" class="btn btn-outline-success w-100 mb-3"
+                            onclick="dlFile('@Url.Action("DownloadTemplate")')">
                         <i class="bi bi-download me-1"></i> Tải mẫu Excel (.xlsx)
-                    </a>
+                    </button>
 
                     <hr class="my-2" />
 
@@ -233,4 +234,16 @@
             </form>
         </div>
     </div>
+</div>
+
+<script>
+function dlFile(url) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 200);
+}
+</script>
 </div>

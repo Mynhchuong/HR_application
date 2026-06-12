@@ -8,7 +8,6 @@ public class MenuFoodModel
     public int     ID         { get; set; }
     public string  FOOD_NAME  { get; set; } = string.Empty;
     public string? FOOD_TYPE  { get; set; }   // MAN | NHE | CHAY | DU_KIEN
-    public string? IMAGE_PATH { get; set; }
     public int     IS_ACTIVE  { get; set; }
     public string? INST_ID    { get; set; }
     public DateTime? INST_DT  { get; set; }
@@ -21,7 +20,6 @@ public class SaveFoodRequest
     public int?    ID         { get; set; }
     public string  FOOD_NAME  { get; set; } = string.Empty;
     public string? FOOD_TYPE  { get; set; }
-    public string? IMAGE_PATH { get; set; }
     public int     IS_ACTIVE  { get; set; } = 1;
     public string? LOGIN_USER { get; set; }
 }
@@ -65,7 +63,6 @@ public class MenuDetailModel
     public string  MEAL_TYPE     { get; set; } = string.Empty;  // MAN | NHE | CHAY | DU_KIEN
     public int?    FOOD_ID       { get; set; }
     public string? FOOD_NAME     { get; set; }   // join từ HR_MENU_FOOD
-    public string? IMAGE_PATH    { get; set; }   // join từ HR_MENU_FOOD
     public string? FOOD_TEXT     { get; set; }   // nhập tự do
     public int     DISPLAY_ORDER { get; set; }
 }
@@ -97,8 +94,8 @@ public class MenuDayViewModel
     public string  DAY_LABEL  { get; set; } = string.Empty;  // "Thứ 2"
     public string  SHIFT      { get; set; } = string.Empty;
     public string  MEAL_TYPE  { get; set; } = string.Empty;
-    public string? FOOD_NAME  { get; set; }
-    public string? IMAGE_PATH { get; set; }
-    public string? FOOD_TEXT  { get; set; }
+    public int?    FOOD_ID       { get; set; }
+    public string? FOOD_NAME     { get; set; }
+    public string? FOOD_TEXT     { get; set; }
     public int     DISPLAY_ORDER { get; set; }
 }

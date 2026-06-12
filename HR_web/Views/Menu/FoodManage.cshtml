@@ -46,16 +46,18 @@
                     <a href="@Url.Action("Manage")" class="btn btn-sm btn-outline-white mb-0">
                         <i class="bi bi-arrow-left me-1"></i> Thực đơn
                     </a>
-                    <a href="@Url.Action("DownloadFoodTemplate")" class="btn btn-sm btn-outline-white mb-0">
+                    <button type="button" class="btn btn-sm btn-outline-white mb-0"
+                            onclick="dlFile('@Url.Action("DownloadFoodTemplate")')">
                         <i class="bi bi-download me-1"></i> Tải mẫu
-                    </a>
+                    </button>
                     <button class="btn btn-sm btn-outline-white mb-0"
                             data-bs-toggle="modal" data-bs-target="#modalImportFood">
                         <i class="bi bi-upload me-1"></i> Import Excel
                     </button>
-                    <a href="@Url.Action("ExportFoodExcel")" class="btn btn-sm btn-white mb-0">
+                    <button type="button" class="btn btn-sm btn-white mb-0"
+                            onclick="dlFile('@Url.Action("ExportFoodExcel")')">
                         <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel
-                    </a>
+                    </button>
                     <button class="btn btn-sm btn-white mb-0" onclick="openModal()">
                         <i class="bi bi-plus-lg me-1"></i> Thêm món
                     </button>
@@ -115,19 +117,14 @@
                                     <td class="px-2 text-xs text-secondary row-num">@(i + 1)</td>
                                     <td class="px-2 text-xs text-secondary fw-bold">@f.ID</td>
                                     <td class="px-2">
-                                        @if (!string.IsNullOrEmpty(f.IMAGE_PATH))
-                                        {
-                                            <img src="@Url.Action("GetFoodImage", "Image", new { fileName = f.IMAGE_PATH })"
-                                                 alt="@f.FOOD_NAME"
-                                                 style="width:50px;height:50px;object-fit:cover;border-radius:8px;"
-                                                 loading="lazy" />
-                                        }
-                                        else
-                                        {
-                                            <div style="width:50px;height:50px;background:#f0f0f0;border-radius:8px;display:flex;align-items:center;justify-content:center;">
-                                                <i class="bi bi-image text-secondary"></i>
-                                            </div>
-                                        }
+                                        <img src="@Url.Action("GetFoodImage", "Image", new { fileName = f.ID + ".jpg" })"
+                                             alt="@f.FOOD_NAME"
+                                             style="width:50px;height:50px;object-fit:cover;border-radius:8px;"
+                                             loading="lazy"
+                                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                                        <div style="display:none;width:50px;height:50px;background:#f0f0f0;border-radius:8px;align-items:center;justify-content:center;">
+                                            <i class="bi bi-image text-secondary"></i>
+                                        </div>
                                     </td>
                                     <td class="px-2">
                                         <div class="text-sm font-weight-bold">@f.FOOD_NAME</div>
@@ -143,8 +140,9 @@
                                     <td class="px-2 text-end">
                                         <div class="d-flex gap-1 justify-content-end">
                                             <button class="btn btn-sm btn-outline-dark mb-0 px-2"
-                                                    onclick="openModal(@f.ID,'@Html.Encode(f.FOOD_NAME)','@f.FOOD_TYPE','@f.IMAGE_PATH',@f.IS_ACTIVE)"
-                                                    title="Sửa">
+                                                    data-id="@f.ID" data-name="@f.FOOD_NAME"
+                                                    data-type="@(f.FOOD_TYPE ?? "")" data-active="@f.IS_ACTIVE"
+                                                    onclick="openModalFromEl(this)" title="Sửa">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             <button class="btn btn-sm btn-outline-warning mb-0 px-2"
@@ -152,7 +150,8 @@
                                                 <i class="bi bi-toggle-on"></i>
                                             </button>
                                             <button class="btn btn-sm btn-outline-danger mb-0 px-2"
-                                                    onclick="deleteFood(@f.ID,'@Html.Encode(f.FOOD_NAME)')" title="Xóa">
+                                                    data-id="@f.ID" data-name="@f.FOOD_NAME"
+                                                    onclick="deleteFoodFromEl(this)" title="Xóa">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -198,8 +197,8 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Hình ảnh</label>
-                    <input type="file" id="fImage" class="form-control" accept=".jpg,.jpeg,.png,.webp" />
-                    <div class="form-text">JPG, PNG, WEBP — tối đa 15MB</div>
+                    <input type="file" id="fImage" class="form-control" accept=".jpg,.jpeg" />
+                    <div class="form-text">JPG — tối đa 15MB</div>
                     <div id="imgPreview" class="mt-2"></div>
                 </div>
                 <div class="form-check">
@@ -254,8 +253,16 @@
 </div>
 
 <script>
+function dlFile(url) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 200);
+}
+
 const antiForgery = '@Html.AntiForgeryToken()'.match(/value="([^"]+)"/)?.[1] ?? '';
-let currentImagePath = null;
 
 // ── Pagination & filter ───────────────────────────────────────────────────────
 const PAGE_SIZE = 20;
@@ -350,7 +357,14 @@ function showAlert(msg, type = 'success') {
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
-function openModal(id = 0, name = '', type = '', imgPath = '', active = 1) {
+function openModalFromEl(el) {
+    openModal(+el.dataset.id, el.dataset.name, el.dataset.type, +el.dataset.active);
+}
+function deleteFoodFromEl(el) {
+    deleteFood(+el.dataset.id, el.dataset.name);
+}
+
+function openModal(id = 0, name = '', type = '', active = 1) {
     document.getElementById('fId').value       = id;
     document.getElementById('fName').value     = name;
     document.getElementById('fType').value     = type;
@@ -358,11 +372,12 @@ function openModal(id = 0, name = '', type = '', imgPath = '', active = 1) {
     document.getElementById('fImage').value    = '';
     document.getElementById('fName').classList.remove('is-invalid');
     document.getElementById('fType').classList.remove('is-invalid');
-    currentImagePath = imgPath || null;
-    const imgUrl = imgPath ? `/Image/GetFoodImage?fileName=${encodeURIComponent(imgPath)}` : '';
-    document.getElementById('imgPreview').innerHTML = imgUrl
-        ? `<img src="${imgUrl}" style="height:80px;border-radius:8px;" />`
-        : '';
+    const preview = document.getElementById('imgPreview');
+    if (id) {
+        preview.innerHTML = `<img src="/Image/GetFoodImage?fileName=${id}.jpg" style="height:80px;border-radius:8px;" onerror="this.style.display='none';" />`;
+    } else {
+        preview.innerHTML = '';
+    }
     document.getElementById('modalFoodTitle').textContent = id ? 'Sửa món ăn' : 'Thêm món ăn';
     new bootstrap.Modal(document.getElementById('modalFood')).show();
 }
@@ -396,7 +411,6 @@ document.getElementById('btnSaveFood').addEventListener('click', async () => {
         fd.append('FOOD_NAME', name);
         fd.append('FOOD_TYPE', type);
         fd.append('IS_ACTIVE', document.getElementById('fActive').checked ? '1' : '0');
-        if (currentImagePath) fd.append('IMAGE_PATH', currentImagePath);
         const imgFile = document.getElementById('fImage').files[0];
         if (imgFile) fd.append('imageFile', imgFile);
 

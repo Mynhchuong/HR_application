@@ -170,8 +170,8 @@ public class MenuController : BaseController
 
         // Row 3: hướng dẫn
         ws.Range("A3:F3").Merge().Value =
-            "👉  Nhập ngày vào ô màu vàng.  Nhiều món trong 1 ô: xuống dòng bằng Alt+Enter.  " +
-            "Ngày nghỉ lễ: để trống toàn bộ hàng đó.  Xem sheet [DANH MỤC MÓN] để tra mã.";
+            "👉  Ô món: nhập ID số (tra sheet DANH MỤC MÓN) hoặc tên tự do.  " +
+            "Nhiều món trong 1 ô: Alt+Enter.  Ngày nghỉ hoặc không có loại món nào: để trống ô đó.";
         StyleCell(ws.Cell("A3"), colorNote, 9);
         ws.Cell("A3").Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Left);
         ws.Row(3).Height = 15;
@@ -301,24 +301,38 @@ public class MenuController : BaseController
 
                             for (int i = 0; i < lines.Count; i++)
                             {
-                                if (lines[i].Length > 500)
+                                if (int.TryParse(lines[i], out int foodId))
                                 {
-                                    errors.Add(new()
+                                    // Số nguyên → FOOD_ID từ danh mục
+                                    items.Add(new SaveDetailItem
                                     {
-                                        Location = $"{shift} — {day} — {MealLabel[mealType]} (dòng {i + 1})",
-                                        Message  = "Tên món vượt quá 500 ký tự"
+                                        DAY_NO        = dayNo,
+                                        SHIFT         = shift,
+                                        MEAL_TYPE     = mealType,
+                                        FOOD_ID       = foodId,
+                                        DISPLAY_ORDER = i + 1
                                     });
-                                    continue;
                                 }
-
-                                items.Add(new SaveDetailItem
+                                else
                                 {
-                                    DAY_NO       = dayNo,
-                                    SHIFT        = shift,
-                                    MEAL_TYPE    = mealType,
-                                    FOOD_TEXT    = lines[i],
-                                    DISPLAY_ORDER = i + 1
-                                });
+                                    if (lines[i].Length > 500)
+                                    {
+                                        errors.Add(new()
+                                        {
+                                            Location = $"{shift} — {day} — {MealLabel[mealType]} (dòng {i + 1})",
+                                            Message  = "Tên món vượt quá 500 ký tự"
+                                        });
+                                        continue;
+                                    }
+                                    items.Add(new SaveDetailItem
+                                    {
+                                        DAY_NO        = dayNo,
+                                        SHIFT         = shift,
+                                        MEAL_TYPE     = mealType,
+                                        FOOD_TEXT     = lines[i],
+                                        DISPLAY_ORDER = i + 1
+                                    });
+                                }
                             }
                         }
                     }
@@ -356,21 +370,6 @@ public class MenuController : BaseController
             {
                 TempData["ErrorMessage"] = $"Không thể tạo tuần: {msgWeek}";
                 return RedirectToAction("Manage");
-            }
-
-            // Thử match tên món với food master để gán FOOD_ID (tuỳ chọn)
-            var foodMaster = await _svc.GetActiveFoodsAsync();
-            var foodByName = foodMaster
-                .GroupBy(f => f.FOOD_NAME.ToUpperInvariant())
-                .ToDictionary(g => g.Key, g => g.First().ID);
-
-            foreach (var item in items)
-            {
-                if (!string.IsNullOrEmpty(item.FOOD_TEXT) &&
-                    foodByName.TryGetValue(item.FOOD_TEXT.ToUpperInvariant(), out int fid))
-                {
-                    item.FOOD_ID = fid;
-                }
             }
 
             // ── Lưu vào DB ──────────────────────────────────────────────────
@@ -415,37 +414,36 @@ public class MenuController : BaseController
         if (string.IsNullOrWhiteSpace(model.FOOD_NAME))
             return Json(new { success = false, message = "Vui lòng nhập tên món ăn" });
 
-        model.LOGIN_USER = CurrentUser!.EmpCd;
-        bool isNew = model.ID == null || model.ID == 0;
-
-        // Upload ảnh mới nếu có — thực hiện trước khi gọi DB để INSERT/UPDATE 1 lần duy nhất
         if (imageFile != null && imageFile.Length > 0)
         {
             var ext = Path.GetExtension(imageFile.FileName).ToLower();
-            if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp")
-                return Json(new { success = false, message = "Ảnh chỉ chấp nhận JPG, PNG, WEBP" });
+            if (ext != ".jpg" && ext != ".jpeg")
+                return Json(new { success = false, message = "Ảnh chỉ chấp nhận JPG" });
             if (imageFile.Length > 15 * 1024 * 1024)
                 return Json(new { success = false, message = "Ảnh không được vượt quá 15MB" });
+        }
 
-            var newFileName = $"{Guid.NewGuid()}{ext}";
+        model.LOGIN_USER = CurrentUser!.EmpCd;
+
+        // Lưu vào DB trước để lấy ID (với món mới)
+        var (success, msg, savedId) = await _svc.SaveFoodAsync(model);
+        if (!success)
+            return Json(new { success = false, message = msg });
+
+        int foodId = (model.ID == null || model.ID == 0) ? savedId : model.ID.Value;
+
+        // Lưu ảnh lên network share với tên = {id}.jpg
+        if (imageFile != null && imageFile.Length > 0 && foodId > 0)
+        {
             using (new NetworkShareHelper(ImageController.ShareRoot, ImageController.ShareCred))
             {
                 Directory.CreateDirectory(CantinFolder);
-                // Xóa ảnh cũ khi edit
-                if (!isNew && !string.IsNullOrEmpty(model.IMAGE_PATH))
-                {
-                    var oldPath = Path.Combine(CantinFolder, model.IMAGE_PATH);
-                    if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath);
-                }
-                using var fs = new FileStream(Path.Combine(CantinFolder, newFileName), FileMode.Create);
+                using var fs = new FileStream(Path.Combine(CantinFolder, $"{foodId}.jpg"), FileMode.Create);
                 await imageFile.CopyToAsync(fs);
             }
-            model.IMAGE_PATH = newFileName;
         }
 
-        // Một lần gọi DB duy nhất — INSERT hoặc UPDATE tuỳ model.ID
-        var (success, msg, _) = await _svc.SaveFoodAsync(model);
-        return Json(new { success, message = msg, imagePath = model.IMAGE_PATH });
+        return Json(new { success = true, message = msg });
     }
 
     // AJAX — toggle
@@ -463,6 +461,18 @@ public class MenuController : BaseController
     public async Task<IActionResult> DeleteFood(int id)
     {
         var (success, msg) = await _svc.DeleteFoodAsync(id);
+        if (success)
+        {
+            try
+            {
+                using (new NetworkShareHelper(ImageController.ShareRoot, ImageController.ShareCred))
+                {
+                    var imgPath = Path.Combine(CantinFolder, $"{id}.jpg");
+                    if (System.IO.File.Exists(imgPath)) System.IO.File.Delete(imgPath);
+                }
+            }
+            catch { /* ảnh không xóa được thì bỏ qua */ }
+        }
         return Json(new { success, message = msg });
     }
 

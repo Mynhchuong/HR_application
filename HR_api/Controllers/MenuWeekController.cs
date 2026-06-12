@@ -300,7 +300,7 @@ public class MenuWeekController : ControllerBase
             const string sql = @"
                 SELECT D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER,
                        COALESCE(F.FOOD_NAME, D.FOOD_TEXT) AS FOOD_NAME,
-                       F.IMAGE_PATH,
+                       D.FOOD_ID,
                        D.FOOD_TEXT
                 FROM HRMS.HR_MENU_WEEK W
                 JOIN HRMS.HR_MENU_DETAIL D ON D.WEEK_ID = W.ID
@@ -329,7 +329,7 @@ public class MenuWeekController : ControllerBase
             const string sql = @"
                 SELECT D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER,
                        COALESCE(F.FOOD_NAME, D.FOOD_TEXT) AS FOOD_NAME,
-                       F.IMAGE_PATH,
+                       D.FOOD_ID,
                        D.FOOD_TEXT
                 FROM HRMS.HR_MENU_WEEK W
                 JOIN HRMS.HR_MENU_DETAIL D ON D.WEEK_ID = W.ID
@@ -367,7 +367,7 @@ public class MenuWeekController : ControllerBase
         const string sql = @"
             SELECT D.ID, D.WEEK_ID, D.DAY_NO, D.SHIFT, D.MEAL_TYPE,
                    D.FOOD_ID, D.FOOD_TEXT, D.DISPLAY_ORDER,
-                   F.FOOD_NAME, F.IMAGE_PATH
+                   F.FOOD_NAME
             FROM HRMS.HR_MENU_DETAIL D
             LEFT JOIN HRMS.HR_MENU_FOOD F ON F.ID = D.FOOD_ID
             WHERE D.WEEK_ID = :WEEK_ID
@@ -382,7 +382,6 @@ public class MenuWeekController : ControllerBase
             MEAL_TYPE    = r["MEAL_TYPE"]?.ToString() ?? string.Empty,
             FOOD_ID      = r["FOOD_ID"]   == DBNull.Value ? null : Convert.ToInt32(r["FOOD_ID"]),
             FOOD_NAME    = r["FOOD_NAME"]?.ToString(),
-            IMAGE_PATH   = r["IMAGE_PATH"]?.ToString(),
             FOOD_TEXT    = r["FOOD_TEXT"]?.ToString(),
             DISPLAY_ORDER= r["DISPLAY_ORDER"] == DBNull.Value ? 1 : Convert.ToInt32(r["DISPLAY_ORDER"]),
         }, new OracleParameter("WEEK_ID", weekId));
@@ -408,14 +407,14 @@ public class MenuWeekController : ControllerBase
         var labels = new Dictionary<int, string> { {2,"Thứ 2"},{3,"Thứ 3"},{4,"Thứ 4"},{5,"Thứ 5"},{6,"Thứ 6"},{7,"Thứ 7"} };
         return new()
         {
-            DAY_NO       = dayNo,
-            DAY_LABEL    = labels.GetValueOrDefault(dayNo, $"Thứ {dayNo}"),
-            SHIFT        = r["SHIFT"]?.ToString()     ?? string.Empty,
-            MEAL_TYPE    = r["MEAL_TYPE"]?.ToString() ?? string.Empty,
-            FOOD_NAME    = r["FOOD_NAME"]?.ToString(),
-            IMAGE_PATH   = r["IMAGE_PATH"]?.ToString(),
-            FOOD_TEXT    = r["FOOD_TEXT"]?.ToString(),
-            DISPLAY_ORDER= r["DISPLAY_ORDER"] == DBNull.Value ? 1 : Convert.ToInt32(r["DISPLAY_ORDER"]),
+            DAY_NO        = dayNo,
+            DAY_LABEL     = labels.GetValueOrDefault(dayNo, $"Thứ {dayNo}"),
+            SHIFT         = r["SHIFT"]?.ToString()     ?? string.Empty,
+            MEAL_TYPE     = r["MEAL_TYPE"]?.ToString() ?? string.Empty,
+            FOOD_NAME     = r["FOOD_NAME"]?.ToString(),
+            FOOD_ID       = r["FOOD_ID"] == DBNull.Value ? null : Convert.ToInt32(r["FOOD_ID"]),
+            FOOD_TEXT     = r["FOOD_TEXT"]?.ToString(),
+            DISPLAY_ORDER = r["DISPLAY_ORDER"] == DBNull.Value ? 1 : Convert.ToInt32(r["DISPLAY_ORDER"]),
         };
     }
 }

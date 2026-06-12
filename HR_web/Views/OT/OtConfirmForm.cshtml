@@ -279,6 +279,16 @@
         }
         else
         {
+            @if (Model.HOURS_UPDATED && Model.PREV_OT_HOURS.HasValue)
+            {
+                <div style="background:#fef9c3; border:1px solid #fde047; border-radius:16px; padding:0.9rem 1.2rem; margin-bottom:1rem; display:flex; align-items:center; gap:0.75rem;">
+                    <span class="material-symbols-rounded" style="color:#a16207; font-size:1.5rem; flex-shrink:0;">warning</span>
+                    <span style="font-size:0.9rem; color:#78350f; line-height:1.5;">
+                        Kế hoạch tăng ca đã được cập nhật từ <strong>@Model.PREV_OT_HOURS giờ</strong> lên <strong>@Model.OT_HOURS giờ</strong>. Vui lòng xác nhận lại.
+                    </span>
+                </div>
+            }
+
             <!-- Ticket -->
             <div class="ticket-card @(Model.CONFIRM_STATUS == "CONFIRMED" ? "status-confirmed" : Model.CONFIRM_STATUS == "REJECTED" ? "status-rejected" : "")" >
                 <div class="ticket-header">

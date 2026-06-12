@@ -28,8 +28,7 @@ public static class SideMenuBuilder
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Tổng quan",           Url = "~/Home/Index",    Icon = "dashboard"  },
-                    new SideMenuItem { Title = "Thực đơn hôm nay",   Url = "~/Menu/Today",    Icon = "restaurant"  },
-                    new SideMenuItem { Title = "Thực đơn tuần này",  Url = "~/Menu/ThisWeek", Icon = "calendar_month" },
+                    //new SideMenuItem { Title = "Thực đơn",   Url = "~/Menu/Today",    Icon = "restaurant"  },
                     new SideMenuItem { Title = "Quy định công ty",   Url = "~/Policy/Index",  Icon = "policy"     },
                     new SideMenuItem { Title = "Hướng dẫn sử dụng", Url = "~/Guide/Index",   Icon = "menu_book"  },
                 }
@@ -119,7 +118,7 @@ public static class SideMenuBuilder
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy"                 },
-                    new SideMenuItem { Title = "Quản lý Thực đơn",     Url = "~/Menu/Manage",                Icon = "restaurant_menu"        },
+                   // new SideMenuItem { Title = "Quản lý Thực đơn",     Url = "~/Menu/Manage",                Icon = "restaurant_menu"        },
                     new SideMenuItem { Title = "Quản lý Món ăn",       Url = "~/Menu/FoodManage",            Icon = "set_meal"               },
                     new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",            Icon = "manage_accounts"        },
                     new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",              Icon = "account_balance_wallet" },

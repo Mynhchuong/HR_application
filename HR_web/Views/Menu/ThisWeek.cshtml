@@ -191,7 +191,7 @@
                                         @if (!string.IsNullOrEmpty(first.IMAGE_PATH))
                                         {
                                             <img class="meal-img"
-                                                 src="@Url.Action("GetImage", new { fileName = first.IMAGE_PATH })"
+                                                 src="@Url.Action("GetFoodImage", "Image", new { fileName = first.IMAGE_PATH })"
                                                  alt="@first.FOOD_NAME" loading="lazy"
                                                  onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
                                             <div class="meal-img-ph" style="display:none;">🍴</div>

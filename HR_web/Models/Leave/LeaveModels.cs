@@ -161,6 +161,7 @@ public class LeaveScheduleModel
     public string?   CONFIRM_STATUS { get; set; }
     public string?   DEPT_NAME      { get; set; }
     public string?   LINE_NAME      { get; set; }
+    public string?   WORK_NAME      { get; set; }
 }
 
 public class LeaveScheduleResponse

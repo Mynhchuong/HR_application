@@ -1141,8 +1141,12 @@ END;";
 
             var ids = string.Join(",", model.REQUEST_IDS.Select(id =>
                 $"'{System.Text.RegularExpressions.Regex.Replace(id, "[^A-Za-z0-9_-]", "")}'"));
-            await _oracleService.ExecuteNonQueryAsync($"DELETE FROM HRMS.HR_GATEPASS_REQUEST WHERE REQUEST_ID IN ({ids})");
-            await _oracleService.ExecuteNonQueryAsync($"DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID IN ({ids}) AND REQUEST_TYPE = 'GATEPASS'");
+            await _oracleService.ExecuteNonQueryAsync($@"
+                BEGIN
+                    DELETE FROM HRMS.HR_GATEPASS_REQUEST WHERE REQUEST_ID IN ({ids});
+                    DELETE FROM HRMS.HR_REQUEST            WHERE REQUEST_ID IN ({ids}) AND REQUEST_TYPE = 'GATEPASS';
+                    COMMIT;
+                END;");
 
             return Ok(new { success = true, message = $"Đã xóa {model.REQUEST_IDS.Count} phiếu ra/vào cổng khỏi hệ thống", total_deleted = model.REQUEST_IDS.Count });
         }

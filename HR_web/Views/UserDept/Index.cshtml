@@ -39,17 +39,29 @@
         </div>
 
         <div class="px-4 pt-3 pb-1 row g-3 align-items-end filter-bar">
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label small fw-bold mb-0 text-primary">Mã NV / Tên</label>
                 <input type="text" id="searchEmpcd" class="form-control form-control-sm" placeholder="🔍 Mã NV..." />
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label small fw-bold mb-0 text-primary">Bộ Phận</label>
-                <select id="filterDept" class="select2 form-control"
-                        data-url="@Url.Action("GetDept", "Dropdown")"
-                        data-placeholder="Tất cả"></select>
+                <select id="filterDept" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                </select>
             </div>
-            <div class="col-md-2 d-flex align-items-center justify-content-end gap-2">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0 text-primary">Line</label>
+                <select id="filterLine" class="form-select form-select-sm" disabled>
+                    <option value="">Tất cả</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0 text-primary">Nhóm Việc</label>
+                <select id="filterWork" class="form-select form-select-sm" disabled>
+                    <option value="">Tất cả</option>
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-center justify-content-end gap-2">
                 <label class="mb-0 text-sm text-secondary text-nowrap">Hiển thị:</label>
                 <select id="pageSizeSelect" class="form-select form-select-sm" style="width:80px;">
                     <option value="50" selected>50</option>
@@ -220,11 +232,13 @@ function loadData(page = 1) {
     isLoading = true; currentPage = page;
     const empcd  = $('#searchEmpcd').val();
     const deptcd = $('#filterDept').val();
+    const linecd = $('#filterLine').val();
+    const workcd = $('#filterWork').val();
 
     $('#deptTableBody').html(`<tr><td colspan="10" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
     $.ajax({
         url: LIST_URL, type: 'GET',
-        data: { empcd, deptcd, page, page_size: pageSize },
+        data: { empcd, deptcd, linecd, workcd, page, page_size: pageSize },
         success: function(res) {
             const ok = res.success || res.Success;
             if (!ok) {
@@ -336,8 +350,39 @@ $('#importModal').on('hidden.bs.modal', function() {
 });
 
 $('#pageSizeSelect').on('change', function() { pageSize = parseInt($(this).val()); loadData(1); });
-$('#filterDept').on('change', () => loadData(1));
 $('#searchEmpcd').on('input', debounce(() => loadData(1), 400));
+
+// ── Cascade filters ────────────────────────────────────────────
+function populateSelect(selector, data, disabled) {
+    const $sel = $(selector);
+    $sel.empty().append('<option value="">Tất cả</option>');
+    data.forEach(item => $sel.append(new Option(item.text, item.id)));
+    $sel.prop('disabled', disabled || data.length === 0);
+}
+
+$('#filterDept').on('change', function() {
+    const deptcd = $(this).val();
+    populateSelect('#filterLine', [], true);
+    populateSelect('#filterWork', [], true);
+    if (!deptcd) { loadData(1); return; }
+    $.get(LINE_OPTIONS_URL, { deptcds: deptcd }, function(data) {
+        populateSelect('#filterLine', data, false);
+        loadData(1);
+    });
+});
+
+$('#filterLine').on('change', function() {
+    const deptcd = $('#filterDept').val();
+    const linecd = $(this).val();
+    populateSelect('#filterWork', [], true);
+    if (!linecd) { loadData(1); return; }
+    $.get(WORK_OPTIONS_URL, { deptcds: deptcd, linecds: linecd }, function(data) {
+        populateSelect('#filterWork', data, false);
+        loadData(1);
+    });
+});
+
+$('#filterWork').on('change', () => loadData(1));
 
 // ── Manual Create ────────────────────────────────────────────────────────────
 function initManualModal() {
@@ -411,14 +456,21 @@ $('#manualModal').on('shown.bs.modal', function() {
 $('#exportBtn').on('click', function() {
     const empcd  = $('#searchEmpcd').val();
     const deptcd = $('#filterDept').val();
+    const linecd = $('#filterLine').val();
+    const workcd = $('#filterWork').val();
     const params = [];
     if (empcd)  params.push('empcd='  + encodeURIComponent(empcd));
     if (deptcd) params.push('deptcd=' + encodeURIComponent(deptcd));
+    if (linecd) params.push('linecd=' + encodeURIComponent(linecd));
+    if (workcd) params.push('workcd=' + encodeURIComponent(workcd));
     window.location.href = EXPORT_URL + (params.length ? '?' + params.join('&') : '');
 });
 
 $(document).ready(function() {
-    if (typeof Select2Helper !== 'undefined') Select2Helper.init();
+    // Load Dept options on init
+    $.get(DEPT_OPTIONS_URL, function(data) {
+        data.forEach(item => $('#filterDept').append(new Option(item.text, item.id)));
+    });
     loadData(1);
 });
 </script>

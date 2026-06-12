@@ -1,16 +1,60 @@
 @model List<HR_web.Models.Menu.MenuFoodModel>
 @{
     ViewData["Title"] = "Danh mục Món ăn";
+    var typeMap = new Dictionary<string, (string Label, string Color)>
+    {
+        { "MAN",     ("Mặn",     "bg-gradient-danger") },
+        { "NHE",     ("Nhẹ",     "bg-gradient-info") },
+        { "CHAY",    ("Chay",    "bg-gradient-success") },
+        { "DU_KIEN", ("Dự kiến", "bg-gradient-secondary") },
+    };
+    var importSuccess = TempData["ImportFoodSuccess"] as string;
+    var importError   = TempData["ImportFoodError"]   as string;
+    var importErrors  = (TempData["ImportFoodErrors"] as string)?.Split('|') ?? Array.Empty<string>();
 }
 
 <div class="container-fluid py-4">
+
+    @if (importSuccess != null)
+    {
+        <div class="alert alert-success mx-2 py-2"><i class="bi bi-check-circle me-1"></i>@importSuccess</div>
+    }
+    @if (importError != null)
+    {
+        <div class="alert alert-danger mx-2 py-2"><i class="bi bi-exclamation-triangle me-1"></i>@importError</div>
+    }
+    @if (importErrors.Any())
+    {
+        <div class="card border-warning mx-2 mb-3">
+            <div class="card-header bg-warning text-dark py-2 fw-bold">
+                <i class="bi bi-exclamation-triangle me-1"></i> @importErrors.Length dòng lỗi khi import
+            </div>
+            <ul class="list-group list-group-flush">
+                @foreach (var e in importErrors)
+                {
+                    <li class="list-group-item text-danger text-sm py-1">@e</li>
+                }
+            </ul>
+        </div>
+    }
+
     <div class="card">
         <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
             <div class="bg-gradient-info shadow-info border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="text-white mb-0"><i class="bi bi-egg-fried me-1"></i> Danh mục Món ăn</h6>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 flex-wrap">
                     <a href="@Url.Action("Manage")" class="btn btn-sm btn-outline-white mb-0">
                         <i class="bi bi-arrow-left me-1"></i> Thực đơn
+                    </a>
+                    <a href="@Url.Action("DownloadFoodTemplate")" class="btn btn-sm btn-outline-white mb-0">
+                        <i class="bi bi-download me-1"></i> Tải mẫu
+                    </a>
+                    <button class="btn btn-sm btn-outline-white mb-0"
+                            data-bs-toggle="modal" data-bs-target="#modalImportFood">
+                        <i class="bi bi-upload me-1"></i> Import Excel
+                    </button>
+                    <a href="@Url.Action("ExportFoodExcel")" class="btn btn-sm btn-white mb-0">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel
                     </a>
                     <button class="btn btn-sm btn-white mb-0" onclick="openModal()">
                         <i class="bi bi-plus-lg me-1"></i> Thêm món
@@ -22,6 +66,20 @@
         <div class="card-body px-0 pt-0 pb-2 mt-1">
             <div id="alertArea" class="px-4"></div>
 
+            <div class="px-3 py-2 d-flex flex-wrap gap-2 align-items-center border-bottom">
+                <input type="text" id="filterName" class="form-control form-control-sm"
+                       style="max-width:220px;" placeholder="Tìm tên món..."
+                       oninput="applyFilter()" />
+                <select id="filterType" class="form-select form-select-sm"
+                        style="max-width:150px;" onchange="applyFilter()">
+                    <option value="">Tất cả loại</option>
+                    <option value="MAN">Mặn</option>
+                    <option value="NHE">Nhẹ</option>
+                    <option value="CHAY">Chay</option>
+                </select>
+                <span id="filterCount" class="text-xs text-secondary"></span>
+            </div>
+
             @if (!Model.Any())
             {
                 <div class="text-center py-5 text-secondary">
@@ -31,30 +89,38 @@
             }
             else
             {
-                <div class="table-responsive px-3">
+                <div class="table-responsive px-3 pt-1">
                     <table class="table align-items-center mb-0 table-hover" id="foodTable">
                         <thead class="bg-light">
                             <tr>
-                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2">#</th>
-                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2">Ảnh</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2" style="width:40px">#</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2" style="width:55px">ID</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2" style="width:62px">Ảnh</th>
                                 <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2">Tên món</th>
-                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2 text-center">Loại</th>
-                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2 text-center">Trạng thái</th>
-                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2"></th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2 text-center" style="width:90px">Loại</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2 text-center" style="width:80px">Trạng thái</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2" style="width:115px"></th>
                             </tr>
                         </thead>
                         <tbody id="foodTableBody">
                             @for (int i = 0; i < Model.Count; i++)
                             {
                                 var f = Model[i];
-                                <tr id="row-@f.ID">
-                                    <td class="px-2 text-xs text-secondary">@(i + 1)</td>
+                                var tInfo = typeMap.GetValueOrDefault(f.FOOD_TYPE ?? "", ("—", "bg-gradient-secondary"));
+                                var tLabel = tInfo.Item1;
+                                var tColor = tInfo.Item2;
+                                <tr id="row-@f.ID"
+                                    data-name="@f.FOOD_NAME.ToLower()"
+                                    data-type="@(f.FOOD_TYPE ?? "")">
+                                    <td class="px-2 text-xs text-secondary row-num">@(i + 1)</td>
+                                    <td class="px-2 text-xs text-secondary fw-bold">@f.ID</td>
                                     <td class="px-2">
                                         @if (!string.IsNullOrEmpty(f.IMAGE_PATH))
                                         {
-                                            <img src="@Url.Action("GetImage", "Menu", new { fileName = f.IMAGE_PATH })"
+                                            <img src="@Url.Action("GetFoodImage", "Image", new { fileName = f.IMAGE_PATH })"
                                                  alt="@f.FOOD_NAME"
-                                                 style="width:50px;height:50px;object-fit:cover;border-radius:8px;" />
+                                                 style="width:50px;height:50px;object-fit:cover;border-radius:8px;"
+                                                 loading="lazy" />
                                         }
                                         else
                                         {
@@ -67,17 +133,7 @@
                                         <div class="text-sm font-weight-bold">@f.FOOD_NAME</div>
                                     </td>
                                     <td class="px-2 text-center">
-                                        @{
-                                            var typeLabel = f.FOOD_TYPE switch
-                                            {
-                                                "MAN"     => "Mặn",
-                                                "NHE"     => "Nhẹ",
-                                                "CHAY"    => "Chay",
-                                                "DU_KIEN" => "Dự kiến",
-                                                _         => f.FOOD_TYPE ?? "—"
-                                            };
-                                        }
-                                        <span class="badge badge-sm bg-gradient-secondary">@typeLabel</span>
+                                        <span class="badge badge-sm @tColor">@tLabel</span>
                                     </td>
                                     <td class="px-2 text-center">
                                         <span id="badge-@f.ID" class="badge badge-sm @(f.IS_ACTIVE == 1 ? "bg-gradient-success" : "bg-gradient-secondary")">
@@ -87,7 +143,7 @@
                                     <td class="px-2 text-end">
                                         <div class="d-flex gap-1 justify-content-end">
                                             <button class="btn btn-sm btn-outline-dark mb-0 px-2"
-                                                    onclick="openModal(@f.ID, '@Html.Encode(f.FOOD_NAME)', '@f.FOOD_TYPE', '@f.IMAGE_PATH', @f.IS_ACTIVE)"
+                                                    onclick="openModal(@f.ID,'@Html.Encode(f.FOOD_NAME)','@f.FOOD_TYPE','@f.IMAGE_PATH',@f.IS_ACTIVE)"
                                                     title="Sửa">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
@@ -96,7 +152,7 @@
                                                 <i class="bi bi-toggle-on"></i>
                                             </button>
                                             <button class="btn btn-sm btn-outline-danger mb-0 px-2"
-                                                    onclick="deleteFood(@f.ID, '@Html.Encode(f.FOOD_NAME)')" title="Xóa">
+                                                    onclick="deleteFood(@f.ID,'@Html.Encode(f.FOOD_NAME)')" title="Xóa">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -105,6 +161,11 @@
                             }
                         </tbody>
                     </table>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center px-3 pt-2 pb-1 flex-wrap gap-2">
+                    <div id="pageInfo" class="text-xs text-secondary"></div>
+                    <nav><ul class="pagination pagination-sm mb-0" id="pagination"></ul></nav>
                 </div>
             }
         </div>
@@ -123,21 +184,22 @@
                 <div class="mb-3">
                     <label class="form-label fw-bold">Tên món <span class="text-danger">*</span></label>
                     <input type="text" id="fName" class="form-control" placeholder="VD: Cá kho rau răm" />
+                    <div class="invalid-feedback">Vui lòng nhập tên món ăn</div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Loại món</label>
+                    <label class="form-label fw-bold">Loại món <span class="text-danger">*</span></label>
                     <select id="fType" class="form-select">
                         <option value="">— Chọn loại —</option>
                         <option value="MAN">Món mặn</option>
                         <option value="NHE">Món nhẹ</option>
                         <option value="CHAY">Món chay</option>
-                        <option value="DU_KIEN">Món dự kiến</option>
                     </select>
+                    <div class="invalid-feedback">Vui lòng chọn loại món</div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Hình ảnh</label>
                     <input type="file" id="fImage" class="form-control" accept=".jpg,.jpeg,.png,.webp" />
-                    <div class="form-text">JPG, PNG, WEBP — tối đa 5MB</div>
+                    <div class="form-text">JPG, PNG, WEBP — tối đa 15MB</div>
                     <div id="imgPreview" class="mt-2"></div>
                 </div>
                 <div class="form-check">
@@ -155,33 +217,157 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalImportFood" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="@Url.Action("ImportFoodExcel")" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-upload me-1"></i> Import món ăn từ Excel</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-sm text-secondary mb-2">
+                        Tải file mẫu, điền danh sách món ăn, rồi upload lại.<br/>
+                        <strong>Lưu ý:</strong> ảnh không thể import qua Excel — upload ảnh riêng qua nút Sửa.
+                    </p>
+                    <div class="mb-3">
+                        <a href="@Url.Action("DownloadFoodTemplate")" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-download me-1"></i> Tải file mẫu (.xlsx)
+                        </a>
+                    </div>
+                    <div>
+                        <label class="form-label fw-bold">Chọn file Excel đã điền <span class="text-danger">*</span></label>
+                        <input type="file" name="file" accept=".xlsx" class="form-control" required />
+                        <div class="form-text">Chỉ nhận file .xlsx</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-info">
+                        <i class="bi bi-upload me-1"></i> Import
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
 const antiForgery = '@Html.AntiForgeryToken()'.match(/value="([^"]+)"/)?.[1] ?? '';
 let currentImagePath = null;
 
-function showAlert(msg, type='success') {
+// ── Pagination & filter ───────────────────────────────────────────────────────
+const PAGE_SIZE = 20;
+let currentPage = 1;
+let visibleRows  = [];
+
+function applyFilter() {
+    const name = document.getElementById('filterName').value.toLowerCase().trim();
+    const type = document.getElementById('filterType').value;
+    const allRows = [...document.querySelectorAll('#foodTableBody tr')];
+
+    visibleRows = allRows.filter(r => {
+        const matchName = !name || r.dataset.name.includes(name);
+        const matchType = !type || r.dataset.type === type;
+        return matchName && matchType;
+    });
+
+    currentPage = 1;
+    renderPage();
+}
+
+function renderPage() {
+    const total      = visibleRows.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    currentPage      = Math.min(currentPage, totalPages);
+    const start      = (currentPage - 1) * PAGE_SIZE;
+    const end        = start + PAGE_SIZE;
+
+    [...document.querySelectorAll('#foodTableBody tr')].forEach(r => r.style.display = 'none');
+    visibleRows.forEach((r, i) => {
+        r.style.display = (i >= start && i < end) ? '' : 'none';
+        const numCell = r.querySelector('.row-num');
+        if (numCell) numCell.textContent = start + i + 1;
+    });
+
+    const pageInfoEl = document.getElementById('pageInfo');
+    if (pageInfoEl) {
+        pageInfoEl.textContent = total === 0 ? 'Không có kết quả'
+            : `Hiển thị ${Math.min(start + 1, total)}–${Math.min(end, total)} / ${total} món`;
+    }
+
+    const countEl = document.getElementById('filterCount');
+    if (countEl) {
+        const allCount = document.querySelectorAll('#foodTableBody tr').length;
+        countEl.textContent = total < allCount ? `(${total} kết quả)` : '';
+    }
+
+    buildPagination(totalPages);
+}
+
+function buildPagination(totalPages) {
+    const ul = document.getElementById('pagination');
+    if (!ul) return;
+    ul.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    const btn = (label, page, disabled, active) => {
+        const li = document.createElement('li');
+        li.className = `page-item${disabled ? ' disabled' : ''}${active ? ' active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="goPage(${page});return false;">${label}</a>`;
+        ul.appendChild(li);
+    };
+
+    btn('‹', currentPage - 1, currentPage === 1, false);
+    for (let p = 1; p <= totalPages; p++) {
+        if (totalPages > 7 && p !== 1 && p !== totalPages && Math.abs(p - currentPage) > 2) {
+            if (p === 2 || p === totalPages - 1) {
+                const li = document.createElement('li');
+                li.className = 'page-item disabled';
+                li.innerHTML = '<span class="page-link">…</span>';
+                ul.appendChild(li);
+            }
+            continue;
+        }
+        btn(p, p, false, p === currentPage);
+    }
+    btn('›', currentPage + 1, currentPage === totalPages, false);
+}
+
+function goPage(p) {
+    const totalPages = Math.ceil(visibleRows.length / PAGE_SIZE);
+    if (p < 1 || p > totalPages) return;
+    currentPage = p;
+    renderPage();
+}
+
+// ── Alert ─────────────────────────────────────────────────────────────────────
+function showAlert(msg, type = 'success') {
     const a = document.getElementById('alertArea');
     a.innerHTML = `<div class="alert alert-${type} py-2 mt-2">${msg}</div>`;
     setTimeout(() => a.innerHTML = '', 4000);
 }
 
-function openModal(id=0, name='', type='', imgPath='', active=1) {
-    document.getElementById('fId').value    = id;
-    document.getElementById('fName').value  = name;
-    document.getElementById('fType').value  = type;
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openModal(id = 0, name = '', type = '', imgPath = '', active = 1) {
+    document.getElementById('fId').value       = id;
+    document.getElementById('fName').value     = name;
+    document.getElementById('fType').value     = type;
     document.getElementById('fActive').checked = active == 1;
-    document.getElementById('fImage').value = '';
+    document.getElementById('fImage').value    = '';
+    document.getElementById('fName').classList.remove('is-invalid');
+    document.getElementById('fType').classList.remove('is-invalid');
     currentImagePath = imgPath || null;
-    const prev = document.getElementById('imgPreview');
-    const imgUrl = imgPath ? `/Menu/GetImage?fileName=${encodeURIComponent(imgPath)}` : '';
-    prev.innerHTML = imgUrl
+    const imgUrl = imgPath ? `/Image/GetFoodImage?fileName=${encodeURIComponent(imgPath)}` : '';
+    document.getElementById('imgPreview').innerHTML = imgUrl
         ? `<img src="${imgUrl}" style="height:80px;border-radius:8px;" />`
         : '';
     document.getElementById('modalFoodTitle').textContent = id ? 'Sửa món ăn' : 'Thêm món ăn';
     new bootstrap.Modal(document.getElementById('modalFood')).show();
 }
 
-document.getElementById('fImage').addEventListener('change', function() {
+document.getElementById('fImage').addEventListener('change', function () {
     const f = this.files[0];
     if (!f) return;
     const reader = new FileReader();
@@ -194,16 +380,21 @@ document.getElementById('fImage').addEventListener('change', function() {
 
 document.getElementById('btnSaveFood').addEventListener('click', async () => {
     const name = document.getElementById('fName').value.trim();
-    if (!name) { showAlert('Vui lòng nhập tên món ăn', 'danger'); return; }
+    const type = document.getElementById('fType').value;
+
+    document.getElementById('fName').classList.toggle('is-invalid', !name);
+    document.getElementById('fType').classList.toggle('is-invalid', !type);
+    if (!name || !type) return;
 
     const btn = document.getElementById('btnSaveFood');
     btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...';
 
     try {
         const fd = new FormData();
         fd.append('ID',        document.getElementById('fId').value);
         fd.append('FOOD_NAME', name);
-        fd.append('FOOD_TYPE', document.getElementById('fType').value);
+        fd.append('FOOD_TYPE', type);
         fd.append('IS_ACTIVE', document.getElementById('fActive').checked ? '1' : '0');
         if (currentImagePath) fd.append('IMAGE_PATH', currentImagePath);
         const imgFile = document.getElementById('fImage').files[0];
@@ -222,10 +413,11 @@ document.getElementById('btnSaveFood').addEventListener('click', async () => {
         } else {
             showAlert(data.message, 'danger');
         }
-    } catch(e) {
+    } catch (e) {
         showAlert('Lỗi kết nối: ' + e.message, 'danger');
     } finally {
         btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Lưu';
     }
 });
 
@@ -234,12 +426,8 @@ async function toggleFood(id) {
         method: 'POST', headers: { 'RequestVerificationToken': antiForgery }
     });
     const data = await res.json();
-    if (data.success) {
-        showAlert(data.message);
-        setTimeout(() => location.reload(), 500);
-    } else {
-        showAlert(data.message, 'danger');
-    }
+    if (data.success) { showAlert(data.message); setTimeout(() => location.reload(), 500); }
+    else showAlert(data.message, 'danger');
 }
 
 async function deleteFood(id, name) {
@@ -250,9 +438,12 @@ async function deleteFood(id, name) {
     const data = await res.json();
     if (data.success) {
         document.getElementById('row-' + id)?.remove();
+        applyFilter();
         showAlert(data.message);
     } else {
         showAlert(data.message, 'danger');
     }
 }
+
+document.addEventListener('DOMContentLoaded', () => applyFilter());
 </script>

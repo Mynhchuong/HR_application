@@ -221,24 +221,35 @@
 
 <!-- Confirm delete modal -->
 <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-sm">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:520px;">
         <div class="modal-content">
             <div class="modal-header py-2" style="background:#fee2e2;">
                 <h5 class="modal-title" style="font-size:.9rem;color:#b91c1c;display:flex;align-items:center;gap:6px;">
                     <span class="material-symbols-rounded" style="font-size:1.1rem;">warning</span>
-                    Xác nhận xóa
+                    Xác nhận xóa vĩnh viễn
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" style="font-size:.84rem;">
-                <p id="confirmMsg"></p>
-                <div class="alert alert-warning py-2 mb-0" style="font-size:.78rem;">
-                    Sau khi xóa, vui lòng vào ERP để xóa thủ công dữ liệu tương ứng.
+                <p id="confirmMsg" class="mb-2"></p>
+                <div id="confirmList" style="max-height:220px;overflow-y:auto;border:1px solid #fca5a5;border-radius:6px;margin-bottom:10px;">
+                    <table class="table table-sm mb-0" style="font-size:.75rem;">
+                        <thead style="position:sticky;top:0;background:#fff5f5;">
+                            <tr id="confirmListHead"></tr>
+                        </thead>
+                        <tbody id="confirmListBody"></tbody>
+                    </table>
                 </div>
+                <div class="alert alert-danger py-2 mb-2" style="font-size:.78rem;">
+                    ⚠️ Hành động này <strong>KHÔNG THỂ hoàn tác</strong>. Sau khi xóa cần vào ERP để xóa thủ công tương ứng.
+                </div>
+                <label class="fw-bold mb-1" style="font-size:.8rem;">Nhập số lượng (<strong id="confirmCountHint"></strong>) để xác nhận:</label>
+                <input type="number" id="confirmCountInput" class="form-control form-control-sm"
+                       placeholder="Nhập số record sẽ xóa..." autocomplete="off" />
             </div>
             <div class="modal-footer py-2">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" class="btn btn-danger btn-sm" id="confirmOkBtn">Xóa</button>
+                <button type="button" class="btn btn-danger btn-sm" id="confirmOkBtn" disabled>Xóa vĩnh viễn</button>
             </div>
         </div>
     </div>
@@ -443,7 +454,17 @@ function lvUpdateCounts(filteredTotal) {
 async function lvDelete() {
     if (lvSelected.size === 0) return;
     const ids = [...lvSelected];
-    showConfirm(`Bạn chắc chắn muốn xóa <strong>${ids.length} đơn nghỉ phép</strong> khỏi hệ thống?`, async () => {
+    const lvItems = lvData.filter(r => lvSelected.has(r.REQUEST_ID));
+    const fmtD = d => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
+    const lvHead = `<th class="px-2">Mã NV</th><th class="px-2">Họ tên</th><th class="px-2">Loại</th><th class="px-2">Từ ngày</th><th class="px-2">Đến ngày</th>`;
+    const lvRows = () => lvItems.map(r => `<tr>
+        <td class="px-2" style="font-family:monospace;">${escHtml(r.EMPCD||'')}</td>
+        <td class="px-2 emp-name-cell">${escHtml(r.EMP_NAME||'')}</td>
+        <td class="px-2"><span class="badge bg-secondary" style="font-size:.65rem;">${leaveTypeLabel[r.LEAVE_TYPE]||r.LEAVE_TYPE||''}</span></td>
+        <td class="px-2 text-nowrap">${fmtD(r.FROM_DATE)}</td>
+        <td class="px-2 text-nowrap">${fmtD(r.TO_DATE)}</td>
+    </tr>`).join('');
+    showConfirm(`Bạn chắc chắn muốn xóa <strong>${ids.length} đơn nghỉ phép</strong> khỏi hệ thống?`, ids.length, lvHead, lvRows, async () => {
         try {
             const res  = await fetch(URL_DELETE_LEAVES, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -570,7 +591,16 @@ function gpUpdateCounts(filteredTotal) {
 async function gpDelete() {
     if (gpSelected.size === 0) return;
     const ids = [...gpSelected];
-    showConfirm(`Bạn chắc chắn muốn xóa <strong>${ids.length} phiếu ra/vào cổng</strong> khỏi hệ thống?`, async () => {
+    const gpItems = gpData.filter(r => gpSelected.has(r.REQUEST_ID));
+    const fmtDt2 = d => d ? new Date(d).toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'}) : '—';
+    const gpHead = `<th class="px-2">Mã NV</th><th class="px-2">Họ tên</th><th class="px-2">Loại</th><th class="px-2">Giờ ra</th>`;
+    const gpRows = () => gpItems.map(r => `<tr>
+        <td class="px-2" style="font-family:monospace;">${escHtml(r.EMPCD||'')}</td>
+        <td class="px-2 emp-name-cell">${escHtml(r.EMP_NAME||'')}</td>
+        <td class="px-2"><span class="badge ${gpBadge[r.GP_TYPE]||'bg-secondary'}" style="font-size:.65rem;">${gpLabel[r.GP_TYPE]||r.GP_TYPE||''}</span></td>
+        <td class="px-2 text-nowrap">${fmtDt2(r.OUT_TIME)}</td>
+    </tr>`).join('');
+    showConfirm(`Bạn chắc chắn muốn xóa <strong>${ids.length} phiếu ra/vào cổng</strong> khỏi hệ thống?`, ids.length, gpHead, gpRows, async () => {
         try {
             const res  = await fetch(URL_DELETE_GP, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -608,10 +638,21 @@ function buildParams(prefix) {
 }
 
 let _confirmCb = null;
-function showConfirm(msg, cb) {
-    document.getElementById('confirmMsg').innerHTML = msg;
+let _confirmCount = 0;
+function showConfirm(msg, count, headHtml, rowsFn, cb) {
+    _confirmCount = count;
     _confirmCb = cb;
+    document.getElementById('confirmMsg').innerHTML = msg;
+    document.getElementById('confirmCountHint').textContent = count;
+    document.getElementById('confirmListHead').innerHTML = headHtml;
+    document.getElementById('confirmListBody').innerHTML = rowsFn();
+    const input = document.getElementById('confirmCountInput');
+    const okBtn = document.getElementById('confirmOkBtn');
+    input.value = '';
+    okBtn.disabled = true;
+    input.oninput = () => { okBtn.disabled = parseInt(input.value) !== _confirmCount; };
     new bootstrap.Modal(document.getElementById('confirmModal')).show();
+    setTimeout(() => input.focus(), 400);
 }
 document.getElementById('confirmOkBtn').addEventListener('click', () => {
     bootstrap.Modal.getInstance(document.getElementById('confirmModal'))?.hide();

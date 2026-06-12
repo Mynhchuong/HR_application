@@ -21,6 +21,8 @@ public class OTTodayModel
     public decimal SUM_MONTH { get; set; }
     public decimal SUM_YEAR { get; set; }
     public bool IS_EDITABLE { get; set; } = true;
+    public bool HOURS_UPDATED { get; set; }
+    public decimal? PREV_OT_HOURS { get; set; }
 }
 
 public class OTClerkModel

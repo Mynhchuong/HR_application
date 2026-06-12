@@ -935,7 +935,7 @@ public class LeaveController : ControllerBase
                 SELECT L.REQUEST_ID, L.EMPCD, EC.CNAME EMP_NAME,
                        L.LEAVE_TYPE, L.SOURCE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS,
                        R.STATUS, L.CONFIRM_STATUS,
-                       B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME
+                       B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME
                 FROM HRMS.HR_LEAVE_REQUEST L
                 JOIN HRMS.HR_REQUEST  R  ON R.REQUEST_ID = L.REQUEST_ID
                 JOIN HRMS.ECM100      EC ON EC.EMPCD     = L.EMPCD
@@ -970,7 +970,8 @@ public class LeaveController : ControllerBase
                 STATUS         = r["STATUS"]?.ToString(),
                 CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
                 DEPT_NAME      = r["DEPT_NAME"]?.ToString(),
-                LINE_NAME      = r["LINE_NAME"]?.ToString()
+                LINE_NAME      = r["LINE_NAME"]?.ToString(),
+                WORK_NAME      = r["WORK_NAME"]?.ToString()
             }, p.ToArray());
 
             return Ok(new { success = true, month = m, year = y, total = list.Count, data = list });
@@ -1915,8 +1916,12 @@ public class LeaveController : ControllerBase
 
             var ids = string.Join(",", model.REQUEST_IDS.Select(id =>
                 $"'{System.Text.RegularExpressions.Regex.Replace(id, "[^A-Za-z0-9_-]", "")}'"));
-            await _oracleService.ExecuteNonQueryAsync($"DELETE FROM HRMS.HR_LEAVE_REQUEST WHERE REQUEST_ID IN ({ids})");
-            await _oracleService.ExecuteNonQueryAsync($"DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID IN ({ids}) AND REQUEST_TYPE = 'LEAVE'");
+            await _oracleService.ExecuteNonQueryAsync($@"
+                BEGIN
+                    DELETE FROM HRMS.HR_LEAVE_REQUEST WHERE REQUEST_ID IN ({ids});
+                    DELETE FROM HRMS.HR_REQUEST        WHERE REQUEST_ID IN ({ids}) AND REQUEST_TYPE = 'LEAVE';
+                    COMMIT;
+                END;");
 
             return Ok(new { success = true, message = $"Đã xóa {model.REQUEST_IDS.Count} đơn nghỉ phép khỏi hệ thống", total_deleted = model.REQUEST_IDS.Count });
         }

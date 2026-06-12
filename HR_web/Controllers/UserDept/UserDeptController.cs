@@ -19,9 +19,9 @@ public class UserDeptController : BaseController
     public IActionResult Index() => View();
 
     [HttpGet]
-    public async Task<IActionResult> GetList(string? empcd, string? deptcd, int page = 1, int page_size = 50)
+    public async Task<IActionResult> GetList(string? empcd, string? deptcd, string? linecd, string? workcd, int page = 1, int page_size = 50)
     {
-        var result = await _service.GetListAsync(empcd, deptcd, page, page_size);
+        var result = await _service.GetListAsync(empcd, deptcd, linecd, workcd, page, page_size);
         return Json(result);
     }
 
@@ -150,9 +150,9 @@ public class UserDeptController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> ExportExcel(string? empcd, string? deptcd)
+    public async Task<IActionResult> ExportExcel(string? empcd, string? deptcd, string? linecd, string? workcd)
     {
-        var raw  = await _service.GetListAsync(empcd, deptcd, 1, 9999);
+        var raw  = await _service.GetListAsync(empcd, deptcd, linecd, workcd, 1, 9999);
         var json = Newtonsoft.Json.JsonConvert.SerializeObject(raw);
         var root = JObject.Parse(json);
         var data = root["data"] as JArray ?? new JArray();

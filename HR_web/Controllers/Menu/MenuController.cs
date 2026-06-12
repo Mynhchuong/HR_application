@@ -16,12 +16,9 @@ public class MenuController : BaseController
     private readonly MenuService _svc;
     private readonly IWebHostEnvironment _env;
 
-    private const string ShareRoot   = @"\\192.168.1.5\vserp_picture";
-    private const string CantinFolder = @"\\192.168.1.5\vserp_picture\MY_SAMHO_CANTIN";
-    private static readonly NetworkCredential ShareCred =
-        new NetworkCredential("localfileserver", "!samh0!!");
+    private const string CantinFolder = HR_web.Controllers.ImageController.ShareRoot + @"\MY_SAMHO_CANTIN";
 
-    // Cấu trúc template Excel: row bắt đầu data của mỗi ca
+// Cấu trúc template Excel: row bắt đầu data của mỗi ca
     private static readonly (string Shift, int DataStartRow)[] Sections =
     {
         ("CA1", 7),
@@ -419,72 +416,35 @@ public class MenuController : BaseController
             return Json(new { success = false, message = "Vui lòng nhập tên món ăn" });
 
         model.LOGIN_USER = CurrentUser!.EmpCd;
-
-        string? validatedExt = null;
-        if (imageFile != null && imageFile.Length > 0)
-        {
-            validatedExt = Path.GetExtension(imageFile.FileName).ToLower();
-            if (validatedExt != ".jpg" && validatedExt != ".jpeg" && validatedExt != ".png" && validatedExt != ".webp")
-                return Json(new { success = false, message = "Ảnh chỉ chấp nhận JPG, PNG, WEBP" });
-            if (imageFile.Length > 5 * 1024 * 1024)
-                return Json(new { success = false, message = "Ảnh không được vượt quá 5MB" });
-        }
-
         bool isNew = model.ID == null || model.ID == 0;
 
-        if (validatedExt != null && !isNew)
+        // Upload ảnh mới nếu có — thực hiện trước khi gọi DB để INSERT/UPDATE 1 lần duy nhất
+        if (imageFile != null && imageFile.Length > 0)
         {
-            // EDIT: tên file = {id}{ext}, xóa file cũ nếu tên khác
-            var newFileName = $"{model.ID}{validatedExt}";
-            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            var ext = Path.GetExtension(imageFile.FileName).ToLower();
+            if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp")
+                return Json(new { success = false, message = "Ảnh chỉ chấp nhận JPG, PNG, WEBP" });
+            if (imageFile.Length > 15 * 1024 * 1024)
+                return Json(new { success = false, message = "Ảnh không được vượt quá 15MB" });
+
+            var newFileName = $"{Guid.NewGuid()}{ext}";
+            using (new NetworkShareHelper(ImageController.ShareRoot, ImageController.ShareCred))
             {
                 Directory.CreateDirectory(CantinFolder);
-                // Xóa file cũ nếu đổi sang tên/ext khác
-                if (!string.IsNullOrEmpty(model.IMAGE_PATH) && model.IMAGE_PATH != newFileName)
+                // Xóa ảnh cũ khi edit
+                if (!isNew && !string.IsNullOrEmpty(model.IMAGE_PATH))
                 {
                     var oldPath = Path.Combine(CantinFolder, model.IMAGE_PATH);
                     if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath);
                 }
                 using var fs = new FileStream(Path.Combine(CantinFolder, newFileName), FileMode.Create);
-                await imageFile!.CopyToAsync(fs);
+                await imageFile.CopyToAsync(fs);
             }
             model.IMAGE_PATH = newFileName;
         }
 
-        // Lưu vào DB (với IMAGE_PATH nếu edit, không có image_path nếu new+ảnh)
-        var imagePathForNew = validatedExt != null && isNew ? null : model.IMAGE_PATH;
-        var reqFirst = isNew && validatedExt != null
-            ? new SaveFoodRequest { FOOD_NAME = model.FOOD_NAME, FOOD_TYPE = model.FOOD_TYPE, IS_ACTIVE = model.IS_ACTIVE, LOGIN_USER = model.LOGIN_USER }
-            : model;
-
-        var (success, msg, newId) = await _svc.SaveFoodAsync(reqFirst);
-        if (!success)
-            return Json(new { success = false, message = msg });
-
-        if (validatedExt != null && isNew && newId > 0)
-        {
-            // NEW + ảnh: upload với tên = {newId}{ext}, rồi cập nhật IMAGE_PATH
-            var newFileName = $"{newId}{validatedExt}";
-            using (new NetworkShareHelper(ShareRoot, ShareCred))
-            {
-                Directory.CreateDirectory(CantinFolder);
-                using var fs = new FileStream(Path.Combine(CantinFolder, newFileName), FileMode.Create);
-                await imageFile!.CopyToAsync(fs);
-            }
-            var updateReq = new SaveFoodRequest
-            {
-                ID         = newId,
-                FOOD_NAME  = model.FOOD_NAME,
-                FOOD_TYPE  = model.FOOD_TYPE,
-                IS_ACTIVE  = model.IS_ACTIVE,
-                IMAGE_PATH = newFileName,
-                LOGIN_USER = model.LOGIN_USER
-            };
-            var (ok2, msg2, _) = await _svc.SaveFoodAsync(updateReq);
-            if (!ok2) return Json(new { success = false, message = msg2 });
-            return Json(new { success = true, message = "Thêm món ăn thành công", imagePath = newFileName });
-        }
-
+        // Một lần gọi DB duy nhất — INSERT hoặc UPDATE tuỳ model.ID
+        var (success, msg, _) = await _svc.SaveFoodAsync(model);
         return Json(new { success, message = msg, imagePath = model.IMAGE_PATH });
     }
 
@@ -506,37 +466,163 @@ public class MenuController : BaseController
         return Json(new { success, message = msg });
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // SERVE ẢNH TỪ NETWORK SHARE
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    [AllowAnonymous]
-    [ResponseCache(Duration = 86400)] // cache 1 ngày
-    public IActionResult GetImage(string fileName)
+    // Xuất Excel danh mục món ăn
+    [HttpGet]
+    [Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> ExportFoodExcel()
     {
-        if (string.IsNullOrWhiteSpace(fileName) || fileName.Contains(".."))
-            return NotFound();
+        var foods = await _svc.GetFoodListAsync();
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Danh mục món ăn");
 
-        var filePath = Path.Combine(CantinFolder, fileName);
-        try
+        ws.Cell(1, 1).Value = "ID";
+        ws.Cell(1, 2).Value = "Tên món";
+        ws.Cell(1, 3).Value = "Loại";
+        ws.Cell(1, 4).Value = "Trạng thái";
+        ws.Cell(1, 5).Value = "Ngày tạo";
+
+        var header = ws.Range(1, 1, 1, 5);
+        header.Style.Font.Bold = true;
+        header.Style.Fill.BackgroundColor = XLColor.FromHtml("#BDD7EE");
+
+        for (int i = 0; i < foods.Count; i++)
         {
-            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            var f = foods[i];
+            var typeLabel = f.FOOD_TYPE switch
             {
-                if (!System.IO.File.Exists(filePath))
-                    return NotFound();
-
-                var bytes = System.IO.File.ReadAllBytes(filePath);
-                var ext   = Path.GetExtension(fileName).ToLower();
-                var mime  = ext switch
-                {
-                    ".png"  => "image/png",
-                    ".webp" => "image/webp",
-                    _       => "image/jpeg"
-                };
-                return File(bytes, mime);
-            }
+                "MAN"     => "Mặn",
+                "NHE"     => "Nhẹ",
+                "CHAY"    => "Chay",
+                "DU_KIEN" => "Dự kiến",
+                _         => f.FOOD_TYPE ?? "—"
+            };
+            ws.Cell(i + 2, 1).Value = f.ID;
+            ws.Cell(i + 2, 2).Value = f.FOOD_NAME;
+            ws.Cell(i + 2, 3).Value = typeLabel;
+            ws.Cell(i + 2, 4).Value = f.IS_ACTIVE == 1 ? "Hiện" : "Ẩn";
+            ws.Cell(i + 2, 5).Value = f.INST_DT?.ToString("dd/MM/yyyy") ?? "";
         }
-        catch { return NotFound(); }
+
+        ws.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"DanhMucMonAn_{DateTime.Now:yyyyMMdd}.xlsx");
+    }
+
+    // Tải file mẫu import món ăn
+    [HttpGet]
+    [Authorize(Roles = "Admin,HR")]
+    public IActionResult DownloadFoodTemplate()
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Import món ăn");
+
+        // Header
+        string[] headers = { "Tên món (*)", "Loại món (*)", "Hiển thị (1/0)" };
+        for (int c = 0; c < headers.Length; c++)
+        {
+            var cell = ws.Cell(1, c + 1);
+            cell.Value = headers[c];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#1F4E79");
+            cell.Style.Font.FontColor = XLColor.White;
+        }
+
+        // Ghi chú hướng dẫn
+        ws.Cell(1, 5).Value = "Loại món: MAN = Mặn | NHE = Nhẹ | CHAY = Chay";
+        ws.Cell(1, 5).Style.Font.Italic = true;
+        ws.Cell(1, 5).Style.Font.FontColor = XLColor.Gray;
+
+        // Dòng ví dụ
+        ws.Cell(2, 1).Value = "Cá kho rau răm";
+        ws.Cell(2, 2).Value = "MAN";
+        ws.Cell(2, 3).Value = 1;
+
+        ws.Cell(3, 1).Value = "Rau muống xào tỏi";
+        ws.Cell(3, 2).Value = "CHAY";
+        ws.Cell(3, 3).Value = 1;
+
+        // Dropdown validation cho cột Loại món (B2:B500)
+        var typeRange = ws.Range("B2:B500");
+        typeRange.CreateDataValidation().List("\"MAN,NHE,CHAY\"", true);
+
+        ws.Columns(1, 4).AdjustToContents();
+        ws.Column(5).Width = 45;
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "MauImportMonAn.xlsx");
+    }
+
+    // Import món ăn từ Excel
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> ImportFoodExcel(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            TempData["ImportFoodError"] = "Chưa chọn file.";
+            return RedirectToAction("FoodManage");
+        }
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            TempData["ImportFoodError"] = "Chỉ chấp nhận file .xlsx.";
+            return RedirectToAction("FoodManage");
+        }
+
+        var errors  = new List<string>();
+        int inserted = 0;
+
+        using var stream = file.OpenReadStream();
+        using var wb = new XLWorkbook(stream);
+        var ws = wb.Worksheets.First();
+
+        var lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
+        for (int row = 2; row <= lastRow; row++)
+        {
+            var name    = ws.Cell(row, 1).GetValue<string>()?.Trim();
+            var rawType = ws.Cell(row, 2).GetValue<string>()?.Trim().ToUpper();
+            var active  = ws.Cell(row, 3).GetValue<string>()?.Trim();
+
+            if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(rawType)) continue;
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                errors.Add($"Dòng {row}: Thiếu tên món.");
+                continue;
+            }
+
+            var validTypes = new[] { "MAN", "NHE", "CHAY" };
+            if (string.IsNullOrWhiteSpace(rawType) || !validTypes.Contains(rawType))
+            {
+                errors.Add($"Dòng {row} ({name}): Loại món không hợp lệ — dùng MAN / NHE / CHAY.");
+                continue;
+            }
+
+            int isActive = active == "0" ? 0 : 1;
+            var req = new HR_web.Models.Menu.SaveFoodRequest
+            {
+                FOOD_NAME  = name,
+                FOOD_TYPE  = rawType,
+                IS_ACTIVE  = isActive,
+                LOGIN_USER = CurrentUser!.EmpCd
+            };
+
+            var (ok, msg, _) = await _svc.SaveFoodAsync(req);
+            if (ok) inserted++;
+            else errors.Add($"Dòng {row} ({name}): {msg}");
+        }
+
+        TempData["ImportFoodSuccess"] = $"Import thành công {inserted} món ăn.";
+        if (errors.Any())
+            TempData["ImportFoodErrors"] = string.Join("|", errors);
+
+        return RedirectToAction("FoodManage");
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -16,11 +16,13 @@ public class UserDeptController : ControllerBase
         _oracleService = oracleService;
     }
 
-    // GET /apiHR/UserDept?empcd=&deptcd=&page=&page_size=
+    // GET /apiHR/UserDept?empcd=&deptcd=&linecd=&workcd=&page=&page_size=
     [HttpGet]
     public async Task<IActionResult> GetList(
         string? empcd     = null,
         string? deptcd    = null,
+        string? linecd    = null,
+        string? workcd    = null,
         int     page      = 1,
         int     page_size = 50)
     {
@@ -38,14 +40,20 @@ public class UserDeptController : ControllerBase
 
             string whereSql = @"
                 WHERE (:EMPCD_FLAG IS NULL OR UPPER(D.EMPCD) LIKE :EMPCD_VAL)
-                  AND (:DEPT_FLAG  IS NULL OR D.DEPTCD = :DEPT_VAL)";
+                  AND (:DEPT_FLAG  IS NULL OR D.DEPTCD = :DEPT_VAL)
+                  AND (:LINE_FLAG  IS NULL OR D.LINECD = :LINE_VAL)
+                  AND (:WORK_FLAG  IS NULL OR D.WORKCD = :WORK_VAL)";
 
             var baseParams = new List<OracleParameter>
             {
                 new OracleParameter("EMPCD_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(empcd)  ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("EMPCD_VAL",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(empcd)  ? null : "%" + empcd.ToUpper() + "%") ?? DBNull.Value },
                 new OracleParameter("DEPT_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(deptcd) ? null : "Y") ?? DBNull.Value },
-                new OracleParameter("DEPT_VAL",   OracleDbType.Varchar2) { Value = (object?)deptcd ?? DBNull.Value }
+                new OracleParameter("DEPT_VAL",   OracleDbType.Varchar2) { Value = (object?)deptcd ?? DBNull.Value },
+                new OracleParameter("LINE_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(linecd) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("LINE_VAL",   OracleDbType.Varchar2) { Value = (object?)linecd ?? DBNull.Value },
+                new OracleParameter("WORK_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(workcd) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("WORK_VAL",   OracleDbType.Varchar2) { Value = (object?)workcd ?? DBNull.Value }
             };
 
             string sqlCount = $"SELECT COUNT(*) CNT {fromSql} {whereSql}";

@@ -11,65 +11,68 @@ namespace HR_web.Controllers;
 public class ImageController : BaseController
 {
     private readonly AccountService _accountService;
-    private readonly IWebHostEnvironment _env;
 
-    private readonly string _employeeImageFolder = @"\\192.168.1.5\vserp_picture\VSHRMS";
-    private readonly string _signatureFolder = @"\\192.168.1.5\vserp_picture\WRK_SIGN";
+    // ── Network share config (dùng chung toàn app) ──────────────────────────
+    internal const string ShareRoot = @"\\192.168.1.5\vserp_picture";
+    internal static readonly System.Net.NetworkCredential ShareCred =
+        new("localfileserver", "!samh0!!");
 
-    public ImageController(AccountService accountService, IWebHostEnvironment env)
+    // ── Thư mục từng loại ảnh ───────────────────────────────────────────────
+    private const string EmployeeFolder = ShareRoot + @"\VSHRMS";
+    private const string SignatureFolder = ShareRoot + @"\WRK_SIGN";
+    private const string CantinFolder   = ShareRoot + @"\MY_SAMHO_CANTIN";
+
+    public ImageController(AccountService accountService)
     {
         _accountService = accountService;
-        _env = env;
     }
 
+    // ── Helper chung: đọc file từ network share và trả về ảnh ───────────────
+    private IActionResult ServeNetworkImage(string filePath, string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName) || fileName.Contains(".."))
+            return NotFound();
+        try
+        {
+            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            {
+                if (!System.IO.File.Exists(filePath)) return NotFound();
+                var bytes = System.IO.File.ReadAllBytes(filePath);
+                var mime  = Path.GetExtension(fileName).ToLower() switch
+                {
+                    ".png"  => "image/png",
+                    ".webp" => "image/webp",
+                    _       => "image/jpeg"
+                };
+                return File(bytes, mime);
+            }
+        }
+        catch { return NotFound(); }
+    }
+
+    // ── Ảnh nhân viên ───────────────────────────────────────────────────────
     [HttpGet]
     public IActionResult GetEmployeeImage(string empCd)
     {
-        if (string.IsNullOrWhiteSpace(empCd))
-            return BadRequest();
-
-        string fallback = Path.Combine(_env.WebRootPath, "assets", "img", "illustrations", "danger-chat-ill.png");
-        string path = Path.Combine(_employeeImageFolder, empCd + ".jpg");
-
-        try
-        {
-            var credentials = new System.Net.NetworkCredential("localfileserver", "!samh0!!");
-            using (new NetworkShareHelper(@"\\192.168.1.5\vserp_picture", credentials))
-            {
-                var fileBytes = System.IO.File.ReadAllBytes(path);
-                return File(fileBytes, "image/jpeg");
-            }
-        }
-        catch (Exception ex)
-        {
-            return Content($"LỖI RỒI: {ex.Message}\n\nChi tiết:\n{ex.StackTrace}");
-        }
+        if (string.IsNullOrWhiteSpace(empCd)) return BadRequest();
+        var fileName = empCd + ".jpg";
+        return ServeNetworkImage(Path.Combine(EmployeeFolder, fileName), fileName);
     }
 
-
+    // ── Chữ ký ──────────────────────────────────────────────────────────────
     [HttpGet]
     public IActionResult GetSignature(string empCd)
     {
-        if (string.IsNullOrWhiteSpace(empCd))
-            return BadRequest();
-
-        string fallback = Path.Combine(_env.WebRootPath, "assets", "img", "illustrations", "danger-chat-ill.png");
-        string path = Path.Combine(_signatureFolder, empCd + ".jpg");
-
-        try
-        {
-            var credentials = new System.Net.NetworkCredential("localfileserver", "!samh0!!");
-            using (new NetworkShareHelper(@"\\192.168.1.5\vserp_picture", credentials))
-            {
-                var fileBytes = System.IO.File.ReadAllBytes(path);
-                return File(fileBytes, "image/jpeg");
-            }
-        }
-        catch (Exception ex)
-        {
-            return Content($"LỖI RỒI: {ex.Message}\n\nChi tiết:\n{ex.StackTrace}");
-        }
+        if (string.IsNullOrWhiteSpace(empCd)) return BadRequest();
+        var fileName = empCd + ".jpg";
+        return ServeNetworkImage(Path.Combine(SignatureFolder, fileName), fileName);
     }
+
+    // ── Ảnh món ăn (cantin) ─────────────────────────────────────────────────
+    [HttpGet, AllowAnonymous]
+    [ResponseCache(Duration = 86400)]
+    public IActionResult GetFoodImage(string fileName)
+        => ServeNetworkImage(Path.Combine(CantinFolder, fileName), fileName);
 
     
     [HttpPost]
@@ -90,10 +93,9 @@ public class ImageController : BaseController
 
         try
         {
-            string savePath = Path.Combine(_signatureFolder, empCd + ".jpg");
+            string savePath = Path.Combine(SignatureFolder, empCd + ".jpg");
 
-            var credentials = new System.Net.NetworkCredential("localfileserver", "!samh0!!");
-            using (new NetworkShareHelper(@"\\192.168.1.5\vserp_picture", credentials))
+            using (new NetworkShareHelper(ShareRoot, ShareCred))
             {
                 // Ghi file lên network share (thay file.SaveAs)
                 using (var stream = new FileStream(savePath, FileMode.Create))

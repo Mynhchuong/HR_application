@@ -647,11 +647,11 @@ public class AccountController : ControllerBase
                        A.ADDRESS_ETC, C.CODE_NAME1_N, C.CODE_NAME3_N,
                        FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(
                            CASE WHEN TO_NUMBER(SUBSTR(A.EMPCD,1,2)) > TO_NUMBER(TO_CHAR(SYSDATE,'YY'))
-                                THEN '19' ELSE '20' END || SUBSTR(A.EMPCD,1,6), 'YYYYMMDD'
+                                THEN '19' ELSE '20' END || SUBSTR(A.EMPCD,1,4) || '01', 'YYYYMMDD'
                        )) / 12) || ' năm ' ||
                        MOD(FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(
                            CASE WHEN TO_NUMBER(SUBSTR(A.EMPCD,1,2)) > TO_NUMBER(TO_CHAR(SYSDATE,'YY'))
-                                THEN '19' ELSE '20' END || SUBSTR(A.EMPCD,1,6), 'YYYYMMDD'
+                                THEN '19' ELSE '20' END || SUBSTR(A.EMPCD,1,4) || '01', 'YYYYMMDD'
                        ))), 12) || ' tháng' AS SENIORITY_DESC
                 FROM HRMS.ECM100 A
                 JOIN HRMS.EAM410 B ON A.DEPTCD = B.DEPTCD AND A.LINECD = B.LINECD AND A.WORKCD = B.WORKCD AND B.USEYN = 'Y'

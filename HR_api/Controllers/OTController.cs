@@ -38,7 +38,7 @@ public class OTController : ControllerBase
                        CASE WHEN E.OT_AFTER = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI') + E.OT_AFTER_TIME / 24
                             WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
                        END END_OT,
-                       NVL(R.CONFIRM_STATUS, 'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE,
+                       NVL(R.CONFIRM_STATUS, 'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE, R.OT_HOURS CONFIRMED_OT_HOURS,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND TO_CHAR(DAT,'YYYYIW') = TO_CHAR(SYSDATE,'YYYYIW') AND DAT <= SYSDATE), 0) SUM_WEEK,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TRUNC(SYSDATE,'MM') AND SYSDATE), 0) SUM_MONTH,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0101','YYYYMMDD') AND SYSDATE), 0) SUM_YEAR
@@ -57,26 +57,36 @@ public class OTController : ControllerBase
                 WHERE ROWNUM = 1
                 ";
 
-            var result = await _oracleService.ExecuteQueryAsync(sql, r => new OTTodayModel
+            var result = await _oracleService.ExecuteQueryAsync(sql, r =>
             {
-                EMPCD = r["EMPCD"]?.ToString() ?? string.Empty,
-                WORK_DATE = r["WORK_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["WORK_DATE"]),
-                OT_HOURS = r["OT_HOURS"] == DBNull.Value ? null : Convert.ToDecimal(r["OT_HOURS"]),
-                OT_BEFORE = r["OT_BEFORE"]?.ToString(),
-                OT_BEFORE_TIME = r["OT_BEFORE_TIME"]?.ToString(),
-                OT_AFTER = r["OT_AFTER"]?.ToString(),
-                OT_AFTER_TIME = r["OT_AFTER_TIME"]?.ToString(),
-                OT_REST = r["OT_REST"]?.ToString(),
-                HAS_OT = r["HAS_OT"]?.ToString(),
-                START_OT = r["START_OT"] == DBNull.Value ? null : Convert.ToDateTime(r["START_OT"]),
-                END_OT = r["END_OT"] == DBNull.Value ? null : Convert.ToDateTime(r["END_OT"]),
-                CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
-                CONFIRM_DATE = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
-                SUM_WEEK = Convert.ToDecimal(r["SUM_WEEK"]),
-                SUM_MONTH = Convert.ToDecimal(r["SUM_MONTH"]),
-                SUM_YEAR = Convert.ToDecimal(r["SUM_YEAR"]),
-                IS_EDITABLE = workDate.Date >= DateTime.Today.Date
-            }, 
+                var erpHours       = r["OT_HOURS"]           == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"]);
+                var confirmedHours = r["CONFIRMED_OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["CONFIRMED_OT_HOURS"]);
+                bool hoursUpdated  = confirmedHours.HasValue && erpHours.HasValue && confirmedHours != erpHours;
+                string confirmStatus = hoursUpdated ? "PENDING" : (r["CONFIRM_STATUS"]?.ToString() ?? "PENDING");
+
+                return new OTTodayModel
+                {
+                    EMPCD          = r["EMPCD"]?.ToString() ?? string.Empty,
+                    WORK_DATE      = r["WORK_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["WORK_DATE"]),
+                    OT_HOURS       = erpHours,
+                    OT_BEFORE      = r["OT_BEFORE"]?.ToString(),
+                    OT_BEFORE_TIME = r["OT_BEFORE_TIME"]?.ToString(),
+                    OT_AFTER       = r["OT_AFTER"]?.ToString(),
+                    OT_AFTER_TIME  = r["OT_AFTER_TIME"]?.ToString(),
+                    OT_REST        = r["OT_REST"]?.ToString(),
+                    HAS_OT         = r["HAS_OT"]?.ToString(),
+                    START_OT       = r["START_OT"]    == DBNull.Value ? null : Convert.ToDateTime(r["START_OT"]),
+                    END_OT         = r["END_OT"]      == DBNull.Value ? null : Convert.ToDateTime(r["END_OT"]),
+                    CONFIRM_STATUS = confirmStatus,
+                    CONFIRM_DATE   = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
+                    SUM_WEEK       = Convert.ToDecimal(r["SUM_WEEK"]),
+                    SUM_MONTH      = Convert.ToDecimal(r["SUM_MONTH"]),
+                    SUM_YEAR       = Convert.ToDecimal(r["SUM_YEAR"]),
+                    IS_EDITABLE    = workDate.Date >= DateTime.Today.Date,
+                    HOURS_UPDATED  = hoursUpdated,
+                    PREV_OT_HOURS  = hoursUpdated ? confirmedHours : null
+                };
+            },
             new OracleParameter("EMPCD", empcd),
             new OracleParameter("WORK_DATE", workDate),
             new OracleParameter("EMPCD1", empcd),
@@ -123,10 +133,11 @@ public class OTController : ControllerBase
                 return Ok(new { success = false, message = "Không có kế hoạch tăng ca trong ngày này" });
 
             // Bước 1: Kiểm tra xem HR_OT_REQUEST đã có dòng cho EMPCD + WORK_DATE chưa
-            string sqlGetExisting = "SELECT REQUEST_ID, CONFIRM_STATUS FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND ROWNUM = 1";
+            string sqlGetExisting = "SELECT REQUEST_ID, CONFIRM_STATUS, OT_HOURS FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND ROWNUM = 1";
             var existingRows = await _oracleService.ExecuteQueryAsync(sqlGetExisting, r => new {
-                REQUEST_ID = r["REQUEST_ID"]?.ToString(),
-                CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString()
+                REQUEST_ID     = r["REQUEST_ID"]?.ToString(),
+                CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
+                OT_HOURS       = r["OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"])
             },
                 new OracleParameter("EMPCD", model.EMPCD),
                 new OracleParameter("WORK_DATE", workDate));
@@ -135,11 +146,14 @@ public class OTController : ControllerBase
             {
                 // Đã có trong HR_OT_REQUEST → UPDATE cả hai bảng
                 var existing = existingRows[0];
-                if (existing.CONFIRM_STATUS != model.CONFIRM_STATUS)
+                bool hoursChanged = existing.OT_HOURS.HasValue && model.OT_HOURS.HasValue && existing.OT_HOURS != model.OT_HOURS;
+
+                if (existing.CONFIRM_STATUS != model.CONFIRM_STATUS || hoursChanged)
                 {
-                    string sqlUpdateOT = "UPDATE HRMS.HR_OT_REQUEST SET CONFIRM_STATUS = :CONFIRM_STATUS, CONFIRM_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID";
+                    string sqlUpdateOT = "UPDATE HRMS.HR_OT_REQUEST SET CONFIRM_STATUS = :CONFIRM_STATUS, OT_HOURS = :OT_HOURS, CONFIRM_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID";
                     await _oracleService.ExecuteNonQueryAsync(sqlUpdateOT,
                         new OracleParameter("CONFIRM_STATUS", model.CONFIRM_STATUS),
+                        new OracleParameter("OT_HOURS", (object?)model.OT_HOURS ?? DBNull.Value),
                         new OracleParameter("REQUEST_ID", existing.REQUEST_ID));
 
                     string sqlUpdateReq = "UPDATE HRMS.HR_REQUEST SET STATUS = :STATUS, UPDATED_BY = :EMPCD, UPDATED_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID";
@@ -148,7 +162,7 @@ public class OTController : ControllerBase
                         new OracleParameter("EMPCD", model.EMPCD),
                         new OracleParameter("REQUEST_ID", existing.REQUEST_ID));
 
-                    string msgUpdate = model.CONFIRM_STATUS == "CONFIRMED" ? "Cập nhật xác nhận tăng ca thành công" : "Cập nhật từ chối tăng ca thành công";
+                    string msgUpdate = model.CONFIRM_STATUS == "CONFIRMED" ? "Xác nhận tăng ca thành công" : "Từ chối tăng ca thành công";
                     return Ok(new { success = true, message = msgUpdate, request_id = existing.REQUEST_ID });
                 }
                 else

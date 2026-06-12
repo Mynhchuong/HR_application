@@ -12,13 +12,15 @@ public class UserDeptService
         _api = api;
     }
 
-    public async Task<object?> GetListAsync(string? empcd, string? deptcd, int page, int pageSize)
+    public async Task<object?> GetListAsync(string? empcd, string? deptcd, string? linecd, string? workcd, int page, int pageSize)
     {
         try
         {
             var q = new List<string>();
             if (!string.IsNullOrEmpty(empcd))  q.Add($"empcd={Uri.EscapeDataString(empcd)}");
             if (!string.IsNullOrEmpty(deptcd)) q.Add($"deptcd={Uri.EscapeDataString(deptcd)}");
+            if (!string.IsNullOrEmpty(linecd)) q.Add($"linecd={Uri.EscapeDataString(linecd)}");
+            if (!string.IsNullOrEmpty(workcd)) q.Add($"workcd={Uri.EscapeDataString(workcd)}");
             q.Add($"page={page}");
             q.Add($"page_size={pageSize}");
 

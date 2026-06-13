@@ -935,11 +935,15 @@ public class LeaveController : ControllerBase
                 SELECT L.REQUEST_ID, L.EMPCD, EC.CNAME EMP_NAME,
                        L.LEAVE_TYPE, L.SOURCE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS,
                        R.STATUS, L.CONFIRM_STATUS,
-                       B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME
+                       B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
+                       CASE WHEN L.SOURCE = 'ASSIGNED' THEN CB.FULL_NAME ELSE AP.FULL_NAME END APPROVED_BY,
+                       CASE WHEN L.SOURCE = 'ASSIGNED' THEN R.CREATED_DATE ELSE R.FINAL_DATE END APPROVED_DATE
                 FROM HRMS.HR_LEAVE_REQUEST L
                 JOIN HRMS.HR_REQUEST  R  ON R.REQUEST_ID = L.REQUEST_ID
                 JOIN HRMS.ECM100      EC ON EC.EMPCD     = L.EMPCD
-                LEFT JOIN HRMS.EAM410 B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                LEFT JOIN HRMS.EAM410   B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                LEFT JOIN HRMS.HR_USERS AP ON AP.EMPCD = R.FINAL_APPROVER
+                LEFT JOIN HRMS.HR_USERS CB ON CB.EMPCD = R.CREATED_BY
                 WHERE R.REQUEST_TYPE = 'LEAVE'
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND L.FROM_DATE <= :D_TO AND L.TO_DATE >= :D_FROM
@@ -971,7 +975,9 @@ public class LeaveController : ControllerBase
                 CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
                 DEPT_NAME      = r["DEPT_NAME"]?.ToString(),
                 LINE_NAME      = r["LINE_NAME"]?.ToString(),
-                WORK_NAME      = r["WORK_NAME"]?.ToString()
+                WORK_NAME      = r["WORK_NAME"]?.ToString(),
+                APPROVED_BY    = r["APPROVED_BY"]?.ToString(),
+                APPROVED_DATE  = r["APPROVED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["APPROVED_DATE"])
             }, p.ToArray());
 
             return Ok(new { success = true, month = m, year = y, total = list.Count, data = list });

@@ -62,6 +62,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Gate Pass Approval",  Url = "~/GatePass/GpListForExpat",         Icon = "door_front"     },
                     new SideMenuItem { Title = "Leave Approval",      Url = "~/Leave/LeaveApprovalForExpat",     Icon = "event_available"},
                     new SideMenuItem { Title = "Calendar leave & gate pass",   Url = "~/Leave/TeamCalendarForExpat",      Icon = "calendar_month" },
+                    new SideMenuItem { Title = "My Team",                       Url = "~/Employee/MyTeam",                 Icon = "groups"         },
                 }
             },
 
@@ -76,6 +77,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForClerk",       Icon = "view_list"     },
                     new SideMenuItem { Title = "Theo dõi ra vào cổng", Url = "~/GatePass/GpListForClerk", Icon = "door_front"    },
                     new SideMenuItem { Title = "Lịch nghỉ & Cổng",    Url = "~/Leave/TeamCalendar",      Icon = "calendar_month" },
+                    new SideMenuItem { Title = "DS nhân viên",          Url = "~/Employee/MyTeam",         Icon = "groups"         },
                 }
             },
 
@@ -91,6 +93,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Duyệt ra vào cổng",   Url = "~/GatePass/GpListForSupervisor",  Icon = "door_front"     },
                     new SideMenuItem { Title = "Lịch nghỉ & Cổng",   Url = "~/Leave/TeamCalendar",            Icon = "calendar_month" },
                     new SideMenuItem { Title = "Duyệt lịch nghỉ",     Url = "~/Leave/TeamSchedule",            Icon = "event_available" },
+                    new SideMenuItem { Title = "DS nhân viên",          Url = "~/Employee/MyTeam",               Icon = "groups"          },
                 }
             },
 
@@ -106,6 +109,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Duyệt ra vào cổng",   Url = "~/GatePass/GpListForSupervisor",  Icon = "door_front"     },
                     new SideMenuItem { Title = "Lịch nghỉ & Cổng",   Url = "~/Leave/TeamCalendar",            Icon = "calendar_month" },
                     new SideMenuItem { Title = "Duyệt lịch nghỉ",     Url = "~/Leave/TeamSchedule",            Icon = "event_available" },
+                    new SideMenuItem { Title = "DS nhân viên",          Url = "~/Employee/MyTeam",               Icon = "groups"          },
                 }
             },
 

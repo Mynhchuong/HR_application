@@ -34,13 +34,14 @@ public class MenuService
 
     public async Task<(MenuWeekModel? week, List<MenuDetailModel> details)> GetWeekByIdAsync(int id)
     {
-        var r = await _api.GetAsync<Resp<MenuWeekModel>>($"MenuWeek/{id}");
-        if (r?.success != true) return (null, new());
-        var details = JsonConvert.DeserializeObject<List<MenuDetailModel>>(
-            JsonConvert.SerializeObject(
-                ((Newtonsoft.Json.Linq.JObject)JsonConvert.DeserializeObject(
-                    JsonConvert.SerializeObject(r))!).GetValue("details"))) ?? new();
-        return (r.data, details);
+        var res = await _api.GetAsync_Raw($"MenuWeek/{id}");
+        if (res == null || !res.IsSuccessStatusCode) return (null, new());
+        var json = await res.Content.ReadAsStringAsync();
+        var jObj = Newtonsoft.Json.Linq.JObject.Parse(json);
+        if (jObj["success"]?.ToObject<bool>() != true) return (null, new());
+        var week    = jObj["data"]?.ToObject<MenuWeekModel>();
+        var details = jObj["details"]?.ToObject<List<MenuDetailModel>>() ?? new();
+        return (week, details);
     }
 
     public async Task<(bool success, string message)> SaveWeekAsync(SaveWeekRequest req)

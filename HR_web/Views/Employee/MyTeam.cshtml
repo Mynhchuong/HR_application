@@ -1,0 +1,286 @@
+@{
+    ViewData["Title"] = "Danh sách nhân viên";
+}
+
+@section Styles {
+<style>
+    .filter-select { height:34px; font-size:.8rem; border-radius:8px; border:1.5px solid #e2e8f0; padding:0 8px; outline:none; background:#fff; transition:border-color .18s; }
+    .filter-select:focus { border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.12); }
+    .search-input { height:34px; font-size:.8rem; border-radius:8px; border:1.5px solid #e2e8f0; padding:0 10px 0 30px; outline:none; background:#fff; transition:border-color .18s; width:160px; }
+    .search-input:focus { border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.12); }
+    .search-wrap { position:relative; display:inline-flex; align-items:center; }
+    .search-wrap i { position:absolute; left:8px; font-size:.75rem; color:#94a3b8; pointer-events:none; }
+    .total-badge { background:#eff6ff; color:#1d4ed8; font-size:.75rem; font-weight:700; padding:3px 10px; border-radius:20px; }
+    @@media (max-width:576px) {
+        .filter-bar { flex-wrap:wrap !important; }
+        .search-input { width:120px; }
+    }
+</style>
+}
+
+<div class="container-fluid py-4">
+<div class="card">
+
+    <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+        <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="text-white mb-0"><i class="bi bi-people-fill me-1"></i> Danh sách nhân viên</h6>
+            <button class="btn btn-sm btn-white mb-0" onclick="exportExcel()" id="btnExport">
+                <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel
+            </button>
+        </div>
+    </div>
+
+    <div class="card-body px-0 pt-0 pb-2 mt-3">
+
+        <!-- Filter bar -->
+        <div class="px-4 pb-2 d-flex align-items-center gap-2 flex-wrap filter-bar">
+            <div class="search-wrap">
+                <i class="bi bi-search"></i>
+                <input type="text" id="searchInput" class="search-input" placeholder="Mã NV / Tên..."
+                       oninput="onSearch()">
+            </div>
+            <select id="deptFilter" class="filter-select" onchange="onDeptChange()" style="min-width:130px;">
+                <option value="">-- Bộ phận --</option>
+            </select>
+            <select id="lineFilter" class="filter-select" onchange="onLineChange()" style="min-width:130px;">
+                <option value="">-- Line --</option>
+            </select>
+            <select id="workFilter" class="filter-select" onchange="renderTable()" style="min-width:140px;">
+                <option value="">-- Nhóm việc --</option>
+            </select>
+            <button class="btn btn-sm btn-outline-secondary mb-0" onclick="resetFilters()" title="Xóa filter">
+                <i class="bi bi-x-lg"></i>
+            </button>
+            <span id="totalBadge" class="total-badge ms-1" style="display:none;"></span>
+        </div>
+
+        <!-- Table -->
+        <div class="table-responsive px-4">
+            <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="hidden">#</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Bộ phận">Bộ phận</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Line">Line</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Nhóm việc">Nhóm việc</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center px-4 mt-2 mb-2">
+            <div id="pageCount" class="text-sm text-secondary"></div>
+            <nav><ul class="pagination pagination-sm mb-0" id="pagination"></ul></nav>
+        </div>
+
+    </div>
+</div>
+</div>
+
+@section Scripts {
+<script>
+const DATA_URL   = '@Url.Action("GetMyTeamData","Employee")';
+const EXPORT_URL = '@Url.Action("ExportExcel","Employee")';
+const NO_DATA_IMG = '@Url.Content("~/assets/img/illustrations/Chi_nodata.png")';
+
+let allData = [], filtered = [], page = 1;
+const PAGE_SIZE = 25;
+let searchTimer;
+
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Load data ─────────────────────────────────────────────────
+function loadData() {
+    document.getElementById('tableBody').innerHTML =
+        `<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
+    MobileTableHelper.refresh('tableBody');
+
+    $.ajax({
+        url: DATA_URL, type: 'GET',
+        success: function(res) {
+            if (!res.success) {
+                document.getElementById('tableBody').innerHTML =
+                    `<tr><td colspan="6" class="text-center text-danger py-4">${escHtml(res.message||'Lỗi')}</td></tr>`;
+                MobileTableHelper.refresh('tableBody');
+                return;
+            }
+            allData = res.data || [];
+            buildDropdowns();
+            applyFilter();
+        },
+        error: function(xhr) {
+            document.getElementById('tableBody').innerHTML =
+                `<tr><td colspan="6" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`;
+            MobileTableHelper.refresh('tableBody');
+        }
+    });
+}
+
+// ── Dropdowns ─────────────────────────────────────────────────
+function unique(arr, key) {
+    const seen = new Set();
+    return arr.filter(d => { const v = d[key]; if (seen.has(v)) return false; seen.add(v); return true; });
+}
+
+function buildDropdowns() {
+    const depts = unique(allData, 'DEPTCD').sort((a,b) => a.DEPTCD.localeCompare(b.DEPTCD));
+    const dSel = document.getElementById('deptFilter');
+    dSel.innerHTML = '<option value="">-- Bộ phận --</option>';
+    depts.forEach(d => {
+        const lbl = d.DEPT_NAME ? `${d.DEPTCD} — ${escHtml(d.DEPT_NAME)}` : d.DEPTCD;
+        dSel.innerHTML += `<option value="${escHtml(d.DEPTCD)}">${lbl}</option>`;
+    });
+    buildLineDropdown('');
+}
+
+function buildLineDropdown(deptcd) {
+    const src = deptcd ? allData.filter(d => d.DEPTCD === deptcd) : allData;
+    const lines = unique(src, 'LINECD').sort((a,b) => a.LINECD.localeCompare(b.LINECD));
+    const lSel = document.getElementById('lineFilter');
+    lSel.innerHTML = '<option value="">-- Line --</option>';
+    lines.forEach(d => {
+        const lbl = d.LINE_NAME ? `${d.LINECD} — ${escHtml(d.LINE_NAME)}` : d.LINECD;
+        lSel.innerHTML += `<option value="${escHtml(d.LINECD)}">${lbl}</option>`;
+    });
+    buildWorkDropdown(deptcd, '');
+}
+
+function buildWorkDropdown(deptcd, linecd) {
+    let src = allData;
+    if (deptcd) src = src.filter(d => d.DEPTCD === deptcd);
+    if (linecd) src = src.filter(d => d.LINECD === linecd);
+    const works = unique(src, 'WORKCD').sort((a,b) => a.WORKCD.localeCompare(b.WORKCD));
+    const wSel = document.getElementById('workFilter');
+    wSel.innerHTML = '<option value="">-- Nhóm việc --</option>';
+    works.forEach(d => {
+        const lbl = d.WORK_NAME ? `${d.WORKCD} — ${escHtml(d.WORK_NAME)}` : d.WORKCD;
+        wSel.innerHTML += `<option value="${escHtml(d.WORKCD)}">${lbl}</option>`;
+    });
+}
+
+function onDeptChange() {
+    const dept = document.getElementById('deptFilter').value;
+    buildLineDropdown(dept);
+    page = 1; applyFilter();
+}
+
+function onLineChange() {
+    const dept = document.getElementById('deptFilter').value;
+    const line = document.getElementById('lineFilter').value;
+    buildWorkDropdown(dept, line);
+    page = 1; applyFilter();
+}
+
+function onSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { page = 1; applyFilter(); }, 300);
+}
+
+function resetFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('deptFilter').value  = '';
+    document.getElementById('lineFilter').value  = '';
+    document.getElementById('workFilter').value  = '';
+    buildLineDropdown('');
+    page = 1; applyFilter();
+}
+
+// ── Filter + Render ───────────────────────────────────────────
+function applyFilter() {
+    const q     = (document.getElementById('searchInput').value||'').trim().toUpperCase();
+    const dept  = document.getElementById('deptFilter').value;
+    const line  = document.getElementById('lineFilter').value;
+    const work  = document.getElementById('workFilter').value;
+
+    filtered = allData.filter(d => {
+        if (dept && d.DEPTCD !== dept) return false;
+        if (line && d.LINECD !== line) return false;
+        if (work && d.WORKCD !== work) return false;
+        if (q && !(d.EMPCD.toUpperCase().includes(q) || (d.EMP_NAME||'').toUpperCase().includes(q))) return false;
+        return true;
+    });
+
+    const badge = document.getElementById('totalBadge');
+    badge.textContent = `${filtered.length} nhân viên`;
+    badge.style.display = filtered.length ? '' : 'none';
+
+    renderTable();
+}
+
+function renderTable() {
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (page > totalPages) page = totalPages;
+    const start    = (page - 1) * PAGE_SIZE;
+    const pageData = filtered.slice(start, start + PAGE_SIZE);
+
+    if (!pageData.length) {
+        document.getElementById('tableBody').innerHTML =
+            `<tr><td colspan="6" class="text-center py-5">
+                <img src="${NO_DATA_IMG}" style="width:120px;opacity:.85;display:block;margin:0 auto 10px;">
+                <div class="text-muted text-sm">Không có nhân viên phù hợp</div>
+            </td></tr>`;
+        document.getElementById('pageCount').textContent = '';
+        document.getElementById('pagination').innerHTML = '';
+        MobileTableHelper.refresh('tableBody');
+        return;
+    }
+
+    document.getElementById('tableBody').innerHTML = pageData.map((d, i) => `<tr>
+        <td class="px-2 text-xs text-secondary">${start + i + 1}</td>
+        <td class="px-2 text-sm fw-bold">${escHtml(d.EMPCD)}</td>
+        <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(d.EMP_NAME)}</td>
+        <td class="px-2 text-xs">${d.DEPT_NAME ? `<span class="fw-bold">${escHtml(d.DEPTCD)}</span> <span class="text-secondary">— ${escHtml(d.DEPT_NAME)}</span>` : escHtml(d.DEPTCD)||'—'}</td>
+        <td class="px-2 text-xs">${d.LINE_NAME ? `<span class="fw-bold">${escHtml(d.LINECD)}</span> <span class="text-secondary">— ${escHtml(d.LINE_NAME)}</span>` : escHtml(d.LINECD)||'—'}</td>
+        <td class="px-2 text-xs">${d.WORK_NAME ? `<span class="fw-bold">${escHtml(d.WORKCD)}</span> <span class="text-secondary">— ${escHtml(d.WORK_NAME)}</span>` : escHtml(d.WORKCD)||'—'}</td>
+    </tr>`).join('');
+
+    const s = start + 1, e = Math.min(start + PAGE_SIZE, filtered.length);
+    document.getElementById('pageCount').innerHTML =
+        `<span class="text-xs">${s}–${e} / <strong>${filtered.length}</strong> nhân viên</span>`;
+
+    renderPagination(totalPages);
+    MobileTableHelper.refresh('tableBody');
+}
+
+function renderPagination(totalPages) {
+    const $bar = $('#pagination').empty();
+    if (totalPages <= 1) return;
+    const mk = (label, p, disabled, active) => {
+        const li = $('<li class="page-item">').toggleClass('disabled', !!disabled).toggleClass('active', !!active);
+        $('<a class="page-link">').html(label).on('click', () => { if (!disabled && !active) { page = p; renderTable(); } }).appendTo(li);
+        return li;
+    };
+    $bar.append(mk('&lsaquo;', page - 1, page <= 1));
+    const from = Math.max(1, page - 2), to = Math.min(totalPages, page + 2);
+    for (let p = from; p <= to; p++) $bar.append(mk(p, p, false, p === page));
+    $bar.append(mk('&rsaquo;', page + 1, page >= totalPages));
+}
+
+// ── Export ────────────────────────────────────────────────────
+function exportExcel() {
+    const q    = (document.getElementById('searchInput').value||'').trim();
+    const dept = document.getElementById('deptFilter').value;
+    const line = document.getElementById('lineFilter').value;
+    const work = document.getElementById('workFilter').value;
+    const params = new URLSearchParams();
+    if (q)    params.append('search', q);
+    if (dept) params.append('deptcd', dept);
+    if (line) params.append('linecd', line);
+    if (work) params.append('workcd', work);
+    const a = document.createElement('a');
+    a.href = EXPORT_URL + (params.toString() ? '?' + params.toString() : '');
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 200);
+}
+
+$(document).ready(function() {
+    MobileTableHelper.init('tableBody');
+    loadData();
+});
+</script>
+}

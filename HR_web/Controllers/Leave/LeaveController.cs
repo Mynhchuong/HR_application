@@ -479,4 +479,5 @@ public class LeaveController : BaseController
         var result = await _gatePassService.AdminDeleteGpAsync(model);
         return Json(result);
     }
+
 }

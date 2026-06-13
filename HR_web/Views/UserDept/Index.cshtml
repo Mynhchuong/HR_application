@@ -400,27 +400,44 @@ function initManualModal() {
         $('#manualWorkcds').empty().select2({ dropdownParent: $('#manualModal'), placeholder: 'Chọn nhóm việc...' });
         if (!deptcds) return;
         $.get(LINE_OPTIONS_URL, { deptcds }, function(data) {
+            if (data.length) $('#manualLinecds').append(new Option('-- Tất cả --', '__ALL__'));
             data.forEach(item => $('#manualLinecds').append(new Option(item.text, item.id)));
         });
     });
 
-    // Line → reload Work
+    // Line → handle ALL + reload Work
     $('#manualLinecds').on('change', function() {
+        let selected = $(this).val() || [];
+        if (selected.includes('__ALL__')) {
+            const allVals = $(this).find('option[value!="__ALL__"]').map(function() { return this.value; }).get();
+            $(this).val(allVals).trigger('change.select2');
+            selected = allVals;
+        }
         const deptcds = ($('#manualDeptcds').val() || []).join(',');
-        const linecds = ($(this).val() || []).join(',');
+        const linecds = selected.join(',');
         $('#manualWorkcds').empty().select2({ dropdownParent: $('#manualModal'), placeholder: 'Chọn nhóm việc...' });
         if (!deptcds || !linecds) return;
         $.get(WORK_OPTIONS_URL, { deptcds, linecds }, function(data) {
+            if (data.length) $('#manualWorkcds').append(new Option('-- Tất cả --', '__ALL__'));
             data.forEach(item => $('#manualWorkcds').append(new Option(item.text, item.id)));
         });
+    });
+
+    // Work → handle ALL
+    $('#manualWorkcds').on('change', function() {
+        const selected = $(this).val() || [];
+        if (selected.includes('__ALL__')) {
+            const allVals = $(this).find('option[value!="__ALL__"]').map(function() { return this.value; }).get();
+            $(this).val(allVals).trigger('change.select2');
+        }
     });
 }
 
 $('#manualBtn').on('click', function() {
     const empcd   = $('#manualEmpcd').val();
     const deptcds = ($('#manualDeptcds').val() || []).join(',');
-    const linecds = ($('#manualLinecds').val() || []).join(',');
-    const workcds = ($('#manualWorkcds').val() || []).join(',');
+    const linecds = ($('#manualLinecds').val() || []).filter(v => v !== '__ALL__').join(',');
+    const workcds = ($('#manualWorkcds').val() || []).filter(v => v !== '__ALL__').join(',');
     if (!empcd)   { $('#manualResult').html('<div class="alert alert-warning py-2">Chưa chọn nhân viên</div>'); return; }
     if (!deptcds) { $('#manualResult').html('<div class="alert alert-warning py-2">Chưa chọn bộ phận</div>'); return; }
     if (!linecds) { $('#manualResult').html('<div class="alert alert-warning py-2">Chưa chọn line</div>'); return; }

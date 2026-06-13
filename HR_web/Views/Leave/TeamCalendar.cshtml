@@ -158,12 +158,12 @@
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="hidden">#</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Bộ phận / Line / Work">Bộ phận</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Loại">Loại</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Nguồn">Nguồn</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Từ ngày">Từ ngày</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Đến ngày">Đến ngày</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Số ngày">Số ngày</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Xử lý bởi">Xử lý bởi</th>
                                 </tr>
                             </thead>
                             <tbody id="scheduleBody"></tbody>
@@ -431,19 +431,23 @@ function buildScheduleRow(item, idx, today) {
     const activeBadge = isActive
         ? `<i class="bi bi-circle-fill text-success ms-1" style="font-size:.5rem;vertical-align:middle;" title="Đang nghỉ"></i>` : '';
     const deptParts = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean);
-    const deptCell  = deptParts.length
-        ? `<span class="text-xs text-secondary">${deptParts.map(escHtml).join(' / ')}</span>`
-        : `<span class="text-xs text-muted">-</span>`;
+    const deptLine  = deptParts.length
+        ? `<div class="text-xs text-secondary mt-0" style="line-height:1.2;">${deptParts.map(escHtml).join(' / ')}</div>`
+        : '';
+    const approverCell = item.APPROVED_BY
+        ? `<div class="text-xs vni-font" style="text-transform:uppercase;">${escHtml(item.APPROVED_BY)}</div>
+           <div class="text-xs text-secondary">${formatDate(item.APPROVED_DATE)}</div>`
+        : `<span class="text-xs text-muted">—</span>`;
     return `<tr class="${rowClass}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
-        <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}${activeBadge}</td>
-        <td class="px-2">${deptCell}</td>
+        <td class="px-2"><div class="text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}${activeBadge}</div>${deptLine}</td>
         <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
         <td class="px-2">${srcBadge}</td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
         <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
+        <td class="px-2">${approverCell}</td>
     </tr>`;
 }
 

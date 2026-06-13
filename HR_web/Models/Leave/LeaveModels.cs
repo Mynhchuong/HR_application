@@ -162,6 +162,8 @@ public class LeaveScheduleModel
     public string?   DEPT_NAME      { get; set; }
     public string?   LINE_NAME      { get; set; }
     public string?   WORK_NAME      { get; set; }
+    public string?   APPROVED_BY    { get; set; }
+    public DateTime? APPROVED_DATE  { get; set; }
 }
 
 public class LeaveScheduleResponse

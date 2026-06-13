@@ -89,6 +89,7 @@ builder.Services.AddScoped<HR_web.API.Service.LeaveService>();
 builder.Services.AddScoped<HR_web.API.Service.CalendarService>();
 builder.Services.AddScoped<HR_web.API.Service.GuideService>();
 builder.Services.AddScoped<HR_web.API.Service.MenuService>();
+builder.Services.AddScoped<HR_web.API.Service.EmployeeService>();
 
 // ============================================================
 var app = builder.Build();

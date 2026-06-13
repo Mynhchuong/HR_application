@@ -168,6 +168,7 @@
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="From">From</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="To">To</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Days">Days</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Handled by">Handled by</th>
                                 </tr>
                             </thead>
                             <tbody id="scheduleBody"></tbody>
@@ -433,22 +434,31 @@ function buildScheduleRow(item, idx, today) {
     const rowClass = isPast ? 'sch-past' : isActive ? 'sch-active' : '';
     const activeBadge = isActive
         ? `<i class="bi bi-circle-fill text-success ms-1" style="font-size:.5rem;vertical-align:middle;" title="Currently on leave"></i>` : '';
+    const deptParts = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean);
+    const deptLine  = deptParts.length
+        ? `<div class="text-xs text-secondary mt-0" style="line-height:1.2;">${deptParts.map(escHtml).join(' / ')}</div>`
+        : '';
+    const approverCell = item.APPROVED_BY
+        ? `<div class="text-xs vni-font" style="text-transform:uppercase;">${escHtml(item.APPROVED_BY)}</div>
+           <div class="text-xs text-secondary">${formatDate(item.APPROVED_DATE)}</div>`
+        : `<span class="text-xs text-muted">—</span>`;
     return `<tr class="${rowClass}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
-        <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}${activeBadge}</td>
+        <td class="px-2"><div class="text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}${activeBadge}</div>${deptLine}</td>
         <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
         <td class="px-2">${srcBadge}</td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
         <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + 'd' : '-'}</td>
+        <td class="px-2">${approverCell}</td>
     </tr>`;
 }
 
 function loadSchedule() {
     selectedCalDay = null;
     document.getElementById('scheduleBody').innerHTML =
-        `<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-info" role="status"></div></td></tr>`;
+        `<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-info" role="status"></div></td></tr>`;
     MobileTableHelper.refresh('scheduleBody');
     document.getElementById('scheduleCount').textContent = '';
     document.getElementById('scheduleEmpFilter').value = '';
@@ -458,7 +468,7 @@ function loadSchedule() {
         success: function(res) {
             if (!res.success) {
                 document.getElementById('scheduleBody').innerHTML =
-                    `<tr><td colspan="8" class="text-center text-danger py-4">Error: ${res.message||''}</td></tr>`;
+                    `<tr><td colspan="9" class="text-center text-danger py-4">Error: ${res.message||''}</td></tr>`;
                 MobileTableHelper.refresh('scheduleBody');
                 return;
             }
@@ -468,7 +478,7 @@ function loadSchedule() {
         },
         error: function(xhr) {
             document.getElementById('scheduleBody').innerHTML =
-                `<tr><td colspan="8" class="text-center text-danger py-4">Connection error (${xhr.status})</td></tr>`;
+                `<tr><td colspan="9" class="text-center text-danger py-4">Connection error (${xhr.status})</td></tr>`;
             MobileTableHelper.refresh('scheduleBody');
         }
     });
@@ -526,7 +536,7 @@ function renderSchedule() {
 
     if (!pageData.length) {
         const msg = selectedCalDay ? 'No leave on this day' : (q ? `No result for "<strong>${q}</strong>"` : 'No approved leaves this month');
-        document.getElementById('scheduleBody').innerHTML = emptyRow(msg, 8);
+        document.getElementById('scheduleBody').innerHTML = emptyRow(msg, 9);
     } else {
         document.getElementById('scheduleBody').innerHTML =
             pageData.map((item, i) => buildScheduleRow(item, start+i+1, today)).join('');

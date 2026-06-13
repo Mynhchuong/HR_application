@@ -10,22 +10,9 @@
 
 <div class="container-fluid py-4">
 
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success mx-2 py-2">@TempData["SuccessMessage"]</div>
-    }
-    @if (TempData["ErrorMessage"] != null)
-    {
-        <div class="alert alert-danger mx-2 py-2">@TempData["ErrorMessage"]</div>
-    }
-    @if (TempData["ImportError"] != null)
-    {
-        <div class="alert alert-danger mx-2 py-2"><i class="bi bi-exclamation-triangle me-1"></i>@TempData["ImportError"]</div>
-    }
-
     @if (errors.Any())
     {
-        <div class="card border-danger mx-2 mb-3">
+        <div class="card border-danger mx-0 mb-3">
             <div class="card-header bg-danger text-white py-2">
                 <i class="bi bi-x-circle-fill me-1"></i>
                 Import thất bại — <strong>@errors.Count lỗi</strong> cần sửa trong file Excel trước khi import lại
@@ -55,160 +42,141 @@
         </div>
     }
 
-    <div class="row g-3">
-
-        <div class="col-12 col-xl-8">
-            <div class="card">
-                <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
-                    <div class="bg-gradient-dark shadow-dark border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <h6 class="text-white mb-0"><i class="bi bi-calendar-week me-1"></i> Quản lý Thực đơn theo Tuần</h6>
-                        <button class="btn btn-sm btn-white mb-0" data-bs-toggle="modal" data-bs-target="#modalCreateWeek">
-                            <i class="bi bi-plus-lg me-1"></i> Tạo tuần mới
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body px-0 pt-0 pb-2 mt-1">
-                    @if (!Model.Any())
-                    {
-                        <div class="text-center py-5 text-secondary">
-                            <i class="bi bi-calendar2-x" style="font-size:48px;opacity:.3;display:block;margin-bottom:.75rem;"></i>
-                            <p>Chưa có tuần nào. Nhấn <strong>Tạo tuần mới</strong> hoặc <strong>Import Excel</strong>.</p>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="table-responsive px-3">
-                            <table class="table align-items-center mb-0 table-hover">
-                                <thead class="bg-light">
-                                    <tr>
-                                        <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2">#</th>
-                                        <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2">Tuần</th>
-                                        <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2 text-center">Trạng thái</th>
-                                        <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2">Cập nhật</th>
-                                        <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @for (int i = 0; i < Model.Count; i++)
-                                    {
-                                        var w = Model[i];
-                                        <tr>
-                                            <td class="px-2 text-xs text-secondary">@(i + 1)</td>
-                                            <td class="px-2">
-                                                <div class="text-sm font-weight-bold">@(w.WEEK_NAME ?? $"Tuần {w.FROM_DATE:dd/MM} – {w.TO_DATE:dd/MM/yyyy}")</div>
-                                                <div class="text-xs text-secondary">@w.FROM_DATE.ToString("dd/MM/yyyy") → @w.TO_DATE.ToString("dd/MM/yyyy")</div>
-                                            </td>
-                                            <td class="px-2 text-center">
-                                                @if (w.STATUS == "PUBLISHED")
-                                                {
-                                                    <span class="badge bg-gradient-success">Đã đăng</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="badge bg-gradient-secondary">Nháp</span>
-                                                }
-                                            </td>
-                                            <td class="px-2 text-xs text-secondary">
-                                                @((w.UPDT_DT ?? w.INST_DT)?.ToString("dd/MM/yyyy") ?? "—")
-                                            </td>
-                                            <td class="px-2 text-end">
-                                                <div class="d-flex gap-1 justify-content-end flex-wrap">
-                                                    <a href="@Url.Action("EditWeek", new { id = w.ID })"
-                                                       class="btn btn-sm btn-outline-dark mb-0 px-2" title="Nhập thực đơn">
-                                                        <i class="bi bi-pencil-square"></i>
-                                                    </a>
-                                                    @if (w.STATUS == "DRAFT")
-                                                    {
-                                                        <form method="post" action="@Url.Action("PublishWeek", new { id = w.ID })" class="d-inline">
-                                                            @Html.AntiForgeryToken()
-                                                            <button type="submit" class="btn btn-sm btn-success mb-0 px-2" title="Đăng cho công nhân xem"
-                                                                    onclick="return confirm('Đăng tuần này cho công nhân xem?')">
-                                                                <i class="bi bi-send-fill"></i>
-                                                            </button>
-                                                        </form>
-                                                        <form method="post" action="@Url.Action("DeleteWeek", new { id = w.ID })" class="d-inline">
-                                                            @Html.AntiForgeryToken()
-                                                            <button type="submit" class="btn btn-sm btn-outline-danger mb-0 px-2"
-                                                                    onclick="return confirm('Xóa tuần này?')">
-                                                                <i class="bi bi-trash"></i>
-                                                            </button>
-                                                        </form>
-                                                    }
-                                                    else
-                                                    {
-                                                        <form method="post" action="@Url.Action("UnpublishWeek", new { id = w.ID })" class="d-inline">
-                                                            @Html.AntiForgeryToken()
-                                                            <button type="submit" class="btn btn-sm btn-outline-warning mb-0 px-2" title="Ẩn thực đơn"
-                                                                    onclick="return confirm('Ẩn thực đơn tuần này?')">
-                                                                <i class="bi bi-eye-slash"></i>
-                                                            </button>
-                                                        </form>
-                                                    }
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12 col-xl-4">
-            <div class="card">
-                <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
-                    <div class="bg-gradient-success shadow-success border-radius-lg pt-3 pb-2 px-3">
-                        <h6 class="text-white mb-0"><i class="bi bi-file-earmark-excel me-1"></i> Import từ Excel</h6>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <p class="text-sm text-secondary mb-3">
-                        Tải mẫu Excel, điền thực đơn theo tuần, rồi upload lại để import vào hệ thống.
-                    </p>
-
-                    <button type="button" class="btn btn-outline-success w-100 mb-3"
+    <div class="card">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-success shadow-success border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="text-white mb-0"><i class="bi bi-calendar-week me-1"></i> Quản lý Thực đơn theo Tuần</h6>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="@Url.Action("FoodManage")" class="btn btn-sm btn-outline-white mb-0">
+                        <i class="bi bi-egg-fried me-1"></i> Món ăn
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-white mb-0"
                             onclick="dlFile('@Url.Action("DownloadTemplate")')">
-                        <i class="bi bi-download me-1"></i> Tải mẫu Excel (.xlsx)
+                        <i class="bi bi-download me-1"></i> Tải mẫu
                     </button>
-
-                    <hr class="my-2" />
-
-                    <form method="post" action="@Url.Action("ImportExcel")" enctype="multipart/form-data">
-                        @Html.AntiForgeryToken()
-                        <div class="mb-3">
-                            <label class="form-label text-sm fw-bold">Chọn file Excel đã điền</label>
-                            <input type="file" name="file" accept=".xlsx" class="form-control form-control-sm" required />
-                            <div class="form-text text-xs">Chỉ nhận file .xlsx. Ngày bắt đầu/kết thúc lấy từ ô C2 và F2 trong file.</div>
-                        </div>
-                        <button type="submit" class="btn btn-success w-100">
-                            <i class="bi bi-upload me-1"></i> Import
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <div class="card mt-3">
-                <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
-                    <div class="bg-gradient-info shadow-info border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center">
-                        <h6 class="text-white mb-0"><i class="bi bi-egg-fried me-1"></i> Danh mục Món ăn</h6>
-                        <a href="@Url.Action("FoodManage")" class="btn btn-sm btn-white mb-0">Quản lý</a>
-                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-white mb-0"
+                            data-bs-toggle="modal" data-bs-target="#modalImport">
+                        <i class="bi bi-upload me-1"></i> Import Excel
+                    </button>
+                    <button class="btn btn-sm btn-white mb-0" data-bs-toggle="modal" data-bs-target="#modalCreateWeek">
+                        <i class="bi bi-plus-lg me-1"></i> Tạo tuần mới
+                    </button>
                 </div>
             </div>
         </div>
 
+        <div class="card-body px-0 pt-0 pb-2 mt-1">
+
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success mx-4 mt-3 py-2"><i class="bi bi-check-circle me-1"></i>@TempData["SuccessMessage"]</div>
+            }
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger mx-4 mt-3 py-2"><i class="bi bi-exclamation-triangle me-1"></i>@TempData["ErrorMessage"]</div>
+            }
+            @if (TempData["ImportError"] != null)
+            {
+                <div class="alert alert-danger mx-4 mt-3 py-2"><i class="bi bi-exclamation-triangle me-1"></i>@TempData["ImportError"]</div>
+            }
+
+            @if (!Model.Any())
+            {
+                <div class="text-center py-5 text-secondary">
+                    <i class="bi bi-calendar2-x" style="font-size:48px;opacity:.3;display:block;margin-bottom:.75rem;"></i>
+                    <p>Chưa có tuần nào. Nhấn <strong>Tạo tuần mới</strong> hoặc <strong>Import Excel</strong>.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive px-3 pt-1">
+                    <table class="table align-items-center mb-0 table-hover">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2" style="width:40px">#</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2">Tuần</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2 text-center" style="width:110px">Trạng thái</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2 d-none d-md-table-cell" style="width:120px">Cập nhật</th>
+                                <th class="text-xxs text-secondary font-weight-bolder opacity-9 px-2" style="width:130px"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < Model.Count; i++)
+                            {
+                                var w = Model[i];
+                                <tr>
+                                    <td class="px-2 text-xs text-secondary">@(i + 1)</td>
+                                    <td class="px-2">
+                                        <div class="text-sm font-weight-bold">@(w.WEEK_NAME ?? $"Tuần {w.FROM_DATE:dd/MM} – {w.TO_DATE:dd/MM/yyyy}")</div>
+                                        <div class="text-xs text-secondary">@w.FROM_DATE.ToString("dd/MM/yyyy") → @w.TO_DATE.ToString("dd/MM/yyyy")</div>
+                                    </td>
+                                    <td class="px-2 text-center">
+                                        @if (w.STATUS == "PUBLISHED")
+                                        {
+                                            <span class="badge bg-gradient-success">Đã đăng</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-gradient-secondary">Nháp</span>
+                                        }
+                                    </td>
+                                    <td class="px-2 text-xs text-secondary d-none d-md-table-cell">
+                                        @((w.UPDT_DT ?? w.INST_DT)?.ToString("dd/MM/yyyy") ?? "—")
+                                    </td>
+                                    <td class="px-2 text-end">
+                                        <div class="d-flex gap-1 justify-content-end flex-wrap">
+                                            <a href="@Url.Action("EditWeek", new { id = w.ID })"
+                                               class="btn btn-sm btn-outline-dark mb-0 px-2" title="Nhập thực đơn">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </a>
+                                            @if (w.STATUS == "DRAFT")
+                                            {
+                                                <form method="post" action="@Url.Action("PublishWeek", new { id = w.ID })" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-success mb-0 px-2" title="Đăng cho công nhân xem"
+                                                            onclick="return confirm('Đăng tuần này cho công nhân xem?')">
+                                                        <i class="bi bi-send-fill"></i>
+                                                    </button>
+                                                </form>
+                                                <form method="post" action="@Url.Action("DeleteWeek", new { id = w.ID })" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger mb-0 px-2"
+                                                            onclick="return confirm('Xóa tuần này?')">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <form method="post" action="@Url.Action("UnpublishWeek", new { id = w.ID })" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning mb-0 px-2" title="Ẩn thực đơn"
+                                                            onclick="return confirm('Ẩn thực đơn tuần này?')">
+                                                        <i class="bi bi-eye-slash"></i>
+                                                    </button>
+                                                </form>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
     </div>
+
 </div>
 
+<!-- Modal: Tạo tuần mới -->
 <div class="modal fade" id="modalCreateWeek" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="post" action="@Url.Action("CreateWeek")">
                 @Html.AntiForgeryToken()
                 <div class="modal-header">
-                    <h5 class="modal-title">Tạo tuần thực đơn mới</h5>
+                    <h5 class="modal-title"><i class="bi bi-plus-circle me-1"></i> Tạo tuần thực đơn mới</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -229,7 +197,47 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-dark">Tạo tuần</button>
+                    <button type="submit" class="btn btn-dark"><i class="bi bi-check-lg me-1"></i> Tạo tuần</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Import Excel -->
+<div class="modal fade" id="modalImport" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="@Url.Action("ImportExcel")" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-upload me-1"></i> Import thực đơn từ Excel</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-sm text-secondary mb-3">
+                        Tải mẫu Excel, điền thực đơn theo tuần, rồi upload lại để import vào hệ thống.
+                    </p>
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-success"
+                                onclick="dlFile('@Url.Action("DownloadTemplate")')">
+                            <i class="bi bi-download me-1"></i> Tải mẫu Excel (.xlsx)
+                        </button>
+                    </div>
+                    <div>
+                        <label class="form-label fw-bold">Chọn file Excel đã điền <span class="text-danger">*</span></label>
+                        <label id="fileDropZone" for="importFile"
+                               style="display:flex;align-items:center;gap:10px;padding:14px 16px;border:2px dashed #343a40;border-radius:10px;background:#1a1a2e;cursor:pointer;transition:border-color .2s,background .2s;">
+                            <i class="bi bi-file-earmark-excel" style="font-size:1.6rem;color:#4ade80;flex-shrink:0;"></i>
+                            <span id="fileLabel" style="font-size:.85rem;color:#adb5bd;">Nhấn để chọn file .xlsx...</span>
+                        </label>
+                        <input type="file" id="importFile" name="file" accept=".xlsx" required style="display:none;" />
+                        <div class="form-text text-xs mt-1">Chỉ nhận file .xlsx. Ngày bắt đầu/kết thúc lấy từ ô C2 và F2 trong file.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-dark"><i class="bi bi-upload me-1"></i> Import</button>
                 </div>
             </form>
         </div>
@@ -245,5 +253,20 @@ function dlFile(url) {
     a.click();
     setTimeout(() => document.body.removeChild(a), 200);
 }
+
+document.getElementById('importFile').addEventListener('change', function () {
+    const zone  = document.getElementById('fileDropZone');
+    const label = document.getElementById('fileLabel');
+    if (this.files.length) {
+        label.textContent = this.files[0].name;
+        label.style.color = '#fff';
+        zone.style.borderColor   = '#4ade80';
+        zone.style.background    = '#0d2818';
+    } else {
+        label.textContent = 'Nhấn để chọn file .xlsx...';
+        label.style.color = '#adb5bd';
+        zone.style.borderColor   = '#343a40';
+        zone.style.background    = '#1a1a2e';
+    }
+});
 </script>
-</div>

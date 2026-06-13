@@ -362,13 +362,16 @@ public class MenuController : BaseController
             });
 
             // Lấy ID tuần vừa tạo/tồn tại
+            // okWeek=false chỉ xảy ra khi tuần đã tồn tại → vẫn tìm được week bên dưới
             var weeks = await _svc.GetWeekListAsync();
             var week  = weeks.FirstOrDefault(w =>
                 w.FROM_DATE.Date == fromDate.Date && w.TO_DATE.Date == toDate.Date);
 
             if (week == null)
             {
-                TempData["ErrorMessage"] = $"Không thể tạo tuần: {msgWeek}";
+                TempData["ErrorMessage"] = okWeek
+                    ? "Không thể tìm thấy tuần vừa tạo"
+                    : $"Không thể tạo tuần: {msgWeek}";
                 return RedirectToAction("Manage");
             }
 

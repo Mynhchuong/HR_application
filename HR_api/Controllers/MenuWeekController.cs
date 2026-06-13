@@ -173,15 +173,26 @@ public class MenuWeekController : ControllerBase
                     VALUES
                         (:WEEK_ID, :DAY_NO, :SHIFT, :MEAL_TYPE, :FOOD_ID, :FOOD_TEXT, :DISPLAY_ORDER, :INST_ID, SYSDATE)";
 
+                var foodIdValues   = items.Select(i => i.FOOD_ID ?? (object)DBNull.Value).ToArray();
+                var foodTextValues = items.Select(i => string.IsNullOrEmpty(i.FOOD_TEXT) ? (object)DBNull.Value : (object)i.FOOD_TEXT).ToArray();
+                var instIdValues   = items.Select(_ => string.IsNullOrEmpty(model.LOGIN_USER) ? (object)DBNull.Value : (object)model.LOGIN_USER).ToArray();
+
+                var pFoodId   = new OracleParameter("FOOD_ID",   OracleDbType.Int32)    { Value = foodIdValues };
+                var pFoodText = new OracleParameter("FOOD_TEXT", OracleDbType.NVarchar2) { Value = foodTextValues };
+                var pInstId   = new OracleParameter("INST_ID",   OracleDbType.Varchar2)  { Value = instIdValues };
+                pFoodId.ArrayBindStatus   = items.Select(i => i.FOOD_ID.HasValue           ? OracleParameterStatus.Success : OracleParameterStatus.NullInsert).ToArray();
+                pFoodText.ArrayBindStatus = items.Select(i => !string.IsNullOrEmpty(i.FOOD_TEXT) ? OracleParameterStatus.Success : OracleParameterStatus.NullInsert).ToArray();
+                pInstId.ArrayBindStatus   = items.Select(_ => !string.IsNullOrEmpty(model.LOGIN_USER) ? OracleParameterStatus.Success : OracleParameterStatus.NullInsert).ToArray();
+
                 await _db.ExecuteBulkInsertAsync(insertSql, items.Count,
                     new OracleParameter("WEEK_ID",       OracleDbType.Int32)   { Value = items.Select(_ => model.WEEK_ID).ToArray() },
                     new OracleParameter("DAY_NO",        OracleDbType.Int32)   { Value = items.Select(i => i.DAY_NO).ToArray() },
                     new OracleParameter("SHIFT",         OracleDbType.Varchar2) { Value = items.Select(i => i.SHIFT).ToArray() },
                     new OracleParameter("MEAL_TYPE",     OracleDbType.Varchar2) { Value = items.Select(i => i.MEAL_TYPE).ToArray() },
-                    new OracleParameter("FOOD_ID",       OracleDbType.Int32)   { Value = items.Select(i => i.FOOD_ID.HasValue ? (object)i.FOOD_ID.Value : DBNull.Value).ToArray() },
-                    new OracleParameter("FOOD_TEXT",     OracleDbType.NVarchar2){ Value = items.Select(i => string.IsNullOrEmpty(i.FOOD_TEXT) ? (object)DBNull.Value : i.FOOD_TEXT).ToArray() },
+                    pFoodId,
+                    pFoodText,
                     new OracleParameter("DISPLAY_ORDER", OracleDbType.Int32)   { Value = items.Select(i => i.DISPLAY_ORDER).ToArray() },
-                    new OracleParameter("INST_ID",       OracleDbType.Varchar2) { Value = items.Select(_ => string.IsNullOrEmpty(model.LOGIN_USER) ? (object)DBNull.Value : model.LOGIN_USER).ToArray() });
+                    pInstId);
             }
 
             return Ok(new { success = true, message = $"Đã lưu {items.Count} món cho tuần" });

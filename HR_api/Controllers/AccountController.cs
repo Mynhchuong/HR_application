@@ -279,6 +279,12 @@ public class AccountController : ControllerBase
         if (string.IsNullOrEmpty(req.EmpCd) || string.IsNullOrEmpty(req.OldPassword) || string.IsNullOrEmpty(req.NewPassword))
             return BadRequest(new { success = false, message = "Thiếu dữ liệu" });
 
+        if (req.NewPassword == "123456")
+            return Ok(new { success = false, message = "Không được dùng mật khẩu mặc định 123456" });
+
+        if (req.NewPassword == req.OldPassword)
+            return Ok(new { success = false, message = "Mật khẩu mới phải khác mật khẩu cũ" });
+
         string sql = @"UPDATE HRMS.HR_USERS SET PASSWORD = :NEW_PASSWORD, UPDT_ID = :EMPCD, UPDT_DT = SYSDATE 
                        WHERE EMPCD = :EMPCD AND PASSWORD = :OLD_PASSWORD";
 

@@ -74,10 +74,11 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isClerk || isAdmin,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForClerk",       Icon = "view_list"     },
-                    new SideMenuItem { Title = "Theo dõi ra vào cổng", Url = "~/GatePass/GpListForClerk", Icon = "door_front"    },
-                    new SideMenuItem { Title = "Lịch nghỉ & Cổng",    Url = "~/Leave/TeamCalendar",      Icon = "calendar_month" },
-                    new SideMenuItem { Title = "DS nhân viên",          Url = "~/Employee/MyTeam",         Icon = "groups"         },
+                    new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForClerk",          Icon = "view_list"     },
+                    new SideMenuItem { Title = "Theo dõi ra vào cổng", Url = "~/GatePass/GpListForClerk",   Icon = "door_front"    },
+                    new SideMenuItem { Title = "Danh sách Nghỉ Phép",  Url = "~/Leave/LeaveListForClerk",   Icon = "event_busy"    },
+                    new SideMenuItem { Title = "Lịch nghỉ & Cổng",    Url = "~/Leave/TeamCalendar",         Icon = "calendar_month" },
+                    new SideMenuItem { Title = "DS nhân viên",          Url = "~/Employee/MyTeam",           Icon = "groups"         },
                 }
             },
 

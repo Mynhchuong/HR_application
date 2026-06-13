@@ -372,7 +372,7 @@
             text-decoration: none !important;
             color: #94a3b8;
             transition: all 0.2s ease;
-            width: 25%;
+            flex: 1 1 0;
         }
 
         .nav-item-mobile.active {
@@ -524,6 +524,15 @@
             </div>
             <span class="nav-text">@otLabel</span>
         </a>
+        @if (isMobClerk)
+        {
+            <a href="@Url.Content("~/GatePass/GpListForClerk")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/GatePass") == true ? "active" : "")">
+                <div class="icon-wrap">
+                    <span class="material-symbols-rounded">gate</span>
+                </div>
+                <span class="nav-text">Cổng</span>
+            </a>
+        }
         <a href="@Url.Content("~/Profile/ProfileUser")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Profile") == true ? "active" : "")">
             <div class="icon-wrap">
                 <span class="material-symbols-rounded">person</span>

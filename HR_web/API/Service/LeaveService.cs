@@ -280,6 +280,39 @@ public class LeaveService
         catch (Exception ex) { return new LeaveListPagedResponse { success = false, message = ex.Message, data = new() }; }
     }
 
+    public async Task<LeaveListPagedResponse> GetClerkListAsync(
+        string  clerkEmpCd,
+        string? status   = null, string? source  = null, string? search  = null,
+        string? deptId   = null, string? lineId   = null, string? workId  = null,
+        string? dateFrom = null, string? dateTo   = null,
+        int page = 1, int pageSize = 50)
+    {
+        try
+        {
+            var q = new List<string>();
+            q.Add($"clerk_empcd={Uri.EscapeDataString(clerkEmpCd)}");
+            if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
+            if (!string.IsNullOrEmpty(source))   q.Add($"source={Uri.EscapeDataString(source)}");
+            if (!string.IsNullOrEmpty(search))   q.Add($"search={Uri.EscapeDataString(search)}");
+            if (!string.IsNullOrEmpty(deptId))   q.Add($"dept_id={Uri.EscapeDataString(deptId)}");
+            if (!string.IsNullOrEmpty(lineId))   q.Add($"line_id={Uri.EscapeDataString(lineId)}");
+            if (!string.IsNullOrEmpty(workId))   q.Add($"work_id={Uri.EscapeDataString(workId)}");
+            if (!string.IsNullOrEmpty(dateFrom)) q.Add($"date_from={Uri.EscapeDataString(dateFrom)}");
+            if (!string.IsNullOrEmpty(dateTo))   q.Add($"date_to={Uri.EscapeDataString(dateTo)}");
+            q.Add($"page={page}");
+            q.Add($"page_size={pageSize}");
+            var response = await _api.GetAsync_Raw("leave/clerk", string.Join("&", q));
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json   = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<LeaveListPagedResponse>(json);
+                if (result != null) return result;
+            }
+            return new LeaveListPagedResponse { success = false, message = "Lỗi kết nối API", data = new() };
+        }
+        catch (Exception ex) { return new LeaveListPagedResponse { success = false, message = ex.Message, data = new() }; }
+    }
+
     public async Task<object?> GetAnnualLeaveBalanceAsync(string approverEmpcd)
     {
         try

@@ -64,6 +64,18 @@ public class ProfileController : BaseController
             return RedirectToAction("ProfileUser");
         }
 
+        if (newPassword == "123456")
+        {
+            TempData["ErrorMessage"] = "Không được dùng mật khẩu mặc định 123456!";
+            return RedirectToAction("ProfileUser");
+        }
+
+        if (newPassword == oldPassword)
+        {
+            TempData["ErrorMessage"] = "Mật khẩu mới phải khác mật khẩu cũ!";
+            return RedirectToAction("ProfileUser");
+        }
+
         if (CurrentUser == null)
         {
             TempData["ErrorMessage"] = "Phiên đăng nhập hết hạn, vui lòng đăng nhập lại!";

@@ -410,6 +410,40 @@ public class LeaveController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET: /Leave/LeaveListForClerk
+    // ─────────────────────────────────────────────
+    public IActionResult LeaveListForClerk()
+    {
+        if (CurrentUser?.RoleName != "Clerk" && CurrentUser?.RoleName != "Admin")
+            return Forbid();
+        ViewBag.DateFrom = DateTime.Today.AddMonths(-1).ToString("yyyy-MM-dd");
+        ViewBag.DateTo   = DateTime.Today.AddMonths(2).ToString("yyyy-MM-dd");
+        return View();
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/GetClerkListPage (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetClerkListPage(
+        string? status = null, string? source = null, string? search = null,
+        string? dept_id = null, string? line_id = null, string? work_id = null,
+        string? date_from = null, string? date_to = null,
+        int page = 1, int page_size = 50)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            var result = await _leaveService.GetClerkListAsync(
+                CurrentUser.EmpCd, status, source, search, dept_id, line_id, work_id,
+                date_from, date_to, page, page_size);
+            return Json(result);
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
     // GET: /Leave/GetHRListPage (AJAX)
     // ─────────────────────────────────────────────
     [HttpGet]

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
+using HR_api.Helpers;
 using HR_api.Models.Leave;
 
 namespace HR_api.Controllers;
@@ -1424,6 +1425,174 @@ public class LeaveController : ControllerBase
                 new OracleParameter("WK_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(work_id) ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("WK_VAL",    OracleDbType.Varchar2) { Value = (object?)work_id ?? DBNull.Value },
             };
+
+            string sqlSummary = $@"
+                SELECT COUNT(*) TOTAL,
+                       SUM(CASE WHEN R.STATUS = 'PENDING'  THEN 1 ELSE 0 END) PENDING,
+                       SUM(CASE WHEN R.STATUS = 'APPROVED' THEN 1 ELSE 0 END) APPROVED,
+                       SUM(CASE WHEN R.STATUS = 'REJECTED' THEN 1 ELSE 0 END) REJECTED,
+                       SUM(CASE WHEN R.STATUS = 'ASSIGNED' AND NVL(L.CONFIRM_STATUS,'ASSIGNED') NOT IN ('CONFIRMED','WORKER_REJECTED') THEN 1 ELSE 0 END) ASSIGNED_PENDING,
+                       SUM(CASE WHEN L.CONFIRM_STATUS = 'CONFIRMED' THEN 1 ELSE 0 END) ASSIGNED_CONFIRMED
+                {fromSql}{whereSql}";
+
+            var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new LeaveSummary
+            {
+                TOTAL              = r["TOTAL"]              == DBNull.Value ? 0 : Convert.ToInt32(r["TOTAL"]),
+                PENDING            = r["PENDING"]            == DBNull.Value ? 0 : Convert.ToInt32(r["PENDING"]),
+                APPROVED           = r["APPROVED"]           == DBNull.Value ? 0 : Convert.ToInt32(r["APPROVED"]),
+                REJECTED           = r["REJECTED"]           == DBNull.Value ? 0 : Convert.ToInt32(r["REJECTED"]),
+                ASSIGNED_PENDING   = r["ASSIGNED_PENDING"]   == DBNull.Value ? 0 : Convert.ToInt32(r["ASSIGNED_PENDING"]),
+                ASSIGNED_CONFIRMED = r["ASSIGNED_CONFIRMED"] == DBNull.Value ? 0 : Convert.ToInt32(r["ASSIGNED_CONFIRMED"]),
+            }, baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
+
+            var summary = summaryRows.FirstOrDefault() ?? new LeaveSummary();
+
+            if (summary.TOTAL == 0)
+                return Ok(new { success = true, summary, total = 0, page, page_size, total_pages = 0, data = new List<LeaveListModel>() });
+
+            string sqlData = $@"
+                SELECT /*+ FIRST_ROWS({page_size}) */ * FROM (
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS,
+                                                             CASE WHEN T.REQUESTER_ROLE = 'Expat' THEN 1 WHEN T.REQUESTER_ROLE = 'Manager' THEN 2 WHEN T.REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN T.REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN T.REQUESTER_ROLE = 'HR' THEN 5 WHEN T.REQUESTER_ROLE = 'Clerk' THEN 6 WHEN T.REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                                                             T.FROM_DATE DESC) RN
+                    FROM (
+                        SELECT L.REQUEST_ID, L.EMPCD, EC.CNAME EMP_NAME,
+                               EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
+                               EC.LINECD LINE_ID, B.TEAMNM LINE_NAME,
+                               EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
+                               L.LEAVE_TYPE, L.SOURCE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS, L.REASON,
+                               R.STATUS, L.CONFIRM_STATUS, L.CREATED_DATE,
+                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK,
+                               RR.ROLE_NAME REQUESTER_ROLE
+                        {fromSql}{whereSql}
+                    ) T
+                ) WHERE RN > :R_MIN AND RN <= :R_MAX";
+
+            var dataParams = baseParams.Select(p => (OracleParameter)p.Clone()).ToList();
+            dataParams.Add(new OracleParameter("R_MIN", offset));
+            dataParams.Add(new OracleParameter("R_MAX", maxRn));
+
+            var list = await _oracleService.ExecuteQueryAsync(sqlData, r => new LeaveListModel
+            {
+                REQUEST_ID     = r["REQUEST_ID"]?.ToString()   ?? "",
+                EMPCD          = r["EMPCD"]?.ToString()         ?? "",
+                EMP_NAME       = r["EMP_NAME"]?.ToString(),
+                DEPT_ID        = r["DEPT_ID"]?.ToString(),
+                DEPT_NAME      = r["DEPT_NAME"]?.ToString(),
+                LINE_ID        = r["LINE_ID"]?.ToString(),
+                LINE_NAME      = r["LINE_NAME"]?.ToString(),
+                WORK_ID        = r["WORK_ID"]?.ToString(),
+                WORK_NAME      = r["WORK_NAME"]?.ToString(),
+                LEAVE_TYPE     = r["LEAVE_TYPE"]?.ToString(),
+                SOURCE         = r["SOURCE"]?.ToString(),
+                FROM_DATE      = r["FROM_DATE"]    == DBNull.Value ? null : Convert.ToDateTime(r["FROM_DATE"]),
+                TO_DATE        = r["TO_DATE"]      == DBNull.Value ? null : Convert.ToDateTime(r["TO_DATE"]),
+                TOTAL_DAYS     = r["TOTAL_DAYS"]   == DBNull.Value ? null : Convert.ToDecimal(r["TOTAL_DAYS"]),
+                REASON         = r["REASON"]?.ToString(),
+                STATUS         = r["STATUS"]?.ToString(),
+                CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
+                CREATED_DATE   = r["CREATED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CREATED_DATE"]),
+                FINAL_APPROVER = r["FINAL_APPROVER"]?.ToString(),
+                APPROVER_NAME  = r["APPROVER_NAME"]?.ToString(),
+                FINAL_DATE     = r["FINAL_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
+                REMARK         = r["REMARK"]?.ToString(),
+                REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString()
+            }, dataParams.ToArray());
+
+            return Ok(new
+            {
+                success     = true,
+                summary,
+                total       = summary.TOTAL,
+                page,
+                page_size,
+                total_pages = page_size > 0 ? (int)Math.Ceiling((double)summary.TOTAL / page_size) : 0,
+                data        = list
+            });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Leave/clerk — Thư ký xem nghỉ phép theo scope HR_USERS_DEPT
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("clerk")]
+    public async Task<IActionResult> GetClerkList(
+        string  clerk_empcd,
+        string? status    = null,
+        string? source    = null,
+        string? search    = null,
+        string? dept_id   = null,
+        string? line_id   = null,
+        string? work_id   = null,
+        string? date_from = null,
+        string? date_to   = null,
+        int     page      = 1,
+        int     page_size = 50)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(clerk_empcd))
+                return BadRequest(new { success = false, message = "Thiếu mã thư ký" });
+
+            var hasScope = await _oracleService.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :CE AND ROWNUM = 1",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("CE", clerk_empcd));
+
+            if (!hasScope.Any() || hasScope[0] == 0)
+                return Ok(new { success = false, message = "Thư ký chưa được phân bộ phận" });
+
+            var scopeFilter = OTScopeFilterHelper.ForScopeByTuple(clerk_empcd, empAlias: "EC", prefix: "CK");
+
+            int offset = (page - 1) * page_size;
+            int maxRn  = offset + page_size;
+
+            DateTime dfrom = (!string.IsNullOrEmpty(date_from) && DateTime.TryParse(date_from, out var _df)) ? _df : DateTime.Today.AddMonths(-1);
+            DateTime dto   = (!string.IsNullOrEmpty(date_to)   && DateTime.TryParse(date_to,   out var _dt)) ? _dt : DateTime.Today.AddMonths(2);
+
+            string fromSql = @"
+                FROM HRMS.HR_LEAVE_REQUEST L
+                JOIN HRMS.HR_REQUEST  R  ON R.REQUEST_ID = L.REQUEST_ID
+                JOIN HRMS.ECM100      EC ON EC.EMPCD     = L.EMPCD
+                LEFT JOIN HRMS.EAM410    B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                LEFT JOIN HRMS.ECM100    AP ON AP.EMPCD  = R.FINAL_APPROVER
+                LEFT JOIN HRMS.HR_USERS  UR ON UR.EMPCD  = L.EMPCD
+                LEFT JOIN HRMS.HR_ROLES  RR ON RR.ID     = UR.ROLE_ID";
+
+            string whereSql = $@"
+                WHERE R.REQUEST_TYPE = 'LEAVE'
+                  AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND L.FROM_DATE BETWEEN :D_FROM AND :D_TO
+                  AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
+                  AND (:SRC_FLAG  IS NULL OR L.SOURCE       = :SRC_VAL)
+                  AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
+                  AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
+                  AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
+                  AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)
+                  {scopeFilter.SqlClause}";
+
+            var baseParams = new List<OracleParameter>
+            {
+                new OracleParameter("D_FROM",    OracleDbType.Date)     { Value = dfrom },
+                new OracleParameter("D_TO",      OracleDbType.Date)     { Value = dto },
+                new OracleParameter("ST_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(status)  ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("ST_VAL",    OracleDbType.Varchar2) { Value = (object?)status  ?? DBNull.Value },
+                new OracleParameter("SRC_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(source)  ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("SRC_VAL",   OracleDbType.Varchar2) { Value = (object?)source  ?? DBNull.Value },
+                new OracleParameter("SRCH_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)  ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("SRCH_VAL",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)  ? null : "%" + search.ToUpper() + "%") ?? DBNull.Value },
+                new OracleParameter("DPT_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(dept_id) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("DPT_VAL",   OracleDbType.Varchar2) { Value = (object?)dept_id ?? DBNull.Value },
+                new OracleParameter("LN_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(line_id) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("LN_VAL",    OracleDbType.Varchar2) { Value = (object?)line_id ?? DBNull.Value },
+                new OracleParameter("WK_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(work_id) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("WK_VAL",    OracleDbType.Varchar2) { Value = (object?)work_id ?? DBNull.Value },
+            };
+            baseParams.AddRange(scopeFilter.Params);
 
             string sqlSummary = $@"
                 SELECT COUNT(*) TOTAL,

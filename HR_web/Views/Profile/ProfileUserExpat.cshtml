@@ -1,0 +1,346 @@
+@model HR_web.Models.Account.UserDetailModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Profile";
+}
+
+<style>
+    :root {
+        --app-primary: #4f46e5;
+        --app-bg: #f8fafc;
+        --app-card: #ffffff;
+        --app-text: #1e293b;
+        --app-muted: #64748b;
+    }
+
+    .profile-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding-bottom: 2rem;
+    }
+
+    .profile-hero {
+        text-align: center;
+        padding: 2rem 1rem;
+    }
+
+    .avatar-wrapper {
+        position: relative;
+        display: inline-block;
+        margin-bottom: 1rem;
+    }
+
+    .avatar-img {
+        width: 120px;
+        height: 120px;
+        border-radius: 40px;
+        object-fit: cover;
+        border: 4px solid #fff;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+
+    .user-name { font-size: 1.5rem; font-weight: 800; color: var(--app-text); margin-bottom: 0.25rem; }
+    .user-role { font-size: 0.9rem; color: var(--app-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .settings-group {
+        background: #fff;
+        border-radius: 28px;
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+        border: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .group-title {
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        color: var(--app-muted);
+        padding: 1.25rem 1.5rem 0.75rem;
+        letter-spacing: 0.05em;
+    }
+
+    .setting-item {
+        display: flex;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        text-decoration: none !important;
+        color: inherit;
+        border-bottom: 1px solid #f8fafc;
+        transition: background 0.2s ease;
+    }
+
+    .setting-item:last-child { border-bottom: none; }
+    .setting-item:active { background: #f1f5f9; }
+
+    .item-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        color: var(--app-primary);
+    }
+
+    .item-content { flex: 1; }
+    .item-label { font-size: 0.95rem; font-weight: 600; color: var(--app-text); }
+    .item-description { font-size: 0.8rem; color: var(--app-muted); margin-top: 2px; }
+
+    .item-value { font-size: 0.95rem; font-weight: 700; color: var(--app-primary); text-align: right; }
+
+    .signature-card {
+        padding: 1.5rem;
+        text-align: center;
+    }
+
+    .signature-img {
+        max-width: 100%;
+        height: 120px;
+        object-fit: contain;
+        background: #f8fafc;
+        border-radius: 16px;
+        margin-bottom: 1rem;
+        padding: 10px;
+    }
+
+    .btn-signature {
+        background: #f0f9ff;
+        color: #0284c7;
+        border: 2px solid #e0f2fe;
+        border-radius: 16px;
+        padding: 0.75rem 1.25rem;
+        font-weight: 700;
+        font-size: 0.9rem;
+        width: 100%;
+        transition: all 0.2s;
+    }
+    .btn-signature:active { background: #e0f2fe; }
+
+    .btn-password {
+        background: #fffaf5;
+        color: #ea580c;
+        border: 2px solid #ffede5;
+        border-radius: 16px;
+        padding: 0.75rem 1.25rem;
+        font-weight: 700;
+        font-size: 0.9rem;
+        width: 100%;
+        transition: all 0.2s;
+    }
+    .btn-password:active { background: #ffede5; }
+
+    .form-control {
+        border: 1.5px solid #e2e8f0;
+        background: #f8fafc;
+        transition: all 0.2s;
+    }
+    .form-control:focus {
+        border-color: var(--app-primary);
+        box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        background: #fff;
+    }
+</style>
+
+<div class="profile-container">
+    <div class="profile-hero">
+        <div class="avatar-wrapper">
+            <img src="@Url.Action("GetEmployeeImage", "Image", new { empCd = Model.EmpCd })" class="avatar-img" />
+        </div>
+        <h2 class="user-name" style="text-transform: uppercase;">@Model.FullName</h2>
+        <div class="user-role">@Model.DeptName</div>
+        <div class="mt-1 d-flex justify-content-center flex-wrap gap-2">
+            @if (!string.IsNullOrWhiteSpace(Model.LineName))
+            {
+                <span class="badge rounded-pill text-bg-light text-muted fw-semibold" style="font-size:0.75rem;">
+                    <span class="material-symbols-rounded align-middle" style="font-size:0.8rem;">view_column</span>
+                    @Model.LineName
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.WorkName))
+            {
+                <span class="badge rounded-pill text-bg-light text-muted fw-semibold" style="font-size:0.75rem;">
+                    <span class="material-symbols-rounded align-middle" style="font-size:0.8rem;">work</span>
+                    @Model.WorkName
+                </span>
+            }
+        </div>
+    </div>
+
+    <!-- Employee Information -->
+    <div class="group-title">Employee Information</div>
+    <div class="settings-group">
+        <div class="setting-item">
+            <div class="item-icon"><span class="material-symbols-rounded">badge</span></div>
+            <div class="item-content">
+                <div class="item-label">Employee ID</div>
+                <div class="item-description">System identifier</div>
+            </div>
+            <div class="item-value">@Model.EmpCd</div>
+        </div>
+        <div class="setting-item">
+            <div class="item-icon"><span class="material-symbols-rounded">category</span></div>
+            <div class="item-content">
+                <div class="item-label">Position</div>
+                <div class="item-description">@Model.LineName · @Model.WorkName</div>
+            </div>
+        </div>
+        <div class="setting-item">
+            <div class="item-icon"><span class="material-symbols-rounded">calendar_today</span></div>
+            <div class="item-content">
+                <div class="item-label">Date of Birth</div>
+                <div class="item-description">@(Model.BirthDate?.ToString("dd/MM/yyyy") ?? "-")</div>
+            </div>
+        </div>
+        <div class="setting-item">
+            <div class="item-icon"><span class="material-symbols-rounded">location_on</span></div>
+            <div class="item-content">
+                <div class="item-label">Address</div>
+                <div class="item-description">@(string.IsNullOrWhiteSpace(Model.Address) ? "-" : Model.Address)</div>
+            </div>
+        </div>
+        <div class="setting-item">
+            <div class="item-icon"><span class="material-symbols-rounded">history</span></div>
+            <div class="item-content">
+                <div class="item-label">Seniority</div>
+                <div class="item-description">Time working at Samho</div>
+            </div>
+            <div class="item-value">
+                @(string.IsNullOrWhiteSpace(Model.Seniority) ? "-" : Model.Seniority)
+            </div>
+        </div>
+    </div>
+
+    <!-- Security & Signature -->
+    <div class="group-title">Security &amp; Signature</div>
+    <div class="settings-group p-3">
+        <div class="signature-card">
+            @if (Model.HasSignature)
+            {
+                <img src="@Url.Action("GetSignature", "Image", new { empCd = Model.EmpCd })" class="signature-img" />
+            }
+            else
+            {
+                <div class="signature-img d-flex align-items-center justify-content-center text-muted" style="background:#f8fafc; border-radius:16px; height:120px; margin-bottom:1rem;">
+                    <span class="material-symbols-rounded me-1" style="font-size:1.2rem;">draw</span>
+                    <span style="font-size:0.85rem;">No signature yet</span>
+                </div>
+            }
+
+            <form asp-controller="Image" asp-action="UploadSignature" method="post" enctype="multipart/form-data" id="sigForm">
+                <input type="hidden" name="empCd" value="@Model.EmpCd" />
+                <input type="file" id="fileInput" name="file" accept="image/jpeg" capture="camera" style="display:none;" onchange="document.getElementById('sigForm').submit()" />
+                <button type="button" onclick="document.getElementById('fileInput').click()" class="btn-signature mb-2">
+                    <span class="material-symbols-rounded align-middle me-1">signature</span> Update Signature
+                </button>
+            </form>
+
+            <button type="button" class="btn-password" data-bs-toggle="modal" data-bs-target="#changePassModal">
+                <span class="material-symbols-rounded align-middle me-1">lock_reset</span> Change Password
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal fade" id="changePassModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg" style="border-radius: 28px; border: 1px solid rgba(0,0,0,0.1);">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Change Password</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form asp-controller="Profile" asp-action="ChangePassword" method="post" id="changePassForm" novalidate>
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">CURRENT PASSWORD</label>
+                        <input type="password" name="oldPassword" id="oldPassword"
+                               class="form-control rounded-4 py-3" required autocomplete="current-password" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">NEW PASSWORD</label>
+                        <input type="password" name="newPassword" id="newPassword"
+                               class="form-control rounded-4 py-3" required autocomplete="new-password" />
+                        <div id="passRules" class="mt-2 ps-1" style="font-size:0.8rem; line-height:1.8;">
+                            <div id="rule-len"  class="text-muted"><span class="me-1">○</span>At least 6 characters</div>
+                            <div id="rule-def"  class="text-muted"><span class="me-1">○</span>Cannot use default password (123456)</div>
+                            <div id="rule-char" class="text-muted"><span class="me-1">○</span>Letters, numbers and: @@ # ! . - _</div>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-muted">CONFIRM NEW PASSWORD</label>
+                        <input type="password" name="confirmPassword" id="confirmPassword"
+                               class="form-control rounded-4 py-3" required autocomplete="new-password" />
+                        <div id="confirmMsg" class="mt-1 ps-1" style="font-size:0.8rem; display:none;"></div>
+                    </div>
+                    <button type="submit" id="btnSavePass" class="btn btn-primary w-100 py-3 rounded-4 fw-bold" disabled>
+                        Save New Password
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var SAFE_PATTERN = /^[a-zA-Z0-9@@#!.\-_]+$/;
+    var BLOCKED_DEFAULTS = ['123456'];
+
+    function setRule(id, ok) {
+        var el = document.getElementById(id);
+        if (ok) {
+            el.className = 'text-success fw-semibold';
+            el.firstChild.textContent = '✓ ';
+        } else {
+            el.className = 'text-muted';
+            el.firstChild.textContent = '○ ';
+        }
+    }
+
+    function validate() {
+        var np  = document.getElementById('newPassword').value;
+        var cp  = document.getElementById('confirmPassword').value;
+        var msg = document.getElementById('confirmMsg');
+
+        var okLen  = np.length >= 6;
+        var okDef  = !BLOCKED_DEFAULTS.includes(np);
+        var okChar = np.length > 0 && SAFE_PATTERN.test(np);
+
+        setRule('rule-len',  okLen);
+        setRule('rule-def',  okDef);
+        setRule('rule-char', okChar);
+
+        var newOk = okLen && okDef && okChar;
+
+        if (cp.length > 0) {
+            msg.style.display = 'block';
+            if (np === cp) {
+                msg.innerHTML = '<span class="text-success fw-semibold">✓ Passwords match</span>';
+            } else {
+                msg.innerHTML = '<span class="text-danger fw-semibold">✗ Passwords do not match</span>';
+            }
+        } else {
+            msg.style.display = 'none';
+        }
+
+        var allOk = newOk && cp.length > 0 && np === cp;
+        document.getElementById('btnSavePass').disabled = !allOk;
+    }
+
+    document.getElementById('newPassword').addEventListener('input', validate);
+    document.getElementById('confirmPassword').addEventListener('input', validate);
+
+    document.getElementById('changePassModal').addEventListener('show.bs.modal', function () {
+        document.getElementById('changePassForm').reset();
+        ['rule-len','rule-def','rule-char'].forEach(function(id) { setRule(id, false); });
+        var msg = document.getElementById('confirmMsg');
+        msg.style.display = 'none';
+        msg.innerHTML = '';
+        document.getElementById('btnSavePass').disabled = true;
+    });
+})();
+</script>

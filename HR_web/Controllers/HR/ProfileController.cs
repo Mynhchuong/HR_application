@@ -35,8 +35,12 @@ public class ProfileController : BaseController
                 };
             }
 
-            model.EmpCd      = CurrentUser!.EmpCd;
+            model.EmpCd        = CurrentUser!.EmpCd;
             model.HasSignature = CurrentUser.SIGNATUREBLOB == "Y";
+
+            if (CurrentUser.RoleName == "Expat")
+                return View("ProfileUserExpat", model);
+
             return View(model);
         }
         catch (Exception ex)

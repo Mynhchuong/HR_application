@@ -640,7 +640,18 @@
             });
         });
 
+        // Hide on normal load
         window.addEventListener('load', function () {
+            window.hideLoading();
+        });
+
+        // Hide when page is restored from bfcache (browser back/forward button)
+        window.addEventListener('pageshow', function (e) {
+            if (e.persisted) window.hideLoading();
+        });
+
+        // Hide on popstate (mobile hardware back, history navigation)
+        window.addEventListener('popstate', function () {
             window.hideLoading();
         });
     </script>

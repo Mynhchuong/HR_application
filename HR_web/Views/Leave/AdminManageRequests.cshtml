@@ -261,8 +261,9 @@ function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-const gpLabel = { OUT:'Ra cổng', IN:'Vào cổng', MID:'Ra+Vào' };
-const gpBadge = { OUT:'badge-gp-out', IN:'badge-gp-in', MID:'badge-gp-mid' };
+const gpLabel       = { OUT:'Ra cổng', IN:'Vào cổng', MID:'Ra+Vào' };
+const gpBadge       = { OUT:'badge-gp-out', IN:'badge-gp-in', MID:'badge-gp-mid' };
+const leaveTypeLabel = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'KL', OTH:'Khác' };
 
 const ADMIN_EMPCD = '@adminEmpCd';
 const FILTER_SCOPE_URL          = '@Url.Action("GetFilterScope",          "UserDept")';
@@ -398,7 +399,6 @@ function renderLeaves() {
         return;
     }
 
-    const leaveTypeLabel = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'KL', OTH:'Khác' };
     let html = '';
     filtered.forEach(r => {
         const chk     = lvSelected.has(r.REQUEST_ID) ? 'checked' : '';

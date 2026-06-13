@@ -754,6 +754,9 @@ public class LeaveController : ControllerBase
             if (fromDate > toDate)
                 return Ok(new { success = false, message = "Ngày kết thúc phải sau ngày bắt đầu" });
 
+            if (fromDate.Date <= DateTime.Today)
+                return Ok(new { success = false, message = "Chỉ được sắp lịch từ ngày mai trở đi" });
+
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
 
@@ -1803,6 +1806,9 @@ public class LeaveController : ControllerBase
 
             if (fromDate > toDate)
                 return Ok(new { success = false, message = "Ngày kết thúc phải sau ngày bắt đầu" });
+
+            if (fromDate.Date <= DateTime.Today)
+                return Ok(new { success = false, message = "Chỉ được sắp lịch từ ngày mai trở đi" });
 
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });

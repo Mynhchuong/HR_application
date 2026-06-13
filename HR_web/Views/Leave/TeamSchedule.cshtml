@@ -552,6 +552,8 @@ async function submitAssign() {
     const reason    = $('#assignReason').val().trim() || null;
     if (!empList.length)    { showToast('Chọn ít nhất 1 nhân viên', 'warning'); return; }
     if (!from || !to)       { showToast('Vui lòng chọn ngày', 'warning'); return; }
+    const _today = new Date(); _today.setHours(0,0,0,0);
+    if (new Date(from) <= _today) { showToast('Chỉ được sắp lịch từ ngày mai trở đi', 'warning'); return; }
     if (isSunday(from))     { showToast('Từ ngày không được là Chủ Nhật (công ty làm T2–T7)', 'warning'); return; }
     if (isSunday(to))       { showToast('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)', 'warning'); return; }
     if (!days || days <= 0) { showToast('Số ngày nghỉ không hợp lệ', 'warning'); return; }

@@ -90,6 +90,7 @@ builder.Services.AddScoped<HR_web.API.Service.CalendarService>();
 builder.Services.AddScoped<HR_web.API.Service.GuideService>();
 builder.Services.AddScoped<HR_web.API.Service.MenuService>();
 builder.Services.AddScoped<HR_web.API.Service.EmployeeService>();
+builder.Services.AddSingleton<HR_web.API.Service.VideoFileService>();
 
 // ============================================================
 var app = builder.Build();

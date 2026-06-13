@@ -9,32 +9,16 @@ namespace HR_web.Controllers.Guide;
 public class GuideController : BaseController
 {
     private readonly GuideService _service;
-    private readonly IWebHostEnvironment _env;
-    private readonly IConfiguration _config;
+    private readonly VideoFileService _videoSvc;
 
-    private static readonly string[] AllowedVideoExts = { ".mp4", ".webm", ".mov" };
-    private const long MaxVideoBytes = 500 * 1024 * 1024; // 500 MB
+    private const string VideoFolder = "GUIDE_VIDEO";
 
-    private string GuideVideoFolder =>
-        _config["GuideVideoPath"] ?? Path.Combine(_env.WebRootPath, "video", "guides");
-
-    // Tìm file vật lý: ưu tiên network share, fallback về wwwroot
-    private string GetPhysicalVideoPath(string videoPath)
+    public GuideController(GuideService service, VideoFileService videoSvc)
     {
-        var fileName = Path.GetFileName(videoPath);
-        var networkPath = Path.Combine(GuideVideoFolder, fileName);
-        if (System.IO.File.Exists(networkPath)) return networkPath;
-        return Path.Combine(_env.WebRootPath, videoPath.TrimStart('/'));
+        _service  = service;
+        _videoSvc = videoSvc;
     }
 
-    public GuideController(GuideService service, IWebHostEnvironment env, IConfiguration config)
-    {
-        _service = service;
-        _env = env;
-        _config = config;
-    }
-
-    // GET /Guide/Index  — tất cả đều xem được (kể cả chưa login)
     [AllowAnonymous]
     public async Task<IActionResult> Index()
     {
@@ -42,7 +26,6 @@ public class GuideController : BaseController
         return View(list);
     }
 
-    // GET /Guide/Detail?id=
     [AllowAnonymous]
     public async Task<IActionResult> Detail(int id)
     {
@@ -52,7 +35,6 @@ public class GuideController : BaseController
         return View(model);
     }
 
-    // GET /Guide/Manage  — chỉ Admin
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Manage()
     {
@@ -77,10 +59,12 @@ public class GuideController : BaseController
     }
 
     // POST /Guide/Edit
+    // Video upload chỉ xử lý ở đây khi tạo mới (ID=0) — cần save trước để có ID.
+    // Item đã có ID dùng UploadVideo (AJAX) để upload mà không reload trang.
     [HttpPost]
     [Authorize(Roles = "Admin")]
     [ValidateAntiForgeryToken]
-    [RequestSizeLimit(524_288_000)] // 500 MB
+    [RequestSizeLimit(524_288_000)]
     public async Task<IActionResult> Edit(GuideModel model, IFormFile? VideoFile)
     {
         if (string.IsNullOrWhiteSpace(model.TITLE))
@@ -89,39 +73,21 @@ public class GuideController : BaseController
             return View(model);
         }
 
-        // Xử lý upload video
+        string? newExt = null;
         if (VideoFile != null && VideoFile.Length > 0)
         {
-            if (VideoFile.Length > MaxVideoBytes)
-            {
-                TempData["ErrorMessage"] = "File video không được vượt quá 500 MB!";
-                return View(model);
-            }
-
             var ext = Path.GetExtension(VideoFile.FileName).ToLower();
-            if (!AllowedVideoExts.Contains(ext))
+            if (!VideoFileService.AllowedExts.Contains(ext))
             {
                 TempData["ErrorMessage"] = "Chỉ chấp nhận file MP4, WebM, hoặc MOV!";
                 return View(model);
             }
-
-            var guidesFolder = GuideVideoFolder;
-            Directory.CreateDirectory(guidesFolder);
-
-            // Xóa video cũ nếu có
-            if (!string.IsNullOrEmpty(model.VIDEO_PATH))
+            if (VideoFile.Length > VideoFileService.MaxBytes)
             {
-                var oldFile = GetPhysicalVideoPath(model.VIDEO_PATH);
-                if (System.IO.File.Exists(oldFile))
-                    System.IO.File.Delete(oldFile);
+                TempData["ErrorMessage"] = "File video không được vượt quá 500 MB!";
+                return View(model);
             }
-
-            var fileName = $"{Guid.NewGuid()}{ext}";
-            var savePath = Path.Combine(guidesFolder, fileName);
-            using (var stream = new FileStream(savePath, FileMode.Create))
-                await VideoFile.CopyToAsync(stream);
-
-            model.VIDEO_PATH = $"/video/guides/{fileName}";
+            newExt = ext;
         }
 
         var request = new SaveGuideRequest
@@ -130,15 +96,50 @@ public class GuideController : BaseController
             CATEGORY      = model.CATEGORY?.Trim(),
             TITLE         = model.TITLE.Trim(),
             CONTENT       = model.CONTENT,
-            VIDEO_PATH    = model.VIDEO_PATH,
+            VIDEO_PATH    = newExt ?? (string.IsNullOrEmpty(model.VIDEO_PATH) ? null : model.VIDEO_PATH),
             DISPLAY_ORDER = model.DISPLAY_ORDER,
             IS_ACTIVE     = model.IS_ACTIVE,
             LOGIN_USER    = CurrentUser!.EmpCd
         };
 
-        var (success, message) = await _service.SaveAsync(request);
+        var (success, message, savedId) = await _service.SaveAsync(request);
+
+        if (success && newExt != null && savedId > 0)
+            await _videoSvc.SaveAsync(VideoFolder, savedId, VideoFile!);
+
         TempData[success ? "SuccessMessage" : "ErrorMessage"] = message;
         return RedirectToAction("Manage");
+    }
+
+    // POST /Guide/UploadVideo?id=
+    // AJAX upload cho item đã có ID — lưu file rồi update VIDEO_PATH trong DB
+    [HttpPost]
+    [Authorize(Roles = "Admin")]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(524_288_000)]
+    public async Task<IActionResult> UploadVideo(int id, IFormFile file)
+    {
+        var guide = await _service.GetByIdAsync(id);
+        if (guide == null)
+            return Json(new { success = false, message = "Không tìm thấy mục hướng dẫn" });
+
+        var (ok, message, ext) = await _videoSvc.SaveAsync(VideoFolder, id, file);
+        if (!ok) return Json(new { success = false, message });
+
+        var request = new SaveGuideRequest
+        {
+            ID            = guide.ID,
+            CATEGORY      = guide.CATEGORY,
+            TITLE         = guide.TITLE,
+            CONTENT       = guide.CONTENT,
+            VIDEO_PATH    = ext,
+            DISPLAY_ORDER = guide.DISPLAY_ORDER,
+            IS_ACTIVE     = guide.IS_ACTIVE,
+            LOGIN_USER    = CurrentUser!.EmpCd
+        };
+
+        var (saved, saveMsg, _) = await _service.SaveAsync(request);
+        return Json(new { success = saved, message = saveMsg, videoUrl = $"/Video/{VideoFolder}/{id}" });
     }
 
     // POST /Guide/RemoveVideo?id=
@@ -150,12 +151,7 @@ public class GuideController : BaseController
         if (guide == null)
             return Json(new { success = false, message = "Không tìm thấy mục hướng dẫn" });
 
-        if (!string.IsNullOrEmpty(guide.VIDEO_PATH))
-        {
-            var oldFile = GetPhysicalVideoPath(guide.VIDEO_PATH);
-            if (System.IO.File.Exists(oldFile))
-                System.IO.File.Delete(oldFile);
-        }
+        _videoSvc.DeleteAll(VideoFolder, id);
 
         var request = new SaveGuideRequest
         {
@@ -169,7 +165,7 @@ public class GuideController : BaseController
             LOGIN_USER    = CurrentUser!.EmpCd
         };
 
-        var (success, message) = await _service.SaveAsync(request);
+        var (success, message, _) = await _service.SaveAsync(request);
         return Json(new { success, message });
     }
 
@@ -188,15 +184,8 @@ public class GuideController : BaseController
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
-        var (success, message, videoPath) = await _service.DeleteAsync(id);
-
-        if (success && !string.IsNullOrEmpty(videoPath))
-        {
-            var filePath = GetPhysicalVideoPath(videoPath);
-            if (System.IO.File.Exists(filePath))
-                System.IO.File.Delete(filePath);
-        }
-
+        var (success, message, _) = await _service.DeleteAsync(id);
+        if (success) _videoSvc.DeleteAll(VideoFolder, id);
         TempData[success ? "SuccessMessage" : "ErrorMessage"] = message;
         return RedirectToAction("Manage");
     }

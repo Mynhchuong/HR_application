@@ -45,11 +45,13 @@ public class GuideService
         return result?.success == true ? result.data : null;
     }
 
-    public async Task<(bool success, string message)> SaveAsync(SaveGuideRequest model)
+    // Trả về savedId — API nên trả { success, message, data: <id> } để lấy ID khi tạo mới
+    public async Task<(bool success, string message, int savedId)> SaveAsync(SaveGuideRequest model)
     {
         var response = await _api.PostAsync("guide/save", model);
-        var parsed = await Parse<GuideResponse<object>>(response);
-        return (parsed?.success ?? false, parsed?.message ?? "Lỗi server");
+        var parsed = await Parse<GuideResponse<int?>>(response);
+        var id = parsed?.data ?? model.ID ?? 0;
+        return (parsed?.success ?? false, parsed?.message ?? "Lỗi server", id);
     }
 
     public async Task<(bool success, string message)> ToggleAsync(int id, string loginUser)

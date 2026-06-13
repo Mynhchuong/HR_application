@@ -218,42 +218,67 @@
                         <small class="text-secondary fw-normal ms-1">(MP4 / WebM / MOV, tối đa 500 MB)</small>
                     </label>
 
-                    @if (!string.IsNullOrEmpty(Model.VIDEO_PATH))
+                    @if (!string.IsNullOrEmpty(Model.VIDEO_PATH) && Model.ID > 0)
                     {
                         <div id="currentVideoSection" class="mb-3">
                             <div class="current-video-wrap">
                                 <video id="currentVideoEl" controls preload="metadata" controlsList="nodownload">
-                                    <source src="@Url.Content("~" + Model.VIDEO_PATH)" type="video/mp4" />
+                                    <source src="/Video/GUIDE_VIDEO/@Model.ID" />
                                 </video>
                             </div>
                             <button type="button" class="btn btn-sm btn-outline-danger mb-0"
-                                    onclick="removeCurrentVideo()">
+                                    onclick="removeCurrentVideo(@Model.ID)">
                                 <i class="bi bi-trash3 me-1"></i>Xóa video hiện tại
                             </button>
                         </div>
                     }
 
                     <div class="video-upload-zone" id="uploadZone">
-                        <input type="file" name="VideoFile" id="videoFileInput"
-                               accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime"
-                               onchange="onVideoSelected(this)" />
+                        @if (isNew)
+                        {
+                            <!-- Item mới: upload cùng form, server xử lý sau khi có ID -->
+                            <input type="file" name="VideoFile" id="videoFileInput"
+                                   accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime"
+                                   onchange="onVideoSelected(this)" />
+                        }
+                        else
+                        {
+                            <!-- Item đã có ID: upload AJAX trực tiếp, không reload trang -->
+                            <input type="file" id="videoFileInput"
+                                   accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime"
+                                   onchange="onVideoAjaxUpload(this, @Model.ID)" />
+                        }
                         <i class="bi bi-cloud-upload" style="font-size:2rem;color:#0ea5e9;display:block;margin-bottom:.5rem;"></i>
                         <div class="fw-bold text-secondary" id="uploadLabel">Nhấn hoặc kéo file video vào đây</div>
                         <div class="text-secondary" style="font-size:.8rem;" id="uploadSub">MP4 · WebM · MOV &nbsp;·&nbsp; Tối đa 500 MB</div>
                     </div>
 
-                    <!-- Preview video mới chọn -->
-                    <div id="newVideoPreview" style="display:none;margin-top:0.75rem;">
-                        <div class="current-video-wrap">
-                            <video id="newVideoEl" controls preload="auto" style="width:100%;height:100%;display:block;">
-                                Trình duyệt không hỗ trợ phát video.
-                            </video>
+                    @if (!isNew)
+                    {
+                        <!-- Progress bar AJAX upload -->
+                        <div id="uploadProgress" style="display:none;margin-top:.5rem;">
+                            <div class="progress" style="height:6px;border-radius:4px;margin-bottom:4px;">
+                                <div id="uploadBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width:0%"></div>
+                            </div>
+                            <div id="uploadStatus" class="text-secondary" style="font-size:.8rem;"></div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary mt-2 mb-0"
-                                onclick="clearNewVideo()">
-                            <i class="bi bi-x-circle me-1"></i>Hủy chọn video
-                        </button>
-                    </div>
+                    }
+
+                    <!-- Preview video mới chọn (chỉ dùng khi tạo mới) -->
+                    @if (isNew)
+                    {
+                        <div id="newVideoPreview" style="display:none;margin-top:0.75rem;">
+                            <div class="current-video-wrap">
+                                <video id="newVideoEl" controls preload="auto" style="width:100%;height:100%;display:block;">
+                                    Trình duyệt không hỗ trợ phát video.
+                                </video>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-2 mb-0"
+                                    onclick="clearNewVideo()">
+                                <i class="bi bi-x-circle me-1"></i>Hủy chọn video
+                            </button>
+                        </div>
+                    }
                 </div>
 
                 <!-- Action buttons -->
@@ -415,12 +440,12 @@ _updateWordCount(editor);
 </script>
 
 <script>
+// Dùng cho item MỚI: preview trước rồi submit form
 function onVideoSelected(input) {
     const file = input.files[0];
     if (!file) return;
 
-    const maxBytes = 500 * 1024 * 1024;
-    if (file.size > maxBytes) {
+    if (file.size > 500 * 1024 * 1024) {
         alert('File video quá lớn! Tối đa 500 MB.');
         input.value = '';
         return;
@@ -435,7 +460,6 @@ function onVideoSelected(input) {
     document.getElementById('uploadLabel').textContent = file.name;
     document.getElementById('uploadSub').textContent = (file.size / 1048576).toFixed(1) + ' MB';
 
-    // Hiển thị thanh tiến trình khi submit
     document.getElementById('editForm').addEventListener('submit', () => {
         const btn = document.getElementById('submitBtn');
         btn.disabled = true;
@@ -453,11 +477,115 @@ function clearNewVideo() {
     document.getElementById('uploadSub').textContent = 'MP4 · WebM · MOV · Tối đa 500 MB';
 }
 
-function removeCurrentVideo() {
-    if (!confirm('Xóa video hiện tại? Thay đổi sẽ được lưu ngay khi bạn bấm Lưu.')) return;
-    document.getElementById('currentVideoPath').value = '';
-    const section = document.getElementById('currentVideoSection');
-    if (section) section.remove();
+// Dùng cho item ĐÃ CÓ ID: upload AJAX đến /Guide/UploadVideo, có progress bar
+function onVideoAjaxUpload(input, itemId) {
+    const file = input.files[0];
+    if (!file) return;
+
+    if (file.size > 500 * 1024 * 1024) {
+        alert('File video quá lớn! Tối đa 500 MB.');
+        input.value = '';
+        return;
+    }
+
+    const token = document.querySelector('[name="__RequestVerificationToken"]')?.value || '';
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('__RequestVerificationToken', token);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/Guide/UploadVideo?id=${itemId}`);
+
+    const progress = document.getElementById('uploadProgress');
+    const bar      = document.getElementById('uploadBar');
+    const status   = document.getElementById('uploadStatus');
+
+    progress.style.display = 'block';
+    bar.style.width = '0%';
+    bar.classList.add('progress-bar-animated');
+    status.textContent = 'Đang upload...';
+    document.getElementById('uploadLabel').textContent = file.name;
+    document.getElementById('uploadSub').textContent = (file.size / 1048576).toFixed(1) + ' MB';
+
+    xhr.upload.addEventListener('progress', (e) => {
+        if (!e.lengthComputable) return;
+        const pct = Math.round(e.loaded / e.total * 100);
+        bar.style.width = pct + '%';
+        status.textContent = `Đang upload... ${pct}% — ${(e.loaded/1048576).toFixed(1)} / ${(e.total/1048576).toFixed(1)} MB`;
+    });
+
+    xhr.addEventListener('load', () => {
+        try {
+            const res = JSON.parse(xhr.responseText);
+            if (res.success) {
+                bar.classList.remove('progress-bar-animated');
+                bar.style.width = '100%';
+                status.textContent = 'Upload thành công!';
+
+                // Reload video player hoặc tạo mới nếu chưa có
+                const vEl = document.getElementById('currentVideoEl');
+                if (vEl) {
+                    vEl.querySelector('source').src = res.videoUrl + '?t=' + Date.now();
+                    vEl.load();
+                } else {
+                    const section = document.createElement('div');
+                    section.id = 'currentVideoSection';
+                    section.className = 'mb-3';
+                    section.innerHTML = `
+                        <div class="current-video-wrap">
+                            <video id="currentVideoEl" controls preload="metadata" controlsList="nodownload">
+                                <source src="${res.videoUrl}" />
+                            </video>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-danger mb-0"
+                                onclick="removeCurrentVideo(${itemId})">
+                            <i class="bi bi-trash3 me-1"></i>Xóa video hiện tại
+                        </button>`;
+                    document.getElementById('uploadZone').insertAdjacentElement('beforebegin', section);
+                }
+            } else {
+                alert('Lỗi: ' + res.message);
+                progress.style.display = 'none';
+            }
+        } catch {
+            alert('Lỗi server');
+            progress.style.display = 'none';
+        }
+    });
+
+    xhr.addEventListener('error', () => {
+        alert('Lỗi kết nối khi upload');
+        progress.style.display = 'none';
+    });
+
+    xhr.send(formData);
+}
+
+// Xóa video qua AJAX — xóa file và cập nhật DB ngay, không cần submit form
+async function removeCurrentVideo(itemId) {
+    if (!confirm('Xóa video hiện tại?')) return;
+
+    const token = document.querySelector('[name="__RequestVerificationToken"]')?.value || '';
+    try {
+        const res = await fetch(`/Guide/RemoveVideo?id=${itemId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `__RequestVerificationToken=${encodeURIComponent(token)}`
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('currentVideoSection')?.remove();
+            document.getElementById('currentVideoPath').value = '';
+            document.getElementById('uploadLabel').textContent = 'Nhấn hoặc kéo file video vào đây';
+            document.getElementById('uploadSub').textContent = 'MP4 · WebM · MOV · Tối đa 500 MB';
+            const progress = document.getElementById('uploadProgress');
+            if (progress) progress.style.display = 'none';
+        } else {
+            alert('Lỗi: ' + data.message);
+        }
+    } catch {
+        alert('Lỗi kết nối');
+    }
 }
 </script>
 }

@@ -1429,15 +1429,19 @@ public class LeaveController : ControllerBase
                 SELECT COUNT(*) TOTAL,
                        SUM(CASE WHEN R.STATUS = 'PENDING'  THEN 1 ELSE 0 END) PENDING,
                        SUM(CASE WHEN R.STATUS = 'APPROVED' THEN 1 ELSE 0 END) APPROVED,
-                       SUM(CASE WHEN R.STATUS = 'REJECTED' THEN 1 ELSE 0 END) REJECTED
+                       SUM(CASE WHEN R.STATUS = 'REJECTED' THEN 1 ELSE 0 END) REJECTED,
+                       SUM(CASE WHEN R.STATUS = 'ASSIGNED' AND NVL(L.CONFIRM_STATUS,'ASSIGNED') NOT IN ('CONFIRMED','WORKER_REJECTED') THEN 1 ELSE 0 END) ASSIGNED_PENDING,
+                       SUM(CASE WHEN L.CONFIRM_STATUS = 'CONFIRMED' THEN 1 ELSE 0 END) ASSIGNED_CONFIRMED
                 {fromSql}{whereSql}";
 
             var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new LeaveSummary
             {
-                TOTAL    = r["TOTAL"]    == DBNull.Value ? 0 : Convert.ToInt32(r["TOTAL"]),
-                PENDING  = r["PENDING"]  == DBNull.Value ? 0 : Convert.ToInt32(r["PENDING"]),
-                APPROVED = r["APPROVED"] == DBNull.Value ? 0 : Convert.ToInt32(r["APPROVED"]),
-                REJECTED = r["REJECTED"] == DBNull.Value ? 0 : Convert.ToInt32(r["REJECTED"])
+                TOTAL              = r["TOTAL"]              == DBNull.Value ? 0 : Convert.ToInt32(r["TOTAL"]),
+                PENDING            = r["PENDING"]            == DBNull.Value ? 0 : Convert.ToInt32(r["PENDING"]),
+                APPROVED           = r["APPROVED"]           == DBNull.Value ? 0 : Convert.ToInt32(r["APPROVED"]),
+                REJECTED           = r["REJECTED"]           == DBNull.Value ? 0 : Convert.ToInt32(r["REJECTED"]),
+                ASSIGNED_PENDING   = r["ASSIGNED_PENDING"]   == DBNull.Value ? 0 : Convert.ToInt32(r["ASSIGNED_PENDING"]),
+                ASSIGNED_CONFIRMED = r["ASSIGNED_CONFIRMED"] == DBNull.Value ? 0 : Convert.ToInt32(r["ASSIGNED_CONFIRMED"]),
             }, baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
 
             var summary = summaryRows.FirstOrDefault() ?? new LeaveSummary();

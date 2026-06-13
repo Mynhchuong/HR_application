@@ -257,6 +257,13 @@
 
 @section Scripts {
 <script>
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const gpLabel = { OUT:'Ra cổng', IN:'Vào cổng', MID:'Ra+Vào' };
+const gpBadge = { OUT:'badge-gp-out', IN:'badge-gp-in', MID:'badge-gp-mid' };
+
 const ADMIN_EMPCD = '@adminEmpCd';
 const FILTER_SCOPE_URL          = '@Url.Action("GetFilterScope",          "UserDept")';
 const URL_GET_CONFIRMED_LEAVES  = '@Url.Action("GetAdminConfirmedLeaves", "Leave")';
@@ -530,8 +537,6 @@ function renderGp() {
         return;
     }
 
-    const gpLabel = { OUT:'Ra cổng', IN:'Vào cổng', MID:'Ra+Vào' };
-    const gpBadge = { OUT:'badge-gp-out', IN:'badge-gp-in', MID:'badge-gp-mid' };
     const fmtDt = d => d ? new Date(d).toLocaleString('vi-VN', { dateStyle:'short', timeStyle:'short' }) : '—';
     const fmtDate = d => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
 

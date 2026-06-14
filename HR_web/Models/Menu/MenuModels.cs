@@ -75,6 +75,29 @@ public class SaveFoodRequest
     public string? LOGIN_USER { get; set; }
 }
 
+public class UserTodayMealModel
+{
+    public string? FOOD_NAME { get; set; }
+    public string? FOOD_TYPE { get; set; }
+    public string? SHIFT     { get; set; }
+}
+
+public class ChangeMealViewModel
+{
+    public string? EmpCd           { get; set; }
+    public string? FullName        { get; set; }
+    public string? CurrentFoodType { get; set; } // MAN, NHE, CHAY
+    public string? CurrentFoodName { get; set; }
+}
+
+public class ChangeMealRequest
+{
+    public string  MealType  { get; set; } = string.Empty; // MAN, NHE, CHAY, CHAY_TRUONG, NUOC_TRUONG
+    public string? FromDate  { get; set; }
+    public string? ToDate    { get; set; }
+    public string? LoginUser { get; set; }
+}
+
 public class ImportRowError
 {
     public string Location { get; set; } = string.Empty;

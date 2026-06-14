@@ -426,6 +426,16 @@ public class MenuController : BaseController
                 return Json(new { success = false, message = "Ảnh không được vượt quá 15MB" });
         }
 
+        // Kiểm tra trùng tên trong cùng loại món
+        var allFoods = await _svc.GetFoodListAsync();
+        var trimmedName = model.FOOD_NAME.Trim();
+        var duplicate = allFoods.FirstOrDefault(f =>
+            f.FOOD_NAME.Equals(trimmedName, StringComparison.OrdinalIgnoreCase) &&
+            f.FOOD_TYPE == model.FOOD_TYPE &&
+            f.ID != (model.ID ?? 0));
+        if (duplicate != null)
+            return Json(new { success = false, message = $"Tên \"{trimmedName}\" đã tồn tại trong loại {model.FOOD_TYPE}." });
+
         model.LOGIN_USER = CurrentUser!.EmpCd;
 
         // Lưu vào DB trước để lấy ID (với món mới)
@@ -591,6 +601,11 @@ public class MenuController : BaseController
         var errors  = new List<string>();
         int inserted = 0;
 
+        // Tải danh sách hiện có 1 lần để check trùng trong cùng loại
+        var existingFoods = await _svc.GetFoodListAsync();
+        // Track tên đã import trong file này (tên+loại) để tránh trùng nội bộ file
+        var importedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         using var stream = file.OpenReadStream();
         using var wb = new XLWorkbook(stream);
         var ws = wb.Worksheets.First();
@@ -614,6 +629,24 @@ public class MenuController : BaseController
             if (string.IsNullOrWhiteSpace(rawType) || !validTypes.Contains(rawType))
             {
                 errors.Add($"Dòng {row} ({name}): Loại món không hợp lệ — dùng MAN / NHE / CHAY.");
+                continue;
+            }
+
+            // Kiểm tra trùng tên trong cùng loại (trong DB)
+            var dupInDb = existingFoods.Any(f =>
+                f.FOOD_NAME.Equals(name, StringComparison.OrdinalIgnoreCase) &&
+                f.FOOD_TYPE == rawType);
+            if (dupInDb)
+            {
+                errors.Add($"Dòng {row} ({name}): Tên đã tồn tại trong loại {rawType}.");
+                continue;
+            }
+
+            // Kiểm tra trùng nội bộ trong file Excel
+            var key = $"{rawType}|{name}";
+            if (!importedKeys.Add(key))
+            {
+                errors.Add($"Dòng {row} ({name}): Trùng tên trong file Excel (loại {rawType}).");
                 continue;
             }
 
@@ -646,7 +679,35 @@ public class MenuController : BaseController
     public async Task<IActionResult> Today()
     {
         var data = await _svc.GetTodayMenuAsync();
+        var empCd = CurrentUser?.EmpCd;
+        if (!string.IsNullOrEmpty(empCd))
+            ViewBag.UserMeals = await _svc.GetUserTodayMealAsync(empCd);
         return View(data);
+    }
+
+    [Authorize]
+    public async Task<IActionResult> ChangeMeal()
+    {
+        var empCd = CurrentUser!.EmpCd;
+        var meals = await _svc.GetUserTodayMealAsync(empCd);
+        var first = meals.FirstOrDefault();
+        var vm = new HR_web.Models.Menu.ChangeMealViewModel
+        {
+            EmpCd           = empCd,
+            FullName        = CurrentUser.FullName,
+            CurrentFoodType = first?.FOOD_TYPE,
+            CurrentFoodName = first?.FOOD_NAME,
+        };
+        return View(vm);
+    }
+
+    [HttpPost]
+    [Authorize]
+    public async Task<IActionResult> ChangeMealSubmit([FromBody] HR_web.Models.Menu.ChangeMealRequest req)
+    {
+        req.LoginUser = CurrentUser!.EmpCd;
+        var (ok, msg) = await _svc.ChangeMealAsync(req);
+        return Json(new { success = ok, message = msg });
     }
 
     [AllowAnonymous]

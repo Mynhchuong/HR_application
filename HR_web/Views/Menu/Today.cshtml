@@ -60,6 +60,47 @@
     .food-tab.active { background: white; color: var(--fr); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
     .food-tab:active  { opacity: .75; }
 
+    /* ── Change meal button ── */
+    .cm-btn-wrap { margin-bottom: .75rem; }
+    .cm-change-btn {
+        display: flex; align-items: center; justify-content: center; gap: .4rem;
+        width: 100%; padding: .65rem 1rem; border-radius: 12px;
+        background: white; border: 2px solid var(--fr); color: var(--fr);
+        font-size: .88rem; font-weight: 800; text-decoration: none;
+        -webkit-tap-highlight-color: transparent; transition: background .15s;
+    }
+    .cm-change-btn:active { background: #fff0f0; }
+
+    /* ── My meal card ── */
+    .my-meal-card {
+        background: linear-gradient(135deg, #fff8f8 0%, #fde8e8 100%);
+        border: 1.5px solid #fca5a5; border-radius: 14px;
+        padding: .75rem 1rem; margin-bottom: .75rem;
+    }
+    .my-meal-title {
+        font-size: .72rem; font-weight: 800; color: var(--fr);
+        text-transform: uppercase; letter-spacing: .06em; margin-bottom: .45rem;
+        display: flex; align-items: center; gap: .35rem;
+    }
+    .my-meal-row {
+        display: flex; align-items: center; gap: .5rem;
+        padding: .3rem 0; border-bottom: 1px solid #fde8e8;
+    }
+    .my-meal-row:last-child { border-bottom: none; }
+    .my-meal-badge {
+        font-size: .6rem; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+        background: var(--fr); color: white; white-space: nowrap; flex-shrink: 0;
+    }
+    .my-meal-name { font-size: .88rem; font-weight: 700; color: #1e293b; }
+
+    /* ── Lunch banner ── */
+    .lunch-banner { text-align: center; margin-bottom: .75rem; }
+    .lunch-banner img { width: 100%; max-height: 170px; object-fit: contain; border-radius: 14px; }
+    .lunch-tagline {
+        font-size: .82rem; font-weight: 700; font-style: italic;
+        color: var(--fr); margin: .35rem 0 0; letter-spacing: .01em;
+    }
+
     /* ── Empty ── */
     .food-empty { text-align: center; padding: 3rem 1rem; color: #94a3b8; }
     .food-empty .ei { font-size: 3rem; display: block; margin-bottom: .5rem; }
@@ -105,6 +146,53 @@
         <div class="food-tab active">Hôm nay</div>
         <a href="@Url.Action("ThisWeek")" class="food-tab">Cả tuần</a>
     </div>
+
+    @{
+        var lunchImg = new Random().Next(2) == 0
+            ? "~/assets/img/illustrations/A_LUNCH.png"
+            : "~/assets/img/illustrations/C_LUNCH.png";
+    }
+    <div class="lunch-banner">
+        <img src="@Url.Content(lunchImg)" alt="Bữa trưa ngon" />
+        <p class="lunch-tagline">✨ Hãy tận hưởng mỹ vị từ bữa cơm trưa của công ty chúng ta!</p>
+    </div>
+
+    @{
+        var userMeals = ViewBag.UserMeals as List<HR_web.Models.Menu.UserTodayMealModel>;
+    }
+    @if (userMeals != null && userMeals.Any())
+    {
+        var shiftNames = new Dictionary<string,string>
+        {
+            { "CA1","Ca sáng" }, { "CA2","Tăng ca" }, { "CA3","Ca tối" }
+        };
+        var typeNames = new Dictionary<string,string>
+        {
+            { "MAN","Mặn" }, { "NHE","Nhẹ" }, { "CHAY","Chay" }, { "DU_KIEN","Dự kiến" }
+        };
+        <div class="my-meal-card">
+            <div class="my-meal-title">🍱 Hôm nay bạn ăn</div>
+            @foreach (var m in userMeals)
+            {
+                var badge = m.SHIFT != null && shiftNames.TryGetValue(m.SHIFT, out var sl) ? sl
+                          : m.FOOD_TYPE != null && typeNames.TryGetValue(m.FOOD_TYPE, out var tl) ? tl : "";
+                <div class="my-meal-row">
+                    @if (!string.IsNullOrEmpty(badge))
+                    {
+                        <span class="my-meal-badge">@badge</span>
+                    }
+                    <span class="my-meal-name">@m.FOOD_NAME</span>
+                </div>
+            }
+        </div>
+    }
+
+    @if (userMeals != null || User.Identity?.IsAuthenticated == true)
+    {
+        <div class="cm-btn-wrap">
+            <a href="@Url.Action("ChangeMeal")" class="cm-change-btn">🔄 Đổi món ăn</a>
+        </div>
+    }
 
     @if (isEmpty)
     {

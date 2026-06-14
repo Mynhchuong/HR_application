@@ -85,6 +85,14 @@
     .holiday-msg { text-align: center; padding: 2.5rem 1rem; color: #94a3b8; font-size: .88rem; }
     .today-label { text-align: center; padding: .35rem 0; font-size: .78rem; color: var(--fr); font-weight: 700; }
 
+    /* ── Lunch banner ── */
+    .lunch-banner { text-align: center; margin-bottom: .75rem; }
+    .lunch-banner img { width: 100%; max-height: 170px; object-fit: contain; border-radius: 14px; }
+    .lunch-tagline {
+        font-size: .82rem; font-weight: 700; font-style: italic;
+        color: var(--fr); margin: .35rem 0 0; letter-spacing: .01em;
+    }
+
     /* ── Shift block ── */
     .shift-block { border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.08); margin-bottom: .625rem; }
     .shift-header { padding: .6rem 1rem; color: white; font-weight: 700; font-size: .85rem; }
@@ -124,6 +132,16 @@
     <div class="food-tabs">
         <a href="@Url.Action("Today")" class="food-tab">Hôm nay</a>
         <div class="food-tab active">Cả tuần</div>
+    </div>
+
+    @{
+        var lunchImg = new Random().Next(2) == 0
+            ? "~/assets/img/illustrations/A_LUNCH.png"
+            : "~/assets/img/illustrations/C_LUNCH.png";
+    }
+    <div class="lunch-banner">
+        <img src="@Url.Content(lunchImg)" alt="Bữa trưa ngon" />
+        <p class="lunch-tagline">✨ Hãy tận hưởng mỹ vị từ bữa cơm trưa của công ty chúng ta!</p>
     </div>
 
     @if (isEmpty)

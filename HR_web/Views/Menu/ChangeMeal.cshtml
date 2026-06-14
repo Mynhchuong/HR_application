@@ -1,0 +1,288 @@
+@model HR_web.Models.Menu.ChangeMealViewModel
+@{
+    ViewData["Title"] = "Đổi món ăn";
+
+    var typeLabels = new Dictionary<string, string>
+    {
+        { "MAN",  "Mặn" }, { "NHE", "Nhẹ" }, { "CHAY", "Chay" }
+    };
+    var currentTypeLabel = Model.CurrentFoodType != null && typeLabels.TryGetValue(Model.CurrentFoodType, out var tl)
+        ? tl : null;
+}
+
+<style>
+    :root { --fr: #c00000; --frd: #8b0000; }
+
+    .cm-page { max-width: 520px; margin: 0 auto; padding-bottom: 5rem; }
+
+    /* Hero */
+    .cm-hero {
+        background: linear-gradient(135deg, var(--frd) 0%, var(--fr) 100%);
+        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: 1rem;
+        color: #fff;
+    }
+    .cm-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .2rem; }
+    .cm-hero small { font-size: .78rem; opacity: .85; }
+
+    /* Current meal badge */
+    .cm-current {
+        background: #fff8f8; border: 1.5px solid #fca5a5;
+        border-radius: 12px; padding: .65rem 1rem;
+        margin-bottom: 1rem; display: flex; align-items: center; gap: .6rem;
+    }
+    .cm-current-icon { font-size: 1.5rem; flex-shrink: 0; }
+    .cm-current-label { font-size: .7rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .cm-current-name  { font-size: .95rem; font-weight: 800; color: #1e293b; }
+
+    /* Section header */
+    .cm-section {
+        background: white; border-radius: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.07);
+        margin-bottom: .875rem; overflow: hidden;
+    }
+    .cm-section-title {
+        padding: .6rem 1rem; font-size: .72rem; font-weight: 800;
+        color: #64748b; text-transform: uppercase; letter-spacing: .06em;
+        border-bottom: 1px solid #f1f5f9; background: #fafafa;
+    }
+    .cm-section-body { padding: .875rem 1rem; }
+
+    /* Meal type buttons */
+    .cm-meal-btns { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .cm-meal-btn {
+        flex: 1; min-width: 80px; padding: .65rem .5rem;
+        border-radius: 12px; border: 2px solid #e2e8f0;
+        background: white; font-size: .88rem; font-weight: 700;
+        color: #475569; cursor: pointer; text-align: center;
+        transition: all .15s; -webkit-tap-highlight-color: transparent;
+    }
+    .cm-meal-btn:active { opacity: .75; transform: scale(.97); }
+    .cm-meal-btn.man  { border-color: #f97316; color: #f97316; }
+    .cm-meal-btn.nhe  { border-color: #0ea5e9; color: #0ea5e9; }
+    .cm-meal-btn.chay { border-color: #22c55e; color: #22c55e; }
+    .cm-meal-btn.man:hover  { background: #fff7ed; }
+    .cm-meal-btn.nhe:hover  { background: #f0f9ff; }
+    .cm-meal-btn.chay:hover { background: #f0fdf4; }
+
+    /* Special buttons */
+    .cm-special-btns { display: flex; gap: .5rem; }
+    .cm-special-btn {
+        flex: 1; padding: .7rem .5rem;
+        border-radius: 12px; border: 2px solid #a855f7;
+        background: white; font-size: .86rem; font-weight: 700;
+        color: #a855f7; cursor: pointer; text-align: center;
+        transition: all .15s; -webkit-tap-highlight-color: transparent;
+    }
+    .cm-special-btn.nuoc { border-color: #06b6d4; color: #06b6d4; }
+    .cm-special-btn.active { background: #a855f7; color: white; }
+    .cm-special-btn.nuoc.active { background: #06b6d4; color: white; }
+    .cm-special-btn:active { opacity: .75; transform: scale(.97); }
+
+    /* Date range section */
+    .cm-date-section {
+        display: none; margin-top: .875rem;
+        background: #faf5ff; border: 1.5px solid #e9d5ff;
+        border-radius: 12px; padding: .875rem 1rem;
+    }
+    .cm-date-section.nuoc-mode {
+        background: #ecfeff; border-color: #a5f3fc;
+    }
+    .cm-date-section.show { display: block; }
+    .cm-date-row { display: flex; gap: .5rem; margin-bottom: .6rem; }
+    .cm-date-field { flex: 1; }
+    .cm-date-field label { font-size: .7rem; font-weight: 700; color: #64748b; display: block; margin-bottom: .25rem; }
+    .cm-date-field input[type=date] {
+        width: 100%; padding: .5rem .6rem; border-radius: 8px;
+        border: 1.5px solid #e2e8f0; font-size: .85rem; font-weight: 600;
+        color: #1e293b; outline: none;
+    }
+    .cm-date-field input[type=date]:focus { border-color: #a855f7; }
+
+    /* Confirm button */
+    .cm-confirm-btn {
+        width: 100%; padding: .7rem; border-radius: 12px;
+        background: var(--fr); color: white; border: none;
+        font-size: .9rem; font-weight: 800; cursor: pointer;
+        transition: opacity .15s;
+    }
+    .cm-confirm-btn:active { opacity: .8; }
+    .cm-confirm-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    /* Back link */
+    .cm-back {
+        display: inline-flex; align-items: center; gap: .3rem;
+        font-size: .82rem; font-weight: 700; color: #64748b;
+        text-decoration: none; margin-bottom: .75rem;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Toast */
+    .cm-toast {
+        position: fixed; bottom: 5rem; left: 50%; transform: translateX(-50%);
+        background: #1e293b; color: white; padding: .6rem 1.25rem;
+        border-radius: 20px; font-size: .85rem; font-weight: 600;
+        box-shadow: 0 4px 16px rgba(0,0,0,.25); z-index: 9999;
+        opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap;
+    }
+    .cm-toast.success { background: #15803d; }
+    .cm-toast.error   { background: #b91c1c; }
+    .cm-toast.show    { opacity: 1; }
+</style>
+
+<div class="cm-page px-2 py-2">
+
+    <a href="@Url.Action("Today")" class="cm-back">← Quay lại thực đơn</a>
+
+    <div class="cm-hero">
+        <h5>🔄 Đổi món ăn</h5>
+        <small>@Model.FullName — @DateTime.Today.ToString("dd/MM/yyyy")</small>
+    </div>
+
+    <!-- Món hiện tại -->
+    <div class="cm-current">
+        <span class="cm-current-icon">🍽️</span>
+        <div>
+            <div class="cm-current-label">Hôm nay bạn đang ăn</div>
+            <div class="cm-current-name">
+                @if (!string.IsNullOrEmpty(Model.CurrentFoodName))
+                {
+                    @Model.CurrentFoodName
+                    @if (currentTypeLabel != null)
+                    {
+                        <span style="font-size:.72rem;font-weight:600;color:#94a3b8;margin-left:.4rem;">(@currentTypeLabel)</span>
+                    }
+                }
+                else
+                {
+                    <span style="color:#94a3b8;">Chưa có thông tin</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Đổi sang loại khác hôm nay -->
+    <div class="cm-section">
+        <div class="cm-section-title">Đổi sang loại khác — hôm nay</div>
+        <div class="cm-section-body">
+            <div class="cm-meal-btns">
+                @if (Model.CurrentFoodType != "MAN")
+                {
+                    <button class="cm-meal-btn man" onclick="submitMeal('MAN','Mặn')">🍖 Mặn</button>
+                }
+                @if (Model.CurrentFoodType != "NHE")
+                {
+                    <button class="cm-meal-btn nhe" onclick="submitMeal('NHE','Nhẹ')">🥗 Nhẹ</button>
+                }
+                @if (Model.CurrentFoodType != "CHAY")
+                {
+                    <button class="cm-meal-btn chay" onclick="submitMeal('CHAY','Chay')">🥦 Chay</button>
+                }
+            </div>
+            @if (Model.CurrentFoodType is "MAN" or "NHE" or "CHAY")
+            {
+                <p style="font-size:.75rem;color:#94a3b8;margin:.6rem 0 0;text-align:center;">
+                    Nút món hiện tại đã ẩn — chọn để đổi sang loại khác
+                </p>
+            }
+        </div>
+    </div>
+
+    <!-- Đăng ký dài hạn -->
+    <div class="cm-section">
+        <div class="cm-section-title">Đăng ký dài hạn</div>
+        <div class="cm-section-body">
+            <div class="cm-special-btns">
+                <button class="cm-special-btn" id="btnChayTruong" onclick="toggleSpecial('CHAY_TRUONG')">🙏 Chay trường</button>
+                <button class="cm-special-btn nuoc" id="btnNuocTruong" onclick="toggleSpecial('NUOC_TRUONG')">💧 Nước trường</button>
+            </div>
+
+            <div class="cm-date-section" id="dateSection">
+                <div class="cm-date-row">
+                    <div class="cm-date-field">
+                        <label>Từ ngày</label>
+                        <input type="date" id="fromDate" />
+                    </div>
+                    <div class="cm-date-field">
+                        <label>Đến ngày</label>
+                        <input type="date" id="toDate" />
+                    </div>
+                </div>
+                <button class="cm-confirm-btn" onclick="submitSpecial()">Xác nhận đăng ký</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="cm-toast" id="toast"></div>
+
+@Html.AntiForgeryToken()
+
+<script>
+const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+let selectedSpecial = '';
+
+function showToast(ok, msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'cm-toast ' + (ok ? 'success' : 'error') + ' show';
+    setTimeout(() => t.classList.remove('show'), 2800);
+    if (ok) setTimeout(() => location.href = '@Url.Action("Today")', 1500);
+}
+
+function submitMeal(type, label) {
+    if (!confirm(`Xác nhận đổi sang món ${label} hôm nay?`)) return;
+    fetch('@Url.Action("ChangeMealSubmit")', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+        body: JSON.stringify({ mealType: type })
+    })
+    .then(r => r.json())
+    .then(d => showToast(d.success, d.message))
+    .catch(() => showToast(false, 'Lỗi kết nối, vui lòng thử lại'));
+}
+
+function toggleSpecial(type) {
+    const ds  = document.getElementById('dateSection');
+    const btnC = document.getElementById('btnChayTruong');
+    const btnN = document.getElementById('btnNuocTruong');
+
+    if (selectedSpecial === type) {
+        // đang active → tắt
+        selectedSpecial = '';
+        ds.classList.remove('show', 'nuoc-mode');
+        btnC.classList.remove('active');
+        btnN.classList.remove('active');
+        return;
+    }
+
+    selectedSpecial = type;
+    btnC.classList.toggle('active', type === 'CHAY_TRUONG');
+    btnN.classList.toggle('active', type === 'NUOC_TRUONG');
+    ds.classList.add('show');
+    ds.classList.toggle('nuoc-mode', type === 'NUOC_TRUONG');
+
+    // default fromDate = hôm nay
+    const today = new Date().toISOString().split('T')[0];
+    if (!document.getElementById('fromDate').value) document.getElementById('fromDate').value = today;
+}
+
+function submitSpecial() {
+    const from = document.getElementById('fromDate').value;
+    const to   = document.getElementById('toDate').value;
+    if (!from || !to) { alert('Vui lòng chọn đủ ngày bắt đầu và kết thúc'); return; }
+    if (from > to)    { alert('Ngày bắt đầu không được sau ngày kết thúc'); return; }
+
+    const label = selectedSpecial === 'CHAY_TRUONG' ? 'Chay trường' : 'Nước trường';
+    if (!confirm(`Xác nhận đăng ký ${label} từ ${from} đến ${to}?`)) return;
+
+    fetch('@Url.Action("ChangeMealSubmit")', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+        body: JSON.stringify({ mealType: selectedSpecial, fromDate: from, toDate: to })
+    })
+    .then(r => r.json())
+    .then(d => showToast(d.success, d.message))
+    .catch(() => showToast(false, 'Lỗi kết nối, vui lòng thử lại'));
+}
+</script>

@@ -67,11 +67,11 @@ builder.Services.AddSession(options =>
 // ============================================================
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 104_857_600; // 100MB
+    options.MultipartBodyLengthLimit = 524_288_000; // 500MB
 });
 builder.WebHost.ConfigureKestrel(k =>
 {
-    k.Limits.MaxRequestBodySize = 104_857_600; // 100MB
+    k.Limits.MaxRequestBodySize = 524_288_000; // 500MB
 });
 
 // ============================================================

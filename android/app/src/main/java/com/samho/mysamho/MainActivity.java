@@ -267,9 +267,28 @@ public class MainActivity extends AppCompatActivity {
         btnInternal.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                selectedBaseUrl = "http://192.168.1.24/HR_Web";
-                startApp();
-                dialog.dismiss();
+                btnInternal.setEnabled(false);
+                btnExternal.setEnabled(false);
+                btnInternal.setText("Đang kiểm tra...");
+                new Thread(() -> {
+                    boolean ok = checkInternalNetwork();
+                    runOnUiThread(() -> {
+                        if (ok) {
+                            selectedBaseUrl = "http://192.168.1.24/HR_Web";
+                            startApp();
+                            dialog.dismiss();
+                        } else {
+                            btnInternal.setEnabled(true);
+                            btnExternal.setEnabled(true);
+                            btnInternal.setText("Mạng nội bộ Samho");
+                            new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("Không kết nối được mạng nội bộ")
+                                .setMessage("Vui lòng kết nối vào một trong hai mạng WiFi của công ty:\n\n• Juniper_Secured\n• Pluto_Secured")
+                                .setPositiveButton("OK", null)
+                                .show();
+                        }
+                    });
+                }).start();
             }
         });
 
@@ -283,6 +302,21 @@ public class MainActivity extends AppCompatActivity {
         });
 
         dialog.show();
+    }
+
+    private boolean checkInternalNetwork() {
+        try {
+            java.net.URL url = new java.net.URL("http://192.168.1.24/HR_Web");
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(3000);
+            conn.setReadTimeout(3000);
+            conn.setRequestMethod("HEAD");
+            int code = conn.getResponseCode();
+            conn.disconnect();
+            return code < 500;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void startApp() {

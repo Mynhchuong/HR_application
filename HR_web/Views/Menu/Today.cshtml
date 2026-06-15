@@ -14,7 +14,14 @@
         { DayOfWeek.Sunday,    "Chủ Nhật" },
     };
     var todayLabel = dayNames.GetValueOrDefault(today.DayOfWeek, "Hôm nay");
-    var shifts     = new[] { ("CA1","CA 1 — Ca sáng","#1F4E79"), ("CA2","CA 2 / Tăng ca","#375623"), ("CA3","CA 3 — Ca tối","#7B3F00") };
+    var shifts     = new[] { ("CA1","Ca 1 — Sáng","#1F4E79"), ("CA2","Ca 2 — Tăng ca","#375623"), ("CA3","Ca 3 — Tối","#7B3F00") };
+    var mealColors = new Dictionary<string,(string bg, string fg)>
+    {
+        { "MAN",     ("#FEF3C7","#92400E") },
+        { "DU_KIEN", ("#DBEAFE","#1E40AF") },
+        { "NHE",     ("#D1FAE5","#065F46") },
+        { "CHAY",    ("#F0FDF4","#166534") },
+    };
     var mealLabels = new Dictionary<string,string>
     {
         { "MAN","Món mặn" }, { "DU_KIEN","Dự kiến" }, { "NHE","Món nhẹ" }, { "CHAY","Món chay" }
@@ -23,165 +30,202 @@
 }
 
 <style>
-    :root {
-        --fr:  #c00000;
-        --frd: #8b0000;
-        --fbg: #fff8f8;
-        --fbo: #fde8e8;
+    :root { --red: #c00000; --red-d: #8b0000; }
+
+    .tp { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
+
+    /* Hero */
+    .tp-hero {
+        background: linear-gradient(135deg, var(--red-d), var(--red));
+        border-radius: 20px; padding: 1.1rem 1.25rem 1rem;
+        color: #fff; margin-bottom: .75rem;
+        display: flex; align-items: center; justify-content: space-between;
     }
+    .tp-hero-date { font-size: .78rem; opacity: .8; margin-bottom: .2rem; }
+    .tp-hero-day  { font-size: 1.25rem; font-weight: 900; letter-spacing: -.3px; }
+    .tp-hero-full { font-size: .75rem; opacity: .75; }
+    .tp-hero-icon { font-size: 3rem; line-height: 1; }
 
-    .menu-page { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
-
-    /* ── Hero ── */
-    .food-hero {
-        background: linear-gradient(135deg, var(--frd) 0%, var(--fr) 100%);
-        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
-        color: #fff; display: flex; align-items: center; justify-content: space-between;
-    }
-    .food-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; }
-    .food-hero small { font-size: .75rem; opacity: .85; }
-    .food-hero-icon  { font-size: 2.4rem; line-height: 1; }
-
-    /* ── Tab toggle ── */
-    .food-tabs {
-        display: flex; background: #f1f5f9; border-radius: 12px;
+    /* Tabs */
+    .tp-tabs {
+        display: flex; background: #f1f5f9; border-radius: 14px;
         padding: 4px; margin-bottom: .75rem; gap: 3px;
-        touch-action: manipulation;
     }
-    .food-tab {
-        flex: 1; text-align: center; min-height: 44px;
+    .tp-tab {
+        flex: 1; text-align: center; min-height: 42px;
         display: flex; align-items: center; justify-content: center;
-        border-radius: 9px; font-size: .88rem; font-weight: 700;
+        border-radius: 11px; font-size: .875rem; font-weight: 700;
         text-decoration: none !important; color: #64748b;
         transition: background .15s, color .15s, box-shadow .15s;
         -webkit-tap-highlight-color: transparent;
-        user-select: none; cursor: pointer;
     }
-    .food-tab.active { background: white; color: var(--fr); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
-    .food-tab:active  { opacity: .75; }
+    .tp-tab.active { background: white; color: var(--red); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
 
-    /* ── Change meal button ── */
-    .cm-btn-wrap { margin-bottom: .75rem; }
-    .cm-change-btn {
+    /* Change meal */
+    .tp-change {
         display: flex; align-items: center; justify-content: center; gap: .4rem;
-        width: 100%; padding: .65rem 1rem; border-radius: 12px;
-        background: white; border: 2px solid var(--fr); color: var(--fr);
-        font-size: .88rem; font-weight: 800; text-decoration: none;
-        -webkit-tap-highlight-color: transparent; transition: background .15s;
+        width: 100%; padding: .6rem 1rem; border-radius: 12px; margin-bottom: .75rem;
+        background: #fff; border: 2px solid var(--red); color: var(--red);
+        font-size: .875rem; font-weight: 700; text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
     }
-    .cm-change-btn:active { background: #fff0f0; }
+    .tp-change:active { background: #fff0f0; }
 
-    /* ── My meal card ── */
-    .my-meal-card {
-        background: linear-gradient(135deg, #fff8f8 0%, #fde8e8 100%);
+    /* My meal */
+    .tp-mymeal {
+        background: linear-gradient(135deg,#fff8f8,#fde8e8);
         border: 1.5px solid #fca5a5; border-radius: 14px;
         padding: .75rem 1rem; margin-bottom: .75rem;
     }
-    .my-meal-title {
-        font-size: .72rem; font-weight: 800; color: var(--fr);
-        text-transform: uppercase; letter-spacing: .06em; margin-bottom: .45rem;
-        display: flex; align-items: center; gap: .35rem;
+    .tp-mymeal-ttl { font-size: .7rem; font-weight: 800; color: var(--red);
+        text-transform: uppercase; letter-spacing: .06em; margin-bottom: .4rem; }
+    .tp-mymeal-row { display: flex; align-items: center; gap: .5rem;
+        padding: .3rem 0; border-bottom: 1px solid #fde8e8; }
+    .tp-mymeal-row:last-child { border-bottom: none; }
+    .tp-mymeal-badge { font-size: .6rem; font-weight: 700; padding: 2px 7px;
+        border-radius: 20px; background: var(--red); color: white; white-space: nowrap; }
+    .tp-mymeal-name { font-size: .88rem; font-weight: 700; color: #1e293b; }
+
+    /* Empty */
+    .tp-empty { text-align: center; padding: 3.5rem 1rem; color: #94a3b8; }
+    .tp-empty-icon { font-size: 3.5rem; display: block; margin-bottom: .6rem; }
+
+    /* Shift */
+    .tp-shift { border-radius: 16px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.08); margin-bottom: .75rem; }
+    .tp-shift-hd { padding: .65rem 1rem; color: white; font-weight: 800; font-size: .85rem; letter-spacing: .1px; }
+
+    /* Meal row */
+    .tp-meal {
+        display: flex; align-items: center; gap: .75rem;
+        padding: .75rem 1rem; background: white;
+        border-bottom: 1px solid #f8fafc; min-height: 56px;
     }
-    .my-meal-row {
-        display: flex; align-items: center; gap: .5rem;
-        padding: .3rem 0; border-bottom: 1px solid #fde8e8;
-    }
-    .my-meal-row:last-child { border-bottom: none; }
-    .my-meal-badge {
-        font-size: .6rem; font-weight: 700; padding: 2px 7px; border-radius: 20px;
-        background: var(--fr); color: white; white-space: nowrap; flex-shrink: 0;
-    }
-    .my-meal-name { font-size: .88rem; font-weight: 700; color: #1e293b; }
+    .tp-meal:last-child { border-bottom: none; }
+    .tp-meal:active { background: #fafafa; }
 
-    /* ── Lunch banner ── */
-    .lunch-banner { text-align: center; margin-bottom: .75rem; }
-    .lunch-banner img { width: 100%; max-height: 170px; object-fit: contain; border-radius: 14px; }
-    .lunch-tagline {
-        font-size: .82rem; font-weight: 700; font-style: italic;
-        color: var(--fr); margin: .35rem 0 0; letter-spacing: .01em;
+    .tp-meal-img {
+        width: 54px; height: 54px; border-radius: 12px;
+        object-fit: cover; flex-shrink: 0; background: #f1f5f9;
+    }
+    .tp-meal-ph {
+        width: 54px; height: 54px; border-radius: 12px;
+        background: #f1f5f9; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.4rem; color: #cbd5e1;
     }
 
-    /* ── Empty ── */
-    .food-empty { text-align: center; padding: 3rem 1rem; color: #94a3b8; }
-    .food-empty .ei { font-size: 3rem; display: block; margin-bottom: .5rem; }
-
-    /* ── Shift block ── */
-    .shift-block { border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.08); margin-bottom: .625rem; }
-    .shift-header { padding: .6rem 1rem; color: white; font-weight: 700; font-size: .85rem; letter-spacing: .2px; }
-    .meal-list { background: white; }
-
-    /* ── Meal row ── */
-    .meal-row {
-        display: flex; align-items: center;
-        padding: .7rem .9rem; gap: .75rem;
-        border-bottom: 1px solid #f5f5f5;
-        -webkit-tap-highlight-color: transparent;
-        min-height: 52px;
+    .tp-meal-body  { flex: 1; min-width: 0; }
+    .tp-meal-badge {
+        display: inline-block; font-size: .62rem; font-weight: 800;
+        padding: 2px 8px; border-radius: 20px; margin-bottom: 3px;
+        letter-spacing: .04em; text-transform: uppercase;
     }
-    .meal-row:last-child { border-bottom: none; }
-    .meal-row:active { background: #fafafa; }
+    .tp-meal-name  { font-size: .92rem; font-weight: 700; color: #1e293b; line-height: 1.35; }
+    .tp-meal-extra { font-size: .78rem; color: #64748b; margin-top: 1px; }
+    .tp-meal-clickable { cursor: pointer; }
+    .tp-meal-clickable:active { background: #fff0f0 !important; }
 
-    .meal-img    { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: #f0f0f0; }
-    .meal-img-ph { width: 56px; height: 56px; border-radius: 10px; background: #f5f5f5;
-                   display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 24px; }
-
-    .meal-info { flex: 1; min-width: 0; }
-    .meal-type { font-size: .65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
-    .meal-name { font-size: .9rem; font-weight: 700; line-height: 1.35; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .meal-name-multi { font-size: .9rem; font-weight: 700; line-height: 1.35; color: #1e293b; }
-    .meal-name-sub { font-size: .78rem; color: #64748b; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Food modal bottom-sheet */
+    .food-modal-backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,.55);
+        z-index: 1050; display: none; align-items: flex-end;
+        backdrop-filter: blur(3px);
+    }
+    .food-modal-backdrop.open { display: flex; }
+    .food-modal-sheet {
+        width: 100%; background: white;
+        border-radius: 24px 24px 0 0;
+        padding: 0 0 env(safe-area-inset-bottom,16px);
+        transform: translateY(100%);
+        transition: transform .3s cubic-bezier(.32,.72,0,1);
+        max-height: 92dvh; overflow-y: auto;
+    }
+    .food-modal-backdrop.open .food-modal-sheet { transform: translateY(0); }
+    .food-modal-handle {
+        width: 40px; height: 4px; background: #e2e8f0;
+        border-radius: 2px; margin: 10px auto 0;
+    }
+    .food-modal-img {
+        width: 100%; max-height: 280px; object-fit: cover;
+        border-radius: 0; display: block;
+    }
+    .food-modal-img-ph {
+        width: 100%; height: 220px; background: linear-gradient(135deg,#f8fafc,#e2e8f0);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 4rem;
+    }
+    .food-modal-body { padding: 1rem 1.25rem 1.5rem; }
+    .food-modal-name {
+        font-size: 1.1rem; font-weight: 900; color: #1e293b;
+        line-height: 1.35; margin-bottom: .5rem;
+    }
+    .food-modal-wow {
+        font-size: .95rem; font-weight: 700; font-style: italic;
+        color: var(--red); display: flex; align-items: center; gap: .35rem;
+    }
+    .food-modal-close {
+        position: absolute; top: .75rem; right: .75rem;
+        width: 32px; height: 32px; border-radius: 50%;
+        background: rgba(0,0,0,.35); border: none;
+        display: flex; align-items: center; justify-content: center;
+        color: white; font-size: 1rem; cursor: pointer; z-index: 1;
+    }
 </style>
 
-<div class="menu-page px-2 py-2">
-
-    <div class="food-hero">
-        <div>
-            <h5>Hôm nay ăn gì?</h5>
-            <small>@todayLabel, @today.ToString("dd/MM/yyyy")</small>
+<!-- Food detail modal -->
+<div class="food-modal-backdrop" id="foodModal" onclick="closeFoodModal(event)">
+    <div class="food-modal-sheet" id="foodModalSheet">
+        <div class="food-modal-handle"></div>
+        <div style="position:relative;">
+            <button class="food-modal-close" onclick="closeFoodModal()">✕</button>
+            <img class="food-modal-img" id="foodModalImg" src="" alt=""
+                 onerror="this.style.display='none';document.getElementById('foodModalPh').style.display='flex';" />
+            <div class="food-modal-img-ph" id="foodModalPh" style="display:none;">🍽️</div>
         </div>
-        <span class="food-hero-icon">🍽️</span>
+        <div class="food-modal-body">
+            <div class="food-modal-name" id="foodModalName"></div>
+            <div class="food-modal-wow">😍 waooooo nhìn ngon miệng quá</div>
+        </div>
+    </div>
+</div>
+
+<div class="tp px-2 py-2">
+
+    <div class="tp-hero">
+        <div>
+            <div class="tp-hero-date">Thực đơn hôm nay</div>
+            <div class="tp-hero-day">@todayLabel</div>
+            <div class="tp-hero-full">@today.ToString("dd/MM/yyyy")</div>
+        </div>
+        <span class="tp-hero-icon">🍱</span>
     </div>
 
-    <div class="food-tabs">
-        <div class="food-tab active">Hôm nay</div>
-        <a href="@Url.Action("ThisWeek")" class="food-tab">Cả tuần</a>
-    </div>
-
-    @{
-        var lunchImg = new Random().Next(2) == 0
-            ? "~/assets/img/illustrations/A_LUNCH.png"
-            : "~/assets/img/illustrations/C_LUNCH.png";
-    }
-    <div class="lunch-banner">
-        <img src="@Url.Content(lunchImg)" alt="Bữa trưa ngon" />
-        <p class="lunch-tagline">✨ Hãy tận hưởng mỹ vị từ bữa cơm trưa của công ty chúng ta!</p>
+    <div class="tp-tabs">
+        <div class="tp-tab active">Hôm nay</div>
+        <a href="@Url.Action("ThisWeek")" class="tp-tab">Cả tuần</a>
     </div>
 
     @{
         var userMeals = ViewBag.UserMeals as List<HR_web.Models.Menu.UserTodayMealModel>;
     }
+
     @if (userMeals != null && userMeals.Any())
     {
         var shiftNames = new Dictionary<string,string>
-        {
-            { "CA1","Ca sáng" }, { "CA2","Tăng ca" }, { "CA3","Ca tối" }
-        };
+        { { "CA1","Ca sáng" }, { "CA2","Tăng ca" }, { "CA3","Ca tối" } };
         var typeNames = new Dictionary<string,string>
-        {
-            { "MAN","Mặn" }, { "NHE","Nhẹ" }, { "CHAY","Chay" }, { "DU_KIEN","Dự kiến" }
-        };
-        <div class="my-meal-card">
-            <div class="my-meal-title">🍱 Hôm nay bạn ăn</div>
+        { { "MAN","Mặn" }, { "NHE","Nhẹ" }, { "CHAY","Chay" }, { "DU_KIEN","Dự kiến" } };
+
+        <div class="tp-mymeal">
+            <div class="tp-mymeal-ttl">🍱 Suất ăn của bạn hôm nay</div>
             @foreach (var m in userMeals)
             {
                 var badge = m.SHIFT != null && shiftNames.TryGetValue(m.SHIFT, out var sl) ? sl
                           : m.FOOD_TYPE != null && typeNames.TryGetValue(m.FOOD_TYPE, out var tl) ? tl : "";
-                <div class="my-meal-row">
+                <div class="tp-mymeal-row">
                     @if (!string.IsNullOrEmpty(badge))
-                    {
-                        <span class="my-meal-badge">@badge</span>
-                    }
-                    <span class="my-meal-name">@m.FOOD_NAME</span>
+                    { <span class="tp-mymeal-badge">@badge</span> }
+                    <span class="tp-mymeal-name">@m.FOOD_NAME</span>
                 </div>
             }
         </div>
@@ -189,15 +233,13 @@
 
     @if (userMeals != null || User.Identity?.IsAuthenticated == true)
     {
-        <div class="cm-btn-wrap">
-            <a href="@Url.Action("ChangeMeal")" class="cm-change-btn">🔄 Đổi món ăn</a>
-        </div>
+        <a href="@Url.Action("ChangeMeal")" class="tp-change">🔄 Đổi món ăn</a>
     }
 
     @if (isEmpty)
     {
-        <div class="food-empty">
-            <span class="ei">🍽️</span>
+        <div class="tp-empty">
+            <span class="tp-empty-icon">🍽️</span>
             <p>Chưa có thực đơn hôm nay<br/>hoặc hôm nay là ngày nghỉ.</p>
         </div>
     }
@@ -213,49 +255,98 @@
                 .OrderBy(g => g.Key == "MAN" ? 0 : g.Key == "DU_KIEN" ? 1 : g.Key == "NHE" ? 2 : 3)
                 .ToList();
 
-            <div class="shift-block">
-                <div class="shift-header" style="background:@shiftColor;">@shiftLabel</div>
-                <div class="meal-list">
-                    @foreach (var mealGroup in byMeal)
-                    {
-                        var label = mealLabels.GetValueOrDefault(mealGroup.Key, mealGroup.Key);
-                        var foods = mealGroup.OrderBy(f => f.DISPLAY_ORDER).ToList();
-                        var first = foods.First();
-                        var rest  = foods.Skip(1).ToList();
+            <div class="tp-shift">
+                <div class="tp-shift-hd" style="background:@shiftColor;">@shiftLabel</div>
+                @foreach (var grp in byMeal)
+                {
+                    var label  = mealLabels.GetValueOrDefault(grp.Key, grp.Key);
+                    var colors = mealColors.GetValueOrDefault(grp.Key, ("#f1f5f9","#334155"));
+                    var foods  = grp.OrderBy(f => f.DISPLAY_ORDER).ToList();
+                    var first  = foods.First();
+                    var rest   = foods.Skip(1).ToList();
 
-                        <div class="meal-row">
-                            @if (first.FOOD_ID.HasValue)
-                            {
-                                <img class="meal-img"
-                                     src="@Url.Action("GetFoodImage", "Image", new { fileName = first.FOOD_ID + ".jpg" })"
-                                     alt="@first.FOOD_NAME" loading="lazy"
-                                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-                                <div class="meal-img-ph" style="display:none;">🍴</div>
-                            }
-                            else
-                            {
-                                <div class="meal-img-ph">🍴</div>
-                            }
-                            <div class="meal-info">
-                                <div class="meal-type">@label</div>
-                                @if (!rest.Any())
-                                {
-                                    <div class="meal-name">@(first.FOOD_NAME ?? first.FOOD_TEXT)</div>
-                                }
-                                else
-                                {
-                                    <div class="meal-name-multi">@(first.FOOD_NAME ?? first.FOOD_TEXT)</div>
-                                    @foreach (var extra in rest)
-                                    {
-                                        <div class="meal-name-sub">· @(extra.FOOD_NAME ?? extra.FOOD_TEXT)</div>
-                                    }
-                                }
-                            </div>
-                        </div>
+                    @{
+                        var foodName = first.FOOD_NAME ?? first.FOOD_TEXT ?? "";
+                        var initial  = foodName.Length > 0 ? foodName[0].ToString().ToUpper() : "?";
+                        var imgUrl   = first.FOOD_ID.HasValue
+                            ? Url.Action("GetFoodImage","Image", new { fileName = first.FOOD_ID + ".jpg" })
+                            : null;
+                        bool hasImg  = first.FOOD_ID.HasValue;
                     }
-                </div>
+                    <div class="tp-meal @(hasImg ? "tp-meal-clickable" : "")"
+                         data-food-img="@imgUrl"
+                         data-food-name="@foodName"
+                         @(hasImg ? "onclick=\"openFoodModal(this)\"" : "")>
+                        @if (first.FOOD_ID.HasValue)
+                        {
+                            <img class="tp-meal-img"
+                                 src="@imgUrl"
+                                 alt="@foodName" loading="lazy"
+                                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                            <div class="tp-meal-ph" style="display:none;background:@colors.bg;">
+                                <span style="color:@colors.fg;font-size:1.1rem;font-weight:900;">@initial</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="tp-meal-ph" style="background:@colors.bg;">
+                                <span style="color:@colors.fg;font-size:1.1rem;font-weight:900;">@initial</span>
+                            </div>
+                        }
+                        <div class="tp-meal-body">
+                            <span class="tp-meal-badge"
+                                  style="background:@colors.bg; color:@colors.fg;">@label</span>
+                            <div class="tp-meal-name">@(first.FOOD_NAME ?? first.FOOD_TEXT)</div>
+                            @foreach (var x in rest)
+                            {
+                                <div class="tp-meal-extra">· @(x.FOOD_NAME ?? x.FOOD_TEXT)</div>
+                            }
+                        </div>
+                    </div>
+                }
             </div>
         }
     }
 
 </div>
+
+<script>
+function openFoodModal(el) {
+    const imgUrl  = el.dataset.foodImg;
+    const name    = el.dataset.foodName || '';
+    const modal   = document.getElementById('foodModal');
+    const modalImg= document.getElementById('foodModalImg');
+    const modalPh = document.getElementById('foodModalPh');
+
+    document.getElementById('foodModalName').textContent = name;
+    modalImg.style.display = 'block';
+    modalPh.style.display  = 'none';
+    modalImg.src = imgUrl;
+
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeFoodModal(e) {
+    if (e && e.target !== document.getElementById('foodModal') &&
+        !e.target.classList.contains('food-modal-close')) return;
+    const modal = document.getElementById('foodModal');
+    const sheet = document.getElementById('foodModalSheet');
+    sheet.style.transform = 'translateY(100%)';
+    setTimeout(() => {
+        modal.classList.remove('open');
+        sheet.style.transform = '';
+        document.body.style.overflow = '';
+    }, 280);
+}
+
+(function(){
+    const sheet = document.getElementById('foodModalSheet');
+    let startY = 0;
+    sheet.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive: true });
+    sheet.addEventListener('touchend', e => {
+        if (e.changedTouches[0].clientY - startY > 80)
+            closeFoodModal({ target: document.getElementById('foodModal') });
+    }, { passive: true });
+})();
+</script>

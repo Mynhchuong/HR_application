@@ -173,16 +173,22 @@ public class MenuWeekController : ControllerBase
                     VALUES
                         (:WEEK_ID, :DAY_NO, :SHIFT, :MEAL_TYPE, :FOOD_ID, :FOOD_TEXT, :DISPLAY_ORDER, :INST_ID, SYSDATE)";
 
-                var foodIdValues   = items.Select(i => i.FOOD_ID ?? (object)DBNull.Value).ToArray();
-                var foodTextValues = items.Select(i => string.IsNullOrEmpty(i.FOOD_TEXT) ? (object)DBNull.Value : (object)i.FOOD_TEXT).ToArray();
-                var instIdValues   = items.Select(_ => string.IsNullOrEmpty(model.LOGIN_USER) ? (object)DBNull.Value : (object)model.LOGIN_USER).ToArray();
-
-                var pFoodId   = new OracleParameter("FOOD_ID",   OracleDbType.Int32)    { Value = foodIdValues };
-                var pFoodText = new OracleParameter("FOOD_TEXT", OracleDbType.NVarchar2) { Value = foodTextValues };
-                var pInstId   = new OracleParameter("INST_ID",   OracleDbType.Varchar2)  { Value = instIdValues };
-                pFoodId.ArrayBindStatus   = items.Select(i => i.FOOD_ID.HasValue           ? OracleParameterStatus.Success : OracleParameterStatus.NullInsert).ToArray();
-                pFoodText.ArrayBindStatus = items.Select(i => !string.IsNullOrEmpty(i.FOOD_TEXT) ? OracleParameterStatus.Success : OracleParameterStatus.NullInsert).ToArray();
-                pInstId.ArrayBindStatus   = items.Select(_ => !string.IsNullOrEmpty(model.LOGIN_USER) ? OracleParameterStatus.Success : OracleParameterStatus.NullInsert).ToArray();
+                // ODP.NET array binding requires typed arrays (not object[])
+                var pFoodId = new OracleParameter("FOOD_ID", OracleDbType.Int32)
+                {
+                    Value            = items.Select(i => i.FOOD_ID ?? 0).ToArray(),
+                    ArrayBindStatus  = items.Select(i => i.FOOD_ID.HasValue ? OracleParameterStatus.Success : OracleParameterStatus.NullInsert).ToArray()
+                };
+                var pFoodText = new OracleParameter("FOOD_TEXT", OracleDbType.NVarchar2)
+                {
+                    Value            = items.Select(i => i.FOOD_TEXT ?? string.Empty).ToArray(),
+                    ArrayBindStatus  = items.Select(i => !string.IsNullOrEmpty(i.FOOD_TEXT) ? OracleParameterStatus.Success : OracleParameterStatus.NullInsert).ToArray()
+                };
+                var pInstId = new OracleParameter("INST_ID", OracleDbType.Varchar2)
+                {
+                    Value            = items.Select(_ => model.LOGIN_USER ?? string.Empty).ToArray(),
+                    ArrayBindStatus  = items.Select(_ => !string.IsNullOrEmpty(model.LOGIN_USER) ? OracleParameterStatus.Success : OracleParameterStatus.NullInsert).ToArray()
+                };
 
                 await _db.ExecuteBulkInsertAsync(insertSql, items.Count,
                     new OracleParameter("WEEK_ID",       OracleDbType.Int32)   { Value = items.Select(_ => model.WEEK_ID).ToArray() },

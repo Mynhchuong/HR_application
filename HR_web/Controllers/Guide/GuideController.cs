@@ -64,7 +64,7 @@ public class GuideController : BaseController
     [HttpPost]
     [Authorize(Roles = "Admin")]
     [ValidateAntiForgeryToken]
-    [RequestSizeLimit(524_288_000)]
+    [DisableRequestSizeLimit]
     public async Task<IActionResult> Edit(GuideModel model, IFormFile? VideoFile)
     {
         if (string.IsNullOrWhiteSpace(model.TITLE))
@@ -116,7 +116,7 @@ public class GuideController : BaseController
     [HttpPost]
     [Authorize(Roles = "Admin")]
     [ValidateAntiForgeryToken]
-    [RequestSizeLimit(524_288_000)]
+    [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadVideo(int id, IFormFile file)
     {
         var guide = await _service.GetByIdAsync(id);

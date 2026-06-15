@@ -162,8 +162,8 @@
             top: 0;
             z-index: 1025;
             padding: 0 1.5rem;
-            background: linear-gradient(135deg, #8b0000 0%, #c00000 100%);
-            border-bottom: none;
+            background: var(--header-surface);
+            border-bottom: 1px solid var(--header-border);
             display: flex;
             align-items: center;
             min-height: 74px;
@@ -202,22 +202,22 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: rgba(255,255,255,0.15);
-            color: #ffffff !important;
+            background: transparent;
+            color: var(--header-subtle);
             transition: all 0.2s ease;
         }
 
         .header-toggle-btn:hover,
         .header-toggle-btn:focus {
-            background: rgba(255,255,255,0.25);
-            color: #ffffff !important;
+            background: rgba(0,0,0,0.05);
+            color: var(--header-title);
             transform: translateY(-1px);
         }
 
         .header-title {
             display: block;
             max-width: 100%;
-            color: #ffffff;
+            color: var(--header-title);
             font-size: 1.1rem;
             font-weight: 800;
             line-height: 1.2;
@@ -231,15 +231,16 @@
             max-width: 250px;
             padding: 0.45rem 0.8rem !important;
             border-radius: 50px !important;
-            border: 1.5px solid rgba(255,255,255,0.35) !important;
-            background: rgba(255,255,255,0.15) !important;
+            border: 1.5px solid rgba(99,102,241,0.25) !important;
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
             color: #ffffff !important;
             font-size: 0.9rem;
-            box-shadow: none;
+            box-shadow: 0 2px 8px rgba(99,102,241,0.3);
         }
 
         .header-user-toggle:hover {
-            background: rgba(255,255,255,0.25) !important;
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+            box-shadow: 0 4px 12px rgba(99,102,241,0.4);
         }
 
         .header-user-toggle::after {
@@ -254,7 +255,7 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: rgba(255, 255, 255, 0.2) !important;
+            background: rgba(255,255,255,0.2) !important;
             color: #ffffff !important;
             font-size: 1rem;
             flex-shrink: 0;
@@ -326,8 +327,8 @@
                 width: 32px;
                 height: 32px;
                 border-radius: 8px;
-                background: rgba(255,255,255,0.15);
-                color: #ffffff !important;
+                background: transparent;
+                color: var(--header-subtle);
             }
 
             .header-user-icon {

@@ -293,50 +293,46 @@ public class MenuController : BaseController
                             var cellVal = ws.Cell(row, col).GetString().Trim();
                             if (string.IsNullOrWhiteSpace(cellVal)) continue;
 
-                            // Mỗi dòng trong ô = 1 món riêng
-                            var lines = cellVal
+                            // Mỗi ô chỉ lấy 1 món (dòng đầu tiên)
+                            var line = cellVal
                                 .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
                                 .Select(l => l.Trim())
-                                .Where(l => !string.IsNullOrWhiteSpace(l))
-                                .ToList();
+                                .FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
 
-                            for (int i = 0; i < lines.Count; i++)
+                            if (line == null) continue;
+
+                            if (int.TryParse(line, out int foodId))
                             {
-                                if (int.TryParse(lines[i], out int foodId))
+                                items.Add(new SaveDetailItem
                                 {
-                                    // Số nguyên → FOOD_ID từ danh mục
-                                    items.Add(new SaveDetailItem
-                                    {
-                                        DAY_NO        = dayNo,
-                                        SHIFT         = shift,
-                                        MEAL_TYPE     = mealType,
-                                        FOOD_ID       = foodId,
-                                        DISPLAY_ORDER = i + 1
-                                    });
-                                }
-                                else
+                                    DAY_NO        = dayNo,
+                                    SHIFT         = shift,
+                                    MEAL_TYPE     = mealType,
+                                    FOOD_ID       = foodId,
+                                    DISPLAY_ORDER = 1
+                                });
+                            }
+                            else
+                            {
+                                var matched = foods.FirstOrDefault(f =>
+                                    f.FOOD_NAME.Equals(line, StringComparison.OrdinalIgnoreCase));
+                                if (matched == null)
                                 {
-                                    // Tìm theo tên trong danh mục
-                                    var matched = foods.FirstOrDefault(f =>
-                                        f.FOOD_NAME.Equals(lines[i], StringComparison.OrdinalIgnoreCase));
-                                    if (matched == null)
+                                    errors.Add(new()
                                     {
-                                        errors.Add(new()
-                                        {
-                                            Location = $"{shift} — {day} — {MealLabel[mealType]} (dòng {i + 1})",
-                                            Message  = $"Không tìm thấy \"{lines[i]}\" trong danh mục. Nhập ID số hoặc thêm món vào danh mục trước."
-                                        });
-                                        continue;
-                                    }
-                                    items.Add(new SaveDetailItem
-                                    {
-                                        DAY_NO        = dayNo,
-                                        SHIFT         = shift,
-                                        MEAL_TYPE     = mealType,
-                                        FOOD_ID       = matched.ID,
-                                        DISPLAY_ORDER = i + 1
+                                        Location = $"{shift} — {day} — {MealLabel[mealType]}",
+                                        Message  = $"Không tìm thấy \"{line}\" trong danh mục. Nhập ID số hoặc thêm món vào danh mục trước."
                                     });
+                                    continue;
                                 }
+                                items.Add(new SaveDetailItem
+                                {
+                                    DAY_NO        = dayNo,
+                                    SHIFT         = shift,
+                                    MEAL_TYPE     = mealType,
+                                    FOOD_ID       = matched.ID,
+                                    DISPLAY_ORDER = 1
+                                });
                             }
                         }
                     }

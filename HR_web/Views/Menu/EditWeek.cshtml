@@ -54,12 +54,25 @@
     color:inherit; opacity:.55; flex-shrink:0;
 }
 .ftag-rm:hover { opacity:1; }
-.food-select {
-    width:100%; border:1px solid #e2e8f0; border-radius:6px;
-    font-size:11px; padding:3px 4px; color:#334155;
-    background:#f8fafc; cursor:pointer; outline:none;
+/* Select2 compact override cho ô thực đơn */
+.select2-container { width:100% !important; }
+.select2-container .select2-selection--single {
+    height:26px !important;
+    border:1px solid #e2e8f0 !important;
+    border-radius:6px !important;
+    background:#f8fafc !important;
 }
-.food-select:focus { border-color:#94a3b8; }
+.select2-container .select2-selection--single .select2-selection__rendered {
+    line-height:24px !important;
+    font-size:11px !important;
+    color:#334155 !important;
+    padding-left:6px !important;
+}
+.select2-container .select2-selection--single .select2-selection__arrow {
+    height:24px !important;
+}
+.select2-dropdown { font-size:12px; }
+.select2-search--dropdown .select2-search__field { font-size:12px; }
 </style>
 
 <div class="container-fluid py-4">
@@ -124,16 +137,14 @@
                                     {
                                         var key   = $"{shiftKey}|{dayNo}|{mealKey}";
                                         var items = detailItemsMap.GetValueOrDefault(key);
+                                        var first = items?.FirstOrDefault();
                                         <td class="p-0">
                                             <div class="food-cell@(isPublished ? " readonly" : "")"
                                                  data-shift="@shiftKey" data-day="@dayNo" data-meal="@mealKey">
                                                 <div class="food-tags">
-                                                    @if (items != null)
+                                                    @if (first != null)
                                                     {
-                                                        @foreach (var item in items)
-                                                        {
-                                                            <span class="ftag has-id" data-fid="@item.foodId">@item.name@if (!isPublished){<button type="button" class="ftag-rm">×</button>}</span>
-                                                        }
+                                                        <span class="ftag has-id" data-fid="@first.foodId">@first.name@if (!isPublished){<button type="button" class="ftag-rm">×</button>}</span>
                                                     }
                                                 </div>
                                                 @if (!isPublished)
@@ -184,7 +195,7 @@ function addTag(tagsEl, foodId, name) {
     tagsEl.appendChild(span);
 }
 
-// ── Populate selects & handle change ─────────────────────────────────────────
+// ── Populate selects & khởi tạo Select2 (có ô tìm kiếm) ────────────────────
 document.querySelectorAll('.food-cell:not(.readonly)').forEach(cell => {
     const sel  = cell.querySelector('.food-select');
     const tags = cell.querySelector('.food-tags');
@@ -198,11 +209,18 @@ document.querySelectorAll('.food-cell:not(.readonly)').forEach(cell => {
         sel.appendChild(opt);
     });
 
-    sel.addEventListener('change', () => {
-        if (!sel.value) return;
-        const name = sel.options[sel.selectedIndex].textContent;
-        addTag(tags, parseInt(sel.value), name);
-        sel.value = '';
+    $(sel).select2({
+        placeholder: '— Chọn món —',
+        allowClear: false,
+        dropdownParent: $('body'),
+        width: '100%',
+        language: { searching: () => 'Đang tìm...', noResults: () => 'Không tìm thấy' }
+    });
+
+    $(sel).on('select2:select', function (e) {
+        tags.innerHTML = '';
+        addTag(tags, parseInt(e.params.data.id), e.params.data.text);
+        $(sel).val(null).trigger('change');
     });
 });
 

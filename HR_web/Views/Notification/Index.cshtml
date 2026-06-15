@@ -53,6 +53,7 @@
 
     /* Content */
     .noti-content  { flex: 1; min-width: 0; }
+    .noti-sender   { font-size: .8rem; font-weight: 700; color: #1e293b; margin-bottom: .1rem; }
     .noti-title    { font-size: .88rem; font-weight: 600; color: #1e293b; margin-bottom: .2rem; line-height: 1.35; }
     .noti-item.unread .noti-title { font-weight: 800; }
     .noti-body     { font-size: .8rem; color: #64748b; line-height: 1.45; }
@@ -167,8 +168,9 @@ function renderItems(items, append = false) {
         div.innerHTML = `
             <div class="noti-icon" style="background:${style.bg}">${style.icon}</div>
             <div class="noti-content">
-                <div class="noti-title vni-font">${esc(n.TITLE)}</div>
-                <div class="noti-body vni-font">${esc(n.BODY)}</div>
+                ${n.SENDER_NAME ? `<div class="noti-sender vni-font">${esc(n.SENDER_NAME)}</div>` : ''}
+                <div class="noti-title">${esc(n.TITLE)}</div>
+                <div class="noti-body">${esc(n.BODY)}</div>
                 <div class="noti-footer">
                     <span class="noti-time">${timeAgo(n.CREATED_DATE)}</span>
                     <span class="noti-unread-dot"></span>

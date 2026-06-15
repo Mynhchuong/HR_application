@@ -71,9 +71,13 @@ public class NotificationController : ControllerBase
             // Oracle 10g doesn't have OFFSET/FETCH, using ROW_NUMBER()
             string sql = @"
                 SELECT * FROM (
-                    SELECT N.*, NVL(L.IS_READ, 0) IS_READ_VAL, ROW_NUMBER() OVER (ORDER BY N.CREATED_DATE DESC) RN
+                    SELECT N.ID, N.TITLE, N.BODY, N.NOTI_TYPE, N.TARGET_VAL, N.LINK_ACTION, N.CREATED_DATE,
+                           NVL(L.IS_READ, 0) IS_READ_VAL,
+                           U.FULL_NAME SENDER_NAME,
+                           ROW_NUMBER() OVER (ORDER BY N.CREATED_DATE DESC) RN
                     FROM HRMS.HR_NOTIFICATIONS N
                     LEFT JOIN HRMS.HR_NOTIFICATION_LOG L ON L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD
+                    LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = N.CREATED_BY
                     WHERE N.NOTI_TYPE = 'COMPANY'
                        OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD2)
                        OR (N.NOTI_TYPE = 'DEPT' AND N.TARGET_VAL = (SELECT DEPTCD FROM HRMS.ECM100 WHERE EMPCD = :EMPCD3 AND ROWNUM = 1))
@@ -88,7 +92,8 @@ public class NotificationController : ControllerBase
                 TARGET_VAL = r["TARGET_VAL"]?.ToString(),
                 LINK_ACTION = r["LINK_ACTION"]?.ToString(),
                 CREATED_DATE = Convert.ToDateTime(r["CREATED_DATE"]),
-                IS_READ = Convert.ToInt32(r["IS_READ_VAL"])
+                IS_READ = Convert.ToInt32(r["IS_READ_VAL"]),
+                SENDER_NAME = r["SENDER_NAME"]?.ToString()
             }, 
             new OracleParameter("EMPCD", empcd),
             new OracleParameter("EMPCD2", empcd),

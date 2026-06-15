@@ -240,6 +240,15 @@
 
 @section Scripts {
 <script>
+// Khi chọn Từ ngày → tự động tính Đến ngày = thứ 7 cùng tuần (+ 5 ngày)
+document.querySelector('input[name="FROM_DATE"]').addEventListener('change', function () {
+    if (!this.value) return;
+    const from = new Date(this.value);
+    const to   = new Date(from);
+    to.setDate(from.getDate() + 5);
+    document.querySelector('input[name="TO_DATE"]').value = to.toISOString().split('T')[0];
+});
+
 function dlFile(url) {
     const a = document.createElement('a');
     a.href = url;

@@ -63,7 +63,6 @@ public class MenuDetailModel
     public string  MEAL_TYPE     { get; set; } = string.Empty;  // MAN | NHE | CHAY | DU_KIEN
     public int?    FOOD_ID       { get; set; }
     public string? FOOD_NAME     { get; set; }   // join từ HR_MENU_FOOD
-    public string? FOOD_TEXT     { get; set; }   // nhập tự do
     public int     DISPLAY_ORDER { get; set; }
 }
 
@@ -74,7 +73,6 @@ public class SaveDetailItem
     public string  SHIFT         { get; set; } = string.Empty;
     public string  MEAL_TYPE     { get; set; } = string.Empty;
     public int?    FOOD_ID       { get; set; }
-    public string? FOOD_TEXT     { get; set; }
     public int     DISPLAY_ORDER { get; set; } = 1;
 }
 
@@ -96,6 +94,5 @@ public class MenuDayViewModel
     public string  MEAL_TYPE  { get; set; } = string.Empty;
     public int?    FOOD_ID       { get; set; }
     public string? FOOD_NAME     { get; set; }
-    public string? FOOD_TEXT     { get; set; }
     public int     DISPLAY_ORDER { get; set; }
 }

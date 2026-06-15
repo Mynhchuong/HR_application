@@ -279,6 +279,7 @@ public class MenuController : BaseController
             // ── Đọc từng ca / ngày / ô món ─────────────────────────────────
             if (!errors.Any())
             {
+                var foods = await _svc.GetActiveFoodsAsync();
                 foreach (var (shift, dataStart) in Sections)
                 {
                     for (int dayOffset = 0; dayOffset < 6; dayOffset++)
@@ -315,12 +316,15 @@ public class MenuController : BaseController
                                 }
                                 else
                                 {
-                                    if (lines[i].Length > 500)
+                                    // Tìm theo tên trong danh mục
+                                    var matched = foods.FirstOrDefault(f =>
+                                        f.FOOD_NAME.Equals(lines[i], StringComparison.OrdinalIgnoreCase));
+                                    if (matched == null)
                                     {
                                         errors.Add(new()
                                         {
                                             Location = $"{shift} — {day} — {MealLabel[mealType]} (dòng {i + 1})",
-                                            Message  = "Tên món vượt quá 500 ký tự"
+                                            Message  = $"Không tìm thấy \"{lines[i]}\" trong danh mục. Nhập ID số hoặc thêm món vào danh mục trước."
                                         });
                                         continue;
                                     }
@@ -329,7 +333,7 @@ public class MenuController : BaseController
                                         DAY_NO        = dayNo,
                                         SHIFT         = shift,
                                         MEAL_TYPE     = mealType,
-                                        FOOD_TEXT     = lines[i],
+                                        FOOD_ID       = matched.ID,
                                         DISPLAY_ORDER = i + 1
                                     });
                                 }

@@ -642,7 +642,10 @@ function buildApprovalRow(item, idx) {
         <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
-        <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
+        <td class="px-2 text-sm fw-bold">
+            ${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}
+            ${item.REASON ? `<div class="vni-font" style="font-size:.7rem;font-weight:400;color:#64748b;margin-top:1px;white-space:normal;">${escHtml(item.REASON)}</div>` : ''}
+        </td>
         <td class="text-center">${statusHtml}</td>
         <td class="text-center">${actions}</td>
     </tr>`;

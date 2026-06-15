@@ -1,21 +1,66 @@
 @model HR_web.Models.Menu.MenuWeekDetailViewModel
+@using Newtonsoft.Json
 @{
     ViewData["Title"] = "Nhập thực đơn tuần";
     var shifts    = new[] { ("CA1","CA 1"), ("CA2","CA 2 / TĂNG CA"), ("CA3","CA 3") };
     var days      = new[] { (2,"Thứ 2"), (3,"Thứ 3"), (4,"Thứ 4"), (5,"Thứ 5"), (6,"Thứ 6"), (7,"Thứ 7") };
     var mealTypes = new[] { ("MAN","Món mặn"), ("DU_KIEN","Món dự kiến"), ("NHE","Món nhẹ"), ("CHAY","Món chay") };
 
-    // Nhóm detail vào dict để tra nhanh: key = "shift|dayNo|mealType"
-    var detailMap = Model.Details
+    // Build detail items map preserving FOOD_ID per cell
+    var detailItemsMap = Model.Details
         .GroupBy(d => $"{d.SHIFT}|{d.DAY_NO}|{d.MEAL_TYPE}")
         .ToDictionary(
             g => g.Key,
-            g => string.Join("\n", g.OrderBy(d => d.DISPLAY_ORDER)
-                                    .Select(d => !string.IsNullOrEmpty(d.FOOD_TEXT) ? d.FOOD_TEXT : (d.FOOD_NAME ?? "")))
+            g => g.OrderBy(d => d.DISPLAY_ORDER)
+                  .Select(d => new { foodId = d.FOOD_ID, name = d.FOOD_NAME ?? "" })
+                  .Where(d => d.foodId.HasValue && !string.IsNullOrEmpty(d.name))
+                  .ToList()
         );
+
+    // Serialize food catalog for JS select
+    var foodsJson = JsonConvert.SerializeObject(
+        Model.Foods.Select(f => new { id = f.ID, name = f.FOOD_NAME, type = f.FOOD_TYPE })
+    );
 
     bool isPublished = Model.Week.STATUS == "PUBLISHED";
 }
+
+<style>
+.food-cell {
+    min-height: 52px;
+    padding: 4px 5px 3px;
+}
+.food-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-bottom: 3px;
+}
+.ftag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    padding: 2px 6px 2px 7px;
+    border-radius: 20px;
+    line-height: 1.45;
+    max-width: 100%;
+    word-break: break-word;
+}
+.ftag.has-id { background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; }
+.ftag-rm {
+    background:none; border:none; cursor:pointer;
+    font-size:13px; line-height:1; padding:0 1px;
+    color:inherit; opacity:.55; flex-shrink:0;
+}
+.ftag-rm:hover { opacity:1; }
+.food-select {
+    width:100%; border:1px solid #e2e8f0; border-radius:6px;
+    font-size:11px; padding:3px 4px; color:#334155;
+    background:#f8fafc; cursor:pointer; outline:none;
+}
+.food-select:focus { border-color:#94a3b8; }
+</style>
 
 <div class="container-fluid py-4">
 
@@ -29,7 +74,7 @@
             <h5 class="mb-0">@(Model.Week.WEEK_NAME ?? $"Tuần {Model.Week.FROM_DATE:dd/MM} – {Model.Week.TO_DATE:dd/MM/yyyy}")</h5>
             <small class="text-secondary">@Model.Week.FROM_DATE.ToString("dd/MM/yyyy") → @Model.Week.TO_DATE.ToString("dd/MM/yyyy")</small>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center">
             @if (!isPublished)
             {
                 <button id="btnSave" class="btn btn-dark btn-sm mb-0">
@@ -77,18 +122,27 @@
                                     <td class="text-center fw-bold text-sm bg-light px-2">@dayLabel</td>
                                     @foreach (var (mealKey, _) in mealTypes)
                                     {
-                                        var key = $"{shiftKey}|{dayNo}|{mealKey}";
-                                        var val = detailMap.GetValueOrDefault(key, "");
-                                        <td class="p-1">
-                                            <textarea
-                                                class="form-control form-control-sm menu-cell border-0 bg-transparent"
-                                                rows="2"
-                                                data-shift="@shiftKey"
-                                                data-day="@dayNo"
-                                                data-meal="@mealKey"
-                                                placeholder="Nhập món... (nhiều món: xuống dòng)"
-                                                @(isPublished ? "disabled" : "")
-                                                style="resize:none;min-height:60px;font-size:12px;">@val</textarea>
+                                        var key   = $"{shiftKey}|{dayNo}|{mealKey}";
+                                        var items = detailItemsMap.GetValueOrDefault(key);
+                                        <td class="p-0">
+                                            <div class="food-cell@(isPublished ? " readonly" : "")"
+                                                 data-shift="@shiftKey" data-day="@dayNo" data-meal="@mealKey">
+                                                <div class="food-tags">
+                                                    @if (items != null)
+                                                    {
+                                                        @foreach (var item in items)
+                                                        {
+                                                            <span class="ftag has-id" data-fid="@item.foodId">@item.name@if (!isPublished){<button type="button" class="ftag-rm">×</button>}</span>
+                                                        }
+                                                    }
+                                                </div>
+                                                @if (!isPublished)
+                                                {
+                                                    <select class="food-select">
+                                                        <option value="">— Chọn món —</option>
+                                                    </select>
+                                                }
+                                            </div>
                                         </td>
                                     }
                                 </tr>
@@ -100,55 +154,95 @@
         </div>
     }
 
-    @if (!isPublished)
-    {
-        <div class="text-end">
-            <button id="btnSaveBottom" class="btn btn-dark btn-lg">
-                <i class="bi bi-floppy me-1"></i> Lưu tất cả
-            </button>
-        </div>
-    }
 </div>
 
 <script>
-const WEEK_ID   = @Model.Week.ID;
+const WEEK_ID     = @Model.Week.ID;
 const antiForgery = '@Html.AntiForgeryToken()'.match(/value="([^"]+)"/)?.[1] ?? '';
+const FOODS       = @Html.Raw(foodsJson);
 
+// DU_KIEN dùng chung danh sách với MAN
+const FOOD_TYPE_MAP = { MAN: 'MAN', DU_KIEN: 'MAN', NHE: 'NHE', CHAY: 'CHAY' };
+
+// ── Remove tag ────────────────────────────────────────────────────────────────
+document.addEventListener('click', e => {
+    if (e.target.classList.contains('ftag-rm'))
+        e.target.closest('.ftag')?.remove();
+});
+
+function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function addTag(tagsEl, foodId, name) {
+    const keys = [...tagsEl.querySelectorAll('.ftag')].map(t => t.dataset.fid ?? '');
+    if (keys.includes(String(foodId))) return;
+    const span = document.createElement('span');
+    span.className = 'ftag has-id';
+    span.dataset.fid = foodId;
+    span.innerHTML = esc(name) + ' <button type="button" class="ftag-rm">×</button>';
+    tagsEl.appendChild(span);
+}
+
+// ── Populate selects & handle change ─────────────────────────────────────────
+document.querySelectorAll('.food-cell:not(.readonly)').forEach(cell => {
+    const sel  = cell.querySelector('.food-select');
+    const tags = cell.querySelector('.food-tags');
+    const foodType = FOOD_TYPE_MAP[cell.dataset.meal] ?? cell.dataset.meal;
+    const options  = FOODS.filter(f => f.type === foodType);
+
+    options.forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f.id;
+        opt.textContent = f.name;
+        sel.appendChild(opt);
+    });
+
+    sel.addEventListener('change', () => {
+        if (!sel.value) return;
+        const name = sel.options[sel.selectedIndex].textContent;
+        addTag(tags, parseInt(sel.value), name);
+        sel.value = '';
+    });
+});
+
+// ── Collect items ─────────────────────────────────────────────────────────────
 function collectItems() {
     const items = [];
-    document.querySelectorAll('.menu-cell').forEach(ta => {
-        const raw = ta.value.trim();
-        if (!raw) return;
-        const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l);
-        lines.forEach((line, i) => {
-            items.push({
-                DAY_NO:        parseInt(ta.dataset.day),
-                SHIFT:         ta.dataset.shift,
-                MEAL_TYPE:     ta.dataset.meal,
-                FOOD_TEXT:     line,
-                DISPLAY_ORDER: i + 1
-            });
+    document.querySelectorAll('.food-cell').forEach(cell => {
+        let order = 1;
+        cell.querySelectorAll('.ftag').forEach(tag => {
+            const base = {
+                DAY_NO:       parseInt(cell.dataset.day),
+                SHIFT:        cell.dataset.shift,
+                MEAL_TYPE:    cell.dataset.meal,
+                DISPLAY_ORDER: order++
+            };
+            if (tag.dataset.fid) {
+                items.push({ ...base, FOOD_ID: parseInt(tag.dataset.fid) });
+            }
         });
     });
     return items;
 }
 
+// ── Save ──────────────────────────────────────────────────────────────────────
 async function saveGrid() {
-    const btn     = document.getElementById('btnSave') ?? document.getElementById('btnSaveBottom');
+    const btn     = document.getElementById('btnSave');
     const alertEl = document.getElementById('saveAlert');
+    const items   = collectItems();
 
-    const items = collectItems();
     if (items.length === 0) {
-        alertEl.innerHTML = `<div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle me-1"></i>Không có món nào để lưu. Vui lòng nhập thực đơn trước.</div>`;
-        alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        alertEl.innerHTML = `<div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle me-1"></i>Không có món nào để lưu. Vui lòng thêm món trước.</div>`;
+        alertEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
         return;
     }
 
-    btn && (btn.disabled = true, btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...'; }
     try {
         const res  = await fetch('@Url.Action("SaveGrid")', {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgery },
+            headers: { 'Content-Type':'application/json', 'RequestVerificationToken': antiForgery },
             body:    JSON.stringify({ WEEK_ID, ITEMS: items })
         });
         const data = await res.json();
@@ -158,11 +252,10 @@ async function saveGrid() {
     } catch(e) {
         alertEl.innerHTML = `<div class="alert alert-danger py-2">Lỗi kết nối: ${e.message}</div>`;
     } finally {
-        btn && (btn.disabled = false, btn.innerHTML = '<i class="bi bi-floppy me-1"></i>Lưu thực đơn');
-        alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-floppy me-1"></i>Lưu thực đơn'; }
+        alertEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
     }
 }
 
 document.getElementById('btnSave')?.addEventListener('click', saveGrid);
-document.getElementById('btnSaveBottom')?.addEventListener('click', saveGrid);
 </script>

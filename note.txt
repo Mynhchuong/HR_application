@@ -677,3 +677,14 @@ CREATE INDEX "HRMS"."IDX_MENU_DETAIL_WEEK_DAY"
 -- Index tìm thực đơn theo ngày thực tế (dùng cho view "hôm nay ăn gì")
 CREATE INDEX "HRMS"."IDX_MENU_WEEK_DATE"
     ON "HRMS"."HR_MENU_WEEK" ("FROM_DATE", "TO_DATE", "STATUS");
+
+-- ============================================================
+-- MENU DETAIL: XOÁ FOOD_TEXT, BẮT BUỘC FOOD_ID (06/2026)
+-- Chạy TRƯỚC hoặc NGAY SAU khi deploy code mới
+-- ============================================================
+-- 1. Xoá các row không có FOOD_ID (data text cũ)
+DELETE FROM HRMS.HR_MENU_DETAIL WHERE FOOD_ID IS NULL;
+-- 2. Xoá cột FOOD_TEXT
+ALTER TABLE HRMS.HR_MENU_DETAIL DROP COLUMN FOOD_TEXT;
+-- 3. Bắt buộc FOOD_ID NOT NULL
+ALTER TABLE HRMS.HR_MENU_DETAIL MODIFY FOOD_ID NUMBER NOT NULL;

@@ -158,31 +158,27 @@ public class MenuWeekController : ControllerBase
             if (week[0] == "PUBLISHED")
                 return Ok(new { success = false, message = "Tuần đã PUBLISHED không thể chỉnh sửa" });
 
+            var items = model.ITEMS ?? new List<SaveDetailItem>();
+            if (items.Any(i => !i.FOOD_ID.HasValue))
+                return Ok(new { success = false, message = "Tất cả món ăn phải chọn từ danh mục (FOOD_ID required)" });
+
             // Xóa toàn bộ detail cũ của tuần
             await _db.ExecuteNonQueryAsync(
                 "DELETE FROM HRMS.HR_MENU_DETAIL WHERE WEEK_ID = :WEEK_ID",
                 new OracleParameter("WEEK_ID", model.WEEK_ID));
 
             // Bulk insert tất cả món trong 1 lần gọi DB
-            var items = model.ITEMS ?? new List<SaveDetailItem>();
             if (items.Count > 0)
             {
                 const string insertSql = @"
                     INSERT INTO HRMS.HR_MENU_DETAIL
-                        (WEEK_ID, DAY_NO, SHIFT, MEAL_TYPE, FOOD_ID, FOOD_TEXT, DISPLAY_ORDER, INST_ID, INST_DT)
+                        (WEEK_ID, DAY_NO, SHIFT, MEAL_TYPE, FOOD_ID, DISPLAY_ORDER, INST_ID, INST_DT)
                     VALUES
-                        (:WEEK_ID, :DAY_NO, :SHIFT, :MEAL_TYPE, :FOOD_ID, :FOOD_TEXT, :DISPLAY_ORDER, :INST_ID, SYSDATE)";
+                        (:WEEK_ID, :DAY_NO, :SHIFT, :MEAL_TYPE, :FOOD_ID, :DISPLAY_ORDER, :INST_ID, SYSDATE)";
 
-                // ODP.NET array binding requires typed arrays (not object[])
                 var pFoodId = new OracleParameter("FOOD_ID", OracleDbType.Int32)
                 {
-                    Value            = items.Select(i => i.FOOD_ID ?? 0).ToArray(),
-                    ArrayBindStatus  = items.Select(i => i.FOOD_ID.HasValue ? OracleParameterStatus.Success : OracleParameterStatus.NullInsert).ToArray()
-                };
-                var pFoodText = new OracleParameter("FOOD_TEXT", OracleDbType.NVarchar2)
-                {
-                    Value            = items.Select(i => i.FOOD_TEXT ?? string.Empty).ToArray(),
-                    ArrayBindStatus  = items.Select(i => !string.IsNullOrEmpty(i.FOOD_TEXT) ? OracleParameterStatus.Success : OracleParameterStatus.NullInsert).ToArray()
+                    Value = items.Select(i => i.FOOD_ID!.Value).ToArray()
                 };
                 var pInstId = new OracleParameter("INST_ID", OracleDbType.Varchar2)
                 {
@@ -191,13 +187,12 @@ public class MenuWeekController : ControllerBase
                 };
 
                 await _db.ExecuteBulkInsertAsync(insertSql, items.Count,
-                    new OracleParameter("WEEK_ID",       OracleDbType.Int32)   { Value = items.Select(_ => model.WEEK_ID).ToArray() },
-                    new OracleParameter("DAY_NO",        OracleDbType.Int32)   { Value = items.Select(i => i.DAY_NO).ToArray() },
+                    new OracleParameter("WEEK_ID",       OracleDbType.Int32)    { Value = items.Select(_ => model.WEEK_ID).ToArray() },
+                    new OracleParameter("DAY_NO",        OracleDbType.Int32)    { Value = items.Select(i => i.DAY_NO).ToArray() },
                     new OracleParameter("SHIFT",         OracleDbType.Varchar2) { Value = items.Select(i => i.SHIFT).ToArray() },
                     new OracleParameter("MEAL_TYPE",     OracleDbType.Varchar2) { Value = items.Select(i => i.MEAL_TYPE).ToArray() },
                     pFoodId,
-                    pFoodText,
-                    new OracleParameter("DISPLAY_ORDER", OracleDbType.Int32)   { Value = items.Select(i => i.DISPLAY_ORDER).ToArray() },
+                    new OracleParameter("DISPLAY_ORDER", OracleDbType.Int32)    { Value = items.Select(i => i.DISPLAY_ORDER).ToArray() },
                     pInstId);
             }
 
@@ -316,12 +311,11 @@ public class MenuWeekController : ControllerBase
 
             const string sql = @"
                 SELECT D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER,
-                       COALESCE(F.FOOD_NAME, D.FOOD_TEXT) AS FOOD_NAME,
-                       D.FOOD_ID,
-                       D.FOOD_TEXT
+                       F.FOOD_NAME,
+                       D.FOOD_ID
                 FROM HRMS.HR_MENU_WEEK W
                 JOIN HRMS.HR_MENU_DETAIL D ON D.WEEK_ID = W.ID
-                LEFT JOIN HRMS.HR_MENU_FOOD F ON F.ID = D.FOOD_ID
+                JOIN HRMS.HR_MENU_FOOD F ON F.ID = D.FOOD_ID
                 WHERE TRUNC(SYSDATE) BETWEEN TRUNC(W.FROM_DATE) AND TRUNC(W.TO_DATE)
                   AND W.STATUS = 'PUBLISHED'
                   AND D.DAY_NO = :DAY_NO
@@ -345,12 +339,11 @@ public class MenuWeekController : ControllerBase
         {
             const string sql = @"
                 SELECT D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER,
-                       COALESCE(F.FOOD_NAME, D.FOOD_TEXT) AS FOOD_NAME,
-                       D.FOOD_ID,
-                       D.FOOD_TEXT
+                       F.FOOD_NAME,
+                       D.FOOD_ID
                 FROM HRMS.HR_MENU_WEEK W
                 JOIN HRMS.HR_MENU_DETAIL D ON D.WEEK_ID = W.ID
-                LEFT JOIN HRMS.HR_MENU_FOOD F ON F.ID = D.FOOD_ID
+                JOIN HRMS.HR_MENU_FOOD F ON F.ID = D.FOOD_ID
                 WHERE TRUNC(SYSDATE) BETWEEN TRUNC(W.FROM_DATE) AND TRUNC(W.TO_DATE)
                   AND W.STATUS = 'PUBLISHED'
                 ORDER BY D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER";
@@ -383,10 +376,10 @@ public class MenuWeekController : ControllerBase
     {
         const string sql = @"
             SELECT D.ID, D.WEEK_ID, D.DAY_NO, D.SHIFT, D.MEAL_TYPE,
-                   D.FOOD_ID, D.FOOD_TEXT, D.DISPLAY_ORDER,
+                   D.FOOD_ID, D.DISPLAY_ORDER,
                    F.FOOD_NAME
             FROM HRMS.HR_MENU_DETAIL D
-            LEFT JOIN HRMS.HR_MENU_FOOD F ON F.ID = D.FOOD_ID
+            JOIN HRMS.HR_MENU_FOOD F ON F.ID = D.FOOD_ID
             WHERE D.WEEK_ID = :WEEK_ID
             ORDER BY D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER";
 
@@ -399,7 +392,6 @@ public class MenuWeekController : ControllerBase
             MEAL_TYPE    = r["MEAL_TYPE"]?.ToString() ?? string.Empty,
             FOOD_ID      = r["FOOD_ID"]   == DBNull.Value ? null : Convert.ToInt32(r["FOOD_ID"]),
             FOOD_NAME    = r["FOOD_NAME"]?.ToString(),
-            FOOD_TEXT    = r["FOOD_TEXT"]?.ToString(),
             DISPLAY_ORDER= r["DISPLAY_ORDER"] == DBNull.Value ? 1 : Convert.ToInt32(r["DISPLAY_ORDER"]),
         }, new OracleParameter("WEEK_ID", weekId));
     }
@@ -430,7 +422,6 @@ public class MenuWeekController : ControllerBase
             MEAL_TYPE     = r["MEAL_TYPE"]?.ToString() ?? string.Empty,
             FOOD_NAME     = r["FOOD_NAME"]?.ToString(),
             FOOD_ID       = r["FOOD_ID"] == DBNull.Value ? null : Convert.ToInt32(r["FOOD_ID"]),
-            FOOD_TEXT     = r["FOOD_TEXT"]?.ToString(),
             DISPLAY_ORDER = r["DISPLAY_ORDER"] == DBNull.Value ? 1 : Convert.ToInt32(r["DISPLAY_ORDER"]),
         };
     }

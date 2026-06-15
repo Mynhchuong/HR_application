@@ -162,8 +162,8 @@
             top: 0;
             z-index: 1025;
             padding: 0 1.5rem;
-            background: #ffffff;
-            border-bottom: 1px solid rgba(0,0,0,0.07);
+            background: linear-gradient(135deg, #8b0000 0%, #c00000 100%);
+            border-bottom: none;
             display: flex;
             align-items: center;
             min-height: 74px;
@@ -202,22 +202,22 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: #f1f5f9;
-            color: #475569 !important;
+            background: rgba(255,255,255,0.15);
+            color: #ffffff !important;
             transition: all 0.2s ease;
         }
 
         .header-toggle-btn:hover,
         .header-toggle-btn:focus {
-            background: #e2e8f0;
-            color: #0f172a !important;
+            background: rgba(255,255,255,0.25);
+            color: #ffffff !important;
             transform: translateY(-1px);
         }
 
         .header-title {
             display: block;
             max-width: 100%;
-            color: #1e293b;
+            color: #ffffff;
             font-size: 1.1rem;
             font-weight: 800;
             line-height: 1.2;
@@ -231,11 +231,15 @@
             max-width: 250px;
             padding: 0.45rem 0.8rem !important;
             border-radius: 50px !important;
-            border: none;
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+            border: 1.5px solid rgba(255,255,255,0.35) !important;
+            background: rgba(255,255,255,0.15) !important;
             color: #ffffff !important;
             font-size: 0.9rem;
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+            box-shadow: none;
+        }
+
+        .header-user-toggle:hover {
+            background: rgba(255,255,255,0.25) !important;
         }
 
         .header-user-toggle::after {
@@ -322,6 +326,8 @@
                 width: 32px;
                 height: 32px;
                 border-radius: 8px;
+                background: rgba(255,255,255,0.15);
+                color: #ffffff !important;
             }
 
             .header-user-icon {

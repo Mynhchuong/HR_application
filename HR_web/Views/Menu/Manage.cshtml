@@ -131,30 +131,24 @@
                                             </a>
                                             @if (w.STATUS == "DRAFT")
                                             {
-                                                <form method="post" action="@Url.Action("PublishWeek", new { id = w.ID })" class="d-inline">
-                                                    @Html.AntiForgeryToken()
-                                                    <button type="submit" class="btn btn-sm btn-success mb-0 px-2" title="Đăng cho công nhân xem"
-                                                            onclick="return confirm('Đăng tuần này cho công nhân xem?')">
-                                                        <i class="bi bi-send-fill"></i>
-                                                    </button>
-                                                </form>
-                                                <form method="post" action="@Url.Action("DeleteWeek", new { id = w.ID })" class="d-inline">
-                                                    @Html.AntiForgeryToken()
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger mb-0 px-2"
-                                                            onclick="return confirm('Xóa tuần này?')">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                </form>
+                                                <button type="button" class="btn btn-sm btn-success mb-0 px-2" title="Đăng cho công nhân xem"
+                                                        data-url="@Url.Action("PublishWeek", new { id = w.ID })"
+                                                        onclick="menuConfirm(this,'Đăng tuần này cho công nhân xem?','Đăng thực đơn','Đăng ngay','btn-success')">
+                                                    <i class="bi bi-send-fill"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-danger mb-0 px-2" title="Xóa tuần"
+                                                        data-url="@Url.Action("DeleteWeek", new { id = w.ID })"
+                                                        onclick="menuConfirm(this,'Bạn có chắc muốn xóa tuần này không?','Xóa tuần','Xóa','btn-danger')">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
                                             }
                                             else
                                             {
-                                                <form method="post" action="@Url.Action("UnpublishWeek", new { id = w.ID })" class="d-inline">
-                                                    @Html.AntiForgeryToken()
-                                                    <button type="submit" class="btn btn-sm btn-outline-warning mb-0 px-2" title="Ẩn thực đơn"
-                                                            onclick="return confirm('Ẩn thực đơn tuần này?')">
-                                                        <i class="bi bi-eye-slash"></i>
-                                                    </button>
-                                                </form>
+                                                <button type="button" class="btn btn-sm btn-outline-warning mb-0 px-2" title="Ẩn thực đơn"
+                                                        data-url="@Url.Action("UnpublishWeek", new { id = w.ID })"
+                                                        onclick="menuConfirm(this,'Ẩn thực đơn tuần này khỏi công nhân?','Ẩn thực đơn','Ẩn đi','btn-warning')">
+                                                    <i class="bi bi-eye-slash"></i>
+                                                </button>
                                             }
                                         </div>
                                     </td>
@@ -227,9 +221,9 @@
                     <div>
                         <label class="form-label fw-bold">Chọn file Excel đã điền <span class="text-danger">*</span></label>
                         <label id="fileDropZone" for="importFile"
-                               style="display:flex;align-items:center;gap:10px;padding:14px 16px;border:2px dashed #343a40;border-radius:10px;background:#1a1a2e;cursor:pointer;transition:border-color .2s,background .2s;">
-                            <i class="bi bi-file-earmark-excel" style="font-size:1.6rem;color:#4ade80;flex-shrink:0;"></i>
-                            <span id="fileLabel" style="font-size:.85rem;color:#adb5bd;">Nhấn để chọn file .xlsx...</span>
+                               style="display:flex;align-items:center;gap:10px;padding:14px 16px;border:2px dashed #dee2e6;border-radius:10px;background:#f8f9fa;cursor:pointer;transition:border-color .2s,background .2s;">
+                            <i class="bi bi-file-earmark-excel" style="font-size:1.6rem;color:#198754;flex-shrink:0;"></i>
+                            <span id="fileLabel" style="font-size:.85rem;color:#6c757d;">Nhấn để chọn file .xlsx...</span>
                         </label>
                         <input type="file" id="importFile" name="file" accept=".xlsx" required style="display:none;" />
                         <div class="form-text text-xs mt-1">Chỉ nhận file .xlsx. Ngày bắt đầu/kết thúc lấy từ ô C2 và F2 trong file.</div>
@@ -244,6 +238,7 @@
     </div>
 </div>
 
+@section Scripts {
 <script>
 function dlFile(url) {
     const a = document.createElement('a');
@@ -254,19 +249,39 @@ function dlFile(url) {
     setTimeout(() => document.body.removeChild(a), 200);
 }
 
+function postUrl(url) {
+    const f = document.createElement('form');
+    f.method = 'POST';
+    f.action = url;
+    const t = document.querySelector('input[name="__RequestVerificationToken"]');
+    if (t) {
+        const i = document.createElement('input');
+        i.type = 'hidden'; i.name = '__RequestVerificationToken'; i.value = t.value;
+        f.appendChild(i);
+    }
+    document.body.appendChild(f);
+    f.submit();
+}
+
+function menuConfirm(btn, message, title, okText, okClass) {
+    const url = btn.dataset.url;
+    showConfirm(message, () => postUrl(url), { title, okText, okClass });
+}
+
 document.getElementById('importFile').addEventListener('change', function () {
     const zone  = document.getElementById('fileDropZone');
     const label = document.getElementById('fileLabel');
     if (this.files.length) {
         label.textContent = this.files[0].name;
-        label.style.color = '#fff';
-        zone.style.borderColor   = '#4ade80';
-        zone.style.background    = '#0d2818';
+        label.style.color = '#198754';
+        zone.style.borderColor = '#198754';
+        zone.style.background  = '#d1f0dc';
     } else {
         label.textContent = 'Nhấn để chọn file .xlsx...';
-        label.style.color = '#adb5bd';
-        zone.style.borderColor   = '#343a40';
-        zone.style.background    = '#1a1a2e';
+        label.style.color = '#6c757d';
+        zone.style.borderColor = '#dee2e6';
+        zone.style.background  = '#f8f9fa';
     }
 });
 </script>
+}

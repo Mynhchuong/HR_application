@@ -61,6 +61,14 @@
     }
     .tp-tab.active { background: white; color: var(--red); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
 
+    /* Lunch banner */
+    .tp-lunch-banner { text-align: center; margin-bottom: .75rem; }
+    .tp-lunch-banner img { width: 100%; max-height: 170px; object-fit: contain; border-radius: 14px; }
+    .tp-lunch-tagline {
+        font-size: .82rem; font-weight: 700; font-style: italic;
+        color: var(--red); margin: .35rem 0 0; letter-spacing: .01em;
+    }
+
     /* Change meal */
     .tp-change {
         display: flex; align-items: center; justify-content: center; gap: .4rem;
@@ -206,6 +214,16 @@
     </div>
 
     @{
+        var lunchImg = new Random().Next(2) == 0
+            ? "~/assets/img/illustrations/A_LUNCH.png"
+            : "~/assets/img/illustrations/C_LUNCH.png";
+    }
+    <div class="tp-lunch-banner">
+        <img src="@Url.Content(lunchImg)" alt="Bữa trưa ngon" />
+        <p class="tp-lunch-tagline">✨ Hãy tận hưởng mỹ vị từ bữa cơm trưa của công ty chúng ta!</p>
+    </div>
+
+    @{
         var userMeals = ViewBag.UserMeals as List<HR_web.Models.Menu.UserTodayMealModel>;
     }
 
@@ -260,19 +278,16 @@
                 @foreach (var grp in byMeal)
                 {
                     var label  = mealLabels.GetValueOrDefault(grp.Key, grp.Key);
-                    var colors = mealColors.GetValueOrDefault(grp.Key, ("#f1f5f9","#334155"));
-                    var foods  = grp.OrderBy(f => f.DISPLAY_ORDER).ToList();
-                    var first  = foods.First();
-                    var rest   = foods.Skip(1).ToList();
-
-                    @{
-                        var foodName = first.FOOD_NAME ?? first.FOOD_TEXT ?? "";
-                        var initial  = foodName.Length > 0 ? foodName[0].ToString().ToUpper() : "?";
-                        var imgUrl   = first.FOOD_ID.HasValue
-                            ? Url.Action("GetFoodImage","Image", new { fileName = first.FOOD_ID + ".jpg" })
-                            : null;
-                        bool hasImg  = first.FOOD_ID.HasValue;
-                    }
+                    var colors   = mealColors.GetValueOrDefault(grp.Key, (bg: "#f1f5f9", fg: "#334155"));
+                    var foods    = grp.OrderBy(f => f.DISPLAY_ORDER).ToList();
+                    var first    = foods.First();
+                    var rest     = foods.Skip(1).ToList();
+                    var foodName = first.FOOD_NAME ?? "";
+                    var initial  = foodName.Length > 0 ? foodName[0].ToString().ToUpper() : "?";
+                    var imgUrl   = first.FOOD_ID.HasValue
+                        ? Url.Action("GetFoodImage","Image", new { fileName = first.FOOD_ID + ".jpg" })
+                        : null;
+                    bool hasImg  = first.FOOD_ID.HasValue;
                     <div class="tp-meal @(hasImg ? "tp-meal-clickable" : "")"
                          data-food-img="@imgUrl"
                          data-food-name="@foodName"
@@ -296,10 +311,10 @@
                         <div class="tp-meal-body">
                             <span class="tp-meal-badge"
                                   style="background:@colors.bg; color:@colors.fg;">@label</span>
-                            <div class="tp-meal-name">@(first.FOOD_NAME ?? first.FOOD_TEXT)</div>
+                            <div class="tp-meal-name">@first.FOOD_NAME</div>
                             @foreach (var x in rest)
                             {
-                                <div class="tp-meal-extra">· @(x.FOOD_NAME ?? x.FOOD_TEXT)</div>
+                                <div class="tp-meal-extra">· @x.FOOD_NAME</div>
                             }
                         </div>
                     </div>

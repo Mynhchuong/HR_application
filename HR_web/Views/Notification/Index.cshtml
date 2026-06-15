@@ -3,8 +3,6 @@
 }
 
 <style>
-    :root { --nr: #c00000; }
-
     .noti-page { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
 
     /* Hero */
@@ -18,10 +16,7 @@
     .noti-hero-icon  { font-size: 2.2rem; line-height: 1; }
 
     /* Mark all btn */
-    .noti-mark-all {
-        display: flex; align-items: center; justify-content: flex-end;
-        margin-bottom: .6rem;
-    }
+    .noti-mark-all { display: flex; align-items: center; justify-content: flex-end; margin-bottom: .6rem; }
     .btn-mark-all {
         font-size: .8rem; font-weight: 700; color: #64748b;
         background: none; border: 1.5px solid #e2e8f0;
@@ -33,30 +28,41 @@
 
     /* List */
     .noti-list { background: white; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.07); overflow: hidden; }
-    .noti-item {
-        display: flex; align-items: flex-start; gap: .75rem;
-        padding: .85rem 1rem; border-bottom: 1px solid #f1f5f9;
-        cursor: pointer; -webkit-tap-highlight-color: transparent;
-        transition: background .12s;
-    }
-    .noti-item:last-child { border-bottom: none; }
-    .noti-item:active    { background: #f8fafc; }
-    .noti-item.unread    { background: #fefce8; }
-    .noti-item.unread:active { background: #fef9c3; }
 
-    /* Dot */
-    .noti-dot-wrap { padding-top: 5px; flex-shrink: 0; }
-    .noti-dot {
-        width: 8px; height: 8px; border-radius: 50%;
-        background: var(--nr); flex-shrink: 0;
+    .noti-item {
+        display: flex; align-items: flex-start; gap: .85rem;
+        padding: .9rem 1rem; border-bottom: 1px solid #f1f5f9;
+        cursor: pointer; -webkit-tap-highlight-color: transparent;
+        transition: background .12s; position: relative;
     }
-    .noti-dot.read { background: transparent; }
+    .noti-item:last-child  { border-bottom: none; }
+    .noti-item:active      { background: #f8fafc; }
+    .noti-item.unread      { background: #eff6ff; }
+    .noti-item.unread::before {
+        content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+        width: 3px; background: #3b82f6; border-radius: 0 2px 2px 0;
+    }
+    .noti-item.unread:active { background: #dbeafe; }
+
+    /* Icon badge */
+    .noti-icon {
+        width: 44px; height: 44px; border-radius: 13px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.3rem; flex-shrink: 0; margin-top: 1px;
+    }
 
     /* Content */
-    .noti-content { flex: 1; min-width: 0; }
-    .noti-title { font-size: .88rem; font-weight: 700; color: #1e293b; margin-bottom: .15rem; }
-    .noti-body  { font-size: .8rem; color: #64748b; line-height: 1.4; }
-    .noti-time  { font-size: .72rem; color: #94a3b8; margin-top: .3rem; }
+    .noti-content  { flex: 1; min-width: 0; }
+    .noti-title    { font-size: .88rem; font-weight: 600; color: #1e293b; margin-bottom: .2rem; line-height: 1.35; }
+    .noti-item.unread .noti-title { font-weight: 800; }
+    .noti-body     { font-size: .8rem; color: #64748b; line-height: 1.45; }
+    .noti-footer   { display: flex; align-items: center; gap: .5rem; margin-top: .3rem; }
+    .noti-time     { font-size: .72rem; color: #94a3b8; }
+    .noti-unread-dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: #3b82f6; flex-shrink: 0; display: none;
+    }
+    .noti-item.unread .noti-unread-dot { display: inline-block; }
 
     /* Empty */
     .noti-empty { text-align: center; padding: 3rem 1rem; color: #94a3b8; background: white; border-radius: 14px; }
@@ -125,12 +131,23 @@ function esc(s) {
 function timeAgo(dateStr) {
     const d = new Date(dateStr);
     const diff = Math.floor((Date.now() - d) / 1000);
+    const hhmm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
     if (diff < 60)    return 'Vừa xong';
     if (diff < 3600)  return Math.floor(diff/60) + ' phút trước';
-    if (diff < 86400) return Math.floor(diff/3600) + ' giờ trước';
-    if (diff < 604800)return Math.floor(diff/86400) + ' ngày trước';
-    return d.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' });
+    if (diff < 86400) return Math.floor(diff/3600) + ' giờ trước • ' + hhmm;
+    if (diff < 604800)return Math.floor(diff/86400) + ' ngày trước • ' + hhmm;
+    return d.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' }) + ' • ' + hhmm;
 }
+
+const typeStyle = {
+    'PAYSLIP':          { icon: '💰', bg: '#dcfce7', },
+    'LEAVE_MY':         { icon: '🏖️', bg: '#e0f2fe', },
+    'LEAVE_TEAM':       { icon: '👥', bg: '#e0f2fe', },
+    'LEAVE_ASSIGNED':   { icon: '📋', bg: '#e0f2fe', },
+    'OT_SIGN':          { icon: '⏰', bg: '#fff7ed', },
+    'GP_MY':            { icon: '🚪', bg: '#f3e8ff', },
+    'GP_MANAGE':        { icon: '🔑', bg: '#f3e8ff', },
+};
 
 function renderItems(items, append = false) {
     const list = document.getElementById('notiList');
@@ -143,15 +160,19 @@ function renderItems(items, append = false) {
 
     items.forEach(n => {
         const isUnread = n.IS_READ === 0;
+        const style = typeStyle[n.LINK_ACTION] ?? { icon: '🔔', bg: '#f1f5f9' };
         const div = document.createElement('div');
         div.className = 'noti-item' + (isUnread ? ' unread' : '');
         div.dataset.id = n.ID;
         div.innerHTML = `
-            <div class="noti-dot-wrap"><div class="noti-dot ${isUnread ? '' : 'read'}"></div></div>
+            <div class="noti-icon" style="background:${style.bg}">${style.icon}</div>
             <div class="noti-content">
-                <div class="noti-title">${esc(n.TITLE)}</div>
-                <div class="noti-body">${esc(n.BODY)}</div>
-                <div class="noti-time">${timeAgo(n.CREATED_DATE)}</div>
+                <div class="noti-title vni-font">${esc(n.TITLE)}</div>
+                <div class="noti-body vni-font">${esc(n.BODY)}</div>
+                <div class="noti-footer">
+                    <span class="noti-time">${timeAgo(n.CREATED_DATE)}</span>
+                    <span class="noti-unread-dot"></span>
+                </div>
             </div>`;
         div.onclick = () => onNotiClick(n);
         list.appendChild(div);
@@ -168,10 +189,7 @@ function onNotiClick(n) {
         });
         n.IS_READ = 1;
         const el = document.querySelector(`.noti-item[data-id="${n.ID}"]`);
-        if (el) {
-            el.classList.remove('unread');
-            el.querySelector('.noti-dot')?.classList.add('read');
-        }
+        if (el) el.classList.remove('unread');
         updateUnreadBadge(-1);
     }
     // Navigate

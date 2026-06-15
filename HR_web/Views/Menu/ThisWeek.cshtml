@@ -222,14 +222,14 @@
                                             <div class="meal-type">@lbl</div>
                                             @if (!rest.Any())
                                             {
-                                                <div class="meal-name">@(first.FOOD_NAME ?? first.FOOD_TEXT)</div>
+                                                <div class="meal-name">@first.FOOD_NAME</div>
                                             }
                                             else
                                             {
-                                                <div class="meal-name-multi">@(first.FOOD_NAME ?? first.FOOD_TEXT)</div>
+                                                <div class="meal-name-multi">@first.FOOD_NAME</div>
                                                 @foreach (var extra in rest)
                                                 {
-                                                    <div class="meal-name-sub">· @(extra.FOOD_NAME ?? extra.FOOD_TEXT)</div>
+                                                    <div class="meal-name-sub">· @extra.FOOD_NAME</div>
                                                 }
                                             }
                                         </div>

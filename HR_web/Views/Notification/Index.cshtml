@@ -110,6 +110,7 @@ const linkMap = {
     'LEAVE_TEAM':  '@Url.Action("LeaveTeamRequests", "Leave")',
     'LEAVE_ASSIGNED': '@Url.Action("LeaveMyRequests", "Leave")',
     'OT_SIGN':     '@Url.Action("OtConfirmForm", "OT")',
+    'PAYSLIP':     '@Url.Action("Index", "Payslip")',
 };
 
 let page = 1;
@@ -183,6 +184,11 @@ function updateUnreadBadge(delta) {
     unreadCount = Math.max(0, unreadCount + delta);
     const label = document.getElementById('unreadLabel');
     if (label) label.textContent = unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : 'Tất cả đã xem';
+    const bell = document.getElementById('bellBadge');
+    if (bell) {
+        if (unreadCount > 0) { bell.textContent = unreadCount > 99 ? '99+' : unreadCount; bell.style.display = 'block'; }
+        else { bell.style.display = 'none'; }
+    }
 }
 
 function markAllRead() {

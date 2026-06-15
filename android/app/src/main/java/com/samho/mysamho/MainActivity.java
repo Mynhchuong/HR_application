@@ -61,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
     private Uri mCameraPhotoUri;
     private static final int FILE_CHOOSER_RESULT_CODE = 100;
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 101;
+    private String pendingLinkAction = null; // từ FCM notification tap
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,6 +93,9 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setAllowFileAccess(true);
         webSettings.setUserAgentString("MySamhoMobile");
 
+        // Lưu link_action từ notification tap (nếu có)
+        pendingLinkAction = getIntent().getStringExtra("link_action");
+
         // Expose FCM token to web app via Android.getFcmToken()
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
         
@@ -110,6 +114,17 @@ public class MainActivity extends AppCompatActivity {
                 super.onReceivedError(view, request, error);
                 if (request.isForMainFrame() && !isFinishing() && !isDestroyed()) {
                     runOnUiThread(() -> showNoInternetLayout());
+                }
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                // Nếu user tap notification khi app đang tắt → navigate tới trang thông báo sau khi load xong
+                if (pendingLinkAction != null && url != null && !url.contains("/Notification")) {
+                    String notiUrl = selectedBaseUrl + "/Notification";
+                    pendingLinkAction = null;
+                    view.loadUrl(notiUrl);
                 }
             }
         });
@@ -199,6 +214,15 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        String linkAction = intent.getStringExtra("link_action");
+        if (linkAction != null && webView != null && selectedBaseUrl != null) {
+            webView.loadUrl(selectedBaseUrl + "/Notification");
+        }
     }
 
     private void checkNetworkAndLoadUrl() {

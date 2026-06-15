@@ -112,6 +112,8 @@ public class NotificationHelper
         }
     }
 
+    public async Task SendFcmPublicAsync(SendNotificationRequest model) => await SendFcmAsync(model);
+
     private async Task SendFcmAsync(SendNotificationRequest model)
     {
         if (!_firebaseInitialized) return;
@@ -161,7 +163,7 @@ public class NotificationHelper
                     r => r["TOKEN"]?.ToString() ?? "",
                     new OracleParameter("VAL", targetVal)),
 
-                _ when !string.IsNullOrEmpty(targetVal) => await _oracleService.ExecuteQueryAsync(
+                "EMPCD" when !string.IsNullOrEmpty(targetVal) => await _oracleService.ExecuteQueryAsync(
                     "SELECT TOKEN FROM HRMS.HR_USER_TOKENS WHERE EMPCD = :VAL",
                     r => r["TOKEN"]?.ToString() ?? "",
                     new OracleParameter("VAL", targetVal)),

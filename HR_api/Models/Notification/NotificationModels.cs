@@ -24,7 +24,7 @@ public class SendNotificationRequest
 {
     public string TITLE { get; set; } = string.Empty;
     public string BODY { get; set; } = string.Empty;
-    public string NOTI_TYPE { get; set; } = "PERSONAL"; // COMPANY, DEPT, PERSONAL
+    public string NOTI_TYPE { get; set; } = "EMPCD"; // COMPANY, DEPT, EMPCD
     public string TARGET_VAL { get; set; } = string.Empty; // ALL, DeptID, or EmpCD
     public string? LINK_ACTION { get; set; }
     public string? CREATED_BY { get; set; }

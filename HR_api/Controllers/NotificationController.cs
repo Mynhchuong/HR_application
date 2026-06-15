@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using Oracle.ManagedDataAccess.Types;
 using HR_api.Data;
+using HR_api.Helpers;
 using HR_api.Models.Notification;
 
 namespace HR_api.Controllers;
@@ -11,12 +12,12 @@ namespace HR_api.Controllers;
 public class NotificationController : ControllerBase
 {
     private readonly OracleService _oracleService;
-    private readonly IConfiguration _configuration;
+    private readonly NotificationHelper _notiHelper;
 
-    public NotificationController(OracleService oracleService, IConfiguration configuration)
+    public NotificationController(OracleService oracleService, NotificationHelper notiHelper)
     {
         _oracleService = oracleService;
-        _configuration = configuration;
+        _notiHelper = notiHelper;
     }
 
     // ============================================================
@@ -74,7 +75,7 @@ public class NotificationController : ControllerBase
                     FROM HRMS.HR_NOTIFICATIONS N
                     LEFT JOIN HRMS.HR_NOTIFICATION_LOG L ON L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD
                     WHERE N.NOTI_TYPE = 'COMPANY'
-                       OR (N.NOTI_TYPE = 'PERSONAL' AND N.TARGET_VAL = :EMPCD2)
+                       OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD2)
                        OR (N.NOTI_TYPE = 'DEPT' AND N.TARGET_VAL = (SELECT DEPTCD FROM HRMS.ECM100 WHERE EMPCD = :EMPCD3 AND ROWNUM = 1))
                 ) WHERE RN > :OFFSET AND RN <= :OFFSET + :PAGE_SIZE";
 
@@ -147,7 +148,8 @@ public class NotificationController : ControllerBase
                 SELECT N.ID, :EMPCD, 1, SYSDATE
                 FROM HRMS.HR_NOTIFICATIONS N
                 WHERE (N.NOTI_TYPE = 'COMPANY'
-                    OR (N.NOTI_TYPE = 'PERSONAL' AND N.TARGET_VAL = :EMPCD2))
+                    OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD2)
+                    OR (N.NOTI_TYPE = 'DEPT'  AND N.TARGET_VAL = (SELECT DEPTCD FROM HRMS.ECM100 WHERE EMPCD = :EMPCD4 AND ROWNUM = 1)))
                   AND NOT EXISTS (
                       SELECT 1 FROM HRMS.HR_NOTIFICATION_LOG L
                       WHERE L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD3 AND L.IS_READ = 1
@@ -156,7 +158,8 @@ public class NotificationController : ControllerBase
             await _oracleService.ExecuteNonQueryAsync(sql,
                 new OracleParameter("EMPCD",  empcd),
                 new OracleParameter("EMPCD2", empcd),
-                new OracleParameter("EMPCD3", empcd));
+                new OracleParameter("EMPCD3", empcd),
+                new OracleParameter("EMPCD4", empcd));
 
             return Ok(new { success = true });
         }
@@ -181,7 +184,8 @@ public class NotificationController : ControllerBase
                 SELECT COUNT(*) CNT
                 FROM HRMS.HR_NOTIFICATIONS N
                 WHERE (N.NOTI_TYPE = 'COMPANY'
-                    OR (N.NOTI_TYPE = 'PERSONAL' AND N.TARGET_VAL = :EMPCD))
+                    OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD)
+                    OR (N.NOTI_TYPE = 'DEPT'  AND N.TARGET_VAL = (SELECT DEPTCD FROM HRMS.ECM100 WHERE EMPCD = :EMPCD3 AND ROWNUM = 1)))
                   AND NOT EXISTS (
                       SELECT 1 FROM HRMS.HR_NOTIFICATION_LOG L
                       WHERE L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD2 AND L.IS_READ = 1
@@ -190,7 +194,8 @@ public class NotificationController : ControllerBase
             var rows = await _oracleService.ExecuteQueryAsync(sql,
                 r => Convert.ToInt32(r["CNT"]),
                 new OracleParameter("EMPCD",  empcd),
-                new OracleParameter("EMPCD2", empcd));
+                new OracleParameter("EMPCD2", empcd),
+                new OracleParameter("EMPCD3", empcd));
 
             return Ok(new { success = true, count = rows.FirstOrDefault() });
         }
@@ -227,9 +232,8 @@ public class NotificationController : ControllerBase
             decimal notiId = outIdParam.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od && !od.IsNull
                 ? od.Value : 0;
 
-            // 2. TODO: Gửi tới Firebase (Chờ bạn setup Firebase sẽ viết tiếp phần này)
-            // Tạm thời mình sẽ viết hàm giả lập
-            await SendToFirebasePlaceholder(model);
+            // 2. Gửi FCM push
+            _ = Task.Run(() => _notiHelper.SendFcmPublicAsync(model));
 
             return Ok(new { success = true, message = "Đã tạo thông báo", notification_id = notiId });
         }
@@ -237,12 +241,5 @@ public class NotificationController : ControllerBase
         {
             return Ok(new { success = false, message = ex.Message });
         }
-    }
-
-    private async Task SendToFirebasePlaceholder(SendNotificationRequest request)
-    {
-        // Khi nào bạn có file service-account.json, mình sẽ dùng thư viện FirebaseAdmin 
-        // để gửi tin nhắn thực tế tới các thiết bị hoặc Topics.
-        await Task.CompletedTask;
     }
 }

@@ -104,7 +104,7 @@ public class NotificationService
     {
         TITLE       = title,
         BODY        = body,
-        NOTI_TYPE   = "PERSONAL",
+        NOTI_TYPE   = "EMPCD",
         TARGET_VAL  = targetEmpCd,
         LINK_ACTION = linkAction,
         CREATED_BY  = createdBy

@@ -38,10 +38,11 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
         String body  = remoteMessage.getNotification() != null
             ? remoteMessage.getNotification().getBody()  : "";
 
-        showNotification(title, body);
+        String linkAction = remoteMessage.getData().get("link_action");
+        showNotification(title, body, linkAction);
     }
 
-    private void showNotification(String title, String body) {
+    private void showNotification(String title, String body, String linkAction) {
         NotificationManager mgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -52,6 +53,9 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
 
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        if (linkAction != null && !linkAction.isEmpty()) {
+            intent.putExtra("link_action", linkAction);
+        }
         PendingIntent pi = PendingIntent.getActivity(this, 0, intent,
             PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE);
 

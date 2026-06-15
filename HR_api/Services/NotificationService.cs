@@ -28,7 +28,7 @@ public class NotificationService
             foreach (var ap in approvers)
                 await _helper.SendNotificationAsync(Personal(ap, empCd,
                     "Yêu cầu Gate Pass mới",
-                    $"{empName} đã gửi yêu cầu ra/vào cổng, vui lòng xem xét.",
+                    "Đã gửi yêu cầu ra/vào cổng, vui lòng xem xét.",
                     "GP_MANAGE"));
         });
 

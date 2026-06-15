@@ -685,8 +685,8 @@
             <div class="modal-content border-0 shadow-lg" style="border-radius: 28px;">
                 <div class="modal-body p-4 text-center">
                     <div class="mb-3">
-                        <div class="bg-soft-orange rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
-                            <span class="material-symbols-rounded text-danger" style="font-size: 2.5rem;">delete</span>
+                        <div id="globalConfirmIconWrap" class="rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 70px; height: 70px; background: #fee2e2;">
+                            <span class="material-symbols-rounded" id="globalConfirmIcon" style="font-size: 2.5rem; color: #dc2626;">delete</span>
                         </div>
                     </div>
                     <h5 class="fw-bold mb-2" id="globalConfirmTitle">Xác nhận</h5>
@@ -718,6 +718,12 @@
             document.getElementById('globalConfirmMessage').textContent = message;
             document.getElementById('globalConfirmOk').textContent      = opts.okText  || 'Xóa';
             document.getElementById('globalConfirmOk').className        = 'btn w-100 py-2 rounded-3 fw-bold ' + (opts.okClass || 'btn-danger');
+            // Icon tuỳ chỉnh
+            const iconEl   = document.getElementById('globalConfirmIcon');
+            const iconWrap = document.getElementById('globalConfirmIconWrap');
+            iconEl.textContent           = opts.icon      || 'delete';
+            iconEl.style.color           = opts.iconColor || '#dc2626';
+            iconWrap.style.background    = opts.iconBg    || '#fee2e2';
             const modalEl = document.getElementById('globalConfirmModal');
             const modal   = new bootstrap.Modal(modalEl);
             const okBtn   = document.getElementById('globalConfirmOk');

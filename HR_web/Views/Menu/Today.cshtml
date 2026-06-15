@@ -61,12 +61,11 @@
     }
     .tp-tab.active { background: white; color: var(--red); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
 
-    /* Lunch banner */
-    .tp-lunch-banner { text-align: center; margin-bottom: .75rem; }
-    .tp-lunch-banner img { width: 100%; max-height: 170px; object-fit: contain; border-radius: 14px; }
-    .tp-lunch-tagline {
-        font-size: .82rem; font-weight: 700; font-style: italic;
-        color: var(--red); margin: .35rem 0 0; letter-spacing: .01em;
+    /* Tagline */
+    .tp-tagline {
+        font-size: .78rem; font-weight: 700; font-style: italic;
+        color: var(--red); text-align: center;
+        margin-bottom: .75rem; letter-spacing: .01em;
     }
 
     /* Change meal */
@@ -82,17 +81,18 @@
     /* My meal */
     .tp-mymeal {
         background: linear-gradient(135deg,#fff8f8,#fde8e8);
-        border: 1.5px solid #fca5a5; border-radius: 14px;
-        padding: .75rem 1rem; margin-bottom: .75rem;
+        border: 1.5px solid #fca5a5; border-radius: 18px;
+        padding: .85rem 1rem .85rem 1.1rem;
+        margin-bottom: .75rem;
+        display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+        overflow: hidden;
     }
-    .tp-mymeal-ttl { font-size: .7rem; font-weight: 800; color: var(--red);
-        text-transform: uppercase; letter-spacing: .06em; margin-bottom: .4rem; }
-    .tp-mymeal-row { display: flex; align-items: center; gap: .5rem;
-        padding: .3rem 0; border-bottom: 1px solid #fde8e8; }
-    .tp-mymeal-row:last-child { border-bottom: none; }
-    .tp-mymeal-badge { font-size: .6rem; font-weight: 700; padding: 2px 7px;
-        border-radius: 20px; background: var(--red); color: white; white-space: nowrap; }
-    .tp-mymeal-name { font-size: .88rem; font-weight: 700; color: #1e293b; }
+    .tp-mymeal-left { flex: 1; min-width: 0; }
+    .tp-mymeal-ttl { font-size: .68rem; font-weight: 700; color: #94a3b8;
+        text-transform: uppercase; letter-spacing: .06em; margin-bottom: .3rem; }
+    .tp-mymeal-name { font-size: 1.5rem; font-weight: 900; color: var(--red); line-height: 1.2; }
+    .tp-mymeal-img  { height: 90px; width: auto; object-fit: contain;
+        flex-shrink: 0; margin-right: -.25rem; }
 
     /* Empty */
     .tp-empty { text-align: center; padding: 3.5rem 1rem; color: #94a3b8; }
@@ -217,41 +217,28 @@
         var lunchImg = new Random().Next(2) == 0
             ? "~/assets/img/illustrations/A_LUNCH.png"
             : "~/assets/img/illustrations/C_LUNCH.png";
-    }
-    <div class="tp-lunch-banner">
-        <img src="@Url.Content(lunchImg)" alt="Bữa trưa ngon" />
-        <p class="tp-lunch-tagline">✨ Hãy tận hưởng mỹ vị từ bữa cơm trưa của công ty chúng ta!</p>
-    </div>
-
-    @{
         var userMeals = ViewBag.UserMeals as List<HR_web.Models.Menu.UserTodayMealModel>;
+        var mealEmoji = new Dictionary<string,string>
+        { { "MAN","🍖" }, { "NHE","🥗" }, { "CHAY","🥦" } };
     }
 
     @if (userMeals != null && userMeals.Any())
     {
-        var shiftNames = new Dictionary<string,string>
-        { { "CA1","Ca sáng" }, { "CA2","Tăng ca" }, { "CA3","Ca tối" } };
-        var typeNames = new Dictionary<string,string>
-        { { "MAN","Mặn" }, { "NHE","Nhẹ" }, { "CHAY","Chay" }, { "DU_KIEN","Dự kiến" } };
-
+        var first = userMeals.First();
+        var emoji = first.FOOD_TYPE != null && mealEmoji.TryGetValue(first.FOOD_TYPE, out var em) ? em : "🍽️";
         <div class="tp-mymeal">
-            <div class="tp-mymeal-ttl">🍱 Suất ăn của bạn hôm nay</div>
-            @foreach (var m in userMeals)
-            {
-                var badge = m.SHIFT != null && shiftNames.TryGetValue(m.SHIFT, out var sl) ? sl
-                          : m.FOOD_TYPE != null && typeNames.TryGetValue(m.FOOD_TYPE, out var tl) ? tl : "";
-                <div class="tp-mymeal-row">
-                    @if (!string.IsNullOrEmpty(badge))
-                    { <span class="tp-mymeal-badge">@badge</span> }
-                    <span class="tp-mymeal-name">@m.FOOD_NAME</span>
-                </div>
-            }
+            <div class="tp-mymeal-left">
+                <div class="tp-mymeal-ttl">Hôm nay bạn đang ăn</div>
+                <div class="tp-mymeal-name">@emoji @first.FOOD_NAME</div>
+            </div>
+            <img class="tp-mymeal-img" src="@Url.Content(lunchImg)" alt="" />
         </div>
     }
 
     @if (userMeals != null || User.Identity?.IsAuthenticated == true)
     {
         <a href="@Url.Action("ChangeMeal")" class="tp-change">🔄 Đổi món ăn</a>
+        <p class="tp-tagline">✨ Hãy tận hưởng mỹ vị từ bữa cơm trưa của công ty chúng ta!</p>
     }
 
     @if (isEmpty)

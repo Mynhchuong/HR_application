@@ -9,6 +9,7 @@ public class NotificationItem
     public DateTime CREATED_DATE { get; set; }
     public int     IS_READ      { get; set; }
     public string? SENDER_NAME  { get; set; }
+    public string? SENDER_EMPCD { get; set; }
 }
 
 public class NotificationPagedResponse

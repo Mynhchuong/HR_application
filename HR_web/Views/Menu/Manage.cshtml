@@ -124,30 +124,30 @@
                                         @((w.UPDT_DT ?? w.INST_DT)?.ToString("dd/MM/yyyy") ?? "—")
                                     </td>
                                     <td class="px-2 text-end">
-                                        <div class="d-flex gap-1 justify-content-end flex-wrap">
+                                        <div class="d-flex gap-1 justify-content-end">
                                             <a href="@Url.Action("EditWeek", new { id = w.ID })"
-                                               class="btn btn-sm btn-outline-dark mb-0 px-2" title="Nhập thực đơn">
-                                                <i class="bi bi-pencil-square"></i>
+                                               class="btn btn-outline-dark mb-0 px-3" title="Sửa thực đơn">
+                                                <i class="bi bi-pencil-square fs-6"></i>
                                             </a>
                                             @if (w.STATUS == "DRAFT")
                                             {
-                                                <button type="button" class="btn btn-sm btn-success mb-0 px-2" title="Đăng cho công nhân xem"
+                                                <button type="button" class="btn btn-success mb-0 px-3" title="Đăng cho công nhân xem"
                                                         data-url="@Url.Action("PublishWeek", new { id = w.ID })"
                                                         onclick="menuConfirm(this,'Đăng tuần này cho công nhân xem?','Đăng thực đơn','Đăng ngay','btn-success')">
-                                                    <i class="bi bi-send-fill"></i>
+                                                    <i class="bi bi-send-fill fs-6"></i>
                                                 </button>
-                                                <button type="button" class="btn btn-sm btn-outline-danger mb-0 px-2" title="Xóa tuần"
+                                                <button type="button" class="btn btn-outline-danger mb-0 px-3" title="Xóa tuần"
                                                         data-url="@Url.Action("DeleteWeek", new { id = w.ID })"
                                                         onclick="menuConfirm(this,'Bạn có chắc muốn xóa tuần này không?','Xóa tuần','Xóa','btn-danger')">
-                                                    <i class="bi bi-trash"></i>
+                                                    <i class="bi bi-trash fs-6"></i>
                                                 </button>
                                             }
                                             else
                                             {
-                                                <button type="button" class="btn btn-sm btn-outline-warning mb-0 px-2" title="Ẩn thực đơn"
+                                                <button type="button" class="btn btn-outline-warning mb-0 px-3" title="Ẩn thực đơn"
                                                         data-url="@Url.Action("UnpublishWeek", new { id = w.ID })"
                                                         onclick="menuConfirm(this,'Ẩn thực đơn tuần này khỏi công nhân?','Ẩn thực đơn','Ẩn đi','btn-warning')">
-                                                    <i class="bi bi-eye-slash"></i>
+                                                    <i class="bi bi-eye-slash fs-6"></i>
                                                 </button>
                                             }
                                         </div>

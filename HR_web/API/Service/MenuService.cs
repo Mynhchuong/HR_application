@@ -92,16 +92,24 @@ public class MenuService
     // ── Món hôm nay của nhân viên ─────────────────────────────────────────────
     public async Task<List<UserTodayMealModel>> GetUserTodayMealAsync(string empCd)
     {
-        // TODO: cắm SQL vào đây khi có
-        await Task.CompletedTask;
+        var dateStr = DateTime.Today.ToString("yyyyMMdd");
+        var r = await _api.GetAsync<Resp<UserTodayMealModel>>(
+            $"CanteenOrder/today?empcd={Uri.EscapeDataString(empCd)}&date={dateStr}");
+        if (r?.success == true && r.data != null)
+            return new List<UserTodayMealModel> { r.data };
         return new();
     }
 
     public async Task<(bool ok, string msg)> ChangeMealAsync(ChangeMealRequest req)
     {
-        // TODO: cắm SQL đổi món vào đây khi có
-        await Task.CompletedTask;
-        return (true, "Đổi món thành công");
+        var body = new
+        {
+            empCd    = req.LoginUser,
+            mealType = req.MealType,
+            fromDate = req.FromDate,
+            toDate   = req.ToDate
+        };
+        return await PostResult("CanteenOrder/change", body);
     }
 
     // ── Worker view ───────────────────────────────────────────────────────────

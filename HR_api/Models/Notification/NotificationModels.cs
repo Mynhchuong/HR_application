@@ -11,6 +11,7 @@ public class NotificationModel
     public DateTime CREATED_DATE { get; set; }
     public int IS_READ { get; set; } // 0 or 1
     public string? SENDER_NAME { get; set; }
+    public string? SENDER_EMPCD { get; set; }
 }
 
 public class TokenRegistrationRequest

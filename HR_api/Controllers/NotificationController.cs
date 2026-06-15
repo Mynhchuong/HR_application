@@ -74,6 +74,7 @@ public class NotificationController : ControllerBase
                     SELECT N.ID, N.TITLE, N.BODY, N.NOTI_TYPE, N.TARGET_VAL, N.LINK_ACTION, N.CREATED_DATE,
                            NVL(L.IS_READ, 0) IS_READ_VAL,
                            U.FULL_NAME SENDER_NAME,
+                           N.CREATED_BY SENDER_EMPCD,
                            ROW_NUMBER() OVER (ORDER BY N.CREATED_DATE DESC) RN
                     FROM HRMS.HR_NOTIFICATIONS N
                     LEFT JOIN HRMS.HR_NOTIFICATION_LOG L ON L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD
@@ -93,7 +94,8 @@ public class NotificationController : ControllerBase
                 LINK_ACTION = r["LINK_ACTION"]?.ToString(),
                 CREATED_DATE = Convert.ToDateTime(r["CREATED_DATE"]),
                 IS_READ = Convert.ToInt32(r["IS_READ_VAL"]),
-                SENDER_NAME = r["SENDER_NAME"]?.ToString()
+                SENDER_NAME = r["SENDER_NAME"]?.ToString(),
+                SENDER_EMPCD = r["SENDER_EMPCD"]?.ToString()
             }, 
             new OracleParameter("EMPCD", empcd),
             new OracleParameter("EMPCD2", empcd),

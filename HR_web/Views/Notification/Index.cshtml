@@ -7,12 +7,12 @@
 
     /* Hero */
     .noti-hero {
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        background: linear-gradient(135deg, #8b0000 0%, #c00000 100%);
         border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
         color: #fff; display: flex; align-items: center; justify-content: space-between;
     }
-    .noti-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; }
-    .noti-hero small { font-size: .75rem; opacity: .8; }
+    .noti-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
+    .noti-hero small { font-size: .75rem; opacity: .8; color: #fff !important; }
     .noti-hero-icon  { font-size: 2.2rem; line-height: 1; }
 
     /* Mark all btn */
@@ -53,7 +53,8 @@
 
     /* Content */
     .noti-content  { flex: 1; min-width: 0; }
-    .noti-sender   { font-size: .8rem; font-weight: 700; color: #1e293b; margin-bottom: .1rem; }
+    .noti-sender   { font-size: .8rem; font-weight: 700; color: #1e293b; margin-bottom: .1rem; display: flex; align-items: center; gap: .35rem; }
+    .noti-empcd    { font-size: .68rem; font-weight: 600; color: #94a3b8; background: #f1f5f9; border-radius: 4px; padding: 1px 5px; font-family: monospace; }
     .noti-title    { font-size: .88rem; font-weight: 600; color: #1e293b; margin-bottom: .2rem; line-height: 1.35; }
     .noti-item.unread .noti-title { font-weight: 800; }
     .noti-body     { font-size: .8rem; color: #64748b; line-height: 1.45; }
@@ -168,7 +169,7 @@ function renderItems(items, append = false) {
         div.innerHTML = `
             <div class="noti-icon" style="background:${style.bg}">${style.icon}</div>
             <div class="noti-content">
-                ${n.SENDER_NAME ? `<div class="noti-sender vni-font">${esc(n.SENDER_NAME)}</div>` : ''}
+                ${n.SENDER_NAME ? `<div class="noti-sender"><span class="vni-font">${esc(n.SENDER_NAME)}</span>${n.SENDER_EMPCD ? `<span class="noti-empcd">${esc(n.SENDER_EMPCD)}</span>` : ''}</div>` : ''}
                 <div class="noti-title">${esc(n.TITLE)}</div>
                 <div class="noti-body">${esc(n.BODY)}</div>
                 <div class="noti-footer">

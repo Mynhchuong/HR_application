@@ -88,9 +88,12 @@ public class MainActivity extends AppCompatActivity {
         // Cấu hình WebView
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
-        webSettings.setDomStorageEnabled(true); 
+        webSettings.setDomStorageEnabled(true);
         webSettings.setAllowFileAccess(true);
         webSettings.setUserAgentString("MySamhoMobile");
+
+        // Expose FCM token to web app via Android.getFcmToken()
+        webView.addJavascriptInterface(new WebAppInterface(this), "Android");
         
         webView.setWebViewClient(new WebViewClient() {
             @SuppressWarnings("deprecation")
@@ -408,6 +411,17 @@ public class MainActivity extends AppCompatActivity {
             mFilePathCallback = null;
         } else {
             super.onActivityResult(requestCode, resultCode, data);
+        }
+    }
+
+    // JavaScript interface — web app gọi Android.getFcmToken() để lấy FCM token
+    public static class WebAppInterface {
+        private final Context mContext;
+        WebAppInterface(Context ctx) { mContext = ctx; }
+
+        @android.webkit.JavascriptInterface
+        public String getFcmToken() {
+            return MySamhoFirebaseService.getSavedToken(mContext);
         }
     }
 }

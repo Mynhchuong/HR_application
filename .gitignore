@@ -52,6 +52,10 @@ $RECYCLE.BIN/
 # Sensitive config - IMPORTANT: do not commit connection strings!
 # appsettings.Production.json
 
+# Firebase service account keys (contain private keys - NEVER commit)
+*firebase-adminsdk*.json
+firebase-service-account.json
+
 # Published output
 publish/
 publish_iis/

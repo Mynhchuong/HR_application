@@ -436,8 +436,12 @@ function lvToggleAll(chk) {
     const dept = document.getElementById('lv_dept').value;
     const line = document.getElementById('lv_line').value;
     const work = document.getElementById('lv_work').value;
+    const kw   = document.getElementById('lv_search').value.trim().toUpperCase();
     const filtered = lvData.filter(r =>
-        (!dept || r.DEPT_ID === dept) && (!line || r.LINE_ID === line) && (!work || r.WORK_ID === work));
+        (!dept || r.DEPT_ID === dept) &&
+        (!line || r.LINE_ID === line) &&
+        (!work || r.WORK_ID === work) &&
+        (!kw   || r.EMPCD?.toUpperCase().includes(kw) || r.EMP_NAME?.toUpperCase().includes(kw)));
     if (chk.checked) filtered.forEach(r => lvSelected.add(r.REQUEST_ID));
     else             filtered.forEach(r => lvSelected.delete(r.REQUEST_ID));
     renderLeaves();
@@ -568,11 +572,18 @@ function gpToggle(id) {
 }
 
 function gpToggleAll(chk) {
+    const stFilter = document.getElementById('gp_status').value;
     const dept = document.getElementById('gp_dept').value;
     const line = document.getElementById('gp_line').value;
     const work = document.getElementById('gp_work').value;
+    const kw   = document.getElementById('gp_search').value.trim().toUpperCase();
     const filtered = gpData.filter(r =>
-        (!dept || r.DEPT_ID === dept) && (!line || r.LINE_ID === line) && (!work || r.WORK_ID === work));
+        (stFilter !== 'confirmed' || r.STATUS !== 'PENDING') &&
+        (stFilter !== 'pending'   || r.STATUS === 'PENDING') &&
+        (!dept || r.DEPT_ID === dept) &&
+        (!line || r.LINE_ID === line) &&
+        (!work || r.WORK_ID === work) &&
+        (!kw   || r.EMPCD?.toUpperCase().includes(kw) || r.EMP_NAME?.toUpperCase().includes(kw)));
     if (chk.checked) filtered.forEach(r => gpSelected.add(r.REQUEST_ID));
     else             filtered.forEach(r => gpSelected.delete(r.REQUEST_ID));
     renderGp();

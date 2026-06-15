@@ -533,6 +533,13 @@
                 <span class="nav-text">Cổng</span>
             </a>
         }
+        <a href="@Url.Content("~/Notification/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Notification") == true ? "active" : "")" id="navBell">
+            <div class="icon-wrap" style="position:relative;">
+                <span class="material-symbols-rounded">notifications</span>
+                <span id="bellBadge" style="display:none;position:absolute;top:-4px;right:-6px;background:#c00000;color:white;font-size:.6rem;font-weight:800;border-radius:20px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;"></span>
+            </div>
+            <span class="nav-text">Thông báo</span>
+        </a>
         <a href="@Url.Content("~/Profile/ProfileUser")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Profile") == true ? "active" : "")">
             <div class="icon-wrap">
                 <span class="material-symbols-rounded">person</span>
@@ -741,5 +748,38 @@
     </div>
 
     @await RenderSectionAsync("Scripts", required: false)
+
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <script>
+        // Unread badge
+        (function() {
+            fetch('@Url.Action("UnreadCount","Notification")')
+                .then(r => r.json())
+                .then(d => {
+                    if (d.count > 0) {
+                        var b = document.getElementById('bellBadge');
+                        if (b) { b.textContent = d.count > 99 ? '99+' : d.count; b.style.display = 'block'; }
+                    }
+                }).catch(() => {});
+        })();
+
+        // FCM token registration (Android WebView only)
+        (function() {
+            if (typeof Android === 'undefined' || !Android.getFcmToken) return;
+            try {
+                var fcmToken = Android.getFcmToken();
+                if (!fcmToken) return;
+                var antiForgery = document.querySelector('input[name="__RequestVerificationToken"]');
+                var aft = antiForgery ? antiForgery.value : '';
+                fetch('@Url.Action("RegisterToken","Notification")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': aft },
+                    body: JSON.stringify({ token: fcmToken, osType: 'ANDROID' })
+                }).catch(() => {});
+            } catch(e) {}
+        })();
+        </script>
+    }
 </body>
 </html>

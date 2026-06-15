@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
+using Oracle.ManagedDataAccess.Types;
 using HR_api.Data;
 using HR_api.Models.Notification;
 
@@ -130,7 +131,77 @@ public class NotificationController : ControllerBase
     }
 
     // ============================================================
-    // 4. SEND NOTIFICATION (Admin/Trigger)
+    // 4. MARK ALL AS READ
+    // ============================================================
+    [HttpPost("mark-all-read")]
+    public async Task<IActionResult> MarkAllRead(string empcd)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd))
+                return Ok(new { success = false, message = "Thiếu mã nhân viên" });
+
+            // Insert log cho tất cả notification chưa đọc của empcd này
+            string sql = @"
+                INSERT INTO HRMS.HR_NOTIFICATION_LOG (NOTI_ID, EMPCD, IS_READ, READ_DATE)
+                SELECT N.ID, :EMPCD, 1, SYSDATE
+                FROM HRMS.HR_NOTIFICATIONS N
+                WHERE (N.NOTI_TYPE = 'COMPANY'
+                    OR (N.NOTI_TYPE = 'PERSONAL' AND N.TARGET_VAL = :EMPCD2))
+                  AND NOT EXISTS (
+                      SELECT 1 FROM HRMS.HR_NOTIFICATION_LOG L
+                      WHERE L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD3 AND L.IS_READ = 1
+                  )";
+
+            await _oracleService.ExecuteNonQueryAsync(sql,
+                new OracleParameter("EMPCD",  empcd),
+                new OracleParameter("EMPCD2", empcd),
+                new OracleParameter("EMPCD3", empcd));
+
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ============================================================
+    // 5. UNREAD COUNT
+    // ============================================================
+    [HttpGet("unread-count")]
+    public async Task<IActionResult> GetUnreadCount(string empcd)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd))
+                return Ok(new { success = false, count = 0 });
+
+            string sql = @"
+                SELECT COUNT(*) CNT
+                FROM HRMS.HR_NOTIFICATIONS N
+                WHERE (N.NOTI_TYPE = 'COMPANY'
+                    OR (N.NOTI_TYPE = 'PERSONAL' AND N.TARGET_VAL = :EMPCD))
+                  AND NOT EXISTS (
+                      SELECT 1 FROM HRMS.HR_NOTIFICATION_LOG L
+                      WHERE L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD2 AND L.IS_READ = 1
+                  )";
+
+            var rows = await _oracleService.ExecuteQueryAsync(sql,
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("EMPCD",  empcd),
+                new OracleParameter("EMPCD2", empcd));
+
+            return Ok(new { success = true, count = rows.FirstOrDefault() });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, count = 0, message = ex.Message });
+        }
+    }
+
+    // ============================================================
+    // 6. SEND NOTIFICATION (Admin/Trigger)
     // ============================================================
     [HttpPost("send")]
     public async Task<IActionResult> SendNotification([FromBody] SendNotificationRequest model)
@@ -153,7 +224,8 @@ public class NotificationController : ControllerBase
                 new OracleParameter("CREATED_BY", (object?)model.CREATED_BY ?? DBNull.Value),
                 outIdParam);
 
-            decimal notiId = (decimal)outIdParam.Value;
+            decimal notiId = outIdParam.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od && !od.IsNull
+                ? od.Value : 0;
 
             // 2. TODO: Gửi tới Firebase (Chờ bạn setup Firebase sẽ viết tiếp phần này)
             // Tạm thời mình sẽ viết hàm giả lập

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
 using HR_api.Models.OT;
+using HR_api.Services;
 using System.Data;
 
 namespace HR_api.Controllers;
@@ -11,12 +12,12 @@ namespace HR_api.Controllers;
 public class OTController : ControllerBase
 {
     private readonly OracleService _oracleService;
-    private readonly Helpers.NotificationHelper _notiHelper;
+    private readonly NotificationService _notiSvc;
 
-    public OTController(OracleService oracleService, Helpers.NotificationHelper notiHelper)
+    public OTController(OracleService oracleService, NotificationService notiSvc)
     {
         _oracleService = oracleService;
-        _notiHelper = notiHelper;
+        _notiSvc = notiSvc;
     }
 
     [HttpGet("today")]
@@ -832,15 +833,7 @@ public class OTController : ControllerBase
 
             // Logic gửi thông báo cho những ai chưa ký OT
             // Ở đây gửi thông báo theo Department 
-            _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
-            {
-                TITLE = "Xác nhận tăng ca",
-                BODY = $"Vui lòng kiểm tra và ký xác nhận tăng ca ngày {workDateStr}.",
-                NOTI_TYPE = string.IsNullOrEmpty(deptId) ? "COMPANY" : "DEPT",
-                TARGET_VAL = string.IsNullOrEmpty(deptId) ? "ALL" : deptId,
-                LINK_ACTION = "OT_SIGN",
-                CREATED_BY = createdBy
-            });
+            _notiSvc.OTSignReminder(workDateStr, createdBy, string.IsNullOrEmpty(deptId) ? null : deptId);
 
             return Ok(new { success = true, message = "Đã gửi thông báo nhắc nhở" });
         }

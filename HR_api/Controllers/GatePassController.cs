@@ -3,6 +3,7 @@ using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
 using HR_api.Models.GatePass;
 using HR_api.Models.Leave;
+using HR_api.Services;
 using System.Data;
 
 namespace HR_api.Controllers;
@@ -12,12 +13,12 @@ namespace HR_api.Controllers;
 public class GatePassController : ControllerBase
 {
     private readonly OracleService _oracleService;
-    private readonly Helpers.NotificationHelper _notiHelper;
+    private readonly NotificationService _notiSvc;
 
-    public GatePassController(OracleService oracleService, Helpers.NotificationHelper notiHelper)
+    public GatePassController(OracleService oracleService, NotificationService notiSvc)
     {
         _oracleService = oracleService;
-        _notiHelper = notiHelper;
+        _notiSvc = notiSvc;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -169,6 +170,8 @@ public class GatePassController : ControllerBase
                 new OracleParameter("OUT_TIME",   (object?)outTime ?? DBNull.Value),
                 new OracleParameter("IN_TIME",    (object?)inTime  ?? DBNull.Value),
                 new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
+
+            _notiSvc.GatePassSubmitted(model.EMPCD, empName);
 
             return Ok(new { success = true, message = "Đăng ký Gate Pass thành công", request_id = requestId });
         }
@@ -638,15 +641,7 @@ END;";
             string? empCd = pEmpCd.Value?.ToString();
             if (!string.IsNullOrEmpty(empCd) && empCd != "null")
             {
-                _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
-                {
-                    TITLE       = "Gate Pass được duyệt",
-                    BODY        = "Yêu cầu ra/vào cổng của bạn đã được phê duyệt.",
-                    NOTI_TYPE   = "EMPCD",
-                    TARGET_VAL  = empCd,
-                    LINK_ACTION = "GP_MY",
-                    CREATED_BY  = model.APPROVER_EMPCD
-                });
+                _notiSvc.GatePassApproved(empCd, model.APPROVER_EMPCD);
             }
 
             return Ok(new { success = true, message = "Đã duyệt Gate Pass" });
@@ -720,15 +715,7 @@ END;";
 
             if (empRows.Count > 0 && !string.IsNullOrEmpty(empRows[0]))
             {
-                _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
-                {
-                    TITLE      = "Gate Pass bị từ chối",
-                    BODY       = "Yêu cầu ra/vào cổng của bạn đã bị từ chối.",
-                    NOTI_TYPE  = "EMPCD",
-                    TARGET_VAL = empRows[0],
-                    LINK_ACTION = "GP_MY",
-                    CREATED_BY = model.APPROVER_EMPCD
-                });
+                _notiSvc.GatePassRejected(empRows[0], model.APPROVER_EMPCD);
             }
 
             return Ok(new { success = true, message = "Đã từ chối Gate Pass" });

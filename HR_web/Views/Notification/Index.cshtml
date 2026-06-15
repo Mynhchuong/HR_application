@@ -1,0 +1,240 @@
+@{
+    ViewData["Title"] = "Thông báo";
+}
+
+<style>
+    :root { --nr: #c00000; }
+
+    .noti-page { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
+
+    /* Hero */
+    .noti-hero {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
+        color: #fff; display: flex; align-items: center; justify-content: space-between;
+    }
+    .noti-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; }
+    .noti-hero small { font-size: .75rem; opacity: .8; }
+    .noti-hero-icon  { font-size: 2.2rem; line-height: 1; }
+
+    /* Mark all btn */
+    .noti-mark-all {
+        display: flex; align-items: center; justify-content: flex-end;
+        margin-bottom: .6rem;
+    }
+    .btn-mark-all {
+        font-size: .8rem; font-weight: 700; color: #64748b;
+        background: none; border: 1.5px solid #e2e8f0;
+        padding: .35rem .85rem; border-radius: 20px; cursor: pointer;
+        -webkit-tap-highlight-color: transparent; transition: all .15s;
+    }
+    .btn-mark-all:hover  { background: #f8fafc; border-color: #cbd5e1; }
+    .btn-mark-all:active { opacity: .7; }
+
+    /* List */
+    .noti-list { background: white; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.07); overflow: hidden; }
+    .noti-item {
+        display: flex; align-items: flex-start; gap: .75rem;
+        padding: .85rem 1rem; border-bottom: 1px solid #f1f5f9;
+        cursor: pointer; -webkit-tap-highlight-color: transparent;
+        transition: background .12s;
+    }
+    .noti-item:last-child { border-bottom: none; }
+    .noti-item:active    { background: #f8fafc; }
+    .noti-item.unread    { background: #fefce8; }
+    .noti-item.unread:active { background: #fef9c3; }
+
+    /* Dot */
+    .noti-dot-wrap { padding-top: 5px; flex-shrink: 0; }
+    .noti-dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--nr); flex-shrink: 0;
+    }
+    .noti-dot.read { background: transparent; }
+
+    /* Content */
+    .noti-content { flex: 1; min-width: 0; }
+    .noti-title { font-size: .88rem; font-weight: 700; color: #1e293b; margin-bottom: .15rem; }
+    .noti-body  { font-size: .8rem; color: #64748b; line-height: 1.4; }
+    .noti-time  { font-size: .72rem; color: #94a3b8; margin-top: .3rem; }
+
+    /* Empty */
+    .noti-empty { text-align: center; padding: 3rem 1rem; color: #94a3b8; background: white; border-radius: 14px; }
+    .noti-empty .ei { font-size: 3rem; display: block; margin-bottom: .5rem; }
+
+    /* Load more */
+    .noti-load-more { text-align: center; margin-top: .75rem; }
+    .btn-load-more {
+        padding: .55rem 1.5rem; border-radius: 12px;
+        background: white; border: 1.5px solid #e2e8f0;
+        font-size: .85rem; font-weight: 700; color: #64748b;
+        cursor: pointer; transition: all .15s;
+    }
+    .btn-load-more:hover  { background: #f8fafc; }
+    .btn-load-more:active { opacity: .7; }
+</style>
+
+<div class="noti-page px-2 py-2">
+
+    <div class="noti-hero">
+        <div>
+            <h5>Thông báo</h5>
+            <small id="unreadLabel">Đang tải...</small>
+        </div>
+        <span class="noti-hero-icon">🔔</span>
+    </div>
+
+    <div class="noti-mark-all">
+        <button class="btn-mark-all" id="btnMarkAll" onclick="markAllRead()">✓ Đánh dấu tất cả đã xem</button>
+    </div>
+
+    <div class="noti-list" id="notiList">
+        <div class="noti-empty"><span class="ei">⏳</span><p>Đang tải thông báo...</p></div>
+    </div>
+
+    <div class="noti-load-more" id="loadMoreWrap" style="display:none;">
+        <button class="btn-load-more" onclick="loadMore()">Xem thêm</button>
+    </div>
+
+</div>
+
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+const linkMap = {
+    'GP_MY':       '@Url.Action("GpMyRequests", "GatePass")',
+    'GP_MANAGE':   '@Url.Action("GpListForSupervisor", "GatePass")',
+    'LEAVE_MY':    '@Url.Action("LeaveMyRequests", "Leave")',
+    'LEAVE_TEAM':  '@Url.Action("LeaveTeamRequests", "Leave")',
+    'LEAVE_ASSIGNED': '@Url.Action("LeaveMyRequests", "Leave")',
+    'OT_SIGN':     '@Url.Action("OtConfirmForm", "OT")',
+};
+
+let page = 1;
+const PAGE_SIZE = 20;
+let loading = false;
+let allItems = [];
+
+function esc(s) {
+    return (s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function timeAgo(dateStr) {
+    const d = new Date(dateStr);
+    const diff = Math.floor((Date.now() - d) / 1000);
+    if (diff < 60)    return 'Vừa xong';
+    if (diff < 3600)  return Math.floor(diff/60) + ' phút trước';
+    if (diff < 86400) return Math.floor(diff/3600) + ' giờ trước';
+    if (diff < 604800)return Math.floor(diff/86400) + ' ngày trước';
+    return d.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+function renderItems(items, append = false) {
+    const list = document.getElementById('notiList');
+    if (!append) list.innerHTML = '';
+
+    if (items.length === 0 && !append) {
+        list.innerHTML = '<div class="noti-empty"><span class="ei">🔔</span><p>Chưa có thông báo nào.</p></div>';
+        return;
+    }
+
+    items.forEach(n => {
+        const isUnread = n.IS_READ === 0;
+        const div = document.createElement('div');
+        div.className = 'noti-item' + (isUnread ? ' unread' : '');
+        div.dataset.id = n.ID;
+        div.innerHTML = `
+            <div class="noti-dot-wrap"><div class="noti-dot ${isUnread ? '' : 'read'}"></div></div>
+            <div class="noti-content">
+                <div class="noti-title">${esc(n.TITLE)}</div>
+                <div class="noti-body">${esc(n.BODY)}</div>
+                <div class="noti-time">${timeAgo(n.CREATED_DATE)}</div>
+            </div>`;
+        div.onclick = () => onNotiClick(n);
+        list.appendChild(div);
+    });
+}
+
+function onNotiClick(n) {
+    // Đánh dấu đã đọc
+    if (n.IS_READ === 0) {
+        fetch('@Url.Action("MarkRead")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'RequestVerificationToken': token },
+            body: `notiId=${n.ID}`
+        });
+        n.IS_READ = 1;
+        const el = document.querySelector(`.noti-item[data-id="${n.ID}"]`);
+        if (el) {
+            el.classList.remove('unread');
+            el.querySelector('.noti-dot')?.classList.add('read');
+        }
+        updateUnreadBadge(-1);
+    }
+    // Navigate
+    const url = n.LINK_ACTION && linkMap[n.LINK_ACTION];
+    if (url) location.href = url;
+}
+
+let unreadCount = 0;
+function updateUnreadBadge(delta) {
+    unreadCount = Math.max(0, unreadCount + delta);
+    const label = document.getElementById('unreadLabel');
+    if (label) label.textContent = unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : 'Tất cả đã xem';
+}
+
+function markAllRead() {
+    fetch('@Url.Action("MarkAllRead")', {
+        method: 'POST',
+        headers: { 'RequestVerificationToken': token }
+    }).then(() => {
+        document.querySelectorAll('.noti-item.unread').forEach(el => {
+            el.classList.remove('unread');
+            el.querySelector('.noti-dot')?.classList.add('read');
+        });
+        allItems.forEach(n => n.IS_READ = 1);
+        unreadCount = 0;
+        const label = document.getElementById('unreadLabel');
+        if (label) label.textContent = 'Tất cả đã xem';
+    });
+}
+
+function loadMore() {
+    if (loading) return;
+    loading = true;
+    page++;
+    fetch(`@Url.Action("GetPage")?page=${page}&page_size=${PAGE_SIZE}`)
+        .then(r => r.json())
+        .then(d => {
+            loading = false;
+            if (!d.success || d.data.length === 0) {
+                document.getElementById('loadMoreWrap').style.display = 'none';
+                return;
+            }
+            allItems = allItems.concat(d.data);
+            renderItems(d.data, true);
+            if (d.data.length < PAGE_SIZE)
+                document.getElementById('loadMoreWrap').style.display = 'none';
+        })
+        .catch(() => { loading = false; });
+}
+
+// Load lần đầu
+fetch(`@Url.Action("GetPage")?page=1&page_size=${PAGE_SIZE}`)
+    .then(r => r.json())
+    .then(d => {
+        if (!d.success) return;
+        allItems = d.data;
+        renderItems(d.data);
+
+        unreadCount = d.unread ?? 0;
+        const label = document.getElementById('unreadLabel');
+        if (label) label.textContent = unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : 'Tất cả đã xem';
+
+        if (d.data.length >= PAGE_SIZE)
+            document.getElementById('loadMoreWrap').style.display = 'block';
+    });
+</script>
+}

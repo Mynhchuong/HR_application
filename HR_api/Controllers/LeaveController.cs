@@ -3,6 +3,7 @@ using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
 using HR_api.Helpers;
 using HR_api.Models.Leave;
+using HR_api.Services;
 
 namespace HR_api.Controllers;
 
@@ -11,12 +12,12 @@ namespace HR_api.Controllers;
 public class LeaveController : ControllerBase
 {
     private readonly OracleService _oracleService;
-    private readonly Helpers.NotificationHelper _notiHelper;
+    private readonly NotificationService _notiSvc;
 
-    public LeaveController(OracleService oracleService, Helpers.NotificationHelper notiHelper)
+    public LeaveController(OracleService oracleService, NotificationService notiSvc)
     {
         _oracleService = oracleService;
-        _notiHelper    = notiHelper;
+        _notiSvc       = notiSvc;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -344,15 +345,7 @@ public class LeaveController : ControllerBase
 
             if (!string.IsNullOrEmpty(info.Assigner))
             {
-                _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
-                {
-                    TITLE       = "Công nhân đã nhận thông báo nghỉ",
-                    BODY        = $"Nhân viên {model.EMPCD} đã nhận thông báo lịch nghỉ phép được sắp.",
-                    NOTI_TYPE   = "EMPCD",
-                    TARGET_VAL  = info.Assigner,
-                    LINK_ACTION = "LEAVE_TEAM",
-                    CREATED_BY  = model.EMPCD
-                });
+                _notiSvc.LeaveAcknowledged(info.Assigner, model.EMPCD);
             }
 
             return Ok(new { success = true, message = "Đã nhận thông báo lịch nghỉ phép" });
@@ -638,15 +631,7 @@ public class LeaveController : ControllerBase
 
             if (!string.IsNullOrEmpty(requestInfo.Empcd))
             {
-                _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
-                {
-                    TITLE       = "Đơn nghỉ phép được duyệt",
-                    BODY        = "Đơn xin nghỉ phép của bạn đã được phê duyệt.",
-                    NOTI_TYPE   = "EMPCD",
-                    TARGET_VAL  = requestInfo.Empcd,
-                    LINK_ACTION = "LEAVE_MY",
-                    CREATED_BY  = model.APPROVER_EMPCD
-                });
+                _notiSvc.LeaveApproved(requestInfo.Empcd, model.APPROVER_EMPCD);
             }
 
             return Ok(new { success = true, message = "Đã duyệt đơn nghỉ phép" });
@@ -714,15 +699,7 @@ public class LeaveController : ControllerBase
 
             if (!string.IsNullOrEmpty(rejectInfo.Empcd))
             {
-                _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
-                {
-                    TITLE       = "Đơn nghỉ phép bị từ chối",
-                    BODY        = "Đơn xin nghỉ phép của bạn đã bị từ chối.",
-                    NOTI_TYPE   = "EMPCD",
-                    TARGET_VAL  = rejectInfo.Empcd,
-                    LINK_ACTION = "LEAVE_MY",
-                    CREATED_BY  = model.APPROVER_EMPCD
-                });
+                _notiSvc.LeaveRejected(rejectInfo.Empcd, model.APPROVER_EMPCD);
             }
 
             return Ok(new { success = true, message = "Đã từ chối đơn nghỉ phép" });
@@ -874,15 +851,7 @@ public class LeaveController : ControllerBase
                         ["NPL"] = "Không lương", ["OTH"] = "Khác"
                     };
                     string leaveTypeName = leaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE);
-                    _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
-                    {
-                        TITLE       = "Bạn được sắp lịch nghỉ phép",
-                        BODY        = $"Lịch {leaveTypeName} {fromDate:dd/MM/yyyy} – {toDate:dd/MM/yyyy} đã được sắp. Vui lòng xác nhận.",
-                        NOTI_TYPE   = "EMPCD",
-                        TARGET_VAL  = targetEmpcd,
-                        LINK_ACTION = "LEAVE_ASSIGNED",
-                        CREATED_BY  = model.ASSIGNER_EMPCD
-                    });
+                    _notiSvc.LeaveAssigned(targetEmpcd, model.ASSIGNER_EMPCD, leaveTypeName, fromDate, toDate);
 
                     results.Add(new { empcd = targetEmpcd, success = true, request_id = requestId });
                     successCt++;
@@ -1951,15 +1920,7 @@ public class LeaveController : ControllerBase
                     }
                     catch { /* ERP failure không block assign */ }
 
-                    _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
-                    {
-                        TITLE       = "Bạn được sắp lịch nghỉ phép",
-                        BODY        = $"Lịch {leaveTypeName} {fromDate:dd/MM/yyyy} – {toDate:dd/MM/yyyy} đã được sắp. Vui lòng xác nhận.",
-                        NOTI_TYPE   = "EMPCD",
-                        TARGET_VAL  = targetEmpcd,
-                        LINK_ACTION = "LEAVE_ASSIGNED",
-                        CREATED_BY  = model.ASSIGNER_EMPCD
-                    });
+                    _notiSvc.LeaveAssigned(targetEmpcd, model.ASSIGNER_EMPCD, leaveTypeName, fromDate, toDate);
 
                     results.Add(new { empcd = targetEmpcd, success = true, request_id = requestId });
                     successCt++;

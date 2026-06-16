@@ -100,6 +100,13 @@ public class MenuService
         return new();
     }
 
+    public async Task<string> GetUserMealByDateAsync(string empCd, string dateStr)
+    {
+        var r = await _api.GetAsync<Resp<UserTodayMealModel>>(
+            $"CanteenOrder/today?empcd={Uri.EscapeDataString(empCd)}&date={dateStr}");
+        return r?.success == true ? r.data?.FOOD_TYPE ?? "MAN" : "MAN";
+    }
+
     public async Task<(bool ok, string msg)> ChangeMealAsync(ChangeMealRequest req)
     {
         var body = new

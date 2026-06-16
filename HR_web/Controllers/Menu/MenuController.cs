@@ -446,15 +446,26 @@ public class MenuController : BaseController
         int foodId = (model.ID == null || model.ID == 0) ? savedId : model.ID.Value;
 
         // Lưu ảnh lên network share với tên = {id}.jpg
+        string? imgError = null;
         if (imageFile != null && imageFile.Length > 0 && foodId > 0)
         {
-            using (new NetworkShareHelper(ImageController.ShareRoot, ImageController.ShareCred))
+            try
             {
-                Directory.CreateDirectory(CantinFolder);
-                using var fs = new FileStream(Path.Combine(CantinFolder, $"{foodId}.jpg"), FileMode.Create);
-                await imageFile.CopyToAsync(fs);
+                using (new NetworkShareHelper(ImageController.ShareRoot, ImageController.ShareCred))
+                {
+                    Directory.CreateDirectory(CantinFolder);
+                    using var fs = new FileStream(Path.Combine(CantinFolder, $"{foodId}.jpg"), FileMode.Create);
+                    await imageFile.CopyToAsync(fs);
+                }
+            }
+            catch (Exception ex)
+            {
+                imgError = ex.Message;
             }
         }
+
+        if (imgError != null)
+            return Json(new { success = true, message = msg + " (Lưu ảnh thất bại: " + imgError + ")" });
 
         return Json(new { success = true, message = msg });
     }
@@ -699,6 +710,16 @@ public class MenuController : BaseController
             CurrentFoodName = first?.FOOD_NAME,
         };
         return View(vm);
+    }
+
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> GetMealForDate(string date)
+    {
+        var empCd   = CurrentUser!.EmpCd;
+        var dateStr = date?.Replace("-", "") ?? DateTime.Today.ToString("yyyyMMdd");
+        var foodType = await _svc.GetUserMealByDateAsync(empCd, dateStr);
+        return Json(new { success = true, foodType });
     }
 
     [HttpPost]

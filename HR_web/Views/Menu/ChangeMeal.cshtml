@@ -130,7 +130,7 @@
 
     <div class="cm-hero">
         <h5>🔄 Đổi món ăn</h5>
-        <small>@Model.FullName — @DateTime.Today.ToString("dd/MM/yyyy")</small>
+        <small><span class="vni-font">@Model.FullName</span> — @DateTime.Today.ToString("dd/MM/yyyy")</small>
     </div>
 
     <!-- Đổi sang loại khác ngày mai -->
@@ -141,26 +141,15 @@
                 <label>📅 Ngày đổi</label>
                 <input type="date" id="mealDate" onchange="onMealDateChange()" />
             </div>
+            <div id="currentMealBadge" style="text-align:center;margin-bottom:.6rem;font-size:.8rem;color:#64748b;min-height:1.4rem;"></div>
             <div class="cm-meal-btns">
-                @if (Model.CurrentFoodType != "MAN")
-                {
-                    <button class="cm-meal-btn man" onclick="submitMeal('MAN','Mặn')">🍖 Mặn</button>
-                }
-                @if (Model.CurrentFoodType != "NHE")
-                {
-                    <button class="cm-meal-btn nhe" onclick="submitMeal('NHE','Nhẹ')">🥗 Nhẹ</button>
-                }
-                @if (Model.CurrentFoodType != "CHAY")
-                {
-                    <button class="cm-meal-btn chay" onclick="submitMeal('CHAY','Chay')">🥦 Chay</button>
-                }
+                <button class="cm-meal-btn man"  id="btnMAN"  onclick="submitMeal('MAN','Mặn')">🍖 Mặn</button>
+                <button class="cm-meal-btn nhe"  id="btnNHE"  onclick="submitMeal('NHE','Nhẹ')">🥗 Nhẹ</button>
+                <button class="cm-meal-btn chay" id="btnCHAY" onclick="submitMeal('CHAY','Chay')">🥦 Chay</button>
             </div>
-            @if (Model.CurrentFoodType is "MAN" or "NHE" or "CHAY")
-            {
-                <p style="font-size:.75rem;color:#94a3b8;margin:.6rem 0 0;text-align:center;">
-                    Nút món hiện tại đã ẩn — chọn để đổi sang loại khác
-                </p>
-            }
+            <p id="currentMealHint" style="font-size:.75rem;color:#94a3b8;margin:.6rem 0 0;text-align:center;display:none;">
+                Nút món hiện tại đã ẩn — chọn để đổi sang loại khác
+            </p>
         </div>
     </div>
 
@@ -197,7 +186,26 @@
 
 <script>
 const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+const MEAL_URL = '@Url.Action("GetMealForDate", "Menu")';
 let selectedSpecial = '';
+
+const MEAL_INFO = {
+    MAN:  { label: '🍖 Đang ăn Mặn',  color: '#f97316' },
+    NHE:  { label: '🥗 Đang ăn Nhẹ',  color: '#0ea5e9' },
+    CHAY: { label: '🥦 Đang ăn Chay', color: '#22c55e' },
+};
+
+function updateMealButtons(currentType) {
+    ['MAN', 'NHE', 'CHAY'].forEach(t => {
+        document.getElementById('btn' + t).style.display = t === currentType ? 'none' : '';
+    });
+    const badge = document.getElementById('currentMealBadge');
+    const info  = MEAL_INFO[currentType];
+    badge.innerHTML = info
+        ? `<span style="background:${info.color}18;color:${info.color};padding:.25rem .75rem;border-radius:50px;font-weight:700;">${info.label}</span>`
+        : '';
+    document.getElementById('currentMealHint').style.display = info ? '' : 'none';
+}
 
 // ── Init meal date picker ────────────────────────────────────────────────────
 (function initMealDate() {
@@ -205,17 +213,26 @@ let selectedSpecial = '';
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tStr = tomorrow.toISOString().split('T')[0];
-    inp.min   = tStr;   // today + future blocked
-    inp.value = tStr;   // default = tomorrow
+    inp.min   = tStr;
+    inp.value = tStr;
+    onMealDateChange();
 })();
 
-function onMealDateChange() {
+async function onMealDateChange() {
     const inp   = document.getElementById('mealDate');
     const label = document.getElementById('mealDateLabel');
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tStr = tomorrow.toISOString().split('T')[0];
     label.textContent = inp.value === tStr ? 'ngày mai' : inp.value.split('-').reverse().join('/');
+
+    document.getElementById('currentMealBadge').innerHTML =
+        '<span style="color:#94a3b8;font-size:.75rem;">Đang tải...</span>';
+    try {
+        const res  = await fetch(MEAL_URL + '?date=' + inp.value);
+        const data = await res.json();
+        updateMealButtons(data.success ? data.foodType : 'MAN');
+    } catch { updateMealButtons('MAN'); }
 }
 
 function _doFetch(body) {

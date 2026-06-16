@@ -124,7 +124,7 @@ public static class SideMenuBuilder
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy"                 },
-                   // new SideMenuItem { Title = "Quản lý Thực đơn",     Url = "~/Menu/Manage",                Icon = "restaurant_menu"        },
+                    new SideMenuItem { Title = "Quản lý Thực đơn",     Url = "~/Menu/Manage",                Icon = "restaurant_menu"        },
                     new SideMenuItem { Title = "Quản lý Món ăn",       Url = "~/Menu/FoodManage",            Icon = "set_meal"               },
                     new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",            Icon = "manage_accounts"        },
                     new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",              Icon = "account_balance_wallet" },

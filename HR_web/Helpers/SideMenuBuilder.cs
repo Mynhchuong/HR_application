@@ -29,7 +29,7 @@ public static class SideMenuBuilder
                 {
                     new SideMenuItem { Title = "Tổng quan",           Url = "~/Home/Index",           Icon = "dashboard"     },
                     new SideMenuItem { Title = "Thông báo",           Url = "~/Notification/Index",   Icon = "notifications" },
-                    //new SideMenuItem { Title = "Thực đơn",   Url = "~/Menu/Today",    Icon = "restaurant"  },
+                    new SideMenuItem { Title = "Thực đơn",   Url = "~/Menu/Today",    Icon = "restaurant"  },
                     new SideMenuItem { Title = "Quy định công ty",   Url = "~/Policy/Index",         Icon = "policy"        },
                     new SideMenuItem { Title = "Hướng dẫn sử dụng", Url = "~/Guide/Index",          Icon = "menu_book"     },
                 }

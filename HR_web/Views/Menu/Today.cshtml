@@ -154,8 +154,8 @@
         border-radius: 2px; margin: 10px auto 0;
     }
     .food-modal-img {
-        width: 100%; max-height: 280px; object-fit: cover;
-        border-radius: 0; display: block;
+        width: 100%; max-height: 280px; object-fit: contain;
+        border-radius: 0; display: block; background: #f8fafc;
     }
     .food-modal-img-ph {
         width: 100%; height: 220px; background: linear-gradient(135deg,#f8fafc,#e2e8f0);
@@ -265,46 +265,42 @@
                 @foreach (var grp in byMeal)
                 {
                     var label  = mealLabels.GetValueOrDefault(grp.Key, grp.Key);
-                    var colors   = mealColors.GetValueOrDefault(grp.Key, (bg: "#f1f5f9", fg: "#334155"));
-                    var foods    = grp.OrderBy(f => f.DISPLAY_ORDER).ToList();
-                    var first    = foods.First();
-                    var rest     = foods.Skip(1).ToList();
-                    var foodName = first.FOOD_NAME ?? "";
-                    var initial  = foodName.Length > 0 ? foodName[0].ToString().ToUpper() : "?";
-                    var imgUrl   = first.FOOD_ID.HasValue
-                        ? Url.Action("GetFoodImage","Image", new { fileName = first.FOOD_ID + ".jpg" })
-                        : null;
-                    bool hasImg  = first.FOOD_ID.HasValue;
-                    <div class="tp-meal tp-meal-clickable"
-                         data-food-img="@imgUrl"
-                         data-food-name="@foodName"
-                         onclick="openFoodModal(this)">
-                        @if (first.FOOD_ID.HasValue)
-                        {
-                            <img class="tp-meal-img"
-                                 src="@imgUrl"
-                                 alt="@foodName" loading="lazy"
-                                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-                            <div class="tp-meal-ph" style="display:none;background:@colors.bg;">
-                                <span style="color:@colors.fg;font-size:1.1rem;font-weight:900;">@initial</span>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="tp-meal-ph" style="background:@colors.bg;">
-                                <span style="color:@colors.fg;font-size:1.1rem;font-weight:900;">@initial</span>
-                            </div>
-                        }
-                        <div class="tp-meal-body">
-                            <span class="tp-meal-badge"
-                                  style="background:@colors.bg; color:@colors.fg;">@label</span>
-                            <div class="tp-meal-name">@first.FOOD_NAME</div>
-                            @foreach (var x in rest)
+                    var colors = mealColors.GetValueOrDefault(grp.Key, (bg: "#f1f5f9", fg: "#334155"));
+                    var foods  = grp.OrderBy(f => f.DISPLAY_ORDER).ToList();
+                    @foreach (var food in foods)
+                    {
+                        var foodName = food.FOOD_NAME ?? "";
+                        var initial  = foodName.Length > 0 ? foodName[0].ToString().ToUpper() : "?";
+                        var imgUrl   = food.FOOD_ID.HasValue
+                            ? Url.Action("GetFoodImage","Image", new { fileName = food.FOOD_ID + ".jpg" }) + "&v=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                            : null;
+                        <div class="tp-meal tp-meal-clickable"
+                             data-food-img="@imgUrl"
+                             data-food-name="@foodName"
+                             onclick="openFoodModal(this)">
+                            @if (food.FOOD_ID.HasValue)
                             {
-                                <div class="tp-meal-extra">· @x.FOOD_NAME</div>
+                                <img class="tp-meal-img"
+                                     src="@imgUrl"
+                                     alt="@foodName" loading="lazy"
+                                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                                <div class="tp-meal-ph" style="display:none;background:@colors.bg;">
+                                    <span style="color:@colors.fg;font-size:1.1rem;font-weight:900;">@initial</span>
+                                </div>
                             }
+                            else
+                            {
+                                <div class="tp-meal-ph" style="background:@colors.bg;">
+                                    <span style="color:@colors.fg;font-size:1.1rem;font-weight:900;">@initial</span>
+                                </div>
+                            }
+                            <div class="tp-meal-body">
+                                <span class="tp-meal-badge"
+                                      style="background:@colors.bg; color:@colors.fg;">@label</span>
+                                <div class="tp-meal-name">@foodName</div>
+                            </div>
                         </div>
-                    </div>
+                    }
                 }
             </div>
         }

@@ -142,14 +142,14 @@ public class GuideController : BaseController
         return Json(new { success = saved, message = saveMsg, videoUrl = $"/Video/{VideoFolder}/{id}" });
     }
 
-    // POST /Guide/UploadVideoChunk?id=
+    // POST /Guide/SaveChunk?id=
     // Chunked upload: client splits file into 4MB chunks, each request is small → bypasses IIS maxAllowedContentLength
     [HttpPost]
     [Authorize(Roles = "Admin")]
     [ValidateAntiForgeryToken]
     [DisableRequestSizeLimit]
     [RequestFormLimits(MultipartBodyLengthLimit = 6_000_000)]
-    public async Task<IActionResult> UploadVideoChunk(
+    public async Task<IActionResult> SaveChunk(
         int id, string sessionId, int chunkIndex, int totalChunks, string originalExt,
         IFormFile chunk)
     {

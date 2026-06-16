@@ -523,7 +523,7 @@ async function onVideoAjaxUpload(input, itemId) {
 
             const res = await new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
-                xhr.open('POST', `/Guide/UploadVideoChunk?id=${itemId}`);
+                xhr.open('POST', `/Guide/SaveChunk?id=${itemId}`);
 
                 xhr.upload.addEventListener('progress', e => {
                     if (!e.lengthComputable) return;

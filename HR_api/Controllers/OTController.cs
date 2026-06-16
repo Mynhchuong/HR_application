@@ -256,6 +256,7 @@ public class OTController : ControllerBase
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
+                  AND NVL(OT.OT_HOURS, 0) > 0
                   " + clerkFilter.SqlClause + @"
                   AND (:ST_FLAG IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(EC.EMPCD) LIKE :SRCH_VAL1)
@@ -488,6 +489,7 @@ public class OTController : ControllerBase
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
+                  AND NVL(OT.OT_HOURS, 0) > 0
                   AND (:S_FLAG  IS NULL OR UPPER(OT.EMPCD) LIKE :S_VAL1)
                   AND (:ST_FLAG IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
                   AND (:DF_FLAG IS NULL OR UPPER(B.DEPTNM) LIKE '%' || UPPER(:DF_VAL) || '%')
@@ -697,6 +699,7 @@ public class OTController : ControllerBase
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
+                  AND NVL(OT.OT_HOURS, 0) > 0
                   AND (:S_FLAG   IS NULL OR UPPER(OT.EMPCD) LIKE :S_VAL1)
                   AND (:ST_FLAG  IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
                   AND (:DID_FLAG IS NULL OR EC.DEPTCD = :DID_VAL)

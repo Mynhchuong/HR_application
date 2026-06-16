@@ -178,7 +178,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Số ngày nghỉ <span class="text-danger">*</span></label>
-                    <input type="number" id="createTotalDays" class="form-control" min="0.5" step="0.5" placeholder="VD: 1" />
+                    <input type="number" id="createTotalDays" class="form-control bg-light" min="0.5" step="0.5" placeholder="Tự động tính" readonly />
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Lý do <span class="text-danger">*</span></label>
@@ -243,7 +243,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Số ngày nghỉ <span class="text-danger">*</span></label>
-                    <input type="number" id="editTotalDays" class="form-control" min="0.5" step="0.5" />
+                    <input type="number" id="editTotalDays" class="form-control bg-light" min="0.5" step="0.5" readonly />
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Lý do</label>
@@ -523,6 +523,8 @@ function openCreateModal() {
     new bootstrap.Modal('#createModal').show();
 }
 
+function datesOverlap(f1, t1, f2, t2) { return f1 <= t2 && t1 >= f2; }
+
 function isSunday(dateStr) {
     if (!dateStr) return false;
     const p = dateStr.split('-');
@@ -596,9 +598,33 @@ async function saveCreate() {
         }
     }
 
-    const $btn = $('#saveCreateBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang gửi...');
+    const $btn = $('#saveCreateBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang kiểm tra...');
     $('#createError').addClass('d-none').text('');
     try {
+        // Check overlap with existing requests for the selected date range
+        const checkRes = await $.ajax({ url: PAGE_URL, type: 'GET', data: { page: 1, page_size: 100, date_from: from, date_to: to } });
+        if (checkRes.success && checkRes.data?.length) {
+            const conflict = checkRes.data.find(r => {
+                const rFrom = (r.FROM_DATE || '').slice(0, 10);
+                const rTo   = (r.TO_DATE   || '').slice(0, 10);
+                if (!rFrom || !rTo || !datesOverlap(from, to, rFrom, rTo)) return false;
+                return (r.SOURCE !== 'ASSIGNED' && (r.STATUS === 'PENDING' || r.STATUS === 'APPROVED')) ||
+                       (r.SOURCE === 'ASSIGNED' && r.CONFIRM_STATUS === 'CONFIRMED');
+            });
+            if (conflict) {
+                const st = conflict.STATUS === 'APPROVED' ? 'đã được duyệt'
+                         : conflict.STATUS === 'PENDING'  ? 'đang chờ duyệt'
+                         : 'đã xác nhận';
+                $('#createError').removeClass('d-none').html(
+                    `Bạn đã có đơn nghỉ <strong>${st}</strong> trùng khoảng ngày này ` +
+                    `(${formatDate(conflict.FROM_DATE)} – ${formatDate(conflict.TO_DATE)}).<br>` +
+                    `<small class="text-muted">Chỉ có thể tạo lại nếu đơn cũ bị từ chối.</small>`
+                );
+                return;
+            }
+        }
+
+        $btn.html('<span class="spinner-border spinner-border-sm me-1"></span>Đang gửi...');
         const payload = {
             EMPCD:      '',
             LEAVE_TYPE: createLT,

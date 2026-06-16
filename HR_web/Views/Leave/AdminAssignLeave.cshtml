@@ -128,7 +128,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Số ngày nghỉ</label>
-                    <input type="number" id="totalDays" class="form-control form-control-sm" min="0.5" step="0.5" placeholder="Nhập số ngày">
+                    <input type="number" id="totalDays" class="form-control form-control-sm bg-light" min="0.5" step="0.5" placeholder="Tự động tính" readonly>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Lý do</label>
@@ -142,6 +142,30 @@
                 <div id="submitInfo" class="text-center mt-2 text-muted" style="font-size:.78rem;">
                     Chọn nhân viên để kích hoạt nút sắp lịch
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Conflict modal -->
+<div class="modal fade" id="conflictModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#fff0f0;border-bottom:1px solid #fecaca;">
+                <h5 class="modal-title" style="color:#7f1d1d;font-size:.92rem;display:flex;align-items:center;gap:6px;">
+                    <span class="material-symbols-rounded" style="font-size:1.1rem;color:#ef4444;">block</span>
+                    Phát hiện trùng lịch nghỉ — <span id="conflictCount">0</span> nhân viên
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:.83rem;color:#6b7280;margin-bottom:.75rem;">
+                    Các nhân viên dưới đây đã có đơn nghỉ phép <strong>Chờ duyệt</strong> hoặc <strong>Đã duyệt</strong> trùng khoảng ngày này. Vui lòng kiểm tra và phối hợp nội bộ trước khi sắp lịch:
+                </p>
+                <div id="conflictList"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đã hiểu</button>
             </div>
         </div>
     </div>
@@ -192,8 +216,9 @@
 @section Scripts {
 <script>
     const ADMIN_EMPCD          = '@adminEmpCd';
-    const URL_GET_ADMIN_EMPLIST = '@Url.Action("GetAdminEmpList", "Leave")';
-    const URL_ADMIN_ASSIGN      = '@Url.Action("AdminAssign",     "Leave")';
+    const URL_GET_ADMIN_EMPLIST = '@Url.Action("GetAdminEmpList",      "Leave")';
+    const URL_ADMIN_ASSIGN      = '@Url.Action("AdminAssign",          "Leave")';
+    const URL_APPROVAL_LIST     = '@Url.Action("GetApprovalListPage",  "Leave")';
     let allEmps     = [];
     let filtered    = [];
     let selectedSet = new Set();
@@ -208,13 +233,11 @@
 
     // ─── Load all employees on page load ─────────────────────────
     window.addEventListener('DOMContentLoaded', () => {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+        const todayStr = new Date().toISOString().slice(0, 10);
         const fromEl = document.getElementById('fromDate');
         const toEl   = document.getElementById('toDate');
-        fromEl.min = tomorrowStr; fromEl.value = tomorrowStr;
-        toEl.min   = tomorrowStr; toEl.value   = tomorrowStr;
+        fromEl.min = todayStr; fromEl.value = todayStr;
+        toEl.min   = todayStr; toEl.value   = todayStr;
         loadEmps();
     });
 
@@ -381,15 +404,36 @@
 
         if (!fromDate || !toDate)             { alert('Vui lòng chọn ngày bắt đầu và kết thúc.'); return; }
         const _today = new Date(); _today.setHours(0,0,0,0);
-        if (new Date(fromDate) <= _today)     { alert('Chỉ được sắp lịch từ ngày mai trở đi.'); return; }
+        if (new Date(fromDate) < _today)      { alert('Không được sắp lịch ngày quá khứ.'); return; }
         if (isNaN(totalDays) || totalDays <= 0) { alert('Số ngày nghỉ không hợp lệ.'); return; }
         if (selectedSet.size === 0)           { alert('Chưa chọn nhân viên.'); return; }
 
         const btn = document.getElementById('btnSubmit');
         btn.disabled  = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang xử lý...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang kiểm tra...';
 
         try {
+            // Kiểm tra overlap: NV đã có đơn PENDING hoặc APPROVED trong khoảng ngày này
+            const checkParams = new URLSearchParams({ page: 1, page_size: 200, date_from: fromDate, date_to: toDate });
+            const checkResp = await fetch(URL_APPROVAL_LIST + '?' + checkParams);
+            const checkData = await checkResp.json();
+            if (checkData.success && checkData.data?.length) {
+                const conflicts = checkData.data.filter(r => {
+                    if (!selectedSet.has(r.EMPCD)) return false;
+                    const rFrom = (r.FROM_DATE || '').slice(0, 10);
+                    const rTo   = (r.TO_DATE   || '').slice(0, 10);
+                    return rFrom && rTo && fromDate <= rTo && toDate >= rFrom &&
+                           (r.STATUS === 'PENDING' || r.STATUS === 'APPROVED');
+                });
+                if (conflicts.length > 0) {
+                    showConflicts(conflicts);
+                    btn.disabled  = false;
+                    btn.innerHTML = '<span class="material-symbols-rounded align-middle me-1" style="font-size:1rem;vertical-align:middle;">send</span> Sắp lịch nghỉ';
+                    return;
+                }
+            }
+
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang xử lý...';
             const payload = {
                 ASSIGNER_EMPCD: ADMIN_EMPCD,
                 TARGET_EMPCDS:  [...selectedSet],
@@ -428,6 +472,31 @@
             btn.innerHTML = '<span class="material-symbols-rounded align-middle me-1" style="font-size:1rem;vertical-align:middle;">send</span> Sắp lịch nghỉ';
             alert('Lỗi kết nối: ' + e.message);
         }
+    }
+
+    function showConflicts(conflicts) {
+        let html = '';
+        conflicts.forEach(r => {
+            const st = r.STATUS === 'APPROVED'
+                ? '<span class="badge bg-success" style="font-size:.7rem;">Đã duyệt</span>'
+                : '<span class="badge bg-warning text-dark" style="font-size:.7rem;">Chờ duyệt</span>';
+            const emp  = allEmps.find(e => e.EMPCD === r.EMPCD);
+            const name = emp ? `<span class="vni-font ms-1" style="font-size:.83rem;">${emp.EMP_NAME || ''}</span>` : '';
+            html += `<div class="result-item err d-flex align-items-center gap-2 flex-wrap mb-1">
+                <strong>${r.EMPCD}</strong>${name} ${st}
+                <span class="text-muted" style="font-size:.75rem;">${formatDate(r.FROM_DATE)} – ${formatDate(r.TO_DATE)}</span>
+            </div>`;
+        });
+        document.getElementById('conflictList').innerHTML = html;
+        document.getElementById('conflictCount').textContent = conflicts.length;
+        new bootstrap.Modal(document.getElementById('conflictModal')).show();
+    }
+
+    function formatDate(s) {
+        if (!s) return '-';
+        const d = new Date(s);
+        if (isNaN(d)) return '-';
+        return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear();
     }
 
     function showWarnings(warnings) {

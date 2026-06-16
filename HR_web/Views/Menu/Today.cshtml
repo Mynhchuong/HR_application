@@ -275,10 +275,10 @@
                         ? Url.Action("GetFoodImage","Image", new { fileName = first.FOOD_ID + ".jpg" })
                         : null;
                     bool hasImg  = first.FOOD_ID.HasValue;
-                    <div class="tp-meal @(hasImg ? "tp-meal-clickable" : "")"
+                    <div class="tp-meal tp-meal-clickable"
                          data-food-img="@imgUrl"
                          data-food-name="@foodName"
-                         @(hasImg ? "onclick=\"openFoodModal(this)\"" : "")>
+                         onclick="openFoodModal(this)">
                         @if (first.FOOD_ID.HasValue)
                         {
                             <img class="tp-meal-img"
@@ -321,9 +321,15 @@ function openFoodModal(el) {
     const modalPh = document.getElementById('foodModalPh');
 
     document.getElementById('foodModalName').textContent = name;
-    modalImg.style.display = 'block';
-    modalPh.style.display  = 'none';
-    modalImg.src = imgUrl;
+
+    if (imgUrl) {
+        modalImg.style.display = 'block';
+        modalPh.style.display  = 'none';
+        modalImg.src = imgUrl;
+    } else {
+        modalImg.style.display = 'none';
+        modalPh.style.display  = 'flex';
+    }
 
     modal.classList.add('open');
     document.body.style.overflow = 'hidden';

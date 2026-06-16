@@ -184,7 +184,7 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label small fw-bold mb-1">Số ngày nghỉ <span class="text-danger">*</span></label>
-                                <input type="number" id="assignTotalDays" class="form-control form-control-sm" min="0.5" step="0.5" placeholder="VD: 3" />
+                                <input type="number" id="assignTotalDays" class="form-control form-control-sm bg-light" min="0.5" step="0.5" placeholder="Tự động tính" readonly />
                             </div>
                             <div class="mb-3">
                                 <label class="form-label small fw-bold mb-1">Lý do / Ghi chú</label>
@@ -243,6 +243,8 @@
                                         data-mobile="detail" data-mobile-label="Đến ngày">Đến ngày</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                         data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Số ngày">Số ngày</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="detail" data-mobile-label="Lý do">Lý do</th>
                                     <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
                                         data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tình trạng">Tình trạng</th>
                                     <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
@@ -579,9 +581,45 @@ async function submitAssign() {
         }
     }
 
-    const $btn = $('#assignBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang xử lý...');
+    const $btn = $('#assignBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang kiểm tra...');
     $('#assignResults').empty();
     try {
+        // Kiểm tra overlap: NV đã có đơn PENDING hoặc APPROVED trong khoảng ngày này
+        const checkRes = await $.ajax({
+            url: PAGE_URL, type: 'GET',
+            data: { page: 1, page_size: 200, date_from: from, date_to: to }
+        });
+        if (checkRes.success && checkRes.data?.length) {
+            const empSet = new Set(empList);
+            const conflicts = checkRes.data.filter(r => {
+                if (!empSet.has(r.EMPCD)) return false;
+                const rFrom = (r.FROM_DATE || '').slice(0, 10);
+                const rTo   = (r.TO_DATE   || '').slice(0, 10);
+                return rFrom && rTo && from <= rTo && to >= rFrom &&
+                       (r.STATUS === 'PENDING' || r.STATUS === 'APPROVED');
+            });
+            if (conflicts.length > 0) {
+                const rows = conflicts.map(r => {
+                    const st = r.STATUS === 'APPROVED'
+                        ? '<span class="badge bg-success">Đã duyệt</span>'
+                        : '<span class="badge bg-warning text-dark">Chờ duyệt</span>';
+                    const emp  = allEmps.find(e => e.empcd === r.EMPCD);
+                    const name = emp ? `<span class="vni-font ms-1">${escHtml(emp.name)}</span>` : '';
+                    return `<div class="result-item err d-flex align-items-center gap-2 flex-wrap">
+                        <strong>${escHtml(r.EMPCD)}</strong>${name} ${st}
+                        <span class="text-muted" style="font-size:.75rem;">${formatDate(r.FROM_DATE)} – ${formatDate(r.TO_DATE)}</span>
+                    </div>`;
+                }).join('');
+                $('#assignResults').html(`
+                    <div class="alert alert-danger py-2 px-3 mb-2" style="font-size:.82rem;">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        <strong>${conflicts.length} nhân viên</strong> đã có đơn nghỉ phép trùng khoảng ngày này — vui lòng kiểm tra và phối hợp nội bộ:
+                    </div>${rows}`);
+                return;
+            }
+        }
+
+        $btn.html('<span class="spinner-border spinner-border-sm me-1"></span>Đang xử lý...');
         const res = await $.ajax({ url: ASSIGN_URL, type: 'POST', contentType: 'application/json',
             data: JSON.stringify({ ASSIGNER_EMPCD: '', TARGET_EMPCDS: empList, LEAVE_TYPE: leaveType, FROM_DATE: from, TO_DATE: to, TOTAL_DAYS: days, REASON: reason }) });
         if (res.results?.length) {
@@ -642,10 +680,8 @@ function buildApprovalRow(item, idx) {
         <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
-        <td class="px-2 text-sm fw-bold">
-            ${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}
-            ${item.REASON ? `<div class="vni-font" style="font-size:.7rem;font-weight:400;color:#64748b;margin-top:1px;white-space:normal;">${escHtml(item.REASON)}</div>` : ''}
-        </td>
+        <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
+        <td class="px-2 text-sm" style="max-width:180px;white-space:normal;color:#475569;">${item.REASON ? escHtml(item.REASON) : '<span class="text-muted">-</span>'}</td>
         <td class="text-center">${statusHtml}</td>
         <td class="text-center">${actions}</td>
     </tr>`;
@@ -653,7 +689,7 @@ function buildApprovalRow(item, idx) {
 
 function loadApproval(page = 1) {
     apvPage = page;
-    $('#approvalBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
+    $('#approvalBody').html(`<tr><td colspan="10" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
     MobileTableHelper.refresh('approvalBody');
     const range = getMonthRange();
     $.ajax({
@@ -661,7 +697,7 @@ function loadApproval(page = 1) {
         data: { status: apvStatus, search: ($('#apvEmpFilter').val()||'').trim(), date_from: range.from, date_to: range.to, page, page_size: apvPageSize },
         success: function(res) {
             if (!res.success) {
-                $('#approvalBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                $('#approvalBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
                 MobileTableHelper.refresh('approvalBody');
                 return;
             }
@@ -669,7 +705,7 @@ function loadApproval(page = 1) {
             apvTotalPages = res.total_pages || 0;
             const data = res.data || [];
             if (!data.length) {
-                $('#approvalBody').html(emptyRow('Không có đơn nghỉ nào'));
+                $('#approvalBody').html(emptyRow('Không có đơn nghỉ nào', 10));
             } else {
                 $('#approvalBody').html(data.map((item,i) => buildApprovalRow(item,(page-1)*apvPageSize+i+1)).join(''));
             }
@@ -677,7 +713,7 @@ function loadApproval(page = 1) {
             MobileTableHelper.refresh('approvalBody');
         },
         error: function(xhr) {
-            $('#approvalBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#approvalBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('approvalBody');
         }
     });

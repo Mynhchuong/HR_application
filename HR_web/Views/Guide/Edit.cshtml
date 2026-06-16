@@ -477,8 +477,10 @@ function clearNewVideo() {
     document.getElementById('uploadSub').textContent = 'MP4 · WebM · MOV · Tối đa 500 MB';
 }
 
-// Dùng cho item ĐÃ CÓ ID: upload AJAX đến /Guide/UploadVideo, có progress bar
-function onVideoAjaxUpload(input, itemId) {
+// Chunked upload — chia file thành 4MB/chunk → mỗi request nhỏ, bypass IIS size limit
+const CHUNK_SIZE = 4 * 1024 * 1024;
+
+async function onVideoAjaxUpload(input, itemId) {
     const file = input.files[0];
     if (!file) return;
 
@@ -488,13 +490,10 @@ function onVideoAjaxUpload(input, itemId) {
         return;
     }
 
-    const token = document.querySelector('[name="__RequestVerificationToken"]')?.value || '';
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('__RequestVerificationToken', token);
-
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `/Guide/UploadVideo?id=${itemId}`);
+    const token       = document.querySelector('[name="__RequestVerificationToken"]')?.value || '';
+    const sessionId   = (Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/gi, '').slice(0, 32);
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const ext         = '.' + file.name.split('.').pop().toLowerCase();
 
     const progress = document.getElementById('uploadProgress');
     const bar      = document.getElementById('uploadBar');
@@ -502,27 +501,53 @@ function onVideoAjaxUpload(input, itemId) {
 
     progress.style.display = 'block';
     bar.style.width = '0%';
+    bar.style.backgroundColor = '';
     bar.classList.add('progress-bar-animated');
-    status.textContent = 'Đang upload...';
+    status.textContent = 'Đang chuẩn bị...';
     document.getElementById('uploadLabel').textContent = file.name;
     document.getElementById('uploadSub').textContent = (file.size / 1048576).toFixed(1) + ' MB';
 
-    xhr.upload.addEventListener('progress', (e) => {
-        if (!e.lengthComputable) return;
-        const pct = Math.round(e.loaded / e.total * 100);
-        bar.style.width = pct + '%';
-        status.textContent = `Đang upload... ${pct}% — ${(e.loaded/1048576).toFixed(1)} / ${(e.total/1048576).toFixed(1)} MB`;
-    });
+    try {
+        for (let i = 0; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end   = Math.min(start + CHUNK_SIZE, file.size);
+            const blob  = file.slice(start, end);
 
-    xhr.addEventListener('load', () => {
-        try {
-            const res = JSON.parse(xhr.responseText);
-            if (res.success) {
+            const fd = new FormData();
+            fd.append('chunk',        blob, 'chunk');
+            fd.append('sessionId',    sessionId);
+            fd.append('chunkIndex',   i);
+            fd.append('totalChunks',  totalChunks);
+            fd.append('originalExt',  ext);
+            fd.append('__RequestVerificationToken', token);
+
+            const res = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `/Guide/UploadVideoChunk?id=${itemId}`);
+
+                xhr.upload.addEventListener('progress', e => {
+                    if (!e.lengthComputable) return;
+                    const uploaded = start + e.loaded;
+                    const pct = Math.min(99, Math.round(uploaded / file.size * 100));
+                    bar.style.width = pct + '%';
+                    status.textContent = `Đang upload... ${pct}% — ${(uploaded / 1048576).toFixed(1)} / ${(file.size / 1048576).toFixed(1)} MB`;
+                });
+
+                xhr.addEventListener('load', () => {
+                    try { resolve(JSON.parse(xhr.responseText)); }
+                    catch { reject(new Error('Phản hồi server không hợp lệ')); }
+                });
+                xhr.addEventListener('error', () => reject(new Error('Lỗi kết nối')));
+                xhr.send(fd);
+            });
+
+            if (!res.success) throw new Error(res.message || 'Lỗi upload');
+
+            if (res.done) {
                 bar.classList.remove('progress-bar-animated');
                 bar.style.width = '100%';
                 status.textContent = 'Upload thành công!';
 
-                // Reload video player hoặc tạo mới nếu chưa có
                 const vEl = document.getElementById('currentVideoEl');
                 if (vEl) {
                     vEl.querySelector('source').src = res.videoUrl + '?t=' + Date.now();
@@ -543,22 +568,13 @@ function onVideoAjaxUpload(input, itemId) {
                         </button>`;
                     document.getElementById('uploadZone').insertAdjacentElement('beforebegin', section);
                 }
-            } else {
-                alert('Lỗi: ' + res.message);
-                progress.style.display = 'none';
             }
-        } catch {
-            alert('Lỗi server');
-            progress.style.display = 'none';
         }
-    });
-
-    xhr.addEventListener('error', () => {
-        alert('Lỗi kết nối khi upload');
-        progress.style.display = 'none';
-    });
-
-    xhr.send(formData);
+    } catch (err) {
+        bar.classList.remove('progress-bar-animated');
+        bar.style.backgroundColor = '#ef4444';
+        status.textContent = 'Lỗi: ' + err.message;
+    }
 }
 
 // Xóa video qua AJAX — xóa file và cập nhật DB ngay, không cần submit form

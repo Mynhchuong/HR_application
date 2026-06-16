@@ -142,6 +142,78 @@ public class GuideController : BaseController
         return Json(new { success = saved, message = saveMsg, videoUrl = $"/Video/{VideoFolder}/{id}" });
     }
 
+    // POST /Guide/UploadVideoChunk?id=
+    // Chunked upload: client splits file into 4MB chunks, each request is small → bypasses IIS maxAllowedContentLength
+    [HttpPost]
+    [Authorize(Roles = "Admin")]
+    [ValidateAntiForgeryToken]
+    [DisableRequestSizeLimit]
+    [RequestFormLimits(MultipartBodyLengthLimit = 6_000_000)]
+    public async Task<IActionResult> UploadVideoChunk(
+        int id, string sessionId, int chunkIndex, int totalChunks, string originalExt,
+        IFormFile chunk)
+    {
+        if (string.IsNullOrEmpty(sessionId) || sessionId.Length > 64 ||
+            !sessionId.All(c => char.IsLetterOrDigit(c)))
+            return Json(new { success = false, message = "Session không hợp lệ" });
+
+        var ext = originalExt.ToLowerInvariant();
+        if (!VideoFileService.AllowedExts.Contains(ext))
+            return Json(new { success = false, message = "Định dạng không hỗ trợ" });
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "hr_video_chunks", sessionId);
+        Directory.CreateDirectory(tempDir);
+
+        var chunkPath = Path.Combine(tempDir, $"{chunkIndex:D6}");
+        await using (var f = new FileStream(chunkPath, FileMode.Create))
+            await chunk.CopyToAsync(f);
+
+        if (chunkIndex < totalChunks - 1)
+            return Json(new { success = true, done = false });
+
+        // Last chunk — assemble all chunks into final file
+        var guide = await _service.GetByIdAsync(id);
+        if (guide == null)
+        {
+            TryCleanTemp(tempDir);
+            return Json(new { success = false, message = "Không tìm thấy mục hướng dẫn" });
+        }
+
+        _videoSvc.DeleteAll(VideoFolder, id);
+        var savePath = _videoSvc.FilePath(VideoFolder, id, ext);
+        Directory.CreateDirectory(Path.GetDirectoryName(savePath)!);
+
+        await using (var output = new FileStream(savePath, FileMode.Create))
+        {
+            for (int i = 0; i <= chunkIndex; i++)
+            {
+                await using var input = new FileStream(Path.Combine(tempDir, $"{i:D6}"), FileMode.Open, FileAccess.Read);
+                await input.CopyToAsync(output);
+            }
+        }
+
+        TryCleanTemp(tempDir);
+
+        var req = new SaveGuideRequest
+        {
+            ID            = guide.ID,
+            CATEGORY      = guide.CATEGORY,
+            TITLE         = guide.TITLE,
+            CONTENT       = guide.CONTENT,
+            VIDEO_PATH    = ext,
+            DISPLAY_ORDER = guide.DISPLAY_ORDER,
+            IS_ACTIVE     = guide.IS_ACTIVE,
+            LOGIN_USER    = CurrentUser!.EmpCd
+        };
+        var (saved, saveMsg, _) = await _service.SaveAsync(req);
+        return Json(new { success = saved, message = saveMsg, done = true, videoUrl = $"/Video/{VideoFolder}/{id}" });
+    }
+
+    private static void TryCleanTemp(string dir)
+    {
+        try { if (Directory.Exists(dir)) Directory.Delete(dir, true); } catch { /* ignore */ }
+    }
+
     // POST /Guide/RemoveVideo?id=
     [HttpPost]
     [Authorize(Roles = "Admin")]

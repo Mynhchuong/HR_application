@@ -56,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout layoutNoInternet;
     private Button btnRetry;
     private ProgressBar progressBar;
-    private String selectedBaseUrl = "http://192.168.1.24/HR_Web"; // Mặc định là mạng nội bộ
+    private String selectedBaseUrl = "http://sa1-hanaro.esamho.com/hr_Web"; // Mặc định là mạng nội bộ
     private ValueCallback<Uri[]> mFilePathCallback;
     private Uri mCameraPhotoUri;
     private static final int FILE_CHOOSER_RESULT_CODE = 100;
@@ -274,7 +274,7 @@ public class MainActivity extends AppCompatActivity {
                     boolean ok = checkInternalNetwork();
                     runOnUiThread(() -> {
                         if (ok) {
-                            selectedBaseUrl = "http://192.168.1.24/HR_Web";
+                            selectedBaseUrl = "http://sa1-hanaro.esamho.com/hr_Web";
                             startApp();
                             dialog.dismiss();
                         } else {
@@ -295,7 +295,7 @@ public class MainActivity extends AppCompatActivity {
         btnExternal.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                selectedBaseUrl = "http://103.82.204.247/HR_Web";
+                selectedBaseUrl = "http://hr.esamho.com/hr_Web";
                 startApp();
                 dialog.dismiss();
             }
@@ -306,7 +306,7 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean checkInternalNetwork() {
         try {
-            java.net.URL url = new java.net.URL("http://192.168.1.24/HR_Web");
+            java.net.URL url = new java.net.URL("http://sa1-hanaro.esamho.com/hr_Web");
             java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
             conn.setConnectTimeout(3000);
             conn.setReadTimeout(3000);

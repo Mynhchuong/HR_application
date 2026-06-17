@@ -102,6 +102,10 @@
                     <span class="count-badge" id="lv_selCount">0</span>
                     <span style="font-size:.82rem;color:#64748b;">đã chọn</span>
                     <span class="ms-auto text-muted" id="lv_totalCount" style="font-size:.78rem;"></span>
+                    <button class="btn btn-success btn-sm py-0 px-3" onclick="exportLeaves()">
+                        <span class="material-symbols-rounded align-middle me-1" style="font-size:.95rem;">download</span>
+                        Xuất Excel
+                    </button>
                     <button class="btn btn-danger btn-sm py-0 px-3" id="lv_btnDelete" disabled onclick="lvDelete()">
                         <span class="material-symbols-rounded align-middle me-1" style="font-size:.95rem;">delete</span>
                         Xóa khỏi MySamho
@@ -187,6 +191,10 @@
                     <span class="count-badge" id="gp_selCount">0</span>
                     <span style="font-size:.82rem;color:#64748b;">đã chọn</span>
                     <span class="ms-auto text-muted" id="gp_totalCount" style="font-size:.78rem;"></span>
+                    <button class="btn btn-success btn-sm py-0 px-3" onclick="exportGp()">
+                        <span class="material-symbols-rounded align-middle me-1" style="font-size:.95rem;">download</span>
+                        Xuất Excel
+                    </button>
                     <button class="btn btn-danger btn-sm py-0 px-3" id="gp_btnDelete" disabled onclick="gpDelete()">
                         <span class="material-symbols-rounded align-middle me-1" style="font-size:.95rem;">delete</span>
                         Xóa khỏi MySamho
@@ -632,6 +640,95 @@ async function gpDelete() {
             }
         } catch(e) { showToast('Lỗi kết nối: ' + e.message, 'error'); }
     });
+}
+
+// ── Export Excel ─────────────────────────────────────────────────────────────
+function exportLeaves() {
+    const dept = document.getElementById('lv_dept').value;
+    const line = document.getElementById('lv_line').value;
+    const work = document.getElementById('lv_work').value;
+    const kw   = document.getElementById('lv_search').value.trim().toUpperCase();
+    const filtered = lvData.filter(r =>
+        (!dept || r.DEPT_ID === dept) &&
+        (!line || r.LINE_ID === line) &&
+        (!work || r.WORK_ID === work) &&
+        (!kw   || r.EMPCD?.toUpperCase().includes(kw) || r.EMP_NAME?.toUpperCase().includes(kw)));
+
+    if (!filtered.length) { showToast('Không có dữ liệu để xuất', 'error'); return; }
+
+    const fmtDate = d => d ? new Date(d).toLocaleDateString('vi-VN') : '';
+    const statusLabel = s => s === 'APPROVED' ? 'Đã XN' : s === 'ASSIGNED' ? 'Đã sắp' : s === 'PENDING' ? 'Chờ duyệt' : s || '';
+    const headers = ['STT','Mã NV','Họ Tên','Phòng Ban','Chuyền','Tổ','Loại Phép','Từ Ngày','Đến Ngày','Số Ngày','Nguồn','Trạng Thái','Ngày XN'];
+    let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"/></head><body>';
+    html += '<table border="1"><thead><tr>' + headers.map(h => `<th style="background:#d9ead3;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
+    filtered.forEach((r, i) => {
+        html += `<tr>
+            <td style="text-align:center">${i+1}</td>
+            <td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td>
+            <td>${escHtml(r.EMP_NAME||'')}</td>
+            <td>${escHtml(r.DEPT_NAME||'')}</td>
+            <td>${escHtml(r.LINE_NAME||'')}</td>
+            <td>${escHtml(r.WORK_NAME||'')}</td>
+            <td>${leaveTypeLabel[r.LEAVE_TYPE]||r.LEAVE_TYPE||''}</td>
+            <td>${fmtDate(r.FROM_DATE)}</td>
+            <td>${fmtDate(r.TO_DATE)}</td>
+            <td style="text-align:center">${r.TOTAL_DAYS??''}</td>
+            <td>${r.SOURCE==='ASSIGNED'?'Assign':'Tự tạo'}</td>
+            <td>${statusLabel(r.STATUS)}</td>
+            <td>${fmtDate(r.FINAL_DATE)}</td>
+        </tr>`;
+    });
+    html += '</tbody></table></body></html>';
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `NghiPhep_${new Date().toISOString().slice(0,10)}.xls`;
+    link.click();
+}
+
+function exportGp() {
+    const stFilter = document.getElementById('gp_status').value;
+    const dept = document.getElementById('gp_dept').value;
+    const line = document.getElementById('gp_line').value;
+    const work = document.getElementById('gp_work').value;
+    const kw   = document.getElementById('gp_search').value.trim().toUpperCase();
+    const filtered = gpData.filter(r =>
+        (stFilter !== 'confirmed' || r.STATUS !== 'PENDING') &&
+        (stFilter !== 'pending'   || r.STATUS === 'PENDING') &&
+        (!dept || r.DEPT_ID === dept) &&
+        (!line || r.LINE_ID === line) &&
+        (!work || r.WORK_ID === work) &&
+        (!kw   || r.EMPCD?.toUpperCase().includes(kw) || r.EMP_NAME?.toUpperCase().includes(kw)));
+
+    if (!filtered.length) { showToast('Không có dữ liệu để xuất', 'error'); return; }
+
+    const fmtDt   = d => d ? new Date(d).toLocaleString('vi-VN', { dateStyle:'short', timeStyle:'short' }) : '';
+    const fmtDate = d => d ? new Date(d).toLocaleDateString('vi-VN') : '';
+    const statusLabel = s => s === 'APPROVED' ? 'Đã XN' : s === 'PENDING' ? 'Chưa XN' : s || '';
+    const headers = ['STT','Mã NV','Họ Tên','Phòng Ban','Chuyền','Tổ','Loại','Giờ Ra','Giờ Vào','Trạng Thái','Ngày XN'];
+    let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"/></head><body>';
+    html += '<table border="1"><thead><tr>' + headers.map(h => `<th style="background:#cfe2f3;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
+    filtered.forEach((r, i) => {
+        html += `<tr>
+            <td style="text-align:center">${i+1}</td>
+            <td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td>
+            <td>${escHtml(r.EMP_NAME||'')}</td>
+            <td>${escHtml(r.DEPT_NAME||'')}</td>
+            <td>${escHtml(r.LINE_NAME||'')}</td>
+            <td>${escHtml(r.WORK_NAME||'')}</td>
+            <td>${gpLabel[r.GP_TYPE]||r.GP_TYPE||''}</td>
+            <td>${fmtDt(r.OUT_TIME)}</td>
+            <td>${fmtDt(r.IN_TIME)}</td>
+            <td>${statusLabel(r.STATUS)}</td>
+            <td>${fmtDate(r.FINAL_DATE)}</td>
+        </tr>`;
+    });
+    html += '</tbody></table></body></html>';
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `RaVaoCong_${new Date().toISOString().slice(0,10)}.xls`;
+    link.click();
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

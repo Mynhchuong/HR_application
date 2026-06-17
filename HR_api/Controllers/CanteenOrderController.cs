@@ -12,21 +12,22 @@ public class CanteenOrderController : ControllerBase
 
     public CanteenOrderController(OracleService db) { _db = db; }
 
-    // GET /apiHR/CanteenOrder/today?empcd=xxx&date=20260618
+    // GET /apiHR/CanteenOrder/today?empcd=xxx&date=20260618&typeMeal=LUNCH
     [HttpGet("today")]
-    public async Task<IActionResult> GetToday([FromQuery] string empcd, [FromQuery] string? date)
+    public async Task<IActionResult> GetToday([FromQuery] string empcd, [FromQuery] string? date, [FromQuery] string? typeMeal)
     {
         try
         {
-            var dateStr = date ?? DateTime.Today.ToString("yyyyMMdd");
+            var dateStr  = date ?? DateTime.Today.ToString("yyyyMMdd");
+            var mealCat  = string.IsNullOrEmpty(typeMeal) ? "LUNCH" : typeMeal.ToUpper();
 
-            const string sql = @"
+            var sql = $@"
                 SELECT NVL(b.type_of_food, 'M') type_of_food
                 FROM ecm100 a, HRMS.CANTEEN_ORDER b
                 WHERE a.empcd        = b.empcd(+)
                 AND   a.empcd        = :EMPCD
                 AND   b.dat(+)       = :DAT
-                AND   b.type_meal(+) = 'LUNCH'
+                AND   b.type_meal(+) = '{mealCat}'
                 AND   a.jeajikgb     = 'Y'";
 
             var rows = await _db.ExecuteQueryAsync(sql,
@@ -64,9 +65,11 @@ public class CanteenOrderController : ControllerBase
             var from = DateTime.Parse(req.FromDate);
             var to   = DateTime.Parse(req.ToDate);
 
-            const string sql = @"
+            var mealCat = string.IsNullOrEmpty(req.TypeMeal) ? "LUNCH" : req.TypeMeal.ToUpper();
+
+            var sql = $@"
                 MERGE INTO HRMS.CANTEEN_ORDER T
-                USING (SELECT :EMPCD AS EMPCD, :DAT AS DAT, 'LUNCH' AS TYPE_MEAL, :TYPE AS TYPE_OF_FOOD, :CHANGE_FROM AS CHANGE_FROM FROM DUAL) S
+                USING (SELECT :EMPCD AS EMPCD, :DAT AS DAT, '{mealCat}' AS TYPE_MEAL, :TYPE AS TYPE_OF_FOOD, :CHANGE_FROM AS CHANGE_FROM FROM DUAL) S
                 ON (T.EMPCD = S.EMPCD AND T.DAT = S.DAT AND T.TYPE_MEAL = S.TYPE_MEAL)
                 WHEN MATCHED     THEN UPDATE SET T.TYPE_OF_FOOD = S.TYPE_OF_FOOD, T.CHANGE_FROM = S.CHANGE_FROM
                 WHEN NOT MATCHED THEN INSERT (EMPCD, DAT, TYPE_MEAL, TYPE_OF_FOOD, CHANGE_FROM)
@@ -81,7 +84,7 @@ public class CanteenOrderController : ControllerBase
                     new OracleParameter("EMPCD",       req.EmpCd),
                     new OracleParameter("DAT",         datStr),
                     new OracleParameter("TYPE",        typeDb),
-                    new OracleParameter("CHANGE_FROM", req.EmpCd));
+                    new OracleParameter("CHANGE_FROM", "HR"));
                 total++;
             }
 
@@ -101,8 +104,9 @@ public class CanteenOrderController : ControllerBase
 
 public class CanteenChangeBody
 {
-    public string EmpCd    { get; set; } = string.Empty;
-    public string MealType { get; set; } = string.Empty;
-    public string FromDate  { get; set; } = string.Empty;
-    public string ToDate    { get; set; } = string.Empty;
+    public string  EmpCd    { get; set; } = string.Empty;
+    public string  MealType { get; set; } = string.Empty;
+    public string? TypeMeal { get; set; } = "LUNCH"; // LUNCH or OT
+    public string  FromDate { get; set; } = string.Empty;
+    public string  ToDate   { get; set; } = string.Empty;
 }

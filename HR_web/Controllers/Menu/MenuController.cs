@@ -50,7 +50,7 @@ public class MenuController : BaseController
     // QUẢN LÝ TUẦN
     // ═══════════════════════════════════════════════════════════════════════════
 
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> Manage()
     {
         var weeks = await _svc.GetWeekListAsync();
@@ -58,7 +58,7 @@ public class MenuController : BaseController
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> CreateWeek(SaveWeekRequest model)
     {
         model.LOGIN_USER = CurrentUser!.EmpCd;
@@ -68,7 +68,7 @@ public class MenuController : BaseController
         return RedirectToAction("Manage");
     }
 
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> EditWeek(int id)
     {
         var (week, details) = await _svc.GetWeekByIdAsync(id);
@@ -83,7 +83,7 @@ public class MenuController : BaseController
 
     // AJAX — lưu grid thực đơn
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> SaveGrid([FromBody] SaveDetailRequest model)
     {
         model.LOGIN_USER = CurrentUser!.EmpCd;
@@ -92,7 +92,7 @@ public class MenuController : BaseController
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> PublishWeek(int id)
     {
         var (success, msg) = await _svc.PublishAsync(id, CurrentUser!.EmpCd);
@@ -101,7 +101,7 @@ public class MenuController : BaseController
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> UnpublishWeek(int id)
     {
         var (success, msg) = await _svc.UnpublishAsync(id, CurrentUser!.EmpCd);
@@ -110,7 +110,7 @@ public class MenuController : BaseController
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> DeleteWeek(int id)
     {
         var (success, msg) = await _svc.DeleteWeekAsync(id);
@@ -122,7 +122,7 @@ public class MenuController : BaseController
     // TẢI MẪU EXCEL
     // ═══════════════════════════════════════════════════════════════════════════
 
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> DownloadTemplate()
     {
         var foods = await _svc.GetActiveFoodsAsync();
@@ -238,7 +238,7 @@ public class MenuController : BaseController
     // ═══════════════════════════════════════════════════════════════════════════
 
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> ImportExcel(IFormFile file)
     {
         var errors = new List<ImportRowError>();
@@ -402,7 +402,7 @@ public class MenuController : BaseController
     // QUẢN LÝ MÓN ĂN
     // ═══════════════════════════════════════════════════════════════════════════
 
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> FoodManage()
     {
         var foods = await _svc.GetFoodListAsync();
@@ -411,7 +411,7 @@ public class MenuController : BaseController
 
     // AJAX — lưu món ăn (thêm/sửa)
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> SaveFood(SaveFoodRequest model, IFormFile? imageFile)
     {
         if (string.IsNullOrWhiteSpace(model.FOOD_NAME))
@@ -472,7 +472,7 @@ public class MenuController : BaseController
 
     // AJAX — toggle
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> ToggleFood(int id)
     {
         var (success, msg) = await _svc.ToggleFoodAsync(id, CurrentUser!.EmpCd);
@@ -481,7 +481,7 @@ public class MenuController : BaseController
 
     // AJAX — xóa
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> DeleteFood(int id)
     {
         var (success, msg) = await _svc.DeleteFoodAsync(id);
@@ -502,7 +502,7 @@ public class MenuController : BaseController
 
     // Xuất Excel danh mục món ăn
     [HttpGet]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> ExportFoodExcel()
     {
         var foods = await _svc.GetFoodListAsync();
@@ -548,7 +548,7 @@ public class MenuController : BaseController
 
     // Tải file mẫu import món ăn
     [HttpGet]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public IActionResult DownloadFoodTemplate()
     {
         using var wb = new XLWorkbook();
@@ -595,7 +595,7 @@ public class MenuController : BaseController
 
     // Import món ăn từ Excel
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> ImportFoodExcel(IFormFile file)
     {
         if (file == null || file.Length == 0)
@@ -696,7 +696,7 @@ public class MenuController : BaseController
         return View(data);
     }
 
-    [Authorize]
+    [Authorize(Roles = "HR,Admin")]
     public async Task<IActionResult> ChangeMeal()
     {
         var empCd = CurrentUser!.EmpCd;
@@ -713,12 +713,12 @@ public class MenuController : BaseController
     }
 
     [HttpGet]
-    [Authorize]
-    public async Task<IActionResult> GetMealForDate(string date)
+    [Authorize(Roles = "HR,Admin")]
+    public async Task<IActionResult> GetMealForDate(string date, string? typeMeal)
     {
-        var empCd   = CurrentUser!.EmpCd;
-        var dateStr = date?.Replace("-", "") ?? DateTime.Today.ToString("yyyyMMdd");
-        var foodType = await _svc.GetUserMealByDateAsync(empCd, dateStr);
+        var empCd    = CurrentUser!.EmpCd;
+        var dateStr  = date?.Replace("-", "") ?? DateTime.Today.ToString("yyyyMMdd");
+        var foodType = await _svc.GetUserMealByDateAsync(empCd, dateStr, typeMeal ?? "LUNCH");
         return Json(new { success = true, foodType });
     }
 

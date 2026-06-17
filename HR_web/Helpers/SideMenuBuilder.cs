@@ -16,6 +16,7 @@ public static class SideMenuBuilder
         bool isDeputyManager = user.RoleName == "DeputyManager";
         bool isManager       = user.RoleName == "Manager";
         bool isExpat         = user.RoleName == "Expat";
+        bool isCanteen       = !isMobileApp && user.RoleName == "Canteen";
 
         return new List<SideMenuItem>
         {
@@ -24,7 +25,7 @@ public static class SideMenuBuilder
                 Id = "Home",
                 Title = "Trang chủ",
                 Icon = "home",
-                VisibleWhen = () => !isExpat,
+                VisibleWhen = () => !isExpat && !isCanteen,
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Tổng quan",           Url = "~/Home/Index",           Icon = "dashboard"     },
@@ -39,7 +40,7 @@ public static class SideMenuBuilder
                 Id = "Worker",
                 Title = "Cá nhân",
                 Icon = "person",
-                VisibleWhen = () => !isExpat,
+                VisibleWhen = () => !isExpat && !isCanteen,
                 Children = new List<SideMenuItem>
                 {
                     // new SideMenuItem { Title = "Lịch cá nhân",        Url = "~/Calendar/MyCalendar",     Icon = "calendar_month" },
@@ -134,6 +135,20 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Log Sắp Lịch Nghỉ",    Url = "~/Leave/LeaveAssignmentLog",   Icon = "assignment_late"        },
                     new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy"             },
                 }
+            },
+
+            new()
+            {
+                Id = "Canteen",
+                Title = "Nhà bếp",
+                Icon = "restaurant_menu",
+                VisibleWhen = () => isCanteen || isAdmin,
+                Children = [
+                    new() { Title = "Thực đơn hôm nay",  Url = "~/Menu/Today",      Icon = "today"         },
+                    new() { Title = "Thực đơn tuần",     Url = "~/Menu/ThisWeek",   Icon = "date_range"    },
+                    new() { Title = "Quản lý Thực đơn",  Url = "~/Menu/Manage",     Icon = "edit_calendar" },
+                    new() { Title = "Quản lý Món ăn",    Url = "~/Menu/FoodManage", Icon = "set_meal"      },
+                ]
             },
 
             new()

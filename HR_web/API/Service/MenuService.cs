@@ -100,10 +100,10 @@ public class MenuService
         return new();
     }
 
-    public async Task<string> GetUserMealByDateAsync(string empCd, string dateStr)
+    public async Task<string> GetUserMealByDateAsync(string empCd, string dateStr, string typeMeal = "LUNCH")
     {
         var r = await _api.GetAsync<Resp<UserTodayMealModel>>(
-            $"CanteenOrder/today?empcd={Uri.EscapeDataString(empCd)}&date={dateStr}");
+            $"CanteenOrder/today?empcd={Uri.EscapeDataString(empCd)}&date={dateStr}&typeMeal={typeMeal}");
         return r?.success == true ? r.data?.FOOD_TYPE ?? "MAN" : "MAN";
     }
 
@@ -113,6 +113,7 @@ public class MenuService
         {
             empCd    = req.LoginUser,
             mealType = req.MealType,
+            typeMeal = req.TypeMeal ?? "LUNCH",
             fromDate = req.FromDate,
             toDate   = req.ToDate
         };

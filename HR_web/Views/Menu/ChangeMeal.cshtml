@@ -133,9 +133,9 @@
         <small><span class="vni-font">@Model.FullName</span> — @DateTime.Today.ToString("dd/MM/yyyy")</small>
     </div>
 
-    <!-- Đổi sang loại khác ngày mai -->
+    <!-- Đổi món bữa ăn ca (LUNCH) -->
     <div class="cm-section">
-        <div class="cm-section-title">Đổi sang loại khác — <strong id="mealDateLabel">ngày mai</strong></div>
+        <div class="cm-section-title">Đổi món bữa ăn ca — <strong id="mealDateLabel">ngày mai</strong></div>
         <div class="cm-section-body">
             <div class="cm-pick-date">
                 <label>📅 Ngày đổi</label>
@@ -143,11 +143,31 @@
             </div>
             <div id="currentMealBadge" style="text-align:center;margin-bottom:.6rem;font-size:.8rem;color:#64748b;min-height:1.4rem;"></div>
             <div class="cm-meal-btns">
-                <button class="cm-meal-btn man"  id="btnMAN"  onclick="submitMeal('MAN','Mặn')">🍖 Mặn</button>
-                <button class="cm-meal-btn nhe"  id="btnNHE"  onclick="submitMeal('NHE','Nhẹ')">🥗 Nhẹ</button>
-                <button class="cm-meal-btn chay" id="btnCHAY" onclick="submitMeal('CHAY','Chay')">🥦 Chay</button>
+                <button class="cm-meal-btn man"  id="btnMAN"  onclick="submitMeal('MAN','Mặn','LUNCH')">🍖 Mặn</button>
+                <button class="cm-meal-btn nhe"  id="btnNHE"  onclick="submitMeal('NHE','Nhẹ','LUNCH')">🥗 Nhẹ</button>
+                <button class="cm-meal-btn chay" id="btnCHAY" onclick="submitMeal('CHAY','Chay','LUNCH')">🥦 Chay</button>
             </div>
             <p id="currentMealHint" style="font-size:.75rem;color:#94a3b8;margin:.6rem 0 0;text-align:center;display:none;">
+                Nút món hiện tại đã ẩn — chọn để đổi sang loại khác
+            </p>
+        </div>
+    </div>
+
+    <!-- Đổi món tăng ca (OT) -->
+    <div class="cm-section">
+        <div class="cm-section-title">Đổi món tăng ca — <strong id="otDateLabel">ngày mai</strong></div>
+        <div class="cm-section-body">
+            <div class="cm-pick-date">
+                <label>📅 Ngày đổi</label>
+                <input type="date" id="otDate" onchange="onOtDateChange()" />
+            </div>
+            <div id="currentOtBadge" style="text-align:center;margin-bottom:.6rem;font-size:.8rem;color:#64748b;min-height:1.4rem;"></div>
+            <div class="cm-meal-btns">
+                <button class="cm-meal-btn man"  id="otBtnMAN"  onclick="submitMeal('MAN','Mặn','OT')">🍖 Mặn</button>
+                <button class="cm-meal-btn nhe"  id="otBtnNHE"  onclick="submitMeal('NHE','Nhẹ','OT')">🥗 Nhẹ</button>
+                <button class="cm-meal-btn chay" id="otBtnCHAY" onclick="submitMeal('CHAY','Chay','OT')">🥦 Chay</button>
+            </div>
+            <p id="otMealHint" style="font-size:.75rem;color:#94a3b8;margin:.6rem 0 0;text-align:center;display:none;">
                 Nút món hiện tại đã ẩn — chọn để đổi sang loại khác
             </p>
         </div>
@@ -207,32 +227,69 @@ function updateMealButtons(currentType) {
     document.getElementById('currentMealHint').style.display = info ? '' : 'none';
 }
 
-// ── Init meal date picker ────────────────────────────────────────────────────
+function updateOtButtons(currentType) {
+    ['MAN', 'NHE', 'CHAY'].forEach(t => {
+        document.getElementById('otBtn' + t).style.display = t === currentType ? 'none' : '';
+    });
+    const badge = document.getElementById('currentOtBadge');
+    const info  = MEAL_INFO[currentType];
+    badge.innerHTML = info
+        ? `<span style="background:${info.color}18;color:${info.color};padding:.25rem .75rem;border-radius:50px;font-weight:700;">${info.label}</span>`
+        : '';
+    document.getElementById('otMealHint').style.display = info ? '' : 'none';
+}
+
+// ── Init meal date pickers ───────────────────────────────────────────────────
+function getTomorrowStr() {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    return t.toISOString().split('T')[0];
+}
+
 (function initMealDate() {
     const inp = document.getElementById('mealDate');
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tStr = tomorrow.toISOString().split('T')[0];
+    const tStr = getTomorrowStr();
     inp.min   = tStr;
     inp.value = tStr;
     onMealDateChange();
 })();
 
+(function initOtDate() {
+    const inp = document.getElementById('otDate');
+    const tStr = getTomorrowStr();
+    inp.min   = tStr;
+    inp.value = tStr;
+    onOtDateChange();
+})();
+
 async function onMealDateChange() {
     const inp   = document.getElementById('mealDate');
     const label = document.getElementById('mealDateLabel');
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tStr = tomorrow.toISOString().split('T')[0];
+    const tStr  = getTomorrowStr();
     label.textContent = inp.value === tStr ? 'ngày mai' : inp.value.split('-').reverse().join('/');
 
     document.getElementById('currentMealBadge').innerHTML =
         '<span style="color:#94a3b8;font-size:.75rem;">Đang tải...</span>';
     try {
-        const res  = await fetch(MEAL_URL + '?date=' + inp.value);
+        const res  = await fetch(MEAL_URL + '?date=' + inp.value + '&typeMeal=LUNCH');
         const data = await res.json();
         updateMealButtons(data.success ? data.foodType : 'MAN');
     } catch { updateMealButtons('MAN'); }
+}
+
+async function onOtDateChange() {
+    const inp   = document.getElementById('otDate');
+    const label = document.getElementById('otDateLabel');
+    const tStr  = getTomorrowStr();
+    label.textContent = inp.value === tStr ? 'ngày mai' : inp.value.split('-').reverse().join('/');
+
+    document.getElementById('currentOtBadge').innerHTML =
+        '<span style="color:#94a3b8;font-size:.75rem;">Đang tải...</span>';
+    try {
+        const res  = await fetch(MEAL_URL + '?date=' + inp.value + '&typeMeal=OT');
+        const data = await res.json();
+        updateOtButtons(data.success ? data.foodType : 'MAN');
+    } catch { updateOtButtons('MAN'); }
 }
 
 function _doFetch(body) {
@@ -249,14 +306,16 @@ function _doFetch(body) {
     .catch(() => window.showToast('Lỗi kết nối, vui lòng thử lại', 'error'));
 }
 
-function submitMeal(type, label) {
-    const dateStr = document.getElementById('mealDate').value;
+function submitMeal(type, label, typeMeal) {
+    const dateInputId = typeMeal === 'OT' ? 'otDate' : 'mealDate';
+    const dateStr = document.getElementById(dateInputId).value;
     const [y, m, d] = dateStr.split('-');
     const dateLabel = `${d}/${m}/${y}`;
+    const title = typeMeal === 'OT' ? 'Đổi món tăng ca' : 'Đổi món ăn ca';
     window.showConfirm(
-        `Xác nhận đổi sang món ${label} ngày ${dateLabel}?`,
-        () => _doFetch({ mealType: type, fromDate: dateStr, toDate: dateStr }),
-        { title: 'Đổi món ăn', okText: 'Xác nhận', okClass: 'btn-danger',
+        `Xác nhận đổi sang món ${label} (${typeMeal === 'OT' ? 'tăng ca' : 'bữa ca'}) ngày ${dateLabel}?`,
+        () => _doFetch({ mealType: type, typeMeal: typeMeal, fromDate: dateStr, toDate: dateStr }),
+        { title: title, okText: 'Xác nhận', okClass: 'btn-danger',
           icon: 'restaurant', iconColor: '#c00000', iconBg: '#ffe4e4' }
     );
 }

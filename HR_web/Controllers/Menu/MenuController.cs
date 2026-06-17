@@ -696,7 +696,6 @@ public class MenuController : BaseController
         return View(data);
     }
 
-    [Authorize(Roles = "HR,Admin")]
     public async Task<IActionResult> ChangeMeal()
     {
         var empCd = CurrentUser!.EmpCd;
@@ -713,7 +712,6 @@ public class MenuController : BaseController
     }
 
     [HttpGet]
-    [Authorize(Roles = "HR,Admin")]
     public async Task<IActionResult> GetMealForDate(string date, string? typeMeal)
     {
         var empCd    = CurrentUser!.EmpCd;

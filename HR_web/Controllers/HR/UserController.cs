@@ -1,9 +1,9 @@
 using ClosedXML.Excel;
 using HR_web.API.Service;
 using HR_web.Models.Account;
-using HR_web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 using X.PagedList;
 
 namespace HR_web.Controllers.HR;
@@ -12,10 +12,12 @@ namespace HR_web.Controllers.HR;
 public class UserController : BaseController
 {
     private readonly AccountService _service;
+    private readonly DropdownService _dropdown;
 
-    public UserController(AccountService service)
+    public UserController(AccountService service, DropdownService dropdown)
     {
         _service = service;
+        _dropdown = dropdown;
     }
 
     // ─────────────────────────────────────────────
@@ -264,5 +266,111 @@ public class UserController : BaseController
             TempData["OpenModal"] = "createUserModal";
             return RedirectToAction("UserManager");
         }
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /User/DownloadRoleTemplate
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> DownloadRoleTemplate()
+    {
+        var roles = await _dropdown.GetRoleAsync();
+
+        using var wb = new XLWorkbook();
+
+        var ws1 = wb.Worksheets.Add("Import");
+        string[] headers = { "STT", "Mã NV", "Role ID" };
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var cell = ws1.Cell(1, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#217346");
+            cell.Style.Font.FontColor = XLColor.White;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+        ws1.Cell(2, 1).Value = "* Role ID lấy từ sheet 'Danh sách Role'";
+        ws1.Cell(2, 1).Style.Font.Italic = true;
+        ws1.Cell(2, 1).Style.Font.FontColor = XLColor.Gray;
+        ws1.Range(2, 1, 2, 3).Merge();
+        ws1.Columns().AdjustToContents();
+
+        var ws2 = wb.Worksheets.Add("Danh sách Role");
+        ws2.Cell(1, 1).Value = "Role ID";
+        ws2.Cell(1, 2).Value = "Tên Role";
+        ws2.Range(1, 1, 1, 2).Style.Font.Bold = true;
+        ws2.Range(1, 1, 1, 2).Style.Fill.BackgroundColor = XLColor.FromHtml("#1F497D");
+        ws2.Range(1, 1, 1, 2).Style.Font.FontColor = XLColor.White;
+        int r = 2;
+        foreach (var role in roles.Where(x => x.text != "Admin"))
+        {
+            ws2.Cell(r, 1).Value = role.id;
+            ws2.Cell(r, 2).Value = role.text;
+            r++;
+        }
+        ws2.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "MauCapNhatRole.xlsx");
+    }
+
+    // ─────────────────────────────────────────────
+    // POST: /User/ImportUpdateRole
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ImportUpdateRole(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            TempData["ErrorMessage"] = "Vui lòng chọn file Excel";
+            return RedirectToAction("UserManager");
+        }
+        try
+        {
+            var items = new List<(string empCd, int roleId)>();
+            var parseErrors = new List<AccountService.BulkUpdateRoleResult>();
+
+            using var stream = file.OpenReadStream();
+            using var wb = new XLWorkbook(stream);
+            var ws = wb.Worksheet(1);
+            int lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
+
+            for (int row = 3; row <= lastRow; row++)
+            {
+                var empCd = ws.Cell(row, 2).GetString()?.Trim();
+                var roleIdStr = ws.Cell(row, 3).GetString()?.Trim();
+                if (string.IsNullOrEmpty(empCd)) continue;
+
+                if (!int.TryParse(roleIdStr, out int roleId))
+                {
+                    parseErrors.Add(new AccountService.BulkUpdateRoleResult
+                    {
+                        EmpCd = empCd,
+                        Success = false,
+                        Message = $"Role ID '{roleIdStr}' không hợp lệ"
+                    });
+                    continue;
+                }
+                items.Add((empCd, roleId));
+            }
+
+            var results = items.Count > 0
+                ? await _service.BulkUpdateRoleAsync(items, CurrentUser!.EmpCd)
+                : new List<AccountService.BulkUpdateRoleResult>();
+
+            results.AddRange(parseErrors);
+
+            TempData["ImportResults"] = JsonSerializer.Serialize(results);
+            TempData["OpenModal"] = "importResultModal";
+        }
+        catch (Exception ex)
+        {
+            TempData["ErrorMessage"] = "Lỗi đọc file: " + ex.Message;
+        }
+        return RedirectToAction("UserManager");
     }
 }

@@ -697,6 +697,56 @@ public class AccountController : ControllerBase
         }
     }
 
+    [HttpPost("bulk-update-role")]
+    public async Task<IActionResult> BulkUpdateRole([FromBody] List<BulkUpdateRoleItem> items)
+    {
+        if (items == null || items.Count == 0)
+            return BadRequest(new { success = false, message = "Không có dữ liệu" });
+
+        var allRoles = await _oracleService.ExecuteQueryAsync(
+            "SELECT ID, ROLE_NAME FROM HRMS.HR_ROLES",
+            r => new { Id = Convert.ToInt32(r["ID"]), Name = r["ROLE_NAME"]?.ToString() ?? "" });
+        var roleMap = allRoles.ToDictionary(r => r.Id, r => r.Name);
+
+        var results = new List<BulkUpdateRoleResult>();
+        foreach (var item in items)
+        {
+            if (string.IsNullOrWhiteSpace(item.EmpCd)) continue;
+
+            if (!roleMap.TryGetValue(item.RoleId, out var roleName))
+            {
+                results.Add(new BulkUpdateRoleResult { EmpCd = item.EmpCd, Success = false, Message = $"Role ID {item.RoleId} không tồn tại" });
+                continue;
+            }
+            if (roleName == "Admin")
+            {
+                results.Add(new BulkUpdateRoleResult { EmpCd = item.EmpCd, Success = false, Message = "Không thể cấp quyền Admin" });
+                continue;
+            }
+
+            var exists = await _oracleService.ExecuteQueryAsync(
+                "SELECT 1 FROM HRMS.HR_USERS WHERE EMPCD = :EMPCD",
+                r => 1,
+                new OracleParameter("EMPCD", item.EmpCd.Trim()));
+
+            if (exists.Count == 0)
+            {
+                results.Add(new BulkUpdateRoleResult { EmpCd = item.EmpCd, Success = false, Message = "Chưa đăng nhập vào hệ thống, không thể cập nhật" });
+                continue;
+            }
+
+            int rows = await _oracleService.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_USERS SET ROLE_ID = :ROLE_ID, UPDT_ID = :LOGIN_USER, UPDT_DT = SYSDATE WHERE EMPCD = :EMPCD",
+                new OracleParameter("ROLE_ID", item.RoleId),
+                new OracleParameter("LOGIN_USER", item.LoginUser ?? "SYSTEM"),
+                new OracleParameter("EMPCD", item.EmpCd.Trim()));
+
+            results.Add(new BulkUpdateRoleResult { EmpCd = item.EmpCd, Success = rows > 0, Message = rows > 0 ? "Thành công" : "Không tìm thấy user" });
+        }
+
+        return Ok(new { success = true, data = results });
+    }
+
     [HttpPost("update-role")]
     public async Task<IActionResult> UpdateRole([FromBody] UpdateRoleRequest req)
     {

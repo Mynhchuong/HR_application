@@ -223,7 +223,7 @@
                         <div id="currentVideoSection" class="mb-3">
                             <div class="current-video-wrap">
                                 <video id="currentVideoEl" controls preload="metadata" controlsList="nodownload">
-                                    <source src="/Video/GUIDE_VIDEO/@Model.ID" />
+                                    <source src="@Url.Action("Stream", "Video", new { folder = "GUIDE_VIDEO", id = Model.ID })" />
                                 </video>
                             </div>
                             <button type="button" class="btn btn-sm btn-outline-danger mb-0"

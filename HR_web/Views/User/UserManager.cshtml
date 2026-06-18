@@ -16,6 +16,14 @@
                        class="btn btn-sm mb-0" style="background:#1d6f42;color:#fff;">
                         <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel
                     </a>
+                    <a href="@Url.Action("DownloadRoleTemplate", "User")"
+                       class="btn btn-sm mb-0" style="background:#0070c0;color:#fff;" title="Tải mẫu cập nhật role">
+                        <i class="bi bi-download me-1"></i> Tải mẫu
+                    </a>
+                    <button type="button" class="btn btn-sm mb-0" style="background:#7030a0;color:#fff;"
+                            data-bs-toggle="modal" data-bs-target="#importRoleModal">
+                        <i class="bi bi-upload me-1"></i> Import Role
+                    </button>
                     <button type="button" class="btn btn-white mb-0 btn-sm"
                             data-bs-toggle="modal" data-bs-target="#createUserModal">
                         <i class="fas fa-user-plus me-1"></i> Khởi tạo User
@@ -212,6 +220,96 @@
                         </ul>
                     </nav>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Import Role -->
+<div class="modal fade" id="importRoleModal">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="@Url.Action("ImportUpdateRole", "User")" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Import Cập Nhật Role</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-sm text-secondary mb-2">
+                        Tải mẫu Excel, điền <strong>Mã NV</strong> và <strong>Role ID</strong>, sau đó upload lại.
+                        Nhân viên chưa đăng nhập vào hệ thống sẽ bị báo lỗi.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Chọn file Excel (.xlsx)</label>
+                        <input type="file" name="file" class="form-control" accept=".xlsx" required />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-upload me-1"></i>Upload & Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Kết quả Import -->
+<div class="modal fade" id="importResultModal">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-list-check me-2"></i>Kết quả Import Role</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                @if (TempData["ImportResults"] != null)
+                {
+                    var results = System.Text.Json.JsonSerializer.Deserialize<List<HR_web.API.Service.AccountService.BulkUpdateRoleResult>>(
+                        TempData["ImportResults"]!.ToString()!);
+                    int ok  = results?.Count(r => r.Success) ?? 0;
+                    int err = results?.Count(r => !r.Success) ?? 0;
+                    <div class="px-4 pt-3 pb-2 border-bottom d-flex gap-3">
+                        <span class="badge bg-success fs-6">Thành công: @ok</span>
+                        <span class="badge bg-danger fs-6">Lỗi: @err</span>
+                    </div>
+                    if (results != null && results.Any())
+                    {
+                        <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th>Mã NV</th>
+                                        <th>Kết quả</th>
+                                        <th>Ghi chú</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in results)
+                                    {
+                                        <tr>
+                                            <td><strong>@r.EmpCd</strong></td>
+                                            <td>
+                                                @if (r.Success)
+                                                {
+                                                    <span class="badge bg-success">OK</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-danger">Lỗi</span>
+                                                }
+                                            </td>
+                                            <td class="text-sm @(r.Success ? "" : "text-danger")">@r.Message</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
             </div>
         </div>
     </div>

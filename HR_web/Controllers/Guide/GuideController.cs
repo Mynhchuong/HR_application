@@ -139,7 +139,7 @@ public class GuideController : BaseController
         };
 
         var (saved, saveMsg, _) = await _service.SaveAsync(request);
-        return Json(new { success = saved, message = saveMsg, videoUrl = $"/Video/{VideoFolder}/{id}" });
+        return Json(new { success = saved, message = saveMsg, videoUrl = Url.Action("Stream", "Video", new { folder = VideoFolder, id }) });
     }
 
     // POST /Guide/SaveChunk?id=
@@ -206,7 +206,7 @@ public class GuideController : BaseController
             LOGIN_USER    = CurrentUser!.EmpCd
         };
         var (saved, saveMsg, _) = await _service.SaveAsync(req);
-        return Json(new { success = saved, message = saveMsg, done = true, videoUrl = $"/Video/{VideoFolder}/{id}" });
+        return Json(new { success = saved, message = saveMsg, done = true, videoUrl = Url.Action("Stream", "Video", new { folder = VideoFolder, id }) });
     }
 
     private static void TryCleanTemp(string dir)

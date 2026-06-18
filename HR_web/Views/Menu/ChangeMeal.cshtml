@@ -340,7 +340,7 @@ function toggleSpecial(type) {
     ds.classList.toggle('nhe-mode', type === 'NHE_TRUONG');
 
     const today = new Date().toISOString().split('T')[0];
-    if (!document.getElementById('fromDate').value) document.getElementById('fromDate').value = today;
+    document.getElementById('fromDate').value = today;
 }
 
 function submitSpecial() {

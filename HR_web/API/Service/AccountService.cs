@@ -122,6 +122,21 @@ public class AccountService
         }
     }
 
+    public class BulkUpdateRoleResult
+    {
+        public string EmpCd { get; set; } = string.Empty;
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public async Task<List<BulkUpdateRoleResult>> BulkUpdateRoleAsync(List<(string empCd, int roleId)> items, string loginUser)
+    {
+        var payload = items.Select(x => new { EmpCd = x.empCd, RoleId = x.roleId, LoginUser = loginUser });
+        var response = await _api.PostAsync("Account/bulk-update-role", payload);
+        var result = await ParseResponse<List<BulkUpdateRoleResult>>(response);
+        return result?.data ?? new List<BulkUpdateRoleResult>();
+    }
+
     public async Task<(bool success, string message)> UpdateRoleAsync(string empCd, int roleId, string loginUser)
     {
         var response = await _api.PostAsync("Account/update-role", new { EmpCd = empCd, RoleId = roleId, LoginUser = loginUser });

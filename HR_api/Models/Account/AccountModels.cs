@@ -93,6 +93,20 @@ public class UpdateRoleRequest
     public string LoginUser { get; set; } = string.Empty;
 }
 
+public class BulkUpdateRoleItem
+{
+    public string EmpCd { get; set; } = string.Empty;
+    public int RoleId { get; set; }
+    public string LoginUser { get; set; } = string.Empty;
+}
+
+public class BulkUpdateRoleResult
+{
+    public string EmpCd { get; set; } = string.Empty;
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+}
+
 public class UserInfoPagedViewModel
 {
     public List<UserInfoModel> data { get; set; } = new();

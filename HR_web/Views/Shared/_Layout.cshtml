@@ -777,21 +777,29 @@
                 }).catch(() => {});
         })();
 
-        // FCM token registration (Android WebView only)
-        (function() {
-            if (typeof Android === 'undefined' || !Android.getFcmToken) return;
+        // FCM token registration (Android / iOS WebView)
+        (function tryRegisterToken(attempt) {
+            if (attempt > 10) return;
+            if (typeof Android === 'undefined' || !Android.getFcmToken) {
+                setTimeout(function() { tryRegisterToken(attempt + 1); }, 500);
+                return;
+            }
             try {
                 var fcmToken = Android.getFcmToken();
-                if (!fcmToken) return;
+                if (!fcmToken) {
+                    setTimeout(function() { tryRegisterToken(attempt + 1); }, 500);
+                    return;
+                }
+                var osType = navigator.userAgent.indexOf('MySamhoMobile') !== -1 ? 'IOS' : 'ANDROID';
                 var antiForgery = document.querySelector('input[name="__RequestVerificationToken"]');
                 var aft = antiForgery ? antiForgery.value : '';
                 fetch('@Url.Action("RegisterToken","Notification")', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': aft },
-                    body: JSON.stringify({ token: fcmToken, osType: 'ANDROID' })
+                    body: JSON.stringify({ token: fcmToken, osType: osType })
                 }).catch(() => {});
             } catch(e) {}
-        })();
+        })(0);
         </script>
     }
 </body>

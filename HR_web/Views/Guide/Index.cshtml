@@ -184,7 +184,7 @@
                             <span class="material-symbols-rounded">menu_book</span>
                         </div>
                         <div class="guide-card-title">@item.TITLE</div>
-                        @if (!string.IsNullOrEmpty(item.VIDEO_PATH))
+                        @if (item.IS_VIDEO == "Y")
                         {
                             <div class="guide-card-video">
                                 <i class="bi bi-play-circle-fill"></i> Video

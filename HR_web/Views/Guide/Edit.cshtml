@@ -94,7 +94,6 @@
             <form asp-action="Edit" method="post" enctype="multipart/form-data" id="editForm">
                 @Html.AntiForgeryToken()
                 <input type="hidden" asp-for="ID" />
-                <input type="hidden" asp-for="VIDEO_PATH" id="currentVideoPath" />
 
                 <!-- Row 1: Nhóm + Tiêu đề -->
                 <div class="row g-3 mb-3">
@@ -218,7 +217,7 @@
                         <small class="text-secondary fw-normal ms-1">(MP4 / WebM / MOV, tối đa 500 MB)</small>
                     </label>
 
-                    @if (!string.IsNullOrEmpty(Model.VIDEO_PATH) && Model.ID > 0)
+                    @if (Model.IS_VIDEO == "Y" && Model.ID > 0)
                     {
                         <div id="currentVideoSection" class="mb-3">
                             <div class="current-video-wrap">
@@ -591,7 +590,6 @@ async function removeCurrentVideo(itemId, removeVideoUrl) {
         const data = await res.json();
         if (data.success) {
             document.getElementById('currentVideoSection')?.remove();
-            document.getElementById('currentVideoPath').value = '';
             document.getElementById('uploadLabel').textContent = 'Nhấn hoặc kéo file video vào đây';
             document.getElementById('uploadSub').textContent = 'MP4 · WebM · MOV · Tối đa 500 MB';
             const progress = document.getElementById('uploadProgress');

@@ -6,7 +6,7 @@ public class GuideModel
     public string? CATEGORY { get; set; }
     public string TITLE { get; set; } = string.Empty;
     public string? CONTENT { get; set; }
-    public string? VIDEO_PATH { get; set; }
+    public string IS_VIDEO { get; set; } = "N";
     public int DISPLAY_ORDER { get; set; }
     public int IS_ACTIVE { get; set; }
     public string? INST_ID { get; set; }
@@ -22,7 +22,6 @@ public class SaveGuideRequest
     public string? CATEGORY { get; set; }
     public string TITLE { get; set; } = string.Empty;
     public string? CONTENT { get; set; }
-    public string? VIDEO_PATH { get; set; }
     public int DISPLAY_ORDER { get; set; }
     public int IS_ACTIVE { get; set; } = 1;
     public string? LOGIN_USER { get; set; }

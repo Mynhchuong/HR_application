@@ -54,6 +54,9 @@ public class GuideService
         return (parsed?.success ?? false, parsed?.message ?? "Lỗi server", id);
     }
 
+    public async Task SetVideoAsync(int id, string value, string loginUser)
+        => await _api.PostAsync($"guide/set-video?id={id}&value={value}&loginUser={Uri.EscapeDataString(loginUser)}", new { });
+
     public async Task<(bool success, string message)> ToggleAsync(int id, string loginUser)
     {
         var response = await _api.PostAsync($"guide/toggle?id={id}&loginUser={loginUser}", new { });
@@ -61,10 +64,10 @@ public class GuideService
         return (parsed?.success ?? false, parsed?.message ?? "Lỗi server");
     }
 
-    public async Task<(bool success, string message, string? videoPath)> DeleteAsync(int id)
+    public async Task<(bool success, string message)> DeleteAsync(int id)
     {
         var response = await _api.PostAsync($"guide/delete?id={id}", new { });
         var parsed = await Parse<GuideResponse<object>>(response);
-        return (parsed?.success ?? false, parsed?.message ?? "Lỗi server", parsed?.videoPath);
+        return (parsed?.success ?? false, parsed?.message ?? "Lỗi server");
     }
 }

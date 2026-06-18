@@ -117,14 +117,23 @@
                                     <td class="px-2 text-xs text-secondary row-num">@(i + 1)</td>
                                     <td class="px-2 text-xs text-secondary fw-bold">@f.ID</td>
                                     <td class="px-2">
-                                        <img src="@Url.Action("GetFoodImage", "Image", new { fileName = f.ID + ".jpg" })&v=@DateTimeOffset.UtcNow.ToUnixTimeSeconds()"
-                                             alt="@f.FOOD_NAME"
-                                             style="width:50px;height:50px;object-fit:cover;border-radius:8px;"
-                                             loading="lazy"
-                                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-                                        <div style="display:none;width:50px;height:50px;background:#f0f0f0;border-radius:8px;align-items:center;justify-content:center;">
-                                            <i class="bi bi-image text-secondary"></i>
-                                        </div>
+                                        @if (f.IS_IMAGE == "Y")
+                                        {
+                                            <img src="@Url.Action("GetFoodImage", "Image", new { fileName = f.ID + ".jpg" })&v=@DateTimeOffset.UtcNow.ToUnixTimeSeconds()"
+                                                 alt="@f.FOOD_NAME"
+                                                 style="width:50px;height:50px;object-fit:cover;border-radius:8px;"
+                                                 loading="lazy"
+                                                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                                            <div style="display:none;width:50px;height:50px;background:#f0f0f0;border-radius:8px;align-items:center;justify-content:center;">
+                                                <i class="bi bi-image text-secondary"></i>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div style="width:50px;height:50px;background:#f0f0f0;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                                <i class="bi bi-image text-secondary"></i>
+                                            </div>
+                                        }
                                     </td>
                                     <td class="px-2">
                                         <div class="text-sm font-weight-bold">@f.FOOD_NAME</div>
@@ -142,6 +151,7 @@
                                             <button class="btn btn-sm btn-outline-dark mb-0 px-2"
                                                     data-id="@f.ID" data-name="@f.FOOD_NAME"
                                                     data-type="@(f.FOOD_TYPE ?? "")" data-active="@f.IS_ACTIVE"
+                                                    data-isimage="@f.IS_IMAGE"
                                                     onclick="openModalFromEl(this)" title="Sửa">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
@@ -358,13 +368,13 @@ function showAlert(msg, type = 'success') {
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 function openModalFromEl(el) {
-    openModal(+el.dataset.id, el.dataset.name, el.dataset.type, +el.dataset.active);
+    openModal(+el.dataset.id, el.dataset.name, el.dataset.type, +el.dataset.active, el.dataset.isimage);
 }
 function deleteFoodFromEl(el) {
     deleteFood(+el.dataset.id, el.dataset.name);
 }
 
-function openModal(id = 0, name = '', type = '', active = 1) {
+function openModal(id = 0, name = '', type = '', active = 1, isImage = 'N') {
     document.getElementById('fId').value       = id;
     document.getElementById('fName').value     = name;
     document.getElementById('fType').value     = type;
@@ -373,7 +383,7 @@ function openModal(id = 0, name = '', type = '', active = 1) {
     document.getElementById('fName').classList.remove('is-invalid');
     document.getElementById('fType').classList.remove('is-invalid');
     const preview = document.getElementById('imgPreview');
-    if (id) {
+    if (id && isImage === 'Y') {
         preview.innerHTML = `<img src="/Image/GetFoodImage?fileName=${id}.jpg&v=${Date.now()}" style="height:80px;border-radius:8px;" onerror="this.style.display='none';" />`;
     } else {
         preview.innerHTML = '';

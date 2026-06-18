@@ -89,6 +89,9 @@ public class MenuService
     public async Task<(bool success, string message)> DeleteFoodAsync(int id)
         => await PostResult($"MenuFood/delete?id={id}", new { });
 
+    public async Task SetFoodImageAsync(int id, string value)
+        => await PostResult($"MenuFood/set-image?id={id}&value={value}", new { });
+
     // ── Món hôm nay của nhân viên ─────────────────────────────────────────────
     public async Task<List<UserTodayMealModel>> GetUserTodayMealAsync(string empCd)
     {

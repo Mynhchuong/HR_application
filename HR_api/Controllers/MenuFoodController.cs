@@ -25,7 +25,7 @@ public class MenuFoodController : ControllerBase
         try
         {
             const string sql = @"
-                SELECT ID, FOOD_NAME, FOOD_TYPE, IS_ACTIVE,
+                SELECT ID, FOOD_NAME, FOOD_TYPE, IS_IMAGE, IS_ACTIVE,
                        INST_ID, INST_DT, UPDT_ID, UPDT_DT
                 FROM HRMS.HR_MENU_FOOD
                 ORDER BY IS_ACTIVE DESC, FOOD_TYPE, FOOD_NAME";
@@ -45,7 +45,7 @@ public class MenuFoodController : ControllerBase
         try
         {
             const string sql = @"
-                SELECT ID, FOOD_NAME, FOOD_TYPE, IS_ACTIVE,
+                SELECT ID, FOOD_NAME, FOOD_TYPE, IS_IMAGE, IS_ACTIVE,
                        INST_ID, INST_DT, UPDT_ID, UPDT_DT
                 FROM HRMS.HR_MENU_FOOD
                 WHERE IS_ACTIVE = 1
@@ -167,11 +167,30 @@ public class MenuFoodController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/MenuFood/set-image?id=&value=Y|N
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("set-image")]
+    public async Task<IActionResult> SetImage(int id, string value)
+    {
+        try
+        {
+            var v = (value == "Y") ? "Y" : "N";
+            int rows = await _db.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_MENU_FOOD SET IS_IMAGE = :IS_IMAGE WHERE ID = :ID",
+                new OracleParameter("IS_IMAGE", v),
+                new OracleParameter("ID", id));
+            return Ok(new { success = rows > 0 });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     private static MenuFoodModel Map(OracleDataReader r) => new()
     {
         ID         = Convert.ToInt32(r["ID"]),
         FOOD_NAME  = r["FOOD_NAME"]?.ToString()  ?? string.Empty,
         FOOD_TYPE  = r["FOOD_TYPE"]?.ToString(),
+        IS_IMAGE   = r["IS_IMAGE"]?.ToString()   ?? "N",
         IS_ACTIVE  = r["IS_ACTIVE"]  == DBNull.Value ? 0 : Convert.ToInt32(r["IS_ACTIVE"]),
         INST_ID    = r["INST_ID"]?.ToString(),
         INST_DT    = r["INST_DT"]   == DBNull.Value ? null : Convert.ToDateTime(r["INST_DT"]),

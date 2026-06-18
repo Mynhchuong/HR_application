@@ -271,14 +271,14 @@
                     {
                         var foodName = food.FOOD_NAME ?? "";
                         var initial  = foodName.Length > 0 ? foodName[0].ToString().ToUpper() : "?";
-                        var imgUrl   = food.FOOD_ID.HasValue
+                        var imgUrl   = food.IS_IMAGE == "Y" && food.FOOD_ID.HasValue
                             ? Url.Action("GetFoodImage","Image", new { fileName = food.FOOD_ID + ".jpg" }) + "&v=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                             : null;
                         <div class="tp-meal tp-meal-clickable"
                              data-food-img="@imgUrl"
                              data-food-name="@foodName"
                              onclick="openFoodModal(this)">
-                            @if (food.FOOD_ID.HasValue)
+                            @if (food.IS_IMAGE == "Y" && food.FOOD_ID.HasValue)
                             {
                                 <img class="tp-meal-img"
                                      src="@imgUrl"

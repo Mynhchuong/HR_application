@@ -19,6 +19,7 @@ public class MenuFoodModel
     public int       ID         { get; set; }
     public string    FOOD_NAME  { get; set; } = string.Empty;
     public string?   FOOD_TYPE  { get; set; }
+    public string    IS_IMAGE   { get; set; } = "N";
     public int       IS_ACTIVE  { get; set; }
     public string?   INST_ID    { get; set; }
     public DateTime? INST_DT    { get; set; }
@@ -118,5 +119,6 @@ public class MenuDayViewModel
     public string  MEAL_TYPE     { get; set; } = string.Empty;
     public int?    FOOD_ID       { get; set; }
     public string? FOOD_NAME     { get; set; }
+    public string  IS_IMAGE      { get; set; } = "N";
     public int     DISPLAY_ORDER { get; set; }
 }

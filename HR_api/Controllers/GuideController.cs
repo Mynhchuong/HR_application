@@ -25,7 +25,7 @@ public class GuideController : ControllerBase
             const string sql = @"
                 SELECT G.ID, G.CATEGORY, G.TITLE,
                        DBMS_LOB.SUBSTR(G.CONTENT, 2000, 1) AS CONTENT,
-                       G.VIDEO_PATH, G.DISPLAY_ORDER, G.IS_ACTIVE,
+                       G.IS_VIDEO, G.DISPLAY_ORDER, G.IS_ACTIVE,
                        G.INST_ID, G.INST_DT, G.UPDT_ID, G.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
                 FROM HRMS.HR_GUIDE G
@@ -51,7 +51,7 @@ public class GuideController : ControllerBase
             const string sql = @"
                 SELECT G.ID, G.CATEGORY, G.TITLE,
                        DBMS_LOB.SUBSTR(G.CONTENT, 2000, 1) AS CONTENT,
-                       G.VIDEO_PATH, G.DISPLAY_ORDER, G.IS_ACTIVE,
+                       G.IS_VIDEO, G.DISPLAY_ORDER, G.IS_ACTIVE,
                        G.INST_ID, G.INST_DT, G.UPDT_ID, G.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
                 FROM HRMS.HR_GUIDE G
@@ -80,7 +80,7 @@ public class GuideController : ControllerBase
                        DBMS_LOB.SUBSTR(G.CONTENT, 2000, 4001) AS C3,
                        DBMS_LOB.SUBSTR(G.CONTENT, 2000, 6001) AS C4,
                        DBMS_LOB.SUBSTR(G.CONTENT, 2000, 8001) AS C5,
-                       G.VIDEO_PATH, G.DISPLAY_ORDER, G.IS_ACTIVE,
+                       G.IS_VIDEO, G.DISPLAY_ORDER, G.IS_ACTIVE,
                        G.INST_ID, G.INST_DT, G.UPDT_ID, G.UPDT_DT,
                        U.FULL_NAME AS UPDT_FULL_NAME
                 FROM HRMS.HR_GUIDE G
@@ -114,20 +114,24 @@ public class GuideController : ControllerBase
             {
                 const string sqlInsert = @"
                     INSERT INTO HRMS.HR_GUIDE
-                        (CATEGORY, TITLE, CONTENT, VIDEO_PATH, DISPLAY_ORDER, IS_ACTIVE, INST_ID, INST_DT)
+                        (CATEGORY, TITLE, CONTENT, DISPLAY_ORDER, IS_ACTIVE, INST_ID, INST_DT)
                     VALUES
-                        (:CATEGORY, :TITLE, :CONTENT, :VIDEO_PATH, :DISPLAY_ORDER, :IS_ACTIVE, :INST_ID, SYSDATE)";
+                        (:CATEGORY, :TITLE, :CONTENT, :DISPLAY_ORDER, :IS_ACTIVE, :INST_ID, SYSDATE)
+                    RETURNING ID INTO :newId";
 
+                var newIdParam = new OracleParameter("newId", OracleDbType.Int32)
+                    { Direction = System.Data.ParameterDirection.Output };
                 await _oracleService.ExecuteNonQueryAsync(sqlInsert,
                     new OracleParameter("CATEGORY",      (object?)model.CATEGORY      ?? DBNull.Value),
                     new OracleParameter("TITLE",         model.TITLE),
                     new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = (object?)(model.CONTENT?.Replace("\0", "")) ?? DBNull.Value },
-                    new OracleParameter("VIDEO_PATH",    (object?)model.VIDEO_PATH    ?? DBNull.Value),
                     new OracleParameter("DISPLAY_ORDER", model.DISPLAY_ORDER),
                     new OracleParameter("IS_ACTIVE",     model.IS_ACTIVE),
-                    new OracleParameter("INST_ID",       (object?)model.LOGIN_USER    ?? DBNull.Value));
+                    new OracleParameter("INST_ID",       (object?)model.LOGIN_USER    ?? DBNull.Value),
+                    newIdParam);
 
-                return Ok(new { success = true, message = "Tạo mục hướng dẫn thành công" });
+                int newId = Convert.ToInt32(newIdParam.Value.ToString());
+                return Ok(new { success = true, message = "Tạo mục hướng dẫn thành công", data = newId });
             }
             else
             {
@@ -136,7 +140,6 @@ public class GuideController : ControllerBase
                     SET CATEGORY      = :CATEGORY,
                         TITLE         = :TITLE,
                         CONTENT       = :CONTENT,
-                        VIDEO_PATH    = :VIDEO_PATH,
                         DISPLAY_ORDER = :DISPLAY_ORDER,
                         IS_ACTIVE     = :IS_ACTIVE,
                         UPDT_ID       = :UPDT_ID
@@ -146,7 +149,6 @@ public class GuideController : ControllerBase
                     new OracleParameter("CATEGORY",      (object?)model.CATEGORY   ?? DBNull.Value),
                     new OracleParameter("TITLE",         model.TITLE),
                     new OracleParameter("CONTENT",       OracleDbType.NClob) { Value = (object?)(model.CONTENT?.Replace("\0", "")) ?? DBNull.Value },
-                    new OracleParameter("VIDEO_PATH",    (object?)model.VIDEO_PATH ?? DBNull.Value),
                     new OracleParameter("DISPLAY_ORDER", model.DISPLAY_ORDER),
                     new OracleParameter("IS_ACTIVE",     model.IS_ACTIVE),
                     new OracleParameter("UPDT_ID",       (object?)model.LOGIN_USER ?? DBNull.Value),
@@ -157,6 +159,30 @@ public class GuideController : ControllerBase
 
                 return Ok(new { success = true, message = "Cập nhật thành công" });
             }
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/Guide/set-video?id=&value=Y|N
+    [HttpPost("set-video")]
+    public async Task<IActionResult> SetVideo(int id, string value, string? loginUser)
+    {
+        try
+        {
+            var isVideo = value == "Y" ? "Y" : "N";
+            int rows = await _oracleService.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_GUIDE
+                SET IS_VIDEO = :IS_VIDEO,
+                    UPDT_ID  = :UPDT_ID
+                WHERE ID = :ID",
+                new OracleParameter("IS_VIDEO", isVideo),
+                new OracleParameter("UPDT_ID",  (object?)loginUser ?? DBNull.Value),
+                new OracleParameter("ID",       id));
+
+            return Ok(new { success = rows > 0 });
         }
         catch (Exception ex)
         {
@@ -194,22 +220,21 @@ public class GuideController : ControllerBase
     {
         try
         {
-            // Trả về VIDEO_PATH để web có thể xóa file
-            const string checkSql = "SELECT IS_ACTIVE, VIDEO_PATH FROM HRMS.HR_GUIDE WHERE ID = :ID";
+            const string checkSql = "SELECT IS_ACTIVE FROM HRMS.HR_GUIDE WHERE ID = :ID";
             var check = await _oracleService.ExecuteQueryAsync(checkSql,
-                r => new { IsActive = Convert.ToInt32(r["IS_ACTIVE"]), VideoPath = r["VIDEO_PATH"]?.ToString() },
+                r => Convert.ToInt32(r["IS_ACTIVE"]),
                 new OracleParameter("ID", id));
 
             if (check.Count == 0)
                 return Ok(new { success = false, message = "Không tìm thấy mục hướng dẫn" });
 
-            if (check[0].IsActive != 0)
+            if (check[0] != 0)
                 return Ok(new { success = false, message = "Chỉ được xóa mục đang ẩn" });
 
             const string deleteSql = "DELETE FROM HRMS.HR_GUIDE WHERE ID = :ID";
             await _oracleService.ExecuteNonQueryAsync(deleteSql, new OracleParameter("ID", id));
 
-            return Ok(new { success = true, message = "Đã xóa mục hướng dẫn", videoPath = check[0].VideoPath });
+            return Ok(new { success = true, message = "Đã xóa mục hướng dẫn" });
         }
         catch (Exception ex)
         {
@@ -223,7 +248,7 @@ public class GuideController : ControllerBase
         CATEGORY      = r["CATEGORY"]?.ToString(),
         TITLE         = r["TITLE"]?.ToString() ?? string.Empty,
         CONTENT       = r["CONTENT"]?.ToString(),
-        VIDEO_PATH    = r["VIDEO_PATH"]?.ToString(),
+        IS_VIDEO      = r["IS_VIDEO"]?.ToString() ?? "N",
         DISPLAY_ORDER = r["DISPLAY_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["DISPLAY_ORDER"]),
         IS_ACTIVE     = r["IS_ACTIVE"]     == DBNull.Value ? 0 : Convert.ToInt32(r["IS_ACTIVE"]),
         INST_ID       = r["INST_ID"]?.ToString(),
@@ -244,7 +269,7 @@ public class GuideController : ControllerBase
                             : (r["C1"]?.ToString() ?? "") + (r["C2"]?.ToString() ?? "") +
                               (r["C3"]?.ToString() ?? "") + (r["C4"]?.ToString() ?? "") +
                               (r["C5"]?.ToString() ?? ""),
-        VIDEO_PATH    = r["VIDEO_PATH"]?.ToString(),
+        IS_VIDEO      = r["IS_VIDEO"]?.ToString() ?? "N",
         DISPLAY_ORDER = r["DISPLAY_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["DISPLAY_ORDER"]),
         IS_ACTIVE     = r["IS_ACTIVE"]     == DBNull.Value ? 0 : Convert.ToInt32(r["IS_ACTIVE"]),
         INST_ID       = r["INST_ID"]?.ToString(),

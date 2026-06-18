@@ -73,7 +73,7 @@ public class GuideController : BaseController
             return View(model);
         }
 
-        string? newExt = null;
+        bool hasNewVideo = false;
         if (VideoFile != null && VideoFile.Length > 0)
         {
             var ext = Path.GetExtension(VideoFile.FileName).ToLower();
@@ -87,7 +87,7 @@ public class GuideController : BaseController
                 TempData["ErrorMessage"] = "File video không được vượt quá 500 MB!";
                 return View(model);
             }
-            newExt = ext;
+            hasNewVideo = true;
         }
 
         var request = new SaveGuideRequest
@@ -96,7 +96,6 @@ public class GuideController : BaseController
             CATEGORY      = model.CATEGORY?.Trim(),
             TITLE         = model.TITLE.Trim(),
             CONTENT       = model.CONTENT,
-            VIDEO_PATH    = newExt ?? (string.IsNullOrEmpty(model.VIDEO_PATH) ? null : model.VIDEO_PATH),
             DISPLAY_ORDER = model.DISPLAY_ORDER,
             IS_ACTIVE     = model.IS_ACTIVE,
             LOGIN_USER    = CurrentUser!.EmpCd
@@ -104,8 +103,11 @@ public class GuideController : BaseController
 
         var (success, message, savedId) = await _service.SaveAsync(request);
 
-        if (success && newExt != null && savedId > 0)
-            await _videoSvc.SaveAsync(VideoFolder, savedId, VideoFile!);
+        if (success && hasNewVideo && savedId > 0)
+        {
+            var (fileOk, _, _) = await _videoSvc.SaveAsync(VideoFolder, savedId, VideoFile!);
+            if (fileOk) await _service.SetVideoAsync(savedId, "Y", CurrentUser!.EmpCd);
+        }
 
         TempData[success ? "SuccessMessage" : "ErrorMessage"] = message;
         return RedirectToAction("Manage");
@@ -119,27 +121,11 @@ public class GuideController : BaseController
     [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadVideo(int id, IFormFile file)
     {
-        var guide = await _service.GetByIdAsync(id);
-        if (guide == null)
-            return Json(new { success = false, message = "Không tìm thấy mục hướng dẫn" });
-
         var (ok, message, ext) = await _videoSvc.SaveAsync(VideoFolder, id, file);
         if (!ok) return Json(new { success = false, message });
 
-        var request = new SaveGuideRequest
-        {
-            ID            = guide.ID,
-            CATEGORY      = guide.CATEGORY,
-            TITLE         = guide.TITLE,
-            CONTENT       = guide.CONTENT,
-            VIDEO_PATH    = ext,
-            DISPLAY_ORDER = guide.DISPLAY_ORDER,
-            IS_ACTIVE     = guide.IS_ACTIVE,
-            LOGIN_USER    = CurrentUser!.EmpCd
-        };
-
-        var (saved, saveMsg, _) = await _service.SaveAsync(request);
-        return Json(new { success = saved, message = saveMsg, videoUrl = Url.Action("Stream", "Video", new { folder = VideoFolder, id }) });
+        await _service.SetVideoAsync(id, "Y", CurrentUser!.EmpCd);
+        return Json(new { success = true, message = "Upload thành công", videoUrl = Url.Action("Stream", "Video", new { folder = VideoFolder, id }) });
     }
 
     // POST /Guide/SaveChunk?id=
@@ -194,19 +180,8 @@ public class GuideController : BaseController
 
         TryCleanTemp(tempDir);
 
-        var req = new SaveGuideRequest
-        {
-            ID            = guide.ID,
-            CATEGORY      = guide.CATEGORY,
-            TITLE         = guide.TITLE,
-            CONTENT       = guide.CONTENT,
-            VIDEO_PATH    = ext,
-            DISPLAY_ORDER = guide.DISPLAY_ORDER,
-            IS_ACTIVE     = guide.IS_ACTIVE,
-            LOGIN_USER    = CurrentUser!.EmpCd
-        };
-        var (saved, saveMsg, _) = await _service.SaveAsync(req);
-        return Json(new { success = saved, message = saveMsg, done = true, videoUrl = Url.Action("Stream", "Video", new { folder = VideoFolder, id }) });
+        await _service.SetVideoAsync(id, "Y", CurrentUser!.EmpCd);
+        return Json(new { success = true, message = "Upload thành công", done = true, videoUrl = Url.Action("Stream", "Video", new { folder = VideoFolder, id }) });
     }
 
     private static void TryCleanTemp(string dir)
@@ -219,26 +194,9 @@ public class GuideController : BaseController
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> RemoveVideo(int id)
     {
-        var guide = await _service.GetByIdAsync(id);
-        if (guide == null)
-            return Json(new { success = false, message = "Không tìm thấy mục hướng dẫn" });
-
         _videoSvc.DeleteAll(VideoFolder, id);
-
-        var request = new SaveGuideRequest
-        {
-            ID            = guide.ID,
-            CATEGORY      = guide.CATEGORY,
-            TITLE         = guide.TITLE,
-            CONTENT       = guide.CONTENT,
-            VIDEO_PATH    = null,
-            DISPLAY_ORDER = guide.DISPLAY_ORDER,
-            IS_ACTIVE     = guide.IS_ACTIVE,
-            LOGIN_USER    = CurrentUser!.EmpCd
-        };
-
-        var (success, message, _) = await _service.SaveAsync(request);
-        return Json(new { success, message });
+        await _service.SetVideoAsync(id, null, CurrentUser!.EmpCd);
+        return Json(new { success = true, message = "Đã xóa video" });
     }
 
     // POST /Guide/Toggle?id=
@@ -256,7 +214,7 @@ public class GuideController : BaseController
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
-        var (success, message, _) = await _service.DeleteAsync(id);
+        var (success, message) = await _service.DeleteAsync(id);
         if (success) _videoSvc.DeleteAll(VideoFolder, id);
         TempData[success ? "SuccessMessage" : "ErrorMessage"] = message;
         return RedirectToAction("Manage");

@@ -137,15 +137,14 @@
     </div>
 
     <!-- Video (nếu có — hiện trước) -->
-    @if (!string.IsNullOrEmpty(Model.VIDEO_PATH))
+    @if (Model.IS_VIDEO == "Y")
     {
         <div class="video-section-label">
             <i class="bi bi-play-circle-fill"></i> Video hướng dẫn
         </div>
         <div class="detail-video-card">
             <video controls preload="metadata" playsinline controlsList="nodownload">
-                <source src="@Url.Content("~" + Model.VIDEO_PATH)"
-                        type="@(Model.VIDEO_PATH.EndsWith(".webm") ? "video/webm" : Model.VIDEO_PATH.EndsWith(".mov") ? "video/quicktime" : "video/mp4")" />
+                <source src="@Url.Action("Stream", "Video", new { folder = "GUIDE_VIDEO", id = Model.ID })" />
                 Trình duyệt không hỗ trợ phát video.
             </video>
         </div>
@@ -160,7 +159,7 @@
             </div>
         </div>
     }
-    else if (string.IsNullOrEmpty(Model.VIDEO_PATH))
+    else if (Model.IS_VIDEO != "Y")
     {
         <div class="no-content">
             <i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:.5rem;opacity:.3;"></i>

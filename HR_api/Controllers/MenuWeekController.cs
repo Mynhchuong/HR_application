@@ -311,7 +311,7 @@ public class MenuWeekController : ControllerBase
 
             const string sql = @"
                 SELECT D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER,
-                       F.FOOD_NAME,
+                       F.FOOD_NAME, F.IS_IMAGE,
                        D.FOOD_ID
                 FROM HRMS.HR_MENU_WEEK W
                 JOIN HRMS.HR_MENU_DETAIL D ON D.WEEK_ID = W.ID
@@ -339,7 +339,7 @@ public class MenuWeekController : ControllerBase
         {
             const string sql = @"
                 SELECT D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER,
-                       F.FOOD_NAME,
+                       F.FOOD_NAME, F.IS_IMAGE,
                        D.FOOD_ID
                 FROM HRMS.HR_MENU_WEEK W
                 JOIN HRMS.HR_MENU_DETAIL D ON D.WEEK_ID = W.ID
@@ -422,6 +422,7 @@ public class MenuWeekController : ControllerBase
             MEAL_TYPE     = r["MEAL_TYPE"]?.ToString() ?? string.Empty,
             FOOD_NAME     = r["FOOD_NAME"]?.ToString(),
             FOOD_ID       = r["FOOD_ID"] == DBNull.Value ? null : Convert.ToInt32(r["FOOD_ID"]),
+            IS_IMAGE      = r["IS_IMAGE"]?.ToString() ?? "N",
             DISPLAY_ORDER = r["DISPLAY_ORDER"] == DBNull.Value ? 1 : Convert.ToInt32(r["DISPLAY_ORDER"]),
         };
     }

@@ -467,6 +467,9 @@ public class MenuController : BaseController
         if (imgError != null)
             return Json(new { success = true, message = msg + " (Lưu ảnh thất bại: " + imgError + ")" });
 
+        if (imageFile != null && imageFile.Length > 0 && foodId > 0)
+            await _svc.SetFoodImageAsync(foodId, "Y");
+
         return Json(new { success = true, message = msg });
     }
 
@@ -496,6 +499,7 @@ public class MenuController : BaseController
                 }
             }
             catch { /* ảnh không xóa được thì bỏ qua */ }
+            await _svc.SetFoodImageAsync(id, "N");
         }
         return Json(new { success, message = msg });
     }

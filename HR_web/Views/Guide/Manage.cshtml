@@ -61,7 +61,7 @@
                                         <div class="text-sm font-weight-bold text-dark">@item.TITLE</div>
                                     </td>
                                     <td class="px-2 d-none d-md-table-cell text-center">
-                                        @if (!string.IsNullOrEmpty(item.VIDEO_PATH))
+                                        @if (item.IS_VIDEO == "Y")
                                         {
                                             <button type="button"
                                                     class="btn btn-sm btn-outline-info mb-0 px-2"

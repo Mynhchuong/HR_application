@@ -103,8 +103,6 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
-
 // Localization vi-VN
 var supportedCultures = new[] { new CultureInfo("vi-VN") };
 app.UseRequestLocalization(new RequestLocalizationOptions

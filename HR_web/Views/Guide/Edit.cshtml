@@ -227,7 +227,7 @@
                                 </video>
                             </div>
                             <button type="button" class="btn btn-sm btn-outline-danger mb-0"
-                                    onclick="removeCurrentVideo(@Model.ID)">
+                                    onclick="removeCurrentVideo(@Model.ID, '@Url.Action("RemoveVideo","Guide")')">
                                 <i class="bi bi-trash3 me-1"></i>Xóa video hiện tại
                             </button>
                         </div>
@@ -246,7 +246,7 @@
                             <!-- Item đã có ID: upload AJAX trực tiếp, không reload trang -->
                             <input type="file" id="videoFileInput"
                                    accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime"
-                                   onchange="onVideoAjaxUpload(this, @Model.ID)" />
+                                   onchange="onVideoAjaxUpload(this, @Model.ID, '@Url.Action("SaveChunk","Guide")', '@Url.Action("RemoveVideo","Guide")')" />
                         }
                         <i class="bi bi-cloud-upload" style="font-size:2rem;color:#0ea5e9;display:block;margin-bottom:.5rem;"></i>
                         <div class="fw-bold text-secondary" id="uploadLabel">Nhấn hoặc kéo file video vào đây</div>
@@ -480,7 +480,7 @@ function clearNewVideo() {
 // Chunked upload — chia file thành 4MB/chunk → mỗi request nhỏ, bypass IIS size limit
 const CHUNK_SIZE = 4 * 1024 * 1024;
 
-async function onVideoAjaxUpload(input, itemId) {
+async function onVideoAjaxUpload(input, itemId, saveChunkUrl, removeVideoUrl) {
     const file = input.files[0];
     if (!file) return;
 
@@ -523,7 +523,7 @@ async function onVideoAjaxUpload(input, itemId) {
 
             const res = await new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
-                xhr.open('POST', `/Guide/SaveChunk?id=${itemId}`);
+                xhr.open('POST', `${saveChunkUrl}?id=${itemId}`);
 
                 xhr.upload.addEventListener('progress', e => {
                     if (!e.lengthComputable) return;
@@ -578,12 +578,12 @@ async function onVideoAjaxUpload(input, itemId) {
 }
 
 // Xóa video qua AJAX — xóa file và cập nhật DB ngay, không cần submit form
-async function removeCurrentVideo(itemId) {
+async function removeCurrentVideo(itemId, removeVideoUrl) {
     if (!confirm('Xóa video hiện tại?')) return;
 
     const token = document.querySelector('[name="__RequestVerificationToken"]')?.value || '';
     try {
-        const res = await fetch(`/Guide/RemoveVideo?id=${itemId}`, {
+        const res = await fetch(`${removeVideoUrl}?id=${itemId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: `__RequestVerificationToken=${encodeURIComponent(token)}`

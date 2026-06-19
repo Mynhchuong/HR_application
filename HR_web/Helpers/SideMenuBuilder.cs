@@ -10,7 +10,7 @@ public static class SideMenuBuilder
         if (user == null) return new List<SideMenuItem>();
 
         bool isAdmin         = !isMobileApp && user.RoleName == "Admin";
-        bool isClerk         = !isMobileApp && user.RoleName == "Clerk";
+        bool isClerk         = user.RoleName == "Clerk";
         bool isHR            = !isMobileApp && user.RoleName == "HR";
         bool isSupervisor    = user.RoleName == "Supervisor";
         bool isDeputyManager = user.RoleName == "DeputyManager";

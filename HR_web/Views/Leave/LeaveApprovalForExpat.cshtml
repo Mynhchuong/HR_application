@@ -122,6 +122,8 @@
                                 data-mobile="detail" data-mobile-label="Reason">Reason</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
                                 data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Status">Status</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
+                                data-mobile="detail" data-mobile-label="Approved By">Approved By</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
                                 data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Action">Action</th>
                         </tr>
@@ -198,18 +200,22 @@ function buildRow(item, idx) {
     if (item.STATUS === 'APPROVED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Approved</span>`;
     if (item.STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>`;
 
-    let signInfo = '';
+    let remarkDiv = '';
+    if (item.STATUS !== 'PENDING' && item.REMARK) {
+        const isRejected = item.STATUS === 'REJECTED';
+        const rkStyle = isRejected
+            ? 'background:#fff0f0;border-left:3px solid #dc3545;color:#842029;'
+            : 'background:#e8f4fd;border-left:3px solid #0d6efd;color:#084298;';
+        remarkDiv = `<div class="mt-1 px-2 py-1 rounded-end text-xs" style="${rkStyle}"><i class="bi bi-chat-left-text me-1"></i>${escHtml(item.REMARK)}</div>`;
+    }
+
+    let approverHtml = '<span class="text-muted text-xs">-</span>';
     if (item.STATUS !== 'PENDING') {
-        const signTime = item.FINAL_DATE ? `<div class="text-xxs text-secondary mt-1">${formatDateTime(item.FINAL_DATE)}</div>` : '';
-        let remarkDiv = '';
-        if (item.REMARK) {
-            const isRejected = item.STATUS === 'REJECTED';
-            const rkStyle = isRejected
-                ? 'background:#fff0f0;border-left:3px solid #dc3545;color:#842029;'
-                : 'background:#e8f4fd;border-left:3px solid #0d6efd;color:#084298;';
-            remarkDiv = `<div class="mt-1 px-2 py-1 rounded-end text-xs" style="${rkStyle}"><i class="bi bi-chat-left-text me-1"></i>${escHtml(item.REMARK)}</div>`;
+        const approver = escHtml(item.APPROVER_NAME || item.FINAL_APPROVER || '');
+        if (approver) {
+            approverHtml = `<div class="emp-name vni-font" style="text-transform:uppercase;font-size:.85rem;">${approver}</div>`;
+            if (item.FINAL_DATE) approverHtml += `<div class="text-xxs text-secondary">${formatDateTime(item.FINAL_DATE)}</div>`;
         }
-        signInfo = `${signTime}${remarkDiv}`;
     }
 
     const isSelf    = item.EMPCD === CURRENT_EMPCD;
@@ -231,7 +237,8 @@ function buildRow(item, idx) {
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
         <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS ?? '-'}</td>
         <td class="px-2 text-sm d-none d-md-table-cell"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
-        <td class="text-center">${statusHtml}${signInfo}</td>
+        <td class="text-center">${statusHtml}${remarkDiv}</td>
+        <td class="px-2 d-none d-md-table-cell">${approverHtml}</td>
         <td class="text-center">${actions}</td>
     </tr>`;
 }
@@ -253,13 +260,13 @@ function getParams(page) {
 
 function loadData(page = 1) {
     currentPage = page;
-    $('#lvTableBody').html(`<tr><td colspan="11" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Loading...</div></td></tr>`);
+    $('#lvTableBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Loading...</div></td></tr>`);
     MobileTableHelper.refresh('lvTableBody');
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),
         success: function(res) {
             if (!res.success) {
-                $('#lvTableBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Error: ${res.message||''}</td></tr>`);
+                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Error: ${res.message||''}</td></tr>`);
                 MobileTableHelper.refresh('lvTableBody');
                 return;
             }
@@ -272,7 +279,7 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#lvTableBody').html(`<tr><td colspan="11" class="text-center text-muted py-4">No records found</td></tr>`);
+                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-muted py-4">No records found</td></tr>`);
             } else {
                 $('#lvTableBody').html(data.map((item,i) => buildRow(item,(page-1)*pageSize+i+1)).join(''));
             }
@@ -280,7 +287,7 @@ function loadData(page = 1) {
             MobileTableHelper.refresh('lvTableBody');
         },
         error: function(xhr) {
-            $('#lvTableBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Connection error (${xhr.status})</td></tr>`);
+            $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Connection error (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('lvTableBody');
         }
     });

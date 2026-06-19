@@ -114,11 +114,12 @@ public class MenuService
     {
         var body = new
         {
-            empCd    = req.LoginUser,
-            mealType = req.MealType,
-            typeMeal = req.TypeMeal ?? "LUNCH",
-            fromDate = req.FromDate,
-            toDate   = req.ToDate
+            empCd     = req.LoginUser,
+            mealType  = req.MealType,
+            typeMeal  = req.TypeMeal ?? "LUNCH",
+            fromDate  = req.FromDate,
+            toDate    = req.ToDate,
+            loginUser = req.LoginUser
         };
         return await PostResult("CanteenOrder/change", body);
     }

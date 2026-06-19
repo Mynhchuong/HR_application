@@ -67,13 +67,19 @@ public class CanteenOrderController : ControllerBase
 
             var mealCat = string.IsNullOrEmpty(req.TypeMeal) ? "LUNCH" : req.TypeMeal.ToUpper();
 
+            var changer = string.IsNullOrEmpty(req.LoginUser) ? "HR" : req.LoginUser;
+
             var sql = $@"
                 MERGE INTO HRMS.CANTEEN_ORDER T
-                USING (SELECT :EMPCD AS EMPCD, :DAT AS DAT, '{mealCat}' AS TYPE_MEAL, :TYPE AS TYPE_OF_FOOD, :CHANGE_FROM AS CHANGE_FROM FROM DUAL) S
+                USING (SELECT :EMPCD AS EMPCD, :DAT AS DAT, '{mealCat}' AS TYPE_MEAL, :TYPE AS TYPE_OF_FOOD, :CHANGER AS CHANGER FROM DUAL) S
                 ON (T.EMPCD = S.EMPCD AND T.DAT = S.DAT AND T.TYPE_MEAL = S.TYPE_MEAL)
-                WHEN MATCHED     THEN UPDATE SET T.TYPE_OF_FOOD = S.TYPE_OF_FOOD, T.CHANGE_FROM = S.CHANGE_FROM
-                WHEN NOT MATCHED THEN INSERT (EMPCD, DAT, TYPE_MEAL, TYPE_OF_FOOD, CHANGE_FROM)
-                                      VALUES (S.EMPCD, S.DAT, S.TYPE_MEAL, S.TYPE_OF_FOOD, S.CHANGE_FROM)";
+                WHEN MATCHED THEN UPDATE SET
+                    T.TYPE_OF_FOOD = S.TYPE_OF_FOOD,
+                    T.CHANGE_FROM  = S.CHANGER,
+                    T.UPDT_ID      = S.CHANGER,
+                    T.UPDT_DT      = SYSDATE
+                WHEN NOT MATCHED THEN INSERT (EMPCD, DAT, TYPE_MEAL, TYPE_OF_FOOD, CHANGE_FROM, INST_ID, INST_DT, UPDT_ID, UPDT_DT)
+                                      VALUES (S.EMPCD, S.DAT, S.TYPE_MEAL, S.TYPE_OF_FOOD, S.CHANGER, S.CHANGER, SYSDATE, S.CHANGER, SYSDATE)";
 
             int total = 0;
             for (var day = from; day <= to; day = day.AddDays(1))
@@ -81,10 +87,10 @@ public class CanteenOrderController : ControllerBase
                 if (day.DayOfWeek == DayOfWeek.Sunday) continue;
                 var datStr = day.ToString("yyyyMMdd");
                 await _db.ExecuteNonQueryAsync(sql,
-                    new OracleParameter("EMPCD",       req.EmpCd),
-                    new OracleParameter("DAT",         datStr),
-                    new OracleParameter("TYPE",        typeDb),
-                    new OracleParameter("CHANGE_FROM", "HR"));
+                    new OracleParameter("EMPCD",   req.EmpCd),
+                    new OracleParameter("DAT",     datStr),
+                    new OracleParameter("TYPE",    typeDb),
+                    new OracleParameter("CHANGER", changer));
                 total++;
             }
 

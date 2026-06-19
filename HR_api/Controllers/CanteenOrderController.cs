@@ -48,6 +48,38 @@ public class CanteenOrderController : ControllerBase
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }
 
+    // GET /apiHR/CanteenOrder/week?empcd=xxx
+    [HttpGet("week")]
+    public async Task<IActionResult> GetWeek([FromQuery] string empcd)
+    {
+        try
+        {
+            var weekRow = (await _db.ExecuteQueryAsync(
+                @"SELECT TO_CHAR(FROM_DATE,'YYYYMMDD') F, TO_CHAR(TO_DATE,'YYYYMMDD') T
+                  FROM HRMS.HR_MENU_WEEK
+                  WHERE TRUNC(SYSDATE) BETWEEN TRUNC(FROM_DATE) AND TRUNC(TO_DATE)
+                    AND STATUS = 'PUBLISHED'",
+                r => new { f = r["F"]?.ToString(), t = r["T"]?.ToString() }))
+                .FirstOrDefault();
+
+            if (weekRow == null)
+                return Ok(new { success = true, data = new Dictionary<string, string>() });
+
+            var rows = await _db.ExecuteQueryAsync(
+                @"SELECT DAT, TYPE_OF_FOOD FROM HRMS.CANTEEN_ORDER
+                  WHERE EMPCD = :EMPCD AND TYPE_MEAL = 'LUNCH'
+                    AND DAT BETWEEN :F AND :T",
+                r => new { dat = r["DAT"]?.ToString()!, type = r["TYPE_OF_FOOD"]?.ToString() ?? "M" },
+                new OracleParameter("EMPCD", empcd),
+                new OracleParameter("F", weekRow.f),
+                new OracleParameter("T", weekRow.t));
+
+            var result = rows.ToDictionary(r => r.dat, r => r.type);
+            return Ok(new { success = true, data = result });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
     // POST /apiHR/CanteenOrder/change
     // Body: { empCd, mealType, fromDate, toDate }
     [HttpPost("change")]
@@ -67,19 +99,21 @@ public class CanteenOrderController : ControllerBase
 
             var mealCat = string.IsNullOrEmpty(req.TypeMeal) ? "LUNCH" : req.TypeMeal.ToUpper();
 
-            var changer = string.IsNullOrEmpty(req.LoginUser) ? "HR" : req.LoginUser;
+            var changer    = string.IsNullOrEmpty(req.LoginUser) ? "HR" : req.LoginUser;
+            var isMysamho  = req.IsMysamho ? "Y" : "N";
 
             var sql = $@"
                 MERGE INTO HRMS.CANTEEN_ORDER T
-                USING (SELECT :EMPCD AS EMPCD, :DAT AS DAT, '{mealCat}' AS TYPE_MEAL, :TYPE AS TYPE_OF_FOOD, :CHANGER AS CHANGER FROM DUAL) S
+                USING (SELECT :EMPCD AS EMPCD, :DAT AS DAT, '{mealCat}' AS TYPE_MEAL, :TYPE AS TYPE_OF_FOOD, :CHANGER AS CHANGER, :MYSAMHO AS MYSAMHO FROM DUAL) S
                 ON (T.EMPCD = S.EMPCD AND T.DAT = S.DAT AND T.TYPE_MEAL = S.TYPE_MEAL)
                 WHEN MATCHED THEN UPDATE SET
                     T.TYPE_OF_FOOD = S.TYPE_OF_FOOD,
                     T.CHANGE_FROM  = S.CHANGER,
+                    T.IS_MYSAMHO   = S.MYSAMHO,
                     T.UPDT_ID      = S.CHANGER,
                     T.UPDT_DT      = SYSDATE
-                WHEN NOT MATCHED THEN INSERT (EMPCD, DAT, TYPE_MEAL, TYPE_OF_FOOD, CHANGE_FROM, INST_ID, INST_DT, UPDT_ID, UPDT_DT)
-                                      VALUES (S.EMPCD, S.DAT, S.TYPE_MEAL, S.TYPE_OF_FOOD, S.CHANGER, S.CHANGER, SYSDATE, S.CHANGER, SYSDATE)";
+                WHEN NOT MATCHED THEN INSERT (EMPCD, DAT, TYPE_MEAL, TYPE_OF_FOOD, CHANGE_FROM, IS_MYSAMHO, INST_ID, INST_DT, UPDT_ID, UPDT_DT)
+                                      VALUES (S.EMPCD, S.DAT, S.TYPE_MEAL, S.TYPE_OF_FOOD, S.CHANGER, S.MYSAMHO, S.CHANGER, SYSDATE, S.CHANGER, SYSDATE)";
 
             int total = 0;
             for (var day = from; day <= to; day = day.AddDays(1))
@@ -90,7 +124,8 @@ public class CanteenOrderController : ControllerBase
                     new OracleParameter("EMPCD",   req.EmpCd),
                     new OracleParameter("DAT",     datStr),
                     new OracleParameter("TYPE",    typeDb),
-                    new OracleParameter("CHANGER", changer));
+                    new OracleParameter("CHANGER", changer),
+                    new OracleParameter("MYSAMHO", isMysamho));
                 total++;
             }
 
@@ -110,9 +145,11 @@ public class CanteenOrderController : ControllerBase
 
 public class CanteenChangeBody
 {
-    public string  EmpCd    { get; set; } = string.Empty;
-    public string  MealType { get; set; } = string.Empty;
-    public string? TypeMeal { get; set; } = "LUNCH"; // LUNCH or OT
-    public string  FromDate { get; set; } = string.Empty;
-    public string  ToDate   { get; set; } = string.Empty;
+    public string  EmpCd      { get; set; } = string.Empty;
+    public string  MealType   { get; set; } = string.Empty;
+    public string? TypeMeal   { get; set; } = "LUNCH"; // LUNCH or OT
+    public string  FromDate   { get; set; } = string.Empty;
+    public string  ToDate     { get; set; } = string.Empty;
+    public string? LoginUser  { get; set; }
+    public bool    IsMysamho  { get; set; } = false;
 }

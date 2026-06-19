@@ -110,6 +110,13 @@ public class MenuService
         return r?.success == true ? r.data?.FOOD_TYPE ?? "MAN" : "MAN";
     }
 
+    public async Task<Dictionary<string, string>> GetUserWeekMealAsync(string empCd)
+    {
+        var r = await _api.GetAsync<Resp<Dictionary<string, string>>>(
+            $"CanteenOrder/week?empcd={Uri.EscapeDataString(empCd)}");
+        return r?.success == true ? r.data ?? new() : new();
+    }
+
     public async Task<(bool ok, string msg)> ChangeMealAsync(ChangeMealRequest req)
     {
         var body = new

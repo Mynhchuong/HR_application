@@ -737,6 +737,8 @@ public class MenuController : BaseController
     public async Task<IActionResult> ThisWeek()
     {
         var data = await _svc.GetThisWeekMenuAsync();
+        if (CurrentUser != null)
+            ViewBag.UserWeekMeals = await _svc.GetUserWeekMealAsync(CurrentUser.EmpCd);
         return View(data);
     }
 

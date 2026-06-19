@@ -16,6 +16,26 @@
     };
     var activeDays = Model.Select(m => m.DAY_NO).Distinct().OrderBy(d => d).ToHashSet();
     bool isEmpty   = !Model.Any();
+
+    // Tính ngày thực tế theo thứ trong tuần
+    var daysFromMon = ((int)today.DayOfWeek + 6) % 7;
+    var monday      = today.AddDays(-daysFromMon);
+    var dayDates    = new Dictionary<int, string>
+    {
+        { 2, monday.ToString("yyyyMMdd") },
+        { 3, monday.AddDays(1).ToString("yyyyMMdd") },
+        { 4, monday.AddDays(2).ToString("yyyyMMdd") },
+        { 5, monday.AddDays(3).ToString("yyyyMMdd") },
+        { 6, monday.AddDays(4).ToString("yyyyMMdd") },
+        { 7, monday.AddDays(5).ToString("yyyyMMdd") },
+    };
+    var userWeekMeals = ViewBag.UserWeekMeals as Dictionary<string, string> ?? new Dictionary<string, string>();
+    var mealBadge = new Dictionary<string, (string label, string bg, string fg)>
+    {
+        { "M", ("Mặn",  "#fee2e2", "#dc2626") },
+        { "C", ("Chay", "#dcfce7", "#16a34a") },
+        { "N", ("Nhẹ",  "#dbeafe", "#2563eb") },
+    };
 }
 
 <style>
@@ -66,17 +86,22 @@
     }
     .day-tabs::-webkit-scrollbar { display: none; }
     .day-tab {
-        flex-shrink: 0; min-height: 44px; padding: 0 .9rem;
-        display: flex; align-items: center; gap: 4px;
+        flex-shrink: 0; min-height: 52px; padding: 0 .9rem;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
         font-size: .82rem; font-weight: 700; color: #64748b;
         border-bottom: 3px solid transparent; cursor: pointer;
         white-space: nowrap; transition: color .15s, border-color .15s;
         -webkit-tap-highlight-color: transparent; user-select: none;
         touch-action: manipulation;
     }
+    .day-tab-name { display: flex; align-items: center; gap: 4px; }
     .day-tab.active  { color: var(--fr); border-bottom-color: var(--fr); }
     .day-tab.no-data { color: #cbd5e1; }
     .day-tab .dot    { width: 6px; height: 6px; border-radius: 50%; background: var(--fr); flex-shrink: 0; }
+    .meal-chip {
+        font-size: .58rem; font-weight: 800; padding: 1px 6px;
+        border-radius: 6px; line-height: 1.6; letter-spacing: .02em;
+    }
 
     /* ── Day content ── */
     .day-content { display: none; }
@@ -213,10 +238,20 @@
             {
                 bool hasData = activeDays.Contains(dayNo);
                 bool isToday = dayNo == todayNo;
+                var tabDate  = dayDates.GetValueOrDefault(dayNo, "");
+                userWeekMeals.TryGetValue(tabDate, out var tabMeal);
                 <div class="day-tab @(hasData ? "" : "no-data")"
                      data-day="@dayNo" onclick="switchDay(@dayNo)">
-                    @dayName
-                    @if (isToday) { <span class="dot"></span> }
+                    <span class="day-tab-name">
+                        @dayName
+                        @if (isToday) { <span class="dot"></span> }
+                    </span>
+                    @if (hasData)
+                    {
+                        var chipCode = (!string.IsNullOrEmpty(tabMeal) && mealBadge.ContainsKey(tabMeal)) ? tabMeal : "M";
+                        var tc = mealBadge[chipCode];
+                        <span class="meal-chip" style="background:@tc.bg;color:@tc.fg;">@tc.label</span>
+                    }
                 </div>
             }
         </div>
@@ -240,6 +275,14 @@
                     {
                         <div class="today-label">Hôm nay — @DateTime.Today.ToString("dd/MM/yyyy")</div>
                     }
+
+                    var dayDateKey  = dayDates.GetValueOrDefault(dayNo, "");
+                    userWeekMeals.TryGetValue(dayDateKey, out var userMealCode);
+                    var contentCode = (!string.IsNullOrEmpty(userMealCode) && mealBadge.ContainsKey(userMealCode)) ? userMealCode : "M";
+                    var badge       = mealBadge[contentCode];
+                    <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.6rem;padding:.45rem .75rem;border-radius:12px;background:@badge.bg;font-size:.78rem;font-weight:700;color:@badge.fg;">
+                        <span style="font-size:1rem;">🍽️</span> Bạn đăng ký: @badge.label
+                    </div>
 
                     @foreach (var (shiftKey, shiftLabel, shiftColor) in shifts)
                     {

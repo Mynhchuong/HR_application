@@ -183,17 +183,10 @@
                 <!-- Tab 2: Gate Pass (Approved only) -->
                 <div class="tab-pane fade" id="tabGp">
                     <div id="gpFilterRow" class="px-4 pt-2 pb-2 d-flex align-items-center gap-2 flex-wrap">
-                        <span class="text-xs fw-bold" style="color:#059669;">
-                            <i class="bi bi-check-circle-fill me-1"></i>Approved only
-                        </span>
-                        <div class="ms-auto d-flex align-items-center gap-2">
-                            <input type="date" id="gpDateFrom" class="gp-filter-input" value="@todayStr"
-                                   onchange="onGpDateChange()">
-                            <span class="text-xs text-secondary">→</span>
-                            <input type="date" id="gpDateTo"   class="gp-filter-input" value="@todayStr"
-                                   onchange="onGpDateChange()">
-                            <input type="text" id="gpSearch"   class="gp-filter-input" placeholder="Emp ID..."
-                                   style="width:90px;" oninput="onGpSearchInput()">
+                        <div class="empcd-wrap">
+                            <i class="bi bi-search"></i>
+                            <input type="text" id="gpSearch" class="empcd-filter" placeholder="Emp ID..."
+                                   oninput="onGpSearchInput()">
                         </div>
                     </div>
                     <div class="table-responsive px-3">
@@ -354,10 +347,6 @@ function selectCalDay(key) {
     buildCalendar(scheduleData);
     updateDayBadge();
     renderSchedule();
-    if (selectedCalDay) {
-        document.getElementById('gpDateFrom').value = selectedCalDay;
-        document.getElementById('gpDateTo').value   = selectedCalDay;
-    }
     loadGatePass();
     if (selectedCalDay && window.matchMedia('(hover:none)').matches) {
         const sel = document.querySelector('#calGrid .cal-cell.cal-selected');
@@ -371,9 +360,6 @@ function clearCalDay() {
     buildCalendar(scheduleData);
     updateDayBadge();
     renderSchedule();
-    const t = '@todayStr';
-    document.getElementById('gpDateFrom').value = t;
-    document.getElementById('gpDateTo').value   = t;
     loadGatePass();
 }
 
@@ -574,17 +560,6 @@ function onGpSearchInput() {
     gpSearchTimeout = setTimeout(() => { gpPage = 1; loadGatePass(); }, 400);
 }
 
-function onGpDateChange() {
-    if (selectedCalDay) {
-        selectedCalDay = null;
-        buildCalendar(scheduleData);
-        renderSchedule();
-        updateDayBadge();
-    }
-    gpPage = 1;
-    loadGatePass();
-}
-
 function buildGpRow(item, idx) {
     const gpLabel = GP_TYPE_LABEL[item.GP_TYPE] || item.GP_TYPE || '-';
     const gpColor = GP_TYPE_COLOR[item.GP_TYPE] || 'secondary';
@@ -601,6 +576,9 @@ function buildGpRow(item, idx) {
 }
 
 function loadGatePass() {
+    const fmt = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const dateFrom = selectedCalDay || fmt(new Date(curYear, curMonth-1, 1));
+    const dateTo   = selectedCalDay || fmt(new Date(curYear, curMonth, 0));
     document.getElementById('gpBody').innerHTML =
         `<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-info spinner-border-sm" role="status"></div></td></tr>`;
     MobileTableHelper.refresh('gpBody');
@@ -610,8 +588,8 @@ function loadGatePass() {
         data: {
             status:    'APPROVED',
             search:    (document.getElementById('gpSearch').value||'').trim() || null,
-            date_from: document.getElementById('gpDateFrom').value,
-            date_to:   document.getElementById('gpDateTo').value,
+            date_from: dateFrom,
+            date_to:   dateTo,
             page:      gpPage,
             page_size: GP_PAGE_SZ
         },

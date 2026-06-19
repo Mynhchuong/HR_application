@@ -57,10 +57,12 @@ public class LeaveListModel
 
 public class LeaveSummary
 {
-    public int TOTAL    { get; set; }
-    public int PENDING  { get; set; }
-    public int APPROVED { get; set; }
-    public int REJECTED { get; set; }
+    public int TOTAL              { get; set; }
+    public int PENDING            { get; set; }
+    public int APPROVED           { get; set; }
+    public int REJECTED           { get; set; }
+    public int ASSIGNED_PENDING   { get; set; }
+    public int ASSIGNED_CONFIRMED { get; set; }
 }
 
 public class LeaveListPagedResponse

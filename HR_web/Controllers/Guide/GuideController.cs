@@ -32,6 +32,27 @@ public class GuideController : BaseController
         var model = await _service.GetByIdAsync(id);
         if (model == null || model.IS_ACTIVE != 1)
             return RedirectToAction("Index");
+
+        // Prev / Next trong cùng category
+        var all = await _service.GetListAsync();
+        var siblings = all
+            .Where(g => g.IS_ACTIVE == 1 && g.CATEGORY == model.CATEGORY)
+            .OrderBy(g => g.DISPLAY_ORDER)
+            .ThenBy(g => g.ID)
+            .ToList();
+
+        var idx = siblings.FindIndex(g => g.ID == id);
+        if (idx > 0)
+        {
+            ViewBag.PrevId    = siblings[idx - 1].ID;
+            ViewBag.PrevTitle = siblings[idx - 1].TITLE;
+        }
+        if (idx >= 0 && idx < siblings.Count - 1)
+        {
+            ViewBag.NextId    = siblings[idx + 1].ID;
+            ViewBag.NextTitle = siblings[idx + 1].TITLE;
+        }
+
         return View(model);
     }
 

@@ -339,8 +339,9 @@ function toggleSpecial(type) {
     ds.classList.add('show');
     ds.classList.toggle('nhe-mode', type === 'NHE_TRUONG');
 
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('fromDate').value = today;
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    document.getElementById('fromDate').value = tomorrowStr;
 }
 
 function submitSpecial() {

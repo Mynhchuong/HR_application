@@ -37,6 +37,9 @@
             <div class="bg-gradient-info shadow-info border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="text-white text-capitalize mb-0"><i class="fas fa-users me-1"></i> Danh Sách Thành Viên Bộ Phận</h6>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <button type="button" id="remindBtn" class="btn btn-sm btn-warning mb-0 text-nowrap d-flex align-items-center" style="height:36px;">
+                        <i class="bi bi-bell-fill me-1 fs-6"></i> Nhắc ký
+                    </button>
                     <button type="button" id="exportExcelBtn" class="btn btn-sm btn-success mb-0 text-nowrap d-flex align-items-center" style="height:36px;">
                         <i class="bi bi-file-earmark-excel me-1 fs-6"></i> Xuất Excel
                     </button>
@@ -188,6 +191,24 @@
         if(to<totalPages) $bar.append('<li class="page-item disabled"><a class="page-link">…</a></li>').append(mkBtn(totalPages,totalPages));
         $bar.append(mkBtn('&rsaquo;',currentPage+1,currentPage>=totalPages)).append(mkBtn('&raquo;',totalPages,currentPage>=totalPages));
     }
+
+    $('#remindBtn').on('click', function() {
+        const $btn = $(this), orig = $btn.html();
+        const pending = parseInt($('#summaryPending').text().replace(/,/g,'')) || 0;
+        if (pending === 0) { showToast('Không có nhân viên nào đang chờ ký', 'info'); return; }
+        if (!confirm(`Gửi thông báo nhắc ký cho ${pending} nhân viên chưa xác nhận?`)) return;
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang gửi...');
+        $.post('@Url.Action("RemindPendingOTSign","OT")', {
+            work_date: WORK_DATE,
+            dept_id:   $('#filterDept').val() || '',
+            line_id:   $('#filterLine').val() || '',
+            work_id:   $('#filterWork').val() || ''
+        }, function(res) {
+            if (res.success) showToast(res.message || 'Đã gửi thông báo', 'success');
+            else             showToast(res.message || 'Lỗi gửi thông báo', 'error');
+        }).fail(function() { showToast('Lỗi kết nối', 'error'); })
+          .always(function() { $btn.prop('disabled', false).html(orig); });
+    });
 
     $('#pageSizeSelect').on('change', function() { pageSize=parseInt($(this).val()); loadData(1); });
     $('#filterDept').on('change', function() { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });

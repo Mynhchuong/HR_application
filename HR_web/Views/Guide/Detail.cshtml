@@ -115,6 +115,34 @@
         padding: 1.5rem 0;
         font-size: 0.88rem;
     }
+
+    /* ── Prev / Next nav ── */
+    .detail-nav {
+        display: flex; justify-content: space-between; gap: .75rem;
+        margin-bottom: 1rem;
+    }
+    .nav-btn {
+        flex: 1; display: flex; align-items: center; gap: .5rem;
+        background: #fff; border: 1.5px solid var(--guide-border);
+        border-radius: 16px; padding: .75rem .9rem;
+        text-decoration: none !important; color: #1e293b !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,.04);
+        transition: border-color .2s, box-shadow .2s;
+        min-width: 0;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .nav-btn:active { background: var(--guide-bg); }
+    @@media (hover: hover) {
+        .nav-btn:hover { border-color: var(--guide-primary); box-shadow: 0 4px 14px rgba(14,165,233,.15); }
+    }
+    .nav-btn i { font-size: 1rem; color: var(--guide-primary); flex-shrink: 0; }
+    .nav-btn-text { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+    .nav-label { font-size: .68rem; font-weight: 700; text-transform: uppercase;
+                 letter-spacing: .06em; color: var(--guide-primary); }
+    .nav-title { font-size: .78rem; font-weight: 600; color: #1e293b;
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nav-next { justify-content: flex-end; }
+    .nav-next .nav-btn-text { align-items: flex-end; text-align: right; }
 </style>
 
 <div class="detail-page px-2">
@@ -164,6 +192,34 @@
         <div class="no-content">
             <i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:.5rem;opacity:.3;"></i>
             Chưa có nội dung cho mục này.
+        </div>
+    }
+
+    <!-- Prev / Next navigation -->
+    @if (ViewBag.PrevId != null || ViewBag.NextId != null)
+    {
+        <div class="detail-nav">
+            @if (ViewBag.PrevId != null)
+            {
+                <a href="@Url.Action("Detail", "Guide", new { id = (int)ViewBag.PrevId })" class="nav-btn nav-prev">
+                    <i class="bi bi-chevron-left"></i>
+                    <div class="nav-btn-text">
+                        <span class="nav-label">Trước</span>
+                        <span class="nav-title">@ViewBag.PrevTitle</span>
+                    </div>
+                </a>
+            }
+            else { <div style="flex:1"></div> }
+            @if (ViewBag.NextId != null)
+            {
+                <a href="@Url.Action("Detail", "Guide", new { id = (int)ViewBag.NextId })" class="nav-btn nav-next">
+                    <div class="nav-btn-text">
+                        <span class="nav-label">Tiếp theo</span>
+                        <span class="nav-title">@ViewBag.NextTitle</span>
+                    </div>
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            }
         </div>
     }
 

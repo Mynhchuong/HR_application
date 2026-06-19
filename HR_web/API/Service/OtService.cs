@@ -222,4 +222,32 @@ public class OtService
             };
         }
     }
+
+    public async Task<(bool success, string message, int sent)> RemindPendingOTSignAsync(
+        string clerkEmpCd, string workDate,
+        string? deptId = null, string? lineId = null, string? workId = null)
+    {
+        try
+        {
+            var response = await _api.PostAsync("ot/clerk/remind-pending", new
+            {
+                clerk_empcd = clerkEmpCd,
+                work_date   = workDate,
+                dept_id     = deptId,
+                line_id     = lineId,
+                work_id     = workId
+            });
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var obj  = JsonConvert.DeserializeObject<dynamic>(json);
+                bool ok  = obj?.success == true;
+                string msg = (string?)obj?.message ?? "";
+                int sent = ok ? (int)(obj?.sent ?? 0) : 0;
+                return (ok, msg, sent);
+            }
+            return (false, "Lỗi kết nối server", 0);
+        }
+        catch (Exception ex) { return (false, ex.Message, 0); }
+    }
 }

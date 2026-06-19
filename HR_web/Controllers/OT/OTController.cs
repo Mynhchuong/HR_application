@@ -159,6 +159,25 @@ public class OTController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // POST: /OT/RemindPendingOTSign (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> RemindPendingOTSign(
+        string? work_date, string? dept_id, string? line_id, string? work_id)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            var (ok, msg, sent) = await _otService.RemindPendingOTSignAsync(
+                CurrentUser.EmpCd, work_date ?? DateTime.Today.ToString("yyyy-MM-dd"),
+                dept_id, line_id, work_id);
+            return Json(new { success = ok, message = msg, sent });
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────
     // GET: /OT/GetOTClerkDetailPage (AJAX / JSON)
     // ─────────────────────────────────────────────
     [HttpGet]

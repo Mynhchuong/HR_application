@@ -82,6 +82,16 @@ public class NotificationService
     //  OT (Tăng ca)
     // ═══════════════════════════════════════════════════════════════
 
+    // Thư ký nhắc từng nhân viên chưa ký xác nhận OT
+    public void OTSignReminderToEmployees(IEnumerable<string> pendingEmpCds, string clerkEmpCd, string workDateStr)
+    {
+        foreach (var empCd in pendingEmpCds)
+            Fire(_helper.SendNotificationAsync(Personal(empCd, clerkEmpCd,
+                "Nhắc xác nhận tăng ca",
+                $"Thư ký yêu cầu bạn xác nhận tăng ca ngày {workDateStr}. Nếu không xác nhận là hôm {workDateStr} vui lòng không ở lại tăng ca.",
+                "OT_SIGN")));
+    }
+
     // Nhắc ký xác nhận OT → báo cả công ty hoặc bộ phận
     public void OTSignReminder(string workDateStr, string createdBy, string? deptId = null)
         => Fire(_helper.SendNotificationAsync(new SendNotificationRequest

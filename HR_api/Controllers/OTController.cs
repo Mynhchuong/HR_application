@@ -825,6 +825,81 @@ public class OTController : ControllerBase
         }
     }
 
+    // POST /apiHR/OT/clerk/remind-pending — Thư ký nhắc nhở nhân viên chưa ký OT
+    [HttpPost("clerk/remind-pending")]
+    public async Task<IActionResult> RemindPendingOTSign([FromBody] dynamic model)
+    {
+        try
+        {
+            string clerkEmpCd = (string)model.clerk_empcd;
+            string workDateStr = (string)model.work_date;
+            string? deptId  = (string?)model.dept_id;
+            string? lineId  = (string?)model.line_id;
+            string? workId  = (string?)model.work_id;
+
+            if (string.IsNullOrWhiteSpace(clerkEmpCd))
+                return Ok(new { success = false, message = "Thiếu mã thư ký" });
+            if (string.IsNullOrWhiteSpace(workDateStr) || !DateTime.TryParse(workDateStr, out var workDate))
+                return Ok(new { success = false, message = "Ngày không hợp lệ" });
+
+            var clerkFilter = Helpers.OTScopeFilterHelper.ForScopeByTuple(clerkEmpCd, prefix: "CK");
+
+            string withSql = @"
+                WITH OT_BASE AS (
+                    SELECT EMPCD, DAT, SHIFTCD,
+                           MAX(OVER_TIME) OT_HOURS, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_AFTER) OT_AFTER
+                    FROM (
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_AFTER FROM HRMS.EBM300      WHERE DAT = :WORK_DATE
+                        UNION ALL
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_AFTER FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2
+                    ) GROUP BY EMPCD, DAT, SHIFTCD
+                )";
+
+            string sqlPending = withSql + $@"
+                SELECT DISTINCT EC.EMPCD
+                FROM OT_BASE OT
+                JOIN HRMS.ECM100 EC ON EC.EMPCD = OT.EMPCD
+                LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :WORK_DATE3
+                                               AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
+                WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
+                  AND NVL(OT.OT_HOURS,0) > 0
+                  AND NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING'
+                  {clerkFilter.SqlClause}
+                  AND (:DPT_FLAG IS NULL OR EC.DEPTCD = :DPT_VAL)
+                  AND (:LN_FLAG  IS NULL OR EC.LINECD  = :LN_VAL)
+                  AND (:WK_FLAG  IS NULL OR EC.WORKCD  = :WK_VAL)";
+
+            var queryParams = new List<OracleParameter>
+            {
+                new OracleParameter("WORK_DATE",  OracleDbType.Date) { Value = workDate },
+                new OracleParameter("WORK_DATE2", OracleDbType.Date) { Value = workDate },
+                new OracleParameter("WORK_DATE3", OracleDbType.Date) { Value = workDate },
+                new OracleParameter("DPT_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(deptId) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("DPT_VAL",  OracleDbType.Varchar2) { Value = (object?)deptId ?? DBNull.Value },
+                new OracleParameter("LN_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(lineId) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("LN_VAL",   OracleDbType.Varchar2) { Value = (object?)lineId ?? DBNull.Value },
+                new OracleParameter("WK_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(workId) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("WK_VAL",   OracleDbType.Varchar2) { Value = (object?)workId ?? DBNull.Value }
+            };
+            queryParams.AddRange(clerkFilter.Params);
+
+            var pendingEmpCds = await _oracleService.ExecuteQueryAsync(
+                sqlPending, r => r["EMPCD"]?.ToString() ?? "", queryParams.ToArray());
+
+            if (pendingEmpCds.Count == 0)
+                return Ok(new { success = true, message = "Không có nhân viên nào đang chờ ký", sent = 0 });
+
+            _notiSvc.OTSignReminderToEmployees(pendingEmpCds, clerkEmpCd, workDate.ToString("dd/MM/yyyy"));
+
+            return Ok(new { success = true, message = $"Đã gửi nhắc nhở cho {pendingEmpCds.Count} nhân viên", sent = pendingEmpCds.Count });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     [HttpPost("hr/notify-pending")]
     public async Task<IActionResult> NotifyPendingOT([FromBody] dynamic model)
     {

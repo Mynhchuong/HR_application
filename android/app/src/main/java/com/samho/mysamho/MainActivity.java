@@ -92,6 +92,9 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setDomStorageEnabled(true);
         webSettings.setAllowFileAccess(true);
         webSettings.setUserAgentString("MySamhoMobile");
+        webSettings.setTextZoom(100);
+        webSettings.setUseWideViewPort(true);
+        webSettings.setLoadWithOverviewMode(true);
 
         // Lưu link_action từ notification tap (nếu có)
         pendingLinkAction = getIntent().getStringExtra("link_action");

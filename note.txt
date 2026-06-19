@@ -697,3 +697,55 @@ DELETE FROM HRMS.HR_MENU_DETAIL WHERE FOOD_ID IS NULL;
 ALTER TABLE HRMS.HR_MENU_DETAIL DROP COLUMN FOOD_TEXT;
 -- 3. Bắt buộc FOOD_ID NOT NULL
 ALTER TABLE HRMS.HR_MENU_DETAIL MODIFY FOOD_ID NUMBER NOT NULL;
+
+-- ============================================================
+-- NOTIFICATION TEMPLATE SYSTEM (ADDED 19/06/2026)
+-- Quản lý nội dung thông báo VI/EN — admin sửa trực tiếp không cần deploy lại
+-- Trang quản lý: /NotiTemplate/Index
+-- ============================================================
+
+CREATE SEQUENCE HRMS.HR_NOTI_TEMPLATES_SEQ START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+
+CREATE TABLE HRMS.HR_NOTI_TEMPLATES (
+    ID           NUMBER         NOT NULL PRIMARY KEY,
+    TEMPLATE_KEY VARCHAR2(50)   NOT NULL,
+    TITLE_VI     VARCHAR2(200)  NOT NULL,
+    BODY_VI      VARCHAR2(1000) NOT NULL,
+    TITLE_EN     VARCHAR2(200),
+    BODY_EN      VARCHAR2(1000),
+    IS_ACTIVE    NUMBER(1)      DEFAULT 1 NOT NULL,
+    UPDATED_BY   VARCHAR2(20),
+    UPDATED_DATE DATE,
+    CONSTRAINT UK_NOTI_TMPL_KEY UNIQUE (TEMPLATE_KEY)
+);
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_NOTI_TEMPLATES_ID
+BEFORE INSERT ON HRMS.HR_NOTI_TEMPLATES
+FOR EACH ROW
+BEGIN
+    IF :NEW.ID IS NULL THEN
+        SELECT HRMS.HR_NOTI_TEMPLATES_SEQ.NEXTVAL INTO :NEW.ID FROM DUAL;
+    END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_NOTI_TEMPLATES_ID ENABLE;
+
+-- Seed data: 10 loại thông báo đang dùng
+-- Placeholder dùng {tên_biến} — code tự thay trước khi gửi
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN) VALUES ('PAYSLIP','Thông báo phiếu lương','Bạn đã có phiếu lương mới. Vui lòng kiểm tra trên ứng dụng.','Payslip Available','Your new payslip is ready. Please check on the application.');
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN) VALUES ('GP_SUBMITTED','Yêu cầu Gate Pass mới','Đã gửi yêu cầu ra/vào cổng, vui lòng xem xét.','New Gate Pass Request','A gate pass request has been submitted. Please review.');
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN) VALUES ('GP_APPROVED','Gate Pass được duyệt','Yêu cầu ra/vào cổng của bạn đã được phê duyệt.','Gate Pass Approved','Your gate pass request has been approved.');
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN) VALUES ('GP_REJECTED','Gate Pass bị từ chối','Yêu cầu ra/vào cổng của bạn đã bị từ chối.','Gate Pass Rejected','Your gate pass request has been rejected.');
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN) VALUES ('LEAVE_APPROVED','Đơn nghỉ phép được duyệt','Đơn xin nghỉ phép của bạn đã được phê duyệt.','Leave Approved','Your leave request has been approved.');
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN) VALUES ('LEAVE_REJECTED','Đơn nghỉ phép bị từ chối','Đơn xin nghỉ phép của bạn đã bị từ chối.','Leave Rejected','Your leave request has been rejected.');
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN) VALUES ('LEAVE_ASSIGNED','Bạn được sắp lịch nghỉ phép','Lịch {leaveType} {fromDate} – {toDate} đã được sắp. Vui lòng xác nhận.','Leave Schedule Assigned','You have been scheduled for {leaveType} leave from {fromDate} to {toDate}. Please acknowledge.');
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN) VALUES ('LEAVE_ACKNOWLEDGED','Công nhân đã nhận thông báo nghỉ','Nhân viên {empCd} đã nhận thông báo lịch nghỉ phép được sắp.','Leave Schedule Acknowledged','Employee {empCd} has acknowledged the scheduled leave.');
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN) VALUES ('OT_SIGN_EMPLOYEE','Nhắc xác nhận tăng ca','Thư ký yêu cầu bạn xác nhận tăng ca ngày {workDate}. Nếu không xác nhận là hôm {workDate} vui lòng không ở lại tăng ca.','OT Confirmation Reminder','Please confirm your overtime on {workDate}. If you do not confirm, please do not stay for overtime on {workDate}.');
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN) VALUES ('OT_SIGN_GENERAL','Xác nhận tăng ca','Vui lòng kiểm tra và ký xác nhận tăng ca ngày {workDate}.','OT Sign Reminder','Please check and confirm overtime on {workDate}.');
+COMMIT;
+
+-- ĐÃ CHẠY 19/06/2026 — Thêm cột EN vào HR_NOTIFICATIONS:
+ALTER TABLE HRMS.HR_NOTIFICATIONS ADD (TITLE_EN VARCHAR2(200), BODY_EN VARCHAR2(1000));
+-- Cấu trúc hiện tại HR_NOTIFICATIONS: ID, TITLE (NVARCHAR2 200), BODY (NVARCHAR2 1000),
+-- NOTI_TYPE, TARGET_VAL, LINK_ACTION, CREATED_DATE, CREATED_BY, TITLE_EN (VARCHAR2 200), BODY_EN (VARCHAR2 1000)
+-- Trang thông báo Expat: /Notification/IndexForExpat — hiển thị TITLE_EN/BODY_EN, fallback VI nếu EN trống

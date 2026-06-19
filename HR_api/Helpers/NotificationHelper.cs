@@ -14,6 +14,12 @@ public class NotificationHelper
     private static volatile bool _firebaseInitialized = false;
     private static readonly object _fbLock = new();
 
+    // Template cache — reload sau 10 phút hoặc khi có thay đổi
+    private static Dictionary<string, NotiTemplateModel> _templateCache = new();
+    private static DateTime _templateCacheTime = DateTime.MinValue;
+    private static readonly SemaphoreSlim _cacheLock = new(1, 1);
+    private const int CacheMinutes = 10;
+
     public NotificationHelper(OracleService oracleService, IConfiguration config)
     {
         _oracleService = oracleService;
@@ -49,14 +55,86 @@ public class NotificationHelper
         }
     }
 
-    // Save notification to DB + fire FCM push (fire-and-forget)
+    // ============================================================
+    // TEMPLATE CACHE
+    // ============================================================
+    public static void InvalidateTemplateCache() => _templateCacheTime = DateTime.MinValue;
+
+    private async Task<Dictionary<string, NotiTemplateModel>> GetTemplateCacheAsync()
+    {
+        if ((DateTime.UtcNow - _templateCacheTime).TotalMinutes < CacheMinutes)
+            return _templateCache;
+
+        await _cacheLock.WaitAsync();
+        try
+        {
+            if ((DateTime.UtcNow - _templateCacheTime).TotalMinutes < CacheMinutes)
+                return _templateCache;
+
+            const string sql = @"
+                SELECT ID, TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE
+                FROM HRMS.HR_NOTI_TEMPLATES WHERE IS_ACTIVE = 1";
+
+            var list = await _oracleService.ExecuteQueryAsync(sql, r => new NotiTemplateModel
+            {
+                ID           = Convert.ToInt32(r["ID"]),
+                TEMPLATE_KEY = r["TEMPLATE_KEY"]?.ToString() ?? "",
+                TITLE_VI     = r["TITLE_VI"]?.ToString()     ?? "",
+                BODY_VI      = r["BODY_VI"]?.ToString()      ?? "",
+                TITLE_EN     = r["TITLE_EN"]?.ToString(),
+                BODY_EN      = r["BODY_EN"]?.ToString(),
+            });
+
+            _templateCache    = list.ToDictionary(t => t.TEMPLATE_KEY, t => t);
+            _templateCacheTime = DateTime.UtcNow;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[NotificationHelper] Template cache error: {ex.Message}");
+        }
+        finally { _cacheLock.Release(); }
+
+        return _templateCache;
+    }
+
+    // Lấy template theo key, điền placeholder, trả (titleVI, bodyVI, titleEN, bodyEN)
+    public async Task<(string titleVi, string bodyVi, string? titleEn, string? bodyEn)>
+        GetTemplateAsync(string key, Dictionary<string, string>? placeholders = null)
+    {
+        var cache = await GetTemplateCacheAsync();
+        if (!cache.TryGetValue(key, out var tmpl))
+            return (key, key, null, null);
+
+        string titleVi = tmpl.TITLE_VI;
+        string bodyVi  = tmpl.BODY_VI;
+        string? titleEn = tmpl.TITLE_EN;
+        string? bodyEn  = tmpl.BODY_EN;
+
+        if (placeholders != null)
+        {
+            foreach (var (ph, val) in placeholders)
+            {
+                titleVi  = titleVi.Replace($"{{{ph}}}", val);
+                bodyVi   = bodyVi.Replace($"{{{ph}}}", val);
+                titleEn  = titleEn?.Replace($"{{{ph}}}", val);
+                bodyEn   = bodyEn?.Replace($"{{{ph}}}", val);
+            }
+        }
+        return (titleVi, bodyVi, titleEn, bodyEn);
+    }
+
+    // ============================================================
+    // SAVE NOTIFICATION TO DB + FIRE FCM PUSH (fire-and-forget)
+    // ============================================================
     public async Task<decimal> SendNotificationAsync(SendNotificationRequest model)
     {
         try
         {
             string sqlInsert = @"
-                INSERT INTO HRMS.HR_NOTIFICATIONS (TITLE, BODY, NOTI_TYPE, TARGET_VAL, LINK_ACTION, CREATED_BY, CREATED_DATE)
-                VALUES (:TITLE, :BODY, :NOTI_TYPE, :TARGET_VAL, :LINK_ACTION, :CREATED_BY, SYSDATE)
+                INSERT INTO HRMS.HR_NOTIFICATIONS
+                    (TITLE, BODY, TITLE_EN, BODY_EN, NOTI_TYPE, TARGET_VAL, LINK_ACTION, CREATED_BY, CREATED_DATE)
+                VALUES
+                    (:TITLE, :BODY, :TITLE_EN, :BODY_EN, :NOTI_TYPE, :TARGET_VAL, :LINK_ACTION, :CREATED_BY, SYSDATE)
                 RETURNING ID INTO :OUT_ID";
 
             var outIdParam = new OracleParameter("OUT_ID", OracleDbType.Decimal, System.Data.ParameterDirection.Output);
@@ -64,6 +142,8 @@ public class NotificationHelper
             await _oracleService.ExecuteNonQueryAsync(sqlInsert,
                 new OracleParameter("TITLE",      model.TITLE),
                 new OracleParameter("BODY",       model.BODY),
+                new OracleParameter("TITLE_EN",   (object?)model.TITLE_EN ?? DBNull.Value),
+                new OracleParameter("BODY_EN",    (object?)model.BODY_EN  ?? DBNull.Value),
                 new OracleParameter("NOTI_TYPE",  model.NOTI_TYPE),
                 new OracleParameter("TARGET_VAL", model.TARGET_VAL),
                 new OracleParameter("LINK_ACTION",(object?)model.LINK_ACTION ?? DBNull.Value),
@@ -122,6 +202,18 @@ public class NotificationHelper
             var tokens = await GetTokensForTargetAsync(model.NOTI_TYPE, model.TARGET_VAL);
             if (tokens.Count == 0) return;
 
+            // Dùng EN nếu người nhận là Expat và EN content có sẵn
+            string title = model.TITLE;
+            string body  = model.BODY;
+            if (model.NOTI_TYPE == "EMPCD"
+                && !string.IsNullOrEmpty(model.TITLE_EN)
+                && !string.IsNullOrEmpty(model.TARGET_VAL)
+                && await IsExpatAsync(model.TARGET_VAL))
+            {
+                title = model.TITLE_EN;
+                body  = model.BODY_EN ?? model.BODY;
+            }
+
             var data = string.IsNullOrEmpty(model.LINK_ACTION)
                 ? null
                 : new Dictionary<string, string> { { "link_action", model.LINK_ACTION } };
@@ -130,7 +222,7 @@ public class NotificationHelper
             {
                 var message = new MulticastMessage
                 {
-                    Notification = new Notification { Title = model.TITLE, Body = model.BODY },
+                    Notification = new Notification { Title = title, Body = body },
                     Data   = data,
                     Tokens = batch.ToList()
                 };
@@ -141,6 +233,21 @@ public class NotificationHelper
         {
             Console.WriteLine($"[NotificationHelper] SendFcmAsync error: {ex.Message}");
         }
+    }
+
+    private async Task<bool> IsExpatAsync(string empCd)
+    {
+        try
+        {
+            var rows = await _oracleService.ExecuteQueryAsync(
+                @"SELECT 1 FROM HRMS.HR_USERS U
+                  JOIN HRMS.HR_ROLES R ON R.ID = U.ROLE_ID
+                  WHERE U.EMPCD = :EMPCD AND R.ROLE_NAME = 'Expat' AND ROWNUM = 1",
+                r => 1,
+                new OracleParameter("EMPCD", empCd));
+            return rows.Count > 0;
+        }
+        catch { return false; }
     }
 
     private async Task<List<string>> GetTokensForTargetAsync(string? notiType, string? targetVal)

@@ -17,6 +17,9 @@ public class NotificationController : BaseController
     // GET /Notification/Index
     public IActionResult Index() => View();
 
+    // GET /Notification/IndexForExpat
+    public IActionResult IndexForExpat() => View();
+
     // GET /Notification/GetPage  (AJAX)
     [HttpGet]
     public async Task<IActionResult> GetPage(int page = 1, int page_size = 20)
@@ -24,8 +27,12 @@ public class NotificationController : BaseController
         if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
             return Json(new { success = false });
 
-        var items = await _notiSvc.GetMyAsync(CurrentUser.EmpCd, page, page_size);
-        var unread = items.Count(n => n.IS_READ == 0);
+        var itemsTask  = _notiSvc.GetMyAsync(CurrentUser.EmpCd, page, page_size);
+        var unreadTask = page == 1 ? _notiSvc.GetUnreadCountAsync(CurrentUser.EmpCd) : Task.FromResult(0);
+        await Task.WhenAll(itemsTask, unreadTask);
+
+        var items  = itemsTask.Result;
+        var unread = page == 1 ? unreadTask.Result : 0;
         return Json(new { success = true, data = items, unread });
     }
 

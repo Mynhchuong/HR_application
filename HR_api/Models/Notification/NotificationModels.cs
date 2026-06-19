@@ -5,6 +5,8 @@ public class NotificationModel
     public decimal ID { get; set; }
     public string TITLE { get; set; } = string.Empty;
     public string BODY { get; set; } = string.Empty;
+    public string? TITLE_EN { get; set; }
+    public string? BODY_EN  { get; set; }
     public string? NOTI_TYPE { get; set; }
     public string? TARGET_VAL { get; set; }
     public string? LINK_ACTION { get; set; }
@@ -24,10 +26,12 @@ public class TokenRegistrationRequest
 
 public class SendNotificationRequest
 {
-    public string TITLE { get; set; } = string.Empty;
-    public string BODY { get; set; } = string.Empty;
-    public string NOTI_TYPE { get; set; } = "EMPCD"; // COMPANY, DEPT, EMPCD
-    public string TARGET_VAL { get; set; } = string.Empty; // ALL, DeptID, or EmpCD
+    public string  TITLE       { get; set; } = string.Empty;
+    public string  BODY        { get; set; } = string.Empty;
+    public string? TITLE_EN    { get; set; }
+    public string? BODY_EN     { get; set; }
+    public string  NOTI_TYPE   { get; set; } = "EMPCD"; // COMPANY, DEPT, EMPCD
+    public string  TARGET_VAL  { get; set; } = string.Empty;
     public string? LINK_ACTION { get; set; }
-    public string? CREATED_BY { get; set; }
+    public string? CREATED_BY  { get; set; }
 }

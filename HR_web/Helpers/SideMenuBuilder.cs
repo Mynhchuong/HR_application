@@ -60,10 +60,11 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isExpat || isAdmin,
                 Children = new List<SideMenuItem>
                 {
+                    new SideMenuItem { Title = "Notifications",       Url = "~/Notification/IndexForExpat",      Icon = "notifications"  },
                     new SideMenuItem { Title = "OT List",            Url = "~/OT/OtListForExpat",               Icon = "view_list"      },
                     new SideMenuItem { Title = "Gate Pass Approval",  Url = "~/GatePass/GpListForExpat",         Icon = "door_front"     },
                     new SideMenuItem { Title = "Leave Approval",      Url = "~/Leave/LeaveApprovalForExpat",     Icon = "event_available"},
-                    new SideMenuItem { Title = "Calendar leave & gate pass",   Url = "~/Leave/TeamCalendarForExpat",      Icon = "calendar_month" },
+                    new SideMenuItem { Title = "Leave & Gate Calendar",          Url = "~/Leave/TeamCalendarForExpat",      Icon = "calendar_month" },
                     new SideMenuItem { Title = "My Team",                       Url = "~/Employee/MyTeam",                 Icon = "groups"         },
                 }
             },
@@ -161,6 +162,7 @@ public static class SideMenuBuilder
                     new() { Title = "Sắp Lịch Toàn Công Ty", Url = "~/Leave/AdminAssignLeave",    Icon = "event_available" },
                     new() { Title = "Theo Dõi Yêu Cầu",      Url = "~/Leave/AdminManageRequests", Icon = "manage_history"  },
                     new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",              Icon = "menu_book"       },
+                    new() { Title = "Quản lý Thông báo",     Url = "~/NotiTemplate/Index",        Icon = "notifications"   },
                 ]
             },
         };

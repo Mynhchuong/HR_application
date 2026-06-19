@@ -504,9 +504,11 @@
         var mobileRole       = layoutUser?.RoleName ?? "";
         bool isMobSupervisor = mobileRole == "Supervisor" || mobileRole == "Manager" || mobileRole == "DeputyManager" || mobileRole == "Assistant";
         bool isMobClerk      = mobileRole == "Clerk";
-        string otUrl         = isMobSupervisor ? "~/OT/OtListForSupervisor"
-                             : isMobClerk      ? "~/OT/OtListForClerk"
-                             :                   "~/OT/OtConfirmForm";
+        string otUrl         = isMobSupervisor      ? "~/OT/OtListForSupervisor"
+                             : isMobClerk          ? "~/OT/OtListForClerk"
+                             : mobileRole == "Expat" ? "~/OT/OtListForExpat"
+                             :                         "~/OT/OtConfirmForm";
+        string notiUrl       = mobileRole == "Expat" ? "~/Notification/IndexForExpat" : "~/Notification/Index";
     }
     <nav class="mobile-bottom-nav">
         <a href="@Url.Content("~/Home/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Home") == true ? "active" : "")">
@@ -521,7 +523,7 @@
             </div>
             <span class="nav-text">Tăng ca</span>
         </a>
-        <a href="@Url.Content("~/Notification/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Notification") == true ? "active" : "")" id="navBell">
+        <a href="@Url.Content(notiUrl)" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Notification") == true ? "active" : "")" id="navBell">
             <div class="icon-wrap" style="position:relative;">
                 <span class="material-symbols-rounded">notifications</span>
                 <span id="bellBadge" style="display:none;position:absolute;top:-4px;right:-6px;background:#c00000;color:white;font-size:.6rem;font-weight:800;border-radius:20px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;"></span>

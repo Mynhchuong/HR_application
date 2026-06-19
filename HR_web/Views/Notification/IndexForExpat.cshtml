@@ -1,13 +1,12 @@
 @{
-    ViewData["Title"] = "Thông báo";
+    ViewData["Title"] = "Notifications";
 }
 
 <style>
     .noti-page { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
 
-    /* Hero */
     .noti-hero {
-        background: linear-gradient(135deg, #8b0000 0%, #c00000 100%);
+        background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
         border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
         color: #fff; display: flex; align-items: center; justify-content: space-between;
     }
@@ -15,7 +14,6 @@
     .noti-hero small { font-size: .75rem; opacity: .8; color: #fff !important; }
     .noti-hero-icon  { font-size: 2.2rem; line-height: 1; }
 
-    /* Mark all btn */
     .noti-mark-all { display: flex; align-items: center; justify-content: flex-end; margin-bottom: .6rem; }
     .btn-mark-all {
         font-size: .8rem; font-weight: 700; color: #64748b;
@@ -26,7 +24,6 @@
     .btn-mark-all:hover  { background: #f8fafc; border-color: #cbd5e1; }
     .btn-mark-all:active { opacity: .7; }
 
-    /* List */
     .noti-list { background: white; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.07); overflow: hidden; }
 
     .noti-item {
@@ -44,14 +41,12 @@
     }
     .noti-item.unread:active { background: #dbeafe; }
 
-    /* Icon badge */
     .noti-icon {
         width: 44px; height: 44px; border-radius: 13px;
         display: flex; align-items: center; justify-content: center;
         font-size: 1.3rem; flex-shrink: 0; margin-top: 1px;
     }
 
-    /* Content */
     .noti-content  { flex: 1; min-width: 0; }
     .noti-sender   { font-size: .8rem; font-weight: 700; color: #1e293b; margin-bottom: .1rem; display: flex; align-items: center; gap: .35rem; }
     .noti-empcd    { font-size: .68rem; font-weight: 600; color: #94a3b8; background: #f1f5f9; border-radius: 4px; padding: 1px 5px; font-family: monospace; }
@@ -66,11 +61,9 @@
     }
     .noti-item.unread .noti-unread-dot { display: inline-block; }
 
-    /* Empty */
     .noti-empty { text-align: center; padding: 3rem 1rem; color: #94a3b8; background: white; border-radius: 14px; }
     .noti-empty .ei { font-size: 3rem; display: block; margin-bottom: .5rem; }
 
-    /* Load more */
     .noti-load-more { text-align: center; margin-top: .75rem; }
     .btn-load-more {
         padding: .55rem 1.5rem; border-radius: 12px;
@@ -86,22 +79,22 @@
 
     <div class="noti-hero">
         <div>
-            <h5>Thông báo</h5>
-            <small id="unreadLabel">Đang tải...</small>
+            <h5>Notifications</h5>
+            <small id="unreadLabel">Loading...</small>
         </div>
         <span class="noti-hero-icon">🔔</span>
     </div>
 
     <div class="noti-mark-all">
-        <button class="btn-mark-all" id="btnMarkAll" onclick="markAllRead()">✓ Đánh dấu tất cả đã xem</button>
+        <button class="btn-mark-all" id="btnMarkAll" onclick="markAllRead()">✓ Mark all as read</button>
     </div>
 
     <div class="noti-list" id="notiList">
-        <div class="noti-empty"><span class="ei">⏳</span><p>Đang tải thông báo...</p></div>
+        <div class="noti-empty"><span class="ei">⏳</span><p>Loading notifications...</p></div>
     </div>
 
     <div class="noti-load-more" id="loadMoreWrap" style="display:none;">
-        <button class="btn-load-more" onclick="loadMore()">Xem thêm</button>
+        <button class="btn-load-more" onclick="loadMore()">Load more</button>
     </div>
 
 </div>
@@ -112,13 +105,13 @@
 <script>
 const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 const linkMap = {
-    'GP_MY':       '@Url.Action("GpMyRequests", "GatePass")',
-    'GP_MANAGE':   '@Url.Action("GpListForSupervisor", "GatePass")',
-    'LEAVE_MY':    '@Url.Action("LeaveMyRequests", "Leave")',
-    'LEAVE_TEAM':  '@Url.Action("LeaveTeamRequests", "Leave")',
-    'LEAVE_ASSIGNED': '@Url.Action("LeaveMyRequests", "Leave")',
-    'OT_SIGN':     '@Url.Action("OtConfirmForm", "OT")',
-    'PAYSLIP':     '@Url.Action("Index", "Payslip")',
+    'GP_MY':          '@Url.Action("GpMyRequests",        "GatePass")',
+    'GP_MANAGE':      '@Url.Action("GpListForExpat",       "GatePass")',
+    'LEAVE_MY':       '@Url.Action("LeaveMyRequests",      "Leave")',
+    'LEAVE_TEAM':     '@Url.Action("LeaveApprovalForExpat","Leave")',
+    'LEAVE_ASSIGNED': '@Url.Action("LeaveMyRequests",      "Leave")',
+    'OT_SIGN':        '@Url.Action("OtListForExpat",       "OT")',
+    'PAYSLIP':        '@Url.Action("Index",                "Payslip")',
 };
 
 let page = 1;
@@ -133,22 +126,22 @@ function esc(s) {
 function timeAgo(dateStr) {
     const d = new Date(dateStr);
     const diff = Math.floor((Date.now() - d) / 1000);
-    const hhmm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
-    if (diff < 60)    return 'Vừa xong';
-    if (diff < 3600)  return Math.floor(diff/60) + ' phút trước';
-    if (diff < 86400) return Math.floor(diff/3600) + ' giờ trước • ' + hhmm;
-    if (diff < 604800)return Math.floor(diff/86400) + ' ngày trước • ' + hhmm;
-    return d.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' }) + ' • ' + hhmm;
+    const hhmm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    if (diff < 60)    return 'Just now';
+    if (diff < 3600)  return Math.floor(diff/60) + ' min ago';
+    if (diff < 86400) return Math.floor(diff/3600) + ' hr ago • ' + hhmm;
+    if (diff < 604800)return Math.floor(diff/86400) + ' days ago • ' + hhmm;
+    return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) + ' • ' + hhmm;
 }
 
 const typeStyle = {
-    'PAYSLIP':          { icon: '💰', bg: '#dcfce7', },
-    'LEAVE_MY':         { icon: '🏖️', bg: '#e0f2fe', },
-    'LEAVE_TEAM':       { icon: '👥', bg: '#e0f2fe', },
-    'LEAVE_ASSIGNED':   { icon: '📋', bg: '#e0f2fe', },
-    'OT_SIGN':          { icon: '⏰', bg: '#fff7ed', },
-    'GP_MY':            { icon: '🚪', bg: '#f3e8ff', },
-    'GP_MANAGE':        { icon: '🔑', bg: '#f3e8ff', },
+    'PAYSLIP':          { icon: '💰', bg: '#dcfce7' },
+    'LEAVE_MY':         { icon: '🏖️', bg: '#e0f2fe' },
+    'LEAVE_TEAM':       { icon: '👥', bg: '#e0f2fe' },
+    'LEAVE_ASSIGNED':   { icon: '📋', bg: '#e0f2fe' },
+    'OT_SIGN':          { icon: '⏰', bg: '#fff7ed' },
+    'GP_MY':            { icon: '🚪', bg: '#f3e8ff' },
+    'GP_MANAGE':        { icon: '🔑', bg: '#f3e8ff' },
 };
 
 function renderItems(items, append = false) {
@@ -156,13 +149,15 @@ function renderItems(items, append = false) {
     if (!append) list.innerHTML = '';
 
     if (items.length === 0 && !append) {
-        list.innerHTML = '<div class="noti-empty"><span class="ei">🔔</span><p>Chưa có thông báo nào.</p></div>';
+        list.innerHTML = '<div class="noti-empty"><span class="ei">🔔</span><p>No notifications yet.</p></div>';
         return;
     }
 
     items.forEach(n => {
         const isUnread = n.IS_READ === 0;
         const style = typeStyle[n.LINK_ACTION] ?? { icon: '🔔', bg: '#f1f5f9' };
+        const title = n.TITLE_EN || n.TITLE;
+        const body  = n.BODY_EN  || n.BODY;
         const div = document.createElement('div');
         div.className = 'noti-item' + (isUnread ? ' unread' : '');
         div.dataset.id = n.ID;
@@ -170,8 +165,8 @@ function renderItems(items, append = false) {
             <div class="noti-icon" style="background:${style.bg}">${style.icon}</div>
             <div class="noti-content">
                 ${n.SENDER_NAME ? `<div class="noti-sender"><span class="vni-font">${esc(n.SENDER_NAME)}</span>${n.SENDER_EMPCD ? `<span class="noti-empcd">${esc(n.SENDER_EMPCD)}</span>` : ''}</div>` : ''}
-                <div class="noti-title">${esc(n.TITLE)}</div>
-                <div class="noti-body">${esc(n.BODY)}</div>
+                <div class="noti-title">${esc(title)}</div>
+                <div class="noti-body">${esc(body)}</div>
                 <div class="noti-footer">
                     <span class="noti-time">${timeAgo(n.CREATED_DATE)}</span>
                     <span class="noti-unread-dot"></span>
@@ -203,7 +198,7 @@ let unreadCount = 0;
 function updateUnreadBadge(delta) {
     unreadCount = Math.max(0, unreadCount + delta);
     const label = document.getElementById('unreadLabel');
-    if (label) label.textContent = unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : 'Tất cả đã xem';
+    if (label) label.textContent = unreadCount > 0 ? `${unreadCount} unread` : 'All caught up';
     const bell = document.getElementById('bellBadge');
     if (bell) {
         if (unreadCount > 0) { bell.textContent = unreadCount > 99 ? '99+' : unreadCount; bell.style.display = 'block'; }
@@ -242,7 +237,6 @@ function loadMore() {
         .catch(() => { loading = false; });
 }
 
-// Load lần đầu
 fetch(`@Url.Action("GetPage")?page=1&page_size=${PAGE_SIZE}`)
     .then(r => r.json())
     .then(d => {
@@ -252,7 +246,7 @@ fetch(`@Url.Action("GetPage")?page=1&page_size=${PAGE_SIZE}`)
 
         unreadCount = d.unread ?? 0;
         const label = document.getElementById('unreadLabel');
-        if (label) label.textContent = unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : 'Tất cả đã xem';
+        if (label) label.textContent = unreadCount > 0 ? `${unreadCount} unread` : 'All caught up';
 
         if (d.data.length >= PAGE_SIZE)
             document.getElementById('loadMoreWrap').style.display = 'block';

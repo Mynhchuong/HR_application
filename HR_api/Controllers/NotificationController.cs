@@ -71,7 +71,8 @@ public class NotificationController : ControllerBase
             // Oracle 10g doesn't have OFFSET/FETCH, using ROW_NUMBER()
             string sql = @"
                 SELECT * FROM (
-                    SELECT N.ID, N.TITLE, N.BODY, N.NOTI_TYPE, N.TARGET_VAL, N.LINK_ACTION, N.CREATED_DATE,
+                    SELECT N.ID, N.TITLE, N.BODY, N.TITLE_EN, N.BODY_EN,
+                           N.NOTI_TYPE, N.TARGET_VAL, N.LINK_ACTION, N.CREATED_DATE,
                            NVL(L.IS_READ, 0) IS_READ_VAL,
                            U.FULL_NAME SENDER_NAME,
                            N.CREATED_BY SENDER_EMPCD,
@@ -89,6 +90,8 @@ public class NotificationController : ControllerBase
                 ID = Convert.ToDecimal(r["ID"]),
                 TITLE = r["TITLE"]?.ToString() ?? string.Empty,
                 BODY = r["BODY"]?.ToString() ?? string.Empty,
+                TITLE_EN = r["TITLE_EN"]?.ToString(),
+                BODY_EN  = r["BODY_EN"]?.ToString(),
                 NOTI_TYPE = r["NOTI_TYPE"]?.ToString(),
                 TARGET_VAL = r["TARGET_VAL"]?.ToString(),
                 LINK_ACTION = r["LINK_ACTION"]?.ToString(),
@@ -222,18 +225,20 @@ public class NotificationController : ControllerBase
         {
             // 1. Lưu vào database trước
             string sqlInsert = @"
-                INSERT INTO HRMS.HR_NOTIFICATIONS (TITLE, BODY, NOTI_TYPE, TARGET_VAL, LINK_ACTION, CREATED_BY, CREATED_DATE)
-                VALUES (:TITLE, :BODY, :NOTI_TYPE, :TARGET_VAL, :LINK_ACTION, :CREATED_BY, SYSDATE)
+                INSERT INTO HRMS.HR_NOTIFICATIONS (TITLE, BODY, TITLE_EN, BODY_EN, NOTI_TYPE, TARGET_VAL, LINK_ACTION, CREATED_BY, CREATED_DATE)
+                VALUES (:TITLE, :BODY, :TITLE_EN, :BODY_EN, :NOTI_TYPE, :TARGET_VAL, :LINK_ACTION, :CREATED_BY, SYSDATE)
                 RETURNING ID INTO :OUT_ID";
 
             var outIdParam = new OracleParameter("OUT_ID", OracleDbType.Decimal, System.Data.ParameterDirection.Output);
             await _oracleService.ExecuteNonQueryAsync(sqlInsert,
-                new OracleParameter("TITLE", model.TITLE),
-                new OracleParameter("BODY", model.BODY),
-                new OracleParameter("NOTI_TYPE", model.NOTI_TYPE),
+                new OracleParameter("TITLE",      model.TITLE),
+                new OracleParameter("BODY",       model.BODY),
+                new OracleParameter("TITLE_EN",   (object?)model.TITLE_EN ?? DBNull.Value),
+                new OracleParameter("BODY_EN",    (object?)model.BODY_EN  ?? DBNull.Value),
+                new OracleParameter("NOTI_TYPE",  model.NOTI_TYPE),
                 new OracleParameter("TARGET_VAL", model.TARGET_VAL),
-                new OracleParameter("LINK_ACTION", (object?)model.LINK_ACTION ?? DBNull.Value),
-                new OracleParameter("CREATED_BY", (object?)model.CREATED_BY ?? DBNull.Value),
+                new OracleParameter("LINK_ACTION",(object?)model.LINK_ACTION ?? DBNull.Value),
+                new OracleParameter("CREATED_BY", (object?)model.CREATED_BY  ?? DBNull.Value),
                 outIdParam);
 
             decimal notiId = outIdParam.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od && !od.IsNull

@@ -91,6 +91,7 @@ builder.Services.AddScoped<HR_web.API.Service.GuideService>();
 builder.Services.AddScoped<HR_web.API.Service.MenuService>();
 builder.Services.AddScoped<HR_web.API.Service.EmployeeService>();
 builder.Services.AddScoped<HR_web.API.Service.NotificationService>();
+builder.Services.AddScoped<HR_web.API.Service.NotiTemplateService>();
 builder.Services.AddSingleton<HR_web.API.Service.VideoFileService>();
 
 // ============================================================

@@ -1,0 +1,294 @@
+@{
+    ViewData["Title"] = "Quản lý mẫu thông báo";
+}
+
+<style>
+.tmpl-page { max-width: 900px; margin: 0 auto; padding-bottom: 5rem; }
+
+.tmpl-hero {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
+    color: #fff; display: flex; align-items: center; justify-content: space-between;
+}
+.tmpl-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
+.tmpl-hero small { font-size: .75rem; opacity: .8; }
+.tmpl-hero-icon  { font-size: 2.2rem; }
+
+.tmpl-card {
+    background: #fff; border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.07); margin-bottom: .6rem; overflow: hidden;
+}
+.tmpl-header {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .75rem 1rem; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: background .12s;
+}
+.tmpl-header:active { background: #f8fafc; }
+.tmpl-key-badge {
+    font-size: .7rem; font-weight: 700; font-family: monospace;
+    background: #eff6ff; color: #2563eb; border-radius: 6px;
+    padding: 2px 8px; flex-shrink: 0;
+}
+.tmpl-title-text { flex: 1; font-size: .88rem; font-weight: 700; color: #1e293b; }
+.tmpl-status {
+    font-size: .7rem; font-weight: 700; border-radius: 20px;
+    padding: 2px 8px; flex-shrink: 0;
+}
+.tmpl-status.active   { background: #dcfce7; color: #166534; }
+.tmpl-status.inactive { background: #fee2e2; color: #991b1b; }
+.tmpl-chevron { font-size: .75rem; color: #94a3b8; transition: transform .2s; flex-shrink: 0; }
+.tmpl-header.open .tmpl-chevron { transform: rotate(180deg); }
+
+.tmpl-body { display: none; border-top: 1px solid #f1f5f9; padding: 1rem; }
+.tmpl-body.show { display: block; }
+
+.lang-tabs { display: flex; gap: .4rem; margin-bottom: .75rem; }
+.lang-tab {
+    padding: .3rem .75rem; border-radius: 8px; font-size: .8rem; font-weight: 700;
+    cursor: pointer; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #64748b;
+    transition: all .12s;
+}
+.lang-tab.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+.lang-pane { display: none; }
+.lang-pane.show { display: block; }
+
+.field-label { font-size: .78rem; font-weight: 700; color: #475569; margin-bottom: .3rem; }
+.field-hint  { font-size: .72rem; color: #94a3b8; margin-bottom: .3rem; }
+.tmpl-input, .tmpl-textarea {
+    width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px;
+    padding: .5rem .75rem; font-size: .85rem; color: #1e293b;
+    transition: border-color .15s; box-sizing: border-box; font-family: inherit;
+}
+.tmpl-input:focus, .tmpl-textarea:focus { outline: none; border-color: #2563eb; }
+.tmpl-textarea { resize: vertical; min-height: 80px; }
+
+.ph-list { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .5rem; }
+.ph-chip {
+    font-size: .7rem; font-family: monospace; background: #f1f5f9;
+    color: #475569; border-radius: 4px; padding: 2px 7px;
+}
+
+.tmpl-actions { display: flex; gap: .5rem; margin-top: 1rem; justify-content: flex-end; flex-wrap: wrap; }
+.btn-save {
+    padding: .45rem 1.1rem; border-radius: 10px; font-size: .82rem; font-weight: 700;
+    background: #2563eb; color: #fff; border: none; cursor: pointer; transition: opacity .15s;
+}
+.btn-save:disabled { opacity: .5; cursor: default; }
+.btn-toggle {
+    padding: .45rem 1.1rem; border-radius: 10px; font-size: .82rem; font-weight: 700;
+    background: #f1f5f9; color: #475569; border: 1.5px solid #e2e8f0; cursor: pointer;
+}
+.btn-toggle:hover { background: #e2e8f0; }
+
+.toast-wrap {
+    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+    z-index: 9999; display: flex; flex-direction: column; align-items: center; gap: .4rem;
+    pointer-events: none;
+}
+.toast {
+    background: #1e293b; color: #fff; border-radius: 10px;
+    padding: .5rem 1.1rem; font-size: .82rem; font-weight: 600;
+    opacity: 0; transition: opacity .25s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+.toast.ok  { background: #166534; }
+.toast.err { background: #991b1b; }
+
+.tmpl-loading { text-align: center; padding: 2rem; color: #94a3b8; }
+</style>
+
+<div class="tmpl-page px-2 py-2">
+
+    <div class="tmpl-hero">
+        <div>
+            <h5>Quản lý mẫu thông báo</h5>
+            <small>Chỉnh nội dung VI / EN — không cần deploy lại code</small>
+        </div>
+        <span class="tmpl-hero-icon">📝</span>
+    </div>
+
+    <div id="tmplList">
+        <div class="tmpl-loading">⏳ Đang tải...</div>
+    </div>
+
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+const KEY_LABELS = {
+    'PAYSLIP':          'Phiếu lương',
+    'GP_SUBMITTED':     'Gate Pass — Gửi yêu cầu mới',
+    'GP_APPROVED':      'Gate Pass — Được duyệt',
+    'GP_REJECTED':      'Gate Pass — Bị từ chối',
+    'LEAVE_APPROVED':   'Nghỉ phép — Được duyệt',
+    'LEAVE_REJECTED':   'Nghỉ phép — Bị từ chối',
+    'LEAVE_ASSIGNED':   'Nghỉ phép — Sắp lịch cho nhân viên',
+    'LEAVE_ACKNOWLEDGED':'Nghỉ phép — Nhân viên đã xác nhận',
+    'OT_SIGN_EMPLOYEE': 'Tăng ca — Nhắc ký từng người',
+    'OT_SIGN_GENERAL':  'Tăng ca — Nhắc toàn bộ',
+};
+
+const KEY_PLACEHOLDERS = {
+    'LEAVE_ASSIGNED':   ['{leaveType}', '{fromDate}', '{toDate}'],
+    'LEAVE_ACKNOWLEDGED': ['{empCd}'],
+    'OT_SIGN_EMPLOYEE': ['{workDate}'],
+    'OT_SIGN_GENERAL':  ['{workDate}'],
+};
+
+function esc(s) {
+    return (s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, type='ok') {
+    const wrap = document.getElementById('toastWrap');
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.textContent = msg;
+    wrap.appendChild(el);
+    requestAnimationFrame(() => { el.classList.add('show'); });
+    setTimeout(() => {
+        el.classList.remove('show');
+        setTimeout(() => el.remove(), 300);
+    }, 2500);
+}
+
+function buildCard(item) {
+    const label = KEY_LABELS[item.TEMPLATE_KEY] || item.TEMPLATE_KEY;
+    const phs   = KEY_PLACEHOLDERS[item.TEMPLATE_KEY] || [];
+    const phHtml = phs.length
+        ? `<div class="ph-list">${phs.map(p=>`<span class="ph-chip">${esc(p)}</span>`).join('')}</div>`
+        : '';
+
+    const card = document.createElement('div');
+    card.className = 'tmpl-card';
+    card.dataset.key = item.TEMPLATE_KEY;
+    card.innerHTML = `
+        <div class="tmpl-header" onclick="toggleCard(this)">
+            <span class="tmpl-key-badge">${esc(item.TEMPLATE_KEY)}</span>
+            <span class="tmpl-title-text">${esc(label)}</span>
+            <span class="tmpl-status ${item.IS_ACTIVE===1?'active':'inactive'}">${item.IS_ACTIVE===1?'Đang dùng':'Tắt'}</span>
+            <span class="tmpl-chevron">▼</span>
+        </div>
+        <div class="tmpl-body">
+            <div class="lang-tabs">
+                <div class="lang-tab active" onclick="switchLang(this,'vi')">🇻🇳 Tiếng Việt</div>
+                <div class="lang-tab"        onclick="switchLang(this,'en')">🇬🇧 English</div>
+            </div>
+
+            <div class="lang-pane show" data-lang="vi">
+                <div class="field-label">Tiêu đề (VI)</div>
+                <input  class="tmpl-input mb-2"    data-field="TITLE_VI" value="${esc(item.TITLE_VI)}">
+                <div class="field-label">Nội dung (VI)</div>
+                ${phHtml}
+                <textarea class="tmpl-textarea"    data-field="BODY_VI">${esc(item.BODY_VI)}</textarea>
+            </div>
+
+            <div class="lang-pane" data-lang="en">
+                <div class="field-label">Title (EN)</div>
+                <input  class="tmpl-input mb-2"    data-field="TITLE_EN" value="${esc(item.TITLE_EN??'')}">
+                <div class="field-label">Body (EN)</div>
+                ${phHtml}
+                <textarea class="tmpl-textarea"    data-field="BODY_EN">${esc(item.BODY_EN??'')}</textarea>
+            </div>
+
+            <div class="tmpl-actions">
+                <button class="btn-toggle" onclick="toggleActive('${esc(item.TEMPLATE_KEY)}',this)">
+                    ${item.IS_ACTIVE===1?'Tắt template':'Bật lại'}
+                </button>
+                <button class="btn-save" onclick="saveTemplate('${esc(item.TEMPLATE_KEY)}',this)">
+                    💾 Lưu
+                </button>
+            </div>
+        </div>`;
+    return card;
+}
+
+function toggleCard(header) {
+    header.classList.toggle('open');
+    header.nextElementSibling.classList.toggle('show');
+}
+
+function switchLang(tab, lang) {
+    const body = tab.closest('.tmpl-body');
+    body.querySelectorAll('.lang-tab').forEach(t => t.classList.remove('active'));
+    body.querySelectorAll('.lang-pane').forEach(p => p.classList.remove('show'));
+    tab.classList.add('active');
+    body.querySelector(`.lang-pane[data-lang="${lang}"]`).classList.add('show');
+}
+
+async function saveTemplate(key, btn) {
+    btn.disabled = true;
+    const card = btn.closest('.tmpl-card');
+    const get  = f => card.querySelector(`[data-field="${f}"]`)?.value ?? '';
+
+    const payload = {
+        TEMPLATE_KEY: key,
+        TITLE_VI:  get('TITLE_VI'),
+        BODY_VI:   get('BODY_VI'),
+        TITLE_EN:  get('TITLE_EN') || null,
+        BODY_EN:   get('BODY_EN')  || null,
+    };
+
+    try {
+        const res = await fetch('@Url.Action("Save","NotiTemplate")', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': token
+            },
+            body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        showToast(d.success ? '✅ Đã lưu' : (d.message || 'Lỗi'), d.success ? 'ok' : 'err');
+    } catch { showToast('Lỗi kết nối', 'err'); }
+    finally { btn.disabled = false; }
+}
+
+async function toggleActive(key, btn) {
+    btn.disabled = true;
+    try {
+        const res = await fetch('@Url.Action("Toggle","NotiTemplate")', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': token
+            },
+            body: JSON.stringify({ key })
+        });
+        const d = await res.json();
+        if (d.success) {
+            showToast('Đã cập nhật trạng thái', 'ok');
+            setTimeout(() => loadList(), 600);
+        } else {
+            showToast(d.message || 'Lỗi', 'err');
+            btn.disabled = false;
+        }
+    } catch { showToast('Lỗi kết nối', 'err'); btn.disabled = false; }
+}
+
+async function loadList() {
+    const container = document.getElementById('tmplList');
+    try {
+        const res = await fetch('@Url.Action("GetList","NotiTemplate")');
+        const d   = await res.json();
+        container.innerHTML = '';
+        if (!d.success || !d.data?.length) {
+            container.innerHTML = '<div class="tmpl-loading">Chưa có template nào.</div>';
+            return;
+        }
+        d.data.forEach(item => container.appendChild(buildCard(item)));
+    } catch {
+        container.innerHTML = '<div class="tmpl-loading text-danger">Lỗi tải dữ liệu.</div>';
+    }
+}
+
+loadList();
+</script>
+}

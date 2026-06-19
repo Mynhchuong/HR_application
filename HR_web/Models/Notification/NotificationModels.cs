@@ -5,6 +5,8 @@ public class NotificationItem
     public decimal ID           { get; set; }
     public string  TITLE        { get; set; } = "";
     public string  BODY         { get; set; } = "";
+    public string? TITLE_EN     { get; set; }
+    public string? BODY_EN      { get; set; }
     public string? LINK_ACTION  { get; set; }
     public DateTime CREATED_DATE { get; set; }
     public int     IS_READ      { get; set; }

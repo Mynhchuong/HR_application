@@ -172,15 +172,20 @@ public class PayslipController : ControllerBase
                 new OracleParameter("UPDT_ID", (object?)updtId ?? DBNull.Value),
                 new OracleParameter("ID", id));
 
-            // Gửi thông báo cho toàn bộ nhân viên có trong kỳ lương này
-            _ = _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
+            _ = Task.Run(async () =>
             {
-                TITLE = "Thông báo phiếu lương",
-                BODY = "Bạn đã có phiếu lương mới. Vui lòng kiểm tra trên ứng dụng.",
-                NOTI_TYPE = "COMPANY",
-                TARGET_VAL = "ALL",
-                LINK_ACTION = "PAYSLIP",
-                CREATED_BY = updtId
+                var (title, body, titleEn, bodyEn) = await _notiHelper.GetTemplateAsync("PAYSLIP");
+                await _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
+                {
+                    TITLE       = title,
+                    BODY        = body,
+                    TITLE_EN    = titleEn,
+                    BODY_EN     = bodyEn,
+                    NOTI_TYPE   = "COMPANY",
+                    TARGET_VAL  = "ALL",
+                    LINK_ACTION = "PAYSLIP",
+                    CREATED_BY  = updtId
+                });
             });
 
             return Ok(new { success = true, message = "Đã công bố phiếu lương" });

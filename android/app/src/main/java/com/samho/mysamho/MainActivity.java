@@ -1,9 +1,12 @@
 package com.samho.mysamho;
 
 import android.Manifest;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.webkit.ValueCallback;
@@ -61,6 +64,7 @@ public class MainActivity extends AppCompatActivity {
     private Uri mCameraPhotoUri;
     private static final int FILE_CHOOSER_RESULT_CODE = 100;
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 101;
+    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 102;
     private String pendingLinkAction = null; // từ FCM notification tap
 
     @Override
@@ -73,6 +77,9 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+        createNotificationChannel();
+        requestNotificationPermission();
 
         webView = findViewById(R.id.webView);
         layoutNoInternet = findViewById(R.id.layoutNoInternet);
@@ -342,6 +349,17 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    NOTIFICATION_PERMISSION_REQUEST_CODE);
+            }
+        }
+    }
+
     private boolean checkCameraPermission() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
     }
@@ -353,6 +371,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
+            // Không cần xử lý gì thêm — FCM tự hoạt động nếu permission được cấp
+            return;
+        }
         if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 launchCamera();
@@ -472,6 +494,16 @@ public class MainActivity extends AppCompatActivity {
             mFilePathCallback = null;
         } else {
             super.onActivityResult(requestCode, resultCode, data);
+        }
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel ch = new NotificationChannel(
+                "mysamho_noti", "Thông báo My Samho", NotificationManager.IMPORTANCE_HIGH);
+            ch.enableVibration(true);
+            NotificationManager mgr = getSystemService(NotificationManager.class);
+            mgr.createNotificationChannel(ch);
         }
     }
 

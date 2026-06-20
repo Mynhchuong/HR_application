@@ -224,7 +224,20 @@ public class NotificationHelper
                 {
                     Notification = new Notification { Title = title, Body = body },
                     Data   = data,
-                    Tokens = batch.ToList()
+                    Tokens = batch.ToList(),
+                    Android = new AndroidConfig
+                    {
+                        Priority = Priority.High,
+                        Notification = new AndroidNotification
+                        {
+                            ChannelId = "mysamho_noti",
+                            Sound     = "default",
+                        }
+                    },
+                    Apns = new ApnsConfig
+                    {
+                        Aps = new Aps { Sound = "default" }
+                    }
                 };
                 await FirebaseMessaging.DefaultInstance.SendEachForMulticastAsync(message);
             }

@@ -135,6 +135,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",       Icon = "door_front"             },
                     new SideMenuItem { Title = "Log Sắp Lịch Nghỉ",    Url = "~/Leave/LeaveAssignmentLog",   Icon = "assignment_late"        },
                     new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy"             },
+                    new SideMenuItem { Title = "DS làm Chủ Nhật",       Url = "~/SundayLeave/Index",           Icon = "wb_sunny"               },
                 }
             },
 

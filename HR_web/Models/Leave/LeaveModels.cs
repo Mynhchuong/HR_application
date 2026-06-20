@@ -302,3 +302,20 @@ public class AdminAssignResponse
     public int    total_inserted { get; set; }
     public List<AdminAssignWarning> warnings { get; set; } = new();
 }
+
+public class SundayEmpModel
+{
+    public string? EMPCD     { get; set; }
+    public string? EMP_NAME  { get; set; }
+    public string? DEPT_NAME { get; set; }
+    public string? LINE_NAME { get; set; }
+    public string? WORK_NAME { get; set; }
+    public string? DEPT_ID   { get; set; }
+    public string? LINE_ID   { get; set; }
+    public string? WORK_ID   { get; set; }
+    public string? INST_DT   { get; set; }
+}
+public class SundayListResponse   { public bool success { get; set; } public List<SundayEmpModel> data { get; set; } = new(); }
+public class SundayActionResponse { public bool success { get; set; } public string? message { get; set; } }
+public class SundayImportResult   { public string? empCd { get; set; } public bool success { get; set; } public string? message { get; set; } }
+public class SundayImportResponse { public bool success { get; set; } public string? message { get; set; } public List<SundayImportResult> results { get; set; } = new(); }

@@ -430,5 +430,75 @@ public class LeaveService
         catch { return false; }
     }
 
+    public async Task<SundayListResponse> GetSundayListAsync(string? deptCd, string? lineCd, string? workCd, string? search)
+    {
+        try
+        {
+            var q = new List<string>();
+            if (!string.IsNullOrEmpty(deptCd)) q.Add($"deptCd={Uri.EscapeDataString(deptCd)}");
+            if (!string.IsNullOrEmpty(lineCd)) q.Add($"lineCd={Uri.EscapeDataString(lineCd)}");
+            if (!string.IsNullOrEmpty(workCd)) q.Add($"workCd={Uri.EscapeDataString(workCd)}");
+            if (!string.IsNullOrEmpty(search)) q.Add($"search={Uri.EscapeDataString(search)}");
+            var res = await _api.GetAsync_Raw("leave/sunday-list", string.Join("&", q));
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<SundayListResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new SundayListResponse { success = false };
+            return new SundayListResponse { success = false };
+        }
+        catch { return new SundayListResponse { success = false }; }
+    }
+
+    public async Task<SundayActionResponse> SundayAddAsync(string empCd, string loginUser)
+    {
+        try
+        {
+            var res = await _api.PostAsync("leave/sunday-add", new { EmpCd = empCd, LoginUser = loginUser });
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<SundayActionResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new SundayActionResponse { success = false };
+            return new SundayActionResponse { success = false, message = "Lỗi kết nối" };
+        }
+        catch (Exception ex) { return new SundayActionResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<SundayActionResponse> SundayRemoveAsync(string empCd, string loginUser)
+    {
+        try
+        {
+            var res = await _api.PostAsync("leave/sunday-remove", new { EmpCd = empCd, LoginUser = loginUser });
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<SundayActionResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new SundayActionResponse { success = false };
+            return new SundayActionResponse { success = false, message = "Lỗi kết nối" };
+        }
+        catch (Exception ex) { return new SundayActionResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<SundayActionResponse> SundayBulkRemoveAsync(List<string> empCds, string loginUser)
+    {
+        try
+        {
+            var res = await _api.PostAsync("leave/sunday-bulk-remove", new { EmpCds = empCds, LoginUser = loginUser });
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<SundayActionResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new SundayActionResponse { success = false };
+            return new SundayActionResponse { success = false, message = "Lỗi kết nối" };
+        }
+        catch (Exception ex) { return new SundayActionResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<SundayImportResponse> SundayImportAsync(List<string> empCds, string loginUser)
+    {
+        try
+        {
+            var res = await _api.PostAsync("leave/sunday-import", new { Items = empCds, LoginUser = loginUser });
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<SundayImportResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new SundayImportResponse { success = false };
+            return new SundayImportResponse { success = false, message = "Lỗi kết nối" };
+        }
+        catch (Exception ex) { return new SundayImportResponse { success = false, message = ex.Message }; }
+    }
+
     private class SundayAllowedResp { public bool allowed { get; set; } }
 }

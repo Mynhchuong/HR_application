@@ -2101,6 +2101,146 @@ public class LeaveController : ControllerBase
             new OracleParameter("EMPCD", empCd));
         return Ok(new { allowed = rows.Count > 0 });
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Leave/sunday-list
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("sunday-list")]
+    public async Task<IActionResult> SundayList(
+        [FromQuery] string? deptCd, [FromQuery] string? lineCd,
+        [FromQuery] string? workCd, [FromQuery] string? search)
+    {
+        var where = new List<string> { "S.IS_ACTIVE = 1" };
+        var pms   = new List<OracleParameter>();
+        if (!string.IsNullOrWhiteSpace(deptCd)) { where.Add("EC.DEPTCD = :DEPTCD"); pms.Add(new OracleParameter("DEPTCD", deptCd)); }
+        if (!string.IsNullOrWhiteSpace(lineCd)) { where.Add("EC.LINECD = :LINECD"); pms.Add(new OracleParameter("LINECD", lineCd)); }
+        if (!string.IsNullOrWhiteSpace(workCd)) { where.Add("EC.WORKCD = :WORKCD"); pms.Add(new OracleParameter("WORKCD", workCd)); }
+        if (!string.IsNullOrWhiteSpace(search)) {
+            where.Add("(S.EMPCD LIKE :SEARCH OR UPPER(EC.CNAME) LIKE UPPER(:SEARCH))");
+            pms.Add(new OracleParameter("SEARCH", "%" + search.Trim() + "%"));
+        }
+        var sql = $@"
+            SELECT S.EMPCD, EC.CNAME EMP_NAME,
+                   EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
+                   EC.LINECD LINE_ID, B.TEAMNM LINE_NAME,
+                   EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
+                   TO_CHAR(S.INST_DT,'DD/MM/YYYY') INST_DT
+            FROM HRMS.HR_SUNDAY_LEAVE_ALLOWED S
+            JOIN  HRMS.ECM100 EC ON EC.EMPCD = S.EMPCD
+            LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+            WHERE {string.Join(" AND ", where)}
+            ORDER BY S.INST_DT DESC, S.EMPCD";
+        var data = await _oracleService.ExecuteQueryAsync(sql, r => new {
+            EMPCD     = r["EMPCD"]?.ToString(),
+            EMP_NAME  = r["EMP_NAME"]?.ToString(),
+            DEPT_NAME = r["DEPT_NAME"]?.ToString(),
+            LINE_NAME = r["LINE_NAME"]?.ToString(),
+            WORK_NAME = r["WORK_NAME"]?.ToString(),
+            DEPT_ID   = r["DEPT_ID"]?.ToString(),
+            LINE_ID   = r["LINE_ID"]?.ToString(),
+            WORK_ID   = r["WORK_ID"]?.ToString(),
+            INST_DT   = r["INST_DT"]?.ToString()
+        }, pms.ToArray());
+        return Ok(new { success = true, data });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Leave/sunday-add
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("sunday-add")]
+    public async Task<IActionResult> SundayAdd([FromBody] SundayActionRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.EmpCd))
+            return Ok(new { success = false, message = "Mã nhân viên không hợp lệ" });
+
+        var empCheck = await _oracleService.ExecuteQueryAsync<int>(
+            "SELECT 1 FROM HRMS.ECM100 WHERE EMPCD = :EMPCD AND ROWNUM = 1",
+            r => 1, new OracleParameter("EMPCD", req.EmpCd.Trim()));
+        if (empCheck.Count == 0)
+            return Ok(new { success = false, message = $"Không tìm thấy nhân viên {req.EmpCd}" });
+
+        await _oracleService.ExecuteNonQueryAsync(@"
+            MERGE INTO HRMS.HR_SUNDAY_LEAVE_ALLOWED T
+            USING (SELECT :EMPCD EMPCD FROM DUAL) S ON (T.EMPCD = S.EMPCD)
+            WHEN MATCHED     THEN UPDATE SET IS_ACTIVE=1, UPDT_ID=:LOGIN, UPDT_DT=SYSDATE
+            WHEN NOT MATCHED THEN INSERT (EMPCD,IS_ACTIVE,INST_ID,INST_DT) VALUES (:EMPCD,1,:LOGIN,SYSDATE)",
+            new OracleParameter("EMPCD", req.EmpCd.Trim()),
+            new OracleParameter("LOGIN", req.LoginUser ?? "HR"));
+
+        return Ok(new { success = true, message = $"Đã thêm nhân viên {req.EmpCd}" });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Leave/sunday-remove
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("sunday-remove")]
+    public async Task<IActionResult> SundayRemove([FromBody] SundayActionRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.EmpCd))
+            return Ok(new { success = false, message = "Mã nhân viên không hợp lệ" });
+
+        await _oracleService.ExecuteNonQueryAsync(
+            "UPDATE HRMS.HR_SUNDAY_LEAVE_ALLOWED SET IS_ACTIVE=0, UPDT_ID=:LOGIN, UPDT_DT=SYSDATE WHERE EMPCD=:EMPCD",
+            new OracleParameter("LOGIN", req.LoginUser ?? "HR"),
+            new OracleParameter("EMPCD", req.EmpCd.Trim()));
+
+        return Ok(new { success = true, message = $"Đã xoá nhân viên {req.EmpCd}" });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Leave/sunday-bulk-remove
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("sunday-bulk-remove")]
+    public async Task<IActionResult> SundayBulkRemove([FromBody] SundayBulkRemoveRequest req)
+    {
+        if (req.EmpCds == null || req.EmpCds.Count == 0)
+            return Ok(new { success = false, message = "Danh sách rỗng" });
+
+        var login = req.LoginUser ?? "HR";
+        int count = 0;
+        foreach (var empCd in req.EmpCds.Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x)).Distinct())
+        {
+            await _oracleService.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_SUNDAY_LEAVE_ALLOWED SET IS_ACTIVE=0, UPDT_ID=:LOGIN, UPDT_DT=SYSDATE WHERE EMPCD=:EMPCD",
+                new OracleParameter("LOGIN", login),
+                new OracleParameter("EMPCD", empCd));
+            count++;
+        }
+        return Ok(new { success = true, message = $"Đã xoá {count} nhân viên" });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Leave/sunday-import
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("sunday-import")]
+    public async Task<IActionResult> SundayImport([FromBody] SundayImportRequest req)
+    {
+        if (req.Items == null || req.Items.Count == 0)
+            return Ok(new { success = false, message = "Danh sách rỗng" });
+
+        var results = new List<object>();
+        foreach (var empCd in req.Items.Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x)).Distinct())
+        {
+            var empCheck = await _oracleService.ExecuteQueryAsync<int>(
+                "SELECT 1 FROM HRMS.ECM100 WHERE EMPCD = :EMPCD AND ROWNUM = 1",
+                r => 1, new OracleParameter("EMPCD", empCd));
+            if (empCheck.Count == 0) { results.Add(new { empCd, success = false, message = "Không tìm thấy NV" }); continue; }
+
+            await _oracleService.ExecuteNonQueryAsync(@"
+                MERGE INTO HRMS.HR_SUNDAY_LEAVE_ALLOWED T
+                USING (SELECT :EMPCD EMPCD FROM DUAL) S ON (T.EMPCD = S.EMPCD)
+                WHEN MATCHED     THEN UPDATE SET IS_ACTIVE=1, UPDT_ID=:LOGIN, UPDT_DT=SYSDATE
+                WHEN NOT MATCHED THEN INSERT (EMPCD,IS_ACTIVE,INST_ID,INST_DT) VALUES (:EMPCD,1,:LOGIN,SYSDATE)",
+                new OracleParameter("EMPCD", empCd),
+                new OracleParameter("LOGIN", req.LoginUser ?? "HR"));
+            results.Add(new { empCd, success = true, message = "OK" });
+        }
+        return Ok(new { success = true, results });
+    }
 }
+
+public class SundayActionRequest     { public string EmpCd { get; set; } = ""; public string? LoginUser { get; set; } }
+public class SundayBulkRemoveRequest { public List<string> EmpCds { get; set; } = new(); public string? LoginUser { get; set; } }
+public class SundayImportRequest     { public List<string> Items  { get; set; } = new(); public string? LoginUser { get; set; } }
 
 // ── TEMP TEST: remove after testing ──────────────────────────────────────────

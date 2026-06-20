@@ -419,4 +419,16 @@ public class LeaveService
         }
         catch (Exception ex) { return new AdminBulkDeleteResponse { success = false, message = ex.Message }; }
     }
+
+    public async Task<bool> CheckSundayAllowedAsync(string empCd)
+    {
+        try
+        {
+            var r = await _api.GetAsync<SundayAllowedResp>($"leave/sunday-allowed?empCd={Uri.EscapeDataString(empCd)}");
+            return r?.allowed == true;
+        }
+        catch { return false; }
+    }
+
+    private class SundayAllowedResp { public bool allowed { get; set; } }
 }

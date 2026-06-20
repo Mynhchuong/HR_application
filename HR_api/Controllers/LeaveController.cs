@@ -2076,6 +2076,21 @@ public class LeaveController : ControllerBase
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Leave/sunday-allowed?empCd=xxx
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("sunday-allowed")]
+    public async Task<IActionResult> SundayAllowed([FromQuery] string empCd)
+    {
+        if (string.IsNullOrWhiteSpace(empCd))
+            return Ok(new { allowed = false });
+        var rows = await _oracleService.ExecuteQueryAsync<int>(
+            "SELECT 1 FROM HRMS.HR_SUNDAY_LEAVE_ALLOWED WHERE EMPCD = :EMPCD AND IS_ACTIVE = 1",
+            r => 1,
+            new OracleParameter("EMPCD", empCd));
+        return Ok(new { allowed = rows.Count > 0 });
+    }
 }
 
 // ── TEMP TEST: remove after testing ──────────────────────────────────────────

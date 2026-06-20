@@ -200,7 +200,7 @@ $('#exportExcelBtn').on('click', async function() {
             pgTotal = res.total_pages; exportRows = exportRows.concat(res.data||[]);
             pg++;
         } while (pg <= pgTotal);
-        if (!exportRows.length) { alert('Không có dữ liệu để xuất'); return; }
+        if (!exportRows.length) { showToast('Không có dữ liệu để xuất', 'warning'); return; }
         const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Loại GP','Ngày','Giờ Ra','Giờ Vào','Lý Do','Tình Trạng','Người Ký','Giờ Ký','Ghi Chú'];
         let html = '<html><head><meta charset="utf-8"/></head><body><table border="1"><thead><tr>';
         html += headers.map(h=>`<th style="background:#cfe2ff;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
@@ -216,7 +216,7 @@ $('#exportExcelBtn').on('click', async function() {
         const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
         const link=document.createElement('a'); link.href=URL.createObjectURL(blob);
         link.download=`GatePass_Export_${$('#filterDate').val()}.xls`; link.click();
-    } catch(err) { alert('Lỗi xuất file: '+err.message); }
+    } catch(err) { showToast('Lỗi xuất file: '+err.message, 'error'); }
     finally { $btn.prop('disabled',false).html(originalHtml); }
 });
 

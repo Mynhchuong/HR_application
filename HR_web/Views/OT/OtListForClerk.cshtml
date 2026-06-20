@@ -196,18 +196,20 @@
         const $btn = $(this), orig = $btn.html();
         const pending = parseInt($('#summaryPending').text().replace(/,/g,'')) || 0;
         if (pending === 0) { showToast('Không có nhân viên nào đang chờ ký', 'info'); return; }
-        if (!confirm(`Gửi thông báo nhắc ký cho ${pending} nhân viên chưa xác nhận?`)) return;
-        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang gửi...');
-        $.post('@Url.Action("RemindPendingOTSign","OT")', {
-            work_date: WORK_DATE,
-            dept_id:   $('#filterDept').val() || '',
-            line_id:   $('#filterLine').val() || '',
-            work_id:   $('#filterWork').val() || ''
-        }, function(res) {
-            if (res.success) showToast(res.message || 'Đã gửi thông báo', 'success');
-            else             showToast(res.message || 'Lỗi gửi thông báo', 'error');
-        }).fail(function() { showToast('Lỗi kết nối', 'error'); })
-          .always(function() { $btn.prop('disabled', false).html(orig); });
+        showConfirm(`Gửi thông báo nhắc ký cho ${pending} nhân viên chưa xác nhận?`, () => {
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang gửi...');
+            $.post('@Url.Action("RemindPendingOTSign","OT")', {
+                work_date: WORK_DATE,
+                dept_id:   $('#filterDept').val() || '',
+                line_id:   $('#filterLine').val() || '',
+                work_id:   $('#filterWork').val() || ''
+            }, function(res) {
+                if (res.success) showToast(res.message || 'Đã gửi thông báo', 'success');
+                else             showToast(res.message || 'Lỗi gửi thông báo', 'error');
+            }).fail(function() { showToast('Lỗi kết nối', 'error'); })
+              .always(function() { $btn.prop('disabled', false).html(orig); });
+        }, { title: 'Xác nhận gửi', okText: 'Gửi', okClass: 'btn-primary', icon: 'notifications', iconColor: '#0284c7', iconBg: '#e0f2fe' });
+        return;
     });
 
     $('#pageSizeSelect').on('change', function() { pageSize=parseInt($(this).val()); loadData(1); });
@@ -233,7 +235,7 @@
                 $btn.html(`<span class="spinner-border spinner-border-sm me-1"></span> ${exportRows.length.toLocaleString()}…`);
                 pg++;
             } while(pg<=pgTotal);
-            if(!exportRows.length){alert('Không có dữ liệu để xuất');return;}
+            if(!exportRows.length){showToast('Không có dữ liệu để xuất', 'warning');return;}
             const headers=['STT','Mã NV','Họ Tên','Bộ Phận','Chuyền','Nhóm Việc','Loại TC','Giờ TC','Giờ Bắt Đầu','Giờ Kết Thúc','Tình Trạng','Ngày Ký'];
             let html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8" /></head><body>';
             html+='<table border="1"><thead><tr>'+headers.map(h=>`<th style="background:#d9ead3;font-weight:bold">${h}</th>`).join('')+'</tr></thead><tbody>';
@@ -245,7 +247,7 @@
             html+='</tbody></table></body></html>';
             const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
             const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download=`OT_Clerk_Export_${WORK_DATE}.xls`; link.click();
-        } catch(err){alert('Lỗi xuất file: '+err.message);}
+        } catch(err){showToast('Lỗi xuất file: '+err.message, 'error');}
         finally{$btn.prop('disabled',false).html(originalHtml);}
     });
 

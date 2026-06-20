@@ -226,7 +226,7 @@ $('#exportExcelBtn').on('click', async function() {
             $btn.html(`<span class="spinner-border spinner-border-sm me-1"></span> ${exportRows.length.toLocaleString()}…`);
             pg++;
         } while(pg<=pgTotal);
-        if(!exportRows.length){alert('Không có dữ liệu để xuất');return;}
+        if(!exportRows.length){showToast('Không có dữ liệu để xuất', 'warning');return;}
         const headers=['STT','Mã NV','Họ Tên','Chuyền','Nhóm Việc','Loại TC','Giờ TC','Giờ Bắt Đầu','Giờ Kết Thúc','Tình Trạng','Ngày Ký'];
         let html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8" /></head><body>';
         html+='<table border="1"><thead><tr>'+headers.map(h=>`<th style="background:#d9ead3;font-weight:bold">${h}</th>`).join('')+'</tr></thead><tbody>';
@@ -238,7 +238,7 @@ $('#exportExcelBtn').on('click', async function() {
         html+='</tbody></table></body></html>';
         const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
         const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download=`OT_Export_${WORK_DATE}.xls`; link.click();
-    } catch(err){alert('Lỗi xuất file: '+err.message);}
+    } catch(err){showToast('Lỗi xuất file: '+err.message, 'error');}
     finally{$btn.prop('disabled',false).html(originalHtml);}
 });
 

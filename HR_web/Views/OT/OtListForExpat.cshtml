@@ -225,7 +225,7 @@ $('#exportExcelBtn').on('click', async function() {
             $btn.html(`<span class="spinner-border spinner-border-sm me-1"></span> ${exportRows.length.toLocaleString()}…`);
             pg++;
         } while(pg<=pgTotal);
-        if(!exportRows.length){alert('No data to export');return;}
+        if(!exportRows.length){showToast('No data to export', 'warning');return;}
         const headers=['#','Emp Code','Full Name','Line','Work Group','OT Type','OT Hours','Start Time','End Time','Status','Sign Date'];
         let html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8" /></head><body>';
         html+='<table border="1"><thead><tr>'+headers.map(h=>`<th style="background:#d9ead3;font-weight:bold">${h}</th>`).join('')+'</tr></thead><tbody>';
@@ -237,7 +237,7 @@ $('#exportExcelBtn').on('click', async function() {
         html+='</tbody></table></body></html>';
         const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
         const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download=`OT_Export_${WORK_DATE}.xls`; link.click();
-    } catch(err){alert('Export error: '+err.message);}
+    } catch(err){showToast('Export error: '+err.message, 'error');}
     finally{$btn.prop('disabled',false).html(originalHtml);}
 });
 

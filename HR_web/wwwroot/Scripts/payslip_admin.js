@@ -198,15 +198,15 @@ $(document).ready(function () {
     // Xóa kỳ lương
     $('#btnDeletePeriod').on('click', function () {
         const name = $('#selectPeriod').find(':selected').data('name') || 'kỳ này';
-        if (!confirm(`Xóa kỳ lương "${name}"? Toàn bộ dữ liệu phiếu lương sẽ bị xóa vĩnh viễn!`)) return;
-
-        $.post('DeletePeriod', { id: currentPeriodId }, function (res) {
-            if (res.success) {
-                AlertHelper.success('Đã xóa kỳ lương');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                AlertHelper.error(res.message);
-            }
+        showConfirm(`Xóa kỳ lương "${name}"? Toàn bộ dữ liệu phiếu lương sẽ bị xóa vĩnh viễn!`, () => {
+            $.post('DeletePeriod', { id: currentPeriodId }, function (res) {
+                if (res.success) {
+                    AlertHelper.success('Đã xóa kỳ lương');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    AlertHelper.error(res.message);
+                }
+            });
         });
     });
 
@@ -326,9 +326,8 @@ $(document).ready(function () {
     });
 
     $('#btnStartUpload').on('click', function () {
-        if (!confirm('Hệ thống sẽ xóa dữ liệu cũ của kỳ này và ghi đè dữ liệu mới. Bạn chắc chứ?')) return;
-
         const btn = $(this);
+        showConfirm('Hệ thống sẽ xóa dữ liệu cũ của kỳ này và ghi đè dữ liệu mới. Bạn chắc chứ?', () => {
         btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Đang xử lý...');
 
         const batchSize = 50;
@@ -369,6 +368,7 @@ $(document).ready(function () {
         }
 
         uploadNextBatch();
+        }); // end showConfirm
     });
 
     // 5. Load data hien tai (Server side paging + search)
@@ -486,13 +486,14 @@ $(document).ready(function () {
 
     // 7. Công bố
     $('#btnRelease').on('click', function () {
-        if (!confirm('Sau khi công bộ, tất cả nhân viên sẽ thấy phiếu lương này. Bạn chắc chứ?')) return;
-        $.post('ReleasePeriod', { id: currentPeriodId }, function (res) {
-            if (res.success) {
-                AlertHelper.success(res.message);
-                setTimeout(() => location.reload(), 1500); // Wait for toast
-            }
-        });
+        showConfirm('Sau khi công bố, tất cả nhân viên sẽ thấy phiếu lương này. Bạn chắc chứ?', () => {
+            $.post('ReleasePeriod', { id: currentPeriodId }, function (res) {
+                if (res.success) {
+                    AlertHelper.success(res.message);
+                    setTimeout(() => location.reload(), 1500);
+                }
+            });
+        }, { title: 'Xác nhận công bố', okText: 'Công bố', okClass: 'btn-success', icon: 'publish', iconColor: '#16a34a', iconBg: '#dcfce7' });
     });
 
     // 8. Xem chi tiết

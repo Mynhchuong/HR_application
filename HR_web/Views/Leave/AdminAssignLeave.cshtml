@@ -402,11 +402,11 @@
         const leaveType = document.getElementById('leaveType').value;
         const reason    = document.getElementById('reason').value.trim() || null;
 
-        if (!fromDate || !toDate)             { alert('Vui lòng chọn ngày bắt đầu và kết thúc.'); return; }
+        if (!fromDate || !toDate)             { showToast('Vui lòng chọn ngày bắt đầu và kết thúc.', 'warning'); return; }
         const _today = new Date(); _today.setHours(0,0,0,0);
-        if (new Date(fromDate) < _today)      { alert('Không được sắp lịch ngày quá khứ.'); return; }
-        if (isNaN(totalDays) || totalDays <= 0) { alert('Số ngày nghỉ không hợp lệ.'); return; }
-        if (selectedSet.size === 0)           { alert('Chưa chọn nhân viên.'); return; }
+        if (new Date(fromDate) < _today)      { showToast('Không được sắp lịch ngày quá khứ.', 'warning'); return; }
+        if (isNaN(totalDays) || totalDays <= 0) { showToast('Số ngày nghỉ không hợp lệ.', 'warning'); return; }
+        if (selectedSet.size === 0)           { showToast('Chưa chọn nhân viên.', 'warning'); return; }
 
         const btn = document.getElementById('btnSubmit');
         btn.disabled  = true;
@@ -470,7 +470,7 @@
         } catch (e) {
             btn.disabled  = false;
             btn.innerHTML = '<span class="material-symbols-rounded align-middle me-1" style="font-size:1rem;vertical-align:middle;">send</span> Sắp lịch nghỉ';
-            alert('Lỗi kết nối: ' + e.message);
+            showToast('Lỗi kết nối: ' + e.message, 'error');
         }
     }
 

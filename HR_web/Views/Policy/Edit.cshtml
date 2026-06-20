@@ -436,10 +436,14 @@ document.addEventListener('click', () => {
 
 window.ttSetLink = () => {
     const prev = editor.getAttributes('link').href || '';
-    const url  = prompt('Nhập URL:', prev);
-    if (url === null) return;
-    url ? editor.chain().focus().setLink({ href: url }).run()
-        : editor.chain().focus().unsetLink().run();
+    document.getElementById('ttLinkInput').value = prev;
+    document.getElementById('ttLinkOk').onclick = () => {
+        const url = document.getElementById('ttLinkInput').value.trim();
+        url ? editor.chain().focus().setLink({ href: url }).run()
+            : editor.chain().focus().unsetLink().run();
+        bootstrap.Modal.getInstance(document.getElementById('ttLinkModal'))?.hide();
+    };
+    new bootstrap.Modal(document.getElementById('ttLinkModal')).show();
 };
 
 document.getElementById('editForm').addEventListener('submit', (e) => {
@@ -447,7 +451,7 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
     const words = text ? text.split(/\s+/).length : 0;
     if (words > MAX_WORDS) {
         e.preventDefault();
-        alert(`Nội dung quá dài (${words.toLocaleString()} từ). Vui lòng rút ngắn xuống dưới ${MAX_WORDS.toLocaleString()} từ.`);
+        showToast(`Nội dung quá dài (${words.toLocaleString()} từ). Vui lòng rút ngắn xuống dưới ${MAX_WORDS.toLocaleString()} từ.`, 'warning');
         return;
     }
     val.value = editor.getHTML();
@@ -469,20 +473,35 @@ window.ttUploadImage = async (input) => {
         fd.append('file', file);
 
         const res  = await fetch('/Image/UploadPolicyImage', { method: 'POST', body: fd });
-        if (!res.ok) { alert('Lỗi upload: HTTP ' + res.status); return; }
+        if (!res.ok) { showToast('Lỗi upload: HTTP ' + res.status, 'error'); return; }
         const data = await res.json();
 
         if (data.success) {
             editor.chain().focus().setImage({ src: data.url }).run();
         } else {
-            alert('Lỗi upload: ' + data.message);
+            showToast('Lỗi upload: ' + data.message, 'error');
         }
     } catch (e) {
-        alert('Lỗi kết nối khi upload ảnh: ' + e.message);
+        showToast('Lỗi kết nối khi upload ảnh: ' + e.message, 'error');
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-image"></i>';
     }
 };
 </script>
+
+<div class="modal fade" id="ttLinkModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content" style="border-radius:16px;overflow:hidden;">
+      <div class="modal-body p-4">
+        <div class="fw-bold mb-2">Nhập URL liên kết</div>
+        <input type="url" id="ttLinkInput" class="form-control rounded-3" placeholder="https://...">
+      </div>
+      <div class="d-flex gap-2 px-4 pb-4">
+        <button class="btn btn-light w-100 rounded-3 fw-bold" data-bs-dismiss="modal">Hủy</button>
+        <button class="btn btn-primary w-100 rounded-3 fw-bold" id="ttLinkOk">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
 }

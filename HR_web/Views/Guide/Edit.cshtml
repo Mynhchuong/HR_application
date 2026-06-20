@@ -418,10 +418,14 @@ document.addEventListener('click', () => {
 
 window.ttSetLink = () => {
     const prev = editor.getAttributes('link').href || '';
-    const url  = prompt('Nhập URL:', prev);
-    if (url === null) return;
-    url ? editor.chain().focus().setLink({ href: url }).run()
-        : editor.chain().focus().unsetLink().run();
+    document.getElementById('ttLinkInput').value = prev;
+    document.getElementById('ttLinkOk').onclick = () => {
+        const url = document.getElementById('ttLinkInput').value.trim();
+        url ? editor.chain().focus().setLink({ href: url }).run()
+            : editor.chain().focus().unsetLink().run();
+        bootstrap.Modal.getInstance(document.getElementById('ttLinkModal'))?.hide();
+    };
+    new bootstrap.Modal(document.getElementById('ttLinkModal')).show();
 };
 
 document.getElementById('editForm').addEventListener('submit', (e) => {
@@ -429,7 +433,7 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
     const words = text ? text.split(/\s+/).length : 0;
     if (words > MAX_WORDS) {
         e.preventDefault();
-        alert(`Nội dung quá dài (${words.toLocaleString('vi-VN')} từ). Vui lòng rút ngắn xuống dưới ${MAX_WORDS.toLocaleString('vi-VN')} từ.`);
+        showToast(`Nội dung quá dài (${words.toLocaleString('vi-VN')} từ). Vui lòng rút ngắn xuống dưới ${MAX_WORDS.toLocaleString('vi-VN')} từ.`, 'warning');
         return;
     }
     val.value = editor.getHTML();
@@ -445,7 +449,7 @@ function onVideoSelected(input) {
     if (!file) return;
 
     if (file.size > 500 * 1024 * 1024) {
-        alert('File video quá lớn! Tối đa 500 MB.');
+        showToast('File video quá lớn! Tối đa 500 MB.', 'warning');
         input.value = '';
         return;
     }
@@ -484,7 +488,7 @@ async function onVideoAjaxUpload(input, itemId, saveChunkUrl, removeVideoUrl) {
     if (!file) return;
 
     if (file.size > 500 * 1024 * 1024) {
-        alert('File video quá lớn! Tối đa 500 MB.');
+        showToast('File video quá lớn! Tối đa 500 MB.', 'warning');
         input.value = '';
         return;
     }
@@ -577,29 +581,44 @@ async function onVideoAjaxUpload(input, itemId, saveChunkUrl, removeVideoUrl) {
 }
 
 // Xóa video qua AJAX — xóa file và cập nhật DB ngay, không cần submit form
-async function removeCurrentVideo(itemId, removeVideoUrl) {
-    if (!confirm('Xóa video hiện tại?')) return;
-
-    const token = document.querySelector('[name="__RequestVerificationToken"]')?.value || '';
-    try {
-        const res = await fetch(`${removeVideoUrl}?id=${itemId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `__RequestVerificationToken=${encodeURIComponent(token)}`
-        });
-        const data = await res.json();
-        if (data.success) {
-            document.getElementById('currentVideoSection')?.remove();
-            document.getElementById('uploadLabel').textContent = 'Nhấn hoặc kéo file video vào đây';
-            document.getElementById('uploadSub').textContent = 'MP4 · WebM · MOV · Tối đa 500 MB';
-            const progress = document.getElementById('uploadProgress');
-            if (progress) progress.style.display = 'none';
-        } else {
-            alert('Lỗi: ' + data.message);
+function removeCurrentVideo(itemId, removeVideoUrl) {
+    showConfirm('Xóa video hiện tại?', async () => {
+        const token = document.querySelector('[name="__RequestVerificationToken"]')?.value || '';
+        try {
+            const res = await fetch(`${removeVideoUrl}?id=${itemId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `__RequestVerificationToken=${encodeURIComponent(token)}`
+            });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('currentVideoSection')?.remove();
+                document.getElementById('uploadLabel').textContent = 'Nhấn hoặc kéo file video vào đây';
+                document.getElementById('uploadSub').textContent = 'MP4 · WebM · MOV · Tối đa 500 MB';
+                const progress = document.getElementById('uploadProgress');
+                if (progress) progress.style.display = 'none';
+            } else {
+                showToast('Lỗi: ' + data.message, 'error');
+            }
+        } catch {
+            showToast('Lỗi kết nối', 'error');
         }
-    } catch {
-        alert('Lỗi kết nối');
-    }
+    });
 }
 </script>
+
+<div class="modal fade" id="ttLinkModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content" style="border-radius:16px;overflow:hidden;">
+      <div class="modal-body p-4">
+        <div class="fw-bold mb-2">Nhập URL liên kết</div>
+        <input type="url" id="ttLinkInput" class="form-control rounded-3" placeholder="https://...">
+      </div>
+      <div class="d-flex gap-2 px-4 pb-4">
+        <button class="btn btn-light w-100 rounded-3 fw-bold" data-bs-dismiss="modal">Hủy</button>
+        <button class="btn btn-primary w-100 rounded-3 fw-bold" id="ttLinkOk">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
 }

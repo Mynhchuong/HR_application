@@ -454,19 +454,20 @@ async function toggleFood(id) {
     else showAlert(data.message, 'danger');
 }
 
-async function deleteFood(id, name) {
-    if (!confirm(`Xóa món "${name}"?`)) return;
-    const res  = await fetch('@Url.Action("DeleteFood")?id=' + id, {
-        method: 'POST', headers: { 'RequestVerificationToken': antiForgery }
+function deleteFood(id, name) {
+    showConfirm(`Xóa món "${name}"?`, async () => {
+        const res  = await fetch('@Url.Action("DeleteFood")?id=' + id, {
+            method: 'POST', headers: { 'RequestVerificationToken': antiForgery }
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('row-' + id)?.remove();
+            applyFilter();
+            showAlert(data.message);
+        } else {
+            showAlert(data.message, 'danger');
+        }
     });
-    const data = await res.json();
-    if (data.success) {
-        document.getElementById('row-' + id)?.remove();
-        applyFilter();
-        showAlert(data.message);
-    } else {
-        showAlert(data.message, 'danger');
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => applyFilter());

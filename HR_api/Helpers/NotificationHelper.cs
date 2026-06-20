@@ -235,6 +235,19 @@ public class NotificationHelper
         }
     }
 
+    public async Task<string> GetEmpNameAsync(string empCd)
+    {
+        try
+        {
+            var rows = await _oracleService.ExecuteQueryAsync(
+                "SELECT CNAME FROM HRMS.ECM100 WHERE EMPCD = :EMPCD AND ROWNUM = 1",
+                r => r["CNAME"]?.ToString() ?? "",
+                new OracleParameter("EMPCD", empCd));
+            return rows.FirstOrDefault() ?? empCd;
+        }
+        catch { return empCd; }
+    }
+
     private async Task<bool> IsExpatAsync(string empCd)
     {
         try

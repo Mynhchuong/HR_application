@@ -87,6 +87,16 @@ public class LeaveController : ControllerBase
                 new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
                 new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
 
+            string leaveTypeName = model.LEAVE_TYPE switch
+            {
+                "AL"  => "Phép năm",
+                "CL"  => "BHXH",
+                "SL"  => "Nghỉ bệnh",
+                "NPL" => "Không lương",
+                _     => "Khác"
+            };
+            _notiSvc.LeaveSubmitted(model.EMPCD, empName, leaveTypeName);
+
             return Ok(new { success = true, message = "Đăng ký nghỉ phép thành công", request_id = requestId });
         }
         catch (Exception ex)

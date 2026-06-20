@@ -13,10 +13,15 @@ public class NotificationService
     //  GATE PASS
     // ═══════════════════════════════════════════════════════════════
 
-    public void GatePassSubmitted(string empCd, string empName)
+    public void GatePassSubmitted(string empCd, string empName, string gpTypeName)
         => FireAndForget(async () =>
         {
-            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("GP_SUBMITTED");
+            var ph = new Dictionary<string, string>
+            {
+                ["empName"] = empName,
+                ["gpType"]  = gpTypeName,
+            };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("GP_SUBMITTED", ph);
             var approvers = await _helper.GetApproverEmpCdsAsync(empCd);
             foreach (var ap in approvers)
                 await _helper.SendNotificationAsync(Personal(ap, empCd, title, body, "GP_MANAGE", titleEn, bodyEn));
@@ -39,6 +44,20 @@ public class NotificationService
     // ═══════════════════════════════════════════════════════════════
     //  LEAVE
     // ═══════════════════════════════════════════════════════════════
+
+    public void LeaveSubmitted(string empCd, string empName, string leaveTypeName)
+        => FireAndForget(async () =>
+        {
+            var ph = new Dictionary<string, string>
+            {
+                ["empName"]   = empName,
+                ["leaveType"] = leaveTypeName,
+            };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("LEAVE_SUBMITTED", ph);
+            var approvers = await _helper.GetApproverEmpCdsAsync(empCd);
+            foreach (var ap in approvers)
+                await _helper.SendNotificationAsync(Personal(ap, empCd, title, body, "LEAVE_MANAGE", titleEn, bodyEn));
+        });
 
     public void LeaveApproved(string requesterEmpCd, string approverEmpCd)
         => FireAndForget(async () =>
@@ -70,7 +89,8 @@ public class NotificationService
     public void LeaveAcknowledged(string assignerEmpCd, string workerEmpCd)
         => FireAndForget(async () =>
         {
-            var ph = new Dictionary<string, string> { ["empCd"] = workerEmpCd };
+            var empName = await _helper.GetEmpNameAsync(workerEmpCd);
+            var ph = new Dictionary<string, string> { ["empName"] = empName };
             var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("LEAVE_ACKNOWLEDGED", ph);
             await _helper.SendNotificationAsync(Personal(assignerEmpCd, workerEmpCd, title, body, "LEAVE_TEAM", titleEn, bodyEn));
         });

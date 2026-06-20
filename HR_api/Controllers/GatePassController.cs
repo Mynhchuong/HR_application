@@ -171,7 +171,14 @@ public class GatePassController : ControllerBase
                 new OracleParameter("IN_TIME",    (object?)inTime  ?? DBNull.Value),
                 new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
 
-            _notiSvc.GatePassSubmitted(model.EMPCD, empName);
+            string gpTypeName = model.GP_TYPE switch
+            {
+                "IN"  => "Vào cổng",
+                "OUT" => "Ra cổng",
+                "MID" => "Ra/Vào giữa ca",
+                _     => model.GP_TYPE
+            };
+            _notiSvc.GatePassSubmitted(model.EMPCD, empName, gpTypeName);
 
             return Ok(new { success = true, message = "Đăng ký Gate Pass thành công", request_id = requestId });
         }

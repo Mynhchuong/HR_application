@@ -19,16 +19,27 @@
 
     /* Section header */
     .cm-section {
-        background: white; border-radius: 14px;
+        border-radius: 14px;
         box-shadow: 0 2px 8px rgba(0,0,0,.07);
         margin-bottom: .875rem; overflow: hidden;
     }
     .cm-section-title {
-        padding: .6rem 1rem; font-size: .72rem; font-weight: 800;
-        color: #64748b; text-transform: uppercase; letter-spacing: .06em;
-        border-bottom: 1px solid #f1f5f9; background: #fafafa;
+        padding: .65rem 1rem; font-size: .8rem; font-weight: 800;
+        text-transform: uppercase; letter-spacing: .05em;
+        display: flex; align-items: center; gap: .5rem;
     }
-    .cm-section-body { padding: .875rem 1rem; }
+    .cm-section-title.lunch {
+        background: #1F4E79; color: #fff;
+    }
+    .cm-section-title.ot {
+        background: #375623; color: #fff;
+    }
+    .cm-section-title .badge-shift {
+        font-size: .65rem; font-weight: 900; padding: 2px 8px;
+        border-radius: 20px; letter-spacing: .04em;
+        background: rgba(255,255,255,.22); color: #fff;
+    }
+    .cm-section-body { padding: .875rem 1rem; background: white; }
 
     /* Meal type buttons */
     .cm-meal-btns { display: flex; gap: .5rem; flex-wrap: wrap; }
@@ -135,7 +146,11 @@
 
     <!-- Đổi món bữa ăn ca (LUNCH) -->
     <div class="cm-section">
-        <div class="cm-section-title">Đổi món bữa ăn ca — <strong id="mealDateLabel">ngày mai</strong></div>
+        <div class="cm-section-title lunch">
+            🍱 Bữa ăn ca
+            <span class="badge-shift">CA 1</span>
+            <span style="font-weight:400;opacity:.85;margin-left:auto;font-size:.7rem;">— <span id="mealDateLabel">ngày mai</span></span>
+        </div>
         <div class="cm-section-body">
             <div class="cm-pick-date">
                 <label>📅 Ngày đổi</label>
@@ -155,7 +170,11 @@
 
     <!-- Đổi món tăng ca (OT) -->
     <div class="cm-section">
-        <div class="cm-section-title">Đổi món tăng ca — <strong id="otDateLabel">ngày mai</strong></div>
+        <div class="cm-section-title ot">
+            ⏰ Tăng ca
+            <span class="badge-shift">CA 2 / OT</span>
+            <span style="font-weight:400;opacity:.85;margin-left:auto;font-size:.7rem;">— <span id="otDateLabel">ngày mai</span></span>
+        </div>
         <div class="cm-section-body">
             <div class="cm-pick-date">
                 <label>📅 Ngày đổi</label>

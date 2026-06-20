@@ -185,6 +185,27 @@ public class MenuFoodController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/MenuFood/this-week-ids  — FOOD_IDs đang có trong thực đơn tuần này
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("this-week-ids")]
+    public async Task<IActionResult> GetThisWeekIds()
+    {
+        try
+        {
+            const string sql = @"
+                SELECT DISTINCT D.FOOD_ID
+                FROM HRMS.HR_MENU_WEEK W
+                JOIN HRMS.HR_MENU_DETAIL D ON D.WEEK_ID = W.ID
+                WHERE TRUNC(SYSDATE) BETWEEN TRUNC(W.FROM_DATE) AND TRUNC(W.TO_DATE)
+                  AND W.STATUS = 'PUBLISHED'";
+
+            var result = await _db.ExecuteQueryAsync(sql, r => Convert.ToInt32(r["FOOD_ID"]));
+            return Ok(new { success = true, data = result });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     private static MenuFoodModel Map(OracleDataReader r) => new()
     {
         ID         = Convert.ToInt32(r["ID"]),

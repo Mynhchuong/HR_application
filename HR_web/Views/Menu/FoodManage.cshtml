@@ -79,6 +79,10 @@
                     <option value="NHE">Nhẹ</option>
                     <option value="CHAY">Chay</option>
                 </select>
+                <button type="button" id="btnThisWeek" class="btn btn-sm btn-outline-secondary mb-0"
+                        onclick="toggleThisWeek()">
+                    <i class="bi bi-calendar-week me-1"></i> Tuần này
+                </button>
                 <span id="filterCount" class="text-xs text-secondary"></span>
             </div>
 
@@ -276,8 +280,37 @@ const antiForgery = '@Html.AntiForgeryToken()'.match(/value="([^"]+)"/)?.[1] ?? 
 
 // ── Pagination & filter ───────────────────────────────────────────────────────
 const PAGE_SIZE = 20;
-let currentPage = 1;
+let currentPage  = 1;
 let visibleRows  = [];
+let thisWeekIds  = null; // null = off, Set<number> = active
+
+async function toggleThisWeek() {
+    const btn = document.getElementById('btnThisWeek');
+    if (thisWeekIds !== null) {
+        thisWeekIds = null;
+        btn.classList.replace('btn-success', 'btn-outline-secondary');
+        applyFilter();
+        return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>';
+    try {
+        const res  = await fetch('@Url.Action("GetThisWeekFoodIds")');
+        const data = await res.json();
+        if (data.success && data.ids && data.ids.length > 0) {
+            thisWeekIds = new Set(data.ids);
+            btn.classList.replace('btn-outline-secondary', 'btn-success');
+        } else {
+            showAlert('Tuần này chưa có thực đơn nào được đăng', 'warning');
+        }
+    } catch (e) {
+        showAlert('Lỗi: ' + e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-calendar-week me-1"></i> Tuần này';
+        applyFilter();
+    }
+}
 
 function applyFilter() {
     const name = document.getElementById('filterName').value.toLowerCase().trim();
@@ -287,7 +320,9 @@ function applyFilter() {
     visibleRows = allRows.filter(r => {
         const matchName = !name || r.dataset.name.includes(name);
         const matchType = !type || r.dataset.type === type;
-        return matchName && matchType;
+        const rowId     = parseInt(r.id.replace('row-', ''), 10);
+        const matchWeek = thisWeekIds === null || thisWeekIds.has(rowId);
+        return matchName && matchType && matchWeek;
     });
 
     currentPage = 1;

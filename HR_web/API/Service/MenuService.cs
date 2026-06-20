@@ -92,6 +92,12 @@ public class MenuService
     public async Task SetFoodImageAsync(int id, string value)
         => await PostResult($"MenuFood/set-image?id={id}&value={value}", new { });
 
+    public async Task<List<int>> GetThisWeekFoodIdsAsync()
+    {
+        var r = await _api.GetAsync<Resp<List<int>>>("MenuFood/this-week-ids");
+        return r?.success == true ? r.data ?? new() : new();
+    }
+
     // ── Món hôm nay của nhân viên ─────────────────────────────────────────────
     public async Task<List<UserTodayMealModel>> GetUserTodayMealAsync(string empCd)
     {
@@ -141,6 +147,12 @@ public class MenuService
     public async Task<List<MenuDayViewModel>> GetThisWeekMenuAsync()
     {
         var r = await _api.GetAsync<Resp<List<MenuDayViewModel>>>("MenuWeek/this-week");
+        return r?.success == true ? r.data ?? new() : new();
+    }
+
+    public async Task<List<MenuDayViewModel>> GetNextWeekMenuAsync()
+    {
+        var r = await _api.GetAsync<Resp<List<MenuDayViewModel>>>("MenuWeek/next-week");
         return r?.success == true ? r.data ?? new() : new();
     }
 }

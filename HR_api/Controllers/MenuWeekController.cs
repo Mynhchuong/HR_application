@@ -330,6 +330,44 @@ public class MenuWeekController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/MenuWeek/next-week
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("next-week")]
+    public async Task<IActionResult> GetNextWeek()
+    {
+        try
+        {
+            const string sql = @"
+                SELECT D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER,
+                       F.FOOD_NAME, F.IS_IMAGE,
+                       D.FOOD_ID
+                FROM HRMS.HR_MENU_WEEK W
+                JOIN HRMS.HR_MENU_DETAIL D ON D.WEEK_ID = W.ID
+                JOIN HRMS.HR_MENU_FOOD F ON F.ID = D.FOOD_ID
+                WHERE TRUNC(SYSDATE + 7) BETWEEN TRUNC(W.FROM_DATE) AND TRUNC(W.TO_DATE)
+                  AND W.STATUS = 'PUBLISHED'
+                ORDER BY D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER";
+
+            var result = await _db.ExecuteQueryAsync(sql, MapDay);
+
+            var weekInfo = await _db.ExecuteQueryAsync(
+                @"SELECT WEEK_NAME, FROM_DATE, TO_DATE
+                  FROM HRMS.HR_MENU_WEEK
+                  WHERE TRUNC(SYSDATE + 7) BETWEEN TRUNC(FROM_DATE) AND TRUNC(TO_DATE)
+                    AND STATUS = 'PUBLISHED'",
+                r => new
+                {
+                    weekName = r["WEEK_NAME"]?.ToString(),
+                    fromDate = Convert.ToDateTime(r["FROM_DATE"]).ToString("dd/MM/yyyy"),
+                    toDate   = Convert.ToDateTime(r["TO_DATE"]).ToString("dd/MM/yyyy"),
+                });
+
+            var week = weekInfo.FirstOrDefault();
+            return Ok(new { success = true, data = result, weekInfo = week });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
     // GET /apiHR/MenuWeek/this-week  — công nhân xem cả tuần
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet("this-week")]

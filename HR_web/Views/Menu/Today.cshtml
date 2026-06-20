@@ -251,6 +251,9 @@
     }
     else
     {
+        <p style="text-align:center;font-size:.73rem;color:#94a3b8;margin-bottom:.6rem;">
+            👆 Nhấn vào món ăn để xem hình
+        </p>
         @foreach (var (shiftKey, shiftLabel, shiftColor) in shifts)
         {
             var shiftItems = Model.Where(m => m.SHIFT == shiftKey).ToList();

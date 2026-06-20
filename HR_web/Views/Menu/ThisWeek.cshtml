@@ -2,8 +2,10 @@
 @{
     ViewData["Title"] = "Thực đơn tuần này";
 
-    var today   = DateTime.Today;
-    int todayNo = (int)today.DayOfWeek == 0 ? 0 : (int)today.DayOfWeek + 1;
+    var today      = DateTime.Today;
+    bool isNextWeek = ViewBag.IsNextWeek == true;
+    bool hasNextWeek = ViewBag.HasNextWeek == true;
+    int todayNo    = isNextWeek ? -1 : ((int)today.DayOfWeek == 0 ? 0 : (int)today.DayOfWeek + 1);
 
     var dayConfig = new[]
     {
@@ -17,10 +19,8 @@
     var activeDays = Model.Select(m => m.DAY_NO).Distinct().OrderBy(d => d).ToHashSet();
     bool isEmpty   = !Model.Any();
 
-    // Tính ngày thực tế theo thứ trong tuần
-    var daysFromMon = ((int)today.DayOfWeek + 6) % 7;
-    var monday      = today.AddDays(-daysFromMon);
-    var dayDates    = new Dictionary<int, string>
+    var monday   = (ViewBag.WeekMonday as DateTime?) ?? today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+    var dayDates = new Dictionary<int, string>
     {
         { 2, monday.ToString("yyyyMMdd") },
         { 3, monday.AddDays(1).ToString("yyyyMMdd") },
@@ -203,10 +203,26 @@
 
     <div class="food-hero">
         <div>
-            <h5>Thực đơn tuần này</h5>
-            <small>Nhấn ngày để xem chi tiết</small>
+            <h5>@(isNextWeek ? "Thực đơn tuần sau" : "Thực đơn tuần này")</h5>
+            <small>@monday.ToString("dd/MM") – @monday.AddDays(5).ToString("dd/MM/yyyy")</small>
         </div>
-        <span class="food-hero-icon">📅</span>
+        <div class="d-flex flex-column align-items-end gap-1">
+            <span class="food-hero-icon">📅</span>
+            @if (isNextWeek)
+            {
+                <a href="@Url.Action("ThisWeek","Menu")" class="btn btn-sm"
+                   style="background:rgba(255,255,255,.2);color:#fff;font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:8px;text-decoration:none;">
+                    ← Tuần này
+                </a>
+            }
+            else if (hasNextWeek)
+            {
+                <a href="@Url.Action("NextWeek","Menu")" class="btn btn-sm"
+                   style="background:rgba(255,255,255,.2);color:#fff;font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:8px;text-decoration:none;">
+                    Tuần sau →
+                </a>
+            }
+        </div>
     </div>
 
     <div class="food-tabs">
@@ -233,6 +249,9 @@
     }
     else
     {
+        <p style="text-align:center;font-size:.73rem;color:#94a3b8;margin-bottom:.5rem;">
+            👆 Nhấn vào món ăn để xem hình
+        </p>
         <div class="day-tabs" id="dayTabs">
             @foreach (var (dayNo, dayName) in dayConfig)
             {

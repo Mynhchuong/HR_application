@@ -473,6 +473,15 @@ public class MenuController : BaseController
         return Json(new { success = true, message = msg });
     }
 
+    // AJAX — food IDs on this week's published menu
+    [HttpGet]
+    [Authorize(Roles = "Admin,HR,Canteen")]
+    public async Task<IActionResult> GetThisWeekFoodIds()
+    {
+        var ids = await _svc.GetThisWeekFoodIdsAsync();
+        return Json(new { success = true, ids });
+    }
+
     // AJAX — toggle
     [HttpPost]
     [Authorize(Roles = "Admin,HR,Canteen")]
@@ -736,10 +745,24 @@ public class MenuController : BaseController
     [AllowAnonymous]
     public async Task<IActionResult> ThisWeek()
     {
-        var data = await _svc.GetThisWeekMenuAsync();
+        var data         = await _svc.GetThisWeekMenuAsync();
+        var nextWeekData = await _svc.GetNextWeekMenuAsync();
+        ViewBag.HasNextWeek  = nextWeekData.Any();
+        ViewBag.WeekMonday   = DateTime.Today.AddDays(-(((int)DateTime.Today.DayOfWeek + 6) % 7));
         if (CurrentUser != null)
             ViewBag.UserWeekMeals = await _svc.GetUserWeekMealAsync(CurrentUser.EmpCd);
         return View(data);
+    }
+
+    public async Task<IActionResult> NextWeek()
+    {
+        var data = await _svc.GetNextWeekMenuAsync();
+        if (!data.Any()) return RedirectToAction("ThisWeek");
+        ViewBag.IsNextWeek   = true;
+        ViewBag.WeekMonday   = DateTime.Today.AddDays(7 - ((int)DateTime.Today.DayOfWeek + 6) % 7);
+        if (CurrentUser != null)
+            ViewBag.UserWeekMeals = await _svc.GetUserWeekMealAsync(CurrentUser.EmpCd);
+        return View("ThisWeek", data);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

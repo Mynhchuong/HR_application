@@ -467,10 +467,9 @@ window.ttUploadImage = async (input) => {
     try {
         const fd = new FormData();
         fd.append('file', file);
-        fd.append('__RequestVerificationToken',
-            document.querySelector('input[name="__RequestVerificationToken"]').value);
 
         const res  = await fetch('/Image/UploadPolicyImage', { method: 'POST', body: fd });
+        if (!res.ok) { alert('Lỗi upload: HTTP ' + res.status); return; }
         const data = await res.json();
 
         if (data.success) {
@@ -478,8 +477,8 @@ window.ttUploadImage = async (input) => {
         } else {
             alert('Lỗi upload: ' + data.message);
         }
-    } catch {
-        alert('Lỗi kết nối khi upload ảnh.');
+    } catch (e) {
+        alert('Lỗi kết nối khi upload ảnh: ' + e.message);
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-image"></i>';

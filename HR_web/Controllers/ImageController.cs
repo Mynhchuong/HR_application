@@ -80,8 +80,8 @@ public class ImageController : BaseController
 
     // ── Ảnh Policy ──────────────────────────────────────────────────────────
     [HttpPost]
-    [Authorize(Roles = "Admin")]
-    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Admin,HR")]
+    [IgnoreAntiforgeryToken]
     [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadPolicyImage(IFormFile? file)
     {
@@ -128,16 +128,18 @@ public class ImageController : BaseController
     [HttpPost]
     public async Task<IActionResult> UploadSignature(string empCd, IFormFile? file)
     {
+        bool isExpat = CurrentUser?.RoleName == "Expat";
+
         if (string.IsNullOrWhiteSpace(empCd) || file == null || file.Length == 0)
         {
-            TempData["ErrorMessage"] = "Chưa chọn file hoặc mã nhân viên trống!";
+            TempData["ErrorMessage"] = isExpat ? "Please select a file!" : "Chưa chọn file hoặc mã nhân viên trống!";
             return RedirectToAction("ProfileUser", "Profile");
         }
 
         string ext = Path.GetExtension(file.FileName).ToLower();
         if (ext != ".jpg" && ext != ".jpeg")
         {
-            TempData["ErrorMessage"] = "Chỉ chấp nhận file JPG.";
+            TempData["ErrorMessage"] = isExpat ? "Only JPG files are accepted." : "Chỉ chấp nhận file JPG.";
             return RedirectToAction("ProfileUser", "Profile");
         }
 
@@ -147,14 +149,12 @@ public class ImageController : BaseController
 
             using (new NetworkShareHelper(ShareRoot, ShareCred))
             {
-                // Ghi file lên network share (thay file.SaveAs)
                 using (var stream = new FileStream(savePath, FileMode.Create))
                 {
                     await file.CopyToAsync(stream);
                 }
             }
 
-            // Cập nhật trạng thái chữ ký trong Cookie và DB
             if (CurrentUser != null)
             {
                 var updatedUser = CurrentUser;
@@ -165,11 +165,11 @@ public class ImageController : BaseController
                 await _accountService.UpdateSignatureFlagAsync(empCd, true, CurrentUser.EmpCd);
             }
 
-            TempData["SuccessMessage"] = "Cập nhật chữ ký thành công!";
+            TempData["SuccessMessage"] = isExpat ? "Signature updated successfully!" : "Cập nhật chữ ký thành công!";
         }
         catch (Exception ex)
         {
-            TempData["ErrorMessage"] = $"Lỗi lưu file: {ex.Message}";
+            TempData["ErrorMessage"] = isExpat ? $"File save error: {ex.Message}" : $"Lỗi lưu file: {ex.Message}";
         }
 
         return RedirectToAction("ProfileUser", "Profile");

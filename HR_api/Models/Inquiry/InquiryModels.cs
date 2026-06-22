@@ -83,6 +83,26 @@ public class InquiryTopicDto
     public string? Icon         { get; set; }
     public string? Color        { get; set; }
     public int     SortOrder    { get; set; }
+    public bool    IsActive     { get; set; } = true;
+    public int     UsageCount   { get; set; }
+}
+
+public class InquiryTopicSaveRequest
+{
+    public string  TopicCd      { get; set; } = "";
+    public string  TopicName    { get; set; } = "";
+    public string? TopicNameEn  { get; set; }
+    public string? Icon         { get; set; }
+    public string? Color        { get; set; }
+    public int     SortOrder    { get; set; }
+    public bool    IsActive     { get; set; } = true;
+    public string? UpdtId       { get; set; }
+}
+
+public class InquiryTopicToggleRequest
+{
+    public bool    IsActive     { get; set; }
+    public string? UpdtId       { get; set; }
 }
 
 public class InquiryListItemDto

@@ -55,6 +55,202 @@ public class InquiryController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Inquiry/admin/topics  — Admin: lấy tất cả topic (kể cả ẩn)
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("admin/topics")]
+    public async Task<IActionResult> GetAdminTopics()
+    {
+        try
+        {
+            var rows = await _db.ExecuteQueryAsync(@"
+                SELECT t.TOPIC_CD, t.TOPIC_NAME, t.TOPIC_NAME_EN, t.ICON, t.COLOR,
+                       t.SORT_ORDER, t.IS_ACTIVE,
+                       (SELECT COUNT(*) FROM HRMS.HR_INQUIRY i WHERE i.TOPIC_CD = t.TOPIC_CD) AS USAGE_COUNT
+                FROM HRMS.HR_INQUIRY_TOPIC t
+                ORDER BY t.SORT_ORDER, t.TOPIC_CD",
+                r => new InquiryTopicDto
+                {
+                    TopicCd     = r["TOPIC_CD"]?.ToString()    ?? "",
+                    TopicName   = r["TOPIC_NAME"]?.ToString()  ?? "",
+                    TopicNameEn = r["TOPIC_NAME_EN"]?.ToString(),
+                    Icon        = r["ICON"]?.ToString(),
+                    Color       = r["COLOR"]?.ToString(),
+                    SortOrder   = r["SORT_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["SORT_ORDER"]),
+                    IsActive    = r["IS_ACTIVE"]  == DBNull.Value ? true : Convert.ToInt32(r["IS_ACTIVE"]) == 1,
+                    UsageCount  = r["USAGE_COUNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["USAGE_COUNT"])
+                });
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Inquiry/admin/topics  — Admin: tạo topic mới
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("admin/topics")]
+    public async Task<IActionResult> CreateTopic([FromBody] InquiryTopicSaveRequest req)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(req.TopicCd))
+                return Ok(new { success = false, message = "Thiếu mã chủ đề" });
+            if (string.IsNullOrWhiteSpace(req.TopicName))
+                return Ok(new { success = false, message = "Thiếu tên chủ đề" });
+
+            string topicCd = req.TopicCd.Trim().ToUpperInvariant();
+            if (topicCd.Length > 20)
+                return Ok(new { success = false, message = "Mã chủ đề tối đa 20 ký tự" });
+
+            var existing = await _db.ExecuteQueryAsync(
+                "SELECT 1 FROM HRMS.HR_INQUIRY_TOPIC WHERE TOPIC_CD = :CD AND ROWNUM = 1",
+                r => 1,
+                new OracleParameter("CD", topicCd));
+            if (existing.Count > 0)
+                return Ok(new { success = false, message = "Mã chủ đề đã tồn tại" });
+
+            await _db.ExecuteNonQueryAsync(@"
+                INSERT INTO HRMS.HR_INQUIRY_TOPIC
+                    (TOPIC_CD, TOPIC_NAME, TOPIC_NAME_EN, ICON, COLOR, SORT_ORDER, IS_ACTIVE, INST_ID, INST_DT)
+                VALUES
+                    (:CD, :NAME, :NAME_EN, :ICON, :COLOR, :SORT, :ACTIVE, :INST, SYSDATE)",
+                new OracleParameter("CD",      topicCd),
+                new OracleParameter("NAME",    req.TopicName.Trim()),
+                new OracleParameter("NAME_EN", (object?)req.TopicNameEn?.Trim() ?? DBNull.Value),
+                new OracleParameter("ICON",    (object?)req.Icon?.Trim()        ?? DBNull.Value),
+                new OracleParameter("COLOR",   (object?)req.Color?.Trim()       ?? DBNull.Value),
+                new OracleParameter("SORT",    req.SortOrder),
+                new OracleParameter("ACTIVE",  req.IsActive ? 1 : 0),
+                new OracleParameter("INST",    (object?)req.UpdtId ?? DBNull.Value));
+
+            return Ok(new { success = true, topicCd });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PUT /apiHR/Inquiry/admin/topics/{topicCd}  — Admin: cập nhật topic
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPut("admin/topics/{topicCd}")]
+    public async Task<IActionResult> UpdateTopic(string topicCd, [FromBody] InquiryTopicSaveRequest req)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(topicCd))
+                return Ok(new { success = false, message = "Thiếu mã chủ đề" });
+            if (string.IsNullOrWhiteSpace(req.TopicName))
+                return Ok(new { success = false, message = "Thiếu tên chủ đề" });
+
+            int rows = await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_INQUIRY_TOPIC
+                SET TOPIC_NAME    = :NAME,
+                    TOPIC_NAME_EN = :NAME_EN,
+                    ICON          = :ICON,
+                    COLOR         = :COLOR,
+                    SORT_ORDER    = :SORT,
+                    IS_ACTIVE     = :ACTIVE,
+                    UPDT_ID       = :UPDT,
+                    UPDT_DT       = SYSDATE
+                WHERE TOPIC_CD = :CD",
+                new OracleParameter("NAME",    req.TopicName.Trim()),
+                new OracleParameter("NAME_EN", (object?)req.TopicNameEn?.Trim() ?? DBNull.Value),
+                new OracleParameter("ICON",    (object?)req.Icon?.Trim()        ?? DBNull.Value),
+                new OracleParameter("COLOR",   (object?)req.Color?.Trim()       ?? DBNull.Value),
+                new OracleParameter("SORT",    req.SortOrder),
+                new OracleParameter("ACTIVE",  req.IsActive ? 1 : 0),
+                new OracleParameter("UPDT",    (object?)req.UpdtId ?? DBNull.Value),
+                new OracleParameter("CD",      topicCd.Trim().ToUpperInvariant()));
+
+            if (rows == 0)
+                return Ok(new { success = false, message = "Không tìm thấy chủ đề" });
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Inquiry/admin/topics/{topicCd}/toggle  — Admin: ẩn/hiện
+    //   Ẩn (IS_ACTIVE=0) KHÔNG ảnh hưởng các hội thoại đã có TOPIC_CD này.
+    //   Chỉ ngăn người dùng tạo hội thoại mới với topic ẩn.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("admin/topics/{topicCd}/toggle")]
+    public async Task<IActionResult> ToggleTopic(string topicCd, [FromBody] InquiryTopicToggleRequest req)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(topicCd))
+                return Ok(new { success = false, message = "Thiếu mã chủ đề" });
+
+            int rows = await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_INQUIRY_TOPIC
+                SET IS_ACTIVE = :ACTIVE,
+                    UPDT_ID   = :UPDT,
+                    UPDT_DT   = SYSDATE
+                WHERE TOPIC_CD = :CD",
+                new OracleParameter("ACTIVE", req.IsActive ? 1 : 0),
+                new OracleParameter("UPDT",   (object?)req.UpdtId ?? DBNull.Value),
+                new OracleParameter("CD",     topicCd.Trim().ToUpperInvariant()));
+
+            if (rows == 0)
+                return Ok(new { success = false, message = "Không tìm thấy chủ đề" });
+            return Ok(new { success = true, isActive = req.IsActive });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DELETE /apiHR/Inquiry/admin/topics/{topicCd}  — Admin: xóa topic
+    //   Chặn xóa nếu còn hội thoại tham chiếu (gợi ý ẩn thay vì xóa)
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpDelete("admin/topics/{topicCd}")]
+    public async Task<IActionResult> DeleteTopic(string topicCd)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(topicCd))
+                return Ok(new { success = false, message = "Thiếu mã chủ đề" });
+
+            string cd = topicCd.Trim().ToUpperInvariant();
+
+            var inUse = await _db.ExecuteQueryAsync(
+                "SELECT COUNT(*) AS C FROM HRMS.HR_INQUIRY WHERE TOPIC_CD = :CD",
+                r => Convert.ToInt32(r["C"]),
+                new OracleParameter("CD", cd));
+            int usage = inUse.FirstOrDefault();
+            if (usage > 0)
+                return Ok(new
+                {
+                    success  = false,
+                    code     = "IN_USE",
+                    usage,
+                    message  = $"Chủ đề đang được sử dụng trong {usage} hội thoại. Hãy ẩn thay vì xóa."
+                });
+
+            int rows = await _db.ExecuteNonQueryAsync(
+                "DELETE FROM HRMS.HR_INQUIRY_TOPIC WHERE TOPIC_CD = :CD",
+                new OracleParameter("CD", cd));
+            if (rows == 0)
+                return Ok(new { success = false, message = "Không tìm thấy chủ đề" });
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // POST /apiHR/Inquiry/create
     // Tạo cuộc hội thoại mới + tin nhắn đầu tiên
     // ─────────────────────────────────────────────────────────────────────────

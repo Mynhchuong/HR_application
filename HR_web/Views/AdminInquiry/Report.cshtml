@@ -13,6 +13,16 @@
 .inqhr-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
 .inqhr-hero small { font-size: .75rem; opacity: .8; }
 
+.rpt-export-btn {
+    background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35);
+    color: #fff; border-radius: 10px; padding: .45rem .75rem;
+    font-size: .8rem; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: .25rem;
+    transition: all .15s;
+}
+.rpt-export-btn:hover  { background: rgba(255,255,255,.28); }
+.rpt-export-btn:disabled { opacity: .5; cursor: not-allowed; }
+
 /* ── Tabs ── */
 .rpt-tabs { display: flex; gap: .4rem; background: white; border-radius: 14px;
             padding: .45rem; box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-bottom: .6rem; }
@@ -103,7 +113,10 @@
             <h5>Báo cáo hội thoại</h5>
             <small id="heroPeriod">Đang tải...</small>
         </div>
-        <span class="material-symbols-rounded" style="font-size:2.2rem">bar_chart</span>
+        <button class="rpt-export-btn" id="btnExport" onclick="exportExcel()" title="Xuất Excel">
+            <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle">download</span>
+            Excel
+        </button>
     </div>
 
     <!-- Tabs -->
@@ -158,6 +171,10 @@
 </div>
 
 <script>
+// ─── URLs (qua @Url.Action để hỗ trợ sub-app IIS như /hr_test/) ─────────────
+const URL_REPORT = '@Url.Action("GetReport","AdminInquiry")';
+const URL_EXPORT = '@Url.Action("ExportReport","AdminInquiry")';
+
 // ─── State ─────────────────────────────────────────────────────────────────
 let rptMode  = 'WEEK';
 let rptYear  = new Date().getFullYear();
@@ -263,6 +280,12 @@ function onYearChange() {
     }
 }
 
+// ─── Export Excel ────────────────────────────────────────────────────────────
+function exportExcel() {
+    const url = `${URL_EXPORT}?type=${rptMode}&year=${rptYear}&week=${rptWeek}&month=${rptMonth}`;
+    window.location.href = url;
+}
+
 // ─── Load data ───────────────────────────────────────────────────────────────
 async function loadReport() {
     if (rptMode === 'MONTH') {
@@ -278,7 +301,7 @@ async function loadReport() {
          </div>`;
 
     try {
-        const url = `/AdminInquiry/GetReport?type=${rptMode}&year=${rptYear}&week=${rptWeek}&month=${rptMonth}`;
+        const url = `${URL_REPORT}?type=${rptMode}&year=${rptYear}&week=${rptWeek}&month=${rptMonth}`;
         const res  = await fetch(url);
         const data = await res.json();
 
@@ -426,7 +449,7 @@ function renderReport(data) {
         for (const h of data.byHr) {
             html += `<tr>
                 <td>
-                    <span style="font-weight:700;color:#1e293b">${h.hrName ?? '—'}</span>
+                    <span class="vni-font" style="font-weight:700;color:#1e293b">${h.hrName ?? '—'}</span>
                     ${h.hrCd ? `<span style="font-size:.72rem;color:#94a3b8;margin-left:4px">${h.hrCd}</span>` : ''}
                 </td>
                 <td class="num">${h.handled}</td>

@@ -1,0 +1,422 @@
+@{
+    ViewData["Title"] = "Quản lý chủ đề";
+}
+
+@section Styles {
+<style>
+    .tp-page { max-width: 1100px; margin: 0 auto; padding-bottom: 3rem; }
+
+    .tp-hero {
+        background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%);
+        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
+        color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+    .tp-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
+    .tp-hero small { font-size: .75rem; opacity: .85; }
+
+    .tp-btn-new {
+        background: white; color: #dc2626; border: none; border-radius: 10px;
+        padding: .5rem .9rem; font-weight: 800; font-size: .85rem; cursor: pointer;
+        display: inline-flex; align-items: center; gap: .25rem;
+        transition: all .15s; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+    }
+    .tp-btn-new:hover { background: #fef2f2; transform: translateY(-1px); }
+
+    .tp-table-wrap { background: white; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+                     overflow: hidden; }
+    .tp-table { width: 100%; border-collapse: collapse; }
+    .tp-table th { padding: .7rem 1rem; font-size: .72rem; font-weight: 800; color: #64748b;
+                   text-transform: uppercase; letter-spacing: .04em; background: #f8fafc;
+                   border-bottom: 1px solid #f1f5f9; white-space: nowrap; text-align: left; }
+    .tp-table th.center { text-align: center; }
+    .tp-table td { padding: .7rem 1rem; border-bottom: 1px solid #f8fafc;
+                   font-size: .85rem; vertical-align: middle; }
+    .tp-table tr:last-child td { border-bottom: none; }
+    .tp-table tr:hover td { background: #fef2f2; }
+    .tp-table tr.is-hidden td { background: #fafafa; color: #94a3b8; }
+    .tp-table tr.is-hidden td .topic-name { color: #94a3b8; }
+
+    .topic-icon {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 32px; height: 32px; border-radius: 8px; vertical-align: middle;
+        margin-right: 8px; font-size: 1.1rem;
+    }
+    .topic-name   { font-weight: 700; color: #1e293b; }
+    .topic-cd     { font-family: monospace; font-size: .75rem; color: #94a3b8; font-weight: 700; }
+    .topic-meta   { font-size: .72rem; color: #94a3b8; margin-top: 2px; }
+
+    .pill-active   { font-size: .68rem; font-weight: 800; padding: 2px 9px; border-radius: 20px;
+                     background: #dcfce7; color: #166534; text-transform: uppercase; }
+    .pill-hidden   { font-size: .68rem; font-weight: 800; padding: 2px 9px; border-radius: 20px;
+                     background: #f1f5f9; color: #64748b; text-transform: uppercase; }
+    .usage-badge   { font-size: .75rem; font-weight: 700; color: #64748b; }
+
+    .tp-actions { display: flex; gap: .35rem; justify-content: flex-end; }
+    .tp-act-btn { background: white; border: 1px solid #e2e8f0; color: #475569; border-radius: 8px;
+                  padding: .3rem .55rem; font-size: .72rem; font-weight: 700; cursor: pointer;
+                  display: inline-flex; align-items: center; gap: .2rem; transition: all .12s; }
+    .tp-act-btn:hover { background: #f8fafc; }
+    .tp-act-btn.edit:hover    { background: #fef9c3; border-color: #facc15; color: #a16207; }
+    .tp-act-btn.toggle:hover  { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; }
+    .tp-act-btn.delete:hover  { background: #fee2e2; border-color: #f87171; color: #b91c1c; }
+    .tp-act-btn .mat { font-size: .9rem; }
+
+    .tp-empty   { padding: 3rem 1rem; text-align: center; color: #94a3b8; }
+    .tp-loading { padding: 3rem 1rem; text-align: center; color: #94a3b8; }
+
+    /* Modal */
+    .tp-modal-back {
+        position: fixed; inset: 0; background: rgba(15,23,42,.45);
+        z-index: 1050; display: none; align-items: center; justify-content: center;
+        padding: 1rem;
+    }
+    .tp-modal-back.show { display: flex; }
+    .tp-modal {
+        background: white; border-radius: 16px; max-width: 520px; width: 100%;
+        box-shadow: 0 12px 40px rgba(0,0,0,.18); overflow: hidden;
+    }
+    .tp-modal-hd {
+        padding: 1rem 1.25rem; background: linear-gradient(135deg, #7f1d1d, #dc2626);
+        color: white; display: flex; align-items: center; justify-content: space-between;
+    }
+    .tp-modal-hd h5 { margin: 0; font-size: 1rem; font-weight: 800; color: white; }
+    .tp-modal-close {
+        background: transparent; border: none; color: white; cursor: pointer;
+        font-size: 1.25rem; padding: 0; line-height: 1;
+    }
+    .tp-modal-bd { padding: 1.1rem 1.25rem; }
+    .tp-modal-ft {
+        padding: .75rem 1.25rem; background: #f8fafc; display: flex; justify-content: flex-end; gap: .5rem;
+        border-top: 1px solid #f1f5f9;
+    }
+    .tp-form-row { margin-bottom: .75rem; }
+    .tp-form-row label { display: block; font-size: .75rem; font-weight: 700;
+                         color: #475569; margin-bottom: .25rem; text-transform: uppercase; letter-spacing: .03em; }
+    .tp-form-row input[type=text],
+    .tp-form-row input[type=number] {
+        width: 100%; border: 1.5px solid #e2e8f0; border-radius: 10px;
+        padding: .45rem .65rem; font-size: .9rem; outline: none;
+    }
+    .tp-form-row input:focus { border-color: #dc2626; }
+    .tp-form-row .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+    .tp-form-row .hint { font-size: .7rem; color: #94a3b8; margin-top: 2px; }
+    .tp-checkbox { display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem; }
+    .tp-color-preview {
+        display: inline-block; width: 24px; height: 24px; border-radius: 6px;
+        border: 1px solid #e2e8f0; vertical-align: middle; margin-left: 6px;
+    }
+    .tp-btn {
+        border: none; border-radius: 10px; padding: .5rem .9rem;
+        font-weight: 700; font-size: .85rem; cursor: pointer; transition: all .12s;
+    }
+    .tp-btn-primary   { background: #dc2626; color: white; }
+    .tp-btn-primary:hover   { background: #b91c1c; }
+    .tp-btn-secondary { background: #f1f5f9; color: #475569; }
+    .tp-btn-secondary:hover { background: #e2e8f0; }
+    .tp-btn:disabled { opacity: .55; cursor: not-allowed; }
+</style>
+}
+
+<div class="tp-page px-2 py-2">
+
+    <div class="tp-hero">
+        <div>
+            <h5>
+                <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle">topic</span>
+                Quản lý chủ đề hội thoại
+            </h5>
+            <small>Ẩn chủ đề sẽ không ảnh hưởng đến hội thoại đang dùng — chỉ ngăn người dùng tạo mới.</small>
+        </div>
+        <button class="tp-btn-new" onclick="openCreate()">
+            <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle">add</span>
+            Thêm chủ đề
+        </button>
+    </div>
+
+    <div class="tp-table-wrap">
+        <table class="tp-table">
+            <thead>
+                <tr>
+                    <th>Chủ đề</th>
+                    <th>Mã</th>
+                    <th class="center">Thứ tự</th>
+                    <th class="center">Đang dùng</th>
+                    <th class="center">Trạng thái</th>
+                    <th class="center">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="tpBody">
+                <tr><td colspan="6"><div class="tp-loading">Đang tải...</div></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Edit / Create -->
+<div class="tp-modal-back" id="tpModal" onclick="if(event.target===this)closeModal()">
+    <div class="tp-modal">
+        <div class="tp-modal-hd">
+            <h5 id="tpModalTitle">Thêm chủ đề</h5>
+            <button class="tp-modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="tp-modal-bd">
+            <div class="tp-form-row">
+                <label>Mã chủ đề <span style="color:#dc2626">*</span></label>
+                <input type="text" id="fldTopicCd" maxlength="20" placeholder="VD: PAYROLL, LEAVE, OT...">
+                <div class="hint">Tối đa 20 ký tự, sẽ tự đổi thành CHỮ IN. Không sửa được sau khi tạo.</div>
+            </div>
+            <div class="tp-form-row">
+                <label>Tên hiển thị (VI) <span style="color:#dc2626">*</span></label>
+                <input type="text" id="fldName" maxlength="100" placeholder="VD: Tiền lương">
+            </div>
+            <div class="tp-form-row">
+                <label>Tên hiển thị (EN)</label>
+                <input type="text" id="fldNameEn" maxlength="100" placeholder="VD: Payroll">
+            </div>
+            <div class="tp-form-row">
+                <div class="row2">
+                    <div>
+                        <label>Icon (Material)</label>
+                        <input type="text" id="fldIcon" placeholder="VD: payments, event_busy...">
+                        <div class="hint">Tên icon Material Symbols (rounded).</div>
+                    </div>
+                    <div>
+                        <label>Màu (hex)</label>
+                        <input type="text" id="fldColor" placeholder="#10b981" oninput="updateColorPreview()">
+                        <span id="colorPreview" class="tp-color-preview"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="tp-form-row">
+                <div class="row2">
+                    <div>
+                        <label>Thứ tự sắp xếp</label>
+                        <input type="number" id="fldSort" min="0" max="999" value="0">
+                    </div>
+                    <div>
+                        <label>Trạng thái</label>
+                        <div style="padding-top:.4rem">
+                            <label class="tp-checkbox">
+                                <input type="checkbox" id="fldActive" checked>
+                                <span>Hiển thị (Active)</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="tp-modal-ft">
+            <button class="tp-btn tp-btn-secondary" onclick="closeModal()">Hủy</button>
+            <button class="tp-btn tp-btn-primary" id="btnSave" onclick="saveTopic()">
+                <span class="material-symbols-rounded" style="font-size:.95rem;vertical-align:middle">save</span>
+                Lưu
+            </button>
+        </div>
+    </div>
+</div>
+
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+const URL_LIST   = '@Url.Action("GetAdminTopics","AdminInquiry")';
+const URL_SAVE   = '@Url.Action("SaveTopic","AdminInquiry")';
+const URL_TOGGLE = '@Url.Action("ToggleTopic","AdminInquiry")';
+const URL_DELETE = '@Url.Action("DeleteTopic","AdminInquiry")';
+const TOKEN      = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+let topics    = [];
+let editingCd = null;   // null = create, otherwise topicCd being edited
+
+function esc(s) { return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadTopics() {
+    document.getElementById('tpBody').innerHTML =
+        '<tr><td colspan="6"><div class="tp-loading"><div class="spinner-border text-danger" role="status"></div><div style="margin-top:.5rem">Đang tải...</div></div></td></tr>';
+    try {
+        const res  = await fetch(URL_LIST);
+        const data = await res.json();
+        if (!data.success) {
+            document.getElementById('tpBody').innerHTML =
+                `<tr><td colspan="6"><div class="tp-empty">Lỗi: ${esc(data.message||'Không tải được')}</div></td></tr>`;
+            return;
+        }
+        topics = data.data || [];
+        renderTable();
+    } catch (e) {
+        document.getElementById('tpBody').innerHTML =
+            `<tr><td colspan="6"><div class="tp-empty">Lỗi kết nối: ${esc(e.message)}</div></td></tr>`;
+    }
+}
+
+function renderTable() {
+    if (!topics.length) {
+        document.getElementById('tpBody').innerHTML =
+            '<tr><td colspan="6"><div class="tp-empty"><span class="material-symbols-rounded" style="font-size:2.5rem;color:#fca5a5;display:block">topic</span>Chưa có chủ đề nào</div></td></tr>';
+        return;
+    }
+    const rows = topics.map(t => {
+        const cls   = t.isActive ? '' : 'is-hidden';
+        const color = t.color || '#94a3b8';
+        const iconHtml = t.icon
+            ? `<span class="topic-icon material-symbols-rounded" style="background:${color}22;color:${color}">${esc(t.icon)}</span>`
+            : `<span class="topic-icon" style="background:${color}22;color:${color}">•</span>`;
+        const status = t.isActive
+            ? '<span class="pill-active">Hiển thị</span>'
+            : '<span class="pill-hidden">Đã ẩn</span>';
+        const toggleLabel = t.isActive ? 'Ẩn' : 'Hiện';
+        const toggleIcon  = t.isActive ? 'visibility_off' : 'visibility';
+        return `
+        <tr class="${cls}">
+            <td>
+                ${iconHtml}
+                <span class="topic-name">${esc(t.topicName)}</span>
+                ${t.topicNameEn ? `<div class="topic-meta">EN: ${esc(t.topicNameEn)}</div>` : ''}
+            </td>
+            <td><span class="topic-cd">${esc(t.topicCd)}</span></td>
+            <td class="center">${t.sortOrder}</td>
+            <td class="center"><span class="usage-badge">${t.usageCount ?? 0}</span></td>
+            <td class="center">${status}</td>
+            <td class="center">
+                <div class="tp-actions">
+                    <button class="tp-act-btn edit" onclick="openEdit('${esc(t.topicCd)}')" title="Sửa">
+                        <span class="material-symbols-rounded mat">edit</span>
+                    </button>
+                    <button class="tp-act-btn toggle" onclick="toggleTopic('${esc(t.topicCd)}', ${!t.isActive})" title="${toggleLabel}">
+                        <span class="material-symbols-rounded mat">${toggleIcon}</span>
+                    </button>
+                    <button class="tp-act-btn delete" onclick="deleteTopic('${esc(t.topicCd)}', ${t.usageCount ?? 0})" title="Xóa">
+                        <span class="material-symbols-rounded mat">delete</span>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+    document.getElementById('tpBody').innerHTML = rows;
+}
+
+// ─── Modal handling ─────────────────────────────────────────────────────────
+function openCreate() {
+    editingCd = null;
+    document.getElementById('tpModalTitle').textContent = 'Thêm chủ đề';
+    document.getElementById('fldTopicCd').value = '';
+    document.getElementById('fldTopicCd').disabled = false;
+    document.getElementById('fldName').value     = '';
+    document.getElementById('fldNameEn').value   = '';
+    document.getElementById('fldIcon').value     = '';
+    document.getElementById('fldColor').value    = '';
+    document.getElementById('fldSort').value     = (topics.length ? Math.max(...topics.map(x=>x.sortOrder||0)) + 1 : 0);
+    document.getElementById('fldActive').checked = true;
+    updateColorPreview();
+    document.getElementById('tpModal').classList.add('show');
+}
+
+function openEdit(topicCd) {
+    const t = topics.find(x => x.topicCd === topicCd);
+    if (!t) return;
+    editingCd = topicCd;
+    document.getElementById('tpModalTitle').textContent = 'Sửa chủ đề · ' + t.topicCd;
+    document.getElementById('fldTopicCd').value    = t.topicCd;
+    document.getElementById('fldTopicCd').disabled = true;
+    document.getElementById('fldName').value       = t.topicName  || '';
+    document.getElementById('fldNameEn').value     = t.topicNameEn|| '';
+    document.getElementById('fldIcon').value       = t.icon       || '';
+    document.getElementById('fldColor').value      = t.color      || '';
+    document.getElementById('fldSort').value       = t.sortOrder  || 0;
+    document.getElementById('fldActive').checked   = !!t.isActive;
+    updateColorPreview();
+    document.getElementById('tpModal').classList.add('show');
+}
+
+function closeModal() {
+    document.getElementById('tpModal').classList.remove('show');
+}
+
+function updateColorPreview() {
+    const v = document.getElementById('fldColor').value.trim();
+    document.getElementById('colorPreview').style.background = v || 'transparent';
+}
+
+async function saveTopic() {
+    const topicCd     = document.getElementById('fldTopicCd').value.trim().toUpperCase();
+    const topicName   = document.getElementById('fldName').value.trim();
+    const topicNameEn = document.getElementById('fldNameEn').value.trim();
+    const icon        = document.getElementById('fldIcon').value.trim();
+    const color       = document.getElementById('fldColor').value.trim();
+    const sortOrder   = parseInt(document.getElementById('fldSort').value, 10) || 0;
+    const isActive    = document.getElementById('fldActive').checked;
+
+    if (!topicCd)   { showToast('Vui lòng nhập mã chủ đề', 'error'); return; }
+    if (!topicName) { showToast('Vui lòng nhập tên chủ đề', 'error'); return; }
+
+    const btn = document.getElementById('btnSave');
+    btn.disabled = true;
+
+    try {
+        const payload = {
+            isEdit: !!editingCd,
+            topicCd, topicName, topicNameEn, icon, color, sortOrder, isActive
+        };
+        const res = await fetch(URL_SAVE, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': TOKEN
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.success) {
+            showToast(data.message || 'Lưu thất bại', 'error');
+            return;
+        }
+        showToast(editingCd ? 'Đã cập nhật chủ đề' : 'Đã thêm chủ đề', 'success');
+        closeModal();
+        await loadTopics();
+    } catch (e) {
+        showToast('Lỗi: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function toggleTopic(topicCd, makeActive) {
+    try {
+        const res = await fetch(URL_TOGGLE, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': TOKEN
+            },
+            body: JSON.stringify({ topicCd, isActive: makeActive })
+        });
+        const data = await res.json();
+        if (!data.success) { showToast(data.message || 'Thất bại', 'error'); return; }
+        showToast(makeActive ? 'Đã hiển thị chủ đề' : 'Đã ẩn chủ đề', 'success');
+        await loadTopics();
+    } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
+}
+
+async function deleteTopic(topicCd, usage) {
+    let msg = `Xóa chủ đề "${topicCd}"?`;
+    if (usage > 0) msg = `Chủ đề "${topicCd}" đang được dùng trong ${usage} hội thoại — không thể xóa. Bạn nên ẩn thay vì xóa.\n\nTiếp tục thử xóa?`;
+    if (!confirm(msg)) return;
+    try {
+        const res = await fetch(URL_DELETE, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': TOKEN
+            },
+            body: JSON.stringify({ topicCd })
+        });
+        const data = await res.json();
+        if (!data.success) { showToast(data.message || 'Không thể xóa', 'error'); return; }
+        showToast('Đã xóa chủ đề', 'success');
+        await loadTopics();
+    } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
+}
+
+loadTopics();
+</script>
+}

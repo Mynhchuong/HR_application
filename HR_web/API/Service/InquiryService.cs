@@ -248,4 +248,58 @@ public class InquiryService
         }
         catch (Exception ex) { return new InquiryActionResponse { success = false, message = ex.Message }; }
     }
+
+    // ─── Admin: Topic management ────────────────────────────────────────────────
+
+    public async Task<InquiryTopicsResponse> GetAdminTopicsAsync()
+    {
+        try
+        {
+            var res = await _api.GetAsync_Raw("Inquiry/admin/topics");
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<InquiryTopicsResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new InquiryTopicsResponse { success = false };
+            return new InquiryTopicsResponse { success = false, message = "Lỗi kết nối API" };
+        }
+        catch (Exception ex) { return new InquiryTopicsResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<string> SaveTopicRawAsync(object payload, string? topicCd = null)
+    {
+        try
+        {
+            HttpResponseMessage? res = string.IsNullOrEmpty(topicCd)
+                ? await _api.PostAsync("Inquiry/admin/topics", payload)
+                : await _api.PutAsync_Raw($"Inquiry/admin/topics/{Uri.EscapeDataString(topicCd)}", payload);
+            if (res?.IsSuccessStatusCode == true)
+                return await res.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
+    }
+
+    public async Task<string> ToggleTopicRawAsync(string topicCd, bool isActive, string? updtId)
+    {
+        try
+        {
+            var payload = new { isActive, updtId };
+            var res = await _api.PostAsync($"Inquiry/admin/topics/{Uri.EscapeDataString(topicCd)}/toggle", payload);
+            if (res?.IsSuccessStatusCode == true)
+                return await res.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
+    }
+
+    public async Task<string> DeleteTopicRawAsync(string topicCd)
+    {
+        try
+        {
+            var res = await _api.DeleteAsync_Raw($"Inquiry/admin/topics/{Uri.EscapeDataString(topicCd)}");
+            if (res?.IsSuccessStatusCode == true)
+                return await res.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
+    }
 }

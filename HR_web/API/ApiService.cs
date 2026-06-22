@@ -211,4 +211,23 @@ public class ApiService
             return false;
         }
     }
+
+    public async Task<HttpResponseMessage?> PutAsync_Raw(string endpoint, object data)
+    {
+        var client = _httpClientFactory.CreateClient(ClientName);
+        try
+        {
+            var json    = JsonConvert.SerializeObject(data);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            return await client.PutAsync(endpoint, content);
+        }
+        catch { return null; }
+    }
+
+    public async Task<HttpResponseMessage?> DeleteAsync_Raw(string endpoint)
+    {
+        var client = _httpClientFactory.CreateClient(ClientName);
+        try { return await client.DeleteAsync(endpoint); }
+        catch { return null; }
+    }
 }

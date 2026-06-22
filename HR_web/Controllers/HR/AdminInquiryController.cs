@@ -1,4 +1,5 @@
 using System.Globalization;
+using ClosedXML.Excel;
 using HR_web.API.Service;
 using HR_web.Models.Inquiry;
 using Microsoft.AspNetCore.Mvc;
@@ -229,8 +230,239 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Xuất Excel báo cáo
+    // GET /AdminInquiry/ExportReport?type=WEEK&year=2026&week=25
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> ExportReport(
+        string type  = "WEEK",
+        int    year  = 0,
+        int    week  = 0,
+        int    month = 0)
+    {
+        if (!IsAdmin) return Forbid();
+
+        if (year <= 0)  year  = DateTime.Now.Year;
+        if (type == "WEEK"  && week  <= 0) week  = ISOWeek.GetWeekOfYear(DateTime.Now);
+        if (type == "MONTH" && (month < 1 || month > 12)) month = DateTime.Now.Month;
+
+        var result = await _inquiry.GetReportAsync(type, year, week, month);
+        if (!result.success)
+            return BadRequest(result.message ?? "Không tải được dữ liệu báo cáo");
+
+        string periodLabel = type == "WEEK"
+            ? $"Tuần {week}/{year}"
+            : $"Tháng {month}/{year}";
+
+        using var wb = new XLWorkbook();
+
+        // ─── Sheet 1: Tổng quan ──────────────────────────────────────────────
+        var wsSum = wb.Worksheets.Add("Tổng quan");
+        var s     = result.summary ?? new InquiryReportSummary();
+
+        wsSum.Cell(1, 1).Value = "BÁO CÁO HỘI THOẠI";
+        wsSum.Cell(1, 1).Style.Font.Bold     = true;
+        wsSum.Cell(1, 1).Style.Font.FontSize = 14;
+        wsSum.Range(1, 1, 1, 2).Merge();
+
+        wsSum.Cell(2, 1).Value = "Kỳ báo cáo";
+        wsSum.Cell(2, 2).Value = periodLabel;
+        wsSum.Cell(3, 1).Value = "Xuất lúc";
+        wsSum.Cell(3, 2).Value = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+
+        int r = 5;
+        void AddRowInt(string label, int value)
+        {
+            wsSum.Cell(r, 1).Value = label;
+            wsSum.Cell(r, 2).Value = value;
+            r++;
+        }
+        void AddRowOpt(string label, double? value, int digits)
+        {
+            wsSum.Cell(r, 1).Value = label;
+            if (value.HasValue) wsSum.Cell(r, 2).Value = Math.Round(value.Value, digits);
+            else                wsSum.Cell(r, 2).Value = "—";
+            r++;
+        }
+
+        AddRowInt("Tổng hội thoại",      s.total);
+        AddRowInt("Đang mở",             s.cntOpen);
+        AddRowInt("Đã đóng",             s.cntClosed);
+        AddRowInt("Hội thoại trực tiếp", s.cntDirect);
+        AddRowInt("Hội thoại ẩn danh",   s.cntAnon);
+        AddRowInt("HR đóng",             s.closedByHr);
+        AddRowInt("NV tự đóng",          s.closedByEmp);
+        AddRowInt("Admin đóng",          s.closedByAdmin);
+        AddRowOpt("Đánh giá TB",         s.avgRating,    2);
+        AddRowOpt("Tin nhắn TB/HT",      s.avgMsg,       1);
+        AddRowOpt("TG xử lý TB (phút)",  s.avgHandleMin, 1);
+
+        var sumHdr = wsSum.Range(5, 1, r - 1, 1);
+        sumHdr.Style.Font.Bold = true;
+        sumHdr.Style.Fill.BackgroundColor = XLColor.FromHtml("#fef2f2");
+        wsSum.Columns().AdjustToContents();
+
+        // ─── Sheet 2: Theo chủ đề ────────────────────────────────────────────
+        var wsTopic = wb.Worksheets.Add("Theo chủ đề");
+        string[] topicHeaders = { "STT", "Chủ đề", "Tổng", "Đang mở", "Đã đóng", "Đánh giá TB" };
+        for (int i = 0; i < topicHeaders.Length; i++)
+        {
+            var c = wsTopic.Cell(1, i + 1);
+            c.Value = topicHeaders[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#dc2626");
+            c.Style.Font.FontColor = XLColor.White;
+            c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        int row = 2;
+        foreach (var t in result.byTopic)
+        {
+            wsTopic.Cell(row, 1).Value = row - 1;
+            wsTopic.Cell(row, 2).Value = t.topicName ?? t.topicCd;
+            wsTopic.Cell(row, 3).Value = t.total;
+            wsTopic.Cell(row, 4).Value = t.cntOpen;
+            wsTopic.Cell(row, 5).Value = t.cntClosed;
+            if (t.avgRating.HasValue) wsTopic.Cell(row, 6).Value = Math.Round(t.avgRating.Value, 2);
+            else                       wsTopic.Cell(row, 6).Value = "—";
+            row++;
+        }
+        if (result.byTopic.Count > 0)
+            wsTopic.Range(1, 1, 1, topicHeaders.Length).SetAutoFilter();
+        wsTopic.Columns().AdjustToContents();
+
+        // ─── Sheet 3: Workload HR ────────────────────────────────────────────
+        var wsHr = wb.Worksheets.Add("Workload HR");
+        string[] hrHeaders = { "STT", "Mã NS", "Họ và tên", "Tiếp nhận", "Đã đóng", "Đánh giá TB", "TG xử lý TB (phút)" };
+        for (int i = 0; i < hrHeaders.Length; i++)
+        {
+            var c = wsHr.Cell(1, i + 1);
+            c.Value = hrHeaders[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#dc2626");
+            c.Style.Font.FontColor = XLColor.White;
+            c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        row = 2;
+        foreach (var h in result.byHr)
+        {
+            wsHr.Cell(row, 1).Value = row - 1;
+            wsHr.Cell(row, 2).Value = h.hrCd   ?? "";
+            var nameCell = wsHr.Cell(row, 3);
+            nameCell.Value = h.hrName ?? "";
+            nameCell.Style.Font.FontName = "Vnitbi__";
+            wsHr.Cell(row, 4).Value = h.handled;
+            wsHr.Cell(row, 5).Value = h.cntClosed;
+            if (h.avgRating.HasValue)    wsHr.Cell(row, 6).Value = Math.Round(h.avgRating.Value, 2);
+            else                          wsHr.Cell(row, 6).Value = "—";
+            if (h.avgHandleMin.HasValue) wsHr.Cell(row, 7).Value = Math.Round(h.avgHandleMin.Value, 1);
+            else                          wsHr.Cell(row, 7).Value = "—";
+            row++;
+        }
+        if (result.byHr.Count > 0)
+            wsHr.Range(1, 1, 1, hrHeaders.Length).SetAutoFilter();
+        wsHr.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+
+        string fileName = type == "WEEK"
+            ? $"BaoCaoHoiThoai_Tuan{week}_{year}.xlsx"
+            : $"BaoCaoHoiThoai_Thang{month}_{year}.xlsx";
+
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            fileName);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PAGE: Quản lý chủ đề (Admin)
+    // GET /AdminInquiry/Topics
+    // ─────────────────────────────────────────────────────────────────────────
+    public IActionResult Topics()
+    {
+        if (!IsAdmin) return Forbid();
+        return View();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAdminTopics()
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        var result = await _inquiry.GetAdminTopicsAsync();
+        return Json(result);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveTopic([FromBody] AdminTopicSaveRequest req)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (req == null) return Json(new { success = false, message = "Dữ liệu rỗng" });
+
+        var payload = new
+        {
+            topicCd     = req.TopicCd,
+            topicName   = req.TopicName,
+            topicNameEn = req.TopicNameEn,
+            icon        = req.Icon,
+            color       = req.Color,
+            sortOrder   = req.SortOrder,
+            isActive    = req.IsActive,
+            updtId      = CurrentUser?.EmpCd
+        };
+        var raw = await _inquiry.SaveTopicRawAsync(payload, req.IsEdit ? req.TopicCd : null);
+        return Content(raw, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ToggleTopic([FromBody] AdminTopicToggleRequest req)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (req == null || string.IsNullOrWhiteSpace(req.TopicCd))
+            return Json(new { success = false, message = "Thiếu mã chủ đề" });
+
+        var raw = await _inquiry.ToggleTopicRawAsync(req.TopicCd, req.IsActive, CurrentUser?.EmpCd);
+        return Content(raw, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DeleteTopic([FromBody] AdminTopicDeleteRequest req)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (req == null || string.IsNullOrWhiteSpace(req.TopicCd))
+            return Json(new { success = false, message = "Thiếu mã chủ đề" });
+
+        var raw = await _inquiry.DeleteTopicRawAsync(req.TopicCd);
+        return Content(raw, "application/json");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Inner request models (Admin-specific)
     // ─────────────────────────────────────────────────────────────────────────
+
+    public class AdminTopicSaveRequest
+    {
+        public bool    IsEdit      { get; set; }
+        public string  TopicCd     { get; set; } = "";
+        public string  TopicName   { get; set; } = "";
+        public string? TopicNameEn { get; set; }
+        public string? Icon        { get; set; }
+        public string? Color       { get; set; }
+        public int     SortOrder   { get; set; }
+        public bool    IsActive    { get; set; } = true;
+    }
+
+    public class AdminTopicToggleRequest
+    {
+        public string TopicCd  { get; set; } = "";
+        public bool   IsActive { get; set; }
+    }
+
+    public class AdminTopicDeleteRequest
+    {
+        public string TopicCd { get; set; } = "";
+    }
 
     public class AdminSendRequest
     {

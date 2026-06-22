@@ -629,11 +629,18 @@ public class LeaveController : ControllerBase
                         if (erpHolidays.Contains(day)
                             && !(day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed))
                             continue;
-                        await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
+
+                        // SP_015_NEW hardcode bỏ Chủ Nhật. Với NV trong whitelist (HR_SUNDAY_LEAVE_ALLOWED),
+                        // dùng SP_015_FORHRAPP riêng cho ngày Chủ Nhật (do sếp viết).
+                        string spName = (day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed)
+                            ? "HRMS.SP_015_FORHRAPP"
+                            : "HRMS.SP_015_NEW";
+
+                        await _oracleService.ExecuteProcedureAsync(spName,
                             new OracleParameter("AS_EMPCD",   requestInfo.Empcd),
                             new OracleParameter("AS_LEAVECD", erpCd),
-                            new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
-                            new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
+                            new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = OracleDbType.Date, Value = day },
+                            new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = OracleDbType.Date, Value = day },
                             new OracleParameter("AS_IN_ID",   model.APPROVER_EMPCD),
                             new OracleParameter("AS_REMAR",   erpRemark));
                     }
@@ -648,7 +655,16 @@ public class LeaveController : ControllerBase
                 catch (Exception ex) { erpError = ex.Message; }
 
                 if (erpError != null)
-                    return Ok(new { success = true, message = "Đã duyệt đơn nghỉ phép", erpError });
+                {
+                    // ERP fail → rollback HR_REQUEST về PENDING để HR thấy đỏ và retry
+                    await _oracleService.ExecuteNonQueryAsync(@"
+                        UPDATE HRMS.HR_REQUEST
+                        SET STATUS = 'PENDING', FINAL_APPROVER = NULL, FINAL_DATE = NULL,
+                            REMARK = NULL, UPDATED_BY = NULL, UPDATED_DATE = NULL
+                        WHERE REQUEST_ID = :REQUEST_ID",
+                        new OracleParameter("REQUEST_ID", model.REQUEST_ID));
+                    return Ok(new { success = false, message = "Insert ERP thất bại, phiếu đã trả về PENDING. Chi tiết: " + erpError });
+                }
             }
 
             if (!string.IsNullOrEmpty(requestInfo.Empcd))
@@ -857,11 +873,17 @@ public class LeaveController : ControllerBase
                             if (erpHolidays.Contains(day)
                                 && !(day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed))
                                 continue;
-                            await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
+
+                            // SP_015_NEW skip Chủ Nhật → dùng SP_015_FORHRAPP cho NV whitelist
+                            string spName = (day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed)
+                                ? "HRMS.SP_015_FORHRAPP"
+                                : "HRMS.SP_015_NEW";
+
+                            await _oracleService.ExecuteProcedureAsync(spName,
                                 new OracleParameter("AS_EMPCD",   targetEmpcd),
                                 new OracleParameter("AS_LEAVECD", erpCd),
-                                new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
-                                new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
+                                new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = OracleDbType.Date, Value = day },
+                                new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = OracleDbType.Date, Value = day },
                                 new OracleParameter("AS_IN_ID",   model.ASSIGNER_EMPCD),
                                 new OracleParameter("AS_REMAR",   erpRemark));
                         }
@@ -1940,11 +1962,17 @@ public class LeaveController : ControllerBase
                             if (erpHolidays.Contains(day)
                                 && !(day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed))
                                 continue;
-                            await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
+
+                            // SP_015_NEW skip Chủ Nhật → dùng SP_015_FORHRAPP cho NV whitelist
+                            string spName = (day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed)
+                                ? "HRMS.SP_015_FORHRAPP"
+                                : "HRMS.SP_015_NEW";
+
+                            await _oracleService.ExecuteProcedureAsync(spName,
                                 new OracleParameter("AS_EMPCD",   targetEmpcd),
                                 new OracleParameter("AS_LEAVECD", erpCd),
-                                new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
-                                new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = Oracle.ManagedDataAccess.Client.OracleDbType.Date, Value = day },
+                                new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = OracleDbType.Date, Value = day },
+                                new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = OracleDbType.Date, Value = day },
                                 new OracleParameter("AS_IN_ID",   model.ASSIGNER_EMPCD),
                                 new OracleParameter("AS_REMAR",   erpRemark));
                         }

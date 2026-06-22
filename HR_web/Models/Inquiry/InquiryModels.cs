@@ -14,6 +14,8 @@ public class InquiryTopicDto
     public string? Icon        { get; set; }
     public string? Color       { get; set; }
     public int     SortOrder   { get; set; }
+    public bool    IsActive    { get; set; } = true;
+    public int     UsageCount  { get; set; }
 }
 
 [JsonObject(NamingStrategyType = typeof(CamelCaseNamingStrategy))]

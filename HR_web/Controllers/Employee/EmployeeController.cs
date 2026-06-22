@@ -37,7 +37,7 @@ public class EmployeeController : BaseController
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Danh sách nhân viên");
 
-        string[] headers = { "STT", "Mã NV", "Họ & Tên", "Bộ phận", "Tên Bộ phận", "Line", "Tên Line", "Nhóm việc", "Tên Nhóm việc" };
+        string[] headers = { "STT", "Mã NV", "Họ & Tên", "Bộ phận", "Tên Bộ phận", "Line", "Tên Line", "Nhóm việc", "Tên Nhóm việc", "Giờ TC tháng", "Giờ TC năm" };
         for (int i = 0; i < headers.Length; i++)
         {
             var c = ws.Cell(1, i + 1);
@@ -61,9 +61,13 @@ public class EmployeeController : BaseController
             ws.Cell(row, 7).Value = d.LINE_NAME;
             ws.Cell(row, 8).Value = d.WORKCD;
             ws.Cell(row, 9).Value = d.WORK_NAME;
+            ws.Cell(row, 10).Value = d.SUM_MONTH;
+            ws.Cell(row, 11).Value = d.SUM_YEAR;
+            ws.Cell(row, 10).Style.NumberFormat.Format = "#,##0.0";
+            ws.Cell(row, 11).Style.NumberFormat.Format = "#,##0.0";
 
             if (i % 2 == 1)
-                ws.Row(row).Cells(1, 9).Style.Fill.BackgroundColor = XLColor.FromHtml("#f8fafc");
+                ws.Row(row).Cells(1, 11).Style.Fill.BackgroundColor = XLColor.FromHtml("#f8fafc");
         }
 
         ws.Range(1, 1, 1, headers.Length).SetAutoFilter();

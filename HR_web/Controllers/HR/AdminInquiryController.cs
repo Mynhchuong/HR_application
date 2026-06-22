@@ -209,50 +209,31 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
 
     // ─────────────────────────────────────────────────────────────────────────
     // AJAX: Lấy dữ liệu báo cáo
-    // GET /AdminInquiry/GetReport?type=WEEK&year=2026&week=25
-    // GET /AdminInquiry/GetReport?type=MONTH&year=2026&month=6
+    // GET /AdminInquiry/GetReport?from=YYYY-MM-DD&to=YYYY-MM-DD
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet]
-    public async Task<IActionResult> GetReport(
-        string type  = "WEEK",
-        int    year  = 0,
-        int    week  = 0,
-        int    month = 0)
+    public async Task<IActionResult> GetReport(string? from = null, string? to = null)
     {
         if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
 
-        if (year <= 0)  year  = DateTime.Now.Year;
-        if (type == "WEEK"  && week  <= 0) week  = ISOWeek.GetWeekOfYear(DateTime.Now);
-        if (type == "MONTH" && (month < 1 || month > 12)) month = DateTime.Now.Month;
-
-        var result = await _inquiry.GetReportAsync(type, year, week, month);
+        var result = await _inquiry.GetReportAsync(from, to);
         return Json(result);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // AJAX: Xuất Excel báo cáo
-    // GET /AdminInquiry/ExportReport?type=WEEK&year=2026&week=25
+    // GET /AdminInquiry/ExportReport?from=YYYY-MM-DD&to=YYYY-MM-DD
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet]
-    public async Task<IActionResult> ExportReport(
-        string type  = "WEEK",
-        int    year  = 0,
-        int    week  = 0,
-        int    month = 0)
+    public async Task<IActionResult> ExportReport(string? from = null, string? to = null)
     {
         if (!IsAdmin) return Forbid();
 
-        if (year <= 0)  year  = DateTime.Now.Year;
-        if (type == "WEEK"  && week  <= 0) week  = ISOWeek.GetWeekOfYear(DateTime.Now);
-        if (type == "MONTH" && (month < 1 || month > 12)) month = DateTime.Now.Month;
-
-        var result = await _inquiry.GetReportAsync(type, year, week, month);
+        var result = await _inquiry.GetReportAsync(from, to);
         if (!result.success)
             return BadRequest(result.message ?? "Không tải được dữ liệu báo cáo");
 
-        string periodLabel = type == "WEEK"
-            ? $"Tuần {week}/{year}"
-            : $"Tháng {month}/{year}";
+        string periodLabel = $"{result.from ?? "—"} → {result.to ?? "—"}";
 
         using var wb = new XLWorkbook();
 
@@ -367,9 +348,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
 
-        string fileName = type == "WEEK"
-            ? $"BaoCaoHoiThoai_Tuan{week}_{year}.xlsx"
-            : $"BaoCaoHoiThoai_Thang{month}_{year}.xlsx";
+        string fileName = $"BaoCaoHoiThoai_{result.from ?? "tu"}_{result.to ?? "den"}.xlsx";
 
         return File(ms.ToArray(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -77,7 +77,7 @@
                  data-is-mine="@(isMine ? "1" : "0")"
                  data-is-read-hr="@(msg.IsReadHr ? "1" : "0")"
                  data-is-read-emp="@(msg.IsReadEmp ? "1" : "0")">
-                @if (msg.SenderType != "SYS") { <div class="msg-avatar @AvCls(msg.SenderType)">@(msg.SenderName != null ? msg.SenderName[0].ToString().ToUpper() : (msg.SenderType == "EMP" ? "E" : "H"))</div> }
+                @if (msg.SenderType != "SYS") { <div class="msg-avatar @AvCls(msg.SenderType)">@(!string.IsNullOrEmpty(msg.SenderName) ? msg.SenderName[0].ToString().ToUpper() : (msg.SenderType == "EMP" ? "E" : "H"))</div> }
                 <div>
                     @if (msg.SenderType != "SYS")
                     {

@@ -1416,33 +1416,28 @@ public class InquiryController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GET /apiHR/Inquiry/report?type=WEEK&year=2026&week=25
-    // GET /apiHR/Inquiry/report?type=MONTH&year=2026&month=6
+    // GET /apiHR/Inquiry/report?from=YYYY-MM-DD&to=YYYY-MM-DD
+    // Mặc định: tuần hiện tại (Thứ Hai → Chủ Nhật)
     // Báo cáo thống kê inquiry — chỉ Admin
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet("report")]
-    public async Task<IActionResult> Report(
-        string type  = "WEEK",
-        int    year  = 0,
-        int    week  = 0,
-        int    month = 0)
+    public async Task<IActionResult> Report(string? from = null, string? to = null)
     {
         try
         {
-            if (year <= 0) year = DateTime.Now.Year;
-
             DateTime startDt, endDt;
-            if (type == "MONTH")
+            if (DateTime.TryParse(from, out var fDt) && DateTime.TryParse(to, out var tDt))
             {
-                if (month < 1 || month > 12) month = DateTime.Now.Month;
-                startDt = new DateTime(year, month, 1);
-                endDt   = startDt.AddMonths(1);
+                startDt = fDt.Date;
+                endDt   = tDt.Date.AddDays(1); // inclusive end-day
             }
-            else // WEEK
+            else
             {
-                int maxWeek = ISOWeek.GetWeeksInYear(year);
-                if (week < 1 || week > maxWeek) week = ISOWeek.GetWeekOfYear(DateTime.Now);
-                startDt = ISOWeek.ToDateTime(year, week, DayOfWeek.Monday);
+                // Default: current ISO week (Monday → Sunday)
+                var today = DateTime.Today;
+                int dow   = (int)today.DayOfWeek;
+                int diff  = dow == 0 ? -6 : 1 - dow; // back to Monday
+                startDt = today.AddDays(diff);
                 endDt   = startDt.AddDays(7);
             }
 
@@ -1555,6 +1550,8 @@ public class InquiryController : ControllerBase
             return Ok(new
             {
                 success = true,
+                from    = startDt.ToString("yyyy-MM-dd"),
+                to      = endDt.AddDays(-1).ToString("yyyy-MM-dd"),
                 summary = summaries.FirstOrDefault(),
                 byTopic,
                 byHr

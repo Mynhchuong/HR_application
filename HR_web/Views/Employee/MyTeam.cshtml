@@ -11,9 +11,24 @@
     .search-wrap { position:relative; display:inline-flex; align-items:center; }
     .search-wrap i { position:absolute; left:8px; font-size:.75rem; color:#94a3b8; pointer-events:none; }
     .total-badge { background:#eff6ff; color:#1d4ed8; font-size:.75rem; font-weight:700; padding:3px 10px; border-radius:20px; }
+
+    /* OT hour chips */
+    .ot-chip { display:inline-flex; align-items:center; gap:4px; font-size:.72rem; font-weight:700; padding:3px 9px; border-radius:14px; line-height:1; white-space:nowrap; }
+    .ot-chip i { font-size:.7rem; }
+    .ot-chip.m { background:#ecfdf5; color:#047857; }
+    .ot-chip.y { background:#fef3c7; color:#b45309; }
+    .ot-chip.zero { background:#f1f5f9; color:#94a3b8; }
+
+    /* Mobile badges row spacing */
+    .mt-card .mt-badges-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    .mt-card .mt-badge-item { display:inline-flex; padding:0; background:transparent; }
+
     @@media (max-width:576px) {
         .filter-bar { flex-wrap:wrap !important; }
         .search-input { width:120px; }
+        .filter-select { min-width:0 !important; flex:1 1 45%; }
+        .search-wrap { flex:1 1 100%; }
+        .search-input { width:100%; }
     }
 </style>
 }
@@ -65,6 +80,8 @@
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Bộ phận">Bộ phận</th>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Line">Line</th>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Nhóm việc">Nhóm việc</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 text-end" data-mobile="primary" data-mobile-label="TC tháng">TC tháng</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 text-end" data-mobile="primary" data-mobile-label="TC năm">TC năm</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody"></tbody>
@@ -91,11 +108,14 @@ const PAGE_SIZE = 25;
 let searchTimer;
 
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtH(n) { const v = Number(n)||0; return v.toLocaleString('vi-VN',{minimumFractionDigits:0, maximumFractionDigits:1}); }
+function otChipM(n) { const v = Number(n)||0; return `<span class="ot-chip ${v>0?'m':'zero'}" title="Giờ tăng ca trong tháng"><i class="bi bi-calendar3"></i>${fmtH(v)}h</span>`; }
+function otChipY(n) { const v = Number(n)||0; return `<span class="ot-chip ${v>0?'y':'zero'}" title="Giờ tăng ca trong năm"><i class="bi bi-calendar-week"></i>${fmtH(v)}h</span>`; }
 
 // ── Load data ─────────────────────────────────────────────────
 function loadData() {
     document.getElementById('tableBody').innerHTML =
-        `<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
+        `<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
     MobileTableHelper.refresh('tableBody');
 
     $.ajax({
@@ -103,7 +123,7 @@ function loadData() {
         success: function(res) {
             if (!res.success) {
                 document.getElementById('tableBody').innerHTML =
-                    `<tr><td colspan="6" class="text-center text-danger py-4">${escHtml(res.message||'Lỗi')}</td></tr>`;
+                    `<tr><td colspan="8" class="text-center text-danger py-4">${escHtml(res.message||'Lỗi')}</td></tr>`;
                 MobileTableHelper.refresh('tableBody');
                 return;
             }
@@ -113,7 +133,7 @@ function loadData() {
         },
         error: function(xhr) {
             document.getElementById('tableBody').innerHTML =
-                `<tr><td colspan="6" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`;
+                `<tr><td colspan="8" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`;
             MobileTableHelper.refresh('tableBody');
         }
     });
@@ -218,7 +238,7 @@ function renderTable() {
 
     if (!pageData.length) {
         document.getElementById('tableBody').innerHTML =
-            `<tr><td colspan="6" class="text-center py-5">
+            `<tr><td colspan="8" class="text-center py-5">
                 <img src="${NO_DATA_IMG}" style="width:120px;opacity:.85;display:block;margin:0 auto 10px;">
                 <div class="text-muted text-sm">Không có nhân viên phù hợp</div>
             </td></tr>`;
@@ -235,6 +255,8 @@ function renderTable() {
         <td class="px-2 text-xs">${d.DEPT_NAME ? `<span class="fw-bold">${escHtml(d.DEPTCD)}</span> <span class="text-secondary">— ${escHtml(d.DEPT_NAME)}</span>` : escHtml(d.DEPTCD)||'—'}</td>
         <td class="px-2 text-xs">${d.LINE_NAME ? `<span class="fw-bold">${escHtml(d.LINECD)}</span> <span class="text-secondary">— ${escHtml(d.LINE_NAME)}</span>` : escHtml(d.LINECD)||'—'}</td>
         <td class="px-2 text-xs">${d.WORK_NAME ? `<span class="fw-bold">${escHtml(d.WORKCD)}</span> <span class="text-secondary">— ${escHtml(d.WORK_NAME)}</span>` : escHtml(d.WORKCD)||'—'}</td>
+        <td class="px-2 text-end">${otChipM(d.SUM_MONTH)}</td>
+        <td class="px-2 text-end">${otChipY(d.SUM_YEAR)}</td>
     </tr>`).join('');
 
     const s = start + 1, e = Math.min(start + PAGE_SIZE, filtered.length);

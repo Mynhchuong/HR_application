@@ -217,13 +217,15 @@ public class InquiryService
         catch (Exception ex) { return new InquiryHrListResponse { success = false, message = ex.Message }; }
     }
 
-    // GET /apiHR/Inquiry/report
-    public async Task<InquiryReportResponse> GetReportAsync(string type, int year, int week, int month)
+    // GET /apiHR/Inquiry/report?from=YYYY-MM-DD&to=YYYY-MM-DD
+    public async Task<InquiryReportResponse> GetReportAsync(string? from, string? to)
     {
         try
         {
-            var q = $"type={type}&year={year}&week={week}&month={month}";
-            var res = await _api.GetAsync_Raw("Inquiry/report", q);
+            var q = new List<string>();
+            if (!string.IsNullOrEmpty(from)) q.Add($"from={Uri.EscapeDataString(from)}");
+            if (!string.IsNullOrEmpty(to))   q.Add($"to={Uri.EscapeDataString(to)}");
+            var res = await _api.GetAsync_Raw("Inquiry/report", string.Join("&", q));
             if (res?.IsSuccessStatusCode == true)
                 return JsonConvert.DeserializeObject<InquiryReportResponse>(await res.Content.ReadAsStringAsync())
                        ?? new InquiryReportResponse { success = false };

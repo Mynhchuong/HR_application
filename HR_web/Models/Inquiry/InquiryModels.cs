@@ -215,6 +215,8 @@ public class InquiryReportResponse
 {
     public bool                        success  { get; set; }
     public string?                     message  { get; set; }
+    public string?                     from     { get; set; }
+    public string?                     to       { get; set; }
     public InquiryReportSummary?       summary  { get; set; }
     public List<InquiryReportTopicRow> byTopic  { get; set; } = new();
     public List<InquiryReportHrRow>    byHr     { get; set; } = new();

@@ -10,6 +10,8 @@ public class TeamMemberModel
     public string DEPT_NAME { get; set; } = "";
     public string LINE_NAME { get; set; } = "";
     public string WORK_NAME { get; set; } = "";
+    public decimal SUM_YEAR  { get; set; } = 0;
+    public decimal SUM_MONTH { get; set; } = 0;
 }
 
 public class TeamMemberResponse

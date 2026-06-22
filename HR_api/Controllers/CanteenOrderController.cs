@@ -100,7 +100,7 @@ public class CanteenOrderController : ControllerBase
             var mealCat = string.IsNullOrEmpty(req.TypeMeal) ? "LUNCH" : req.TypeMeal.ToUpper();
 
             var changer    = string.IsNullOrEmpty(req.LoginUser) ? "HR" : req.LoginUser;
-            var isMysamho  = req.IsMysamho ? "Y" : "N";
+            var isMysamho  = changer == "HR" ? "N" : "Y";
 
             var sql = $@"
                 MERGE INTO HRMS.CANTEEN_ORDER T

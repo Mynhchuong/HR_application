@@ -614,12 +614,21 @@ public class LeaveController : ControllerBase
                     new OracleParameter { ParameterName = "TO_DATE",   OracleDbType = OracleDbType.Date, Value = ld.ToDate }
                 )).ToHashSet();
 
+                // NV được phép nghỉ Chủ Nhật → không skip Sunday dù nằm trong holiday
+                bool isSundayAllowed = (await _oracleService.ExecuteQueryAsync(
+                    "SELECT 1 AS X FROM HRMS.HR_SUNDAY_LEAVE_ALLOWED WHERE EMPCD = :EMPCD AND IS_ACTIVE = 1",
+                    r => 1,
+                    new OracleParameter("EMPCD", requestInfo.Empcd)
+                )).Any();
+
                 string? erpError = null;
                 try
                 {
                     for (var day = ld.FromDate.Date; day <= ld.ToDate.Date; day = day.AddDays(1))
                     {
-                        if (erpHolidays.Contains(day)) continue;
+                        if (erpHolidays.Contains(day)
+                            && !(day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed))
+                            continue;
                         await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
                             new OracleParameter("AS_EMPCD",   requestInfo.Empcd),
                             new OracleParameter("AS_LEAVECD", erpCd),
@@ -835,11 +844,19 @@ public class LeaveController : ControllerBase
                         new OracleParameter { ParameterName = "FROM_DATE", OracleDbType = OracleDbType.Date, Value = fromDate },
                         new OracleParameter { ParameterName = "TO_DATE",   OracleDbType = OracleDbType.Date, Value = toDate }
                     )).ToHashSet();
+
+                    bool isSundayAllowed = (await _oracleService.ExecuteQueryAsync(
+                        "SELECT 1 AS X FROM HRMS.HR_SUNDAY_LEAVE_ALLOWED WHERE EMPCD = :EMPCD AND IS_ACTIVE = 1",
+                        r => 1,
+                        new OracleParameter("EMPCD", targetEmpcd)
+                    )).Any();
                     try
                     {
                         for (var day = fromDate.Date; day <= toDate.Date; day = day.AddDays(1))
                         {
-                            if (erpHolidays.Contains(day)) continue;
+                            if (erpHolidays.Contains(day)
+                                && !(day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed))
+                                continue;
                             await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
                                 new OracleParameter("AS_EMPCD",   targetEmpcd),
                                 new OracleParameter("AS_LEAVECD", erpCd),
@@ -1910,11 +1927,19 @@ public class LeaveController : ControllerBase
                         new OracleParameter { ParameterName = "FROM_DATE", OracleDbType = OracleDbType.Date, Value = fromDate },
                         new OracleParameter { ParameterName = "TO_DATE",   OracleDbType = OracleDbType.Date, Value = toDate }
                     )).ToHashSet();
+
+                    bool isSundayAllowed = (await _oracleService.ExecuteQueryAsync(
+                        "SELECT 1 AS X FROM HRMS.HR_SUNDAY_LEAVE_ALLOWED WHERE EMPCD = :EMPCD AND IS_ACTIVE = 1",
+                        r => 1,
+                        new OracleParameter("EMPCD", targetEmpcd)
+                    )).Any();
                     try
                     {
                         for (var day = fromDate.Date; day <= toDate.Date; day = day.AddDays(1))
                         {
-                            if (erpHolidays.Contains(day)) continue;
+                            if (erpHolidays.Contains(day)
+                                && !(day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed))
+                                continue;
                             await _oracleService.ExecuteProcedureAsync("HRMS.SP_015_NEW",
                                 new OracleParameter("AS_EMPCD",   targetEmpcd),
                                 new OracleParameter("AS_LEAVECD", erpCd),

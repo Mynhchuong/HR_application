@@ -620,7 +620,7 @@ BEGIN
             P_TYPE        => v_gp_type,
             P_TIMEIN      => v_timein,
             P_TIMEOUT     => v_timeout,
-            P_INID        => v_empcd,
+            P_INID        => :APPROVER,
             P_APPROVED_ID => :APPROVER
         );
 

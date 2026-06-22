@@ -218,16 +218,35 @@ public class MenuWeekController : ControllerBase
             if (cnt.Count == 0 || cnt[0] == 0)
                 return Ok(new { success = false, message = "Chưa có món ăn nào, vui lòng nhập thực đơn trước khi đăng" });
 
+            // Chỉ cho phép 1 thực đơn PUBLISHED tại 1 thời điểm:
+            // ẩn (về DRAFT) tất cả tuần khác đang PUBLISHED, rồi mới publish tuần mới.
             const string sql = @"
-                UPDATE HRMS.HR_MENU_WEEK
-                SET STATUS  = 'PUBLISHED',
-                    UPDT_ID = :UPDT_ID,
-                    UPDT_DT = SYSDATE
-                WHERE ID = :ID AND STATUS = 'DRAFT'";
+                BEGIN
+                    UPDATE HRMS.HR_MENU_WEEK
+                       SET STATUS  = 'DRAFT',
+                           UPDT_ID = :UPDT_ID,
+                           UPDT_DT = SYSDATE
+                     WHERE STATUS = 'PUBLISHED' AND ID <> :ID;
 
-            int rows = await _db.ExecuteNonQueryAsync(sql,
+                    UPDATE HRMS.HR_MENU_WEEK
+                       SET STATUS  = 'PUBLISHED',
+                           UPDT_ID = :UPDT_ID,
+                           UPDT_DT = SYSDATE
+                     WHERE ID = :ID AND STATUS = 'DRAFT';
+
+                    :ROWS := SQL%ROWCOUNT;
+                END;";
+
+            var pRows = new OracleParameter("ROWS", OracleDbType.Int32)
+            { Direction = System.Data.ParameterDirection.Output };
+
+            await _db.ExecuteNonQueryAsync(sql,
                 new OracleParameter("UPDT_ID", loginUser),
-                new OracleParameter("ID",      id));
+                new OracleParameter("ID",      id),
+                pRows);
+
+            int rows = pRows.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od && !od.IsNull
+                       ? (int)od.Value : 0;
 
             return Ok(rows > 0
                 ? new { success = true,  message = "Đã đăng thực đơn. Công nhân có thể xem ngay!" }

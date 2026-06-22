@@ -29,6 +29,9 @@ public class InquiryListItemDto
     public string?   Subject      { get; set; }
     public string?   EmpCd        { get; set; }
     public string?   EmpName      { get; set; }
+    public string?   DeptName     { get; set; }
+    public string?   LineName     { get; set; }
+    public string?   WorkName     { get; set; }
     public string?   AnonDisplay  { get; set; }
     public string?   AnonToken    { get; set; }
     public string    Status       { get; set; } = "";
@@ -63,6 +66,22 @@ public class InquiryMsgDto
     public bool      IsDeleted   { get; set; }
     public DateTime  SentDt      { get; set; }
     public List<InquiryAttachDto> Attachments { get; set; } = new();
+    public List<InquiryRefDto>    Refs        { get; set; } = new();
+}
+
+[JsonObject(NamingStrategyType = typeof(CamelCaseNamingStrategy))]
+public class InquiryRefDto
+{
+    public long    Id       { get; set; }
+    public string  RefType  { get; set; } = "";   // POLICY | GUIDE
+    public long    RefId    { get; set; }
+    public string? RefTitle { get; set; }
+}
+
+public class InquiryRefInfo
+{
+    public string RefType { get; set; } = "POLICY";
+    public long   RefId   { get; set; }
 }
 
 [JsonObject(NamingStrategyType = typeof(CamelCaseNamingStrategy))]

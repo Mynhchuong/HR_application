@@ -226,6 +226,53 @@ public class InquiryController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Inquiry/search-refs?type=POLICY|GUIDE&q=...
+    // Tìm Policy/Guide để HR/Admin chèn trích dẫn vào tin nhắn
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("search-refs")]
+    public async Task<IActionResult> SearchRefs(string type = "POLICY", string? q = null)
+    {
+        try
+        {
+            type = (type ?? "").ToUpper();
+            if (type != "POLICY" && type != "GUIDE")
+                return Ok(new { success = false, message = "type phải là POLICY hoặc GUIDE" });
+
+            string trimmed = (q ?? "").Trim().ToUpper();
+            string term    = "%" + trimmed + "%";
+            string inner = type == "POLICY"
+                ? @"SELECT ID, CATEGORY, TITLE
+                    FROM HRMS.HR_COMPANY_POLICY
+                    WHERE IS_ACTIVE = 1
+                      AND (:Q IS NULL OR UPPER(TITLE) LIKE :TERM OR UPPER(CATEGORY) LIKE :TERM)
+                    ORDER BY CATEGORY, DISPLAY_ORDER, ID"
+                : @"SELECT ID, CATEGORY, TITLE
+                    FROM HRMS.HR_GUIDE
+                    WHERE IS_ACTIVE = 1
+                      AND (:Q IS NULL OR UPPER(TITLE) LIKE :TERM OR UPPER(CATEGORY) LIKE :TERM)
+                    ORDER BY CATEGORY NULLS LAST, DISPLAY_ORDER, ID";
+            string sql = $"SELECT * FROM ({inner}) WHERE ROWNUM <= 30";
+
+            var rows = await _db.ExecuteQueryAsync(sql,
+                r => new
+                {
+                    id       = Convert.ToInt64(r["ID"]),
+                    refType  = type,
+                    category = r["CATEGORY"]?.ToString(),
+                    title    = r["TITLE"]?.ToString()
+                },
+                new OracleParameter("Q",    string.IsNullOrEmpty(trimmed) ? (object)DBNull.Value : trimmed),
+                new OracleParameter("TERM", term));
+
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // GET /apiHR/Inquiry/anon?token=
     // Danh sách conversation của anonymous user
     // ─────────────────────────────────────────────────────────────────────────
@@ -340,6 +387,39 @@ public class InquiryController : ControllerBase
                 new OracleParameter("AFTER",  afterMsgId),
                 new OracleParameter("AFTER2", afterMsgId));
 
+            // Lấy refs cho các msg đang trả về
+            var refsByMsg = new Dictionary<long, List<InquiryRefDto>>();
+            var refRows = await _db.ExecuteQueryAsync(@"
+                SELECT ID, MSG_ID, REF_TYPE, REF_ID, REF_TITLE
+                FROM HRMS.HR_INQUIRY_MSG_REF
+                WHERE INQUIRY_ID = :INQ_ID
+                  AND (:AFTER = 0 OR MSG_ID > :AFTER2)
+                ORDER BY ID",
+                r => new
+                {
+                    MsgId = Convert.ToInt64(r["MSG_ID"]),
+                    Dto   = new InquiryRefDto
+                    {
+                        Id       = Convert.ToInt64(r["ID"]),
+                        RefType  = r["REF_TYPE"]?.ToString() ?? "",
+                        RefId    = Convert.ToInt64(r["REF_ID"]),
+                        RefTitle = r["REF_TITLE"]?.ToString()
+                    }
+                },
+                new OracleParameter("INQ_ID", id),
+                new OracleParameter("AFTER",  afterMsgId),
+                new OracleParameter("AFTER2", afterMsgId));
+
+            foreach (var rr in refRows)
+            {
+                if (!refsByMsg.TryGetValue(rr.MsgId, out var list))
+                {
+                    list = new List<InquiryRefDto>();
+                    refsByMsg[rr.MsgId] = list;
+                }
+                list.Add(rr.Dto);
+            }
+
             // Group theo MSG_ID để gộp attachments
             var messages = rawRows
                 .GroupBy(r => r.MsgId)
@@ -359,6 +439,7 @@ public class InquiryController : ControllerBase
                         IsReadEmp  = first.IsReadEmp,
                         IsDeleted  = first.IsDeleted,
                         SentDt     = first.SentDt,
+                        Refs       = refsByMsg.TryGetValue(first.MsgId, out var rfs) ? rfs : new List<InquiryRefDto>(),
                         Attachments = g
                             .Where(x => x.AtchId.HasValue)
                             .Select(x => new InquiryAttachDto
@@ -396,7 +477,8 @@ public class InquiryController : ControllerBase
 
             bool hasContent = !string.IsNullOrWhiteSpace(req.Content);
             bool hasFiles   = req.Files.Count > 0;
-            if (!hasContent && !hasFiles)
+            bool hasRefs    = req.Refs.Count > 0;
+            if (!hasContent && !hasFiles && !hasRefs)
                 return Ok(new { success = false, message = "Tin nhắn không được để trống" });
 
             // Lấy thông tin conversation hiện tại
@@ -554,6 +636,39 @@ public class InquiryController : ControllerBase
                     new OracleParameter("MIME_TYPE", (object?)f.MimeType  ?? DBNull.Value),
                     new OracleParameter("FILE_SIZE", (object?)f.FileSize  ?? DBNull.Value),
                     new OracleParameter("THUMB_PATH",(object?)f.ThumbPath ?? DBNull.Value));
+            }
+
+            // Insert refs nếu có (chỉ HR/Admin được phép — EMP refs bị bỏ qua)
+            if ((isHr || isAdmin) && req.Refs.Count > 0)
+            {
+                foreach (var rf in req.Refs)
+                {
+                    if (rf.RefId <= 0) continue;
+                    if (rf.RefType != "POLICY" && rf.RefType != "GUIDE") continue;
+
+                    // lookup title từ source table tương ứng
+                    string? refTitle = null;
+                    string lookupSql = rf.RefType == "POLICY"
+                        ? "SELECT TITLE FROM HRMS.HR_COMPANY_POLICY WHERE ID = :ID AND IS_ACTIVE = 1"
+                        : "SELECT TITLE FROM HRMS.HR_GUIDE          WHERE ID = :ID AND IS_ACTIVE = 1";
+                    var titleRows = await _db.ExecuteQueryAsync(
+                        lookupSql,
+                        r => r["TITLE"]?.ToString(),
+                        new OracleParameter("ID", rf.RefId));
+                    if (titleRows.Count == 0) continue;  // ref không tồn tại / inactive → skip
+                    refTitle = titleRows[0];
+
+                    await _db.ExecuteNonQueryAsync(@"
+                        INSERT INTO HRMS.HR_INQUIRY_MSG_REF
+                            (MSG_ID, INQUIRY_ID, REF_TYPE, REF_ID, REF_TITLE)
+                        VALUES
+                            (:MSG_ID, :INQ_ID, :REF_TYPE, :REF_ID, :REF_TITLE)",
+                        new OracleParameter("MSG_ID",   msgId),
+                        new OracleParameter("INQ_ID",   req.InquiryId),
+                        new OracleParameter("REF_TYPE", rf.RefType),
+                        new OracleParameter("REF_ID",   rf.RefId),
+                        new OracleParameter("REF_TITLE",(object?)refTitle ?? DBNull.Value));
+                }
             }
 
             // Update HR_INQUIRY stats
@@ -825,24 +940,22 @@ public class InquiryController : ControllerBase
             int closeRows = await _db.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_INQUIRY
                 SET STATUS = 'CLOSED', CLOSED_DT = SYSDATE,
-                    CLOSED_BY = :BY, CLOSED_BY_NAME = :BY_NAME,
-                    CLOSED_BY_TYPE = :BY_TYPE, CLOSE_NOTE = :NOTE
+                    CLOSED_BY = :CLOSER_EMP, CLOSED_BY_NAME = :CLOSER_NAME,
+                    CLOSED_BY_TYPE = :CLOSER_TYPE, CLOSE_NOTE = :NOTE
                 WHERE ID = :ID
                   AND STATUS = 'OPEN'
                   AND (
                        :CLOSER_TYPE = 'ADMIN'
                     OR (:CLOSER_TYPE = 'HR'  AND (ASSIGNED_TO IS NULL OR ASSIGNED_TO = :EMP_CD))
-                    OR (:CLOSER_TYPE = 'EMP' AND (EMPCD = :EMP_CD2 OR ANON_TOKEN = :ANON_TOKEN))
+                    OR (:CLOSER_TYPE = 'EMP' AND (EMPCD = :EMP_CD OR ANON_TOKEN = :ANON_TOKEN))
                   )",
-                new OracleParameter("BY",          req.EmpCd        ?? ""),
-                new OracleParameter("BY_NAME",     closerName),
-                new OracleParameter("BY_TYPE",     dbCloserType),
-                new OracleParameter("NOTE",        (object?)req.CloseNote ?? DBNull.Value),
-                new OracleParameter("ID",          req.InquiryId),
-                new OracleParameter("CLOSER_TYPE", req.CloserType),
-                new OracleParameter("EMP_CD",      (object?)req.EmpCd    ?? DBNull.Value),
-                new OracleParameter("EMP_CD2",     (object?)req.EmpCd    ?? DBNull.Value),
-                new OracleParameter("ANON_TOKEN",  (object?)req.AnonToken ?? DBNull.Value));
+                new OracleParameter("CLOSER_EMP",   req.EmpCd        ?? ""),
+                new OracleParameter("CLOSER_NAME",  closerName),
+                new OracleParameter("CLOSER_TYPE",  dbCloserType),
+                new OracleParameter("NOTE",         (object?)req.CloseNote ?? DBNull.Value),
+                new OracleParameter("ID",           req.InquiryId),
+                new OracleParameter("EMP_CD",       (object?)req.EmpCd    ?? DBNull.Value),
+                new OracleParameter("ANON_TOKEN",   (object?)req.AnonToken ?? DBNull.Value));
             if (closeRows == 0)
                 return Ok(new { success = false, message = "Hội thoại đã đóng hoặc bạn không còn quyền đóng" });
 
@@ -975,6 +1088,7 @@ public class InquiryController : ControllerBase
         string? assignedTo = null,
         string? empCd      = null,
         string? search     = null,
+        string? sort       = null,   // newest (default) | oldest
         int     page       = 1,
         int     pageSize   = 30)
     {
@@ -997,17 +1111,25 @@ public class InquiryController : ControllerBase
                                     ? ""
                                     : "AND (i.INQUIRY_NO LIKE :SEARCH OR i.EMP_NAME LIKE :SEARCH2 OR i.ANON_DISPLAY LIKE :SEARCH3 OR i.SUBJECT LIKE :SEARCH4 OR i.EMPCD LIKE :SEARCH5)";
 
+            string orderClause = sort == "oldest"
+                ? "ORDER BY i.LAST_MSG_DT ASC NULLS LAST, i.ID ASC"
+                : "ORDER BY i.UNREAD_HR DESC, i.LAST_MSG_DT DESC NULLS LAST";
+
             string sql = $@"
                 SELECT * FROM (
                     SELECT ROWNUM AS RN, q.* FROM (
                         SELECT i.ID, i.INQUIRY_NO, i.CHAT_TYPE, i.TOPIC_CD, t.TOPIC_NAME,
                                t.COLOR AS TOPIC_COLOR, t.ICON AS TOPIC_ICON,
-                               i.SUBJECT, i.EMPCD, i.EMP_NAME, i.ANON_DISPLAY, NULL AS ANON_TOKEN, i.STATUS,
+                               i.SUBJECT, i.EMPCD, i.EMP_NAME,
+                               b.DEPTNM AS DEPT_NAME, b.TEAMNM AS LINE_NAME, b.WORKNM AS WORK_NAME,
+                               i.ANON_DISPLAY, NULL AS ANON_TOKEN, i.STATUS,
                                i.ASSIGNED_TO, i.ASSIGNED_NAME,
                                i.UNREAD_HR, i.UNREAD_EMP, i.MSG_COUNT, i.LAST_MSG_DT, i.INST_DT,
                                i.CLOSED_DT, i.CLOSED_BY_NAME, i.CLOSED_BY_TYPE, i.RATING
                         FROM HRMS.HR_INQUIRY i
                         LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = i.TOPIC_CD
+                        LEFT JOIN HRMS.ECM100 ec ON ec.EMPCD = i.EMPCD
+                        LEFT JOIN HRMS.EAM410 b  ON b.DEPTCD = ec.DEPTCD AND b.LINECD = ec.LINECD AND b.WORKCD = ec.WORKCD
                         WHERE 1=1
                         {whereStatus}
                         {whereTopic}
@@ -1015,7 +1137,7 @@ public class InquiryController : ControllerBase
                         {whereAssign}
                         {whereEmpCd}
                         {whereSearch}
-                        ORDER BY i.UNREAD_HR DESC, i.LAST_MSG_DT DESC
+                        {orderClause}
                     ) q WHERE ROWNUM <= :MAXRN
                 ) WHERE RN > :OFFSET";
 
@@ -1313,6 +1435,12 @@ public class InquiryController : ControllerBase
         static int?     N(object v) => v == DBNull.Value ? null : Convert.ToInt32(v);
         static int      I(object v) => v == DBNull.Value ? 0    : Convert.ToInt32(v);
         static string?  S(object v) => v == DBNull.Value ? null : v.ToString();
+        static bool HasCol(OracleDataReader rd, string name)
+        {
+            for (int i = 0; i < rd.FieldCount; i++)
+                if (rd.GetName(i).Equals(name, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
 
         return new InquiryListItemDto
         {
@@ -1326,6 +1454,9 @@ public class InquiryController : ControllerBase
             Subject      = S(r["SUBJECT"]),
             EmpCd        = S(r["EMPCD"]),
             EmpName      = S(r["EMP_NAME"]),
+            DeptName     = HasCol(r, "DEPT_NAME") ? S(r["DEPT_NAME"]) : null,
+            LineName     = HasCol(r, "LINE_NAME") ? S(r["LINE_NAME"]) : null,
+            WorkName     = HasCol(r, "WORK_NAME") ? S(r["WORK_NAME"]) : null,
             AnonDisplay  = S(r["ANON_DISPLAY"]),
             AnonToken    = S(r["ANON_TOKEN"]),
             Status       = r["STATUS"]?.ToString()        ?? "",

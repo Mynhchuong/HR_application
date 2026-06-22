@@ -6,6 +6,16 @@
 <style>
 .create-page { max-width: 600px; margin: 0 auto; padding-bottom: 5rem; }
 
+/* Top back bar */
+.top-back-bar { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; }
+.btn-top-back {
+    display: inline-flex; align-items: center; gap: .3rem;
+    background: white; border: 1.5px solid #e2e8f0; border-radius: 10px;
+    padding: .45rem .8rem; font-size: .85rem; font-weight: 700;
+    color: #475569; cursor: pointer; transition: all .15s; text-decoration: none;
+}
+.btn-top-back:hover { border-color: #4f46e5; color: #4f46e5; }
+
 /* Steps */
 .step-header { margin-bottom: 1.25rem; }
 .step-label  { font-size: .78rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: .3rem; }
@@ -83,6 +93,13 @@ textarea.input-modern { resize: none; min-height: 120px; }
 </style>
 
 <div class="create-page px-2 py-2">
+    <div class="top-back-bar">
+        <a href="@Url.Action("Index","EmployeeInquiry")" class="btn-top-back">
+            <span class="material-symbols-rounded" style="font-size:1.1rem;">arrow_back</span>
+            Quay lại
+        </a>
+    </div>
+
     <!-- Step 1: Chọn loại -->
     <div id="step1">
         <div class="step-header">

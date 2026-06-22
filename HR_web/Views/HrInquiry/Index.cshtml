@@ -21,6 +21,12 @@
     .topic-chip { font-size: .72rem; border-radius: 20px; padding: 1px 7px; font-weight: 600; }
     .pagination .page-link { cursor: pointer; }
     .pagination .page-item.disabled .page-link { cursor: default; }
+    .emp-name-row { font-weight: 700; color: #1e293b; font-size: .85rem; }
+    .emp-meta { font-size: .72rem; color: #64748b; line-height: 1.3; margin-top: 1px; }
+    .emp-meta .empcd { font-family: monospace; color: #94a3b8; font-weight: 700; }
+    .row-close-btn { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: .25rem .5rem; font-size: .72rem; font-weight: 700; cursor: pointer; transition: all .12s; }
+    .row-close-btn:hover { background: #dc2626; color: white; border-color: #dc2626; }
+    .row-close-btn:disabled { opacity: .4; cursor: not-allowed; }
 </style>
 }
 
@@ -93,11 +99,21 @@
                 <option value="@(me?.EmpCd ?? "")">Của tôi</option>
                 <option value="UNASSIGNED">Chưa phụ trách</option>
             </select>
+            <select class="form-select form-select-sm" id="fSort" style="width:auto" onchange="loadData(1)">
+                <option value="newest">Mới nhất trước</option>
+                <option value="oldest">Cũ nhất trước</option>
+            </select>
             <div class="input-group input-group-sm" style="min-width:200px;flex:1">
                 <span class="input-group-text"><span class="material-symbols-rounded" style="font-size:.9rem">search</span></span>
                 <input type="text" class="form-control" id="fSearch" placeholder="Mã NV, tên, INQ-NO, chủ đề..."
                        oninput="debounceLoad()">
             </div>
+            <select class="form-select form-select-sm" id="fPageSize" style="width:auto" onchange="changePageSize(this.value)">
+                <option value="10">10 / trang</option>
+                <option value="30" selected>30 / trang</option>
+                <option value="50">50 / trang</option>
+                <option value="100">100 / trang</option>
+            </select>
         </div>
 
         <div class="card-body px-0 pt-0 pb-2">
@@ -111,10 +127,11 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 text-center">Trạng thái</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 text-center">Chưa đọc</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-lg-table-cell">Tin nhắn cuối</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 text-center">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody id="inqTableBody">
-                        <tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-info" role="status"></div></td></tr>
+                        <tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-info" role="status"></div></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -126,12 +143,19 @@
     </div>
 </div>
 
+@Html.AntiForgeryToken()
+
 @section Scripts {
 <script>
 const LIST_URL  = '@Url.Action("GetList","HrInquiry")';
 const CHAT_URL  = '@Url.Action("Chat","HrInquiry")';
-const PAGE_SIZE = 30;
+const CLOSE_URL = '@Url.Action("Close","HrInquiry")';
+const TOKEN     = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+const MY_EMPCD  = '@(me?.EmpCd ?? "")';
+let pageSize    = 30;
 let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false;
+
+function changePageSize(v) { pageSize = parseInt(v,10) || 30; loadData(1); }
 
 function esc(s) { return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtDt(ds) {
@@ -146,12 +170,13 @@ let _debTimer;
 function debounceLoad() { clearTimeout(_debTimer); _debTimer = setTimeout(() => loadData(1), 400); }
 
 function buildUrl(page) {
-    const s  = document.getElementById('fStatus').value;
-    const ct = document.getElementById('fChatType').value;
-    const t  = document.getElementById('fTopic').value;
-    const a  = document.getElementById('fAssigned').value;
-    const q  = document.getElementById('fSearch').value.trim();
-    let url = `${LIST_URL}?page=${page}&pageSize=${PAGE_SIZE}`;
+    const s    = document.getElementById('fStatus').value;
+    const ct   = document.getElementById('fChatType').value;
+    const t    = document.getElementById('fTopic').value;
+    const a    = document.getElementById('fAssigned').value;
+    const q    = document.getElementById('fSearch').value.trim();
+    const sort = document.getElementById('fSort')?.value || 'newest';
+    let url = `${LIST_URL}?page=${page}&pageSize=${pageSize}&sort=${encodeURIComponent(sort)}`;
     if (s)  url += `&status=${encodeURIComponent(s)}`;
     if (ct) url += `&chatType=${encodeURIComponent(ct)}`;
     if (t)  url += `&topicCd=${encodeURIComponent(t)}`;
@@ -165,7 +190,7 @@ async function loadData(page = 1) {
     if (isLoading) return;
     isLoading = true; currentPage = page;
     document.getElementById('inqTableBody').innerHTML =
-        '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-info" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải...</div></td></tr>';
+        '<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-info" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải...</div></td></tr>';
 
     try {
         const res  = await fetch(buildUrl(page));
@@ -183,18 +208,28 @@ async function loadData(page = 1) {
         const items = data.data || [];
         const tbody = document.getElementById('inqTableBody');
         if (!items.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5"><span class="material-symbols-rounded" style="font-size:2.5rem;color:#c7d2fe;display:block">forum</span>Không có hội thoại nào</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5"><span class="material-symbols-rounded" style="font-size:2.5rem;color:#c7d2fe;display:block">forum</span>Không có hội thoại nào</td></tr>';
         } else {
             tbody.innerHTML = items.map(i => {
                 const statusCls = i.status === 'OPEN' ? 'open' : 'closed';
                 const statusTxt = i.status === 'OPEN' ? 'Mở' : 'Đóng';
-                const empDisplay = i.chatType === 'ANON'
-                    ? `<span class="anon-chip"><span class="material-symbols-rounded" style="font-size:.7rem;vertical-align:middle">visibility_off</span> ${esc(i.anonDisplay||'Ẩn danh')}</span>`
-                    : `<span>${esc(i.empName||i.empCd||'—')}</span>`;
+                let empDisplay;
+                if (i.chatType === 'ANON') {
+                    empDisplay = `<span class="anon-chip"><span class="material-symbols-rounded" style="font-size:.7rem;vertical-align:middle">visibility_off</span> ${esc(i.anonDisplay||'Ẩn danh')}</span>`;
+                } else {
+                    const name = i.empName || '—';
+                    const meta = [i.deptName, i.lineName, i.workName].filter(Boolean).join(' · ');
+                    empDisplay = `<div class="emp-name-row vni-font">${esc(name)}</div>`
+                               + `<div class="emp-meta">${i.empCd ? `<span class="empcd">${esc(i.empCd)}</span>${meta ? ' · ' : ''}` : ''}${meta ? `<span class="vni-font">${esc(meta)}</span>` : ''}</div>`;
+                }
                 const assigned = i.assignedName
-                    ? `<span class="assigned-chip">${esc(i.assignedName)}</span>`
+                    ? `<span class="assigned-chip vni-font">${esc(i.assignedName)}</span>`
                     : '<span class="text-muted" style="font-size:.78rem">Chưa có</span>';
                 const topicStyle = i.topicColor ? `background:${i.topicColor}22;color:${i.topicColor}` : 'background:#e0e7ff;color:#4f46e5';
+                const canClose = i.status === 'OPEN' && i.assignedTo === MY_EMPCD;
+                const actionCell = canClose
+                    ? `<button class="row-close-btn" onclick="event.stopPropagation();closeRow(${i.id})" title="Đóng hội thoại"><span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">close</span> Đóng</button>`
+                    : '<span class="text-muted" style="font-size:.78rem">—</span>';
                 return `<tr onclick="window.location.href='${CHAT_URL}?id=${i.id}'">
                     <td class="px-2">
                         <div class="inq-no">${esc(i.inquiryNo)}</div>
@@ -206,6 +241,7 @@ async function loadData(page = 1) {
                     <td class="px-2 text-center"><span class="status-pill ${statusCls}">${statusTxt}</span></td>
                     <td class="px-2 text-center">${i.unreadHr > 0 ? `<span class="unread-badge">${i.unreadHr}</span>` : '<span class="text-muted">—</span>'}</td>
                     <td class="px-2 d-none d-lg-table-cell text-secondary text-sm">${fmtDt(i.lastMsgDt)}</td>
+                    <td class="px-2 text-center">${actionCell}</td>
                 </tr>`;
             }).join('');
         }
@@ -214,8 +250,24 @@ async function loadData(page = 1) {
     finally { isLoading = false; }
 }
 
+function closeRow(id) {
+    showConfirm('Đóng hội thoại này?', async () => {
+        try {
+            const res = await fetch(CLOSE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+                body: JSON.stringify({ inquiryId: id, closeNote: null })
+            });
+            const data = await res.json();
+            if (!data.success) { showToast(data.message || 'Không thể đóng', 'error'); return; }
+            showToast('Đã đóng hội thoại', 'success');
+            loadData(currentPage);
+        } catch { showToast('Lỗi kết nối', 'error'); }
+    }, { title: 'Đóng hội thoại', okText: 'Đóng', okClass: 'btn-warning', icon: 'close', iconColor: '#d97706', iconBg: '#fef3c7' });
+}
+
 function renderPagination() {
-    const start = (currentPage-1)*PAGE_SIZE+1, end = Math.min(currentPage*PAGE_SIZE, totalRecords);
+    const start = (currentPage-1)*pageSize+1, end = Math.min(currentPage*pageSize, totalRecords);
     document.getElementById('pageCount').innerHTML =
         totalRecords > 0 ? `Trang <strong>${currentPage}</strong> / ${totalPages} &nbsp;·&nbsp; ${start.toLocaleString()}–${end.toLocaleString()} / ${totalRecords.toLocaleString()}` : '';
 

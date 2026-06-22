@@ -61,11 +61,12 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
         string? chatType   = null,
         string? assignedTo = null,
         string? search     = null,
+        string? sort       = null,
         int     page       = 1,
         int     pageSize   = 30)
     {
         if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
-        var result = await _inquiry.GetHrListAsync(status, topicCd, chatType, assignedTo, search, page, pageSize);
+        var result = await _inquiry.GetHrListAsync(status, topicCd, chatType, assignedTo, search, sort, page, pageSize);
         return Json(result);
     }
 
@@ -97,7 +98,8 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
 
         bool hasContent = !string.IsNullOrWhiteSpace(req.Content);
         bool hasFiles   = req.Files?.Count > 0;
-        if (!hasContent && !hasFiles)
+        bool hasRefs    = req.Refs?.Count > 0;
+        if (!hasContent && !hasFiles && !hasRefs)
             return Json(new { success = false, message = "Tin nhắn không được để trống" });
         if (req.Content?.Length > 4000)
             return Json(new { success = false, message = "Nội dung vượt quá 4000 ký tự" });
@@ -118,9 +120,22 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
             senderType: "HR",
             senderName: CurrentUser.FullName,
             content:    req.Content,
-            files:      finalFiles.Count > 0 ? finalFiles : null);
+            files:      finalFiles.Count > 0 ? finalFiles : null,
+            refs:       req.Refs?.Count > 0 ? req.Refs : null);
 
         return Json(result);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Tìm Policy/Guide để chèn trích dẫn (HR only)
+    // GET /HrInquiry/SearchRefs?type=POLICY|GUIDE&q=...
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> SearchRefs(string type = "POLICY", string? q = null)
+    {
+        if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
+        var json = await _inquiry.SearchRefsRawAsync(type, q);
+        return Content(json, "application/json");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -188,6 +203,7 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
         public string?                InquiryNo  { get; set; }
         public string?                Content    { get; set; }
         public List<InquiryFileInfo>? Files      { get; set; }
+        public List<InquiryRefInfo>?  Refs       { get; set; }
     }
 
     public class HrCloseRequest

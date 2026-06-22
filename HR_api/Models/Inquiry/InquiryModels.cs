@@ -21,6 +21,13 @@ public class InquirySendRequest
     public string? SenderName { get; set; }             // HR_web tự điền từ session
     public string? Content    { get; set; }
     public List<InquiryFileInfo> Files { get; set; } = new();
+    public List<InquiryRefInfo>  Refs  { get; set; } = new();   // trích dẫn Policy/Guide (HR/Admin only)
+}
+
+public class InquiryRefInfo
+{
+    public string RefType { get; set; } = "POLICY";  // POLICY | GUIDE
+    public long   RefId   { get; set; }
 }
 
 public class InquiryFileInfo
@@ -90,6 +97,9 @@ public class InquiryListItemDto
     public string? Subject      { get; set; }
     public string? EmpCd        { get; set; }
     public string? EmpName      { get; set; }
+    public string? DeptName     { get; set; }
+    public string? LineName     { get; set; }
+    public string? WorkName     { get; set; }
     public string? AnonDisplay  { get; set; }
     public string? AnonToken    { get; set; }   // chỉ có trong GetMessages (validate ownership)
     public string  Status       { get; set; } = "";
@@ -123,6 +133,15 @@ public class InquiryMsgDto
     public bool    IsDeleted   { get; set; }
     public DateTime SentDt     { get; set; }
     public List<InquiryAttachDto> Attachments { get; set; } = new();
+    public List<InquiryRefDto>    Refs        { get; set; } = new();
+}
+
+public class InquiryRefDto
+{
+    public long    Id       { get; set; }
+    public string  RefType  { get; set; } = "";   // POLICY | GUIDE
+    public long    RefId    { get; set; }
+    public string? RefTitle { get; set; }
 }
 
 public class InquiryAttachDto

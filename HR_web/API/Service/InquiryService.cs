@@ -89,7 +89,8 @@ public class InquiryService
     public async Task<InquirySendResponse> SendAsync(
         long    inquiryId,  string? empCd,      string? anonToken,
         string  senderType, string? senderName,  string? content,
-        List<InquiryFileInfo>? files = null)
+        List<InquiryFileInfo>? files = null,
+        List<InquiryRefInfo>?  refs  = null)
     {
         try
         {
@@ -97,7 +98,8 @@ public class InquiryService
             {
                 inquiryId, empCd, anonToken,
                 senderType, senderName, content,
-                files = files ?? new List<InquiryFileInfo>()
+                files = files ?? new List<InquiryFileInfo>(),
+                refs  = refs  ?? new List<InquiryRefInfo>()
             };
             var res = await _api.PostAsync("Inquiry/send", payload);
             if (res?.IsSuccessStatusCode == true)
@@ -106,6 +108,20 @@ public class InquiryService
             return new InquirySendResponse { success = false, message = "Lỗi kết nối server" };
         }
         catch (Exception ex) { return new InquirySendResponse { success = false, message = ex.Message }; }
+    }
+
+    // GET /apiHR/Inquiry/search-refs
+    public async Task<string> SearchRefsRawAsync(string type, string? q)
+    {
+        try
+        {
+            var qs  = $"Inquiry/search-refs?type={Uri.EscapeDataString(type)}&q={Uri.EscapeDataString(q ?? "")}";
+            var res = await _api.GetRawAsync(qs);
+            if (res?.IsSuccessStatusCode == true)
+                return await res.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
     }
 
     // POST /apiHR/Inquiry/mark-read
@@ -177,6 +193,7 @@ public class InquiryService
         string? chatType   = null,
         string? assignedTo = null,
         string? search     = null,
+        string? sort       = null,
         int     page       = 1,
         int     pageSize   = 30)
     {
@@ -188,6 +205,7 @@ public class InquiryService
             if (!string.IsNullOrEmpty(chatType))   q.Add($"chatType={Uri.EscapeDataString(chatType)}");
             if (!string.IsNullOrEmpty(assignedTo)) q.Add($"assignedTo={Uri.EscapeDataString(assignedTo)}");
             if (!string.IsNullOrEmpty(search))     q.Add($"search={Uri.EscapeDataString(search)}");
+            if (!string.IsNullOrEmpty(sort))       q.Add($"sort={Uri.EscapeDataString(sort)}");
             q.Add($"page={page}");
             q.Add($"pageSize={pageSize}");
             var res = await _api.GetAsync_Raw("Inquiry/hr-list", string.Join("&", q));

@@ -103,6 +103,20 @@ public class ApiService
     }
 
 
+    public async Task<HttpResponseMessage?> GetRawAsync(string endpoint)
+    {
+        var client = _httpClientFactory.CreateClient(ClientName);
+        try
+        {
+            return await client.GetAsync(endpoint);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+
     public async Task<HttpResponseMessage?> PostFormAsync(string endpoint, Dictionary<string, string> formData)
     {
         var client = _httpClientFactory.CreateClient(ClientName);

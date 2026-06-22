@@ -20,6 +20,7 @@
     <title>@ViewData["Title"] - My SAMHO</title>
 
     <!-- Fonts & Icons -->
+    <link rel="preload" href="~/fonts/Vnitbi__.ttf" as="font" type="font/ttf" crossorigin asp-append-version="true" />
     <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
@@ -41,9 +42,9 @@
         @@font-face {
             font-family: 'Vnitbi__';
             src: url('@Url.Content("~/fonts/Vnitbi__.ttf")') format('truetype');
-            font-display: swap;
+            font-display: block;
         }
-        .vni-font {
+        .vni-font, .vni-font * {
             font-family: 'Vnitbi__', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         }
         :root {

@@ -122,7 +122,9 @@
                                         <div class="msg-refs">
                                             @foreach (var r in msg.Refs)
                                             {
-                                                string refUrl   = r.RefType == "POLICY" ? $"/Policy/Detail?ids={r.RefId}" : $"/Guide/Detail?id={r.RefId}";
+                                                string refUrl   = r.RefType == "POLICY"
+                                                    ? Url.Action("Detail", "Policy", new { ids = r.RefId })!
+                                                    : Url.Action("Detail", "Guide",  new { id  = r.RefId })!;
                                                 string refIcon  = r.RefType == "POLICY" ? "gavel" : "play_circle";
                                                 string refLabel = r.RefType == "POLICY" ? "Quy định" : "Hướng dẫn";
                                                 <a class="msg-ref-card" href="@refUrl" target="_blank">
@@ -228,7 +230,9 @@ InquiryChat.init({
         unlock:      '@Url.Action("Unlock","AdminInquiry")',
         getFile:     '@Url.Action("GetFile","AdminInquiry")',
         uploadFile:  '@Url.Action("UploadFile","AdminInquiry")',
-        searchRefs:  '@Url.Action("SearchRefs","AdminInquiry")'
+        searchRefs:  '@Url.Action("SearchRefs","AdminInquiry")',
+        policyDetail:'@Url.Action("Detail","Policy")',
+        guideDetail: '@Url.Action("Detail","Guide")'
     }
 });
 </script>

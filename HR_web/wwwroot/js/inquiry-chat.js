@@ -19,10 +19,13 @@ window.InquiryChat = (function () {
     const seenIds = new Set();
     const REF_ICONS = { POLICY: 'gavel', GUIDE: 'play_circle' };
     const REF_LABELS = { POLICY: 'Quy định', GUIDE: 'Hướng dẫn' };
-    const REF_URLS = {
-        POLICY: id => `/Policy/Detail?ids=${id}`,
-        GUIDE:  id => `/Guide/Detail?id=${id}`
-    };
+    function refUrlFor(type, id) {
+        if (type === 'POLICY' && cfg?.urls?.policyDetail)
+            return `${cfg.urls.policyDetail}?ids=${encodeURIComponent(id)}`;
+        if (type === 'GUIDE' && cfg?.urls?.guideDetail)
+            return `${cfg.urls.guideDetail}?id=${encodeURIComponent(id)}`;
+        return '#';
+    }
 
     // ─── Sanitize HTML (light) ───────────────────────────────
     function safeHtml(html) {
@@ -70,6 +73,8 @@ window.InquiryChat = (function () {
 
         token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
         chatMsgs = document.getElementById('chatMsgs');
+
+        ensureRefViewerInjected();
 
         // populate seenIds from existing rendered messages
         if (chatMsgs) {
@@ -168,7 +173,7 @@ window.InquiryChat = (function () {
             refsHtml = '<div class="msg-refs">' + m.refs.map(r => {
                 const icon  = REF_ICONS[r.refType] || 'link';
                 const label = REF_LABELS[r.refType] || r.refType;
-                const url   = REF_URLS[r.refType] ? REF_URLS[r.refType](r.refId) : '#';
+                const url   = refUrlFor(r.refType, r.refId);
                 return `<a class="msg-ref-card" href="${url}" target="_blank">
                     <div class="mrc-icon"><span class="material-symbols-rounded" style="font-size:1.1rem">${icon}</span></div>
                     <div class="mrc-info">
@@ -594,6 +599,133 @@ window.InquiryChat = (function () {
         selectedRefs.push({ refType, refId, refTitle, category });
         renderRefChips();
         closeRefPicker();
+    }
+
+    // ─── Ref viewer modal (mobile-friendly) ───────────────────────────────
+    let _refViewerInjected = false;
+    function ensureRefViewerInjected() {
+        if (_refViewerInjected) return;
+        _refViewerInjected = true;
+
+        const style = document.createElement('style');
+        style.textContent = `
+            .rv-modal {
+                position: fixed; inset: 0; background: rgba(15,23,42,.55);
+                z-index: 2147483600; display: none;
+                align-items: center; justify-content: center;
+            }
+            .rv-modal.show { display: flex; }
+            .rv-modal-box {
+                background: #fff; width: 100%; height: 100%;
+                display: flex; flex-direction: column; overflow: hidden;
+            }
+            @media (min-width: 768px) {
+                .rv-modal-box {
+                    width: min(960px, 92vw); height: min(720px, 88vh);
+                    border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,.28);
+                }
+            }
+            .rv-head {
+                display: flex; align-items: center; gap: .6rem;
+                padding: .65rem .85rem;
+                background: linear-gradient(135deg, #7f1d1d, #dc2626);
+                color: #fff;
+            }
+            .rv-head .rv-icon { font-size: 1.2rem; }
+            .rv-head .rv-title { flex: 1; font-weight: 800; font-size: .95rem;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+            .rv-head .rv-btn {
+                background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.32);
+                color: #fff; border-radius: 8px; padding: .3rem .55rem;
+                font-size: .75rem; font-weight: 700; cursor: pointer;
+                display: inline-flex; align-items: center; gap: .2rem;
+            }
+            .rv-head .rv-btn:hover { background: rgba(255,255,255,.28); }
+            .rv-head .rv-close { padding: .3rem .5rem; }
+            .rv-body { flex: 1; position: relative; background: #f8fafc; }
+            .rv-body iframe { position: absolute; inset: 0; width: 100%; height: 100%;
+                border: 0; background: #fff; }
+            .rv-loading {
+                position: absolute; inset: 0; display: flex; align-items: center;
+                justify-content: center; color: #94a3b8; font-size: .85rem; gap: .35rem;
+            }
+            .rv-modal.show .rv-loading.hidden { display: none; }
+        `;
+        document.head.appendChild(style);
+
+        const modal = document.createElement('div');
+        modal.className = 'rv-modal';
+        modal.id = 'rvModal';
+        modal.innerHTML = `
+            <div class="rv-modal-box">
+                <div class="rv-head">
+                    <span class="material-symbols-rounded rv-icon" id="rvHeadIcon">link</span>
+                    <span class="rv-title" id="rvHeadTitle">Trích dẫn</span>
+                    <button class="rv-btn rv-open-new" id="rvOpenNew" title="Mở trong tab mới">
+                        <span class="material-symbols-rounded" style="font-size:1rem">open_in_new</span>
+                    </button>
+                    <button class="rv-btn rv-close" id="rvClose" title="Đóng">
+                        <span class="material-symbols-rounded" style="font-size:1.1rem">close</span>
+                    </button>
+                </div>
+                <div class="rv-body">
+                    <div class="rv-loading" id="rvLoading">
+                        <span class="material-symbols-rounded">hourglass_top</span> Đang tải...
+                    </div>
+                    <iframe id="rvFrame" src="about:blank"></iframe>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeRefViewer();
+        });
+        document.getElementById('rvClose').addEventListener('click', closeRefViewer);
+        document.getElementById('rvOpenNew').addEventListener('click', () => {
+            const u = document.getElementById('rvFrame').src;
+            if (u && u !== 'about:blank') window.open(u, '_blank');
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.classList.contains('show')) closeRefViewer();
+        });
+
+        // delegate clicks on ref cards
+        document.addEventListener('click', (e) => {
+            const a = e.target.closest('.msg-ref-card');
+            if (!a) return;
+            const href = a.getAttribute('href');
+            if (!href || href === '#') return;
+            e.preventDefault();
+            const titleEl = a.querySelector('.mrc-title');
+            const iconEl  = a.querySelector('.mrc-icon .material-symbols-rounded');
+            openRefViewer(
+                href,
+                titleEl ? titleEl.textContent.trim() : 'Trích dẫn',
+                iconEl  ? iconEl.textContent.trim()  : 'link'
+            );
+        });
+    }
+
+    function openRefViewer(url, title, icon) {
+        const modal   = document.getElementById('rvModal');
+        const frame   = document.getElementById('rvFrame');
+        const loading = document.getElementById('rvLoading');
+        document.getElementById('rvHeadTitle').textContent = title || 'Trích dẫn';
+        document.getElementById('rvHeadIcon').textContent  = icon  || 'link';
+        loading.classList.remove('hidden');
+        frame.onload = () => loading.classList.add('hidden');
+        frame.src = url;
+        modal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeRefViewer() {
+        const modal = document.getElementById('rvModal');
+        const frame = document.getElementById('rvFrame');
+        modal.classList.remove('show');
+        frame.src = 'about:blank';
+        document.body.style.overflow = '';
     }
 
     return {

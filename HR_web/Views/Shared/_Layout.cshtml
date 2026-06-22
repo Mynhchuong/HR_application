@@ -509,6 +509,12 @@
                              : mobileRole == "Expat" ? "~/OT/OtListForExpat"
                              :                         "~/OT/OtConfirmForm";
         string notiUrl       = mobileRole == "Expat" ? "~/Notification/IndexForExpat" : "~/Notification/Index";
+        string inqUrl        = mobileRole == "HR"    ? "~/HrInquiry/Index"
+                             : mobileRole == "Admin" ? "~/AdminInquiry/Index"
+                             :                         "~/EmployeeInquiry/Index";
+        bool   inqActive     = Context.Request.Path.Value?.Contains("/HrInquiry") == true
+                            || Context.Request.Path.Value?.Contains("/AdminInquiry") == true
+                            || Context.Request.Path.Value?.Contains("/EmployeeInquiry") == true;
     }
     <nav class="mobile-bottom-nav">
         <a href="@Url.Content("~/Home/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Home") == true ? "active" : "")">
@@ -529,6 +535,13 @@
                 <span id="bellBadge" style="display:none;position:absolute;top:-4px;right:-6px;background:#c00000;color:white;font-size:.6rem;font-weight:800;border-radius:20px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;"></span>
             </div>
             <span class="nav-text">Thông báo</span>
+        </a>
+        <a href="@Url.Content(inqUrl)" class="nav-item-mobile @(inqActive ? "active" : "")">
+            <div class="icon-wrap" style="position:relative;">
+                <span class="material-symbols-rounded">forum</span>
+                <span id="inqBadge" style="display:none;position:absolute;top:-4px;right:-6px;background:#c00000;color:white;font-size:.6rem;font-weight:800;border-radius:20px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;"></span>
+            </div>
+            <span class="nav-text">Hộp thư</span>
         </a>
         <a href="@Url.Content("~/Profile/ProfileUser")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Profile") == true ? "active" : "")">
             <div class="icon-wrap">
@@ -758,6 +771,43 @@
                         if (b) { b.textContent = d.count > 99 ? '99+' : d.count; b.style.display = 'block'; }
                     }
                 }).catch(() => {});
+        })();
+
+        // Inquiry unread badge
+        (function() {
+            @if (mobileRole == "HR")
+            {
+                <text>
+            fetch('@Url.Action("GetList","HrInquiry")?status=OPEN&pageSize=100')
+                .then(r => r.json())
+                .then(d => {
+                    var total = (d.data || []).reduce(function(s, i) { return s + (i.unreadHr || 0); }, 0);
+                    if (total > 0) { var b = document.getElementById('inqBadge'); if (b) { b.textContent = total > 99 ? '99+' : total; b.style.display = 'block'; } }
+                }).catch(function() {});
+                </text>
+            }
+            else if (mobileRole == "Admin")
+            {
+                <text>
+            fetch('@Url.Action("GetList","AdminInquiry")?status=OPEN&pageSize=100')
+                .then(r => r.json())
+                .then(d => {
+                    var total = (d.data || []).reduce(function(s, i) { return s + (i.unreadHr || 0); }, 0);
+                    if (total > 0) { var b = document.getElementById('inqBadge'); if (b) { b.textContent = total > 99 ? '99+' : total; b.style.display = 'block'; } }
+                }).catch(function() {});
+                </text>
+            }
+            else
+            {
+                <text>
+            fetch('@Url.Action("GetMyList","EmployeeInquiry")')
+                .then(r => r.json())
+                .then(d => {
+                    var total = (d.data || []).reduce(function(s, i) { return s + (i.unreadEmp || 0); }, 0);
+                    if (total > 0) { var b = document.getElementById('inqBadge'); if (b) { b.textContent = total > 99 ? '99+' : total; b.style.display = 'block'; } }
+                }).catch(function() {});
+                </text>
+            }
         })();
 
         // FCM token registration (Android / iOS WebView)

@@ -44,11 +44,11 @@ public static class SideMenuBuilder
                 Children = new List<SideMenuItem>
                 {
                     // new SideMenuItem { Title = "Lịch cá nhân",        Url = "~/Calendar/MyCalendar",     Icon = "calendar_month" },
-                    new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",         Icon = "fact_check"    },
-                    new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",           Icon = "payments"      },
-                    new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",   Icon = "door_front"    },
-                    new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",   Icon = "event_busy"    },
-                   
+                    new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",                Icon = "fact_check"    },
+                    new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",                   Icon = "payments"      },
+                    new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",           Icon = "door_front"    },
+                    new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",           Icon = "event_busy"    },
+                    new SideMenuItem { Title = "Hộp thư",             Url = "~/EmployeeInquiry/Index",           Icon = "forum"         },
                 }
             },
 
@@ -136,6 +136,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Log Sắp Lịch Nghỉ",    Url = "~/Leave/LeaveAssignmentLog",   Icon = "assignment_late"        },
                     new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy"             },
                     new SideMenuItem { Title = "DS làm Chủ Nhật",       Url = "~/SundayLeave/Index",           Icon = "wb_sunny"               },
+                    new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum"                  },
                 }
             },
 
@@ -164,6 +165,8 @@ public static class SideMenuBuilder
                     new() { Title = "Theo Dõi Yêu Cầu",      Url = "~/Leave/AdminManageRequests", Icon = "manage_history"  },
                     new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",              Icon = "menu_book"       },
                     new() { Title = "Quản lý Thông báo",     Url = "~/NotiTemplate/Index",        Icon = "notifications"   },
+                    new() { Title = "Quản lý hội thoại",     Url = "~/AdminInquiry/Index",        Icon = "forum"           },
+                    new() { Title = "Báo cáo hội thoại",    Url = "~/AdminInquiry/Report",       Icon = "bar_chart"       },
                 ]
             },
         };

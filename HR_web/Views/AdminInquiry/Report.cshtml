@@ -1,0 +1,443 @@
+@{
+    ViewData["Title"] = "Báo cáo hội thoại";
+}
+
+<style>
+.inqhr-page { max-width: 900px; margin: 0 auto; padding-bottom: 3rem; }
+
+.inqhr-hero {
+    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%);
+    border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
+    color: #fff; display: flex; align-items: center; justify-content: space-between;
+}
+.inqhr-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
+.inqhr-hero small { font-size: .75rem; opacity: .8; }
+
+/* ── Tabs ── */
+.rpt-tabs { display: flex; gap: .4rem; background: white; border-radius: 14px;
+            padding: .45rem; box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-bottom: .6rem; }
+.rpt-tab  { flex: 1; border: none; background: transparent; border-radius: 10px;
+            padding: .45rem .5rem; font-size: .82rem; font-weight: 700; color: #64748b;
+            cursor: pointer; transition: all .15s; }
+.rpt-tab.active { background: #dc2626; color: white; }
+.rpt-tab:not(.active):hover { background: #f1f5f9; }
+
+/* ── Controls ── */
+.rpt-ctrl { background: white; border-radius: 14px; padding: .75rem 1rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-bottom: .6rem;
+            display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.rpt-year { border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .4rem .65rem;
+            font-size: .82rem; font-weight: 700; color: #475569; outline: none;
+            width: 80px; text-align: center; }
+.rpt-year:focus { border-color: #dc2626; }
+.rpt-nav  { border: 1.5px solid #e2e8f0; border-radius: 10px; background: white;
+            padding: .4rem .75rem; font-size: .9rem; font-weight: 700; color: #475569;
+            cursor: pointer; line-height: 1; }
+.rpt-nav:hover { background: #fef2f2; border-color: #dc2626; color: #dc2626; }
+.rpt-period { flex: 1; text-align: center; font-size: .85rem; font-weight: 700;
+              color: #1e293b; min-width: 140px; }
+.rpt-sel  { border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .4rem .65rem;
+            font-size: .82rem; font-weight: 700; color: #475569; outline: none; background: white; }
+.rpt-sel:focus { border-color: #dc2626; }
+
+/* ── Summary cards ── */
+.rpt-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-bottom: .6rem; }
+.rpt-card  { background: white; border-radius: 14px; padding: .9rem 1rem; text-align: center;
+             box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+.rpt-card-val { font-size: 1.7rem; font-weight: 800; color: #1e293b; line-height: 1.1; }
+.rpt-card-val.green  { color: #16a34a; }
+.rpt-card-val.gray   { color: #64748b; }
+.rpt-card-val.red    { color: #dc2626; }
+.rpt-card-val.amber  { color: #d97706; }
+.rpt-card-lbl { font-size: .7rem; font-weight: 700; color: #94a3b8;
+                text-transform: uppercase; letter-spacing: .04em; margin-top: .2rem; }
+
+/* ── Closed-by row ── */
+.rpt-closed-by { background: white; border-radius: 14px; padding: .75rem 1rem;
+                 box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-bottom: .6rem;
+                 display: flex; gap: 1rem; flex-wrap: wrap; }
+.rpt-cb-item   { flex: 1; min-width: 80px; text-align: center; }
+.rpt-cb-val    { font-size: 1.2rem; font-weight: 800; color: #1e293b; }
+.rpt-cb-lbl    { font-size: .7rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; }
+
+/* ── Section title ── */
+.rpt-section-title { font-size: .78rem; font-weight: 800; color: #64748b;
+                     text-transform: uppercase; letter-spacing: .05em;
+                     margin: .6rem 0 .35rem; padding-left: .25rem; }
+
+/* ── Tables ── */
+.rpt-table-wrap { background: white; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+                  overflow: hidden; margin-bottom: .75rem; }
+.rpt-table { width: 100%; border-collapse: collapse; }
+.rpt-table th { padding: .6rem 1rem; font-size: .72rem; font-weight: 800; color: #64748b;
+                text-transform: uppercase; letter-spacing: .04em; background: #f8fafc;
+                border-bottom: 1px solid #f1f5f9; white-space: nowrap; text-align: left; }
+.rpt-table th.num { text-align: right; }
+.rpt-table td { padding: .65rem 1rem; border-bottom: 1px solid #f8fafc;
+                font-size: .85rem; vertical-align: middle; }
+.rpt-table td.num { text-align: right; font-weight: 700; }
+.rpt-table tr:last-child td { border-bottom: none; }
+.rpt-table tr:hover td { background: #fef2f2; }
+
+.topic-dot  { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+              margin-right: 6px; vertical-align: middle; }
+.star-val   { color: #d97706; font-weight: 800; }
+.pct-bar    { display: inline-block; height: 6px; border-radius: 3px; vertical-align: middle;
+              background: #dc2626; margin-right: 4px; }
+
+.rpt-empty { text-align: center; padding: 2rem; color: #94a3b8; font-size: .85rem; }
+.rpt-loading { text-align: center; padding: 2.5rem; color: #94a3b8; }
+.rpt-err { background: #fef2f2; border-radius: 10px; padding: .75rem 1rem;
+           color: #dc2626; font-size: .85rem; font-weight: 700; margin-bottom: .6rem; }
+
+@@media (max-width: 480px) {
+    .rpt-cards { grid-template-columns: repeat(2, 1fr); }
+    .col-hide { display: none; }
+}
+</style>
+
+<div class="inqhr-page px-2 py-2">
+
+    <div class="inqhr-hero">
+        <div>
+            <h5>Báo cáo hội thoại</h5>
+            <small id="heroPeriod">Đang tải...</small>
+        </div>
+        <span class="material-symbols-rounded" style="font-size:2.2rem">bar_chart</span>
+    </div>
+
+    <!-- Tabs -->
+    <div class="rpt-tabs">
+        <button class="rpt-tab active" id="tabWeek"  onclick="switchMode('WEEK')">
+            <span class="material-symbols-rounded" style="font-size:.9rem;vertical-align:middle">calendar_view_week</span>
+            Theo tuần
+        </button>
+        <button class="rpt-tab" id="tabMonth" onclick="switchMode('MONTH')">
+            <span class="material-symbols-rounded" style="font-size:.9rem;vertical-align:middle">calendar_month</span>
+            Theo tháng
+        </button>
+    </div>
+
+    <!-- Week controls -->
+    <div class="rpt-ctrl" id="weekCtrl">
+        <button class="rpt-nav" onclick="changeWeek(-1)" title="Tuần trước">&#8592;</button>
+        <span class="rpt-period" id="weekLabel">Tuần ...</span>
+        <button class="rpt-nav" onclick="changeWeek(1)"  title="Tuần sau">&#8594;</button>
+        <input type="number" class="rpt-year" id="weekYear" min="2020" max="2035"
+               onchange="onYearChange()" title="Năm">
+    </div>
+
+    <!-- Month controls -->
+    <div class="rpt-ctrl" id="monthCtrl" style="display:none">
+        <input type="number" class="rpt-year" id="monthYear" min="2020" max="2035"
+               onchange="loadReport()" title="Năm">
+        <select class="rpt-sel" id="monthSel" onchange="loadReport()">
+            <option value="1">Tháng 1</option>
+            <option value="2">Tháng 2</option>
+            <option value="3">Tháng 3</option>
+            <option value="4">Tháng 4</option>
+            <option value="5">Tháng 5</option>
+            <option value="6">Tháng 6</option>
+            <option value="7">Tháng 7</option>
+            <option value="8">Tháng 8</option>
+            <option value="9">Tháng 9</option>
+            <option value="10">Tháng 10</option>
+            <option value="11">Tháng 11</option>
+            <option value="12">Tháng 12</option>
+        </select>
+    </div>
+
+    <!-- Dynamic content -->
+    <div id="rptContent">
+        <div class="rpt-loading">
+            <span class="material-symbols-rounded" style="font-size:2rem;color:#dc2626">hourglass_top</span>
+            <div style="margin-top:.5rem">Đang tải...</div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// ─── State ─────────────────────────────────────────────────────────────────
+let rptMode  = 'WEEK';
+let rptYear  = new Date().getFullYear();
+let rptWeek  = getISOWeek(new Date());
+let rptMonth = new Date().getMonth() + 1;
+
+// ─── ISO Week helpers ───────────────────────────────────────────────────────
+function getISOWeek(dt) {
+    const d = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function getWeekStart(y, w) {
+    const jan4  = new Date(y, 0, 4);
+    const dow   = jan4.getDay() || 7;
+    const mon1  = new Date(jan4);
+    mon1.setDate(jan4.getDate() + 1 - dow);
+    const result = new Date(mon1);
+    result.setDate(mon1.getDate() + (w - 1) * 7);
+    return result;
+}
+
+function getWeeksInYear(y) {
+    const dec28 = new Date(y, 11, 28);
+    return getISOWeek(dec28);
+}
+
+function fmtDate(dt) {
+    return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+}
+
+function fmtMinutes(min) {
+    if (!min && min !== 0) return '—';
+    min = Math.round(min);
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return h > 0 ? `${h}g ${m}p` : `${m}p`;
+}
+
+function fmtRating(r) {
+    if (!r && r !== 0) return '—';
+    return `<span class="star-val">&#9733; ${Number(r).toFixed(1)}</span>`;
+}
+
+function pct(part, total) {
+    if (!total) return 0;
+    return Math.round(part / total * 100);
+}
+
+// ─── UI init ────────────────────────────────────────────────────────────────
+document.getElementById('weekYear').value  = rptYear;
+document.getElementById('monthYear').value = rptYear;
+document.getElementById('monthSel').value  = rptMonth;
+updateWeekLabel();
+loadReport();
+
+function updateWeekLabel() {
+    const start = getWeekStart(rptYear, rptWeek);
+    const end   = new Date(start);
+    end.setDate(start.getDate() + 6);
+    document.getElementById('weekLabel').textContent =
+        `Tuần ${rptWeek}, ${rptYear}  (${fmtDate(start)} – ${fmtDate(end)})`;
+    document.getElementById('heroPeriod').textContent =
+        rptMode === 'WEEK'
+            ? `Tuần ${rptWeek}/${rptYear} · ${fmtDate(start)} – ${fmtDate(end)}`
+            : `Tháng ${rptMonth}/${rptYear}`;
+}
+
+function switchMode(mode) {
+    rptMode = mode;
+    document.getElementById('tabWeek').classList.toggle('active',  mode === 'WEEK');
+    document.getElementById('tabMonth').classList.toggle('active', mode === 'MONTH');
+    document.getElementById('weekCtrl').style.display  = mode === 'WEEK'  ? '' : 'none';
+    document.getElementById('monthCtrl').style.display = mode === 'MONTH' ? '' : 'none';
+    updateWeekLabel();
+    loadReport();
+}
+
+function changeWeek(delta) {
+    rptWeek += delta;
+    if (rptWeek < 1) {
+        rptYear--;
+        rptWeek = getWeeksInYear(rptYear); // lấy max tuần của năm mới
+    } else {
+        const maxW = getWeeksInYear(rptYear);
+        if (rptWeek > maxW) { rptYear++; rptWeek = 1; }
+    }
+    document.getElementById('weekYear').value = rptYear;
+    updateWeekLabel();
+    loadReport();
+}
+
+function onYearChange() {
+    const v = parseInt(document.getElementById('weekYear').value);
+    if (v >= 2020 && v <= 2035) {
+        rptYear = v;
+        const maxW = getWeeksInYear(rptYear);
+        if (rptWeek > maxW) rptWeek = maxW;
+        updateWeekLabel();
+        loadReport();
+    }
+}
+
+// ─── Load data ───────────────────────────────────────────────────────────────
+async function loadReport() {
+    if (rptMode === 'MONTH') {
+        rptYear  = parseInt(document.getElementById('monthYear').value) || rptYear;
+        rptMonth = parseInt(document.getElementById('monthSel').value)  || rptMonth;
+        document.getElementById('heroPeriod').textContent = `Tháng ${rptMonth}/${rptYear}`;
+    }
+
+    document.getElementById('rptContent').innerHTML =
+        `<div class="rpt-loading">
+            <span class="material-symbols-rounded" style="font-size:2rem;color:#dc2626">hourglass_top</span>
+            <div style="margin-top:.5rem">Đang tải...</div>
+         </div>`;
+
+    try {
+        const url = `/AdminInquiry/GetReport?type=${rptMode}&year=${rptYear}&week=${rptWeek}&month=${rptMonth}`;
+        const res  = await fetch(url);
+        const data = await res.json();
+
+        if (!data.success) {
+            document.getElementById('rptContent').innerHTML =
+                `<div class="rpt-err">Lỗi: ${data.message ?? 'Không tải được dữ liệu'}</div>`;
+            return;
+        }
+        renderReport(data);
+    } catch (e) {
+        document.getElementById('rptContent').innerHTML =
+            `<div class="rpt-err">Lỗi kết nối: ${e.message}</div>`;
+    }
+}
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+function renderReport(data) {
+    const s  = data.summary ?? {};
+    const total = s.total ?? 0;
+
+    let html = '';
+
+    // Summary cards
+    const anonPct   = pct(s.cntAnon ?? 0, total);
+    const closedPct = pct(s.cntClosed ?? 0, total);
+
+    html += `<div class="rpt-cards">
+        <div class="rpt-card">
+            <div class="rpt-card-val">${total}</div>
+            <div class="rpt-card-lbl">Tổng hội thoại</div>
+        </div>
+        <div class="rpt-card">
+            <div class="rpt-card-val green">${s.cntOpen ?? 0}</div>
+            <div class="rpt-card-lbl">Đang mở</div>
+        </div>
+        <div class="rpt-card">
+            <div class="rpt-card-val gray">${s.cntClosed ?? 0}
+                ${total ? `<span style="font-size:.8rem;font-weight:600;color:#94a3b8">(${closedPct}%)</span>` : ''}
+            </div>
+            <div class="rpt-card-lbl">Đã đóng</div>
+        </div>
+        <div class="rpt-card">
+            <div class="rpt-card-val" style="color:#6366f1">${s.cntAnon ?? 0}
+                ${total ? `<span style="font-size:.8rem;font-weight:600;color:#94a3b8">(${anonPct}%)</span>` : ''}
+            </div>
+            <div class="rpt-card-lbl">Ẩn danh</div>
+        </div>
+        <div class="rpt-card">
+            <div class="rpt-card-val amber">${s.avgRating != null ? '&#9733; ' + Number(s.avgRating).toFixed(1) : '—'}</div>
+            <div class="rpt-card-lbl">Đánh giá TB</div>
+        </div>
+        <div class="rpt-card">
+            <div class="rpt-card-val" style="color:#0ea5e9">${fmtMinutes(s.avgHandleMin)}</div>
+            <div class="rpt-card-lbl">TG xử lý TB</div>
+        </div>
+    </div>`;
+
+    // Closed-by breakdown
+    const totalClosed = (s.closedByHr ?? 0) + (s.closedByEmp ?? 0) + (s.closedByAdmin ?? 0);
+    if (totalClosed > 0) {
+        html += `<div class="rpt-closed-by">
+            <div class="rpt-cb-item">
+                <div class="rpt-cb-val" style="color:#dc2626">${s.closedByHr ?? 0}
+                    <span style="font-size:.75rem;color:#94a3b8">(${pct(s.closedByHr??0, totalClosed)}%)</span>
+                </div>
+                <div class="rpt-cb-lbl">HR đóng</div>
+            </div>
+            <div class="rpt-cb-item">
+                <div class="rpt-cb-val" style="color:#16a34a">${s.closedByEmp ?? 0}
+                    <span style="font-size:.75rem;color:#94a3b8">(${pct(s.closedByEmp??0, totalClosed)}%)</span>
+                </div>
+                <div class="rpt-cb-lbl">NV tự đóng</div>
+            </div>
+            <div class="rpt-cb-item">
+                <div class="rpt-cb-val" style="color:#7c3aed">${s.closedByAdmin ?? 0}
+                    <span style="font-size:.75rem;color:#94a3b8">(${pct(s.closedByAdmin??0, totalClosed)}%)</span>
+                </div>
+                <div class="rpt-cb-lbl">Admin đóng</div>
+            </div>
+            <div class="rpt-cb-item">
+                <div class="rpt-cb-val gray" style="font-size:1rem;">${s.avgMsg != null ? Number(s.avgMsg).toFixed(1) : '—'}</div>
+                <div class="rpt-cb-lbl">Tin TB/HT</div>
+            </div>
+        </div>`;
+    }
+
+    // By topic table
+    html += `<div class="rpt-section-title">
+        <span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">topic</span>
+        Theo chủ đề
+    </div>`;
+
+    if (!data.byTopic || data.byTopic.length === 0) {
+        html += `<div class="rpt-table-wrap"><div class="rpt-empty">Không có dữ liệu</div></div>`;
+    } else {
+        html += `<div class="rpt-table-wrap">
+        <table class="rpt-table">
+            <thead>
+                <tr>
+                    <th>Chủ đề</th>
+                    <th class="num">Tổng</th>
+                    <th class="num">Đang mở</th>
+                    <th class="num">Đã đóng</th>
+                    <th class="num col-hide">Đánh giá TB</th>
+                </tr>
+            </thead>
+            <tbody>`;
+        for (const t of data.byTopic) {
+            const bar = total ? `<span class="pct-bar" style="width:${Math.max(pct(t.total,total),2)}px;opacity:.6"></span>` : '';
+            html += `<tr>
+                <td>
+                    <span class="topic-dot" style="background:${t.color ?? '#94a3b8'}"></span>
+                    ${t.topicName ?? t.topicCd}
+                </td>
+                <td class="num">${bar}${t.total}</td>
+                <td class="num" style="color:#16a34a">${t.cntOpen}</td>
+                <td class="num" style="color:#64748b">${t.cntClosed}</td>
+                <td class="num col-hide">${fmtRating(t.avgRating)}</td>
+            </tr>`;
+        }
+        html += `</tbody></table></div>`;
+    }
+
+    // By HR workload table
+    html += `<div class="rpt-section-title">
+        <span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">manage_accounts</span>
+        Workload nhân sự HR
+    </div>`;
+
+    if (!data.byHr || data.byHr.length === 0) {
+        html += `<div class="rpt-table-wrap"><div class="rpt-empty">Không có dữ liệu (chưa có hội thoại nào được tiếp nhận)</div></div>`;
+    } else {
+        html += `<div class="rpt-table-wrap">
+        <table class="rpt-table">
+            <thead>
+                <tr>
+                    <th>Nhân sự</th>
+                    <th class="num">Tiếp nhận</th>
+                    <th class="num">Đã đóng</th>
+                    <th class="num col-hide">Đánh giá TB</th>
+                    <th class="num col-hide">TG xử lý TB</th>
+                </tr>
+            </thead>
+            <tbody>`;
+        for (const h of data.byHr) {
+            html += `<tr>
+                <td>
+                    <span style="font-weight:700;color:#1e293b">${h.hrName ?? '—'}</span>
+                    ${h.hrCd ? `<span style="font-size:.72rem;color:#94a3b8;margin-left:4px">${h.hrCd}</span>` : ''}
+                </td>
+                <td class="num">${h.handled}</td>
+                <td class="num" style="color:#64748b">${h.cntClosed}</td>
+                <td class="num col-hide">${fmtRating(h.avgRating)}</td>
+                <td class="num col-hide" style="color:#0ea5e9">${fmtMinutes(h.avgHandleMin)}</td>
+            </tr>`;
+        }
+        html += `</tbody></table></div>`;
+    }
+
+    document.getElementById('rptContent').innerHTML = html;
+}
+</script>

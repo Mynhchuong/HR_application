@@ -1,0 +1,388 @@
+@model HR_web.Models.Inquiry.InquiryTopicsResponse
+@{
+    ViewData["Title"] = "Tạo hội thoại mới";
+}
+
+<style>
+.create-page { max-width: 600px; margin: 0 auto; padding-bottom: 5rem; }
+
+/* Steps */
+.step-header { margin-bottom: 1.25rem; }
+.step-label  { font-size: .78rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: .3rem; }
+.step-title  { font-size: 1.15rem; font-weight: 800; color: #1e293b; }
+
+/* Type selection */
+.type-cards { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-bottom: 1rem; }
+.type-card {
+    background: white; border: 2px solid #e2e8f0; border-radius: 16px;
+    padding: 1.25rem 1rem; cursor: pointer; transition: all .2s; text-align: center;
+}
+.type-card:hover  { border-color: #c7d2fe; box-shadow: 0 4px 12px rgba(79,70,229,.1); }
+.type-card.active { border-color: #4f46e5; background: #f0f0ff; }
+.type-card .tc-icon { font-size: 2.2rem; margin-bottom: .5rem; }
+.type-card .tc-title { font-size: .9rem; font-weight: 800; color: #1e293b; }
+.type-card .tc-desc  { font-size: .75rem; color: #64748b; margin-top: .25rem; }
+
+/* Topic grid */
+.topic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem; margin-bottom: 1rem; }
+.topic-card {
+    background: white; border: 2px solid #e2e8f0; border-radius: 14px;
+    padding: .85rem .75rem; cursor: pointer; transition: all .15s; text-align: center;
+}
+.topic-card:hover  { border-color: #c7d2fe; }
+.topic-card.active { border-color: #4f46e5; background: #f0f0ff; }
+.topic-card .tpc-icon  { font-size: 1.6rem; margin-bottom: .3rem; }
+.topic-card .tpc-name  { font-size: .8rem; font-weight: 700; color: #1e293b; }
+
+/* Form */
+.form-card { background: white; border-radius: 16px; padding: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,.07); margin-bottom: 1rem; }
+.form-label-sm { font-size: .8rem; font-weight: 700; color: #475569; margin-bottom: .35rem; }
+.input-modern {
+    width: 100%; border: 1.5px solid #e2e8f0; border-radius: 12px;
+    padding: .65rem .9rem; font-size: .9rem; transition: border-color .15s;
+    outline: none; font-family: inherit;
+}
+.input-modern:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
+textarea.input-modern { resize: none; min-height: 120px; }
+
+.char-count { font-size: .72rem; color: #94a3b8; text-align: right; margin-top: .2rem; }
+
+/* File attach */
+.file-attach-btn {
+    display: inline-flex; align-items: center; gap: .4rem;
+    border: 1.5px dashed #cbd5e1; border-radius: 10px;
+    padding: .5rem .85rem; font-size: .82rem; font-weight: 700;
+    color: #64748b; cursor: pointer; transition: all .15s;
+}
+.file-attach-btn:hover { border-color: #4f46e5; color: #4f46e5; }
+
+.file-preview-strip { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+.file-chip {
+    display: flex; align-items: center; gap: .3rem; background: #f1f5f9;
+    border-radius: 8px; padding: .3rem .6rem; font-size: .78rem; font-weight: 600;
+}
+.file-chip img { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; }
+.file-chip .fc-remove { cursor: pointer; color: #ef4444; margin-left: .25rem; font-size: .9rem; }
+
+/* Navigation buttons */
+.nav-btns { display: flex; gap: .75rem; }
+.btn-back-step {
+    flex: 0 0 auto; border: 1.5px solid #e2e8f0; background: white;
+    border-radius: 12px; padding: .65rem 1.25rem; font-weight: 700; font-size: .9rem;
+    color: #64748b; cursor: pointer; transition: all .15s;
+}
+.btn-back-step:hover { border-color: #94a3b8; }
+.btn-next-step {
+    flex: 1; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    border: none; border-radius: 12px; padding: .7rem 1.5rem;
+    font-weight: 800; font-size: .95rem; color: white; cursor: pointer; transition: all .15s;
+}
+.btn-next-step:hover   { opacity: .92; transform: translateY(-1px); }
+.btn-next-step:active  { transform: none; opacity: .8; }
+.btn-next-step:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+</style>
+
+<div class="create-page px-2 py-2">
+    <!-- Step 1: Chọn loại -->
+    <div id="step1">
+        <div class="step-header">
+            <div class="step-label">Bước 1 / 3</div>
+            <div class="step-title">Chọn hình thức hội thoại</div>
+        </div>
+        <div class="type-cards">
+            <div class="type-card" onclick="selectType('DIRECT', this)">
+                <div class="tc-icon"><span class="material-symbols-rounded" style="font-size:2.2rem;color:#4f46e5;">person</span></div>
+                <div class="tc-title">Trực tiếp</div>
+                <div class="tc-desc">HR biết bạn là ai</div>
+            </div>
+            <div class="type-card" onclick="selectType('ANON', this)">
+                <div class="tc-icon"><span class="material-symbols-rounded" style="font-size:2.2rem;color:#64748b;">visibility_off</span></div>
+                <div class="tc-title">Ẩn danh</div>
+                <div class="tc-desc">HR không biết danh tính</div>
+            </div>
+        </div>
+
+        <div id="anonNotice" style="display:none;background:#fefce8;border:1.5px solid #fde047;border-radius:12px;padding:.75rem 1rem;margin-bottom:.75rem">
+            <div style="display:flex;align-items:flex-start;gap:.6rem">
+                <span class="material-symbols-rounded" style="font-size:1.2rem;color:#ca8a04;flex-shrink:0;margin-top:.05rem">warning</span>
+                <div>
+                    <div style="font-size:.85rem;font-weight:800;color:#92400e;margin-bottom:.2rem">Lưu ý về hội thoại ẩn danh</div>
+                    <div style="font-size:.8rem;color:#78350f;line-height:1.5">
+                        Tin nhắn ẩn danh <strong>không được lưu trữ lâu dài</strong> và sẽ tự động xóa sau một khoảng thời gian.
+                        Nếu cần giữ lại thông tin, hãy chọn hình thức <strong>Trực tiếp</strong>.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-btns mt-3">
+            <button class="btn-next-step w-100" id="btnNext1" onclick="goStep(2)" disabled>Tiếp theo</button>
+        </div>
+    </div>
+
+    <!-- Step 2: Chọn chủ đề -->
+    <div id="step2" style="display:none">
+        <div class="step-header">
+            <div class="step-label">Bước 2 / 3</div>
+            <div class="step-title">Chọn chủ đề</div>
+        </div>
+        <div class="topic-grid" id="topicGrid">
+            @foreach (var t in (Model?.data ?? new()))
+            {
+                <div class="topic-card" data-topic-cd="@t.TopicCd" onclick="selectTopic('@t.TopicCd', '@(t.TopicName.Replace("'","&#39;"))', this)">
+                    <div class="tpc-icon"><span class="material-symbols-rounded" style="color:@(t.Color ?? "#4f46e5")">@(t.Icon ?? "chat")</span></div>
+                    <div class="tpc-name">@t.TopicName</div>
+                </div>
+            }
+        </div>
+        <div id="topicWarning" style="display:none;border-radius:12px" class="alert alert-warning py-2 px-3 mt-1 mb-2 small"></div>
+        <div class="nav-btns">
+            <button class="btn-back-step" onclick="goStep(1)">Quay lại</button>
+            <button class="btn-next-step" id="btnNext2" onclick="goStep(3)" disabled>Tiếp theo</button>
+        </div>
+    </div>
+
+    <!-- Step 3: Nội dung -->
+    <div id="step3" style="display:none">
+        <div class="step-header">
+            <div class="step-label">Bước 3 / 3</div>
+            <div class="step-title">Nội dung</div>
+        </div>
+
+        <div class="form-card">
+            <div class="mb-3">
+                <div class="form-label-sm">Tiêu đề <span class="text-muted fw-normal">(không bắt buộc)</span></div>
+                <input type="text" id="subjectInput" class="input-modern" placeholder="Nhập tiêu đề ngắn..." maxlength="200">
+            </div>
+
+            <div class="mb-3">
+                <div class="form-label-sm">Nội dung <span class="text-danger">*</span></div>
+                <textarea id="contentInput" class="input-modern" placeholder="Nhập câu hỏi hoặc nội dung cần trao đổi..." maxlength="4000"
+                          oninput="updateCharCount()"></textarea>
+                <div class="char-count"><span id="charCount">0</span>/4000</div>
+            </div>
+
+            <div>
+                <div class="form-label-sm">File đính kèm <span class="text-muted fw-normal">(tối đa 5 file, 10MB/file)</span></div>
+                <div class="file-attach-btn" onclick="document.getElementById('fileInput').click()">
+                    <span class="material-symbols-rounded" style="font-size:1.1rem;">attach_file</span>
+                    Đính kèm file
+                </div>
+                <input type="file" id="fileInput" style="display:none" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx" onchange="handleFiles(this.files)">
+                <div id="filePreviewStrip" class="file-preview-strip"></div>
+            </div>
+        </div>
+
+        <div id="anonReminder" style="display:none;background:#fefce8;border:1.5px solid #fde047;border-radius:10px;padding:.6rem .85rem;margin-bottom:.75rem;font-size:.78rem;color:#92400e">
+            <span class="material-symbols-rounded" style="font-size:.95rem;vertical-align:middle;color:#ca8a04">warning</span>
+            Tin nhắn ẩn danh sẽ <strong>không được lưu lâu dài</strong> — sẽ tự xóa sau một thời gian.
+        </div>
+
+        <div class="nav-btns">
+            <button class="btn-back-step" onclick="goStep(2)">Quay lại</button>
+            <button class="btn-next-step" id="btnSubmit" onclick="submitCreate()">
+                <span class="material-symbols-rounded me-1" style="font-size:1rem;vertical-align:middle;">send</span>
+                Gửi
+            </button>
+        </div>
+    </div>
+</div>
+
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+const ANON_KEY  = 'anon_chat_token';
+const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+let selectedType  = '';
+let selectedTopic = '';
+let uploadedFiles = [];
+
+function getAnonToken() {
+    let t = localStorage.getItem(ANON_KEY);
+    if (!t) { t = 'anon-' + Date.now() + '-' + Math.random().toString(36).substr(2,9); localStorage.setItem(ANON_KEY, t); }
+    return t;
+}
+
+function goStep(n) {
+    [1,2,3].forEach(i => document.getElementById(`step${i}`).style.display = i === n ? '' : 'none');
+    if (n === 2) { tryAutoSelectTopic(); if (selectedTopic) checkExistingTopic(selectedTopic); }
+}
+
+function selectType(type, el) {
+    selectedType = type;
+    document.querySelectorAll('.type-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('btnNext1').disabled = false;
+    const isAnon = type === 'ANON';
+    document.getElementById('anonNotice').style.display   = isAnon ? '' : 'none';
+    document.getElementById('anonReminder').style.display = isAnon ? '' : 'none';
+}
+
+function selectTopic(cd, name, el) {
+    selectedTopic = cd;
+    document.querySelectorAll('.topic-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('btnNext2').disabled = false;
+    checkExistingTopic(cd);
+}
+
+function updateCharCount() {
+    document.getElementById('charCount').textContent = document.getElementById('contentInput').value.length;
+}
+
+// File upload
+async function handleFiles(fileList) {
+    if (uploadedFiles.length + fileList.length > 5) {
+        showToast('Tối đa 5 file mỗi lần gửi', 'error'); return;
+    }
+    for (const file of fileList) {
+        if (file.size > 10 * 1024 * 1024) { showToast(`File "${file.name}" vượt 10MB`, 'error'); continue; }
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+            const res = await fetch('@Url.Action("UploadFile","EmployeeInquiry")', {
+                method: 'POST',
+                headers: { 'RequestVerificationToken': token },
+                body: fd
+            });
+            const d = await res.json();
+            if (!d.success) { showToast(d.message || 'Upload thất bại', 'error'); continue; }
+            uploadedFiles.push(d);
+            renderFilePreviews();
+        } catch { showToast('Lỗi upload', 'error'); }
+    }
+    document.getElementById('fileInput').value = '';
+}
+
+function renderFilePreviews() {
+    const strip = document.getElementById('filePreviewStrip');
+    strip.innerHTML = uploadedFiles.map((f, i) => {
+        const thumb = f.thumbPath
+            ? `<img src="@Url.Action("GetFile","EmployeeInquiry")?path=${encodeURIComponent(f.thumbPath)}" alt="">`
+            : `<span class="material-symbols-rounded" style="font-size:1.4rem;color:#64748b;">description</span>`;
+        return `<div class="file-chip">${thumb}<span>${f.fileName.length > 15 ? f.fileName.substr(0,12)+'...' : f.fileName}</span><span class="fc-remove" onclick="removeFile(${i})">✕</span></div>`;
+    }).join('');
+}
+
+function removeFile(i) {
+    uploadedFiles.splice(i, 1);
+    renderFilePreviews();
+}
+
+let openDirectTopics = {};
+let openAnonTopics   = {};
+
+async function loadExistingConversations() {
+    try {
+        const r1 = await fetch('@Url.Action("GetMyList","EmployeeInquiry")');
+        const d1 = await r1.json();
+        if (d1.success) {
+            openDirectTopics = {};
+            (d1.data || []).filter(i => i.status === 'OPEN').forEach(i => {
+                openDirectTopics[i.topicCd] = { id: i.id, inquiryNo: i.inquiryNo };
+            });
+        }
+    } catch {}
+    try {
+        const tok = localStorage.getItem(ANON_KEY);
+        if (tok) {
+            const r2 = await fetch(`@Url.Action("GetAnonList","EmployeeInquiry")?token=${encodeURIComponent(tok)}`);
+            const d2 = await r2.json();
+            if (d2.success) {
+                openAnonTopics = {};
+                (d2.data || []).filter(i => i.status === 'OPEN').forEach(i => {
+                    openAnonTopics[i.topicCd] = { id: i.id, inquiryNo: i.inquiryNo };
+                });
+            }
+        }
+    } catch {}
+}
+
+function checkExistingTopic(cd) {
+    const warn = document.getElementById('topicWarning');
+    if (!warn) return;
+    const map = selectedType === 'ANON' ? openAnonTopics : openDirectTopics;
+    const existing = map[cd];
+    if (existing) {
+        const tok = localStorage.getItem(ANON_KEY) || '';
+        const href = selectedType === 'ANON'
+            ? `@Url.Action("Chat","EmployeeInquiry")?id=${existing.id}&anonToken=${encodeURIComponent(tok)}`
+            : `@Url.Action("Chat","EmployeeInquiry")?id=${existing.id}`;
+        warn.style.display = '';
+        warn.innerHTML = `⚠️ Bạn đang có hội thoại <strong>${existing.inquiryNo}</strong> đang mở về chủ đề này. <a href="${href}" class="fw-bold">Xem hội thoại cũ →</a>`;
+    } else {
+        warn.style.display = 'none';
+    }
+}
+
+function tryAutoSelectTopic() {
+    const cd = new URLSearchParams(location.search).get('topicCd');
+    if (!cd) return;
+    const card = document.querySelector(`.topic-card[data-topic-cd="${cd}"]`);
+    if (card) card.click();
+}
+
+loadExistingConversations();
+
+async function submitCreate() {
+    const content = document.getElementById('contentInput').value.trim();
+    if (!content) { showToast('Vui lòng nhập nội dung', 'warning'); return; }
+    if (!selectedTopic) { showToast('Vui lòng chọn chủ đề', 'warning'); return; }
+
+    const btn = document.getElementById('btnSubmit');
+    btn.disabled = true; btn.textContent = 'Đang gửi...';
+
+    const body = {
+        chatType:  selectedType,
+        topicCd:   selectedTopic,
+        subject:   document.getElementById('subjectInput').value.trim() || null,
+        anonToken: selectedType === 'ANON' ? getAnonToken() : null,
+        content:   content
+    };
+
+    try {
+        const res  = await fetch('@Url.Action("Create","EmployeeInquiry")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!data.success) { showToast(data.message || 'Tạo thất bại', 'error'); btn.disabled = false; btn.innerHTML = '<span class="material-symbols-rounded me-1" style="font-size:1rem;vertical-align:middle;">send</span>Gửi'; return; }
+
+        // If there are files, send them in a follow-up message via the chat
+        // Navigate to chat page
+        const chatUrl = selectedType === 'ANON'
+            ? `@Url.Action("Chat","EmployeeInquiry")?id=${data.inquiryId}&anonToken=${encodeURIComponent(getAnonToken())}`
+            : `@Url.Action("Chat","EmployeeInquiry")?id=${data.inquiryId}`;
+
+        // Send files as separate message if any
+        if (uploadedFiles.length > 0) {
+            const sendBody = {
+                inquiryId:  data.inquiryId,
+                inquiryNo:  data.inquiryNo,
+                anonToken:  selectedType === 'ANON' ? getAnonToken() : null,
+                content:    null,
+                files:      uploadedFiles
+            };
+            try {
+                const sendRes  = await fetch('@Url.Action("Send","EmployeeInquiry")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                    body: JSON.stringify(sendBody)
+                });
+                const sendData = await sendRes.json();
+                if (!sendData.success) showToast(sendData.message || 'Gửi file thất bại — hội thoại đã tạo, bạn có thể gửi lại trong chat', 'warning');
+            } catch { showToast('Lỗi gửi file — hội thoại đã tạo, bạn có thể gửi lại trong chat', 'warning'); }
+        }
+
+        window.location.href = chatUrl;
+    } catch {
+        showToast('Lỗi kết nối', 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-rounded me-1" style="font-size:1rem;vertical-align:middle;">send</span>Gửi';
+    }
+}
+</script>
+}

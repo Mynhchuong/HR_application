@@ -1,0 +1,574 @@
+@using HR_web.Models.Inquiry
+@model InquiryMessagesResponse
+@{
+    ViewData["Title"] = "Hội thoại";
+    bool isAnon   = (bool)(ViewBag.IsAnon ?? false);
+    string? anonTok = ViewBag.AnonToken as string;
+    string empCd    = ViewBag.EmpCd as string ?? "";
+    string empName  = ViewBag.EmpName as string ?? "";
+    var inq         = Model.inquiry!;
+    bool isClosed   = inq.Status == "CLOSED";
+}
+
+<style>
+html, body { height: 100%; }
+
+.chat-wrap {
+    display: flex; flex-direction: column;
+    height: calc(100vh - 74px);
+    max-width: 760px; margin: 0 auto;
+}
+@@media (max-width: 991.98px) { .chat-wrap { height: calc(100vh - 56px - 68px); } }
+
+/* Header */
+.chat-header {
+    padding: .75rem 1rem; background: white;
+    border-bottom: 1px solid #f1f5f9; flex-shrink: 0;
+    display: flex; align-items: center; gap: .75rem;
+}
+.chat-header-back { color: #64748b; display: flex; align-items: center; text-decoration: none; }
+.chat-header-back:hover { color: #4f46e5; }
+.chat-header-info { flex: 1; min-width: 0; }
+.chat-header-no   { font-size: .78rem; font-weight: 700; color: #94a3b8; font-family: monospace; }
+.chat-header-subj { font-size: .92rem; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-header-meta { display: flex; align-items: center; gap: .4rem; margin-top: .1rem; flex-wrap: wrap; }
+.status-pill {
+    font-size: .65rem; font-weight: 800; padding: 1px 8px; border-radius: 20px; text-transform: uppercase;
+}
+.status-pill.open   { background: #dcfce7; color: #166534; }
+.status-pill.closed { background: #f1f5f9; color: #64748b; }
+.anon-pill { font-size: .65rem; font-weight: 700; background: #f1f5f9; color: #64748b; padding: 1px 8px; border-radius: 20px; }
+.chat-header-actions { display: flex; align-items: center; gap: .4rem; flex-shrink: 0; }
+
+/* Messages area */
+.chat-msgs {
+    flex: 1; overflow-y: auto; padding: 1rem;
+    display: flex; flex-direction: column; gap: .6rem;
+    background: #f8fafc;
+}
+
+/* Bubbles */
+.msg-row { display: flex; align-items: flex-end; gap: .5rem; }
+.msg-row.emp  { flex-direction: row-reverse; }
+.msg-row.hr   { flex-direction: row; }
+.msg-row.sys  { justify-content: center; }
+
+.msg-avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .75rem; font-weight: 800; color: white;
+}
+.msg-avatar.av-hr  { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+.msg-avatar.av-emp { background: linear-gradient(135deg, #0ea5e9, #2563eb); }
+
+.msg-bubble {
+    max-width: 70%; padding: .6rem .9rem;
+    border-radius: 16px; font-size: .88rem; line-height: 1.5;
+    word-break: break-word;
+}
+.msg-row.emp .msg-bubble {
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: white; border-bottom-right-radius: 4px;
+}
+.msg-row.hr .msg-bubble {
+    background: white; color: #1e293b;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.msg-row.sys .msg-bubble {
+    background: transparent; color: #64748b;
+    font-size: .78rem; font-style: italic;
+    padding: .3rem .7rem;
+}
+.msg-bubble.deleted { opacity: .5; font-style: italic; }
+.msg-time {
+    font-size: .68rem; margin-top: .3rem; opacity: .7;
+}
+.msg-row.emp .msg-time { text-align: right; color: rgba(255,255,255,.8); }
+.msg-row.hr  .msg-time { color: #94a3b8; }
+
+.msg-recall-btn {
+    background: none; border: none; padding: 0; cursor: pointer;
+    font-size: .72rem; color: #ef4444; margin-top: .2rem;
+    display: none;
+}
+.msg-row.emp:hover .msg-recall-btn { display: block; }
+
+/* File attachments */
+.msg-attachments { margin-top: .4rem; display: flex; flex-wrap: wrap; gap: .4rem; }
+.attach-img { width: 100px; height: 100px; border-radius: 8px; object-fit: cover; cursor: pointer; }
+.attach-file {
+    display: flex; align-items: center; gap: .4rem;
+    background: rgba(255,255,255,.2); border-radius: 8px; padding: .3rem .6rem;
+    font-size: .78rem; text-decoration: none;
+}
+.msg-row.hr .attach-file { background: #f1f5f9; color: #1e293b; }
+.msg-row.emp .attach-file { color: white; }
+
+/* Input area */
+.chat-input-wrap {
+    background: white; border-top: 1px solid #f1f5f9;
+    padding: .75rem 1rem; flex-shrink: 0;
+}
+.file-preview-strip { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .5rem; }
+.file-chip {
+    display: flex; align-items: center; gap: .3rem; background: #f1f5f9;
+    border-radius: 8px; padding: .25rem .5rem; font-size: .78rem;
+}
+.file-chip img { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; }
+.fc-remove { cursor: pointer; color: #ef4444; margin-left: .2rem; }
+
+.chat-input-row { display: flex; align-items: flex-end; gap: .5rem; }
+.btn-attach {
+    width: 40px; height: 40px; border-radius: 12px; border: 1.5px solid #e2e8f0;
+    background: white; color: #64748b; cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+}
+.btn-attach:hover { border-color: #4f46e5; color: #4f46e5; }
+#msgInput {
+    flex: 1; border: 1.5px solid #e2e8f0; border-radius: 12px;
+    padding: .6rem .85rem; font-size: .9rem; resize: none;
+    outline: none; font-family: inherit; max-height: 120px; overflow-y: auto;
+    transition: border-color .15s;
+}
+#msgInput:focus { border-color: #4f46e5; }
+.btn-send {
+    width: 40px; height: 40px; border-radius: 12px; border: none;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: white; cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+}
+.btn-send:hover  { opacity: .88; }
+.btn-send:active { transform: scale(.92); }
+.btn-send:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Closed bar */
+.chat-closed-bar {
+    background: #f8fafc; border-top: 1px solid #f1f5f9;
+    padding: .75rem 1rem; text-align: center; flex-shrink: 0;
+}
+
+/* Rating stars */
+.stars { display: flex; gap: .25rem; justify-content: center; margin: .5rem 0; }
+.star { font-size: 1.8rem; cursor: pointer; color: #e2e8f0; transition: color .15s; }
+.star.active { color: #f59e0b; }
+
+/* Rating popup */
+.rate-modal-overlay { position:fixed;inset:0;z-index:1050;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center; }
+.rate-modal-sheet   { background:white;border-radius:24px 24px 0 0;padding:1.5rem 1.25rem;width:100%;max-width:480px;animation:slideUp .25s ease; }
+@@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+</style>
+
+<div class="chat-wrap">
+    <!-- Header -->
+    <div class="chat-header">
+        <a class="chat-header-back" href="@Url.Action("Index","EmployeeInquiry")">
+            <span class="material-symbols-rounded">arrow_back</span>
+        </a>
+        <div class="chat-header-info">
+            <div class="chat-header-no">@inq.InquiryNo</div>
+            <div class="chat-header-subj">@(inq.Subject ?? inq.TopicName ?? "Hội thoại")</div>
+            <div class="chat-header-meta">
+                <span class="status-pill @(isClosed ? "closed" : "open")">@(isClosed ? "Đã đóng" : "Đang mở")</span>
+                @if (isAnon) { <span class="anon-pill"><span class="material-symbols-rounded" style="font-size:.7rem;vertical-align:middle">visibility_off</span> Ẩn danh</span> }
+                @if (!string.IsNullOrEmpty(inq.AssignedName)) { <span style="font-size:.72rem;color:#64748b">Phụ trách: @inq.AssignedName</span> }
+            </div>
+        </div>
+        @if (!isClosed)
+        {
+            <div class="chat-header-actions">
+                <button class="btn btn-sm btn-outline-danger" style="border-radius:10px;font-size:.78rem;font-weight:700"
+                        onclick="confirmClose()">
+                    <span class="material-symbols-rounded me-1" style="font-size:.85rem;vertical-align:middle">close</span>Đóng
+                </button>
+            </div>
+        }
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-msgs" id="chatMsgs">
+        @foreach (var msg in Model.messages)
+        {
+            <div class="msg-row @(msg.SenderType == "EMP" ? "emp" : msg.SenderType == "SYS" ? "sys" : "hr")"
+                 data-msg-id="@msg.Id" data-sender-type="@msg.SenderType">
+
+                @if (msg.SenderType != "SYS")
+                {
+                    <div class="msg-avatar @(msg.SenderType == "EMP" ? "av-emp" : "av-hr")">
+                        @(msg.SenderName != null ? msg.SenderName[0].ToString().ToUpper() : (msg.SenderType == "EMP" ? "E" : "H"))
+                    </div>
+                }
+
+                <div>
+                    @if (msg.SenderType != "EMP" && msg.SenderType != "SYS" && !string.IsNullOrEmpty(msg.SenderName))
+                    {
+                        <div style="font-size:.72rem;color:#64748b;margin-bottom:.15rem;padding-left:.5rem" class="vni-font">@msg.SenderName</div>
+                    }
+                    <div class="msg-bubble @(msg.IsDeleted ? "deleted" : "")">
+                        @if (msg.IsDeleted)
+                        {
+                            <span>Tin nhắn đã thu hồi</span>
+                        }
+                        else
+                        {
+                            @if (!string.IsNullOrEmpty(msg.Content))
+                            {
+                                <span>@msg.Content</span>
+                            }
+                            @if (msg.Attachments.Count > 0)
+                            {
+                                <div class="msg-attachments">
+                                    @foreach (var a in msg.Attachments)
+                                    {
+                                        if (a.FileType == "IMAGE")
+                                        {
+                                            <a href="@Url.Action("GetFile","EmployeeInquiry")?path=@Uri.EscapeDataString(a.FilePath)" target="_blank">
+                                                <img class="attach-img" src="@Url.Action("GetFile","EmployeeInquiry")?path=@Uri.EscapeDataString(a.ThumbPath ?? a.FilePath)" alt="@a.FileName">
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <a class="attach-file" href="@Url.Action("GetFile","EmployeeInquiry")?path=@Uri.EscapeDataString(a.FilePath)" target="_blank" download="@a.FileName">
+                                                <span class="material-symbols-rounded" style="font-size:1.1rem">description</span>@a.FileName
+                                            </a>
+                                        }
+                                    }
+                                </div>
+                            }
+                        }
+                        <div class="msg-time">@msg.SentDt.ToString("HH:mm")</div>
+                    </div>
+                    @if (msg.SenderType == "EMP" && !msg.IsDeleted && !msg.IsReadHr)
+                    {
+                        <button class="msg-recall-btn" onclick="recallMsg(@msg.Id)">Thu hồi</button>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Input area or Closed bar -->
+    @if (isClosed)
+    {
+        <div class="chat-closed-bar">
+            <div class="text-muted small mb-2">
+                <span class="material-symbols-rounded" style="font-size:.9rem;vertical-align:middle">lock</span>
+                Hội thoại đã đóng · @(inq.ClosedDt?.ToString("dd/MM/yyyy HH:mm") ?? "")
+                @if (!string.IsNullOrEmpty(inq.CloseNote)) { <span>— @inq.CloseNote</span> }
+            </div>
+            <div class="d-flex justify-content-center align-items-center gap-2 flex-wrap">
+                @if (!isAnon)
+                {
+                    @if (inq.Rating == null)
+                    {
+                        <button class="btn btn-sm btn-warning fw-bold" id="btnOpenRate" onclick="openRatingModal()"
+                                style="border-radius:10px;font-size:.8rem">
+                            <span class="material-symbols-rounded me-1" style="font-size:.85rem;vertical-align:middle">star</span>Đánh giá
+                        </button>
+                    }
+                    else
+                    {
+                        <span class="small fw-bold" style="color:#f59e0b">
+                            @string.Concat(Enumerable.Repeat("★", (int)inq.Rating)) @inq.Rating/5
+                        </span>
+                    }
+                }
+                <a href="@Url.Action("Create","EmployeeInquiry")?topicCd=@inq.TopicCd"
+                   class="btn btn-sm btn-outline-primary fw-bold" style="border-radius:10px;font-size:.8rem">
+                    <span class="material-symbols-rounded me-1" style="font-size:.85rem;vertical-align:middle">add_comment</span>Hội thoại mới
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="chat-input-wrap">
+            <div class="file-preview-strip" id="filePreviewStrip"></div>
+            <div class="chat-input-row">
+                <button class="btn-attach" onclick="document.getElementById('fileInput').click()" title="Đính kèm file">
+                    <span class="material-symbols-rounded" style="font-size:1.2rem">attach_file</span>
+                </button>
+                <textarea id="msgInput" rows="1" placeholder="Nhập tin nhắn..." maxlength="4000"
+                          oninput="autoResize(this)" onkeydown="handleKeyDown(event)"></textarea>
+                <button class="btn-send" id="btnSend" onclick="sendMessage()">
+                    <span class="material-symbols-rounded" style="font-size:1.2rem">send</span>
+                </button>
+            </div>
+        </div>
+        <input type="file" id="fileInput" style="display:none" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx" onchange="handleFiles(this.files)">
+    }
+</div>
+
+@if (isClosed && !isAnon && inq.Rating == null)
+{
+    <div id="ratingModal" class="rate-modal-overlay" style="display:none">
+        <div class="rate-modal-sheet">
+            <div style="text-align:center;margin-bottom:1rem">
+                <span class="material-symbols-rounded" style="font-size:2.5rem;color:#f59e0b">star</span>
+                <div style="font-size:1rem;font-weight:800;color:#1e293b;margin-top:.4rem">Bạn có hài lòng với phản hồi của HR?</div>
+                <div style="font-size:.8rem;color:#64748b;margin-top:.25rem">Đánh giá giúp chúng tôi cải thiện dịch vụ</div>
+            </div>
+            <div class="stars" id="modalStarRow">
+                @for (int s = 1; s <= 5; s++) { <span class="star" data-val="@s" onclick="setRating(@s)">★</span> }
+            </div>
+            <input type="text" id="ratingNote" class="form-control form-control-sm mt-3"
+                   placeholder="Nhận xét (không bắt buộc)" maxlength="300">
+            <div class="d-flex gap-2 mt-3">
+                <button onclick="closeRatingModal()" class="btn btn-sm btn-light fw-bold" style="flex:1;border-radius:10px">Để sau</button>
+                <button onclick="submitRate()"        class="btn btn-sm btn-warning fw-bold" style="flex:2;border-radius:10px">Gửi đánh giá ★</button>
+            </div>
+        </div>
+    </div>
+}
+
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+const TOKEN      = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+const INQUIRY_ID = @inq.Id;
+const INQUIRY_NO = '@inq.InquiryNo';
+const IS_ANON    = @(isAnon ? "true" : "false");
+const ANON_TOKEN = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(anonTok ?? ""));
+const IS_CLOSED  = @(isClosed ? "true" : "false");
+const HAS_RATING = @(inq.Rating.HasValue ? "true" : "false");
+
+let lastMsgId    = @(Model.messages.Count > 0 ? Model.messages.Max(m => m.Id) : 0);
+let uploadedFiles = [];
+let pollTimer     = null;
+let selectedRating = 0;
+
+// ─── Auto-scroll ─────────────────────────────────────────────────────────────
+const chatMsgs = document.getElementById('chatMsgs');
+function scrollBottom(force) {
+    const atBottom = chatMsgs.scrollHeight - chatMsgs.scrollTop - chatMsgs.clientHeight < 100;
+    if (force || atBottom) chatMsgs.scrollTop = chatMsgs.scrollHeight;
+}
+scrollBottom(true);
+
+// ─── Polling (all open conversations) ────────────────────────────────────────
+if (!IS_CLOSED) startPolling();
+if (IS_CLOSED && !IS_ANON && !HAS_RATING) setTimeout(openRatingModal, 800);
+
+function startPolling() {
+    pollTimer = setInterval(async () => {
+        try {
+            const url = `@Url.Action("GetMessages","EmployeeInquiry")?id=${INQUIRY_ID}&afterMsgId=${lastMsgId}`;
+            const res  = await fetch(url);
+            const data = await res.json();
+            if (data.success && data.messages?.length > 0) {
+                data.messages.forEach(m => appendMsg(m));
+                scrollBottom(false);
+            }
+        } catch {}
+    }, 15000);
+}
+
+// ─── Render single message ────────────────────────────────────────────────────
+function esc(s) { return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function appendMsg(m) {
+    if (document.querySelector(`[data-msg-id="${m.id}"]`)) return;
+    if (m.id > lastMsgId) lastMsgId = m.id;
+
+    const cls = m.senderType === 'EMP' ? 'emp' : m.senderType === 'SYS' ? 'sys' : 'hr';
+    const avClass = m.senderType === 'EMP' ? 'av-emp' : 'av-hr';
+    const initial = m.senderName ? m.senderName[0].toUpperCase() : (m.senderType === 'EMP' ? 'E' : 'H');
+    const t = new Date(m.sentDt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',hour12:false});
+
+    let attachHtml = '';
+    if (m.attachments?.length > 0) {
+        attachHtml = '<div class="msg-attachments">' + m.attachments.map(a => {
+            if (a.fileType === 'IMAGE') {
+                const thumbUrl = `@Url.Action("GetFile","EmployeeInquiry")?path=${encodeURIComponent(a.thumbPath || a.filePath)}`;
+                const fullUrl  = `@Url.Action("GetFile","EmployeeInquiry")?path=${encodeURIComponent(a.filePath)}`;
+                return `<a href="${fullUrl}" target="_blank"><img class="attach-img" src="${thumbUrl}" alt="${esc(a.fileName)}"></a>`;
+            }
+            const fileUrl = `@Url.Action("GetFile","EmployeeInquiry")?path=${encodeURIComponent(a.filePath)}`;
+            return `<a class="attach-file" href="${fileUrl}" target="_blank" download="${esc(a.fileName)}"><span class="material-symbols-rounded" style="font-size:1.1rem">description</span>${esc(a.fileName)}</a>`;
+        }).join('') + '</div>';
+    }
+
+    const content = m.isDeleted ? '<span>Tin nhắn đã thu hồi</span>'
+        : (m.content ? `<span>${esc(m.content)}</span>` : '') + attachHtml;
+
+    const nameRow = (cls === 'hr' && m.senderName)
+        ? `<div style="font-size:.72rem;color:#64748b;margin-bottom:.15rem;padding-left:.5rem" class="vni-font">${esc(m.senderName)}</div>` : '';
+    const recallBtn = (cls === 'emp' && !m.isDeleted && !m.isReadHr)
+        ? `<button class="msg-recall-btn" onclick="recallMsg(${m.id})">Thu hồi</button>` : '';
+    const avatar = cls !== 'sys' ? `<div class="msg-avatar ${avClass}">${initial}</div>` : '';
+
+    const div = document.createElement('div');
+    div.className = `msg-row ${cls}`;
+    div.dataset.msgId = m.id;
+    div.dataset.senderType = m.senderType;
+    div.innerHTML = `${avatar}<div>${nameRow}<div class="msg-bubble ${m.isDeleted?'deleted':''}">${content}<div class="msg-time">${t}</div></div>${recallBtn}</div>`;
+    chatMsgs.appendChild(div);
+}
+
+// ─── Auto-resize textarea ─────────────────────────────────────────────────────
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+// ─── File upload ──────────────────────────────────────────────────────────────
+async function handleFiles(fileList) {
+    if (uploadedFiles.length + fileList.length > 5) { showToast('Tối đa 5 file', 'error'); return; }
+    for (const file of fileList) {
+        if (file.size > 10 * 1024 * 1024) { showToast(`"${file.name}" vượt 10MB`, 'error'); continue; }
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+            const res  = await fetch('@Url.Action("UploadFile","EmployeeInquiry")', {
+                method: 'POST', headers: { 'RequestVerificationToken': TOKEN }, body: fd
+            });
+            const d = await res.json();
+            if (!d.success) { showToast(d.message || 'Upload thất bại', 'error'); continue; }
+            uploadedFiles.push(d);
+            renderFilePreviews();
+        } catch { showToast('Lỗi upload', 'error'); }
+    }
+    document.getElementById('fileInput').value = '';
+}
+
+function renderFilePreviews() {
+    const strip = document.getElementById('filePreviewStrip');
+    if (!strip) return;
+    strip.innerHTML = uploadedFiles.map((f, i) => {
+        const thumb = f.thumbPath
+            ? `<img src="@Url.Action("GetFile","EmployeeInquiry")?path=${encodeURIComponent(f.thumbPath)}" alt="">`
+            : `<span class="material-symbols-rounded" style="font-size:1.2rem;color:#64748b">description</span>`;
+        return `<div class="file-chip">${thumb}<span>${f.fileName.length>15?f.fileName.substr(0,12)+'...':f.fileName}</span><span class="fc-remove" onclick="removeFile(${i})">✕</span></div>`;
+    }).join('');
+}
+
+function removeFile(i) { uploadedFiles.splice(i, 1); renderFilePreviews(); }
+
+// ─── Send ─────────────────────────────────────────────────────────────────────
+async function sendMessage() {
+    const content = (document.getElementById('msgInput')?.value ?? '').trim();
+    if (!content && uploadedFiles.length === 0) return;
+
+    const btn = document.getElementById('btnSend');
+    if (btn) { btn.disabled = true; }
+
+    const body = {
+        inquiryId:  INQUIRY_ID,
+        inquiryNo:  INQUIRY_NO,
+        anonToken:  IS_ANON ? ANON_TOKEN : null,
+        content:    content || null,
+        files:      uploadedFiles.length > 0 ? uploadedFiles : null
+    };
+
+    try {
+        const res  = await fetch('@Url.Action("Send","EmployeeInquiry")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!data.success) { showToast(data.message || 'Gửi thất bại', 'error'); }
+        else {
+            if (document.getElementById('msgInput')) document.getElementById('msgInput').value = '';
+            uploadedFiles = [];
+            renderFilePreviews();
+            autoResize(document.getElementById('msgInput'));
+            // Reload messages to get the new message with proper structure
+            await refreshMessages();
+        }
+    } catch { showToast('Lỗi kết nối', 'error'); }
+    finally { if (btn) btn.disabled = false; }
+}
+
+async function refreshMessages() {
+    try {
+        const res  = await fetch(`@Url.Action("GetMessages","EmployeeInquiry")?id=${INQUIRY_ID}&afterMsgId=${lastMsgId}`);
+        const data = await res.json();
+        if (data.success && data.messages?.length > 0) {
+            data.messages.forEach(m => appendMsg(m));
+            scrollBottom(true);
+        }
+    } catch {}
+}
+
+// ─── Recall ───────────────────────────────────────────────────────────────────
+function recallMsg(msgId) {
+    showConfirm('Thu hồi tin nhắn này?', async () => {
+        const body = { msgId, anonToken: IS_ANON ? ANON_TOKEN : null };
+        const res  = await fetch('@Url.Action("Recall","EmployeeInquiry")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!data.success) { showToast(data.message || 'Không thể thu hồi', 'error'); return; }
+        const row = document.querySelector(`[data-msg-id="${msgId}"]`);
+        if (row) {
+            const bubble = row.querySelector('.msg-bubble');
+            if (bubble) { bubble.innerHTML = '<span>Tin nhắn đã thu hồi</span><div class="msg-time">' + (bubble.querySelector('.msg-time')?.innerHTML ?? '') + '</div>'; bubble.classList.add('deleted'); }
+            const btn = row.querySelector('.msg-recall-btn');
+            if (btn) btn.style.display = 'none';
+        }
+    }, { title: 'Thu hồi tin nhắn', okText: 'Thu hồi', okClass: 'btn-danger', icon: 'undo', iconColor: '#ef4444', iconBg: '#fef2f2' });
+}
+
+// ─── Close ────────────────────────────────────────────────────────────────────
+function confirmClose() {
+    showConfirm('Đóng hội thoại này? Bạn sẽ không thể gửi thêm tin nhắn.', async () => {
+        const body = { inquiryId: INQUIRY_ID, anonToken: IS_ANON ? ANON_TOKEN : null, closeNote: null };
+        const res  = await fetch('@Url.Action("Close","EmployeeInquiry")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!data.success) { showToast(data.message || 'Không thể đóng', 'error'); return; }
+        showToast('Hội thoại đã đóng', 'success');
+        setTimeout(() => location.reload(), 800);
+    }, { title: 'Đóng hội thoại', okText: 'Đóng', okClass: 'btn-warning', icon: 'close', iconColor: '#d97706', iconBg: '#fef3c7' });
+}
+
+// ─── Rating modal ─────────────────────────────────────────────────────────────
+function openRatingModal() {
+    const m = document.getElementById('ratingModal');
+    if (m) { m.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+}
+function closeRatingModal() {
+    const m = document.getElementById('ratingModal');
+    if (m) { m.style.display = 'none'; document.body.style.overflow = ''; }
+}
+function setRating(val) {
+    selectedRating = val;
+    document.querySelectorAll('#modalStarRow .star').forEach(s => {
+        s.classList.toggle('active', parseInt(s.dataset.val) <= val);
+    });
+}
+async function submitRate() {
+    if (selectedRating === 0) { showToast('Vui lòng chọn số sao', 'warning'); return; }
+    const body = {
+        inquiryId:  INQUIRY_ID,
+        anonToken:  IS_ANON ? ANON_TOKEN : null,
+        rating:     selectedRating,
+        ratingNote: document.getElementById('ratingNote')?.value.trim() || null
+    };
+    const res  = await fetch('@Url.Action("Rate","EmployeeInquiry")', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+        body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!data.success) { showToast(data.message || 'Gửi thất bại', 'error'); return; }
+    showToast('Cảm ơn bạn đã đánh giá!', 'success');
+    closeRatingModal();
+    const btn = document.getElementById('btnOpenRate');
+    if (btn) btn.outerHTML = `<span class="small fw-bold" style="color:#f59e0b">${'★'.repeat(selectedRating)} ${selectedRating}/5</span>`;
+}
+</script>
+}

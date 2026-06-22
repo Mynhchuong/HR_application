@@ -92,7 +92,9 @@ builder.Services.AddScoped<HR_web.API.Service.MenuService>();
 builder.Services.AddScoped<HR_web.API.Service.EmployeeService>();
 builder.Services.AddScoped<HR_web.API.Service.NotificationService>();
 builder.Services.AddScoped<HR_web.API.Service.NotiTemplateService>();
+builder.Services.AddScoped<HR_web.API.Service.InquiryService>();
 builder.Services.AddSingleton<HR_web.API.Service.VideoFileService>();
+builder.Services.AddHostedService<HR_web.Services.InquiryTempCleanupService>();
 
 // ============================================================
 var app = builder.Build();

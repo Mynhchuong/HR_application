@@ -1,0 +1,663 @@
+@{
+    ViewData["Title"] = "Tạo thông báo";
+}
+
+@section Styles {
+<style>
+    .cn-page { max-width: 1100px; margin: 0 auto; padding-bottom: 3rem; }
+    .cn-hero {
+        background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%);
+        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
+        color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+    .cn-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
+    .cn-hero small { font-size: .75rem; opacity: .85; }
+    .cn-back {
+        background: white; color: #dc2626; border: none; border-radius: 10px;
+        padding: .45rem .85rem; font-weight: 800; font-size: .82rem; cursor: pointer;
+        display: inline-flex; align-items: center; gap: .25rem; text-decoration: none;
+        box-shadow: 0 1px 4px rgba(0,0,0,.1);
+    }
+    .cn-back:hover { background: #fef2f2; color: #dc2626; }
+
+    .cn-card { background: white; border-radius: 14px; padding: 1.1rem 1.25rem;
+               box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-bottom: 1rem; }
+    .cn-card h6 { font-size: .8rem; font-weight: 800; color: #1e293b; margin: 0 0 .65rem;
+                  text-transform: uppercase; letter-spacing: .04em; display: flex; align-items: center; gap: .4rem; }
+    .cn-card h6 .material-symbols-rounded { color: #dc2626; font-size: 1rem; }
+
+    .cn-form-row { margin-bottom: .8rem; }
+    .cn-form-row label {
+        display: block; font-size: .72rem; font-weight: 700; color: #475569;
+        margin-bottom: .25rem; text-transform: uppercase; letter-spacing: .03em;
+    }
+    .cn-form-row input[type=text], .cn-form-row textarea {
+        width: 100%; border: 1.5px solid #e2e8f0; border-radius: 10px;
+        padding: .55rem .75rem; font-size: .9rem; outline: none; font-family: inherit;
+    }
+    .cn-form-row textarea { resize: vertical; min-height: 110px; }
+    .cn-form-row input:focus, .cn-form-row textarea:focus { border-color: #dc2626; }
+    .cn-form-row .hint { font-size: .7rem; color: #94a3b8; margin-top: 3px; }
+
+    /* Priority toggle */
+    .priority-row { display: flex; gap: .5rem; }
+    .priority-opt {
+        flex: 1; border: 1.5px solid #e2e8f0; border-radius: 10px;
+        padding: .55rem .75rem; cursor: pointer; transition: all .15s; text-align: center;
+        font-weight: 700; font-size: .82rem; color: #64748b; user-select: none;
+    }
+    .priority-opt:hover { border-color: #fca5a5; }
+    .priority-opt.active.high   { border-color: #dc2626; background: #fef2f2; color: #b91c1c; }
+    .priority-opt.active.normal { border-color: #64748b; background: #f8fafc; color: #334155; }
+
+    /* Target tabs */
+    .tg-tabs { display: flex; gap: .35rem; flex-wrap: wrap; margin-bottom: .8rem; }
+    .tg-tab {
+        background: #f1f5f9; border: 1.5px solid transparent; border-radius: 10px;
+        padding: .45rem .8rem; font-size: .82rem; font-weight: 700; color: #475569;
+        cursor: pointer; transition: all .15s;
+        display: inline-flex; align-items: center; gap: .3rem;
+    }
+    .tg-tab:hover  { background: #e2e8f0; }
+    .tg-tab.active { background: #dc2626; color: white; border-color: #dc2626; }
+    .tg-tab .count { background: rgba(255,255,255,.3); border-radius: 999px;
+                     padding: 0 .45rem; font-size: .7rem; min-width: 1.4em; text-align: center; }
+    .tg-tab.active .count { background: rgba(255,255,255,.3); color: white; }
+
+    .tg-panel { display: none; }
+    .tg-panel.active { display: block; }
+
+    /* All company panel */
+    .tg-all {
+        background: #fef9c3; border: 1.5px dashed #fbbf24; border-radius: 12px;
+        padding: 1rem; text-align: center;
+    }
+    .tg-all-title { font-weight: 800; color: #78350f; margin-bottom: .25rem; }
+    .tg-all-desc  { font-size: .8rem; color: #92400e; }
+
+    /* Org list (DEPT/LINE/WORK) */
+    .org-search-row {
+        display: flex; gap: .35rem; margin-bottom: .6rem;
+    }
+    .org-search-row input {
+        flex: 1; border: 1.5px solid #e2e8f0; border-radius: 10px;
+        padding: .45rem .65rem; font-size: .85rem; outline: none;
+    }
+    .org-search-row input:focus { border-color: #dc2626; }
+    .org-list {
+        max-height: 320px; overflow-y: auto; border: 1px solid #f1f5f9;
+        border-radius: 12px; background: white;
+    }
+    .org-item, .emp-item {
+        display: flex; align-items: center; gap: .5rem;
+        padding: .5rem .75rem; border-bottom: 1px solid #f8fafc; cursor: pointer;
+        transition: background .12s; font-size: .85rem;
+    }
+    .org-item:hover, .emp-item:hover { background: #fef2f2; }
+    .org-item:last-child, .emp-item:last-child { border-bottom: none; }
+    .org-item input[type=checkbox], .emp-item input[type=checkbox] {
+        width: 18px; height: 18px; cursor: pointer; accent-color: #dc2626;
+    }
+    .org-name { font-weight: 700; color: #1e293b; flex: 1; }
+    .org-count { font-size: .72rem; color: #94a3b8; font-weight: 600;
+                 background: #f1f5f9; padding: 1px 8px; border-radius: 999px; }
+
+    /* Employee picker */
+    .emp-filters {
+        display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: .35rem; margin-bottom: .5rem;
+    }
+    .emp-filters input, .emp-filters select {
+        border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .4rem .6rem;
+        font-size: .82rem; outline: none;
+    }
+    .emp-filters input:focus, .emp-filters select:focus { border-color: #dc2626; }
+    .emp-list {
+        max-height: 360px; overflow-y: auto; border: 1px solid #f1f5f9;
+        border-radius: 12px; background: white;
+    }
+    .emp-bulkbar {
+        display: flex; align-items: center; gap: .5rem; padding: .5rem .75rem;
+        background: #fef9c3; border-bottom: 1px solid #fde68a; font-size: .8rem; font-weight: 700; color: #78350f;
+        flex-wrap: wrap;
+    }
+    .emp-bulkbar button {
+        background: white; border: 1px solid #fbbf24; color: #92400e; border-radius: 8px;
+        padding: 3px 9px; font-size: .75rem; font-weight: 700; cursor: pointer;
+    }
+    .emp-bulkbar button:hover { background: #fef3c7; }
+    .emp-code  { font-family: monospace; font-weight: 800; color: #1e293b; font-size: .82rem; min-width: 80px; }
+    .emp-name  { font-weight: 700; color: #334155; flex: 1; }
+    .emp-meta  { font-size: .7rem; color: #94a3b8; }
+
+    .emp-loadmore {
+        text-align: center; padding: .75rem; background: #f8fafc; cursor: pointer;
+        color: #dc2626; font-weight: 700; font-size: .82rem;
+    }
+    .emp-loadmore:hover { background: #fef2f2; }
+    .emp-loadmore.loading { color: #94a3b8; pointer-events: none; }
+
+    /* Selection summary */
+    .sel-summary {
+        margin-top: .75rem; padding: .75rem 1rem;
+        background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px;
+        display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap;
+    }
+    .sel-summary.warning { background: #fef9c3; border-color: #fbbf24; }
+    .sel-summary.empty   { background: #f8fafc; border-color: #e2e8f0; }
+    .sel-count { font-weight: 800; color: #166534; font-size: .95rem; }
+    .sel-summary.warning .sel-count { color: #92400e; }
+    .sel-summary.empty   .sel-count { color: #64748b; }
+    .sel-btn {
+        background: transparent; border: 1px solid #cbd5e1; color: #475569;
+        border-radius: 8px; padding: 3px 10px; font-size: .75rem; font-weight: 700; cursor: pointer;
+    }
+    .sel-btn:hover { background: #f8fafc; }
+
+    /* Submit bar */
+    .submit-bar {
+        position: sticky; bottom: 0; z-index: 50;
+        display: flex; justify-content: space-between; align-items: center;
+        padding: .75rem 1rem; background: white;
+        border-radius: 14px; box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+        margin-top: 1rem;
+    }
+    .submit-info { font-size: .85rem; color: #475569; }
+    .submit-info b { color: #dc2626; }
+    .btn-submit {
+        background: linear-gradient(135deg, #7f1d1d, #dc2626);
+        color: white; border: none; border-radius: 10px;
+        padding: .55rem 1.25rem; font-weight: 800; font-size: .9rem; cursor: pointer;
+        display: inline-flex; align-items: center; gap: .35rem;
+    }
+    .btn-submit:hover  { transform: translateY(-1px); }
+    .btn-submit:active { transform: none; opacity: .9; }
+    .btn-submit:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+    /* Selected employees popup */
+    .sel-pop-back {
+        position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 1050;
+        display: none; align-items: center; justify-content: center; padding: 1rem;
+    }
+    .sel-pop-back.show { display: flex; }
+    .sel-pop {
+        background: white; border-radius: 16px; max-width: 560px; width: 100%;
+        max-height: 85vh; display: flex; flex-direction: column;
+        box-shadow: 0 12px 40px rgba(0,0,0,.18); overflow: hidden;
+    }
+    .sel-pop-hd {
+        padding: 1rem 1.25rem; background: linear-gradient(135deg, #7f1d1d, #dc2626);
+        color: white; display: flex; align-items: center; justify-content: space-between;
+    }
+    .sel-pop-hd h5 { margin: 0; font-size: 1rem; font-weight: 800; color: white; }
+    .sel-pop-close {
+        background: transparent; border: none; color: white; cursor: pointer;
+        font-size: 1.25rem; padding: 0; line-height: 1;
+    }
+    .sel-pop-body { padding: 1rem 1.25rem; overflow-y: auto; }
+    .chip-grid { display: flex; flex-wrap: wrap; gap: .3rem; }
+    .chip-emp {
+        background: #f1f5f9; border-radius: 8px; padding: 3px 8px; font-size: .75rem;
+        font-family: monospace; font-weight: 700; color: #334155;
+        display: inline-flex; align-items: center; gap: 4px;
+    }
+    .chip-emp button {
+        background: transparent; border: none; color: #dc2626; cursor: pointer;
+        font-size: .8rem; line-height: 1; padding: 0;
+    }
+</style>
+}
+
+<div class="cn-page px-2 py-2">
+    <div class="cn-hero">
+        <div>
+            <h5><span class="material-symbols-rounded me-1" style="vertical-align:middle">edit_notifications</span>Tạo thông báo</h5>
+            <small>Gửi thông báo có chủ đích đến nhân viên</small>
+        </div>
+        <a href="@Url.Action("Index","AdminNoti")" class="cn-back">
+            <span class="material-symbols-rounded" style="font-size:.95rem">arrow_back</span>Danh sách đã gửi
+        </a>
+    </div>
+
+    <!-- Nội dung -->
+    <div class="cn-card">
+        <h6><span class="material-symbols-rounded">subject</span>Nội dung</h6>
+        <div class="cn-form-row">
+            <label>Tiêu đề <span class="text-danger">*</span></label>
+            <input type="text" id="fTitle" maxlength="200" placeholder="VD: Thông báo nghỉ lễ 30/4">
+        </div>
+        <div class="cn-form-row">
+            <label>Nội dung <span class="text-danger">*</span></label>
+            <textarea id="fBody" maxlength="2000" placeholder="Nội dung chi tiết..."></textarea>
+            <div class="hint">Tối đa 2000 ký tự</div>
+        </div>
+        <div class="cn-form-row">
+            <label>Đường dẫn liên kết (tùy chọn)</label>
+            <input type="text" id="fLink" maxlength="200" placeholder="VD: /Policy/Index">
+            <div class="hint">Khi nhấn vào thông báo trên app sẽ điều hướng đến đường dẫn này</div>
+        </div>
+        <div class="cn-form-row">
+            <label>Mức độ ưu tiên</label>
+            <div class="priority-row">
+                <div class="priority-opt high active" id="optHigh" onclick="setPriority('HIGH')">
+                    <span class="material-symbols-rounded" style="font-size:1rem;vertical-align:middle">priority_high</span>
+                    Quan trọng (HIGH)
+                </div>
+                <div class="priority-opt normal" id="optNormal" onclick="setPriority('NORMAL')">
+                    <span class="material-symbols-rounded" style="font-size:1rem;vertical-align:middle">notifications</span>
+                    Thông thường
+                </div>
+            </div>
+            <div class="hint">Thông báo HIGH sẽ được hiển thị nổi bật ở đầu danh sách của nhân viên</div>
+        </div>
+    </div>
+
+    <!-- Đối tượng -->
+    <div class="cn-card">
+        <h6><span class="material-symbols-rounded">group</span>Đối tượng nhận</h6>
+        <div class="tg-tabs">
+            <div class="tg-tab active" data-tab="all" onclick="switchTab('all')">
+                <span class="material-symbols-rounded" style="font-size:1rem">public</span>Toàn công ty
+            </div>
+            <div class="tg-tab" data-tab="dept" onclick="switchTab('dept')">
+                <span class="material-symbols-rounded" style="font-size:1rem">apartment</span>Phòng ban <span class="count" id="cntDept">0</span>
+            </div>
+            <div class="tg-tab" data-tab="line" onclick="switchTab('line')">
+                <span class="material-symbols-rounded" style="font-size:1rem">linear_scale</span>Line <span class="count" id="cntLine">0</span>
+            </div>
+            <div class="tg-tab" data-tab="work" onclick="switchTab('work')">
+                <span class="material-symbols-rounded" style="font-size:1rem">handyman</span>Nhóm việc <span class="count" id="cntWork">0</span>
+            </div>
+            <div class="tg-tab" data-tab="emp" onclick="switchTab('emp')">
+                <span class="material-symbols-rounded" style="font-size:1rem">badge</span>Nhân viên <span class="count" id="cntEmp">0</span>
+            </div>
+        </div>
+
+        <!-- All -->
+        <div class="tg-panel active" id="panAll">
+            <div class="tg-all">
+                <div class="tg-all-title"><span class="material-symbols-rounded" style="font-size:1.2rem;vertical-align:middle">public</span> Gửi cho toàn bộ công ty</div>
+                <div class="tg-all-desc">Tất cả nhân viên đang làm việc sẽ nhận được thông báo này</div>
+            </div>
+        </div>
+
+        <!-- Dept / Line / Work — 3 panels gần giống nhau -->
+        <div class="tg-panel" id="panDept">
+            <div class="org-search-row">
+                <input type="text" placeholder="Tìm theo tên phòng ban..." oninput="filterOrg('dept', this.value)">
+            </div>
+            <div class="org-list" id="listDept"><div class="an-loading" style="padding:2rem;text-align:center;color:#94a3b8">Đang tải...</div></div>
+        </div>
+
+        <div class="tg-panel" id="panLine">
+            <div class="org-search-row">
+                <input type="text" placeholder="Tìm theo tên line..." oninput="filterOrg('line', this.value)">
+            </div>
+            <div class="org-list" id="listLine"><div class="an-loading" style="padding:2rem;text-align:center;color:#94a3b8">Đang tải...</div></div>
+        </div>
+
+        <div class="tg-panel" id="panWork">
+            <div class="org-search-row">
+                <input type="text" placeholder="Tìm theo tên nhóm việc..." oninput="filterOrg('work', this.value)">
+            </div>
+            <div class="org-list" id="listWork"><div class="an-loading" style="padding:2rem;text-align:center;color:#94a3b8">Đang tải...</div></div>
+        </div>
+
+        <!-- Employee -->
+        <div class="tg-panel" id="panEmp">
+            <div class="emp-filters">
+                <input type="text" id="empQ" placeholder="Lọc mã NV (VD: E001)..." oninput="debounceEmp()">
+                <select id="empDept" onchange="loadEmp(1)"><option value="">Phòng ban</option></select>
+                <select id="empLine" onchange="loadEmp(1)"><option value="">Line</option></select>
+                <select id="empWork" onchange="loadEmp(1)"><option value="">Nhóm</option></select>
+            </div>
+            <div class="emp-list">
+                <div class="emp-bulkbar">
+                    <span>Đã tìm: <b id="empTotal">0</b> NV</span>
+                    <button onclick="selectAllMatching()">☑ Chọn tất cả khớp filter</button>
+                    <button onclick="selectAllVisible()">☑ Chọn trang này</button>
+                    <button onclick="clearSelection()" style="margin-left:auto">✕ Xoá đã chọn</button>
+                </div>
+                <div id="empListBody"><div class="an-loading" style="padding:2rem;text-align:center;color:#94a3b8">Nhập filter rồi nhấn enter để bắt đầu</div></div>
+                <div class="emp-loadmore" id="empLoadMore" style="display:none" onclick="loadMoreEmp()">Tải thêm 50 ▼</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="sel-summary empty" id="selSummary">
+        <div>
+            <span class="material-symbols-rounded" style="vertical-align:middle">groups</span>
+            <span class="sel-count" id="selCount">Chưa chọn đối tượng nào</span>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="sel-btn" id="btnViewSel" onclick="openSelView()" style="display:none">Xem chi tiết</button>
+            <button class="sel-btn" onclick="clearAll()">Xoá hết</button>
+        </div>
+    </div>
+
+    <!-- Submit bar -->
+    <div class="submit-bar">
+        <div class="submit-info" id="submitInfo">Sẵn sàng gửi</div>
+        <button class="btn-submit" id="btnSubmit" onclick="submitNoti()">
+            <span class="material-symbols-rounded">send</span>Gửi thông báo
+        </button>
+    </div>
+</div>
+
+<!-- Popup: xem danh sách NV đã chọn -->
+<div class="sel-pop-back" id="selPopBack" onclick="if(event.target===this)closeSelView()">
+    <div class="sel-pop">
+        <div class="sel-pop-hd">
+            <h5>Nhân viên đã chọn (<span id="selPopCount">0</span>)</h5>
+            <button class="sel-pop-close" onclick="closeSelView()">×</button>
+        </div>
+        <div class="sel-pop-body" id="selPopBody"></div>
+    </div>
+</div>
+
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+const TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+// ─── State ─────────────────────────────────────────────────────
+let currentTab = 'all';
+let priority = 'HIGH';
+
+const selDept = new Set();
+const selLine = new Set();
+const selWork = new Set();
+const selEmp  = new Set();
+
+// org cache: {dept: [{code,name,emp_count}], line:..., work:...}
+const orgCache = { dept: [], line: [], work: [] };
+// EMPCD → cached emp object (for popup display)
+const empCache = new Map();
+
+let empPage = 1, empHasMore = false, empTotal = 0;
+
+// ─── Utilities ─────────────────────────────────────────────────
+function esc(s){ return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ─── Priority ──────────────────────────────────────────────────
+function setPriority(v){
+    priority = v;
+    document.getElementById('optHigh').classList.toggle('active', v==='HIGH');
+    document.getElementById('optNormal').classList.toggle('active', v==='NORMAL');
+}
+
+// ─── Tabs ──────────────────────────────────────────────────────
+function switchTab(tab){
+    currentTab = tab;
+    document.querySelectorAll('.tg-tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
+    ['all','dept','line','work','emp'].forEach(t => document.getElementById('pan'+t[0].toUpperCase()+t.slice(1)).classList.toggle('active', t===tab));
+    if (tab==='dept' && orgCache.dept.length===0) loadOrg('dept');
+    if (tab==='line' && orgCache.line.length===0) loadOrg('line');
+    if (tab==='work' && orgCache.work.length===0) { loadOrg('work'); }
+    if (tab==='emp'  && empPage===1 && document.getElementById('empListBody').dataset.loaded!=='1') {
+        // Auto-load first page for employee tab
+        loadEmp(1);
+    }
+    updateSummary();
+}
+
+// ─── Org loader ────────────────────────────────────────────────
+async function loadOrg(kind){
+    const lst = document.getElementById('list'+kind[0].toUpperCase()+kind.slice(1));
+    lst.innerHTML = '<div class="an-loading" style="padding:1.5rem;text-align:center;color:#94a3b8">Đang tải...</div>';
+    try {
+        const res = await fetch(`@Url.Action("Lookup","AdminNoti")?type=${kind.toUpperCase()}`);
+        const data = await res.json();
+        if (!data.success) { lst.innerHTML = `<div class="an-loading" style="padding:1.5rem;text-align:center;color:#94a3b8">Lỗi: ${esc(data.message||'')}</div>`; return; }
+        orgCache[kind] = data.data || [];
+        renderOrg(kind, '');
+        // Cũng populate filter dropdown bên employee tab
+        const sel = document.getElementById('emp'+kind[0].toUpperCase()+kind.slice(1));
+        if (sel) {
+            sel.innerHTML = '<option value="">'+sel.options[0].textContent+'</option>'
+                + orgCache[kind].map(o => `<option value="${esc(o.CODE)}">${esc(o.NAME)}</option>`).join('');
+        }
+    } catch { lst.innerHTML = '<div class="an-loading" style="padding:1.5rem;text-align:center;color:#94a3b8">Lỗi kết nối</div>'; }
+}
+
+function renderOrg(kind, filter){
+    const lst = document.getElementById('list'+kind[0].toUpperCase()+kind.slice(1));
+    const set = (kind==='dept'?selDept:kind==='line'?selLine:selWork);
+    const filterLow = (filter||'').toLowerCase().trim();
+    const items = orgCache[kind].filter(o => !filterLow || (o.NAME||'').toLowerCase().includes(filterLow) || (o.CODE||'').toLowerCase().includes(filterLow));
+    if (items.length===0) { lst.innerHTML = '<div class="an-loading" style="padding:1rem;text-align:center;color:#94a3b8">Không có dữ liệu</div>'; return; }
+    lst.innerHTML = items.map(o => `
+        <label class="org-item">
+            <input type="checkbox" data-code="${esc(o.CODE)}" ${set.has(o.CODE)?'checked':''} onchange="toggleOrg('${kind}', '${esc(o.CODE)}', this.checked)">
+            <span class="org-name vni-font">${esc(o.NAME)}</span>
+            <span class="org-count">${o.EMP_COUNT||0} NV</span>
+        </label>
+    `).join('');
+}
+
+function filterOrg(kind, val){ renderOrg(kind, val); }
+
+function toggleOrg(kind, code, on){
+    const set = (kind==='dept'?selDept:kind==='line'?selLine:selWork);
+    if (on) set.add(code); else set.delete(code);
+    document.getElementById('cnt'+kind[0].toUpperCase()+kind.slice(1)).textContent = set.size;
+    updateSummary();
+}
+
+// ─── Employee picker ───────────────────────────────────────────
+let _empTimer;
+function debounceEmp(){ clearTimeout(_empTimer); _empTimer = setTimeout(() => loadEmp(1), 400); }
+
+async function loadEmp(page){
+    empPage = page;
+    const body = document.getElementById('empListBody');
+    body.dataset.loaded='1';
+    const q   = document.getElementById('empQ').value.trim();
+    const d   = document.getElementById('empDept').value;
+    const l   = document.getElementById('empLine').value;
+    const w   = document.getElementById('empWork').value;
+    const qs  = new URLSearchParams({ page: page, pageSize: 50 });
+    if (q) qs.set('q', q);
+    if (d) qs.set('dept', d);
+    if (l) qs.set('line', l);
+    if (w) qs.set('work', w);
+    if (page===1) body.innerHTML = '<div class="an-loading" style="padding:1.5rem;text-align:center;color:#94a3b8">Đang tải...</div>';
+    try {
+        const res = await fetch('@Url.Action("SearchEmp","AdminNoti")?'+qs.toString());
+        const data = await res.json();
+        if (!data.success) { body.innerHTML = `<div class="an-loading" style="padding:1.5rem;text-align:center;color:#94a3b8">Lỗi: ${esc(data.message||'')}</div>`; return; }
+        empTotal   = data.total ?? 0;
+        empHasMore = data.has_more === true;
+        document.getElementById('empTotal').textContent = empTotal.toLocaleString();
+        const items = data.data || [];
+        // Cache for popup
+        items.forEach(e => empCache.set(e.EMPCD, e));
+        const html = items.map(e => `
+            <label class="emp-item">
+                <input type="checkbox" data-empcd="${esc(e.EMPCD)}" ${selEmp.has(e.EMPCD)?'checked':''} onchange="toggleEmp('${esc(e.EMPCD)}', this.checked)">
+                <span class="emp-code">${esc(e.EMPCD)}</span>
+                <span class="emp-name vni-font">${esc(e.EMP_NAME||'')}</span>
+                <span class="emp-meta">${esc([e.DEPT_NAME, e.LINE_NAME, e.WORK_NAME].filter(Boolean).join(' · '))}</span>
+            </label>
+        `).join('');
+        if (page===1) body.innerHTML = html;
+        else          body.insertAdjacentHTML('beforeend', html);
+        if (items.length===0 && page===1) body.innerHTML = '<div class="an-loading" style="padding:1.5rem;text-align:center;color:#94a3b8">Không có nhân viên nào khớp filter</div>';
+        document.getElementById('empLoadMore').style.display = empHasMore ? '' : 'none';
+        document.getElementById('empLoadMore').classList.remove('loading');
+        document.getElementById('empLoadMore').textContent = 'Tải thêm 50 ▼';
+    } catch { body.innerHTML = '<div class="an-loading" style="padding:1.5rem;text-align:center;color:#94a3b8">Lỗi kết nối</div>'; }
+}
+
+function loadMoreEmp(){
+    const btn = document.getElementById('empLoadMore');
+    btn.classList.add('loading'); btn.textContent = 'Đang tải...';
+    loadEmp(empPage + 1);
+}
+
+function toggleEmp(empcd, on){
+    if (on) selEmp.add(empcd); else selEmp.delete(empcd);
+    document.getElementById('cntEmp').textContent = selEmp.size;
+    updateSummary();
+}
+
+function selectAllVisible(){
+    document.querySelectorAll('#empListBody input[type=checkbox]').forEach(cb => {
+        if (!cb.checked) { cb.checked=true; selEmp.add(cb.dataset.empcd); }
+    });
+    document.getElementById('cntEmp').textContent = selEmp.size;
+    updateSummary();
+}
+
+function selectAllMatching(){
+    const q   = document.getElementById('empQ').value.trim();
+    const d   = document.getElementById('empDept').value;
+    const l   = document.getElementById('empLine').value;
+    const w   = document.getElementById('empWork').value;
+    showConfirm(`Chọn tất cả ${empTotal.toLocaleString()} nhân viên khớp filter?`, async () => {
+        const qs = new URLSearchParams();
+        if (q) qs.set('q', q);
+        if (d) qs.set('dept', d);
+        if (l) qs.set('line', l);
+        if (w) qs.set('work', w);
+        try {
+            const res = await fetch('@Url.Action("SearchEmpCodes","AdminNoti")?'+qs.toString());
+            const data = await res.json();
+            if (!data.success) { showToast('Lỗi: '+(data.message||''), 'error'); return; }
+            (data.codes||[]).forEach(c => selEmp.add(c));
+            document.getElementById('cntEmp').textContent = selEmp.size;
+            document.querySelectorAll('#empListBody input[type=checkbox]').forEach(cb => {
+                cb.checked = selEmp.has(cb.dataset.empcd);
+            });
+            updateSummary();
+            showToast(`Đã chọn ${selEmp.size.toLocaleString()} nhân viên`, 'success');
+        } catch { showToast('Lỗi kết nối', 'error'); }
+    }, { title: 'Chọn hàng loạt', okText: 'Chọn tất cả', okClass:'btn-warning', icon: 'select_all', iconColor: '#d97706', iconBg: '#fef3c7' });
+}
+
+function clearSelection(){
+    selEmp.clear();
+    document.getElementById('cntEmp').textContent = 0;
+    document.querySelectorAll('#empListBody input[type=checkbox]').forEach(cb => cb.checked = false);
+    updateSummary();
+}
+
+function clearAll(){
+    selDept.clear(); selLine.clear(); selWork.clear(); selEmp.clear();
+    ['Dept','Line','Work','Emp'].forEach(k => document.getElementById('cnt'+k).textContent = 0);
+    document.querySelectorAll('.org-list input[type=checkbox], #empListBody input[type=checkbox]').forEach(cb => cb.checked = false);
+    updateSummary();
+}
+
+// ─── Summary ───────────────────────────────────────────────────
+function updateSummary(){
+    const isAll = currentTab === 'all';
+    const total = selDept.size + selLine.size + selWork.size + selEmp.size;
+    const sum = document.getElementById('selSummary');
+    const cnt = document.getElementById('selCount');
+    const btnView = document.getElementById('btnViewSel');
+    const info = document.getElementById('submitInfo');
+    if (isAll) {
+        sum.className = 'sel-summary warning';
+        cnt.innerHTML = '🌐 Sẽ gửi cho <b>TOÀN BỘ</b> công ty (tất cả nhân viên đang làm việc)';
+        btnView.style.display = 'none';
+        info.innerHTML = 'Gửi cho <b>toàn công ty</b>';
+        return;
+    }
+    if (total === 0) {
+        sum.className = 'sel-summary empty';
+        cnt.innerHTML = 'Chưa chọn đối tượng nào';
+        btnView.style.display = 'none';
+        info.innerHTML = '<span style="color:#94a3b8">Vui lòng chọn đối tượng</span>';
+        return;
+    }
+    sum.className = 'sel-summary';
+    const parts = [];
+    if (selDept.size) parts.push(`${selDept.size} phòng ban`);
+    if (selLine.size) parts.push(`${selLine.size} line`);
+    if (selWork.size) parts.push(`${selWork.size} nhóm`);
+    if (selEmp.size)  parts.push(`${selEmp.size} nhân viên`);
+    cnt.innerHTML = `Đã chọn: ${parts.join(' · ')}`;
+    btnView.style.display = selEmp.size > 0 ? '' : 'none';
+    info.innerHTML = `Sẽ gửi cho <b>${parts.join(' + ')}</b>`;
+}
+
+// ─── Popup ─────────────────────────────────────────────────────
+function openSelView(){
+    document.getElementById('selPopCount').textContent = selEmp.size;
+    const body = document.getElementById('selPopBody');
+    body.innerHTML = '<div class="chip-grid">'
+        + [...selEmp].map(c => {
+            const e = empCache.get(c);
+            const label = e ? `${esc(e.EMPCD)} — ${esc(e.EMP_NAME||'')}` : esc(c);
+            return `<span class="chip-emp">${label}<button onclick="removeFromSel('${esc(c)}')">×</button></span>`;
+        }).join('')
+        + '</div>';
+    document.getElementById('selPopBack').classList.add('show');
+}
+function closeSelView(){ document.getElementById('selPopBack').classList.remove('show'); }
+function removeFromSel(c){
+    selEmp.delete(c);
+    document.getElementById('cntEmp').textContent = selEmp.size;
+    document.querySelectorAll(`#empListBody input[data-empcd="${c}"]`).forEach(cb => cb.checked=false);
+    if (selEmp.size === 0) closeSelView();
+    else openSelView();
+    updateSummary();
+}
+
+// ─── Submit ────────────────────────────────────────────────────
+async function submitNoti(){
+    const title = document.getElementById('fTitle').value.trim();
+    const body  = document.getElementById('fBody').value.trim();
+    const link  = document.getElementById('fLink').value.trim();
+    if (!title) { showToast('Vui lòng nhập tiêu đề', 'warning'); return; }
+    if (!body)  { showToast('Vui lòng nhập nội dung', 'warning'); return; }
+
+    const isAll = currentTab === 'all';
+    const targets = [];
+    if (!isAll) {
+        selDept.forEach(v => targets.push({ Type:'DEPT',  Val:v }));
+        selLine.forEach(v => targets.push({ Type:'LINE',  Val:v }));
+        selWork.forEach(v => targets.push({ Type:'WORK',  Val:v }));
+        selEmp.forEach(v  => targets.push({ Type:'EMPCD', Val:v }));
+        if (targets.length === 0) { showToast('Vui lòng chọn đối tượng nhận', 'warning'); return; }
+    }
+
+    showConfirm(
+        isAll ? `Gửi thông báo này cho TOÀN CÔNG TY?` : `Gửi thông báo cho ${targets.length} đối tượng đã chọn?`,
+        doSubmit, { title: 'Xác nhận gửi', okText: 'Gửi', okClass:'btn-danger', icon:'send', iconColor:'#dc2626', iconBg:'#fee2e2' });
+
+    async function doSubmit(){
+        const btn = document.getElementById('btnSubmit');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang gửi...';
+        try {
+            const res = await fetch('@Url.Action("Send","AdminNoti")', {
+                method: 'POST',
+                headers: { 'Content-Type':'application/json', 'RequestVerificationToken': TOKEN },
+                body: JSON.stringify({
+                    title, body,
+                    linkAction: link || null,
+                    priority,
+                    sendAllCompany: isAll,
+                    targets
+                })
+            });
+            const data = await res.json();
+            if (!data.success) { showToast(data.message || 'Gửi thất bại', 'error'); btn.disabled=false; btn.innerHTML='<span class="material-symbols-rounded">send</span>Gửi thông báo'; return; }
+            showToast('Đã gửi thông báo thành công', 'success');
+            setTimeout(() => location.href = '@Url.Action("Index","AdminNoti")', 1000);
+        } catch {
+            showToast('Lỗi kết nối', 'error');
+            btn.disabled=false; btn.innerHTML='<span class="material-symbols-rounded">send</span>Gửi thông báo';
+        }
+    }
+}
+
+// Pre-load org for emp tab dropdowns
+loadOrg('dept');
+loadOrg('line');
+loadOrg('work');
+updateSummary();
+</script>
+}

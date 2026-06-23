@@ -365,7 +365,8 @@ function renderRateBanners(items) {
     if (todo.length === 0) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
     wrap.style.display = '';
     wrap.innerHTML = todo.map(i => {
-        const who    = i.assignedName || i.closedByName || 'HR';
+        const closer = (i.closedByName && i.closedByName !== 'Ẩn danh') ? i.closedByName : null;
+        const who    = i.assignedName || closer || 'HR';
         const topic  = i.topicName || i.subject || 'cuộc hội thoại';
         const inqNo  = i.inquiryNo || '';
         const isAnon = i.chatType === 'ANON';

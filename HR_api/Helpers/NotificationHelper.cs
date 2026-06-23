@@ -194,6 +194,98 @@ public class NotificationHelper
 
     public async Task SendFcmPublicAsync(SendNotificationRequest model) => await SendFcmAsync(model);
 
+    // ─── FCM cho admin MULTI-target ──────────────────────────────
+    public async Task SendFcmForMultiAsync(decimal notiId, SendMultiNotificationRequest model)
+    {
+        if (!_firebaseInitialized) return;
+        try
+        {
+            // Resolve toàn bộ EMPCD đích từ targets
+            HashSet<string> empCds = new();
+
+            if (model.SEND_ALL_COMPANY || model.TARGETS.Count == 0)
+            {
+                // Toàn công ty — lấy hết EMPCD đang làm việc
+                var allEmps = await _oracleService.ExecuteQueryAsync(@"
+                    SELECT EMPCD FROM HRMS.ECM100
+                    WHERE RETDAT IS NULL OR RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD')",
+                    r => r["EMPCD"]?.ToString() ?? "");
+                foreach (var e in allEmps) if (!string.IsNullOrEmpty(e)) empCds.Add(e);
+            }
+            else
+            {
+                foreach (var t in model.TARGETS)
+                {
+                    if (string.IsNullOrWhiteSpace(t.VAL)) continue;
+                    string col = t.TYPE switch
+                    {
+                        "DEPT"  => "DEPTCD",
+                        "LINE"  => "LINECD",
+                        "WORK"  => "WORKCD",
+                        "EMPCD" => "EMPCD",
+                        _ => ""
+                    };
+                    if (string.IsNullOrEmpty(col)) continue;
+                    var rows = await _oracleService.ExecuteQueryAsync(
+                        $@"SELECT EMPCD FROM HRMS.ECM100
+                           WHERE {col} = :V
+                             AND (RETDAT IS NULL OR RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))",
+                        r => r["EMPCD"]?.ToString() ?? "",
+                        new OracleParameter("V", t.VAL));
+                    foreach (var e in rows) if (!string.IsNullOrEmpty(e)) empCds.Add(e);
+                }
+            }
+
+            if (empCds.Count == 0) return;
+
+            // Lấy tokens cho EMPCDs (batch IN clause Oracle giới hạn 1000 → chia chunk)
+            var tokens = new List<string>();
+            foreach (var batch in empCds.Chunk(900))
+            {
+                var inClause = string.Join(",", batch.Select((_, i) => $":E{i}"));
+                var parms = batch.Select((e, i) => new OracleParameter($"E{i}", e)).ToArray();
+                var ts = await _oracleService.ExecuteQueryAsync(
+                    $"SELECT TOKEN FROM HRMS.HR_USER_TOKENS WHERE EMPCD IN ({inClause})",
+                    r => r["TOKEN"]?.ToString() ?? "",
+                    parms);
+                tokens.AddRange(ts.Where(t => !string.IsNullOrEmpty(t)));
+            }
+
+            if (tokens.Count == 0) return;
+
+            var data = new Dictionary<string, string>();
+            if (!string.IsNullOrEmpty(model.LINK_ACTION)) data["link_action"] = model.LINK_ACTION;
+            if (!string.IsNullOrEmpty(model.PRIORITY))   data["priority"]    = model.PRIORITY!;
+            if (!string.IsNullOrEmpty(model.SOURCE))     data["source"]      = model.SOURCE!;
+            data["noti_id"] = notiId.ToString();
+
+            foreach (var batch in tokens.Chunk(500))
+            {
+                var message = new MulticastMessage
+                {
+                    Notification = new Notification { Title = model.TITLE, Body = model.BODY },
+                    Data   = data,
+                    Tokens = batch.ToList(),
+                    Android = new AndroidConfig
+                    {
+                        Priority = Priority.High,
+                        Notification = new AndroidNotification
+                        {
+                            ChannelId = "mysamho_noti",
+                            Sound     = "default"
+                        }
+                    },
+                    Apns = new ApnsConfig { Aps = new Aps { Sound = "default" } }
+                };
+                await FirebaseMessaging.DefaultInstance.SendEachForMulticastAsync(message);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[NotificationHelper] SendFcmForMultiAsync error: {ex.Message}");
+        }
+    }
+
     private async Task SendFcmAsync(SendNotificationRequest model)
     {
         if (!_firebaseInitialized) return;

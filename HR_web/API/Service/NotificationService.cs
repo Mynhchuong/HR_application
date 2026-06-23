@@ -66,4 +66,70 @@ public class NotificationService
         }
         catch { return false; }
     }
+
+    // ─── ADMIN COMPOSE: send multi-target ────────────────────────
+    public async Task<string> SendMultiRawAsync(object payload)
+    {
+        try
+        {
+            var r = await _api.PostAsync("Notification/send-multi", payload);
+            if (r == null) return "{\"success\":false,\"message\":\"Không kết nối được API\"}";
+            return await r.Content.ReadAsStringAsync();
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message + "\"}"; }
+    }
+
+    public async Task<string> SearchEmpRawAsync(string? q, string? dept, string? line, string? work, int page = 1, int pageSize = 50)
+    {
+        try
+        {
+            var qs = $"page={page}&page_size={pageSize}";
+            if (!string.IsNullOrEmpty(q))    qs += "&q="    + Uri.EscapeDataString(q);
+            if (!string.IsNullOrEmpty(dept)) qs += "&dept=" + Uri.EscapeDataString(dept);
+            if (!string.IsNullOrEmpty(line)) qs += "&line=" + Uri.EscapeDataString(line);
+            if (!string.IsNullOrEmpty(work)) qs += "&work=" + Uri.EscapeDataString(work);
+            var r = await _api.GetAsync_Raw("Notification/search-emp", qs);
+            if (r == null || !r.IsSuccessStatusCode) return "{\"success\":false}";
+            return await r.Content.ReadAsStringAsync();
+        }
+        catch { return "{\"success\":false}"; }
+    }
+
+    public async Task<string> SearchEmpCodesRawAsync(string? q, string? dept, string? line, string? work)
+    {
+        try
+        {
+            var qs = "";
+            if (!string.IsNullOrEmpty(q))    qs += "q="    + Uri.EscapeDataString(q);
+            if (!string.IsNullOrEmpty(dept)) qs += (qs.Length>0?"&":"") + "dept=" + Uri.EscapeDataString(dept);
+            if (!string.IsNullOrEmpty(line)) qs += (qs.Length>0?"&":"") + "line=" + Uri.EscapeDataString(line);
+            if (!string.IsNullOrEmpty(work)) qs += (qs.Length>0?"&":"") + "work=" + Uri.EscapeDataString(work);
+            var r = await _api.GetAsync_Raw("Notification/search-emp-codes", qs);
+            if (r == null || !r.IsSuccessStatusCode) return "{\"success\":false}";
+            return await r.Content.ReadAsStringAsync();
+        }
+        catch { return "{\"success\":false}"; }
+    }
+
+    public async Task<string> LookupRawAsync(string type)
+    {
+        try
+        {
+            var r = await _api.GetAsync_Raw("Notification/lookup", "type=" + Uri.EscapeDataString(type));
+            if (r == null || !r.IsSuccessStatusCode) return "{\"success\":false}";
+            return await r.Content.ReadAsStringAsync();
+        }
+        catch { return "{\"success\":false}"; }
+    }
+
+    public async Task<string> AdminSentRawAsync(int page = 1, int pageSize = 30)
+    {
+        try
+        {
+            var r = await _api.GetAsync_Raw("Notification/admin/sent", $"page={page}&page_size={pageSize}");
+            if (r == null || !r.IsSuccessStatusCode) return "{\"success\":false}";
+            return await r.Content.ReadAsStringAsync();
+        }
+        catch { return "{\"success\":false}"; }
+    }
 }

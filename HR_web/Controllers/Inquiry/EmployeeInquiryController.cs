@@ -217,7 +217,8 @@ public class EmployeeInquiryController : InquiryBaseController
     {
         if (req.InquiryId <= 0) return Json(new { success = false, message = "Thiếu ID hội thoại" });
 
-        string? empCd     = string.IsNullOrEmpty(req.AnonToken) ? CurrentUser!.EmpCd : null;
+        bool isAnon       = !string.IsNullOrEmpty(req.AnonToken);
+        string? empCd     = isAnon ? null : CurrentUser!.EmpCd;
         string? anonToken = req.AnonToken;
 
         var result = await _inquiry.CloseAsync(
@@ -225,7 +226,7 @@ public class EmployeeInquiryController : InquiryBaseController
             empCd:      empCd,
             anonToken:  anonToken,
             closerType: "EMP",
-            closerName: CurrentUser!.FullName,
+            closerName: isAnon ? "Ẩn danh" : CurrentUser!.FullName,
             closeNote:  req.CloseNote);
 
         return Json(result);

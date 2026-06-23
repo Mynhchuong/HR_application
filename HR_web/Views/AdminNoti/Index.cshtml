@@ -1,0 +1,176 @@
+@{
+    ViewData["Title"] = "Thông báo đã gửi";
+}
+
+@section Styles {
+<style>
+    .an-page { max-width: 1100px; margin: 0 auto; padding-bottom: 3rem; }
+    .an-hero {
+        background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%);
+        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
+        color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+    .an-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
+    .an-hero small { font-size: .75rem; opacity: .85; }
+    .an-btn-new {
+        background: white; color: #dc2626; border: none; border-radius: 10px;
+        padding: .5rem .9rem; font-weight: 800; font-size: .85rem; cursor: pointer;
+        display: inline-flex; align-items: center; gap: .25rem;
+        transition: all .15s; box-shadow: 0 1px 4px rgba(0,0,0,.1); text-decoration: none;
+    }
+    .an-btn-new:hover { background: #fef2f2; transform: translateY(-1px); color: #dc2626; }
+
+    .an-table-wrap { background: white; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
+    .an-table { width: 100%; border-collapse: collapse; }
+    .an-table th {
+        padding: .7rem 1rem; font-size: .72rem; font-weight: 800; color: #64748b;
+        text-transform: uppercase; letter-spacing: .04em; background: #f8fafc;
+        border-bottom: 1px solid #f1f5f9; white-space: nowrap; text-align: left;
+    }
+    .an-table th.center { text-align: center; }
+    .an-table td { padding: .8rem 1rem; border-bottom: 1px solid #f8fafc; font-size: .85rem; vertical-align: middle; }
+    .an-table tr:last-child td { border-bottom: none; }
+    .an-table tr:hover td { background: #fef2f2; }
+    .an-title { font-weight: 700; color: #1e293b; margin-bottom: 2px; }
+    .an-body  { font-size: .78rem; color: #64748b; line-height: 1.4; max-width: 480px;
+                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .pill { font-size: .68rem; font-weight: 800; padding: 2px 9px; border-radius: 20px;
+            text-transform: uppercase; white-space: nowrap; display: inline-block; }
+    .pill-priority-high   { background: #fee2e2; color: #b91c1c; }
+    .pill-priority-normal { background: #f1f5f9; color: #64748b; }
+    .pill-type-company { background: #dbeafe; color: #1d4ed8; }
+    .pill-type-dept    { background: #d1fae5; color: #065f46; }
+    .pill-type-line    { background: #fef3c7; color: #92400e; }
+    .pill-type-work    { background: #ede9fe; color: #6d28d9; }
+    .pill-type-empcd   { background: #fce7f3; color: #be185d; }
+    .pill-type-multi   { background: #fed7aa; color: #9a3412; }
+    .an-meta { font-size: .72rem; color: #94a3b8; }
+    .an-empty   { padding: 3rem 1rem; text-align: center; color: #94a3b8; }
+    .an-loading { padding: 3rem 1rem; text-align: center; color: #94a3b8; }
+    .pagination .page-link { cursor: pointer; }
+</style>
+}
+
+<div class="an-page px-2 py-2">
+    <div class="an-hero">
+        <div>
+            <h5><span class="material-symbols-rounded me-1" style="vertical-align:middle">campaign</span>Thông báo đã gửi</h5>
+            <small>Quản lý các thông báo do Admin / HR gửi</small>
+        </div>
+        <a href="@Url.Action("Create","AdminNoti")" class="an-btn-new">
+            <span class="material-symbols-rounded">add</span> Tạo thông báo
+        </a>
+    </div>
+
+    <div class="an-table-wrap">
+        <table class="an-table">
+            <thead>
+                <tr>
+                    <th>Nội dung</th>
+                    <th class="center" style="width:120px">Mức độ</th>
+                    <th class="center" style="width:130px">Đối tượng</th>
+                    <th class="center" style="width:90px">SL</th>
+                    <th style="width:170px">Người gửi · Thời gian</th>
+                </tr>
+            </thead>
+            <tbody id="anBody">
+                <tr><td colspan="5" class="an-loading"><div class="spinner-border text-danger" role="status"></div></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center px-2 mt-3">
+        <div id="anPageInfo" class="text-sm text-secondary"></div>
+        <nav><ul class="pagination pagination-sm mb-0" id="anPagBar"></ul></nav>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const PAGE_SIZE = 30;
+let currentPage = 1, totalPages = 1, total = 0;
+
+function esc(s){ return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDt(ds){
+    if(!ds) return '';
+    const d=new Date(ds), diff=Math.floor((Date.now()-d)/1000);
+    if(diff<3600) return Math.floor(diff/60)+' phút trước';
+    if(diff<86400) return Math.floor(diff/3600)+' giờ trước';
+    return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN').slice(0,5);
+}
+function typeLabel(t){
+    return { COMPANY:'Toàn cty', DEPT:'Phòng ban', LINE:'Line', WORK:'Nhóm', EMPCD:'Cá nhân', MULTI:'Nhiều đối tượng' }[t]||t;
+}
+function typeClass(t){ return 'pill-type-' + (t||'').toLowerCase(); }
+
+async function load(page){
+    currentPage = page;
+    document.getElementById('anBody').innerHTML =
+        '<tr><td colspan="5" class="an-loading"><div class="spinner-border text-danger" role="status"></div></td></tr>';
+    try {
+        const res  = await fetch(`@Url.Action("Sent","AdminNoti")?page=${page}&pageSize=${PAGE_SIZE}`);
+        const data = await res.json();
+        if (!data.success) {
+            document.getElementById('anBody').innerHTML = `<tr><td colspan="5" class="an-empty">Lỗi: ${esc(data.message||'')}</td></tr>`;
+            return;
+        }
+        total      = data.total ?? 0;
+        totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        const items = data.data || [];
+        if (items.length === 0) {
+            document.getElementById('anBody').innerHTML =
+                '<tr><td colspan="5" class="an-empty"><span class="material-symbols-rounded" style="font-size:2.5rem;color:#fca5a5;display:block">campaign</span>Chưa có thông báo nào</td></tr>';
+        } else {
+            document.getElementById('anBody').innerHTML = items.map(i => {
+                const cntDisplay = i.notiType === 'COMPANY' ? '<span class="text-secondary" style="font-size:.78rem">Toàn cty</span>'
+                                  : i.notiType === 'MULTI'   ? `<span class="fw-bold">${i.targetCount||0}</span>`
+                                  : '<span class="text-secondary">1</span>';
+                return `<tr>
+                    <td>
+                        <div class="an-title">${esc(i.title)}</div>
+                        <div class="an-body">${esc(i.body)}</div>
+                    </td>
+                    <td class="text-center">
+                        <span class="pill ${i.priority==='HIGH'?'pill-priority-high':'pill-priority-normal'}">${i.priority==='HIGH'?'Cao':'Thường'}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="pill ${typeClass(i.notiType)}">${typeLabel(i.notiType)}</span>
+                    </td>
+                    <td class="text-center">${cntDisplay}</td>
+                    <td>
+                        <div class="vni-font" style="font-weight:700;color:#1e293b;font-size:.82rem">${esc(i.senderName||i.senderEmpCd||'—')}</div>
+                        <div class="an-meta">${fmtDt(i.createdDate)}</div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+        renderPagination();
+    } catch (e) {
+        document.getElementById('anBody').innerHTML = '<tr><td colspan="5" class="an-empty">Lỗi kết nối</td></tr>';
+    }
+}
+
+function renderPagination(){
+    const info = document.getElementById('anPageInfo');
+    const start = (currentPage-1)*PAGE_SIZE+1, end = Math.min(currentPage*PAGE_SIZE, total);
+    info.innerHTML = total>0 ? `Trang <strong>${currentPage}</strong> / ${totalPages} &nbsp;·&nbsp; ${start}–${end} / ${total}` : '';
+    const bar = document.getElementById('anPagBar'); bar.innerHTML='';
+    if (totalPages<=1) return;
+    const mk=(label,p,disabled,active)=>{
+        const li=document.createElement('li');
+        li.className='page-item'+(disabled?' disabled':'')+(active?' active':'');
+        const a=document.createElement('a'); a.className='page-link'; a.innerHTML=label;
+        if(!disabled && !active) a.onclick=()=>load(p);
+        li.appendChild(a); return li;
+    };
+    bar.appendChild(mk('&laquo;',1,currentPage<=1));
+    bar.appendChild(mk('&lsaquo;',currentPage-1,currentPage<=1));
+    let from=Math.max(1,currentPage-2), to=Math.min(totalPages,currentPage+2);
+    for(let p=from;p<=to;p++) bar.appendChild(mk(p,p,false,p===currentPage));
+    bar.appendChild(mk('&rsaquo;',currentPage+1,currentPage>=totalPages));
+    bar.appendChild(mk('&raquo;',totalPages,currentPage>=totalPages));
+}
+
+load(1);
+</script>
+}

@@ -67,22 +67,37 @@ public class NotificationController : ControllerBase
 
             int offset = (page - 1) * page_size;
 
-            // Lấy thông báo cá nhân, thông báo bộ phận và thông báo toàn công ty
+            // Lấy thông báo: COMPANY / DEPT / LINE / WORK / EMPCD / MULTI (qua HR_NOTIFICATION_TARGET)
             // Oracle 10g doesn't have OFFSET/FETCH, using ROW_NUMBER()
             string sql = @"
+                WITH ME AS (
+                    SELECT DEPTCD, LINECD, WORKCD
+                    FROM HRMS.ECM100 WHERE EMPCD = :EMPCD3 AND ROWNUM = 1
+                )
                 SELECT * FROM (
                     SELECT N.ID, N.TITLE, N.BODY, N.TITLE_EN, N.BODY_EN,
                            N.NOTI_TYPE, N.TARGET_VAL, N.LINK_ACTION, N.CREATED_DATE,
+                           N.PRIORITY, N.SOURCE,
                            NVL(L.IS_READ, 0) IS_READ_VAL,
                            U.FULL_NAME SENDER_NAME,
                            N.CREATED_BY SENDER_EMPCD,
-                           ROW_NUMBER() OVER (ORDER BY N.CREATED_DATE DESC) RN
+                           ROW_NUMBER() OVER (ORDER BY CASE WHEN N.PRIORITY='HIGH' THEN 0 ELSE 1 END, N.CREATED_DATE DESC) RN
                     FROM HRMS.HR_NOTIFICATIONS N
                     LEFT JOIN HRMS.HR_NOTIFICATION_LOG L ON L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD
                     LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = N.CREATED_BY
                     WHERE N.NOTI_TYPE = 'COMPANY'
                        OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD2)
-                       OR (N.NOTI_TYPE = 'DEPT' AND N.TARGET_VAL = (SELECT DEPTCD FROM HRMS.ECM100 WHERE EMPCD = :EMPCD3 AND ROWNUM = 1))
+                       OR (N.NOTI_TYPE = 'DEPT'  AND N.TARGET_VAL = (SELECT DEPTCD FROM ME))
+                       OR (N.NOTI_TYPE = 'LINE'  AND N.TARGET_VAL = (SELECT LINECD FROM ME))
+                       OR (N.NOTI_TYPE = 'WORK'  AND N.TARGET_VAL = (SELECT WORKCD FROM ME))
+                       OR (N.NOTI_TYPE = 'MULTI' AND EXISTS (
+                           SELECT 1 FROM HRMS.HR_NOTIFICATION_TARGET T
+                           WHERE T.NOTI_ID = N.ID
+                             AND ( (T.TARGET_TYPE = 'EMPCD' AND T.TARGET_VAL = :EMPCD4)
+                                OR (T.TARGET_TYPE = 'DEPT'  AND T.TARGET_VAL = (SELECT DEPTCD FROM ME))
+                                OR (T.TARGET_TYPE = 'LINE'  AND T.TARGET_VAL = (SELECT LINECD FROM ME))
+                                OR (T.TARGET_TYPE = 'WORK'  AND T.TARGET_VAL = (SELECT WORKCD FROM ME)) )
+                       ))
                 ) WHERE RN > :OFFSET AND RN <= :OFFSET + :PAGE_SIZE";
 
             var list = await _oracleService.ExecuteQueryAsync(sql, r => new NotificationModel
@@ -98,11 +113,14 @@ public class NotificationController : ControllerBase
                 CREATED_DATE = Convert.ToDateTime(r["CREATED_DATE"]),
                 IS_READ = Convert.ToInt32(r["IS_READ_VAL"]),
                 SENDER_NAME = r["SENDER_NAME"]?.ToString(),
-                SENDER_EMPCD = r["SENDER_EMPCD"]?.ToString()
-            }, 
-            new OracleParameter("EMPCD", empcd),
+                SENDER_EMPCD = r["SENDER_EMPCD"]?.ToString(),
+                PRIORITY = r["PRIORITY"]?.ToString() ?? "NORMAL",
+                SOURCE   = r["SOURCE"]?.ToString()   ?? "SYSTEM"
+            },
+            new OracleParameter("EMPCD",  empcd),
             new OracleParameter("EMPCD2", empcd),
             new OracleParameter("EMPCD3", empcd),
+            new OracleParameter("EMPCD4", empcd),
             new OracleParameter("OFFSET", offset),
             new OracleParameter("PAGE_SIZE", page_size));
 
@@ -155,11 +173,25 @@ public class NotificationController : ControllerBase
             // Insert log cho tất cả notification chưa đọc của empcd này
             string sql = @"
                 INSERT INTO HRMS.HR_NOTIFICATION_LOG (NOTI_ID, EMPCD, IS_READ, READ_DATE)
+                WITH ME AS (
+                    SELECT DEPTCD, LINECD, WORKCD FROM HRMS.ECM100
+                    WHERE EMPCD = :EMPCD4 AND ROWNUM = 1
+                )
                 SELECT N.ID, :EMPCD, 1, SYSDATE
                 FROM HRMS.HR_NOTIFICATIONS N
-                WHERE (N.NOTI_TYPE = 'COMPANY'
-                    OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD2)
-                    OR (N.NOTI_TYPE = 'DEPT'  AND N.TARGET_VAL = (SELECT DEPTCD FROM HRMS.ECM100 WHERE EMPCD = :EMPCD4 AND ROWNUM = 1)))
+                WHERE ( N.NOTI_TYPE = 'COMPANY'
+                     OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD2)
+                     OR (N.NOTI_TYPE = 'DEPT'  AND N.TARGET_VAL = (SELECT DEPTCD FROM ME))
+                     OR (N.NOTI_TYPE = 'LINE'  AND N.TARGET_VAL = (SELECT LINECD FROM ME))
+                     OR (N.NOTI_TYPE = 'WORK'  AND N.TARGET_VAL = (SELECT WORKCD FROM ME))
+                     OR (N.NOTI_TYPE = 'MULTI' AND EXISTS (
+                         SELECT 1 FROM HRMS.HR_NOTIFICATION_TARGET T
+                         WHERE T.NOTI_ID = N.ID
+                           AND ( (T.TARGET_TYPE = 'EMPCD' AND T.TARGET_VAL = :EMPCD5)
+                              OR (T.TARGET_TYPE = 'DEPT'  AND T.TARGET_VAL = (SELECT DEPTCD FROM ME))
+                              OR (T.TARGET_TYPE = 'LINE'  AND T.TARGET_VAL = (SELECT LINECD FROM ME))
+                              OR (T.TARGET_TYPE = 'WORK'  AND T.TARGET_VAL = (SELECT WORKCD FROM ME)) )
+                     )) )
                   AND NOT EXISTS (
                       SELECT 1 FROM HRMS.HR_NOTIFICATION_LOG L
                       WHERE L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD3 AND L.IS_READ = 1
@@ -169,7 +201,8 @@ public class NotificationController : ControllerBase
                 new OracleParameter("EMPCD",  empcd),
                 new OracleParameter("EMPCD2", empcd),
                 new OracleParameter("EMPCD3", empcd),
-                new OracleParameter("EMPCD4", empcd));
+                new OracleParameter("EMPCD4", empcd),
+                new OracleParameter("EMPCD5", empcd));
 
             return Ok(new { success = true });
         }
@@ -191,11 +224,25 @@ public class NotificationController : ControllerBase
                 return Ok(new { success = false, count = 0 });
 
             string sql = @"
+                WITH ME AS (
+                    SELECT DEPTCD, LINECD, WORKCD FROM HRMS.ECM100
+                    WHERE EMPCD = :EMPCD3 AND ROWNUM = 1
+                )
                 SELECT COUNT(*) CNT
                 FROM HRMS.HR_NOTIFICATIONS N
-                WHERE (N.NOTI_TYPE = 'COMPANY'
-                    OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD)
-                    OR (N.NOTI_TYPE = 'DEPT'  AND N.TARGET_VAL = (SELECT DEPTCD FROM HRMS.ECM100 WHERE EMPCD = :EMPCD3 AND ROWNUM = 1)))
+                WHERE ( N.NOTI_TYPE = 'COMPANY'
+                     OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD)
+                     OR (N.NOTI_TYPE = 'DEPT'  AND N.TARGET_VAL = (SELECT DEPTCD FROM ME))
+                     OR (N.NOTI_TYPE = 'LINE'  AND N.TARGET_VAL = (SELECT LINECD FROM ME))
+                     OR (N.NOTI_TYPE = 'WORK'  AND N.TARGET_VAL = (SELECT WORKCD FROM ME))
+                     OR (N.NOTI_TYPE = 'MULTI' AND EXISTS (
+                         SELECT 1 FROM HRMS.HR_NOTIFICATION_TARGET T
+                         WHERE T.NOTI_ID = N.ID
+                           AND ( (T.TARGET_TYPE = 'EMPCD' AND T.TARGET_VAL = :EMPCD4)
+                              OR (T.TARGET_TYPE = 'DEPT'  AND T.TARGET_VAL = (SELECT DEPTCD FROM ME))
+                              OR (T.TARGET_TYPE = 'LINE'  AND T.TARGET_VAL = (SELECT LINECD FROM ME))
+                              OR (T.TARGET_TYPE = 'WORK'  AND T.TARGET_VAL = (SELECT WORKCD FROM ME)) )
+                     )) )
                   AND NOT EXISTS (
                       SELECT 1 FROM HRMS.HR_NOTIFICATION_LOG L
                       WHERE L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD2 AND L.IS_READ = 1
@@ -205,7 +252,8 @@ public class NotificationController : ControllerBase
                 r => Convert.ToInt32(r["CNT"]),
                 new OracleParameter("EMPCD",  empcd),
                 new OracleParameter("EMPCD2", empcd),
-                new OracleParameter("EMPCD3", empcd));
+                new OracleParameter("EMPCD3", empcd),
+                new OracleParameter("EMPCD4", empcd));
 
             return Ok(new { success = true, count = rows.FirstOrDefault() });
         }
@@ -225,8 +273,8 @@ public class NotificationController : ControllerBase
         {
             // 1. Lưu vào database trước
             string sqlInsert = @"
-                INSERT INTO HRMS.HR_NOTIFICATIONS (TITLE, BODY, TITLE_EN, BODY_EN, NOTI_TYPE, TARGET_VAL, LINK_ACTION, CREATED_BY, CREATED_DATE)
-                VALUES (:TITLE, :BODY, :TITLE_EN, :BODY_EN, :NOTI_TYPE, :TARGET_VAL, :LINK_ACTION, :CREATED_BY, SYSDATE)
+                INSERT INTO HRMS.HR_NOTIFICATIONS (TITLE, BODY, TITLE_EN, BODY_EN, NOTI_TYPE, TARGET_VAL, LINK_ACTION, CREATED_BY, CREATED_DATE, PRIORITY, SOURCE)
+                VALUES (:TITLE, :BODY, :TITLE_EN, :BODY_EN, :NOTI_TYPE, :TARGET_VAL, :LINK_ACTION, :CREATED_BY, SYSDATE, :PRIORITY, :SOURCE)
                 RETURNING ID INTO :OUT_ID";
 
             var outIdParam = new OracleParameter("OUT_ID", OracleDbType.Decimal, System.Data.ParameterDirection.Output);
@@ -239,6 +287,8 @@ public class NotificationController : ControllerBase
                 new OracleParameter("TARGET_VAL", model.TARGET_VAL),
                 new OracleParameter("LINK_ACTION",(object?)model.LINK_ACTION ?? DBNull.Value),
                 new OracleParameter("CREATED_BY", (object?)model.CREATED_BY  ?? DBNull.Value),
+                new OracleParameter("PRIORITY",   model.PRIORITY ?? "NORMAL"),
+                new OracleParameter("SOURCE",     model.SOURCE   ?? "SYSTEM"),
                 outIdParam);
 
             decimal notiId = outIdParam.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od && !od.IsNull
@@ -248,6 +298,298 @@ public class NotificationController : ControllerBase
             _ = Task.Run(() => _notiHelper.SendFcmPublicAsync(model));
 
             return Ok(new { success = true, message = "Đã tạo thông báo", notification_id = notiId });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ============================================================
+    // 7. SEND MULTI — Admin tạo thông báo với nhiều target
+    //   Body:
+    //     { title, body, link_action, priority, source, created_by,
+    //       send_all_company: bool,
+    //       targets: [ {type:"DEPT"|"LINE"|"WORK"|"EMPCD", val:""} ] }
+    // ============================================================
+    [HttpPost("send-multi")]
+    public async Task<IActionResult> SendMulti([FromBody] SendMultiNotificationRequest model)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(model.TITLE) || string.IsNullOrWhiteSpace(model.BODY))
+                return Ok(new { success = false, message = "Thiếu tiêu đề hoặc nội dung" });
+
+            // Toàn công ty → vẫn dùng NOTI_TYPE='COMPANY' để query nhanh
+            bool isCompany = model.SEND_ALL_COMPANY || (model.TARGETS.Count == 0);
+            string notiType = isCompany ? "COMPANY"
+                              : (model.TARGETS.Count == 1
+                                  ? model.TARGETS[0].TYPE
+                                  : "MULTI");
+            string targetVal = isCompany ? "*"
+                              : (model.TARGETS.Count == 1 ? model.TARGETS[0].VAL : "MULTI");
+
+            string sqlInsert = @"
+                INSERT INTO HRMS.HR_NOTIFICATIONS (TITLE, BODY, TITLE_EN, BODY_EN, NOTI_TYPE, TARGET_VAL, LINK_ACTION, CREATED_BY, CREATED_DATE, PRIORITY, SOURCE)
+                VALUES (:TITLE, :BODY, :TITLE_EN, :BODY_EN, :NOTI_TYPE, :TARGET_VAL, :LINK_ACTION, :CREATED_BY, SYSDATE, :PRIORITY, :SOURCE)
+                RETURNING ID INTO :OUT_ID";
+
+            var outIdParam = new OracleParameter("OUT_ID", OracleDbType.Decimal, System.Data.ParameterDirection.Output);
+            await _oracleService.ExecuteNonQueryAsync(sqlInsert,
+                new OracleParameter("TITLE",      model.TITLE),
+                new OracleParameter("BODY",       model.BODY),
+                new OracleParameter("TITLE_EN",   (object?)model.TITLE_EN ?? DBNull.Value),
+                new OracleParameter("BODY_EN",    (object?)model.BODY_EN  ?? DBNull.Value),
+                new OracleParameter("NOTI_TYPE",  notiType),
+                new OracleParameter("TARGET_VAL", targetVal),
+                new OracleParameter("LINK_ACTION",(object?)model.LINK_ACTION ?? DBNull.Value),
+                new OracleParameter("CREATED_BY", (object?)model.CREATED_BY  ?? DBNull.Value),
+                new OracleParameter("PRIORITY",   model.PRIORITY),
+                new OracleParameter("SOURCE",     model.SOURCE),
+                outIdParam);
+
+            decimal notiId = outIdParam.Value is OracleDecimal od && !od.IsNull ? od.Value : 0;
+
+            // Nếu là MULTI → insert target rows
+            if (notiType == "MULTI" && notiId > 0)
+            {
+                foreach (var t in model.TARGETS)
+                {
+                    if (string.IsNullOrWhiteSpace(t.VAL)) continue;
+                    await _oracleService.ExecuteNonQueryAsync(@"
+                        INSERT INTO HRMS.HR_NOTIFICATION_TARGET (NOTI_ID, TARGET_TYPE, TARGET_VAL)
+                        VALUES (:NID, :TT, :TV)",
+                        new OracleParameter("NID", notiId),
+                        new OracleParameter("TT",  t.TYPE),
+                        new OracleParameter("TV",  t.VAL));
+                }
+            }
+
+            // FCM push
+            _ = Task.Run(() => _notiHelper.SendFcmForMultiAsync(notiId, model));
+
+            return Ok(new { success = true, message = "Đã gửi thông báo", notification_id = notiId, noti_type = notiType });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ============================================================
+    // 8. SEARCH EMPLOYEE — Admin chọn nhân viên (server-side filter + paging)
+    //    Query string: q (empcd), dept, line, work, page, page_size
+    // ============================================================
+    [HttpGet("search-emp")]
+    public async Task<IActionResult> SearchEmp(string? q = null, string? dept = null, string? line = null, string? work = null, int page = 1, int page_size = 50)
+    {
+        try
+        {
+            page      = page <= 0 ? 1 : page;
+            page_size = page_size <= 0 ? 50 : Math.Min(page_size, 200);
+            int offset = (page - 1) * page_size;
+
+            string baseSql = @"
+                FROM HRMS.ECM100 EC
+                LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND (:Q IS NULL OR UPPER(EC.EMPCD) LIKE :TERM)
+                  AND (:DEPT IS NULL OR EC.DEPTCD = :DEPT)
+                  AND (:LINE IS NULL OR EC.LINECD = :LINE)
+                  AND (:WORK IS NULL OR EC.WORKCD = :WORK)";
+
+            string qNorm = string.IsNullOrWhiteSpace(q) ? string.Empty : q.Trim().ToUpper();
+            string term  = "%" + qNorm + "%";
+
+            // Total count
+            int total = 0;
+            try
+            {
+                var cntRows = await _oracleService.ExecuteQueryAsync(
+                    "SELECT COUNT(*) C " + baseSql,
+                    r => Convert.ToInt32(r["C"]),
+                    new OracleParameter("Q",    string.IsNullOrEmpty(qNorm) ? (object)DBNull.Value : qNorm),
+                    new OracleParameter("TERM", term),
+                    new OracleParameter("DEPT", (object?)dept ?? DBNull.Value),
+                    new OracleParameter("LINE", (object?)line ?? DBNull.Value),
+                    new OracleParameter("WORK", (object?)work ?? DBNull.Value));
+                total = cntRows.FirstOrDefault();
+            }
+            catch { }
+
+            string pagedSql = @"
+                SELECT * FROM (
+                    SELECT EC.EMPCD, EC.CNAME EMP_NAME,
+                           B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
+                           ROW_NUMBER() OVER (ORDER BY EC.EMPCD) RN
+                    " + baseSql + @"
+                ) WHERE RN > :OFFSET AND RN <= :OFFSET + :PAGE_SIZE";
+
+            var data = await _oracleService.ExecuteQueryAsync(pagedSql,
+                r => new EmployeeLookupItem
+                {
+                    EMPCD     = r["EMPCD"]?.ToString() ?? "",
+                    EMP_NAME  = r["EMP_NAME"]?.ToString() ?? "",
+                    DEPT_NAME = r["DEPT_NAME"]?.ToString(),
+                    LINE_NAME = r["LINE_NAME"]?.ToString(),
+                    WORK_NAME = r["WORK_NAME"]?.ToString()
+                },
+                new OracleParameter("Q",    string.IsNullOrEmpty(qNorm) ? (object)DBNull.Value : qNorm),
+                new OracleParameter("TERM", term),
+                new OracleParameter("DEPT", (object?)dept ?? DBNull.Value),
+                new OracleParameter("LINE", (object?)line ?? DBNull.Value),
+                new OracleParameter("WORK", (object?)work ?? DBNull.Value),
+                new OracleParameter("OFFSET", offset),
+                new OracleParameter("PAGE_SIZE", page_size));
+
+            return Ok(new { success = true, total, page, page_size, has_more = offset + data.Count < total, data });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ============================================================
+    // 9. SEARCH EMPLOYEE CODES — Lấy toàn bộ EMPCD khớp filter (cho "Chọn tất cả khớp filter")
+    // ============================================================
+    [HttpGet("search-emp-codes")]
+    public async Task<IActionResult> SearchEmpCodes(string? q = null, string? dept = null, string? line = null, string? work = null)
+    {
+        try
+        {
+            string qNorm = string.IsNullOrWhiteSpace(q) ? string.Empty : q.Trim().ToUpper();
+            string term  = "%" + qNorm + "%";
+
+            string sql = @"
+                SELECT EC.EMPCD
+                FROM HRMS.ECM100 EC
+                WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND (:Q IS NULL OR UPPER(EC.EMPCD) LIKE :TERM)
+                  AND (:DEPT IS NULL OR EC.DEPTCD = :DEPT)
+                  AND (:LINE IS NULL OR EC.LINECD = :LINE)
+                  AND (:WORK IS NULL OR EC.WORKCD = :WORK)";
+
+            var codes = await _oracleService.ExecuteQueryAsync(sql,
+                r => r["EMPCD"]?.ToString() ?? "",
+                new OracleParameter("Q",    string.IsNullOrEmpty(qNorm) ? (object)DBNull.Value : qNorm),
+                new OracleParameter("TERM", term),
+                new OracleParameter("DEPT", (object?)dept ?? DBNull.Value),
+                new OracleParameter("LINE", (object?)line ?? DBNull.Value),
+                new OracleParameter("WORK", (object?)work ?? DBNull.Value));
+
+            return Ok(new { success = true, total = codes.Count, codes });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ============================================================
+    // 10. LOOKUP — Danh sách Dept / Line / Work (dùng cho dropdown)
+    //     ?type=DEPT|LINE|WORK
+    // ============================================================
+    [HttpGet("lookup")]
+    public async Task<IActionResult> Lookup(string type = "DEPT")
+    {
+        try
+        {
+            type = (type ?? "DEPT").ToUpper();
+
+            string col = type switch
+            {
+                "DEPT" => "DEPTCD",
+                "LINE" => "LINECD",
+                "WORK" => "WORKCD",
+                _      => "DEPTCD"
+            };
+            string nameCol = type switch
+            {
+                "DEPT" => "DEPTNM",
+                "LINE" => "TEAMNM",
+                "WORK" => "WORKNM",
+                _      => "DEPTNM"
+            };
+
+            string sql = $@"
+                SELECT B.{col} CODE, MAX(B.{nameCol}) NAME, COUNT(DISTINCT EC.EMPCD) EMP_COUNT
+                FROM HRMS.EAM410 B
+                LEFT JOIN HRMS.ECM100 EC ON EC.{col} = B.{col}
+                    AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                WHERE B.{col} IS NOT NULL AND B.{nameCol} IS NOT NULL
+                GROUP BY B.{col}
+                ORDER BY MAX(B.{nameCol})";
+
+            var data = await _oracleService.ExecuteQueryAsync(sql,
+                r => new OrgLookupItem
+                {
+                    CODE = r["CODE"]?.ToString() ?? "",
+                    NAME = r["NAME"]?.ToString() ?? "",
+                    EMP_COUNT = r["EMP_COUNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["EMP_COUNT"])
+                });
+
+            return Ok(new { success = true, type, data });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ============================================================
+    // 11. ADMIN: LIST SENT — Danh sách thông báo Admin đã gửi
+    // ============================================================
+    [HttpGet("admin/sent")]
+    public async Task<IActionResult> AdminListSent(int page = 1, int page_size = 30)
+    {
+        try
+        {
+            page      = page <= 0 ? 1 : page;
+            page_size = Math.Min(Math.Max(page_size, 1), 100);
+            int offset = (page - 1) * page_size;
+
+            int total = 0;
+            try
+            {
+                var c = await _oracleService.ExecuteQueryAsync(
+                    "SELECT COUNT(*) C FROM HRMS.HR_NOTIFICATIONS WHERE SOURCE IN ('ADMIN','HR')",
+                    r => Convert.ToInt32(r["C"]));
+                total = c.FirstOrDefault();
+            }
+            catch { }
+
+            string sql = @"
+                SELECT * FROM (
+                    SELECT N.ID, N.TITLE, N.BODY, N.NOTI_TYPE, N.TARGET_VAL,
+                           N.PRIORITY, N.SOURCE, N.LINK_ACTION,
+                           N.CREATED_BY, U.FULL_NAME SENDER_NAME, N.CREATED_DATE,
+                           (SELECT COUNT(*) FROM HRMS.HR_NOTIFICATION_TARGET T WHERE T.NOTI_ID = N.ID) TARGET_COUNT,
+                           ROW_NUMBER() OVER (ORDER BY N.CREATED_DATE DESC) RN
+                    FROM HRMS.HR_NOTIFICATIONS N
+                    LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = N.CREATED_BY
+                    WHERE N.SOURCE IN ('ADMIN','HR')
+                ) WHERE RN > :OFFSET AND RN <= :OFFSET + :PAGE_SIZE";
+
+            var data = await _oracleService.ExecuteQueryAsync(sql, r => new
+            {
+                id           = Convert.ToDecimal(r["ID"]),
+                title        = r["TITLE"]?.ToString() ?? "",
+                body         = r["BODY"]?.ToString() ?? "",
+                notiType     = r["NOTI_TYPE"]?.ToString(),
+                targetVal    = r["TARGET_VAL"]?.ToString(),
+                priority     = r["PRIORITY"]?.ToString(),
+                source       = r["SOURCE"]?.ToString(),
+                linkAction   = r["LINK_ACTION"]?.ToString(),
+                senderName   = r["SENDER_NAME"]?.ToString(),
+                senderEmpCd  = r["CREATED_BY"]?.ToString(),
+                createdDate  = Convert.ToDateTime(r["CREATED_DATE"]),
+                targetCount  = r["TARGET_COUNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["TARGET_COUNT"])
+            },
+            new OracleParameter("OFFSET", offset),
+            new OracleParameter("PAGE_SIZE", page_size));
+
+            return Ok(new { success = true, total, page, page_size, data });
         }
         catch (Exception ex)
         {

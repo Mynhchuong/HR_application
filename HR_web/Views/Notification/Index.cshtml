@@ -44,6 +44,26 @@
     }
     .noti-item.unread:active { background: #dbeafe; }
 
+    /* Highlight thông báo từ HR/Admin */
+    .noti-item.from-hr      { background: #fef2f2; }
+    .noti-item.from-hr.unread { background: #fee2e2; }
+    .noti-item.from-hr::after {
+        content: ''; position: absolute; right: 0; top: 0; bottom: 0;
+        width: 4px; background: linear-gradient(180deg, #dc2626, #991b1b);
+        border-radius: 2px 0 0 2px;
+    }
+    .noti-pill-hr {
+        font-size: .62rem; font-weight: 800; background: #dc2626; color: white;
+        padding: 1px 7px; border-radius: 20px; text-transform: uppercase;
+        letter-spacing: .03em; display: inline-flex; align-items: center; gap: 2px;
+        margin-right: .35rem;
+    }
+    .noti-pill-high {
+        font-size: .62rem; font-weight: 800; background: #fef3c7; color: #92400e;
+        padding: 1px 7px; border-radius: 20px; text-transform: uppercase;
+        display: inline-flex; align-items: center; gap: 2px;
+    }
+
     /* Icon badge */
     .noti-icon {
         width: 44px; height: 44px; border-radius: 13px;
@@ -162,13 +182,20 @@ function renderItems(items, append = false) {
 
     items.forEach(n => {
         const isUnread = n.IS_READ === 0;
-        const style = typeStyle[n.LINK_ACTION] ?? { icon: '🔔', bg: '#f1f5f9' };
+        const isFromHr = n.SOURCE === 'ADMIN' || n.SOURCE === 'HR';
+        const isHigh   = n.PRIORITY === 'HIGH';
+        const style = isFromHr
+            ? { icon: '📢', bg: '#fee2e2' }
+            : (typeStyle[n.LINK_ACTION] ?? { icon: '🔔', bg: '#f1f5f9' });
         const div = document.createElement('div');
-        div.className = 'noti-item' + (isUnread ? ' unread' : '');
+        div.className = 'noti-item' + (isUnread ? ' unread' : '') + (isFromHr ? ' from-hr' : '');
         div.dataset.id = n.ID;
+        const pills = (isFromHr ? '<span class="noti-pill-hr">📢 Từ Nhân sự</span>' : '')
+                    + (isHigh && !isFromHr ? '<span class="noti-pill-high">⚡ QUAN TRỌNG</span>' : '');
         div.innerHTML = `
             <div class="noti-icon" style="background:${style.bg}">${style.icon}</div>
             <div class="noti-content">
+                ${pills ? `<div style="margin-bottom:.25rem">${pills}</div>` : ''}
                 ${n.SENDER_NAME ? `<div class="noti-sender"><span class="vni-font">${esc(n.SENDER_NAME)}</span>${n.SENDER_EMPCD ? `<span class="noti-empcd">${esc(n.SENDER_EMPCD)}</span>` : ''}</div>` : ''}
                 <div class="noti-title">${esc(n.TITLE)}</div>
                 <div class="noti-body">${esc(n.BODY)}</div>

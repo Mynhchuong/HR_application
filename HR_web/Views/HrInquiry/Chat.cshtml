@@ -238,7 +238,7 @@ InquiryChat.init({
     mySide: 'HR',
     myEmpCd: '@myEmpCd',
     isClosed: @(isClosed ? "true" : "false"),
-    pollIntervalMs: 30000,
+    pollIntervalMs: 5000,
     reloadOnLock: true,
     recallableIfUnreadBy: 'EMP',
     defaultTheirsName: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(inq.EmpName ?? "Nhân viên")),

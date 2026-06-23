@@ -136,6 +136,14 @@
                 <option value="50">50 / trang</option>
                 <option value="100">100 / trang</option>
             </select>
+            <button type="button" class="btn btn-sm btn-outline-danger mb-0" id="btnRefresh" onclick="loadData(currentPage)" title="Làm mới">
+                <span class="material-symbols-rounded" style="font-size:1rem;vertical-align:middle">refresh</span>
+            </button>
+            <div class="form-check form-switch mb-0 ms-1" title="Tự động làm mới mỗi 30 giây">
+                <input class="form-check-input" type="checkbox" id="cbAutoReload" checked onchange="toggleAutoReload(this.checked)">
+                <label class="form-check-label text-sm" for="cbAutoReload">Tự động</label>
+            </div>
+            <span id="autoStatus" class="text-xs text-secondary ms-1"></span>
         </div>
 
         <div class="card-body px-0 pt-0 pb-2">
@@ -177,6 +185,12 @@ const TOKEN      = document.querySelector('input[name="__RequestVerificationToke
 let pageSize    = 30;
 let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false;
 
+const AUTO_RELOAD_MS = 30000;
+let autoTimer       = null;
+let prevUnread      = null;
+let titleFlashTimer = null;
+const ORIG_TITLE    = document.title;
+
 function changePageSize(v) { pageSize = parseInt(v,10) || 30; loadData(1); }
 
 function esc(s) { return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -208,23 +222,31 @@ function buildUrl(page) {
     return url;
 }
 
-async function loadData(page = 1) {
+async function loadData(page = 1, silent = false) {
     if (isLoading) return;
     isLoading = true; currentPage = page;
-    document.getElementById('inqTableBody').innerHTML =
-        '<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải...</div></td></tr>';
+    if (!silent) {
+        document.getElementById('inqTableBody').innerHTML =
+            '<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải...</div></td></tr>';
+    }
 
     try {
         const res  = await fetch(buildUrl(page));
         const data = await res.json();
-        if (!data.success) { showToast(data.message || 'Lỗi tải dữ liệu', 'error'); return; }
+        if (!data.success) { if (!silent) showToast(data.message || 'Lỗi tải dữ liệu', 'error'); return; }
 
         totalRecords = data.total      ?? 0;
         totalPages   = data.totalPages ?? 1;
+        const newUnread = data.totalUnread ?? 0;
         document.getElementById('statTotal').textContent  = (data.total       ?? 0).toLocaleString();
         document.getElementById('statOpen').textContent   = (data.cntOpen     ?? 0).toLocaleString();
-        document.getElementById('statUnread').textContent = (data.totalUnread ?? 0).toLocaleString();
+        document.getElementById('statUnread').textContent = newUnread.toLocaleString();
         document.getElementById('statClosed').textContent = (data.cntClosed   ?? 0).toLocaleString();
+
+        if (silent && prevUnread !== null && newUnread > prevUnread) {
+            notifyNewMessages(newUnread - prevUnread, newUnread);
+        }
+        prevUnread = newUnread;
 
         const items = data.data || [];
         const tbody = document.getElementById('inqTableBody');
@@ -278,8 +300,57 @@ async function loadData(page = 1) {
             }).join('');
         }
         renderPagination();
-    } catch { showToast('Lỗi kết nối', 'error'); }
+        updateAutoStatus();
+    } catch { if (!silent) showToast('Lỗi kết nối', 'error'); }
     finally { isLoading = false; }
+}
+
+function notifyNewMessages(diff, total) {
+    showToast(`Có ${diff} tin nhắn mới (chưa đọc: ${total})`, 'info');
+    flashTitle(`(${total}) Tin mới — ${ORIG_TITLE}`);
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 880; g.gain.value = 0.05;
+        o.start(); setTimeout(() => { o.stop(); ctx.close(); }, 180);
+    } catch {}
+}
+
+function flashTitle(msg) {
+    if (titleFlashTimer) { clearInterval(titleFlashTimer); titleFlashTimer = null; }
+    let on = false;
+    titleFlashTimer = setInterval(() => {
+        document.title = on ? ORIG_TITLE : msg;
+        on = !on;
+    }, 1000);
+    const stop = () => {
+        if (titleFlashTimer) { clearInterval(titleFlashTimer); titleFlashTimer = null; }
+        document.title = ORIG_TITLE;
+        document.removeEventListener('visibilitychange', onVis);
+    };
+    const onVis = () => { if (!document.hidden) stop(); };
+    document.addEventListener('visibilitychange', onVis);
+    setTimeout(stop, 60000);
+}
+
+function startAutoReload() {
+    stopAutoReload();
+    autoTimer = setInterval(() => {
+        if (document.hidden) return;
+        loadData(currentPage, true);
+    }, AUTO_RELOAD_MS);
+    updateAutoStatus();
+}
+function stopAutoReload() {
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+    updateAutoStatus();
+}
+function toggleAutoReload(on) { if (on) startAutoReload(); else stopAutoReload(); }
+function updateAutoStatus() {
+    const el = document.getElementById('autoStatus');
+    if (!el) return;
+    el.textContent = autoTimer ? `· tự động ${AUTO_RELOAD_MS/1000}s` : '· tắt tự động';
 }
 
 function unlockRow(id) {
@@ -356,5 +427,6 @@ async function loadTopics() {
 
 loadTopics();
 loadData(1);
+startAutoReload();
 </script>
 }

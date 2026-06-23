@@ -1363,10 +1363,10 @@ public class InquiryController : ControllerBase
 
             // Summary COUNT (same filters, no pagination)
             string sqlCount = $@"
-                SELECT COUNT(*)                                                 AS TOTAL,
-                       SUM(CASE WHEN i.STATUS = 'OPEN'   THEN 1 ELSE 0 END)   AS CNT_OPEN,
-                       SUM(CASE WHEN i.STATUS = 'CLOSED' THEN 1 ELSE 0 END)   AS CNT_CLOSED,
-                       NVL(SUM(i.UNREAD_HR), 0)                               AS TOTAL_UNREAD
+                SELECT COUNT(*)                                                       AS TOTAL,
+                       NVL(SUM(CASE WHEN i.STATUS = 'OPEN'   THEN 1 ELSE 0 END), 0) AS CNT_OPEN,
+                       NVL(SUM(CASE WHEN i.STATUS = 'CLOSED' THEN 1 ELSE 0 END), 0) AS CNT_CLOSED,
+                       NVL(SUM(i.UNREAD_HR), 0)                                     AS TOTAL_UNREAD
                 FROM HRMS.HR_INQUIRY i
                 WHERE 1=1
                 {whereStatus}

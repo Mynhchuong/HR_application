@@ -17,6 +17,8 @@ window.InquiryChat = (function () {
     let pollTimer = null;
     let refreshing = false;
     const seenIds = new Set();
+    let titleFlashTimer = null;
+    let origTitle = '';
     const REF_ICONS = { POLICY: 'gavel', GUIDE: 'play_circle' };
     const REF_LABELS = { POLICY: 'Quy định', GUIDE: 'Hướng dẫn' };
     function refUrlFor(type, id) {
@@ -98,7 +100,15 @@ window.InquiryChat = (function () {
         scrollBottom(true);
 
         if (!cfg.isClosed && cfg.pollIntervalMs > 0) {
-            pollTimer = setInterval(refreshMessages, cfg.pollIntervalMs);
+            origTitle = document.title;
+            pollTimer = setInterval(() => {
+                if (document.hidden) return; // skip while tab hidden
+                refreshMessages();
+            }, cfg.pollIntervalMs);
+            // Stop title flash whenever user comes back to tab
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) stopTitleFlash();
+            });
         }
 
         // initial char counter sync (in case editor restored content)
@@ -252,8 +262,12 @@ window.InquiryChat = (function () {
             const res = await fetch(`${cfg.urls.getMessages}?id=${cfg.inquiryId}&afterMsgId=${lastMsgId}`);
             const data = await res.json();
             if (data.success && data.messages?.length > 0) {
+                const newFromOther = data.messages.filter(m =>
+                    m.senderType && m.senderType !== 'SYS' && m.senderType !== cfg.mySide
+                );
                 data.messages.forEach(appendMsg);
                 scrollBottom(true);
+                if (newFromOther.length > 0) notifyIncoming(newFromOther.length);
             }
             // also refresh read flags on currently-rendered mine messages
             if (data.success && data.allReadStatus) {
@@ -262,6 +276,30 @@ window.InquiryChat = (function () {
             updateReadStatusOnLastMine();
         } catch { /* ignore */ }
         finally { refreshing = false; }
+    }
+
+    function notifyIncoming(count) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.frequency.value = 880; g.gain.value = 0.05;
+            o.start(); setTimeout(() => { o.stop(); ctx.close(); }, 180);
+        } catch {}
+        if (document.hidden) flashTitle(`(${count}) Tin mới — ${origTitle}`);
+    }
+
+    function flashTitle(msg) {
+        if (titleFlashTimer) return; // already flashing
+        let on = false;
+        titleFlashTimer = setInterval(() => {
+            document.title = on ? origTitle : msg;
+            on = !on;
+        }, 1000);
+    }
+    function stopTitleFlash() {
+        if (titleFlashTimer) { clearInterval(titleFlashTimer); titleFlashTimer = null; }
+        if (origTitle) document.title = origTitle;
     }
 
     function applyReadStatusBatch(arr) {

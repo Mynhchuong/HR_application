@@ -271,9 +271,6 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         AddRowInt("Đã đóng",             s.cntClosed);
         AddRowInt("Hội thoại trực tiếp", s.cntDirect);
         AddRowInt("Hội thoại ẩn danh",   s.cntAnon);
-        AddRowInt("HR đóng",             s.closedByHr);
-        AddRowInt("NV tự đóng",          s.closedByEmp);
-        AddRowInt("Admin đóng",          s.closedByAdmin);
         AddRowOpt("Đánh giá TB",         s.avgRating,    2);
         AddRowOpt("Tin nhắn TB/HT",      s.avgMsg,       1);
         AddRowOpt("TG xử lý TB (phút)",  s.avgHandleMin, 1);
@@ -281,7 +278,69 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         var sumHdr = wsSum.Range(5, 1, r - 1, 1);
         sumHdr.Style.Font.Bold = true;
         sumHdr.Style.Fill.BackgroundColor = XLColor.FromHtml("#fef2f2");
-        wsSum.Columns().AdjustToContents();
+
+        // ─── Section: Người đóng hội thoại (kèm %) ────────────────────────
+        int tc = s.closedByHr + s.closedByEmp + s.closedByAdmin;
+        string Pct(int part) => tc > 0 ? $" ({Math.Round(part * 100.0 / tc)}%)" : "";
+
+        r++;
+        wsSum.Cell(r, 1).Value = "── NGƯỜI ĐÓNG HỘI THOẠI ──";
+        wsSum.Cell(r, 1).Style.Font.Bold = true;
+        wsSum.Cell(r, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#1e293b");
+        wsSum.Cell(r, 1).Style.Font.FontColor = XLColor.White;
+        wsSum.Range(r, 1, r, 2).Merge();
+        r++;
+
+        wsSum.Cell(r, 1).Value = "HR đóng";        wsSum.Cell(r, 2).Value = s.closedByHr    + Pct(s.closedByHr);    r++;
+        wsSum.Cell(r, 1).Value = "NV tự đóng";     wsSum.Cell(r, 2).Value = s.closedByEmp   + Pct(s.closedByEmp);   r++;
+        wsSum.Cell(r, 1).Value = "Admin đóng";     wsSum.Cell(r, 2).Value = s.closedByAdmin + Pct(s.closedByAdmin); r++;
+        wsSum.Cell(r, 1).Value = "Tổng đã đóng";   wsSum.Cell(r, 2).Value = tc;                                     r++;
+
+        // ─── Section: Đánh giá cao nhất / thấp nhất ───────────────────────
+        var rated = result.byHr.Where(h => h.avgRating.HasValue)
+                              .OrderByDescending(h => h.avgRating!.Value).ToList();
+        var topRated    = rated.FirstOrDefault();
+        var bottomRated = rated.Count > 1 ? rated.Last() : null;
+
+        r++;
+        wsSum.Cell(r, 1).Value = "── ĐÁNH GIÁ HR ──";
+        wsSum.Cell(r, 1).Style.Font.Bold = true;
+        wsSum.Cell(r, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#1e293b");
+        wsSum.Cell(r, 1).Style.Font.FontColor = XLColor.White;
+        wsSum.Range(r, 1, r, 2).Merge();
+        r++;
+
+        if (topRated != null)
+        {
+            wsSum.Cell(r, 1).Value = "🏆 Cao nhất";
+            wsSum.Cell(r, 2).Value = $"{topRated.hrName} ({topRated.hrCd}) — ★ {Math.Round(topRated.avgRating!.Value, 2)} / {topRated.handled} hội thoại";
+            wsSum.Cell(r, 2).Style.Font.FontName = "Vnitbi__";
+            wsSum.Cell(r, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#dcfce7");
+            r++;
+        }
+        else
+        {
+            wsSum.Cell(r, 1).Value = "🏆 Cao nhất";
+            wsSum.Cell(r, 2).Value = "Chưa có dữ liệu";
+            r++;
+        }
+        if (bottomRated != null)
+        {
+            wsSum.Cell(r, 1).Value = "📉 Thấp nhất";
+            wsSum.Cell(r, 2).Value = $"{bottomRated.hrName} ({bottomRated.hrCd}) — ★ {Math.Round(bottomRated.avgRating!.Value, 2)} / {bottomRated.handled} hội thoại";
+            wsSum.Cell(r, 2).Style.Font.FontName = "Vnitbi__";
+            wsSum.Cell(r, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#fee2e2");
+            r++;
+        }
+        else
+        {
+            wsSum.Cell(r, 1).Value = "📉 Thấp nhất";
+            wsSum.Cell(r, 2).Value = "Chưa đủ dữ liệu (cần ≥ 2 HR có đánh giá)";
+            r++;
+        }
+
+        wsSum.Column(1).Width = 30;
+        wsSum.Column(2).Width = 55;
 
         // ─── Sheet 2: Theo chủ đề ────────────────────────────────────────────
         var wsTopic = wb.Worksheets.Add("Theo chủ đề");

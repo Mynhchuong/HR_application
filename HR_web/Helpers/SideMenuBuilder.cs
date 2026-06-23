@@ -166,6 +166,7 @@ public static class SideMenuBuilder
                     new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",              Icon = "menu_book"       },
                     new() { Title = "Quản lý Thông báo",     Url = "~/NotiTemplate/Index",        Icon = "notifications"   },
                     new() { Title = "Quản lý hội thoại",     Url = "~/AdminInquiry/Index",        Icon = "forum"           },
+                    new() { Title = "Chủ đề hội thoại",      Url = "~/AdminInquiry/Topics",       Icon = "topic"           },
                     new() { Title = "Báo cáo hội thoại",    Url = "~/AdminInquiry/Report",       Icon = "bar_chart"       },
                 ]
             },

@@ -824,7 +824,7 @@
                     setTimeout(function() { tryRegisterToken(attempt + 1); }, 500);
                     return;
                 }
-                var osType = navigator.userAgent.indexOf('MySamhoMobile') !== -1 ? 'IOS' : 'ANDROID';
+                var osType = (typeof window.webkit !== 'undefined') ? 'IOS' : 'ANDROID';
                 var antiForgery = document.querySelector('input[name="__RequestVerificationToken"]');
                 var aft = antiForgery ? antiForgery.value : '';
                 fetch('@Url.Action("RegisterToken","Notification")', {

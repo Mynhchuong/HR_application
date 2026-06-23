@@ -100,7 +100,7 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
         webSettings.setAllowFileAccess(true);
-        webSettings.setUserAgentString("MySamhoMobile");
+        webSettings.setUserAgentString("MySamhoMobile/Android");
         webSettings.setTextZoom(100);
         webSettings.setUseWideViewPort(true);
         webSettings.setLoadWithOverviewMode(true);

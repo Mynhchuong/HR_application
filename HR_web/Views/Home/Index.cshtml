@@ -156,6 +156,9 @@
     .bg-soft-purple { background: #f5f3ff; color: #7c3aed; }
     .bg-soft-emerald { background: #ecfdf5; color: #10b981; }
     .bg-soft-orange { background: #fff7ed; color: #f97316; }
+    .bg-soft-rose { background: #fff1f2; color: #e11d48; }
+    .bg-soft-amber { background: #fffbeb; color: #d97706; }
+    .bg-soft-cyan { background: #ecfeff; color: #0891b2; }
 
     /* New feature announcement */
     .news-banner {
@@ -240,6 +243,52 @@
         </div>
     </div>
 
+    <!-- App Update Reminder -->
+    <div class="news-banner" id="appUpdateBanner" style="background:linear-gradient(135deg,#dbeafe 0%,#bfdbfe 50%,#60a5fa 100%);box-shadow:0 8px 24px rgba(96,165,250,.25)">
+        <button class="news-banner-close" onclick="dismissAppUpdate()" title="Đóng" style="color:#1e40af">
+            <span class="material-symbols-rounded" style="font-size:1rem">close</span>
+        </button>
+        <div class="news-banner-content">
+            <div class="news-banner-icon">
+                <span class="material-symbols-rounded" style="color:#2563eb">system_update</span>
+            </div>
+            <div class="news-banner-text">
+                <div class="news-banner-title" style="color:#1e3a8a">
+                    <span class="news-badge" style="background:#2563eb">CẬP NHẬT</span>
+                    Có phiên bản mới — Vui lòng cập nhật ứng dụng
+                </div>
+                <div class="news-banner-desc" style="color:#1e40af">
+                    Vào <b>CH Play (Google Play)</b> hoặc <b>App Store</b>, tìm <b>"MySamho"</b> và bấm <b>Cập nhật</b> để dùng tính năng mới: <b>Hộp thư</b>, gửi <b>video</b>, đính kèm file dung lượng lớn hơn.
+                </div>
+                <a href="https://play.google.com/store/apps/details?id=com.samho.mysamho" target="_blank" class="news-banner-btn" style="color:#1e40af">
+                    Mở CH Play
+                    <span class="material-symbols-rounded" style="font-size:1rem">open_in_new</span>
+                </a>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function() {
+            const KEY = 'home_app_update_v5_dismissed';
+            if (localStorage.getItem(KEY) === '1') {
+                const el = document.getElementById('appUpdateBanner');
+                if (el) el.style.display = 'none';
+            }
+            window.dismissAppUpdate = function() {
+                localStorage.setItem(KEY, '1');
+                const el = document.getElementById('appUpdateBanner');
+                if (el) {
+                    el.style.transition = 'opacity .3s, max-height .3s';
+                    el.style.opacity = '0';
+                    el.style.maxHeight = '0';
+                    el.style.marginBottom = '0';
+                    el.style.padding = '0';
+                    setTimeout(() => el.style.display = 'none', 320);
+                }
+            };
+        })();
+    </script>
+
     @if (user?.RoleName != "Expat" && user?.RoleName != "Canteen")
     {
         <!-- New Feature Announcement -->
@@ -309,6 +358,36 @@
             <div class="app-card-title">Xác nhận TC</div>
             <div class="app-card-tag">Giờ làm việc</div>
         </a>
+
+        @if (user?.RoleName != "Expat" && user?.RoleName != "Canteen")
+        {
+            <!-- Đăng ký ra vào cổng -->
+            <a asp-controller="GatePass" asp-action="GpMyRequests" class="app-card">
+                <div class="app-icon-wrapper bg-soft-amber">
+                    <span class="material-symbols-rounded">door_front</span>
+                </div>
+                <div class="app-card-title">Ra vào cổng</div>
+                <div class="app-card-tag">Đăng ký & lịch sử</div>
+            </a>
+
+            <!-- Đơn nghỉ phép -->
+            <a asp-controller="Leave" asp-action="LeaveMyRequests" class="app-card">
+                <div class="app-icon-wrapper bg-soft-rose">
+                    <span class="material-symbols-rounded">event_busy</span>
+                </div>
+                <div class="app-card-title">Nghỉ phép</div>
+                <div class="app-card-tag">Đăng ký & lịch sử</div>
+            </a>
+
+            <!-- Hộp thư (Inquiry) -->
+            <a asp-controller="EmployeeInquiry" asp-action="Index" class="app-card">
+                <div class="app-icon-wrapper bg-soft-cyan">
+                    <span class="material-symbols-rounded">forum</span>
+                </div>
+                <div class="app-card-title">Hộp thư</div>
+                <div class="app-card-tag">Phản ánh & Ý kiến</div>
+            </a>
+        }
 
         <!-- Hồ sơ cá nhân -->
         <a asp-controller="Profile" asp-action="ProfileUser" class="app-card">

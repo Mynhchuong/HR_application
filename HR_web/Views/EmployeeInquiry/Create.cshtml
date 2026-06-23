@@ -22,16 +22,68 @@
 .step-title  { font-size: 1.15rem; font-weight: 800; color: #1e293b; }
 
 /* Type selection */
-.type-cards { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-bottom: 1rem; }
+.type-cards { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; margin-bottom: 1rem; }
 .type-card {
-    background: white; border: 2px solid #e2e8f0; border-radius: 16px;
-    padding: 1.25rem 1rem; cursor: pointer; transition: all .2s; text-align: center;
+    position: relative;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 22px;
+    padding: 1.5rem 1rem 1.25rem;
+    cursor: pointer;
+    transition: transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s, border-color .25s;
+    text-align: center;
+    overflow: hidden;
 }
-.type-card:hover  { border-color: #c7d2fe; box-shadow: 0 4px 12px rgba(79,70,229,.1); }
-.type-card.active { border-color: #4f46e5; background: #f0f0ff; }
-.type-card .tc-icon { font-size: 2.2rem; margin-bottom: .5rem; }
-.type-card .tc-title { font-size: .9rem; font-weight: 800; color: #1e293b; }
-.type-card .tc-desc  { font-size: .75rem; color: #64748b; margin-top: .25rem; }
+.type-card::before {
+    content: ''; position: absolute; inset: 0; opacity: 0;
+    background: radial-gradient(circle at top, rgba(255,255,255,.6), transparent 70%);
+    transition: opacity .3s;
+    pointer-events: none;
+}
+.type-card:hover  {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(79,70,229,.18);
+}
+.type-card:hover::before { opacity: 1; }
+.type-card.active {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(79,70,229,.25);
+}
+.type-card.direct.active { border-color: #4f46e5; background: linear-gradient(180deg,#eef2ff 0%,#fff 100%); }
+.type-card.anon.active   { border-color: #475569; background: linear-gradient(180deg,#f1f5f9 0%,#fff 100%); }
+
+/* Icon halo */
+.type-card .tc-icon {
+    width: 86px; height: 86px;
+    margin: 0 auto .75rem;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    transition: transform .3s;
+}
+.type-card.direct .tc-icon { background: radial-gradient(circle, #e0e7ff 0%, #f5f3ff 100%); box-shadow: inset 0 0 0 2px rgba(79,70,229,.08); }
+.type-card.anon   .tc-icon { background: radial-gradient(circle, #e2e8f0 0%, #f8fafc 100%); box-shadow: inset 0 0 0 2px rgba(71,85,105,.08); }
+.type-card:hover .tc-icon { transform: scale(1.08) rotate(-3deg); }
+.type-card .tc-icon img {
+    width: 60px; height: 60px; object-fit: contain;
+    filter: drop-shadow(0 3px 5px rgba(0,0,0,.12));
+}
+
+.type-card .tc-title { font-size: 1.02rem; font-weight: 800; color: #1e293b; letter-spacing: -.01em; }
+.type-card .tc-desc  { font-size: .76rem; color: #64748b; margin-top: .35rem; line-height: 1.4; }
+
+/* Active checkmark badge */
+.type-card .tc-check {
+    position: absolute; top: 10px; right: 10px;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #10b981; color: white;
+    display: none; align-items: center; justify-content: center;
+    font-size: 1rem;
+    box-shadow: 0 2px 6px rgba(16,185,129,.4);
+    animation: popIn .3s cubic-bezier(.34,1.56,.64,1);
+}
+.type-card.active .tc-check { display: flex; }
+@@keyframes popIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }
 
 /* Topic grid */
 .topic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem; margin-bottom: 1rem; }
@@ -107,15 +159,17 @@ textarea.input-modern { resize: none; min-height: 120px; }
             <div class="step-title">Chọn hình thức hội thoại</div>
         </div>
         <div class="type-cards">
-            <div class="type-card" onclick="selectType('DIRECT', this)">
-                <div class="tc-icon"><span class="material-symbols-rounded" style="font-size:2.2rem;color:#4f46e5;">person</span></div>
+            <div class="type-card direct" onclick="selectType('DIRECT', this)">
+                <div class="tc-check"><span class="material-symbols-rounded" style="font-size:1rem">check</span></div>
+                <div class="tc-icon"><img src="~/assets/img/icons/counsel.png" alt="Trực tiếp" /></div>
                 <div class="tc-title">Trực tiếp</div>
-                <div class="tc-desc">HR biết bạn là ai</div>
+                <div class="tc-desc">HR biết bạn là ai — phản hồi nhanh hơn</div>
             </div>
-            <div class="type-card" onclick="selectType('ANON', this)">
-                <div class="tc-icon"><span class="material-symbols-rounded" style="font-size:2.2rem;color:#64748b;">visibility_off</span></div>
+            <div class="type-card anon" onclick="selectType('ANON', this)">
+                <div class="tc-check"><span class="material-symbols-rounded" style="font-size:1rem">check</span></div>
+                <div class="tc-icon"><img src="~/assets/img/icons/anon.png" alt="Ẩn danh" /></div>
                 <div class="tc-title">Ẩn danh</div>
-                <div class="tc-desc">HR không biết danh tính</div>
+                <div class="tc-desc">HR không biết danh tính của bạn</div>
             </div>
         </div>
 

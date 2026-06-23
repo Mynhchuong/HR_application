@@ -274,6 +274,21 @@ window.InquiryChat = (function () {
                 applyReadStatusBatch(data.allReadStatus);
             }
             updateReadStatusOnLastMine();
+
+            // Detect status change OPEN → CLOSED (other party closed the chat)
+            const newStatus = data?.inquiry?.status;
+            if (newStatus === 'CLOSED' && !cfg.isClosed) {
+                cfg.isClosed = true;
+                if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                stopTitleFlash();
+                // For employee: reload so the rating modal can pop up automatically
+                if (cfg.mySide === 'EMP') {
+                    setTimeout(() => location.reload(), 600);
+                } else {
+                    // For HR/Admin: just show a toast; no need to reload
+                    if (window.showToast) showToast('Hội thoại đã được đóng', 'info');
+                }
+            }
         } catch { /* ignore */ }
         finally { refreshing = false; }
     }

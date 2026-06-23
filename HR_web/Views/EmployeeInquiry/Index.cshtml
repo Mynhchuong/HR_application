@@ -75,6 +75,61 @@
 .inq-empty .ei { font-size: 3rem; display: block; margin-bottom: .5rem; }
 
 .inq-loading { text-align: center; padding: 1.5rem; color: #94a3b8; font-size: .9rem; }
+
+.rate-banner-wrap { display: flex; flex-direction: column; gap: .5rem; margin-bottom: .75rem; }
+.rate-banner {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 1.5px solid #fbbf24; border-radius: 14px;
+    padding: .85rem 1rem;
+    display: flex; flex-direction: column; gap: .5rem;
+    box-shadow: 0 2px 8px rgba(251,191,36,.25);
+}
+.rate-banner-msg  { font-size: .82rem; color: #78350f; line-height: 1.35; }
+.rate-banner-msg b { color: #92400e; font-weight: 800; }
+.rate-banner-row  { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.rate-banner-stars { display: flex; gap: 4px; }
+.rate-star {
+    font-size: 1.6rem; line-height: 1; cursor: pointer; color: #d1d5db;
+    transition: transform .12s, color .12s; user-select: none;
+}
+.rate-star:hover { transform: scale(1.15); color: #fbbf24; }
+.rate-star.on    { color: #f59e0b; }
+.rate-banner-skip {
+    background: transparent; border: none; color: #92400e; font-size: .78rem;
+    font-weight: 700; padding: 4px 8px; cursor: pointer; border-radius: 8px;
+}
+.rate-banner-skip:hover { background: #fef3c7; }
+.rate-banner-done {
+    background: #dcfce7; color: #166534; border-radius: 10px;
+    padding: .5rem .75rem; font-size: .82rem; font-weight: 700;
+    text-align: center;
+}
+
+/* Filter bar */
+.inq-filter {
+    display: flex; flex-wrap: wrap; gap: .4rem;
+    background: white; border-radius: 12px; padding: .5rem;
+    margin-bottom: .6rem; box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+.inq-filter select, .inq-filter input {
+    flex: 1; min-width: 100px; font-size: .8rem;
+    border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: .35rem .5rem; background: #f8fafc;
+}
+.inq-filter input { min-width: 140px; flex: 2; }
+.inq-filter select:focus, .inq-filter input:focus {
+    outline: none; border-color: #4f46e5; background: white;
+}
+
+/* Close button on card */
+.inq-card-close {
+    background: #fef2f2; border: 1px solid #fecaca; color: #dc2626;
+    border-radius: 8px; padding: 4px 8px; font-size: .68rem; font-weight: 700;
+    cursor: pointer; transition: all .12s; line-height: 1.2;
+    display: inline-flex; align-items: center; gap: 3px;
+}
+.inq-card-close:hover { background: #dc2626; color: white; border-color: #dc2626; }
+.inq-card-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 </style>
 
 <div class="inq-page px-2 py-2">
@@ -97,6 +152,20 @@
         </button>
     </div>
 
+    <div id="rateBannerWrap" class="rate-banner-wrap" style="display:none"></div>
+
+    <div class="inq-filter">
+        <select id="fStatus" onchange="applyFilter()">
+            <option value="">Tất cả trạng thái</option>
+            <option value="OPEN">Đang mở</option>
+            <option value="CLOSED">Đã đóng</option>
+        </select>
+        <select id="fTopic" onchange="applyFilter()">
+            <option value="">Tất cả chủ đề</option>
+        </select>
+        <input type="text" id="fSearch" placeholder="Tìm chủ đề, mã hội thoại..." oninput="applyFilter()">
+    </div>
+
     <div id="tabDirect">
         <div class="inq-loading">Đang tải...</div>
     </div>
@@ -104,6 +173,8 @@
         <div class="inq-loading">Đang tải...</div>
     </div>
 </div>
+
+@Html.AntiForgeryToken()
 
 <a href="@Url.Action("Create", "EmployeeInquiry")" class="inq-fab">
     <span class="material-symbols-rounded" style="font-size:1.6rem;">add</span>
@@ -157,8 +228,13 @@ function renderList(items, containerId, isAnon) {
             : `@Url.Action("Chat","EmployeeInquiry")?id=${i.id}`;
         const bg  = i.topicColor  ? `background:${i.topicColor}22;` : 'background:#e0e7ff;';
         const ico = i.topicIcon   ? i.topicIcon : 'chat';
+        const closeBtn = i.status === 'OPEN'
+            ? `<button class="inq-card-close" onclick="event.preventDefault();event.stopPropagation();closeConv(${i.id}, ${isAnon ? 1 : 0})" title="Đóng hội thoại">
+                   <span class="material-symbols-rounded" style="font-size:.85rem">close</span>Đóng
+               </button>`
+            : '';
         return `
-        <a class="inq-card" href="${esc(href)}">
+        <a class="inq-card" href="${esc(href)}" data-status="${i.status}" data-topic="${esc(i.topicCd || '')}" data-search="${esc((i.inquiryNo||'') + ' ' + (i.subject||'') + ' ' + (i.topicName||'')).toLowerCase()}">
             <div class="inq-card-icon" style="${bg}">
                 <span class="material-symbols-rounded" style="color:#4f46e5">${esc(ico)}</span>
             </div>
@@ -174,8 +250,73 @@ function renderList(items, containerId, isAnon) {
                     ${i.lastMsgDt ? `<span class="inq-card-time">· ${fmtTime(i.lastMsgDt)}</span>` : ''}
                 </div>
             </div>
+            <div class="inq-card-actions">${closeBtn}</div>
         </a>`;
     }).join('') + '</div>';
+}
+
+// ─── Close conversation (Employee) ───────────────────────────────
+async function closeConv(inqId, isAnon) {
+    const confirmed = window.showConfirm
+        ? await new Promise(r => showConfirm('Đóng hội thoại này? Sau khi đóng bạn sẽ không thể gửi tin nữa.',
+            () => r(true), { title: 'Đóng hội thoại', okText: 'Đóng', okClass: 'btn-warning', icon: 'close', iconColor: '#d97706', iconBg: '#fef3c7' }))
+        : confirm('Đóng hội thoại này?');
+    if (!confirmed) return;
+    try {
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+        const body  = { inquiryId: inqId, closeNote: null };
+        if (isAnon) body.anonToken = getAnonToken();
+        const res = await fetch('@Url.Action("Close","EmployeeInquiry")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!data.success) {
+            if (window.showToast) showToast(data.message || 'Không thể đóng', 'error');
+            return;
+        }
+        if (window.showToast) showToast('Đã đóng hội thoại', 'success');
+        // Reload list
+        if (isAnon) loadAnon(); else loadDirect();
+    } catch {
+        if (window.showToast) showToast('Lỗi kết nối', 'error');
+    }
+}
+
+// ─── Filter (status / topic / search) ────────────────────────────
+function applyFilter() {
+    const s = document.getElementById('fStatus').value;
+    const t = document.getElementById('fTopic').value;
+    const q = document.getElementById('fSearch').value.trim().toLowerCase();
+    ['tabDirect', 'tabAnon'].forEach(id => {
+        const cards = document.querySelectorAll(`#${id} .inq-card`);
+        let visible = 0;
+        cards.forEach(c => {
+            const okS = !s || c.dataset.status === s;
+            const okT = !t || c.dataset.topic  === t;
+            const okQ = !q || (c.dataset.search || '').includes(q);
+            const show = okS && okT && okQ;
+            c.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+        // Hide "empty" placeholder when filter has results elsewhere
+        const empty = document.querySelector(`#${id} .inq-empty`);
+        if (empty && cards.length > 0) empty.style.display = visible === 0 ? '' : 'none';
+    });
+}
+
+function rebuildTopicFilter() {
+    const sel  = document.getElementById('fTopic');
+    const prev = sel.value;
+    const all  = [...directItemsCache, ...anonItemsCache];
+    const seen = new Map();
+    all.forEach(i => {
+        if (i.topicCd && i.topicName && !seen.has(i.topicCd)) seen.set(i.topicCd, i.topicName);
+    });
+    sel.innerHTML = '<option value="">Tất cả chủ đề</option>'
+        + [...seen.entries()].map(([cd, name]) => `<option value="${esc(cd)}">${esc(name)}</option>`).join('');
+    sel.value = prev;
 }
 
 let countDirect = 0, countAnon = 0;
@@ -189,22 +330,132 @@ async function loadDirect() {
     try {
         const res  = await fetch('@Url.Action("GetMyList","EmployeeInquiry")');
         const data = await res.json();
-        renderList(data.data || [], 'tabDirect', false);
-        countDirect = (data.data || []).length;
+        const items = data.data || [];
+        directItemsCache = items;
+        renderList(items, 'tabDirect', false);
+        countDirect = items.length;
         updateHeroSub();
+        renderRateBanners([...items, ...anonItemsCache]);
+        rebuildTopicFilter();
+        applyFilter();
     } catch {
         document.getElementById('tabDirect').innerHTML = '<div class="inq-empty"><p>Không tải được dữ liệu</p></div>';
     }
 }
 
+// ─── Rating banner for closed conversations not yet rated ─────────
+const RATE_SKIP_KEY = 'inq_rate_skipped';
+function getSkippedIds() {
+    try { return new Set(JSON.parse(localStorage.getItem(RATE_SKIP_KEY) || '[]')); }
+    catch { return new Set(); }
+}
+function addSkippedId(id) {
+    const s = getSkippedIds(); s.add(id);
+    localStorage.setItem(RATE_SKIP_KEY, JSON.stringify([...s]));
+}
+
+function renderRateBanners(items) {
+    const wrap = document.getElementById('rateBannerWrap');
+    const skipped = getSkippedIds();
+    const todo = items.filter(i =>
+        i.status === 'CLOSED' &&
+        (i.rating == null || i.rating === 0) &&
+        !skipped.has(i.id)
+    ).sort((a, b) => new Date(b.closedDt || b.lastMsgDt || 0) - new Date(a.closedDt || a.lastMsgDt || 0));
+    if (todo.length === 0) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+    wrap.style.display = '';
+    wrap.innerHTML = todo.map(i => {
+        const who    = i.assignedName || i.closedByName || 'HR';
+        const topic  = i.topicName || i.subject || 'cuộc hội thoại';
+        const inqNo  = i.inquiryNo || '';
+        const isAnon = i.chatType === 'ANON';
+        const anonChip = isAnon
+            ? `<span style="background:#e0e7ff;color:#4f46e5;font-size:.65rem;padding:1px 6px;border-radius:8px;font-weight:700;margin-left:4px">ẨN DANH</span>`
+            : '';
+        return `
+        <div class="rate-banner" data-inq-id="${i.id}" data-anon="${isAnon ? 1 : 0}">
+            <div class="rate-banner-msg">
+                <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle;color:#d97706">stars</span>
+                Có vẻ bạn quên đánh giá hội thoại <b>${esc(topic)}</b>${anonChip}
+                ${inqNo ? `<span style="color:#a16207;font-family:monospace;font-size:.72rem">(${esc(inqNo)})</span>` : ''}
+                do <b class="vni-font">${esc(who)}</b> phụ trách. Bạn cảm thấy như nào?
+            </div>
+            <div class="rate-banner-row">
+                <div class="rate-banner-stars" data-inq-id="${i.id}">
+                    ${[1,2,3,4,5].map(s => `<span class="rate-star" data-val="${s}" onclick="submitRating(${i.id}, ${s}, this, ${isAnon ? 1 : 0})">★</span>`).join('')}
+                </div>
+                <button class="rate-banner-skip" onclick="skipRating(${i.id})">Để sau</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function submitRating(inqId, stars, starEl, isAnon) {
+    // visually highlight stars 1..stars
+    const row = starEl.parentElement;
+    row.querySelectorAll('.rate-star').forEach((s, idx) => s.classList.toggle('on', idx < stars));
+
+    const banner = document.querySelector(`.rate-banner[data-inq-id="${inqId}"]`);
+    try {
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+        const body  = { inquiryId: inqId, rating: stars, ratingNote: null };
+        if (isAnon) body.anonToken = getAnonToken();
+        const res = await fetch('@Url.Action("Rate","EmployeeInquiry")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!data.success) {
+            if (window.showToast) showToast(data.message || 'Không thể đánh giá', 'error');
+            return;
+        }
+        // Replace banner with "thank you" then fade out
+        if (banner) {
+            banner.innerHTML = `<div class="rate-banner-done">
+                <span class="material-symbols-rounded" style="font-size:1rem;vertical-align:middle">check_circle</span>
+                Cảm ơn bạn đã đánh giá ${stars} sao!
+            </div>`;
+            setTimeout(() => {
+                banner.style.transition = 'opacity .4s, max-height .4s';
+                banner.style.opacity = '0';
+                banner.style.maxHeight = '0';
+                banner.style.overflow = 'hidden';
+                setTimeout(() => {
+                    banner.remove();
+                    const wrap = document.getElementById('rateBannerWrap');
+                    if (!wrap.querySelector('.rate-banner')) wrap.style.display = 'none';
+                }, 450);
+            }, 1500);
+        }
+    } catch {
+        if (window.showToast) showToast('Lỗi kết nối', 'error');
+    }
+}
+
+function skipRating(inqId) {
+    addSkippedId(inqId);
+    const banner = document.querySelector(`.rate-banner[data-inq-id="${inqId}"]`);
+    if (banner) banner.remove();
+    const wrap = document.getElementById('rateBannerWrap');
+    if (!wrap.querySelector('.rate-banner')) wrap.style.display = 'none';
+}
+
+let anonItemsCache = [];
+let directItemsCache = [];
 async function loadAnon() {
     try {
         const tok = getAnonToken();
         const res  = await fetch(`@Url.Action("GetAnonList","EmployeeInquiry")?token=${encodeURIComponent(tok)}`);
         const data = await res.json();
-        renderList(data.data || [], 'tabAnon', true);
-        countAnon = (data.data || []).length;
+        const items = data.data || [];
+        anonItemsCache = items;
+        renderList(items, 'tabAnon', true);
+        countAnon = items.length;
         updateHeroSub();
+        renderRateBanners([...directItemsCache, ...items]);
+        rebuildTopicFilter();
+        applyFilter();
     } catch {
         document.getElementById('tabAnon').innerHTML = '<div class="inq-empty"><p>Không tải được dữ liệu</p></div>';
     }

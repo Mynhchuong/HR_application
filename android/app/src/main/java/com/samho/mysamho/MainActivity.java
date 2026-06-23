@@ -65,7 +65,9 @@ public class MainActivity extends AppCompatActivity {
     private static final int FILE_CHOOSER_RESULT_CODE = 100;
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 101;
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 102;
+    private static final int AUDIO_PERMISSION_REQUEST_CODE = 103;
     private String pendingLinkAction = null; // từ FCM notification tap
+    private boolean pendingVideoCaptureAfterPermission = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -163,12 +165,14 @@ public class MainActivity extends AppCompatActivity {
                 boolean isCapture = fileChooserParams.isCaptureEnabled();
 
                 if (isCapture) {
+                    // Site yêu cầu mở camera trực tiếp → hỏi user chụp ảnh hay quay phim
                     if (checkCameraPermission()) {
-                        launchCamera();
+                        showCameraOptionDialog();
                     } else {
                         requestCameraPermission();
                     }
                 } else {
+                    // Pick từ gallery/file — default intent đã hỗ trợ image + video
                     Intent intent = fileChooserParams.createIntent();
                     try {
                         startActivityForResult(intent, FILE_CHOOSER_RESULT_CODE);
@@ -377,44 +381,103 @@ public class MainActivity extends AppCompatActivity {
         }
         if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                launchCamera();
+                showCameraOptionDialog();
             } else {
                 Toast.makeText(this, "Quyền Camera bị từ chối", Toast.LENGTH_SHORT).show();
-                if (mFilePathCallback != null) {
-                    mFilePathCallback.onReceiveValue(null);
-                    mFilePathCallback = null;
-                }
+                cancelFileChooser();
+            }
+            return;
+        }
+        if (requestCode == AUDIO_PERMISSION_REQUEST_CODE) {
+            // Dù grant hay deny đều cho phép quay (deny → video sẽ không có tiếng)
+            if (pendingVideoCaptureAfterPermission) {
+                pendingVideoCaptureAfterPermission = false;
+                launchCameraVideo();
             }
         }
     }
 
-    private void launchCamera() {
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            File photoFile = null;
-            try {
-                photoFile = File.createTempFile("camera_image_", ".jpg", getExternalCacheDir());
-            } catch (IOException ex) {
-                // Error occurred
-            }
+    private void cancelFileChooser() {
+        if (mFilePathCallback != null) {
+            mFilePathCallback.onReceiveValue(null);
+            mFilePathCallback = null;
+        }
+    }
 
-            if (photoFile != null) {
-                mCameraPhotoUri = FileProvider.getUriForFile(this,
-                        getApplicationContext().getPackageName() + ".fileprovider",
-                        photoFile);
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCameraPhotoUri);
-                startActivityForResult(takePictureIntent, FILE_CHOOSER_RESULT_CODE);
-            } else {
-                if (mFilePathCallback != null) {
-                    mFilePathCallback.onReceiveValue(null);
-                    mFilePathCallback = null;
-                }
-            }
+    private boolean checkAudioPermission() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void showCameraOptionDialog() {
+        String[] options = { "📷 Chụp ảnh", "🎥 Quay phim" };
+        new AlertDialog.Builder(this)
+                .setTitle("Dùng camera để...")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        launchCameraPhoto();
+                    } else {
+                        if (checkAudioPermission()) {
+                            launchCameraVideo();
+                        } else {
+                            pendingVideoCaptureAfterPermission = true;
+                            ActivityCompat.requestPermissions(this,
+                                    new String[]{Manifest.permission.RECORD_AUDIO},
+                                    AUDIO_PERMISSION_REQUEST_CODE);
+                        }
+                    }
+                })
+                .setOnCancelListener(d -> cancelFileChooser())
+                .show();
+    }
+
+    private void launchCameraPhoto() {
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if (takePictureIntent.resolveActivity(getPackageManager()) == null) {
+            Toast.makeText(this, "Không có app camera", Toast.LENGTH_SHORT).show();
+            cancelFileChooser();
+            return;
+        }
+        File photoFile = null;
+        try {
+            photoFile = File.createTempFile("camera_image_", ".jpg", getExternalCacheDir());
+        } catch (IOException ignored) { }
+
+        if (photoFile != null) {
+            mCameraPhotoUri = FileProvider.getUriForFile(this,
+                    getApplicationContext().getPackageName() + ".fileprovider",
+                    photoFile);
+            takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCameraPhotoUri);
+            takePictureIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            startActivityForResult(takePictureIntent, FILE_CHOOSER_RESULT_CODE);
         } else {
-            if (mFilePathCallback != null) {
-                mFilePathCallback.onReceiveValue(null);
-                mFilePathCallback = null;
-            }
+            cancelFileChooser();
+        }
+    }
+
+    private void launchCameraVideo() {
+        Intent takeVideoIntent = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
+        if (takeVideoIntent.resolveActivity(getPackageManager()) == null) {
+            Toast.makeText(this, "Không có app quay phim", Toast.LENGTH_SHORT).show();
+            cancelFileChooser();
+            return;
+        }
+        File videoFile = null;
+        try {
+            videoFile = File.createTempFile("camera_video_", ".mp4", getExternalCacheDir());
+        } catch (IOException ignored) { }
+
+        if (videoFile != null) {
+            mCameraPhotoUri = FileProvider.getUriForFile(this,
+                    getApplicationContext().getPackageName() + ".fileprovider",
+                    videoFile);
+            takeVideoIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCameraPhotoUri);
+            takeVideoIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            takeVideoIntent.putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 1);          // high
+            takeVideoIntent.putExtra(MediaStore.EXTRA_DURATION_LIMIT, 60);        // max 60s
+            takeVideoIntent.putExtra(MediaStore.EXTRA_SIZE_LIMIT, 50L * 1024 * 1024); // 50MB
+            startActivityForResult(takeVideoIntent, FILE_CHOOSER_RESULT_CODE);
+        } else {
+            cancelFileChooser();
         }
     }
 

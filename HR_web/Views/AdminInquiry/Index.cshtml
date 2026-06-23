@@ -22,10 +22,19 @@
     .pagination .page-link { cursor: pointer; }
     .pagination .page-item.disabled .page-link { cursor: default; }
     .emp-name-row { font-weight: 700; color: #1e293b; font-size: .85rem; }
-    .emp-meta { font-size: .72rem; color: #64748b; line-height: 1.3; margin-top: 1px; }
-    .emp-meta .empcd { font-family: monospace; color: #94a3b8; font-weight: 700; }
-    .row-close-btn { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: .25rem .5rem; font-size: .72rem; font-weight: 700; cursor: pointer; transition: all .12s; }
-    .row-close-btn:hover { background: #dc2626; color: white; border-color: #dc2626; }
+    .emp-meta { font-size: .72rem; color: #94a3b8; line-height: 1.3; margin-top: 1px; }
+    .emp-meta .empcd { font-family: monospace; font-weight: 700; }
+    .emp-dlw { font-size: .72rem; color: #64748b; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .dlw-chip { background: #f1f5f9; border-radius: 4px; padding: 1px 6px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
+    .dlw-chip.dept { background: #dbeafe; color: #1d4ed8; }
+    .dlw-chip.line { background: #fef3c7; color: #92400e; }
+    .dlw-chip.work { background: #ede9fe; color: #6d28d9; }
+    .row-action-grp { display: inline-flex; gap: .3rem; justify-content: center; }
+    .row-close-btn, .row-unlock-btn { border-radius: 8px; padding: .25rem .5rem; font-size: .72rem; font-weight: 700; cursor: pointer; transition: all .12s; }
+    .row-close-btn  { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+    .row-close-btn:hover  { background: #dc2626; color: white; border-color: #dc2626; }
+    .row-unlock-btn { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+    .row-unlock-btn:hover { background: #1d4ed8; color: white; border-color: #1d4ed8; }
 </style>
 }
 
@@ -160,10 +169,11 @@
 
 @section Scripts {
 <script>
-const LIST_URL  = '@Url.Action("GetList","AdminInquiry")';
-const CHAT_URL  = '@Url.Action("Chat","AdminInquiry")';
-const CLOSE_URL = '@Url.Action("Close","AdminInquiry")';
-const TOKEN     = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+const LIST_URL   = '@Url.Action("GetList","AdminInquiry")';
+const CHAT_URL   = '@Url.Action("Chat","AdminInquiry")';
+const CLOSE_URL  = '@Url.Action("Close","AdminInquiry")';
+const UNLOCK_URL = '@Url.Action("Unlock","AdminInquiry")';
+const TOKEN      = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 let pageSize    = 30;
 let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false;
 
@@ -228,18 +238,29 @@ async function loadData(page = 1) {
                 if (i.chatType === 'ANON') {
                     empDisplay = `<span class="anon-chip"><span class="material-symbols-rounded" style="font-size:.7rem;vertical-align:middle">visibility_off</span> ${esc(i.anonDisplay||'Ẩn danh')}</span>`;
                 } else {
-                    const name = i.empName || '—';
-                    const meta = [i.deptName, i.lineName, i.workName].filter(Boolean).join(' · ');
+                    const name  = i.empName || '—';
+                    const chips = [];
+                    if (i.deptName) chips.push(`<span class="dlw-chip dept" title="Bộ phận">${esc(i.deptName)}</span>`);
+                    if (i.lineName) chips.push(`<span class="dlw-chip line" title="Line">${esc(i.lineName)}</span>`);
+                    if (i.workName) chips.push(`<span class="dlw-chip work" title="Nhóm việc">${esc(i.workName)}</span>`);
                     empDisplay = `<div class="emp-name-row vni-font">${esc(name)}</div>`
-                               + `<div class="emp-meta">${i.empCd ? `<span class="empcd">${esc(i.empCd)}</span>${meta ? ' · ' : ''}` : ''}${meta ? `<span class="vni-font">${esc(meta)}</span>` : ''}</div>`;
+                               + `${i.empCd ? `<div class="emp-meta"><span class="empcd">${esc(i.empCd)}</span></div>` : ''}`
+                               + `${chips.length ? `<div class="emp-dlw vni-font">${chips.join('')}</div>` : ''}`;
                 }
                 const assigned = i.assignedName
                     ? `<span class="assigned-chip vni-font">${esc(i.assignedName)}</span>`
                     : '<span class="text-muted" style="font-size:.78rem">Chưa có</span>';
                 const topicStyle = i.topicColor ? `background:${i.topicColor}22;color:${i.topicColor}` : 'background:#fee2e2;color:#dc2626';
-                // Admin có thể đóng bất kỳ hội thoại OPEN nào
-                const actionCell = i.status === 'OPEN'
-                    ? `<button class="row-close-btn" onclick="event.stopPropagation();closeRow(${i.id})" title="Đóng hội thoại"><span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">close</span> Đóng</button>`
+                // Admin: mở khóa phụ trách + đóng hội thoại (OPEN)
+                let actionHtml = '';
+                if (i.status === 'OPEN') {
+                    if (i.assignedTo) {
+                        actionHtml += `<button class="row-unlock-btn" onclick="event.stopPropagation();unlockRow(${i.id})" title="Mở khóa phụ trách"><span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">lock_open</span> Mở khóa</button>`;
+                    }
+                    actionHtml += `<button class="row-close-btn" onclick="event.stopPropagation();closeRow(${i.id})" title="Đóng hội thoại"><span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">close</span> Đóng</button>`;
+                }
+                const actionCell = actionHtml
+                    ? `<div class="row-action-grp">${actionHtml}</div>`
                     : '<span class="text-muted" style="font-size:.78rem">—</span>';
                 return `<tr onclick="window.location.href='${CHAT_URL}?id=${i.id}'">
                     <td class="px-2">
@@ -259,6 +280,22 @@ async function loadData(page = 1) {
         renderPagination();
     } catch { showToast('Lỗi kết nối', 'error'); }
     finally { isLoading = false; }
+}
+
+function unlockRow(id) {
+    showConfirm('Mở khóa phụ trách hội thoại này? HR đang giữ sẽ bị nhả ra để người khác có thể tiếp nhận.', async () => {
+        try {
+            const res = await fetch(UNLOCK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+                body: JSON.stringify({ id })
+            });
+            const data = await res.json();
+            if (!data.success) { showToast(data.message || 'Không thể mở khóa', 'error'); return; }
+            showToast('Đã mở khóa phụ trách', 'success');
+            loadData(currentPage);
+        } catch { showToast('Lỗi kết nối', 'error'); }
+    }, { title: 'Mở khóa phụ trách', okText: 'Mở khóa', okClass: 'btn-primary', icon: 'lock_open', iconColor: '#1d4ed8', iconBg: '#eff6ff' });
 }
 
 function closeRow(id) {

@@ -164,6 +164,9 @@ window.InquiryChat = (function () {
                     const thumbUrl = `${cfg.urls.getFile}?path=${encodeURIComponent(a.thumbPath || a.filePath)}`;
                     return `<a href="${fullUrl}" target="_blank"><img class="attach-img" src="${thumbUrl}" alt="${esc(a.fileName)}"></a>`;
                 }
+                if (a.fileType === 'VIDEO') {
+                    return `<video class="attach-video" controls preload="metadata" playsinline controlsList="nodownload" src="${fullUrl}"></video>`;
+                }
                 return `<a class="attach-file" href="${fullUrl}" target="_blank" download="${esc(a.fileName)}"><span class="material-symbols-rounded" style="font-size:1.1rem">description</span>${esc(a.fileName)}</a>`;
             }).join('') + '</div>';
         }
@@ -315,7 +318,9 @@ window.InquiryChat = (function () {
     async function handleFiles(fileList) {
         if (uploadedFiles.length + fileList.length > 5) { showToast('Tối đa 5 file', 'error'); return; }
         for (const file of fileList) {
-            if (file.size > 10 * 1024 * 1024) { showToast(`"${file.name}" vượt 10MB`, 'error'); continue; }
+            const isVid    = /\.(mp4|webm|mov|m4v)$/i.test(file.name);
+            const maxBytes = isVid ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+            if (file.size > maxBytes) { showToast(`"${file.name}" vượt ${isVid ? '50MB' : '10MB'}`, 'error'); continue; }
             const fd = new FormData(); fd.append('file', file);
             try {
                 const res = await fetch(cfg.urls.uploadFile, {
@@ -337,9 +342,14 @@ window.InquiryChat = (function () {
         const strip = document.getElementById('filePreviewStrip');
         if (!strip) return;
         strip.innerHTML = uploadedFiles.map((f, i) => {
-            const thumb = f.thumbPath
-                ? `<img src="${cfg.urls.getFile}?path=${encodeURIComponent(f.thumbPath)}" alt="">`
-                : `<span class="material-symbols-rounded" style="font-size:1.2rem;color:#64748b">description</span>`;
+            let thumb;
+            if (f.thumbPath) {
+                thumb = `<img src="${cfg.urls.getFile}?path=${encodeURIComponent(f.thumbPath)}" alt="">`;
+            } else if (f.fileType === 'VIDEO') {
+                thumb = `<span class="material-symbols-rounded" style="font-size:1.2rem;color:#7c3aed">movie</span>`;
+            } else {
+                thumb = `<span class="material-symbols-rounded" style="font-size:1.2rem;color:#64748b">description</span>`;
+            }
             const shortName = f.fileName.length > 15 ? f.fileName.substr(0, 12) + '...' : f.fileName;
             return `<div class="file-chip">${thumb}<span>${esc(shortName)}</span><span class="fc-remove" onclick="InquiryChat.removeFile(${i})">✕</span></div>`;
         }).join('');
@@ -715,7 +725,10 @@ window.InquiryChat = (function () {
         document.getElementById('rvHeadIcon').textContent  = icon  || 'link';
         loading.classList.remove('hidden');
         frame.onload = () => loading.classList.add('hidden');
-        frame.src = url;
+        // Append embed=1 so the loaded page renders without header/sidebar/bottom-nav
+        const sep   = url.includes('?') ? '&' : '?';
+        const embed = url.includes('embed=1') ? url : url + sep + 'embed=1';
+        frame.src   = embed;
         modal.classList.add('show');
         document.body.style.overflow = 'hidden';
     }

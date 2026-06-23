@@ -5,7 +5,8 @@
     var first   = Model.First();
     var combined = string.Join("<hr class='content-divider'>", Model.Select(p => p.CONTENT ?? ""));
     var meta    = Model.Where(p => p.UPDT_DT.HasValue).OrderByDescending(p => p.UPDT_DT).FirstOrDefault();
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    bool isEmbed = Context.Request.Query["embed"] == "1";
+    Layout = isEmbed ? "~/Views/Shared/_LayoutEmbed.cshtml" : "~/Views/Shared/_Layout.cshtml";
 }
 
 <style>
@@ -127,16 +128,19 @@
 <div class="detail-page py-3">
 
     <div class="detail-header">
-        <a href="@Url.Action("Index", "Policy")" class="detail-back">
-            <span class="material-symbols-rounded">arrow_back</span>
-        </a>
+        @if (!isEmbed)
+        {
+            <a href="@Url.Action("Index", "Policy")" class="detail-back">
+                <span class="material-symbols-rounded">arrow_back</span>
+            </a>
+        }
         <div>
             <div class="detail-meta-cat">@first.CATEGORY</div>
             <div class="detail-title">@first.TITLE</div>
         </div>
     </div>
 
-    @if (ViewBag.PrevIds != null || ViewBag.NextIds != null)
+    @if (!isEmbed && (ViewBag.PrevIds != null || ViewBag.NextIds != null))
     {
         <div class="detail-nav">
             @if (ViewBag.PrevIds != null)

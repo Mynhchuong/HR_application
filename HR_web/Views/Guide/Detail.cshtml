@@ -1,6 +1,8 @@
 @model HR_web.Models.Guide.GuideModel
 @{
     ViewData["Title"] = Model.TITLE;
+    bool isEmbed = Context.Request.Query["embed"] == "1";
+    Layout = isEmbed ? "~/Views/Shared/_LayoutEmbed.cshtml" : "~/Views/Shared/_Layout.cshtml";
 }
 
 <style>
@@ -148,10 +150,13 @@
 <div class="detail-page px-2">
 
     <!-- Back -->
-    <a href="@Url.Action("Index", "Guide")" class="detail-back">
-        <i class="bi bi-arrow-left-circle-fill"></i>
-        Danh sách hướng dẫn
-    </a>
+    @if (!isEmbed)
+    {
+        <a href="@Url.Action("Index", "Guide")" class="detail-back">
+            <i class="bi bi-arrow-left-circle-fill"></i>
+            Danh sách hướng dẫn
+        </a>
+    }
 
     <!-- Header -->
     <div class="detail-header">
@@ -196,7 +201,7 @@
     }
 
     <!-- Prev / Next navigation -->
-    @if (ViewBag.PrevId != null || ViewBag.NextId != null)
+    @if (!isEmbed && (ViewBag.PrevId != null || ViewBag.NextId != null))
     {
         <div class="detail-nav">
             @if (ViewBag.PrevId != null)

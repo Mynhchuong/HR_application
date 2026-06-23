@@ -30,14 +30,17 @@ public abstract class InquiryBaseController : BaseController
     {
         if (file == null || file.Length == 0)
             return Json(new { success = false, message = "Không có file" });
-        if (file.Length > 10L * 1024 * 1024)
-            return Json(new { success = false, message = "File vượt quá 10MB" });
 
         var ext    = Path.GetExtension(file.FileName).ToLower();
         bool isImg = ext is ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp";
+        bool isVid = ext is ".mp4" or ".webm" or ".mov" or ".m4v";
         bool isDoc = ext is ".pdf" or ".doc" or ".docx" or ".xls" or ".xlsx";
-        if (!isImg && !isDoc)
-            return Json(new { success = false, message = "Định dạng không hỗ trợ (jpg/png/gif/webp/pdf/doc/xls)" });
+        if (!isImg && !isVid && !isDoc)
+            return Json(new { success = false, message = "Định dạng không hỗ trợ (jpg/png/gif/webp/mp4/webm/mov/pdf/doc/xls)" });
+
+        long maxBytes = isVid ? 50L * 1024 * 1024 : 10L * 1024 * 1024;
+        if (file.Length > maxBytes)
+            return Json(new { success = false, message = isVid ? "Video vượt quá 50MB" : "File vượt quá 10MB" });
 
         try
         {
@@ -81,7 +84,7 @@ public abstract class InquiryBaseController : BaseController
                 fileName  = file.FileName,
                 filePath  = relPath,
                 thumbPath = thumbRelPath,
-                fileType  = isImg ? "IMAGE" : "FILE",
+                fileType  = isImg ? "IMAGE" : isVid ? "VIDEO" : "FILE",
                 mimeType  = file.ContentType,
                 fileSize  = file.Length
             });
@@ -116,6 +119,10 @@ public abstract class InquiryBaseController : BaseController
                     ".png"  => "image/png",
                     ".gif"  => "image/gif",
                     ".webp" => "image/webp",
+                    ".mp4"  => "video/mp4",
+                    ".webm" => "video/webm",
+                    ".mov"  => "video/quicktime",
+                    ".m4v"  => "video/x-m4v",
                     ".pdf"  => "application/pdf",
                     ".doc"  => "application/msword",
                     ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

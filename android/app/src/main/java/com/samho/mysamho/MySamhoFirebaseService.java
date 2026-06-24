@@ -13,11 +13,16 @@ import androidx.core.app.NotificationCompat;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 public class MySamhoFirebaseService extends FirebaseMessagingService {
 
     private static final String CHANNEL_ID   = "mysamho_noti";
     private static final String PREF_NAME    = "mysamho_prefs";
     private static final String KEY_FCM_TOKEN = "fcm_token";
+
+    // Monotonic counter để tránh collision khi nhiều noti tới gần nhau
+    private static final AtomicInteger NOTI_ID_GEN = new AtomicInteger(1000);
 
     // Gọi khi Firebase cấp token mới (lần đầu cài hoặc token hết hạn)
     @Override
@@ -67,7 +72,7 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pi);
 
-        mgr.notify((int) System.currentTimeMillis(), builder.build());
+        mgr.notify(NOTI_ID_GEN.incrementAndGet(), builder.build());
     }
 
     // Static helper: lấy token đã lưu

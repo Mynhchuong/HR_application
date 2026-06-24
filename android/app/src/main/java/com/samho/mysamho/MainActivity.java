@@ -61,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private String selectedBaseUrl = "http://sa1-hanaro.esamho.com/hr_Web"; // Mặc định là mạng nội bộ
     private ValueCallback<Uri[]> mFilePathCallback;
+    private WebChromeClient.FileChooserParams mPendingChooserParams;
     private Uri mCameraPhotoUri;
     private static final int FILE_CHOOSER_RESULT_CODE = 100;
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 101;
@@ -161,8 +162,11 @@ public class MainActivity extends AppCompatActivity {
                     mFilePathCallback.onReceiveValue(null);
                 }
                 mFilePathCallback = filePathCallback;
+                mPendingChooserParams = fileChooserParams;
 
                 boolean isCapture = fileChooserParams.isCaptureEnabled();
+                boolean acceptsImage = mimeTypesAccept(fileChooserParams, "image/");
+                boolean acceptsVideo = mimeTypesAccept(fileChooserParams, "video/");
 
                 if (isCapture) {
                     // Site yêu cầu mở camera trực tiếp → hỏi user chụp ảnh hay quay phim
@@ -171,11 +175,13 @@ public class MainActivity extends AppCompatActivity {
                     } else {
                         requestCameraPermission();
                     }
+                } else if (acceptsImage || acceptsVideo) {
+                    // Web cho phép ảnh/video → hỏi rõ Chụp ảnh / Quay phim / Chọn từ thư viện
+                    showMediaSourceDialog(acceptsImage, acceptsVideo);
                 } else {
-                    // Pick từ gallery/file — default intent đã hỗ trợ image + video
-                    Intent intent = fileChooserParams.createIntent();
+                    // Pick từ gallery/file
                     try {
-                        startActivityForResult(intent, FILE_CHOOSER_RESULT_CODE);
+                        startActivityForResult(fileChooserParams.createIntent(), FILE_CHOOSER_RESULT_CODE);
                     } catch (Exception e) {
                         mFilePathCallback = null;
                         return false;
@@ -210,7 +216,14 @@ public class MainActivity extends AppCompatActivity {
         });
         
         // Load trang web
-        if (isNetworkAvailable()) {
+        if (savedInstanceState != null) {
+            // Xoay máy / recreate — onRestoreInstanceState sẽ restore lại WebView history
+            // Khôi phục baseUrl đã chọn (nếu có)
+            String savedBase = savedInstanceState.getString("selected_base_url");
+            if (savedBase != null) selectedBaseUrl = savedBase;
+            layoutNoInternet.setVisibility(View.GONE);
+            webView.setVisibility(View.VISIBLE);
+        } else if (isNetworkAvailable()) {
             showNetworkSelectionDialog();
         } else {
             showNoInternetLayout();
@@ -402,6 +415,57 @@ public class MainActivity extends AppCompatActivity {
             mFilePathCallback.onReceiveValue(null);
             mFilePathCallback = null;
         }
+        mPendingChooserParams = null;
+    }
+
+    // Check accept MIME types có chứa prefix nào không (ví dụ "image/" hay "video/")
+    private boolean mimeTypesAccept(WebChromeClient.FileChooserParams params, String prefix) {
+        String[] types = params.getAcceptTypes();
+        if (types == null) return false;
+        for (String t : types) {
+            if (t == null) continue;
+            t = t.trim().toLowerCase();
+            if (t.startsWith(prefix)) return true;
+            if (t.equals("*/*")) return true;
+        }
+        return false;
+    }
+
+    // Hỏi user: chụp ảnh / quay phim / chọn từ thư viện
+    private void showMediaSourceDialog(boolean acceptsImage, boolean acceptsVideo) {
+        java.util.List<String> labels  = new java.util.ArrayList<>();
+        java.util.List<Integer> actions = new java.util.ArrayList<>(); // 0=photo, 1=video, 2=gallery
+        if (acceptsImage) { labels.add("📷 Chụp ảnh");        actions.add(0); }
+        if (acceptsVideo) { labels.add("🎥 Quay phim");       actions.add(1); }
+        labels.add("🖼️ Chọn từ thư viện / File"); actions.add(2);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Chọn nguồn")
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    int action = actions.get(which);
+                    if (action == 0) {
+                        if (checkCameraPermission()) launchCameraPhoto();
+                        else requestCameraPermission();
+                    } else if (action == 1) {
+                        if (!checkCameraPermission()) { requestCameraPermission(); return; }
+                        if (checkAudioPermission()) launchCameraVideo();
+                        else {
+                            pendingVideoCaptureAfterPermission = true;
+                            ActivityCompat.requestPermissions(this,
+                                    new String[]{Manifest.permission.RECORD_AUDIO},
+                                    AUDIO_PERMISSION_REQUEST_CODE);
+                        }
+                    } else {
+                        // Chọn từ thư viện — dùng intent từ chooserParams
+                        if (mPendingChooserParams != null) {
+                            try {
+                                startActivityForResult(mPendingChooserParams.createIntent(), FILE_CHOOSER_RESULT_CODE);
+                            } catch (Exception e) { cancelFileChooser(); }
+                        } else { cancelFileChooser(); }
+                    }
+                })
+                .setOnCancelListener(d -> cancelFileChooser())
+                .show();
     }
 
     private boolean checkAudioPermission() {
@@ -494,6 +558,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onSaveInstanceState(@androidx.annotation.NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (webView != null) webView.saveState(outState);
+        if (selectedBaseUrl != null) outState.putString("selected_base_url", selectedBaseUrl);
+    }
+
+    @Override
+    protected void onRestoreInstanceState(@androidx.annotation.NonNull Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        if (webView != null) webView.restoreState(savedInstanceState);
+    }
+
+    @Override
     protected void onDestroy() {
         if (webView != null) {
             webView.stopLoading();
@@ -555,6 +632,7 @@ public class MainActivity extends AppCompatActivity {
 
             mFilePathCallback.onReceiveValue(results);
             mFilePathCallback = null;
+            mPendingChooserParams = null;
         } else {
             super.onActivityResult(requestCode, resultCode, data);
         }

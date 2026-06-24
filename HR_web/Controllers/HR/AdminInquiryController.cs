@@ -198,6 +198,20 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Xoá hẳn conversation — CHỈ ADMIN (dọn dữ liệu test/phá ảnh hưởng KPI)
+    // POST /AdminInquiry/Delete
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete([FromBody] IdRequest req)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Chỉ Admin mới có quyền xoá" });
+        if (req.Id <= 0) return Json(new { success = false, message = "Thiếu ID hội thoại" });
+
+        var raw = await _inquiry.DeleteConversationRawAsync(req.Id);
+        return Content(raw, "application/json");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // PAGE: Báo cáo thống kê theo tuần / tháng
     // GET /AdminInquiry/Report
     // ─────────────────────────────────────────────────────────────────────────

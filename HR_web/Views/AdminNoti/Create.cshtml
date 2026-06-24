@@ -230,7 +230,7 @@
             <textarea id="fBody" maxlength="2000" placeholder="Nội dung chi tiết..."></textarea>
             <div class="hint">Tối đa 2000 ký tự</div>
         </div>
-        <div class="cn-form-row">
+        <div class="cn-form-row" style="display:none">
             <label>Đường dẫn liên kết (tùy chọn)</label>
             <input type="text" id="fLink" maxlength="200" placeholder="VD: /Policy/Index">
             <div class="hint">Khi nhấn vào thông báo trên app sẽ điều hướng đến đường dẫn này</div>
@@ -305,10 +305,19 @@
         <!-- Employee -->
         <div class="tg-panel" id="panEmp">
             <div class="emp-filters">
-                <input type="text" id="empQ" placeholder="Lọc mã NV (VD: E001)..." oninput="debounceEmp()">
-                <select id="empDept" onchange="loadEmp(1)"><option value="">Phòng ban</option></select>
-                <select id="empLine" onchange="loadEmp(1)"><option value="">Line</option></select>
-                <select id="empWork" onchange="loadEmp(1)"><option value="">Nhóm</option></select>
+                <input type="text" id="empQ" placeholder="🔍 Tìm theo mã NV..." oninput="debounceEmp()">
+                <select id="empDept" class="select2 form-control"
+                        data-url="@Url.Action("GetDept","Dropdown")"
+                        data-placeholder="Phòng ban"></select>
+                <select id="empLine" class="select2 form-control"
+                        data-url="@Url.Action("GetLine","Dropdown")"
+                        data-parent="#empDept"
+                        data-placeholder="Line"></select>
+                <select id="empWork" class="select2 form-control"
+                        data-url="@Url.Action("GetWork","Dropdown")"
+                        data-parent="#empLine"
+                        data-parent-key="lineCd"
+                        data-placeholder="Nhóm việc"></select>
             </div>
             <div class="emp-list">
                 <div class="emp-bulkbar">
@@ -412,12 +421,6 @@ async function loadOrg(kind){
         if (!data.success) { lst.innerHTML = `<div class="an-loading" style="padding:1.5rem;text-align:center;color:#94a3b8">Lỗi: ${esc(data.message||'')}</div>`; return; }
         orgCache[kind] = data.data || [];
         renderOrg(kind, '');
-        // Cũng populate filter dropdown bên employee tab
-        const sel = document.getElementById('emp'+kind[0].toUpperCase()+kind.slice(1));
-        if (sel) {
-            sel.innerHTML = '<option value="">'+sel.options[0].textContent+'</option>'
-                + orgCache[kind].map(o => `<option value="${esc(o.CODE)}">${esc(o.NAME)}</option>`).join('');
-        }
     } catch { lst.innerHTML = '<div class="an-loading" style="padding:1.5rem;text-align:center;color:#94a3b8">Lỗi kết nối</div>'; }
 }
 
@@ -454,9 +457,9 @@ async function loadEmp(page){
     const body = document.getElementById('empListBody');
     body.dataset.loaded='1';
     const q   = document.getElementById('empQ').value.trim();
-    const d   = document.getElementById('empDept').value;
-    const l   = document.getElementById('empLine').value;
-    const w   = document.getElementById('empWork').value;
+    const d   = $('#empDept').val() || '';
+    const l   = $('#empLine').val() || '';
+    const w   = $('#empWork').val() || '';
     const qs  = new URLSearchParams({ page: page, pageSize: 50 });
     if (q) qs.set('q', q);
     if (d) qs.set('dept', d);
@@ -512,9 +515,9 @@ function selectAllVisible(){
 
 function selectAllMatching(){
     const q   = document.getElementById('empQ').value.trim();
-    const d   = document.getElementById('empDept').value;
-    const l   = document.getElementById('empLine').value;
-    const w   = document.getElementById('empWork').value;
+    const d   = $('#empDept').val() || '';
+    const l   = $('#empLine').val() || '';
+    const w   = $('#empWork').val() || '';
     showConfirm(`Chọn tất cả ${empTotal.toLocaleString()} nhân viên khớp filter?`, async () => {
         const qs = new URLSearchParams();
         if (q) qs.set('q', q);
@@ -654,10 +657,22 @@ async function submitNoti(){
     }
 }
 
-// Pre-load org for emp tab dropdowns
-loadOrg('dept');
-loadOrg('line');
-loadOrg('work');
+// Init select2 cho filter Dept/Line/Work ở tab Nhân viên (giống HR)
+$(function(){
+    Select2Helper.init($('#panEmp'));
+
+    // Reset con khi đổi cha + reload list
+    $('#empDept').on('change', function(){
+        $('#empLine,#empWork').val(null).trigger('change.select2');
+        loadEmp(1);
+    });
+    $('#empLine').on('change', function(){
+        $('#empWork').val(null).trigger('change.select2');
+        loadEmp(1);
+    });
+    $('#empWork').on('change', function(){ loadEmp(1); });
+});
+
 updateSummary();
 </script>
 }

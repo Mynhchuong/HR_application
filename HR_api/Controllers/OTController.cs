@@ -3,6 +3,7 @@ using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
 using HR_api.Models.OT;
 using HR_api.Services;
+using System.Collections.Concurrent;
 using System.Data;
 
 namespace HR_api.Controllers;
@@ -13,6 +14,9 @@ public class OTController : ControllerBase
 {
     private readonly OracleService _oracleService;
     private readonly NotificationService _notiSvc;
+
+    // Khoá song song theo (EMPCD|WORK_DATE) chống double-click race khi ConfirmOT
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _confirmLocks = new();
 
     public OTController(OracleService oracleService, NotificationService notiSvc)
     {
@@ -109,16 +113,19 @@ public class OTController : ControllerBase
     [HttpPost("confirm")]
     public async Task<IActionResult> ConfirmOT([FromBody] OTConfirmRequest model)
     {
+        if (model == null || string.IsNullOrEmpty(model.EMPCD))
+            return Ok(new { success = false, message = "Thiếu mã nhân viên" });
+
+        DateTime workDate = (!string.IsNullOrEmpty(model.WORK_DATE) && DateTime.TryParse(model.WORK_DATE, out var _wd2)) ? _wd2 : DateTime.Today;
+
+        if (model.CONFIRM_STATUS != "CONFIRMED" && model.CONFIRM_STATUS != "REJECTED")
+            return Ok(new { success = false, message = "Trạng thái không hợp lệ" });
+
+        var lockKey = $"{model.EMPCD}|{workDate:yyyyMMdd}";
+        var sem = _confirmLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+        await sem.WaitAsync();
         try
         {
-            if (model == null || string.IsNullOrEmpty(model.EMPCD))
-                return Ok(new { success = false, message = "Thiếu mã nhân viên" });
-
-            DateTime workDate = (!string.IsNullOrEmpty(model.WORK_DATE) && DateTime.TryParse(model.WORK_DATE, out var _wd2)) ? _wd2 : DateTime.Today;
-
-            if (model.CONFIRM_STATUS != "CONFIRMED" && model.CONFIRM_STATUS != "REJECTED")
-                return Ok(new { success = false, message = "Trạng thái không hợp lệ" });
-
             string sqlCheckERP = @"
                 SELECT COUNT(*) CNT FROM (SELECT EMPCD FROM HRMS.EBM300      WHERE DAT = :WORK_DATE  AND EMPCD = :EMPCD  AND OVER_TIME IS NOT NULL AND OVER_TIME > 0
                                           UNION ALL
@@ -163,6 +170,8 @@ public class OTController : ControllerBase
                         new OracleParameter("EMPCD", model.EMPCD),
                         new OracleParameter("REQUEST_ID", existing.REQUEST_ID));
 
+                    await UpdateErpSignedAsync(model.EMPCD, workDate, model.CONFIRM_STATUS);
+
                     string msgUpdate = model.CONFIRM_STATUS == "CONFIRMED" ? "Xác nhận tăng ca thành công" : "Từ chối tăng ca thành công";
                     return Ok(new { success = true, message = msgUpdate, request_id = existing.REQUEST_ID });
                 }
@@ -179,17 +188,32 @@ public class OTController : ControllerBase
             var pResult  = new OracleParameter("P_RESULT",  OracleDbType.Int32)          { Direction = System.Data.ParameterDirection.Output };
             var pMessage = new OracleParameter("P_MESSAGE", OracleDbType.Varchar2, 500)  { Direction = System.Data.ParameterDirection.Output };
 
-            await _oracleService.ExecuteProcedureAsync("HRMS.SP_OT_CONFIRM_INSERT",
-                new OracleParameter("P_REQUEST_ID",     requestId),
-                new OracleParameter("P_EMPCD",          model.EMPCD),
-                new OracleParameter("P_WORK_DATE",      workDate),
-                new OracleParameter("P_OT_HOURS",       (object?)model.OT_HOURS ?? DBNull.Value),
-                new OracleParameter("P_CONFIRM_STATUS", model.CONFIRM_STATUS),
-                pResult,
-                pMessage);
+            try
+            {
+                await _oracleService.ExecuteProcedureAsync("HRMS.SP_OT_CONFIRM_INSERT",
+                    new OracleParameter("P_REQUEST_ID",     requestId),
+                    new OracleParameter("P_EMPCD",          model.EMPCD),
+                    new OracleParameter("P_WORK_DATE",      workDate),
+                    new OracleParameter("P_OT_HOURS",       (object?)model.OT_HOURS ?? DBNull.Value),
+                    new OracleParameter("P_CONFIRM_STATUS", model.CONFIRM_STATUS),
+                    pResult,
+                    pMessage);
+            }
+            catch (OracleException ex) when (ex.Number == 1)
+            {
+                // ORA-00001: race lost — request khác đã INSERT trước. Re-select rồi UPDATE.
+                return await RetryAsUpdateAsync(model, workDate);
+            }
 
             if (int.Parse(pResult.Value?.ToString() ?? "0") != 0)
+            {
+                // SP_OT_CONFIRM_INSERT có thể return code lỗi nếu nó tự catch ORA-00001 bên trong
+                if ((pMessage.Value?.ToString() ?? "").Contains("ORA-00001", StringComparison.OrdinalIgnoreCase))
+                    return await RetryAsUpdateAsync(model, workDate);
                 return Ok(new { success = false, message = $"Lỗi hệ thống, vui lòng thử lại. ({pMessage.Value})" });
+            }
+
+            await UpdateErpSignedAsync(model.EMPCD, workDate, model.CONFIRM_STATUS);
 
             string msg = model.CONFIRM_STATUS == "CONFIRMED" ? "Xác nhận tăng ca thành công" : "Từ chối tăng ca thành công";
             return Ok(new { success = true, message = msg, request_id = requestId });
@@ -198,6 +222,59 @@ public class OTController : ControllerBase
         {
             return Ok(new { success = false, message = $"Lỗi hệ thống, vui lòng thử lại. ({ex.Message})" });
         }
+        finally
+        {
+            sem.Release();
+        }
+    }
+
+    // Khi INSERT thua race (đã có dòng cho EMPCD+WORK_DATE), re-select và UPDATE
+    // theo intent mới của user. Dùng chung cho cả 2 path: OracleException ORA-00001
+    // và SP_OT_CONFIRM_INSERT trả về P_MESSAGE chứa ORA-00001.
+    private async Task<IActionResult> RetryAsUpdateAsync(OTConfirmRequest model, DateTime workDate)
+    {
+        var existing = (await _oracleService.ExecuteQueryAsync(
+            "SELECT REQUEST_ID FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND ROWNUM = 1",
+            r => r["REQUEST_ID"]?.ToString(),
+            new OracleParameter("EMPCD", model.EMPCD),
+            new OracleParameter("WORK_DATE", workDate))).FirstOrDefault();
+
+        if (string.IsNullOrEmpty(existing))
+            return Ok(new { success = false, message = "Lỗi hệ thống, vui lòng thử lại." });
+
+        await _oracleService.ExecuteNonQueryAsync(
+            "UPDATE HRMS.HR_OT_REQUEST SET CONFIRM_STATUS = :CONFIRM_STATUS, OT_HOURS = :OT_HOURS, CONFIRM_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID",
+            new OracleParameter("CONFIRM_STATUS", model.CONFIRM_STATUS),
+            new OracleParameter("OT_HOURS", (object?)model.OT_HOURS ?? DBNull.Value),
+            new OracleParameter("REQUEST_ID", existing));
+
+        await _oracleService.ExecuteNonQueryAsync(
+            "UPDATE HRMS.HR_REQUEST SET STATUS = :STATUS, UPDATED_BY = :EMPCD, UPDATED_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID",
+            new OracleParameter("STATUS", model.CONFIRM_STATUS),
+            new OracleParameter("EMPCD", model.EMPCD),
+            new OracleParameter("REQUEST_ID", existing));
+
+        await UpdateErpSignedAsync(model.EMPCD, workDate, model.CONFIRM_STATUS!);
+
+        string msg = model.CONFIRM_STATUS == "CONFIRMED" ? "Xác nhận tăng ca thành công" : "Từ chối tăng ca thành công";
+        return Ok(new { success = true, message = msg, request_id = existing });
+    }
+
+    private async Task UpdateErpSignedAsync(string empcd, DateTime workDate, string confirmStatus)
+    {
+        string signed = confirmStatus == "CONFIRMED" ? "Y" : "N";
+
+        await _oracleService.ExecuteNonQueryAsync(
+            "UPDATE HRMS.EBM300 SET SIGNED_STATUS = :SIGNED, SIGNED_LOG = SYSDATE WHERE EMPCD = :EMPCD AND DAT = :WORK_DATE",
+            new OracleParameter("SIGNED", signed),
+            new OracleParameter("EMPCD", empcd),
+            new OracleParameter("WORK_DATE", workDate));
+
+        await _oracleService.ExecuteNonQueryAsync(
+            "UPDATE HRMS.EBM300_WAIT SET SIGNED_STATUS = :SIGNED, SIGNED_LOG = SYSDATE WHERE EMPCD = :EMPCD AND DAT = :WORK_DATE",
+            new OracleParameter("SIGNED", signed),
+            new OracleParameter("EMPCD", empcd),
+            new OracleParameter("WORK_DATE", workDate));
     }
 
     [HttpGet("clerk")]

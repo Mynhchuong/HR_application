@@ -304,4 +304,16 @@ public class InquiryService
         }
         catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
     }
+
+    public async Task<string> DeleteConversationRawAsync(long id)
+    {
+        try
+        {
+            var res = await _api.DeleteAsync_Raw($"Inquiry/admin/{id}");
+            if (res?.IsSuccessStatusCode == true)
+                return await res.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
+    }
 }

@@ -88,7 +88,7 @@
 @section Scripts {
 <script>
 const PAGE_SIZE = 30;
-let currentPage = 1, totalPages = 1, total = 0;
+let currentPage = 1, totalPages = 1, totalRows = 0;
 
 function esc(s){ return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtDt(ds){
@@ -114,8 +114,8 @@ async function load(page){
             document.getElementById('anBody').innerHTML = `<tr><td colspan="5" class="an-empty">Lỗi: ${esc(data.message||'')}</td></tr>`;
             return;
         }
-        total      = data.total ?? 0;
-        totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        totalRows      = data.total ?? 0;
+        totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
         const items = data.data || [];
         if (items.length === 0) {
             document.getElementById('anBody').innerHTML =
@@ -152,8 +152,8 @@ async function load(page){
 
 function renderPagination(){
     const info = document.getElementById('anPageInfo');
-    const start = (currentPage-1)*PAGE_SIZE+1, end = Math.min(currentPage*PAGE_SIZE, total);
-    info.innerHTML = total>0 ? `Trang <strong>${currentPage}</strong> / ${totalPages} &nbsp;·&nbsp; ${start}–${end} / ${total}` : '';
+    const start = (currentPage-1)*PAGE_SIZE+1, end = Math.min(currentPage*PAGE_SIZE, totalRows);
+    info.innerHTML = totalRows>0 ? `Trang <strong>${currentPage}</strong> / ${totalPages} &nbsp;·&nbsp; ${start}–${end} / ${totalRows}` : '';
     const bar = document.getElementById('anPagBar'); bar.innerHTML='';
     if (totalPages<=1) return;
     const mk=(label,p,disabled,active)=>{

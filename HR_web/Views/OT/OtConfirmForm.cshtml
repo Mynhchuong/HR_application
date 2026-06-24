@@ -407,10 +407,17 @@
         window.location.href = '@Url.Action("OtConfirmForm", "OT")?work_date=' + date;
     }
 
+    let _otSubmitting = false;
     async function submitConfirm(status) {
+        if (_otSubmitting) return;
+        _otSubmitting = true;
+
         document.getElementById('confirmStatus').value = status;
         const form = document.getElementById('frmOtConfirm');
         const formData = new FormData(form);
+
+        const btns = form.querySelectorAll('button, .btn-action');
+        btns.forEach(b => b.disabled = true);
 
         try {
             const response = await fetch(form.action, {
@@ -423,9 +430,13 @@
                 setTimeout(() => window.location.reload(), 1500);
             } else {
                 showToast(result.message || 'Có lỗi xảy ra. Vui lòng thử lại.', 'danger');
+                btns.forEach(b => b.disabled = false);
+                _otSubmitting = false;
             }
         } catch {
             showToast('Lỗi kết nối. Vui lòng thử lại.', 'danger');
+            btns.forEach(b => b.disabled = false);
+            _otSubmitting = false;
         }
     }
 </script>

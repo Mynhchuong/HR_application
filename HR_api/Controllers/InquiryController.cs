@@ -251,6 +251,54 @@ public class InquiryController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // DELETE /apiHR/Inquiry/admin/{id}  — Admin: xoá hẳn 1 hội thoại (kèm tin nhắn,
+    // attach, ref). Dùng để dọn dữ liệu test/phá nhằm không lệch KPI HR.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpDelete("admin/{id:long}")]
+    public async Task<IActionResult> DeleteConversation(long id)
+    {
+        try
+        {
+            if (id <= 0) return Ok(new { success = false, message = "Thiếu ID hội thoại" });
+
+            var exists = await _db.ExecuteQueryAsync(
+                "SELECT COUNT(*) C FROM HRMS.HR_INQUIRY WHERE ID = :ID",
+                r => Convert.ToInt32(r["C"]),
+                new OracleParameter("ID", id));
+            if (exists.FirstOrDefault() == 0)
+                return Ok(new { success = false, message = "Không tìm thấy hội thoại" });
+
+            // Xoá theo thứ tự con → cha (REF/ATTACH gắn với MSG, MSG gắn với INQUIRY)
+            await _db.ExecuteNonQueryAsync(
+                @"DELETE FROM HRMS.HR_INQUIRY_MSG_REF
+                  WHERE MSG_ID IN (SELECT ID FROM HRMS.HR_INQUIRY_MSG WHERE INQUIRY_ID = :ID)",
+                new OracleParameter("ID", id));
+
+            await _db.ExecuteNonQueryAsync(
+                @"DELETE FROM HRMS.HR_INQUIRY_ATTACH
+                  WHERE MSG_ID IN (SELECT ID FROM HRMS.HR_INQUIRY_MSG WHERE INQUIRY_ID = :ID)",
+                new OracleParameter("ID", id));
+
+            await _db.ExecuteNonQueryAsync(
+                "DELETE FROM HRMS.HR_INQUIRY_MSG WHERE INQUIRY_ID = :ID",
+                new OracleParameter("ID", id));
+
+            int rows = await _db.ExecuteNonQueryAsync(
+                "DELETE FROM HRMS.HR_INQUIRY WHERE ID = :ID",
+                new OracleParameter("ID", id));
+
+            if (rows == 0)
+                return Ok(new { success = false, message = "Không xoá được hội thoại" });
+
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // POST /apiHR/Inquiry/create
     // Tạo cuộc hội thoại mới + tin nhắn đầu tiên
     // ─────────────────────────────────────────────────────────────────────────

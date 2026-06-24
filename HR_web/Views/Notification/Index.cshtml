@@ -58,11 +58,24 @@
         letter-spacing: .03em; display: inline-flex; align-items: center; gap: 2px;
         margin-right: .35rem;
     }
-    .noti-pill-high {
-        font-size: .62rem; font-weight: 800; background: #fef3c7; color: #92400e;
+    .noti-pill-urgent {
+        font-size: .62rem; font-weight: 800; background: #facc15; color: #7c2d12;
         padding: 1px 7px; border-radius: 20px; text-transform: uppercase;
-        display: inline-flex; align-items: center; gap: 2px;
+        letter-spacing: .03em; display: inline-flex; align-items: center; gap: 2px;
+        margin-right: .35rem;
+        animation: urgent-pulse 1.4s ease-in-out infinite;
     }
+    @@keyframes urgent-pulse {
+        0%,100% { box-shadow: 0 0 0 0 rgba(250,204,21,.7); }
+        50%     { box-shadow: 0 0 0 5px rgba(250,204,21,0); }
+    }
+
+    /* Khẩn cấp = nền vàng nhạt + viền trái vàng cam, ưu tiên hơn from-hr */
+    .noti-item.urgent          { background: #fffbeb; }
+    .noti-item.urgent.unread   { background: #fef3c7; }
+    .noti-item.urgent::before  { background: #f59e0b; width: 4px; }
+    .noti-item.urgent.from-hr  { background: linear-gradient(90deg, #fffbeb 0%, #fef2f2 100%); }
+    .noti-item.urgent.from-hr.unread { background: linear-gradient(90deg, #fef3c7 0%, #fee2e2 100%); }
 
     /* Icon badge */
     .noti-icon {
@@ -188,10 +201,13 @@ function renderItems(items, append = false) {
             ? { icon: '📢', bg: '#fee2e2' }
             : (typeStyle[n.LINK_ACTION] ?? { icon: '🔔', bg: '#f1f5f9' });
         const div = document.createElement('div');
-        div.className = 'noti-item' + (isUnread ? ' unread' : '') + (isFromHr ? ' from-hr' : '');
+        div.className = 'noti-item'
+            + (isUnread ? ' unread' : '')
+            + (isFromHr ? ' from-hr' : '')
+            + (isHigh   ? ' urgent'  : '');
         div.dataset.id = n.ID;
-        const pills = (isFromHr ? '<span class="noti-pill-hr">📢 Từ Nhân sự</span>' : '')
-                    + (isHigh && !isFromHr ? '<span class="noti-pill-high">⚡ QUAN TRỌNG</span>' : '');
+        const pills = (isHigh   ? '<span class="noti-pill-urgent">⚡ KHẨN CẤP</span>' : '')
+                    + (isFromHr ? '<span class="noti-pill-hr">📢 Từ Nhân sự</span>'   : '');
         div.innerHTML = `
             <div class="noti-icon" style="background:${style.bg}">${style.icon}</div>
             <div class="noti-content">

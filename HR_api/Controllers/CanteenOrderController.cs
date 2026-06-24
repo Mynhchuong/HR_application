@@ -99,12 +99,17 @@ public class CanteenOrderController : ControllerBase
 
             var mealCat = string.IsNullOrEmpty(req.TypeMeal) ? "LUNCH" : req.TypeMeal.ToUpper();
 
+            // Đăng ký dài hạn (NHE_TRUONG / CHAY_TRUONG): set luôn cả LUNCH + OT
+            // để NV có OT khỏi vào đổi tay món tăng ca
+            var isLongTerm = req.MealType == "NHE_TRUONG" || req.MealType == "CHAY_TRUONG";
+            var mealCats   = isLongTerm ? new[] { "LUNCH", "OT" } : new[] { mealCat };
+
             var changer    = string.IsNullOrEmpty(req.LoginUser) ? "HR" : req.LoginUser;
             var isMysamho  = changer == "HR" ? "N" : "Y";
 
-            var sql = $@"
+            const string sql = @"
                 MERGE INTO HRMS.CANTEEN_ORDER T
-                USING (SELECT :EMPCD AS EMPCD, :DAT AS DAT, '{mealCat}' AS TYPE_MEAL, :TYPE AS TYPE_OF_FOOD, :CHANGER AS CHANGER, :MYSAMHO AS MYSAMHO FROM DUAL) S
+                USING (SELECT :EMPCD AS EMPCD, :DAT AS DAT, :MEALCAT AS TYPE_MEAL, :TYPE AS TYPE_OF_FOOD, :CHANGER AS CHANGER, :MYSAMHO AS MYSAMHO FROM DUAL) S
                 ON (T.EMPCD = S.EMPCD AND T.DAT = S.DAT AND T.TYPE_MEAL = S.TYPE_MEAL)
                 WHEN MATCHED THEN UPDATE SET
                     T.TYPE_OF_FOOD = S.TYPE_OF_FOOD,
@@ -120,12 +125,16 @@ public class CanteenOrderController : ControllerBase
             {
                 if (day.DayOfWeek == DayOfWeek.Sunday) continue;
                 var datStr = day.ToString("yyyyMMdd");
-                await _db.ExecuteNonQueryAsync(sql,
-                    new OracleParameter("EMPCD",   req.EmpCd),
-                    new OracleParameter("DAT",     datStr),
-                    new OracleParameter("TYPE",    typeDb),
-                    new OracleParameter("CHANGER", changer),
-                    new OracleParameter("MYSAMHO", isMysamho));
+                foreach (var cat in mealCats)
+                {
+                    await _db.ExecuteNonQueryAsync(sql,
+                        new OracleParameter("EMPCD",   req.EmpCd),
+                        new OracleParameter("DAT",     datStr),
+                        new OracleParameter("MEALCAT", cat),
+                        new OracleParameter("TYPE",    typeDb),
+                        new OracleParameter("CHANGER", changer),
+                        new OracleParameter("MYSAMHO", isMysamho));
+                }
                 total++;
             }
 

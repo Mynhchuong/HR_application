@@ -120,13 +120,60 @@ public class CanteenOrderController : ControllerBase
                 WHEN NOT MATCHED THEN INSERT (EMPCD, DAT, TYPE_MEAL, TYPE_OF_FOOD, CHANGE_FROM, IS_MYSAMHO, INST_ID, INST_DT, UPDT_ID, UPDT_DT)
                                       VALUES (S.EMPCD, S.DAT, S.TYPE_MEAL, S.TYPE_OF_FOOD, S.CHANGER, S.MYSAMHO, S.CHANGER, SYSDATE, S.CHANGER, SYSDATE)";
 
+            // Pre-load các rule khoá trong khoảng [from, to]
+            var locks = await _db.ExecuteQueryAsync(
+                @"SELECT LOCK_DATE, LOCK_LUNCH, LOCK_OT, LOCK_MAN, LOCK_NHE, LOCK_CHAY, CUTOFF_DT
+                  FROM HRMS.HR_MEAL_LOCK
+                  WHERE IS_ACTIVE = 'Y'
+                    AND LOCK_DATE BETWEEN TRUNC(:DF) AND TRUNC(:DT)",
+                r => new {
+                    date     = Convert.ToDateTime(r["LOCK_DATE"]).Date,
+                    lunch    = (r["LOCK_LUNCH"]?.ToString() ?? "N") == "Y",
+                    ot       = (r["LOCK_OT"]?.ToString()    ?? "N") == "Y",
+                    lockMan  = (r["LOCK_MAN"]?.ToString()   ?? "N") == "Y",
+                    lockNhe  = (r["LOCK_NHE"]?.ToString()   ?? "N") == "Y",
+                    lockChay = (r["LOCK_CHAY"]?.ToString()  ?? "N") == "Y",
+                    cutoff   = r["CUTOFF_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CUTOFF_DT"])
+                },
+                new OracleParameter("DF", from.Date),
+                new OracleParameter("DT", to.Date));
+
+            bool IsBlocked(DateTime day, string mealCat, string targetFood)
+            {
+                // Lọc rule áp dụng cho (day + mealCat)
+                var applicable = locks.Where(l => l.date == day.Date
+                    && ((mealCat == "OT" && l.ot) || (mealCat != "OT" && l.lunch)));
+
+                foreach (var r in applicable)
+                {
+                    bool inEffect = r.cutoff == null || DateTime.Now >= r.cutoff.Value;
+                    if (!inEffect) continue;
+
+                    // Nếu rule không restrict type → khoá mọi loại
+                    bool typeRestricted = r.lockMan || r.lockNhe || r.lockChay;
+                    if (!typeRestricted) return true;
+
+                    // Có restrict → khoá nếu targetFood khớp
+                    if (targetFood == "M" && r.lockMan)  return true;
+                    if (targetFood == "N" && r.lockNhe)  return true;
+                    if (targetFood == "C" && r.lockChay) return true;
+                }
+                return false;
+            }
+
             int total = 0;
+            var blockedDays = new List<string>();
             for (var day = from; day <= to; day = day.AddDays(1))
             {
                 if (day.DayOfWeek == DayOfWeek.Sunday) continue;
                 var datStr = day.ToString("yyyyMMdd");
+
+                // Nếu mọi mealCat đều bị khoá cho ngày này → bỏ qua ngày
+                bool anyApplied = false;
                 foreach (var cat in mealCats)
                 {
+                    if (IsBlocked(day, cat, typeDb)) continue;
+                    anyApplied = true;
                     await _db.ExecuteNonQueryAsync(sql,
                         new OracleParameter("EMPCD",   req.EmpCd),
                         new OracleParameter("DAT",     datStr),
@@ -135,8 +182,16 @@ public class CanteenOrderController : ControllerBase
                         new OracleParameter("CHANGER", changer),
                         new OracleParameter("MYSAMHO", isMysamho));
                 }
-                total++;
+                if (anyApplied) total++;
+                else            blockedDays.Add(day.ToString("dd/MM"));
             }
+
+            if (total == 0 && blockedDays.Count > 0)
+                return Ok(new {
+                    success = false,
+                    code    = "LOCKED",
+                    message = $"Các ngày sau đã bị khoá đổi món: {string.Join(", ", blockedDays)}"
+                });
 
             var label = req.MealType switch
             {
@@ -146,7 +201,10 @@ public class CanteenOrderController : ControllerBase
                 "CHAY"        => "Chay",
                 _             => "Mặn"
             };
-            return Ok(new { success = true, message = $"Đã đổi sang {label} ({total} ngày)" });
+            var baseMsg = $"Đã đổi sang {label} ({total} ngày)";
+            if (blockedDays.Count > 0)
+                baseMsg += $". Riêng các ngày {string.Join(", ", blockedDays)} đã bị khoá nên bỏ qua.";
+            return Ok(new { success = true, message = baseMsg });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }

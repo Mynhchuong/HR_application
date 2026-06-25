@@ -74,3 +74,4 @@ HR_api/Scripts/create_noti_templates.sql
 delete_users_dept_20260620.sql
 HR_api/Scripts/create_inquiry_chat.sql
 HR_api/Scripts/inquiry_chat_rules.md
+HR_api/Scripts/create_meal_lock.sql

@@ -93,6 +93,28 @@ public class AdminNotiController : BaseController
         return Content(raw, "application/json");
     }
 
+    // ─── AJAX: Xoá thông báo (≤5 phút) ───────────────────────────────
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete([FromBody] NotiIdRequest req)
+    {
+        if (!IsAdmin()) return Forbid403();
+        if (req == null || req.Id <= 0) return Json(new { success = false, message = "Thiếu ID thông báo" });
+        var raw = await _notiSvc.AdminDeleteRawAsync(req.Id);
+        return Content(raw, "application/json");
+    }
+
+    // ─── AJAX: Chi tiết + danh sách NV nhận ─────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> Detail(long id)
+    {
+        if (!IsAdmin()) return Forbid403();
+        if (id <= 0) return Json(new { success = false, message = "Thiếu ID thông báo" });
+        var raw = await _notiSvc.AdminDetailRawAsync(id);
+        return Content(raw, "application/json");
+    }
+
+    public class NotiIdRequest { public long Id { get; set; } }
+
     // ─── Inner request models ────────────────────────────────────────
     public class AdminSendRequest
     {

@@ -98,15 +98,23 @@ public class MenuService
         return r?.success == true ? r.data ?? new() : new();
     }
 
-    // ── Món hôm nay của nhân viên ─────────────────────────────────────────────
+    // ── Món hôm nay của nhân viên (LUNCH + OT) ────────────────────────────────
     public async Task<List<UserTodayMealModel>> GetUserTodayMealAsync(string empCd)
     {
         var dateStr = DateTime.Today.ToString("yyyyMMdd");
-        var r = await _api.GetAsync<Resp<UserTodayMealModel>>(
-            $"CanteenOrder/today?empcd={Uri.EscapeDataString(empCd)}&date={dateStr}");
-        if (r?.success == true && r.data != null)
-            return new List<UserTodayMealModel> { r.data };
-        return new();
+        var list = new List<UserTodayMealModel>();
+
+        foreach (var mealCat in new[] { "LUNCH", "OT" })
+        {
+            var r = await _api.GetAsync<Resp<UserTodayMealModel>>(
+                $"CanteenOrder/today?empcd={Uri.EscapeDataString(empCd)}&date={dateStr}&typeMeal={mealCat}");
+            if (r?.success == true && r.data != null)
+            {
+                r.data.SHIFT = mealCat;
+                list.Add(r.data);
+            }
+        }
+        return list;
     }
 
     public async Task<string> GetUserMealByDateAsync(string empCd, string dateStr, string typeMeal = "LUNCH")

@@ -472,7 +472,7 @@ window.ttUploadImage = async (input) => {
         const fd = new FormData();
         fd.append('file', file);
 
-        const res  = await fetch('/Image/UploadPolicyImage', { method: 'POST', body: fd });
+        const res  = await fetch('@Url.Action("UploadPolicyImage","Image")', { method: 'POST', body: fd });
         if (!res.ok) { showToast('Lỗi upload: HTTP ' + res.status, 'error'); return; }
         const data = await res.json();
 

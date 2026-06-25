@@ -48,6 +48,55 @@
     .an-empty   { padding: 3rem 1rem; text-align: center; color: #94a3b8; }
     .an-loading { padding: 3rem 1rem; text-align: center; color: #94a3b8; }
     .pagination .page-link { cursor: pointer; }
+
+    .an-act-grp  { display: inline-flex; gap: .25rem; }
+    .an-act-btn  { border-radius: 8px; padding: .25rem .55rem; font-size: .72rem; font-weight: 700;
+                   cursor: pointer; transition: all .12s; border: 1px solid; }
+    .an-act-view { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .an-act-view:hover  { background: #1d4ed8; color: white; }
+    .an-act-del  { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+    .an-act-del:hover   { background: #dc2626; color: white; }
+    .an-act-del:disabled{ background: #f1f5f9; border-color: #e2e8f0; color: #cbd5e1; cursor: not-allowed; }
+    .an-countdown { font-size: .68rem; color: #94a3b8; margin-top: 2px; }
+
+    /* Modal */
+    .nd-back {
+        position: fixed; inset: 0; background: rgba(15,23,42,.55);
+        display: none; align-items: center; justify-content: center; z-index: 1100; padding: 1rem;
+    }
+    .nd-back.show { display: flex; }
+    .nd-sheet {
+        background: white; border-radius: 18px; width: 100%; max-width: 720px;
+        max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+        box-shadow: 0 14px 40px rgba(0,0,0,.2);
+    }
+    .nd-hd {
+        padding: 1rem 1.25rem; color: white;
+        background: linear-gradient(135deg,#7f1d1d,#dc2626);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .nd-hd h5 { color: white; font-size: 1.05rem; font-weight: 800; margin: 0; }
+    .nd-close { background: transparent; border: none; color: white; font-size: 1.4rem; cursor: pointer; line-height: 1; }
+    .nd-body { padding: 1rem 1.25rem; overflow-y: auto; }
+    .nd-section { margin-bottom: 1rem; }
+    .nd-label   { font-size: .68rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; margin-bottom: .3rem; }
+    .nd-value   { font-size: .9rem; color: #1e293b; font-weight: 700; }
+    .nd-stats   { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .nd-stat    { flex: 1; min-width: 90px; background: #f8fafc; border-radius: 10px; padding: .5rem .75rem; }
+    .nd-stat-n  { font-size: 1.15rem; font-weight: 900; color: #1e293b; line-height: 1.1; }
+    .nd-stat-l  { font-size: .7rem; color: #64748b; }
+    .nd-aud {
+        max-height: 280px; overflow-y: auto; border: 1px solid #f1f5f9;
+        border-radius: 10px; background: white;
+    }
+    .nd-aud-item {
+        display: flex; align-items: center; gap: .5rem;
+        padding: .5rem .75rem; border-bottom: 1px solid #f8fafc; font-size: .82rem;
+    }
+    .nd-aud-item:last-child { border-bottom: none; }
+    .nd-aud-cd   { font-family: monospace; font-weight: 700; color: #475569; min-width: 80px; }
+    .nd-aud-name { font-weight: 700; color: #1e293b; flex: 1; }
+    .nd-aud-meta { font-size: .7rem; color: #94a3b8; }
 </style>
 }
 
@@ -71,12 +120,28 @@
                     <th class="center" style="width:130px">Đối tượng</th>
                     <th class="center" style="width:90px">SL</th>
                     <th style="width:170px">Người gửi · Thời gian</th>
+                    <th class="center" style="width:160px">Hành động</th>
                 </tr>
             </thead>
             <tbody id="anBody">
-                <tr><td colspan="5" class="an-loading"><div class="spinner-border text-danger" role="status"></div></td></tr>
+                <tr><td colspan="6" class="an-loading"><div class="spinner-border text-danger" role="status"></div></td></tr>
             </tbody>
         </table>
+    </div>
+
+    @Html.AntiForgeryToken()
+
+    <!-- Modal chi tiết -->
+    <div class="nd-back" id="ndBack" onclick="if(event.target===this)closeDetail()">
+        <div class="nd-sheet">
+            <div class="nd-hd">
+                <h5>Chi tiết thông báo</h5>
+                <button class="nd-close" onclick="closeDetail()">×</button>
+            </div>
+            <div class="nd-body" id="ndBody">
+                <div class="text-center py-4"><div class="spinner-border text-danger" role="status"></div></div>
+            </div>
+        </div>
     </div>
 
     <div class="d-flex justify-content-between align-items-center px-2 mt-3">
@@ -88,7 +153,12 @@
 @section Scripts {
 <script>
 const PAGE_SIZE = 30;
+const DELETE_URL = '@Url.Action("Delete","AdminNoti")';
+const DETAIL_URL = '@Url.Action("Detail","AdminNoti")';
+const TOKEN      = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+const DELETE_WINDOW_SEC = 5 * 60;     // 5 phút
 let currentPage = 1, totalPages = 1, totalRows = 0;
+let countdownTimer = null;
 
 function esc(s){ return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtDt(ds){
@@ -119,12 +189,16 @@ async function load(page){
         const items = data.data || [];
         if (items.length === 0) {
             document.getElementById('anBody').innerHTML =
-                '<tr><td colspan="5" class="an-empty"><span class="material-symbols-rounded" style="font-size:2.5rem;color:#fca5a5;display:block">campaign</span>Chưa có thông báo nào</td></tr>';
+                '<tr><td colspan="6" class="an-empty"><span class="material-symbols-rounded" style="font-size:2.5rem;color:#fca5a5;display:block">campaign</span>Chưa có thông báo nào</td></tr>';
         } else {
             document.getElementById('anBody').innerHTML = items.map(i => {
                 const cntDisplay = i.notiType === 'COMPANY' ? '<span class="text-secondary" style="font-size:.78rem">Toàn cty</span>'
                                   : i.notiType === 'MULTI'   ? `<span class="fw-bold">${i.targetCount||0}</span>`
                                   : '<span class="text-secondary">1</span>';
+                const ageSec   = Math.floor((Date.now() - new Date(i.createdDate)) / 1000);
+                const canDel   = ageSec <= DELETE_WINDOW_SEC;
+                const cdAttr   = canDel ? `data-deadline="${new Date(i.createdDate).getTime() + DELETE_WINDOW_SEC*1000}"` : '';
+                const cdLabel  = canDel ? `<div class="an-countdown" ${cdAttr}>Còn ${formatCountdown(DELETE_WINDOW_SEC - ageSec)} để xoá</div>` : '';
                 return `<tr>
                     <td>
                         <div class="an-title">${esc(i.title)}</div>
@@ -141,8 +215,16 @@ async function load(page){
                         <div class="vni-font" style="font-weight:700;color:#1e293b;font-size:.82rem">${esc(i.senderName||i.senderEmpCd||'—')}</div>
                         <div class="an-meta">${fmtDt(i.createdDate)}</div>
                     </td>
+                    <td class="text-center">
+                        <div class="an-act-grp">
+                            <button class="an-act-btn an-act-view" onclick="openDetail(${i.id})">👁 Chi tiết</button>
+                            <button class="an-act-btn an-act-del" data-id="${i.id}" onclick="deleteNoti(${i.id})" ${canDel?'':'disabled title=&quot;Đã quá 5 phút&quot;'}>🗑 Xoá</button>
+                        </div>
+                        ${cdLabel}
+                    </td>
                 </tr>`;
             }).join('');
+            startCountdownTimer();
         }
         renderPagination();
     } catch (e) {
@@ -169,6 +251,114 @@ function renderPagination(){
     for(let p=from;p<=to;p++) bar.appendChild(mk(p,p,false,p===currentPage));
     bar.appendChild(mk('&rsaquo;',currentPage+1,currentPage>=totalPages));
     bar.appendChild(mk('&raquo;',totalPages,currentPage>=totalPages));
+}
+
+// ─── Countdown 5 phút ────────────────────────────────────────────
+function formatCountdown(sec){
+    if (sec <= 0) return '0:00';
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return `${m}:${s.toString().padStart(2,'0')}`;
+}
+function startCountdownTimer(){
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+        const now = Date.now();
+        let anyAlive = false;
+        document.querySelectorAll('.an-countdown[data-deadline]').forEach(el => {
+            const left = Math.floor((parseInt(el.dataset.deadline,10) - now) / 1000);
+            if (left <= 0) {
+                const tr = el.closest('tr');
+                const btn = tr?.querySelector('.an-act-del');
+                if (btn) { btn.disabled = true; btn.title = 'Đã quá 5 phút'; }
+                el.remove();
+            } else {
+                el.textContent = `Còn ${formatCountdown(left)} để xoá`;
+                anyAlive = true;
+            }
+        });
+        if (!anyAlive) { clearInterval(countdownTimer); countdownTimer = null; }
+    }, 1000);
+}
+
+// ─── Xoá thông báo ───────────────────────────────────────────────
+function deleteNoti(id){
+    showConfirm(
+        `Xoá thông báo này? Đối tượng đã nhận sẽ không còn thấy.<br><span class="text-danger small">Chỉ trong 5 phút đầu sau khi gửi mới được xoá.</span>`,
+        async () => {
+            try {
+                const res = await fetch(DELETE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+                    body: JSON.stringify({ id })
+                });
+                const data = await res.json();
+                if (!data.success) { showToast(data.message || 'Không xoá được', 'error'); return; }
+                showToast('Đã xoá thông báo', 'success');
+                load(currentPage);
+            } catch { showToast('Lỗi kết nối', 'error'); }
+        },
+        { title: 'Xoá thông báo', okText: 'Xoá', okClass: 'btn-danger', icon: 'delete', iconColor: '#dc2626', iconBg: '#fee2e2' }
+    );
+}
+
+// ─── Modal chi tiết ──────────────────────────────────────────────
+async function openDetail(id){
+    document.getElementById('ndBack').classList.add('show');
+    document.getElementById('ndBody').innerHTML =
+        '<div class="text-center py-4"><div class="spinner-border text-danger" role="status"></div></div>';
+    try {
+        const res  = await fetch(`${DETAIL_URL}?id=${id}`);
+        const data = await res.json();
+        if (!data.success) {
+            document.getElementById('ndBody').innerHTML = `<div class="text-danger text-center py-3">${esc(data.message||'Lỗi tải chi tiết')}</div>`;
+            return;
+        }
+        renderDetail(data);
+    } catch {
+        document.getElementById('ndBody').innerHTML = '<div class="text-danger text-center py-3">Lỗi kết nối</div>';
+    }
+}
+
+function closeDetail(){ document.getElementById('ndBack').classList.remove('show'); }
+
+function renderDetail(d){
+    const n = d.noti;
+    const audHtml = (d.audience||[]).map(a => `
+        <div class="nd-aud-item">
+            <span class="nd-aud-cd">${esc(a.empCd)}</span>
+            <span class="nd-aud-name vni-font">${esc(a.empName||'')}</span>
+            <span class="nd-aud-meta vni-font">${esc([a.deptName,a.lineName,a.workName].filter(Boolean).join(' · '))}</span>
+        </div>
+    `).join('');
+
+    document.getElementById('ndBody').innerHTML = `
+        <div class="nd-section">
+            <div class="nd-label">Tiêu đề</div>
+            <div class="nd-value">${esc(n.title)}</div>
+        </div>
+        <div class="nd-section">
+            <div class="nd-label">Nội dung</div>
+            <div class="nd-value" style="white-space:pre-wrap;font-weight:500;">${esc(n.body)}</div>
+        </div>
+        <div class="nd-section" style="display:flex;gap:.75rem;flex-wrap:wrap">
+            <div><span class="nd-label">Mức độ</span><span class="pill ${n.priority==='HIGH'?'pill-priority-high':'pill-priority-normal'}">${n.priority==='HIGH'?'Cao':'Thường'}</span></div>
+            <div><span class="nd-label">Đối tượng</span><span class="pill ${typeClass(n.notiType)}">${typeLabel(n.notiType)}</span></div>
+            <div><span class="nd-label">Người gửi</span><span class="nd-value vni-font">${esc(n.senderName||n.senderEmpCd||'—')}</span></div>
+            <div><span class="nd-label">Thời gian</span><span class="nd-value">${fmtDt(n.createdDate)}</span></div>
+        </div>
+        <div class="nd-section">
+            <div class="nd-label">Thống kê</div>
+            <div class="nd-stats">
+                <div class="nd-stat"><div class="nd-stat-n">${d.totalReceiver}</div><div class="nd-stat-l">NV nhận</div></div>
+                <div class="nd-stat" style="background:#dcfce7"><div class="nd-stat-n" style="color:#15803d">${d.readCount}</div><div class="nd-stat-l">Đã đọc</div></div>
+                <div class="nd-stat" style="background:#fef3c7"><div class="nd-stat-n" style="color:#a16207">${d.unreadCount}</div><div class="nd-stat-l">Chưa đọc</div></div>
+            </div>
+        </div>
+        <div class="nd-section">
+            <div class="nd-label">Danh sách NV nhận (${d.totalReceiver})</div>
+            ${audHtml ? `<div class="nd-aud">${audHtml}</div>` : '<div class="text-muted small">Không có NV nào</div>'}
+        </div>
+    `;
 }
 
 load(1);

@@ -223,14 +223,29 @@
         { { "MAN","🍖" }, { "NHE","🥗" }, { "CHAY","🥦" } };
     }
 
+    <div id="todayLockBanner" style="display:none;margin-bottom:.6rem;"></div>
+    <div id="upcomingLockBanner" style="display:none;margin-bottom:.6rem;"></div>
+
     @if (userMeals != null && userMeals.Any())
     {
-        var first = userMeals.First();
-        var emoji = first.FOOD_TYPE != null && mealEmoji.TryGetValue(first.FOOD_TYPE, out var em) ? em : "🍽️";
+        var lunch = userMeals.FirstOrDefault(m => m.SHIFT == "LUNCH") ?? userMeals.First();
+        var otMeal = userMeals.FirstOrDefault(m => m.SHIFT == "OT");
+        var emojiL = lunch.FOOD_TYPE  != null && mealEmoji.TryGetValue(lunch.FOOD_TYPE,  out var emL) ? emL : "🍽️";
+        var emojiO = otMeal?.FOOD_TYPE != null && mealEmoji.TryGetValue(otMeal.FOOD_TYPE, out var emO) ? emO : "🍽️";
         <div class="tp-mymeal">
             <div class="tp-mymeal-left">
-                <div class="tp-mymeal-ttl">Hôm nay bạn đang ăn</div>
-                <div class="tp-mymeal-name">@emoji @first.FOOD_NAME</div>
+                <div class="tp-mymeal-ttl">Hôm nay bạn đăng ký</div>
+                <div style="font-size:.95rem;font-weight:700;color:#1e293b;line-height:1.5;margin-bottom:.15rem;">
+                    <span style="color:#64748b;">Trưa: </span>
+                    <span style="color:var(--red);font-weight:900;">@emojiL @lunch.FOOD_NAME</span>
+                </div>
+                @if (otMeal != null)
+                {
+                    <div style="font-size:.95rem;font-weight:700;color:#1e293b;line-height:1.5;">
+                        <span style="color:#64748b;">Tăng ca: </span>
+                        <span style="color:var(--red);font-weight:900;">@emojiO @otMeal.FOOD_NAME</span>
+                    </div>
+                }
             </div>
             <img class="tp-mymeal-img" src="@Url.Content(lunchImg)" alt="" />
         </div>
@@ -313,6 +328,109 @@
 </div>
 
 <script>
+function escTxt(s){ return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function getWeekRangeIso() {
+    const now = new Date();
+    const day = now.getDay();                         // 0=CN..6=T7
+    const offsetMon = day === 0 ? -6 : 1 - day;
+    const mon = new Date(now); mon.setDate(now.getDate() + offsetMon); mon.setHours(0,0,0,0);
+    const sat = new Date(mon); sat.setDate(mon.getDate() + 5);
+    const fmt = d => `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+    return { mon: fmt(mon), sat: fmt(sat), monDate: mon, satDate: sat };
+}
+
+// ── Check khoá đổi món hôm nay (gộp LUNCH + OT) ───────────────────────
+(async function checkTodayLock(){
+    const today = new Date();
+    const iso = `${today.getFullYear()}-${(today.getMonth()+1).toString().padStart(2,'0')}-${today.getDate().toString().padStart(2,'0')}`;
+    try {
+        const [resL, resO] = await Promise.all([
+            fetch(`@Url.Action("Check","MealLock")?date=${iso}&typeMeal=LUNCH`).then(r => r.json()),
+            fetch(`@Url.Action("Check","MealLock")?date=${iso}&typeMeal=OT`).then(r => r.json())
+        ]);
+        const dLabel = today.toLocaleDateString('vi-VN');
+        const banner = document.getElementById('todayLockBanner');
+
+        const lockedScopes = [
+            resL?.success && resL.locked ? 'TRƯA' : null,
+            resO?.success && resO.locked ? 'TĂNG CA' : null
+        ].filter(Boolean);
+        const warnScopes = [
+            resL?.success && !resL.locked && resL.reason && resL.cutoffDt ? { sc:'TRƯA', d:resL } : null,
+            resO?.success && !resO.locked && resO.reason && resO.cutoffDt ? { sc:'TĂNG CA', d:resO } : null
+        ].filter(Boolean);
+
+        if (lockedScopes.length > 0) {
+            const note = (resL?.note || resO?.note);
+            const noteLine = note
+                ? `<div style="font-weight:500;font-size:.72rem;color:#7f1d1d;margin-top:.2rem;font-style:italic;">📝 ${escTxt(note)}</div>`
+                : '';
+            banner.style.display = '';
+            banner.innerHTML = `
+                <div style="background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;border-radius:12px;padding:.65rem .85rem;font-size:.82rem;font-weight:700;line-height:1.5;">
+                    🔒 Hôm nay (<b>${dLabel}</b>) đã chốt số lượng món <span style="color:#7f1d1d">[${lockedScopes.join(' + ')}]</span> — không thể đổi món nữa.
+                    ${noteLine}
+                </div>`;
+        } else if (warnScopes.length > 0) {
+            const lines = warnScopes.map(w => `${w.sc}: ${escTxt(w.d.reason)}`).join('<br>');
+            const note = warnScopes[0].d.note;
+            const noteLine = note
+                ? `<br><span style="font-style:italic;">📝 ${escTxt(note)}</span>` : '';
+            banner.style.display = '';
+            banner.innerHTML = `
+                <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:.6rem .8rem;font-size:.78rem;line-height:1.5;">
+                    ⏰ Hôm nay (<b>${dLabel}</b>) sẽ chốt số lượng:<br>${lines}${noteLine}
+                </div>`;
+        }
+    } catch {}
+})();
+
+// ── "Sắp tới trong tuần này" ──────────────────────────────────────────
+(async function loadUpcomingLocks(){
+    const w = getWeekRangeIso();
+    try {
+        const res = await fetch(`@Url.Action("List","MealLock")?from=${w.mon}&to=${w.sat}`);
+        const d   = await res.json();
+        if (!d.success || !d.data) return;
+
+        const today0 = new Date(); today0.setHours(0,0,0,0);
+        const upcoming = d.data
+            .filter(r => r.isActive && (r.lockLunch || r.lockOt))
+            .filter(r => new Date(r.lockDate) >= today0
+                       && new Date(r.lockDate).toDateString() !== today0.toDateString())  // bỏ qua hôm nay (đã có banner riêng)
+            .sort((a,b) => new Date(a.lockDate) - new Date(b.lockDate));
+
+        if (upcoming.length === 0) return;
+
+        const dayName = (d) => ['CN','T2','T3','T4','T5','T6','T7'][new Date(d).getDay()];
+        const fmtDate  = (d) => new Date(d).toLocaleDateString('vi-VN');
+        const fmtCutoff = (d) => d ? new Date(d).toLocaleString('vi-VN', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' }) : null;
+
+        const items = upcoming.map(r => {
+            const scope = [r.lockLunch?'TRƯA':null, r.lockOt?'TĂNG CA':null].filter(Boolean).join(' + ');
+            const cut = fmtCutoff(r.cutoffDt);
+            const cutLine = cut
+                ? `<span style="color:#92400e">chốt lúc <b>${cut}</b></span>`
+                : `<span style="color:#b91c1c">khoá cả ngày</span>`;
+            const noteLine = r.note ? ` — <i>${escTxt(r.note)}</i>` : '';
+            return `<li style="margin-bottom:.25rem;">
+                <b>${dayName(r.lockDate)} ${fmtDate(r.lockDate)}</b>
+                <span style="color:#64748b;font-size:.72rem;">(${scope})</span>:
+                ${cutLine}${noteLine}
+            </li>`;
+        }).join('');
+
+        const banner = document.getElementById('upcomingLockBanner');
+        banner.style.display = '';
+        banner.innerHTML = `
+            <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:.7rem .9rem;color:#7c2d12;font-size:.78rem;line-height:1.5;">
+                <div style="font-weight:800;margin-bottom:.3rem;">📅 Sắp tới trong tuần này:</div>
+                <ul style="margin:0;padding-left:1.2rem;">${items}</ul>
+            </div>`;
+    } catch {}
+})();
+
 function openFoodModal(el) {
     const imgUrl  = el.dataset.foodImg;
     const name    = el.dataset.foodName || '';

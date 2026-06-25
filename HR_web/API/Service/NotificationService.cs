@@ -132,4 +132,26 @@ public class NotificationService
         }
         catch { return "{\"success\":false}"; }
     }
+
+    public async Task<string> AdminDeleteRawAsync(long id)
+    {
+        try
+        {
+            var r = await _api.DeleteAsync_Raw($"Notification/admin/{id}");
+            if (r?.IsSuccessStatusCode == true) return await r.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
+    }
+
+    public async Task<string> AdminDetailRawAsync(long id)
+    {
+        try
+        {
+            var r = await _api.GetAsync_Raw($"Notification/admin/detail/{id}");
+            if (r == null || !r.IsSuccessStatusCode) return "{\"success\":false}";
+            return await r.Content.ReadAsStringAsync();
+        }
+        catch { return "{\"success\":false}"; }
+    }
 }

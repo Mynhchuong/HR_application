@@ -81,7 +81,9 @@ public class NotificationController : ControllerBase
                            NVL(L.IS_READ, 0) IS_READ_VAL,
                            U.FULL_NAME SENDER_NAME,
                            N.CREATED_BY SENDER_EMPCD,
-                           ROW_NUMBER() OVER (ORDER BY CASE WHEN N.PRIORITY='HIGH' THEN 0 ELSE 1 END, N.CREATED_DATE DESC) RN
+                           ROW_NUMBER() OVER (ORDER BY
+                               CASE WHEN NVL(L.IS_READ,0) = 0 AND N.PRIORITY = 'HIGH' THEN 0 ELSE 1 END,
+                               N.CREATED_DATE DESC) RN
                     FROM HRMS.HR_NOTIFICATIONS N
                     LEFT JOIN HRMS.HR_NOTIFICATION_LOG L ON L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD
                     LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = N.CREATED_BY
@@ -530,6 +532,209 @@ public class NotificationController : ControllerBase
                 });
 
             return Ok(new { success = true, type, data });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ============================================================
+    // 11b. ADMIN: DELETE noti — chỉ cho phép trong vòng 5 phút sau khi gửi
+    // DELETE /apiHR/Notification/admin/{id}
+    // ============================================================
+    [HttpDelete("admin/{id:long}")]
+    public async Task<IActionResult> AdminDelete(long id)
+    {
+        try
+        {
+            if (id <= 0) return Ok(new { success = false, message = "Thiếu ID" });
+
+            // 1) Check tồn tại + thời gian
+            var rows = await _oracleService.ExecuteQueryAsync(
+                @"SELECT CREATED_DATE,
+                         ROUND((SYSDATE - CREATED_DATE) * 24 * 60, 2) AS MINUTES_OLD
+                  FROM HRMS.HR_NOTIFICATIONS WHERE ID = :ID",
+                r => new {
+                    createdDate = Convert.ToDateTime(r["CREATED_DATE"]),
+                    minutesOld  = Convert.ToDecimal(r["MINUTES_OLD"])
+                },
+                new OracleParameter("ID", id));
+
+            var row = rows.FirstOrDefault();
+            if (row == null) return Ok(new { success = false, message = "Không tìm thấy thông báo" });
+
+            if (row.minutesOld > 5)
+                return Ok(new {
+                    success = false,
+                    code    = "TOO_LATE",
+                    message = $"Quá hạn xoá. Thông báo đã gửi {Math.Floor(row.minutesOld)} phút trước (chỉ được xoá trong 5 phút đầu)."
+                });
+
+            // 2) Xoá con trước
+            await _oracleService.ExecuteNonQueryAsync(
+                "DELETE FROM HRMS.HR_NOTIFICATION_TARGET WHERE NOTI_ID = :ID",
+                new OracleParameter("ID", id));
+            await _oracleService.ExecuteNonQueryAsync(
+                "DELETE FROM HRMS.HR_NOTIFICATION_LOG WHERE NOTI_ID = :ID",
+                new OracleParameter("ID", id));
+
+            // 3) Xoá noti
+            int n = await _oracleService.ExecuteNonQueryAsync(
+                "DELETE FROM HRMS.HR_NOTIFICATIONS WHERE ID = :ID",
+                new OracleParameter("ID", id));
+
+            if (n == 0) return Ok(new { success = false, message = "Xoá không thành công" });
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ============================================================
+    // 11c. ADMIN: DETAIL — Chi tiết thông báo + danh sách NV nhận
+    // GET /apiHR/Notification/admin/detail/{id}
+    // ============================================================
+    [HttpGet("admin/detail/{id:long}")]
+    public async Task<IActionResult> AdminDetail(long id)
+    {
+        try
+        {
+            if (id <= 0) return Ok(new { success = false, message = "Thiếu ID" });
+
+            var notiList = await _oracleService.ExecuteQueryAsync(
+                @"SELECT N.ID, N.TITLE, N.BODY, N.NOTI_TYPE, N.TARGET_VAL,
+                         N.PRIORITY, N.SOURCE, N.LINK_ACTION,
+                         N.CREATED_BY, U.FULL_NAME SENDER_NAME, N.CREATED_DATE
+                  FROM HRMS.HR_NOTIFICATIONS N
+                  LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = N.CREATED_BY
+                  WHERE N.ID = :ID",
+                r => new {
+                    id          = Convert.ToDecimal(r["ID"]),
+                    title       = r["TITLE"]?.ToString() ?? "",
+                    body        = r["BODY"]?.ToString() ?? "",
+                    notiType    = r["NOTI_TYPE"]?.ToString() ?? "",
+                    targetVal   = r["TARGET_VAL"]?.ToString(),
+                    priority    = r["PRIORITY"]?.ToString(),
+                    source      = r["SOURCE"]?.ToString(),
+                    linkAction  = r["LINK_ACTION"]?.ToString(),
+                    senderName  = r["SENDER_NAME"]?.ToString(),
+                    senderEmpCd = r["CREATED_BY"]?.ToString(),
+                    createdDate = Convert.ToDateTime(r["CREATED_DATE"])
+                },
+                new OracleParameter("ID", id));
+
+            var noti = notiList.FirstOrDefault();
+            if (noti == null) return Ok(new { success = false, message = "Không tìm thấy thông báo" });
+
+            // Resolve danh sách NV nhận theo NOTI_TYPE
+            string audienceSql;
+            var pars = new List<OracleParameter> { new OracleParameter("ID", id) };
+
+            switch (noti.notiType)
+            {
+                case "COMPANY":
+                    audienceSql = @"
+                        SELECT EC.EMPCD, EC.CNAME EMP_NAME,
+                               B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME
+                        FROM HRMS.ECM100 EC
+                        LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                        WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                        ORDER BY EC.EMPCD";
+                    break;
+
+                case "DEPT":
+                    audienceSql = @"
+                        SELECT EC.EMPCD, EC.CNAME EMP_NAME, B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME
+                        FROM HRMS.ECM100 EC
+                        LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                        WHERE EC.DEPTCD = :TVAL
+                          AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                        ORDER BY EC.EMPCD";
+                    pars.Add(new OracleParameter("TVAL", noti.targetVal));
+                    break;
+
+                case "LINE":
+                    audienceSql = @"
+                        SELECT EC.EMPCD, EC.CNAME EMP_NAME, B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME
+                        FROM HRMS.ECM100 EC
+                        LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                        WHERE EC.LINECD = :TVAL
+                          AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                        ORDER BY EC.EMPCD";
+                    pars.Add(new OracleParameter("TVAL", noti.targetVal));
+                    break;
+
+                case "WORK":
+                    audienceSql = @"
+                        SELECT EC.EMPCD, EC.CNAME EMP_NAME, B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME
+                        FROM HRMS.ECM100 EC
+                        LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                        WHERE EC.WORKCD = :TVAL
+                          AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                        ORDER BY EC.EMPCD";
+                    pars.Add(new OracleParameter("TVAL", noti.targetVal));
+                    break;
+
+                case "EMPCD":
+                    audienceSql = @"
+                        SELECT EC.EMPCD, EC.CNAME EMP_NAME, B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME
+                        FROM HRMS.ECM100 EC
+                        LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                        WHERE EC.EMPCD = :TVAL";
+                    pars.Add(new OracleParameter("TVAL", noti.targetVal));
+                    break;
+
+                case "MULTI":
+                    audienceSql = @"
+                        SELECT DISTINCT EC.EMPCD, EC.CNAME EMP_NAME,
+                               B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME
+                        FROM HRMS.HR_NOTIFICATION_TARGET T
+                        JOIN HRMS.ECM100 EC ON
+                                (T.TARGET_TYPE = 'EMPCD' AND EC.EMPCD = T.TARGET_VAL)
+                             OR (T.TARGET_TYPE = 'DEPT'  AND EC.DEPTCD = T.TARGET_VAL)
+                             OR (T.TARGET_TYPE = 'LINE'  AND EC.LINECD = T.TARGET_VAL)
+                             OR (T.TARGET_TYPE = 'WORK'  AND EC.WORKCD = T.TARGET_VAL)
+                        LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                        WHERE T.NOTI_ID = :ID
+                          AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                        ORDER BY EC.EMPCD";
+                    break;
+
+                default:
+                    audienceSql = "SELECT 1 FROM DUAL WHERE 1=0";
+                    break;
+            }
+
+            var audience = await _oracleService.ExecuteQueryAsync(audienceSql, r => new {
+                empCd     = r["EMPCD"]?.ToString() ?? "",
+                empName   = r["EMP_NAME"]?.ToString() ?? "",
+                deptName  = r["DEPT_NAME"]?.ToString() ?? "",
+                lineName  = r["LINE_NAME"]?.ToString() ?? "",
+                workName  = r["WORK_NAME"]?.ToString() ?? ""
+            }, pars.ToArray());
+
+            // Đếm đã đọc trong audience
+            int readCount = 0;
+            if (audience.Count > 0)
+            {
+                var cnt = await _oracleService.ExecuteQueryAsync(
+                    "SELECT COUNT(*) C FROM HRMS.HR_NOTIFICATION_LOG WHERE NOTI_ID = :ID AND IS_READ = 1",
+                    r => Convert.ToInt32(r["C"]),
+                    new OracleParameter("ID", id));
+                readCount = cnt.FirstOrDefault();
+            }
+
+            return Ok(new {
+                success = true,
+                noti,
+                audience,
+                totalReceiver = audience.Count,
+                readCount,
+                unreadCount   = audience.Count - readCount
+            });
         }
         catch (Exception ex)
         {

@@ -43,7 +43,7 @@ public static class SideMenuBuilder
                 VisibleWhen = () => !isExpat && !isCanteen,
                 Children = new List<SideMenuItem>
                 {
-                    // new SideMenuItem { Title = "Lịch cá nhân",        Url = "~/Calendar/MyCalendar",     Icon = "calendar_month" },
+                    //new SideMenuItem { Title = "Lịch cá nhân",        Url = "~/Calendar/MyCalendar",     Icon = "calendar_month" },
                     new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",                Icon = "fact_check"    },
                     new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",                   Icon = "payments"      },
                     new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",           Icon = "door_front"    },
@@ -128,6 +128,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy"                 },
                     new SideMenuItem { Title = "Quản lý Thực đơn",     Url = "~/Menu/Manage",                Icon = "restaurant_menu"        },
                     new SideMenuItem { Title = "Quản lý Món ăn",       Url = "~/Menu/FoodManage",            Icon = "set_meal"               },
+                    new SideMenuItem { Title = "Khoá đổi món",         Url = "~/MealLock/Index",                    Icon = "lock_clock"             },
                     new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",            Icon = "manage_accounts"        },
                     new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",              Icon = "account_balance_wallet" },
                     new SideMenuItem { Title = "Phân Quyền Phạm Vi",   Url = "~/UserDept/Index",              Icon = "shield"                 },
@@ -151,6 +152,7 @@ public static class SideMenuBuilder
                     new() { Title = "Thực đơn tuần",     Url = "~/Menu/ThisWeek",   Icon = "date_range"    },
                     new() { Title = "Quản lý Thực đơn",  Url = "~/Menu/Manage",     Icon = "edit_calendar" },
                     new() { Title = "Quản lý Món ăn",    Url = "~/Menu/FoodManage", Icon = "set_meal"      },
+                    new() { Title = "Khoá đổi món",      Url = "~/MealLock/Index",        Icon = "lock_clock"    },
                 ]
             },
 
@@ -165,8 +167,8 @@ public static class SideMenuBuilder
                     new() { Title = "Theo Dõi Yêu Cầu",      Url = "~/Leave/AdminManageRequests", Icon = "manage_history"  },
                     new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",              Icon = "menu_book"       },
                     new() { Title = "Quản lý Mẫu thông báo",  Url = "~/NotiTemplate/Index",        Icon = "notifications"   },
-                    new() { Title = "Gửi thông báo",          Url = "~/AdminNoti/Create",          Icon = "edit_notifications" },
-                    new() { Title = "Thông báo đã gửi",       Url = "~/AdminNoti/Index",           Icon = "campaign"        },
+                    //new() { Title = "Gửi thông báo",          Url = "~/AdminNoti/Create",          Icon = "edit_notifications" },
+                    new() { Title = "Thông báo",       Url = "~/AdminNoti/Index",           Icon = "campaign"        },
                     new() { Title = "Quản lý hội thoại",     Url = "~/AdminInquiry/Index",        Icon = "forum"           },
                     new() { Title = "Chủ đề hội thoại",      Url = "~/AdminInquiry/Topics",       Icon = "topic"           },
                     new() { Title = "Báo cáo hội thoại",    Url = "~/AdminInquiry/Report",       Icon = "bar_chart"       },

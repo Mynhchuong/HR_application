@@ -324,6 +324,9 @@
                     <span>Đã tìm: <b id="empTotal">0</b> NV</span>
                     <button onclick="selectAllMatching()">☑ Chọn tất cả khớp filter</button>
                     <button onclick="selectAllVisible()">☑ Chọn trang này</button>
+                    <button onclick="downloadEmpTemplate()" style="background:#dbeafe;border-color:#93c5fd;color:#1d4ed8" title="Tải file Excel mẫu">📥 Tải mẫu</button>
+                    <button onclick="document.getElementById('empExcelInput').click()" style="background:#d1fae5;border-color:#86efac;color:#166534" title="Nhập danh sách EMPCD từ Excel">📤 Nhập Excel</button>
+                    <input type="file" id="empExcelInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="importEmpExcel(this)" />
                     <button onclick="clearSelection()" style="margin-left:auto">✕ Xoá đã chọn</button>
                 </div>
                 <div id="empListBody"><div class="an-loading" style="padding:2rem;text-align:center;color:#94a3b8">Nhập filter rồi nhấn enter để bắt đầu</div></div>
@@ -367,6 +370,7 @@
 @Html.AntiForgeryToken()
 
 @section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 
@@ -544,6 +548,75 @@ function clearSelection(){
     document.getElementById('cntEmp').textContent = 0;
     document.querySelectorAll('#empListBody input[type=checkbox]').forEach(cb => cb.checked = false);
     updateSummary();
+}
+
+// ─── Excel import / template ───────────────────────────────────────
+function downloadEmpTemplate(){
+    const data = [
+        ['EMPCD'],   // Header (BẮT BUỘC giữ tên cột này)
+        ['E0001'],
+        ['E0002'],
+        ['E0003']
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{ wch: 15 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'DSNV');
+    XLSX.writeFile(wb, `mau_danh_sach_NV_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+function importEmpExcel(input){
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';   // cho phép chọn lại cùng file
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const wb = XLSX.read(e.target.result, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
+            if (rows.length < 1) { showToast('File rỗng', 'warning'); return; }
+
+            // Tìm cột EMPCD: nếu header có "EMPCD" thì dùng index đó, không thì lấy cột đầu
+            const header = (rows[0] || []).map(h => String(h ?? '').trim().toUpperCase());
+            let col = header.indexOf('EMPCD');
+            let dataStart = 1;
+            if (col < 0) { col = 0; dataStart = 0; }   // không có header → đọc luôn từ dòng đầu
+
+            const codes = [];
+            for (let i = dataStart; i < rows.length; i++) {
+                const v = rows[i]?.[col];
+                if (v === undefined || v === null) continue;
+                const code = String(v).trim();
+                if (code) codes.push(code);
+            }
+            if (codes.length === 0) { showToast('Không tìm thấy mã NV nào trong file', 'warning'); return; }
+
+            const before = selEmp.size;
+            const dupSet = new Set();
+            codes.forEach(c => { if (selEmp.has(c)) dupSet.add(c); else selEmp.add(c); });
+            const added = selEmp.size - before;
+
+            // Refresh UI
+            document.getElementById('cntEmp').textContent = selEmp.size;
+            document.querySelectorAll('#empListBody input[type=checkbox]').forEach(cb => {
+                cb.checked = selEmp.has(cb.dataset.empcd);
+            });
+            updateSummary();
+
+            // Auto switch sang tab Nhân viên cho user thấy
+            switchTab('emp');
+
+            showToast(
+                `Đã import ${codes.length} mã (mới: ${added}, trùng đã có: ${dupSet.size})`,
+                'success'
+            );
+        } catch (err) {
+            showToast('Lỗi đọc file Excel: ' + err.message, 'error');
+        }
+    };
+    reader.readAsArrayBuffer(file);
 }
 
 function clearAll(){

@@ -281,6 +281,97 @@ function getTomorrowStr() {
     onOtDateChange();
 })();
 
+const LOCK_CHECK_URL = '@Url.Action("Check","MealLock")';
+const lockState = { LUNCH: { locked: false, msg: '' }, OT: { locked: false, msg: '' } };
+
+async function checkLock(date, typeMeal){
+    try {
+        const r = await fetch(`${LOCK_CHECK_URL}?date=${date}&typeMeal=${typeMeal}`);
+        const d = await r.json();
+        if (!d.success) return { locked: false };
+        return d;
+    } catch { return { locked: false }; }
+}
+
+function isSameWeek(isoDate){
+    if (!isoDate) return true;
+    const tgt = new Date(isoDate);
+    const now = new Date();
+    const startOfWeek = (d) => {
+        const dt = new Date(d);
+        const day = dt.getDay();
+        const off = day === 0 ? -6 : 1 - day;
+        dt.setDate(dt.getDate() + off);
+        dt.setHours(0,0,0,0);
+        return dt.getTime();
+    };
+    return startOfWeek(tgt) === startOfWeek(now);
+}
+
+function applyLockUI(typeMeal, lockInfo, targetDate){
+    const prefix  = typeMeal === 'OT' ? 'otBtn' : 'btn';
+    const badgeId = typeMeal === 'OT' ? 'currentOtBadge' : 'currentMealBadge';
+
+    // Xác định những loại bị khoá. Nếu rule không restrict type → khoá hết.
+    const typeRestricted = !!(lockInfo.lockMan || lockInfo.lockNhe || lockInfo.lockChay);
+    const blockedTypes = lockInfo.locked
+        ? (typeRestricted
+            ? ['MAN','NHE','CHAY'].filter(t =>
+                (t==='MAN' && lockInfo.lockMan) ||
+                (t==='NHE' && lockInfo.lockNhe) ||
+                (t==='CHAY' && lockInfo.lockChay))
+            : ['MAN','NHE','CHAY'])
+        : [];
+
+    lockState[typeMeal] = {
+        locked: !!lockInfo.locked,
+        msg: lockInfo.reason || '',
+        note: lockInfo.note || '',
+        blockedTypes
+    };
+
+    const sameWeek = isSameWeek(targetDate);
+
+    // Disable từng nút theo loại bị khoá thay vì disable hết
+    ['MAN','NHE','CHAY'].forEach(t => {
+        const b = document.getElementById(prefix + t);
+        if (!b) return;
+        const isBlocked = blockedTypes.includes(t);
+        b.disabled = isBlocked;
+        b.style.opacity = isBlocked ? '.4' : '';
+        b.style.cursor  = isBlocked ? 'not-allowed' : '';
+    });
+
+    const badge   = document.getElementById(badgeId);
+    const [y,m,d] = (targetDate||'').split('-');
+    const dLabel  = (y && m && d) ? `${d}/${m}/${y}` : 'ngày này';
+
+    if (lockInfo.locked) {
+        const typeLabels = { MAN:'🍖 Mặn', NHE:'🥗 Nhẹ', CHAY:'🥦 Chay' };
+        const typesText = typeRestricted
+            ? blockedTypes.map(t => typeLabels[t]).join(', ')
+            : 'mọi loại';
+        const noteLine = lockInfo.note
+            ? `<div style="font-weight:500;font-size:.72rem;color:#7f1d1d;margin-top:.2rem;font-style:italic;">📝 ${esc(lockInfo.note)}</div>`
+            : '';
+        badge.innerHTML = `
+            <div style="background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;border-radius:10px;padding:.55rem .75rem;font-size:.8rem;font-weight:700;line-height:1.5;text-align:left;">
+                🔒 Ngày <b>${dLabel}</b> đã chốt số lượng — không thể đổi sang <b>${typesText}</b>.<br>
+                <span style="font-weight:500;">Xin cảm ơn!</span>
+                ${noteLine}
+            </div>`;
+    } else if (lockInfo.reason && lockInfo.cutoffDt && sameWeek) {
+        const cur = badge.innerHTML;
+        const noteLine = lockInfo.note
+            ? `<br><span style="font-style:italic;">📝 ${esc(lockInfo.note)}</span>` : '';
+        badge.innerHTML = cur + `
+            <div style="margin-top:.4rem;background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:.45rem .65rem;font-size:.75rem;text-align:left;line-height:1.5;">
+                ⏰ Ngày <b>${dLabel}</b> sẽ chốt số lượng — ${esc(lockInfo.reason)}.${noteLine}
+            </div>`;
+    }
+}
+function esc(s){ return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
 async function onMealDateChange() {
     const inp   = document.getElementById('mealDate');
     const label = document.getElementById('mealDateLabel');
@@ -294,6 +385,7 @@ async function onMealDateChange() {
         const data = await res.json();
         updateMealButtons(data.success ? data.foodType : 'MAN');
     } catch { updateMealButtons('MAN'); }
+    applyLockUI('LUNCH', await checkLock(inp.value, 'LUNCH'), inp.value);
 }
 
 async function onOtDateChange() {
@@ -309,6 +401,7 @@ async function onOtDateChange() {
         const data = await res.json();
         updateOtButtons(data.success ? data.foodType : 'MAN');
     } catch { updateOtButtons('MAN'); }
+    applyLockUI('OT', await checkLock(inp.value, 'OT'), inp.value);
 }
 
 function _doFetch(body) {
@@ -326,6 +419,11 @@ function _doFetch(body) {
 }
 
 function submitMeal(type, label, typeMeal) {
+    const ls = lockState[typeMeal];
+    if (ls?.locked && ls.blockedTypes?.includes(type)) {
+        window.showToast(`Đã bị khoá đổi sang ${label}: ` + (ls.msg || ''), 'warning');
+        return;
+    }
     const dateInputId = typeMeal === 'OT' ? 'otDate' : 'mealDate';
     const dateStr = document.getElementById(dateInputId).value;
     const [y, m, d] = dateStr.split('-');

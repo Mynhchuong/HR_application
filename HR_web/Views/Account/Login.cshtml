@@ -201,6 +201,13 @@
                 <form asp-controller="Account" asp-action="Login" method="post" autocomplete="off">
                     @Html.AntiForgeryToken()
 
+                    @if (TempData["InfoMessage"] != null)
+                    {
+                        <div style="background:#dcfce7;border:1.5px solid #86efac;color:#166534;border-radius:10px;padding:.6rem .8rem;font-size:.82rem;margin-bottom:1rem;line-height:1.45;">
+                            ✅ @TempData["InfoMessage"]
+                        </div>
+                    }
+
                     <div class="input-group-custom">
                         <label class="form-label">Mã số nhân viên</label>
                         <input asp-for="EMPCD" class="form-control-custom" placeholder="VD: 11292522"
@@ -233,6 +240,11 @@
                     }
 
                     <button type="submit" class="btn-login">Đăng nhập</button>
+
+                    <a href="@Url.Action("ForgotPassword","Account")"
+                       style="display:block;text-align:center;font-size:.85rem;color:#dc2626;font-weight:700;text-decoration:none;margin-top:.65rem;">
+                        🔑 Quên mật khẩu?
+                    </a>
 
                     <a href="@Url.Action("Index", "Guide")" class="btn-guide">
                         <span class="material-symbols-rounded" style="font-size:1.15rem;">menu_book</span>

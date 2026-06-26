@@ -84,6 +84,29 @@ public class AccountService
         return result != null && result.success;
     }
 
+    public async Task<(bool ok, string message)> ForgotPasswordAsync(string empcd, string juminno, string juminnoDate, string newPassword)
+    {
+        try
+        {
+            var response = await _api.PostAsync("Account/forgot-password", new {
+                Empcd       = empcd,
+                Juminno     = juminno,
+                JuminnoDate = juminnoDate,
+                NewPassword = newPassword
+            });
+            if (response?.IsSuccessStatusCode == true)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var obj  = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(json);
+                bool ok  = obj?.success == true;
+                string msg = (string?)obj?.message ?? "";
+                return (ok, msg);
+            }
+            return (false, "Lỗi kết nối server");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
     public async Task<bool> ChangePasswordAsync(string empCd, string oldPassword, string newPassword)
     {
         var response = await _api.PostAsync("Account/change-password", new { EmpCd = empCd, OldPassword = oldPassword, NewPassword = newPassword });

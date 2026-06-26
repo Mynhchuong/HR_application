@@ -114,6 +114,47 @@ public class AccountController : Controller
     }
 
     // ─────────────────────────────────────────────
+    // GET: /Account/ForgotPassword — form quên mật khẩu
+    // POST: /Account/ForgotPassword — đặt lại mật khẩu (1 lần / tuần)
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult ForgotPassword()
+    {
+        return View(new HR_web.Models.Account.ForgotPasswordModel());
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ForgotPassword(HR_web.Models.Account.ForgotPasswordModel model)
+    {
+        if (!ModelState.IsValid)
+            return View(model);
+
+        if (model.NewPassword != model.ConfirmPassword)
+        {
+            ModelState.AddModelError(string.Empty, "Mật khẩu mới và xác nhận không khớp");
+            return View(model);
+        }
+
+        var (ok, msg) = await _service.ForgotPasswordAsync(
+            model.EMPCD?.Trim() ?? "",
+            model.Juminno?.Trim() ?? "",
+            model.JuminnoDate?.Trim() ?? "",
+            model.NewPassword?.Trim() ?? "");
+
+        if (!ok)
+        {
+            ModelState.AddModelError(string.Empty, msg);
+            return View(model);
+        }
+
+        TempData["InfoMessage"] = msg + " Bạn đã có thể đăng nhập với mật khẩu mới.";
+        return RedirectToAction("Login");
+    }
+
+    // ─────────────────────────────────────────────
     // GET: /Account/AccessDenied
     // ─────────────────────────────────────────────
     [AllowAnonymous]

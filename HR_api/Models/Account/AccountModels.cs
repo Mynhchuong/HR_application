@@ -62,6 +62,14 @@ public class DisableUserRequest
     public string LoginUser { get; set; } = string.Empty;
 }
 
+public class ForgotPasswordRequest
+{
+    public string Empcd       { get; set; } = string.Empty;
+    public string Juminno     { get; set; } = string.Empty;   // CCCD
+    public string JuminnoDate { get; set; } = string.Empty;   // ngày cấp (yyyyMMdd hoặc dd/MM/yyyy)
+    public string NewPassword { get; set; } = string.Empty;
+}
+
 public class UserDetailModel
 {
     public string? DeptName { get; set; }

@@ -378,6 +378,7 @@ END;
 /
 ALTER TRIGGER "HRMS"."HR_USERS_TRG" ENABLE;
 
+ALTER TABLE HRMS.HR_USERS ADD (LAST_PWD_RESET DATE);
 -- ============================================================
 -- NOTIFICATION SYSTEM TABLES (ADDED 22/04/2026)
 -- ============================================================

@@ -299,6 +299,121 @@ public class AccountController : ControllerBase
         return Ok(new { success = true, message = "Đổi mật khẩu thành công" });
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    // POST /apiHR/Account/forgot-password
+    //  Body: { Empcd, Juminno (CCCD), JuminnoDate (YYYYMMDD), NewPassword }
+    //  Logic:
+    //   1. Match ECM100.JUMINNO + JUMINNO_DATE với input
+    //   2. Check HR_USERS.LAST_PWD_RESET — nếu < 7 ngày → reject
+    //   3. Update PASSWORD + LAST_PWD_RESET = SYSDATE
+    // ─────────────────────────────────────────────────────────────────
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest req)
+    {
+        try
+        {
+            if (req == null
+                || string.IsNullOrWhiteSpace(req.Empcd)
+                || string.IsNullOrWhiteSpace(req.Juminno)
+                || string.IsNullOrWhiteSpace(req.JuminnoDate)
+                || string.IsNullOrWhiteSpace(req.NewPassword))
+                return Ok(new { success = false, message = "Vui lòng nhập đủ thông tin" });
+
+            if (req.NewPassword.Length < 6)
+                return Ok(new { success = false, message = "Mật khẩu mới phải ít nhất 6 ký tự" });
+            if (req.NewPassword == "123456")
+                return Ok(new { success = false, message = "Không được dùng mật khẩu mặc định 123456" });
+
+            // Chuẩn hoá JUMINNO_DATE về dạng YYYYMMDD nếu user nhập dd/MM/yyyy hoặc yyyy-MM-dd
+            string juminnoDate = req.JuminnoDate.Trim()
+                .Replace("/", "").Replace("-", "").Replace(".", "");
+            if (juminnoDate.Length == 8 && juminnoDate.All(char.IsDigit))
+            {
+                // Nếu gửi dạng dd/MM/yyyy → chuyển sang yyyy/MM/dd
+                if (DateTime.TryParseExact(req.JuminnoDate.Trim(), new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd" },
+                        System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None,
+                        out var dt))
+                {
+                    juminnoDate = dt.ToString("yyyyMMdd");
+                }
+            }
+            else
+            {
+                return Ok(new { success = false, message = "Ngày cấp CCCD không hợp lệ" });
+            }
+
+            // 1) Verify CCCD + ngày cấp khớp với ECM100
+            // Normalize cả 2 đầu (loại '/', '-', '.', space) để khỏi sai format
+            var verify = await _oracleService.ExecuteQueryAsync(@"
+                SELECT EMPCD, JUMINNO, JUMINNO_DATE
+                FROM HRMS.ECM100
+                WHERE EMPCD = :EMPCD
+                  AND TRIM(JUMINNO) = TRIM(:JUMINNO)
+                  AND REPLACE(REPLACE(REPLACE(REPLACE(TRIM(JUMINNO_DATE),'/',''),'-',''),'.',''),' ','')
+                      = :JUMINNO_DATE
+                  AND ROWNUM = 1",
+                r => r["EMPCD"]?.ToString() ?? "",
+                new OracleParameter("EMPCD", req.Empcd),
+                new OracleParameter("JUMINNO", req.Juminno.Trim()),
+                new OracleParameter("JUMINNO_DATE", juminnoDate));
+
+            if (verify.Count == 0)
+                return Ok(new { success = false, message = "CCCD hoặc ngày cấp không khớp với hồ sơ. Vui lòng kiểm tra lại hoặc liên hệ phòng Nhân sự." });
+
+            // 2) Verify HR_USERS có tồn tại + check rate limit
+            var userRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT NVL(IS_ACTIVE, 1) IS_ACTIVE,
+                       LAST_PWD_RESET,
+                       CASE WHEN LAST_PWD_RESET IS NULL THEN NULL
+                            ELSE ROUND(SYSDATE - LAST_PWD_RESET, 2)
+                       END DAYS_SINCE_LAST
+                FROM HRMS.HR_USERS
+                WHERE EMPCD = :EMPCD AND ROWNUM = 1",
+                r => new
+                {
+                    isActive = Convert.ToInt32(r["IS_ACTIVE"]),
+                    lastReset = r["LAST_PWD_RESET"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["LAST_PWD_RESET"]),
+                    daysSince = r["DAYS_SINCE_LAST"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["DAYS_SINCE_LAST"])
+                },
+                new OracleParameter("EMPCD", req.Empcd));
+
+            var user = userRows.FirstOrDefault();
+            if (user == null)
+                return Ok(new { success = false, message = "Tài khoản chưa tồn tại trên hệ thống. Vui lòng đăng nhập lần đầu hoặc liên hệ HR." });
+            if (user.isActive == 0)
+                return Ok(new { success = false, message = "Tài khoản đang bị khoá. Vui lòng liên hệ HR." });
+
+            if (user.daysSince.HasValue && user.daysSince.Value < 7)
+            {
+                var remain = Math.Ceiling(7 - user.daysSince.Value);
+                return Ok(new
+                {
+                    success = false,
+                    code    = "RATE_LIMIT",
+                    message = $"Bạn chỉ được tự đặt lại mật khẩu 1 lần / tuần. Lần cuối: {user.lastReset:dd/MM/yyyy HH:mm}. Vui lòng thử lại sau {remain} ngày hoặc liên hệ phòng Nhân sự."
+                });
+            }
+
+            // 3) Update password + LAST_PWD_RESET
+            int n = await _oracleService.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_USERS
+                SET PASSWORD       = :NEW_PASSWORD,
+                    LAST_PWD_RESET = SYSDATE,
+                    UPDT_ID        = :EMPCD,
+                    UPDT_DT        = SYSDATE
+                WHERE EMPCD = :EMPCD",
+                new OracleParameter("NEW_PASSWORD", req.NewPassword),
+                new OracleParameter("EMPCD", req.Empcd));
+
+            if (n == 0) return Ok(new { success = false, message = "Cập nhật mật khẩu thất bại" });
+            return Ok(new { success = true, message = "Đã đặt lại mật khẩu thành công. Vui lòng đăng nhập với mật khẩu mới." });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     [HttpPost("disable-user")]
     public async Task<IActionResult> DisableUser([FromBody] DisableUserRequest req)
     {

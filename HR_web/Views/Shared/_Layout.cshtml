@@ -750,46 +750,43 @@
                     <p class="text-muted small mb-4">Bạn có chắc chắn muốn thoát khỏi hệ thống không?</p>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-light w-100 py-2 rounded-3 fw-bold" data-bs-dismiss="modal">Hủy</button>
-                        <form asp-controller="Account" asp-action="Logout" method="post" class="w-100"
-                              onsubmit="return tryUnregisterFcmThenLogout(this)">
+                        <form asp-controller="Account" asp-action="Logout" method="post" class="w-100" id="logoutForm">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-danger w-100 py-2 rounded-3 fw-bold">Thoát</button>
                         </form>
                         <script>
-                        // Nếu mobile app có FCM token, gọi unregister trước rồi mới submit logout.
-                        // Web thuần thì không có Android/iOS bridge → submit luôn.
-                        function tryUnregisterFcmThenLogout(form) {
-                            let token = null;
-                            try {
-                                if (window.Android && typeof Android.getFcmToken === 'function')
-                                    token = Android.getFcmToken();
-                                else if (window.webkit && window.webkit.messageHandlers
-                                    && window.webkit.messageHandlers.getFcmToken) {
-                                    // iOS bridge sẽ trả async, dùng localStorage cache nếu có
-                                    token = localStorage.getItem('FCM_TOKEN');
+                        // Trước khi submit form logout: cố gắng unregister FCM token + clear noti tray.
+                        // KHÔNG block form submit dù có lỗi gì.
+                        (function(){
+                            var f = document.getElementById('logoutForm');
+                            if (!f) return;
+                            f.addEventListener('submit', function () {
+                                var token = null;
+                                try {
+                                    if (window.Android && typeof window.Android.getFcmToken === 'function')
+                                        token = window.Android.getFcmToken();
+                                } catch (e) {}
+                                if (!token) {
+                                    try { token = localStorage.getItem('FCM_TOKEN'); } catch (e) {}
                                 }
-                            } catch {}
-                            if (!token) return true;  // không có token → cứ logout thẳng
-
-                            // Gửi sync để chắc chắn hoàn thành trước khi submit
-                            try {
-                                navigator.sendBeacon(
-                                    '@Url.Action("UnregisterToken","Notification")',
-                                    new Blob([JSON.stringify({ Token: token })], { type: 'application/json' })
-                                );
-                            } catch {}
-
-                            // Xoá noti CŨ trên notification tray của máy
-                            try {
-                                if (window.Android && typeof Android.clearAllNotifications === 'function')
-                                    Android.clearAllNotifications();
-                                else if (window.webkit && window.webkit.messageHandlers
-                                    && window.webkit.messageHandlers.clearNotifications)
-                                    window.webkit.messageHandlers.clearNotifications.postMessage(null);
-                            } catch {}
-
-                            return true;  // tiếp tục submit form
-                        }
+                                if (token) {
+                                    try {
+                                        navigator.sendBeacon(
+                                            '@Url.Action("UnregisterToken","Notification")',
+                                            new Blob([JSON.stringify({ Token: token })], { type: 'application/json' })
+                                        );
+                                    } catch (e) {}
+                                }
+                                try {
+                                    if (window.Android && typeof window.Android.clearAllNotifications === 'function')
+                                        window.Android.clearAllNotifications();
+                                    else if (window.webkit && window.webkit.messageHandlers
+                                        && window.webkit.messageHandlers.clearNotifications)
+                                        window.webkit.messageHandlers.clearNotifications.postMessage(null);
+                                } catch (e) {}
+                                // Không gọi preventDefault → form vẫn submit bình thường
+                            });
+                        })();
                         </script>
                     </div>
                 </div>

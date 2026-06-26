@@ -31,13 +31,21 @@ public class NotificationController : ControllerBase
             if (model == null || string.IsNullOrEmpty(model.EMPCD) || string.IsNullOrEmpty(model.TOKEN))
                 return Ok(new { success = false, message = "Thiếu mã nhân viên hoặc Token" });
 
+            // BƯỚC 1: Xoá mapping của token này với user khác (1 device = 1 user)
+            // → khi user mới login trên cùng device, user cũ không còn nhận noti.
+            await _oracleService.ExecuteNonQueryAsync(
+                "DELETE FROM HRMS.HR_USER_TOKENS WHERE TOKEN = :TOKEN AND EMPCD != :EMPCD",
+                new OracleParameter("TOKEN", model.TOKEN),
+                new OracleParameter("EMPCD", model.EMPCD));
+
+            // BƯỚC 2: MERGE token cho user hiện tại
             string sql = @"
                 MERGE INTO HRMS.HR_USER_TOKENS T
                 USING (SELECT :EMPCD E, :TOKEN TK FROM DUAL) S
                 ON (T.EMPCD = S.E AND T.TOKEN = S.TK)
-                WHEN MATCHED THEN 
+                WHEN MATCHED THEN
                     UPDATE SET LAST_UPDATED = SYSDATE, OS_TYPE = :OS_TYPE, DEVICE_MODEL = :DEVICE_MODEL
-                WHEN NOT MATCHED THEN 
+                WHEN NOT MATCHED THEN
                     INSERT (EMPCD, TOKEN, OS_TYPE, DEVICE_MODEL, LAST_UPDATED)
                     VALUES (:EMPCD, :TOKEN, :OS_TYPE, :DEVICE_MODEL, SYSDATE)";
 
@@ -53,6 +61,39 @@ public class NotificationController : ControllerBase
         {
             return Ok(new { success = false, message = ex.Message });
         }
+    }
+
+    // ============================================================
+    // 1b. UNREGISTER TOKEN — gọi khi NV logout app mobile
+    // POST /apiHR/Notification/unregister-token  { TOKEN, EMPCD? }
+    //   Xoá mapping (EMPCD,TOKEN). Nếu không truyền EMPCD → xoá mọi mapping
+    //   của TOKEN đó (an toàn khi NV đã đăng xuất khỏi web).
+    // ============================================================
+    [HttpPost("unregister-token")]
+    public async Task<IActionResult> UnregisterToken([FromBody] TokenRegistrationRequest model)
+    {
+        try
+        {
+            if (model == null || string.IsNullOrEmpty(model.TOKEN))
+                return Ok(new { success = false, message = "Thiếu Token" });
+
+            if (string.IsNullOrEmpty(model.EMPCD))
+            {
+                await _oracleService.ExecuteNonQueryAsync(
+                    "DELETE FROM HRMS.HR_USER_TOKENS WHERE TOKEN = :TOKEN",
+                    new OracleParameter("TOKEN", model.TOKEN));
+            }
+            else
+            {
+                await _oracleService.ExecuteNonQueryAsync(
+                    "DELETE FROM HRMS.HR_USER_TOKENS WHERE TOKEN = :TOKEN AND EMPCD = :EMPCD",
+                    new OracleParameter("TOKEN", model.TOKEN),
+                    new OracleParameter("EMPCD", model.EMPCD));
+            }
+
+            return Ok(new { success = true });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }
 
     // ============================================================

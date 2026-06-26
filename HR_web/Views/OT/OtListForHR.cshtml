@@ -229,7 +229,7 @@
         showConfirm('Bạn có chắc muốn gửi thông báo nhắc nhở ký OT cho tất cả nhân viên chưa ký trong ngày này không?', () => {
             $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Đang gửi...');
             $.ajax({
-                url: '/apiHR/OT/hr/notify-pending',
+                url: '@Url.Action("NotifyPending","OT")',
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({

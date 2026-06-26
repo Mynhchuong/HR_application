@@ -198,12 +198,13 @@
             </div>
 
             <div class="login-body">
-                <form asp-controller="Account" asp-action="Login" method="post">
+                <form asp-controller="Account" asp-action="Login" method="post" autocomplete="off">
                     @Html.AntiForgeryToken()
 
                     <div class="input-group-custom">
                         <label class="form-label">Mã số nhân viên</label>
-                        <input asp-for="EMPCD" class="form-control-custom" placeholder="VD: 11292522" autocomplete="username" />
+                        <input asp-for="EMPCD" class="form-control-custom" placeholder="VD: 11292522"
+                               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
                     </div>
 
                     <div class="input-group-custom">
@@ -211,7 +212,7 @@
                         <div class="password-wrap">
                             <input asp-for="Password" type="password" id="passwordInput"
                                    class="form-control-custom" placeholder="••••••••"
-                                   autocomplete="current-password" />
+                                   autocomplete="new-password" />
                             <span class="password-toggle material-symbols-rounded" onclick="togglePassword()">visibility</span>
                         </div>
                     </div>

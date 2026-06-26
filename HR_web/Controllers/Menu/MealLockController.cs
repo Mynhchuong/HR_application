@@ -4,14 +4,27 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers.Menu;
 
-
+[Authorize]
 public class MealLockController : BaseController
 {
     private readonly MealLockService _svc;
     public MealLockController(MealLockService svc) { _svc = svc; }
 
-    public IActionResult Index() => View();
+    private bool CanManage =>
+           CurrentUser?.RoleName == "Admin"
+        || CurrentUser?.RoleName == "HR"
+        || CurrentUser?.RoleName == "Canteen";
 
+    private IActionResult ForbidJson() =>
+        Json(new { success = false, message = "Bạn không có quyền thao tác chức năng này" });
+
+    public IActionResult Index()
+    {
+        if (!CanManage) return RedirectToAction("Index", "Home");
+        return View();
+    }
+
+    // LIST: ai cũng đọc được (NV cần hiện section "Sắp tới" trên Menu/Today)
     [HttpGet]
     public async Task<IActionResult> List(string? from = null, string? to = null)
     {
@@ -25,6 +38,9 @@ public class MealLockController : BaseController
         public string  LockDate  { get; set; } = "";
         public bool    LockLunch { get; set; }
         public bool    LockOt    { get; set; }
+        public bool    LockMan   { get; set; }
+        public bool    LockNhe   { get; set; }
+        public bool    LockChay  { get; set; }
         public string? CutoffDt  { get; set; }
         public string? Note      { get; set; }
         public bool    IsActive  { get; set; } = true;
@@ -33,6 +49,7 @@ public class MealLockController : BaseController
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Save([FromBody] SaveBody body)
     {
+        if (!CanManage) return ForbidJson();
         if (body == null) return Json(new { success = false, message = "Thiếu dữ liệu" });
         var payload = new
         {
@@ -40,6 +57,9 @@ public class MealLockController : BaseController
             lockDate  = body.LockDate,
             lockLunch = body.LockLunch,
             lockOt    = body.LockOt,
+            lockMan   = body.LockMan,
+            lockNhe   = body.LockNhe,
+            lockChay  = body.LockChay,
             cutoffDt  = body.CutoffDt,
             note      = body.Note,
             isActive  = body.IsActive,
@@ -52,15 +72,17 @@ public class MealLockController : BaseController
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete([FromBody] IdRequest req)
     {
+        if (!CanManage) return ForbidJson();
         if (req == null || req.Id <= 0) return Json(new { success = false, message = "Thiếu ID" });
         var raw = await _svc.DeleteRawAsync(req.Id);
         return Content(raw, "application/json");
     }
 
+    // CHECK: ai cũng gọi được (NV cần xem banner khoá)
     [HttpGet]
-    public async Task<IActionResult> Check(string date, string typeMeal = "LUNCH")
+    public async Task<IActionResult> Check(string date, string typeMeal = "LUNCH", string? targetFood = null)
     {
-        var raw = await _svc.CheckRawAsync(date, typeMeal);
+        var raw = await _svc.CheckRawAsync(date, typeMeal, targetFood);
         return Content(raw, "application/json");
     }
 

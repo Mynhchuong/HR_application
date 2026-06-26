@@ -67,6 +67,16 @@ public class NotificationService
         catch { return false; }
     }
 
+    public async Task<bool> UnregisterTokenAsync(string? empCd, string token)
+    {
+        try
+        {
+            var r = await _api.PostAsync("Notification/unregister-token", new { EMPCD = empCd, TOKEN = token });
+            return r?.IsSuccessStatusCode == true;
+        }
+        catch { return false; }
+    }
+
     // ─── ADMIN COMPOSE: send multi-target ────────────────────────
     public async Task<string> SendMultiRawAsync(object payload)
     {

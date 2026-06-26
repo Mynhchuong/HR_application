@@ -176,7 +176,7 @@
             <i class="bi bi-play-circle-fill"></i> Video hướng dẫn
         </div>
         <div class="detail-video-card">
-            <video controls preload="metadata" playsinline controlsList="nodownload">
+            <video controls preload="metadata" playsinline controlsList="nodownload" data-fullscreen="auto">
                 <source src="@Url.Action("Stream", "Video", new { folder = "GUIDE_VIDEO", id = Model.ID })" />
                 Trình duyệt không hỗ trợ phát video.
             </video>

@@ -95,7 +95,21 @@ public class AccountController : Controller
     // ─────────────────────────────────────────────
     public async Task<IActionResult> Logout()
     {
+        // 1. Xoá cookie auth
         await AuthHelper.SignOutAsync(HttpContext);
+
+        // 2. Xoá session (LoginFails, các flag tạm)
+        HttpContext.Session.Clear();
+
+        // 3. Xoá cookie EMP_CD (RememberMe) để lần sau vào /Login không bị pre-fill mã NV cũ
+        Response.Cookies.Delete("EMP_CD");
+
+        // 4. Xoá cả cookie ASP.NET phụ trợ + cookie auth tên cấu hình (defensive)
+        Response.Cookies.Delete(".HR.Auth");
+        Response.Cookies.Delete(".AspNetCore.Session");
+        Response.Cookies.Delete(".AspNetCore.Antiforgery");
+        Response.Cookies.Delete(".AspNetCore.Cookies");
+
         return RedirectToAction("Login");
     }
 

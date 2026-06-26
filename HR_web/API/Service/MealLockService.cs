@@ -34,10 +34,12 @@ public class MealLockService
             : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
     }
 
-    public async Task<string> CheckRawAsync(string date, string typeMeal = "LUNCH")
+    public async Task<string> CheckRawAsync(string date, string typeMeal = "LUNCH", string? targetFood = null)
     {
-        var res = await _api.GetAsync_Raw("MealLock/check",
-            $"date={Uri.EscapeDataString(date)}&typeMeal={Uri.EscapeDataString(typeMeal)}");
+        var qs = $"date={Uri.EscapeDataString(date)}&typeMeal={Uri.EscapeDataString(typeMeal)}";
+        if (!string.IsNullOrEmpty(targetFood))
+            qs += $"&targetFood={Uri.EscapeDataString(targetFood)}";
+        var res = await _api.GetAsync_Raw("MealLock/check", qs);
         return res?.IsSuccessStatusCode == true
             ? await res.Content.ReadAsStringAsync()
             : "{\"success\":false,\"locked\":false}";

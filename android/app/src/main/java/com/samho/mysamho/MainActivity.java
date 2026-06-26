@@ -50,8 +50,13 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -83,6 +88,7 @@ public class MainActivity extends AppCompatActivity {
 
         createNotificationChannel();
         requestNotificationPermission();
+        checkAppVersion();
 
         webView = findViewById(R.id.webView);
         layoutNoInternet = findViewById(R.id.layoutNoInternet);
@@ -648,7 +654,64 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // JavaScript interface — web app gọi Android.getFcmToken() để lấy FCM token
+    // ───────────────────────────────────────────────────────────────
+    // App version check — bắt cập nhật nếu version hiện tại < min trên server
+    // ───────────────────────────────────────────────────────────────
+    private void checkAppVersion() {
+        new Thread(() -> {
+            try {
+                String currentVersion;
+                try {
+                    currentVersion = getPackageManager()
+                            .getPackageInfo(getPackageName(), 0).versionName;
+                } catch (PackageManager.NameNotFoundException e) { currentVersion = "0.0"; }
+
+                // /hr_Web → /HR_api/apiHR
+                String apiBase = selectedBaseUrl.replace("/hr_Web", "/HR_api/apiHR");
+                String urlStr  = apiBase + "/AppVersion/check?platform=android&version=" + currentVersion;
+
+                HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("X-Api-Key", "ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+
+                StringBuilder sb = new StringBuilder();
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                    String line; while ((line = br.readLine()) != null) sb.append(line);
+                }
+
+                JSONObject json = new JSONObject(sb.toString());
+                if (!json.optBoolean("success", false)) return;
+                if (!json.optBoolean("forceUpdate", false)) return;
+
+                String latest = json.optString("latestVersion", "?");
+                String note   = json.optString("releaseNote", "Vui lòng cập nhật để tiếp tục sử dụng.");
+                String update = json.optString("updateUrl", "");
+
+                runOnUiThread(() -> showForceUpdateDialog(latest, note, update));
+            } catch (Exception ignored) {
+                // Không có mạng / API down → bỏ qua, không chặn user
+            }
+        }).start();
+    }
+
+    private void showForceUpdateDialog(String latestVersion, String note, String updateUrl) {
+        new AlertDialog.Builder(this)
+            .setTitle("Có bản cập nhật mới (v" + latestVersion + ")")
+            .setMessage(note)
+            .setCancelable(false)
+            .setPositiveButton("Cập nhật ngay", (d, w) -> {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl)));
+                } catch (Exception ignored) {}
+                finish();   // bắt buộc thoát app, không cho dùng tiếp
+            })
+            .setNegativeButton("Thoát", (d, w) -> finish())
+            .show();
+    }
+
+    // JavaScript interface — web app gọi Android.getFcmToken() / clearNotifications()
     public static class WebAppInterface {
         private final Context mContext;
         WebAppInterface(Context ctx) { mContext = ctx; }
@@ -656,6 +719,13 @@ public class MainActivity extends AppCompatActivity {
         @android.webkit.JavascriptInterface
         public String getFcmToken() {
             return MySamhoFirebaseService.getSavedToken(mContext);
+        }
+
+        // Gọi khi user logout — xoá hết noti FCM còn trong tray của thiết bị
+        @android.webkit.JavascriptInterface
+        public void clearAllNotifications() {
+            NotificationManager mgr = (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (mgr != null) mgr.cancelAll();
         }
     }
 }

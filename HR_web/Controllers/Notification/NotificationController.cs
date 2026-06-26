@@ -80,6 +80,21 @@ public class NotificationController : BaseController
         return Json(new { success = ok });
     }
 
+    // POST /Notification/UnregisterToken  (gọi khi user logout)
+    // Cho phép AllowAnonymous vì user có thể đã hết session khi logout xong mới gọi.
+    [HttpPost]
+    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+    public async Task<IActionResult> UnregisterToken([FromBody] TokenRegistrationBody body)
+    {
+        if (string.IsNullOrEmpty(body?.Token))
+            return Json(new { success = false });
+
+        // Nếu còn session NV thì truyền EMPCD (chính xác hơn);
+        // nếu không thì chỉ xoá theo token (vẫn an toàn vì 1 token = 1 device).
+        var ok = await _notiSvc.UnregisterTokenAsync(CurrentUser?.EmpCd, body.Token);
+        return Json(new { success = ok });
+    }
+
     public class TokenRegistrationBody
     {
         public string? Token  { get; set; }

@@ -250,4 +250,25 @@ public class OtService
         }
         catch (Exception ex) { return (false, ex.Message, 0); }
     }
+
+    // HR bấm "Thông báo ký OT" — broadcast theo dept/line/work cho ngày work_date
+    public async Task<string> HrNotifyPendingRawAsync(string workDate, string? deptId, string? createdBy)
+    {
+        try
+        {
+            var response = await _api.PostAsync("ot/hr/notify-pending", new
+            {
+                work_date  = workDate,
+                dept_id    = deptId,
+                created_by = createdBy
+            });
+            if (response?.IsSuccessStatusCode == true)
+                return await response.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex)
+        {
+            return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}";
+        }
+    }
 }

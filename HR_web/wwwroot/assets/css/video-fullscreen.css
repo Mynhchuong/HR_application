@@ -1,0 +1,77 @@
+/* VideoFullscreen — style cho nút toàn màn hình overlay trên <video> */
+.vfs-wrap {
+    position: relative;
+    display: block;
+    line-height: 0;
+}
+.vfs-wrap > video {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.vfs-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 5;
+    background: rgba(0, 0, 0, .72);
+    color: #fff;
+    border: 1.5px solid rgba(255, 255, 255, .25);
+    border-radius: 999px;
+    padding: 6px 12px 6px 9px;
+    font-size: .78rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    line-height: 1;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition: background .15s, transform .15s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .35);
+}
+.vfs-btn:hover  { background: rgba(220, 38, 38, .9); transform: translateY(-1px); }
+.vfs-btn:active { transform: translateY(0); opacity: .85; }
+
+.vfs-btn svg {
+    flex-shrink: 0;
+    display: block;
+}
+
+/* Khi đang fullscreen: nút exit hiện ở góc trái dưới cho dễ thấy */
+.vfs-wrap:fullscreen .vfs-btn-exit,
+.vfs-wrap:-webkit-full-screen .vfs-btn-exit {
+    top: auto;
+    right: auto;
+    bottom: 24px;
+    left: 24px;
+    background: rgba(220, 38, 38, .9);
+    padding: 10px 16px 10px 12px;
+    font-size: .9rem;
+}
+
+/* Trong fullscreen: cho video chiếm full sheet */
+.vfs-wrap:fullscreen,
+.vfs-wrap:-webkit-full-screen {
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.vfs-wrap:fullscreen > video,
+.vfs-wrap:-webkit-full-screen > video {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+}
+
+/* Mobile nhỏ — ẩn label, chỉ giữ icon */
+@media (max-width: 480px) {
+    .vfs-btn-label { display: none; }
+    .vfs-btn { padding: 8px; border-radius: 50%; }
+}

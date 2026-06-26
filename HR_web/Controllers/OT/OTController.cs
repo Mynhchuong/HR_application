@@ -198,4 +198,23 @@ public class OTController : BaseController
             return Json(new { success = false, message = ex.Message });
         }
     }
+
+    // ─────────────────────────────────────────────
+    // POST: /OT/NotifyPending — HR broadcast nhắc kí OT
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> NotifyPending([FromBody] NotifyPendingBody body)
+    {
+        if (body == null || string.IsNullOrEmpty(body.work_date))
+            return Json(new { success = false, message = "Thiếu ngày làm việc" });
+
+        var raw = await _otService.HrNotifyPendingRawAsync(body.work_date, body.dept_id, CurrentUser?.EmpCd);
+        return Content(raw, "application/json");
+    }
+
+    public class NotifyPendingBody
+    {
+        public string? work_date { get; set; }
+        public string? dept_id   { get; set; }
+    }
 }

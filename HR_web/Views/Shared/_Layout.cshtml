@@ -35,6 +35,8 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />
     <!-- Mobile Table Helper CSS -->
     <link href="~/css/mobile-table.css" rel="stylesheet" asp-append-version="true" />
+    <!-- Video Fullscreen Helper CSS -->
+    <link href="~/assets/css/video-fullscreen.css" rel="stylesheet" asp-append-version="true" />
 
     @RenderSection("Styles", required: false)
 
@@ -562,6 +564,7 @@
     <script src="~/assets/js/select2-helper.js" asp-append-version="true"></script>
     <!-- Mobile Table Helper -->
     <script src="~/js/mobile-table.js" asp-append-version="true"></script>
+    <script src="~/assets/js/video-fullscreen.js" asp-append-version="true"></script>
 
     <!-- Material Dashboard JS -->
     <script src="~/assets/js/plugins/perfect-scrollbar.min.js" asp-append-version="true"></script>
@@ -747,10 +750,47 @@
                     <p class="text-muted small mb-4">Bạn có chắc chắn muốn thoát khỏi hệ thống không?</p>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-light w-100 py-2 rounded-3 fw-bold" data-bs-dismiss="modal">Hủy</button>
-                        <form asp-controller="Account" asp-action="Logout" method="post" class="w-100">
+                        <form asp-controller="Account" asp-action="Logout" method="post" class="w-100"
+                              onsubmit="return tryUnregisterFcmThenLogout(this)">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-danger w-100 py-2 rounded-3 fw-bold">Thoát</button>
                         </form>
+                        <script>
+                        // Nếu mobile app có FCM token, gọi unregister trước rồi mới submit logout.
+                        // Web thuần thì không có Android/iOS bridge → submit luôn.
+                        function tryUnregisterFcmThenLogout(form) {
+                            let token = null;
+                            try {
+                                if (window.Android && typeof Android.getFcmToken === 'function')
+                                    token = Android.getFcmToken();
+                                else if (window.webkit && window.webkit.messageHandlers
+                                    && window.webkit.messageHandlers.getFcmToken) {
+                                    // iOS bridge sẽ trả async, dùng localStorage cache nếu có
+                                    token = localStorage.getItem('FCM_TOKEN');
+                                }
+                            } catch {}
+                            if (!token) return true;  // không có token → cứ logout thẳng
+
+                            // Gửi sync để chắc chắn hoàn thành trước khi submit
+                            try {
+                                navigator.sendBeacon(
+                                    '@Url.Action("UnregisterToken","Notification")',
+                                    new Blob([JSON.stringify({ Token: token })], { type: 'application/json' })
+                                );
+                            } catch {}
+
+                            // Xoá noti CŨ trên notification tray của máy
+                            try {
+                                if (window.Android && typeof Android.clearAllNotifications === 'function')
+                                    Android.clearAllNotifications();
+                                else if (window.webkit && window.webkit.messageHandlers
+                                    && window.webkit.messageHandlers.clearNotifications)
+                                    window.webkit.messageHandlers.clearNotifications.postMessage(null);
+                            } catch {}
+
+                            return true;  // tiếp tục submit form
+                        }
+                        </script>
                     </div>
                 </div>
             </div>

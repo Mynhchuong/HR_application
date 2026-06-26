@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers.Menu;
 
-[Authorize(Roles = "Admin,HR,Canteen")]
+
 public class MealLockController : BaseController
 {
     private readonly MealLockService _svc;

@@ -41,6 +41,7 @@ public class BulletinCommentDto
 {
     public int       ID         { get; set; }
     public int       BULLETIN_ID{ get; set; }
+    public int?      PARENT_ID  { get; set; }
     public string    EMPCD      { get; set; } = "";
     public string?   FULL_NAME  { get; set; }
     public string?   EMP_CNAME  { get; set; }
@@ -95,6 +96,7 @@ public class AddMediaRequest
 public class AddCommentRequest
 {
     public int    BULLETIN_ID { get; set; }
+    public int?   PARENT_ID   { get; set; }
     public string EMPCD       { get; set; } = "";
     public string CONTENT     { get; set; } = "";
 }

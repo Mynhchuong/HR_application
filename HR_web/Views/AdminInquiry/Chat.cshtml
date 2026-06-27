@@ -31,7 +31,13 @@
             <div class="chat-header-meta">
                 <span class="status-pill @(isClosed?"closed":"open")">@(isClosed?"Đã đóng":"Đang mở")</span>
                 @if (inq.ChatType == "ANON") { <span class="anon-pill"><span class="material-symbols-rounded" style="font-size:.7rem;vertical-align:middle">visibility_off</span> Ẩn danh</span> }
-                @if (inq.ChatType == "DIRECT" && !string.IsNullOrEmpty(inq.EmpName)) { <span style="font-size:.72rem;color:#64748b" class="vni-font">@inq.EmpName</span> }
+                @if (inq.ChatType == "DIRECT" && !string.IsNullOrEmpty(inq.EmpName))
+                {
+                    var deptMeta = string.Join(" / ", new[] { inq.DeptName, inq.LineName, inq.WorkName }.Where(s => !string.IsNullOrEmpty(s)));
+                    <span style="font-size:.72rem;color:#64748b" class="vni-font">@inq.EmpName</span>
+                    @if (!string.IsNullOrEmpty(inq.EmpCd)) { <span style="font-size:.72rem;color:#64748b">#@inq.EmpCd</span> }
+                    @if (!string.IsNullOrEmpty(deptMeta)) { <span style="font-size:.72rem;color:#64748b">— @deptMeta</span> }
+                }
             </div>
         </div>
         <div class="header-actions">

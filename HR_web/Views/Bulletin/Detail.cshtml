@@ -8,14 +8,16 @@
     var videos = Model.MEDIA.Where(m => m.MEDIA_TYPE == "VIDEO").OrderBy(m => m.DISPLAY_ORDER).ToList();
 
     // Reaction config
+    string pacmanImg = $"<img src=\"{Url.Content("~/assets/img/reaction-pacman.png")}\" alt=\"pacman\" style=\"width:22px;height:22px;vertical-align:-5px;\" />";
     var reactionMap = new Dictionary<string, string>
     {
-        { "LIKE",  "👍" },
-        { "LOVE",  "❤️" },
-        { "HAHA",  "😆" },
-        { "WOW",   "😮" },
-        { "SAD",   "😢" },
-        { "ANGRY", "😡" },
+        { "LIKE",   "👍" },
+        { "LOVE",   "❤️" },
+        { "HAHA",   "😆" },
+        { "WOW",    "😮" },
+        { "SAD",    "😢" },
+        { "ANGRY",  "😡" },
+        { "PACMAN", pacmanImg },
     };
     int GetCount(string k) => Model.REACTIONS.FirstOrDefault(r => r.REACTION == k)?.CNT ?? 0;
 }
@@ -100,6 +102,38 @@
     .cmt-delete:hover { color: #ef4444; }
     .cmt-empty { text-align: center; color: #9ca3af; padding: 20px; font-size: .9rem; }
 
+    .cmt-actions {
+        margin-top: 6px; display: flex; gap: 12px;
+        font-size: .78rem;
+    }
+    .cmt-action-btn {
+        background: none; border: none; padding: 0;
+        color: #6b7280; font-weight: 600; cursor: pointer;
+    }
+    .cmt-action-btn:hover { color: #f59e0b; }
+
+    .cmt-replies { margin-top: 8px; margin-left: 28px; }
+    .cmt-replies .cmt-item { background: #fff; border: 1px solid #e5e7eb; }
+
+    .cmt-reply-box {
+        display: flex; gap: 6px; margin: 8px 0 6px 28px;
+    }
+    .cmt-reply-box textarea {
+        flex: 1; resize: none; border: 1.5px solid #d1d5db;
+        border-radius: 14px; padding: 6px 12px; font-size: .9rem;
+        max-height: 80px; min-height: 32px; line-height: 1.4;
+        outline: none;
+    }
+    .cmt-reply-box textarea:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.12); }
+    .cmt-reply-box button {
+        background: #f59e0b; color: #fff; border: none;
+        border-radius: 50%; width: 32px; height: 32px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; flex-shrink: 0;
+    }
+    .cmt-reply-box button:hover { background: #d97706; }
+    .cmt-reply-box button:disabled { background: #d1d5db; cursor: not-allowed; }
+
     /* ─── Sticky input bar ─── */
     .cmt-input-bar {
         position: fixed; bottom: 0; left: 0; right: 0;
@@ -108,6 +142,27 @@
         z-index: 50; max-width: 820px; margin: 0 auto;
         box-shadow: 0 -4px 16px rgba(0,0,0,.06);
     }
+
+    .emoji-btn {
+        background: transparent; border: none; cursor: pointer;
+        font-size: 1.3rem; padding: 4px 6px; flex-shrink: 0;
+        color: #6b7280;
+    }
+    .emoji-btn:hover { color: #f59e0b; }
+
+    .emoji-pop {
+        position: absolute; background: #fff;
+        border: 1px solid #e5e7eb; border-radius: 12px;
+        padding: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.12);
+        display: grid; grid-template-columns: repeat(8, 1fr);
+        gap: 2px; z-index: 60; max-width: 280px;
+    }
+    .emoji-pop button {
+        background: none; border: none; cursor: pointer;
+        font-size: 1.25rem; padding: 4px; border-radius: 6px;
+        line-height: 1;
+    }
+    .emoji-pop button:hover { background: #fef3c7; }
     .cmt-input {
         flex: 1; resize: none; border: 1.5px solid #d1d5db;
         border-radius: 18px; padding: 8px 14px; font-size: .95rem;
@@ -171,7 +226,7 @@
         {
             <button type="button" class="reaction-btn @(Model.MY_REACTION == key ? "active" : "")"
                     data-reaction="@key" onclick="toggleReaction('@key', this)">
-                <span>@emoji</span>
+                <span>@Html.Raw(emoji)</span>
                 <span class="cnt">@GetCount(key)</span>
             </button>
         }
@@ -191,6 +246,9 @@
 
 <!-- Sticky comment input -->
 <div class="cmt-input-bar">
+    <button type="button" class="emoji-btn" onclick="toggleEmojiPop('cmtInput', this)" title="Emoji">
+        <i class="bi bi-emoji-smile"></i>
+    </button>
     <textarea id="cmtInput" class="cmt-input" placeholder="Viết bình luận..." maxlength="1000" rows="1"
               oninput="autoResize(this)"></textarea>
     <button id="cmtSendBtn" class="cmt-send-btn" onclick="sendComment()" title="Gửi">
@@ -219,6 +277,52 @@
         el.style.height = Math.min(el.scrollHeight, 100) + 'px';
     }
 
+    // ── Emoji picker ──
+    const EMOJI_LIST = [
+        '😀','😂','🤣','😊','😍','😘','😎','🤩',
+        '🥰','😋','😅','😉','😢','😭','😡','😱',
+        '🤔','😴','🤤','🙄','😇','🥳','🤗','😏',
+        '👍','👎','👏','🙏','💪','🤝','✌️','🤞',
+        '❤️','🧡','💛','💚','💙','💜','🖤','💯',
+        '🔥','✨','⭐','🎉','🎊','🎁','🌹','☕'
+    ];
+    let _emojiPop = null;
+    function toggleEmojiPop(targetId, anchor) {
+        if (_emojiPop) { _emojiPop.remove(); _emojiPop = null; return; }
+        const pop = document.createElement('div');
+        pop.className = 'emoji-pop';
+        pop.innerHTML = EMOJI_LIST.map(e => `<button type="button">${e}</button>`).join('');
+        pop.querySelectorAll('button').forEach((b, i) => {
+            b.onclick = (ev) => {
+                ev.stopPropagation();
+                insertAtCursor(targetId, EMOJI_LIST[i]);
+            };
+        });
+        document.body.appendChild(pop);
+        const r = anchor.getBoundingClientRect();
+        pop.style.left = Math.max(8, r.left) + 'px';
+        pop.style.top  = (r.top - pop.offsetHeight - 6) + 'px';
+        _emojiPop = pop;
+        setTimeout(() => {
+            document.addEventListener('click', closeEmojiOnOutside, { once: true });
+        }, 0);
+    }
+    function closeEmojiOnOutside(ev) {
+        if (_emojiPop && !_emojiPop.contains(ev.target)) { _emojiPop.remove(); _emojiPop = null; }
+        else if (_emojiPop) setTimeout(() => document.addEventListener('click', closeEmojiOnOutside, { once: true }), 0);
+    }
+    function insertAtCursor(targetId, text) {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        const start = el.selectionStart ?? el.value.length;
+        const end   = el.selectionEnd   ?? el.value.length;
+        el.value = el.value.slice(0, start) + text + el.value.slice(end);
+        el.focus();
+        const pos = start + text.length;
+        el.setSelectionRange(pos, pos);
+        if (el.tagName === 'TEXTAREA') autoResize(el);
+    }
+
     // ── Load comments ──
     async function loadComments() {
         try {
@@ -230,6 +334,34 @@
         }
     }
 
+    function ageMinutes(dateStr) {
+        return (Date.now() - new Date(dateStr).getTime()) / 60000;
+    }
+
+    function commentHtml(c, isReply) {
+        const isOwner = c.EMPCD === CURRENT_EMPCD;
+        const canDelete = IS_HR_ADMIN || (isOwner && ageMinutes(c.INST_DT) <= 5);
+        const displayName = c.FULL_NAME || c.EMP_CNAME || '';
+        const meta = [c.DEPT_NAME, c.LINE_NAME, c.WORK_NAME].filter(Boolean).join(' / ');
+        return `
+            <div class="cmt-item" data-id="${c.ID}">
+                ${canDelete ? `<button class="cmt-delete" onclick="deleteComment(${c.ID})" title="Xóa"><i class="bi bi-trash"></i></button>` : ''}
+                <div class="cmt-header">
+                    <span class="cmt-name vni-font">${escapeHtml(displayName)}</span>
+                    <span class="cmt-empcd">#${escapeHtml(c.EMPCD)}</span>
+                    ${meta ? `<span class="cmt-meta">— ${escapeHtml(meta)}</span>` : ''}
+                </div>
+                <div class="cmt-content">${escapeHtml(c.CONTENT)}</div>
+                <div class="cmt-time">${fmtTime(c.INST_DT)}</div>
+                ${!isReply ? `
+                <div class="cmt-actions">
+                    <button class="cmt-action-btn" onclick="openReply(${c.ID})">
+                        <i class="bi bi-reply-fill"></i> Trả lời
+                    </button>
+                </div>` : ''}
+            </div>`;
+    }
+
     function renderComments(items) {
         const list = document.getElementById('cmtList');
         document.getElementById('cmtCount').textContent = items.length;
@@ -237,22 +369,61 @@
             list.innerHTML = '<div class="cmt-empty">Chưa có bình luận. Hãy là người đầu tiên!</div>';
             return;
         }
-        list.innerHTML = items.map(c => {
-            const canDelete = IS_HR_ADMIN || c.EMPCD === CURRENT_EMPCD;
-            const displayName = c.FULL_NAME || c.EMP_CNAME || '';
-            const meta = [c.DEPT_NAME, c.LINE_NAME, c.WORK_NAME].filter(Boolean).join(' / ');
+        const roots = items.filter(c => !c.PARENT_ID);
+        const childrenByRoot = {};
+        items.filter(c => c.PARENT_ID).forEach(c => {
+            (childrenByRoot[c.PARENT_ID] ||= []).push(c);
+        });
+
+        list.innerHTML = roots.map(c => {
+            const replies = (childrenByRoot[c.ID] || [])
+                .map(r => commentHtml(r, true)).join('');
             return `
-                <div class="cmt-item" data-id="${c.ID}">
-                    ${canDelete ? `<button class="cmt-delete" onclick="deleteComment(${c.ID})" title="Xóa"><i class="bi bi-trash"></i></button>` : ''}
-                    <div class="cmt-header">
-                        <span class="cmt-name vni-font">${escapeHtml(displayName)}</span>
-                        <span class="cmt-empcd">#${escapeHtml(c.EMPCD)}</span>
-                        ${meta ? `<span class="cmt-meta">— ${escapeHtml(meta)}</span>` : ''}
-                    </div>
-                    <div class="cmt-content">${escapeHtml(c.CONTENT)}</div>
-                    <div class="cmt-time">${fmtTime(c.INST_DT)}</div>
+                <div class="cmt-thread">
+                    ${commentHtml(c, false)}
+                    ${replies ? `<div class="cmt-replies">${replies}</div>` : ''}
+                    <div id="replyBox-${c.ID}"></div>
                 </div>`;
         }).join('');
+    }
+
+    // ── Reply ──
+    function openReply(parentId) {
+        const box = document.getElementById('replyBox-' + parentId);
+        if (!box) return;
+        if (box.dataset.open === '1') { box.innerHTML = ''; box.dataset.open = '0'; return; }
+        box.dataset.open = '1';
+        box.innerHTML = `
+            <div class="cmt-reply-box">
+                <button type="button" class="emoji-btn" onclick="toggleEmojiPop('replyInput-${parentId}', this)" title="Emoji">
+                    <i class="bi bi-emoji-smile"></i>
+                </button>
+                <textarea id="replyInput-${parentId}" placeholder="Viết trả lời..." rows="1" maxlength="1000"></textarea>
+                <button onclick="sendReply(${parentId})" title="Gửi"><i class="bi bi-send-fill"></i></button>
+            </div>`;
+        document.getElementById('replyInput-' + parentId)?.focus();
+    }
+
+    async function sendReply(parentId) {
+        const input = document.getElementById('replyInput-' + parentId);
+        const content = input?.value.trim();
+        if (!content) return;
+        try {
+            const fd = new FormData();
+            fd.append('bulletinId', BULLETIN_ID);
+            fd.append('parentId', parentId);
+            fd.append('content', content);
+            fd.append('__RequestVerificationToken', token);
+            const res = await fetch('@Url.Action("AddComment", "Bulletin")', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (data.success) {
+                await loadComments();
+            } else {
+                alert(data.message || 'Lỗi gửi trả lời');
+            }
+        } catch (e) {
+            alert('Lỗi kết nối: ' + e.message);
+        }
     }
 
     // ── Send comment ──

@@ -80,3 +80,4 @@ HR_api/Scripts/bulletin_plan.md
 HR_api/Scripts/bulletin_rules.md
 .gitignore
 HR_api/Scripts/create_bulletin.sql
+HR_api/Scripts/alter_bulletin_comment_reply.sql

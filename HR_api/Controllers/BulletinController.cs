@@ -20,7 +20,7 @@ public class BulletinController : ControllerBase
     private const int COMMENT_MAX_LENGTH = 1000;
 
     private static readonly HashSet<string> ValidReactions = new()
-    { "LIKE", "LOVE", "HAHA", "WOW", "SAD", "ANGRY" };
+    { "LIKE", "LOVE", "HAHA", "WOW", "SAD", "ANGRY", "PACMAN" };
 
     public BulletinController(
         OracleService oracleService,
@@ -612,7 +612,7 @@ public class BulletinController : ControllerBase
         try
         {
             const string sql = @"
-                SELECT C.ID, C.BULLETIN_ID, C.EMPCD, C.CONTENT, C.INST_DT,
+                SELECT C.ID, C.BULLETIN_ID, C.PARENT_ID, C.EMPCD, C.CONTENT, C.INST_DT,
                        U.FULL_NAME,
                        EC.CNAME EMP_CNAME,
                        EC.DEPTCD, EC.LINECD, EC.WORKCD,
@@ -693,11 +693,28 @@ public class BulletinController : ControllerBase
             if (cnt.Count > 0 && cnt[0] >= COMMENT_RATE_LIMIT_PER_MIN)
                 return Ok(new { success = false, message = "Bạn gửi quá nhanh, vui lòng chờ 1 phút" });
 
+            int? parentId = null;
+            if (model.PARENT_ID.HasValue && model.PARENT_ID.Value > 0)
+            {
+                var parentRows = await _oracleService.ExecuteQueryAsync(
+                    "SELECT BULLETIN_ID, NVL(PARENT_ID, 0) ROOT FROM HRMS.HR_BULLETIN_COMMENT WHERE ID = :ID AND IS_DELETED = 0",
+                    r => new
+                    {
+                        BulletinId = Convert.ToInt32(r["BULLETIN_ID"]),
+                        Root       = Convert.ToInt32(r["ROOT"])
+                    },
+                    new OracleParameter("ID", model.PARENT_ID.Value));
+                if (parentRows.Count == 0 || parentRows[0].BulletinId != model.BULLETIN_ID)
+                    return Ok(new { success = false, message = "Bình luận cha không tồn tại" });
+                // Flatten: nếu parent đã là reply, gán PARENT_ID = root
+                parentId = parentRows[0].Root > 0 ? parentRows[0].Root : model.PARENT_ID.Value;
+            }
+
             const string sqlInsert = @"
                 INSERT INTO HRMS.HR_BULLETIN_COMMENT
-                    (BULLETIN_ID, EMPCD, CONTENT, IS_DELETED, INST_DT)
+                    (BULLETIN_ID, PARENT_ID, EMPCD, CONTENT, IS_DELETED, INST_DT)
                 VALUES
-                    (:BULLETIN_ID, :EMPCD, :CONTENT, 0, SYSDATE)
+                    (:BULLETIN_ID, :PARENT_ID, :EMPCD, :CONTENT, 0, SYSDATE)
                 RETURNING ID INTO :OUT_ID";
 
             var outIdParam = new OracleParameter("OUT_ID", OracleDbType.Decimal,
@@ -705,6 +722,7 @@ public class BulletinController : ControllerBase
 
             await _oracleService.ExecuteNonQueryAsync(sqlInsert,
                 new OracleParameter("BULLETIN_ID", model.BULLETIN_ID),
+                new OracleParameter("PARENT_ID",   (object?)parentId ?? DBNull.Value),
                 new OracleParameter("EMPCD",       model.EMPCD),
                 new OracleParameter("CONTENT",     content),
                 outIdParam);
@@ -729,17 +747,27 @@ public class BulletinController : ControllerBase
     {
         try
         {
-            const string getSql = "SELECT EMPCD FROM HRMS.HR_BULLETIN_COMMENT WHERE ID = :ID AND IS_DELETED = 0";
+            const string getSql = @"SELECT EMPCD,
+                                           (SYSDATE - INST_DT) * 24 * 60 AS AGE_MIN
+                                    FROM HRMS.HR_BULLETIN_COMMENT
+                                    WHERE ID = :ID AND IS_DELETED = 0";
             var rows = await _oracleService.ExecuteQueryAsync(getSql,
-                r => r["EMPCD"]?.ToString() ?? "",
+                r => new
+                {
+                    Empcd  = r["EMPCD"]?.ToString() ?? "",
+                    AgeMin = r["AGE_MIN"] == DBNull.Value ? 0m : Convert.ToDecimal(r["AGE_MIN"])
+                },
                 new OracleParameter("ID", id));
 
             if (rows.Count == 0)
                 return Ok(new { success = false, message = "Không tìm thấy bình luận" });
 
-            string owner = rows[0];
+            string owner = rows[0].Empcd;
+            decimal ageMin = rows[0].AgeMin;
             if (!isHrAdmin && owner != empcd)
                 return Ok(new { success = false, message = "Không có quyền xóa bình luận này" });
+            if (!isHrAdmin && ageMin > 5)
+                return Ok(new { success = false, message = "Chỉ được xóa trong 5 phút sau khi đăng" });
 
             const string sql = @"
                 UPDATE HRMS.HR_BULLETIN_COMMENT
@@ -997,6 +1025,7 @@ public class BulletinController : ControllerBase
     {
         ID          = Convert.ToInt32(r["ID"]),
         BULLETIN_ID = Convert.ToInt32(r["BULLETIN_ID"]),
+        PARENT_ID   = HasColumn(r, "PARENT_ID") && r["PARENT_ID"] != DBNull.Value ? Convert.ToInt32(r["PARENT_ID"]) : (int?)null,
         EMPCD       = r["EMPCD"]?.ToString() ?? "",
         FULL_NAME   = r["FULL_NAME"]?.ToString(),
         EMP_CNAME   = HasColumn(r, "EMP_CNAME") ? r["EMP_CNAME"]?.ToString() : null,

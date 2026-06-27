@@ -571,9 +571,12 @@ public class InquiryController : ControllerBase
                        i.ASSIGNED_TO, i.ASSIGNED_NAME, i.LOCKED_DT,
                        i.UNREAD_HR, i.UNREAD_EMP, i.MSG_COUNT, i.LAST_MSG_DT, i.INST_DT,
                        i.CLOSED_DT, i.CLOSED_BY_NAME, i.CLOSED_BY_TYPE, i.CLOSE_NOTE,
-                       i.RATING, i.RATING_NOTE
+                       i.RATING, i.RATING_NOTE,
+                       b.DEPTNM AS DEPT_NAME, b.TEAMNM AS LINE_NAME, b.WORKNM AS WORK_NAME
                 FROM HRMS.HR_INQUIRY i
                 LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = i.TOPIC_CD
+                LEFT JOIN HRMS.ECM100 ec ON ec.EMPCD = i.EMPCD
+                LEFT JOIN HRMS.EAM410 b  ON b.DEPTCD = ec.DEPTCD AND b.LINECD = ec.LINECD AND b.WORKCD = ec.WORKCD
                 WHERE i.ID = :ID",
                 r => MapListItemDetail(r),
                 new OracleParameter("ID", id));

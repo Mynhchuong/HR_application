@@ -75,7 +75,7 @@ public class BulletinController : BaseController
     // ─────────────────────────────────────────────
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddComment(int bulletinId, string content)
+    public async Task<IActionResult> AddComment(int bulletinId, string content, int? parentId = null)
     {
         if (CurrentUser == null)
             return Json(new { success = false, message = "Bạn cần đăng nhập" });
@@ -83,6 +83,7 @@ public class BulletinController : BaseController
         var req = new AddCommentRequest
         {
             BULLETIN_ID = bulletinId,
+            PARENT_ID   = parentId,
             EMPCD       = CurrentUser.EmpCd,
             CONTENT     = content ?? ""
         };

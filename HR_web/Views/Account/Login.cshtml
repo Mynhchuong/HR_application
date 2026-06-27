@@ -1,6 +1,6 @@
 @model HR_web.Models.Account.LoginModel
 @{
-    ViewData["Title"] = "Đăng nhập";
+    ViewData["Title"] = "Đăng nhập / Sign in";
     Layout = null;
 }
 <!DOCTYPE html>
@@ -194,7 +194,7 @@
                     <span style="color: #ed1c24;">My</span> 
                     <span style="color: #1e293b;">SAMHO</span>
                 </h4>
-                <p>Hệ thống nhân sự thông minh</p>
+                <p>Hệ thống nhân sự thông minh<br><span style="font-size:.78rem;color:#94a3b8;">Smart HR System</span></p>
             </div>
 
             <div class="login-body">
@@ -209,13 +209,13 @@
                     }
 
                     <div class="input-group-custom">
-                        <label class="form-label">Mã số nhân viên</label>
-                        <input asp-for="EMPCD" class="form-control-custom" placeholder="VD: 11292522"
+                        <label class="form-label">Mã số nhân viên / Employee ID</label>
+                        <input asp-for="EMPCD" class="form-control-custom" placeholder="VD / e.g. 11292522"
                                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
                     </div>
 
                     <div class="input-group-custom">
-                        <label class="form-label">Mật khẩu</label>
+                        <label class="form-label">Mật khẩu / Password</label>
                         <div class="password-wrap">
                             <input asp-for="Password" type="password" id="passwordInput"
                                    class="form-control-custom" placeholder="••••••••"
@@ -227,7 +227,7 @@
                     <div class="d-flex align-items-center justify-content-between mb-4">
                         <div class="form-check">
                             <input asp-for="RememberMe" class="form-check-input" id="rememberMe" />
-                            <label class="form-check-label" for="rememberMe">Lưu tài khoản</label>
+                            <label class="form-check-label" for="rememberMe">Lưu tài khoản / Remember me</label>
                         </div>
                     </div>
 
@@ -235,20 +235,20 @@
                     {
                         <div class="error-message">
                             <span class="material-symbols-rounded align-middle me-1" style="font-size: 1.1rem;">error</span>
-                            Sai tài khoản hoặc mật khẩu
+                            Sai tài khoản hoặc mật khẩu / Incorrect ID or password
                         </div>
                     }
 
-                    <button type="submit" class="btn-login">Đăng nhập</button>
+                    <button type="submit" class="btn-login">Đăng nhập / Sign in</button>
 
                     <a href="@Url.Action("ForgotPassword","Account")"
                        style="display:block;text-align:center;font-size:.85rem;color:#dc2626;font-weight:700;text-decoration:none;margin-top:.65rem;">
-                        🔑 Quên mật khẩu?
+                        🔑 Quên mật khẩu? / Forgot password?
                     </a>
 
                     <a href="@Url.Action("Index", "Guide")" class="btn-guide">
                         <span class="material-symbols-rounded" style="font-size:1.15rem;">menu_book</span>
-                        Xem hướng dẫn sử dụng
+                        Xem hướng dẫn / View user guide
                     </a>
                 </form>
             </div>
@@ -266,7 +266,7 @@
                         padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.1);">
                 <span style="color:#fff;font-weight:700;font-size:1rem;">
                     <span class="material-symbols-rounded" style="vertical-align:-4px;color:#4f46e5;margin-right:6px;">play_circle</span>
-                    Hướng dẫn sử dụng My SAMHO
+                    Hướng dẫn sử dụng My SAMHO / User Guide
                 </span>
                 <button onclick="closeGuide()"
                         style="background:rgba(255,255,255,0.1);border:none;color:#fff;
@@ -279,7 +279,7 @@
                 <video id="guideVideo" controls style="width:100%;height:100%;display:block;"
                        src="@Url.Content("~/video/my_samho.mp4")"
                        preload="none">
-                    Trình duyệt không hỗ trợ video.
+                    Trình duyệt không hỗ trợ video. / Your browser does not support video.
                 </video>
             </div>
         </div>

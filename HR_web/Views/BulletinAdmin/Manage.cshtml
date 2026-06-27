@@ -190,7 +190,11 @@
                                                 @if (isDraft)
                                                 {
                                                     <form asp-action="Publish" asp-controller="BulletinAdmin" method="post"
-                                                          onsubmit="return confirm('Đăng bản tin này? Sẽ gửi thông báo cho toàn bộ nhân viên (lần đầu).');">
+                                                          class="confirm-form"
+                                                          data-confirm="Đăng bản tin này? Sẽ gửi thông báo FCM cho toàn bộ nhân viên (lần đầu)."
+                                                          data-title="Đăng bản tin"
+                                                          data-ok="Đăng" data-ok-class="btn-success"
+                                                          data-icon="cloud_upload" data-icon-color="#16a34a" data-icon-bg="#dcfce7">
                                                         @Html.AntiForgeryToken()
                                                         <input type="hidden" name="id" value="@item.ID" />
                                                         <button type="submit" class="btn btn-success" title="Đăng">
@@ -202,7 +206,11 @@
                                                 else
                                                 {
                                                     <form asp-action="Unpublish" asp-controller="BulletinAdmin" method="post"
-                                                          onsubmit="return confirm('Rút bài này khỏi danh sách hiển thị?');">
+                                                          class="confirm-form"
+                                                          data-confirm="Rút bài này khỏi danh sách hiển thị?"
+                                                          data-title="Rút bài"
+                                                          data-ok="Rút bài" data-ok-class="btn-warning"
+                                                          data-icon="cloud_off" data-icon-color="#d97706" data-icon-bg="#fef3c7">
                                                         @Html.AntiForgeryToken()
                                                         <input type="hidden" name="id" value="@item.ID" />
                                                         <button type="submit" class="btn btn-outline-secondary" title="Rút bài">
@@ -212,7 +220,11 @@
                                                 }
 
                                                 <form asp-action="Delete" asp-controller="BulletinAdmin" method="post"
-                                                      onsubmit="return confirm('Xóa bản tin này?');">
+                                                      class="confirm-form"
+                                                      data-confirm="Xóa bản tin này?"
+                                                      data-title="Xóa bản tin"
+                                                      data-ok="Xóa" data-ok-class="btn-danger"
+                                                      data-icon="delete" data-icon-color="#dc2626" data-icon-bg="#fee2e2">
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="id" value="@item.ID" />
                                                     <button type="submit" class="btn btn-danger" title="Xóa">
@@ -231,3 +243,26 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    // Intercept confirm-form submits → dùng showConfirm modal global
+    document.querySelectorAll('form.confirm-form').forEach(f => {
+        f.addEventListener('submit', e => {
+            if (f.dataset.confirmed === '1') return;
+            e.preventDefault();
+            showConfirm(f.dataset.confirm, () => {
+                f.dataset.confirmed = '1';
+                f.submit();
+            }, {
+                title:     f.dataset.title     || 'Xác nhận',
+                okText:    f.dataset.ok        || 'OK',
+                okClass:   f.dataset.okClass   || 'btn-primary',
+                icon:      f.dataset.icon      || 'help',
+                iconColor: f.dataset.iconColor || '#2563eb',
+                iconBg:    f.dataset.iconBg    || '#dbeafe'
+            });
+        });
+    });
+</script>
+}

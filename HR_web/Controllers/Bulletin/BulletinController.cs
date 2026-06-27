@@ -66,8 +66,30 @@ public class BulletinController : BaseController
     [HttpGet]
     public async Task<IActionResult> Comments(int id)
     {
-        var list = await _service.GetCommentsAsync(id);
-        return Json(new { success = true, data = list });
+        var list      = await _service.GetCommentsAsync(id);
+        bool isAdmin  = IsHrAdmin();
+        var myEmpCd   = CurrentUser?.EmpCd ?? "";
+        var now       = DateTime.Now;
+        const int OWNER_DELETE_WINDOW_MIN = 5;
+
+        // Tính CAN_DELETE trên server (tránh lệch timezone khi JS parse ISO không offset)
+        var enriched = list.Select(c => new
+        {
+            c.ID,
+            c.BULLETIN_ID,
+            c.EMPCD,
+            c.FULL_NAME,
+            c.DEPTCD,
+            c.LINECD,
+            c.WORKCD,
+            c.CONTENT,
+            c.INST_DT,
+            CAN_DELETE = isAdmin
+                || (string.Equals((c.EMPCD ?? "").Trim(), myEmpCd.Trim(), StringComparison.OrdinalIgnoreCase)
+                    && (now - c.INST_DT).TotalMinutes <= OWNER_DELETE_WINDOW_MIN)
+        });
+
+        return Json(new { success = true, data = enriched });
     }
 
     // ─────────────────────────────────────────────

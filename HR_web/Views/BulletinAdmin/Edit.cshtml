@@ -476,19 +476,19 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
 
     if (editor.getText().trim().length === 0) {
         e.preventDefault();
-        alert('Nội dung không được để trống');
+        showToast('Nội dung không được để trống', 'warning');
         return;
     }
     const from = document.getElementById('pubFrom').value;
     const to   = document.getElementById('pubTo').value;
     if (!from || !to) {
         e.preventDefault();
-        alert('Vui lòng chọn ngày đăng và ngày kết thúc');
+        showToast('Vui lòng chọn ngày đăng và ngày kết thúc', 'warning');
         return;
     }
     if (new Date(to) < new Date(from)) {
         e.preventDefault();
-        alert('Ngày kết thúc phải sau ngày bắt đầu');
+        showToast('Ngày kết thúc phải sau ngày bắt đầu', 'warning');
         return;
     }
 });
@@ -512,10 +512,10 @@ window.ttUploadImage = async (input) => {
         if (data.success) {
             editor.chain().focus().setImage({ src: data.url }).run();
         } else {
-            alert('Lỗi upload: ' + data.message);
+            showToast('Lỗi upload: ' + data.message, 'error');
         }
     } catch (e) {
-        alert('Lỗi kết nối: ' + e.message);
+        showToast('Lỗi kết nối: ' + e.message, 'error');
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-image"></i>';
@@ -537,11 +537,12 @@ window.uploadCover = async (input) => {
             const fileName = new URL(url, location.origin).searchParams.get('fileName');
             document.getElementById('coverField').value = fileName || '';
             document.getElementById('coverWrap').innerHTML = `<img src="${url}" class="cover-preview" />`;
+            showToast('Đã cập nhật ảnh đại diện', 'success');
         } else {
-            alert('Lỗi upload cover: ' + data.message);
+            showToast('Lỗi upload cover: ' + data.message, 'error');
         }
     } catch (e) {
-        alert('Lỗi kết nối: ' + e.message);
+        showToast('Lỗi kết nối: ' + e.message, 'error');
     }
 };
 
@@ -559,22 +560,22 @@ window.onAddVideoClick = async () => {
 async function autoSaveDraft() {
     val.value = editor.getHTML();
     if (editor.getText().trim().length === 0) {
-        alert('Vui lòng nhập nội dung trước khi thêm video');
+        showToast('Vui lòng nhập nội dung trước khi thêm video', 'warning');
         return false;
     }
     const titleEl = document.querySelector('input[name="TITLE"]');
     if (!titleEl.value.trim()) {
-        alert('Vui lòng nhập tiêu đề trước khi thêm video');
+        showToast('Vui lòng nhập tiêu đề trước khi thêm video', 'warning');
         return false;
     }
     const from = document.getElementById('pubFrom').value;
     const to   = document.getElementById('pubTo').value;
     if (!from || !to) {
-        alert('Vui lòng chọn ngày đăng và ngày kết thúc trước khi thêm video');
+        showToast('Vui lòng chọn ngày đăng và ngày kết thúc trước khi thêm video', 'warning');
         return false;
     }
     if (new Date(to) < new Date(from)) {
-        alert('Ngày kết thúc phải sau ngày bắt đầu');
+        showToast('Ngày kết thúc phải sau ngày bắt đầu', 'warning');
         return false;
     }
 
@@ -588,7 +589,7 @@ async function autoSaveDraft() {
         const data = await res.json();
         if (!data.success || !data.id) {
             progress.textContent = '';
-            alert('Lỗi lưu nháp: ' + (data.message || 'Không rõ'));
+            showToast('Lỗi lưu nháp: ' + (data.message || 'Không rõ'), 'error');
             return false;
         }
         window.CURRENT_BULLETIN_ID = data.id;
@@ -599,7 +600,7 @@ async function autoSaveDraft() {
         return true;
     } catch (e) {
         progress.textContent = '';
-        alert('Lỗi kết nối: ' + e.message);
+        showToast('Lỗi kết nối: ' + e.message, 'error');
         return false;
     }
 }
@@ -612,7 +613,7 @@ window.uploadVideo = async (input) => {
 
     const bulletinId = window.CURRENT_BULLETIN_ID;
     if (bulletinId === 0) {
-        alert('Vui lòng lưu nháp trước'); return;
+        showToast('Vui lòng lưu nháp trước', 'warning'); return;
     }
     const progress = document.getElementById('uploadProgress');
     progress.textContent = `Đang tải ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)...`;
@@ -640,27 +641,29 @@ window.uploadVideo = async (input) => {
             setTimeout(() => progress.textContent = '', 3000);
         } else {
             progress.textContent = '';
-            alert('Lỗi upload: ' + data.message);
+            showToast('Lỗi upload: ' + data.message, 'error');
         }
     } catch (e) {
         progress.textContent = '';
-        alert('Lỗi kết nối: ' + e.message);
+        showToast('Lỗi kết nối: ' + e.message, 'error');
     }
 };
 
-window.deleteVideo = async (mediaId) => {
-    if (!confirm('Xóa video này?')) return;
-    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
-    const fd = new FormData();
-    fd.append('mediaId', mediaId);
-    fd.append('__RequestVerificationToken', token);
-    const res = await fetch('@Url.Action("DeleteVideo","BulletinAdmin")', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (data.success) {
-        document.querySelector(`.media-card[data-media-id="${mediaId}"]`)?.remove();
-    } else {
-        alert('Lỗi: ' + data.message);
-    }
+window.deleteVideo = (mediaId) => {
+    showConfirm('Xóa video này?', async () => {
+        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+        const fd = new FormData();
+        fd.append('mediaId', mediaId);
+        fd.append('__RequestVerificationToken', token);
+        const res = await fetch('@Url.Action("DeleteVideo","BulletinAdmin")', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            document.querySelector(`.media-card[data-media-id="${mediaId}"]`)?.remove();
+            showToast('Đã xóa video', 'success');
+        } else {
+            showToast('Lỗi: ' + data.message, 'error');
+        }
+    }, { okText: 'Xóa', okClass: 'btn-danger', icon: 'delete', iconColor: '#dc2626', iconBg: '#fee2e2' });
 };
 </script>
 

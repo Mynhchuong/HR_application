@@ -243,6 +243,10 @@
         </div>
     </div>
 
+    @{
+        var __ua = Context.Request.Headers["User-Agent"].ToString() ?? "";
+        var __isIOSApp = __ua.Contains("MySamhoMobile/iOS", StringComparison.OrdinalIgnoreCase);
+    }
     <!-- App Update Reminder -->
     <div class="news-banner" id="appUpdateBanner" style="background:linear-gradient(135deg,#dbeafe 0%,#bfdbfe 50%,#60a5fa 100%);box-shadow:0 8px 24px rgba(96,165,250,.25)">
         <button class="news-banner-close" onclick="dismissAppUpdate()" title="Đóng" style="color:#1e40af">
@@ -257,13 +261,22 @@
                     <span class="news-badge" style="background:#2563eb">CẬP NHẬT</span>
                     Có phiên bản mới — Vui lòng cập nhật ứng dụng
                 </div>
-                <div class="news-banner-desc" style="color:#1e40af">
-                    Vào <b>CH Play (Google Play)</b> hoặc <b>App Store</b>, tìm <b>"MySamho"</b> và bấm <b>Cập nhật</b> để dùng tính năng mới: <b>Hộp thư</b>, gửi <b>video</b>, đính kèm file dung lượng lớn hơn.
-                </div>
-                <a href="https://play.google.com/store/apps/details?id=com.samho.mysamho" target="_blank" class="news-banner-btn" style="color:#1e40af">
-                    Mở CH Play
-                    <span class="material-symbols-rounded" style="font-size:1rem">open_in_new</span>
-                </a>
+                @if (__isIOSApp)
+                {
+                    <div class="news-banner-desc" style="color:#1e40af">
+                        Vào <b>App Store</b>, tìm <b>"MySamho"</b> và bấm <b>Cập nhật</b> để dùng tính năng mới: <b>Hộp thư</b>, gửi <b>video</b>, đính kèm file dung lượng lớn hơn.
+                    </div>
+                }
+                else
+                {
+                    <div class="news-banner-desc" style="color:#1e40af">
+                        Vào <b>CH Play (Google Play)</b> hoặc <b>App Store</b>, tìm <b>"MySamho"</b> và bấm <b>Cập nhật</b> để dùng tính năng mới: <b>Hộp thư</b>, gửi <b>video</b>, đính kèm file dung lượng lớn hơn.
+                    </div>
+                    <a href="https://play.google.com/store/apps/details?id=com.samho.mysamho" target="_blank" class="news-banner-btn" style="color:#1e40af">
+                        Mở CH Play
+                        <span class="material-symbols-rounded" style="font-size:1rem">open_in_new</span>
+                    </a>
+                }
             </div>
         </div>
     </div>

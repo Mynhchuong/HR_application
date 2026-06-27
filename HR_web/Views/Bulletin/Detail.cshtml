@@ -339,8 +339,8 @@
     }
 
     function commentHtml(c, isReply) {
-        const isOwner = c.EMPCD === CURRENT_EMPCD;
-        const canDelete = IS_HR_ADMIN || (isOwner && ageMinutes(c.INST_DT) <= 5);
+        // CAN_DELETE đã được server compute (tránh lệch timezone khi JS parse INST_DT)
+        const canDelete = !!c.CAN_DELETE;
         const displayName = c.FULL_NAME || c.EMP_CNAME || '';
         const meta = [c.DEPT_NAME, c.LINE_NAME, c.WORK_NAME].filter(Boolean).join(' / ');
         return `
@@ -419,10 +419,10 @@
             if (data.success) {
                 await loadComments();
             } else {
-                alert(data.message || 'Lỗi gửi trả lời');
+                showToast(data.message || 'Lỗi gửi trả lời', 'error');
             }
         } catch (e) {
-            alert('Lỗi kết nối: ' + e.message);
+            showToast('Lỗi kết nối: ' + e.message, 'error');
         }
     }
 
@@ -445,10 +445,10 @@
                 autoResize(input);
                 await loadComments();
             } else {
-                alert(data.message || 'Lỗi gửi bình luận');
+                showToast(data.message || 'Lỗi gửi bình luận', 'error');
             }
         } catch (e) {
-            alert('Lỗi kết nối: ' + e.message);
+            showToast('Lỗi kết nối: ' + e.message, 'error');
         } finally {
             btn.disabled = false;
         }
@@ -456,17 +456,19 @@
 
     // ── Delete comment ──
     async function deleteComment(id) {
-        if (!confirm('Xóa bình luận này?')) return;
-        const fd = new FormData();
-        fd.append('id', id);
-        fd.append('__RequestVerificationToken', token);
-        const res = await fetch('@Url.Action("DeleteComment", "Bulletin")', { method: 'POST', body: fd });
-        const data = await res.json();
-        if (data.success) {
-            await loadComments();
-        } else {
-            alert(data.message || 'Lỗi xóa');
-        }
+        showConfirm('Xóa bình luận này?', async () => {
+            const fd = new FormData();
+            fd.append('id', id);
+            fd.append('__RequestVerificationToken', token);
+            const res = await fetch('@Url.Action("DeleteComment", "Bulletin")', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (data.success) {
+                await loadComments();
+                showToast('Đã xóa bình luận', 'success');
+            } else {
+                showToast(data.message || 'Lỗi xóa', 'error');
+            }
+        }, { okText: 'Xóa', okClass: 'btn-danger', icon: 'delete', iconColor: '#dc2626', iconBg: '#fee2e2' });
     }
 
     // ── React ──
@@ -478,7 +480,7 @@
         const res = await fetch('@Url.Action("React", "Bulletin")', { method: 'POST', body: fd });
         const data = await res.json();
         if (!data.success) {
-            alert(data.message || 'Lỗi');
+            showToast(data.message || 'Lỗi', 'error');
             return;
         }
         // Update UI inline

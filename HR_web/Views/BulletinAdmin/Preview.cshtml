@@ -76,7 +76,11 @@
         @if (isDraft)
         {
             <form asp-action="Publish" asp-controller="BulletinAdmin" method="post"
-                  onsubmit="return confirm('Đăng bản tin? Sẽ gửi thông báo FCM cho toàn bộ nhân viên (lần đầu).');">
+                  class="confirm-form"
+                  data-confirm="Đăng bản tin? Sẽ gửi thông báo FCM cho toàn bộ nhân viên (lần đầu)."
+                  data-title="Đăng bản tin"
+                  data-ok="Đăng ngay" data-ok-class="btn-success"
+                  data-icon="cloud_upload" data-icon-color="#16a34a" data-icon-bg="#dcfce7">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@Model.ID" />
                 <button type="submit" class="btn btn-success mb-0">
@@ -92,3 +96,25 @@
         }
     </div>
 </div>
+
+@section Scripts {
+<script>
+    document.querySelectorAll('form.confirm-form').forEach(f => {
+        f.addEventListener('submit', e => {
+            if (f.dataset.confirmed === '1') return;
+            e.preventDefault();
+            showConfirm(f.dataset.confirm, () => {
+                f.dataset.confirmed = '1';
+                f.submit();
+            }, {
+                title:     f.dataset.title     || 'Xác nhận',
+                okText:    f.dataset.ok        || 'OK',
+                okClass:   f.dataset.okClass   || 'btn-primary',
+                icon:      f.dataset.icon      || 'help',
+                iconColor: f.dataset.iconColor || '#2563eb',
+                iconBg:    f.dataset.iconBg    || '#dbeafe'
+            });
+        });
+    });
+</script>
+}

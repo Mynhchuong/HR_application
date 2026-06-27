@@ -762,10 +762,11 @@
                             var f = document.getElementById('logoutForm');
                             if (!f) return;
                             f.addEventListener('submit', function () {
+                                var bridge = window.MysamhoBridge || window.Android;
                                 var token = null;
                                 try {
-                                    if (window.Android && typeof window.Android.getFcmToken === 'function')
-                                        token = window.Android.getFcmToken();
+                                    if (bridge && typeof bridge.getFcmToken === 'function')
+                                        token = bridge.getFcmToken();
                                 } catch (e) {}
                                 if (!token) {
                                     try { token = localStorage.getItem('FCM_TOKEN'); } catch (e) {}
@@ -779,8 +780,8 @@
                                     } catch (e) {}
                                 }
                                 try {
-                                    if (window.Android && typeof window.Android.clearAllNotifications === 'function')
-                                        window.Android.clearAllNotifications();
+                                    if (bridge && typeof bridge.clearAllNotifications === 'function')
+                                        bridge.clearAllNotifications();
                                     else if (window.webkit && window.webkit.messageHandlers
                                         && window.webkit.messageHandlers.clearNotifications)
                                         window.webkit.messageHandlers.clearNotifications.postMessage(null);
@@ -849,15 +850,16 @@
             }
         })();
 
-        // FCM token registration (Android / iOS WebView)
+        // FCM token registration (native WebView bridge)
         (function tryRegisterToken(attempt) {
             if (attempt > 10) return;
-            if (typeof Android === 'undefined' || !Android.getFcmToken) {
+            var bridge = window.MysamhoBridge || window.Android;
+            if (!bridge || typeof bridge.getFcmToken !== 'function') {
                 setTimeout(function() { tryRegisterToken(attempt + 1); }, 500);
                 return;
             }
             try {
-                var fcmToken = Android.getFcmToken();
+                var fcmToken = bridge.getFcmToken();
                 if (!fcmToken) {
                     setTimeout(function() { tryRegisterToken(attempt + 1); }, 500);
                     return;

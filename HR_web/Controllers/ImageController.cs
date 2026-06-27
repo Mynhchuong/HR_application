@@ -22,6 +22,7 @@ public class ImageController : BaseController
     private const string SignatureFolder = ShareRoot + @"\WRK_SIGN";
     private const string CantinFolder   = ShareRoot + @"\MY_SAMHO_CANTIN";
     private const string PolicyFolder   = ShareRoot + @"\POLICY";
+    private const string BulletinFolder = ShareRoot + @"\BULLETIN\IMG";
 
     private static readonly string[] ImageExts    = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
     private const long               ImageMaxBytes = 10L * 1024 * 1024; // 10 MB
@@ -122,6 +123,52 @@ public class ImageController : BaseController
             fileName.Contains("..") || fileName.Contains('/') || fileName.Contains('\\'))
             return NotFound();
         return ServeNetworkImage(Path.Combine(PolicyFolder, fileName), fileName);
+    }
+
+    // ── Ảnh Bulletin (cover + ảnh trong nội dung TipTap) ────────────────────
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR")]
+    [IgnoreAntiforgeryToken]
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> UploadBulletinImage(IFormFile? file)
+    {
+        if (file == null || file.Length == 0)
+            return Json(new { success = false, message = "Chưa chọn file!" });
+
+        var ext = Path.GetExtension(file.FileName).ToLower();
+        if (!ImageExts.Contains(ext))
+            return Json(new { success = false, message = "Chỉ chấp nhận JPG, PNG, WebP, GIF!" });
+
+        if (file.Length > ImageMaxBytes)
+            return Json(new { success = false, message = "File không được vượt quá 10 MB!" });
+
+        var fileName = Guid.NewGuid().ToString("N") + ext;
+        var savePath = Path.Combine(BulletinFolder, fileName);
+
+        try
+        {
+            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            {
+                Directory.CreateDirectory(BulletinFolder);
+                await using var stream = new FileStream(savePath, FileMode.Create);
+                await file.CopyToAsync(stream);
+            }
+            return Json(new { success = true, url = Url.Action("GetBulletinImage", "Image", new { fileName }) });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = $"Lỗi lưu file: {ex.Message}" });
+        }
+    }
+
+    [HttpGet, AllowAnonymous]
+    [ResponseCache(Duration = 86400)]
+    public IActionResult GetBulletinImage(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName) ||
+            fileName.Contains("..") || fileName.Contains('/') || fileName.Contains('\\'))
+            return NotFound();
+        return ServeNetworkImage(Path.Combine(BulletinFolder, fileName), fileName);
     }
 
     // ── Chữ ký ──────────────────────────────────────────────────────────────

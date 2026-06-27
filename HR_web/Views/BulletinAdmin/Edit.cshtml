@@ -1,0 +1,394 @@
+@model HR_web.Models.Bulletin.BulletinEditViewModel
+@{
+    var isNew = Model.ID == 0;
+    ViewData["Title"] = isNew ? "Thêm bản tin" : "Sửa bản tin";
+    var mediaList = ViewBag.Media as List<HR_web.Models.Bulletin.BulletinMediaModel> ?? new List<HR_web.Models.Bulletin.BulletinMediaModel>();
+}
+
+@section Styles {
+<style>
+    .ep-label { font-size: .9rem; font-weight: 700; color: #374151; margin-bottom: 6px; }
+    .ep-input { border-radius: 10px; border: 1.5px solid #d1d5db; font-size: .95rem; padding: .55rem .8rem; }
+    .ep-input:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.12); }
+
+    .tiptap-wrap { border: 1.5px solid #d1d5db; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+    .tiptap-wrap:focus-within { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.12); }
+    .tt-toolbar { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 6px 10px; display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
+    .tt-btn { min-width: 30px; height: 30px; border: none; background: transparent; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; color: #374151; padding: 0 5px; }
+    .tt-btn:hover { background: #e2e8f0; }
+    .tt-btn.is-active { background: #fef3c7; color: #92400e; }
+    .tt-sep { width: 1px; height: 22px; background: #e2e8f0; margin: 0 3px; }
+    #tiptap-editor { padding: 14px 16px; min-height: 320px; background: #fff; }
+    #tiptap-editor .ProseMirror { outline: none; min-height: 280px; }
+    #tiptap-editor img { max-width: 100%; height: auto; border-radius: 6px; }
+    .tt-footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 6px 12px; font-size: 11px; color: #6b7280; text-align: right; }
+
+    .cover-preview { width: 240px; height: 135px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0; background: #f3f4f6; }
+    .cover-empty { display: flex; align-items: center; justify-content: center; color: #9ca3af; font-size: 28px; }
+
+    .media-card { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; margin-bottom: 8px; }
+    .media-thumb { width: 80px; height: 50px; border-radius: 4px; background: #1f2937; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; }
+    .media-info { flex: 1; font-size: .85rem; }
+    .btn-save { font-size: 1rem; padding: .65rem 1.5rem; border-radius: 10px; font-weight: 700; }
+</style>
+}
+
+<div class="container-fluid py-3">
+    <div class="card">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3">
+                <h6 class="text-white mb-0">
+                    <i class="bi @(isNew ? "bi-plus-circle" : "bi-pencil-square") me-1"></i>
+                    @(isNew ? "Thêm bản tin mới" : "Sửa bản tin")
+                </h6>
+            </div>
+        </div>
+
+        <div class="card-body pt-4 pb-4 px-4">
+            <form asp-action="Edit" method="post" id="editForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="ID" />
+
+                <!-- Tiêu đề -->
+                <div class="mb-3">
+                    <label class="ep-label">Tiêu đề <span class="text-danger">*</span></label>
+                    <input asp-for="TITLE" class="form-control ep-input" placeholder="VD: Thông báo nghỉ Lễ 30/4 - 1/5" maxlength="300" />
+                </div>
+
+                <!-- Date range + Pin -->
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-3">
+                        <label class="ep-label">Ngày bắt đầu <span class="text-danger">*</span></label>
+                        <input asp-for="PUBLISH_FROM" type="date" class="form-control ep-input" id="pubFrom" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="ep-label">Ngày kết thúc <span class="text-danger">*</span></label>
+                        <input asp-for="PUBLISH_TO" type="date" class="form-control ep-input" id="pubTo" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="ep-label">Thứ tự ghim</label>
+                        <input asp-for="PIN_ORDER" type="number" min="0" class="form-control ep-input" placeholder="Số nhỏ lên trên" />
+                    </div>
+                    <div class="col-12 col-md-3 d-flex align-items-end pb-2">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="isPinnedCheck" style="width:2.4em;height:1.3em;"
+                                   @(Model.IS_PINNED == 1 ? "checked" : "")
+                                   onchange="document.getElementById('IS_PINNED').value = this.checked ? 1 : 0" />
+                            <label class="form-check-label ep-label ms-1" for="isPinnedCheck" style="margin-bottom:0;">
+                                📌 Ghim đầu trang (tối đa 2 bài)
+                            </label>
+                        </div>
+                        <input type="hidden" asp-for="IS_PINNED" id="IS_PINNED" />
+                    </div>
+                </div>
+
+                <!-- Cover image -->
+                <div class="mb-4">
+                    <label class="ep-label">Ảnh đại diện (cover)</label>
+                    <div class="d-flex align-items-start gap-3 flex-wrap">
+                        <div id="coverWrap">
+                            @if (!string.IsNullOrEmpty(Model.COVER_IMG))
+                            {
+                                <img src="@Url.Action("GetBulletinImage", "Image", new { fileName = Model.COVER_IMG })" id="coverImg" class="cover-preview" />
+                            }
+                            else
+                            {
+                                <div class="cover-preview cover-empty" id="coverImg"><i class="bi bi-image"></i></div>
+                            }
+                        </div>
+                        <div>
+                            <input type="file" id="coverInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="uploadCover(this)" />
+                            <button type="button" class="btn btn-sm btn-outline-warning mb-2" onclick="document.getElementById('coverInput').click()">
+                                <i class="bi bi-upload me-1"></i>Chọn ảnh
+                            </button>
+                            <input asp-for="COVER_IMG" type="hidden" id="coverField" />
+                            <div class="text-xs text-secondary">JPG/PNG/WebP, tối đa 10 MB. Khuyến nghị 800×450.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TipTap Editor -->
+                <div class="mb-4">
+                    <label class="ep-label mb-2">Nội dung <span class="text-danger">*</span></label>
+                    <input type="hidden" asp-for="CONTENT" id="tt-val" />
+                    <div class="tiptap-wrap">
+                        <div class="tt-toolbar">
+                            <button type="button" class="tt-btn" id="tt-bold"      title="Đậm"        onclick="window._tt.chain().focus().toggleBold().run()"><i class="bi bi-type-bold"></i></button>
+                            <button type="button" class="tt-btn" id="tt-italic"    title="Nghiêng"    onclick="window._tt.chain().focus().toggleItalic().run()"><i class="bi bi-type-italic"></i></button>
+                            <button type="button" class="tt-btn" id="tt-underline" title="Gạch chân"  onclick="window._tt.chain().focus().toggleUnderline().run()"><i class="bi bi-type-underline"></i></button>
+                            <button type="button" class="tt-btn" id="tt-strike"    title="Gạch ngang" onclick="window._tt.chain().focus().toggleStrike().run()"><i class="bi bi-type-strikethrough"></i></button>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn" id="tt-h1" title="Tiêu đề 1" onclick="window._tt.chain().focus().toggleHeading({level:1}).run()" style="font-size:11px;font-weight:800;">H1</button>
+                            <button type="button" class="tt-btn" id="tt-h2" title="Tiêu đề 2" onclick="window._tt.chain().focus().toggleHeading({level:2}).run()" style="font-size:11px;font-weight:800;">H2</button>
+                            <button type="button" class="tt-btn" id="tt-h3" title="Tiêu đề 3" onclick="window._tt.chain().focus().toggleHeading({level:3}).run()" style="font-size:11px;font-weight:800;">H3</button>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn" id="tt-ul"     title="Danh sách chấm" onclick="window._tt.chain().focus().toggleBulletList().run()"><i class="bi bi-list-ul"></i></button>
+                            <button type="button" class="tt-btn" id="tt-ol"     title="Danh sách số"   onclick="window._tt.chain().focus().toggleOrderedList().run()"><i class="bi bi-list-ol"></i></button>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn" id="tt-left"   title="Căn trái"  onclick="window._tt.chain().focus().setTextAlign('left').run()"><i class="bi bi-text-left"></i></button>
+                            <button type="button" class="tt-btn" id="tt-center" title="Căn giữa"  onclick="window._tt.chain().focus().setTextAlign('center').run()"><i class="bi bi-text-center"></i></button>
+                            <button type="button" class="tt-btn" id="tt-right"  title="Căn phải"  onclick="window._tt.chain().focus().setTextAlign('right').run()"><i class="bi bi-text-right"></i></button>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn" id="tt-img-btn" title="Chèn ảnh" onclick="document.getElementById('tt-img-input').click()"><i class="bi bi-image"></i></button>
+                            <input type="file" id="tt-img-input" accept="image/*" style="display:none" onchange="ttUploadImage(this)" />
+                            <button type="button" class="tt-btn" title="Đường kẻ ngang" onclick="window._tt.chain().focus().setHorizontalRule().run()"><i class="bi bi-dash-lg"></i></button>
+                            <div class="tt-sep"></div>
+                            <button type="button" class="tt-btn" title="Undo" onclick="window._tt.chain().focus().undo().run()"><i class="bi bi-arrow-counterclockwise"></i></button>
+                            <button type="button" class="tt-btn" title="Redo" onclick="window._tt.chain().focus().redo().run()"><i class="bi bi-arrow-clockwise"></i></button>
+                        </div>
+                        <div id="tiptap-editor"></div>
+                        <div class="tt-footer"><span id="tt-wordcount">0 từ · 0 ký tự</span></div>
+                    </div>
+                </div>
+
+                <!-- Video attachments (chỉ sau khi đã save bài) -->
+                @if (!isNew)
+                {
+                    <div class="mb-4">
+                        <label class="ep-label mb-2">Video đính kèm <span class="text-secondary text-xs">(tối đa 5 video, mỗi file ≤ 500 MB)</span></label>
+                        <div id="mediaList">
+                            @foreach (var m in mediaList.Where(x => x.MEDIA_TYPE == "VIDEO"))
+                            {
+                                <div class="media-card" data-media-id="@m.ID">
+                                    <div class="media-thumb"><i class="bi bi-play-fill"></i></div>
+                                    <div class="media-info">
+                                        <div class="fw-bold">@m.FILE_NAME</div>
+                                        <div class="text-xs text-secondary">ID: @m.ID · Thứ tự: @m.DISPLAY_ORDER</div>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteVideo(@m.ID)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                        <input type="file" id="videoInput" accept="video/mp4,video/webm,video/quicktime" style="display:none" onchange="uploadVideo(this)" />
+                        <button type="button" class="btn btn-sm btn-outline-warning" onclick="document.getElementById('videoInput').click()">
+                            <i class="bi bi-cloud-arrow-up me-1"></i>Thêm video
+                        </button>
+                        <span id="uploadProgress" class="ms-2 text-xs text-secondary"></span>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info py-2 px-3 small">
+                        <i class="bi bi-info-circle me-1"></i> Lưu bài lần đầu rồi mới có thể tải lên video đính kèm.
+                    </div>
+                }
+
+                <!-- Submit -->
+                <div class="d-flex gap-2 justify-content-end">
+                    <a href="@Url.Action("Manage", "BulletinAdmin")" class="btn btn-outline-secondary mb-0">Hủy</a>
+                    <button type="submit" class="btn btn-warning btn-save mb-0">
+                        <i class="bi bi-save me-1"></i>@(isNew ? "Lưu & Xem trước" : "Lưu thay đổi")
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script type="module">
+import { Editor }  from 'https://esm.sh/@@tiptap/core@@2';
+import StarterKit  from 'https://esm.sh/@@tiptap/starter-kit@@2';
+import Underline   from 'https://esm.sh/@@tiptap/extension-underline@@2';
+import TextAlign   from 'https://esm.sh/@@tiptap/extension-text-align@@2';
+import Placeholder from 'https://esm.sh/@@tiptap/extension-placeholder@@2';
+import Image       from 'https://esm.sh/@@tiptap/extension-image@@2';
+
+const val = document.getElementById('tt-val');
+const BAD_CHARS_RE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\uD800-\uDFFF￾￿]/g;
+let _stripping = false;
+
+function stripBad(editor) {
+    if (_stripping) return;
+    const html = editor.getHTML();
+    BAD_CHARS_RE.lastIndex = 0;
+    if (!BAD_CHARS_RE.test(html)) return;
+    BAD_CHARS_RE.lastIndex = 0;
+    const clean = html.replace(BAD_CHARS_RE, '');
+    _stripping = true;
+    editor.commands.setContent(clean, false);
+    _stripping = false;
+}
+
+const editor = new Editor({
+    element: document.getElementById('tiptap-editor'),
+    extensions: [
+        StarterKit,
+        Underline,
+        TextAlign.configure({ types: ['heading', 'paragraph'] }),
+        Placeholder.configure({ placeholder: 'Nhập nội dung bản tin...' }),
+        Image.configure({ inline: false, allowBase64: false }),
+    ],
+    content: val.value || '',
+    onUpdate({ editor }) {
+        stripBad(editor);
+        val.value = editor.getHTML();
+        updateCount(editor);
+    },
+    onSelectionUpdate({ editor }) { sync(editor); },
+});
+window._tt = editor;
+
+function sync(e) {
+    const map = {
+        'tt-bold': () => e.isActive('bold'),
+        'tt-italic': () => e.isActive('italic'),
+        'tt-underline': () => e.isActive('underline'),
+        'tt-strike': () => e.isActive('strike'),
+        'tt-h1': () => e.isActive('heading', { level: 1 }),
+        'tt-h2': () => e.isActive('heading', { level: 2 }),
+        'tt-h3': () => e.isActive('heading', { level: 3 }),
+        'tt-ul': () => e.isActive('bulletList'),
+        'tt-ol': () => e.isActive('orderedList'),
+        'tt-left': () => e.isActive({ textAlign: 'left' }),
+        'tt-center': () => e.isActive({ textAlign: 'center' }),
+        'tt-right': () => e.isActive({ textAlign: 'right' }),
+    };
+    for (const [id, fn] of Object.entries(map)) {
+        document.getElementById(id)?.classList.toggle('is-active', fn());
+    }
+}
+
+function updateCount(e) {
+    const text = e.getText().trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    document.getElementById('tt-wordcount').textContent = `${words.toLocaleString()} từ · ${text.length.toLocaleString()} ký tự`;
+}
+
+document.getElementById('editForm').addEventListener('submit', (e) => {
+    val.value = editor.getHTML();
+
+    // Fix B44: TipTap empty trả "<p></p>" → pass IsNullOrWhiteSpace ở backend, save bài rỗng
+    if (editor.getText().trim().length === 0) {
+        e.preventDefault();
+        alert('Nội dung không được để trống');
+        return;
+    }
+
+    const from = document.getElementById('pubFrom').value;
+    const to   = document.getElementById('pubTo').value;
+    if (!from || !to) {
+        e.preventDefault();
+        alert('Vui lòng chọn ngày đăng và ngày kết thúc');
+        return;
+    }
+    if (new Date(to) < new Date(from)) {
+        e.preventDefault();
+        alert('Ngày kết thúc phải sau ngày bắt đầu');
+        return;
+    }
+});
+
+updateCount(editor);
+
+// ── Upload ảnh trong TipTap ────────────────────────
+window.ttUploadImage = async (input) => {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+
+    const btn = document.getElementById('tt-img-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:14px;height:14px;"></span>';
+    try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('@Url.Action("UploadBulletinImage","Image")', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            editor.chain().focus().setImage({ src: data.url }).run();
+        } else {
+            alert('Lỗi upload: ' + data.message);
+        }
+    } catch (e) {
+        alert('Lỗi kết nối: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-image"></i>';
+    }
+};
+
+// ── Upload cover ───────────────────────────────────
+window.uploadCover = async (input) => {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+    try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('@Url.Action("UploadBulletinImage","Image")', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            const url = data.url;
+            // url có dạng /Image/GetBulletinImage?fileName=xxx.jpg → lấy fileName
+            const fileName = new URL(url, location.origin).searchParams.get('fileName');
+            document.getElementById('coverField').value = fileName || '';
+            const wrap = document.getElementById('coverWrap');
+            wrap.innerHTML = `<img src="${url}" class="cover-preview" />`;
+        } else {
+            alert('Lỗi upload cover: ' + data.message);
+        }
+    } catch (e) {
+        alert('Lỗi kết nối: ' + e.message);
+    }
+};
+
+// ── Upload video ───────────────────────────────────
+window.uploadVideo = async (input) => {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+
+    const bulletinId = @Model.ID;
+    const progress = document.getElementById('uploadProgress');
+    progress.textContent = `Đang tải ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)...`;
+
+    try {
+        const fd = new FormData();
+        fd.append('bulletinId', bulletinId);
+        fd.append('file', file);
+        const res = await fetch('@Url.Action("UploadVideo","BulletinAdmin")', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            const html = `
+                <div class="media-card" data-media-id="${data.mediaId}">
+                    <div class="media-thumb"><i class="bi bi-play-fill"></i></div>
+                    <div class="media-info">
+                        <div class="fw-bold">${data.fileName}</div>
+                        <div class="text-xs text-secondary">ID: ${data.mediaId}</div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteVideo(${data.mediaId})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>`;
+            document.getElementById('mediaList').insertAdjacentHTML('beforeend', html);
+            progress.textContent = '✓ Tải thành công';
+            setTimeout(() => progress.textContent = '', 3000);
+        } else {
+            progress.textContent = '';
+            alert('Lỗi upload: ' + data.message);
+        }
+    } catch (e) {
+        progress.textContent = '';
+        alert('Lỗi kết nối: ' + e.message);
+    }
+};
+
+window.deleteVideo = async (mediaId) => {
+    if (!confirm('Xóa video này?')) return;
+    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const fd = new FormData();
+    fd.append('mediaId', mediaId);
+    fd.append('__RequestVerificationToken', token);
+    const res = await fetch('@Url.Action("DeleteVideo","BulletinAdmin")', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+        document.querySelector(`.media-card[data-media-id="${mediaId}"]`)?.remove();
+    } else {
+        alert('Lỗi: ' + data.message);
+    }
+};
+</script>
+}

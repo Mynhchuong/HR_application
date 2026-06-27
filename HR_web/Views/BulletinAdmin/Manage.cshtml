@@ -1,0 +1,205 @@
+@model List<HR_web.Models.Bulletin.BulletinModel>
+@{
+    ViewData["Title"] = "Quản lý bản tin";
+}
+
+@section Styles {
+<style>
+    .blt-row-draft     { background: #f9fafb; }
+    .blt-row-expired   { background: #fef2f2; }
+    .blt-row-inactive  { opacity: .55; }
+    .blt-pin           { color: #f59e0b; font-size: 18px; }
+    .blt-badge-st {
+        font-size: .72rem; padding: 2px 8px; border-radius: 999px;
+        font-weight: 600; display: inline-block;
+    }
+    .badge-draft     { background: #fef3c7; color: #92400e; }
+    .badge-live      { background: #dcfce7; color: #166534; }
+    .badge-expired   { background: #fee2e2; color: #991b1b; }
+    .badge-pending   { background: #dbeafe; color: #1e40af; }
+    .badge-deleted   { background: #f3f4f6; color: #6b7280; }
+    .blt-cover {
+        width: 80px; height: 45px; object-fit: cover;
+        border-radius: 6px; background: #f3f4f6;
+    }
+    .blt-cover-empty {
+        display: inline-flex; align-items: center; justify-content: center;
+        background: #f3f4f6; color: #9ca3af; font-size: 22px;
+    }
+    .blt-action-btn { padding: .25rem .5rem; font-size: .8rem; }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="text-white mb-0">
+                    <i class="bi bi-megaphone-fill me-1"></i> Quản lý bản tin
+                </h6>
+                <a href="@Url.Action("Edit", "BulletinAdmin")" class="btn btn-sm btn-white mb-0 d-flex align-items-center" style="height:36px;">
+                    <i class="bi bi-plus-lg me-1"></i> Thêm bản tin
+                </a>
+            </div>
+        </div>
+
+        <div class="card-body px-0 pt-0 pb-2 mt-1">
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success alert-dismissible mx-4 mt-3" role="alert">
+                    @TempData["SuccessMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger alert-dismissible mx-4 mt-3" role="alert">
+                    @TempData["ErrorMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+
+            @if (!Model.Any())
+            {
+                <div class="text-center py-5 text-secondary">
+                    <i class="bi bi-megaphone" style="font-size:48px;opacity:.3;display:block;margin-bottom:.75rem;"></i>
+                    <p>Chưa có bản tin nào. Nhấn <strong>Thêm bản tin</strong> để tạo bài đầu tiên.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive p-0 px-4">
+                    <table class="table align-items-center mb-0 w-100 table-hover">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center" style="width:40px;"></th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2" style="width:90px;">Ảnh</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2">Tiêu đề</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 d-none d-md-table-cell">Thời gian hiện</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center" style="width:80px;">Trạng thái</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center d-none d-md-table-cell" style="width:60px;">Lượt xem</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center d-none d-md-table-cell" style="width:60px;">CMT</th>
+                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center" style="width:220px;">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model)
+                            {
+                                var now = DateTime.Now.Date;
+                                bool isDraft    = item.IS_PUBLISHED == 0;
+                                bool isInactive = item.IS_ACTIVE    == 0;
+                                bool isExpired  = item.PUBLISH_TO.Date  < now;
+                                bool isPending  = item.PUBLISH_FROM.Date > now;
+
+                                string statusBadge;
+                                string statusClass;
+                                if (isInactive)       { statusBadge = "Đã xóa";    statusClass = "badge-deleted"; }
+                                else if (isDraft)     { statusBadge = "Nháp";      statusClass = "badge-draft";   }
+                                else if (isExpired)   { statusBadge = "Hết hạn";   statusClass = "badge-expired"; }
+                                else if (isPending)   { statusBadge = "Chờ ngày";  statusClass = "badge-pending"; }
+                                else                  { statusBadge = "Đang hiện"; statusClass = "badge-live";    }
+
+                                string rowClass = isInactive ? "blt-row-inactive"
+                                                : isExpired  ? "blt-row-expired"
+                                                : isDraft    ? "blt-row-draft" : "";
+
+                                <tr class="@rowClass">
+                                    <td class="px-2 text-center">
+                                        @if (item.IS_PINNED == 1)
+                                        {
+                                            <i class="bi bi-pin-angle-fill blt-pin" title="Đang ghim (thứ tự @item.PIN_ORDER)"></i>
+                                        }
+                                    </td>
+                                    <td class="px-2">
+                                        @if (!string.IsNullOrEmpty(item.COVER_IMG))
+                                        {
+                                            <img src="@Url.Action("GetBulletinImage", "Image", new { fileName = item.COVER_IMG })"
+                                                 class="blt-cover" alt="cover" />
+                                        }
+                                        else
+                                        {
+                                            <div class="blt-cover blt-cover-empty"><i class="bi bi-image"></i></div>
+                                        }
+                                    </td>
+                                    <td class="px-2">
+                                        <div class="fw-bold text-dark text-sm">@item.TITLE</div>
+                                        <div class="text-xs text-secondary">
+                                            Tạo @(item.INST_DT?.ToString("dd/MM/yyyy HH:mm")) bởi @item.INST_ID
+                                        </div>
+                                    </td>
+                                    <td class="px-2 d-none d-md-table-cell text-xs">
+                                        <div>@item.PUBLISH_FROM.ToString("dd/MM/yyyy")</div>
+                                        <div class="text-secondary">→ @item.PUBLISH_TO.ToString("dd/MM/yyyy")</div>
+                                    </td>
+                                    <td class="px-2 text-center">
+                                        <span class="blt-badge-st @statusClass">@statusBadge</span>
+                                    </td>
+                                    <td class="px-2 text-center d-none d-md-table-cell">
+                                        <span class="text-sm fw-bold">@item.VIEW_COUNT</span>
+                                    </td>
+                                    <td class="px-2 text-center d-none d-md-table-cell">
+                                        <span class="text-sm fw-bold">@item.COMMENT_COUNT</span>
+                                    </td>
+                                    <td class="px-2 text-center">
+                                        @if (!isInactive)
+                                        {
+                                            <a href="@Url.Action("Edit", "BulletinAdmin", new { id = item.ID })"
+                                               class="btn btn-link p-0 px-1" title="Sửa">
+                                                <i class="bi bi-pencil-square text-info"></i>
+                                            </a>
+                                            <a href="@Url.Action("Preview", "BulletinAdmin", new { id = item.ID })"
+                                               class="btn btn-link p-0 px-1" title="Xem trước">
+                                                <i class="bi bi-eye text-primary"></i>
+                                            </a>
+
+
+                                            <form asp-action="TogglePin" asp-controller="BulletinAdmin" method="post" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@item.ID" />
+                                                <button type="submit" class="btn btn-link p-0 px-1" title="@(item.IS_PINNED == 1 ? "Bỏ ghim" : "Ghim")">
+                                                    <i class="bi bi-pin-angle@(item.IS_PINNED == 1 ? "-fill" : "")" style="color:@(item.IS_PINNED == 1 ? "#f59e0b" : "#9ca3af");"></i>
+                                                </button>
+                                            </form>
+
+                                            @if (isDraft)
+                                            {
+                                                <form asp-action="Publish" asp-controller="BulletinAdmin" method="post" class="d-inline"
+                                                      onsubmit="return confirm('Đăng bản tin này? Sẽ gửi thông báo cho toàn bộ nhân viên (lần đầu).');">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@item.ID" />
+                                                    <button type="submit" class="btn btn-link p-0 px-1" title="Đăng">
+                                                        <i class="bi bi-cloud-upload-fill text-success"></i>
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <form asp-action="Unpublish" asp-controller="BulletinAdmin" method="post" class="d-inline"
+                                                      onsubmit="return confirm('Rút bài này khỏi danh sách hiển thị?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@item.ID" />
+                                                    <button type="submit" class="btn btn-link p-0 px-1" title="Rút bài">
+                                                        <i class="bi bi-cloud-slash text-warning"></i>
+                                                    </button>
+                                                </form>
+                                            }
+
+                                            <form asp-action="Delete" asp-controller="BulletinAdmin" method="post" class="d-inline"
+                                                  onsubmit="return confirm('Xóa bản tin này?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@item.ID" />
+                                                <button type="submit" class="btn btn-link p-0 px-1" title="Xóa">
+                                                    <i class="bi bi-trash text-danger"></i>
+                                                </button>
+                                            </form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>

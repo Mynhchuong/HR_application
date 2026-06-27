@@ -1,0 +1,94 @@
+@model HR_web.Models.Bulletin.BulletinModel
+@{
+    ViewData["Title"] = "Xem trước: " + Model.TITLE;
+    bool isDraft = Model.IS_PUBLISHED == 0;
+}
+
+@section Styles {
+<style>
+    .preview-banner {
+        background: linear-gradient(90deg,#fef3c7,#fde68a);
+        color: #92400e; padding: 10px 16px; border-radius: 10px;
+        margin-bottom: 18px; font-weight: 600;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .bd-cover { width: 100%; max-height: 360px; object-fit: cover; border-radius: 12px; margin-bottom: 18px; }
+    .bd-title { font-size: 1.8rem; font-weight: 800; color: #111827; margin-bottom: 8px; line-height: 1.3; }
+    .bd-meta  { color: #6b7280; font-size: .85rem; margin-bottom: 18px; }
+    .bd-content { font-size: 1rem; line-height: 1.7; color: #1f2937; }
+    .bd-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; }
+    .bd-content h1, .bd-content h2, .bd-content h3 { margin-top: 1.2rem; }
+    .bd-content ul, .bd-content ol { padding-left: 1.5rem; }
+
+    .video-block { margin: 18px 0; }
+    .video-block video { width: 100%; border-radius: 10px; background: #000; }
+
+    .action-bar {
+        position: sticky; bottom: 0; background: #fff;
+        border-top: 2px solid #e5e7eb; padding: 14px 16px;
+        display: flex; gap: 10px; justify-content: space-between;
+        margin-top: 30px; box-shadow: 0 -4px 12px rgba(0,0,0,.04);
+        z-index: 50;
+    }
+</style>
+}
+
+<div class="container py-4" style="max-width: 900px;">
+
+    <div class="preview-banner">
+        <i class="bi bi-eye-fill"></i>
+        Bạn đang xem trước bản tin (@(isDraft ? "đang là nháp — chưa hiển thị cho nhân viên" : "đã đăng — đang hiển thị"))
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.COVER_IMG))
+    {
+        <img src="@Url.Action("GetBulletinImage", "Image", new { fileName = Model.COVER_IMG })" class="bd-cover" alt="cover" />
+    }
+
+    <h1 class="bd-title">@Model.TITLE</h1>
+    <div class="bd-meta">
+        <i class="bi bi-calendar3 me-1"></i>
+        Hiển thị từ @Model.PUBLISH_FROM.ToString("dd/MM/yyyy") đến @Model.PUBLISH_TO.ToString("dd/MM/yyyy")
+        @if (Model.IS_PINNED == 1) { <span class="ms-2 text-warning"><i class="bi bi-pin-angle-fill"></i> Ghim thứ tự @Model.PIN_ORDER</span> }
+    </div>
+
+    <div class="bd-content">
+        @Html.Raw(Model.CONTENT)
+    </div>
+
+    @{
+        var videos = Model.MEDIA.Where(m => m.MEDIA_TYPE == "VIDEO").OrderBy(m => m.DISPLAY_ORDER).ToList();
+    }
+    @foreach (var v in videos)
+    {
+        <div class="video-block">
+            <video controls preload="metadata">
+                <source src="@Url.Action("Stream", "Video", new { folder = "BULLETIN_VIDEO", id = v.ID })" />
+            </video>
+        </div>
+    }
+
+    <!-- Sticky action bar -->
+    <div class="action-bar">
+        <a href="@Url.Action("Edit", "BulletinAdmin", new { id = Model.ID })" class="btn btn-outline-secondary mb-0">
+            <i class="bi bi-arrow-left me-1"></i>Quay lại sửa
+        </a>
+        @if (isDraft)
+        {
+            <form asp-action="Publish" asp-controller="BulletinAdmin" method="post"
+                  onsubmit="return confirm('Đăng bản tin? Sẽ gửi thông báo FCM cho toàn bộ nhân viên (lần đầu).');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.ID" />
+                <button type="submit" class="btn btn-success mb-0">
+                    <i class="bi bi-cloud-upload-fill me-1"></i>Đăng ngay
+                </button>
+            </form>
+        }
+        else
+        {
+            <a href="@Url.Action("Manage", "BulletinAdmin")" class="btn btn-warning mb-0">
+                <i class="bi bi-list-check me-1"></i>Về quản lý
+            </a>
+        }
+    </div>
+</div>

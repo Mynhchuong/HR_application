@@ -129,6 +129,34 @@ public class NotificationService
         });
 
     // ═══════════════════════════════════════════════════════════════
+    //  BULLETIN
+    // ═══════════════════════════════════════════════════════════════
+
+    // Broadcast cho TẤT CẢ token khi HR publish bản tin LẦN ĐẦU
+    public void BulletinPublished(int bulletinId, string title, string createdBy)
+        => FireAndForget(async () =>
+        {
+            // Cắt title nếu dài quá 50 ký tự để giữ notification ngắn
+            string shortTitle = title.Length > 50 ? title.Substring(0, 50) + "…" : title;
+            var ph = new Dictionary<string, string> { ["title"] = shortTitle };
+
+            var (titleVi, bodyVi, titleEn, bodyEn) =
+                await _helper.GetTemplateAsync("BULLETIN_NEW", ph);
+
+            await _helper.SendNotificationAsync(new SendNotificationRequest
+            {
+                TITLE       = titleVi,
+                BODY        = bodyVi,
+                TITLE_EN    = titleEn,
+                BODY_EN     = bodyEn,
+                NOTI_TYPE   = "COMPANY",
+                TARGET_VAL  = bulletinId.ToString(),   // bulletinId — web/mobile dùng để build /Bulletin/Detail/{id}
+                LINK_ACTION = "BULLETIN",              // code — linkMap trong Notification/Index.cshtml sẽ map sang URL
+                CREATED_BY  = createdBy
+            });
+        });
+
+    // ═══════════════════════════════════════════════════════════════
     //  HELPERS
     // ═══════════════════════════════════════════════════════════════
 

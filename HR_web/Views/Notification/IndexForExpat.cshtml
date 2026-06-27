@@ -112,6 +112,7 @@ const linkMap = {
     'LEAVE_ASSIGNED': '@Url.Action("LeaveMyRequests",      "Leave")',
     'OT_SIGN':        '@Url.Action("OtListForExpat",       "OT")',
     'PAYSLIP':        '@Url.Action("Index",                "Payslip")',
+    'BULLETIN':       '@Url.Action("Index",                "Bulletin")',
 };
 
 let page = 1;
@@ -142,6 +143,7 @@ const typeStyle = {
     'OT_SIGN':          { icon: '⏰', bg: '#fff7ed' },
     'GP_MY':            { icon: '🚪', bg: '#f3e8ff' },
     'GP_MANAGE':        { icon: '🔑', bg: '#f3e8ff' },
+    'BULLETIN':         { icon: '📰', bg: '#fef3c7' },
 };
 
 function renderItems(items, append = false) {
@@ -190,7 +192,13 @@ function onNotiClick(n) {
         if (el) el.classList.remove('unread');
         updateUnreadBadge(-1);
     }
-    const url = n.LINK_ACTION && linkMap[n.LINK_ACTION];
+    // BULLETIN → build URL Detail với TARGET_VAL (mobile/web cùng pattern)
+    let url;
+    if (n.LINK_ACTION === 'BULLETIN' && n.TARGET_VAL) {
+        url = '/Bulletin/Detail/' + encodeURIComponent(n.TARGET_VAL);
+    } else {
+        url = n.LINK_ACTION && linkMap[n.LINK_ACTION];
+    }
     if (url) location.href = url;
 }
 

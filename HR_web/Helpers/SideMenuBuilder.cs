@@ -31,6 +31,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Tổng quan",           Url = "~/Home/Index",           Icon = "dashboard"     },
                     new SideMenuItem { Title = "Thông báo",           Url = "~/Notification/Index",   Icon = "notifications" },
                     new SideMenuItem { Title = "Thực đơn",   Url = "~/Menu/Today",    Icon = "restaurant"  },
+                    new SideMenuItem { Title = "Bản tin",            Url = "~/Bulletin/Index",       Icon = "campaign"      },
                     new SideMenuItem { Title = "Quy định công ty",   Url = "~/Policy/Index",         Icon = "policy"        },
                     new SideMenuItem { Title = "Hướng dẫn sử dụng", Url = "~/Guide/Index",          Icon = "menu_book"     },
                 }
@@ -125,6 +126,7 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isHR || isAdmin,
                 Children = new List<SideMenuItem>
                 {
+                    new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign"               },
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy"                 },
                     new SideMenuItem { Title = "Quản lý Thực đơn",     Url = "~/Menu/Manage",                Icon = "restaurant_menu"        },
                     new SideMenuItem { Title = "Quản lý Món ăn",       Url = "~/Menu/FoodManage",            Icon = "set_meal"               },

@@ -446,40 +446,6 @@
         @Html.RenderAlerts()
     </div>
 
-    @{
-        var layoutUserForExpat = ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel;
-    }
-    @if (layoutUserForExpat?.RoleName == "Expat")
-    {
-        <!-- Google Translate widget — chỉ render cho Expat -->
-        <div id="ggt-wrap" style="position:fixed;top:10px;right:80px;z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:5px 8px;box-shadow:0 2px 8px rgba(0,0,0,.08);font-size:.75rem;">
-            <div style="display:flex;align-items:center;gap:6px;">
-                <span style="color:#6b7280;font-size:11px;">🌐</span>
-                <div id="google_translate_element"></div>
-            </div>
-            <div style="font-size:9.5px;color:#9ca3af;margin-top:2px;line-height:1.2;max-width:200px;">
-                Auto-translated by Google. Accuracy may vary.
-            </div>
-        </div>
-        <style>
-            .goog-te-banner-frame { display: none !important; }
-            body { top: 0 !important; }
-            #ggt-wrap .goog-te-gadget { font-size: 11px !important; color: transparent !important; }
-            #ggt-wrap .goog-te-gadget > span { display: none !important; }
-            #ggt-wrap .goog-te-gadget .goog-te-combo { margin: 0 !important; padding: 2px 4px !important; }
-        </style>
-        <script>
-            function googleTranslateElementInit() {
-                new google.translate.TranslateElement({
-                    pageLanguage: 'vi',
-                    includedLanguages: 'en,ko,ja,zh-CN',
-                    layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
-                    autoDisplay: false
-                }, 'google_translate_element');
-            }
-        </script>
-        <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" async></script>
-    }
 
     <!-- Sidebar (hr_web) -->
     <aside id="hr-sidebar" class="sidenav navbar navbar-vertical navbar-expand-xs border-0 fixed-start bg-white">

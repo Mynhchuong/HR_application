@@ -108,15 +108,10 @@ else
                 {
                     <div class="blt-pin-badge"><i class="bi bi-pin-angle-fill"></i> Ghim</div>
                 }
-                @if (!string.IsNullOrEmpty(item.COVER_IMG))
-                {
-                    <img src="@Url.Action("GetBulletinImage", "Image", new { fileName = item.COVER_IMG })"
-                         class="blt-cover" alt="cover" />
-                }
-                else
-                {
-                    <div class="blt-cover blt-cover-empty"><i class="bi bi-image"></i></div>
-                }
+                <img src="@(string.IsNullOrEmpty(item.COVER_IMG)
+                            ? Url.Content("~/assets/img/bulletin-default-cover.png")
+                            : Url.Action("GetBulletinImage", "Image", new { fileName = item.COVER_IMG }))"
+                     class="blt-cover" alt="cover" />
                 <div class="blt-body">
                     <div class="blt-title">@item.TITLE</div>
                     <div class="blt-meta">

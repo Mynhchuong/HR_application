@@ -57,7 +57,7 @@
                 <div class="row g-2">
                     <div class="col-sm-3">
                         <label class="filter-label">Tìm Mã NV </label>
-                        <input type="text" id="lv_search" class="form-control form-control-sm" placeholder="🔍 Nhập để tìm..." oninput="renderLeaves()">
+                        <input type="text" id="lv_search" class="form-control form-control-sm" placeholder="🔍 Nhập để tìm..." oninput="lvSearchDebounced()">
                     </div>
                     <div class="col-sm-2">
                         <label class="filter-label">Trạng thái</label>
@@ -363,6 +363,12 @@ window.addEventListener('DOMContentLoaded', async () => {
 // ════════════════════════════════════════════════════════════════════════════
 // LEAVE
 // ════════════════════════════════════════════════════════════════════════════
+let _lvSearchTimer = null;
+function lvSearchDebounced() {
+    clearTimeout(_lvSearchTimer);
+    _lvSearchTimer = setTimeout(loadLeaves, 350);
+}
+
 async function loadLeaves() {
     lvData = []; lvSelected.clear(); lvLoaded = false;
     document.getElementById('lv_tbody').innerHTML = '<tr><td colspan="10" class="empty-msg"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>';
@@ -740,12 +746,14 @@ function buildParams(prefix) {
     const from   = document.getElementById(`${prefix}_from`).value;
     const to     = document.getElementById(`${prefix}_to`).value;
     const status = document.getElementById(`${prefix}_status`)?.value;
+    const search = document.getElementById(`${prefix}_search`)?.value.trim();
     if (dept)   q.push(`dept_id=${encodeURIComponent(dept)}`);
     if (line)   q.push(`line_id=${encodeURIComponent(line)}`);
     if (work)   q.push(`work_id=${encodeURIComponent(work)}`);
     if (from)   q.push(`date_from=${encodeURIComponent(from)}`);
     if (to)     q.push(`date_to=${encodeURIComponent(to)}`);
     if (status) q.push(`status=${encodeURIComponent(status)}`);
+    if (search) q.push(`search=${encodeURIComponent(search)}`);
     q.push('page_size=500');
     return q.join('&');
 }

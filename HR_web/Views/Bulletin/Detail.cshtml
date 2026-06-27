@@ -37,7 +37,17 @@
     }
 
     .bd-content { font-size: 1rem; line-height: 1.7; color: #1f2937; }
-    .bd-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; }
+    .bd-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block; }
+
+    .img-dl-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 6px 14px; border-radius: 8px;
+        background: #f59e0b; color: #fff; border: none;
+        font-size: .85rem; font-weight: 600;
+        cursor: pointer; text-decoration: none;
+        margin: 4px 0 14px;
+    }
+    .img-dl-btn:hover { background: #d97706; color: #fff; }
     .bd-content h1, .bd-content h2, .bd-content h3 { margin-top: 1.2rem; }
     .bd-content ul, .bd-content ol { padding-left: 1.5rem; }
 
@@ -123,10 +133,10 @@
 @Html.AntiForgeryToken()
 
 <div class="bd-container">
-    @if (!string.IsNullOrEmpty(Model.COVER_IMG))
-    {
-        <img src="@Url.Action("GetBulletinImage", "Image", new { fileName = Model.COVER_IMG })" class="bd-cover" alt="cover" />
-    }
+    <img src="@(string.IsNullOrEmpty(Model.COVER_IMG)
+                ? Url.Content("~/assets/img/bulletin-default-cover.png")
+                : Url.Action("GetBulletinImage", "Image", new { fileName = Model.COVER_IMG }))"
+         class="bd-cover" alt="cover" />
 
     <h1 class="bd-title">@Model.TITLE</h1>
     <div class="bd-meta">
@@ -229,13 +239,14 @@
         }
         list.innerHTML = items.map(c => {
             const canDelete = IS_HR_ADMIN || c.EMPCD === CURRENT_EMPCD;
-            const meta = [c.DEPTCD, c.LINECD, c.WORKCD].filter(Boolean).join('/');
+            const displayName = c.FULL_NAME || c.EMP_CNAME || '';
+            const meta = [c.DEPT_NAME, c.LINE_NAME, c.WORK_NAME].filter(Boolean).join(' / ');
             return `
                 <div class="cmt-item" data-id="${c.ID}">
                     ${canDelete ? `<button class="cmt-delete" onclick="deleteComment(${c.ID})" title="Xóa"><i class="bi bi-trash"></i></button>` : ''}
                     <div class="cmt-header">
-                        <span class="cmt-empcd">${escapeHtml(c.EMPCD)}</span>:
-                        <span class="cmt-name">${escapeHtml(c.FULL_NAME ?? '')}</span>
+                        <span class="cmt-name vni-font">${escapeHtml(displayName)}</span>
+                        <span class="cmt-empcd">#${escapeHtml(c.EMPCD)}</span>
                         ${meta ? `<span class="cmt-meta">— ${escapeHtml(meta)}</span>` : ''}
                     </div>
                     <div class="cmt-content">${escapeHtml(c.CONTENT)}</div>
@@ -322,6 +333,41 @@
             cntEl.textContent = Math.max(0, cnt - 1);
         }
     }
+
+    // ── Download image (mọi ảnh trong nội dung) ──
+    async function downloadImg(src, filename) {
+        try {
+            const res = await fetch(src, { credentials: 'same-origin' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || ('bulletin-' + BULLETIN_ID + '.jpg');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (e) {
+            // Fallback: mở ảnh tab mới để user long-press lưu
+            window.open(src, '_blank');
+        }
+    }
+
+    // Tự động chèn nút tải dưới mỗi ảnh trong nội dung
+    document.querySelectorAll('.bd-content img').forEach((img, i) => {
+        const btn = document.createElement('a');
+        btn.href = '#';
+        btn.className = 'img-dl-btn';
+        btn.innerHTML = '<i class="bi bi-download"></i> Tải ảnh';
+        btn.onclick = (e) => {
+            e.preventDefault();
+            const url = img.getAttribute('src');
+            const name = (url.split('/').pop() || '').split('?')[0] || ('bulletin-' + BULLETIN_ID + '-' + (i+1) + '.jpg');
+            downloadImg(url, name);
+        };
+        img.insertAdjacentElement('afterend', btn);
+    });
 
     // Initial load
     loadComments();

@@ -416,7 +416,7 @@ public class LeaveController : ControllerBase
                 WHERE R.REQUEST_TYPE = 'LEAVE'
                   AND L.SOURCE = 'SELF'
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
-                  AND L.FROM_DATE BETWEEN :D_FROM AND :D_TO
+                  AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1
                   " + scopeFilter.SqlClause + @"
                   AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
@@ -1424,7 +1424,7 @@ public class LeaveController : ControllerBase
             string whereSql = @"
                 WHERE R.REQUEST_TYPE = 'LEAVE'
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
-                  AND L.FROM_DATE BETWEEN :D_FROM AND :D_TO
+                  AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1
                   AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
                   AND (:SRC_FLAG  IS NULL OR L.SOURCE       = :SRC_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
@@ -2017,6 +2017,7 @@ public class LeaveController : ControllerBase
     public async Task<IActionResult> GetAdminConfirmedLeaves(
         string? dept_id = null, string? line_id = null, string? work_id = null,
         string? date_from = null, string? date_to = null, string? status = null,
+        string? search = null,
         int page = 1, int page_size = 50)
     {
         try
@@ -2030,7 +2031,7 @@ public class LeaveController : ControllerBase
                 ? status.ToUpper() : null;
 
             const string baseSql = @"
-                SELECT R.REQUEST_ID, R.EMPCD, EC.CNAME EMP_NAME,
+                SELECT R.REQUEST_ID, L.EMPCD, EC.CNAME EMP_NAME,
                        EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
                        EC.LINECD LINE_ID, B.TEAMNM LINE_NAME,
                        EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
@@ -2038,15 +2039,17 @@ public class LeaveController : ControllerBase
                        R.STATUS, L.CONFIRM_STATUS, R.FINAL_DATE, R.FINAL_APPROVER, R.CREATED_DATE
                 FROM HRMS.HR_REQUEST R
                 JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
-                JOIN HRMS.ECM100 EC           ON EC.EMPCD    = R.EMPCD
+                JOIN HRMS.ECM100 EC           ON EC.EMPCD    = L.EMPCD
                 LEFT JOIN HRMS.EAM410 B       ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-                WHERE R.STATUS != 'REJECTED'
+                WHERE R.REQUEST_TYPE = 'LEAVE'
+                  AND R.STATUS != 'REJECTED'
                   AND (:ST_FLAG  IS NULL OR R.STATUS      = :ST_VAL)
                   AND (:DPT_FLAG IS NULL OR EC.DEPTCD    = :DPT_VAL)
                   AND (:LN_FLAG  IS NULL OR EC.LINECD    = :LN_VAL)
-                  AND (:WK_FLAG  IS NULL OR EC.WORKCD    = :WK_VAL)
-                  AND (:FR_FLAG  IS NULL OR L.FROM_DATE >= :FR_VAL)
-                  AND (:TO_FLAG  IS NULL OR L.TO_DATE   <= :TO_VAL)";
+                  AND (:WK_FLAG   IS NULL OR EC.WORKCD    = :WK_VAL)
+                  AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
+                  AND (:FR_FLAG   IS NULL OR R.CREATED_DATE >= :FR_VAL)
+                  AND (:TO_FLAG   IS NULL OR R.CREATED_DATE < :TO_VAL + 1)";
 
             OracleParameter[] MakePs() => new[]
             {
@@ -2056,9 +2059,11 @@ public class LeaveController : ControllerBase
                 new OracleParameter("DPT_VAL",  (object?)dept_id ?? DBNull.Value),
                 new OracleParameter("LN_FLAG",  (object?)(line_id != null ? "Y" : null) ?? DBNull.Value),
                 new OracleParameter("LN_VAL",   (object?)line_id ?? DBNull.Value),
-                new OracleParameter("WK_FLAG",  (object?)(work_id != null ? "Y" : null) ?? DBNull.Value),
-                new OracleParameter("WK_VAL",   (object?)work_id ?? DBNull.Value),
-                new OracleParameter("FR_FLAG",  (object?)(dFrom != null ? "Y" : null) ?? DBNull.Value),
+                new OracleParameter("WK_FLAG",   (object?)(work_id != null ? "Y" : null) ?? DBNull.Value),
+                new OracleParameter("WK_VAL",    (object?)work_id ?? DBNull.Value),
+                new OracleParameter("SRCH_FLAG", (object?)(!string.IsNullOrEmpty(search) ? "Y" : null) ?? DBNull.Value),
+                new OracleParameter("SRCH_VAL",  (object?)(!string.IsNullOrEmpty(search) ? "%" + search.ToUpper() + "%" : null) ?? DBNull.Value),
+                new OracleParameter("FR_FLAG",   (object?)(dFrom != null ? "Y" : null) ?? DBNull.Value),
                 new OracleParameter("FR_VAL",   (object?)dFrom ?? DBNull.Value),
                 new OracleParameter("TO_FLAG",  (object?)(dTo   != null ? "Y" : null) ?? DBNull.Value),
                 new OracleParameter("TO_VAL",   (object?)dTo   ?? DBNull.Value),

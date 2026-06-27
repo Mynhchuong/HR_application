@@ -480,10 +480,11 @@ public class LeaveController : BaseController
     public async Task<IActionResult> GetAdminConfirmedLeaves(
         string? dept_id = null, string? line_id = null, string? work_id = null,
         string? date_from = null, string? date_to = null, string? status = null,
+        string? search = null,
         int page = 1, int page_size = 100)
     {
         if (CurrentUser?.RoleName != "Admin") return Forbid();
-        var result = await _leaveService.GetAdminConfirmedLeavesAsync(dept_id, line_id, work_id, date_from, date_to, status, page, page_size);
+        var result = await _leaveService.GetAdminConfirmedLeavesAsync(dept_id, line_id, work_id, date_from, date_to, status, search, page, page_size);
         return Json(result);
     }
 

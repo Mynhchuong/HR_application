@@ -614,10 +614,13 @@ public class BulletinController : ControllerBase
             const string sql = @"
                 SELECT C.ID, C.BULLETIN_ID, C.EMPCD, C.CONTENT, C.INST_DT,
                        U.FULL_NAME,
-                       EC.DEPTCD, EC.LINECD, EC.WORKCD
+                       EC.CNAME EMP_CNAME,
+                       EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                       B.DEPTNM, B.TEAMNM LINENM, B.WORKNM
                 FROM HRMS.HR_BULLETIN_COMMENT C
                 LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = C.EMPCD
                 LEFT JOIN HRMS.ECM100   EC ON EC.EMPCD = C.EMPCD
+                LEFT JOIN HRMS.EAM410   B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
                 WHERE C.BULLETIN_ID = :ID
                   AND C.IS_DELETED = 0
                 ORDER BY C.INST_DT ASC, C.ID ASC";
@@ -996,9 +999,13 @@ public class BulletinController : ControllerBase
         BULLETIN_ID = Convert.ToInt32(r["BULLETIN_ID"]),
         EMPCD       = r["EMPCD"]?.ToString() ?? "",
         FULL_NAME   = r["FULL_NAME"]?.ToString(),
+        EMP_CNAME   = HasColumn(r, "EMP_CNAME") ? r["EMP_CNAME"]?.ToString() : null,
         DEPTCD      = r["DEPTCD"]?.ToString(),
         LINECD      = r["LINECD"]?.ToString(),
         WORKCD      = r["WORKCD"]?.ToString(),
+        DEPT_NAME   = HasColumn(r, "DEPTNM") ? r["DEPTNM"]?.ToString() : null,
+        LINE_NAME   = HasColumn(r, "LINENM") ? r["LINENM"]?.ToString() : null,
+        WORK_NAME   = HasColumn(r, "WORKNM") ? r["WORKNM"]?.ToString() : null,
         CONTENT     = r["CONTENT"]?.ToString() ?? "",
         INST_DT     = Convert.ToDateTime(r["INST_DT"])
     };

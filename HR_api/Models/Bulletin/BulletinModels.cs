@@ -43,9 +43,13 @@ public class BulletinCommentDto
     public int       BULLETIN_ID{ get; set; }
     public string    EMPCD      { get; set; } = "";
     public string?   FULL_NAME  { get; set; }
+    public string?   EMP_CNAME  { get; set; }
     public string?   DEPTCD     { get; set; }
     public string?   LINECD     { get; set; }
     public string?   WORKCD     { get; set; }
+    public string?   DEPT_NAME  { get; set; }
+    public string?   LINE_NAME  { get; set; }
+    public string?   WORK_NAME  { get; set; }
     public string    CONTENT    { get; set; } = "";
     public DateTime  INST_DT    { get; set; }
 }

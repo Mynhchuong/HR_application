@@ -398,6 +398,15 @@
             <div class="app-card-tag">Hồ sơ & Chữ ký</div>
         </a>
 
+        <!-- Thực đơn hôm nay -->
+        <a asp-controller="Menu" asp-action="Today" class="app-card">
+            <div class="app-icon-wrapper" style="background: linear-gradient(135deg,#fff7ed,#fed7aa);">
+                <span class="material-symbols-rounded" style="color:#ea580c;">restaurant</span>
+            </div>
+            <div class="app-card-title">Món ăn hôm nay</div>
+            <div class="app-card-tag">Thực đơn nhà bếp</div>
+        </a>
+
         <!-- Hướng dẫn sử dụng -->
         @if (user?.RoleName != "Expat")
         {

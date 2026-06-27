@@ -12,6 +12,8 @@ namespace HR_web.Helpers
         {
             _networkName = networkName;
 
+            if (!OperatingSystem.IsWindows()) return;
+
             var netResource = new NetResource
             {
                 Scope = ResourceScope.GlobalNetwork,
@@ -49,6 +51,7 @@ namespace HR_web.Helpers
 
         protected virtual void Dispose(bool disposing)
         {
+            if (!OperatingSystem.IsWindows()) return;
             WNetCancelConnection2(_networkName, 0, true);
         }
 

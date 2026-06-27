@@ -27,6 +27,30 @@
         background: #f3f4f6; color: #9ca3af; font-size: 22px;
     }
     .blt-action-btn { padding: .25rem .5rem; font-size: .8rem; }
+
+    /* Action buttons rõ ràng hơn */
+    .blt-actions {
+        display: flex;
+        gap: 4px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    .blt-actions .btn {
+        padding: .35rem .55rem;
+        font-size: .75rem;
+        font-weight: 600;
+        border-radius: 6px;
+        line-height: 1.2;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        min-width: 32px;
+        height: 30px;
+        justify-content: center;
+        margin: 0;
+    }
+    .blt-actions .btn i { font-size: 13px; }
+    .blt-actions form { display: inline-flex; margin: 0; }
 </style>
 }
 
@@ -143,55 +167,59 @@
                                     <td class="px-2 text-center">
                                         @if (!isInactive)
                                         {
-                                            <a href="@Url.Action("Edit", "BulletinAdmin", new { id = item.ID })"
-                                               class="btn btn-link p-0 px-1" title="Sửa">
-                                                <i class="bi bi-pencil-square text-info"></i>
-                                            </a>
-                                            <a href="@Url.Action("Preview", "BulletinAdmin", new { id = item.ID })"
-                                               class="btn btn-link p-0 px-1" title="Xem trước">
-                                                <i class="bi bi-eye text-primary"></i>
-                                            </a>
+                                            <div class="blt-actions">
+                                                <a href="@Url.Action("Edit", "BulletinAdmin", new { id = item.ID })"
+                                                   class="btn btn-info" title="Sửa">
+                                                    <i class="bi bi-pencil-square"></i>
+                                                </a>
+                                                <a href="@Url.Action("Preview", "BulletinAdmin", new { id = item.ID })"
+                                                   class="btn btn-primary" title="Xem trước">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
 
-
-                                            <form asp-action="TogglePin" asp-controller="BulletinAdmin" method="post" class="d-inline">
-                                                @Html.AntiForgeryToken()
-                                                <input type="hidden" name="id" value="@item.ID" />
-                                                <button type="submit" class="btn btn-link p-0 px-1" title="@(item.IS_PINNED == 1 ? "Bỏ ghim" : "Ghim")">
-                                                    <i class="bi bi-pin-angle@(item.IS_PINNED == 1 ? "-fill" : "")" style="color:@(item.IS_PINNED == 1 ? "#f59e0b" : "#9ca3af");"></i>
-                                                </button>
-                                            </form>
-
-                                            @if (isDraft)
-                                            {
-                                                <form asp-action="Publish" asp-controller="BulletinAdmin" method="post" class="d-inline"
-                                                      onsubmit="return confirm('Đăng bản tin này? Sẽ gửi thông báo cho toàn bộ nhân viên (lần đầu).');">
+                                                <form asp-action="TogglePin" asp-controller="BulletinAdmin" method="post">
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="id" value="@item.ID" />
-                                                    <button type="submit" class="btn btn-link p-0 px-1" title="Đăng">
-                                                        <i class="bi bi-cloud-upload-fill text-success"></i>
+                                                    <button type="submit"
+                                                            class="btn @(item.IS_PINNED == 1 ? "btn-warning" : "btn-outline-warning")"
+                                                            title="@(item.IS_PINNED == 1 ? "Bỏ ghim" : "Ghim")">
+                                                        <i class="bi bi-pin-angle@(item.IS_PINNED == 1 ? "-fill" : "")"></i>
                                                     </button>
                                                 </form>
-                                            }
-                                            else
-                                            {
-                                                <form asp-action="Unpublish" asp-controller="BulletinAdmin" method="post" class="d-inline"
-                                                      onsubmit="return confirm('Rút bài này khỏi danh sách hiển thị?');">
+
+                                                @if (isDraft)
+                                                {
+                                                    <form asp-action="Publish" asp-controller="BulletinAdmin" method="post"
+                                                          onsubmit="return confirm('Đăng bản tin này? Sẽ gửi thông báo cho toàn bộ nhân viên (lần đầu).');">
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="id" value="@item.ID" />
+                                                        <button type="submit" class="btn btn-success" title="Đăng">
+                                                            <i class="bi bi-cloud-upload-fill"></i>
+                                                            <span class="d-none d-lg-inline">Đăng</span>
+                                                        </button>
+                                                    </form>
+                                                }
+                                                else
+                                                {
+                                                    <form asp-action="Unpublish" asp-controller="BulletinAdmin" method="post"
+                                                          onsubmit="return confirm('Rút bài này khỏi danh sách hiển thị?');">
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="id" value="@item.ID" />
+                                                        <button type="submit" class="btn btn-outline-secondary" title="Rút bài">
+                                                            <i class="bi bi-cloud-slash"></i>
+                                                        </button>
+                                                    </form>
+                                                }
+
+                                                <form asp-action="Delete" asp-controller="BulletinAdmin" method="post"
+                                                      onsubmit="return confirm('Xóa bản tin này?');">
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="id" value="@item.ID" />
-                                                    <button type="submit" class="btn btn-link p-0 px-1" title="Rút bài">
-                                                        <i class="bi bi-cloud-slash text-warning"></i>
+                                                    <button type="submit" class="btn btn-danger" title="Xóa">
+                                                        <i class="bi bi-trash"></i>
                                                     </button>
                                                 </form>
-                                            }
-
-                                            <form asp-action="Delete" asp-controller="BulletinAdmin" method="post" class="d-inline"
-                                                  onsubmit="return confirm('Xóa bản tin này?');">
-                                                @Html.AntiForgeryToken()
-                                                <input type="hidden" name="id" value="@item.ID" />
-                                                <button type="submit" class="btn btn-link p-0 px-1" title="Xóa">
-                                                    <i class="bi bi-trash text-danger"></i>
-                                                </button>
-                                            </form>
+                                            </div>
                                         }
                                     </td>
                                 </tr>

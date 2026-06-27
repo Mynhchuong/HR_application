@@ -544,7 +544,18 @@ function calcAssignDays() {
         showToast('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)', 'warning');
         return;
     }
-    if (f && t) { const diff = (new Date(t)-new Date(f))/86400000+1; if(diff>0) $('#assignTotalDays').val(diff); }
+    if (f && t) {
+        const pf = f.split('-'), pt = t.split('-');
+        const d1 = Date.UTC(+pf[0], +pf[1]-1, +pf[2]);
+        const d2 = Date.UTC(+pt[0], +pt[1]-1, +pt[2]);
+        if (d2 >= d1) {
+            let count = 0;
+            for (let d = d1; d <= d2; d += 86400000) {
+                if (new Date(d).getUTCDay() !== 0) count++;
+            }
+            $('#assignTotalDays').val(count);
+        }
+    }
 }
 
 async function submitAssign() {

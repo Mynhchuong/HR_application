@@ -112,6 +112,38 @@ public class BulletinAdminController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // POST /BulletinAdmin/SaveAjax  — auto-save nháp từ JS (trước khi upload video)
+    // Trả JSON {success, id, message} — KHÔNG redirect
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveAjax(BulletinEditViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.TITLE) || string.IsNullOrWhiteSpace(model.CONTENT))
+            return Json(new { success = false, message = "Vui lòng điền tiêu đề và nội dung trước khi upload video" });
+
+        if (!model.PUBLISH_FROM.HasValue || !model.PUBLISH_TO.HasValue)
+            return Json(new { success = false, message = "Vui lòng chọn ngày đăng và ngày kết thúc" });
+
+        var req = new SaveBulletinRequest
+        {
+            ID           = model.ID == 0 ? null : model.ID,
+            TITLE        = model.TITLE.Trim(),
+            CONTENT      = model.CONTENT,
+            COVER_IMG    = string.IsNullOrWhiteSpace(model.COVER_IMG) ? null : model.COVER_IMG.Trim(),
+            PUBLISH_FROM = model.PUBLISH_FROM.Value,
+            PUBLISH_TO   = model.PUBLISH_TO.Value,
+            IS_PINNED    = model.IS_PINNED,
+            PIN_ORDER    = model.PIN_ORDER,
+            LOGIN_USER   = CurrentUser?.EmpCd,
+            LOGIN_NAME   = CurrentUser?.FullName
+        };
+
+        var (ok, msg, newId) = await _service.SaveAsync(req);
+        return Json(new { success = ok, message = msg, id = newId > 0 ? newId : model.ID });
+    }
+
+    // ─────────────────────────────────────────────
     // GET /BulletinAdmin/Preview/{id}
     // ─────────────────────────────────────────────
     public async Task<IActionResult> Preview(int id)

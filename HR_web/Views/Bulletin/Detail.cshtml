@@ -79,7 +79,27 @@
 
     /* ─── Comments ─── */
     .cmt-section { margin-top: 24px; }
-    .cmt-heading { font-weight: 700; color: #111827; font-size: 1rem; margin-bottom: 14px; }
+    .cmt-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+    .cmt-heading { font-weight: 700; color: #111827; font-size: 1rem; margin-bottom: 0; }
+    .cmt-sort-select {
+        font-size: .82rem;
+        padding: 4px 8px;
+        border-radius: 8px;
+        border: 1.5px solid #e5e7eb;
+        background-color: #fff;
+        color: #374151;
+        outline: none;
+        cursor: pointer;
+        font-weight: 600;
+    }
+    .cmt-sort-select:focus {
+        border-color: #f59e0b;
+    }
     .cmt-item {
         background: #f9fafb; border-radius: 10px;
         padding: 10px 14px; margin-bottom: 10px;
@@ -114,6 +134,13 @@
 
     .cmt-replies { margin-top: 8px; margin-left: 28px; }
     .cmt-replies .cmt-item { background: #fff; border: 1px solid #e5e7eb; }
+    .more-replies-btn-wrap { margin-top: 4px; margin-bottom: 8px; }
+    .more-replies-btn {
+        background: none; border: none; padding: 0;
+        color: #f59e0b; font-weight: 700; font-size: .8rem;
+        cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .more-replies-btn:hover { color: #d97706; text-decoration: underline; }
 
     .cmt-reply-box {
         display: flex; gap: 6px; margin: 8px 0 6px 28px;
@@ -234,9 +261,16 @@
 
     <!-- Comments -->
     <div class="cmt-section">
-        <div class="cmt-heading">
-            <i class="bi bi-chat-square-text me-1"></i>
-            Bình luận (<span id="cmtCount">@Model.COMMENT_COUNT</span>)
+        <div class="cmt-header-row">
+            <div class="cmt-heading">
+                <i class="bi bi-chat-square-text me-1"></i>
+                Bình luận (<span id="cmtCount">@Model.COMMENT_COUNT</span>)
+            </div>
+            <select id="cmtSortSelect" class="cmt-sort-select" onchange="renderSortedComments(true)">
+                <option value="all">Tất cả</option>
+                <option value="newest">Mới nhất</option>
+                <option value="interacted">Tương tác nhiều nhất</option>
+            </select>
         </div>
         <div id="cmtList">
             <div class="cmt-empty"><i class="bi bi-hourglass-split"></i> Đang tải...</div>
@@ -324,11 +358,12 @@
     }
 
     // ── Load comments ──
-    async function loadComments() {
+    let _allComments = [];
+    async function loadComments(isInitial = false) {
         try {
             const res = await fetch('@Url.Action("Comments", "Bulletin")/' + BULLETIN_ID);
             const data = await res.json();
-            renderComments(data.data || []);
+            renderComments(data.data || [], isInitial);
         } catch (e) {
             document.getElementById('cmtList').innerHTML = '<div class="cmt-empty">Không tải được bình luận.</div>';
         }
@@ -362,29 +397,104 @@
             </div>`;
     }
 
-    function renderComments(items) {
+    let _sortedRootIds = null;
+    const _expandedThreadIds = new Set();
+
+    function renderComments(items, forceSort = false) {
+        _allComments = items;
+        renderSortedComments(forceSort);
+    }
+
+    function renderSortedComments(forceSort = false) {
         const list = document.getElementById('cmtList');
-        document.getElementById('cmtCount').textContent = items.length;
-        if (items.length === 0) {
+        document.getElementById('cmtCount').textContent = _allComments.length;
+        if (_allComments.length === 0) {
             list.innerHTML = '<div class="cmt-empty">Chưa có bình luận. Hãy là người đầu tiên!</div>';
+            _sortedRootIds = null;
+            _expandedThreadIds.clear();
             return;
         }
-        const roots = items.filter(c => !c.PARENT_ID);
+
+        if (forceSort) {
+            _expandedThreadIds.clear();
+        }
+
+        let roots = _allComments.filter(c => !c.PARENT_ID);
         const childrenByRoot = {};
-        items.filter(c => c.PARENT_ID).forEach(c => {
+        _allComments.filter(c => c.PARENT_ID).forEach(c => {
             (childrenByRoot[c.PARENT_ID] ||= []).push(c);
         });
 
+        const sortType = document.getElementById('cmtSortSelect')?.value || 'all';
+
+        if (forceSort || !_sortedRootIds || _sortedRootIds.length === 0) {
+            if (sortType === 'newest') {
+                roots.sort((a, b) => new Date(b.INST_DT) - new Date(a.INST_DT));
+            } else if (sortType === 'interacted') {
+                roots.sort((a, b) => {
+                    const countA = (childrenByRoot[a.ID] || []).length;
+                    const countB = (childrenByRoot[b.ID] || []).length;
+                    if (countB !== countA) {
+                        return countB - countA;
+                    }
+                    return new Date(b.INST_DT) - new Date(a.INST_DT);
+                });
+            } else {
+                roots.sort((a, b) => new Date(a.INST_DT) - new Date(b.INST_DT));
+            }
+            _sortedRootIds = roots.map(r => r.ID);
+        } else {
+            const existingRoots = roots.filter(r => _sortedRootIds.includes(r.ID));
+            existingRoots.sort((a, b) => _sortedRootIds.indexOf(a.ID) - _sortedRootIds.indexOf(b.ID));
+            const newRoots = roots.filter(r => !_sortedRootIds.includes(r.ID));
+            if (sortType === 'newest') {
+                roots = [...newRoots, ...existingRoots];
+            } else {
+                roots = [...existingRoots, ...newRoots];
+            }
+            _sortedRootIds = roots.map(r => r.ID);
+        }
+
         list.innerHTML = roots.map(c => {
-            const replies = (childrenByRoot[c.ID] || [])
-                .map(r => commentHtml(r, true)).join('');
+            const repliesArray = childrenByRoot[c.ID] || [];
+            let repliesHtml = '';
+            if (repliesArray.length > 0) {
+                const isExpanded = _expandedThreadIds.has(c.ID) || (repliesArray.length <= 2);
+                if (isExpanded) {
+                    repliesHtml = `
+                        <div class="cmt-replies">
+                            ${repliesArray.map(r => commentHtml(r, true)).join('')}
+                        </div>`;
+                } else {
+                    repliesHtml = `
+                        <div class="cmt-replies">
+                            ${repliesArray.slice(0, 2).map(r => commentHtml(r, true)).join('')}
+                            <div id="moreReplies-${c.ID}" style="display: none;">
+                                ${repliesArray.slice(2).map(r => commentHtml(r, true)).join('')}
+                            </div>
+                            <div id="moreBtnContainer-${c.ID}" class="more-replies-btn-wrap">
+                                <button class="more-replies-btn" onclick="showAllReplies(${c.ID})">
+                                    <i class="bi bi-arrow-return-right me-1"></i> Xem thêm ${repliesArray.length - 2} phản hồi
+                                </button>
+                            </div>
+                        </div>`;
+                }
+            }
             return `
                 <div class="cmt-thread">
                     ${commentHtml(c, false)}
-                    ${replies ? `<div class="cmt-replies">${replies}</div>` : ''}
+                    ${repliesHtml}
                     <div id="replyBox-${c.ID}"></div>
                 </div>`;
         }).join('');
+    }
+
+    function showAllReplies(parentId) {
+        _expandedThreadIds.add(parentId);
+        const div = document.getElementById('moreReplies-' + parentId);
+        const btn = document.getElementById('moreBtnContainer-' + parentId);
+        if (div) div.style.display = 'block';
+        if (btn) btn.style.display = 'none';
     }
 
     // ── Reply ──
@@ -417,6 +527,7 @@
             const res = await fetch('@Url.Action("AddComment", "Bulletin")', { method: 'POST', body: fd });
             const data = await res.json();
             if (data.success) {
+                _expandedThreadIds.add(parentId);
                 await loadComments();
             } else {
                 showToast(data.message || 'Lỗi gửi trả lời', 'error');
@@ -543,7 +654,7 @@
     });
 
     // Initial load
-    loadComments();
+    loadComments(true);
 
     // Enter to send (Shift+Enter newline)
     document.getElementById('cmtInput').addEventListener('keydown', (e) => {

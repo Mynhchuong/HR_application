@@ -77,11 +77,16 @@ public class BulletinController : BaseController
         {
             c.ID,
             c.BULLETIN_ID,
+            c.PARENT_ID, 
             c.EMPCD,
             c.FULL_NAME,
+            c.EMP_CNAME, 
             c.DEPTCD,
             c.LINECD,
             c.WORKCD,
+            c.DEPT_NAME, 
+            c.LINE_NAME, 
+            c.WORK_NAME,
             c.CONTENT,
             c.INST_DT,
             CAN_DELETE = isAdmin

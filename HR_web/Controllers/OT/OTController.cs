@@ -31,11 +31,13 @@ public class OTController : BaseController
                 ViewBag.Error = "Không có dữ liệu OT hoặc không thể kết nối máy chủ.";
 
             ViewBag.WorkDate = selectedDate;
+            ViewBag.HasSignature = CurrentUser?.SIGNATUREBLOB == "Y";
             return View(data);
         }
         catch (Exception ex)
         {
             ViewBag.Error = ex.Message;
+            ViewBag.HasSignature = CurrentUser?.SIGNATUREBLOB == "Y";
             return View((OTTodayModel?)null);
         }
     }

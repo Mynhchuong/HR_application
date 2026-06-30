@@ -4,6 +4,7 @@
 @{
     ViewData["Title"] = "Xác nhận Tăng ca";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    bool hasSignature = ViewBag.HasSignature == true;
 }
 
 <style>
@@ -112,6 +113,44 @@
         border-radius: 999px;
         font-size: 0.85rem;
         font-weight: 700;
+    }
+
+    .ot-signature-panel {
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px dashed #cbd5e1;
+        border-radius: 24px;
+        padding: 1rem;
+        margin: -0.5rem 0 2rem;
+        text-align: center;
+    }
+
+    .ot-signature-label {
+        color: #64748b;
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.75rem;
+        text-transform: uppercase;
+    }
+
+    .ot-signature-img {
+        background: #fff;
+        border-radius: 16px;
+        height: 165px;
+        margin: 0 auto;
+        max-height: 165px;
+        max-width: 100%;
+        padding: 0.5rem 1rem;
+    }
+
+    img.ot-signature-img {
+        display: block;
+        object-fit: contain;
+    }
+
+    div.ot-signature-img {
+        display: flex;
     }
 
     /* Action Buttons - Large and Touch Friendly */
@@ -341,6 +380,22 @@
                             <span class="status-badge @statusClass">@statusText</span>
                         </span>
                     </div>
+                </div>
+                <div class="ot-signature-panel">
+                    <span class="ot-signature-label">Chữ ký xác nhận</span>
+                    @if (hasSignature)
+                    {
+                        <img src="@Url.Action("GetSignature", "Image", new { empCd = Model.EMPCD })"
+                             class="ot-signature-img"
+                             alt="Chữ ký @Model.EMPCD" />
+                    }
+                    else
+                    {
+                        <div class="ot-signature-img align-items-center justify-content-center text-muted">
+                            <span class="material-symbols-rounded me-1" style="font-size:1.2rem;">draw</span>
+                            <span style="font-size:0.85rem;">Chưa có chữ ký</span>
+                        </div>
+                    }
                 </div>
 
                 @if (Model.IS_EDITABLE)

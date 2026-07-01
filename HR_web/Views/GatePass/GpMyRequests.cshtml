@@ -14,6 +14,11 @@
     .sig-lbl   { font-size:.65rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px; }
     .sig-img   { max-height:50px; max-width:130px; object-fit:contain; }
     .sig-name  { font-size:.7rem; color:#64748b; margin-top:2px; }
+    .sig-cell      { display:flex; gap:6px; justify-content:center; align-items:flex-start; flex-wrap:wrap; }
+    .sig-cell-item { text-align:center; min-width:80px; }
+    .sig-cell-lbl  { font-size:.6rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
+    .sig-cell-img  { display:block; margin:0 auto; max-height:55px; max-width:110px; object-fit:contain; background:#fafafa; border-radius:4px; padding:2px; }
+    .sig-cell-name { font-size:.65rem; color:#64748b; margin-top:2px; line-height:1.2; }
 
     /* Date filter mobile */
     @@media (max-width: 576px) {
@@ -71,6 +76,7 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Giờ</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Lý Do</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Tình Trạng</th>
+                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Chữ Ký</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Thao Tác</th>
                         </tr>
                     </thead>
@@ -208,6 +214,20 @@ function sigBlock(item) {
 
 function buildRow(item, idx) {
     const dateStr = formatDate(item.OUT_TIME || item.IN_TIME);
+
+    const reqSig = CURRENT_EMPCD
+        ? `<div class="sig-cell-item">
+               <div class="sig-cell-lbl">Người ký</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(CURRENT_EMPCD)}" class="sig-cell-img" onerror="this.remove()" alt="Chữ ký"/>
+           </div>` : '';
+    const apSig = item.FINAL_APPROVER
+        ? `<div class="sig-cell-item">
+               <div class="sig-cell-lbl">Người duyệt</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.FINAL_APPROVER)}" class="sig-cell-img" onerror="this.remove()" alt="Chữ ký"/>
+               ${item.APPROVER_NAME ? `<div class="sig-cell-name vni-font">${escHtml(item.APPROVER_NAME)}</div>` : ''}
+           </div>` : '';
+    const sigCell = `<div class="sig-cell">${reqSig}${apSig}</div>`;
+
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2">${gpBadge(item.GP_TYPE)}</td>
@@ -215,6 +235,7 @@ function buildRow(item, idx) {
         <td class="px-2 text-sm text-nowrap">${timeCell(item)}</td>
         <td class="px-2 text-sm"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
         <td class="text-center">${statusBadge(item.STATUS)}${remarkHtml(item)}</td>
+        <td class="text-center">${sigCell}</td>
         <td class="text-center">${actionBtns(item)}</td>
     </tr>`;
 }
@@ -245,7 +266,7 @@ function buildCard(item, idx) {
 
 function loadData(page = 1) {
     currentPage = page;
-    const spinner = `<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-warning" role="status"></div></td></tr>`;
+    const spinner = `<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-warning" role="status"></div></td></tr>`;
     $('#gpTableBody').html(spinner);
     $('#gpCardList').html('<div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div></div>');
     $.ajax({
@@ -253,7 +274,7 @@ function loadData(page = 1) {
         data: { page, page_size: pageSize, date_from: $('#filterDate').val(), date_to: $('#filterDate').val() },
         success: function(res) {
             if (!res.success) {
-                const err = `<tr><td colspan="7" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`;
+                const err = `<tr><td colspan="8" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`;
                 $('#gpTableBody').html(err);
                 $('#gpCardList').html(`<div class="text-center text-danger py-4">Lỗi: ${res.message||''}</div>`);
                 return;
@@ -272,7 +293,7 @@ function loadData(page = 1) {
         },
         error: function(xhr) {
             const err = `Lỗi kết nối (${xhr.status})`;
-            $('#gpTableBody').html(`<tr><td colspan="7" class="text-center text-danger py-4">${err}</td></tr>`);
+            $('#gpTableBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">${err}</td></tr>`);
             $('#gpCardList').html(`<div class="text-center text-danger py-4">${err}</div>`);
         }
     });

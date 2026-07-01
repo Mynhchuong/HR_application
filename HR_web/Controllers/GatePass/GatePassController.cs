@@ -20,8 +20,9 @@ public class GatePassController : BaseController
     // ─────────────────────────────────────────────
     public IActionResult GpRequestForm()
     {
-        ViewBag.Today    = DateTime.Today.ToString("yyyy-MM-dd");
-        ViewBag.Tomorrow = DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
+        ViewBag.Today        = DateTime.Today.ToString("yyyy-MM-dd");
+        ViewBag.Tomorrow     = DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd;
         return View();
     }
 
@@ -87,6 +88,7 @@ public class GatePassController : BaseController
     // ─────────────────────────────────────────────
     public IActionResult GpMyRequests()
     {
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
         return View();
     }
 

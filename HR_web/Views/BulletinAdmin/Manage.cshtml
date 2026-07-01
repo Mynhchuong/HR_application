@@ -27,6 +27,15 @@
         background: #f3f4f6; color: #9ca3af; font-size: 22px;
     }
     .blt-action-btn { padding: .25rem .5rem; font-size: .8rem; }
+    .blt-title-cell {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.3;
+        max-width: 480px;
+    }
 
     /* Action buttons rõ ràng hơn */
     .blt-actions {
@@ -56,15 +65,15 @@
 
 <div class="container-fluid py-4">
     <div class="card my-4">
-        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
-            <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h6 class="text-white mb-0">
-                    <i class="bi bi-megaphone-fill me-1"></i> Quản lý bản tin
-                </h6>
-                <a href="@Url.Action("Edit", "BulletinAdmin")" class="btn btn-sm btn-white mb-0 d-flex align-items-center" style="height:36px;">
-                    <i class="bi bi-plus-lg me-1"></i> Thêm bản tin
-                </a>
-            </div>
+        <div class="card-header border-bottom px-3 d-flex justify-content-between align-items-center flex-wrap gap-2"
+             style="background: linear-gradient(120deg,#fef3c7,#fde68a); color:#92400e; padding-top:.4rem; padding-bottom:.4rem; min-height:40px;">
+            <span class="d-flex align-items-center" style="font-weight:700; font-size:.9rem;">
+                <i class="bi bi-megaphone-fill me-2" style="font-size:1rem;"></i> Quản lý bản tin
+            </span>
+            <a href="@Url.Action("Edit", "BulletinAdmin")" class="btn btn-sm btn-warning mb-0 d-flex align-items-center"
+               style="height:26px; font-size:.75rem; font-weight:600; padding:0 .6rem;">
+                <i class="bi bi-plus-lg me-1"></i> Thêm bản tin
+            </a>
         </div>
 
         <div class="card-body px-0 pt-0 pb-2 mt-1">
@@ -146,7 +155,7 @@
                                         }
                                     </td>
                                     <td class="px-2">
-                                        <div class="fw-bold text-dark text-sm">@item.TITLE</div>
+                                        <div class="fw-bold text-dark text-sm blt-title-cell" title="@item.TITLE">@item.TITLE</div>
                                         <div class="text-xs text-secondary">
                                             Tạo @(item.INST_DT?.ToString("dd/MM/yyyy HH:mm")) bởi @item.INST_ID
                                         </div>

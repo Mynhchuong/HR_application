@@ -982,15 +982,48 @@ public class OTController : ControllerBase
     {
         try
         {
-            string workDateStr = model.work_date;
-            string deptId = model.dept_id;
-            string createdBy = model.created_by;
+            string workDateStr = (string)model.work_date;
+            string? deptId    = (string?)model.dept_id;
+            string createdBy  = (string)model.created_by;
 
-            // Logic gửi thông báo cho những ai chưa ký OT
-            // Ở đây gửi thông báo theo Department 
-            _notiSvc.OTSignReminder(workDateStr, createdBy, string.IsNullOrEmpty(deptId) ? null : deptId);
+            if (string.IsNullOrWhiteSpace(workDateStr) || !DateTime.TryParse(workDateStr, out var workDate))
+                return Ok(new { success = false, message = "Ngày không hợp lệ" });
 
-            return Ok(new { success = true, message = "Đã gửi thông báo nhắc nhở" });
+            const string sqlPending = @"
+                WITH OT_BASE AS (
+                    SELECT EMPCD, DAT, SHIFTCD,
+                           MAX(OVER_TIME) OT_HOURS, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_AFTER) OT_AFTER
+                    FROM (
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_AFTER FROM HRMS.EBM300      WHERE DAT = :WORK_DATE
+                        UNION ALL
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_AFTER FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2
+                    ) GROUP BY EMPCD, DAT, SHIFTCD
+                )
+                SELECT DISTINCT EC.EMPCD
+                FROM OT_BASE OT
+                JOIN HRMS.ECM100 EC ON EC.EMPCD = OT.EMPCD
+                LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :WORK_DATE3
+                                               AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
+                WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
+                  AND NVL(OT.OT_HOURS,0) > 0
+                  AND NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING'
+                  AND (:DPT_FLAG IS NULL OR EC.DEPTCD = :DPT_VAL)";
+
+            var pendingEmpCds = await _oracleService.ExecuteQueryAsync(
+                sqlPending, r => r["EMPCD"]?.ToString() ?? "",
+                new OracleParameter("WORK_DATE",  OracleDbType.Date) { Value = workDate },
+                new OracleParameter("WORK_DATE2", OracleDbType.Date) { Value = workDate },
+                new OracleParameter("WORK_DATE3", OracleDbType.Date) { Value = workDate },
+                new OracleParameter("DPT_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(deptId) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("DPT_VAL",  OracleDbType.Varchar2) { Value = (object?)deptId ?? DBNull.Value });
+
+            if (pendingEmpCds.Count == 0)
+                return Ok(new { success = true, message = "Không có nhân viên nào đang chờ ký", sent = 0 });
+
+            _notiSvc.OTSignReminderToEmployees(pendingEmpCds, createdBy, workDate.ToString("dd/MM/yyyy"));
+
+            return Ok(new { success = true, message = $"Đã gửi nhắc nhở cho {pendingEmpCds.Count} nhân viên", sent = pendingEmpCds.Count });
         }
         catch (Exception ex)
         {

@@ -154,6 +154,18 @@
                         <textarea name="reason" id="reason" class="form-control gp-textarea" rows="3" maxlength="500" placeholder="Nhập lý do... (bắt buộc)"></textarea>
                     </div>
 
+                    @{
+                        string? myEmpCd = ViewBag.CurrentEmpCd as string;
+                    }
+                    <div class="mb-4">
+                        <label class="gp-label">Chữ Ký Xác Nhận</label>
+                        <div style="background:#fff;border:1px dashed #d1d5db;border-radius:12px;padding:.5rem;text-align:center;min-height:120px;display:flex;align-items:center;justify-content:center;">
+                            <img src="@Url.Action("GetSignature", "Image", new { empCd = myEmpCd })"
+                                 alt="Chữ ký @myEmpCd"
+                                 style="max-height:110px;max-width:100%;object-fit:contain;" />
+                        </div>
+                    </div>
+
                     <div class="d-grid gap-2 mt-3">
                         <button type="submit" class="btn btn-primary btn-submit" id="submitBtn">
                             <i class="bi bi-send me-1"></i> Gửi Đăng Ký

@@ -47,6 +47,9 @@ public class GpMyRequestModel
     public string? STATUS { get; set; }
     public DateTime? CREATED_DATE { get; set; }
     public bool IS_EDITABLE { get; set; }
+    public string? FINAL_APPROVER { get; set; }
+    public string? APPROVER_NAME  { get; set; }
+    public DateTime? FINAL_DATE   { get; set; }
 }
 
 public class GpListModel

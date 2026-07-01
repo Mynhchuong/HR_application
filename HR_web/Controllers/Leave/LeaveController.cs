@@ -25,6 +25,7 @@ public class LeaveController : BaseController
         ViewBag.DateFrom = DateTime.Today.AddMonths(-3).ToString("yyyy-MM-dd");
         ViewBag.DateTo   = DateTime.Today.AddMonths(3).ToString("yyyy-MM-dd");
         ViewBag.CanTakeSundayLeave = await _leaveService.CheckSundayAllowedAsync(CurrentUser?.EmpCd ?? "");
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
         return View();
     }
 

@@ -226,24 +226,29 @@ public class GatePassController : ControllerBase
                     SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.CREATED_DATE DESC) RN
                     FROM (
                         SELECT GP.REQUEST_ID, GP.GP_TYPE, GP.OUT_TIME, GP.IN_TIME, GP.REASON,
-                               R.STATUS, R.REMARK, GP.CREATED_DATE
+                               R.STATUS, R.REMARK, GP.CREATED_DATE,
+                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE
                         FROM HRMS.HR_GATEPASS_REQUEST GP
-                        JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = GP.REQUEST_ID
+                        JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID = GP.REQUEST_ID
+                        LEFT JOIN HRMS.ECM100 AP ON AP.EMPCD    = R.FINAL_APPROVER
                         WHERE GP.EMPCD = :EMPCD1" + dateFilter.Replace(":D_FROM", ":D_FROM1").Replace(":D_TO", ":D_TO1") + @"
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
 
             var list = await _oracleService.ExecuteQueryAsync(dataSql, r => new GpMyRequestModel
             {
-                REQUEST_ID   = r["REQUEST_ID"]?.ToString() ?? "",
-                GP_TYPE      = r["GP_TYPE"]?.ToString(),
-                OUT_TIME     = r["OUT_TIME"]    == DBNull.Value ? null : Convert.ToDateTime(r["OUT_TIME"]),
-                IN_TIME      = r["IN_TIME"]     == DBNull.Value ? null : Convert.ToDateTime(r["IN_TIME"]),
-                REASON       = r["REASON"]?.ToString(),
-                REMARK       = r["REMARK"]?.ToString(),
-                STATUS       = r["STATUS"]?.ToString(),
-                CREATED_DATE = r["CREATED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CREATED_DATE"]),
-                IS_EDITABLE  = (r["STATUS"]?.ToString() ?? "PENDING") == "PENDING"
+                REQUEST_ID     = r["REQUEST_ID"]?.ToString() ?? "",
+                GP_TYPE        = r["GP_TYPE"]?.ToString(),
+                OUT_TIME       = r["OUT_TIME"]    == DBNull.Value ? null : Convert.ToDateTime(r["OUT_TIME"]),
+                IN_TIME        = r["IN_TIME"]     == DBNull.Value ? null : Convert.ToDateTime(r["IN_TIME"]),
+                REASON         = r["REASON"]?.ToString(),
+                REMARK         = r["REMARK"]?.ToString(),
+                STATUS         = r["STATUS"]?.ToString(),
+                CREATED_DATE   = r["CREATED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CREATED_DATE"]),
+                IS_EDITABLE    = (r["STATUS"]?.ToString() ?? "PENDING") == "PENDING",
+                FINAL_APPROVER = r["FINAL_APPROVER"]?.ToString(),
+                APPROVER_NAME  = r["APPROVER_NAME"]?.ToString(),
+                FINAL_DATE     = r["FINAL_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"])
             },
             new OracleParameter("EMPCD1",  empcd),
             new OracleParameter("D_FROM1", dfrom.Date),

@@ -9,6 +9,11 @@
     .pagination .page-item.disabled .page-link { cursor: default; }
     .pagination .page-item.active .page-link { background: #ef4444; border-color: #ef4444; }
     .txt-clamp { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:180px; cursor:default; }
+    .sig-panel { display:flex; gap:12px; justify-content:space-around; margin:8px 0; padding:8px; border-top:1px dashed #e5e7eb; }
+    .sig-col   { flex:1; text-align:center; min-width:0; }
+    .sig-lbl   { font-size:.65rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px; }
+    .sig-img   { max-height:50px; max-width:130px; object-fit:contain; }
+    .sig-name  { font-size:.7rem; color:#64748b; margin-top:2px; }
 
     /* Date filter mobile */
     @@media (max-width: 576px) {
@@ -127,9 +132,11 @@
 
 @section Scripts {
 <script>
-const PAGE_URL   = '@Url.Action("GetMyRequestsPage", "GatePass")';
-const UPDATE_URL = '@Url.Action("UpdateRequest",     "GatePass")';
-const DELETE_URL = '@Url.Action("DeleteRequest",     "GatePass")';
+const PAGE_URL      = '@Url.Action("GetMyRequestsPage", "GatePass")';
+const UPDATE_URL    = '@Url.Action("UpdateRequest",     "GatePass")';
+const DELETE_URL    = '@Url.Action("DeleteRequest",     "GatePass")';
+const SIG_URL       = '@Url.Action("GetSignature",      "Image")';
+const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 20;
 
@@ -183,6 +190,22 @@ function timeCell(item) {
     return `<span class="text-muted small">Ra:</span> ${out} <span class="text-muted small ms-1">Vào:</span> ${inn}`;
 }
 
+function sigBlock(item) {
+    const mySig = CURRENT_EMPCD
+        ? `<div class="sig-col">
+               <div class="sig-lbl">Người ký</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(CURRENT_EMPCD)}" class="sig-img" onerror="this.remove()" alt="Chữ ký"/>
+           </div>` : '';
+    const apSig = (item.STATUS === 'APPROVED' && item.FINAL_APPROVER)
+        ? `<div class="sig-col">
+               <div class="sig-lbl">Người duyệt</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.FINAL_APPROVER)}" class="sig-img" onerror="this.remove()" alt="Chữ ký"/>
+               ${item.APPROVER_NAME ? `<div class="sig-name">${escHtml(item.APPROVER_NAME)}</div>` : ''}
+           </div>` : '';
+    if (!mySig && !apSig) return '';
+    return `<div class="sig-panel">${mySig}${apSig}</div>`;
+}
+
 function buildRow(item, idx) {
     const dateStr = formatDate(item.OUT_TIME || item.IN_TIME);
     return `<tr>
@@ -212,6 +235,7 @@ function buildCard(item, idx) {
         <div class="gp-card-row"><span class="gp-card-label">Lý do</span></div>
         <div class="text-sm text-dark mb-0">${escHtml(item.REASON||'-')}</div>
         ${remarkHtml(item)}
+        ${sigBlock(item)}
         <div class="gp-card-footer">
             <span></span>
             <div>${actionBtns(item)}</div>

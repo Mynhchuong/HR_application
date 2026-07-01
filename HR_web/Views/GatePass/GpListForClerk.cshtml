@@ -10,6 +10,7 @@
     .pagination .page-link { cursor: pointer; }
     .txt-clamp { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:160px; cursor:default; }
     .pagination .page-item.disabled .page-link { cursor: default; }
+    .sig-thumb { display:block; max-height:28px; max-width:120px; margin-top:3px; object-fit:contain; opacity:.9; }
 </style>
 }
 
@@ -84,6 +85,7 @@
 @section Scripts {
 <script>
 const PAGE_URL = '@Url.Action("GetClerkPage", "GatePass")';
+const SIG_URL  = '@Url.Action("GetSignature", "Image")';
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 
 const GP_TYPE_LABEL = { IN: 'Đến trễ', OUT: 'Về sớm', MID: 'Ra/Vào trong giờ làm' };
@@ -108,6 +110,7 @@ function buildRow(item, idx) {
         <td class="px-2">
             <div class="emp-name vni-font" style="text-transform:uppercase;font-size:.9rem;">${escHtml(item.EMP_NAME||'')}</div>
             ${deptLine ? `<div class="text-xxs text-secondary">${escHtml(deptLine)}</div>` : ''}
+            ${item.EMPCD ? `<img src="${SIG_URL}?empCd=${encodeURIComponent(item.EMPCD)}" class="sig-thumb" onerror="this.remove()" alt="Chữ ký"/>` : ''}
         </td>
         <td class="px-2 text-sm"><span class="badge bg-info">${gpLabel}</span></td>
         <td class="px-2 text-sm">${dateStr}</td>

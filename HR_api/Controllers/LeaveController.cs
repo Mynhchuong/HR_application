@@ -161,9 +161,11 @@ public class LeaveController : ControllerBase
                     FROM (
                         SELECT L.REQUEST_ID, L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS,
                                L.REASON, L.SOURCE, L.CONFIRM_STATUS, L.CONFIRM_DATE,
-                               R.STATUS, R.REMARK, L.CREATED_DATE
+                               R.STATUS, R.REMARK, L.CREATED_DATE,
+                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE
                         FROM HRMS.HR_LEAVE_REQUEST L
-                        JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
+                        JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID = L.REQUEST_ID
+                        LEFT JOIN HRMS.ECM100 AP ON AP.EMPCD    = R.FINAL_APPROVER
                         WHERE L.EMPCD = :EMPCD1
                           AND R.REQUEST_TYPE = 'LEAVE'
                           AND L.FROM_DATE >= :D_FROM1 AND L.FROM_DATE <= :D_TO1
@@ -185,7 +187,10 @@ public class LeaveController : ControllerBase
                 STATUS         = r["STATUS"]?.ToString(),
                 REMARK         = r["REMARK"]?.ToString(),
                 CREATED_DATE   = r["CREATED_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["CREATED_DATE"]),
-                IS_EDITABLE    = r["STATUS"]?.ToString() == "PENDING" && r["SOURCE"]?.ToString() == "SELF"
+                IS_EDITABLE    = r["STATUS"]?.ToString() == "PENDING" && r["SOURCE"]?.ToString() == "SELF",
+                FINAL_APPROVER = r["FINAL_APPROVER"]?.ToString(),
+                APPROVER_NAME  = r["APPROVER_NAME"]?.ToString(),
+                FINAL_DATE     = r["FINAL_DATE"]     == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"])
             },
             new OracleParameter("EMPCD1",    empcd),
             new OracleParameter("D_FROM1",   dfrom.Date),

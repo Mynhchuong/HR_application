@@ -9,6 +9,7 @@
     #gpTableBody tr td { vertical-align: middle; }
     .pagination .page-link { cursor: pointer; }
     .txt-clamp { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:160px; cursor:default; }
+    .sig-thumb { display:block; max-height:28px; max-width:120px; margin-top:3px; object-fit:contain; opacity:.9; }
     .pagination .page-item.disabled .page-link { cursor: default; }
     @@media (max-width: 767px) {
         .container-fluid { padding-left: 8px !important; padding-right: 8px !important; }
@@ -126,6 +127,7 @@
 const PAGE_URL      = '@Url.Action("GetSupervisorPage",  "GatePass")';
 const APPROVE_URL   = '@Url.Action("ApproveRequest",     "GatePass")';
 const REJECT_URL    = '@Url.Action("RejectRequest",      "GatePass")';
+const SIG_URL       = '@Url.Action("GetSignature",       "Image")';
 const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
 const CURRENT_ROLE  = '@ViewBag.CurrentRole';
 const CAN_APPROVE   = ['Supervisor', 'DeputyManager', 'Manager', 'Admin'].includes(CURRENT_ROLE);
@@ -177,10 +179,17 @@ function buildRow(item, idx) {
                 ? `<span class="text-warning text-xxs d-inline-block lh-sm" title="Phiếu này cần cấp cao hơn phê duyệt"><i class="bi bi-exclamation-triangle-fill me-1"></i>Cần QLC<br>duyệt</span>`
                 : `<span class="text-muted text-xxs d-inline-block lh-sm" title="Bạn không có quyền duyệt phiếu này"><i class="bi bi-lock-fill me-1"></i>Không có<br>quyền duyệt</span>`;
 
+    const sigImg = item.EMPCD
+        ? `<img src="${SIG_URL}?empCd=${encodeURIComponent(item.EMPCD)}" class="sig-thumb" onerror="this.remove()" alt="Chữ ký"/>`
+        : '';
+
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
-        <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
+        <td class="px-2 text-sm">
+            <div class="emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</div>
+            ${sigImg}
+        </td>
         <td class="px-2 text-sm d-none d-md-table-cell">${escHtml(item.DEPT_NAME||'')} / ${escHtml(item.LINE_NAME||'')}</td>
         <td class="px-2 text-sm"><span class="badge bg-info">${gpLabel}</span></td>
         <td class="px-2 text-sm">

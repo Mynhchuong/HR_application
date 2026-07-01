@@ -267,6 +267,8 @@
                                         data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Số ngày">Số ngày</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                         data-mobile="detail" data-mobile-label="Lý do">Lý do</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
+                                        data-mobile="detail" data-mobile-label="Ngày tạo">Ngày tạo</th>
                                     <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
                                         data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tình trạng">Tình trạng</th>
                                     <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
@@ -741,6 +743,7 @@ function buildApprovalRow(item, idx) {
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
         <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
         <td class="px-2 text-sm" style="max-width:180px;white-space:normal;color:#475569;">${item.REASON ? escHtml(item.REASON) : '<span class="text-muted">-</span>'}</td>
+        <td class="px-2 text-xs text-nowrap text-secondary">${item.CREATED_DATE ? formatDateTime(item.CREATED_DATE) : '-'}</td>
         <td class="text-center">${statusHtml}</td>
         <td class="text-center">${sigCell}</td>
         <td class="text-center">${actions}</td>
@@ -749,7 +752,7 @@ function buildApprovalRow(item, idx) {
 
 function loadApproval(page = 1) {
     apvPage = page;
-    $('#approvalBody').html(`<tr><td colspan="11" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
+    $('#approvalBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
     MobileTableHelper.refresh('approvalBody');
     const range = getMonthRange();
     $.ajax({
@@ -757,7 +760,7 @@ function loadApproval(page = 1) {
         data: { status: apvStatus, search: ($('#apvEmpFilter').val()||'').trim(), date_from: range.from, date_to: range.to, page, page_size: apvPageSize },
         success: function(res) {
             if (!res.success) {
-                $('#approvalBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                $('#approvalBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
                 MobileTableHelper.refresh('approvalBody');
                 return;
             }
@@ -765,7 +768,7 @@ function loadApproval(page = 1) {
             apvTotalPages = res.total_pages || 0;
             const data = res.data || [];
             if (!data.length) {
-                $('#approvalBody').html(emptyRow('Không có đơn nghỉ nào', 11));
+                $('#approvalBody').html(emptyRow('Không có đơn nghỉ nào', 12));
             } else {
                 $('#approvalBody').html(data.map((item,i) => buildApprovalRow(item,(page-1)*apvPageSize+i+1)).join(''));
             }
@@ -773,7 +776,7 @@ function loadApproval(page = 1) {
             MobileTableHelper.refresh('approvalBody');
         },
         error: function(xhr) {
-            $('#approvalBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#approvalBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('approvalBody');
         }
     });
@@ -920,6 +923,7 @@ document.getElementById('tab-myassign-btn')?.addEventListener('shown.bs.tab', fu
 });
 
 function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
+function formatDateTime(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return formatDate(s)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
 function escHtml(str)  { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function loadPendingBadge() {

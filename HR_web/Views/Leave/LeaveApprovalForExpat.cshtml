@@ -140,6 +140,8 @@
                                 data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Days">Days</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
                                 data-mobile="detail" data-mobile-label="Reason">Reason</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
+                                data-mobile="detail" data-mobile-label="Created">Created</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
                                 data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Status">Status</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
@@ -282,6 +284,7 @@ function buildRow(item, idx) {
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
         <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS ?? '-'}</td>
         <td class="px-2 text-sm d-none d-md-table-cell"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
+        <td class="px-2 text-xs text-nowrap d-none d-md-table-cell text-secondary">${item.CREATED_DATE ? formatDateTime(item.CREATED_DATE) : '-'}</td>
         <td class="text-center">${statusHtml}${remarkDiv}</td>
         <td class="px-2 d-none d-md-table-cell">${approverHtml}</td>
         <td class="text-center">${sigCell}</td>
@@ -306,13 +309,13 @@ function getParams(page) {
 
 function loadData(page = 1) {
     currentPage = page;
-    $('#lvTableBody').html(`<tr><td colspan="13" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Loading...</div></td></tr>`);
+    $('#lvTableBody').html(`<tr><td colspan="14" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Loading...</div></td></tr>`);
     MobileTableHelper.refresh('lvTableBody');
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),
         success: function(res) {
             if (!res.success) {
-                $('#lvTableBody').html(`<tr><td colspan="13" class="text-center text-danger py-4">Error: ${res.message||''}</td></tr>`);
+                $('#lvTableBody').html(`<tr><td colspan="14" class="text-center text-danger py-4">Error: ${res.message||''}</td></tr>`);
                 MobileTableHelper.refresh('lvTableBody');
                 return;
             }
@@ -325,7 +328,7 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#lvTableBody').html(`<tr><td colspan="13" class="text-center text-muted py-4">No records found</td></tr>`);
+                $('#lvTableBody').html(`<tr><td colspan="14" class="text-center text-muted py-4">No records found</td></tr>`);
             } else {
                 $('#lvTableBody').html(data.map((item,i) => buildRow(item,(page-1)*pageSize+i+1)).join(''));
             }
@@ -333,7 +336,7 @@ function loadData(page = 1) {
             MobileTableHelper.refresh('lvTableBody');
         },
         error: function(xhr) {
-            $('#lvTableBody').html(`<tr><td colspan="13" class="text-center text-danger py-4">Connection error (${xhr.status})</td></tr>`);
+            $('#lvTableBody').html(`<tr><td colspan="14" class="text-center text-danger py-4">Connection error (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('lvTableBody');
         }
     });

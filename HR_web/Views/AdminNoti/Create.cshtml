@@ -230,10 +230,10 @@
             <textarea id="fBody" maxlength="2000" placeholder="Nội dung chi tiết..."></textarea>
             <div class="hint">Tối đa 2000 ký tự</div>
         </div>
-        <div class="cn-form-row" style="display:none">
-            <label>Đường dẫn liên kết (tùy chọn)</label>
-            <input type="text" id="fLink" maxlength="200" placeholder="VD: /Policy/Index">
-            <div class="hint">Khi nhấn vào thông báo trên app sẽ điều hướng đến đường dẫn này</div>
+        <div class="cn-form-row">
+            <label>Link đính kèm (tùy chọn)</label>
+            <input type="url" id="fLink" maxlength="500" placeholder="https://baochinhphu.vn/...">
+            <div class="hint">Dán URL bài báo / thông tin chính phủ / trang web. Nhân viên nhấn thông báo sẽ mở link trong trình duyệt (bên ngoài app).</div>
         </div>
         <div class="cn-form-row">
             <label>Mức độ ưu tiên</label>
@@ -689,6 +689,7 @@ async function submitNoti(){
     const link  = document.getElementById('fLink').value.trim();
     if (!title) { showToast('Vui lòng nhập tiêu đề', 'warning'); return; }
     if (!body)  { showToast('Vui lòng nhập nội dung', 'warning'); return; }
+    if (link && !/^https?:\/\//i.test(link)) { showToast('Link phải bắt đầu bằng http:// hoặc https://', 'warning'); return; }
 
     const isAll = currentTab === 'all';
     const targets = [];

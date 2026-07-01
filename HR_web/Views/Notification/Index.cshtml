@@ -91,6 +91,12 @@
     .noti-title    { font-size: .88rem; font-weight: 600; color: #1e293b; margin-bottom: .2rem; line-height: 1.35; }
     .noti-item.unread .noti-title { font-weight: 800; }
     .noti-body     { font-size: .8rem; color: #64748b; line-height: 1.45; }
+    .noti-link-hint {
+        display: inline-flex; align-items: center; gap: .25rem;
+        margin-top: .4rem; padding: .25rem .6rem;
+        background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+        border-radius: 999px; font-size: .72rem; font-weight: 700;
+    }
     .noti-footer   { display: flex; align-items: center; gap: .5rem; margin-top: .3rem; }
     .noti-time     { font-size: .72rem; color: #94a3b8; }
     .noti-unread-dot {
@@ -217,6 +223,9 @@ function renderItems(items, append = false) {
                 ${n.SENDER_NAME ? `<div class="noti-sender"><span class="vni-font">${esc(n.SENDER_NAME)}</span>${n.SENDER_EMPCD ? `<span class="noti-empcd">${esc(n.SENDER_EMPCD)}</span>` : ''}</div>` : ''}
                 <div class="noti-title">${esc(n.TITLE)}</div>
                 <div class="noti-body">${esc(n.BODY)}</div>
+                ${(n.LINK_ACTION && /^https?:\/\//i.test(n.LINK_ACTION))
+                    ? `<div class="noti-link-hint"><span class="material-symbols-rounded" style="font-size:.95rem;vertical-align:-3px;">open_in_new</span> Nhấn vào để xem trực tiếp</div>`
+                    : ''}
                 <div class="noti-footer">
                     <span class="noti-time">${timeAgo(n.CREATED_DATE)}</span>
                     <span class="noti-unread-dot"></span>
@@ -244,6 +253,10 @@ function onNotiClick(n) {
     let url;
     if (n.LINK_ACTION === 'BULLETIN' && n.TARGET_VAL) {
         url = '/Bulletin/Detail/' + encodeURIComponent(n.TARGET_VAL);
+    } else if (n.LINK_ACTION && /^https?:\/\//i.test(n.LINK_ACTION)) {
+        // Link ngoài (bài báo, gov, v.v.) — mở tab mới
+        window.open(n.LINK_ACTION, '_blank', 'noopener,noreferrer');
+        return;
     } else {
         url = n.LINK_ACTION && linkMap[n.LINK_ACTION];
     }

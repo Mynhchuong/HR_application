@@ -421,11 +421,18 @@ public class LeaveController : ControllerBase
                 LEFT JOIN HRMS.HR_ROLES  RR ON RR.ID    = UR.ROLE_ID
                 LEFT JOIN HRMS.ECM100    AP ON AP.EMPCD  = R.FINAL_APPROVER";
 
+            // Filter logic:
+            //  - Non-PENDING (APPROVED/REJECTED): filter theo CREATED_DATE trong khoảng tháng
+            //  - PENDING + FROM_DATE tương lai: LUÔN hiện (tránh sếp quên khi req tạo trước nhiều tháng)
+            //  - PENDING + FROM_DATE đã qua: bỏ hoàn toàn (không cần duyệt nữa)
             string whereSql = @"
                 WHERE R.REQUEST_TYPE = 'LEAVE'
                   AND L.SOURCE = 'SELF'
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
-                  AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1
+                  AND (
+                        (R.STATUS <> 'PENDING' AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1)
+                     OR (R.STATUS  = 'PENDING' AND L.FROM_DATE    >= TRUNC(SYSDATE))
+                  )
                   " + scopeFilter.SqlClause + @"
                   AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)

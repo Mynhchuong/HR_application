@@ -10,6 +10,21 @@
     #lvTableBody tr td { vertical-align: middle; }
     .pagination .page-link { cursor: pointer; }
     .txt-clamp { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:160px; cursor:default; }
+    .pending-age {
+        display: inline-block; margin-top: 4px; padding: 2px 8px;
+        border-radius: 999px; font-size: .7rem; font-weight: 700;
+        background: #fef3c7; color: #92400e; border: 1px solid #fbbf24;
+    }
+    .pending-age.stale {
+        background: #fee2e2; color: #991b1b; border-color: #dc2626;
+        animation: pulse-red 1.6s infinite ease-in-out;
+    }
+    @@keyframes pulse-red {
+        0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.5); }
+        50%     { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+    }
+    tr.row-stale-pending { background: linear-gradient(90deg, #fff1f2 0%, transparent 30%) !important; border-left: 4px solid #dc2626 !important; }
+    tr.row-stale-pending td { background: transparent !important; }
     .sig-cell      { display:flex; gap:8px; justify-content:center; align-items:flex-start; }
     .sig-cell-item { text-align:center; min-width:80px; }
     .sig-cell-lbl  { font-size:.6rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
@@ -235,7 +250,17 @@ function buildRow(item, idx) {
     const ltLabel = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
     const ltColor = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
 
+    // PENDING lâu: tính số ngày chờ từ CREATED_DATE
+    let pendingDays = 0, isStale = false;
+    if (item.STATUS === 'PENDING' && item.CREATED_DATE) {
+        pendingDays = Math.floor((Date.now() - new Date(item.CREATED_DATE)) / 86400000);
+        isStale = pendingDays >= 15;
+    }
+
     let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>`;
+    if (item.STATUS === 'PENDING' && pendingDays > 0) {
+        statusHtml += `<div class="pending-age ${isStale ? 'stale' : ''}"><i class="bi bi-alarm me-1"></i>Đã ${pendingDays} ngày chờ</div>`;
+    }
     if (item.STATUS === 'APPROVED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>`;
     if (item.STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Từ chối</span>`;
 
@@ -275,7 +300,7 @@ function buildRow(item, idx) {
            </div>` : '';
     const sigCell = `<div class="sig-cell">${reqSig}${apSig}</div>`;
 
-    return `<tr>
+    return `<tr class="${isStale ? 'row-stale-pending' : ''}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
         <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>

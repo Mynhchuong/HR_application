@@ -414,14 +414,20 @@ function sigBlock(item) {
                <div class="sig-lbl">Người ký</div>
                <img src="${SIG_URL}?empCd=${encodeURIComponent(CURRENT_EMPCD)}" class="sig-img" onerror="this.remove()" alt="Chữ ký"/>
            </div>` : '';
-    const apSig = (item.STATUS === 'APPROVED' && item.FINAL_APPROVER)
+    const asSig = (item.SOURCE === 'ASSIGNED' && item.ASSIGNED_BY)
+        ? `<div class="sig-col">
+               <div class="sig-lbl">Người sắp lịch</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.ASSIGNED_BY)}" class="sig-img" onerror="this.remove()" alt="Chữ ký"/>
+               ${item.ASSIGNER_NAME ? `<div class="sig-name vni-font">${escHtml(item.ASSIGNER_NAME)}</div>` : ''}
+           </div>` : '';
+    const apSig = item.FINAL_APPROVER
         ? `<div class="sig-col">
                <div class="sig-lbl">Người duyệt</div>
                <img src="${SIG_URL}?empCd=${encodeURIComponent(item.FINAL_APPROVER)}" class="sig-img" onerror="this.remove()" alt="Chữ ký"/>
-               ${item.APPROVER_NAME ? `<div class="sig-name">${escHtml(item.APPROVER_NAME)}</div>` : ''}
+               ${item.APPROVER_NAME ? `<div class="sig-name vni-font">${escHtml(item.APPROVER_NAME)}</div>` : ''}
            </div>` : '';
-    if (!mySig && !apSig) return '';
-    return `<div class="sig-panel">${mySig}${apSig}</div>`;
+    if (!mySig && !asSig && !apSig) return '';
+    return `<div class="sig-panel">${mySig}${asSig}${apSig}</div>`;
 }
 
 function buildRow(item, idx) {

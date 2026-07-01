@@ -10,7 +10,11 @@
     #lvTableBody tr td { vertical-align: middle; }
     .pagination .page-link { cursor: pointer; }
     .txt-clamp { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:160px; cursor:default; }
-    .sig-thumb { display:block; max-height:28px; max-width:120px; margin-top:3px; object-fit:contain; opacity:.9; }
+    .sig-cell      { display:flex; gap:8px; justify-content:center; align-items:flex-start; }
+    .sig-cell-item { text-align:center; min-width:80px; }
+    .sig-cell-lbl  { font-size:.6rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
+    .sig-cell-img  { display:block; margin:0 auto; max-height:55px; max-width:110px; object-fit:contain; background:#fafafa; border-radius:4px; padding:2px; }
+    .sig-cell-name { font-size:.65rem; color:#64748b; margin-top:2px; line-height:1.2; }
     .pagination .page-item.disabled .page-link { cursor: default; }
     .month-nav { display:flex; align-items:center; gap:6px; }
     .month-nav button { border:none; background:rgba(255,255,255,.22); color:#fff; border-radius:6px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:.95rem; cursor:pointer; }
@@ -143,6 +147,8 @@
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
                                 data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tình Trạng">Tình Trạng</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
+                                data-mobile="detail" data-mobile-label="Chữ Ký">Chữ Ký</th>
+                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
                                 data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Thao Tác">Thao Tác</th>
                         </tr>
                     </thead>
@@ -256,17 +262,23 @@ function buildRow(item, idx) {
                <button class="btn btn-xs btn-danger"  onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','reject')"><i class="bi bi-x-lg"></i></button>`
             : `<span class="text-warning text-xxs d-inline-block lh-sm"><i class="bi bi-exclamation-triangle-fill me-1"></i>Cần cấp cao<br>hơn duyệt</span>`;
 
-    const sigImg = item.EMPCD
-        ? `<img src="${SIG_URL}?empCd=${encodeURIComponent(item.EMPCD)}" class="sig-thumb" onerror="this.remove()" alt="Chữ ký"/>`
-        : '';
+    const reqSig = item.EMPCD
+        ? `<div class="sig-cell-item">
+               <div class="sig-cell-lbl">Người ký</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.EMPCD)}" class="sig-cell-img" onerror="this.remove()" alt="Chữ ký"/>
+           </div>` : '';
+    const apSig = (item.STATUS !== 'PENDING' && item.FINAL_APPROVER)
+        ? `<div class="sig-cell-item">
+               <div class="sig-cell-lbl">Người duyệt</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.FINAL_APPROVER)}" class="sig-cell-img" onerror="this.remove()" alt="Chữ ký"/>
+               ${item.APPROVER_NAME ? `<div class="sig-cell-name vni-font">${escHtml(item.APPROVER_NAME)}</div>` : ''}
+           </div>` : '';
+    const sigCell = `<div class="sig-cell">${reqSig}${apSig}</div>`;
 
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
-        <td class="px-2 text-sm">
-            <div class="emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</div>
-            ${sigImg}
-        </td>
+        <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
         <td class="px-2 text-sm d-none d-md-table-cell">${escHtml(item.DEPT_NAME||'')} / ${escHtml(item.LINE_NAME||'')}</td>
         <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
@@ -274,6 +286,7 @@ function buildRow(item, idx) {
         <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
         <td class="px-2 text-sm d-none d-md-table-cell"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
         <td class="text-center">${statusHtml}${signInfo}</td>
+        <td class="text-center">${sigCell}</td>
         <td class="text-center">${actions}</td>
     </tr>`;
 }
@@ -296,13 +309,13 @@ function getParams(page) {
 
 function loadData(page = 1) {
     currentPage = page;
-    $('#lvTableBody').html(`<tr><td colspan="11" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải...</div></td></tr>`);
+    $('#lvTableBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải...</div></td></tr>`);
     MobileTableHelper.refresh('lvTableBody');
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),
         success: function(res) {
             if (!res.success) {
-                $('#lvTableBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
                 MobileTableHelper.refresh('lvTableBody');
                 return;
             }
@@ -315,7 +328,7 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#lvTableBody').html(`<tr><td colspan="11" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
+                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
             } else {
                 $('#lvTableBody').html(data.map((item,i) => buildRow(item,(page-1)*pageSize+i+1)).join(''));
             }
@@ -323,7 +336,7 @@ function loadData(page = 1) {
             MobileTableHelper.refresh('lvTableBody');
         },
         error: function(xhr) {
-            $('#lvTableBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('lvTableBody');
         }
     });

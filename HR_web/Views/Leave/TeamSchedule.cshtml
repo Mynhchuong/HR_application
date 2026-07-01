@@ -10,6 +10,11 @@
     .pagination .page-link { cursor:pointer; border-radius:8px !important; margin:0 2px; }
     .pagination .page-item.disabled .page-link { cursor:default; }
     .pagination .page-item.active .page-link { background:#3b82f6; border-color:#3b82f6; }
+    .sig-cell      { display:flex; gap:8px; justify-content:center; align-items:flex-start; }
+    .sig-cell-item { text-align:center; min-width:80px; }
+    .sig-cell-lbl  { font-size:.6rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
+    .sig-cell-img  { display:block; margin:0 auto; max-height:55px; max-width:110px; object-fit:contain; background:#fafafa; border-radius:4px; padding:2px; }
+    .sig-cell-name { font-size:.65rem; color:#64748b; margin-top:2px; line-height:1.2; }
     .month-nav { display:flex; align-items:center; gap:8px; }
     .month-nav button { border:none; background:rgba(255,255,255,.2); color:#fff; border-radius:6px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-size:1rem; cursor:pointer; }
     .month-nav button:hover { background:rgba(255,255,255,.35); }
@@ -250,6 +255,8 @@
                                     <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
                                         data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tình trạng">Tình trạng</th>
                                     <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
+                                        data-mobile="detail" data-mobile-label="Chữ ký">Chữ ký</th>
+                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
                                         data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Thao tác">Thao tác</th>
                                 </tr>
                             </thead>
@@ -383,6 +390,7 @@ const ASSIGN_URL     = '@Url.Action("AssignLeave",            "Leave")';
 const APPROVE_URL    = '@Url.Action("ApproveRequest",         "Leave")';
 const REJECT_URL     = '@Url.Action("RejectRequest",          "Leave")';
 const PAGE_URL       = '@Url.Action("GetApprovalListPage",    "Leave")';
+const SIG_URL        = '@Url.Action("GetSignature",           "Image")';
 const EMP_SCOPE_URL  = '@Url.Action("GetEmpByScope",          "Dropdown")';
 const BALANCE_URL    = '@Url.Action("GetAnnualLeaveBalance",  "Leave")';
 const CURRENT_ROLE  = '@ViewBag.CurrentRole';
@@ -686,6 +694,19 @@ function buildApprovalRow(item, idx) {
                 : `<button class="btn btn-xs btn-success me-1" onclick="event.stopPropagation();openApvAction('${item.REQUEST_ID}','approve','${item.FROM_DATE||''}')"><i class="bi bi-check-lg"></i></button>
                <button class="btn btn-xs btn-danger"       onclick="event.stopPropagation();openApvAction('${item.REQUEST_ID}','reject','${item.FROM_DATE||''}')"><i class="bi bi-x-lg"></i></button>`
             : `<span class="text-warning text-xxs"><i class="bi bi-exclamation-triangle-fill me-1"></i>Cần cấp cao hơn</span>`;
+    const reqSig = item.EMPCD
+        ? `<div class="sig-cell-item">
+               <div class="sig-cell-lbl">Người ký</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.EMPCD)}" class="sig-cell-img" onerror="this.remove()" alt="Chữ ký"/>
+           </div>` : '';
+    const apSig = (item.STATUS !== 'PENDING' && item.FINAL_APPROVER)
+        ? `<div class="sig-cell-item">
+               <div class="sig-cell-lbl">Người duyệt</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.FINAL_APPROVER)}" class="sig-cell-img" onerror="this.remove()" alt="Chữ ký"/>
+               ${item.APPROVER_NAME ? `<div class="sig-cell-name vni-font">${escHtml(item.APPROVER_NAME)}</div>` : ''}
+           </div>` : '';
+    const sigCell = `<div class="sig-cell">${reqSig}${apSig}</div>`;
+
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
@@ -696,13 +717,14 @@ function buildApprovalRow(item, idx) {
         <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
         <td class="px-2 text-sm" style="max-width:180px;white-space:normal;color:#475569;">${item.REASON ? escHtml(item.REASON) : '<span class="text-muted">-</span>'}</td>
         <td class="text-center">${statusHtml}</td>
+        <td class="text-center">${sigCell}</td>
         <td class="text-center">${actions}</td>
     </tr>`;
 }
 
 function loadApproval(page = 1) {
     apvPage = page;
-    $('#approvalBody').html(`<tr><td colspan="10" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
+    $('#approvalBody').html(`<tr><td colspan="11" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
     MobileTableHelper.refresh('approvalBody');
     const range = getMonthRange();
     $.ajax({
@@ -710,7 +732,7 @@ function loadApproval(page = 1) {
         data: { status: apvStatus, search: ($('#apvEmpFilter').val()||'').trim(), date_from: range.from, date_to: range.to, page, page_size: apvPageSize },
         success: function(res) {
             if (!res.success) {
-                $('#approvalBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                $('#approvalBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
                 MobileTableHelper.refresh('approvalBody');
                 return;
             }
@@ -718,7 +740,7 @@ function loadApproval(page = 1) {
             apvTotalPages = res.total_pages || 0;
             const data = res.data || [];
             if (!data.length) {
-                $('#approvalBody').html(emptyRow('Không có đơn nghỉ nào', 10));
+                $('#approvalBody').html(emptyRow('Không có đơn nghỉ nào', 11));
             } else {
                 $('#approvalBody').html(data.map((item,i) => buildApprovalRow(item,(page-1)*apvPageSize+i+1)).join(''));
             }
@@ -726,7 +748,7 @@ function loadApproval(page = 1) {
             MobileTableHelper.refresh('approvalBody');
         },
         error: function(xhr) {
-            $('#approvalBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#approvalBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('approvalBody');
         }
     });

@@ -18,6 +18,8 @@ public class LeaveMyRequestModel
     public string?   FINAL_APPROVER { get; set; }
     public string?   APPROVER_NAME  { get; set; }
     public DateTime? FINAL_DATE     { get; set; }
+    public string?   ASSIGNED_BY    { get; set; }
+    public string?   ASSIGNER_NAME  { get; set; }
 }
 
 public class LeaveMyRequestsPagedResponse

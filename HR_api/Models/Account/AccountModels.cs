@@ -15,6 +15,7 @@ public class UserInfoModel
     public string? RoleName { get; set; }
     public int IsActive { get; set; }
     public DateTime? LastedLogin { get; set; }
+    public DateTime? LastPwdReset { get; set; }
     public string? DeptCd { get; set; }
     public string? LineCd { get; set; }
     public string? SIGNATUREBLOB { get; set; }
@@ -85,6 +86,9 @@ public class UserDetailModel
     public string? ContractType { get; set; }
     public DateTime? ContractDate { get; set; }
     public string? Address { get; set; }
+    public string? Juminno { get; set; }        // CCCD
+    public string? JuminnoDate { get; set; }    // Ngày cấp CCCD (YYYYMMDD)
+    public DateTime? HireDate { get; set; }     // Ngày đầu tiên làm ở công ty (IGENTDAT)
 }
 
 public class UpdateSignatureRequest

@@ -62,6 +62,25 @@
                         <button type="button" id="clearFilter" class="btn btn-outline-danger flex-fill mb-0">XÓA</button>
                     </div>
                 </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-12 d-flex align-items-center gap-2">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                   id="pwdResetToday" name="pwdResetToday" value="true"
+                                   @(ViewBag.PwdResetToday == true ? "checked" : "")
+                                   onchange="document.getElementById('hiddenPage').value=1; document.getElementById('filterForm').submit();"/>
+                            <label class="form-check-label small fw-bold text-warning" for="pwdResetToday">
+                                <i class="bi bi-key-fill me-1"></i> Chỉ hiện user quên password hôm nay
+                            </label>
+                        </div>
+                        @if (ViewBag.PwdResetToday == true && Model != null)
+                        {
+                            <span class="badge bg-warning text-dark ms-2">
+                                <i class="bi bi-people-fill me-1"></i>@Model.TotalItemCount user reset hôm nay
+                            </span>
+                        }
+                    </div>
+                </div>
             </form>
         </div>
     </div>
@@ -98,6 +117,7 @@
                             <th>Department</th>
                             <th>Role</th>
                             <th>Status</th>
+                            <th>Last Pwd Reset</th>
                             <th class="text-center">Action</th>
                         </tr>
                     </thead>
@@ -125,6 +145,23 @@
                                         else
                                         {
                                             <span class="badge rounded-pill bg-secondary">Inactive</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (u.LastPwdReset.HasValue)
+                                        {
+                                            bool isToday = u.LastPwdReset.Value.Date == DateTime.Today;
+                                            <span class="small @(isToday ? "fw-bold text-warning" : "text-muted")">
+                                                @u.LastPwdReset.Value.ToString("dd/MM/yyyy HH:mm")
+                                                @if (isToday)
+                                                {
+                                                    <i class="bi bi-exclamation-circle-fill ms-1" title="Reset hôm nay"></i>
+                                                }
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="small text-muted">-</span>
                                         }
                                     </td>
                                     <td class="text-center">
@@ -166,7 +203,7 @@
                         }
                         else
                         {
-                            <tr><td colspan="5" class="text-center py-3">No data</td></tr>
+                            <tr><td colspan="6" class="text-center py-3">No data</td></tr>
                         }
                     </tbody>
                 </table>
@@ -188,7 +225,8 @@
                             string PUrl(int p) => Url.Action("UserManager", new {
                                 page = p, deptCd = ViewBag.DeptCd, lineCd = ViewBag.LineCd,
                                 workCd = ViewBag.WorkCd, roleId = ViewBag.RoleId,
-                                empCd = ViewBag.EmpCd, pageSize = ViewBag.PageSize })!;
+                                empCd = ViewBag.EmpCd, pwdResetToday = ViewBag.PwdResetToday,
+                                pageSize = ViewBag.PageSize })!;
 
                             <li class="page-item @(curPage == 1 ? "disabled" : "")">
                                 <a class="page-link" href="@PUrl(1)">&laquo;</a>

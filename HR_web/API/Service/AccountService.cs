@@ -51,6 +51,7 @@ public class AccountService
     public async Task<UserInfoPagedViewModel> GetUserListAsync(
         string? fullName = null, string? deptCd = null, string? lineCd = null,
         string? workCd = null, int? roleId = null, string? empCd = null,
+        bool pwdResetToday = false,
         int page = 1, int pageSize = 50)
     {
         var queryParams = new List<string>();
@@ -60,6 +61,7 @@ public class AccountService
         if (!string.IsNullOrEmpty(workCd)) queryParams.Add($"workcd={Uri.EscapeDataString(workCd)}");
         if (!string.IsNullOrEmpty(empCd)) queryParams.Add($"empCd={Uri.EscapeDataString(empCd)}");
         if (roleId.HasValue) queryParams.Add($"roleId={roleId.Value}");
+        if (pwdResetToday) queryParams.Add("pwdResetToday=true");
         queryParams.Add($"page={page}");
         queryParams.Add($"pageSize={pageSize}");
 

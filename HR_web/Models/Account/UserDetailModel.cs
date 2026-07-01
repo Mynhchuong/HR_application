@@ -15,6 +15,9 @@ public class UserDetailModel
     public string? ContractType { get; set; }
     public DateTime? ContractDate { get; set; }
     public string? Address { get; set; }
+    public string? Juminno { get; set; }        // CCCD
+    public string? JuminnoDate { get; set; }    // Ngày cấp CCCD (YYYYMMDD)
+    public DateTime? HireDate { get; set; }     // Ngày đầu tiên làm ở công ty (IGENTDAT)
     public bool HasImage { get; set; }
     public string? ImageUrl { get; set; }
     public bool HasSignature { get; set; }

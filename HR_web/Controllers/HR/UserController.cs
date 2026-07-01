@@ -29,6 +29,7 @@ public class UserController : BaseController
         string? workCd = null,
         int? roleId = null,
         string? empCd = null,
+        bool pwdResetToday = false,
         int page = 1,
         int pageSize = 50)
     {
@@ -41,6 +42,7 @@ public class UserController : BaseController
             workCd: workCd,
             roleId: roleId,
             empCd: empCd,
+            pwdResetToday: pwdResetToday,
             page: page,
             pageSize: pageSize
         );
@@ -58,6 +60,7 @@ public class UserController : BaseController
         ViewBag.WorkCd = workCd;
         ViewBag.RoleId = roleId;
         ViewBag.EmpCd = empCd;
+        ViewBag.PwdResetToday = pwdResetToday;
         ViewBag.PageSize = pageSize;
 
         return View(pagedList);

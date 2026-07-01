@@ -456,6 +456,7 @@ public class AccountController : ControllerBase
         int? roleId = null,
         string? empCd = null,
         string? fullName = null,
+        bool pwdResetToday = false,
         int page = 1,
         int pageSize = 50)
     {
@@ -498,6 +499,10 @@ public class AccountController : ControllerBase
                 where += " AND UPPER(TRIM(U.FULL_NAME)) LIKE UPPER(:FULL_NAME)";
                 parameters.Add(new OracleParameter("FULL_NAME", $"%{fullName.Trim()}%"));
             }
+            if (pwdResetToday)
+            {
+                where += " AND TRUNC(U.LAST_PWD_RESET) = TRUNC(SYSDATE)";
+            }
 
             string countSql = $@"
                 SELECT COUNT(1) FROM HRMS.HR_USERS U
@@ -519,8 +524,9 @@ public class AccountController : ControllerBase
             string sql = $@"
                 SELECT * FROM (
                     SELECT A1.*, ROWNUM rnum FROM (
-                        SELECT U.ID, U.EMPCD, U.FULL_NAME, B.DEPTNM AS DEPT_NAME, B.TEAMNM AS LINE_NAME, 
-                               B.WORKNM AS WORK_NAME, U.ROLE_ID, R.ROLE_NAME, U.IS_ACTIVE, U.LASTED_LOGIN
+                        SELECT U.ID, U.EMPCD, U.FULL_NAME, B.DEPTNM AS DEPT_NAME, B.TEAMNM AS LINE_NAME,
+                               B.WORKNM AS WORK_NAME, U.ROLE_ID, R.ROLE_NAME, U.IS_ACTIVE, U.LASTED_LOGIN,
+                               U.LAST_PWD_RESET
                         FROM HRMS.HR_USERS U
                         LEFT JOIN HRMS.HR_ROLES R ON U.ROLE_ID = R.ID
                         LEFT JOIN HRMS.ECM100 A ON U.EMPCD = A.EMPCD
@@ -541,7 +547,8 @@ public class AccountController : ControllerBase
                 RoleId = reader["ROLE_ID"] == DBNull.Value ? null : (int?)Convert.ToInt32(reader["ROLE_ID"]),
                 RoleName = reader["ROLE_NAME"]?.ToString(),
                 IsActive = Convert.ToInt32(reader["IS_ACTIVE"]),
-                LastedLogin = reader["LASTED_LOGIN"] == DBNull.Value ? null : (DateTime?)Convert.ToDateTime(reader["LASTED_LOGIN"])
+                LastedLogin  = reader["LASTED_LOGIN"]   == DBNull.Value ? null : (DateTime?)Convert.ToDateTime(reader["LASTED_LOGIN"]),
+                LastPwdReset = reader["LAST_PWD_RESET"] == DBNull.Value ? null : (DateTime?)Convert.ToDateTime(reader["LAST_PWD_RESET"])
             }, dataParams.ToArray());
 
             return Ok(new { data, total, page, pageSize, totalPage = (int)Math.Ceiling((double)total / pageSize) });
@@ -765,6 +772,7 @@ public class AccountController : ControllerBase
                 SELECT B.DEPTNM, B.TEAMNM, B.WORKNM, A.CNAME, A.BIRTHDAT, A.SEXGB, A.MARRGB,
                        A.HOMETEL AS PHONE, A.JUMINNO_PLACE AS HOMETOWN,
                        A.CONTRACT_TYPE, A.CONTRACT_DATE,
+                       A.JUMINNO, A.JUMINNO_DATE, A.IGENTDAT,
                        A.ADDRESS_ETC, C.CODE_NAME1_N, C.CODE_NAME3_N,
                        FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(
                            CASE WHEN TO_NUMBER(SUBSTR(A.EMPCD,1,2)) > TO_NUMBER(TO_CHAR(SYSDATE,'YY'))
@@ -793,6 +801,9 @@ public class AccountController : ControllerBase
                 HomeTown = reader["HOMETOWN"]?.ToString(),
                 ContractType = reader["CONTRACT_TYPE"]?.ToString(),
                 ContractDate = SafeToDate(reader["CONTRACT_DATE"]),
+                Juminno      = reader["JUMINNO"]?.ToString(),
+                JuminnoDate  = reader["JUMINNO_DATE"]?.ToString(),
+                HireDate     = SafeToDate(reader["IGENTDAT"]),
                 Address = string.Join(", ",
                     new[] {
                         reader["ADDRESS_ETC"]?.ToString()?.Trim(),

@@ -15,6 +15,7 @@ public class UserInfoModel
     public string? RoleName { get; set; }
     public int IsActive { get; set; }
     public DateTime? LastedLogin { get; set; }
+    public DateTime? LastPwdReset { get; set; }
     public string? DeptCd { get; set; }
     public string? LineCd { get; set; }
     public string? SIGNATUREBLOB { get; set; }

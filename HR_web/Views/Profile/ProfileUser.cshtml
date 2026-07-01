@@ -208,6 +208,23 @@
                 <div class="item-description">@(Model.BirthDate?.ToString("dd/MM/yyyy") ?? "-")</div>
             </div>
         </div>
+        @{
+            string juminnoDisplay = "-";
+            if (!string.IsNullOrWhiteSpace(Model.JuminnoDate) && Model.JuminnoDate.Length == 8
+                && DateTime.TryParseExact(Model.JuminnoDate, "yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var jdt))
+            {
+                juminnoDisplay = jdt.ToString("dd/MM/yyyy");
+            }
+        }
+        <div class="setting-item">
+            <div class="item-icon"><span class="material-symbols-rounded">contact_page</span></div>
+            <div class="item-content">
+                <div class="item-label">Số CCCD</div>
+                <div class="item-description">Cấp ngày @juminnoDisplay</div>
+            </div>
+            <div class="item-value">@(string.IsNullOrWhiteSpace(Model.Juminno) ? "-" : Model.Juminno)</div>
+        </div>
         <div class="setting-item">
             <div class="item-icon"><span class="material-symbols-rounded">location_on</span></div>
             <div class="item-content">
@@ -224,6 +241,14 @@
             <div class="item-value">
                 @(string.IsNullOrWhiteSpace(Model.Seniority) ? "-" : Model.Seniority)
             </div>
+        </div>
+        <div class="setting-item">
+            <div class="item-icon"><span class="material-symbols-rounded">work_history</span></div>
+            <div class="item-content">
+                <div class="item-label">Ngày vào công ty</div>
+                <div class="item-description">Ngày đầu tiên làm việc</div>
+            </div>
+            <div class="item-value">@(Model.HireDate?.ToString("dd/MM/yyyy") ?? "-")</div>
         </div>
     </div>
 

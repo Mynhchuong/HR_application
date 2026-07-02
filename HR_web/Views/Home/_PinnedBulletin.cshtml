@@ -11,7 +11,7 @@
     <div class="home-pinned-list">
         @foreach (var p in Model.Pinned)
         {
-            <a href="/Bulletin/Detail/@p.Id" class="home-pinned-card">
+            <a href="@Url.Action("Detail", "Bulletin", new { id = p.Id })" class="home-pinned-card">
                 <div class="home-pinned-thumb">
                     @if (!string.IsNullOrEmpty(p.CoverImg))
                     {

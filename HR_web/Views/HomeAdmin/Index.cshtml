@@ -12,7 +12,7 @@
     </div>
 
     <div class="admin-home-tabs">
-        <a href="/HomeAdmin/Banner" class="admin-home-tab">
+        <a href="@Url.Action("Banner", "HomeAdmin")" class="admin-home-tab">
             <div class="admin-home-tab-icon">🖼️</div>
             <div class="admin-home-tab-body">
                 <div class="admin-home-tab-title">Banner</div>
@@ -20,7 +20,7 @@
             </div>
         </a>
 
-        <a href="/HomeAdmin/Greeting" class="admin-home-tab">
+        <a href="@Url.Action("Greeting", "HomeAdmin")" class="admin-home-tab">
             <div class="admin-home-tab-icon">💬</div>
             <div class="admin-home-tab-body">
                 <div class="admin-home-tab-title">Câu chào</div>
@@ -30,7 +30,7 @@
 
         @if (isAdmin)
         {
-            <a href="/HomeAdmin/Audit" class="admin-home-tab">
+            <a href="@Url.Action("Audit", "HomeAdmin")" class="admin-home-tab">
                 <div class="admin-home-tab-icon">📋</div>
                 <div class="admin-home-tab-body">
                     <div class="admin-home-tab-title">Audit Log</div>

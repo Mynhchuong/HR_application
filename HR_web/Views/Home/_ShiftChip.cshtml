@@ -11,7 +11,7 @@
     var chipExtraClass = s.IsNightShift ? "home-shift-chip-night" : "";
 }
 
-<a href="/GatePass/GpMyRequests" class="home-shift-chip @chipExtraClass" title="@openTitle">
+<a href="@Url.Action("GpMyRequests", "GatePass")" class="home-shift-chip @chipExtraClass" title="@openTitle">
     <span class="home-shift-clock">@(s.IsNightShift ? "🌙" : "🕐")</span>
     <span class="home-shift-text">
         @label · @shiftWord <strong>@s.ShiftCd</strong>

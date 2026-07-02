@@ -6,7 +6,7 @@
 
 <div class="admin-home-page">
     <div class="admin-home-header">
-        <a href="/HomeAdmin" class="admin-home-back">← Quay lại</a>
+        <a href="@Url.Action("Index", "HomeAdmin")" class="admin-home-back">← Quay lại</a>
         <h1>📋 Audit Log</h1>
         <p class="text-muted">Nhật ký thay đổi Banner / Câu chào / Khung giờ.</p>
     </div>
@@ -62,4 +62,5 @@
     </div>
 </div>
 
+<script>window.__HR_HOME_ADMIN__ = { isAdmin: true, rootUrl: '@Url.Content("~/")' };</script>
 <script src="~/assets/js/home-admin.js" asp-append-version="true"></script>

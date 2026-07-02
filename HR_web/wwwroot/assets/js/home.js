@@ -13,6 +13,9 @@
     const $  = (sel, root) => (root || document).querySelector(sel);
     const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
+    // Root URL injected từ view (Razor @Url.Content("~/")) — hỗ trợ deploy dưới virtual dir
+    const ROOT = ((window.__HR_HOME__ && window.__HR_HOME__.rootUrl) || '/').replace(/\/+$/, '') + '/';
+
     // ─── 1. BIRTHDAY BANNER ────────────────────────────────────
     (function initBirthday() {
         const el = $('#homeBirthdayBanner');
@@ -94,7 +97,7 @@
 
         async function fetchSummary(force) {
             try {
-                const res = await fetch('/Home/Summary' + (force ? '?force=1' : ''), {
+                const res = await fetch(ROOT + 'Home/Summary' + (force ? '?force=1' : ''), {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin'
                 });
@@ -188,7 +191,7 @@
 
         async function loadList() {
             try {
-                const res = await fetch('/Home/TeamBirthday', {
+                const res = await fetch(ROOT + 'Home/TeamBirthday', {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin'
                 });

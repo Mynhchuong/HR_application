@@ -7,7 +7,7 @@
 
 <div class="admin-home-page">
     <div class="admin-home-header">
-        <a href="/HomeAdmin" class="admin-home-back">← Quay lại</a>
+        <a href="@Url.Action("Index", "HomeAdmin")" class="admin-home-back">← Quay lại</a>
         <h1>💬 Quản lý câu chào</h1>
         <p class="text-muted">
             Pool câu chào theo 5 khung giờ. Random pick 1 câu mỗi lần user mở trang Home.
@@ -106,6 +106,6 @@
 </div>
 
 <script>
-    window.__HR_HOME_ADMIN__ = { isAdmin: @(isAdmin ? "true" : "false") };
+    window.__HR_HOME_ADMIN__ = { isAdmin: @(isAdmin ? "true" : "false"), rootUrl: '@Url.Content("~/")' };
 </script>
 <script src="~/assets/js/home-admin.js" asp-append-version="true"></script>

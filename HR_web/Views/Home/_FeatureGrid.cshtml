@@ -10,35 +10,41 @@
     string L(string vi, string en) => isEn ? en : vi;
 
     // Route "Duyệt phép" — Expat có endpoint riêng
-    string approveLeaveUrl = isExpat ? "/Leave/LeaveApprovalForExpat" : "/Leave/LeaveApprovalList";
+    string approveLeaveUrl = isExpat
+        ? Url.Action("LeaveApprovalForExpat", "Leave")!
+        : Url.Action("LeaveApprovalList",     "Leave")!;
 
     // Route "Duyệt GP" — GatePass phân theo scope tuple, dùng chung cho Sup/Manager
-    string approveGpUrl = "/GatePass/GpListForSupervisor";
-    if (isExpat)   approveGpUrl = "/GatePass/GpListForExpat";
-    if (isHrAdmin) approveGpUrl = "/GatePass/GpListForHR";
+    string approveGpUrl = Url.Action("GpListForSupervisor", "GatePass")!;
+    if (isExpat)   approveGpUrl = Url.Action("GpListForExpat", "GatePass")!;
+    if (isHrAdmin) approveGpUrl = Url.Action("GpListForHR",    "GatePass")!;
 
     // Route "Danh sách OT" — role-specific
-    string otListUrl = "/OT/OtConfirmForm";
-    if (isManagerLike)      otListUrl = "/OT/OtListForSupervisor";
-    else if (isExpat)       otListUrl = "/OT/OtListForExpat";
-    else if (isHrAdmin)     otListUrl = "/OT/OtListForHR";
+    string otListUrl = Url.Action("OtConfirmForm", "OT")!;
+    if (isManagerLike)      otListUrl = Url.Action("OtListForSupervisor", "OT")!;
+    else if (isExpat)       otListUrl = Url.Action("OtListForExpat",      "OT")!;
+    else if (isHrAdmin)     otListUrl = Url.Action("OtListForHR",         "OT")!;
+
+    string notiUrl = isExpat
+        ? Url.Action("IndexForExpat", "Notification")!
+        : Url.Action("Index",         "Notification")!;
 }
 
 <section class="home-feature-grid">
     <div class="home-feature-heading">🚀 @L("Chức năng", "Features")</div>
     <div class="home-feature-tiles">
-        <a href="/Leave/LeaveMyRequests" class="home-tile"><span class="home-tile-icon">📅</span><span class="home-tile-label">@L("Nghỉ phép", "Leave")</span></a>
-        <a href="/GatePass/GpRequestForm" class="home-tile"><span class="home-tile-icon">🚪</span><span class="home-tile-label">@L("Gate Pass", "Gate Pass")</span></a>
-        <a href="/GatePass/GpMyRequests" class="home-tile"><span class="home-tile-icon">📃</span><span class="home-tile-label">@L("GP của tôi", "My GP")</span></a>
-        <a href="/OT/OtConfirmForm" class="home-tile"><span class="home-tile-icon">⏰</span><span class="home-tile-label">@L("Tăng ca", "Overtime")</span></a>
-        <a href="/Payslip/Index" class="home-tile"><span class="home-tile-icon">💰</span><span class="home-tile-label">@L("Phiếu lương", "Payslip")</span></a>
-        <a href="/Bulletin/Index" class="home-tile"><span class="home-tile-icon">📰</span><span class="home-tile-label">@L("Bản tin", "Bulletin")</span></a>
-        <a href="/Menu/Today" class="home-tile"><span class="home-tile-icon">🍱</span><span class="home-tile-label">@L("Thực đơn", "Menu")</span></a>
-        <a href="/EmployeeInquiry/Index" class="home-tile"><span class="home-tile-icon">💬</span><span class="home-tile-label">@L("Hỏi đáp HR", "Ask HR")</span></a>
-        <a href="/Policy/Index" class="home-tile"><span class="home-tile-icon">📖</span><span class="home-tile-label">@L("Nội quy", "Policy")</span></a>
-        <a href="/Guide/Index" class="home-tile"><span class="home-tile-icon">❓</span><span class="home-tile-label">@L("Hướng dẫn", "Guide")</span></a>
-        <a href="/Profile/ProfileUser" class="home-tile"><span class="home-tile-icon">👤</span><span class="home-tile-label">@L("Hồ sơ", "Profile")</span></a>
-        <a href="@(isExpat ? "/Notification/IndexForExpat" : "/Notification/Index")" class="home-tile"><span class="home-tile-icon">🔔</span><span class="home-tile-label">@L("Thông báo", "Notifications")</span></a>
+        <a href="@Url.Action("LeaveMyRequests", "Leave")" class="home-tile"><span class="home-tile-icon">📅</span><span class="home-tile-label">@L("Nghỉ phép", "Leave")</span></a>
+        <a href="@Url.Action("GpRequestForm", "GatePass")" class="home-tile"><span class="home-tile-icon">🚪</span><span class="home-tile-label">@L("Gate Pass", "Gate Pass")</span></a>
+        <a href="@Url.Action("GpMyRequests", "GatePass")" class="home-tile"><span class="home-tile-icon">📃</span><span class="home-tile-label">@L("GP của tôi", "My GP")</span></a>
+        <a href="@Url.Action("OtConfirmForm", "OT")" class="home-tile"><span class="home-tile-icon">⏰</span><span class="home-tile-label">@L("Tăng ca", "Overtime")</span></a>
+        <a href="@Url.Action("Index", "Payslip")" class="home-tile"><span class="home-tile-icon">💰</span><span class="home-tile-label">@L("Phiếu lương", "Payslip")</span></a>
+        <a href="@Url.Action("Index", "Bulletin")" class="home-tile"><span class="home-tile-icon">📰</span><span class="home-tile-label">@L("Bản tin", "Bulletin")</span></a>
+        <a href="@Url.Action("Today", "Menu")" class="home-tile"><span class="home-tile-icon">🍱</span><span class="home-tile-label">@L("Thực đơn", "Menu")</span></a>
+        <a href="@Url.Action("Index", "EmployeeInquiry")" class="home-tile"><span class="home-tile-icon">💬</span><span class="home-tile-label">@L("Hỏi đáp HR", "Ask HR")</span></a>
+        <a href="@Url.Action("Index", "Policy")" class="home-tile"><span class="home-tile-icon">📖</span><span class="home-tile-label">@L("Nội quy", "Policy")</span></a>
+        <a href="@Url.Action("Index", "Guide")" class="home-tile"><span class="home-tile-icon">❓</span><span class="home-tile-label">@L("Hướng dẫn", "Guide")</span></a>
+        <a href="@Url.Action("ProfileUser", "Profile")" class="home-tile"><span class="home-tile-icon">👤</span><span class="home-tile-label">@L("Hồ sơ", "Profile")</span></a>
+        <a href="@notiUrl" class="home-tile"><span class="home-tile-icon">🔔</span><span class="home-tile-label">@L("Thông báo", "Notifications")</span></a>
 
         @if (isManagerLike || isExpat || isHrAdmin)
         {
@@ -52,14 +58,14 @@
     {
         <div class="home-feature-heading home-feature-heading-hr">🏢 @L("HR Tools", "HR Tools")</div>
         <div class="home-feature-tiles">
-            <a href="/BulletinAdmin/Manage" class="home-tile home-tile-hr"><span class="home-tile-icon">📢</span><span class="home-tile-label">@L("Quản lý bản tin", "Manage Bulletin")</span></a>
-            <a href="/HrInquiry/Index" class="home-tile home-tile-hr"><span class="home-tile-icon">💼</span><span class="home-tile-label">@L("Inquiry HR", "HR Inquiry")</span></a>
-            <a href="/SundayLeave/Index" class="home-tile home-tile-hr"><span class="home-tile-icon">🗓️</span><span class="home-tile-label">@L("Nghỉ CN", "Sunday Leave")</span></a>
-            <a href="/NotiTemplate/Index" class="home-tile home-tile-hr"><span class="home-tile-icon">🔔</span><span class="home-tile-label">@L("Mẫu thông báo", "Noti Template")</span></a>
-            <a href="/AdminNoti/Index" class="home-tile home-tile-hr"><span class="home-tile-icon">📣</span><span class="home-tile-label">@L("Gửi thông báo", "Send Noti")</span></a>
-            <a href="/User/UserManager" class="home-tile home-tile-hr"><span class="home-tile-icon">👥</span><span class="home-tile-label">@L("Quản lý user", "Users")</span></a>
+            <a href="@Url.Action("Manage", "BulletinAdmin")" class="home-tile home-tile-hr"><span class="home-tile-icon">📢</span><span class="home-tile-label">@L("Quản lý bản tin", "Manage Bulletin")</span></a>
+            <a href="@Url.Action("Index", "HrInquiry")" class="home-tile home-tile-hr"><span class="home-tile-icon">💼</span><span class="home-tile-label">@L("Inquiry HR", "HR Inquiry")</span></a>
+            <a href="@Url.Action("Index", "SundayLeave")" class="home-tile home-tile-hr"><span class="home-tile-icon">🗓️</span><span class="home-tile-label">@L("Nghỉ CN", "Sunday Leave")</span></a>
+            <a href="@Url.Action("Index", "NotiTemplate")" class="home-tile home-tile-hr"><span class="home-tile-icon">🔔</span><span class="home-tile-label">@L("Mẫu thông báo", "Noti Template")</span></a>
+            <a href="@Url.Action("Index", "AdminNoti")" class="home-tile home-tile-hr"><span class="home-tile-icon">📣</span><span class="home-tile-label">@L("Gửi thông báo", "Send Noti")</span></a>
+            <a href="@Url.Action("UserManager", "User")" class="home-tile home-tile-hr"><span class="home-tile-icon">👥</span><span class="home-tile-label">@L("Quản lý user", "Users")</span></a>
             @* HR + Admin đều truy cập /HomeAdmin — HR chỉ thấy 2 tab Banner+Greeting, Admin thấy full *@
-            <a href="/HomeAdmin/Index" class="home-tile home-tile-hr"><span class="home-tile-icon">🎨</span><span class="home-tile-label">@L("Cấu hình Home", "Home Config")</span></a>
+            <a href="@Url.Action("Index", "HomeAdmin")" class="home-tile home-tile-hr"><span class="home-tile-icon">🎨</span><span class="home-tile-label">@L("Cấu hình Home", "Home Config")</span></a>
         </div>
     }
 </section>

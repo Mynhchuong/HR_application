@@ -8,6 +8,7 @@
     const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
     const ctx = window.__HR_HOME_ADMIN__ || { isAdmin: false };
+    const ROOT = ((ctx.rootUrl) || '/').replace(/\/+$/, '') + '/';
     const csrfToken = () => (document.querySelector('input[name="__RequestVerificationToken"]') || {}).value || '';
 
     // ─── Utility ────────────────────────────────────────────────
@@ -94,7 +95,7 @@
         async function loadList() {
             listEl.innerHTML = '<div class="admin-loading">Đang tải…</div>';
             try {
-                const json = await getJson('/HomeAdmin/BannerList');
+                const json = await getJson(ROOT + 'HomeAdmin/BannerList');
                 if (!json.success) throw new Error(json.message || 'load fail');
                 renderList(json.data || []);
             } catch (e) {
@@ -120,7 +121,7 @@
             listEl.innerHTML = items.map(b => `
                 <div class="admin-banner-card">
                     <div class="admin-banner-card-thumb">
-                        <img src="/Image/GetHomeBanner?fileName=${encodeURIComponent(b.IMAGE_FILE)}" alt="" onerror="this.style.display='none'" />
+                        <img src="${ROOT}Image/GetHomeBanner?fileName=${encodeURIComponent(b.IMAGE_FILE)}" alt="" onerror="this.style.display='none'" />
                     </div>
                     <div class="admin-banner-card-body">
                         <div class="admin-banner-card-title">${statusBadge(b)} #${b.ID}</div>
@@ -152,7 +153,7 @@
 
         async function deleteBanner(id) {
             if (!confirm('Xoá banner #' + id + '?')) return;
-            const json = await postJson('/HomeAdmin/BannerDelete', { Id: id });
+            const json = await postJson(ROOT + 'HomeAdmin/BannerDelete', { Id: id });
             if (json.success) { loadList(); }
             else alert(json.message || 'Lỗi xoá');
         }
@@ -165,7 +166,7 @@
             resetForm();
             $('#bannerModalTitle').textContent = id ? 'Sửa banner #' + id : 'Thêm banner';
             if (id) {
-                getJson('/HomeAdmin/BannerList').then(json => {
+                getJson(ROOT + 'HomeAdmin/BannerList').then(json => {
                     const b = (json.data || []).find(x => x.ID === id);
                     if (b) {
                         editing = b;
@@ -200,7 +201,7 @@
             $('#bannerDismissible').checked   = b.IS_DISMISSIBLE;
 
             if (b.IMAGE_FILE) {
-                $('#bannerPreview').innerHTML = `<img src="/Image/GetHomeBanner?fileName=${encodeURIComponent(b.IMAGE_FILE)}" />`;
+                $('#bannerPreview').innerHTML = `<img src="${ROOT}Image/GetHomeBanner?fileName=${encodeURIComponent(b.IMAGE_FILE)}" />`;
                 $('#bannerUploadHint').textContent = '✅ Ảnh hiện tại: ' + b.IMAGE_FILE;
                 $('#bannerUploadHint').className = 'admin-upload-hint text-success';
             }
@@ -228,7 +229,7 @@
             fd.append('file', file);
             let json;
             try {
-                const res = await fetch('/Image/UploadHomeBanner', {
+                const res = await fetch(ROOT + 'Image/UploadHomeBanner', {
                     method: 'POST',
                     body: fd,
                     credentials: 'same-origin',
@@ -244,7 +245,7 @@
             }
             if (json.success) {
                 $('#bannerImageFile').value = json.fileName;
-                $('#bannerPreview').innerHTML = `<img src="/Image/GetHomeBanner?fileName=${encodeURIComponent(json.fileName)}" />`;
+                $('#bannerPreview').innerHTML = `<img src="${ROOT}Image/GetHomeBanner?fileName=${encodeURIComponent(json.fileName)}" />`;
                 hint.textContent = '✅ Upload thành công: ' + json.fileName;
                 hint.className = 'admin-upload-hint text-success';
             } else {
@@ -308,7 +309,7 @@
             const btn = $('#bannerSaveBtn');
             btn.disabled = true;
             try {
-                const json = await postJson('/HomeAdmin/BannerSave', payload);
+                const json = await postJson(ROOT + 'HomeAdmin/BannerSave', payload);
                 if (json.success) {
                     modal.hidden = true;
                     loadList();
@@ -335,7 +336,7 @@
             currentSlot = slot;
             listEl.innerHTML = '<div class="admin-loading">Đang tải…</div>';
             try {
-                const json = await getJson('/HomeAdmin/GreetingList?slot=' + encodeURIComponent(slot));
+                const json = await getJson(ROOT + 'HomeAdmin/GreetingList?slot=' + encodeURIComponent(slot));
                 if (!json.success) throw new Error(json.message || 'load fail');
                 renderList(json.data || []);
             } catch (e) {
@@ -382,7 +383,7 @@
 
         async function deleteItem(id) {
             if (!confirm('Xoá câu chào #' + id + '?')) return;
-            const json = await postJson('/HomeAdmin/GreetingDelete', { Id: id });
+            const json = await postJson(ROOT + 'HomeAdmin/GreetingDelete', { Id: id });
             if (json.success) loadList(currentSlot);
             else alert(json.message || 'Lỗi');
         }
@@ -397,7 +398,7 @@
             $('#greetingActive').checked = true;
             $('#greetingModalTitle').textContent = id ? 'Sửa câu chào #' + id : 'Thêm câu chào';
             if (id) {
-                getJson('/HomeAdmin/GreetingList').then(json => {
+                getJson(ROOT + 'HomeAdmin/GreetingList').then(json => {
                     const g = (json.data || []).find(x => x.ID === id);
                     if (g) {
                         $('#greetingId').value       = g.ID;
@@ -423,7 +424,7 @@
                 Emoji:     $('#greetingEmoji').value.trim() || null,
                 IsActive:  $('#greetingActive').checked
             };
-            const json = await postJson('/HomeAdmin/GreetingSave', payload);
+            const json = await postJson(ROOT + 'HomeAdmin/GreetingSave', payload);
             if (json.success) {
                 modal.hidden = true;
                 loadList(currentSlot);
@@ -441,7 +442,7 @@
 
         async function loadRules() {
             try {
-                const json = await getJson('/HomeAdmin/RuleList');
+                const json = await getJson(ROOT + 'HomeAdmin/RuleList');
                 if (!json.success) throw new Error(json.message);
                 renderRules(json.data || []);
             } catch (e) {
@@ -470,7 +471,7 @@
             const from = parseInt(row.querySelector('[data-field="from"]').value, 10);
             const to   = parseInt(row.querySelector('[data-field="to"]').value, 10);
             const payload = { TimeSlot: btn.dataset.saveRule, FromHour: from, ToHour: to };
-            const json = await postJson('/HomeAdmin/RuleSave', payload);
+            const json = await postJson(ROOT + 'HomeAdmin/RuleSave', payload);
             if (json.success) {
                 btn.textContent = '✓ Đã lưu';
                 setTimeout(() => btn.textContent = 'Lưu', 1500);
@@ -500,7 +501,7 @@
                 dateTo:   $('#auditDateTo').value || ''
             });
             try {
-                const json = await getJson('/HomeAdmin/AuditList?' + params.toString());
+                const json = await getJson(ROOT + 'HomeAdmin/AuditList?' + params.toString());
                 if (!json.success) throw new Error(json.message);
                 cachedItems = (json.data && json.data.DATA) || [];
                 render(json.data);

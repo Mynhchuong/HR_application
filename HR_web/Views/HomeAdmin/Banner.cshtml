@@ -7,7 +7,7 @@
 
 <div class="admin-home-page">
     <div class="admin-home-header">
-        <a href="/HomeAdmin" class="admin-home-back">← Quay lại</a>
+        <a href="@Url.Action("Index", "HomeAdmin")" class="admin-home-back">← Quay lại</a>
         <h1>🖼️ Quản lý Banner</h1>
         <p class="text-muted">
             Cùng một thời điểm chỉ có <strong>1 banner active</strong>.
@@ -131,6 +131,6 @@
 </div>
 
 <script>
-    window.__HR_HOME_ADMIN__ = { isAdmin: @(isAdmin ? "true" : "false") };
+    window.__HR_HOME_ADMIN__ = { isAdmin: @(isAdmin ? "true" : "false"), rootUrl: '@Url.Content("~/")' };
 </script>
 <script src="~/assets/js/home-admin.js" asp-append-version="true"></script>

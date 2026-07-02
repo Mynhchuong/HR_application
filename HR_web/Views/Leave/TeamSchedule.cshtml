@@ -254,21 +254,13 @@
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                         data-mobile="hidden">#</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
+                                        data-mobile="primary" data-mobile-slot="name" data-mobile-label="Nhân viên">Nhân viên</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                         data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Loại nghỉ">Loại nghỉ</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Từ ngày">Từ ngày</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="detail" data-mobile-label="Đến ngày">Đến ngày</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Số ngày">Số ngày</th>
+                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Thời gian">Thời gian</th>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                         data-mobile="detail" data-mobile-label="Lý do">Lý do</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="detail" data-mobile-label="Ngày tạo">Ngày tạo</th>
                                     <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
                                         data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tình trạng">Tình trạng</th>
                                     <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
@@ -734,16 +726,22 @@ function buildApprovalRow(item, idx) {
            </div>` : '';
     const sigCell = `<div class="sig-cell">${reqSig}${apSig}</div>`;
 
+    const empCell = `
+        <div class="text-xs text-secondary">${escHtml(item.EMPCD||'')}</div>
+        <div class="text-sm vni-font fw-bold" style="text-transform:uppercase;line-height:1.2;">${escHtml(item.EMP_NAME||'')}</div>
+    `;
+    const timeCell = `
+        <div class="text-sm text-nowrap">${formatDate(item.FROM_DATE)}${item.TO_DATE && item.TO_DATE !== item.FROM_DATE ? ' → ' + formatDate(item.TO_DATE) : ''}</div>
+        <div class="text-xs fw-bold text-primary">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : ''}</div>
+        ${item.CREATED_DATE ? `<div class="text-xxs text-muted">Tạo: ${formatDateTime(item.CREATED_DATE)}</div>` : ''}
+    `;
+
     return `<tr class="${isStale ? 'row-stale-pending' : ''}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
-        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
-        <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
+        <td class="px-2">${empCell}</td>
         <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
-        <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
-        <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
-        <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : '-'}</td>
-        <td class="px-2 text-sm" style="max-width:180px;white-space:normal;color:#475569;">${item.REASON ? escHtml(item.REASON) : '<span class="text-muted">-</span>'}</td>
-        <td class="px-2 text-xs text-nowrap text-secondary">${item.CREATED_DATE ? formatDateTime(item.CREATED_DATE) : '-'}</td>
+        <td class="px-2">${timeCell}</td>
+        <td class="px-2 text-sm" style="min-width:220px;max-width:320px;white-space:normal;color:#475569;">${item.REASON ? escHtml(item.REASON) : '<span class="text-muted">-</span>'}</td>
         <td class="text-center">${statusHtml}</td>
         <td class="text-center">${sigCell}</td>
         <td class="text-center">${actions}</td>
@@ -752,7 +750,7 @@ function buildApprovalRow(item, idx) {
 
 function loadApproval(page = 1) {
     apvPage = page;
-    $('#approvalBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
+    $('#approvalBody').html(`<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
     MobileTableHelper.refresh('approvalBody');
     const range = getMonthRange();
     $.ajax({
@@ -760,7 +758,7 @@ function loadApproval(page = 1) {
         data: { status: apvStatus, search: ($('#apvEmpFilter').val()||'').trim(), date_from: range.from, date_to: range.to, page, page_size: apvPageSize },
         success: function(res) {
             if (!res.success) {
-                $('#approvalBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                $('#approvalBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
                 MobileTableHelper.refresh('approvalBody');
                 return;
             }
@@ -768,7 +766,7 @@ function loadApproval(page = 1) {
             apvTotalPages = res.total_pages || 0;
             const data = res.data || [];
             if (!data.length) {
-                $('#approvalBody').html(emptyRow('Không có đơn nghỉ nào', 12));
+                $('#approvalBody').html(emptyRow('Không có đơn nghỉ nào', 8));
             } else {
                 $('#approvalBody').html(data.map((item,i) => buildApprovalRow(item,(page-1)*apvPageSize+i+1)).join(''));
             }
@@ -776,7 +774,7 @@ function loadApproval(page = 1) {
             MobileTableHelper.refresh('approvalBody');
         },
         error: function(xhr) {
-            $('#approvalBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#approvalBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('approvalBody');
         }
     });

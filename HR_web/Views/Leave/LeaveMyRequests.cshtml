@@ -415,12 +415,13 @@ function actionBtns(item) {
 }
 
 function sigBlock(item) {
-    const mySig = CURRENT_EMPCD
+    const isAssigned = item.SOURCE === 'ASSIGNED';
+    const mySig = (!isAssigned && CURRENT_EMPCD)
         ? `<div class="sig-col">
                <div class="sig-lbl">Người ký</div>
                <img src="${SIG_URL}?empCd=${encodeURIComponent(CURRENT_EMPCD)}" class="sig-img" onerror="this.remove()" alt="Chữ ký"/>
            </div>` : '';
-    const asSig = (item.SOURCE === 'ASSIGNED' && item.ASSIGNED_BY)
+    const asSig = (isAssigned && item.ASSIGNED_BY)
         ? `<div class="sig-col">
                <div class="sig-lbl">Người sắp lịch</div>
                <img src="${SIG_URL}?empCd=${encodeURIComponent(item.ASSIGNED_BY)}" class="sig-img" onerror="this.remove()" alt="Chữ ký"/>
@@ -441,7 +442,7 @@ function buildRow(item, idx) {
     const needsAction = isAssigned && !isPastDate(item.TO_DATE);
     const expired     = isExpiredPending(item);
 
-    const reqSig = CURRENT_EMPCD
+    const reqSig = (item.SOURCE !== 'ASSIGNED' && CURRENT_EMPCD)
         ? `<div class="sig-cell-item">
                <div class="sig-cell-lbl">Người ký</div>
                <img src="${SIG_URL}?empCd=${encodeURIComponent(CURRENT_EMPCD)}" class="sig-cell-img" onerror="this.remove()" alt="Chữ ký"/>
@@ -803,7 +804,8 @@ function confirmLeave(id) {
             if (res.success) { showToast('Đã tiếp nhận thông tin lịch nghỉ', 'success'); loadData(currentPage); }
             else showToast(res.message || 'Lỗi tiếp nhận', 'error');
         } catch { showToast('Lỗi kết nối', 'error'); }
-    }, { title: 'Tiếp Nhận Thông Tin', okText: 'Tiếp Nhận', okClass: 'btn-success' });
+    }, { title: 'Tiếp Nhận Thông Tin', okText: 'Tiếp Nhận', okClass: 'btn-success',
+         icon: 'event_available', iconColor: '#16a34a', iconBg: '#dcfce7' });
 }
 
 function workerReject(id) {
@@ -813,7 +815,8 @@ function workerReject(id) {
             if (res.success) { showToast('Đã từ chối lịch nghỉ', 'warning'); loadData(currentPage); }
             else showToast(res.message || 'Lỗi từ chối', 'error');
         } catch { showToast('Lỗi kết nối', 'error'); }
-    }, { title: 'Từ Chối Lịch Nghỉ', okText: 'Từ Chối', okClass: 'btn-danger' });
+    }, { title: 'Từ Chối Lịch Nghỉ', okText: 'Từ Chối', okClass: 'btn-danger',
+         icon: 'cancel', iconColor: '#dc2626', iconBg: '#fee2e2' });
 }
 
 function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }

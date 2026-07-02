@@ -406,7 +406,25 @@ function tryAutoSelectTopic() {
     if (card) card.click();
 }
 
+function tryAutoStart() {
+    const params = new URLSearchParams(location.search);
+    const type   = (params.get('chatType') || '').toUpperCase();
+    const cd     = params.get('topicCd');
+    if (type !== 'DIRECT' && type !== 'ANON') return;
+
+    const typeCard = document.querySelector(`.type-card.${type.toLowerCase()}`);
+    if (!typeCard) return;
+    typeCard.click();
+    goStep(2);
+
+    if (cd) {
+        const topicCard = document.querySelector(`.topic-card[data-topic-cd="${cd}"]`);
+        if (topicCard) { topicCard.click(); goStep(3); }
+    }
+}
+
 loadExistingConversations();
+tryAutoStart();
 
 async function submitCreate() {
     const content = document.getElementById('contentInput').value.trim();

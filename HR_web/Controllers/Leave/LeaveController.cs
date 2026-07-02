@@ -50,6 +50,20 @@ public class LeaveController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET: /Leave/AlDeadline?from_date=YYYY-MM-DD (AJAX)
+    // Deadline xin AL = STIME ca ngày đó - 7.5h. Frontend gọi khi user chọn ngày.
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> AlDeadline(string from_date)
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+            return Json(new { success = false, message = "Chưa đăng nhập" });
+
+        var raw = await _leaveService.GetAlDeadlineRawAsync(CurrentUser.EmpCd, from_date ?? "");
+        return Content(raw, "application/json");
+    }
+
+    // ─────────────────────────────────────────────
     // POST: /Leave/CreateRequest (AJAX)
     // ─────────────────────────────────────────────
     [HttpPost]

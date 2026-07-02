@@ -48,6 +48,14 @@ public class LeaveController : ControllerBase
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
 
+            // AL deadline: STIME ca của FROM_DATE - 7.5h (fair cho ca đêm)
+            if (model.LEAVE_TYPE == "AL")
+            {
+                var chk = await CheckAlDeadlineAsync(model.EMPCD, fromDate);
+                if (!chk.Allowed)
+                    return Ok(new { success = false, message = chk.Message });
+            }
+
             var empRows = await _oracleService.ExecuteQueryAsync(
                 "SELECT CNAME FROM HRMS.ECM100 WHERE EMPCD = :EMPCD AND ROWNUM = 1",
                 r => r["CNAME"]?.ToString(),
@@ -2318,6 +2326,102 @@ public class LeaveController : ControllerBase
             results.Add(new { empCd, success = true, message = "OK" });
         }
         return Ok(new { success = true, results });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // AL Deadline: STIME của ca ngày FROM_DATE - 7.5h.
+    // Fair cho ca đêm: K3 22:30 → deadline 15:00 cùng ngày (không phải 00:00 hôm trước).
+    // Nếu user chưa được xếp lịch ca cho ngày đó → fallback: chỉ chặn from <= today.
+    // ─────────────────────────────────────────────────────────────────────────
+    private record AlDeadlineCheck(bool Allowed, string? Message, DateTime? Deadline, string ShiftCd, string ShiftStart);
+
+    private async Task<AlDeadlineCheck> CheckAlDeadlineAsync(string empcd, DateTime fromDate)
+    {
+        // Lấy shift ngày FROM_DATE.
+        // Union EBM300 + EBM300_WAIT vì lịch tương lai có thể chưa finalize
+        // (giống ShiftLookupService.GetShiftForDateAsync).
+        const string sql = @"
+            SELECT T.SHIFTCD, S.STIME FROM (
+                SELECT SHIFTCD FROM HRMS.EBM300      WHERE EMPCD = :EMPCD  AND DAT = :FROM_DATE  AND ROWNUM = 1
+                UNION ALL
+                SELECT SHIFTCD FROM HRMS.EBM300_WAIT WHERE EMPCD = :EMPCD1 AND DAT = :FROM_DATE1 AND ROWNUM = 1
+            ) T
+            JOIN HRMS.EBM100 S ON S.SHIFTCD = T.SHIFTCD
+            WHERE ROWNUM = 1";
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
+        {
+            SHIFTCD = r["SHIFTCD"]?.ToString() ?? "",
+            STIME   = r["STIME"]?.ToString()   ?? "",
+        },
+        new OracleParameter("EMPCD",      empcd),
+        new OracleParameter("FROM_DATE",  OracleDbType.Date) { Value = fromDate.Date },
+        new OracleParameter("EMPCD1",     empcd),
+        new OracleParameter("FROM_DATE1", OracleDbType.Date) { Value = fromDate.Date });
+
+        var shift = rows.FirstOrDefault();
+
+        // Fallback: không có shift → giữ luật cũ (from phải > today)
+        if (shift == null || shift.STIME.Length != 4)
+        {
+            if (fromDate.Date <= DateTime.Today)
+                return new AlDeadlineCheck(false,
+                    "Phép năm phải đăng ký trước ít nhất 1 ngày (chưa có lịch ca ngày này).",
+                    null, "", "");
+            return new AlDeadlineCheck(true, null, null, "", "");
+        }
+
+        if (!int.TryParse(shift.STIME.Substring(0, 2), out var hh) ||
+            !int.TryParse(shift.STIME.Substring(2, 2), out var mm))
+        {
+            // STIME format lạ → fallback
+            if (fromDate.Date <= DateTime.Today)
+                return new AlDeadlineCheck(false,
+                    "Phép năm phải đăng ký trước ít nhất 1 ngày.", null, shift.SHIFTCD, "");
+            return new AlDeadlineCheck(true, null, null, shift.SHIFTCD, "");
+        }
+
+        var shiftStart  = fromDate.Date.AddHours(hh).AddMinutes(mm);
+        var deadline    = shiftStart.AddMinutes(-450); // -7.5h
+        var shiftStartStr = $"{hh:D2}:{mm:D2}";
+
+        if (DateTime.Now > deadline)
+        {
+            string msg = $"Đã qua giờ đăng ký AL cho ngày {fromDate:dd/MM/yyyy}. " +
+                         $"Ca {shift.SHIFTCD} bắt đầu {shiftStartStr} → deadline là {deadline:HH:mm dd/MM/yyyy}.";
+            return new AlDeadlineCheck(false, msg, deadline, shift.SHIFTCD, shiftStartStr);
+        }
+
+        return new AlDeadlineCheck(true, null, deadline, shift.SHIFTCD, shiftStartStr);
+    }
+
+    // GET /apiHR/Leave/al-deadline?empcd=&from_date=YYYY-MM-DD
+    // Frontend gọi trước khi enable nút Submit để UX không bị lỡ deadline
+    [HttpGet("al-deadline")]
+    public async Task<IActionResult> GetAlDeadline(string empcd, string from_date)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd))
+                return Ok(new { success = false, message = "Thiếu mã nhân viên" });
+            if (!DateTime.TryParse(from_date, out var fromDate))
+                return Ok(new { success = false, message = "Ngày không hợp lệ" });
+
+            var chk = await CheckAlDeadlineAsync(empcd, fromDate);
+            return Ok(new
+            {
+                success     = true,
+                allowed     = chk.Allowed,
+                message     = chk.Message,
+                deadline    = chk.Deadline?.ToString("yyyy-MM-dd HH:mm"),
+                shift_cd    = chk.ShiftCd,
+                shift_start = chk.ShiftStart
+            });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
     }
 }
 

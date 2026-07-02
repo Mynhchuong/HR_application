@@ -643,9 +643,23 @@ async function saveCreate() {
     if (!reason)            { $('#createError').removeClass('d-none').text('Vui lòng nhập lý do nghỉ phép'); $('#createReason').focus(); return; }
 
     const createLT = $('input[name=createLT]:checked').val() || 'AL';
-    if (createLT === 'AL' && from <= today) {
-        $('#createError').removeClass('d-none').text('Phép năm phải đăng ký trước ít nhất 1 ngày');
-        $('#createFromDate').focus(); return;
+    // AL deadline: STIME ca ngày FROM_DATE - 7.5h (fair cho ca đêm).
+    // Server sẽ check lại — client chỉ để UX sớm.
+    if (createLT === 'AL') {
+        try {
+            const dl = await $.ajax({ url: '@Url.Action("AlDeadline", "Leave")', type: 'GET', data: { from_date: from } });
+            if (dl.success === false || dl.allowed === false) {
+                const msg = dl.message || 'Đã qua deadline đăng ký phép năm cho ngày này';
+                $('#createError').removeClass('d-none').text(msg);
+                $('#createFromDate').focus(); return;
+            }
+        } catch (e) {
+            // network fail → fallback: chặn xin cho hôm nay/quá khứ (giữ luật cũ)
+            if (from <= today) {
+                $('#createError').removeClass('d-none').text('Phép năm phải đăng ký trước ít nhất 1 ngày');
+                $('#createFromDate').focus(); return;
+            }
+        }
     }
     if (createLT === 'AL' && myBalance != null) {
         const left = myBalance.LEFT_NUM ?? 0;

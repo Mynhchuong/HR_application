@@ -36,6 +36,24 @@ public class LeaveService
         catch (Exception ex) { return new LeaveMyRequestsPagedResponse { success = false, message = ex.Message, data = new() }; }
     }
 
+    // Deadline check cho AL: STIME của ca ngày FROM_DATE - 7.5h.
+    // Trả raw JSON để HR_web passthrough — không cần định nghĩa model riêng.
+    public async Task<string> GetAlDeadlineRawAsync(string empcd, string fromDate)
+    {
+        try
+        {
+            var q = $"empcd={Uri.EscapeDataString(empcd)}&from_date={Uri.EscapeDataString(fromDate)}";
+            var response = await _api.GetAsync_Raw("leave/al-deadline", q);
+            if (response != null && response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối API\"}";
+        }
+        catch (Exception ex)
+        {
+            return "{\"success\":false,\"message\":" + JsonConvert.SerializeObject(ex.Message) + "}";
+        }
+    }
+
     public async Task<LeaveActionResponse> CreateAsync(LeaveCreateRequest request)
     {
         try

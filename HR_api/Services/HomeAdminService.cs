@@ -93,10 +93,12 @@ public class HomeAdminService
         // HR bị giới hạn field — reject nếu HR cố sửa nâng cao
         bool isHrOnly = string.Equals(req.LOGIN_ROLE, "HR", StringComparison.OrdinalIgnoreCase);
 
-        // Overlap check: banner mới không được chồng khoảng với banner active khác
-        var overlap = await CountOverlappingActiveBannersAsync(req.PUBLISH_FROM, req.PUBLISH_TO, req.ID);
+        // Overlap check: chỉ reject nếu vừa CHỒNG THỜI GIAN vừa CHỒNG ROLE.
+        // TARGET_ROLES trống = hiển thị cho ALL → coi như overlap với mọi role.
+        var overlap = await CountOverlappingActiveBannersAsync(
+            req.PUBLISH_FROM, req.PUBLISH_TO, req.ID, req.TARGET_ROLES);
         if (overlap > 0)
-            return (false, "Đã có banner active trong khoảng thời gian này", null);
+            return (false, "Đã có banner cùng khoảng thời gian và cùng role. Đổi role hoặc ngày.", null);
 
         HomeAdminBannerListItem? oldRow = null;
         if (req.ID.HasValue)
@@ -241,22 +243,56 @@ public class HomeAdminService
         return (false, "Không tìm thấy banner");
     }
 
-    private async Task<int> CountOverlappingActiveBannersAsync(DateTime from, DateTime to, int? excludeId)
+    private async Task<int> CountOverlappingActiveBannersAsync(
+        DateTime from, DateTime to, int? excludeId, string? newTargetRoles)
     {
+        // Bước 1: lấy tất cả banner CHỒNG THỜI GIAN (chưa cần biết role)
         const string sql = @"
-            SELECT COUNT(*) CNT
+            SELECT ID, TARGET_ROLES
             FROM HRMS.HR_HOME_BANNER
             WHERE IS_ACTIVE = 1
               AND ID <> NVL(:EXCLUDE_ID, -1)
               AND PUBLISH_FROM <= :NEW_TO
               AND PUBLISH_TO   >= :NEW_FROM";
 
-        var rows = await _oracleService.ExecuteQueryAsync(sql,
-            r => Convert.ToInt32(r["CNT"]),
-            new OracleParameter("EXCLUDE_ID", (object?)excludeId ?? DBNull.Value),
-            new OracleParameter("NEW_TO",     to),
-            new OracleParameter("NEW_FROM",   from));
-        return rows.FirstOrDefault();
+        var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
+        {
+            ID           = Convert.ToInt32(r["ID"]),
+            TARGET_ROLES = r["TARGET_ROLES"]?.ToString()
+        },
+        new OracleParameter("EXCLUDE_ID", (object?)excludeId ?? DBNull.Value),
+        new OracleParameter("NEW_TO",     to),
+        new OracleParameter("NEW_FROM",   from));
+
+        // Bước 2: đếm những cái còn CHỒNG ROLE
+        var newRoles = ParseRolesCsv(newTargetRoles);
+        int count = 0;
+        foreach (var r in rows)
+        {
+            var oldRoles = ParseRolesCsv(r.TARGET_ROLES);
+            if (RolesIntersect(newRoles, oldRoles)) count++;
+        }
+        return count;
+    }
+
+    // null/empty CSV = "tất cả role" → coi như overlap với mọi role.
+    private static HashSet<string>? ParseRolesCsv(string? csv)
+    {
+        if (string.IsNullOrWhiteSpace(csv)) return null;
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var part in csv.Split(','))
+        {
+            var t = part.Trim();
+            if (!string.IsNullOrEmpty(t)) set.Add(t);
+        }
+        return set.Count == 0 ? null : set;
+    }
+
+    private static bool RolesIntersect(HashSet<string>? a, HashSet<string>? b)
+    {
+        // null = ALL → luôn overlap
+        if (a == null || b == null) return true;
+        return a.Overlaps(b);
     }
 
     private static string? SanitizeLinkUrl(string? url)

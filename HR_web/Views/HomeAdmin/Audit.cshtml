@@ -1,0 +1,65 @@
+@{
+    ViewData["Title"] = "Audit log";
+}
+
+<link rel="stylesheet" href="~/assets/css/home-admin.css" asp-append-version="true" />
+
+<div class="admin-home-page">
+    <div class="admin-home-header">
+        <a href="/HomeAdmin" class="admin-home-back">← Quay lại</a>
+        <h1>📋 Audit Log</h1>
+        <p class="text-muted">Nhật ký thay đổi Banner / Câu chào / Khung giờ.</p>
+    </div>
+
+    <div class="admin-home-filter">
+        <div class="filter-row">
+            <label>Entity:</label>
+            <select id="auditEntity" class="form-control">
+                <option value="">Tất cả</option>
+                <option value="BANNER">Banner</option>
+                <option value="GREETING">Greeting</option>
+                <option value="RULE">Rule</option>
+            </select>
+        </div>
+        <div class="filter-row">
+            <label>Actor (EMPCD):</label>
+            <input type="text" id="auditActor" class="form-control" placeholder="EMPCD" />
+        </div>
+        <div class="filter-row">
+            <label>Từ ngày:</label>
+            <input type="date" id="auditDateFrom" class="form-control" />
+        </div>
+        <div class="filter-row">
+            <label>Đến ngày:</label>
+            <input type="date" id="auditDateTo" class="form-control" />
+        </div>
+        <div class="filter-row">
+            <button type="button" class="btn btn-primary" id="auditFilterBtn">Lọc</button>
+        </div>
+    </div>
+
+    <div id="auditList" class="admin-audit-list">
+        <div class="admin-loading">Đang tải…</div>
+    </div>
+
+    <div id="auditPager" class="admin-pager"></div>
+</div>
+
+<!-- Modal detail (xem OLD_VAL/NEW_VAL JSON) -->
+<div id="auditDetailModal" class="admin-modal" hidden>
+    <div class="admin-modal-backdrop" data-close="audit"></div>
+    <div class="admin-modal-panel admin-modal-lg">
+        <div class="admin-modal-header">
+            <div class="admin-modal-title">Chi tiết thay đổi</div>
+            <button type="button" class="admin-modal-close" data-close="audit">×</button>
+        </div>
+        <div class="admin-modal-body">
+            <div id="auditDetailBody"></div>
+        </div>
+        <div class="admin-modal-footer">
+            <button type="button" class="btn btn-secondary" data-close="audit">Đóng</button>
+        </div>
+    </div>
+</div>
+
+<script src="~/assets/js/home-admin.js" asp-append-version="true"></script>

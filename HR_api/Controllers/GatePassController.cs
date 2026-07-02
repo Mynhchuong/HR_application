@@ -14,11 +14,16 @@ public class GatePassController : ControllerBase
 {
     private readonly OracleService _oracleService;
     private readonly NotificationService _notiSvc;
+    private readonly ShiftLookupService _shiftLookup;
+    private readonly HomeSummaryService _homeSummarySvc;
 
-    public GatePassController(OracleService oracleService, NotificationService notiSvc)
+    public GatePassController(OracleService oracleService, NotificationService notiSvc,
+                              ShiftLookupService shiftLookup, HomeSummaryService homeSummarySvc)
     {
-        _oracleService = oracleService;
-        _notiSvc = notiSvc;
+        _oracleService  = oracleService;
+        _notiSvc        = notiSvc;
+        _shiftLookup    = shiftLookup;
+        _homeSummarySvc = homeSummarySvc;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -33,64 +38,14 @@ public class GatePassController : ControllerBase
                 return Ok(new { success = false, message = "Thiếu mã nhân viên" });
 
             GpShiftInfoModel? info;
-
             if (string.IsNullOrEmpty(reg_date))
             {
-                // Auto-detect: dùng logic ca đêm của sếp
-                // Nếu giờ hiện tại < STIME và đây là ca đêm (STIME > ETIME) → đang ở phần sáng hôm sau → DAT = hôm qua
-                string autoSql = @"
-                    SELECT TO_CHAR(A.DAT, 'YYYY-MM-DD')     WORK_DATE,
-                           TO_CHAR(A.DAT + 1, 'YYYY-MM-DD') WORK_DATE_TOMORROW,
-                           A.SHIFTCD, B.STIME, B.ETIME
-                    FROM HRMS.EBM300 A, HRMS.EBM100 B
-                    WHERE A.SHIFTCD = B.SHIFTCD
-                      AND A.EMPCD = :EMPCD
-                      AND A.DAT = CASE
-                                    WHEN TO_NUMBER(TO_CHAR(SYSDATE,'HH24MI')) < TO_NUMBER(B.STIME)
-                                         AND TO_NUMBER(B.STIME) > TO_NUMBER(B.ETIME)
-                                    THEN TRUNC(SYSDATE) - 1
-                                    ELSE TRUNC(SYSDATE)
-                                  END
-                    AND ROWNUM = 1";
-
-                var autoResult = await _oracleService.ExecuteQueryAsync(autoSql, r => new GpShiftInfoModel
-                {
-                    SHIFTCD           = r["SHIFTCD"]?.ToString(),
-                    STIME             = r["STIME"]?.ToString(),
-                    ETIME             = r["ETIME"]?.ToString(),
-                    WORK_DATE         = r["WORK_DATE"]?.ToString(),
-                    WORK_DATE_TOMORROW = r["WORK_DATE_TOMORROW"]?.ToString()
-                }, new OracleParameter("EMPCD", empcd));
-
-                info = autoResult.FirstOrDefault();
+                info = await _shiftLookup.GetTodayShiftAsync(empcd);
             }
             else
             {
                 DateTime regDate = DateTime.TryParse(reg_date, out var _rd) ? _rd : DateTime.Today;
-
-                string sql = @"
-                    SELECT T.SHIFTCD, S.STIME, S.ETIME FROM (
-                        SELECT SHIFTCD FROM HRMS.EBM300      WHERE EMPCD = :EMPCD  AND DAT = :REG_DATE  AND ROWNUM = 1
-                        UNION ALL
-                        SELECT SHIFTCD FROM HRMS.EBM300_WAIT WHERE EMPCD = :EMPCD1 AND DAT = :REG_DATE1 AND ROWNUM = 1
-                    ) T
-                    JOIN HRMS.EBM100 S ON S.SHIFTCD = T.SHIFTCD
-                    WHERE ROWNUM = 1";
-
-                var result = await _oracleService.ExecuteQueryAsync(sql, r => new GpShiftInfoModel
-                {
-                    SHIFTCD           = r["SHIFTCD"]?.ToString(),
-                    STIME             = r["STIME"]?.ToString(),
-                    ETIME             = r["ETIME"]?.ToString(),
-                    WORK_DATE         = regDate.ToString("yyyy-MM-dd"),
-                    WORK_DATE_TOMORROW = regDate.AddDays(1).ToString("yyyy-MM-dd")
-                },
-                new OracleParameter("EMPCD",     empcd),
-                new OracleParameter("REG_DATE",  regDate),
-                new OracleParameter("EMPCD1",    empcd),
-                new OracleParameter("REG_DATE1", regDate));
-
-                info = result.FirstOrDefault();
+                info = await _shiftLookup.GetShiftForDateAsync(empcd, regDate);
             }
 
             return Ok(new { success = true, data = info });
@@ -659,6 +614,7 @@ END;";
                 _notiSvc.GatePassApproved(empCd, model.APPROVER_EMPCD);
             }
 
+            _homeSummarySvc.InvalidateFor(model.APPROVER_EMPCD);
             return Ok(new { success = true, message = "Đã duyệt Gate Pass" });
         }
         catch (Exception ex)
@@ -733,6 +689,7 @@ END;";
                 _notiSvc.GatePassRejected(empRows[0], model.APPROVER_EMPCD);
             }
 
+            _homeSummarySvc.InvalidateFor(model.APPROVER_EMPCD);
             return Ok(new { success = true, message = "Đã từ chối Gate Pass" });
         }
         catch (Exception ex)

@@ -1,0 +1,22 @@
+@model HR_web.ViewModels.Home.HomeIndexViewModel
+
+@{
+    var greeting = Model.Greeting;
+    var isEn = Model.Lang == "en";
+    var hello = isEn ? "Hello" : "Xin chào";
+    var displayName = string.IsNullOrEmpty(Model.FullName) ? Model.EmpCd : Model.FullName;
+}
+
+<div class="home-greeting-bar">
+    <div class="home-greeting-hi">@hello, <strong class="vni-font">@displayName</strong></div>
+    @if (greeting != null)
+    {
+        <div class="home-greeting-message">
+            <span class="home-greeting-text">@greeting.Message</span>
+            @if (!string.IsNullOrEmpty(greeting.Emoji))
+            {
+                <span class="home-greeting-emoji">@greeting.Emoji</span>
+            }
+        </div>
+    }
+</div>

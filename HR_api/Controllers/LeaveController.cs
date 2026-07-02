@@ -13,11 +13,13 @@ public class LeaveController : ControllerBase
 {
     private readonly OracleService _oracleService;
     private readonly NotificationService _notiSvc;
+    private readonly HomeSummaryService _homeSummarySvc;
 
-    public LeaveController(OracleService oracleService, NotificationService notiSvc)
+    public LeaveController(OracleService oracleService, NotificationService notiSvc, HomeSummaryService homeSummarySvc)
     {
-        _oracleService = oracleService;
-        _notiSvc       = notiSvc;
+        _oracleService  = oracleService;
+        _notiSvc        = notiSvc;
+        _homeSummarySvc = homeSummarySvc;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -688,6 +690,9 @@ public class LeaveController : ControllerBase
                 _notiSvc.LeaveApproved(requestInfo.Empcd, model.APPROVER_EMPCD);
             }
 
+            // Invalidate Home summary cache của approver — số pending vừa giảm 1
+            _homeSummarySvc.InvalidateFor(model.APPROVER_EMPCD);
+
             return Ok(new { success = true, message = "Đã duyệt đơn nghỉ phép" });
         }
         catch (Exception ex)
@@ -755,6 +760,9 @@ public class LeaveController : ControllerBase
             {
                 _notiSvc.LeaveRejected(rejectInfo.Empcd, model.APPROVER_EMPCD);
             }
+
+            // Invalidate Home summary cache của approver
+            _homeSummarySvc.InvalidateFor(model.APPROVER_EMPCD);
 
             return Ok(new { success = true, message = "Đã từ chối đơn nghỉ phép" });
         }

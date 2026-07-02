@@ -3,6 +3,8 @@ using HR_web.Helpers;
 using HR_web.Models.Account;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
 
 namespace HR_web.Controllers;
 
@@ -23,6 +25,7 @@ public class ImageController : BaseController
     private const string CantinFolder   = ShareRoot + @"\MY_SAMHO_CANTIN";
     private const string PolicyFolder   = ShareRoot + @"\POLICY";
     private const string BulletinFolder = ShareRoot + @"\BULLETIN\IMG";
+    private const string HomeBannerFolder = ShareRoot + @"\MY_SAMHO_HOME";
 
     private static readonly string[] ImageExts    = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
     private const long               ImageMaxBytes = 10L * 1024 * 1024; // 10 MB
@@ -169,6 +172,91 @@ public class ImageController : BaseController
             fileName.Contains("..") || fileName.Contains('/') || fileName.Contains('\\'))
             return NotFound();
         return ServeNetworkImage(Path.Combine(BulletinFolder, fileName), fileName);
+    }
+
+    // ── Home banner ─────────────────────────────────────────────────────────
+    // Stream ảnh banner từ \\192.168.1.5\vserp_picture\MY_SAMHO_HOME\
+    [HttpGet, AllowAnonymous]
+    [ResponseCache(Duration = 300)] // 5 phút — banner đổi thường xuyên hơn bulletin
+    public IActionResult GetHomeBanner(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName) ||
+            fileName.Contains("..") || fileName.Contains('/') || fileName.Contains('\\'))
+            return NotFound();
+        return ServeNetworkImage(Path.Combine(HomeBannerFolder, fileName), fileName);
+    }
+
+    // ── Upload Home banner (chỉ HR/Admin) ──────────────────────────────────
+    // Validate 1920×1080 (16:9, ±2%), 1200×675 ≤ w×h ≤ 4096×2304, ≤5MB, JPG/PNG/WebP
+    // Auto-resize về 1920×1080 q=85 JPEG
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> UploadHomeBanner(IFormFile? file)
+    {
+        // Role gate
+        var role = CurrentUser?.RoleName;
+        if (role is not ("HR" or "Admin"))
+            return Json(new { success = false, message = "Bạn không có quyền upload banner" });
+
+        if (file == null || file.Length == 0)
+            return Json(new { success = false, message = "Chưa chọn file!" });
+
+        // 1. MIME
+        var allowedMime = new[] { "image/jpeg", "image/png", "image/webp" };
+        if (!allowedMime.Contains(file.ContentType))
+            return Json(new { success = false, message = "Chỉ chấp nhận JPG/PNG/WebP" });
+
+        // 2. Size
+        if (file.Length > 5L * 1024 * 1024)
+            return Json(new { success = false, message = $"Ảnh {(file.Length / 1024 / 1024)}MB quá lớn, tối đa 5MB" });
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            using var image  = await SixLabors.ImageSharp.Image.LoadAsync(stream);
+
+            int w = image.Width, h = image.Height;
+
+            // 3. Dimensions
+            if (w < 1200 || h < 675)
+                return Json(new { success = false, message = $"Ảnh {w}×{h} quá nhỏ. Tối thiểu 1200×675 (khuyến nghị 1920×1080)" });
+            if (w > 4096 || h > 2304)
+                return Json(new { success = false, message = $"Ảnh {w}×{h} quá lớn. Tối đa 4096×2304" });
+
+            // 4. Aspect ratio 16:9 ±2%
+            double ratio  = (double)w / h;
+            double target = 16.0 / 9.0;
+            if (Math.Abs(ratio - target) > 0.02 * target)
+                return Json(new { success = false, message = $"Tỉ lệ ảnh sai ({w}×{h}). Cần tỉ lệ 16:9 — crop lại 1920×1080" });
+
+            // 5. Resize về 1920×1080 nếu khác
+            if (w != 1920 || h != 1080)
+            {
+                image.Mutate(x => x.Resize(1920, 1080));
+            }
+
+            // 6. Save JPEG q=85 vào share folder
+            var fileName = "banner_" + Guid.NewGuid().ToString("N") + ".jpg";
+            var savePath = Path.Combine(HomeBannerFolder, fileName);
+
+            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            {
+                Directory.CreateDirectory(HomeBannerFolder);
+                await using var fs = new FileStream(savePath, FileMode.Create);
+                await image.SaveAsJpegAsync(fs, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 85 });
+            }
+
+            return Json(new { success = true, fileName, url = Url.Action("GetHomeBanner", "Image", new { fileName }) });
+        }
+        catch (SixLabors.ImageSharp.UnknownImageFormatException)
+        {
+            return Json(new { success = false, message = "Không đọc được file — có phải ảnh hợp lệ không?" });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = $"Lỗi upload: {ex.Message}" });
+        }
     }
 
     // ── Chữ ký ──────────────────────────────────────────────────────────────

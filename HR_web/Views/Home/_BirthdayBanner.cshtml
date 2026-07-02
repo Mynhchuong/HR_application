@@ -1,0 +1,26 @@
+@model HR_web.ViewModels.Home.HomeIndexViewModel
+
+@{
+    var bd = Model.Birthday;
+    if (bd == null) { return; }
+    var isAnniv = bd.Type == "ANNIVERSARY";
+    var isBoth  = bd.Type == "BOTH";
+    var cssClass = isAnniv ? "home-birthday-anniv" : "home-birthday-birthday";
+    var todayKey = DateTime.Today.ToString("yyyyMMdd");
+}
+
+<div id="homeBirthdayBanner"
+     class="home-birthday-banner @cssClass"
+     data-today="@todayKey"
+     data-type="@bd.Type">
+    <div class="home-birthday-confetti" aria-hidden="true"></div>
+    <div class="home-birthday-icon">@(bd.Emoji ?? (isAnniv ? "🎖️" : "🎂"))</div>
+    <div class="home-birthday-body">
+        <div class="home-birthday-message vni-font">@bd.Message</div>
+        @if (isBoth)
+        {
+            <div class="home-birthday-sub">@(Model.Lang == "en" ? "Also celebrating your work anniversary!" : "Kỷ niệm ngày vào công ty nữa nè!")</div>
+        }
+    </div>
+    <button type="button" class="home-birthday-close" aria-label="@(Model.Lang == "en" ? "Close" : "Đóng")" data-dismiss="birthday">×</button>
+</div>

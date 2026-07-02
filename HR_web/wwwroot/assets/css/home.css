@@ -1,0 +1,367 @@
+/* =============================================================
+   HR_web — Home page (Employee/Manager/Expat/Admin)
+   Container max-width 1200px, mobile-first
+   ============================================================= */
+
+.home-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* ─── GREETING BAR ─────────────────────────────────────────── */
+.home-greeting-bar {
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+    color: #fff;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(99, 102, 241, .2);
+}
+.home-greeting-hi { font-size: 0.95rem; opacity: 0.9; }
+.home-greeting-message { font-size: 1.25rem; font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+.home-greeting-emoji { font-size: 1.5rem; }
+
+@media (min-width: 768px) {
+    .home-greeting-bar { padding: 16px 24px; }
+    .home-greeting-message { font-size: 1.5rem; }
+    .home-greeting-emoji { font-size: 2rem; }
+}
+
+/* ─── BIRTHDAY BANNER (with confetti) ─────────────────────── */
+.home-birthday-banner {
+    position: relative;
+    min-height: 120px;
+    padding: 16px 48px 16px 20px;
+    border-radius: 16px;
+    color: #fff;
+    box-shadow: 0 10px 30px rgba(255, 107, 157, .3);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    overflow: hidden;
+}
+.home-birthday-birthday { background: linear-gradient(135deg, #ff6b9d 0%, #ff8e53 100%); }
+.home-birthday-anniv    { background: linear-gradient(135deg, #ffd700 0%, #ff9500 100%); color: #4a2c00; }
+.home-birthday-banner.home-birthday-dismissed { display: none; }
+
+.home-birthday-icon { font-size: 3rem; flex-shrink: 0; z-index: 2; }
+.home-birthday-body { z-index: 2; }
+.home-birthday-message { font-size: 1.125rem; font-weight: 700; line-height: 1.4; }
+.home-birthday-sub { font-size: 0.875rem; margin-top: 4px; opacity: 0.9; }
+.home-birthday-close {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(255,255,255,.25); border: 0; color: inherit;
+    width: 32px; height: 32px; border-radius: 50%;
+    font-size: 1.25rem; cursor: pointer; z-index: 3;
+}
+.home-birthday-close:hover { background: rgba(255,255,255,.4); }
+
+/* Confetti CSS (chỉ chạy 3s lần đầu trong ngày) */
+.home-birthday-confetti {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+        radial-gradient(circle at 20% 30%, #fff 2px, transparent 3px),
+        radial-gradient(circle at 60% 60%, #ffe0f0 2px, transparent 3px),
+        radial-gradient(circle at 80% 20%, #fff5cc 3px, transparent 4px),
+        radial-gradient(circle at 40% 80%, #fff 2px, transparent 3px);
+    background-size: 100% 100%;
+    opacity: 0;
+    animation: home-confetti 3s ease-out;
+}
+.home-birthday-banner.home-birthday-seen .home-birthday-confetti { animation: none; opacity: 0; }
+@keyframes home-confetti {
+    0%   { opacity: 0; transform: translateY(-20px); }
+    30%  { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(20px); }
+}
+
+@media (min-width: 768px) {
+    .home-birthday-banner { min-height: 140px; padding: 20px 60px 20px 28px; }
+    .home-birthday-icon { font-size: 4rem; }
+    .home-birthday-message { font-size: 1.25rem; }
+    .home-birthday-sub { font-size: 1rem; }
+}
+
+/* ─── PAYDAY BANNER ────────────────────────────────────────── */
+.home-payday-banner {
+    position: relative;
+    min-height: 80px;
+    padding: 12px 60px 12px 16px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #10b981 0%, #84cc16 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 6px 18px rgba(16, 185, 129, .25);
+}
+.home-payday-banner.home-payday-dismissed { display: none; }
+
+.home-payday-icon { font-size: 2rem; flex-shrink: 0; }
+.home-payday-body { flex: 1; }
+.home-payday-message { font-size: 1rem; font-weight: 600; line-height: 1.3; }
+.home-payday-cta {
+    display: inline-block;
+    padding: 8px 14px;
+    background: rgba(255,255,255,.25);
+    color: #fff;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    transition: background .2s;
+}
+.home-payday-cta:hover { background: rgba(255,255,255,.4); color: #fff; }
+.home-payday-close {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(255,255,255,.25); border: 0; color: #fff;
+    width: 28px; height: 28px; border-radius: 50%;
+    font-size: 1rem; cursor: pointer;
+}
+
+@media (min-width: 768px) {
+    .home-payday-banner { min-height: 100px; padding: 16px 68px 16px 24px; }
+    .home-payday-icon { font-size: 2.5rem; }
+    .home-payday-message { font-size: 1.125rem; }
+    .home-payday-cta { padding: 10px 18px; font-size: 1rem; }
+}
+
+/* ─── SHIFT CHIP ───────────────────────────────────────────── */
+.home-shift-chip {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: #e0e7ff;
+    color: #3730a3;
+    border-radius: 18px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background .2s;
+}
+.home-shift-chip:hover { background: #c7d2fe; color: #3730a3; }
+.home-shift-clock { font-size: 1rem; }
+
+/* Ca đêm: nền tím đậm để phân biệt với ca ngày */
+.home-shift-chip-night {
+    background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 100%);
+    color: #fff;
+}
+.home-shift-chip-night:hover { background: linear-gradient(135deg, #5b21b6 0%, #8b5cf6 100%); color: #fff; }
+.home-shift-nextday { margin-left: 4px; opacity: 0.85; font-size: 0.72rem; }
+
+/* ─── SUMMARY CARD ─────────────────────────────────────────── */
+.home-summary-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.04);
+}
+.home-summary-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px;
+}
+.home-summary-title { font-size: 1.1rem; font-weight: 700; color: #1f2937; }
+.home-summary-refresh {
+    background: transparent; border: 0; cursor: pointer;
+    color: #6b7280; font-size: 1.25rem; padding: 4px 8px;
+    border-radius: 8px; transition: background .2s;
+}
+.home-summary-refresh:hover { background: #f3f4f6; }
+.home-summary-refresh-icon { display: inline-block; transition: transform .5s; }
+.home-summary-refresh.refreshing .home-summary-refresh-icon { transform: rotate(360deg); }
+
+.home-summary-loading { color: #9ca3af; padding: 20px 0; text-align: center; }
+
+.home-summary-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+@media (min-width: 640px) { .home-summary-grid { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 900px) { .home-summary-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.home-kpi {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 16px; border-radius: 16px; text-decoration: none;
+    background: #f9fafb; border: 1px solid #e5e7eb;
+    color: #1f2937; cursor: pointer;
+    transition: transform .15s, box-shadow .15s;
+}
+.home-kpi:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.06); }
+.home-kpi-leave  { border-color: #fbbf24; }
+.home-kpi-gp     { border-color: #60a5fa; }
+.home-kpi-ot     { border-color: #a78bfa; }
+.home-kpi-bd     { border-color: #f472b6; }
+
+.home-kpi-number { font-size: 2rem; font-weight: 800; line-height: 1; }
+.home-kpi-label  { font-size: 0.8rem; color: #6b7280; margin-top: 6px; text-align: center; }
+.home-kpi-ot-numbers { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+.home-kpi-ot-need   { color: #dc2626; }
+.home-kpi-ot-signed { color: #16a34a; }
+.home-kpi-ot-total  { color: #6b7280; }
+.home-kpi-ot-sep    { color: #d1d5db; margin: 0 2px; }
+
+.home-summary-asof {
+    text-align: right; font-size: 0.75rem; color: #9ca3af; margin-top: 12px;
+}
+
+/* ─── HERO BANNER ──────────────────────────────────────────── */
+.home-hero-banner {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,.08);
+    aspect-ratio: 16 / 9;
+    background: #f3f4f6;
+}
+.home-hero-banner.home-hero-collapsed {
+    aspect-ratio: unset;
+    max-height: 60px;
+    transition: max-height .3s ease;
+}
+.home-hero-banner.home-hero-collapsed .home-hero-overlay { display: none; }
+.home-hero-banner.home-hero-collapsed .home-hero-image  { opacity: 0.7; object-fit: cover; height: 60px; }
+.home-hero-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+.home-hero-link { display: block; width: 100%; height: 100%; }
+
+.home-hero-overlay {
+    position: absolute;
+    padding: 8px 14px;
+    background: rgba(0,0,0,.5);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    max-width: 70%;
+}
+.home-banner-pos-tl { top: 16px; left: 16px; }
+.home-banner-pos-tr { top: 16px; right: 16px; }
+.home-banner-pos-bl { bottom: 16px; left: 16px; }
+.home-banner-pos-br { bottom: 16px; right: 16px; }
+.home-banner-pos-center { top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+
+.home-hero-toggle {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(0,0,0,.5); border: 0; color: #fff;
+    width: 32px; height: 32px; border-radius: 50%;
+    font-size: 1.25rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .2s;
+}
+.home-hero-toggle:hover { background: rgba(0,0,0,.75); }
+
+@media (min-width: 768px) {
+    .home-hero-banner { border-radius: 24px; }
+}
+
+/* ─── PINNED BULLETIN ─────────────────────────────────────── */
+.home-pinned-strip {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 12px;
+}
+.home-pinned-heading { font-size: 0.9rem; font-weight: 600; color: #4b5563; margin-bottom: 10px; }
+.home-pinned-list { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 768px) { .home-pinned-list { grid-template-columns: 1fr 1fr; } }
+
+.home-pinned-card {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px; border-radius: 12px;
+    text-decoration: none; color: #1f2937;
+    background: #f9fafb;
+    transition: background .2s;
+}
+.home-pinned-card:hover { background: #f3f4f6; color: #1f2937; }
+
+.home-pinned-thumb {
+    width: 80px; height: 80px; flex-shrink: 0;
+    border-radius: 8px; overflow: hidden;
+    background: #e5e7eb;
+    display: flex; align-items: center; justify-content: center;
+}
+.home-pinned-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.home-pinned-placeholder { font-size: 2rem; color: #9ca3af; }
+.home-pinned-title {
+    font-size: 0.95rem; font-weight: 600;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ─── FEATURE GRID ─────────────────────────────────────────── */
+.home-feature-grid {
+    display: flex; flex-direction: column; gap: 12px;
+}
+.home-feature-heading {
+    font-size: 1rem; font-weight: 700; color: #1f2937;
+    padding: 4px 4px 0;
+}
+.home-feature-heading-hr { color: #7c3aed; margin-top: 12px; }
+.home-feature-tiles {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+@media (min-width: 640px) { .home-feature-tiles { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 900px) { .home-feature-tiles { grid-template-columns: repeat(6, 1fr); } }
+
+.home-tile {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 16px 8px; border-radius: 16px;
+    text-decoration: none; color: #1f2937;
+    background: #fff; border: 1px solid #e5e7eb;
+    min-height: 100px;
+    transition: transform .15s, box-shadow .15s, border-color .15s;
+    text-align: center;
+}
+.home-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.06); border-color: #a5b4fc; color: #1f2937; }
+.home-tile-icon { font-size: 2rem; margin-bottom: 8px; }
+.home-tile-label { font-size: 0.8rem; font-weight: 500; line-height: 1.2; }
+
+.home-tile-manager { border-color: #a5b4fc; background: #eef2ff; }
+.home-tile-hr      { border-color: #ddd6fe; background: #f5f3ff; }
+
+@media (min-width: 768px) {
+    .home-tile { min-height: 110px; }
+    .home-tile-icon { font-size: 2.25rem; }
+    .home-tile-label { font-size: 0.875rem; }
+}
+
+/* ─── MODAL (team birthday) ────────────────────────────────── */
+.home-modal { position: fixed; inset: 0; z-index: 1050; display: flex; align-items: center; justify-content: center; }
+.home-modal[hidden] { display: none; }
+.home-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.5); }
+.home-modal-panel {
+    position: relative; z-index: 1; max-width: 480px; width: 92%;
+    max-height: 85vh; overflow: auto;
+    background: #fff; border-radius: 20px; box-shadow: 0 25px 50px rgba(0,0,0,.25);
+}
+.home-modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px; border-bottom: 1px solid #e5e7eb;
+}
+.home-modal-title { font-size: 1.125rem; font-weight: 700; }
+.home-modal-close { background: transparent; border: 0; font-size: 1.5rem; cursor: pointer; color: #6b7280; padding: 0 8px; }
+.home-modal-body { padding: 16px 20px; }
+.home-modal-loading { text-align: center; color: #9ca3af; padding: 20px 0; }
+.home-bd-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 8px; border-bottom: 1px solid #f3f4f6;
+}
+.home-bd-item:last-child { border-bottom: 0; }
+.home-bd-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(135deg, #ff6b9d 0%, #ff8e53 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700;
+}
+.home-bd-name { font-weight: 600; color: #1f2937; }
+.home-bd-meta { font-size: 0.8rem; color: #6b7280; }

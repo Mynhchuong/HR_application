@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
 using HR_api.Helpers;
@@ -14,6 +15,7 @@ public class BulletinController : ControllerBase
     private readonly OracleService _oracleService;
     private readonly NotificationService _notificationService;
     private readonly NotificationHelper _notificationHelper;
+    private readonly IMemoryCache _cache;
 
     private const int MAX_PINNED = 2;
     private const int COMMENT_RATE_LIMIT_PER_MIN = 5;
@@ -25,12 +27,17 @@ public class BulletinController : ControllerBase
     public BulletinController(
         OracleService oracleService,
         NotificationService notificationService,
-        NotificationHelper notificationHelper)
+        NotificationHelper notificationHelper,
+        IMemoryCache cache)
     {
         _oracleService       = oracleService;
         _notificationService = notificationService;
         _notificationHelper  = notificationHelper;
+        _cache               = cache;
     }
+
+    // Invalidate cache pinned bulletin của Home page (rule §12)
+    private void InvalidateHomePinnedCache() => _cache.Remove("home:bulletin:pinned");
 
     // ═════════════════════════════════════════════════════════════════════════
     // 1. LIST  — nhân viên: chỉ bài đang hiển thị
@@ -275,6 +282,8 @@ public class BulletinController : ControllerBase
                 if (rows == 0)
                     return Ok(new { success = false, message = "Không tìm thấy bản tin để cập nhật" });
 
+                // Save có thể đổi IS_PINNED / PIN_ORDER / PUBLISH_FROM/TO → ảnh hưởng Home
+                InvalidateHomePinnedCache();
                 return Ok(new { success = true, message = "Cập nhật thành công", id = model.ID });
             }
         }
@@ -358,6 +367,7 @@ public class BulletinController : ControllerBase
                     new OracleParameter("ID",      id));
             }
 
+            InvalidateHomePinnedCache();
             return Ok(new
             {
                 success = true,
@@ -390,6 +400,7 @@ public class BulletinController : ControllerBase
                 new OracleParameter("UPDT_ID", (object?)loginUser ?? DBNull.Value),
                 new OracleParameter("ID",      id));
 
+            if (rows > 0) InvalidateHomePinnedCache();
             return Ok(new { success = rows > 0, message = rows > 0 ? "Đã rút bài" : "Không tìm thấy" });
         }
         catch (Exception ex)
@@ -444,6 +455,7 @@ public class BulletinController : ControllerBase
                 new OracleParameter("UPDT_ID", (object?)loginUser ?? DBNull.Value),
                 new OracleParameter("ID",      id));
 
+            InvalidateHomePinnedCache();
             return Ok(new { success = true, isPinned = newPin });
         }
         catch (Exception ex)
@@ -473,6 +485,7 @@ public class BulletinController : ControllerBase
                 new OracleParameter("UPDT_ID",   (object?)loginUser ?? DBNull.Value),
                 new OracleParameter("ID",        id));
 
+            if (n > 0) InvalidateHomePinnedCache();
             return Ok(new
             {
                 success = n > 0,

@@ -1,0 +1,18 @@
+@model HR_web.ViewModels.Home.HomeIndexViewModel
+@{
+    ViewData["Title"] = "Trang chủ";
+}
+
+<link rel="stylesheet" href="~/assets/css/home.css" asp-append-version="true" />
+
+<div class="home-page" data-role="@Model.RoleName" data-lang="@Model.Lang">
+    <partial name="_BirthdayBanner" model="Model" />
+    <partial name="_PaydayBanner"   model="Model" />
+    <partial name="_GreetingBar"    model="Model" />
+    <partial name="_ShiftChip"      model="Model" />
+    <partial name="_HeroBanner"     model="Model" />
+    <partial name="_PinnedBulletin" model="Model" />
+    <partial name="_FeatureGrid"    model="Model" />
+</div>
+
+<script src="~/assets/js/home.js" asp-append-version="true"></script>

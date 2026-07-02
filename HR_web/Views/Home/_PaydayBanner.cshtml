@@ -1,0 +1,20 @@
+@model HR_web.ViewModels.Home.HomeIndexViewModel
+
+@{
+    var pd = Model.Payday;
+    if (pd == null) { return; }
+    var isEn = Model.Lang == "en";
+    var ctaLabel = isEn ? "View payslip →" : "Xem phiếu lương →";
+    var monthKey = DateTime.Today.ToString("yyyyMM");
+}
+
+<div id="homePaydayBanner"
+     class="home-payday-banner"
+     data-month="@monthKey">
+    <div class="home-payday-icon">@pd.Emoji</div>
+    <div class="home-payday-body">
+        <div class="home-payday-message">@pd.Message</div>
+    </div>
+    <a href="@pd.CtaUrl" class="home-payday-cta">@ctaLabel</a>
+    <button type="button" class="home-payday-close" aria-label="Đóng" data-dismiss="payday">×</button>
+</div>

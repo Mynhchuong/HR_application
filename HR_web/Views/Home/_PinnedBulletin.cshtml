@@ -1,0 +1,31 @@
+@model HR_web.ViewModels.Home.HomeIndexViewModel
+
+@{
+    if (Model.Pinned == null || Model.Pinned.Count == 0) { return; }
+    var isEn = Model.Lang == "en";
+    var stripLabel = isEn ? "Pinned bulletins" : "Bản tin ghim";
+}
+
+<section class="home-pinned-strip">
+    <div class="home-pinned-heading">📌 @stripLabel</div>
+    <div class="home-pinned-list">
+        @foreach (var p in Model.Pinned)
+        {
+            <a href="/Bulletin/Detail/@p.Id" class="home-pinned-card">
+                <div class="home-pinned-thumb">
+                    @if (!string.IsNullOrEmpty(p.CoverImg))
+                    {
+                        <img src="@Url.Action("GetBulletinImage", "Image", new { fileName = p.CoverImg })" alt="" loading="lazy"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                        <div class="home-pinned-placeholder" style="display:none;">📌</div>
+                    }
+                    else
+                    {
+                        <div class="home-pinned-placeholder">📌</div>
+                    }
+                </div>
+                <div class="home-pinned-title">@p.Title</div>
+            </a>
+        }
+    </div>
+</section>

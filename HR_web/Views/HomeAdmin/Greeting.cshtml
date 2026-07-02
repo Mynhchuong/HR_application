@@ -1,0 +1,111 @@
+@{
+    ViewData["Title"] = "Quản lý câu chào";
+    var isAdmin = ViewBag.IsAdmin as bool? ?? false;
+}
+
+<link rel="stylesheet" href="~/assets/css/home-admin.css" asp-append-version="true" />
+
+<div class="admin-home-page">
+    <div class="admin-home-header">
+        <a href="/HomeAdmin" class="admin-home-back">← Quay lại</a>
+        <h1>💬 Quản lý câu chào</h1>
+        <p class="text-muted">
+            Pool câu chào theo 5 khung giờ. Random pick 1 câu mỗi lần user mở trang Home.
+            Câu chào Sinh nhật/Kỷ niệm/Payday <strong>tự động</strong>, không quản lý ở đây.
+        </p>
+    </div>
+
+    @Html.AntiForgeryToken()
+
+    <div class="admin-greeting-tabs">
+        <button type="button" class="admin-greeting-tab active" data-slot="MORNING">🌤️ Sáng</button>
+        <button type="button" class="admin-greeting-tab" data-slot="NOON">🍱 Trưa</button>
+        <button type="button" class="admin-greeting-tab" data-slot="AFTERNOON">☀️ Chiều</button>
+        <button type="button" class="admin-greeting-tab" data-slot="EVENING">🌆 Tối</button>
+        <button type="button" class="admin-greeting-tab" data-slot="NIGHT">🌙 Đêm</button>
+    </div>
+
+    <div class="admin-home-toolbar">
+        <button type="button" class="btn btn-primary" data-action="new-greeting">+ Thêm câu chào</button>
+    </div>
+
+    <div id="greetingList" class="admin-greeting-list">
+        <div class="admin-loading">Đang tải…</div>
+    </div>
+
+    @if (isAdmin)
+    {
+        <div class="admin-home-section">
+            <h2>⏰ Khung giờ (Time Slot Rule)</h2>
+            <p class="text-muted">Chỉnh giờ bắt đầu/kết thúc mỗi slot. NIGHT có thể wrap qua nửa đêm (FROM &gt; TO).</p>
+            <div id="ruleList" class="admin-rule-list">
+                <div class="admin-loading">Đang tải…</div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Modal Edit Greeting ─────────────────────────────────────── -->
+<div id="greetingModal" class="admin-modal" hidden>
+    <div class="admin-modal-backdrop" data-close="greeting"></div>
+    <div class="admin-modal-panel">
+        <form id="greetingForm">
+            <div class="admin-modal-header">
+                <div class="admin-modal-title" id="greetingModalTitle">Thêm câu chào</div>
+                <button type="button" class="admin-modal-close" data-close="greeting">×</button>
+            </div>
+
+            <div class="admin-modal-body">
+                <input type="hidden" name="Id" id="greetingId" />
+
+                <div class="form-row">
+                    <label class="form-label">Khung giờ *</label>
+                    <select name="TimeSlot" id="greetingSlot" class="form-control" required>
+                        <option value="MORNING">🌤️ MORNING (Sáng)</option>
+                        <option value="NOON">🍱 NOON (Trưa)</option>
+                        <option value="AFTERNOON">☀️ AFTERNOON (Chiều)</option>
+                        <option value="EVENING">🌆 EVENING (Tối)</option>
+                        <option value="NIGHT">🌙 NIGHT (Đêm)</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <label class="form-label">Câu chào (Tiếng Việt) *</label>
+                    <textarea name="MessageVi" id="greetingVi" maxlength="300" rows="2" class="form-control" required placeholder="Vd: Chào buổi sáng! Hôm nay bạn thế nào?"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <label class="form-label">Câu chào (English)</label>
+                    <textarea name="MessageEn" id="greetingEn" maxlength="300" rows="2" class="form-control" placeholder="Vd: Good morning! How are you today?"></textarea>
+                    <small class="form-hint">Chỉ dùng cho Expat. Nếu trống → fallback tiếng Việt.</small>
+                </div>
+
+                <div class="form-row-2col">
+                    <div class="form-row">
+                        <label class="form-label">Emoji</label>
+                        <input type="text" name="Emoji" id="greetingEmoji" maxlength="10" class="form-control" placeholder="🌤️" />
+                    </div>
+                    <div class="form-row">
+                        <label class="form-label">Kích hoạt</label>
+                        <label class="form-check">
+                            <input type="checkbox" name="IsActive" id="greetingActive" checked />
+                            <span>IS_ACTIVE = 1</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="greetingFormError" class="admin-form-error" hidden></div>
+            </div>
+
+            <div class="admin-modal-footer">
+                <button type="button" class="btn btn-secondary" data-close="greeting">Huỷ</button>
+                <button type="submit" class="btn btn-primary">Lưu</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    window.__HR_HOME_ADMIN__ = { isAdmin: @(isAdmin ? "true" : "false") };
+</script>
+<script src="~/assets/js/home-admin.js" asp-append-version="true"></script>

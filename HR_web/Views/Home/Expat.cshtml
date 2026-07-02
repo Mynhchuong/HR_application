@@ -1,0 +1,19 @@
+@model HR_web.ViewModels.Home.HomeIndexViewModel
+@{
+    ViewData["Title"] = "Home";
+}
+
+<link rel="stylesheet" href="~/assets/css/home.css" asp-append-version="true" />
+
+<div class="home-page" data-role="Expat" data-lang="en">
+    <partial name="_BirthdayBanner" model="Model" />
+    @* Payday KHÔNG include cho Expat — Expat không nhận lương chu kỳ ngày 10 *@
+    <partial name="_GreetingBar"    model="Model" />
+    <partial name="_ShiftChip"      model="Model" />
+    <partial name="_SummaryCard"    model="Model" />
+    <partial name="_HeroBanner"     model="Model" />
+    <partial name="_PinnedBulletin" model="Model" />
+    <partial name="_FeatureGrid"    model="Model" />
+</div>
+
+<script src="~/assets/js/home.js" asp-append-version="true"></script>

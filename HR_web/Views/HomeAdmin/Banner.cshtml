@@ -1,0 +1,136 @@
+@{
+    ViewData["Title"] = "Quản lý Banner";
+    var isAdmin = ViewBag.IsAdmin as bool? ?? false;
+}
+
+<link rel="stylesheet" href="~/assets/css/home-admin.css" asp-append-version="true" />
+
+<div class="admin-home-page">
+    <div class="admin-home-header">
+        <a href="/HomeAdmin" class="admin-home-back">← Quay lại</a>
+        <h1>🖼️ Quản lý Banner</h1>
+        <p class="text-muted">
+            Cùng một thời điểm chỉ có <strong>1 banner active</strong>.
+            Kích thước chuẩn: <strong>1920×1080 px (16:9)</strong>, ≤ 5MB.
+        </p>
+    </div>
+
+    <div class="admin-home-toolbar">
+        <button type="button" class="btn btn-primary" data-action="new-banner">+ Thêm banner mới</button>
+        @Html.AntiForgeryToken()
+    </div>
+
+    <div id="bannerList" class="admin-banner-list">
+        <div class="admin-loading">Đang tải…</div>
+    </div>
+</div>
+
+<!-- Modal Edit Banner ─────────────────────────────────────── -->
+<div id="bannerModal" class="admin-modal" hidden>
+    <div class="admin-modal-backdrop" data-close="banner"></div>
+    <div class="admin-modal-panel admin-modal-lg">
+        <form id="bannerForm">
+            <div class="admin-modal-header">
+                <div class="admin-modal-title" id="bannerModalTitle">Thêm banner</div>
+                <button type="button" class="admin-modal-close" data-close="banner" aria-label="Đóng">×</button>
+            </div>
+
+            <div class="admin-modal-body">
+                <input type="hidden" name="Id" id="bannerId" />
+                <input type="hidden" name="ImageFile" id="bannerImageFile" />
+
+                <div class="form-row">
+                    <label class="form-label"><strong>Ảnh banner *</strong> (1920×1080, 16:9)</label>
+                    <div class="admin-upload-box">
+                        <div id="bannerPreview" class="admin-upload-preview">
+                            <div class="admin-upload-placeholder">Chưa có ảnh</div>
+                        </div>
+                        <div class="admin-upload-controls">
+                            <input type="file" id="bannerFileInput" accept="image/jpeg,image/png,image/webp" />
+                            <div id="bannerUploadHint" class="admin-upload-hint">
+                                Chọn ảnh 1920×1080. Server sẽ kiểm tra ratio 16:9 và resize.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row-2col">
+                    <div class="form-row">
+                        <label class="form-label">Ngày bắt đầu *</label>
+                        <input type="datetime-local" name="PublishFrom" id="bannerPublishFrom" class="form-control" required />
+                    </div>
+                    <div class="form-row">
+                        <label class="form-label">Ngày kết thúc *</label>
+                        <input type="datetime-local" name="PublishTo" id="bannerPublishTo" class="form-control" required />
+                    </div>
+                </div>
+
+                <div class="form-row-2col">
+                    <div class="form-row">
+                        <label class="form-label">Overlay text (VI)</label>
+                        <input type="text" name="OverlayTextVi" id="bannerOverlayVi" maxlength="300" class="form-control" placeholder="Text hiển thị trên ảnh" />
+                    </div>
+                    <div class="form-row">
+                        <label class="form-label">Overlay text (EN)</label>
+                        <input type="text" name="OverlayTextEn" id="bannerOverlayEn" maxlength="300" class="form-control" placeholder="For Expat" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label class="form-label">Vị trí overlay</label>
+                    <select name="OverlayPos" id="bannerOverlayPos" class="form-control">
+                        <option value="BL">Bottom-Left (mặc định)</option>
+                        <option value="BR">Bottom-Right</option>
+                        <option value="TL">Top-Left</option>
+                        <option value="TR">Top-Right</option>
+                        <option value="CENTER">Center</option>
+                    </select>
+                </div>
+
+                @* Nâng cao — chỉ Admin *@
+                <div class="admin-advanced-section @(isAdmin ? "" : "admin-hr-hidden")">
+                    <div class="admin-advanced-heading">⚙️ Cấu hình nâng cao (Admin)</div>
+
+                    <div class="form-row">
+                        <label class="form-label">Link URL (click banner)</label>
+                        <input type="text" name="LinkUrl" id="bannerLinkUrl" class="form-control" placeholder="/Bulletin/Detail/45 hoặc https://…" @(isAdmin ? "" : "disabled") />
+                        <small class="form-hint">Chỉ chấp nhận /internal hoặc http(s)://</small>
+                    </div>
+
+                    <div class="form-row-2col">
+                        <div class="form-row">
+                            <label class="form-label">Link target</label>
+                            <select name="LinkTarget" id="bannerLinkTarget" class="form-control" @(isAdmin ? "" : "disabled")>
+                                <option value="_self">_self</option>
+                                <option value="_blank">_blank</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label class="form-label">Roles thấy banner (CSV)</label>
+                            <input type="text" name="TargetRoles" id="bannerTargetRoles" class="form-control" placeholder="Employee,Clerk,Expat (trống = all)" @(isAdmin ? "" : "disabled") />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <label class="form-check">
+                            <input type="checkbox" name="IsDismissible" id="bannerDismissible" checked @(isAdmin ? "" : "disabled") />
+                            <span>Cho phép user đóng (nút X)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="bannerFormError" class="admin-form-error" hidden></div>
+            </div>
+
+            <div class="admin-modal-footer">
+                <button type="button" class="btn btn-secondary" data-close="banner">Huỷ</button>
+                <button type="submit" class="btn btn-primary" id="bannerSaveBtn">Lưu</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    window.__HR_HOME_ADMIN__ = { isAdmin: @(isAdmin ? "true" : "false") };
+</script>
+<script src="~/assets/js/home-admin.js" asp-append-version="true"></script>

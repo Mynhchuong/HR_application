@@ -40,6 +40,18 @@ builder.Services.AddScoped<OracleService>();
 builder.Services.AddScoped<HR_api.Helpers.NotificationHelper>();
 builder.Services.AddScoped<HR_api.Services.NotificationService>();
 
+// ============================================================
+// Home page — trang chủ tuỳ biến theo role
+// ============================================================
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<HR_api.Helpers.HomeAuditHelper>();
+builder.Services.AddScoped<HR_api.Services.ShiftLookupService>();
+builder.Services.AddScoped<HR_api.Services.HomeBirthdayService>();
+builder.Services.AddScoped<HR_api.Services.HomeSummaryService>();
+builder.Services.AddScoped<HR_api.Services.HomeService>();
+builder.Services.AddScoped<HR_api.Services.HomeAdminService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>

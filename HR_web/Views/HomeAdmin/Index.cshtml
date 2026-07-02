@@ -1,0 +1,49 @@
+@{
+    ViewData["Title"] = "Cấu hình Home";
+    var isAdmin = ViewBag.IsAdmin as bool? ?? false;
+}
+
+<link rel="stylesheet" href="~/assets/css/home-admin.css" asp-append-version="true" />
+
+<div class="admin-home-page">
+    <div class="admin-home-header">
+        <h1>🎨 Cấu hình Trang chủ</h1>
+        <p class="text-muted">Quản lý banner, câu chào và cấu hình hiển thị trang Home cho toàn bộ NV.</p>
+    </div>
+
+    <div class="admin-home-tabs">
+        <a href="/HomeAdmin/Banner" class="admin-home-tab">
+            <div class="admin-home-tab-icon">🖼️</div>
+            <div class="admin-home-tab-body">
+                <div class="admin-home-tab-title">Banner</div>
+                <div class="admin-home-tab-desc">Thêm/sửa/xoá banner Hero, upload ảnh 1920×1080</div>
+            </div>
+        </a>
+
+        <a href="/HomeAdmin/Greeting" class="admin-home-tab">
+            <div class="admin-home-tab-icon">💬</div>
+            <div class="admin-home-tab-body">
+                <div class="admin-home-tab-title">Câu chào</div>
+                <div class="admin-home-tab-desc">Sửa pool câu chào theo 5 khung giờ MORNING/NOON/AFTERNOON/EVENING/NIGHT</div>
+            </div>
+        </a>
+
+        @if (isAdmin)
+        {
+            <a href="/HomeAdmin/Audit" class="admin-home-tab">
+                <div class="admin-home-tab-icon">📋</div>
+                <div class="admin-home-tab-body">
+                    <div class="admin-home-tab-title">Audit Log</div>
+                    <div class="admin-home-tab-desc">Nhật ký thay đổi (chỉ Admin)</div>
+                </div>
+            </a>
+        }
+    </div>
+
+    @if (!isAdmin)
+    {
+        <div class="admin-home-note">
+            💡 <strong>HR</strong>: bạn được sửa ảnh banner + câu chào. Cấu hình khung giờ và audit log dành cho Admin.
+        </div>
+    }
+</div>

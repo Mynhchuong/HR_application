@@ -1,0 +1,27 @@
+@model HR_web.ViewModels.Home.HomeIndexViewModel
+
+@{
+    var s = Model.Shift;
+    if (s == null || string.IsNullOrEmpty(s.ShiftCd)) { return; }
+    var isEn = Model.Lang == "en";
+    var label = isEn ? "Today" : "Hôm nay";
+    var shiftWord = isEn ? "Shift" : "Ca";
+    var nextDayHint = isEn ? " (next day)" : " (hôm sau)";
+    var openTitle = isEn ? "Open my gate pass requests" : "Mở đơn ra vào cổng của tôi";
+    var chipExtraClass = s.IsNightShift ? "home-shift-chip-night" : "";
+}
+
+<a href="/GatePass/GpMyRequests" class="home-shift-chip @chipExtraClass" title="@openTitle">
+    <span class="home-shift-clock">@(s.IsNightShift ? "🌙" : "🕐")</span>
+    <span class="home-shift-text">
+        @label · @shiftWord <strong>@s.ShiftCd</strong>
+        @if (!string.IsNullOrEmpty(s.StartTime) && !string.IsNullOrEmpty(s.EndTime))
+        {
+            <text> · @s.StartTime → @s.EndTime</text>
+            if (s.IsNightShift)
+            {
+                <small class="home-shift-nextday">@nextDayHint</small>
+            }
+        }
+    </span>
+</a>

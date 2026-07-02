@@ -1,0 +1,92 @@
+@model HR_web.ViewModels.Home.HomeIndexViewModel
+
+@{
+    var isEn  = Model.Lang == "en";
+    var role  = Model.RoleName;
+    var isExpat   = role == "Expat";
+    var isHrAdmin = role is "HR" or "Admin";
+
+    var title = isEn ? "Today at a glance" : "Tổng quan hôm nay";
+    var leaveLabel   = isEn ? "Leave to sign"     : "Đơn phép cần ký";
+    var gpLabel      = isEn ? "Gate pass"         : "Ra vào cổng";
+    var otLabel      = isEn ? "OT status"         : "Tăng ca";
+    var otSubNeed    = isEn ? "need sign"         : "cần ký";
+    var otSubSigned  = isEn ? "signed"            : "đã ký";
+    var otSubTotal   = isEn ? "total"             : "tổng";
+    var bdLabel      = isEn ? "Team birthdays"    : "SN đồng nghiệp";
+    var refreshLabel = isEn ? "Refresh"           : "Làm mới";
+    var loadingLabel = isEn ? "Loading…"          : "Đang tải…";
+    var emptyLabel   = isEn ? "No birthdays today" : "Không có SN nào hôm nay";
+    var errorLabel   = isEn ? "Failed to load list" : "Không tải được danh sách";
+
+    // Route KPI — role-specific
+    string leaveUrl = isExpat ? "/Leave/LeaveApprovalForExpat" : "/Leave/LeaveApprovalList";
+    string gpUrl    = "/GatePass/GpListForSupervisor";
+    if (isExpat)   gpUrl = "/GatePass/GpListForExpat";
+    if (isHrAdmin) gpUrl = "/GatePass/GpListForHR";
+    string otUrl    = "/OT/OtListForSupervisor";
+    if (isExpat)   otUrl = "/OT/OtListForExpat";
+    if (isHrAdmin) otUrl = "/OT/OtListForHR";
+}
+
+<section id="homeSummaryCard"
+         class="home-summary-card"
+         data-empcd="@Model.EmpCd"
+         data-role="@Model.RoleName"
+         data-lang="@Model.Lang"
+         data-label-empty="@emptyLabel"
+         data-label-error="@errorLabel">
+    <div class="home-summary-header">
+        <div class="home-summary-title">📊 @title</div>
+        <button type="button" class="home-summary-refresh" data-refresh="summary" title="@refreshLabel">
+            <span class="home-summary-refresh-icon">↻</span>
+        </button>
+    </div>
+
+    <div class="home-summary-body" data-summary-body>
+        <div class="home-summary-loading">@loadingLabel</div>
+    </div>
+
+    <template id="homeSummaryTemplate">
+        <div class="home-summary-grid">
+            <a href="@leaveUrl" class="home-kpi home-kpi-leave">
+                <div class="home-kpi-number" data-kpi="leave">0</div>
+                <div class="home-kpi-label">@leaveLabel</div>
+            </a>
+            <a href="@gpUrl" class="home-kpi home-kpi-gp">
+                <div class="home-kpi-number" data-kpi="gp">0</div>
+                <div class="home-kpi-label">@gpLabel</div>
+            </a>
+            <a href="@otUrl" class="home-kpi home-kpi-ot">
+                <div class="home-kpi-ot-numbers">
+                    <span data-kpi="ot-need" class="home-kpi-ot-need">0</span>
+                    <span class="home-kpi-ot-sep">/</span>
+                    <span data-kpi="ot-signed" class="home-kpi-ot-signed">0</span>
+                    <span class="home-kpi-ot-sep">/</span>
+                    <span data-kpi="ot-total" class="home-kpi-ot-total">0</span>
+                </div>
+                <div class="home-kpi-label">
+                    @otLabel <small>(@otSubNeed / @otSubSigned / @otSubTotal)</small>
+                </div>
+            </a>
+            <button type="button" data-open="team-birthday" class="home-kpi home-kpi-bd">
+                <div class="home-kpi-number" data-kpi="bd">0</div>
+                <div class="home-kpi-label">🎂 @bdLabel</div>
+            </button>
+        </div>
+        <div class="home-summary-asof" data-summary-asof></div>
+    </template>
+</section>
+
+<div id="homeTeamBirthdayModal" class="home-modal" hidden>
+    <div class="home-modal-backdrop" data-close="team-birthday"></div>
+    <div class="home-modal-panel">
+        <div class="home-modal-header">
+            <div class="home-modal-title">🎂 @bdLabel</div>
+            <button type="button" class="home-modal-close" data-close="team-birthday" aria-label="@(isEn ? "Close" : "Đóng")">×</button>
+        </div>
+        <div class="home-modal-body" data-modal-body>
+            <div class="home-modal-loading">@loadingLabel</div>
+        </div>
+    </div>
+</div>

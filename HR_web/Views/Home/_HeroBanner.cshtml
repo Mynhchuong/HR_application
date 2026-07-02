@@ -1,0 +1,42 @@
+@model HR_web.ViewModels.Home.HomeIndexViewModel
+
+@{
+    var b = Model.Banner;
+    var fallback = Url.Content("~/assets/img/illustrations/Sayhii.png");
+    var imageUrl = b?.ImageUrl ?? fallback;
+    var overlayText = b?.OverlayText;
+    var overlayPos = b?.OverlayPos ?? "BL";
+    var hasLink = b != null && !string.IsNullOrEmpty(b.LinkUrl);
+    var linkUrl = b?.LinkUrl ?? "#";
+    var linkTarget = b?.LinkTarget ?? "_self";
+    var dismissible = b?.IsDismissible ?? false;
+    var posClass = "home-banner-pos-" + overlayPos.ToLower();
+}
+
+<section id="homeHeroBanner" class="home-hero-banner">
+    @if (hasLink)
+    {
+        <a href="@linkUrl" target="@linkTarget" class="home-hero-link" rel="@(linkTarget == "_blank" ? "noopener noreferrer" : null)">
+            <img src="@imageUrl" alt="Home banner" class="home-hero-image" loading="eager"
+                 onerror="this.onerror=null;this.src='@fallback';" />
+            @if (!string.IsNullOrEmpty(overlayText))
+            {
+                <span class="home-hero-overlay @posClass">@overlayText</span>
+            }
+        </a>
+    }
+    else
+    {
+        <img src="@imageUrl" alt="Home banner" class="home-hero-image" loading="eager"
+             onerror="this.onerror=null;this.src='@fallback';" />
+        @if (!string.IsNullOrEmpty(overlayText))
+        {
+            <span class="home-hero-overlay @posClass">@overlayText</span>
+        }
+    }
+
+    @if (dismissible)
+    {
+        <button type="button" class="home-hero-toggle" aria-label="@(Model.Lang == "en" ? "Collapse / expand banner" : "Thu nhỏ / mở rộng banner")" data-toggle="banner">×</button>
+    }
+</section>

@@ -25,6 +25,10 @@
     }
     tr.row-stale-pending { background: linear-gradient(90deg, #fff1f2 0%, transparent 30%) !important; border-left: 4px solid #dc2626 !important; }
     tr.row-stale-pending td { background: transparent !important; }
+    .ts-time-wrap    { display:flex; flex-direction:column; align-items:flex-start; gap:2px; }
+    .ts-time-chip    { display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; padding:2px 8px; font-size:.78rem; white-space:nowrap; }
+    .ts-time-chip b  { color:#1e3a8a; margin-left:2px; }
+    .ts-time-created { font-size:.7rem; color:#94a3b8; }
     .sig-cell      { display:flex; gap:8px; justify-content:center; align-items:flex-start; }
     .sig-cell-item { text-align:center; min-width:80px; }
     .sig-cell-lbl  { font-size:.6rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
@@ -730,10 +734,12 @@ function buildApprovalRow(item, idx) {
         <div class="text-xs text-secondary">${escHtml(item.EMPCD||'')}</div>
         <div class="text-sm vni-font fw-bold" style="text-transform:uppercase;line-height:1.2;">${escHtml(item.EMP_NAME||'')}</div>
     `;
+    const dateStr = `${formatDate(item.FROM_DATE)}${item.TO_DATE && item.TO_DATE !== item.FROM_DATE ? ' → ' + formatDate(item.TO_DATE) : ''}`;
     const timeCell = `
-        <div class="text-sm text-nowrap">${formatDate(item.FROM_DATE)}${item.TO_DATE && item.TO_DATE !== item.FROM_DATE ? ' → ' + formatDate(item.TO_DATE) : ''}</div>
-        <div class="text-xs fw-bold text-primary">${item.TOTAL_DAYS != null ? item.TOTAL_DAYS + ' ngày' : ''}</div>
-        ${item.CREATED_DATE ? `<div class="text-xxs text-muted">Tạo: ${formatDateTime(item.CREATED_DATE)}</div>` : ''}
+        <div class="ts-time-wrap">
+            <div class="ts-time-chip"><i class="bi bi-calendar-event me-1"></i>${dateStr}${item.TOTAL_DAYS != null ? ' · <b>' + item.TOTAL_DAYS + ' ngày</b>' : ''}</div>
+            ${item.CREATED_DATE ? `<div class="ts-time-created">Tạo: ${formatDateTime(item.CREATED_DATE)}</div>` : ''}
+        </div>
     `;
 
     return `<tr class="${isStale ? 'row-stale-pending' : ''}">

@@ -41,12 +41,14 @@ public class HomeBirthdayService
 
     private async Task<HomeBirthdayModel?> LoadSelfBirthdayAsync(HomeUserContext user)
     {
+        // ECM100.BIRTHDAT / IGENTDAT / RETDAT là VARCHAR2 dạng 'YYYYMMDD'
+        // SUBSTR(x,5,4) = MMDD, SUBSTR(x,1,4) = YYYY
         string sql = $@"
             SELECT EC.CNAME EMP_NAME,
                    NVL(R.ROLE_NAME, 'Employee') ROLE_NAME,
                    CASE
-                     WHEN TO_CHAR(EC.BIRTHDAT,'MMDD') = TO_CHAR(SYSDATE,'MMDD')
-                       OR (TO_CHAR(EC.BIRTHDAT,'MMDD') = '0229'
+                     WHEN SUBSTR(EC.BIRTHDAT,5,4) = TO_CHAR(SYSDATE,'MMDD')
+                       OR (SUBSTR(EC.BIRTHDAT,5,4) = '0229'
                            AND TO_CHAR(SYSDATE,'MMDD') = '0228'
                            AND TO_CHAR(LAST_DAY(TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0201','YYYYMMDD')),'DD') = '28')
                      THEN 1 ELSE 0
@@ -54,13 +56,13 @@ public class HomeBirthdayService
                    CASE
                      WHEN NVL(R.ROLE_NAME, '') = 'Expat' THEN 0
                      WHEN EC.IGENTDAT IS NULL            THEN 0
-                     WHEN (TO_CHAR(EC.IGENTDAT,'MMDD') = TO_CHAR(SYSDATE,'MMDD')
-                           OR (TO_CHAR(EC.IGENTDAT,'MMDD') = '0229'
+                     WHEN (SUBSTR(EC.IGENTDAT,5,4) = TO_CHAR(SYSDATE,'MMDD')
+                           OR (SUBSTR(EC.IGENTDAT,5,4) = '0229'
                                AND TO_CHAR(SYSDATE,'MMDD') = '0228'
                                AND TO_CHAR(LAST_DAY(TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0201','YYYYMMDD')),'DD') = '28'))
-                          AND (TO_NUMBER(TO_CHAR(SYSDATE,'YYYY')) - TO_NUMBER(TO_CHAR(EC.IGENTDAT,'YYYY')))
+                          AND (TO_NUMBER(TO_CHAR(SYSDATE,'YYYY')) - TO_NUMBER(SUBSTR(EC.IGENTDAT,1,4)))
                                IN ({MilestonesInClause})
-                     THEN TO_NUMBER(TO_CHAR(SYSDATE,'YYYY')) - TO_NUMBER(TO_CHAR(EC.IGENTDAT,'YYYY'))
+                     THEN TO_NUMBER(TO_CHAR(SYSDATE,'YYYY')) - TO_NUMBER(SUBSTR(EC.IGENTDAT,1,4))
                      ELSE 0
                    END ANNIVERSARY_YEARS
             FROM HRMS.ECM100 EC
@@ -144,9 +146,9 @@ public class HomeBirthdayService
             sql = @"
                 SELECT * FROM (
                     SELECT EC.EMPCD, EC.CNAME, EC.DEPTCD, EC.LINECD, EC.WORKCD,
-                           TO_CHAR(EC.BIRTHDAT,'MM-DD') BIRTHDAT_MMDD
+                           SUBSTR(EC.BIRTHDAT,5,2) || '-' || SUBSTR(EC.BIRTHDAT,7,2) BIRTHDAT_MMDD
                     FROM HRMS.ECM100 EC
-                    WHERE TO_CHAR(EC.BIRTHDAT,'MMDD') = TO_CHAR(SYSDATE,'MMDD')
+                    WHERE SUBSTR(EC.BIRTHDAT,5,4) = TO_CHAR(SYSDATE,'MMDD')
                       AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                     ORDER BY EC.DEPTCD, EC.CNAME
                 ) WHERE ROWNUM <= 50";
@@ -157,9 +159,9 @@ public class HomeBirthdayService
             sql = $@"
                 SELECT * FROM (
                     SELECT EC.EMPCD, EC.CNAME, EC.DEPTCD, EC.LINECD, EC.WORKCD,
-                           TO_CHAR(EC.BIRTHDAT,'MM-DD') BIRTHDAT_MMDD
+                           SUBSTR(EC.BIRTHDAT,5,2) || '-' || SUBSTR(EC.BIRTHDAT,7,2) BIRTHDAT_MMDD
                     FROM HRMS.ECM100 EC
-                    WHERE TO_CHAR(EC.BIRTHDAT,'MMDD') = TO_CHAR(SYSDATE,'MMDD')
+                    WHERE SUBSTR(EC.BIRTHDAT,5,4) = TO_CHAR(SYSDATE,'MMDD')
                       AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                       {scope.SqlClause}
                     ORDER BY EC.CNAME

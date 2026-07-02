@@ -30,13 +30,18 @@ public class HomeAuditHelper
         string? actorName = null,
         string? roleName  = null)
     {
+        // Snapshot HttpContext-derived values NGAY LẬP TỨC — trong Task.Run
+        // HttpContext có thể đã null vì request đã hoàn tất trước khi task chạy.
+        var ctxSnap   = _http.HttpContext;
+        var ipSnap    = ctxSnap?.Connection.RemoteIpAddress?.ToString();
+        var uaSnap    = ctxSnap?.Request.Headers.UserAgent.ToString();
+
         _ = Task.Run(async () =>
         {
             try
             {
-                var ctx       = _http.HttpContext;
-                var ip        = ctx?.Connection.RemoteIpAddress?.ToString();
-                var userAgent = ctx?.Request.Headers.UserAgent.ToString();
+                var ip        = ipSnap;
+                var userAgent = uaSnap;
 
                 const string sql = @"
                     INSERT INTO HRMS.HR_HOME_AUDIT

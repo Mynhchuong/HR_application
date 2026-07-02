@@ -2,41 +2,54 @@
 
 @{
     var b = Model.Banner;
-    var fallback = Url.Content("~/assets/img/illustrations/Sayhii.png");
-    var imageUrl = b?.ImageUrl ?? fallback;
-    var overlayText = b?.OverlayText;
-    var overlayPos = b?.OverlayPos ?? "BL";
-    var hasLink = b != null && !string.IsNullOrEmpty(b.LinkUrl);
-    var linkUrl = b?.LinkUrl ?? "#";
-    var linkTarget = b?.LinkTarget ?? "_self";
-    var dismissible = b?.IsDismissible ?? false;
-    var posClass = "home-banner-pos-" + overlayPos.ToLower();
+    // Không có banner → không render popup
+    if (b == null || string.IsNullOrEmpty(b.ImageUrl)) { return; }
+
+    var overlayText = b.OverlayText;
+    var overlayPos  = (b.OverlayPos ?? "BL").ToLower();
+    var hasLink     = !string.IsNullOrEmpty(b.LinkUrl);
+    var linkUrl     = b.LinkUrl ?? "#";
+    var linkTarget  = b.LinkTarget ?? "_self";
+
+    // Key localStorage: 1 lần/ngày/user. Đổi ngày → hiện lại.
+    var dayKey = DateTime.Today.ToString("yyyyMMdd");
+
+    var closeAria = Model.Lang == "en" ? "Close" : "Đóng";
 }
 
-<section id="homeHeroBanner" class="home-hero-banner">
-    @if (hasLink)
-    {
-        <a href="@linkUrl" target="@linkTarget" class="home-hero-link" rel="@(linkTarget == "_blank" ? "noopener noreferrer" : null)">
-            <img src="@imageUrl" alt="Home banner" class="home-hero-image" loading="eager"
-                 onerror="this.onerror=null;this.src='@fallback';" />
+<div id="homeHeroPopup"
+     class="home-hero-popup"
+     data-day="@dayKey"
+     hidden>
+    <div class="home-hero-popup-backdrop" data-close="hero-popup"></div>
+    <div class="home-hero-popup-panel" role="dialog" aria-modal="true">
+        <button type="button"
+                class="home-hero-popup-close"
+                aria-label="@closeAria"
+                data-close="hero-popup">×</button>
+
+        @if (hasLink)
+        {
+            <a href="@linkUrl"
+               target="@linkTarget"
+               class="home-hero-popup-link"
+               rel="@(linkTarget == "_blank" ? "noopener noreferrer" : null)">
+                <img src="@b.ImageUrl" alt="Home banner" class="home-hero-popup-image" loading="eager"
+                     onerror="var p=document.getElementById('homeHeroPopup');if(p){p.hidden=true;document.body.classList.remove('home-hero-popup-open');}" />
+                @if (!string.IsNullOrEmpty(overlayText))
+                {
+                    <span class="home-hero-popup-overlay home-banner-pos-@overlayPos">@overlayText</span>
+                }
+            </a>
+        }
+        else
+        {
+            <img src="@b.ImageUrl" alt="Home banner" class="home-hero-popup-image" loading="eager"
+                     onerror="var p=document.getElementById('homeHeroPopup');if(p){p.hidden=true;document.body.classList.remove('home-hero-popup-open');}" />
             @if (!string.IsNullOrEmpty(overlayText))
             {
-                <span class="home-hero-overlay @posClass">@overlayText</span>
+                <span class="home-hero-popup-overlay home-banner-pos-@overlayPos">@overlayText</span>
             }
-        </a>
-    }
-    else
-    {
-        <img src="@imageUrl" alt="Home banner" class="home-hero-image" loading="eager"
-             onerror="this.onerror=null;this.src='@fallback';" />
-        @if (!string.IsNullOrEmpty(overlayText))
-        {
-            <span class="home-hero-overlay @posClass">@overlayText</span>
         }
-    }
-
-    @if (dismissible)
-    {
-        <button type="button" class="home-hero-toggle" aria-label="@(Model.Lang == "en" ? "Collapse / expand banner" : "Thu nhỏ / mở rộng banner")" data-toggle="banner">×</button>
-    }
-</section>
+    </div>
+</div>

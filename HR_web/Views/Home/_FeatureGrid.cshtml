@@ -34,16 +34,13 @@
     <div class="home-feature-heading">🚀 @L("Chức năng", "Features")</div>
     <div class="home-feature-tiles">
         <a href="@Url.Action("LeaveMyRequests", "Leave")" class="home-tile"><span class="home-tile-icon">📅</span><span class="home-tile-label">@L("Nghỉ phép", "Leave")</span></a>
-        <a href="@Url.Action("GpRequestForm", "GatePass")" class="home-tile"><span class="home-tile-icon">🚪</span><span class="home-tile-label">@L("Gate Pass", "Gate Pass")</span></a>
-        <a href="@Url.Action("GpMyRequests", "GatePass")" class="home-tile"><span class="home-tile-icon">📃</span><span class="home-tile-label">@L("GP của tôi", "My GP")</span></a>
+        <a href="@Url.Action("GpRequestForm", "GatePass")" class="home-tile"><span class="home-tile-icon">🚪</span><span class="home-tile-label">@L("Ra cổng", "Gate Pass")</span></a>
         <a href="@Url.Action("OtConfirmForm", "OT")" class="home-tile"><span class="home-tile-icon">⏰</span><span class="home-tile-label">@L("Tăng ca", "Overtime")</span></a>
         <a href="@Url.Action("Index", "Payslip")" class="home-tile"><span class="home-tile-icon">💰</span><span class="home-tile-label">@L("Phiếu lương", "Payslip")</span></a>
-        <a href="@Url.Action("Index", "Bulletin")" class="home-tile"><span class="home-tile-icon">📰</span><span class="home-tile-label">@L("Bản tin", "Bulletin")</span></a>
         <a href="@Url.Action("Today", "Menu")" class="home-tile"><span class="home-tile-icon">🍱</span><span class="home-tile-label">@L("Thực đơn", "Menu")</span></a>
         <a href="@Url.Action("Index", "EmployeeInquiry")" class="home-tile"><span class="home-tile-icon">💬</span><span class="home-tile-label">@L("Hỏi đáp HR", "Ask HR")</span></a>
         <a href="@Url.Action("Index", "Policy")" class="home-tile"><span class="home-tile-icon">📖</span><span class="home-tile-label">@L("Nội quy", "Policy")</span></a>
         <a href="@Url.Action("Index", "Guide")" class="home-tile"><span class="home-tile-icon">❓</span><span class="home-tile-label">@L("Hướng dẫn", "Guide")</span></a>
-        <a href="@Url.Action("ProfileUser", "Profile")" class="home-tile"><span class="home-tile-icon">👤</span><span class="home-tile-label">@L("Hồ sơ", "Profile")</span></a>
         <a href="@notiUrl" class="home-tile"><span class="home-tile-icon">🔔</span><span class="home-tile-label">@L("Thông báo", "Notifications")</span></a>
 
         @if (isManagerLike || isExpat || isHrAdmin)

@@ -20,13 +20,15 @@
     var errorLabel   = isEn ? "Failed to load list" : "Không tải được danh sách";
 
     // Route KPI — role-specific
-    string leaveUrl = isExpat ? "/Leave/LeaveApprovalForExpat" : "/Leave/LeaveApprovalList";
-    string gpUrl    = "/GatePass/GpListForSupervisor";
-    if (isExpat)   gpUrl = "/GatePass/GpListForExpat";
-    if (isHrAdmin) gpUrl = "/GatePass/GpListForHR";
-    string otUrl    = "/OT/OtListForSupervisor";
-    if (isExpat)   otUrl = "/OT/OtListForExpat";
-    if (isHrAdmin) otUrl = "/OT/OtListForHR";
+    string leaveUrl = isExpat
+        ? Url.Action("LeaveApprovalForExpat", "Leave")!
+        : Url.Action("LeaveApprovalList",     "Leave")!;
+    string gpUrl    = Url.Action("GpListForSupervisor", "GatePass")!;
+    if (isExpat)   gpUrl = Url.Action("GpListForExpat", "GatePass")!;
+    if (isHrAdmin) gpUrl = Url.Action("GpListForHR",    "GatePass")!;
+    string otUrl    = Url.Action("OtListForSupervisor", "OT")!;
+    if (isExpat)   otUrl = Url.Action("OtListForExpat", "OT")!;
+    if (isHrAdmin) otUrl = Url.Action("OtListForHR",    "OT")!;
 }
 
 <section id="homeSummaryCard"

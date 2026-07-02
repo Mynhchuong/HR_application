@@ -64,24 +64,40 @@
         }
     })();
 
-    // ─── 3. HERO BANNER TOGGLE ─────────────────────────────────
-    (function initHeroBanner() {
-        const el = $('#homeHeroBanner');
+    // ─── 3. HERO BANNER POPUP (1 lần/ngày/user) ─────────────────
+    (function initHeroPopup() {
+        const el = $('#homeHeroPopup');
         if (!el) return;
 
-        const key = 'home_banner_collapsed';
-        if (localStorage.getItem(key) === '1') {
-            el.classList.add('home-hero-collapsed');
+        const day = el.dataset.day || '';
+        const key = 'home_hero_popup_dismissed_' + day;
+
+        // Đã đóng hôm nay → không show
+        if (localStorage.getItem(key) === '1') return;
+
+        // Show sau 300ms cho page settle
+        setTimeout(() => {
+            el.hidden = false;
+            document.body.classList.add('home-hero-popup-open');
+        }, 300);
+
+        function dismiss() {
+            el.hidden = true;
+            document.body.classList.remove('home-hero-popup-open');
+            localStorage.setItem(key, '1');
         }
-        const btn = $('.home-hero-toggle', el);
-        if (btn) {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                el.classList.toggle('home-hero-collapsed');
-                const collapsed = el.classList.contains('home-hero-collapsed');
-                localStorage.setItem(key, collapsed ? '1' : '0');
-            });
-        }
+
+        el.querySelectorAll('[data-close="hero-popup"]').forEach(x =>
+            x.addEventListener('click', (ev) => { ev.preventDefault(); dismiss(); }));
+
+        // Click ảnh có link → đóng luôn (giống Shopee: navigate rồi đóng)
+        const link = el.querySelector('.home-hero-popup-link');
+        if (link) link.addEventListener('click', () => localStorage.setItem(key, '1'));
+
+        // ESC key
+        document.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Escape' && !el.hidden) dismiss();
+        });
     })();
 
     // ─── 4. SUMMARY CARD (polling 60s, visibility API) ─────────
@@ -105,10 +121,24 @@
                 const json = await res.json();
                 if (json.success && json.data) {
                     renderSummary(json.data);
+                } else {
+                    renderError(json.message);
                 }
             } catch (e) {
                 console.warn('[home] summary fetch error:', e);
+                renderError(e && e.message);
             }
+        }
+
+        function renderError(msg) {
+            // Chỉ show error khi chưa render lần nào (giữ data cũ khi polling lỗi tạm thời)
+            if (body.querySelector('.home-summary-grid')) return;
+            const errLbl = card.dataset.labelError || 'Không tải được dữ liệu';
+            const wrap = document.createElement('div');
+            wrap.className = 'home-summary-loading';
+            wrap.textContent = '⚠️ ' + errLbl + (msg ? ' (' + msg + ')' : '');
+            body.innerHTML = '';
+            body.appendChild(wrap);
         }
 
         function renderSummary(data) {

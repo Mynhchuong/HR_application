@@ -213,32 +213,66 @@
     text-align: right; font-size: 0.75rem; color: #9ca3af; margin-top: 12px;
 }
 
-/* ─── HERO BANNER ──────────────────────────────────────────── */
-.home-hero-banner {
+/* ─── HERO BANNER POPUP (Shopee-style) ─────────────────────── */
+.home-hero-popup {
+    position: fixed; inset: 0;
+    z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+    animation: heroFadeIn .25s ease;
+}
+.home-hero-popup[hidden] { display: none !important; }
+body.home-hero-popup-open { overflow: hidden; }
+
+.home-hero-popup-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(0, 0, 0, .7);
+    cursor: pointer;
+}
+.home-hero-popup-panel {
     position: relative;
+    width: 100%;
+    max-width: 900px;
+    max-height: 90vh;
+    aspect-ratio: 16 / 9;
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0,0,0,.08);
-    aspect-ratio: 16 / 9;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
     background: #f3f4f6;
+    animation: heroSlideIn .3s cubic-bezier(.34, 1.56, .64, 1);
 }
-.home-hero-banner.home-hero-collapsed {
-    aspect-ratio: unset;
-    max-height: 60px;
-    transition: max-height .3s ease;
-}
-.home-hero-banner.home-hero-collapsed .home-hero-overlay { display: none; }
-.home-hero-banner.home-hero-collapsed .home-hero-image  { opacity: 0.7; object-fit: cover; height: 60px; }
-.home-hero-image { width: 100%; height: 100%; object-fit: cover; display: block; }
-.home-hero-link { display: block; width: 100%; height: 100%; }
 
-.home-hero-overlay {
+.home-hero-popup-close {
     position: absolute;
-    padding: 8px 14px;
-    background: rgba(0,0,0,.5);
+    top: -44px; right: -8px;
+    background: rgba(255, 255, 255, .95);
+    border: 0;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    font-size: 1.5rem; line-height: 1;
+    cursor: pointer;
+    color: #333;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .3);
+    transition: transform .2s, background .2s;
+    z-index: 2;
+}
+.home-hero-popup-close:hover { background: #fff; transform: scale(1.1); }
+
+.home-hero-popup-link { display: block; width: 100%; height: 100%; }
+.home-hero-popup-image {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.home-hero-popup-overlay {
+    position: absolute;
+    padding: 10px 18px;
+    background: rgba(0, 0, 0, .55);
     color: #fff;
-    border-radius: 8px;
-    font-size: 0.95rem;
+    border-radius: 10px;
+    font-size: 1rem;
     font-weight: 600;
     max-width: 70%;
 }
@@ -248,18 +282,26 @@
 .home-banner-pos-br { bottom: 16px; right: 16px; }
 .home-banner-pos-center { top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
 
-.home-hero-toggle {
-    position: absolute; top: 8px; right: 8px;
-    background: rgba(0,0,0,.5); border: 0; color: #fff;
-    width: 32px; height: 32px; border-radius: 50%;
-    font-size: 1.25rem; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: background .2s;
+@keyframes heroFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
-.home-hero-toggle:hover { background: rgba(0,0,0,.75); }
+@keyframes heroSlideIn {
+    from { opacity: 0; transform: translateY(30px) scale(.95); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);   }
+}
 
-@media (min-width: 768px) {
-    .home-hero-banner { border-radius: 24px; }
+/* Mobile: nút X đặt trong panel */
+@media (max-width: 640px) {
+    .home-hero-popup { padding: 12px; }
+    .home-hero-popup-close {
+        top: 8px; right: 8px;
+        background: rgba(0, 0, 0, .6);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
+    }
+    .home-hero-popup-close:hover { background: rgba(0, 0, 0, .8); }
+    .home-hero-popup-overlay { font-size: 0.85rem; padding: 8px 12px; }
 }
 
 /* ─── PINNED BULLETIN ─────────────────────────────────────── */

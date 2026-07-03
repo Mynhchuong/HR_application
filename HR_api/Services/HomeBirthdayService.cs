@@ -96,9 +96,13 @@ public class HomeBirthdayService
         string slot   = type == "ANNIVERSARY" ? "ANNIVERSARY" : "BIRTHDAY";
         var greeting  = await GetGreetingFromPoolAsync(slot);
 
+        // Bọc tên vào span vni-font — CHỈ tên dùng font Vnitbi__ (VNI encoding).
+        // Text còn lại của câu chúc là Unicode → không apply font (bị scrambled).
+        // View sẽ render bằng @Html.Raw. HtmlEncode tên để tránh XSS.
+        string safeName = System.Net.WebUtility.HtmlEncode(row.EmpName);
         var placeholders = new Dictionary<string, string>
         {
-            ["empName"] = row.EmpName,
+            ["empName"] = $"<span class=\"vni-font\">{safeName}</span>",
             ["years"]   = row.AnniversaryYears.ToString()
         };
 
@@ -145,12 +149,15 @@ public class HomeBirthdayService
         {
             sql = @"
                 SELECT * FROM (
-                    SELECT EC.EMPCD, EC.CNAME, EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                    SELECT EC.EMPCD, EC.CNAME,
+                           EA.DEPTNM DEPT_NAME, EA.TEAMNM LINE_NAME, EA.WORKNM WORK_NAME,
                            SUBSTR(EC.BIRTHDAT,5,2) || '-' || SUBSTR(EC.BIRTHDAT,7,2) BIRTHDAT_MMDD
                     FROM HRMS.ECM100 EC
+                    LEFT JOIN HRMS.EAM410 EA
+                        ON EA.DEPTCD = EC.DEPTCD AND EA.LINECD = EC.LINECD AND EA.WORKCD = EC.WORKCD
                     WHERE SUBSTR(EC.BIRTHDAT,5,4) = TO_CHAR(SYSDATE,'MMDD')
                       AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
-                    ORDER BY EC.DEPTCD, EC.CNAME
+                    ORDER BY EA.DEPTNM, EC.CNAME
                 ) WHERE ROWNUM <= 50";
         }
         else
@@ -158,9 +165,12 @@ public class HomeBirthdayService
             var scope = OTScopeFilterHelper.ForScopeByTuple(user.EMPCD, empAlias: "EC", prefix: "ME");
             sql = $@"
                 SELECT * FROM (
-                    SELECT EC.EMPCD, EC.CNAME, EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                    SELECT EC.EMPCD, EC.CNAME,
+                           EA.DEPTNM DEPT_NAME, EA.TEAMNM LINE_NAME, EA.WORKNM WORK_NAME,
                            SUBSTR(EC.BIRTHDAT,5,2) || '-' || SUBSTR(EC.BIRTHDAT,7,2) BIRTHDAT_MMDD
                     FROM HRMS.ECM100 EC
+                    LEFT JOIN HRMS.EAM410 EA
+                        ON EA.DEPTCD = EC.DEPTCD AND EA.LINECD = EC.LINECD AND EA.WORKCD = EC.WORKCD
                     WHERE SUBSTR(EC.BIRTHDAT,5,4) = TO_CHAR(SYSDATE,'MMDD')
                       AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                       {scope.SqlClause}
@@ -171,12 +181,12 @@ public class HomeBirthdayService
 
         return await _oracleService.ExecuteQueryAsync(sql, r => new TeamBirthdayItem
         {
-            EMPCD    = r["EMPCD"]?.ToString() ?? "",
-            CNAME    = r["CNAME"]?.ToString() ?? "",
-            DEPTCD   = r["DEPTCD"]?.ToString(),
-            LINECD   = r["LINECD"]?.ToString(),
-            WORKCD   = r["WORKCD"]?.ToString(),
-            BIRTHDAT = r["BIRTHDAT_MMDD"]?.ToString()
+            EMPCD     = r["EMPCD"]?.ToString() ?? "",
+            CNAME     = r["CNAME"]?.ToString() ?? "",
+            DEPT_NAME = r["DEPT_NAME"]?.ToString(),
+            LINE_NAME = r["LINE_NAME"]?.ToString(),
+            WORK_NAME = r["WORK_NAME"]?.ToString(),
+            BIRTHDAT  = r["BIRTHDAT_MMDD"]?.ToString()
         }, parameters.ToArray());
     }
 

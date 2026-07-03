@@ -507,20 +507,34 @@
 
     <!-- Mobile Bottom Navigation -->
     @{
-        var mobileRole       = layoutUser?.RoleName ?? "";
-        bool isMobSupervisor = mobileRole == "Supervisor" || mobileRole == "Manager" || mobileRole == "DeputyManager" || mobileRole == "Assistant";
-        bool isMobClerk      = mobileRole == "Clerk";
-        string otUrl         = isMobSupervisor      ? "~/OT/OtListForSupervisor"
-                             : isMobClerk          ? "~/OT/OtListForClerk"
-                             : mobileRole == "Expat" ? "~/OT/OtListForExpat"
-                             :                         "~/OT/OtConfirmForm";
-        string notiUrl       = mobileRole == "Expat" ? "~/Notification/IndexForExpat" : "~/Notification/Index";
-        string inqUrl        = mobileRole == "HR"    ? "~/HrInquiry/Index"
-                             : mobileRole == "Admin" ? "~/AdminInquiry/Index"
-                             :                         "~/EmployeeInquiry/Index";
-        bool   inqActive     = Context.Request.Path.Value?.Contains("/HrInquiry") == true
-                            || Context.Request.Path.Value?.Contains("/AdminInquiry") == true
-                            || Context.Request.Path.Value?.Contains("/EmployeeInquiry") == true;
+        var mobileRole  = layoutUser?.RoleName ?? "";
+        bool isMobExpat = mobileRole == "Expat";
+
+        string notiUrl  = isMobExpat ? "~/Notification/IndexForExpat" : "~/Notification/Index";
+
+        // Slot 4: Expat = Team Schedule, còn lại = Hộp thư
+        string inqUrl;
+        bool   slot4Active;
+        string slot4Icon;
+        string slot4Text;
+        if (isMobExpat)
+        {
+            inqUrl      = "~/Leave/TeamCalendarForExpat";
+            slot4Active = Context.Request.Path.Value?.Contains("/Leave/TeamCalendar") == true;
+            slot4Icon   = "calendar_month";
+            slot4Text   = "Lịch nhóm";
+        }
+        else
+        {
+            inqUrl      = mobileRole == "HR"    ? "~/HrInquiry/Index"
+                        : mobileRole == "Admin" ? "~/AdminInquiry/Index"
+                        :                         "~/EmployeeInquiry/Index";
+            slot4Active = Context.Request.Path.Value?.Contains("/HrInquiry") == true
+                       || Context.Request.Path.Value?.Contains("/AdminInquiry") == true
+                       || Context.Request.Path.Value?.Contains("/EmployeeInquiry") == true;
+            slot4Icon   = "forum";
+            slot4Text   = "Hộp thư";
+        }
     }
     <nav class="mobile-bottom-nav">
         <a href="@Url.Content("~/Home/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Home") == true ? "active" : "")">
@@ -529,11 +543,11 @@
             </div>
             <span class="nav-text">Home</span>
         </a>
-        <a href="@Url.Content(otUrl)" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/OT") == true ? "active" : "")">
+        <a href="@Url.Content("~/Bulletin/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Bulletin") == true ? "active" : "")">
             <div class="icon-wrap">
-                <span class="material-symbols-rounded">history_edu</span>
+                <span class="material-symbols-rounded">campaign</span>
             </div>
-            <span class="nav-text">Tăng ca</span>
+            <span class="nav-text">Bản tin</span>
         </a>
         <a href="@Url.Content(notiUrl)" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Notification") == true ? "active" : "")" id="navBell">
             <div class="icon-wrap" style="position:relative;">
@@ -542,18 +556,15 @@
             </div>
             <span class="nav-text">Thông báo</span>
         </a>
-        <a href="@Url.Content(inqUrl)" class="nav-item-mobile @(inqActive ? "active" : "")">
+        <a href="@Url.Content(inqUrl)" class="nav-item-mobile @(slot4Active ? "active" : "")">
             <div class="icon-wrap" style="position:relative;">
-                <span class="material-symbols-rounded">forum</span>
-                <span id="inqBadge" style="display:none;position:absolute;top:-4px;right:-6px;background:#c00000;color:white;font-size:.6rem;font-weight:800;border-radius:20px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;"></span>
+                <span class="material-symbols-rounded">@slot4Icon</span>
+                @if (!isMobExpat)
+                {
+                    <span id="inqBadge" style="display:none;position:absolute;top:-4px;right:-6px;background:#c00000;color:white;font-size:.6rem;font-weight:800;border-radius:20px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;"></span>
+                }
             </div>
-            <span class="nav-text">Hộp thư</span>
-        </a>
-        <a href="@Url.Content("~/Profile/ProfileUser")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Profile") == true ? "active" : "")">
-            <div class="icon-wrap">
-                <span class="material-symbols-rounded">person</span>
-            </div>
-            <span class="nav-text">Hồ sơ</span>
+            <span class="nav-text">@slot4Text</span>
         </a>
     </nav>
 
@@ -788,6 +799,8 @@
                                         && window.webkit.messageHandlers.clearNotifications)
                                         window.webkit.messageHandlers.clearNotifications.postMessage(null);
                                 } catch (e) {}
+                                // Clear session flag để login lần sau vẫn thấy hero popup
+                                try { sessionStorage.removeItem('home_hero_popup_dismissed'); } catch (e) {}
                                 // Không gọi preventDefault → form vẫn submit bình thường
                             });
                         })();

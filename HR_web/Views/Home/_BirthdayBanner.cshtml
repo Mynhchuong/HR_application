@@ -16,7 +16,8 @@
     <div class="home-birthday-confetti" aria-hidden="true"></div>
     <div class="home-birthday-icon">@(bd.Emoji ?? (isAnniv ? "🎖️" : "🎂"))</div>
     <div class="home-birthday-body">
-        <div class="home-birthday-message vni-font">@bd.Message</div>
+        @* Message chứa tên NV được server bọc sẵn <span class="vni-font"> — render Raw *@
+        <div class="home-birthday-message">@Html.Raw(bd.Message)</div>
         @if (isBoth)
         {
             <div class="home-birthday-sub">@(Model.Lang == "en" ? "Also celebrating your work anniversary!" : "Kỷ niệm ngày vào công ty nữa nè!")</div>

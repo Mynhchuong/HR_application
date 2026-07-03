@@ -8,7 +8,7 @@ public class HomeIndexViewModel
     public string FullName  { get; set; } = "";
     public string RoleName  { get; set; } = "Employee";
     public string Lang      => string.Equals(RoleName, "Expat", StringComparison.OrdinalIgnoreCase) ? "en" : "vi";
-    public bool   ShowSummary => RoleName is "Supervisor" or "DeputyManager" or "Manager" or "Assistant" or "Expat" or "HR" or "Admin";
+    public bool   ShowSummary => RoleName is "Supervisor" or "DeputyManager" or "Manager" or "Assistant" or "Clerk" or "Expat" or "HR" or "Admin";
     public bool   ShowShift   => RoleName is not ("HR" or "Admin");
 
     // Data từ /Home/init

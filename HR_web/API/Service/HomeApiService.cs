@@ -170,10 +170,10 @@ public class TeamBirthdayResponse
 
 public class TeamBirthdayItem
 {
-    public string  EMPCD    { get; set; } = "";
-    public string  CNAME    { get; set; } = "";
-    public string? DEPTCD   { get; set; }
-    public string? LINECD   { get; set; }
-    public string? WORKCD   { get; set; }
-    public string? BIRTHDAT { get; set; }
+    public string  EMPCD     { get; set; } = "";
+    public string  CNAME     { get; set; } = "";
+    public string? DEPT_NAME { get; set; }
+    public string? LINE_NAME { get; set; }
+    public string? WORK_NAME { get; set; }
+    public string? BIRTHDAT  { get; set; }
 }

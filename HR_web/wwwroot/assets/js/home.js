@@ -64,16 +64,16 @@
         }
     })();
 
-    // ─── 3. HERO BANNER POPUP (1 lần/ngày/user) ─────────────────
+    // ─── 3. HERO BANNER POPUP (mỗi phiên login hiện 1 lần) ─────
     (function initHeroPopup() {
         const el = $('#homeHeroPopup');
         if (!el) return;
 
-        const day = el.dataset.day || '';
-        const key = 'home_hero_popup_dismissed_' + day;
+        // sessionStorage: đóng browser/tab hoặc logout → clear → login vô lại thấy popup
+        const key = 'home_hero_popup_dismissed';
 
-        // Đã đóng hôm nay → không show
-        if (localStorage.getItem(key) === '1') return;
+        // Đã đóng trong phiên login này → không show
+        if (sessionStorage.getItem(key) === '1') return;
 
         // Show sau 300ms cho page settle
         setTimeout(() => {
@@ -84,7 +84,7 @@
         function dismiss() {
             el.hidden = true;
             document.body.classList.remove('home-hero-popup-open');
-            localStorage.setItem(key, '1');
+            sessionStorage.setItem(key, '1');
         }
 
         el.querySelectorAll('[data-close="hero-popup"]').forEach(x =>
@@ -92,7 +92,7 @@
 
         // Click ảnh có link → đóng luôn (giống Shopee: navigate rồi đóng)
         const link = el.querySelector('.home-hero-popup-link');
-        if (link) link.addEventListener('click', () => localStorage.setItem(key, '1'));
+        if (link) link.addEventListener('click', () => sessionStorage.setItem(key, '1'));
 
         // ESC key
         document.addEventListener('keydown', (ev) => {
@@ -240,12 +240,12 @@
 
         function renderItem(item) {
             const initial = (item.CNAME || '?').charAt(0).toUpperCase();
-            const meta = [item.DEPTCD, item.LINECD, item.WORKCD].filter(x => x).join(' · ');
+            const orgParts = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(x => x).join(' · ');
             return `<div class="home-bd-item">
                 <div class="home-bd-avatar">${initial}</div>
                 <div>
                     <div class="home-bd-name vni-font">${escapeHtml(item.CNAME || '')}</div>
-                    <div class="home-bd-meta">${escapeHtml(meta)}</div>
+                    <div class="home-bd-meta"><strong>${escapeHtml(item.EMPCD || '')}</strong>${orgParts ? ' · ' + escapeHtml(orgParts) : ''}</div>
                 </div>
             </div>`;
         }

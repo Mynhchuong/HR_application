@@ -86,3 +86,10 @@ HR_api/Scripts/home_plan.md
 HR_api/Scripts/home_rules.md
 deploy_notes.txt
 samho_welcome_banner.png
+HR_api/Scripts/create_survey.sql
+HR_api/Scripts/create_training.sql
+HR_api/Scripts/survey_plan.md
+HR_api/Scripts/survey_rules.md
+.gitignore
+HR_api/Scripts/training_rules.md
+HR_api/Scripts/training_plan.md

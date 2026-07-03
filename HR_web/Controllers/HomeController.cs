@@ -30,10 +30,11 @@ public class HomeController : BaseController
         // Dispatcher: chọn view theo role
         if (role is "HR" or "Admin")     return View("Admin",    vm);
         if (role == "Expat")             return View("Expat",    vm);
-        if (role is "Supervisor" or "DeputyManager" or "Manager" or "Assistant")
+        // Clerk: theo dõi hoạt động đội — cùng view Manager có Summary Card
+        if (role is "Supervisor" or "DeputyManager" or "Manager" or "Assistant" or "Clerk")
                                           return View("Manager",  vm);
 
-        return View("Employee", vm);  // Employee, Clerk, role lạ
+        return View("Employee", vm);  // Employee, role lạ
     }
 
     // ============================================================

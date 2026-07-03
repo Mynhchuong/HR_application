@@ -349,32 +349,36 @@ body.home-hero-popup-open { overflow: hidden; }
 .home-feature-heading-hr { color: #7c3aed; margin-top: 12px; }
 .home-feature-tiles {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
 }
-@media (min-width: 640px) { .home-feature-tiles { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 640px) { .home-feature-tiles { grid-template-columns: repeat(5, 1fr); gap: 12px; } }
 @media (min-width: 900px) { .home-feature-tiles { grid-template-columns: repeat(6, 1fr); } }
 
 .home-tile {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 16px 8px; border-radius: 16px;
+    padding: 10px 4px; border-radius: 12px;
     text-decoration: none; color: #1f2937;
     background: #fff; border: 1px solid #e5e7eb;
-    min-height: 100px;
+    min-height: 72px;
     transition: transform .15s, box-shadow .15s, border-color .15s;
     text-align: center;
 }
-.home-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.06); border-color: #a5b4fc; color: #1f2937; }
-.home-tile-icon { font-size: 2rem; margin-bottom: 8px; }
-.home-tile-label { font-size: 0.8rem; font-weight: 500; line-height: 1.2; }
+.home-tile:hover, .home-tile:active { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.06); border-color: #a5b4fc; color: #1f2937; }
+.home-tile-icon { font-size: 1.35rem; margin-bottom: 4px; line-height: 1; }
+.home-tile-label { font-size: 0.7rem; font-weight: 500; line-height: 1.15; }
 
 .home-tile-manager { border-color: #a5b4fc; background: #eef2ff; }
 .home-tile-hr      { border-color: #ddd6fe; background: #f5f3ff; }
 
-@media (min-width: 768px) {
-    .home-tile { min-height: 110px; }
+@media (min-width: 640px) {
+    .home-tile { min-height: 96px; padding: 14px 8px; border-radius: 16px; }
+    .home-tile-icon { font-size: 2rem; margin-bottom: 8px; }
+    .home-tile-label { font-size: 0.85rem; }
+}
+@media (min-width: 900px) {
+    .home-tile { min-height: 108px; }
     .home-tile-icon { font-size: 2.25rem; }
-    .home-tile-label { font-size: 0.875rem; }
 }
 
 /* ─── MODAL (team birthday) ────────────────────────────────── */

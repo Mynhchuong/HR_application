@@ -247,10 +247,12 @@ public class HomeAdminService
         DateTime from, DateTime to, int? excludeId, string? newTargetRoles)
     {
         // Bước 1: lấy tất cả banner CHỒNG THỜI GIAN (chưa cần biết role)
+        // LOẠI banner đã hết hạn hoàn toàn (PUBLISH_TO < today) — không xung đột với banner mới
         const string sql = @"
             SELECT ID, TARGET_ROLES
             FROM HRMS.HR_HOME_BANNER
             WHERE IS_ACTIVE = 1
+              AND PUBLISH_TO >= TRUNC(SYSDATE)
               AND ID <> NVL(:EXCLUDE_ID, -1)
               AND PUBLISH_FROM <= :NEW_TO
               AND PUBLISH_TO   >= :NEW_FROM";

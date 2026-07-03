@@ -152,17 +152,6 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="alert alert-info py-2 mb-3" style="font-size:0.95rem; color:#0c4a6e; background:#e0f2fe; border-color:#7dd3fc;">
-                    <i class="bi bi-info-circle-fill me-1"></i>
-                    <strong>Xin nghỉ phép năm:</strong> phải <strong>đăng ký trước ca làm 7 tiếng rưỡi</strong>. Trễ hơn giờ này sẽ không đăng ký được.
-                    <div class="mt-2" style="font-size:0.9rem; color:#075985;">
-                        📌 <strong>Ví dụ:</strong>
-                        <br />
-                        · Ca hành chính (vào 7:30 sáng) → phải đăng ký <strong>trước 00:00 nửa đêm hôm trước</strong>.
-                        <br />
-                        · Ca đêm (vào 22:00 tối) → phải đăng ký <strong>trước 14:30 chiều cùng ngày</strong>.
-                    </div>
-                </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold mb-2">Loại nghỉ <span class="text-danger">*</span></label>
                     <div class="lt-cards">
@@ -581,15 +570,35 @@ function renderPagination() {
     $bar.append(mk('&rsaquo;',currentPage+1,currentPage>=totalPages));
 }
 
-function openCreateModal() {
+function addDaysStr(dateStr, n) {
+    const p = dateStr.split('-');
+    const d = new Date(Date.UTC(+p[0], +p[1]-1, +p[2]));
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+}
+
+async function openCreateModal() {
     const today = localDateStr();
     $('#clt-AL').prop('checked', true);
+    // Tạm set min = today, sẽ check AL deadline dưới để dời lên ngày mai nếu ca hôm nay đã quá hạn
     $('#createFromDate').attr('min', today).val(today);
     $('#createToDate').attr('min', today).val(today);
     $('#createTotalDays').val(1);
     $('#createReason').val('');
     $('#createError').addClass('d-none').text('');
     new bootstrap.Modal('#createModal').show();
+
+    // Auto-adjust min date theo ca của hôm nay:
+    //   Nếu deadline hôm nay đã qua (ca hành chính 7:30 → deadline 00:00 nửa đêm trước)
+    //   → min = ngày mai. Ca chiều/đêm còn xin được hôm nay thì min = today.
+    try {
+        const dl = await $.ajax({ url: '@Url.Action("AlDeadline", "Leave")', type: 'GET', data: { from_date: today } });
+        if (dl && dl.success !== false && dl.allowed === false) {
+            const tomorrow = addDaysStr(today, 1);
+            $('#createFromDate').attr('min', tomorrow).val(tomorrow);
+            $('#createToDate').attr('min', tomorrow).val(tomorrow);
+        }
+    } catch (e) { /* silent — server-side sẽ chặn lại nếu client miss */ }
 }
 
 function datesOverlap(f1, t1, f2, t2) { return f1 <= t2 && t1 >= f2; }
@@ -847,7 +856,16 @@ function workerReject(id) {
 function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
 function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-$(document).ready(function() { updateMonthLabel(); loadData(1); loadBalance(); });
+$(document).ready(function() {
+    updateMonthLabel(); loadData(1); loadBalance();
+    // Auto-open modal khi URL có ?openCreate=1 (từ Home mini calendar)
+    try {
+        const p = new URLSearchParams(window.location.search);
+        if (p.get('openCreate') === '1') {
+            setTimeout(() => openCreateModal(), 250);
+        }
+    } catch (e) {}
+});
 </script>
 @Html.AntiForgeryToken()
 }

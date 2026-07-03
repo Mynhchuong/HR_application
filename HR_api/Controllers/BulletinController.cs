@@ -490,7 +490,7 @@ public class BulletinController : ControllerBase
                 new OracleParameter("ID",      id));
 
             InvalidateHomePinnedCache();
-            return Ok(new { success = true, isPinned = newPin });
+            return Ok(new { success = true, isPinned = newPin, message = newPin == 1 ? "Đã ghim bản tin" : "Đã bỏ ghim bản tin" });
         }
         catch (Exception ex)
         {

@@ -50,6 +50,24 @@ public class HomeApiService
     }
 
     // ============================================================
+    // GET /apiHR/Home/my-calendar
+    // ============================================================
+    public async Task<List<HomeMyCalendarItem>?> GetMyCalendarAsync(string empcd, int year, int month)
+    {
+        try
+        {
+            var q = $"empcd={Uri.EscapeDataString(empcd)}&year={year}&month={month}";
+            var resp = await _api.GetAsync<MyCalendarResponse>("home/my-calendar", q);
+            return resp?.success == true ? resp.data : null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[HomeApiService] GetMyCalendarAsync error: {ex.Message}");
+            return null;
+        }
+    }
+
+    // ============================================================
     // GET /apiHR/Home/team-birthday
     // ============================================================
     public async Task<List<TeamBirthdayItem>?> GetTeamBirthdayAsync(string empcd, string? roleName)
@@ -178,4 +196,22 @@ public class TeamBirthdayItem
     public string? LINE_NAME { get; set; }
     public string? WORK_NAME { get; set; }
     public string? BIRTHDAT  { get; set; }
+}
+
+// ─── My Calendar
+public class MyCalendarResponse
+{
+    public bool                       success { get; set; }
+    public string?                    message { get; set; }
+    public int                        year    { get; set; }
+    public int                        month   { get; set; }
+    public List<HomeMyCalendarItem>?  data    { get; set; }
+}
+
+public class HomeMyCalendarItem
+{
+    public string DATE   { get; set; } = "";
+    public string TYPE   { get; set; } = "";   // LEAVE | GP | OT | ASSIGN
+    public string LABEL  { get; set; } = "";
+    public string DETAIL { get; set; } = "";
 }

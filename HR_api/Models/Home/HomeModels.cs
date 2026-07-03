@@ -86,6 +86,17 @@ public class TeamBirthdayItem
     public string? BIRTHDAT  { get; set; } // MM-DD only, không lộ năm sinh
 }
 
+// ─── My Calendar ─────────────────────────────────────────────
+// 1 event = 1 ô ngày trong lịch cá nhân. TYPE quyết định emoji + màu.
+// Chỉ chứa trạng thái ĐÃ HOÀN TẤT (APPROVED / CONFIRMED) — không show pending.
+public class HomeMyCalendarItem
+{
+    public string DATE   { get; set; } = "";  // yyyy-MM-dd
+    public string TYPE   { get; set; } = "";  // LEAVE | GP | OT | ASSIGN
+    public string LABEL  { get; set; } = "";  // "Nghỉ phép (AL)", "Ra cổng (OUT)", …
+    public string DETAIL { get; set; } = "";  // dòng chi tiết (giờ, lý do, người sắp)
+}
+
 // Context user hiện tại — được HomeController resolve từ CurrentUser
 public class HomeUserContext
 {

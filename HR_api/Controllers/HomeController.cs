@@ -8,18 +8,21 @@ namespace HR_api.Controllers;
 [Route("apiHR/[controller]")]
 public class HomeController : ControllerBase
 {
-    private readonly HomeService         _homeSvc;
-    private readonly HomeSummaryService  _summarySvc;
-    private readonly HomeBirthdayService _birthdaySvc;
+    private readonly HomeService           _homeSvc;
+    private readonly HomeSummaryService    _summarySvc;
+    private readonly HomeBirthdayService   _birthdaySvc;
+    private readonly HomeMyCalendarService _myCalSvc;
 
     public HomeController(
-        HomeService         homeSvc,
-        HomeSummaryService  summarySvc,
-        HomeBirthdayService birthdaySvc)
+        HomeService           homeSvc,
+        HomeSummaryService    summarySvc,
+        HomeBirthdayService   birthdaySvc,
+        HomeMyCalendarService myCalSvc)
     {
         _homeSvc     = homeSvc;
         _summarySvc  = summarySvc;
         _birthdaySvc = birthdaySvc;
+        _myCalSvc    = myCalSvc;
     }
 
     // ============================================================
@@ -99,6 +102,35 @@ public class HomeController : ControllerBase
 
             var data = await _birthdaySvc.GetTeamBirthdayAsync(user);
             return Ok(new { success = true, data });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ============================================================
+    // GET /apiHR/Home/my-calendar?empcd=X&year=&month=
+    // Lịch cá nhân — chỉ trạng thái ĐÃ HOÀN TẤT (approved/confirmed).
+    // Nguồn: My Samho — không phải ERP.
+    // ============================================================
+    [HttpGet("my-calendar")]
+    public async Task<IActionResult> MyCalendar(string empcd, int year = 0, int month = 0)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd))
+                return Ok(new { success = false, message = "Thiếu mã nhân viên" });
+
+            if (year <= 0 || month <= 0 || month > 12)
+            {
+                var t = DateTime.Today;
+                year  = t.Year;
+                month = t.Month;
+            }
+
+            var data = await _myCalSvc.GetAsync(empcd, year, month);
+            return Ok(new { success = true, year, month, data });
         }
         catch (Exception ex)
         {

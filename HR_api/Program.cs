@@ -50,6 +50,7 @@ builder.Services.AddScoped<HR_api.Services.ShiftLookupService>();
 builder.Services.AddScoped<HR_api.Services.HomeBirthdayService>();
 builder.Services.AddScoped<HR_api.Services.HomeSummaryService>();
 builder.Services.AddScoped<HR_api.Services.HomeService>();
+builder.Services.AddScoped<HR_api.Services.HomeMyCalendarService>();
 builder.Services.AddScoped<HR_api.Services.HomeAdminService>();
 
 builder.Services.AddCors(options =>

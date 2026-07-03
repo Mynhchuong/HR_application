@@ -12,6 +12,7 @@ public class TeamMemberModel
     public string WORK_NAME { get; set; } = "";
     public decimal SUM_YEAR  { get; set; } = 0;
     public decimal SUM_MONTH { get; set; } = 0;
+    public DateTime? LAST_LOGIN { get; set; }
 }
 
 public class TeamMemberResponse

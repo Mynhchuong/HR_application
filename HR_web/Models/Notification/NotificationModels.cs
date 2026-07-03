@@ -12,6 +12,9 @@ public class NotificationItem
     public int     IS_READ      { get; set; }
     public string? SENDER_NAME  { get; set; }
     public string? SENDER_EMPCD { get; set; }
+    public string? SENDER_DEPT_NAME { get; set; }
+    public string? SENDER_LINE_NAME { get; set; }
+    public string? SENDER_WORK_NAME { get; set; }
     public string? PRIORITY     { get; set; }   // HIGH / NORMAL
     public string? SOURCE       { get; set; }   // ADMIN / HR / SYSTEM
     public string? NOTI_TYPE    { get; set; }

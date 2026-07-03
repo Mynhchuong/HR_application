@@ -14,6 +14,9 @@ public class NotificationModel
     public int IS_READ { get; set; } // 0 or 1
     public string? SENDER_NAME { get; set; }
     public string? SENDER_EMPCD { get; set; }
+    public string? SENDER_DEPT_NAME { get; set; }
+    public string? SENDER_LINE_NAME { get; set; }
+    public string? SENDER_WORK_NAME { get; set; }
     public string? PRIORITY { get; set; } = "NORMAL";
     public string? SOURCE   { get; set; } = "SYSTEM";
 }

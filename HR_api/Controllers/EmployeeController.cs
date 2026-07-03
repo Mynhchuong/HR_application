@@ -45,6 +45,7 @@ public class EmployeeController : ControllerBase
                 SELECT EC.EMPCD, EC.CNAME EMP_NAME,
                        EC.DEPTCD, EC.LINECD, EC.WORKCD,
                        B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
+                       U.LASTED_LOGIN LAST_LOGIN,
                        NVL((SELECT SUM(NVL(T_ROT,0) + NVL(T_OT,0)) FROM HRMS.EBM200
                             WHERE EMPCD = EC.EMPCD
                               AND DAT BETWEEN TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0101','YYYYMMDD') AND SYSDATE),0) SUM_YEAR,
@@ -53,6 +54,7 @@ public class EmployeeController : ControllerBase
                               AND TO_CHAR(DAT,'YYYYMM') = TO_CHAR(SYSDATE,'YYYYMM')),0) SUM_MONTH
                 FROM HRMS.ECM100 EC
                 LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = EC.EMPCD
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   {scopeFilter.SqlClause}
                   {searchFilter}
@@ -82,7 +84,8 @@ public class EmployeeController : ControllerBase
                 LINE_NAME = r["LINE_NAME"]?.ToString() ?? "",
                 WORK_NAME = r["WORK_NAME"]?.ToString() ?? "",
                 SUM_YEAR  = r["SUM_YEAR"] == DBNull.Value ? 0 : Convert.ToDecimal(r["SUM_YEAR"]),
-                SUM_MONTH = r["SUM_MONTH"] == DBNull.Value ? 0 : Convert.ToDecimal(r["SUM_MONTH"])
+                SUM_MONTH = r["SUM_MONTH"] == DBNull.Value ? 0 : Convert.ToDecimal(r["SUM_MONTH"]),
+                LAST_LOGIN = r["LAST_LOGIN"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["LAST_LOGIN"])
             }, p.ToArray());
 
             return Ok(new { success = true, total = list.Count, data = list });

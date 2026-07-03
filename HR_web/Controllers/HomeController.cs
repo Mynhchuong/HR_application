@@ -62,6 +62,25 @@ public class HomeController : BaseController
     }
 
     // ============================================================
+    // GET /Home/MyCalendar?year=&month= — AJAX cho mini calendar cá nhân
+    // ============================================================
+    [HttpGet]
+    public async Task<IActionResult> MyCalendar(int year = 0, int month = 0)
+    {
+        if (CurrentUser?.EmpCd == null) return Json(new { success = false });
+
+        if (year <= 0 || month <= 0 || month > 12)
+        {
+            var t = DateTime.Today;
+            year  = t.Year;
+            month = t.Month;
+        }
+
+        var data = await _homeApi.GetMyCalendarAsync(CurrentUser.EmpCd, year, month);
+        return Json(new { success = true, year, month, data });
+    }
+
+    // ============================================================
     // Build VM từ API response — map DTO → VM
     // ============================================================
     private async Task<HomeIndexViewModel> BuildViewModelAsync(string empCd, string roleName, string? fullName)

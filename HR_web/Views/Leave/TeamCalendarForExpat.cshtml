@@ -276,7 +276,8 @@ function buildCalendar(data) {
         let d = new Date(item.FROM_DATE); d.setHours(0,0,0,0);
         const endD = new Date(item.TO_DATE); endD.setHours(0,0,0,0);
         while (d <= endD) {
-            if (d.getMonth()+1 === curMonth && d.getFullYear() === curYear) {
+            // Skip Sunday — company works Mon–Sat
+            if (d.getDay() !== 0 && d.getMonth()+1 === curMonth && d.getFullYear() === curYear) {
                 const key = dayKey(d);
                 dayMap[key] = (dayMap[key]||0) + 1;
                 if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[] };

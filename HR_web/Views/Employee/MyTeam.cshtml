@@ -19,6 +19,15 @@
     .ot-chip.y { background:#fef3c7; color:#b45309; }
     .ot-chip.zero { background:#f1f5f9; color:#94a3b8; }
 
+    /* Chưa đăng nhập lần đầu badge */
+    .badge-no-login { display:inline-flex; align-items:center; gap:3px; font-size:.65rem; font-weight:700; padding:2px 7px; border-radius:10px; background:#fef3c7; color:#b45309; margin-left:6px; white-space:nowrap; }
+
+    /* Filter toggle chip */
+    .filter-toggle { display:inline-flex; align-items:center; gap:5px; font-size:.75rem; font-weight:600; padding:5px 10px; border-radius:16px; border:1.5px solid #e2e8f0; background:#fff; color:#64748b; cursor:pointer; user-select:none; transition:all .18s; }
+    .filter-toggle:hover { border-color:#f59e0b; color:#b45309; }
+    .filter-toggle.active { background:#fef3c7; border-color:#f59e0b; color:#b45309; }
+    .filter-toggle input { display:none; }
+
     /* Mobile badges row spacing */
     .mt-card .mt-badges-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
     .mt-card .mt-badge-item { display:inline-flex; padding:0; background:transparent; }
@@ -63,6 +72,10 @@
             <select id="workFilter" class="filter-select" onchange="renderTable()" style="min-width:140px;">
                 <option value="">-- Nhóm việc --</option>
             </select>
+            <label class="filter-toggle" id="noLoginToggleLabel" title="Chỉ hiện nhân viên chưa đăng nhập lần nào">
+                <input type="checkbox" id="noLoginToggle" onchange="onNoLoginToggle()">
+                <i class="bi bi-person-x"></i> Chưa đăng nhập lần đầu
+            </label>
             <button class="btn btn-sm btn-outline-secondary mb-0" onclick="resetFilters()" title="Xóa filter">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -204,21 +217,32 @@ function resetFilters() {
     document.getElementById('deptFilter').value  = '';
     document.getElementById('lineFilter').value  = '';
     document.getElementById('workFilter').value  = '';
+    document.getElementById('noLoginToggle').checked = false;
+    document.getElementById('noLoginToggleLabel').classList.remove('active');
     buildLineDropdown('');
+    page = 1; applyFilter();
+}
+
+function onNoLoginToggle() {
+    const cb  = document.getElementById('noLoginToggle');
+    const lbl = document.getElementById('noLoginToggleLabel');
+    lbl.classList.toggle('active', cb.checked);
     page = 1; applyFilter();
 }
 
 // ── Filter + Render ───────────────────────────────────────────
 function applyFilter() {
-    const q     = (document.getElementById('searchInput').value||'').trim().toUpperCase();
-    const dept  = document.getElementById('deptFilter').value;
-    const line  = document.getElementById('lineFilter').value;
-    const work  = document.getElementById('workFilter').value;
+    const q      = (document.getElementById('searchInput').value||'').trim().toUpperCase();
+    const dept   = document.getElementById('deptFilter').value;
+    const line   = document.getElementById('lineFilter').value;
+    const work   = document.getElementById('workFilter').value;
+    const noLogin = document.getElementById('noLoginToggle').checked;
 
     filtered = allData.filter(d => {
         if (dept && d.DEPTCD !== dept) return false;
         if (line && d.LINECD !== line) return false;
         if (work && d.WORKCD !== work) return false;
+        if (noLogin && d.LAST_LOGIN) return false;
         if (q && !(d.EMPCD.toUpperCase().includes(q) || (d.EMP_NAME||'').toUpperCase().includes(q))) return false;
         return true;
     });
@@ -251,7 +275,7 @@ function renderTable() {
     document.getElementById('tableBody').innerHTML = pageData.map((d, i) => `<tr>
         <td class="px-2 text-xs text-secondary">${start + i + 1}</td>
         <td class="px-2 text-sm fw-bold">${escHtml(d.EMPCD)}</td>
-        <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(d.EMP_NAME)}</td>
+        <td class="px-2 text-sm"><span class="vni-font" style="text-transform:uppercase;">${escHtml(d.EMP_NAME)}</span>${!d.LAST_LOGIN ? '<span class="badge-no-login" title="Chưa đăng nhập lần đầu lần nào"><i class="bi bi-person-x"></i>Chưa đăng nhập lần đầu</span>' : ''}</td>
         <td class="px-2 text-xs">${d.DEPT_NAME ? `<span class="fw-bold">${escHtml(d.DEPTCD)}</span> <span class="text-secondary">— ${escHtml(d.DEPT_NAME)}</span>` : escHtml(d.DEPTCD)||'—'}</td>
         <td class="px-2 text-xs">${d.LINE_NAME ? `<span class="fw-bold">${escHtml(d.LINECD)}</span> <span class="text-secondary">— ${escHtml(d.LINE_NAME)}</span>` : escHtml(d.LINECD)||'—'}</td>
         <td class="px-2 text-xs">${d.WORK_NAME ? `<span class="fw-bold">${escHtml(d.WORKCD)}</span> <span class="text-secondary">— ${escHtml(d.WORK_NAME)}</span>` : escHtml(d.WORKCD)||'—'}</td>

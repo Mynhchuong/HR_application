@@ -5,16 +5,6 @@
 <style>
     .noti-page { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
 
-    /* Hero */
-    .noti-hero {
-        background: linear-gradient(135deg, #8b0000 0%, #c00000 100%);
-        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
-        color: #fff; display: flex; align-items: center; justify-content: space-between;
-    }
-    .noti-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
-    .noti-hero small { font-size: .75rem; opacity: .8; color: #fff !important; }
-    .noti-hero-icon  { font-size: 2.2rem; line-height: 1; }
-
     /* Mark all btn */
     .noti-mark-all { display: flex; align-items: center; justify-content: flex-end; margin-bottom: .6rem; }
     .btn-mark-all {
@@ -86,8 +76,9 @@
 
     /* Content */
     .noti-content  { flex: 1; min-width: 0; }
-    .noti-sender   { font-size: .8rem; font-weight: 700; color: #1e293b; margin-bottom: .1rem; display: flex; align-items: center; gap: .35rem; }
-    .noti-empcd    { font-size: .68rem; font-weight: 600; color: #94a3b8; background: #f1f5f9; border-radius: 4px; padding: 1px 5px; font-family: monospace; }
+    .noti-sender     { font-size: .8rem; font-weight: 700; color: #1e293b; margin-bottom: .1rem; display: flex; align-items: center; gap: .35rem; }
+    .noti-empcd      { font-size: .68rem; font-weight: 600; color: #94a3b8; background: #f1f5f9; border-radius: 4px; padding: 1px 5px; font-family: monospace; }
+    .noti-sender-org { font-size: .7rem; color: #64748b; margin-bottom: .3rem; font-weight: 500; }
     .noti-title    { font-size: .88rem; font-weight: 600; color: #1e293b; margin-bottom: .2rem; line-height: 1.35; }
     .noti-item.unread .noti-title { font-weight: 800; }
     .noti-body     { font-size: .8rem; color: #64748b; line-height: 1.45; }
@@ -122,14 +113,6 @@
 </style>
 
 <div class="noti-page px-2 py-2">
-
-    <div class="noti-hero">
-        <div>
-            <h5>Thông báo</h5>
-            <small id="unreadLabel">Đang tải...</small>
-        </div>
-        <span class="noti-hero-icon">🔔</span>
-    </div>
 
     <div class="noti-mark-all">
         <button class="btn-mark-all" id="btnMarkAll" onclick="markAllRead()">✓ Đánh dấu tất cả đã xem</button>
@@ -221,6 +204,9 @@ function renderItems(items, append = false) {
             <div class="noti-content">
                 ${pills ? `<div style="margin-bottom:.25rem">${pills}</div>` : ''}
                 ${n.SENDER_NAME ? `<div class="noti-sender"><span class="vni-font">${esc(n.SENDER_NAME)}</span>${n.SENDER_EMPCD ? `<span class="noti-empcd">${esc(n.SENDER_EMPCD)}</span>` : ''}</div>` : ''}
+                ${(n.SENDER_DEPT_NAME || n.SENDER_LINE_NAME || n.SENDER_WORK_NAME)
+                    ? `<div class="noti-sender-org">${esc([n.SENDER_DEPT_NAME, n.SENDER_LINE_NAME, n.SENDER_WORK_NAME].filter(Boolean).join(' • '))}</div>`
+                    : ''}
                 <div class="noti-title">${esc(n.TITLE)}</div>
                 <div class="noti-body">${esc(n.BODY)}</div>
                 ${(n.LINK_ACTION && /^https?:\/\//i.test(n.LINK_ACTION))

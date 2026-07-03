@@ -122,12 +122,18 @@ public class NotificationController : ControllerBase
                            NVL(L.IS_READ, 0) IS_READ_VAL,
                            U.FULL_NAME SENDER_NAME,
                            N.CREATED_BY SENDER_EMPCD,
+                           SEA.DEPTNM SENDER_DEPT_NAME,
+                           SEA.TEAMNM SENDER_LINE_NAME,
+                           SEA.WORKNM SENDER_WORK_NAME,
                            ROW_NUMBER() OVER (ORDER BY
                                CASE WHEN NVL(L.IS_READ,0) = 0 AND N.PRIORITY = 'HIGH' THEN 0 ELSE 1 END,
                                N.CREATED_DATE DESC) RN
                     FROM HRMS.HR_NOTIFICATIONS N
                     LEFT JOIN HRMS.HR_NOTIFICATION_LOG L ON L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD
                     LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = N.CREATED_BY
+                    LEFT JOIN HRMS.ECM100 SEC ON SEC.EMPCD = N.CREATED_BY
+                    LEFT JOIN HRMS.EAM410 SEA
+                        ON SEA.DEPTCD = SEC.DEPTCD AND SEA.LINECD = SEC.LINECD AND SEA.WORKCD = SEC.WORKCD
                     WHERE N.NOTI_TYPE = 'COMPANY'
                        OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD2)
                        OR (N.NOTI_TYPE = 'DEPT'  AND N.TARGET_VAL = (SELECT DEPTCD FROM ME))
@@ -157,6 +163,9 @@ public class NotificationController : ControllerBase
                 IS_READ = Convert.ToInt32(r["IS_READ_VAL"]),
                 SENDER_NAME = r["SENDER_NAME"]?.ToString(),
                 SENDER_EMPCD = r["SENDER_EMPCD"]?.ToString(),
+                SENDER_DEPT_NAME = r["SENDER_DEPT_NAME"]?.ToString(),
+                SENDER_LINE_NAME = r["SENDER_LINE_NAME"]?.ToString(),
+                SENDER_WORK_NAME = r["SENDER_WORK_NAME"]?.ToString(),
                 PRIORITY = r["PRIORITY"]?.ToString() ?? "NORMAL",
                 SOURCE   = r["SOURCE"]?.ToString()   ?? "SYSTEM"
             },

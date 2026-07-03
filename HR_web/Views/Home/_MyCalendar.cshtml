@@ -1,0 +1,62 @@
+@model HR_web.ViewModels.Home.HomeIndexViewModel
+
+@{
+    var today    = DateTime.Today;
+    var initY    = today.Year;
+    var initM    = today.Month;
+    var monthKey = $"{initY}-{initM:D2}";
+    var leaveUrl = Url.Action("LeaveMyRequests", "Leave") + "?openCreate=1";
+}
+
+<div id="homeMyCalendar" class="home-mycal" data-empcd="@Model.EmpCd" data-init-month="@monthKey">
+    <div class="home-mycal-header">
+        <button type="button" class="mycal-nav" data-nav="prev" aria-label="Tháng trước">‹</button>
+        <div class="mycal-title">
+            <span class="mycal-title-sub">Lịch của tôi</span>
+            <span class="mycal-title-text" id="mycalTitle">Tháng @initM/@initY</span>
+        </div>
+        <button type="button" class="mycal-nav" data-nav="next" aria-label="Tháng sau">›</button>
+    </div>
+
+    <div class="home-mycal-legend">
+        <span class="lg-item"><span class="lg-dot lg-leave"></span> Nghỉ phép</span>
+        <span class="lg-item"><span class="lg-dot lg-gp"></span> Ra cổng</span>
+        <span class="lg-item"><span class="lg-dot lg-ot"></span> Tăng ca</span>
+        <span class="lg-item"><span class="lg-dot lg-assign"></span> Quản lý xếp lịch nghỉ</span>
+    </div>
+
+    <div class="home-mycal-grid" id="mycalGrid">
+        <div class="mycal-dow">CN</div>
+        <div class="mycal-dow">T2</div>
+        <div class="mycal-dow">T3</div>
+        <div class="mycal-dow">T4</div>
+        <div class="mycal-dow">T5</div>
+        <div class="mycal-dow">T6</div>
+        <div class="mycal-dow">T7</div>
+    </div>
+
+    <div class="home-mycal-note">
+        ℹ️ Đây là thông tin từ <strong>My Samho</strong> — không phải ERP. Đơn nộp giấy hoặc chưa hoàn tất trên app sẽ không hiển thị ở đây.
+    </div>
+
+    <div class="home-mycal-actions">
+        <a href="@leaveUrl" class="mycal-cta">
+            <i class="bi bi-calendar-plus me-1"></i> Xin nghỉ phép
+        </a>
+    </div>
+</div>
+
+<!-- Modal chi tiết ngày -->
+<div class="modal fade" id="mycalDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0" id="mycalDetailTitle">
+                    <i class="bi bi-calendar-event me-1"></i> Chi tiết ngày
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body py-2" id="mycalDetailBody"></div>
+        </div>
+    </div>
+</div>

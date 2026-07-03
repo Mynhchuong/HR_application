@@ -269,4 +269,142 @@
         });
     })();
 
+    // ─────────────────────────────────────────────────────────
+    // My Calendar — mini lịch cá nhân, click ngày show chi tiết
+    // ─────────────────────────────────────────────────────────
+    (function initMyCalendar() {
+        const root = document.getElementById('homeMyCalendar');
+        if (!root) return;
+
+        const grid    = root.querySelector('#mycalGrid');
+        const titleEl = root.querySelector('#mycalTitle');
+        const rootUrl = (window.__HR_HOME__ && window.__HR_HOME__.rootUrl) || '/';
+        const modalEl = document.getElementById('mycalDetailModal');
+        const detTitle = document.getElementById('mycalDetailTitle');
+        const detBody  = document.getElementById('mycalDetailBody');
+
+        const [initY, initM] = (root.dataset.initMonth || '').split('-').map(n => parseInt(n, 10));
+        let curY = initY || new Date().getFullYear();
+        let curM = initM || (new Date().getMonth() + 1);
+        let eventsByDate = {}; // { 'YYYY-MM-DD': [ {TYPE, LABEL, DETAIL}, ... ] }
+
+        const ICON  = { LEAVE: '🌴', GP: '🚪', OT: '⏱️', ASSIGN: '📅' };
+
+        function pad(n) { return n < 10 ? '0' + n : '' + n; }
+        function todayKey() {
+            const t = new Date();
+            return `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`;
+        }
+
+        function renderGrid() {
+            // Clear cells (keep DoW headers = first 7 children)
+            while (grid.children.length > 7) grid.removeChild(grid.lastChild);
+
+            titleEl.textContent = `Tháng ${curM}/${curY}`;
+
+            const firstDow = new Date(curY, curM - 1, 1).getDay(); // 0=CN
+            const daysInMonth = new Date(curY, curM, 0).getDate();
+            const tKey = todayKey();
+
+            for (let i = 0; i < firstDow; i++) {
+                const empty = document.createElement('div');
+                empty.className = 'mycal-cell mycal-empty';
+                grid.appendChild(empty);
+            }
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const key = `${curY}-${pad(curM)}-${pad(d)}`;
+                const dow = new Date(curY, curM - 1, d).getDay();
+                const evs = eventsByDate[key] || [];
+
+                const cell = document.createElement('div');
+                cell.className = 'mycal-cell';
+                if (dow === 0) cell.classList.add('mycal-sunday');
+                if (key === tKey) cell.classList.add('mycal-today');
+                if (evs.length) cell.classList.add('mycal-has-event');
+                cell.dataset.date = key;
+
+                const numEl = document.createElement('div');
+                numEl.className = 'mycal-daynum';
+                numEl.textContent = d;
+                cell.appendChild(numEl);
+
+                if (evs.length) {
+                    const dots = document.createElement('div');
+                    dots.className = 'mycal-dots';
+                    const types = Array.from(new Set(evs.map(x => x.TYPE)));
+                    types.forEach(t => {
+                        const span = document.createElement('span');
+                        span.className = `mc-dot mc-dot-${t}`;
+                        dots.appendChild(span);
+                    });
+                    cell.appendChild(dots);
+                }
+                grid.appendChild(cell);
+            }
+        }
+
+        function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+        function showDetail(dateKey) {
+            const evs = eventsByDate[dateKey] || [];
+            if (!evs.length) return;
+
+            const p = dateKey.split('-');
+            const dateLabel = `${p[2]}/${p[1]}/${p[0]}`;
+            detTitle.innerHTML = `<i class="bi bi-calendar-event me-1"></i> Chi tiết ngày ${esc(dateLabel)}`;
+
+            detBody.innerHTML = evs.map(ev => `
+                <div class="mc-event mc-${esc(ev.TYPE)}">
+                    <div class="mc-icon">${ICON[ev.TYPE] || '📌'}</div>
+                    <div class="mc-body">
+                        <div class="mc-lbl">${esc(ev.LABEL)}</div>
+                        <div class="mc-det">${esc(ev.DETAIL)}</div>
+                    </div>
+                </div>
+            `).join('') + `
+                <div class="mc-footer-note">
+                    <i class="bi bi-info-circle"></i>
+                    Thông tin từ My Samho — không phải ERP
+                </div>`;
+
+            if (window.bootstrap && modalEl) {
+                new bootstrap.Modal(modalEl).show();
+            }
+        }
+
+        async function loadMonth() {
+            eventsByDate = {};
+            try {
+                const url = `${rootUrl}Home/MyCalendar?year=${curY}&month=${curM}`;
+                const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                const json = await resp.json();
+                if (json && json.success && Array.isArray(json.data)) {
+                    json.data.forEach(ev => {
+                        if (!eventsByDate[ev.DATE]) eventsByDate[ev.DATE] = [];
+                        eventsByDate[ev.DATE].push(ev);
+                    });
+                }
+            } catch (e) { console.warn('[MyCalendar] load fail', e); }
+            renderGrid();
+        }
+
+        // Navigation
+        root.addEventListener('click', (e) => {
+            const nav = e.target.closest('.mycal-nav');
+            if (nav) {
+                const dir = nav.dataset.nav === 'next' ? 1 : -1;
+                curM += dir;
+                if (curM > 12) { curM = 1; curY++; }
+                if (curM < 1)  { curM = 12; curY--; }
+                loadMonth();
+                return;
+            }
+            const cell = e.target.closest('.mycal-cell.mycal-has-event');
+            if (cell && cell.dataset.date) showDetail(cell.dataset.date);
+        });
+
+        loadMonth();
+    })();
+
 })();

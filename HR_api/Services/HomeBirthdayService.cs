@@ -60,8 +60,7 @@ public class HomeBirthdayService
                            OR (SUBSTR(EC.IGENTDAT,5,4) = '0229'
                                AND TO_CHAR(SYSDATE,'MMDD') = '0228'
                                AND TO_CHAR(LAST_DAY(TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0201','YYYYMMDD')),'DD') = '28'))
-                          AND (TO_NUMBER(TO_CHAR(SYSDATE,'YYYY')) - TO_NUMBER(SUBSTR(EC.IGENTDAT,1,4)))
-                               IN ({MilestonesInClause})
+                          AND (TO_NUMBER(TO_CHAR(SYSDATE,'YYYY')) - TO_NUMBER(SUBSTR(EC.IGENTDAT,1,4))) >= 1
                      THEN TO_NUMBER(TO_CHAR(SYSDATE,'YYYY')) - TO_NUMBER(SUBSTR(EC.IGENTDAT,1,4))
                      ELSE 0
                    END ANNIVERSARY_YEARS

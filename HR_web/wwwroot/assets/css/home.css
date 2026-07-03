@@ -40,38 +40,75 @@
     .home-greeting-emoji { font-size: 2rem; }
 }
 
-/* ─── BIRTHDAY BANNER (with confetti) ─────────────────────── */
+/* ─── BIRTHDAY BANNER — thiết kế cho dịp đặc biệt ──────────── */
 .home-birthday-banner {
     position: relative;
-    min-height: 120px;
-    padding: 16px 48px 16px 20px;
-    border-radius: 16px;
+    padding: 14px 44px 14px 14px;
+    border-radius: 18px;
     color: #fff;
-    box-shadow: 0 10px 30px rgba(255, 107, 157, .3);
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     overflow: hidden;
+    animation: home-bd-enter .5s cubic-bezier(.4, 0, .2, 1) both, home-bd-glow 2.4s ease-in-out infinite;
 }
-.home-birthday-birthday { background: linear-gradient(135deg, #ff6b9d 0%, #ff8e53 100%); }
-.home-birthday-anniv    { background: linear-gradient(135deg, #ffd700 0%, #ff9500 100%); color: #4a2c00; }
+.home-birthday-birthday {
+    background: linear-gradient(135deg, #ff6b9d 0%, #ff8e53 50%, #ffb347 100%);
+    box-shadow: 0 8px 24px rgba(255, 107, 157, .35), inset 0 1px 0 rgba(255,255,255,.3);
+}
+.home-birthday-anniv {
+    background: linear-gradient(135deg, #f59e0b 0%, #eab308 45%, #d97706 100%);
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(234, 179, 8, .35), inset 0 1px 0 rgba(255,255,255,.3);
+}
 .home-birthday-banner.home-birthday-dismissed { display: none; }
 
-.home-birthday-icon { font-size: 3rem; flex-shrink: 0; z-index: 2; }
-.home-birthday-body { z-index: 2; }
-.home-birthday-message { font-size: 1.125rem; font-weight: 700; line-height: 1.4; }
-.home-birthday-sub { font-size: 0.875rem; margin-top: 4px; opacity: 0.9; }
+/* Icon PNG */
+.home-birthday-icon {
+    flex-shrink: 0; z-index: 2;
+    width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    animation: home-bd-bounce 1.6s ease-in-out infinite;
+}
+.home-birthday-icon img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,.15));
+}
+
+.home-birthday-body { z-index: 2; flex: 1; min-width: 0; }
+.home-birthday-message {
+    font-size: 0.9rem; font-weight: 700; line-height: 1.35;
+    text-shadow: 0 1px 2px rgba(0,0,0,.15);
+    word-break: break-word;
+}
+.home-birthday-sub { font-size: 0.75rem; margin-top: 3px; opacity: 0.95; }
+
 .home-birthday-close {
     position: absolute; top: 8px; right: 8px;
     background: rgba(255,255,255,.25); border: 0; color: inherit;
-    width: 32px; height: 32px; border-radius: 50%;
-    font-size: 1.25rem; cursor: pointer; z-index: 3;
+    width: 28px; height: 28px; border-radius: 50%;
+    font-size: 1.1rem; cursor: pointer; z-index: 3;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1; padding: 0;
 }
-.home-birthday-close:hover { background: rgba(255,255,255,.4); }
+.home-birthday-close:hover { background: rgba(255,255,255,.45); }
 
-/* Confetti CSS (chỉ chạy 3s lần đầu trong ngày) */
+/* Sparkle background — subtle shimmer */
+.home-birthday-sparkle {
+    position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background-image:
+        radial-gradient(circle at 15% 20%, rgba(255,255,255,.6) 1px, transparent 2px),
+        radial-gradient(circle at 85% 30%, rgba(255,255,255,.5) 1.5px, transparent 3px),
+        radial-gradient(circle at 30% 80%, rgba(255,255,255,.7) 1px, transparent 2px),
+        radial-gradient(circle at 70% 70%, rgba(255,255,255,.5) 1.5px, transparent 3px),
+        radial-gradient(circle at 50% 10%, rgba(255,255,255,.6) 1px, transparent 2px);
+    animation: home-bd-sparkle 3s ease-in-out infinite;
+}
+
+/* Confetti overlay chỉ chạy lần đầu 3s */
 .home-birthday-confetti {
-    position: absolute; inset: 0; pointer-events: none;
+    position: absolute; inset: 0; pointer-events: none; z-index: 1;
     background-image:
         radial-gradient(circle at 20% 30%, #fff 2px, transparent 3px),
         radial-gradient(circle at 60% 60%, #ffe0f0 2px, transparent 3px),
@@ -82,62 +119,131 @@
     animation: home-confetti 3s ease-out;
 }
 .home-birthday-banner.home-birthday-seen .home-birthday-confetti { animation: none; opacity: 0; }
+
+@keyframes home-bd-enter {
+    0%   { opacity: 0; transform: translateY(-12px) scale(.96); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes home-bd-bounce {
+    0%, 100% { transform: translateY(0) rotate(-3deg); }
+    50%      { transform: translateY(-6px) rotate(3deg); }
+}
+@keyframes home-bd-glow {
+    0%, 100% { filter: brightness(1); }
+    50%      { filter: brightness(1.08); }
+}
+@keyframes home-bd-sparkle {
+    0%, 100% { opacity: .4; transform: translateY(0); }
+    50%      { opacity: .9; transform: translateY(-3px); }
+}
 @keyframes home-confetti {
     0%   { opacity: 0; transform: translateY(-20px); }
     30%  { opacity: 1; transform: translateY(0); }
     100% { opacity: 0; transform: translateY(20px); }
 }
 
-@media (min-width: 768px) {
-    .home-birthday-banner { min-height: 140px; padding: 20px 60px 20px 28px; }
-    .home-birthday-icon { font-size: 4rem; }
+@media (min-width: 640px) {
+    .home-birthday-banner { padding: 18px 52px 18px 20px; gap: 16px; border-radius: 20px; }
+    .home-birthday-icon { width: 72px; height: 72px; }
+    .home-birthday-message { font-size: 1.1rem; }
+    .home-birthday-sub { font-size: 0.9rem; }
+}
+@media (min-width: 900px) {
+    .home-birthday-icon { width: 84px; height: 84px; }
     .home-birthday-message { font-size: 1.25rem; }
-    .home-birthday-sub { font-size: 1rem; }
 }
 
-/* ─── PAYDAY BANNER ────────────────────────────────────────── */
+/* ─── PAYDAY BANNER — thiết kế cho dịp đặc biệt ────────────── */
 .home-payday-banner {
     position: relative;
-    min-height: 80px;
-    padding: 12px 60px 12px 16px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #10b981 0%, #84cc16 100%);
+    padding: 14px 44px 14px 14px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #10b981 0%, #22c55e 45%, #84cc16 100%);
     color: #fff;
     display: flex;
     align-items: center;
     gap: 12px;
-    box-shadow: 0 6px 18px rgba(16, 185, 129, .25);
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(16, 185, 129, .35), inset 0 1px 0 rgba(255,255,255,.3);
+    animation: home-bd-enter .5s cubic-bezier(.4, 0, .2, 1) both, home-payday-glow 2.4s ease-in-out infinite;
 }
 .home-payday-banner.home-payday-dismissed { display: none; }
 
-.home-payday-icon { font-size: 2rem; flex-shrink: 0; }
-.home-payday-body { flex: 1; }
-.home-payday-message { font-size: 1rem; font-weight: 600; line-height: 1.3; }
+.home-payday-icon {
+    flex-shrink: 0; z-index: 2;
+    width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    animation: home-payday-shake 2s ease-in-out infinite;
+}
+.home-payday-icon img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,.15));
+}
+
+.home-payday-body { flex: 1; min-width: 0; z-index: 2; }
+.home-payday-message {
+    font-size: 0.9rem; font-weight: 700; line-height: 1.35;
+    text-shadow: 0 1px 2px rgba(0,0,0,.15);
+    word-break: break-word;
+}
+
+.home-payday-sparkle {
+    position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background-image:
+        radial-gradient(circle at 15% 20%, rgba(255,255,255,.55) 1px, transparent 2px),
+        radial-gradient(circle at 85% 30%, rgba(255,255,255,.45) 1.5px, transparent 3px),
+        radial-gradient(circle at 30% 80%, rgba(255,255,255,.6) 1px, transparent 2px),
+        radial-gradient(circle at 70% 70%, rgba(255,255,255,.45) 1.5px, transparent 3px);
+    animation: home-bd-sparkle 3s ease-in-out infinite;
+}
+
 .home-payday-cta {
     display: inline-block;
-    padding: 8px 14px;
-    background: rgba(255,255,255,.25);
+    padding: 7px 12px;
+    background: rgba(255,255,255,.28);
     color: #fff;
-    border-radius: 8px;
+    border-radius: 10px;
     text-decoration: none;
-    font-weight: 600;
-    font-size: 0.9rem;
+    font-weight: 700;
+    font-size: 0.8rem;
     white-space: nowrap;
-    transition: background .2s;
+    transition: background .2s, transform .2s;
+    z-index: 2;
+    backdrop-filter: blur(6px);
 }
-.home-payday-cta:hover { background: rgba(255,255,255,.4); color: #fff; }
+.home-payday-cta:hover { background: rgba(255,255,255,.45); color: #fff; transform: scale(1.04); }
+
 .home-payday-close {
     position: absolute; top: 8px; right: 8px;
     background: rgba(255,255,255,.25); border: 0; color: #fff;
     width: 28px; height: 28px; border-radius: 50%;
-    font-size: 1rem; cursor: pointer;
+    font-size: 1.1rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1; padding: 0; z-index: 3;
+}
+.home-payday-close:hover { background: rgba(255,255,255,.45); }
+
+@keyframes home-payday-glow {
+    0%, 100% { filter: brightness(1); }
+    50%      { filter: brightness(1.08); }
+}
+@keyframes home-payday-shake {
+    0%, 100% { transform: translateY(0) rotate(-2deg); }
+    25%      { transform: translateY(-4px) rotate(2deg); }
+    50%      { transform: translateY(0) rotate(-2deg); }
+    75%      { transform: translateY(-3px) rotate(3deg); }
 }
 
-@media (min-width: 768px) {
-    .home-payday-banner { min-height: 100px; padding: 16px 68px 16px 24px; }
-    .home-payday-icon { font-size: 2.5rem; }
-    .home-payday-message { font-size: 1.125rem; }
-    .home-payday-cta { padding: 10px 18px; font-size: 1rem; }
+@media (min-width: 640px) {
+    .home-payday-banner { padding: 16px 52px 16px 20px; gap: 16px; border-radius: 20px; }
+    .home-payday-icon { width: 72px; height: 72px; }
+    .home-payday-message { font-size: 1.05rem; }
+    .home-payday-cta { padding: 10px 16px; font-size: 0.95rem; }
+}
+@media (min-width: 900px) {
+    .home-payday-icon { width: 84px; height: 84px; }
+    .home-payday-message { font-size: 1.15rem; }
 }
 
 /* ─── SHIFT CHIP ───────────────────────────────────────────── */

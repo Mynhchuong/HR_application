@@ -2387,8 +2387,8 @@ public class LeaveController : ControllerBase
 
         if (DateTime.Now > deadline)
         {
-            string msg = $"Đã qua giờ đăng ký AL cho ngày {fromDate:dd/MM/yyyy}. " +
-                         $"Ca {shift.SHIFTCD} bắt đầu {shiftStartStr} → deadline là {deadline:HH:mm dd/MM/yyyy}.";
+            string msg = $"Đã qua giờ đăng ký phép năm cho ngày {fromDate:dd/MM/yyyy}. " +
+                         $"Ca {shift.SHIFTCD} bắt đầu {shiftStartStr}, hạn đăng ký: {deadline:HH:mm dd/MM/yyyy}.";
             return new AlDeadlineCheck(false, msg, deadline, shift.SHIFTCD, shiftStartStr);
         }
 

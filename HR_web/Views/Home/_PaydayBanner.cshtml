@@ -6,12 +6,16 @@
     var isEn = Model.Lang == "en";
     var ctaLabel = isEn ? "View payslip →" : "Xem phiếu lương →";
     var monthKey = DateTime.Today.ToString("yyyyMM");
+    var iconSrc  = Url.Content("~/assets/img/icons/getwage.png");
 }
 
 <div id="homePaydayBanner"
      class="home-payday-banner"
      data-month="@monthKey">
-    <div class="home-payday-icon">@pd.Emoji</div>
+    <div class="home-payday-sparkle" aria-hidden="true"></div>
+    <div class="home-payday-icon">
+        <img src="@iconSrc" alt="Payday" />
+    </div>
     <div class="home-payday-body">
         <div class="home-payday-message">@pd.Message</div>
     </div>

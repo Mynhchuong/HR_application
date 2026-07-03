@@ -660,7 +660,7 @@ async function saveCreate() {
         try {
             const dl = await $.ajax({ url: '@Url.Action("AlDeadline", "Leave")', type: 'GET', data: { from_date: from } });
             if (dl.success === false || dl.allowed === false) {
-                const msg = dl.message || 'Đã qua deadline đăng ký phép năm cho ngày này';
+                const msg = dl.message || 'Đã qua giờ đăng ký phép năm cho ngày này';
                 $('#createError').removeClass('d-none').text(msg);
                 $('#createFromDate').focus(); return;
             }

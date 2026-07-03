@@ -544,8 +544,9 @@
             <span class="nav-text">Home</span>
         </a>
         <a href="@Url.Content("~/Bulletin/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Bulletin") == true ? "active" : "")">
-            <div class="icon-wrap">
+            <div class="icon-wrap" style="position:relative;">
                 <span class="material-symbols-rounded">campaign</span>
+                <span id="bulletinBadge" style="display:none;position:absolute;top:-4px;right:-6px;background:#c00000;color:white;font-size:.6rem;font-weight:800;border-radius:20px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;"></span>
             </div>
             <span class="nav-text">Bản tin</span>
         </a>
@@ -816,13 +817,25 @@
     @if (User.Identity?.IsAuthenticated == true)
     {
         <script>
-        // Unread badge
+        // Unread badge (Notification)
         (function() {
             fetch('@Url.Action("UnreadCount","Notification")')
                 .then(r => r.json())
                 .then(d => {
                     if (d.count > 0) {
                         var b = document.getElementById('bellBadge');
+                        if (b) { b.textContent = d.count > 99 ? '99+' : d.count; b.style.display = 'block'; }
+                    }
+                }).catch(() => {});
+        })();
+
+        // Bulletin unread badge — số bài đang publish nhưng user chưa mở
+        (function() {
+            fetch('@Url.Action("UnreadCount","Bulletin")')
+                .then(r => r.json())
+                .then(d => {
+                    if (d.count > 0) {
+                        var b = document.getElementById('bulletinBadge');
                         if (b) { b.textContent = d.count > 99 ? '99+' : d.count; b.style.display = 'block'; }
                     }
                 }).catch(() => {});

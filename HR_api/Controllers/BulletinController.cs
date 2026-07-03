@@ -40,6 +40,40 @@ public class BulletinController : ControllerBase
     private void InvalidateHomePinnedCache() => _cache.Remove("home:bulletin:pinned");
 
     // ═════════════════════════════════════════════════════════════════════════
+    // Unread count — cho badge ở bottom nav "Bản tin"
+    // Đếm bài đang publish + user chưa mở
+    // ═════════════════════════════════════════════════════════════════════════
+    [HttpGet("unread-count")]
+    public async Task<IActionResult> GetUnreadCount(string empcd)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd)) return Ok(new { count = 0 });
+
+            const string sql = @"
+                SELECT COUNT(*) CNT
+                FROM HRMS.HR_BULLETIN B
+                WHERE B.IS_PUBLISHED = 1
+                  AND B.IS_ACTIVE    = 1
+                  AND SYSDATE BETWEEN B.PUBLISH_FROM AND B.PUBLISH_TO
+                  AND NOT EXISTS (
+                      SELECT 1 FROM HRMS.HR_BULLETIN_VIEW V
+                      WHERE V.BULLETIN_ID = B.ID AND V.EMPCD = :EMPCD
+                  )";
+
+            var rows = await _oracleService.ExecuteQueryAsync(sql,
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("EMPCD", empcd));
+
+            return Ok(new { count = rows.FirstOrDefault() });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { count = 0, message = ex.Message });
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
     // 1. LIST  — nhân viên: chỉ bài đang hiển thị
     // ═════════════════════════════════════════════════════════════════════════
     [HttpGet("list")]

@@ -147,12 +147,14 @@
                 body.innerHTML = '';
                 body.appendChild(tpl.content.cloneNode(true));
             }
-            setNum('leave',     data.LEAVE_PENDING);
-            setNum('gp',        data.GP_PENDING);
-            setNum('ot-need',   data.OT_NEED_SIGN);
-            setNum('ot-signed', data.OT_SIGNED);
-            setNum('ot-total',  data.OT_TOTAL);
-            setNum('bd',        data.TEAM_BIRTHDAY_COUNT);
+            setNum('leave',        data.LEAVE_PENDING);
+            setNum('gp',           data.GP_PENDING);
+            setNum('leave-today',  data.LEAVE_TODAY_TOTAL);
+            setNum('gp-today',     data.GP_TODAY_TOTAL);
+            setNum('ot-need',      data.OT_NEED_SIGN);
+            setNum('ot-signed',    data.OT_SIGNED);
+            setNum('ot-total',     data.OT_TOTAL);
+            setNum('bd',           data.TEAM_BIRTHDAY_COUNT);
 
             const a = asofEl();
             if (a && data.AS_OF) {

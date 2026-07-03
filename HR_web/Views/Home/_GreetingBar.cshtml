@@ -12,11 +12,8 @@
     @if (greeting != null)
     {
         <div class="home-greeting-message">
-            <span class="home-greeting-text">@greeting.Message</span>
-            @if (!string.IsNullOrEmpty(greeting.Emoji))
-            {
-                <span class="home-greeting-emoji">@greeting.Emoji</span>
-            }
+            @greeting.Message@if (!string.IsNullOrEmpty(greeting.Emoji))
+            {<span class="home-greeting-emoji">&nbsp;@greeting.Emoji</span>}
         </div>
     }
 </div>

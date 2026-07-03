@@ -5,11 +5,15 @@
     var role  = Model.RoleName;
     var isExpat   = role == "Expat";
     var isHrAdmin = role is "HR" or "Admin";
+    var isClerk   = role == "Clerk";
+    // Clerk KHÔNG phải approver — ẩn 2 tile "Đơn phép cần ký" và "Ra vào cổng"
 
     var title = isEn ? "Today at a glance" : "Tổng quan hôm nay";
     var leaveLabel   = isEn ? "Leave to sign"     : "Đơn phép cần ký";
     var gpLabel      = isEn ? "Gate pass"         : "Ra vào cổng";
     var otLabel      = isEn ? "OT status"         : "Tăng ca";
+    var leaveTodayLabel = isEn ? "On leave today" : "Nghỉ hôm nay";
+    var gpTodayLabel    = isEn ? "Gate pass today" : "Ra cổng hôm nay";
     var otSubNeed    = isEn ? "need sign"         : "cần ký";
     var otSubSigned  = isEn ? "signed"            : "đã ký";
     var otSubTotal   = isEn ? "total"             : "tổng";
@@ -51,14 +55,29 @@
 
     <template id="homeSummaryTemplate">
         <div class="home-summary-grid">
-            <a href="@leaveUrl" class="home-kpi home-kpi-leave">
-                <div class="home-kpi-number" data-kpi="leave">0</div>
-                <div class="home-kpi-label">@leaveLabel</div>
-            </a>
-            <a href="@gpUrl" class="home-kpi home-kpi-gp">
-                <div class="home-kpi-number" data-kpi="gp">0</div>
-                <div class="home-kpi-label">@gpLabel</div>
-            </a>
+            @if (isClerk)
+            {
+                @* Clerk chỉ theo dõi tổng số hôm nay — không phải cần ký *@
+                <div class="home-kpi home-kpi-leave">
+                    <div class="home-kpi-number" data-kpi="leave-today">0</div>
+                    <div class="home-kpi-label">📅 @leaveTodayLabel</div>
+                </div>
+                <div class="home-kpi home-kpi-gp">
+                    <div class="home-kpi-number" data-kpi="gp-today">0</div>
+                    <div class="home-kpi-label">🚪 @gpTodayLabel</div>
+                </div>
+            }
+            else
+            {
+                <a href="@leaveUrl" class="home-kpi home-kpi-leave">
+                    <div class="home-kpi-number" data-kpi="leave">0</div>
+                    <div class="home-kpi-label">@leaveLabel</div>
+                </a>
+                <a href="@gpUrl" class="home-kpi home-kpi-gp">
+                    <div class="home-kpi-number" data-kpi="gp">0</div>
+                    <div class="home-kpi-label">@gpLabel</div>
+                </a>
+            }
             <a href="@otUrl" class="home-kpi home-kpi-ot">
                 <div class="home-kpi-ot-numbers">
                     <span data-kpi="ot-need" class="home-kpi-ot-need">0</span>

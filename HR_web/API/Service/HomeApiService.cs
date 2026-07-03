@@ -157,6 +157,8 @@ public class HomeSummaryData
     public int      OT_SIGNED           { get; set; }
     public int      OT_TOTAL            { get; set; }
     public int      TEAM_BIRTHDAY_COUNT { get; set; }
+    public int      LEAVE_TODAY_TOTAL   { get; set; }
+    public int      GP_TODAY_TOTAL      { get; set; }
     public DateTime AS_OF               { get; set; }
 }
 

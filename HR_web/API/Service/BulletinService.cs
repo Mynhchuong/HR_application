@@ -42,6 +42,18 @@ public class BulletinService
         return r?.success == true ? r.data ?? new() : new();
     }
 
+    public async Task<int> GetUnreadCountAsync(string empcd)
+    {
+        try
+        {
+            var r = await _api.GetAsync<UnreadCountResponse>("bulletin/unread-count", $"empcd={Uri.EscapeDataString(empcd)}");
+            return r?.count ?? 0;
+        }
+        catch { return 0; }
+    }
+
+    private class UnreadCountResponse { public int count { get; set; } }
+
     public async Task<BulletinModel?> GetByIdAsync(int id, string? empcd = null)
     {
         string url = $"bulletin/{id}";

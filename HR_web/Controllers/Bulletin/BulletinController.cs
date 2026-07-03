@@ -30,6 +30,18 @@ public class BulletinController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET /Bulletin/UnreadCount — cho badge bottom nav
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> UnreadCount()
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return Json(new { count = 0 });
+        var count = await _service.GetUnreadCountAsync(empcd);
+        return Json(new { count });
+    }
+
+    // ─────────────────────────────────────────────
     // GET /Bulletin/Detail/{id}
     // ─────────────────────────────────────────────
     public async Task<IActionResult> Detail(int id)

@@ -61,13 +61,15 @@ public class HomeSummaryService
             return result;
         }
 
-        // Chạy song song 4 query độc lập
-        var leaveTask = CountLeavePendingAsync(user.EMPCD);
-        var gpTask    = CountGpPendingAsync(user.EMPCD);
-        var otTask    = CountOtAsync(user.EMPCD);
-        var bdTask    = _birthdayService.GetTeamBirthdayAsync(user);
+        // Chạy song song 6 query độc lập
+        var leaveTask       = CountLeavePendingAsync(user.EMPCD);
+        var gpTask          = CountGpPendingAsync(user.EMPCD);
+        var otTask          = CountOtAsync(user.EMPCD);
+        var bdTask          = _birthdayService.GetTeamBirthdayAsync(user);
+        var leaveTodayTask  = CountLeaveTodayAsync(user.EMPCD);
+        var gpTodayTask     = CountGpTodayAsync(user.EMPCD);
 
-        await Task.WhenAll(leaveTask, gpTask, otTask, bdTask);
+        await Task.WhenAll(leaveTask, gpTask, otTask, bdTask, leaveTodayTask, gpTodayTask);
 
         result.LEAVE_PENDING       = leaveTask.Result;
         result.GP_PENDING          = gpTask.Result;
@@ -75,8 +77,51 @@ public class HomeSummaryService
         result.OT_SIGNED           = otTask.Result.Signed;
         result.OT_TOTAL            = otTask.Result.Total;
         result.TEAM_BIRTHDAY_COUNT = bdTask.Result.Count;
+        result.LEAVE_TODAY_TOTAL   = leaveTodayTask.Result;
+        result.GP_TODAY_TOTAL      = gpTodayTask.Result;
 
         return result;
+    }
+
+    // Tổng số NV nghỉ phép hôm nay trong scope (approved, không tính pending/rejected)
+    private async Task<int> CountLeaveTodayAsync(string empcd)
+    {
+        var scope = OTScopeFilterHelper.ForScopeByTuple(empcd, empAlias: "EC", prefix: "LT");
+        string sql = $@"
+            SELECT COUNT(DISTINCT L.EMPCD) AS CNT
+            FROM HRMS.HR_LEAVE_REQUEST L
+            JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID = L.REQUEST_ID
+            JOIN HRMS.ECM100    EC ON EC.EMPCD     = L.EMPCD
+            WHERE R.REQUEST_TYPE = 'LEAVE'
+              AND R.STATUS       = 'APPROVED'
+              AND TRUNC(SYSDATE) BETWEEN TRUNC(L.FROM_DATE) AND TRUNC(L.TO_DATE)
+              AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+              {scope.SqlClause}";
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql,
+            r => Convert.ToInt32(r["CNT"]),
+            scope.Params.ToArray());
+        return rows.FirstOrDefault();
+    }
+
+    // Tổng số NV ra cổng hôm nay trong scope (approved, có OUT_TIME hoặc IN_TIME rơi vào today)
+    private async Task<int> CountGpTodayAsync(string empcd)
+    {
+        var scope = OTScopeFilterHelper.ForScopeByTuple(empcd, empAlias: "EC", prefix: "GT");
+        string sql = $@"
+            SELECT COUNT(DISTINCT GP.EMPCD) AS CNT
+            FROM HRMS.HR_GATEPASS_REQUEST GP
+            JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID = GP.REQUEST_ID
+            JOIN HRMS.ECM100    EC ON EC.EMPCD     = GP.EMPCD
+            WHERE R.STATUS = 'APPROVED'
+              AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+              AND TRUNC(NVL(GP.OUT_TIME, GP.IN_TIME)) = TRUNC(SYSDATE)
+              {scope.SqlClause}";
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql,
+            r => Convert.ToInt32(r["CNT"]),
+            scope.Params.ToArray());
+        return rows.FirstOrDefault();
     }
 
     private async Task<bool> HasScopeAsync(string empcd)

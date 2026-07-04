@@ -19,12 +19,14 @@ public class SurveyService
 
     // ─── Filter dùng ────────────────────────────────────────────────
 
-    public async Task<int?> GetOldestPendingSurveyIdAsync(string empcd)
+    public async Task<int?> GetOldestPendingSurveyIdAsync(string empcd, int? roleId = null)
     {
         if (string.IsNullOrEmpty(empcd)) return null;
         try
         {
-            var r = await _api.GetAsync<R<int?>>("Survey/pending-id", $"empcd={Uri.EscapeDataString(empcd)}");
+            var qs = $"empcd={Uri.EscapeDataString(empcd)}";
+            if (roleId.HasValue) qs += $"&roleId={roleId.Value}";
+            var r = await _api.GetAsync<R<int?>>("Survey/pending-id", qs);
             return r?.success == true ? r.data : null;
         }
         catch { return null; }

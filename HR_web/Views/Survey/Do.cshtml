@@ -9,6 +9,7 @@
     // Answers đã save từ trước (resume)
     var answersJson = Newtonsoft.Json.JsonConvert.SerializeObject(Model?.Response?.ANSWERS ?? new());
     var surveyId    = Model?.Survey?.ID ?? 0;
+    var mascotName  = Random.Shared.Next(2) == 0 ? "survey_boy.png" : "survey_girl.png";
 }
 
 @section Styles {
@@ -25,7 +26,7 @@
             @(isEn ? "Survey unavailable" : "Survey không khả dụng")
         </div>
         <div class="survey-notice-msg">@Model.Error</div>
-        <a href="/Home" class="btn btn-outline-secondary mt-3">
+        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary mt-3">
             @(isEn ? "Back to Home" : "Về trang chủ")
         </a>
     </div>
@@ -41,20 +42,42 @@ else if (Model?.Survey == null || questions.Count == 0)
 }
 else
 {
-    <div class="survey-container" id="surveyContainer"
+    <!-- ── Landing modal (hiện trước, user nhấn Bắt đầu mới vô làm) ── -->
+    <div class="survey-landing" id="surveyLanding">
+        <div class="sv-landing-card">
+            <div class="sv-landing-mascot">
+                <img src="@Url.Content("~/assets/img/icons/" + mascotName)" alt="mascot" onerror="this.style.display='none'" />
+            </div>
+            <div class="sv-landing-title" title="@Model.Survey.TITLE">@Model.Survey.TITLE</div>
+            @if (!string.IsNullOrWhiteSpace(Model.Survey.DESCRIPTION))
+            {
+                <div class="sv-landing-desc">@Model.Survey.DESCRIPTION</div>
+            }
+            <div class="sv-landing-mandatory">
+                <i class="bi bi-info-circle-fill me-1"></i>
+                @(isEn
+                    ? "You must complete this survey to continue using the My Samho app. Thank you."
+                    : "Bạn phải làm hết bài khảo sát mới được sử dụng ứng dụng My Samho. Xin cảm ơn.")
+            </div>
+            <div class="sv-landing-actions">
+                <button type="button" class="btn btn-primary btn-lg sv-btn-start" id="btnStartSurvey">
+                    <i class="bi bi-play-fill me-1"></i>
+                    @(isEn ? "Start" : "Bắt đầu làm")
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="survey-container d-none" id="surveyContainer"
          data-survey-id="@surveyId"
          data-survey-type="@Model.Survey.SURVEY_TYPE"
          data-lang="@Model.Survey.LANG"
-         data-total="@questions.Count">
+         data-total="@questions.Count"
+         data-mascot="/assets/img/icons/@mascotName">
 
         <!-- ── Header ── -->
         <header class="survey-header">
             <div class="survey-title" title="@Model.Survey.TITLE">@Model.Survey.TITLE</div>
-            <button type="button" class="btn-illiterate" id="btnIlliterate"
-                    title="@(isEn ? "I can't read" : "Tôi không biết chữ")">
-                <i class="bi bi-person-exclamation"></i>
-                <span>@(isEn ? "I can't read" : "Không biết chữ")</span>
-            </button>
         </header>
 
         <div class="survey-progress">
@@ -67,6 +90,9 @@ else
         <!-- ── Question wrapper (JS render 1 câu / lần) ── -->
         <main class="survey-body">
             <div id="questionWrapper"></div>
+            <div class="sv-question-mascot">
+                <img src="@Url.Content("~/assets/img/icons/" + mascotName)" alt="mascot" onerror="this.parentElement.style.display='none'" />
+            </div>
         </main>
 
         <!-- ── Footer nav ── -->
@@ -116,17 +142,25 @@ else
     <!-- ── Modal xác nhận Submit ── -->
     <div class="survey-modal" id="modalSubmit">
         <div class="survey-modal-content">
+            <div class="sv-modal-icon">
+                <i class="bi bi-@(isQuiz ? "patch-question-fill text-warning" : "send-check-fill text-primary")"></i>
+            </div>
             <div class="survey-modal-title">
-                @(isEn ? "Submit survey?" : "Gửi survey?")
+                @(isEn ? (isQuiz ? "Submit your quiz?" : "Submit your answers?")
+                       : (isQuiz ? "Nộp bài trắc nghiệm?" : "Gửi câu trả lời?"))
             </div>
             <div class="survey-modal-body">
                 @if (isQuiz)
                 {
-                    <p>@(isEn ? "Once submitted you cannot redo this quiz." : "Sau khi nộp bạn không thể làm lại bài trắc nghiệm này.")</p>
+                    <p class="mb-2">@(isEn ? "Please review your answers before submitting." : "Vui lòng kiểm tra lại các câu trả lời trước khi nộp.")</p>
+                    <div class="sv-warn-box">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <span>@(isEn ? "You can NOT redo this quiz after submitting." : "Sau khi nộp bạn KHÔNG thể làm lại bài này.")</span>
+                    </div>
                 }
                 else
                 {
-                    <p>@(isEn ? "Thank you for your feedback." : "Cảm ơn bạn đã tham gia khảo sát.")</p>
+                    <p>@(isEn ? "Thank you for your feedback. Your response will be recorded." : "Cảm ơn bạn đã tham gia khảo sát. Câu trả lời của bạn sẽ được ghi nhận.")</p>
                 }
             </div>
             <div class="survey-modal-actions">
@@ -134,7 +168,7 @@ else
                     @(isEn ? "Cancel" : "Huỷ")
                 </button>
                 <button type="button" class="btn btn-primary" id="btnSubmitConfirm">
-                    @(isEn ? "Submit" : "Gửi")
+                    <i class="bi bi-check-lg me-1"></i> @(isEn ? "Submit" : "Nộp bài")
                 </button>
             </div>
         </div>
@@ -146,7 +180,7 @@ else
             <div class="survey-modal-title" id="resultTitle"></div>
             <div class="survey-modal-body" id="resultBody"></div>
             <div class="survey-modal-actions">
-                <a href="/Home" class="btn btn-primary">
+                <a asp-controller="Home" asp-action="Index" class="btn btn-primary">
                     @(isEn ? "Go home" : "Về trang chủ")
                 </a>
             </div>

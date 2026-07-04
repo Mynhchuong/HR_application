@@ -27,14 +27,14 @@ public class SurveyScopeService
               FROM HRMS.ECM100 EC
              WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                AND (
-                    :MODE = 'ALL'
+                    :RMODE = 'ALL'
                  OR EXISTS (
                         SELECT 1
-                          FROM HRMS.HR_SURVEY_SCOPE SC
-                          JOIN HRMS.HR_USERS_DEPT UD ON UD.EMPCD = EC.EMPCD
-                         WHERE SC.SURVEY_ID = :SID
+                          FROM HRMS.HR_SURVEY_SCOPE SC, HRMS.HR_USERS_DEPT UD
+                         WHERE UD.EMPCD    = EC.EMPCD
+                           AND SC.SURVEY_ID = :SID
                            AND SC.SCOPE_TYPE = 'DEPT_LINE_WORK'
-                           AND SC.DEPTCD = UD.DEPTCD
+                           AND SC.DEPTCD    = UD.DEPTCD
                            AND (SC.LINECD IS NULL OR SC.LINECD = UD.LINECD)
                            AND (SC.WORKCD IS NULL OR SC.WORKCD = UD.WORKCD)
                     )
@@ -54,7 +54,7 @@ public class SurveyScopeService
 
         return await _db.ExecuteQueryAsync(sql,
             r => r["EMPCD"]?.ToString() ?? "",
-            new OracleParameter("MODE", mode),
-            new OracleParameter("SID",  surveyId));
+            new OracleParameter("RMODE", mode),
+            new OracleParameter("SID",   surveyId));
     }
 }

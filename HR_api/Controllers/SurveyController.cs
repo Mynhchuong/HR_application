@@ -27,12 +27,13 @@ public class SurveyController : ControllerBase
         return Ok(new { success = true, data = list });
     }
 
-    // GET /apiHR/Survey/pending-id?empcd=xxx  → ID survey nhỏ nhất chưa làm (dùng cho middleware chặn app)
+    // GET /apiHR/Survey/pending-id?empcd=xxx&roleId=  → ID survey nhỏ nhất chưa làm (dùng cho middleware chặn app)
+    // roleId=7 (Expat) → chỉ trả EN survey. Còn lại → chỉ trả VI.
     [HttpGet("pending-id")]
-    public async Task<IActionResult> GetPendingId([FromQuery] string empcd)
+    public async Task<IActionResult> GetPendingId([FromQuery] string empcd, [FromQuery] int? roleId = null)
     {
         if (string.IsNullOrEmpty(empcd)) return Ok(new { success = true, data = (int?)null });
-        var id = await _recipient.GetOldestPendingSurveyIdAsync(empcd);
+        var id = await _recipient.GetOldestPendingSurveyIdAsync(empcd, roleId);
         return Ok(new { success = true, data = id });
     }
 

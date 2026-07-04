@@ -10,36 +10,42 @@
     <link href="~/assets/css/survey-admin.css" rel="stylesheet" asp-append-version="true" />
 }
 
-<div class="container-fluid py-3">
-    <div class="card">
+<div class="container-fluid py-4">
+    <div class="card my-4">
         <div class="card-header sa-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span class="fw-bold">
-                <i class="bi bi-clipboard2-check-fill me-2"></i>Quản lý Survey
+            <span class="sa-title">
+                <i class="bi bi-clipboard2-check-fill me-2"></i> Quản lý Survey
             </span>
             <div class="d-flex gap-2">
-                <a href="@Url.Action("Index", "SurveyExempt")" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-person-x me-1"></i>Blacklist
+                <a href="@Url.Action("Index", "SurveyExempt")" class="btn btn-outline-secondary" title="Nhân viên không cần làm survey (mù chữ, không có smartphone…)">
+                    <i class="bi bi-person-x me-1"></i> DS miễn làm survey
                 </a>
-                <a href="@Url.Action("Edit", "SurveyAdmin")" class="btn btn-sm btn-primary">
-                    <i class="bi bi-plus-lg me-1"></i>Tạo mới
+                <a href="@Url.Action("Edit", "SurveyAdmin")" class="btn btn-primary">
+                    <i class="bi bi-plus-lg me-1"></i> Tạo mới
                 </a>
             </div>
         </div>
 
-        <div class="card-body px-3 pt-2 pb-3">
+        <div class="card-body px-0 pt-0 pb-2 mt-1">
             @if (TempData["SuccessMessage"] != null)
             {
-                <div class="alert alert-success py-2 mb-2">@TempData["SuccessMessage"]</div>
+                <div class="alert alert-success alert-dismissible mx-4 mt-3" role="alert">
+                    @TempData["SuccessMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
             }
             @if (TempData["ErrorMessage"] != null)
             {
-                <div class="alert alert-danger py-2 mb-2">@TempData["ErrorMessage"]</div>
+                <div class="alert alert-danger alert-dismissible mx-4 mt-3" role="alert">
+                    @TempData["ErrorMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
             }
 
-            <!-- Filter bar -->
-            <form method="get" class="row g-2 sa-filter mb-3">
+            <!-- Filter bar (auto-submit khi thay đổi) -->
+            <form method="get" id="filterForm" class="row g-2 sa-filter mb-3 mx-4 mt-3">
                 <div class="col-6 col-md-3">
-                    <select name="status" class="form-select form-select-sm">
+                    <select name="status" class="form-select form-select-sm sa-auto">
                         <option value="">--- Tất cả trạng thái ---</option>
                         @foreach (var s in new[] { "DRAFT", "SCHEDULED", "ACTIVE", "PAUSED", "EXPIRED", "CANCELLED" })
                         {
@@ -47,30 +53,27 @@
                         }
                     </select>
                 </div>
-                <div class="col-6 col-md-2">
-                    <select name="type" class="form-select form-select-sm">
+                <div class="col-6 col-md-3">
+                    <select name="type" class="form-select form-select-sm sa-auto">
                         <option value="">--- Tất cả loại ---</option>
                         <option value="POLL" selected="@(fType == "POLL")">POLL — Khảo sát</option>
                         <option value="QUIZ" selected="@(fType == "QUIZ")">QUIZ — Trắc nghiệm</option>
                     </select>
                 </div>
                 <div class="col-12 col-md-5">
-                    <input type="text" name="search" value="@fSearch" placeholder="Tìm theo tiêu đề..."
+                    <input type="text" name="search" id="fSearch" value="@fSearch" placeholder="Tìm theo tiêu đề..."
                            class="form-control form-control-sm" />
                 </div>
-                <div class="col-12 col-md-2 d-flex gap-1">
-                    <button type="submit" class="btn btn-sm btn-primary flex-fill">
-                        <i class="bi bi-search"></i> Lọc
-                    </button>
-                    <a href="@Url.Action("Index")" class="btn btn-sm btn-outline-secondary">
+                <div class="col-12 col-md-1 d-flex">
+                    <a href="@Url.Action("Index")" class="btn btn-sm btn-outline-secondary w-100" title="Xoá lọc">
                         <i class="bi bi-x-lg"></i>
                     </a>
                 </div>
             </form>
 
             <!-- Table -->
-            <div class="table-responsive">
-                <table class="table table-hover sa-table align-middle mb-0">
+            <div class="table-responsive p-0 px-4">
+                <table class="table table-hover sa-table align-middle mb-0 w-100">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -89,8 +92,11 @@
                         @if (!Model.Any())
                         {
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">
-                                    Không có survey nào.
+                                <td colspan="10">
+                                    <div class="sa-empty">
+                                        <i class="bi bi-clipboard2-x"></i>
+                                        <p class="mb-0">Chưa có survey nào. Nhấn <strong>Tạo mới</strong> để bắt đầu.</p>
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -105,47 +111,58 @@
                                 var canCancel  = s.STATUS is "SCHEDULED" or "ACTIVE" or "PAUSED";
                                 var canDelete  = s.STATUS is "DRAFT" or "EXPIRED" or "CANCELLED";
                                 <tr data-id="@s.ID">
-                                    <td>@s.ID</td>
-                                    <td class="fw-semibold">@s.TITLE</td>
+                                    <td class="text-secondary small">#@s.ID</td>
+                                    <td>
+                                        <div class="sa-title-cell" title="@s.TITLE">@s.TITLE</div>
+                                    </td>
                                     <td>
                                         <span class="badge bg-@(s.SURVEY_TYPE == "QUIZ" ? "info" : "secondary")">@s.SURVEY_TYPE</span>
                                     </td>
-                                    <td>@s.LANG</td>
+                                    <td>
+                                        @if (s.LANG == "EN")
+                                        {
+                                            <span class="badge bg-warning text-dark" title="Chỉ Expat thấy survey này">🌐 EN — Expat</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-dark border" title="Chỉ NV Việt Nam thấy">🇻🇳 VI</span>
+                                        }
+                                    </td>
                                     <td>
                                         <span class="sa-status sa-status-@s.STATUS.ToLower()">@s.STATUS</span>
                                     </td>
-                                    <td>@(s.START_DATE?.ToString("dd/MM/yyyy") ?? "-")</td>
-                                    <td>@(s.END_DATE?.ToString("dd/MM/yyyy")   ?? "-")</td>
-                                    <td>@s.RECIPIENT_COUNT</td>
-                                    <td>@s.SUBMITTED_COUNT</td>
+                                    <td class="small">@(s.START_DATE?.ToString("dd/MM/yyyy") ?? "-")</td>
+                                    <td class="small">@(s.END_DATE?.ToString("dd/MM/yyyy")   ?? "-")</td>
+                                    <td class="text-center fw-semibold">@s.RECIPIENT_COUNT</td>
+                                    <td class="text-center fw-semibold">@s.SUBMITTED_COUNT</td>
                                     <td>
-                                        <div class="d-flex gap-1 flex-wrap">
+                                        <div class="sa-actions">
                                             @if (canEdit)
                                             {
-                                                <a href="@Url.Action("Edit", new { id = s.ID })" class="btn btn-sm btn-outline-primary" title="Sửa"><i class="bi bi-pencil"></i></a>
+                                                <a href="@Url.Action("Edit", new { id = s.ID })" class="btn btn-info" title="Sửa"><i class="bi bi-pencil-square"></i><span>Sửa</span></a>
                                             }
-                                            <a href="@Url.Action("Preview", new { id = s.ID })" class="btn btn-sm btn-outline-secondary" title="Xem trước"><i class="bi bi-eye"></i></a>
-                                            <a href="@Url.Action("TestMode", new { id = s.ID })" class="btn btn-sm btn-outline-secondary" title="Làm thử"><i class="bi bi-play-circle"></i></a>
-                                            <a href="@Url.Action("Report", new { id = s.ID })" class="btn btn-sm btn-outline-info" title="Báo cáo"><i class="bi bi-bar-chart"></i></a>
+                                            <a href="@Url.Action("Preview", new { id = s.ID })" class="btn btn-outline-primary" title="Xem trước"><i class="bi bi-eye"></i><span>Xem</span></a>
+                                            <a href="@Url.Action("TestMode", new { id = s.ID })" class="btn btn-outline-secondary" title="Làm thử"><i class="bi bi-play-circle"></i><span>Thử</span></a>
+                                            <a href="@Url.Action("Report", new { id = s.ID })" class="btn btn-outline-info" title="Báo cáo"><i class="bi bi-bar-chart"></i><span>Báo cáo</span></a>
                                             @if (canPublish)
                                             {
-                                                <button type="button" class="btn btn-sm btn-success sa-action" data-action="publish" title="Publish"><i class="bi bi-upload"></i></button>
+                                                <button type="button" class="btn btn-success sa-action" data-action="publish" title="Publish"><i class="bi bi-cloud-upload-fill"></i><span>Publish</span></button>
                                             }
                                             @if (canPause)
                                             {
-                                                <button type="button" class="btn btn-sm btn-warning sa-action" data-action="pause" title="Tạm dừng"><i class="bi bi-pause-fill"></i></button>
+                                                <button type="button" class="btn btn-warning sa-action" data-action="pause" title="Tạm dừng"><i class="bi bi-pause-fill"></i><span>Tạm dừng</span></button>
                                             }
                                             @if (canResume)
                                             {
-                                                <button type="button" class="btn btn-sm btn-success sa-action" data-action="resume" title="Tiếp tục"><i class="bi bi-play-fill"></i></button>
+                                                <button type="button" class="btn btn-success sa-action" data-action="resume" title="Tiếp tục"><i class="bi bi-play-fill"></i><span>Tiếp tục</span></button>
                                             }
                                             @if (canCancel)
                                             {
-                                                <button type="button" class="btn btn-sm btn-outline-warning sa-action" data-action="cancel" title="Huỷ"><i class="bi bi-x-circle"></i></button>
+                                                <button type="button" class="btn btn-outline-warning sa-action" data-action="cancel" title="Huỷ"><i class="bi bi-x-circle"></i><span>Huỷ</span></button>
                                             }
                                             @if (canDelete)
                                             {
-                                                <button type="button" class="btn btn-sm btn-outline-danger sa-action" data-action="delete" title="Xoá"><i class="bi bi-trash"></i></button>
+                                                <button type="button" class="btn btn-outline-danger sa-action" data-action="delete" title="Xoá"><i class="bi bi-trash"></i><span>Xoá</span></button>
                                             }
                                         </div>
                                     </td>
@@ -166,33 +183,57 @@
 (function () {
     const TOKEN = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]')?.value ?? '';
 
+    // Auto-submit filter khi select thay đổi hoặc gõ search (debounce)
+    document.querySelectorAll('#filterForm .sa-auto').forEach(el => {
+        el.addEventListener('change', () => document.getElementById('filterForm').submit());
+    });
+    let searchTimer;
+    document.getElementById('fSearch')?.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => document.getElementById('filterForm').submit(), 450);
+    });
+
     const map = {
-        publish: { url: '/SurveyAdmin/ChangeStatus', status: 'SCHEDULED', confirm: 'Publish survey này?' },
-        pause:   { url: '/SurveyAdmin/ChangeStatus', status: 'PAUSED',    confirm: 'Tạm dừng survey?' },
-        resume:  { url: '/SurveyAdmin/ChangeStatus', status: 'ACTIVE',    confirm: 'Tiếp tục survey?' },
-        cancel:  { url: '/SurveyAdmin/ChangeStatus', status: 'CANCELLED', confirm: 'Huỷ survey? Không thể hoàn tác.' },
-        'delete':{ url: '/SurveyAdmin/ChangeStatus', status: 'DELETED',   confirm: 'Xoá survey? (Soft delete)' },
+        publish: { status: 'SCHEDULED', title: 'Publish survey', msg: 'Publish survey này?', ok: 'Publish',   okClass: 'btn-primary', icon: 'cloud_upload',    iconColor: '#4f46e5', iconBg: '#e0e7ff' },
+        pause:   { status: 'PAUSED',    title: 'Tạm dừng',       msg: 'Tạm dừng survey này?', ok: 'Tạm dừng', okClass: 'btn-warning', icon: 'pause_circle',    iconColor: '#d97706', iconBg: '#fef3c7' },
+        resume:  { status: 'ACTIVE',    title: 'Tiếp tục',       msg: 'Tiếp tục survey?',      ok: 'Tiếp tục', okClass: 'btn-success', icon: 'play_circle',     iconColor: '#16a34a', iconBg: '#dcfce7' },
+        cancel:  { status: 'CANCELLED', title: 'Huỷ survey',     msg: 'Huỷ survey này? Không thể hoàn tác.', ok: 'Huỷ', okClass: 'btn-danger', icon: 'cancel', iconColor: '#dc2626', iconBg: '#fee2e2' },
+        'delete':{ status: 'DELETED',   title: 'Xoá survey',     msg: 'Xoá survey này?',       ok: 'Xoá',      okClass: 'btn-danger',  icon: 'delete',          iconColor: '#dc2626', iconBg: '#fee2e2' },
     };
 
     document.querySelectorAll('.sa-action').forEach(btn => {
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', () => {
             const tr = btn.closest('tr');
             const id = parseInt(tr.dataset.id, 10);
             const cfg = map[btn.dataset.action];
             if (!cfg) return;
-            if (!confirm(cfg.confirm)) return;
-
-            btn.disabled = true;
-            try {
-                const res = await fetch(cfg.url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
-                    body: JSON.stringify({ Id: id, NewStatus: cfg.status }),
+            const doIt = async () => {
+                btn.disabled = true;
+                try {
+                    const res = await fetch('/SurveyAdmin/ChangeStatus', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+                        body: JSON.stringify({ Id: id, NewStatus: cfg.status }),
+                    });
+                    const r = await res.json();
+                    if (r.success) {
+                        if (window.showToast) window.showToast(cfg.title + ' thành công', 'success');
+                        setTimeout(() => location.reload(), 500);
+                    } else {
+                        (window.showToast || alert)(r.message || 'Không thực hiện được', 'error');
+                        btn.disabled = false;
+                    }
+                } catch (e) {
+                    (window.showToast || alert)('Lỗi kết nối', 'error');
+                    btn.disabled = false;
+                }
+            };
+            if (window.showConfirm) {
+                window.showConfirm(cfg.msg, doIt, {
+                    title: cfg.title, okText: cfg.ok, okClass: cfg.okClass,
+                    icon: cfg.icon, iconColor: cfg.iconColor, iconBg: cfg.iconBg
                 });
-                const r = await res.json();
-                if (r.success) location.reload();
-                else { alert(r.message || 'Không thực hiện được'); btn.disabled = false; }
-            } catch (e) { alert('Lỗi kết nối'); btn.disabled = false; }
+            } else if (confirm(cfg.msg)) { doIt(); }
         });
     });
 })();

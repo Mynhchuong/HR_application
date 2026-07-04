@@ -143,8 +143,8 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "DS làm Chủ Nhật",       Url = "~/SundayLeave/Index",           Icon = "wb_sunny"               },
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum"                  },
                     new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",             Icon = "home_app_logo"          },
-                    new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin",                 Icon = "poll"                   },
-                    new SideMenuItem { Title = "Blacklist Survey",      Url = "~/SurveyExempt",                Icon = "person_off"             },
+                    new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",           Icon = "poll"                   },
+                //    new SideMenuItem { Title = "DS miễn làm Survey",    Url = "~/SurveyExempt/Index",          Icon = "person_off"             },
                 }
             },
 

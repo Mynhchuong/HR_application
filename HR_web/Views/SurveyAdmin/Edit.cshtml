@@ -9,15 +9,15 @@
     <link href="~/assets/css/survey-admin.css" rel="stylesheet" asp-append-version="true" />
 }
 
-<div class="container-fluid py-3">
-    <div class="card">
-        <div class="card-header sa-header d-flex justify-content-between align-items-center">
-            <span class="fw-bold">
-                <i class="bi bi-@(isNew ? "plus-circle" : "pencil-square") me-2"></i>
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        <div class="card-header sa-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="sa-title">
+                <i class="bi bi-@(isNew ? "plus-circle-fill" : "pencil-square") me-2"></i>
                 @(isNew ? "Tạo Survey mới" : $"Sửa Survey #{Model.ID}")
             </span>
-            <a href="@Url.Action("Index")" class="btn btn-sm btn-outline-secondary">
-                <i class="bi bi-arrow-left me-1"></i>Quay lại
+            <a href="@Url.Action("Index")" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Quay lại
             </a>
         </div>
 
@@ -33,12 +33,12 @@
                     <div class="sa-step-num">2</div>
                     <div class="sa-step-label">Câu hỏi</div>
                 </div>
-                <div class="sa-step-line"></div>
+                <div class="sa-step-line" data-line-for="3"></div>
                 <div class="sa-step" data-step="3">
                     <div class="sa-step-num">3</div>
                     <div class="sa-step-label">Phạm vi</div>
                 </div>
-                <div class="sa-step-line"></div>
+                <div class="sa-step-line" data-line-for="4"></div>
                 <div class="sa-step" data-step="4">
                     <div class="sa-step-num">4</div>
                     <div class="sa-step-label">Thời gian</div>
@@ -66,16 +66,24 @@
                             </div>
                         </div>
                         <div class="col-12 col-md-6">
-                            <label class="sa-label">Ngôn ngữ <span class="text-danger">*</span></label>
+                            <label class="sa-label">Ngôn ngữ <span class="text-danger">*</span>
+                                <span class="sa-hint">— quyết định đối tượng nhận survey</span>
+                            </label>
                             <div class="d-flex gap-2 mt-1">
                                 <label class="sa-radio-card @(Model.LANG == "VI" ? "active" : "") @(isNew ? "" : "disabled")">
                                     <input type="radio" name="LANG" value="VI" @(Model.LANG == "VI" ? "checked" : "") @(isNew ? "" : "disabled") />
                                     <div class="sa-radio-title">🇻🇳 Tiếng Việt</div>
+                                    <div class="sa-radio-desc">Nhân viên VN</div>
                                 </label>
                                 <label class="sa-radio-card @(Model.LANG == "EN" ? "active" : "") @(isNew ? "" : "disabled")">
                                     <input type="radio" name="LANG" value="EN" @(Model.LANG == "EN" ? "checked" : "") @(isNew ? "" : "disabled") />
                                     <div class="sa-radio-title">🌐 English</div>
+                                    <div class="sa-radio-desc">Chỉ Expat</div>
                                 </label>
+                            </div>
+                            <div class="form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Chọn <b>VI</b> → chỉ NV Việt Nam thấy. Chọn <b>EN</b> → chỉ Expat thấy.
                             </div>
                             @if (!isNew)
                             {
@@ -84,15 +92,20 @@
                         </div>
 
                         <div class="col-12">
-                            <label class="sa-label">Tiêu đề <span class="text-danger">*</span></label>
-                            <input type="text" id="fTitle" class="form-control" maxlength="300"
+                            <label class="sa-label">Tiêu đề <span class="text-danger">*</span>
+                                <span class="sa-hint">— tối đa 150 ký tự, hiển thị trên đầu bài survey</span>
+                            </label>
+                            <input type="text" id="fTitle" class="form-control" maxlength="150"
                                    value="@Model.TITLE" placeholder="VD: Khảo sát mức độ hài lòng Quý 1..." />
+                            <div class="form-text"><span id="fTitleCounter">0</span>/150 ký tự</div>
                         </div>
 
                         <div class="col-12">
-                            <label class="sa-label">Mô tả</label>
-                            <textarea id="fDescription" class="form-control" rows="3" maxlength="2000"
-                                      placeholder="Mô tả ngắn cho survey (tuỳ chọn)">@Model.DESCRIPTION</textarea>
+                            <label class="sa-label">Mô tả
+                                <span class="sa-hint">— nội dung ngắn giới thiệu ở landing page trước khi user làm bài</span>
+                            </label>
+                            <textarea id="fDescription" class="form-control" rows="3" maxlength="500"
+                                      placeholder="VD: Mời anh/chị tham gia khảo sát để đánh giá điều kiện làm việc.">@Model.DESCRIPTION</textarea>
                         </div>
                     </div>
                 </div>
@@ -141,6 +154,11 @@
                                 <i class="bi bi-plus-lg"></i> Thêm dòng
                             </button>
                         </div>
+                        <div class="alert alert-info py-2 small mb-2">
+                            <i class="bi bi-info-circle me-1"></i>
+                            <b>Mẹo:</b> chọn Dept và để Line / Work ở giá trị mặc định "Tất cả..." → survey gửi cho <b>toàn bộ Dept</b>.
+                            Muốn giới hạn thì chọn Line/Work cụ thể.
+                        </div>
                         <div id="scopeDLWList"></div>
                     </div>
 
@@ -169,11 +187,14 @@
                             <div class="form-text">Tới 23:59 ngày kết thúc.</div>
                         </div>
                         <div class="col-12 col-md-6" id="passScoreWrap" style="display:none">
-                            <label class="sa-label">Điểm đậu (PASS_SCORE) <span class="text-danger">*</span></label>
+                            <label class="sa-label">
+                                <i class="bi bi-trophy-fill text-warning me-1"></i>
+                                Điểm đậu — số điểm tối thiểu để user PASS <span class="text-danger">*</span>
+                            </label>
                             <input type="number" id="fPassScore" class="form-control" min="0" step="0.5"
-                                   value="@Model.PASS_SCORE" placeholder="VD: 70" />
+                                   value="@Model.PASS_SCORE" placeholder="Nhập số điểm để đậu, VD: 70" />
                             <div class="form-text">
-                                So sánh với tổng POINTS. Tổng hiện tại: <span id="passScoreHintTotal">0</span>
+                                So sánh với tổng điểm các câu hỏi. Tổng hiện tại: <b><span id="passScoreHintTotal">0</span></b> điểm.
                             </div>
                         </div>
                     </div>
@@ -212,14 +233,29 @@
             }
         </select>
         <select class="form-select form-select-sm dlw-line">
-            <option value="">(Tuỳ chọn) Line</option>
+            <option value="">Tất cả Line trong Dept</option>
         </select>
         <select class="form-select form-select-sm dlw-work">
-            <option value="">(Tuỳ chọn) Work</option>
+            <option value="">Tất cả Work trong Line</option>
         </select>
         <button type="button" class="btn btn-sm btn-outline-danger btn-del-dlw"><i class="bi bi-x"></i></button>
     </div>
 </template>
+
+<!-- Publish progress modal -->
+<div id="pubProgressModal" class="sa-pub-modal">
+    <div class="sa-pub-card">
+        <div class="sa-pub-title">
+            <i class="bi bi-cloud-upload-fill me-2"></i> Đang publish survey
+        </div>
+        <div id="pubPhase" class="sa-pub-phase">Đang publish survey...</div>
+        <div class="sa-pub-bar-wrap">
+            <div id="pubBar" class="sa-pub-bar"></div>
+        </div>
+        <div id="pubCounter" class="sa-pub-counter"></div>
+        <div class="sa-pub-hint">Vui lòng không đóng trang. Với danh sách lớn có thể mất vài giây.</div>
+    </div>
+</div>
 
 <form id="antiForgeryForm">@Html.AntiForgeryToken()</form>
 
@@ -232,4 +268,15 @@
         };
     </script>
     <script src="~/assets/js/survey-admin.js" asp-append-version="true"></script>
+    <script>
+        // Title char counter
+        (function () {
+            const $t = document.getElementById('fTitle');
+            const $c = document.getElementById('fTitleCounter');
+            if (!$t || !$c) return;
+            const upd = () => { $c.textContent = $t.value.length; };
+            $t.addEventListener('input', upd);
+            upd();
+        })();
+    </script>
 }

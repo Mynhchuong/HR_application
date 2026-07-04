@@ -52,11 +52,10 @@ body {
     font-size: 1.05rem;
     font-weight: 600;
     line-height: 1.3;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    min-width: 0;
 }
 .btn-illiterate {
     display: flex;
@@ -73,6 +72,182 @@ body {
 }
 .btn-illiterate:hover { background: rgba(255, 255, 255, .28); }
 .btn-illiterate i { font-size: 1rem; }
+
+/* ═══ Landing modal (trước khi bắt đầu survey) ═══ */
+.survey-landing {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(160deg, #eef2ff 0%, #f0fdfa 60%, #fff 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 100;
+    overflow-y: auto;
+}
+.sv-landing-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 1.75rem 1.5rem 1.5rem;
+    box-shadow: 0 20px 55px rgba(15, 23, 42, .16);
+    max-width: 460px;
+    width: 100%;
+    text-align: center;
+}
+.sv-landing-mascot img {
+    width: 130px;
+    height: 130px;
+    object-fit: contain;
+    margin-bottom: .5rem;
+    animation: sv-float 3s ease-in-out infinite;
+}
+/* ═══ Modal submit — icon lớn + warn box ═══ */
+.sv-modal-icon {
+    text-align: center;
+    margin-bottom: .5rem;
+    font-size: 2.75rem;
+    line-height: 1;
+}
+.sv-modal-icon i { display: inline-block; }
+.survey-modal-title {
+    text-align: center;
+}
+.sv-warn-box {
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+    background: #fef3c7;
+    color: #92400e;
+    padding: .65rem .85rem;
+    border-radius: 10px;
+    font-size: .88rem;
+    font-weight: 500;
+    line-height: 1.4;
+    margin-top: .5rem;
+}
+.sv-warn-box i { font-size: 1.05rem; flex-shrink: 0; margin-top: 1px; }
+
+/* ═══ Mascot ở dưới câu hỏi ═══ */
+.sv-question-mascot {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    pointer-events: none;
+}
+.sv-question-mascot img {
+    width: 140px;
+    height: 140px;
+    object-fit: contain;
+    animation: sv-float 3.5s ease-in-out infinite;
+    filter: drop-shadow(0 6px 12px rgba(15, 23, 42, .1));
+}
+@media (max-width: 480px) {
+    .sv-question-mascot img { width: 100px; height: 100px; }
+    .sv-question-mascot { margin-top: 1.25rem; }
+}
+@keyframes sv-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+}
+.sv-landing-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.3;
+    margin-bottom: .5rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.sv-landing-desc {
+    font-size: .92rem;
+    color: #475569;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+    white-space: pre-line;
+}
+.sv-landing-mandatory {
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: 10px;
+    padding: .7rem .9rem;
+    font-size: .85rem;
+    font-weight: 500;
+    line-height: 1.4;
+    margin-bottom: 1.2rem;
+    text-align: left;
+}
+.sv-landing-actions {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+.sv-btn-start {
+    font-weight: 700;
+    padding: .8rem 1rem;
+    border-radius: 12px;
+    font-size: 1.05rem;
+}
+.sv-btn-illiterate-landing {
+    font-weight: 600;
+    padding: .65rem 1rem;
+    border-radius: 12px;
+    font-size: .9rem;
+}
+
+/* ═══ Congrats screen (sau khi hoàn thành QUIZ) ═══ */
+.sv-congrats {
+    text-align: center;
+    padding: .5rem 0;
+}
+.sv-congrats-mascot {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto .75rem;
+    animation: sv-pop .6s ease-out;
+}
+.sv-congrats-mascot img { width: 100%; height: 100%; object-fit: contain; }
+@keyframes sv-pop {
+    0%   { transform: scale(0.3); opacity: 0; }
+    60%  { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1); }
+}
+.sv-congrats-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #16a34a;
+    margin-bottom: .35rem;
+}
+.sv-congrats-title.fail { color: #dc2626; }
+.sv-congrats-sub {
+    font-size: .95rem;
+    color: #475569;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+.sv-congrats-score {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .35rem;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 14px;
+    padding: .7rem 1.2rem;
+    margin-bottom: .5rem;
+}
+.sv-congrats-score-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #4f46e5;
+    line-height: 1;
+}
+.sv-congrats-score-max {
+    font-size: 1rem;
+    color: #64748b;
+    font-weight: 600;
+}
 
 /* ─── Progress bar ─────────────────────────────────────── */
 .survey-progress {
@@ -135,7 +310,7 @@ body {
 }
 .sv-option {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: .75rem;
     padding: 1rem 1.15rem;
     border: 2px solid var(--sv-border);
@@ -145,6 +320,7 @@ body {
     background: #fff;
     user-select: none;
 }
+.sv-option .sv-option-marker { margin-top: 2px; }
 .sv-option:hover  { border-color: var(--sv-primary); background: #f5f5ff; }
 .sv-option.active { border-color: var(--sv-primary); background: #eef2ff; box-shadow: 0 0 0 3px rgba(99, 102, 241, .12); }
 .sv-option-marker {
@@ -176,7 +352,16 @@ body {
     font-size: .85rem;
     font-weight: 700;
 }
-.sv-option-text { flex: 1; font-size: 1rem; color: var(--sv-text); }
+.sv-option-text {
+    flex: 1;
+    font-size: 1rem;
+    color: var(--sv-text);
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    line-height: 1.4;
+    min-width: 0;
+}
 
 /* ─── Rating (1..5 sao) ─────────────────────────────── */
 .sv-rating {

@@ -11,11 +11,19 @@ public class SurveyAdminController : ControllerBase
 {
     private readonly SurveyAdminService _admin;
     private readonly SurveyReportService _report;
+    private readonly SurveyRecipientService _recipient;
+    private readonly NotificationService _noti;
 
-    public SurveyAdminController(SurveyAdminService admin, SurveyReportService report)
+    public SurveyAdminController(
+        SurveyAdminService admin,
+        SurveyReportService report,
+        SurveyRecipientService recipient,
+        NotificationService noti)
     {
         _admin = admin;
         _report = report;
+        _recipient = recipient;
+        _noti = noti;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -103,6 +111,60 @@ public class SurveyAdminController : ControllerBase
     {
         var (ok, err) = await _admin.ChangeStatusAsync(req.ID, req.NEW_STATUS, req.LOGIN_USER);
         return Ok(new { success = ok, message = err });
+    }
+
+    // POST /apiHR/SurveyAdmin/publish-stream — publish + snapshot batch 50, stream tiến độ NDJSON.
+    //   Response: text/plain, mỗi dòng 1 JSON:
+    //     {"phase":"schedule"} → đã DRAFT→SCHEDULED
+    //     {"phase":"snapshot","inserted":N,"total":M}
+    //     {"phase":"done","success":true,"total":M} hoặc {"phase":"error","message":"..."}
+    [HttpPost("publish-stream")]
+    public async Task PublishStream([FromBody] ChangeStatusRequest req)
+    {
+        Response.StatusCode = 200;
+        Response.ContentType = "application/x-ndjson";
+        Response.Headers["Cache-Control"] = "no-cache";
+        Response.Headers["X-Accel-Buffering"] = "no";
+
+        async Task Emit(object obj)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(obj);
+            await Response.WriteAsync(json + "\n");
+            await Response.Body.FlushAsync();
+        }
+
+        try
+        {
+            var detail = await _admin.GetDetailAsync(req.ID);
+            var current = detail?.STATUS ?? "";
+            // Chỉ đổi status nếu đang DRAFT. Nếu đã SCHEDULED / ACTIVE → skip, chỉ re-snapshot.
+            if (current == "DRAFT")
+            {
+                var (ok, err) = await _admin.ChangeStatusAsync(req.ID, "SCHEDULED", req.LOGIN_USER);
+                if (!ok)
+                {
+                    await Emit(new { phase = "error", message = err ?? "Publish thất bại" });
+                    return;
+                }
+            }
+            else if (current != "SCHEDULED" && current != "ACTIVE")
+            {
+                await Emit(new { phase = "error", message = $"Không publish được từ trạng thái {current}" });
+                return;
+            }
+            await Emit(new { phase = "schedule" });
+
+            var count = await _recipient.SnapshotWithProgressAsync(req.ID, async (inserted, total) =>
+            {
+                await Emit(new { phase = "snapshot", inserted, total });
+            });
+
+            await Emit(new { phase = "done", success = true, total = count });
+        }
+        catch (Exception ex)
+        {
+            await Emit(new { phase = "error", message = ex.Message });
+        }
     }
 
     // Shortcuts để front-end dùng gọn (đều gọi qua ChangeStatusAsync)

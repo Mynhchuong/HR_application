@@ -1,6 +1,6 @@
 @model List<HR_web.Models.Survey.SurveyExemptModel>
 @{
-    ViewData["Title"] = "Blacklist Survey";
+    ViewData["Title"] = "Danh sách miễn làm Survey";
     var depts   = ViewBag.Depts as List<HR_web.Models.DropdownModel> ?? new();
     var fEmpcd  = ViewBag.FEmpcd  as string;
     var fType   = ViewBag.FType   as string;
@@ -13,48 +13,58 @@
     <link href="~/assets/css/survey-admin.css" rel="stylesheet" asp-append-version="true" />
 }
 
-<div class="container-fluid py-3">
-    <div class="card">
+<div class="container-fluid py-4">
+    <div class="card my-4">
         <div class="card-header sa-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span class="fw-bold">
-                <i class="bi bi-person-x me-2"></i>Blacklist Survey (mù chữ / no phone)
+            <span class="sa-title">
+                <i class="bi bi-person-x me-2"></i> Danh sách miễn làm Survey (mù chữ / không có smartphone)
             </span>
             <div class="d-flex gap-2">
-                <a href="@Url.Action("Template")" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-file-earmark-arrow-down"></i> Mẫu Excel
+                <a href="@Url.Action("Template")" class="btn btn-outline-secondary">
+                    <i class="bi bi-file-earmark-arrow-down me-1"></i> Mẫu Excel
                 </a>
-                <button type="button" class="btn btn-sm btn-outline-primary" id="btnImport">
-                    <i class="bi bi-upload"></i> Import Excel
+                <button type="button" class="btn btn-outline-primary" id="btnImport">
+                    <i class="bi bi-upload me-1"></i> Import
                 </button>
                 <a href="@Url.Action("Export", new { empcd = fEmpcd, type = fType, isActive = fActive, name = fName, deptcd = fDept })"
-                   class="btn btn-sm btn-outline-success">
-                    <i class="bi bi-file-earmark-excel"></i> Export
+                   class="btn btn-outline-success">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Export
                 </a>
-                <button type="button" class="btn btn-sm btn-primary" id="btnAdd">
-                    <i class="bi bi-plus-lg"></i> Thêm
+                <button type="button" class="btn btn-primary" id="btnAdd">
+                    <i class="bi bi-plus-lg me-1"></i> Thêm
                 </button>
-                <a href="@Url.Action("Index", "SurveyAdmin")" class="btn btn-sm btn-outline-secondary">
+                <a href="@Url.Action("Index", "SurveyAdmin")" class="btn btn-outline-secondary" title="Quay lại">
                     <i class="bi bi-arrow-left"></i>
                 </a>
             </div>
         </div>
 
-        <div class="card-body p-3">
+        <div class="card-body px-0 pt-0 pb-2 mt-1">
             @if (TempData["SuccessMessage"] != null)
-            { <div class="alert alert-success py-2">@TempData["SuccessMessage"]</div> }
+            {
+                <div class="alert alert-success alert-dismissible mx-4 mt-3" role="alert">
+                    @TempData["SuccessMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
             @if (TempData["ErrorMessage"] != null)
-            { <div class="alert alert-danger py-2">@TempData["ErrorMessage"]</div> }
+            {
+                <div class="alert alert-danger alert-dismissible mx-4 mt-3" role="alert">
+                    @TempData["ErrorMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
 
-            <!-- Filter -->
-            <form method="get" class="row g-2 sa-filter mb-3">
+            <!-- Filter (auto-submit) -->
+            <form method="get" id="filterForm" class="row g-2 sa-filter mb-3 mx-4 mt-3">
                 <div class="col-6 col-md-2">
-                    <input type="text" name="empcd" value="@fEmpcd" placeholder="EmpCd..." class="form-control form-control-sm" />
+                    <input type="text" name="empcd" id="fEmpcd" value="@fEmpcd" placeholder="EmpCd..." class="form-control form-control-sm sa-typing" />
                 </div>
                 <div class="col-6 col-md-2">
-                    <input type="text" name="name" value="@fName" placeholder="Tên..." class="form-control form-control-sm" />
+                    <input type="text" name="name" id="fNameInp" value="@fName" placeholder="Tên..." class="form-control form-control-sm sa-typing" />
                 </div>
                 <div class="col-6 col-md-2">
-                    <select name="type" class="form-select form-select-sm">
+                    <select name="type" class="form-select form-select-sm sa-auto">
                         <option value="">--- Loại ---</option>
                         <option value="ILLITERATE" selected="@(fType == "ILLITERATE")">ILLITERATE</option>
                         <option value="NO_PHONE"   selected="@(fType == "NO_PHONE")">NO_PHONE</option>
@@ -62,14 +72,14 @@
                     </select>
                 </div>
                 <div class="col-6 col-md-2">
-                    <select name="isActive" class="form-select form-select-sm">
+                    <select name="isActive" class="form-select form-select-sm sa-auto">
                         <option value="">--- Active ---</option>
                         <option value="1" selected="@(fActive == 1)">Active</option>
                         <option value="0" selected="@(fActive == 0)">Đã tắt</option>
                     </select>
                 </div>
-                <div class="col-6 col-md-2">
-                    <select name="deptcd" class="form-select form-select-sm">
+                <div class="col-6 col-md-3">
+                    <select name="deptcd" class="form-select form-select-sm sa-auto">
                         <option value="">--- Dept ---</option>
                         @foreach (var d in depts)
                         {
@@ -77,20 +87,19 @@
                         }
                     </select>
                 </div>
-                <div class="col-12 col-md-2 d-flex gap-1">
-                    <button type="submit" class="btn btn-sm btn-primary flex-fill">Lọc</button>
-                    <a href="@Url.Action("Index")" class="btn btn-sm btn-outline-secondary">
+                <div class="col-12 col-md-1 d-flex">
+                    <a href="@Url.Action("Index")" class="btn btn-sm btn-outline-secondary w-100" title="Xoá lọc">
                         <i class="bi bi-x-lg"></i>
                     </a>
                 </div>
             </form>
 
             <!-- Table -->
-            <div class="table-responsive">
-                <table class="table table-sm sa-table align-middle">
+            <div class="table-responsive p-0 px-4">
+                <table class="table table-hover sa-table align-middle mb-0 w-100">
                     <thead>
                         <tr>
-                            <th>EmpCd</th><th>Họ tên</th><th>Loại</th>
+                            <th>EmpCd</th><th>Họ và tên</th><th>Loại</th>
                             <th>Ghi chú</th><th>Từ ngày</th><th>Dept/Line/Work</th>
                             <th>Trạng thái</th><th style="width:120px;">Hành động</th>
                         </tr>
@@ -98,7 +107,14 @@
                     <tbody>
                         @if (!Model.Any())
                         {
-                            <tr><td colspan="8" class="text-center text-muted py-4">Không có dữ liệu.</td></tr>
+                            <tr>
+                                <td colspan="8">
+                                    <div class="sa-empty">
+                                        <i class="bi bi-person-x"></i>
+                                        <p class="mb-0">Chưa có nhân viên nào được miễn làm survey.</p>
+                                    </div>
+                                </td>
+                            </tr>
                         }
                         else
                         {
@@ -108,7 +124,7 @@
                                     data-note="@e.NOTE" data-effective="@e.EFFECTIVE_DATE.ToString("yyyy-MM-dd")"
                                     data-active="@e.IS_ACTIVE">
                                     <td class="fw-semibold">@e.EMPCD</td>
-                                    <td>@e.FULL_NAME</td>
+                                    <td class="sa-name-cell vni-font">@e.FULL_NAME</td>
                                     <td><span class="badge bg-secondary">@e.EXEMPT_TYPE</span></td>
                                     <td class="text-muted small">@e.NOTE</td>
                                     <td>@e.EFFECTIVE_DATE.ToString("dd/MM/yyyy")</td>
@@ -120,12 +136,14 @@
                                         { <span class="badge bg-secondary">Off</span> }
                                     </td>
                                     <td>
-                                        <button type="button" class="btn btn-sm btn-outline-primary btn-edit" title="Sửa">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger btn-del" title="Tắt">
-                                            <i class="bi bi-power"></i>
-                                        </button>
+                                        <div class="sa-actions">
+                                            <button type="button" class="btn btn-info btn-edit" title="Sửa">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-danger btn-del" title="Tắt">
+                                                <i class="bi bi-power"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             }
@@ -142,7 +160,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h6 class="modal-title" id="modalTitle">Thêm blacklist</h6>
+                <h6 class="modal-title" id="modalTitle">Thêm nhân viên miễn làm survey</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -211,13 +229,27 @@
     const modalEdit   = new bootstrap.Modal(document.getElementById('modalEdit'));
     const modalImport = new bootstrap.Modal(document.getElementById('modalImport'));
 
+    const toast = (m, t) => window.showToast ? window.showToast(m, t || 'error') : alert(m);
+
+    // Auto filter (select ngay lập tức, input với debounce)
+    document.querySelectorAll('#filterForm .sa-auto').forEach(el => {
+        el.addEventListener('change', () => document.getElementById('filterForm').submit());
+    });
+    let searchTimer;
+    document.querySelectorAll('#filterForm .sa-typing').forEach(el => {
+        el.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => document.getElementById('filterForm').submit(), 450);
+        });
+    });
+
     let editMode = 'add';   // 'add' | 'edit'
     let editOriginal = null;
 
     function openModal(mode, prefill) {
         editMode = mode;
         editOriginal = prefill;
-        document.getElementById('modalTitle').textContent = mode === 'add' ? 'Thêm blacklist' : 'Sửa blacklist';
+        document.getElementById('modalTitle').textContent = mode === 'add' ? 'Thêm nhân viên miễn làm survey' : 'Sửa thông tin miễn làm survey';
         document.getElementById('fEmpCd').value       = prefill?.empcd || '';
         document.getElementById('fEmpCd').disabled    = mode === 'edit';
         document.getElementById('fExemptType').value  = prefill?.type || 'ILLITERATE';
@@ -245,7 +277,7 @@
     document.getElementById('btnSave').addEventListener('click', async () => {
         const empcd = document.getElementById('fEmpCd').value.trim();
         const type  = document.getElementById('fExemptType').value;
-        if (!empcd || !type) { alert('Vui lòng nhập EmpCd và Loại'); return; }
+        if (!empcd || !type) { toast('Vui lòng nhập EmpCd và Loại', 'warning'); return; }
         const eff = document.getElementById('fEffective').value;
         const payload = {
             EmpCd:         empcd,
@@ -255,24 +287,31 @@
             IsActive:      document.getElementById('fActive').checked ? 1 : 0,
         };
         const r = await post('/SurveyExempt/Save', payload);
-        if (r?.success) location.reload();
-        else alert(r?.message || 'Lưu thất bại');
+        if (r?.success) { toast('Đã lưu', 'success'); setTimeout(() => location.reload(), 500); }
+        else toast(r?.message || 'Lưu thất bại', 'error');
     });
 
     document.querySelectorAll('.btn-del').forEach(btn => {
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', () => {
             const tr = btn.closest('tr');
-            if (!confirm(`Tắt blacklist cho ${tr.dataset.empcd} / ${tr.dataset.type}?`)) return;
-            const r = await post('/SurveyExempt/Delete', { EmpCd: tr.dataset.empcd, ExemptType: tr.dataset.type });
-            if (r?.success) location.reload();
-            else alert(r?.message || 'Không tắt được');
+            const doIt = async () => {
+                const r = await post('/SurveyExempt/Delete', { EmpCd: tr.dataset.empcd, ExemptType: tr.dataset.type });
+                if (r?.success) { toast('Đã tắt', 'success'); setTimeout(() => location.reload(), 500); }
+                else toast(r?.message || 'Không tắt được', 'error');
+            };
+            if (window.showConfirm) {
+                window.showConfirm(`Bỏ miễn làm survey cho ${tr.dataset.empcd} / ${tr.dataset.type}?`, doIt, {
+                    title: 'Bỏ miễn', okText: 'Bỏ miễn', okClass: 'btn-danger',
+                    icon: 'power_settings_new', iconColor: '#dc2626', iconBg: '#fee2e2'
+                });
+            } else if (confirm(`Bỏ miễn làm survey cho ${tr.dataset.empcd} / ${tr.dataset.type}?`)) { doIt(); }
         });
     });
 
     document.getElementById('btnImport').addEventListener('click', () => modalImport.show());
     document.getElementById('btnImportSubmit').addEventListener('click', async () => {
         const file = document.getElementById('fFile').files[0];
-        if (!file) { alert('Chưa chọn file'); return; }
+        if (!file) { toast('Chưa chọn file', 'warning'); return; }
 
         const fd = new FormData();
         fd.append('file', file);
@@ -280,8 +319,8 @@
 
         const res = await fetch('/SurveyExempt/Import', { method: 'POST', body: fd });
         const j   = await res.json();
-        if (j.success) { alert(j.message); location.reload(); }
-        else alert(j.message || 'Import thất bại');
+        if (j.success) { toast(j.message || 'Import thành công', 'success'); setTimeout(() => location.reload(), 600); }
+        else toast(j.message || 'Import thất bại', 'error');
     });
 
     async function post(url, body) {

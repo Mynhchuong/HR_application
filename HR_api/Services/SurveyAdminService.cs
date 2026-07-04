@@ -26,7 +26,17 @@ public class SurveyAdminService
                    S.PUBLISHED_DT, S.PUBLISHED_BY,
                    S.INST_ID, S.INST_DT, S.UPDT_ID, S.UPDT_DT,
                    (SELECT COUNT(*) FROM HRMS.HR_SURVEY_QUESTION Q  WHERE Q.SURVEY_ID = S.ID) AS QUESTION_COUNT,
-                   (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RECIPIENT R WHERE R.SURVEY_ID = S.ID) AS RECIPIENT_COUNT,
+                   CASE WHEN S.RECIPIENT_MODE = 'ALL' THEN
+                        (SELECT COUNT(*) FROM HRMS.ECM100 EC
+                          WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                            AND NOT EXISTS (
+                                SELECT 1 FROM HRMS.HR_SURVEY_EXEMPT EX
+                                 WHERE EX.EMPCD = EC.EMPCD
+                                   AND EX.IS_ACTIVE = 1
+                                   AND EX.EFFECTIVE_DATE <= TRUNC(SYSDATE)))
+                        ELSE
+                        (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RECIPIENT R WHERE R.SURVEY_ID = S.ID)
+                   END AS RECIPIENT_COUNT,
                    (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RESPONSE X
                      WHERE X.SURVEY_ID = S.ID
                        AND X.STATUS IN ('SUBMITTED','AUTO_SUBMITTED')) AS SUBMITTED_COUNT
@@ -354,6 +364,17 @@ public class SurveyAdminService
         if (s.EndDate < s.StartDate) return "END_DATE phải >= START_DATE";
         if (s.Type == "QUIZ" && s.PassScore == null) return "QUIZ cần nhập PASS_SCORE";
         if (s.Mode != "ALL" && s.ScCount == 0) return "Mode " + s.Mode + " nhưng chưa có scope row";
+
+        // QUIZ không được có câu hỏi tự luận (TEXT) hoặc rating vì không chấm điểm được.
+        if (s.Type == "QUIZ")
+        {
+            var badRows = await _db.ExecuteQueryAsync(
+                "SELECT COUNT(*) C FROM HRMS.HR_SURVEY_QUESTION WHERE SURVEY_ID = :ID AND QUESTION_TYPE IN ('TEXT','RATING')",
+                r => Convert.ToInt32(r["C"]),
+                new OracleParameter("ID", surveyId));
+            if (badRows.FirstOrDefault() > 0)
+                return "QUIZ không cho phép câu hỏi loại TEXT (tự luận) hoặc RATING — vì không chấm điểm được";
+        }
         return null;
     }
 

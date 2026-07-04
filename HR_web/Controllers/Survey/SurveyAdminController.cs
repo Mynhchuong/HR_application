@@ -13,12 +13,14 @@ public class SurveyAdminController : BaseController
     private readonly SurveyAdminService _admin;
     private readonly SurveyReportService _report;
     private readonly DropdownService _dropdown;
+    private readonly HR_web.API.ApiService _api;
 
-    public SurveyAdminController(SurveyAdminService admin, SurveyReportService report, DropdownService dropdown)
+    public SurveyAdminController(SurveyAdminService admin, SurveyReportService report, DropdownService dropdown, HR_web.API.ApiService api)
     {
         _admin = admin;
         _report = report;
         _dropdown = dropdown;
+        _api = api;
     }
 
     // ─────────────────────────────────────────────
@@ -96,6 +98,33 @@ public class SurveyAdminController : BaseController
         return Json(new { success = ok, message = msg });
     }
 
+    // POST /SurveyAdmin/PublishStream — proxy stream NDJSON từ API về browser
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task PublishStream([FromBody] ChangeStatusVm req)
+    {
+        Response.ContentType = "application/x-ndjson";
+        Response.Headers["Cache-Control"] = "no-cache";
+        Response.Headers["X-Accel-Buffering"] = "no";
+
+        var payload = new { ID = req.Id, NEW_STATUS = "SCHEDULED", LOGIN_USER = CurrentUser?.EmpCd };
+        var upstream = await _api.PostStreamAsync("SurveyAdmin/publish-stream", payload);
+        if (upstream == null || !upstream.IsSuccessStatusCode)
+        {
+            await Response.WriteAsync("{\"phase\":\"error\",\"message\":\"Không kết nối được server\"}\n");
+            return;
+        }
+
+        using var stream = await upstream.Content.ReadAsStreamAsync();
+        var buffer = new byte[4096];
+        int read;
+        while ((read = await stream.ReadAsync(buffer)) > 0)
+        {
+            await Response.Body.WriteAsync(buffer.AsMemory(0, read));
+            await Response.Body.FlushAsync();
+        }
+    }
+
     // ─────────────────────────────────────────────
     // GET /SurveyAdmin/Preview/{id}  — HR xem trước UI làm survey
     // ─────────────────────────────────────────────
@@ -160,9 +189,9 @@ public class SurveyAdminController : BaseController
         return Json(new { success = true, data });
     }
 
-    // GET /SurveyAdmin/ReportExport?id=&type=overview|quiz  (Excel)
+    // GET /SurveyAdmin/ReportExport?id=  → 1 file Excel gồm Overview + Quiz sheet (nếu quiz)
     [HttpGet]
-    public async Task<IActionResult> ReportExport(int id, string type = "overview")
+    public async Task<IActionResult> ReportExport(int id)
     {
         var overview = await _report.GetOverviewAsync(id);
         if (overview == null)
@@ -172,26 +201,18 @@ public class SurveyAdminController : BaseController
         }
 
         using var wb = new XLWorkbook();
-        if (type == "quiz")
+        BuildOverviewSheet(wb, overview);
+        if (overview.SURVEY_TYPE == "QUIZ")
         {
             var quiz = await _report.GetQuizAsync(id);
-            if (quiz == null)
-            {
-                TempData["ErrorMessage"] = "Chỉ hỗ trợ QUIZ";
-                return RedirectToAction("Report", new { id });
-            }
-            BuildQuizSheet(wb, overview, quiz);
-        }
-        else
-        {
-            BuildOverviewSheet(wb, overview);
+            if (quiz != null) BuildQuizSheet(wb, overview, quiz);
         }
 
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         return File(ms.ToArray(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            $"Survey_{id}_{type}_{DateTime.Now:yyyyMMdd}.xlsx");
+            $"Survey_{id}_{DateTime.Now:yyyyMMdd}.xlsx");
     }
 
     private static void BuildOverviewSheet(XLWorkbook wb, SurveyReportOverviewModel o)
@@ -223,7 +244,8 @@ public class SurveyAdminController : BaseController
             ws.Cell(r, 2).Value = v?.ToString() ?? "";
             r++;
         }
-        ws.Columns().AdjustToContents();
+        ws.Column(1).Width = 22;
+        ws.Column(2).Width = 40;
 
         // Per-question aggregation sheet — dùng index để tránh duplicate sheet name
         for (int qi = 0; qi < o.QUESTIONS.Count; qi++)
@@ -265,7 +287,8 @@ public class SurveyAdminController : BaseController
                 qs.Cell(3, 1).Value = $"Số câu trả lời TEXT: {q.TEXT_COUNT}";
                 qs.Cell(4, 1).Value = "(Xem chi tiết trên trang Report)";
             }
-            qs.Columns().AdjustToContents();
+            qs.Column(1).Width = 40;
+            qs.Column(2).Width = 12;
         }
     }
 
@@ -309,7 +332,10 @@ public class SurveyAdminController : BaseController
             row++;
         }
         ws.Range(startRow, 1, startRow, headers.Length).SetAutoFilter();
-        ws.Columns().AdjustToContents();
+        // Fixed widths thay vì AdjustToContents (rất chậm với 8k+ rows)
+        int[] widths = { 6, 14, 26, 12, 12, 12, 8, 8, 12, 18 };
+        for (int i = 0; i < widths.Length; i++)
+            ws.Column(i + 1).Width = widths[i];
     }
 
     // ─── Request models ────────────────────────

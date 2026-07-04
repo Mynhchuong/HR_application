@@ -355,9 +355,11 @@ public class SurveyService
             };
         }
 
-        // Load answers
+        // Load answers — NCLOB đọc qua DBMS_LOB.SUBSTR để tránh TTC Error.
         response.ANSWERS = await _db.ExecuteQueryAsync(@"
-            SELECT ID, RESPONSE_ID, QUESTION_ID, ANSWER_OPTION_IDS, ANSWER_TEXT, ANSWER_NUMBER
+            SELECT ID, RESPONSE_ID, QUESTION_ID, ANSWER_OPTION_IDS,
+                   DBMS_LOB.SUBSTR(ANSWER_TEXT, 4000, 1) AS ANSWER_TEXT,
+                   ANSWER_NUMBER
               FROM HRMS.HR_SURVEY_ANSWER
              WHERE RESPONSE_ID = :RID",
             r => new SurveyAnswerModel

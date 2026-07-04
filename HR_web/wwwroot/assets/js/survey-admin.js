@@ -45,7 +45,18 @@
     const $btnDraft = document.getElementById('btnSaveDraft');
     const $btnPub   = document.getElementById('btnPublish');
 
+    // EN survey → chỉ gửi toàn Expat, bỏ bước Phạm vi (step 3).
+    const isStepSkipped = (n) => n === 3 && state.LANG === 'EN';
+    function nextValidStep(n, dir) {
+        let s = n + dir;
+        while (s >= 1 && s <= totalSteps && isStepSkipped(s)) s += dir;
+        return s;
+    }
+
     function showStep(n) {
+        // Nếu vô step bị skip → nhảy sang step tiếp theo/trước theo hướng
+        if (isStepSkipped(n)) n = n < currentStep ? nextValidStep(n, -1) : nextValidStep(n, 1);
+
         currentStep = n;
         document.querySelectorAll('.sa-panel').forEach(p => {
             p.classList.toggle('d-none', p.dataset.panel !== String(n));
@@ -53,7 +64,12 @@
         document.querySelectorAll('.sa-step').forEach(s => {
             const step = parseInt(s.dataset.step, 10);
             s.classList.toggle('active', step === n);
-            s.classList.toggle('done',   step < n);
+            s.classList.toggle('done',   step < n && !isStepSkipped(step));
+            s.classList.toggle('d-none', isStepSkipped(step));
+        });
+        document.querySelectorAll('.sa-step-line[data-line-for]').forEach(ln => {
+            const target = parseInt(ln.dataset.lineFor, 10);
+            ln.classList.toggle('d-none', isStepSkipped(target));
         });
         $btnPrev.disabled = n === 1;
         const isLast = n === totalSteps;
@@ -65,12 +81,27 @@
         if (n === 3) renderScope();
         if (n === 4) updatePassScoreVisibility();
     }
-    $btnPrev.addEventListener('click', () => currentStep > 1 && showStep(currentStep - 1));
+    $btnPrev.addEventListener('click', () => {
+        if (currentStep <= 1) return;
+        showStep(nextValidStep(currentStep, -1));
+    });
     $btnNext.addEventListener('click', () => {
         const err = validateStep(currentStep);
-        if (err) { alert(err); return; }
-        showStep(currentStep + 1);
+        if (err) { toast(err, 'warning'); return; }
+        showStep(nextValidStep(currentStep, 1));
     });
+
+    function toast(msg, type) {
+        if (window.showToast) return window.showToast(msg, type || 'error');
+        alert(msg);
+    }
+    function confirmDialog(message, opts, onOk) {
+        if (window.showConfirm) {
+            window.showConfirm(message, onOk, opts || {});
+        } else if (confirm(message)) {
+            onOk();
+        }
+    }
 
     document.querySelectorAll('.sa-step').forEach(s => {
         s.addEventListener('click', () => {
@@ -94,6 +125,16 @@
             document.querySelectorAll('input[name="LANG"]').forEach(rr => {
                 rr.closest('.sa-radio-card').classList.toggle('active', rr.checked);
             });
+            // EN → force mode ALL và ẩn bước Phạm vi
+            if (state.LANG === 'EN') {
+                state.RECIPIENT_MODE = 'ALL';
+                document.querySelectorAll('input[name="RECIPIENT_MODE"]').forEach(rr => {
+                    rr.checked = rr.value === 'ALL';
+                    rr.closest('.sa-radio-card').classList.toggle('active', rr.checked);
+                });
+            }
+            // Cập nhật lại step indicator + nhảy step nếu đang ở step bị skip
+            showStep(currentStep);
         });
     });
 
@@ -132,7 +173,13 @@
     }
 
     function renderQuestionCard(q, idx, isQuiz) {
-        const types = [
+        // QUIZ không cho TEXT (tự luận) và RATING vì không chấm điểm được.
+        const types = isQuiz ? [
+            ['SINGLE',   'Single choice'],
+            ['MULTI',    'Multiple choice'],
+            ['YESNO',    'Yes / No'],
+            ['DROPDOWN', 'Dropdown'],
+        ] : [
             ['SINGLE',   'Single choice'],
             ['MULTI',    'Multiple choice'],
             ['YESNO',    'Yes / No'],
@@ -140,6 +187,16 @@
             ['TEXT',     'Text free'],
             ['DROPDOWN', 'Dropdown'],
         ];
+        // Nếu type hiện tại không hợp lệ khi QUIZ, ép về SINGLE + tạo 2 options mặc định
+        if (isQuiz && !['SINGLE','MULTI','YESNO','DROPDOWN'].includes(q.QUESTION_TYPE)) {
+            q.QUESTION_TYPE = 'SINGLE';
+            if (!q.OPTIONS || q.OPTIONS.length === 0) {
+                q.OPTIONS = [
+                    { OPTION_TEXT: '', DISPLAY_ORDER: 1, IS_CORRECT: 0 },
+                    { OPTION_TEXT: '', DISPLAY_ORDER: 2, IS_CORRECT: 0 },
+                ];
+            }
+        }
         const typeOpts = types.map(([v, l]) =>
             `<option value="${v}" ${q.QUESTION_TYPE === v ? 'selected' : ''}>${l}</option>`
         ).join('');
@@ -157,11 +214,15 @@
                     ${typeOpts}
                 </select>
                 ${isQuiz ? `
-                <input type="number" class="form-control form-control-sm q-points" style="max-width:80px" min="0" step="1"
-                       placeholder="Điểm" value="${q.POINTS || 0}" title="POINTS (QUIZ)"/>
+                <div class="sa-q-points-wrap d-flex align-items-center gap-1" title="Số điểm câu này khi user trả lời đúng">
+                    <label class="form-label small text-muted mb-0 fw-semibold">Điểm:</label>
+                    <input type="number" class="form-control form-control-sm q-points" style="max-width:80px" min="0" step="1"
+                           placeholder="0" value="${q.POINTS || 0}" />
+                </div>
                 ` : ''}
-                <div class="form-check form-switch mb-0 ms-1" title="Bắt buộc">
+                <div class="form-check form-switch mb-0 ms-1 d-flex align-items-center gap-1" title="Bắt buộc trả lời">
                     <input class="form-check-input q-required" type="checkbox" ${q.IS_REQUIRED === 1 ? 'checked' : ''} />
+                    <label class="form-check-label small text-muted mb-0">Bắt buộc</label>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-danger q-del" title="Xoá câu hỏi">
                     <i class="bi bi-trash"></i>
@@ -217,7 +278,10 @@
             });
             card.querySelector('.q-required').addEventListener('change', e => q.IS_REQUIRED = e.target.checked ? 1 : 0);
             card.querySelector('.q-del').addEventListener('click', () => {
-                if (confirm('Xoá câu hỏi này?')) { state.QUESTIONS.splice(idx, 1); renderQuestions(); }
+                confirmDialog('Xoá câu hỏi này?', {
+                    title: 'Xoá câu hỏi', okText: 'Xoá', okClass: 'btn-danger',
+                    icon: 'delete', iconColor: '#dc2626', iconBg: '#fee2e2'
+                }, () => { state.QUESTIONS.splice(idx, 1); renderQuestions(); });
             });
 
             card.querySelectorAll('.o-text').forEach(el => {
@@ -312,12 +376,12 @@
         row.querySelector('.btn-del-dlw').addEventListener('click', () => row.remove());
         $dept.addEventListener('change', async (e) => {
             const lines = await fetchDropdown('/Dropdown/GetLineByDept', { deptCd: e.target.value });
-            fillDropdown($line, lines, '(Tuỳ chọn) Line');
-            fillDropdown($work, [],    '(Tuỳ chọn) Work');
+            fillDropdown($line, lines, 'Tất cả Line trong Dept');
+            fillDropdown($work, [],    'Tất cả Work trong Line');
         });
         $line.addEventListener('change', async (e) => {
             const works = await fetchDropdown('/Dropdown/GetWorkByLine', { lineCd: e.target.value });
-            fillDropdown($work, works, '(Tuỳ chọn) Work');
+            fillDropdown($work, works, 'Tất cả Work trong Line');
         });
         document.getElementById('scopeDLWList').appendChild(row);
 
@@ -326,11 +390,11 @@
             $dept.value = prefill.DEPTCD || '';
             if (prefill.DEPTCD) {
                 const lines = await fetchDropdown('/Dropdown/GetLineByDept', { deptCd: prefill.DEPTCD });
-                fillDropdown($line, lines, '(Tuỳ chọn) Line');
+                fillDropdown($line, lines, 'Tất cả Line trong Dept');
                 if (prefill.LINECD) {
                     $line.value = prefill.LINECD;
                     const works = await fetchDropdown('/Dropdown/GetWorkByLine', { lineCd: prefill.LINECD });
-                    fillDropdown($work, works, '(Tuỳ chọn) Work');
+                    fillDropdown($work, works, 'Tất cả Work trong Line');
                     if (prefill.WORKCD) $work.value = prefill.WORKCD;
                 }
             }
@@ -454,40 +518,117 @@
 
     // ── Save Draft ─────────────────
     $btnDraft.addEventListener('click', async () => {
-        // Validate mỗi step đã navigate qua
         for (let s = 1; s <= currentStep; s++) {
+            if (isStepSkipped(s)) continue;
             const err = validateStep(s);
-            if (err) { alert('Bước ' + s + ': ' + err); showStep(s); return; }
+            if (err) { toast('Bước ' + s + ': ' + err, 'warning'); showStep(s); return; }
         }
         const r = await save();
         if (r?.success) {
-            alert('Đã lưu nháp');
-            location.href = '/SurveyAdmin/Edit?id=' + (r.id || E.id);
+            toast('Đã lưu nháp', 'success');
+            setTimeout(() => { location.href = '/SurveyAdmin/Edit?id=' + (r.id || E.id); }, 600);
         } else {
-            alert(r?.message || 'Lưu thất bại');
+            toast(r?.message || 'Lưu thất bại', 'error');
         }
     });
 
-    // ── Publish ─────────────────
+    // ── Publish (stream progress) ─────────────────
     $btnPub.addEventListener('click', async () => {
         for (let s = 1; s <= totalSteps; s++) {
+            if (isStepSkipped(s)) continue;
             const err = validateStep(s);
-            if (err) { alert('Bước ' + s + ': ' + err); showStep(s); return; }
+            if (err) { toast('Bước ' + s + ': ' + err, 'warning'); showStep(s); return; }
         }
-        if (!confirm('Publish survey ngay? Sẽ chuyển sang SCHEDULED.')) return;
+        confirmDialog('Publish survey ngay? Danh sách người nhận sẽ được lưu vào hệ thống.', {
+            title: 'Publish survey', okText: 'Publish', okClass: 'btn-primary',
+            icon: 'cloud_upload', iconColor: '#4f46e5', iconBg: '#e0e7ff'
+        }, async () => {
+            const r = await save();
+            if (!r?.success) { toast(r?.message || 'Lưu thất bại', 'error'); return; }
+            const id = r.id || E.id;
 
-        const r = await save();
-        if (!r?.success) { alert(r?.message || 'Lưu thất bại'); return; }
-        const id = r.id || E.id;
+            showPubModal();
+            try {
+                const res = await fetch('/SurveyAdmin/PublishStream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+                    body: JSON.stringify({ Id: id, NewStatus: 'SCHEDULED' }),
+                });
+                if (!res.ok || !res.body) {
+                    hidePubModal();
+                    toast('Publish thất bại — data đã lưu nháp', 'error');
+                    return;
+                }
 
-        const p = await post('/SurveyAdmin/ChangeStatus', { Id: id, NewStatus: 'SCHEDULED' });
-        if (p?.success) {
-            alert('Đã publish. Batch job sẽ activate khi tới ngày.');
-            location.href = '/SurveyAdmin';
-        } else {
-            alert(p?.message || 'Publish thất bại — data đã lưu nháp');
-        }
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buf = '';
+                let finalOk = false, finalMsg = '';
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    buf += decoder.decode(value, { stream: true });
+                    let idx;
+                    while ((idx = buf.indexOf('\n')) >= 0) {
+                        const line = buf.slice(0, idx).trim();
+                        buf = buf.slice(idx + 1);
+                        if (!line) continue;
+                        try {
+                            const ev = JSON.parse(line);
+                            handlePubEvent(ev);
+                            if (ev.phase === 'done') { finalOk = ev.success !== false; }
+                            if (ev.phase === 'error') { finalOk = false; finalMsg = ev.message || ''; }
+                        } catch {}
+                    }
+                }
+                hidePubModal();
+                if (finalOk) {
+                    toast('Đã publish thành công', 'success');
+                    setTimeout(() => { location.href = '/SurveyAdmin/Index'; }, 600);
+                } else {
+                    toast(finalMsg || 'Publish thất bại — data đã lưu nháp', 'error');
+                }
+            } catch (err) {
+                hidePubModal();
+                toast('Lỗi kết nối khi publish', 'error');
+            }
+        });
     });
+
+    function showPubModal() {
+        const el = document.getElementById('pubProgressModal');
+        if (!el) return;
+        document.getElementById('pubPhase').textContent    = 'Đang publish survey...';
+        document.getElementById('pubBar').style.width      = '0%';
+        document.getElementById('pubCounter').textContent  = '';
+        el.classList.add('show');
+        el.style.display = 'flex';
+    }
+    function hidePubModal() {
+        const el = document.getElementById('pubProgressModal');
+        if (!el) return;
+        el.classList.remove('show');
+        el.style.display = 'none';
+    }
+    function handlePubEvent(ev) {
+        const $phase = document.getElementById('pubPhase');
+        const $bar   = document.getElementById('pubBar');
+        const $cnt   = document.getElementById('pubCounter');
+        if (ev.phase === 'schedule') {
+            $phase.textContent = 'Đã lưu trạng thái, đang tạo danh sách người nhận...';
+        } else if (ev.phase === 'snapshot') {
+            const pct = ev.total > 0 ? Math.min(100, Math.round(ev.inserted * 100 / ev.total)) : 100;
+            $phase.textContent = 'Đang lưu người nhận...';
+            $bar.style.width   = pct + '%';
+            $cnt.textContent   = ev.inserted + ' / ' + ev.total;
+        } else if (ev.phase === 'done') {
+            $phase.textContent = 'Hoàn tất!';
+            $bar.style.width   = '100%';
+            $cnt.textContent   = (ev.total || 0) + ' người nhận';
+        } else if (ev.phase === 'error') {
+            $phase.textContent = 'Lỗi: ' + (ev.message || '');
+        }
+    }
 
     async function save() {
         return await post('/SurveyAdmin/Save', buildPayload());

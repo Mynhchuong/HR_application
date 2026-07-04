@@ -132,6 +132,22 @@ public class ApiService
     }
 
 
+    // POST + đọc response dạng streaming (không buffer)
+    public async Task<HttpResponseMessage?> PostStreamAsync(string endpoint, object data)
+    {
+        var client = _httpClientFactory.CreateClient(ClientName);
+        try
+        {
+            var json = JsonConvert.SerializeObject(data);
+            var req  = new HttpRequestMessage(HttpMethod.Post, endpoint)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+            return await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+        }
+        catch { return null; }
+    }
+
     public async Task<HttpResponseMessage?> PostAsync(string endpoint, object data)
     {
         var client = _httpClientFactory.CreateClient(ClientName);

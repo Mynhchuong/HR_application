@@ -17,10 +17,13 @@
         multiHint:  isEn ? 'Select all that apply'      : 'Chọn tất cả đáp án đúng',
         ratingHint: isEn ? 'Tap a star to rate'         : 'Chạm vào sao để đánh giá',
         textHint:   isEn ? 'Type your answer (max 1000)': 'Nhập câu trả lời (tối đa 1000)',
-        thankPoll:  isEn ? 'Thank you for participating.' : 'Cảm ơn bạn đã tham gia.',
-        thankTitle: isEn ? 'Thank you!' : 'Cảm ơn!',
-        pass:       'PASS',
-        fail:       'FAIL',
+        thankPoll:  isEn ? 'Thank you for participating.' : 'Cảm ơn bạn đã tham gia khảo sát.',
+        thankSub:   isEn ? 'Your response has been recorded successfully.' : 'Ý kiến của bạn đã được ghi nhận thành công.',
+        thankTitle: isEn ? 'Thank you!' : 'Cảm ơn bạn!',
+        pass:       isEn ? 'Congratulations, you passed!' : 'Xuất sắc! Bạn đã hoàn thành bài quiz',
+        fail:       isEn ? 'Not quite, please try again' : 'Chưa đạt, cố gắng lần sau nhé!',
+        passSub:    isEn ? 'Great job on completing the quiz.' : 'Chúc mừng bạn đã vượt qua bài kiểm tra!',
+        failSub:    isEn ? 'Please review the material and retry when possible.' : 'Đừng nản, ôn tập lại và thử lại lần sau bạn nhé.',
         yourScore:  isEn ? 'Your score' : 'Điểm của bạn',
         saveErr:    isEn ? 'Save failed. Please try again.' : 'Lưu không thành công. Vui lòng thử lại.',
         submitErr:  isEn ? 'Submit failed. Please try again.' : 'Gửi không thành công. Vui lòng thử lại.',
@@ -337,6 +340,21 @@
         });
     }
 
+    // ── Landing: nhấn Bắt đầu mới vô làm ─────────────
+    const $landing   = document.getElementById('surveyLanding');
+    const $container = document.getElementById('surveyContainer');
+    const $btnStart  = document.getElementById('btnStartSurvey');
+    const $btnIllLanding = document.getElementById('btnIlliterateLanding');
+    if ($btnStart && $landing && $container) {
+        $btnStart.addEventListener('click', () => {
+            $landing.style.display = 'none';
+            $container.classList.remove('d-none');
+        });
+    }
+    if ($btnIllLanding) {
+        $btnIllLanding.addEventListener('click', () => openModal('modalIlliterate'));
+    }
+
     // ── Illiterate modal actions (chỉ mode 'do') ─────────
     if ($btnIlliterate) {
         $btnIlliterate.addEventListener('click', () => openModal('modalIlliterate'));
@@ -349,7 +367,7 @@
             $btnIlliterateConfirm.disabled = false;
             closeModal('modalIlliterate');
             if (!r.success) { alert(r.message || t.submitErr); return; }
-            window.location.href = '/Home';
+            window.location.href = '/Home/Index';
         });
     }
 
@@ -360,25 +378,36 @@
         // Preview mode: không có modal → alert cảm ơn
         if (!$title || !$body) {
             alert(t.thankTitle + ' — ' + t.thankPoll);
-            window.location.href = '/SurveyAdmin';
+            window.location.href = '/SurveyAdmin/Index';
             return;
         }
+
+        const mascot = document.getElementById('surveyContainer')?.dataset.mascot || '';
+        const mascotImg = mascot ? `<div class="sv-congrats-mascot"><img src="${mascot}" alt="mascot" onerror="this.parentElement.style.display='none'"/></div>` : '';
 
         if (isQuiz && data) {
             const score = data.SCORE ?? 0;
             const max   = data.MAX_SCORE ?? 0;
             const pass  = data.IS_PASS === 1;
-            $title.textContent = pass ? t.pass : t.fail;
+            $title.textContent = '';
             $body.innerHTML = `
-                <div class="sv-result-score">
-                    <div class="sv-result-score-value">${score}<span class="sv-result-score-max"> / ${max}</span></div>
-                    <div class="sv-result-badge ${pass ? 'pass' : 'fail'}">
-                        ${pass ? t.pass : t.fail}
+                <div class="sv-congrats">
+                    ${mascotImg}
+                    <div class="sv-congrats-title ${pass ? '' : 'fail'}">${pass ? t.pass : t.fail}</div>
+                    <div class="sv-congrats-sub">${pass ? t.passSub : t.failSub}</div>
+                    <div class="sv-congrats-score">
+                        <span class="sv-congrats-score-value">${score}</span>
+                        <span class="sv-congrats-score-max">/ ${max}</span>
                     </div>
                 </div>`;
         } else {
-            $title.textContent = t.thankTitle;
-            $body.innerHTML = `<p>${t.thankPoll}</p>`;
+            $title.textContent = '';
+            $body.innerHTML = `
+                <div class="sv-congrats">
+                    ${mascotImg}
+                    <div class="sv-congrats-title">${t.thankTitle}</div>
+                    <div class="sv-congrats-sub">${t.thankPoll}<br/><span class="text-muted">${t.thankSub}</span></div>
+                </div>`;
         }
         openModal('modalResult');
     }

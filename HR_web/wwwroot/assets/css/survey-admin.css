@@ -11,29 +11,191 @@
     --sa-bg:       #f8fafc;
 }
 
-/* ─── Card header ─────────────────────────── */
+/* ─── Card header (đồng bộ với BulletinAdmin) ─────────────────── */
 .sa-header {
     background: linear-gradient(120deg, #eef2ff, #e0e7ff) !important;
     border-bottom: 1px solid var(--sa-border) !important;
+    color: #3730a3;
+    padding-top: .4rem;
+    padding-bottom: .4rem;
+    min-height: 40px;
+}
+.sa-header .sa-title {
+    font-weight: 700;
+    font-size: .9rem;
+    display: flex;
+    align-items: center;
+}
+.sa-header .sa-title i { font-size: 1rem; }
+.sa-header .btn {
+    height: 26px;
+    font-size: .75rem;
+    font-weight: 600;
+    padding: 0 .6rem;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
 }
 
 /* ─── Filter bar ─────────────────────────── */
 .sa-filter .form-select,
 .sa-filter .form-control { border-radius: 6px; }
 
-/* ─── Table ─────────────────────────── */
+/* ─── Table (đồng bộ với BulletinAdmin) ─────────────────── */
 .sa-table {
     font-size: .9rem;
 }
 .sa-table thead th {
-    background: var(--sa-bg);
-    font-size: .8rem;
+    background: #f8f9fa;
+    font-size: .65rem;
     text-transform: uppercase;
     color: var(--sa-muted);
-    border-bottom: 2px solid var(--sa-border);
+    font-weight: 700;
+    letter-spacing: .3px;
+    border-bottom: 1px solid var(--sa-border);
     white-space: nowrap;
+    padding: .5rem .5rem;
 }
-.sa-table tbody td { vertical-align: middle; }
+.sa-table tbody td { vertical-align: middle; padding: .55rem .5rem; }
+
+/* ─── Actions row (đồng bộ với BulletinAdmin .blt-actions) ─── */
+.sa-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.sa-actions .btn {
+    padding: .35rem .55rem;
+    font-size: .75rem;
+    font-weight: 600;
+    border-radius: 6px;
+    line-height: 1.2;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 32px;
+    height: 30px;
+    justify-content: center;
+    margin: 0;
+}
+.sa-actions .btn i { font-size: 13px; }
+.sa-actions .btn span { display: inline-block; margin-left: 4px; }
+.sa-actions form { display: inline-flex; margin: 0; }
+
+/* Title cell — 1 dòng cắt ellipsis */
+.sa-title-cell {
+    font-weight: 600;
+    color: #1e293b;
+    max-width: 320px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+@media (max-width: 1200px) {
+    .sa-actions .btn span { display: none; }
+    .sa-title-cell { max-width: 220px; }
+}
+
+/* ─── Publish progress modal ─────────────────── */
+.sa-pub-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, .55);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+.sa-pub-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.5rem 1.75rem;
+    min-width: 380px;
+    max-width: 90vw;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+.sa-pub-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--sa-primary-2);
+    margin-bottom: .75rem;
+    display: flex;
+    align-items: center;
+}
+.sa-pub-phase {
+    font-size: .9rem;
+    color: var(--sa-text);
+    margin-bottom: .75rem;
+    min-height: 1.2rem;
+}
+.sa-pub-bar-wrap {
+    height: 12px;
+    background: #f1f5f9;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: .5rem;
+}
+.sa-pub-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--sa-primary), var(--sa-primary-2));
+    transition: width .25s ease;
+}
+.sa-pub-counter {
+    font-size: .85rem;
+    color: var(--sa-muted);
+    text-align: right;
+    font-weight: 600;
+    margin-bottom: .5rem;
+    min-height: 1rem;
+}
+.sa-pub-hint {
+    font-size: .75rem;
+    color: var(--sa-muted);
+    font-style: italic;
+}
+
+/* ─── Report scroll wrapper — 8k+ rows dùng scroll + sticky header ─── */
+.sa-report-scroll {
+    max-height: 560px;
+    overflow-y: auto;
+    border: 1px solid var(--sa-border);
+    border-radius: 8px;
+}
+.sa-report-scroll table thead th {
+    position: sticky;
+    top: 0;
+    background: #f8fafc;
+    z-index: 2;
+    box-shadow: inset 0 -1px 0 var(--sa-border);
+}
+.sa-report-scroll table tbody td { padding: .65rem .75rem; }
+.sa-report-scroll table thead th   { padding: .75rem .75rem; }
+
+/* ─── Report table — họ tên dùng font Vnitbi__ giống Profile ─────── */
+.sa-report-table .sa-name-cell {
+    font-weight: 600;
+    color: #1e293b;
+    white-space: nowrap;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+}
+
+/* ─── Empty state ─────────────────────────── */
+.sa-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--sa-muted);
+}
+.sa-empty i {
+    font-size: 48px;
+    opacity: .3;
+    display: block;
+    margin-bottom: .75rem;
+}
 
 /* Status badges */
 .sa-status {
@@ -111,6 +273,39 @@
     font-weight: 600;
     margin-bottom: 1rem;
     color: var(--sa-text);
+}
+.sa-hint {
+    font-weight: 400;
+    color: #94a3b8;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: .78rem;
+    font-style: italic;
+}
+
+/* Inputs trong wizard — border rõ ràng, hover / focus có accent */
+.sa-panel .form-control,
+.sa-panel .form-select {
+    border: 1.5px solid var(--sa-border);
+    border-radius: 8px;
+    padding: .55rem .75rem;
+    background: #fff;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.sa-panel .form-control:hover,
+.sa-panel .form-select:hover {
+    border-color: #a5b4fc;
+}
+.sa-panel .form-control:focus,
+.sa-panel .form-select:focus {
+    border-color: var(--sa-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, .18);
+    outline: none;
+}
+.sa-panel input[type="date"],
+.sa-panel input[type="number"] {
+    background: #fff;
+    min-height: 42px;
 }
 .sa-label {
     font-size: .82rem;

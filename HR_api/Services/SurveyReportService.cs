@@ -171,7 +171,7 @@ public class SurveyReportService
         const string sql = @"
             SELECT * FROM (
                 SELECT A.ID, A.RESPONSE_ID, R.EMPCD, EC.CNAME AS FULL_NAME,
-                       A.ANSWER_TEXT, A.INST_DT,
+                       DBMS_LOB.SUBSTR(A.ANSWER_TEXT, 4000, 1) AS ANSWER_TEXT, A.INST_DT,
                        ROW_NUMBER() OVER (ORDER BY A.INST_DT DESC) AS RN
                   FROM HRMS.HR_SURVEY_ANSWER A
                   JOIN HRMS.HR_SURVEY_RESPONSE R ON R.ID = A.RESPONSE_ID

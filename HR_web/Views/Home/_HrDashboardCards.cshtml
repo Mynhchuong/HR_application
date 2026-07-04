@@ -1,0 +1,56 @@
+@* HR/Admin only — hiển thị số tin nhắn / inquiry / bulletin comment mới.
+   Data fetch qua AJAX /Home/HrSummary khi trang load. *@
+@{
+    var isHrOnly    = Context.User.IsInRole("HR");
+    var inquiryCtrl = isHrOnly ? "HrInquiry" : "AdminInquiry";
+}
+<div class="hr-dashboard-cards" id="hrDashboardCards">
+    <a href="@Url.Action("Index", inquiryCtrl, new { status = "OPEN" })" class="hr-dash-card hr-dash-msg">
+        <div class="hr-dash-icon"><i class="bi bi-chat-dots-fill"></i></div>
+        <div class="hr-dash-body">
+            <div class="hr-dash-label">Tin nhắn mới</div>
+            <div class="hr-dash-value" data-role="msg">–</div>
+        </div>
+        <span class="hr-dash-badge" data-role="msg-badge" style="display:none"></span>
+    </a>
+    <a href="@Url.Action("Index", inquiryCtrl, new { status = "OPEN", assigned = "UNASSIGNED" })" class="hr-dash-card hr-dash-inq">
+        <div class="hr-dash-icon"><i class="bi bi-clipboard-plus-fill"></i></div>
+        <div class="hr-dash-body">
+            <div class="hr-dash-label">Inquiry chưa xử lý</div>
+            <div class="hr-dash-value" data-role="inq">–</div>
+        </div>
+        <span class="hr-dash-badge" data-role="inq-badge" style="display:none"></span>
+    </a>
+    <a href="@Url.Action("Index", "Bulletin")" class="hr-dash-card hr-dash-bull">
+        <div class="hr-dash-icon"><i class="bi bi-chat-square-quote-fill"></i></div>
+        <div class="hr-dash-body">
+            <div class="hr-dash-label">Bản tin có bình luận mới</div>
+            <div class="hr-dash-value" data-role="bull">–</div>
+            <div class="hr-dash-sub text-muted small">Trong 24h qua</div>
+        </div>
+        <span class="hr-dash-badge" data-role="bull-badge" style="display:none"></span>
+    </a>
+</div>
+<script>
+(function () {
+    fetch('/Home/HrSummary', { headers: { 'Accept': 'application/json' } })
+        .then(r => r.ok ? r.json() : null)
+        .then(j => {
+            if (!j || !j.success || !j.data) return;
+            const d = j.data;
+            const set = (role, val) => {
+                const el = document.querySelector('.hr-dash-value[data-role="' + role + '"]');
+                if (el) el.textContent = val;
+                const badge = document.querySelector('.hr-dash-badge[data-role="' + role + '-badge"]');
+                if (badge && val > 0) {
+                    badge.textContent = val > 99 ? '99+' : val;
+                    badge.style.display = '';
+                }
+            };
+            set('msg',  d.unreadMessages || 0);
+            set('inq',  d.openInquiries || 0);
+            set('bull', d.bulletinsWithNewComments || 0);
+        })
+        .catch(() => {});
+})();
+</script>

@@ -54,6 +54,36 @@ public class HomeController : ControllerBase
     }
 
     // ============================================================
+    // GET /apiHR/Home/hr-summary → counts cho HR/Admin dashboard
+    // { totalUnreadMessages, openInquiries, newComments24h }
+    // ============================================================
+    [HttpGet("hr-summary")]
+    public async Task<IActionResult> HrSummary([FromServices] HR_api.Data.OracleService db)
+    {
+        try
+        {
+            const string sql = @"
+                SELECT
+                    (SELECT NVL(SUM(UNREAD_HR), 0) FROM HRMS.HR_INQUIRY WHERE UNREAD_HR > 0)              AS UNREAD_MSG,
+                    (SELECT COUNT(*) FROM HRMS.HR_INQUIRY WHERE STATUS = 'OPEN' AND ASSIGNED_TO IS NULL)  AS OPEN_INQ,
+                    (SELECT COUNT(DISTINCT BULLETIN_ID) FROM HRMS.HR_BULLETIN_COMMENT
+                      WHERE IS_DELETED = 0 AND INST_DT >= SYSDATE - 1)                                    AS NEW_CMT_BULL
+                FROM DUAL";
+            var rows = await db.ExecuteQueryAsync(sql, r => new
+            {
+                unreadMessages = Convert.ToInt32(r["UNREAD_MSG"]),
+                openInquiries  = Convert.ToInt32(r["OPEN_INQ"]),
+                bulletinsWithNewComments = Convert.ToInt32(r["NEW_CMT_BULL"]),
+            });
+            return Ok(new { success = true, data = rows.First() });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ============================================================
     // GET /apiHR/Home/summary?empcd=X&role_name=Y&force=0
     // Realtime card — Leave/GP/OT count + team birthday count
     // Cache 30s/EMPCD; force=1 bypass cache

@@ -447,6 +447,21 @@ async function loadTopics() {
     } catch {}
 }
 
+// Apply querystring filter (dùng cho link từ Home HR dashboard: /AdminInquiry/Index?status=OPEN&assigned=UNASSIGNED)
+(function () {
+    const p = new URLSearchParams(window.location.search);
+    const st = p.get('status');
+    const as = p.get('assigned');
+    if (st) {
+        const el = document.getElementById('fStatus');
+        if (el && Array.from(el.options).some(o => o.value === st)) el.value = st;
+    }
+    if (as) {
+        const el = document.getElementById('fAssigned');
+        if (el && Array.from(el.options).some(o => o.value === as)) el.value = as;
+    }
+})();
+
 loadTopics();
 loadData(1);
 startAutoReload();

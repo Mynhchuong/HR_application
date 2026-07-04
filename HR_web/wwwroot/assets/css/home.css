@@ -853,3 +853,80 @@ body.home-hero-popup-open { overflow: hidden; }
     .home-mycal-note { margin: 0 8px 8px; padding: 7px 9px; font-size: .66rem; }
     .home-mycal-actions { padding: 0 8px 12px; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   HR Dashboard cards — 3 count cards (msg / inquiry / bulletin)
+   ═══════════════════════════════════════════════════════════ */
+.hr-dashboard-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 12px 12px 4px;
+}
+.hr-dash-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, .04);
+    text-decoration: none;
+    color: #1e293b;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.hr-dash-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, .1);
+    color: #1e293b;
+    text-decoration: none;
+}
+.hr-dash-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    color: #fff;
+    flex-shrink: 0;
+}
+.hr-dash-msg .hr-dash-icon  { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.hr-dash-inq .hr-dash-icon  { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.hr-dash-bull .hr-dash-icon { background: linear-gradient(135deg, #10b981, #059669); }
+.hr-dash-msg:hover  { border-color: #3b82f6; }
+.hr-dash-inq:hover  { border-color: #f59e0b; }
+.hr-dash-bull:hover { border-color: #10b981; }
+.hr-dash-body { flex: 1; min-width: 0; }
+.hr-dash-label {
+    font-size: .78rem;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+.hr-dash-value {
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: #1e293b;
+    line-height: 1.1;
+    margin-top: 2px;
+}
+.hr-dash-sub { margin-top: 2px; font-size: .72rem !important; }
+.hr-dash-badge {
+    position: absolute;
+    top: 8px; right: 10px;
+    background: #dc2626;
+    color: #fff;
+    font-size: .68rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    min-width: 22px;
+    text-align: center;
+}
+
+@media (max-width: 900px) {
+    .hr-dashboard-cards { grid-template-columns: 1fr; }
+    .hr-dash-value { font-size: 1.4rem; }
+}

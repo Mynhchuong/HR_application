@@ -29,6 +29,29 @@ public class HomeApiService
     }
 
     // ============================================================
+    // GET /apiHR/Home/hr-summary → counts cho HR dashboard
+    // ============================================================
+    public async Task<HrDashboardCounts?> GetHrSummaryAsync()
+    {
+        try
+        {
+            var resp = await _api.GetAsync<HrSummaryResponse>("home/hr-summary", "");
+            return resp?.success == true ? resp.data : null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[HomeApiService] GetHrSummaryAsync error: {ex.Message}");
+            return null;
+        }
+    }
+
+    private class HrSummaryResponse
+    {
+        public bool success { get; set; }
+        public HrDashboardCounts? data { get; set; }
+    }
+
+    // ============================================================
     // GET /apiHR/Home/summary
     // ============================================================
     public async Task<HomeSummaryData?> GetSummaryAsync(string empcd, string? roleName, bool force = false)
@@ -165,6 +188,14 @@ public class HomeSummaryResponse
     public bool             success { get; set; }
     public string?          message { get; set; }
     public HomeSummaryData? data    { get; set; }
+}
+
+// ─── HR dashboard counts
+public class HrDashboardCounts
+{
+    public int unreadMessages           { get; set; }
+    public int openInquiries            { get; set; }
+    public int bulletinsWithNewComments { get; set; }
 }
 
 public class HomeSummaryData

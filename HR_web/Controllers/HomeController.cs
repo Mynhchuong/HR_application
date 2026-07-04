@@ -50,6 +50,18 @@ public class HomeController : BaseController
     }
 
     // ============================================================
+    // GET /Home/HrSummary — counts cho HR/Admin (msg + inquiry + bulletin cmt)
+    // ============================================================
+    [HttpGet]
+    public async Task<IActionResult> HrSummary()
+    {
+        if (CurrentUser?.RoleName is not ("HR" or "Admin"))
+            return Json(new { success = false });
+        var data = await _homeApi.GetHrSummaryAsync();
+        return Json(new { success = data != null, data });
+    }
+
+    // ============================================================
     // GET /Home/TeamBirthday — modal list khi click chip
     // ============================================================
     [HttpGet]

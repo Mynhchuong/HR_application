@@ -147,6 +147,10 @@ public class NotificationController : ControllerBase
                                 OR (T.TARGET_TYPE = 'LINE'  AND T.TARGET_VAL = (SELECT LINECD FROM ME))
                                 OR (T.TARGET_TYPE = 'WORK'  AND T.TARGET_VAL = (SELECT WORKCD FROM ME)) )
                        ))
+                       OR (N.NOTI_TYPE = 'SURVEY' AND EXISTS (
+                           SELECT 1 FROM HRMS.HR_SURVEY_RECIPIENT R
+                            WHERE TO_CHAR(R.SURVEY_ID) = N.TARGET_VAL AND R.EMPCD = :EMPCD5
+                       ))
                 ) WHERE RN > :OFFSET AND RN <= :OFFSET + :PAGE_SIZE";
 
             var list = await _oracleService.ExecuteQueryAsync(sql, r => new NotificationModel
@@ -173,6 +177,7 @@ public class NotificationController : ControllerBase
             new OracleParameter("EMPCD2", empcd),
             new OracleParameter("EMPCD3", empcd),
             new OracleParameter("EMPCD4", empcd),
+            new OracleParameter("EMPCD5", empcd),
             new OracleParameter("OFFSET", offset),
             new OracleParameter("PAGE_SIZE", page_size));
 
@@ -243,6 +248,10 @@ public class NotificationController : ControllerBase
                               OR (T.TARGET_TYPE = 'DEPT'  AND T.TARGET_VAL = (SELECT DEPTCD FROM ME))
                               OR (T.TARGET_TYPE = 'LINE'  AND T.TARGET_VAL = (SELECT LINECD FROM ME))
                               OR (T.TARGET_TYPE = 'WORK'  AND T.TARGET_VAL = (SELECT WORKCD FROM ME)) )
+                     ))
+                     OR (N.NOTI_TYPE = 'SURVEY' AND EXISTS (
+                         SELECT 1 FROM HRMS.HR_SURVEY_RECIPIENT R
+                          WHERE TO_CHAR(R.SURVEY_ID) = N.TARGET_VAL AND R.EMPCD = :EMPCD6
                      )) )
                   AND NOT EXISTS (
                       SELECT 1 FROM HRMS.HR_NOTIFICATION_LOG L
@@ -254,7 +263,8 @@ public class NotificationController : ControllerBase
                 new OracleParameter("EMPCD2", empcd),
                 new OracleParameter("EMPCD3", empcd),
                 new OracleParameter("EMPCD4", empcd),
-                new OracleParameter("EMPCD5", empcd));
+                new OracleParameter("EMPCD5", empcd),
+                new OracleParameter("EMPCD6", empcd));
 
             return Ok(new { success = true });
         }
@@ -294,6 +304,10 @@ public class NotificationController : ControllerBase
                               OR (T.TARGET_TYPE = 'DEPT'  AND T.TARGET_VAL = (SELECT DEPTCD FROM ME))
                               OR (T.TARGET_TYPE = 'LINE'  AND T.TARGET_VAL = (SELECT LINECD FROM ME))
                               OR (T.TARGET_TYPE = 'WORK'  AND T.TARGET_VAL = (SELECT WORKCD FROM ME)) )
+                     ))
+                     OR (N.NOTI_TYPE = 'SURVEY' AND EXISTS (
+                         SELECT 1 FROM HRMS.HR_SURVEY_RECIPIENT R
+                          WHERE TO_CHAR(R.SURVEY_ID) = N.TARGET_VAL AND R.EMPCD = :EMPCD5
                      )) )
                   AND NOT EXISTS (
                       SELECT 1 FROM HRMS.HR_NOTIFICATION_LOG L
@@ -305,7 +319,8 @@ public class NotificationController : ControllerBase
                 new OracleParameter("EMPCD",  empcd),
                 new OracleParameter("EMPCD2", empcd),
                 new OracleParameter("EMPCD3", empcd),
-                new OracleParameter("EMPCD4", empcd));
+                new OracleParameter("EMPCD4", empcd),
+                new OracleParameter("EMPCD5", empcd));
 
             return Ok(new { success = true, count = rows.FirstOrDefault() });
         }

@@ -1,0 +1,89 @@
+@model HR_web.Models.Survey.SurveyModel
+@{
+    ViewData["Title"] = "Test: " + Model.TITLE;
+    Layout = "_LayoutEmbed";
+}
+
+@section Styles {
+    <link href="~/assets/css/survey.css" rel="stylesheet" asp-append-version="true" />
+    <link href="~/assets/css/survey-admin.css" rel="stylesheet" asp-append-version="true" />
+}
+
+<div class="sa-preview-banner sa-test-banner">
+    <div class="sa-preview-banner-text">
+        <i class="bi bi-play-circle-fill me-1"></i>
+        <b>Test mode</b> — chấm điểm nhưng KHÔNG lưu response
+    </div>
+    <a href="@Url.Action("Index", "SurveyAdmin")" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-x-lg"></i> Đóng
+    </a>
+</div>
+
+<div class="survey-container" id="surveyContainer"
+     data-survey-id="@Model.ID"
+     data-survey-type="@Model.SURVEY_TYPE"
+     data-lang="@Model.LANG">
+
+    <header class="survey-header">
+        <div class="survey-title" title="@Model.TITLE">@Model.TITLE</div>
+    </header>
+
+    <div class="survey-progress">
+        <div class="survey-progress-bar" id="progressBar" style="width: 0%"></div>
+    </div>
+    <div class="survey-progress-text"><span id="progressText">1 / @Model.QUESTIONS.Count</span></div>
+
+    <main class="survey-body">
+        <div id="questionWrapper"></div>
+    </main>
+
+    <footer class="survey-footer">
+        <button type="button" class="btn btn-outline-secondary" id="btnBack" disabled>
+            <i class="bi bi-chevron-left"></i> Quay lại
+        </button>
+        <button type="button" class="btn btn-primary" id="btnNext">
+            <span id="btnNextLabel">Tiếp theo</span>
+            <i class="bi bi-chevron-right"></i>
+        </button>
+    </footer>
+</div>
+
+<!-- Result modal (giống Do.cshtml nhưng nút về Index thay vì Home) -->
+<div class="survey-modal" id="modalSubmit">
+    <div class="survey-modal-content">
+        <div class="survey-modal-title">Kết thúc bài test?</div>
+        <div class="survey-modal-body">
+            <p>Điểm sẽ tính lại nhưng KHÔNG lưu vào DB (test mode).</p>
+        </div>
+        <div class="survey-modal-actions">
+            <button type="button" class="btn btn-outline-secondary" data-close="modalSubmit">Huỷ</button>
+            <button type="button" class="btn btn-primary" id="btnSubmitConfirm">Chấm điểm</button>
+        </div>
+    </div>
+</div>
+
+<div class="survey-modal" id="modalResult">
+    <div class="survey-modal-content">
+        <div class="survey-modal-title" id="resultTitle"></div>
+        <div class="survey-modal-body" id="resultBody"></div>
+        <div class="survey-modal-actions">
+            <a href="@Url.Action("Index", "SurveyAdmin")" class="btn btn-primary">Về danh sách</a>
+        </div>
+    </div>
+</div>
+
+<form id="antiForgeryForm">@Html.AntiForgeryToken()</form>
+
+@section Scripts {
+    <script>
+        window.SURVEY_DATA = {
+            surveyId:  @Model.ID,
+            type:      @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.SURVEY_TYPE)),
+            lang:      @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.LANG)),
+            questions: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.QUESTIONS)),
+            answers:   [],
+            mode:      'test',   // Chấm điểm nhưng gọi /SurveyAdmin/TestSubmit
+        };
+    </script>
+    <script src="~/assets/js/survey.js" asp-append-version="true"></script>
+}

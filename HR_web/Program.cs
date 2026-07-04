@@ -9,13 +9,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews(options =>
 {
-     
+
     options.Filters.Add<RequireUpdateProfileFilter>();
+    options.Filters.Add<HR_web.Filters.SurveyBlockerFilter>();
 }).AddNewtonsoftJson(options =>
 {
-     
+
     options.SerializerSettings.ContractResolver = new Newtonsoft.Json.Serialization.DefaultContractResolver();
 });
+
+builder.Services.AddMemoryCache();
     
 // Persist keys to filesystem to prevent logout on app restart/idle
 builder.Services.AddDataProtection()
@@ -97,6 +100,11 @@ builder.Services.AddScoped<HR_web.API.Service.NotiTemplateService>();
 builder.Services.AddScoped<HR_web.API.Service.InquiryService>();
 builder.Services.AddScoped<HR_web.API.Service.HomeApiService>();
 builder.Services.AddScoped<HR_web.API.Service.HomeAdminApiService>();
+builder.Services.AddScoped<HR_web.API.Service.SurveyService>();
+builder.Services.AddScoped<HR_web.API.Service.SurveyAdminService>();
+builder.Services.AddScoped<HR_web.API.Service.SurveyReportService>();
+builder.Services.AddScoped<HR_web.API.Service.SurveyExemptService>();
+builder.Services.AddScoped<HR_web.Filters.SurveyBlockerFilter>();
 builder.Services.AddSingleton<HR_web.API.Service.VideoFileService>();
 builder.Services.AddHostedService<HR_web.Services.InquiryTempCleanupService>();
 

@@ -142,6 +142,7 @@ const linkMap = {
     'OT_SIGN':     '@Url.Action("OtConfirmForm", "OT")',
     'PAYSLIP':     '@Url.Action("Index", "Payslip")',
     'BULLETIN':    '@Url.Action("Index", "Bulletin")',   // fallback; thực tế dùng TARGET_VAL build Detail URL trong onNotiClick
+    'SURVEY':      '@Url.Action("Index", "SurveyAdmin")',// fallback; thực tế dùng TARGET_VAL build Do URL trong onNotiClick
 };
 
 let page = 1;
@@ -173,6 +174,7 @@ const typeStyle = {
     'GP_MY':            { icon: '🚪', bg: '#f3e8ff', },
     'GP_MANAGE':        { icon: '🔑', bg: '#f3e8ff', },
     'BULLETIN':         { icon: '📰', bg: '#fef3c7', },
+    'SURVEY':           { icon: '📋', bg: '#eef2ff', },
 };
 
 function renderItems(items, append = false) {
@@ -235,10 +237,12 @@ function onNotiClick(n) {
         if (el) el.classList.remove('unread');
         updateUnreadBadge(-1);
     }
-    // Đặc biệt: BULLETIN → build URL Detail với TARGET_VAL
+    // Đặc biệt: BULLETIN + SURVEY → build URL với TARGET_VAL
     let url;
     if (n.LINK_ACTION === 'BULLETIN' && n.TARGET_VAL) {
         url = '/Bulletin/Detail/' + encodeURIComponent(n.TARGET_VAL);
+    } else if (n.LINK_ACTION === 'SURVEY' && n.TARGET_VAL) {
+        url = '/Survey/Do/' + encodeURIComponent(n.TARGET_VAL);
     } else if (n.LINK_ACTION && /^https?:\/\//i.test(n.LINK_ACTION)) {
         // Link ngoài (bài báo, gov, v.v.) — mở tab mới
         window.open(n.LINK_ACTION, '_blank', 'noopener,noreferrer');

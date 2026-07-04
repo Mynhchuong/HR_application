@@ -1,0 +1,171 @@
+@model HR_web.Models.Survey.SurveyDoViewModel
+@{
+    ViewData["Title"] = Model?.Survey?.TITLE ?? "Survey";
+    Layout = "_LayoutEmbed";
+
+    var isEn        = Model?.Survey?.LANG == "EN";
+    var isQuiz      = Model?.Survey?.SURVEY_TYPE == "QUIZ";
+    var questions   = Model?.Survey?.QUESTIONS ?? new();
+    // Answers đã save từ trước (resume)
+    var answersJson = Newtonsoft.Json.JsonConvert.SerializeObject(Model?.Response?.ANSWERS ?? new());
+    var surveyId    = Model?.Survey?.ID ?? 0;
+}
+
+@section Styles {
+    <link href="~/assets/css/survey.css" rel="stylesheet" asp-append-version="true" />
+}
+
+@if (!string.IsNullOrEmpty(Model?.Error))
+{
+    <div class="survey-notice">
+        <div class="survey-notice-icon">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+        </div>
+        <div class="survey-notice-title">
+            @(isEn ? "Survey unavailable" : "Survey không khả dụng")
+        </div>
+        <div class="survey-notice-msg">@Model.Error</div>
+        <a href="/Home" class="btn btn-outline-secondary mt-3">
+            @(isEn ? "Back to Home" : "Về trang chủ")
+        </a>
+    </div>
+}
+else if (Model?.Survey == null || questions.Count == 0)
+{
+    <div class="survey-notice">
+        <div class="survey-notice-icon"><i class="bi bi-exclamation-circle"></i></div>
+        <div class="survey-notice-msg">
+            @(isEn ? "Survey has no questions." : "Survey chưa có câu hỏi.")
+        </div>
+    </div>
+}
+else
+{
+    <div class="survey-container" id="surveyContainer"
+         data-survey-id="@surveyId"
+         data-survey-type="@Model.Survey.SURVEY_TYPE"
+         data-lang="@Model.Survey.LANG"
+         data-total="@questions.Count">
+
+        <!-- ── Header ── -->
+        <header class="survey-header">
+            <div class="survey-title" title="@Model.Survey.TITLE">@Model.Survey.TITLE</div>
+            <button type="button" class="btn-illiterate" id="btnIlliterate"
+                    title="@(isEn ? "I can't read" : "Tôi không biết chữ")">
+                <i class="bi bi-person-exclamation"></i>
+                <span>@(isEn ? "I can't read" : "Không biết chữ")</span>
+            </button>
+        </header>
+
+        <div class="survey-progress">
+            <div class="survey-progress-bar" id="progressBar" style="width: 0%"></div>
+        </div>
+        <div class="survey-progress-text">
+            <span id="progressText">1 / @questions.Count</span>
+        </div>
+
+        <!-- ── Question wrapper (JS render 1 câu / lần) ── -->
+        <main class="survey-body">
+            <div id="questionWrapper"></div>
+        </main>
+
+        <!-- ── Footer nav ── -->
+        <footer class="survey-footer">
+            <button type="button" class="btn btn-outline-secondary" id="btnBack" disabled>
+                <i class="bi bi-chevron-left"></i>
+                <span>@(isEn ? "Back" : "Quay lại")</span>
+            </button>
+            <button type="button" class="btn btn-primary" id="btnNext" disabled>
+                <span id="btnNextLabel">@(isEn ? "Next" : "Tiếp theo")</span>
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </footer>
+    </div>
+
+    <!-- ── Modal xác nhận "Tôi không biết chữ" ── -->
+    <div class="survey-modal" id="modalIlliterate">
+        <div class="survey-modal-content">
+            <div class="survey-modal-title">
+                @(isEn ? "Confirm illiteracy" : "Xác nhận không biết chữ")
+            </div>
+            <div class="survey-modal-body">
+                @if (isEn)
+                {
+                    <p>You confirm that you cannot read and do not need to complete the survey?</p>
+                    <p>HR will note this. Future surveys will be <b>automatically skipped</b> for you.</p>
+                    <p>You are responsible for this choice.</p>
+                }
+                else
+                {
+                    <p>Bạn xác nhận không biết chữ để không cần làm survey?</p>
+                    <p>Phòng nhân sự sẽ lưu ý lại và các survey sau bạn sẽ được <b>miễn tự động</b>.</p>
+                    <p>Bạn phải chịu trách nhiệm với lựa chọn này.</p>
+                }
+            </div>
+            <div class="survey-modal-actions">
+                <button type="button" class="btn btn-outline-secondary" data-close="modalIlliterate">
+                    @(isEn ? "Cancel" : "Huỷ")
+                </button>
+                <button type="button" class="btn btn-danger" id="btnIlliterateConfirm">
+                    @(isEn ? "Confirm" : "Xác nhận")
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Modal xác nhận Submit ── -->
+    <div class="survey-modal" id="modalSubmit">
+        <div class="survey-modal-content">
+            <div class="survey-modal-title">
+                @(isEn ? "Submit survey?" : "Gửi survey?")
+            </div>
+            <div class="survey-modal-body">
+                @if (isQuiz)
+                {
+                    <p>@(isEn ? "Once submitted you cannot redo this quiz." : "Sau khi nộp bạn không thể làm lại bài trắc nghiệm này.")</p>
+                }
+                else
+                {
+                    <p>@(isEn ? "Thank you for your feedback." : "Cảm ơn bạn đã tham gia khảo sát.")</p>
+                }
+            </div>
+            <div class="survey-modal-actions">
+                <button type="button" class="btn btn-outline-secondary" data-close="modalSubmit">
+                    @(isEn ? "Cancel" : "Huỷ")
+                </button>
+                <button type="button" class="btn btn-primary" id="btnSubmitConfirm">
+                    @(isEn ? "Submit" : "Gửi")
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Modal kết quả (sau submit) ── -->
+    <div class="survey-modal" id="modalResult">
+        <div class="survey-modal-content">
+            <div class="survey-modal-title" id="resultTitle"></div>
+            <div class="survey-modal-body" id="resultBody"></div>
+            <div class="survey-modal-actions">
+                <a href="/Home" class="btn btn-primary">
+                    @(isEn ? "Go home" : "Về trang chủ")
+                </a>
+            </div>
+        </div>
+    </div>
+
+    @* Anti-forgery token dùng cho POST AJAX *@
+    <form id="antiForgeryForm">@Html.AntiForgeryToken()</form>
+
+    @section Scripts {
+        <script>
+            window.SURVEY_DATA = {
+                surveyId: @surveyId,
+                type:     @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.Survey.SURVEY_TYPE)),
+                lang:     @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.Survey.LANG)),
+                questions:@Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(questions)),
+                answers:  @Html.Raw(answersJson)
+            };
+        </script>
+        <script src="~/assets/js/survey.js" asp-append-version="true"></script>
+    }
+}

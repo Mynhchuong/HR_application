@@ -53,6 +53,18 @@ builder.Services.AddScoped<HR_api.Services.HomeService>();
 builder.Services.AddScoped<HR_api.Services.HomeMyCalendarService>();
 builder.Services.AddScoped<HR_api.Services.HomeAdminService>();
 
+// ============================================================
+// Survey — HR gửi khảo sát / trắc nghiệm cho NV
+// ============================================================
+builder.Services.AddScoped<HR_api.Services.SurveyAdminService>();
+builder.Services.AddScoped<HR_api.Services.SurveyService>();
+builder.Services.AddScoped<HR_api.Services.SurveyScopeService>();
+builder.Services.AddScoped<HR_api.Services.SurveyRecipientService>();
+builder.Services.AddScoped<HR_api.Services.SurveyScoreService>();
+builder.Services.AddScoped<HR_api.Services.SurveyExemptService>();
+builder.Services.AddScoped<HR_api.Services.SurveyReportService>();
+builder.Services.AddHostedService<HR_api.HostedServices.SurveyLifecycleService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>

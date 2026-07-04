@@ -1,0 +1,378 @@
+/* ══════════════════════════════════════════════════════════════
+   SURVEY — Trang làm survey mobile-first.
+   Layout: 1 câu / 1 màn hình, full width, không sidebar.
+   Palette bám sát site.css hiện tại (indigo-500 #6366f1).
+   ══════════════════════════════════════════════════════════════ */
+
+:root {
+    --sv-primary:      #6366f1;
+    --sv-primary-dark: #4f46e5;
+    --sv-bg:           #f8fafc;
+    --sv-card-bg:      #ffffff;
+    --sv-border:       #e5e7eb;
+    --sv-text:         #1e293b;
+    --sv-text-muted:   #64748b;
+    --sv-danger:       #ef4444;
+    --sv-success:      #10b981;
+    --sv-warning:      #f59e0b;
+}
+
+body {
+    background: var(--sv-bg) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 100vh;
+}
+
+/* ─── Container ─────────────────────────────────────── */
+.survey-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    max-width: 720px;
+    margin: 0 auto;
+    background: var(--sv-card-bg);
+    box-shadow: 0 0 0 1px var(--sv-border);
+}
+
+/* ─── Header ─────────────────────────────────────── */
+.survey-header {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, var(--sv-primary), var(--sv-primary-dark));
+    color: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+.survey-title {
+    flex: 1;
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.btn-illiterate {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .4rem .7rem;
+    background: rgba(255, 255, 255, .18);
+    border: 1px solid rgba(255, 255, 255, .35);
+    color: #fff;
+    border-radius: 6px;
+    font-size: .82rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.btn-illiterate:hover { background: rgba(255, 255, 255, .28); }
+.btn-illiterate i { font-size: 1rem; }
+
+/* ─── Progress bar ─────────────────────────────────────── */
+.survey-progress {
+    height: 4px;
+    background: var(--sv-border);
+    position: relative;
+    overflow: hidden;
+}
+.survey-progress-bar {
+    height: 100%;
+    background: var(--sv-primary);
+    transition: width .3s ease;
+}
+.survey-progress-text {
+    text-align: center;
+    padding: .5rem;
+    font-size: .82rem;
+    color: var(--sv-text-muted);
+    background: var(--sv-bg);
+    border-bottom: 1px solid var(--sv-border);
+}
+
+/* ─── Body / Question ─────────────────────────────────────── */
+.survey-body {
+    flex: 1;
+    padding: 1.5rem 1.25rem 6rem;   /* padding bottom để chừa cho footer sticky */
+    overflow-y: auto;
+}
+
+.sv-question {
+    animation: sv-fade-in .3s ease;
+}
+@keyframes sv-fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.sv-question-text {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--sv-text);
+    margin-bottom: 1.25rem;
+    line-height: 1.4;
+}
+.sv-question-required {
+    color: var(--sv-danger);
+    margin-left: .25rem;
+}
+.sv-question-hint {
+    font-size: .85rem;
+    color: var(--sv-text-muted);
+    margin-bottom: 1rem;
+}
+
+/* ─── Options (SINGLE / MULTI / YESNO / DROPDOWN) ─── */
+.sv-options {
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+}
+.sv-option {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: 1rem 1.15rem;
+    border: 2px solid var(--sv-border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all .15s ease;
+    background: #fff;
+    user-select: none;
+}
+.sv-option:hover  { border-color: var(--sv-primary); background: #f5f5ff; }
+.sv-option.active { border-color: var(--sv-primary); background: #eef2ff; box-shadow: 0 0 0 3px rgba(99, 102, 241, .12); }
+.sv-option-marker {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--sv-border);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s ease;
+}
+.sv-option.active .sv-option-marker {
+    border-color: var(--sv-primary);
+    background: var(--sv-primary);
+}
+.sv-option.active .sv-option-marker::after {
+    content: '';
+    width: 8px; height: 8px;
+    background: #fff;
+    border-radius: 50%;
+}
+.sv-option[data-multi="1"] .sv-option-marker { border-radius: 4px; }
+.sv-option[data-multi="1"].active .sv-option-marker::after {
+    width: 12px; height: 12px;
+    background: none;
+    content: '✓';
+    color: #fff;
+    font-size: .85rem;
+    font-weight: 700;
+}
+.sv-option-text { flex: 1; font-size: 1rem; color: var(--sv-text); }
+
+/* ─── Rating (1..5 sao) ─────────────────────────────── */
+.sv-rating {
+    display: flex;
+    gap: .5rem;
+    justify-content: center;
+    padding: 1rem 0;
+}
+.sv-star {
+    font-size: 2.5rem;
+    color: var(--sv-border);
+    cursor: pointer;
+    transition: transform .1s ease, color .1s ease;
+}
+.sv-star:hover        { transform: scale(1.15); }
+.sv-star.filled       { color: var(--sv-warning); }
+.sv-rating-label {
+    text-align: center;
+    color: var(--sv-text-muted);
+    margin-top: .5rem;
+    font-size: .9rem;
+    min-height: 1.2em;
+}
+
+/* ─── Text answer ─────────────────────────────── */
+.sv-textarea {
+    width: 100%;
+    min-height: 140px;
+    border: 2px solid var(--sv-border);
+    border-radius: 10px;
+    padding: .85rem 1rem;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+    outline: none;
+    transition: border-color .15s ease;
+}
+.sv-textarea:focus { border-color: var(--sv-primary); }
+.sv-char-count {
+    text-align: right;
+    font-size: .8rem;
+    color: var(--sv-text-muted);
+    margin-top: .35rem;
+}
+.sv-char-count.warn { color: var(--sv-danger); }
+
+/* ─── Dropdown ─────────────────────────────── */
+.sv-dropdown {
+    width: 100%;
+    padding: .85rem 1rem;
+    border: 2px solid var(--sv-border);
+    border-radius: 10px;
+    font-size: 1rem;
+    background: #fff;
+    outline: none;
+    cursor: pointer;
+}
+.sv-dropdown:focus { border-color: var(--sv-primary); }
+
+/* ─── Footer nav ─────────────────────────────── */
+.survey-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: 720px;
+    margin: 0 auto;
+    display: flex;
+    gap: .75rem;
+    padding: 1rem 1.25rem;
+    background: #fff;
+    border-top: 1px solid var(--sv-border);
+    z-index: 5;
+}
+.survey-footer .btn {
+    flex: 1;
+    padding: .75rem 1rem;
+    font-size: 1rem;
+    font-weight: 500;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+}
+.survey-footer .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ─── Modal ─────────────────────────────── */
+.survey-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, .5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 1rem;
+}
+.survey-modal.show { display: flex; }
+.survey-modal-content {
+    background: #fff;
+    border-radius: 12px;
+    max-width: 460px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, .2);
+    animation: sv-modal-in .2s ease;
+}
+@keyframes sv-modal-in {
+    from { opacity: 0; transform: scale(.95); }
+    to   { opacity: 1; transform: scale(1); }
+}
+.survey-modal-title {
+    padding: 1.15rem 1.25rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-bottom: 1px solid var(--sv-border);
+}
+.survey-modal-body {
+    padding: 1.25rem;
+    color: var(--sv-text);
+    line-height: 1.5;
+}
+.survey-modal-body p { margin: 0 0 .75rem; }
+.survey-modal-body p:last-child { margin-bottom: 0; }
+.survey-modal-actions {
+    padding: 1rem 1.25rem;
+    display: flex;
+    gap: .5rem;
+    justify-content: flex-end;
+    border-top: 1px solid var(--sv-border);
+    background: var(--sv-bg);
+    border-radius: 0 0 12px 12px;
+}
+.survey-modal-actions .btn { min-width: 100px; }
+
+/* ─── Result modal (Quiz điểm / Pass-Fail) ─────────── */
+.sv-result-score {
+    text-align: center;
+    padding: 1.5rem 0 1rem;
+}
+.sv-result-score-value {
+    font-size: 3rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--sv-primary);
+}
+.sv-result-score-max {
+    color: var(--sv-text-muted);
+    font-size: 1rem;
+    font-weight: 400;
+}
+.sv-result-badge {
+    display: inline-block;
+    margin-top: .75rem;
+    padding: .35rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: .95rem;
+}
+.sv-result-badge.pass { background: #d1fae5; color: #047857; }
+.sv-result-badge.fail { background: #fee2e2; color: #b91c1c; }
+
+/* ─── Notice (error / no questions) ─────────── */
+.survey-notice {
+    max-width: 480px;
+    margin: 4rem auto 2rem;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .05);
+}
+.survey-notice-icon i {
+    font-size: 3rem;
+    color: var(--sv-warning);
+}
+.survey-notice-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 1rem 0 .5rem;
+    color: var(--sv-text);
+}
+.survey-notice-msg {
+    color: var(--sv-text-muted);
+    line-height: 1.5;
+}
+
+/* ─── Responsive ─────────────────────────────── */
+@media (max-width: 480px) {
+    .survey-header       { padding: .85rem 1rem; }
+    .survey-title        { font-size: .95rem; }
+    .btn-illiterate span { display: none; }   /* chỉ giữ icon ở màn nhỏ */
+    .survey-body         { padding: 1.25rem 1rem 6rem; }
+    .sv-question-text    { font-size: 1.05rem; }
+    .sv-option           { padding: .85rem 1rem; }
+    .survey-footer       { padding: .85rem 1rem; }
+}

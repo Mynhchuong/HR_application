@@ -1,0 +1,235 @@
+@model HR_web.Models.Survey.SurveyModel
+@{
+    var isNew = (bool)(ViewBag.IsNew ?? true);
+    ViewData["Title"] = isNew ? "Tạo Survey" : "Sửa Survey";
+    var depts   = ViewBag.Depts as List<HR_web.Models.DropdownModel> ?? new();
+}
+
+@section Styles {
+    <link href="~/assets/css/survey-admin.css" rel="stylesheet" asp-append-version="true" />
+}
+
+<div class="container-fluid py-3">
+    <div class="card">
+        <div class="card-header sa-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold">
+                <i class="bi bi-@(isNew ? "plus-circle" : "pencil-square") me-2"></i>
+                @(isNew ? "Tạo Survey mới" : $"Sửa Survey #{Model.ID}")
+            </span>
+            <a href="@Url.Action("Index")" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Quay lại
+            </a>
+        </div>
+
+        <div class="card-body p-0">
+            <!-- Wizard step indicator -->
+            <div class="sa-wizard-steps">
+                <div class="sa-step active" data-step="1">
+                    <div class="sa-step-num">1</div>
+                    <div class="sa-step-label">Loại + Ngôn ngữ</div>
+                </div>
+                <div class="sa-step-line"></div>
+                <div class="sa-step" data-step="2">
+                    <div class="sa-step-num">2</div>
+                    <div class="sa-step-label">Câu hỏi</div>
+                </div>
+                <div class="sa-step-line"></div>
+                <div class="sa-step" data-step="3">
+                    <div class="sa-step-num">3</div>
+                    <div class="sa-step-label">Phạm vi</div>
+                </div>
+                <div class="sa-step-line"></div>
+                <div class="sa-step" data-step="4">
+                    <div class="sa-step-num">4</div>
+                    <div class="sa-step-label">Thời gian</div>
+                </div>
+            </div>
+
+            <div class="p-4">
+                <!-- ── Step 1 ──────────────────────── -->
+                <div class="sa-panel" data-panel="1">
+                    <h6 class="sa-panel-title">Chọn loại survey và ngôn ngữ</h6>
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="sa-label">Loại</label>
+                            <div class="d-flex gap-2 mt-1">
+                                <label class="sa-radio-card @(Model.SURVEY_TYPE == "POLL" ? "active" : "")">
+                                    <input type="radio" name="SURVEY_TYPE" value="POLL" @(Model.SURVEY_TYPE == "POLL" ? "checked" : "") />
+                                    <div class="sa-radio-title">📋 POLL</div>
+                                    <div class="sa-radio-desc">Khảo sát, không chấm điểm</div>
+                                </label>
+                                <label class="sa-radio-card @(Model.SURVEY_TYPE == "QUIZ" ? "active" : "")">
+                                    <input type="radio" name="SURVEY_TYPE" value="QUIZ" @(Model.SURVEY_TYPE == "QUIZ" ? "checked" : "") />
+                                    <div class="sa-radio-title">🎯 QUIZ</div>
+                                    <div class="sa-radio-desc">Trắc nghiệm có điểm</div>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="sa-label">Ngôn ngữ <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-2 mt-1">
+                                <label class="sa-radio-card @(Model.LANG == "VI" ? "active" : "") @(isNew ? "" : "disabled")">
+                                    <input type="radio" name="LANG" value="VI" @(Model.LANG == "VI" ? "checked" : "") @(isNew ? "" : "disabled") />
+                                    <div class="sa-radio-title">🇻🇳 Tiếng Việt</div>
+                                </label>
+                                <label class="sa-radio-card @(Model.LANG == "EN" ? "active" : "") @(isNew ? "" : "disabled")">
+                                    <input type="radio" name="LANG" value="EN" @(Model.LANG == "EN" ? "checked" : "") @(isNew ? "" : "disabled") />
+                                    <div class="sa-radio-title">🌐 English</div>
+                                </label>
+                            </div>
+                            @if (!isNew)
+                            {
+                                <div class="form-text text-warning">Không đổi được LANG sau khi tạo.</div>
+                            }
+                        </div>
+
+                        <div class="col-12">
+                            <label class="sa-label">Tiêu đề <span class="text-danger">*</span></label>
+                            <input type="text" id="fTitle" class="form-control" maxlength="300"
+                                   value="@Model.TITLE" placeholder="VD: Khảo sát mức độ hài lòng Quý 1..." />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="sa-label">Mô tả</label>
+                            <textarea id="fDescription" class="form-control" rows="3" maxlength="2000"
+                                      placeholder="Mô tả ngắn cho survey (tuỳ chọn)">@Model.DESCRIPTION</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Step 2 ──────────────────────── -->
+                <div class="sa-panel d-none" data-panel="2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="sa-panel-title mb-0">Danh sách câu hỏi</h6>
+                        <div class="sa-quiz-info d-none">
+                            Tổng điểm: <span id="totalPoints">0</span>
+                        </div>
+                    </div>
+
+                    <div id="questionList"></div>
+                    <button type="button" class="btn btn-outline-primary btn-sm w-100 mt-2" id="btnAddQuestion">
+                        <i class="bi bi-plus-lg"></i> Thêm câu hỏi
+                    </button>
+                </div>
+
+                <!-- ── Step 3 ──────────────────────── -->
+                <div class="sa-panel d-none" data-panel="3">
+                    <h6 class="sa-panel-title">Phạm vi người nhận</h6>
+                    <div class="row g-2">
+                        @foreach (var (val, name, desc) in new[] {
+                            ("ALL", "Toàn công ty", "Gửi cho tất cả nhân viên active"),
+                            ("DEPT_LINE_WORK", "Theo Dept/Line/Work", "Chọn phòng ban, ca, tổ"),
+                            ("EMPCD_LIST", "Danh sách EmpCD", "Paste hoặc nhập từng mã thẻ"),
+                            ("MIXED", "Kết hợp", "Union scope + EmpCD list"),
+                        })
+                        {
+                            <div class="col-12 col-md-6 col-lg-3">
+                                <label class="sa-radio-card w-100 @(Model.RECIPIENT_MODE == val ? "active" : "")">
+                                    <input type="radio" name="RECIPIENT_MODE" value="@val" @(Model.RECIPIENT_MODE == val ? "checked" : "") />
+                                    <div class="sa-radio-title">@name</div>
+                                    <div class="sa-radio-desc">@desc</div>
+                                </label>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Dept/Line/Work builder -->
+                    <div id="scopeDLW" class="sa-scope-block mt-3 d-none">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="fw-semibold">Danh sách scope Dept/Line/Work</div>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddScopeDLW">
+                                <i class="bi bi-plus-lg"></i> Thêm dòng
+                            </button>
+                        </div>
+                        <div id="scopeDLWList"></div>
+                    </div>
+
+                    <!-- EMPCD list -->
+                    <div id="scopeEMPCD" class="sa-scope-block mt-3 d-none">
+                        <label class="sa-label">Danh sách mã thẻ (mỗi mã 1 dòng hoặc phân cách bằng dấu phẩy)</label>
+                        <textarea id="fEmpcdList" class="form-control" rows="6"
+                                  placeholder="12345678&#10;23456789,34567890"></textarea>
+                    </div>
+                </div>
+
+                <!-- ── Step 4 ──────────────────────── -->
+                <div class="sa-panel d-none" data-panel="4">
+                    <h6 class="sa-panel-title">Thời gian và điểm đậu</h6>
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="sa-label">Ngày bắt đầu <span class="text-danger">*</span></label>
+                            <input type="date" id="fStartDate" class="form-control"
+                                   value="@Model.START_DATE?.ToString("yyyy-MM-dd")" />
+                            <div class="form-text">Active từ 00:00 ngày bắt đầu.</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="sa-label">Ngày kết thúc <span class="text-danger">*</span></label>
+                            <input type="date" id="fEndDate" class="form-control"
+                                   value="@Model.END_DATE?.ToString("yyyy-MM-dd")" />
+                            <div class="form-text">Tới 23:59 ngày kết thúc.</div>
+                        </div>
+                        <div class="col-12 col-md-6" id="passScoreWrap" style="display:none">
+                            <label class="sa-label">Điểm đậu (PASS_SCORE) <span class="text-danger">*</span></label>
+                            <input type="number" id="fPassScore" class="form-control" min="0" step="0.5"
+                                   value="@Model.PASS_SCORE" placeholder="VD: 70" />
+                            <div class="form-text">
+                                So sánh với tổng POINTS. Tổng hiện tại: <span id="passScoreHintTotal">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer nav wizard -->
+                <div class="sa-wizard-footer mt-4">
+                    <button type="button" class="btn btn-outline-secondary" id="btnPrev" disabled>
+                        <i class="bi bi-chevron-left"></i> Trước
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-primary" id="btnSaveDraft">
+                            <i class="bi bi-save"></i> Lưu nháp
+                        </button>
+                        <button type="button" class="btn btn-primary d-none" id="btnPublish">
+                            <i class="bi bi-upload"></i> Publish
+                        </button>
+                        <button type="button" class="btn btn-primary" id="btnNext">
+                            Tiếp <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Template row Dept/Line/Work (dùng bởi JS clone) -->
+<template id="tmplScopeDLW">
+    <div class="sa-dlw-row d-flex gap-2 mb-2">
+        <select class="form-select form-select-sm dlw-dept">
+            <option value="">Chọn Dept...</option>
+            @foreach (var d in depts)
+            {
+                <option value="@d.id">@d.text</option>
+            }
+        </select>
+        <select class="form-select form-select-sm dlw-line">
+            <option value="">(Tuỳ chọn) Line</option>
+        </select>
+        <select class="form-select form-select-sm dlw-work">
+            <option value="">(Tuỳ chọn) Work</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-outline-danger btn-del-dlw"><i class="bi bi-x"></i></button>
+    </div>
+</template>
+
+<form id="antiForgeryForm">@Html.AntiForgeryToken()</form>
+
+@section Scripts {
+    <script>
+        window.SURVEY_EDIT = {
+            id:      @(Model.ID),
+            isNew:   @(isNew.ToString().ToLower()),
+            initial: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model)),
+        };
+    </script>
+    <script src="~/assets/js/survey-admin.js" asp-append-version="true"></script>
+}

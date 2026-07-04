@@ -157,6 +157,34 @@ public class NotificationService
         });
 
     // ═══════════════════════════════════════════════════════════════
+    //  SURVEY
+    // ═══════════════════════════════════════════════════════════════
+
+    // Broadcast khi survey chuyển SCHEDULED → ACTIVE.
+    // Client filter recipient theo HR_SURVEY_RECIPIENT (pattern giống Bulletin).
+    public void SurveyPublished(int surveyId, string title, string createdBy)
+        => FireAndForget(async () =>
+        {
+            string shortTitle = title.Length > 50 ? title.Substring(0, 50) + "…" : title;
+            var ph = new Dictionary<string, string> { ["surveyTitle"] = shortTitle };
+
+            var (titleVi, bodyVi, titleEn, bodyEn) =
+                await _helper.GetTemplateAsync("SURVEY_NEW", ph);
+
+            await _helper.SendNotificationAsync(new SendNotificationRequest
+            {
+                TITLE       = titleVi,
+                BODY        = bodyVi,
+                TITLE_EN    = titleEn,
+                BODY_EN     = bodyEn,
+                NOTI_TYPE   = "SURVEY",
+                TARGET_VAL  = surveyId.ToString(),
+                LINK_ACTION = "SURVEY",
+                CREATED_BY  = createdBy
+            });
+        });
+
+    // ═══════════════════════════════════════════════════════════════
     //  HELPERS
     // ═══════════════════════════════════════════════════════════════
 

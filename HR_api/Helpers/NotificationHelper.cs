@@ -393,6 +393,16 @@ public class NotificationHelper
                     r => r["TOKEN"]?.ToString() ?? "",
                     new OracleParameter("VAL", targetVal)),
 
+                // SURVEY: chỉ push tới người trong HR_SURVEY_RECIPIENT snapshot
+                "SURVEY" when !string.IsNullOrEmpty(targetVal) && int.TryParse(targetVal, out var sid)
+                    => await _oracleService.ExecuteQueryAsync(@"
+                    SELECT T.TOKEN
+                      FROM HRMS.HR_USER_TOKENS T
+                      JOIN HRMS.HR_SURVEY_RECIPIENT R ON R.EMPCD = T.EMPCD
+                     WHERE R.SURVEY_ID = :VAL",
+                    r => r["TOKEN"]?.ToString() ?? "",
+                    new OracleParameter("VAL", sid)),
+
                 _ => new()
             };
         }

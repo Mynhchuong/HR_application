@@ -1,0 +1,241 @@
+@model HR_web.Models.Survey.SurveyReportViewModel
+@{
+    var o = Model.Overview!;
+    ViewData["Title"] = "Report: " + o.TITLE;
+    var isQuiz = o.SURVEY_TYPE == "QUIZ";
+    var quiz   = Model.Quiz;
+    var total  = Math.Max(o.TOTAL_RECIPIENTS, 1);
+
+    string Pct(int part) => Math.Round(part * 100.0 / total, 1) + "%";
+}
+
+@section Styles {
+    <link href="~/assets/css/survey-admin.css" rel="stylesheet" asp-append-version="true" />
+}
+
+<div class="container-fluid py-3">
+    <div class="card">
+        <div class="card-header sa-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="fw-bold">
+                <i class="bi bi-bar-chart-fill me-2"></i>
+                Report — @o.TITLE
+            </span>
+            <div class="d-flex gap-2">
+                <a href="@Url.Action("ReportExport", new { id = o.SURVEY_ID, type = "overview" })"
+                   class="btn btn-sm btn-outline-success">
+                    <i class="bi bi-file-earmark-excel me-1"></i>Excel Overview
+                </a>
+                @if (isQuiz)
+                {
+                    <a href="@Url.Action("ReportExport", new { id = o.SURVEY_ID, type = "quiz" })"
+                       class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Excel Quiz
+                    </a>
+                }
+                <a href="@Url.Action("Index")" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Quay lại
+                </a>
+            </div>
+        </div>
+
+        <div class="card-body p-3">
+            <!-- Summary boxes -->
+            <div class="row g-3 mb-3">
+                <div class="col-6 col-md-2">
+                    <div class="sa-stat">
+                        <div class="sa-stat-value">@o.TOTAL_RECIPIENTS</div>
+                        <div class="sa-stat-label">Người nhận</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="sa-stat sa-stat-success">
+                        <div class="sa-stat-value">@o.SUBMITTED_COUNT</div>
+                        <div class="sa-stat-label">Đã nộp (@Pct(o.SUBMITTED_COUNT))</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="sa-stat sa-stat-warning">
+                        <div class="sa-stat-value">@o.AUTO_SUBMIT_COUNT</div>
+                        <div class="sa-stat-label">Auto-submit (@Pct(o.AUTO_SUBMIT_COUNT))</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="sa-stat sa-stat-info">
+                        <div class="sa-stat-value">@o.IN_PROGRESS_COUNT</div>
+                        <div class="sa-stat-label">Đang làm (@Pct(o.IN_PROGRESS_COUNT))</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="sa-stat sa-stat-danger">
+                        <div class="sa-stat-value">@o.ILLITERATE_COUNT</div>
+                        <div class="sa-stat-label">Mù chữ (@Pct(o.ILLITERATE_COUNT))</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="sa-stat">
+                        <div class="sa-stat-value">@o.NOT_STARTED_COUNT</div>
+                        <div class="sa-stat-label">Chưa làm (@Pct(o.NOT_STARTED_COUNT))</div>
+                    </div>
+                </div>
+            </div>
+
+            @* Quiz summary *@
+            @if (isQuiz && quiz != null)
+            {
+                <div class="card mb-3">
+                    <div class="card-header sa-header fw-bold">
+                        <i class="bi bi-trophy me-2"></i>Quiz result
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <div class="sa-stat sa-stat-info">
+                                    <div class="sa-stat-value">@quiz.AVG_SCORE</div>
+                                    <div class="sa-stat-label">Điểm trung bình</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="sa-stat sa-stat-success">
+                                    <div class="sa-stat-value">@quiz.PASS_COUNT</div>
+                                    <div class="sa-stat-label">Pass</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="sa-stat sa-stat-danger">
+                                    <div class="sa-stat-value">@quiz.FAIL_COUNT</div>
+                                    <div class="sa-stat-label">Fail</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm sa-table align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>EmpCd</th><th>Họ tên</th><th>Dept/Line/Work</th>
+                                        <th>Điểm</th><th>Pass/Fail</th><th>Nộp lúc</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var u in quiz.USERS)
+                                    {
+                                        <tr>
+                                            <td>@u.EMPCD</td>
+                                            <td>@u.FULL_NAME</td>
+                                            <td class="text-muted small">@u.DEPTCD / @u.LINECD / @u.WORKCD</td>
+                                            <td class="fw-semibold">@u.SCORE / @u.MAX_SCORE</td>
+                                            <td>
+                                                @if (u.IS_PASS == 1)
+                                                {
+                                                    <span class="sv-result-badge pass">PASS</span>
+                                                }
+                                                else if (u.IS_PASS == 0)
+                                                {
+                                                    <span class="sv-result-badge fail">FAIL</span>
+                                                }
+                                            </td>
+                                            <td>@(u.SUBMIT_DT?.ToString("dd/MM HH:mm") ?? "")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Per-question -->
+            <h5 class="mt-4 mb-3"><i class="bi bi-list-check me-2"></i>Chi tiết theo câu hỏi</h5>
+            @foreach (var q in o.QUESTIONS)
+            {
+                <div class="card mb-3 sa-question-report">
+                    <div class="card-body">
+                        <div class="fw-semibold mb-2">
+                            <span class="sa-question-num">@q.DISPLAY_ORDER</span>
+                            @q.QUESTION_TEXT
+                            <span class="badge bg-secondary ms-1">@q.QUESTION_TYPE</span>
+                            @if (isQuiz && q.POINTS > 0)
+                            {
+                                <span class="badge bg-info">@q.POINTS đ</span>
+                            }
+                        </div>
+
+                        @if (q.OPTIONS != null && q.OPTIONS.Any())
+                        {
+                            var maxCnt = q.OPTIONS.Max(o => o.COUNT);
+                            <div class="sa-answer-bars">
+                                @foreach (var op in q.OPTIONS)
+                                {
+                                    var pct = maxCnt > 0 ? (op.COUNT * 100 / Math.Max(maxCnt, 1)) : 0;
+                                    <div class="sa-answer-bar-row">
+                                        <div class="sa-answer-bar-label">@op.OPTION_TEXT</div>
+                                        <div class="sa-answer-bar-wrap">
+                                            <div class="sa-answer-bar" style="width: @(pct)%"></div>
+                                        </div>
+                                        <div class="sa-answer-bar-value">@op.COUNT</div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else if (q.RATING_DIST != null)
+                        {
+                            var maxDist = q.RATING_DIST.Max();
+                            <div class="sa-answer-bars">
+                                @for (int i = 0; i < 5; i++)
+                                {
+                                    var pct = maxDist > 0 ? (q.RATING_DIST[i] * 100 / Math.Max(maxDist, 1)) : 0;
+                                    <div class="sa-answer-bar-row">
+                                        <div class="sa-answer-bar-label">@(i + 1) ⭐</div>
+                                        <div class="sa-answer-bar-wrap">
+                                            <div class="sa-answer-bar sa-answer-bar-star" style="width: @(pct)%"></div>
+                                        </div>
+                                        <div class="sa-answer-bar-value">@q.RATING_DIST[i]</div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else if (q.QUESTION_TYPE == "TEXT")
+                        {
+                            <div class="text-muted small mb-2">
+                                @q.TEXT_COUNT câu trả lời.
+                                <button type="button" class="btn btn-sm btn-outline-secondary sa-load-text" data-qid="@q.QUESTION_ID">
+                                    <i class="bi bi-eye"></i> Xem chi tiết
+                                </button>
+                            </div>
+                            <div class="sa-text-answers d-none" data-qid="@q.QUESTION_ID"></div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+document.querySelectorAll('.sa-load-text').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const qid  = btn.dataset.qid;
+        const $box = document.querySelector('.sa-text-answers[data-qid="' + qid + '"]');
+        btn.disabled = true;
+        try {
+            const res  = await fetch('/SurveyAdmin/ReportTextAnswers?qid=' + qid + '&page=1');
+            const j    = await res.json();
+            if (!j.success) { alert(j.message || 'Lỗi tải'); return; }
+            $box.classList.remove('d-none');
+            $box.innerHTML = j.data.length === 0
+                ? '<div class="text-muted small">Chưa có câu trả lời</div>'
+                : j.data.map(a => `
+                    <div class="sa-text-answer">
+                        <div class="sa-text-answer-meta">
+                            <b>${a.EMPCD}</b> ${a.FULL_NAME ? '— ' + a.FULL_NAME : ''}
+                            ${a.INST_DT ? '<span class="text-muted small ms-2">' + new Date(a.INST_DT).toLocaleString('vi-VN') + '</span>' : ''}
+                        </div>
+                        <div class="sa-text-answer-body">${(a.ANSWER_TEXT || '').replace(/</g, '&lt;')}</div>
+                    </div>`).join('');
+        } catch (e) { alert('Lỗi kết nối'); }
+        finally { btn.disabled = false; }
+    });
+});
+</script>
+}

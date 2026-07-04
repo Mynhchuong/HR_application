@@ -1,0 +1,300 @@
+@model List<HR_web.Models.Survey.SurveyExemptModel>
+@{
+    ViewData["Title"] = "Blacklist Survey";
+    var depts   = ViewBag.Depts as List<HR_web.Models.DropdownModel> ?? new();
+    var fEmpcd  = ViewBag.FEmpcd  as string;
+    var fType   = ViewBag.FType   as string;
+    var fActive = ViewBag.FActive as int?;
+    var fName   = ViewBag.FName   as string;
+    var fDept   = ViewBag.FDept   as string;
+}
+
+@section Styles {
+    <link href="~/assets/css/survey-admin.css" rel="stylesheet" asp-append-version="true" />
+}
+
+<div class="container-fluid py-3">
+    <div class="card">
+        <div class="card-header sa-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="fw-bold">
+                <i class="bi bi-person-x me-2"></i>Blacklist Survey (mù chữ / no phone)
+            </span>
+            <div class="d-flex gap-2">
+                <a href="@Url.Action("Template")" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-file-earmark-arrow-down"></i> Mẫu Excel
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btnImport">
+                    <i class="bi bi-upload"></i> Import Excel
+                </button>
+                <a href="@Url.Action("Export", new { empcd = fEmpcd, type = fType, isActive = fActive, name = fName, deptcd = fDept })"
+                   class="btn btn-sm btn-outline-success">
+                    <i class="bi bi-file-earmark-excel"></i> Export
+                </a>
+                <button type="button" class="btn btn-sm btn-primary" id="btnAdd">
+                    <i class="bi bi-plus-lg"></i> Thêm
+                </button>
+                <a href="@Url.Action("Index", "SurveyAdmin")" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+            </div>
+        </div>
+
+        <div class="card-body p-3">
+            @if (TempData["SuccessMessage"] != null)
+            { <div class="alert alert-success py-2">@TempData["SuccessMessage"]</div> }
+            @if (TempData["ErrorMessage"] != null)
+            { <div class="alert alert-danger py-2">@TempData["ErrorMessage"]</div> }
+
+            <!-- Filter -->
+            <form method="get" class="row g-2 sa-filter mb-3">
+                <div class="col-6 col-md-2">
+                    <input type="text" name="empcd" value="@fEmpcd" placeholder="EmpCd..." class="form-control form-control-sm" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <input type="text" name="name" value="@fName" placeholder="Tên..." class="form-control form-control-sm" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <select name="type" class="form-select form-select-sm">
+                        <option value="">--- Loại ---</option>
+                        <option value="ILLITERATE" selected="@(fType == "ILLITERATE")">ILLITERATE</option>
+                        <option value="NO_PHONE"   selected="@(fType == "NO_PHONE")">NO_PHONE</option>
+                        <option value="BOTH"       selected="@(fType == "BOTH")">BOTH</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <select name="isActive" class="form-select form-select-sm">
+                        <option value="">--- Active ---</option>
+                        <option value="1" selected="@(fActive == 1)">Active</option>
+                        <option value="0" selected="@(fActive == 0)">Đã tắt</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <select name="deptcd" class="form-select form-select-sm">
+                        <option value="">--- Dept ---</option>
+                        @foreach (var d in depts)
+                        {
+                            <option value="@d.id" selected="@(fDept == d.id)">@d.text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12 col-md-2 d-flex gap-1">
+                    <button type="submit" class="btn btn-sm btn-primary flex-fill">Lọc</button>
+                    <a href="@Url.Action("Index")" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
+                </div>
+            </form>
+
+            <!-- Table -->
+            <div class="table-responsive">
+                <table class="table table-sm sa-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>EmpCd</th><th>Họ tên</th><th>Loại</th>
+                            <th>Ghi chú</th><th>Từ ngày</th><th>Dept/Line/Work</th>
+                            <th>Trạng thái</th><th style="width:120px;">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Any())
+                        {
+                            <tr><td colspan="8" class="text-center text-muted py-4">Không có dữ liệu.</td></tr>
+                        }
+                        else
+                        {
+                            foreach (var e in Model)
+                            {
+                                <tr data-empcd="@e.EMPCD" data-type="@e.EXEMPT_TYPE"
+                                    data-note="@e.NOTE" data-effective="@e.EFFECTIVE_DATE.ToString("yyyy-MM-dd")"
+                                    data-active="@e.IS_ACTIVE">
+                                    <td class="fw-semibold">@e.EMPCD</td>
+                                    <td>@e.FULL_NAME</td>
+                                    <td><span class="badge bg-secondary">@e.EXEMPT_TYPE</span></td>
+                                    <td class="text-muted small">@e.NOTE</td>
+                                    <td>@e.EFFECTIVE_DATE.ToString("dd/MM/yyyy")</td>
+                                    <td class="text-muted small">@e.DEPTCD / @e.LINECD / @e.WORKCD</td>
+                                    <td>
+                                        @if (e.IS_ACTIVE == 1)
+                                        { <span class="badge bg-success">Active</span> }
+                                        else
+                                        { <span class="badge bg-secondary">Off</span> }
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-primary btn-edit" title="Sửa">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-del" title="Tắt">
+                                            <i class="bi bi-power"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Save (Add / Edit) -->
+<div class="modal fade" id="modalEdit" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title" id="modalTitle">Thêm blacklist</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">EmpCd <span class="text-danger">*</span></label>
+                    <input type="text" id="fEmpCd" class="form-control" maxlength="20" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Loại exempt <span class="text-danger">*</span></label>
+                    <select id="fExemptType" class="form-select">
+                        <option value="ILLITERATE">ILLITERATE — Không biết chữ</option>
+                        <option value="NO_PHONE">NO_PHONE — Không có smartphone</option>
+                        <option value="BOTH">BOTH — Cả hai</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Áp dụng từ ngày</label>
+                    <input type="date" id="fEffective" class="form-control" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ghi chú</label>
+                    <textarea id="fNote" class="form-control" rows="2" maxlength="500"></textarea>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="fActive" checked />
+                    <label class="form-check-label" for="fActive">Active</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Huỷ</button>
+                <button type="button" class="btn btn-primary" id="btnSave">Lưu</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Import -->
+<div class="modal fade" id="modalImport" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">Import Excel</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info small">
+                    Cột: EMPCD, EXEMPT_TYPE (ILLITERATE / NO_PHONE / BOTH), NOTE, EFFECTIVE_DATE (yyyy-MM-dd).
+                    Tải mẫu ở nút "Mẫu Excel" phía trên.
+                </div>
+                <input type="file" id="fFile" class="form-control" accept=".xlsx,.xls" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Huỷ</button>
+                <button type="button" class="btn btn-primary" id="btnImportSubmit">Import</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="antiForgeryForm">@Html.AntiForgeryToken()</form>
+
+@section Scripts {
+<script>
+(function () {
+    const TOKEN = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]')?.value ?? '';
+    const modalEdit   = new bootstrap.Modal(document.getElementById('modalEdit'));
+    const modalImport = new bootstrap.Modal(document.getElementById('modalImport'));
+
+    let editMode = 'add';   // 'add' | 'edit'
+    let editOriginal = null;
+
+    function openModal(mode, prefill) {
+        editMode = mode;
+        editOriginal = prefill;
+        document.getElementById('modalTitle').textContent = mode === 'add' ? 'Thêm blacklist' : 'Sửa blacklist';
+        document.getElementById('fEmpCd').value       = prefill?.empcd || '';
+        document.getElementById('fEmpCd').disabled    = mode === 'edit';
+        document.getElementById('fExemptType').value  = prefill?.type || 'ILLITERATE';
+        document.getElementById('fExemptType').disabled = mode === 'edit';
+        document.getElementById('fEffective').value   = prefill?.effective || new Date().toISOString().substring(0,10);
+        document.getElementById('fNote').value        = prefill?.note || '';
+        document.getElementById('fActive').checked    = prefill ? prefill.active === '1' : true;
+        modalEdit.show();
+    }
+
+    document.getElementById('btnAdd').addEventListener('click', () => openModal('add'));
+    document.querySelectorAll('.btn-edit').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tr = btn.closest('tr');
+            openModal('edit', {
+                empcd:     tr.dataset.empcd,
+                type:      tr.dataset.type,
+                note:      tr.dataset.note,
+                effective: tr.dataset.effective,
+                active:    tr.dataset.active,
+            });
+        });
+    });
+
+    document.getElementById('btnSave').addEventListener('click', async () => {
+        const empcd = document.getElementById('fEmpCd').value.trim();
+        const type  = document.getElementById('fExemptType').value;
+        if (!empcd || !type) { alert('Vui lòng nhập EmpCd và Loại'); return; }
+        const eff = document.getElementById('fEffective').value;
+        const payload = {
+            EmpCd:         empcd,
+            ExemptType:    type,
+            Note:          document.getElementById('fNote').value || null,
+            EffectiveDate: eff || null,
+            IsActive:      document.getElementById('fActive').checked ? 1 : 0,
+        };
+        const r = await post('/SurveyExempt/Save', payload);
+        if (r?.success) location.reload();
+        else alert(r?.message || 'Lưu thất bại');
+    });
+
+    document.querySelectorAll('.btn-del').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const tr = btn.closest('tr');
+            if (!confirm(`Tắt blacklist cho ${tr.dataset.empcd} / ${tr.dataset.type}?`)) return;
+            const r = await post('/SurveyExempt/Delete', { EmpCd: tr.dataset.empcd, ExemptType: tr.dataset.type });
+            if (r?.success) location.reload();
+            else alert(r?.message || 'Không tắt được');
+        });
+    });
+
+    document.getElementById('btnImport').addEventListener('click', () => modalImport.show());
+    document.getElementById('btnImportSubmit').addEventListener('click', async () => {
+        const file = document.getElementById('fFile').files[0];
+        if (!file) { alert('Chưa chọn file'); return; }
+
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('__RequestVerificationToken', TOKEN);
+
+        const res = await fetch('/SurveyExempt/Import', { method: 'POST', body: fd });
+        const j   = await res.json();
+        if (j.success) { alert(j.message); location.reload(); }
+        else alert(j.message || 'Import thất bại');
+    });
+
+    async function post(url, body) {
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) return null;
+            return await res.json();
+        } catch { return null; }
+    }
+})();
+</script>
+}

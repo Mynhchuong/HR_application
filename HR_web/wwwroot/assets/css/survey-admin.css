@@ -1,0 +1,344 @@
+/* ══════════════════════════════════════════════════════════════
+   SURVEY-ADMIN — Trang quản lý survey cho HR/Admin.
+   ══════════════════════════════════════════════════════════════ */
+
+:root {
+    --sa-primary:  #6366f1;
+    --sa-primary-2:#4f46e5;
+    --sa-border:   #e5e7eb;
+    --sa-text:     #1e293b;
+    --sa-muted:    #64748b;
+    --sa-bg:       #f8fafc;
+}
+
+/* ─── Card header ─────────────────────────── */
+.sa-header {
+    background: linear-gradient(120deg, #eef2ff, #e0e7ff) !important;
+    border-bottom: 1px solid var(--sa-border) !important;
+}
+
+/* ─── Filter bar ─────────────────────────── */
+.sa-filter .form-select,
+.sa-filter .form-control { border-radius: 6px; }
+
+/* ─── Table ─────────────────────────── */
+.sa-table {
+    font-size: .9rem;
+}
+.sa-table thead th {
+    background: var(--sa-bg);
+    font-size: .8rem;
+    text-transform: uppercase;
+    color: var(--sa-muted);
+    border-bottom: 2px solid var(--sa-border);
+    white-space: nowrap;
+}
+.sa-table tbody td { vertical-align: middle; }
+
+/* Status badges */
+.sa-status {
+    display: inline-block;
+    padding: .2rem .55rem;
+    border-radius: 12px;
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+.sa-status-draft     { background: #f3f4f6; color: #4b5563; }
+.sa-status-scheduled { background: #dbeafe; color: #1e40af; }
+.sa-status-active    { background: #d1fae5; color: #047857; }
+.sa-status-paused    { background: #fef3c7; color: #92400e; }
+.sa-status-expired   { background: #e5e7eb; color: #4b5563; }
+.sa-status-cancelled { background: #fee2e2; color: #b91c1c; }
+.sa-status-deleted   { background: #e5e7eb; color: #6b7280; text-decoration: line-through; }
+
+/* ═════════════════════════════════════════════════════════════
+   WIZARD (Edit.cshtml)
+   ═════════════════════════════════════════════════════════════ */
+
+.sa-wizard-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1.25rem 1rem;
+    background: var(--sa-bg);
+    border-bottom: 1px solid var(--sa-border);
+    overflow-x: auto;
+}
+.sa-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    opacity: .55;
+    cursor: pointer;
+    transition: opacity .2s ease;
+    min-width: 90px;
+}
+.sa-step.active,
+.sa-step.done { opacity: 1; }
+.sa-step-num {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--sa-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #fff;
+    font-size: .95rem;
+}
+.sa-step.active .sa-step-num { background: var(--sa-primary); }
+.sa-step.done .sa-step-num   { background: #10b981; }
+.sa-step-label {
+    font-size: .8rem;
+    font-weight: 500;
+    color: var(--sa-text);
+    text-align: center;
+    white-space: nowrap;
+}
+.sa-step-line {
+    flex: 0 0 40px;
+    height: 2px;
+    background: var(--sa-border);
+}
+
+/* ─── Panel content ─────────────────────────── */
+.sa-panel-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--sa-text);
+}
+.sa-label {
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--sa-muted);
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    margin-bottom: .35rem;
+    display: block;
+}
+
+/* ─── Radio card (loại survey, lang, scope) ─── */
+.sa-radio-card {
+    display: block;
+    padding: 1rem 1.15rem;
+    border: 2px solid var(--sa-border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all .15s ease;
+    background: #fff;
+    text-align: center;
+    flex: 1;
+}
+.sa-radio-card input { display: none; }
+.sa-radio-card:hover      { border-color: var(--sa-primary); }
+.sa-radio-card.active     { border-color: var(--sa-primary); background: #eef2ff; box-shadow: 0 0 0 3px rgba(99, 102, 241, .12); }
+.sa-radio-card.disabled   { opacity: .5; cursor: not-allowed; }
+.sa-radio-title { font-weight: 600; color: var(--sa-text); font-size: 1rem; }
+.sa-radio-desc  { font-size: .78rem; color: var(--sa-muted); margin-top: .25rem; }
+
+/* ─── Question builder (Step 2) ─── */
+.sa-question-card {
+    background: #fff;
+    border: 1px solid var(--sa-border);
+    border-radius: 10px;
+    padding: 1rem 1.15rem;
+    margin-bottom: .85rem;
+}
+.sa-question-header {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: .75rem;
+}
+.sa-question-num {
+    background: var(--sa-primary);
+    color: #fff;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: .85rem;
+    flex-shrink: 0;
+}
+.sa-question-body { display: grid; gap: .5rem; }
+.sa-option-row {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .35rem;
+    background: var(--sa-bg);
+    border-radius: 6px;
+}
+.sa-option-row .form-check-input {
+    margin: 0;
+    flex-shrink: 0;
+}
+
+/* Quiz info banner */
+.sa-quiz-info {
+    background: #eff6ff;
+    color: #1e40af;
+    padding: .4rem .75rem;
+    border-radius: 6px;
+    font-size: .85rem;
+    font-weight: 500;
+}
+
+/* ─── Scope Dept/Line/Work rows ─── */
+.sa-scope-block {
+    padding: 1rem;
+    background: var(--sa-bg);
+    border-radius: 8px;
+    border: 1px solid var(--sa-border);
+}
+
+/* ─── Wizard footer ─── */
+.sa-wizard-footer {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sa-border);
+}
+
+/* ═════════════════════════════════════════════════════════════
+   PREVIEW / TEST banner (Preview.cshtml, TestMode.cshtml)
+   ═════════════════════════════════════════════════════════════ */
+
+.sa-preview-banner {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    color: #fff;
+    padding: .6rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: .85rem;
+}
+.sa-test-banner {
+    background: linear-gradient(90deg, #f59e0b, #ea580c);
+}
+.sa-preview-banner-text b { margin-left: .25rem; }
+.sa-preview-banner .btn { border-color: rgba(255, 255, 255, .5); color: #fff; }
+
+/* ═════════════════════════════════════════════════════════════
+   REPORT — cards summary + bar charts
+   ═════════════════════════════════════════════════════════════ */
+
+.sa-stat {
+    background: #f8fafc;
+    border: 1px solid var(--sa-border);
+    border-radius: 10px;
+    padding: 1rem;
+    text-align: center;
+    height: 100%;
+}
+.sa-stat-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--sa-text);
+    line-height: 1.1;
+}
+.sa-stat-label {
+    font-size: .75rem;
+    color: var(--sa-muted);
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    margin-top: .3rem;
+}
+.sa-stat-success { border-color: #d1fae5; background: #ecfdf5; }
+.sa-stat-warning { border-color: #fef3c7; background: #fffbeb; }
+.sa-stat-danger  { border-color: #fee2e2; background: #fef2f2; }
+.sa-stat-info    { border-color: #dbeafe; background: #eff6ff; }
+
+.sa-question-report {
+    border: 1px solid var(--sa-border);
+    background: #fff;
+}
+.sa-answer-bars {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    margin-top: .5rem;
+}
+.sa-answer-bar-row {
+    display: grid;
+    grid-template-columns: 220px 1fr 60px;
+    align-items: center;
+    gap: .75rem;
+}
+.sa-answer-bar-label {
+    font-size: .88rem;
+    color: var(--sa-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sa-answer-bar-wrap {
+    background: #f1f5f9;
+    height: 22px;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.sa-answer-bar {
+    background: linear-gradient(90deg, var(--sa-primary), var(--sa-primary-2));
+    height: 100%;
+    min-width: 2px;
+    transition: width .3s ease;
+}
+.sa-answer-bar-star { background: linear-gradient(90deg, #f59e0b, #f97316); }
+.sa-answer-bar-value {
+    text-align: right;
+    font-weight: 600;
+    color: var(--sa-muted);
+}
+
+.sa-text-answers {
+    margin-top: .5rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: .5rem;
+    background: #f8fafc;
+    border-radius: 6px;
+}
+.sa-text-answer {
+    padding: .6rem;
+    background: #fff;
+    border-radius: 6px;
+    border: 1px solid var(--sa-border);
+}
+.sa-text-answer-meta {
+    font-size: .82rem;
+    margin-bottom: .3rem;
+}
+.sa-text-answer-body {
+    color: var(--sa-text);
+    white-space: pre-wrap;
+    line-height: 1.4;
+}
+
+.sv-result-badge.pass { background: #d1fae5; color: #047857; padding: .1rem .5rem; border-radius: 12px; font-size: .8rem; font-weight: 600; }
+.sv-result-badge.fail { background: #fee2e2; color: #b91c1c; padding: .1rem .5rem; border-radius: 12px; font-size: .8rem; font-weight: 600; }
+
+/* ═════════════════════════════════════════════════════════════
+   Responsive
+   ═════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .sa-wizard-steps { padding: .85rem .5rem; gap: .5rem; }
+    .sa-step-line    { flex: 0 0 20px; }
+    .sa-step         { min-width: 70px; }
+    .sa-step-label   { font-size: .7rem; }
+    .sa-radio-card   { padding: .75rem .5rem; }
+    .sa-radio-title  { font-size: .9rem; }
+}

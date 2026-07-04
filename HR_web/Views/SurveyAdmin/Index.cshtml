@@ -1,0 +1,200 @@
+@model List<HR_web.Models.Survey.SurveyModel>
+@{
+    ViewData["Title"] = "Quản lý Survey";
+    var fStatus = ViewBag.FilterStatus as string;
+    var fType   = ViewBag.FilterType   as string;
+    var fSearch = ViewBag.FilterSearch as string;
+}
+
+@section Styles {
+    <link href="~/assets/css/survey-admin.css" rel="stylesheet" asp-append-version="true" />
+}
+
+<div class="container-fluid py-3">
+    <div class="card">
+        <div class="card-header sa-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="fw-bold">
+                <i class="bi bi-clipboard2-check-fill me-2"></i>Quản lý Survey
+            </span>
+            <div class="d-flex gap-2">
+                <a href="@Url.Action("Index", "SurveyExempt")" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-person-x me-1"></i>Blacklist
+                </a>
+                <a href="@Url.Action("Edit", "SurveyAdmin")" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus-lg me-1"></i>Tạo mới
+                </a>
+            </div>
+        </div>
+
+        <div class="card-body px-3 pt-2 pb-3">
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success py-2 mb-2">@TempData["SuccessMessage"]</div>
+            }
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger py-2 mb-2">@TempData["ErrorMessage"]</div>
+            }
+
+            <!-- Filter bar -->
+            <form method="get" class="row g-2 sa-filter mb-3">
+                <div class="col-6 col-md-3">
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="">--- Tất cả trạng thái ---</option>
+                        @foreach (var s in new[] { "DRAFT", "SCHEDULED", "ACTIVE", "PAUSED", "EXPIRED", "CANCELLED" })
+                        {
+                            <option value="@s" selected="@(fStatus == s)">@s</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <select name="type" class="form-select form-select-sm">
+                        <option value="">--- Tất cả loại ---</option>
+                        <option value="POLL" selected="@(fType == "POLL")">POLL — Khảo sát</option>
+                        <option value="QUIZ" selected="@(fType == "QUIZ")">QUIZ — Trắc nghiệm</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-5">
+                    <input type="text" name="search" value="@fSearch" placeholder="Tìm theo tiêu đề..."
+                           class="form-control form-control-sm" />
+                </div>
+                <div class="col-12 col-md-2 d-flex gap-1">
+                    <button type="submit" class="btn btn-sm btn-primary flex-fill">
+                        <i class="bi bi-search"></i> Lọc
+                    </button>
+                    <a href="@Url.Action("Index")" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
+                </div>
+            </form>
+
+            <!-- Table -->
+            <div class="table-responsive">
+                <table class="table table-hover sa-table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tiêu đề</th>
+                            <th>Loại</th>
+                            <th>Lang</th>
+                            <th>Trạng thái</th>
+                            <th>Bắt đầu</th>
+                            <th>Kết thúc</th>
+                            <th>#Nhận</th>
+                            <th>#Đã nộp</th>
+                            <th style="width: 220px;">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="10" class="text-center text-muted py-4">
+                                    Không có survey nào.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            foreach (var s in Model)
+                            {
+                                var canEdit    = s.STATUS is "DRAFT" or "SCHEDULED";
+                                var canPublish = s.STATUS == "DRAFT";
+                                var canPause   = s.STATUS == "ACTIVE";
+                                var canResume  = s.STATUS == "PAUSED";
+                                var canCancel  = s.STATUS is "SCHEDULED" or "ACTIVE" or "PAUSED";
+                                var canDelete  = s.STATUS is "DRAFT" or "EXPIRED" or "CANCELLED";
+                                <tr data-id="@s.ID">
+                                    <td>@s.ID</td>
+                                    <td class="fw-semibold">@s.TITLE</td>
+                                    <td>
+                                        <span class="badge bg-@(s.SURVEY_TYPE == "QUIZ" ? "info" : "secondary")">@s.SURVEY_TYPE</span>
+                                    </td>
+                                    <td>@s.LANG</td>
+                                    <td>
+                                        <span class="sa-status sa-status-@s.STATUS.ToLower()">@s.STATUS</span>
+                                    </td>
+                                    <td>@(s.START_DATE?.ToString("dd/MM/yyyy") ?? "-")</td>
+                                    <td>@(s.END_DATE?.ToString("dd/MM/yyyy")   ?? "-")</td>
+                                    <td>@s.RECIPIENT_COUNT</td>
+                                    <td>@s.SUBMITTED_COUNT</td>
+                                    <td>
+                                        <div class="d-flex gap-1 flex-wrap">
+                                            @if (canEdit)
+                                            {
+                                                <a href="@Url.Action("Edit", new { id = s.ID })" class="btn btn-sm btn-outline-primary" title="Sửa"><i class="bi bi-pencil"></i></a>
+                                            }
+                                            <a href="@Url.Action("Preview", new { id = s.ID })" class="btn btn-sm btn-outline-secondary" title="Xem trước"><i class="bi bi-eye"></i></a>
+                                            <a href="@Url.Action("TestMode", new { id = s.ID })" class="btn btn-sm btn-outline-secondary" title="Làm thử"><i class="bi bi-play-circle"></i></a>
+                                            <a href="@Url.Action("Report", new { id = s.ID })" class="btn btn-sm btn-outline-info" title="Báo cáo"><i class="bi bi-bar-chart"></i></a>
+                                            @if (canPublish)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-success sa-action" data-action="publish" title="Publish"><i class="bi bi-upload"></i></button>
+                                            }
+                                            @if (canPause)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-warning sa-action" data-action="pause" title="Tạm dừng"><i class="bi bi-pause-fill"></i></button>
+                                            }
+                                            @if (canResume)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-success sa-action" data-action="resume" title="Tiếp tục"><i class="bi bi-play-fill"></i></button>
+                                            }
+                                            @if (canCancel)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-warning sa-action" data-action="cancel" title="Huỷ"><i class="bi bi-x-circle"></i></button>
+                                            }
+                                            @if (canDelete)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-danger sa-action" data-action="delete" title="Xoá"><i class="bi bi-trash"></i></button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="antiForgeryForm">@Html.AntiForgeryToken()</form>
+
+@section Scripts {
+<script>
+(function () {
+    const TOKEN = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]')?.value ?? '';
+
+    const map = {
+        publish: { url: '/SurveyAdmin/ChangeStatus', status: 'SCHEDULED', confirm: 'Publish survey này?' },
+        pause:   { url: '/SurveyAdmin/ChangeStatus', status: 'PAUSED',    confirm: 'Tạm dừng survey?' },
+        resume:  { url: '/SurveyAdmin/ChangeStatus', status: 'ACTIVE',    confirm: 'Tiếp tục survey?' },
+        cancel:  { url: '/SurveyAdmin/ChangeStatus', status: 'CANCELLED', confirm: 'Huỷ survey? Không thể hoàn tác.' },
+        'delete':{ url: '/SurveyAdmin/ChangeStatus', status: 'DELETED',   confirm: 'Xoá survey? (Soft delete)' },
+    };
+
+    document.querySelectorAll('.sa-action').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const tr = btn.closest('tr');
+            const id = parseInt(tr.dataset.id, 10);
+            const cfg = map[btn.dataset.action];
+            if (!cfg) return;
+            if (!confirm(cfg.confirm)) return;
+
+            btn.disabled = true;
+            try {
+                const res = await fetch(cfg.url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+                    body: JSON.stringify({ Id: id, NewStatus: cfg.status }),
+                });
+                const r = await res.json();
+                if (r.success) location.reload();
+                else { alert(r.message || 'Không thực hiện được'); btn.disabled = false; }
+            } catch (e) { alert('Lỗi kết nối'); btn.disabled = false; }
+        });
+    });
+})();
+</script>
+}

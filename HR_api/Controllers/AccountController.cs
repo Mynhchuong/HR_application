@@ -721,11 +721,12 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> GetEmpDropdown(string? term)
     {
         if (string.IsNullOrEmpty(term) || term.Length < 2) return Ok(new List<object>());
-        string sql = @"SELECT EMPCD, CNAME FROM HRMS.ECM100
-                       WHERE JEAJIKGB = 'Y'
-                         AND (UPPER(EMPCD) LIKE :TERM1 OR UPPER(CNAME) LIKE :TERM2)
-                       ORDER BY CNAME
-                       FETCH FIRST 30 ROWS ONLY";
+        string sql = @"SELECT * FROM (
+                         SELECT EMPCD, CNAME FROM HRMS.ECM100
+                          WHERE JEAJIKGB = 'Y'
+                            AND (UPPER(EMPCD) LIKE :TERM1 OR UPPER(CNAME) LIKE :TERM2)
+                          ORDER BY CNAME
+                       ) WHERE ROWNUM <= 30";
         string like = "%" + term.ToUpper() + "%";
         var result = await _oracleService.ExecuteQueryAsync(sql,
             r => new { id = r["EMPCD"]?.ToString(), text = $"{r["EMPCD"]} - {r["CNAME"]}" },

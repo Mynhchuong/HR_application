@@ -48,7 +48,7 @@ public class LeaveController : ControllerBase
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
 
-            // AL deadline: STIME ca của FROM_DATE - 7.5h (fair cho ca đêm)
+            // AL deadline: STIME ca của FROM_DATE - 6h (fair cho ca đêm)
             if (model.LEAVE_TYPE == "AL")
             {
                 var chk = await CheckAlDeadlineAsync(model.EMPCD, fromDate);
@@ -2329,8 +2329,8 @@ public class LeaveController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // AL Deadline: STIME của ca ngày FROM_DATE - 7.5h.
-    // Fair cho ca đêm: K3 22:30 → deadline 15:00 cùng ngày (không phải 00:00 hôm trước).
+    // AL Deadline: STIME của ca ngày FROM_DATE - 6h.
+    // Fair cho ca đêm: K3 22:30 → deadline 16:30 cùng ngày (không phải 00:00 hôm trước).
     // Nếu user chưa được xếp lịch ca cho ngày đó → fallback: chỉ chặn from <= today.
     // ─────────────────────────────────────────────────────────────────────────
     private record AlDeadlineCheck(bool Allowed, string? Message, DateTime? Deadline, string ShiftCd, string ShiftStart);
@@ -2382,7 +2382,7 @@ public class LeaveController : ControllerBase
         }
 
         var shiftStart  = fromDate.Date.AddHours(hh).AddMinutes(mm);
-        var deadline    = shiftStart.AddMinutes(-450); // -7.5h
+        var deadline    = shiftStart.AddMinutes(-360); // -6h
         var shiftStartStr = $"{hh:D2}:{mm:D2}";
 
         if (DateTime.Now > deadline)

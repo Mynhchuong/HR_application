@@ -149,7 +149,7 @@ public class OtService
         string? search = null, string? status = null,
         string? deptName = null, string? lineName = null,
         string? lineId = null, string? workId = null,
-        int page = 1, int pageSize = 50)
+        int page = 1, int pageSize = 50, int admin = 0)
     {
         try
         {
@@ -164,6 +164,7 @@ public class OtService
             if (!string.IsNullOrEmpty(workId)) queryParams.Add($"work_id={Uri.EscapeDataString(workId)}");
             queryParams.Add($"page={page}");
             queryParams.Add($"page_size={pageSize}");
+            if (admin == 1) queryParams.Add("admin=1");
 
             var response = await _api.GetAsync_Raw("ot/hr/detail", string.Join("&", queryParams));
             if (response != null && response.IsSuccessStatusCode)
@@ -249,6 +250,57 @@ public class OtService
             return (false, "Lỗi kết nối server", 0);
         }
         catch (Exception ex) { return (false, ex.Message, 0); }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Admin bulk operations
+    // ─────────────────────────────────────────────────────────────
+    public async Task<OTAdminBulkResponse> AdminBulkSignForAsync(OTAdminBulkSignForRequest req)
+    {
+        try
+        {
+            var response = await _api.PostAsync("ot/admin/bulk-signfor", req);
+            if (response?.IsSuccessStatusCode == true)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<OTAdminBulkResponse>(json)
+                       ?? new OTAdminBulkResponse { success = false, message = "Không parse được response" };
+            }
+            return new OTAdminBulkResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new OTAdminBulkResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<OTAdminBulkResponse> AdminBulkUpdateAsync(OTAdminBulkUpdateRequest req)
+    {
+        try
+        {
+            var response = await _api.PostAsync("ot/admin/bulk-update", req);
+            if (response?.IsSuccessStatusCode == true)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<OTAdminBulkResponse>(json)
+                       ?? new OTAdminBulkResponse { success = false, message = "Không parse được response" };
+            }
+            return new OTAdminBulkResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new OTAdminBulkResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<OTAdminBulkResponse> AdminBulkDeleteAsync(OTAdminBulkDeleteRequest req)
+    {
+        try
+        {
+            var response = await _api.PostAsync("ot/admin/bulk-delete", req);
+            if (response?.IsSuccessStatusCode == true)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<OTAdminBulkResponse>(json)
+                       ?? new OTAdminBulkResponse { success = false, message = "Không parse được response" };
+            }
+            return new OTAdminBulkResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new OTAdminBulkResponse { success = false, message = ex.Message }; }
     }
 
     // HR bấm "Thông báo ký OT" — broadcast theo dept/line/work cho ngày work_date

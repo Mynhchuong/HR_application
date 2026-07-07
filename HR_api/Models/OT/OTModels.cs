@@ -102,3 +102,57 @@ public class OTConfirmResponse
     public string? MESSAGE { get; set; }
     public string? REQUEST_ID { get; set; }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Admin OT Management (bulk operations)
+// ─────────────────────────────────────────────────────────────
+public class OTAdminSignForItem
+{
+    public string EMPCD { get; set; } = string.Empty;
+    public decimal? OT_HOURS { get; set; }
+}
+
+public class OTAdminBulkSignForRequest
+{
+    public string? WORK_DATE { get; set; }
+    public string? ACTOR_EMPCD { get; set; }
+    public List<OTAdminSignForItem> ITEMS { get; set; } = new();
+}
+
+public class OTAdminUpdateItem
+{
+    public string EMPCD { get; set; } = string.Empty;
+    public decimal? OT_HOURS { get; set; }
+    public string? CONFIRM_STATUS { get; set; }
+}
+
+public class OTAdminBulkUpdateRequest
+{
+    public string? WORK_DATE { get; set; }
+    public string? ACTOR_EMPCD { get; set; }
+    public List<OTAdminUpdateItem> ITEMS { get; set; } = new();
+}
+
+public class OTAdminBulkDeleteRequest
+{
+    public string? WORK_DATE { get; set; }
+    public string? ACTOR_EMPCD { get; set; }
+    public List<string> EMPCDS { get; set; } = new();
+}
+
+public class OTAdminBulkResult
+{
+    public string EMPCD { get; set; } = string.Empty;
+    public bool OK { get; set; }
+    public string? MESSAGE { get; set; }
+}
+
+public class OTAdminBulkResponse
+{
+    public bool success { get; set; }
+    public string? message { get; set; }
+    public int processed { get; set; }
+    public int skipped { get; set; }
+    public int failed { get; set; }
+    public List<OTAdminBulkResult> results { get; set; } = new();
+}

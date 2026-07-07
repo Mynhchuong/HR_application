@@ -172,6 +172,7 @@ public static class SideMenuBuilder
                 Children = [
                     new() { Title = "Sắp Lịch Toàn Công Ty", Url = "~/Leave/AdminAssignLeave",    Icon = "event_available" },
                     new() { Title = "Theo Dõi Yêu Cầu",      Url = "~/Leave/AdminManageRequests", Icon = "manage_history"  },
+                    new() { Title = "Quản lý Tăng ca",       Url = "~/OT/OtListForAdmin",         Icon = "edit_calendar"   },
                     new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",              Icon = "menu_book"       },
                     new() { Title = "Quản lý Mẫu thông báo",  Url = "~/NotiTemplate/Index",        Icon = "notifications"   },
                     //new() { Title = "Gửi thông báo",          Url = "~/AdminNoti/Create",          Icon = "edit_notifications" },

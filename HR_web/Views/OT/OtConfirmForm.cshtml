@@ -383,17 +383,27 @@
                 </div>
                 <div class="ot-signature-panel">
                     <span class="ot-signature-label">Chữ ký xác nhận</span>
-                    @if (hasSignature)
+                    @{
+                        bool hasConfirmed = Model.CONFIRM_STATUS == "CONFIRMED" || Model.CONFIRM_STATUS == "REJECTED";
+                    }
+                    @if (hasConfirmed && hasSignature)
                     {
                         <img src="@Url.Action("GetSignature", "Image", new { empCd = Model.EMPCD })"
                              class="ot-signature-img"
                              alt="Chữ ký @Model.EMPCD" />
                     }
-                    else
+                    else if (hasConfirmed && !hasSignature)
                     {
                         <div class="ot-signature-img align-items-center justify-content-center text-muted">
                             <span class="material-symbols-rounded me-1" style="font-size:1.2rem;">draw</span>
                             <span style="font-size:0.85rem;">Chưa có chữ ký</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="ot-signature-img align-items-center justify-content-center text-muted">
+                            <span class="material-symbols-rounded me-1" style="font-size:1.2rem;">edit_note</span>
+                            <span style="font-size:0.85rem;">Chưa xác nhận</span>
                         </div>
                     }
                 </div>

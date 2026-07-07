@@ -522,7 +522,8 @@ public class OTController : ControllerBase
         string? line_id    = null,
         string? work_id    = null,
         int     page       = 1,
-        int     page_size  = 100)
+        int     page_size  = 100,
+        int     admin      = 0)
     {
         try
         {
@@ -554,12 +555,17 @@ public class OTController : ControllerBase
                     GROUP BY EMPCD, DAT, SHIFTCD
                 )";
 
+            // Admin mode: bỏ match OT_HOURS trong JOIN → luôn hiện trạng thái thực tế của HR_OT_REQUEST
+            string joinHRRequest = admin == 1
+                ? "LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :W_DATE3"
+                : "LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :W_DATE3 AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)";
+
             string fromSql = @"
                 FROM OT_BASE OT
                 JOIN      HRMS.ECM100        EC ON EC.EMPCD  = OT.EMPCD
                 JOIN      HRMS.EBM100         S ON S.SHIFTCD = OT.SHIFTCD
                 LEFT JOIN HRMS.EAM410         B ON B.DEPTCD  = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-                LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD   = OT.EMPCD  AND R.WORK_DATE = :W_DATE3 AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
+                " + joinHRRequest + @"
                 LEFT JOIN HRMS.HR_USERS       UR ON UR.EMPCD  = OT.EMPCD
                 LEFT JOIN HRMS.HR_ROLES       RR ON RR.ID     = UR.ROLE_ID";
 
@@ -1028,6 +1034,279 @@ public class OTController : ControllerBase
         catch (Exception ex)
         {
             return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ADMIN — Bulk OT Management (Sign-For / Update / Delete)
+    // ═════════════════════════════════════════════════════════════════════════
+
+    // POST /apiHR/OT/admin/bulk-signfor
+    // Ký giùm bulk: dùng CÙNG LOGIC với ConfirmOT (SP_OT_CONFIRM_INSERT), chỉ khác là loop cho nhiều NV.
+    // KHÔNG update ERP (nguyên tắc admin: chỉ đọc ERP, không write).
+    [HttpPost("admin/bulk-signfor")]
+    public async Task<IActionResult> AdminBulkSignFor([FromBody] OTAdminBulkSignForRequest body)
+    {
+        try
+        {
+            if (body == null || body.ITEMS == null || body.ITEMS.Count == 0)
+                return Ok(new OTAdminBulkResponse { success = false, message = "Danh sách rỗng" });
+            if (!DateTime.TryParseExact(body.WORK_DATE, "yyyy-MM-dd", null,
+                System.Globalization.DateTimeStyles.None, out var workDate))
+                return Ok(new OTAdminBulkResponse { success = false, message = "Ngày làm việc không hợp lệ" });
+
+            var res = new OTAdminBulkResponse { success = true };
+
+            foreach (var it in body.ITEMS)
+            {
+                if (string.IsNullOrEmpty(it.EMPCD)) continue;
+
+                try
+                {
+                    // 1. Lookup ERP OVER_TIME (để insert đúng hours → danh sách join match)
+                    var erpHoursRows = await _oracleService.ExecuteQueryAsync(
+                        @"SELECT MAX(OVER_TIME) OT_HOURS FROM (
+                            SELECT OVER_TIME FROM HRMS.EBM300      WHERE DAT = :WORK_DATE  AND EMPCD = :EMPCD  AND OVER_TIME IS NOT NULL AND OVER_TIME > 0
+                            UNION ALL
+                            SELECT OVER_TIME FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2 AND EMPCD = :EMPCD1 AND OVER_TIME IS NOT NULL AND OVER_TIME > 0
+                        )",
+                        r => r["OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"]),
+                        new OracleParameter("WORK_DATE",  workDate),
+                        new OracleParameter("WORK_DATE2", workDate),
+                        new OracleParameter("EMPCD",      it.EMPCD),
+                        new OracleParameter("EMPCD1",     it.EMPCD));
+
+                    var erpHours = erpHoursRows.FirstOrDefault();
+                    if (!erpHours.HasValue || erpHours.Value <= 0)
+                    {
+                        res.failed++;
+                        res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = "Không có kế hoạch tăng ca trong ngày này" });
+                        continue;
+                    }
+
+                    // OT_HOURS: ưu tiên từ item (nếu FE truyền), fallback ERP OVER_TIME
+                    var finalHours = it.OT_HOURS ?? erpHours.Value;
+
+                    // 2. Check HR_OT_REQUEST đã có chưa (giống ConfirmOT)
+                    var existing = (await _oracleService.ExecuteQueryAsync(
+                        "SELECT REQUEST_ID FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND ROWNUM = 1",
+                        r => r["REQUEST_ID"]?.ToString(),
+                        new OracleParameter("EMPCD", it.EMPCD),
+                        new OracleParameter("WORK_DATE", workDate))).FirstOrDefault();
+
+                    if (!string.IsNullOrEmpty(existing))
+                    {
+                        res.skipped++;
+                        res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = "Đã có bản ghi" });
+                        continue;
+                    }
+
+                    // 3. INSERT qua stored procedure SP_OT_CONFIRM_INSERT (giống ConfirmOT)
+                    string requestId = DateTime.Now.ToString("yyyyMMddHHmmss") + it.EMPCD;
+                    var pResult  = new OracleParameter("P_RESULT",  OracleDbType.Int32)         { Direction = System.Data.ParameterDirection.Output };
+                    var pMessage = new OracleParameter("P_MESSAGE", OracleDbType.Varchar2, 500) { Direction = System.Data.ParameterDirection.Output };
+
+                    await _oracleService.ExecuteProcedureAsync("HRMS.SP_OT_CONFIRM_INSERT",
+                        new OracleParameter("P_REQUEST_ID",     requestId),
+                        new OracleParameter("P_EMPCD",          it.EMPCD),
+                        new OracleParameter("P_WORK_DATE",      workDate),
+                        new OracleParameter("P_OT_HOURS",       finalHours),
+                        new OracleParameter("P_CONFIRM_STATUS", "CONFIRMED"),
+                        pResult,
+                        pMessage);
+
+                    if (int.Parse(pResult.Value?.ToString() ?? "0") != 0)
+                    {
+                        res.failed++;
+                        res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = pMessage.Value?.ToString() ?? "SP báo lỗi" });
+                        continue;
+                    }
+
+                    // KHÔNG đụng ERP — admin chỉ đọc ERP, không write
+                    res.processed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = true, MESSAGE = requestId });
+                }
+                catch (Exception exi)
+                {
+                    res.failed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = exi.Message });
+                }
+            }
+
+            res.message = $"Ký giùm: OK {res.processed}, Skip {res.skipped}, Lỗi {res.failed}";
+            return Ok(res);
+        }
+        catch (Exception ex)
+        {
+            return Ok(new OTAdminBulkResponse { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/OT/admin/bulk-update
+    // Cập nhật OT_HOURS + CONFIRM_STATUS (option) cho danh sách EMPCD đã có bản ghi.
+    [HttpPost("admin/bulk-update")]
+    public async Task<IActionResult> AdminBulkUpdate([FromBody] OTAdminBulkUpdateRequest body)
+    {
+        try
+        {
+            if (body == null || body.ITEMS == null || body.ITEMS.Count == 0)
+                return Ok(new OTAdminBulkResponse { success = false, message = "Danh sách rỗng" });
+            if (!DateTime.TryParseExact(body.WORK_DATE, "yyyy-MM-dd", null,
+                System.Globalization.DateTimeStyles.None, out var workDate))
+                return Ok(new OTAdminBulkResponse { success = false, message = "Ngày làm việc không hợp lệ" });
+
+            var res = new OTAdminBulkResponse { success = true };
+            var actor = string.IsNullOrEmpty(body.ACTOR_EMPCD) ? "ADMIN" : body.ACTOR_EMPCD;
+
+            foreach (var it in body.ITEMS)
+            {
+                if (string.IsNullOrEmpty(it.EMPCD) || !it.OT_HOURS.HasValue || it.OT_HOURS.Value <= 0)
+                {
+                    res.failed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = "Dữ liệu không hợp lệ" });
+                    continue;
+                }
+
+                try
+                {
+                    // Lookup existing
+                    var rows = await _oracleService.ExecuteQueryAsync(
+                        @"SELECT REQUEST_ID, OT_START, OT_TYPE
+                          FROM HRMS.HR_OT_REQUEST
+                          WHERE EMPCD = :E AND WORK_DATE = :D AND ROWNUM = 1",
+                        r => new
+                        {
+                            REQUEST_ID = r["REQUEST_ID"]?.ToString(),
+                            OT_START   = r["OT_START"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["OT_START"]),
+                            OT_TYPE    = r["OT_TYPE"]?.ToString(),
+                        },
+                        new OracleParameter("E", it.EMPCD),
+                        new OracleParameter("D", workDate));
+
+                    if (rows.Count == 0)
+                    {
+                        res.skipped++;
+                        res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = "Chưa có bản ghi để update" });
+                        continue;
+                    }
+
+                    var row = rows[0];
+                    var reqId = row.REQUEST_ID;
+                    var newHours = it.OT_HOURS.Value;
+                    var confirmStatus = string.IsNullOrEmpty(it.CONFIRM_STATUS) ? "CONFIRMED" : it.CONFIRM_STATUS;
+
+                    // Tính OT_END mới nếu có OT_START
+                    DateTime? newEnd = null;
+                    if (row.OT_START.HasValue)
+                    {
+                        // OT_START là mốc bắt đầu OT thực tế, cứ + newHours
+                        newEnd = row.OT_START.Value.AddHours((double)newHours);
+                    }
+
+                    await _oracleService.ExecuteNonQueryAsync(
+                        @"UPDATE HRMS.HR_OT_REQUEST
+                          SET OT_HOURS = :H, OT_END = :Ed, CONFIRM_STATUS = :C, CONFIRM_DATE = SYSDATE
+                          WHERE REQUEST_ID = :R",
+                        new OracleParameter("H",  newHours),
+                        new OracleParameter("Ed", (object?)newEnd ?? DBNull.Value),
+                        new OracleParameter("C",  confirmStatus),
+                        new OracleParameter("R",  reqId));
+
+                    await _oracleService.ExecuteNonQueryAsync(
+                        @"UPDATE HRMS.HR_REQUEST
+                          SET STATUS = :S, UPDATED_BY = :A, UPDATED_DATE = SYSDATE
+                          WHERE REQUEST_ID = :R",
+                        new OracleParameter("S", confirmStatus),
+                        new OracleParameter("A", actor),
+                        new OracleParameter("R", reqId));
+
+                    // KHÔNG đụng ERP — nguyên tắc: OT admin chỉ đọc ERP, không write
+
+                    res.processed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = true, MESSAGE = reqId });
+                }
+                catch (Exception exi)
+                {
+                    res.failed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = exi.Message });
+                }
+            }
+
+            res.message = $"Cập nhật: OK {res.processed}, Skip {res.skipped}, Lỗi {res.failed}";
+            return Ok(res);
+        }
+        catch (Exception ex)
+        {
+            return Ok(new OTAdminBulkResponse { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/OT/admin/bulk-delete
+    // Hard delete HR_OT_REQUEST + HR_REQUEST, reset EBM300.SIGNED_STATUS = 'N'.
+    [HttpPost("admin/bulk-delete")]
+    public async Task<IActionResult> AdminBulkDelete([FromBody] OTAdminBulkDeleteRequest body)
+    {
+        try
+        {
+            if (body == null || body.EMPCDS == null || body.EMPCDS.Count == 0)
+                return Ok(new OTAdminBulkResponse { success = false, message = "Danh sách rỗng" });
+            if (!DateTime.TryParseExact(body.WORK_DATE, "yyyy-MM-dd", null,
+                System.Globalization.DateTimeStyles.None, out var workDate))
+                return Ok(new OTAdminBulkResponse { success = false, message = "Ngày làm việc không hợp lệ" });
+
+            var res = new OTAdminBulkResponse { success = true };
+
+            foreach (var empcd in body.EMPCDS)
+            {
+                if (string.IsNullOrEmpty(empcd)) continue;
+
+                try
+                {
+                    var reqIds = await _oracleService.ExecuteQueryAsync(
+                        "SELECT REQUEST_ID FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :E AND WORK_DATE = :D",
+                        r => r["REQUEST_ID"]?.ToString(),
+                        new OracleParameter("E", empcd),
+                        new OracleParameter("D", workDate));
+
+                    if (reqIds.Count == 0)
+                    {
+                        res.skipped++;
+                        res.results.Add(new OTAdminBulkResult { EMPCD = empcd, OK = false, MESSAGE = "Không có bản ghi" });
+                        continue;
+                    }
+
+                    foreach (var rid in reqIds)
+                    {
+                        if (string.IsNullOrEmpty(rid)) continue;
+                        await _oracleService.ExecuteNonQueryAsync(
+                            "DELETE FROM HRMS.HR_ROUTE_APPROVE WHERE REQUEST_ID = :R",
+                            new OracleParameter("R", rid));
+                        await _oracleService.ExecuteNonQueryAsync(
+                            "DELETE FROM HRMS.HR_OT_REQUEST WHERE REQUEST_ID = :R",
+                            new OracleParameter("R", rid));
+                        await _oracleService.ExecuteNonQueryAsync(
+                            "DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :R",
+                            new OracleParameter("R", rid));
+                    }
+
+                    // KHÔNG đụng ERP (EBM300 / EBM300_WAIT) — chỉ xoá phía MySamho
+
+                    res.processed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = empcd, OK = true, MESSAGE = $"Deleted {reqIds.Count}" });
+                }
+                catch (Exception exi)
+                {
+                    res.failed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = empcd, OK = false, MESSAGE = exi.Message });
+                }
+            }
+
+            res.message = $"Xoá: OK {res.processed}, Skip {res.skipped}, Lỗi {res.failed}";
+            return Ok(res);
+        }
+        catch (Exception ex)
+        {
+            return Ok(new OTAdminBulkResponse { success = false, message = ex.Message });
         }
     }
 }

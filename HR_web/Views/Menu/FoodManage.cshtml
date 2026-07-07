@@ -212,7 +212,7 @@
                 <div class="mb-3">
                     <label class="form-label fw-bold">Hình ảnh</label>
                     <input type="file" id="fImage" class="form-control" accept=".jpg,.jpeg" />
-                    <div class="form-text">JPG — tối đa 15MB</div>
+                    <div class="form-text">JPG — tối đa 15MB. Có thể <kbd>Ctrl</kbd>+<kbd>V</kbd> dán ảnh trực tiếp.</div>
                     <div id="imgPreview" class="mt-2"></div>
                 </div>
                 <div class="form-check">
@@ -436,6 +436,63 @@ document.getElementById('fImage').addEventListener('change', function () {
             `<img src="${e.target.result}" style="height:80px;border-radius:8px;" />`;
     };
     reader.readAsDataURL(f);
+});
+
+// Paste ảnh trực tiếp (Ctrl+V) khi modal đang mở
+function blobToJpegFile(blob) {
+    return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width  = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob(b => {
+                URL.revokeObjectURL(url);
+                if (!b) return reject(new Error('Không convert được ảnh'));
+                const name = `paste_${Date.now()}.jpg`;
+                resolve(new File([b], name, { type: 'image/jpeg' }));
+            }, 'image/jpeg', 0.9);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Ảnh không hợp lệ')); };
+        img.src = url;
+    });
+}
+
+document.addEventListener('paste', async (e) => {
+    const modal = document.getElementById('modalFood');
+    if (!modal.classList.contains('show')) return;
+
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const it of items) {
+        if (it.kind === 'file' && it.type.startsWith('image/')) {
+            e.preventDefault();
+            const blob = it.getAsFile();
+            if (!blob) return;
+            try {
+                const file = await blobToJpegFile(blob);
+                if (file.size > 15 * 1024 * 1024) {
+                    showAlert('Ảnh dán vượt quá 15MB', 'danger');
+                    return;
+                }
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                const input = document.getElementById('fImage');
+                input.files = dt.files;
+                input.dispatchEvent(new Event('change'));
+                showAlert('Đã dán ảnh — nhớ bấm Lưu', 'info');
+            } catch (err) {
+                showAlert('Lỗi dán ảnh: ' + err.message, 'danger');
+            }
+            return;
+        }
+    }
 });
 
 document.getElementById('btnSaveFood').addEventListener('click', async () => {

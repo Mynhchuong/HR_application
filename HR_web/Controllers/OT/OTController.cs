@@ -85,12 +85,12 @@ public class OTController : BaseController
         string? search = null, string? status = null,
         string? dept_name = null, string? line_name = null,
         string? line_id = null, string? work_id = null,
-        int page = 1, int page_size = 50)
+        int page = 1, int page_size = 50, int admin = 0)
     {
         try
         {
             var result = await _otService.GetOTHRDetailAsync(
-                work_date, dept_id, search, status, dept_name, line_name, line_id, work_id, page, page_size);
+                work_date, dept_id, search, status, dept_name, line_name, line_id, work_id, page, page_size, admin);
             return Json(result);
         }
         catch (Exception ex)
@@ -218,5 +218,50 @@ public class OTController : BaseController
     {
         public string? work_date { get; set; }
         public string? dept_id   { get; set; }
+    }
+
+    // ═════════════════════════════════════════════════════════════
+    // ADMIN — trang quản lý OT (chỉ Admin/HR)
+    // ═════════════════════════════════════════════════════════════
+
+    // GET: /OT/OtListForAdmin
+    [Authorize(Roles = "Admin,HR")]
+    public IActionResult OtListForAdmin(string? work_date = null)
+    {
+        ViewBag.WorkDate = string.IsNullOrEmpty(work_date) ? DateTime.Today.ToString("yyyy-MM-dd") : work_date;
+        return View();
+    }
+
+    // POST: /OT/AdminBulkSignFor
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> AdminBulkSignFor([FromBody] OTAdminBulkSignForRequest body)
+    {
+        if (body == null) return Json(new { success = false, message = "Body rỗng" });
+        body.ACTOR_EMPCD = CurrentUser?.EmpCd;
+        var result = await _otService.AdminBulkSignForAsync(body);
+        return Json(result);
+    }
+
+    // POST: /OT/AdminBulkUpdate
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> AdminBulkUpdate([FromBody] OTAdminBulkUpdateRequest body)
+    {
+        if (body == null) return Json(new { success = false, message = "Body rỗng" });
+        body.ACTOR_EMPCD = CurrentUser?.EmpCd;
+        var result = await _otService.AdminBulkUpdateAsync(body);
+        return Json(result);
+    }
+
+    // POST: /OT/AdminBulkDelete
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> AdminBulkDelete([FromBody] OTAdminBulkDeleteRequest body)
+    {
+        if (body == null) return Json(new { success = false, message = "Body rỗng" });
+        body.ACTOR_EMPCD = CurrentUser?.EmpCd;
+        var result = await _otService.AdminBulkDeleteAsync(body);
+        return Json(result);
     }
 }

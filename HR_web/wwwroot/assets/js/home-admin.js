@@ -121,7 +121,9 @@
             listEl.innerHTML = items.map(b => `
                 <div class="admin-banner-card">
                     <div class="admin-banner-card-thumb">
-                        <img src="${ROOT}Image/GetHomeBanner?fileName=${encodeURIComponent(b.IMAGE_FILE)}" alt="" onerror="this.style.display='none'" />
+                        ${/\.(mp4|webm)$/i.test(b.IMAGE_FILE || '')
+                            ? `<video src="${ROOT}Image/GetHomeBanner?fileName=${encodeURIComponent(b.IMAGE_FILE)}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>`
+                            : `<img src="${ROOT}Image/GetHomeBanner?fileName=${encodeURIComponent(b.IMAGE_FILE)}" alt="" onerror="this.style.display='none'" />`}
                     </div>
                     <div class="admin-banner-card-body">
                         <div class="admin-banner-card-title">${statusBadge(b)} #${b.ID}</div>
@@ -181,8 +183,8 @@
             $('#bannerForm').reset();
             $('#bannerId').value = '';
             $('#bannerImageFile').value = '';
-            $('#bannerPreview').innerHTML = '<div class="admin-upload-placeholder">Chưa có ảnh</div>';
-            $('#bannerUploadHint').textContent = 'Chọn ảnh 1920×1080. Server sẽ kiểm tra ratio 16:9 và resize.';
+            $('#bannerPreview').innerHTML = '<div class="admin-upload-placeholder">Chưa có ảnh/video</div>';
+            $('#bannerUploadHint').textContent = 'Ảnh: 1920×1080 (16:9), ≤ 5MB. Video: MP4, ≤ 30 giây, ≤ 50MB.';
             $('#bannerUploadHint').className = 'admin-upload-hint';
             $('#bannerFormError').hidden = true;
         }
@@ -201,10 +203,22 @@
             $('#bannerDismissible').checked   = b.IS_DISMISSIBLE;
 
             if (b.IMAGE_FILE) {
-                $('#bannerPreview').innerHTML = `<img src="${ROOT}Image/GetHomeBanner?fileName=${encodeURIComponent(b.IMAGE_FILE)}" />`;
-                $('#bannerUploadHint').textContent = '✅ Ảnh hiện tại: ' + b.IMAGE_FILE;
+                $('#bannerPreview').innerHTML = renderPreviewByFileName(b.IMAGE_FILE);
+                $('#bannerUploadHint').textContent = (isVideoFile(b.IMAGE_FILE) ? '✅ Video hiện tại: ' : '✅ Ảnh hiện tại: ') + b.IMAGE_FILE;
                 $('#bannerUploadHint').className = 'admin-upload-hint text-success';
             }
+        }
+
+        function isVideoFile(name) {
+            return /\.(mp4|webm)$/i.test(name || '');
+        }
+
+        function renderPreviewByFileName(name) {
+            const url = `${ROOT}Image/GetHomeBanner?fileName=${encodeURIComponent(name)}`;
+            if (isVideoFile(name)) {
+                return `<video src="${url}" controls muted playsinline style="max-width:100%;max-height:100%;"></video>`;
+            }
+            return `<img src="${url}" />`;
         }
 
         // File upload — validate + upload ngay
@@ -245,7 +259,7 @@
             }
             if (json.success) {
                 $('#bannerImageFile').value = json.fileName;
-                $('#bannerPreview').innerHTML = `<img src="${ROOT}Image/GetHomeBanner?fileName=${encodeURIComponent(json.fileName)}" />`;
+                $('#bannerPreview').innerHTML = renderPreviewByFileName(json.fileName);
                 hint.textContent = '✅ Upload thành công: ' + json.fileName;
                 hint.className = 'admin-upload-hint text-success';
             } else {
@@ -253,6 +267,69 @@
                 hint.className = 'admin-upload-hint text-danger';
             }
         });
+
+        // Video upload
+        const videoInput = $('#bannerVideoInput');
+        if (videoInput) videoInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const hint = $('#bannerUploadHint');
+
+            const r = await validateBannerVideo(file);
+            if (!r.ok) {
+                hint.textContent = r.msg;
+                hint.className = 'admin-upload-hint text-danger';
+                return;
+            }
+            hint.textContent = r.info + ' — đang upload…';
+            hint.className = 'admin-upload-hint text-success';
+
+            const fd = new FormData();
+            fd.append('file', file);
+            let json;
+            try {
+                const res = await fetch(ROOT + 'Image/UploadHomeBannerVideo', {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'same-origin',
+                    headers: { 'RequestVerificationToken': csrfToken() }
+                });
+                json = res.ok ? await res.json() : { success: false, message: 'Upload failed (' + res.status + ')' };
+            } catch (err) {
+                json = { success: false, message: 'Lỗi kết nối: ' + err.message };
+            }
+            if (json.success) {
+                $('#bannerImageFile').value = json.fileName;
+                $('#bannerPreview').innerHTML = renderPreviewByFileName(json.fileName);
+                hint.textContent = '✅ Upload video thành công: ' + json.fileName;
+                hint.className = 'admin-upload-hint text-success';
+            } else {
+                hint.textContent = '❌ ' + (json.message || 'Upload lỗi');
+                hint.className = 'admin-upload-hint text-danger';
+            }
+        });
+
+        async function validateBannerVideo(file) {
+            const ALLOWED = ['video/mp4', 'video/webm'];
+            if (!ALLOWED.includes(file.type))
+                return { ok: false, msg: 'Chỉ chấp nhận MP4/WebM' };
+            if (file.size > 50 * 1024 * 1024)
+                return { ok: false, msg: `Video ${(file.size / 1024 / 1024).toFixed(1)}MB quá lớn, tối đa 50MB` };
+
+            const duration = await new Promise((resolve) => {
+                const v = document.createElement('video');
+                v.preload = 'metadata';
+                v.onloadedmetadata = () => resolve(v.duration);
+                v.onerror = () => resolve(-1);
+                v.src = URL.createObjectURL(file);
+            });
+            if (duration < 0)
+                return { ok: false, msg: 'Không đọc được video — file có hợp lệ?' };
+            if (duration > 30.5) // tolerance 0.5s
+                return { ok: false, msg: `Video ${duration.toFixed(1)}s quá dài, tối đa 30 giây` };
+
+            return { ok: true, info: `✅ Video ${duration.toFixed(1)}s` };
+        }
 
         async function validateBannerFile(file) {
             const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
@@ -291,7 +368,7 @@
             e.preventDefault();
             const err = $('#bannerFormError'); err.hidden = true;
             const imageFile = $('#bannerImageFile').value;
-            if (!imageFile) { err.textContent = 'Vui lòng upload ảnh trước khi lưu'; err.hidden = false; return; }
+            if (!imageFile) { err.textContent = 'Vui lòng upload ảnh hoặc video trước khi lưu'; err.hidden = false; return; }
 
             const payload = {
                 Id:             $('#bannerId').value ? parseInt($('#bannerId').value, 10) : null,

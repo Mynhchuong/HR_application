@@ -44,10 +44,11 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
             ? remoteMessage.getNotification().getBody()  : "";
 
         String linkAction = remoteMessage.getData().get("link_action");
-        showNotification(title, body, linkAction);
+        String notiId     = remoteMessage.getData().get("noti_id");
+        showNotification(title, body, linkAction, notiId);
     }
 
-    private void showNotification(String title, String body, String linkAction) {
+    private void showNotification(String title, String body, String linkAction, String notiId) {
         NotificationManager mgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -61,7 +62,11 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
         if (linkAction != null && !linkAction.isEmpty()) {
             intent.putExtra("link_action", linkAction);
         }
-        PendingIntent pi = PendingIntent.getActivity(this, 0, intent,
+        if (notiId != null && !notiId.isEmpty()) {
+            intent.putExtra("noti_id", notiId);
+        }
+        int uniqueId = NOTI_ID_GEN.incrementAndGet();
+        PendingIntent pi = PendingIntent.getActivity(this, uniqueId, intent,
             PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -72,7 +77,7 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pi);
 
-        mgr.notify(NOTI_ID_GEN.incrementAndGet(), builder.build());
+        mgr.notify(uniqueId, builder.build());
     }
 
     // Static helper: lấy token đã lưu

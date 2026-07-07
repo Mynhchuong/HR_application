@@ -160,6 +160,7 @@ public class HomeController : BaseController
                 Id             = data.Banner.ID,
                 // Route: ImageController.GetHomeBanner(fileName)
                 ImageUrl       = Url.Action("GetHomeBanner", "Image", new { fileName = data.Banner.IMAGE_FILE }) ?? "",
+                FileName       = data.Banner.IMAGE_FILE,
                 OverlayText    = data.Banner.OVERLAY_TEXT,
                 OverlayPos     = data.Banner.OVERLAY_POS,
                 LinkUrl        = SanitizeLinkUrl(data.Banner.LINK_URL),

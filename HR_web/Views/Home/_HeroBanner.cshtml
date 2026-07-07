@@ -10,16 +10,19 @@
     var hasLink     = !string.IsNullOrEmpty(b.LinkUrl);
     var linkUrl     = b.LinkUrl ?? "#";
     var linkTarget  = b.LinkTarget ?? "_self";
+    var isVideo     = b.IsVideo;
 
-    // Key localStorage: 1 lần/ngày/user. Đổi ngày → hiện lại.
-    var dayKey = DateTime.Today.ToString("yyyyMMdd");
-
-    var closeAria = Model.Lang == "en" ? "Close" : "Đóng";
+    var dayKey  = DateTime.Today.ToString("yyyyMMdd");
+    var isVi    = Model.Lang != "en";
+    var closeAria = isVi ? "Đóng" : "Close";
+    var replayText = isVi ? "Xem lại" : "Replay";
+    var closeText  = isVi ? "Đóng"    : "Close";
 }
 
 <div id="homeHeroPopup"
-     class="home-hero-popup"
+     class="home-hero-popup@(isVideo ? " home-hero-popup-video" : "")"
      data-day="@dayKey"
+     data-media="@(isVideo ? "video" : "image")"
      hidden>
     <div class="home-hero-popup-backdrop" data-close="hero-popup"></div>
     <div class="home-hero-popup-panel" role="dialog" aria-modal="true">
@@ -28,7 +31,34 @@
                 aria-label="@closeAria"
                 data-close="hero-popup">×</button>
 
-        @if (hasLink)
+        @if (isVideo)
+        {
+            <video id="homeHeroVideo"
+                   class="home-hero-popup-video-el"
+                   src="@b.ImageUrl"
+                   playsinline
+                   muted
+                   autoplay
+                   preload="auto"
+                   controls>
+            </video>
+
+            @* Overlay hiện sau khi video kết thúc *@
+            <div id="homeHeroVideoEnded" class="home-hero-video-ended" hidden>
+                <button type="button" class="home-hero-video-btn home-hero-video-btn-replay" data-hero-replay>
+                    <span aria-hidden="true">↻</span> @replayText
+                </button>
+                <button type="button" class="home-hero-video-btn home-hero-video-btn-close" data-close="hero-popup">
+                    <span aria-hidden="true">×</span> @closeText
+                </button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(overlayText))
+            {
+                <span class="home-hero-popup-overlay home-banner-pos-@overlayPos">@overlayText</span>
+            }
+        }
+        else if (hasLink)
         {
             <a href="@linkUrl"
                target="@linkTarget"

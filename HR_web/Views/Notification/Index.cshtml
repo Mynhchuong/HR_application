@@ -137,6 +137,7 @@ const linkMap = {
     'GP_MY':       '@Url.Action("GpMyRequests", "GatePass")',
     'GP_MANAGE':   '@Url.Action("GpListForSupervisor", "GatePass")',
     'LEAVE_MY':    '@Url.Action("LeaveMyRequests", "Leave")',
+    'LEAVE_MANAGE':'@Url.Action("LeaveApprovalList", "Leave")',
     'LEAVE_TEAM':  '@Url.Action("TeamSchedule", "Leave")',
     'LEAVE_ASSIGNED': '@Url.Action("LeaveMyRequests", "Leave")',
     'OT_SIGN':     '@Url.Action("OtConfirmForm", "OT")',
@@ -310,6 +311,13 @@ fetch(`@Url.Action("GetPage")?page=1&page_size=${PAGE_SIZE}`)
 
         if (d.data.length >= PAGE_SIZE)
             document.getElementById('loadMoreWrap').style.display = 'block';
+
+        // Auto-navigate khi mở từ push notification (?open={noti_id})
+        const openId = new URLSearchParams(location.search).get('open');
+        if (openId) {
+            const target = allItems.find(n => String(n.ID) === String(openId));
+            if (target) onNotiClick(target);
+        }
     });
 </script>
 }

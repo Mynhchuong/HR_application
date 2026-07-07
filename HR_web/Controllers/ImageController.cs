@@ -175,7 +175,7 @@ public class ImageController : BaseController
     }
 
     // ── Home banner ─────────────────────────────────────────────────────────
-    // Stream ảnh banner từ \\192.168.1.5\vserp_picture\MY_SAMHO_HOME\
+    // Stream ảnh/video banner từ \\192.168.1.5\vserp_picture\MY_SAMHO_HOME\
     [HttpGet, AllowAnonymous]
     [ResponseCache(Duration = 300)] // 5 phút — banner đổi thường xuyên hơn bulletin
     public IActionResult GetHomeBanner(string fileName)
@@ -183,7 +183,31 @@ public class ImageController : BaseController
         if (string.IsNullOrWhiteSpace(fileName) ||
             fileName.Contains("..") || fileName.Contains('/') || fileName.Contains('\\'))
             return NotFound();
+
+        var ext = Path.GetExtension(fileName).ToLower();
+        if (ext == ".mp4" || ext == ".webm")
+            return ServeNetworkVideo(Path.Combine(HomeBannerFolder, fileName), fileName);
         return ServeNetworkImage(Path.Combine(HomeBannerFolder, fileName), fileName);
+    }
+
+    private IActionResult ServeNetworkVideo(string filePath, string fileName)
+    {
+        try
+        {
+            byte[] bytes;
+            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            {
+                if (!System.IO.File.Exists(filePath)) return NotFound();
+                bytes = System.IO.File.ReadAllBytes(filePath);
+            }
+            var mime = Path.GetExtension(fileName).ToLower() switch
+            {
+                ".webm" => "video/webm",
+                _       => "video/mp4"
+            };
+            return File(bytes, mime, enableRangeProcessing: true);
+        }
+        catch { return NotFound(); }
     }
 
     // ── Upload Home banner (chỉ HR/Admin) ──────────────────────────────────
@@ -252,6 +276,49 @@ public class ImageController : BaseController
         catch (SixLabors.ImageSharp.UnknownImageFormatException)
         {
             return Json(new { success = false, message = "Không đọc được file — có phải ảnh hợp lệ không?" });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = $"Lỗi upload: {ex.Message}" });
+        }
+    }
+
+    // ── Upload Home banner VIDEO (chỉ HR/Admin) ────────────────────────────
+    // Validate: MP4/WebM, ≤ 50MB. Duration ≤ 30s validate ở client.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> UploadHomeBannerVideo(IFormFile? file)
+    {
+        var role = CurrentUser?.RoleName;
+        if (role is not ("HR" or "Admin"))
+            return Json(new { success = false, message = "Bạn không có quyền upload banner" });
+
+        if (file == null || file.Length == 0)
+            return Json(new { success = false, message = "Chưa chọn file!" });
+
+        var allowedMime = new[] { "video/mp4", "video/webm" };
+        var allowedExt  = new[] { ".mp4", ".webm" };
+        var uploadExt   = Path.GetExtension(file.FileName).ToLower();
+        if (!allowedMime.Contains(file.ContentType) || !allowedExt.Contains(uploadExt))
+            return Json(new { success = false, message = "Chỉ chấp nhận file MP4 hoặc WebM" });
+
+        if (file.Length > 50L * 1024 * 1024)
+            return Json(new { success = false, message = $"Video {(file.Length / 1024 / 1024)}MB quá lớn, tối đa 50MB" });
+
+        try
+        {
+            var fileName = "banner_" + Guid.NewGuid().ToString("N") + uploadExt;
+            var savePath = Path.Combine(HomeBannerFolder, fileName);
+
+            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            {
+                Directory.CreateDirectory(HomeBannerFolder);
+                await using var fs = new FileStream(savePath, FileMode.Create);
+                await file.CopyToAsync(fs);
+            }
+
+            return Json(new { success = true, fileName, url = Url.Action("GetHomeBanner", "Image", new { fileName }) });
         }
         catch (Exception ex)
         {

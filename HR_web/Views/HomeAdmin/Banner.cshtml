@@ -10,8 +10,9 @@
         <a href="@Url.Action("Index", "HomeAdmin")" class="admin-home-back">← Quay lại</a>
         <h1>🖼️ Quản lý Banner</h1>
         <p class="text-muted">
-            Cùng một thời điểm chỉ có <strong>1 banner active</strong>.
-            Kích thước chuẩn: <strong>1920×1080 px (16:9)</strong>, ≤ 5MB.
+            Cùng một thời điểm chỉ có <strong>1 banner active</strong>.<br />
+            <strong>Ảnh:</strong> 1920×1080 (16:9), ≤ 5MB.
+            <strong>Video:</strong> MP4, ≤ 30 giây, ≤ 50MB.
         </p>
     </div>
 
@@ -40,15 +41,24 @@
                 <input type="hidden" name="ImageFile" id="bannerImageFile" />
 
                 <div class="form-row">
-                    <label class="form-label"><strong>Ảnh banner *</strong> (1920×1080, 16:9)</label>
+                    <label class="form-label"><strong>Media banner *</strong></label>
                     <div class="admin-upload-box">
                         <div id="bannerPreview" class="admin-upload-preview">
-                            <div class="admin-upload-placeholder">Chưa có ảnh</div>
+                            <div class="admin-upload-placeholder">Chưa có ảnh/video</div>
                         </div>
                         <div class="admin-upload-controls">
-                            <input type="file" id="bannerFileInput" accept="image/jpeg,image/png,image/webp" />
+                            <div style="display:flex; gap:.75rem; flex-wrap:wrap; align-items:center;">
+                                <label class="btn btn-secondary" style="margin:0;">
+                                    🖼️ Chọn ảnh
+                                    <input type="file" id="bannerFileInput" accept="image/jpeg,image/png,image/webp" hidden />
+                                </label>
+                                <label class="btn btn-secondary" style="margin:0;">
+                                    🎬 Chọn video
+                                    <input type="file" id="bannerVideoInput" accept="video/mp4,video/webm" hidden />
+                                </label>
+                            </div>
                             <div id="bannerUploadHint" class="admin-upload-hint">
-                                Chọn ảnh 1920×1080. Server sẽ kiểm tra ratio 16:9 và resize.
+                                Ảnh: 1920×1080 (16:9), ≤ 5MB. Video: MP4, ≤ 30 giây, ≤ 50MB.
                             </div>
                         </div>
                     </div>

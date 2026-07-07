@@ -73,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 102;
     private static final int AUDIO_PERMISSION_REQUEST_CODE = 103;
     private String pendingLinkAction = null; // từ FCM notification tap
+    private String pendingNotiId = null;
     private boolean pendingVideoCaptureAfterPermission = false;
 
     @Override
@@ -106,14 +107,16 @@ public class MainActivity extends AppCompatActivity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
+        webSettings.setMediaPlaybackRequiresUserGesture(false);
         webSettings.setAllowFileAccess(true);
         webSettings.setUserAgentString("MySamhoMobile/Android");
         webSettings.setTextZoom(100);
         webSettings.setUseWideViewPort(true);
         webSettings.setLoadWithOverviewMode(true);
 
-        // Lưu link_action từ notification tap (nếu có)
+        // Lưu link_action + noti_id từ notification tap (nếu có)
         pendingLinkAction = getIntent().getStringExtra("link_action");
+        pendingNotiId     = getIntent().getStringExtra("noti_id");
 
         // Expose FCM token to web app via Android.getFcmToken()
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
@@ -142,7 +145,11 @@ public class MainActivity extends AppCompatActivity {
                 // Nếu user tap notification khi app đang tắt → navigate tới trang thông báo sau khi load xong
                 if (pendingLinkAction != null && url != null && !url.contains("/Notification")) {
                     String notiUrl = selectedBaseUrl + "/Notification";
+                    if (pendingNotiId != null && !pendingNotiId.isEmpty()) {
+                        notiUrl += "?open=" + pendingNotiId;
+                    }
                     pendingLinkAction = null;
+                    pendingNotiId = null;
                     view.loadUrl(notiUrl);
                 }
             }
@@ -254,7 +261,12 @@ public class MainActivity extends AppCompatActivity {
         super.onNewIntent(intent);
         String linkAction = intent.getStringExtra("link_action");
         if (linkAction != null && webView != null && selectedBaseUrl != null) {
-            webView.loadUrl(selectedBaseUrl + "/Notification");
+            String notiId = intent.getStringExtra("noti_id");
+            String url = selectedBaseUrl + "/Notification";
+            if (notiId != null && !notiId.isEmpty()) {
+                url += "?open=" + notiId;
+            }
+            webView.loadUrl(url);
         }
     }
 

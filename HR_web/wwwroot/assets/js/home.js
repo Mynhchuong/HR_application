@@ -79,9 +79,14 @@
         setTimeout(() => {
             el.hidden = false;
             document.body.classList.add('home-hero-popup-open');
+            // iOS Safari đôi khi không autoplay khi element trước đó hidden → gọi play explicit
+            const v = el.querySelector('#homeHeroVideo');
+            if (v) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
         }, 300);
 
         function dismiss() {
+            const v = el.querySelector('#homeHeroVideo');
+            if (v) { try { v.pause(); } catch (_) {} }
             el.hidden = true;
             document.body.classList.remove('home-hero-popup-open');
             sessionStorage.setItem(key, '1');
@@ -93,6 +98,19 @@
         // Click ảnh có link → đóng luôn (giống Shopee: navigate rồi đóng)
         const link = el.querySelector('.home-hero-popup-link');
         if (link) link.addEventListener('click', () => sessionStorage.setItem(key, '1'));
+
+        // Video banner: khi kết thúc → show overlay "Xem lại" / "Đóng"
+        const video = el.querySelector('#homeHeroVideo');
+        const endedOverlay = el.querySelector('#homeHeroVideoEnded');
+        if (video && endedOverlay) {
+            video.addEventListener('ended', () => { endedOverlay.hidden = false; });
+            video.addEventListener('play',  () => { endedOverlay.hidden = true;  });
+            const replayBtn = el.querySelector('[data-hero-replay]');
+            if (replayBtn) replayBtn.addEventListener('click', () => {
+                endedOverlay.hidden = true;
+                try { video.currentTime = 0; video.play(); } catch (_) {}
+            });
+        }
 
         // ESC key
         document.addEventListener('keydown', (ev) => {

@@ -56,11 +56,16 @@ public class HomeBannerVm
 {
     public int     Id             { get; set; }
     public string  ImageUrl       { get; set; } = ""; // URL trả qua /Image/HomeBanner/{file}
+    public string  FileName       { get; set; } = ""; // Tên file — dùng để detect video vs image
     public string? OverlayText    { get; set; }
     public string  OverlayPos     { get; set; } = "BL";
     public string? LinkUrl        { get; set; }
     public string  LinkTarget     { get; set; } = "_self";
     public bool    IsDismissible  { get; set; } = true;
+
+    public bool IsVideo =>
+        FileName.EndsWith(".mp4", System.StringComparison.OrdinalIgnoreCase) ||
+        FileName.EndsWith(".webm", System.StringComparison.OrdinalIgnoreCase);
 }
 
 public class HomePinnedItemVm

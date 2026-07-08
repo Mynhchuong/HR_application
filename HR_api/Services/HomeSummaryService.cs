@@ -174,31 +174,20 @@ public class HomeSummaryService
 
     private async Task<OtCounts> CountOtAsync(string empcd)
     {
-        // Dùng 2 prefix khác nhau vì scope xuất hiện 2 lần trong SQL
-        // (WITH LATEST_OT + outer WHERE) → tránh duplicate param name
-        var scopeInner = OTScopeFilterHelper.ForScopeByTuple(empcd, empAlias: "EC", prefix: "IN");
-        var scopeOuter = OTScopeFilterHelper.ForScopeByTuple(empcd, empAlias: "EC", prefix: "OU");
+        var scope = OTScopeFilterHelper.ForScopeByTuple(empcd, empAlias: "EC", prefix: "OT");
 
-        // Count DISTINCT EMPCD vì "số NV" chứ không phải số row OT
-        // (1 NV có thể có nhiều slot OT cùng ngày)
+        // Count DISTINCT EMPCD cho OT hôm nay (WORK_DATE = TRUNC(SYSDATE))
         string sql = $@"
-            WITH LATEST_OT AS (
-                SELECT MAX(OT.WORK_DATE) WD
-                FROM HRMS.HR_OT_REQUEST OT
-                JOIN HRMS.ECM100 EC ON EC.EMPCD = OT.EMPCD
-                WHERE OT.WORK_DATE BETWEEN TRUNC(SYSDATE)-7 AND TRUNC(SYSDATE)+1
-                  {scopeInner.SqlClause}
-            )
             SELECT
                 COUNT(DISTINCT CASE WHEN OT.CONFIRM_STATUS = 'CONFIRMED' THEN OT.EMPCD END) SIGNED,
                 COUNT(DISTINCT CASE WHEN OT.CONFIRM_STATUS IS NULL OR OT.CONFIRM_STATUS = 'PENDING' THEN OT.EMPCD END) NEED_SIGN,
                 COUNT(DISTINCT OT.EMPCD) TOTAL
             FROM HRMS.HR_OT_REQUEST OT
             JOIN HRMS.ECM100 EC ON EC.EMPCD = OT.EMPCD
-            WHERE OT.WORK_DATE = (SELECT WD FROM LATEST_OT)
-              {scopeOuter.SqlClause}";
+            WHERE OT.WORK_DATE = TRUNC(SYSDATE)
+              {scope.SqlClause}";
 
-        var allParams = scopeInner.Params.Concat(scopeOuter.Params).ToArray();
+        var allParams = scope.Params.ToArray();
 
         var rows = await _oracleService.ExecuteQueryAsync(sql, r => new OtCounts
         {

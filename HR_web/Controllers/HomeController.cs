@@ -1,4 +1,5 @@
 using HR_web.API.Service;
+using HR_web.Helpers;
 using HR_web.ViewModels.Home;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -203,5 +204,9 @@ public class HomeController : BaseController
     // Error page (giữ nguyên)
     // ============================================================
     [AllowAnonymous]
-    public IActionResult Error() => View();
+    public IActionResult Error()
+    {
+        if (MobileHelper.IsMobileApp(HttpContext)) return RedirectToAction("Index", "Home");
+        return View();
+    }
 }

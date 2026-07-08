@@ -118,6 +118,17 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UseStatusCodePages(ctx =>
+{
+    var code = ctx.HttpContext.Response.StatusCode;
+    if (HR_web.Helpers.MobileHelper.IsMobileApp(ctx.HttpContext) && (code == 404 || code >= 500))
+    {
+        var pathBase = ctx.HttpContext.Request.PathBase.Value ?? "";
+        ctx.HttpContext.Response.Redirect(pathBase + "/Home/Index");
+    }
+    return Task.CompletedTask;
+});
+
 // Localization vi-VN
 var supportedCultures = new[] { new CultureInfo("vi-VN") };
 app.UseRequestLocalization(new RequestLocalizationOptions

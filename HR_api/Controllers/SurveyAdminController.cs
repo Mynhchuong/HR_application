@@ -231,6 +231,28 @@ public class SurveyAdminController : ControllerBase
         });
     }
 
+    // GET /apiHR/SurveyAdmin/participants?id=&deptcd=&linecd=&workcd=&empcd=&status=&page=&pageSize=
+    [HttpGet("participants")]
+    public async Task<IActionResult> Participants(
+        [FromQuery] int id,
+        [FromQuery] string? deptcd, [FromQuery] string? linecd,
+        [FromQuery] string? workcd, [FromQuery] string? empcd,
+        [FromQuery] string? status,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 30)
+    {
+        var data = await _report.GetParticipantsAsync(id, deptcd, linecd, workcd, empcd, status, page, pageSize);
+        return Ok(new { success = true, data });
+    }
+
+    // GET /apiHR/SurveyAdmin/participant-answers?surveyId=&empcd=
+    [HttpGet("participant-answers")]
+    public async Task<IActionResult> ParticipantAnswers([FromQuery] int surveyId, [FromQuery] string empcd)
+    {
+        var data = await _report.GetParticipantAnswersAsync(surveyId, empcd);
+        if (data == null) return Ok(new { success = false, message = "Không tìm thấy" });
+        return Ok(new { success = true, data });
+    }
+
     private static HashSet<int> ParseIds(string? csv)
     {
         if (string.IsNullOrWhiteSpace(csv)) return new();

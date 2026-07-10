@@ -7,6 +7,7 @@
     const E = window.SURVEY_EDIT || {};
     if (!E) return;
 
+    const URLS = E.urls || {};
     const TOKEN = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]')?.value ?? '';
 
     // ── State ─────────────────────────────────────────
@@ -375,12 +376,12 @@
 
         row.querySelector('.btn-del-dlw').addEventListener('click', () => row.remove());
         $dept.addEventListener('change', async (e) => {
-            const lines = await fetchDropdown('/Dropdown/GetLineByDept', { deptCd: e.target.value });
+            const lines = await fetchDropdown(URLS.lineByDept, { deptCd: e.target.value });
             fillDropdown($line, lines, 'Tất cả Line trong Dept');
             fillDropdown($work, [],    'Tất cả Work trong Line');
         });
         $line.addEventListener('change', async (e) => {
-            const works = await fetchDropdown('/Dropdown/GetWorkByLine', { lineCd: e.target.value });
+            const works = await fetchDropdown(URLS.workByLine, { lineCd: e.target.value });
             fillDropdown($work, works, 'Tất cả Work trong Line');
         });
         document.getElementById('scopeDLWList').appendChild(row);
@@ -389,11 +390,11 @@
         if (prefill) {
             $dept.value = prefill.DEPTCD || '';
             if (prefill.DEPTCD) {
-                const lines = await fetchDropdown('/Dropdown/GetLineByDept', { deptCd: prefill.DEPTCD });
+                const lines = await fetchDropdown(URLS.lineByDept, { deptCd: prefill.DEPTCD });
                 fillDropdown($line, lines, 'Tất cả Line trong Dept');
                 if (prefill.LINECD) {
                     $line.value = prefill.LINECD;
-                    const works = await fetchDropdown('/Dropdown/GetWorkByLine', { lineCd: prefill.LINECD });
+                    const works = await fetchDropdown(URLS.workByLine, { lineCd: prefill.LINECD });
                     fillDropdown($work, works, 'Tất cả Work trong Line');
                     if (prefill.WORKCD) $work.value = prefill.WORKCD;
                 }
@@ -526,7 +527,7 @@
         const r = await save();
         if (r?.success) {
             toast('Đã lưu nháp', 'success');
-            setTimeout(() => { location.href = '/SurveyAdmin/Edit?id=' + (r.id || E.id); }, 600);
+            setTimeout(() => { location.href = URLS.editBase + '?id=' + (r.id || E.id); }, 600);
         } else {
             toast(r?.message || 'Lưu thất bại', 'error');
         }
@@ -549,7 +550,7 @@
 
             showPubModal();
             try {
-                const res = await fetch('/SurveyAdmin/PublishStream', {
+                const res = await fetch(URLS.publishStream, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
                     body: JSON.stringify({ Id: id, NewStatus: 'SCHEDULED' }),
@@ -584,7 +585,7 @@
                 hidePubModal();
                 if (finalOk) {
                     toast('Đã publish thành công', 'success');
-                    setTimeout(() => { location.href = '/SurveyAdmin/Index'; }, 600);
+                    setTimeout(() => { location.href = URLS.index; }, 600);
                 } else {
                     toast(finalMsg || 'Publish thất bại — data đã lưu nháp', 'error');
                 }
@@ -631,7 +632,7 @@
     }
 
     async function save() {
-        return await post('/SurveyAdmin/Save', buildPayload());
+        return await post(URLS.save, buildPayload());
     }
     async function post(url, body) {
         try {

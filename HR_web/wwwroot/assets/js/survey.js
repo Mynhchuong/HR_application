@@ -3,7 +3,8 @@
 // Đọc dữ liệu từ window.SURVEY_DATA (Do.cshtml inject sẵn).
 // ══════════════════════════════════════════════════════════════
 (function () {
-    const D = window.SURVEY_DATA || {};
+    const D    = window.SURVEY_DATA || {};
+    const URLS = D.urls || {};
     if (!D.questions || D.questions.length === 0) return;
 
     const isEn      = D.lang === 'EN';
@@ -290,7 +291,7 @@
             answerText:      v.text || null,
             answerNumber:    v.number || null,
         };
-        const r = await post('/Survey/SaveAnswer', payload);
+        const r = await post(URLS.saveAnswer, payload);
         return r && r.success === true;
     }
 
@@ -308,15 +309,15 @@
                     };
                 }),
             };
-            const r = await post('/SurveyAdmin/TestSubmit', payload);
+            const r = await post(URLS.testSubmit, payload);
             return r || { success: false };
         }
-        const r = await post('/Survey/Submit', { surveyId: D.surveyId });
+        const r = await post(URLS.submit, { surveyId: D.surveyId });
         return r || { success: false };
     }
 
     async function skipIlliterate() {
-        const r = await post('/Survey/Skip', { surveyId: D.surveyId });
+        const r = await post(URLS.skip, { surveyId: D.surveyId });
         return r || { success: false };
     }
 
@@ -367,7 +368,7 @@
             $btnIlliterateConfirm.disabled = false;
             closeModal('modalIlliterate');
             if (!r.success) { alert(r.message || t.submitErr); return; }
-            window.location.href = '/Home/Index';
+            window.location.href = URLS.homeIndex;
         });
     }
 
@@ -378,7 +379,7 @@
         // Preview mode: không có modal → alert cảm ơn
         if (!$title || !$body) {
             alert(t.thankTitle + ' — ' + t.thankPoll);
-            window.location.href = '/SurveyAdmin/Index';
+            window.location.href = URLS.adminIndex;
             return;
         }
 

@@ -144,6 +144,7 @@
                                             <a href="@Url.Action("Preview", new { id = s.ID })" class="btn btn-outline-primary" title="Xem trước"><i class="bi bi-eye"></i><span>Xem</span></a>
                                             <a href="@Url.Action("TestMode", new { id = s.ID })" class="btn btn-outline-secondary" title="Làm thử"><i class="bi bi-play-circle"></i><span>Thử</span></a>
                                             <a href="@Url.Action("Report", new { id = s.ID })" class="btn btn-outline-info" title="Báo cáo"><i class="bi bi-bar-chart"></i><span>Báo cáo</span></a>
+                                            <a href="@Url.Action("Participants", new { id = s.ID })" class="btn btn-outline-secondary" title="Danh sách NV"><i class="bi bi-people"></i><span>NV</span></a>
                                             @if (canPublish)
                                             {
                                                 <button type="button" class="btn btn-success sa-action" data-action="publish" title="Publish"><i class="bi bi-cloud-upload-fill"></i><span>Publish</span></button>
@@ -210,7 +211,7 @@
             const doIt = async () => {
                 btn.disabled = true;
                 try {
-                    const res = await fetch('/SurveyAdmin/ChangeStatus', {
+                    const res = await fetch('@Url.Action("ChangeStatus", "SurveyAdmin")', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
                         body: JSON.stringify({ Id: id, NewStatus: cfg.status }),

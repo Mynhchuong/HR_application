@@ -82,3 +82,33 @@ public class SurveyReportIlliterateModel
     public string?   NOTE           { get; set; }
     public DateTime? INST_DT        { get; set; }
 }
+
+public class SurveyParticipantModel
+{
+    public string    EMPCD     { get; set; } = "";
+    public string?   FULL_NAME { get; set; }
+    public string?   DEPTCD    { get; set; }
+    public string?   LINECD    { get; set; }
+    public string?   WORKCD    { get; set; }
+    public string    STATUS    { get; set; } = "NOT_STARTED";
+    public decimal?  SCORE     { get; set; }
+    public decimal?  MAX_SCORE { get; set; }
+    public int?      IS_PASS   { get; set; }
+    public DateTime? SUBMIT_DT { get; set; }
+    public DateTime? START_DT  { get; set; }
+}
+
+public class SurveyParticipantPageModel
+{
+    public List<SurveyParticipantModel> ITEMS      { get; set; } = new();
+    public int                          TOTAL      { get; set; }
+    public int                          PAGE       { get; set; }
+    public int                          PAGE_SIZE  { get; set; }
+}
+
+public class SurveyParticipantDetailModel
+{
+    public SurveyParticipantModel    INFO      { get; set; } = new();
+    public List<SurveyQuestionModel> QUESTIONS { get; set; } = new();
+    public List<SurveyAnswerModel>   ANSWERS   { get; set; } = new();
+}

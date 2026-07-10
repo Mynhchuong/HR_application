@@ -1,0 +1,364 @@
+@model HR_web.Models.Survey.SurveyParticipantPageViewModel
+@{
+    ViewData["Title"] = "Người làm survey — " + Model.TITLE;
+    var isQuiz = Model.SURVEY_TYPE == "QUIZ";
+    var pg = Model.Page;
+    var totalPages = (int)Math.Ceiling(pg.TOTAL / (double)Math.Max(pg.PAGE_SIZE, 1));
+
+    string StatusLabel(string s) => s switch {
+        "SUBMITTED"       => "Đã nộp",
+        "AUTO_SUBMITTED"  => "Tự nộp",
+        "ILLITERATE_SKIP" => "Mù chữ",
+        "IN_PROGRESS"     => "Đang làm",
+        _                 => "Chưa làm",
+    };
+    string StatusStyle(string s) => s switch {
+        "SUBMITTED"       => "background:#dcfce7;color:#166534;",
+        "AUTO_SUBMITTED"  => "background:#fef3c7;color:#92400e;",
+        "ILLITERATE_SKIP" => "background:#fee2e2;color:#b91c1c;",
+        "IN_PROGRESS"     => "background:#dbeafe;color:#1d4ed8;",
+        _                 => "background:#f1f5f9;color:#475569;",
+    };
+
+    string PageUrl(int p) {
+        var q = System.Web.HttpUtility.ParseQueryString("");
+        q["id"]     = Model.SURVEY_ID.ToString();
+        q["page"]   = p.ToString();
+        if (!string.IsNullOrEmpty(Model.FilterDept))   q["deptcd"] = Model.FilterDept;
+        if (!string.IsNullOrEmpty(Model.FilterLine))   q["linecd"] = Model.FilterLine;
+        if (!string.IsNullOrEmpty(Model.FilterWork))   q["workcd"] = Model.FilterWork;
+        if (!string.IsNullOrEmpty(Model.FilterEmpcd))  q["empcd"]  = Model.FilterEmpcd;
+        if (!string.IsNullOrEmpty(Model.FilterStatus)) q["status"] = Model.FilterStatus;
+        return Url.Action("Participants", "SurveyAdmin") + "?" + q;
+    }
+}
+
+@section Styles {
+<style>
+    .filter-label { font-size:.78rem; font-weight:600; color:#6b7280; margin-bottom:3px; }
+    .tbl-wrap { max-height:calc(100vh - 320px); overflow-y:auto; }
+    table { font-size:.8rem; }
+    table thead th { position:sticky; top:0; background:#f8fafc; z-index:1; font-size:.75rem; color:#64748b; font-weight:600; padding:6px 8px; white-space:nowrap; border-bottom:2px solid #e2e8f0; }
+    table tbody td { padding:5px 8px; vertical-align:middle; }
+    .emp-name-cell { font-family:'Vnitbi__',system-ui,sans-serif; font-weight:600; color:#1e293b; }
+    .emp-row { cursor:pointer; }
+    .emp-row:hover { background:#f0f7ff !important; }
+    .count-badge { font-size:.75rem; background:#6366f1; color:#fff; border-radius:12px; padding:1px 9px; font-weight:700; }
+    .status-pill { font-size:.72rem; font-weight:700; border-radius:999px; padding:2px 9px; display:inline-block; }
+
+    /* Detail modal */
+    .sp-q-block { margin-bottom:14px; padding:12px 14px; border:1px solid #e2e8f0; border-radius:8px; }
+    .sp-q-text  { font-weight:600; font-size:.85rem; color:#1e293b; margin-bottom:8px; }
+    .sp-option  { padding:5px 9px; border-radius:6px; margin-bottom:3px; font-size:.82rem; display:flex; align-items:center; gap:7px; }
+    .sp-option.selected { background:#dbeafe; border:1px solid #93c5fd; }
+    .sp-option.correct  { background:#dcfce7; border:1px solid #86efac; }
+    .sp-option.wrong    { background:#fee2e2; border:1px solid #fca5a5; }
+    .sp-option.selected.correct { background:#dcfce7; border:1px solid #22c55e; }
+    .sp-text-answer { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:9px 12px; font-size:.82rem; white-space:pre-wrap; }
+    .sp-no-answer { color:#94a3b8; font-style:italic; font-size:.8rem; }
+    .sp-rating-stars { font-size:1.2rem; color:#f59e0b; }
+    .sp-info-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; font-size:.78rem; }
+    .sp-chip { background:#f1f5f9; border-radius:6px; padding:3px 9px; color:#475569; }
+</style>
+}
+
+<div class="container-fluid py-3">
+
+    <!-- Filter card -->
+    <div class="card mb-3">
+        <div class="card-body pb-2">
+            <form method="get" action="@Url.Action("Participants")" id="filterForm">
+                <input type="hidden" name="id" value="@Model.SURVEY_ID" />
+                <div class="row g-2">
+                    <div class="col-sm-6 col-md-2">
+                        <div class="filter-label">Phòng ban</div>
+                        <select name="deptcd" id="fDept" class="form-select form-select-sm">
+                            <option value="">-- Tất cả --</option>
+                            @foreach (var d in Model.Depts)
+                            {
+                                @if (Model.FilterDept == d.id) { <option value="@d.id" selected>@d.text</option> }
+                                else { <option value="@d.id">@d.text</option> }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-2">
+                        <div class="filter-label">Dây chuyền</div>
+                        <select name="linecd" id="fLine" class="form-select form-select-sm">
+                            <option value="">-- Tất cả --</option>
+                            @if (!string.IsNullOrEmpty(Model.FilterLine))
+                            {
+                                <option value="@Model.FilterLine" selected>@Model.FilterLine</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-2">
+                        <div class="filter-label">Công đoạn</div>
+                        <select name="workcd" id="fWork" class="form-select form-select-sm">
+                            <option value="">-- Tất cả --</option>
+                            @if (!string.IsNullOrEmpty(Model.FilterWork))
+                            {
+                                <option value="@Model.FilterWork" selected>@Model.FilterWork</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-2">
+                        <div class="filter-label">Mã NV</div>
+                        <input type="text" name="empcd" class="form-control form-control-sm" value="@Model.FilterEmpcd" placeholder="Nhập mã NV..." />
+                    </div>
+                    <div class="col-sm-6 col-md-2">
+                        <div class="filter-label">Trạng thái</div>
+                        <select name="status" class="form-select form-select-sm">
+                            <option value="">-- Tất cả --</option>
+                            @foreach (var (val, lbl) in new[] { ("SUBMITTED","Đã nộp"), ("AUTO_SUBMITTED","Tự nộp"), ("ILLITERATE_SKIP","Mù chữ"), ("IN_PROGRESS","Đang làm"), ("NOT_STARTED","Chưa làm") })
+                            {
+                                @if (Model.FilterStatus == val) { <option value="@val" selected>@lbl</option> }
+                                else { <option value="@val">@lbl</option> }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-md-2 d-flex gap-1 align-items-end">
+                        <button type="submit" class="btn btn-primary btn-sm flex-fill">
+                            <span class="material-symbols-rounded align-middle me-1" style="font-size:.9rem;">filter_alt</span>Lọc
+                        </button>
+                        <a href="@Url.Action("Participants", new { id = Model.SURVEY_ID })" class="btn btn-outline-secondary btn-sm" title="Xoá lọc">
+                            <span class="material-symbols-rounded" style="font-size:.9rem;">close</span>
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Table card -->
+    <div class="card">
+        <div class="card-header py-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span style="font-size:.85rem;font-weight:700;color:#1e293b;">
+                    <span class="material-symbols-rounded align-middle me-1" style="font-size:1rem;">group</span>
+                    @Model.TITLE
+                </span>
+                <span class="count-badge">@pg.TOTAL</span>
+                <span style="font-size:.78rem;color:#64748b;">người · trang @pg.PAGE/@totalPages</span>
+                <div class="ms-auto d-flex gap-2">
+                    <a href="@Url.Action("ParticipantExport", new { id = Model.SURVEY_ID, deptcd = Model.FilterDept, linecd = Model.FilterLine, workcd = Model.FilterWork, empcd = Model.FilterEmpcd, status = Model.FilterStatus })"
+                       class="btn btn-success btn-sm py-0 px-3" download>
+                        <span class="material-symbols-rounded align-middle me-1" style="font-size:.9rem;">download</span>Xuất Excel
+                    </a>
+                    <a href="@Url.Action("Report", new { id = Model.SURVEY_ID })" class="btn btn-outline-secondary btn-sm py-0 px-3">
+                        <span class="material-symbols-rounded align-middle me-1" style="font-size:.9rem;">bar_chart</span>Report
+                    </a>
+                    <a href="@Url.Action("Index")" class="btn btn-outline-secondary btn-sm py-0 px-3">
+                        <span class="material-symbols-rounded align-middle" style="font-size:.9rem;">arrow_back</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="tbl-wrap">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Mã NV</th>
+                            <th>Họ tên</th>
+                            <th>Phòng / Chuyền / Tổ</th>
+                            <th>Trạng thái</th>
+                            @if (isQuiz) { <th class="text-center">Điểm</th><th class="text-center">KQ</th> }
+                            <th>Nộp lúc</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ int stt = (pg.PAGE - 1) * pg.PAGE_SIZE + 1; }
+                        @foreach (var p in pg.ITEMS)
+                        {
+                            <tr class="emp-row" data-empcd="@p.EMPCD" title="Nhấn để xem câu trả lời">
+                                <td style="color:#94a3b8;font-size:.72rem;">@(stt++)</td>
+                                <td style="font-family:monospace;font-size:.75rem;font-weight:600;">@p.EMPCD</td>
+                                <td class="emp-name-cell">@p.FULL_NAME</td>
+                                <td style="font-size:.72rem;color:#64748b;">@string.Join(" / ", new[]{ p.DEPTCD, p.LINECD, p.WORKCD }.Where(x => !string.IsNullOrEmpty(x)))</td>
+                                <td><span class="status-pill" style="@StatusStyle(p.STATUS)">@StatusLabel(p.STATUS)</span></td>
+                                @if (isQuiz)
+                                {
+                                    <td class="text-center fw-semibold" style="font-size:.8rem;">@(p.SCORE.HasValue ? $"{p.SCORE}/{p.MAX_SCORE}" : "—")</td>
+                                    <td class="text-center">
+                                        @if (p.IS_PASS == 1) { <span class="badge" style="background:#dcfce7;color:#166534;">PASS</span> }
+                                        else if (p.IS_PASS == 0) { <span class="badge" style="background:#fee2e2;color:#b91c1c;">FAIL</span> }
+                                        else { <span style="color:#94a3b8;">—</span> }
+                                    </td>
+                                }
+                                <td style="font-size:.75rem;color:#64748b;white-space:nowrap;">@p.SUBMIT_DT?.ToString("dd/MM HH:mm")</td>
+                            </tr>
+                        }
+                        @if (!pg.ITEMS.Any())
+                        {
+                            <tr><td colspan="@(isQuiz ? 8 : 6)" class="text-center text-muted py-5">
+                                <span class="material-symbols-rounded d-block mb-2" style="font-size:2rem;color:#cbd5e1;">person_off</span>
+                                Không có dữ liệu
+                            </td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="card-footer py-2">
+                <nav>
+                    <ul class="pagination pagination-sm justify-content-center flex-wrap gap-1 mb-0">
+                        @if (pg.PAGE > 1)
+                        {
+                            <li class="page-item"><a class="page-link" href="@PageUrl(pg.PAGE - 1)">&#8249;</a></li>
+                        }
+                        @for (int p2 = Math.Max(1, pg.PAGE - 3); p2 <= Math.Min(totalPages, pg.PAGE + 3); p2++)
+                        {
+                            <li class="page-item @(p2 == pg.PAGE ? "active" : "")">
+                                <a class="page-link" href="@PageUrl(p2)">@p2</a>
+                            </li>
+                        }
+                        @if (pg.PAGE < totalPages)
+                        {
+                            <li class="page-item"><a class="page-link" href="@PageUrl(pg.PAGE + 1)">&#8250;</a></li>
+                        }
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Detail Modal (Bootstrap) -->
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2" style="background:#1e3a5f;">
+                <h6 class="modal-title text-white mb-0" id="detailModalTitle">Chi tiết câu trả lời</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailModalBody" style="font-size:.83rem;">
+                <div class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const SURVEY_ID   = @Model.SURVEY_ID;
+const IS_QUIZ     = @(isQuiz ? "true" : "false");
+const ANSWERS_URL = '@Url.Action("ParticipantAnswers", "SurveyAdmin")';
+const LINE_URL    = '@Url.Action("GetLineByDept", "Dropdown")';
+const WORK_URL    = '@Url.Action("GetWorkByLine", "Dropdown")';
+
+// ── Row click → modal ────────────────────────────────────────────────────────
+const detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+document.querySelectorAll('.emp-row').forEach(tr => {
+    tr.addEventListener('click', () => openDetail(tr.dataset.empcd));
+});
+
+async function openDetail(empcd) {
+    document.getElementById('detailModalTitle').textContent = 'Câu trả lời — ' + empcd;
+    document.getElementById('detailModalBody').innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div></div>';
+    detailModal.show();
+    try {
+        const res = await fetch(ANSWERS_URL + '?surveyId=' + SURVEY_ID + '&empcd=' + encodeURIComponent(empcd));
+        const j   = await res.json();
+        if (!j.success) {
+            document.getElementById('detailModalBody').innerHTML = '<div class="text-danger p-3">' + esc(j.message || 'Lỗi tải dữ liệu') + '</div>';
+            return;
+        }
+        renderDetail(j.data);
+    } catch(e) {
+        document.getElementById('detailModalBody').innerHTML = '<div class="text-danger p-3">Lỗi kết nối</div>';
+    }
+}
+
+function renderDetail(d) {
+    const info = d.INFO;
+    const statusLabel = { SUBMITTED:'Đã nộp', AUTO_SUBMITTED:'Tự nộp', ILLITERATE_SKIP:'Mù chữ', IN_PROGRESS:'Đang làm', NOT_STARTED:'Chưa làm' };
+    const answerMap = {};
+    (d.ANSWERS || []).forEach(a => { answerMap[a.QUESTION_ID] = a; });
+
+    const loc = [info.DEPTCD, info.LINECD, info.WORKCD].filter(Boolean).join(' / ');
+    let html = `<div class="sp-info-chips">
+        <span class="sp-chip" style="font-family:monospace;font-weight:700;">${esc(info.EMPCD)}</span>
+        <span class="sp-chip emp-name-cell">${esc(info.FULL_NAME || '—')}</span>
+        ${loc ? `<span class="sp-chip">${esc(loc)}</span>` : ''}
+        <span class="sp-chip">${esc(statusLabel[info.STATUS] || info.STATUS)}</span>
+        ${IS_QUIZ && info.SCORE != null ? `<span class="sp-chip fw-bold">${info.SCORE}/${info.MAX_SCORE} &nbsp;
+            <span class="badge" style="${info.IS_PASS==1?'background:#dcfce7;color:#166534':'background:#fee2e2;color:#b91c1c'}">${info.IS_PASS==1?'PASS':'FAIL'}</span></span>` : ''}
+        ${info.SUBMIT_DT ? `<span class="sp-chip text-muted">Nộp: ${new Date(info.SUBMIT_DT).toLocaleString('vi-VN')}</span>` : ''}
+    </div>`;
+
+    if (info.STATUS === 'NOT_STARTED') {
+        html += '<div class="text-muted text-center py-4">Nhân viên chưa bắt đầu làm survey.</div>';
+    } else if (info.STATUS === 'ILLITERATE_SKIP') {
+        html += '<div class="text-center py-4"><span class="badge bg-danger fs-6">Nhân viên nhấn "Tôi không biết chữ"</span></div>';
+    } else {
+        (d.QUESTIONS || []).forEach((q, idx) => {
+            const ans = answerMap[q.ID];
+            const selectedIds = ans && ans.ANSWER_OPTION_IDS ? ans.ANSWER_OPTION_IDS.split(',').map(Number) : [];
+            html += `<div class="sp-q-block">
+                <div class="sp-q-text">${idx+1}. ${esc(q.QUESTION_TEXT)}
+                    <span class="badge bg-light text-secondary ms-1" style="font-size:.65rem;font-weight:600;">${q.QUESTION_TYPE}</span>
+                </div>`;
+
+            if (q.QUESTION_TYPE === 'TEXT') {
+                html += ans && ans.ANSWER_TEXT
+                    ? `<div class="sp-text-answer">${esc(ans.ANSWER_TEXT)}</div>`
+                    : '<div class="sp-no-answer">Không có câu trả lời</div>';
+            } else if (q.QUESTION_TYPE === 'RATING') {
+                const stars = ans && ans.ANSWER_NUMBER ? ans.ANSWER_NUMBER : 0;
+                html += `<div class="sp-rating-stars">${'★'.repeat(stars)}${'☆'.repeat(5-stars)}</div>`;
+            } else {
+                (q.OPTIONS || []).forEach(opt => {
+                    const isSel = selectedIds.includes(opt.ID);
+                    let cls = 'sp-option';
+                    if (IS_QUIZ) {
+                        if (opt.IS_CORRECT && isSel)       cls += ' selected correct';
+                        else if (!opt.IS_CORRECT && isSel) cls += ' selected wrong';
+                        else if (opt.IS_CORRECT && !isSel) cls += ' correct';
+                    } else if (isSel) cls += ' selected';
+                    const icon = IS_QUIZ
+                        ? (opt.IS_CORRECT ? '<span style="color:#16a34a;font-weight:700;">✓</span>' : '<span style="color:#dc2626;">✗</span>')
+                        : (isSel ? '<span style="color:#2563eb;">●</span>' : '<span style="color:#cbd5e1;">○</span>');
+                    html += `<div class="${cls}">${icon} ${esc(opt.OPTION_TEXT)}</div>`;
+                });
+                if (!selectedIds.length) html += '<div class="sp-no-answer">Không có câu trả lời</div>';
+            }
+            html += '</div>';
+        });
+    }
+    document.getElementById('detailModalBody').innerHTML = html;
+}
+
+// ── Cascade Dept → Line → Work ───────────────────────────────────────────────
+const $dept = document.getElementById('fDept');
+const $line = document.getElementById('fLine');
+const $work = document.getElementById('fWork');
+
+async function loadLines(deptCd, selLine) {
+    if (!deptCd) { $line.innerHTML = '<option value="">-- Tất cả --</option>'; $work.innerHTML = '<option value="">-- Tất cả --</option>'; return; }
+    const items = await fetch(LINE_URL + '?deptCd=' + encodeURIComponent(deptCd)).then(r => r.json());
+    $line.innerHTML = '<option value="">-- Tất cả --</option>' + items.map(i => `<option value="${esc(i.id)}"${i.id==selLine?' selected':''}>${esc(i.text)}</option>`).join('');
+}
+async function loadWorks(lineCd, selWork) {
+    if (!lineCd) { $work.innerHTML = '<option value="">-- Tất cả --</option>'; return; }
+    const items = await fetch(WORK_URL + '?lineCd=' + encodeURIComponent(lineCd)).then(r => r.json());
+    $work.innerHTML = '<option value="">-- Tất cả --</option>' + items.map(i => `<option value="${esc(i.id)}"${i.id==selWork?' selected':''}>${esc(i.text)}</option>`).join('');
+}
+
+$dept.addEventListener('change', async () => { await loadLines($dept.value, ''); });
+$line.addEventListener('change', async () => { await loadWorks($line.value, ''); });
+
+// Hydrate on page load (khi đã có filter)
+(async () => {
+    const d = '@Html.Raw(Model.FilterDept ?? "")';
+    const l = '@Html.Raw(Model.FilterLine ?? "")';
+    const w = '@Html.Raw(Model.FilterWork ?? "")';
+    if (d) { await loadLines(d, l); if (l) await loadWorks(l, w); }
+})();
+
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+}

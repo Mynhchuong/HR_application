@@ -265,6 +265,15 @@
             id:      @(Model.ID),
             isNew:   @(isNew.ToString().ToLower()),
             initial: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model)),
+            urls: {
+                lineByDept:    '@Url.Action("GetLineByDept", "Dropdown")',
+                workByLine:    '@Url.Action("GetWorkByLine", "Dropdown")',
+                save:          '@Url.Action("Save", "SurveyAdmin")',
+                changeStatus:  '@Url.Action("ChangeStatus", "SurveyAdmin")',
+                publishStream: '@Url.Action("PublishStream", "SurveyAdmin")',
+                editBase:      '@Url.Action("Edit", "SurveyAdmin")',
+                index:         '@Url.Action("Index", "SurveyAdmin")',
+            }
         };
     </script>
     <script src="~/assets/js/survey-admin.js" asp-append-version="true"></script>

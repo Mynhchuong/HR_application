@@ -33,7 +33,7 @@
 </div>
 <script>
 (function () {
-    fetch('/Home/HrSummary', { headers: { 'Accept': 'application/json' } })
+    fetch('@Url.Action("HrSummary", "Home")', { headers: { 'Accept': 'application/json' } })
         .then(r => r.ok ? r.json() : null)
         .then(j => {
             if (!j || !j.success || !j.data) return;

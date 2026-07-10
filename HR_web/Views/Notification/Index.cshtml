@@ -142,9 +142,11 @@ const linkMap = {
     'LEAVE_ASSIGNED': '@Url.Action("LeaveMyRequests", "Leave")',
     'OT_SIGN':     '@Url.Action("OtConfirmForm", "OT")',
     'PAYSLIP':     '@Url.Action("Index", "Payslip")',
-    'BULLETIN':    '@Url.Action("Index", "Bulletin")',   // fallback; thực tế dùng TARGET_VAL build Detail URL trong onNotiClick
-    'SURVEY':      '@Url.Action("Index", "SurveyAdmin")',// fallback; thực tế dùng TARGET_VAL build Do URL trong onNotiClick
+    'BULLETIN':    '@Url.Action("Index", "Bulletin")',   // fallback
+    'SURVEY':      '@Url.Action("Index", "SurveyAdmin")',// fallback
 };
+const bulletinDetailBase = '@Url.Action("Detail", "Bulletin")';
+const surveyDoBase       = '@Url.Action("Do", "Survey")';
 
 let page = 1;
 const PAGE_SIZE = 20;
@@ -241,9 +243,9 @@ function onNotiClick(n) {
     // Đặc biệt: BULLETIN + SURVEY → build URL với TARGET_VAL
     let url;
     if (n.LINK_ACTION === 'BULLETIN' && n.TARGET_VAL) {
-        url = '/Bulletin/Detail/' + encodeURIComponent(n.TARGET_VAL);
+        url = bulletinDetailBase + '/' + encodeURIComponent(n.TARGET_VAL);
     } else if (n.LINK_ACTION === 'SURVEY' && n.TARGET_VAL) {
-        url = '/Survey/Do/' + encodeURIComponent(n.TARGET_VAL);
+        url = surveyDoBase + '/' + encodeURIComponent(n.TARGET_VAL);
     } else if (n.LINK_ACTION && /^https?:\/\//i.test(n.LINK_ACTION)) {
         // Link ngoài (bài báo, gov, v.v.) — mở tab mới
         window.open(n.LINK_ACTION, '_blank', 'noopener,noreferrer');

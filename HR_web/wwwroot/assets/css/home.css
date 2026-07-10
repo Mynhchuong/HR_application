@@ -235,6 +235,22 @@
     75%      { transform: translateY(-3px) rotate(3deg); }
 }
 
+/* Màn hình nhỏ (< 420px): CTA xuống dòng riêng, text có đủ chỗ */
+@media (max-width: 419px) {
+    .home-payday-banner {
+        flex-wrap: wrap;
+        gap: 8px 12px;
+    }
+    .home-payday-body {
+        flex-basis: calc(100% - 56px - 12px);
+    }
+    .home-payday-cta {
+        order: 4;
+        flex: 0 0 auto;
+        margin-left: calc(56px + 12px);
+    }
+}
+
 @media (min-width: 640px) {
     .home-payday-banner { padding: 16px 52px 16px 20px; gap: 16px; border-radius: 20px; }
     .home-payday-icon { width: 72px; height: 72px; }

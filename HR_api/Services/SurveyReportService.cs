@@ -33,14 +33,26 @@ public class SurveyReportService
         if (survey == null) return null;
 
         // Recipient count + response counts by status
+        // RECIPIENT_MODE='ALL' → đếm từ ECM100 (active employees), không dùng HR_SURVEY_RECIPIENT
         const string sqlCounts = @"
             SELECT
-              (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RECIPIENT WHERE SURVEY_ID = :ID) AS TOTAL,
-              (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RESPONSE  WHERE SURVEY_ID = :ID AND STATUS = 'SUBMITTED')      AS SUBMITTED,
-              (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RESPONSE  WHERE SURVEY_ID = :ID AND STATUS = 'AUTO_SUBMITTED') AS AUTO_SUB,
-              (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RESPONSE  WHERE SURVEY_ID = :ID AND STATUS = 'ILLITERATE_SKIP')AS ILLITERATE,
-              (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RESPONSE  WHERE SURVEY_ID = :ID AND STATUS = 'IN_PROGRESS')    AS IN_PROG
-            FROM DUAL";
+              CASE WHEN S.RECIPIENT_MODE = 'ALL' THEN
+                   (SELECT COUNT(*) FROM HRMS.ECM100 EC
+                     WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                       AND NOT EXISTS (
+                           SELECT 1 FROM HRMS.HR_SURVEY_EXEMPT EX
+                            WHERE EX.EMPCD = EC.EMPCD
+                              AND EX.IS_ACTIVE = 1
+                              AND EX.EFFECTIVE_DATE <= TRUNC(SYSDATE)))
+              ELSE
+                   (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RECIPIENT R WHERE R.SURVEY_ID = S.ID)
+              END AS TOTAL,
+              (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RESPONSE WHERE SURVEY_ID = :ID AND STATUS = 'SUBMITTED')       AS SUBMITTED,
+              (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RESPONSE WHERE SURVEY_ID = :ID AND STATUS = 'AUTO_SUBMITTED')  AS AUTO_SUB,
+              (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RESPONSE WHERE SURVEY_ID = :ID AND STATUS = 'ILLITERATE_SKIP') AS ILLITERATE,
+              (SELECT COUNT(*) FROM HRMS.HR_SURVEY_RESPONSE WHERE SURVEY_ID = :ID AND STATUS = 'IN_PROGRESS')     AS IN_PROG
+            FROM HRMS.HR_SURVEY S
+            WHERE S.ID = :ID";
         var counts = (await _db.ExecuteQueryAsync(sqlCounts, r => new
         {
             Total       = Convert.ToInt32(r["TOTAL"]),
@@ -239,6 +251,243 @@ public class SurveyReportService
             PASS_COUNT = passCnt,
             FAIL_COUNT = failCnt,
         };
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  PARTICIPANTS: list + detail answers
+    // ═══════════════════════════════════════════════════════════════
+
+    public async Task<SurveyParticipantPageModel> GetParticipantsAsync(
+        int surveyId, string? deptcd, string? linecd, string? workcd, string? empcd, string? status,
+        int page, int pageSize)
+    {
+        page     = Math.Max(1, page);
+        pageSize = Math.Max(1, pageSize);
+        int startRow = (page - 1) * pageSize;
+        int endRow   = page * pageSize;
+
+        // Check RECIPIENT_MODE để chọn base table đúng
+        var modeRows = await _db.ExecuteQueryAsync(
+            "SELECT RECIPIENT_MODE FROM HRMS.HR_SURVEY WHERE ID = :ID",
+            r => r["RECIPIENT_MODE"]?.ToString() ?? "ALL",
+            new OracleParameter("ID", surveyId));
+        bool isAll = (modeRows.FirstOrDefault() ?? "ALL") == "ALL";
+
+        string activeEmpFilter = @"
+                   (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+               AND NOT EXISTS (
+                       SELECT 1 FROM HRMS.HR_SURVEY_EXEMPT EX
+                        WHERE EX.EMPCD = EC.EMPCD
+                          AND EX.IS_ACTIVE = 1
+                          AND EX.EFFECTIVE_DATE <= TRUNC(SYSDATE))";
+
+        string filterWhere, countSql, innerSql;
+
+        if (isAll)
+        {
+            // Base = ECM100 active employees (trừ exempt)
+            filterWhere = $@"
+             WHERE {activeEmpFilter}
+               AND (:P_DEPT IS NULL OR EC.DEPTCD = :P_DEPT)
+               AND (:P_LINE IS NULL OR EC.LINECD = :P_LINE)
+               AND (:P_WORK IS NULL OR EC.WORKCD = :P_WORK)
+               AND (:P_EMP  IS NULL OR EC.EMPCD  = :P_EMP)
+               AND (:P_STAT IS NULL OR NVL(RESP.STATUS,'NOT_STARTED') = :P_STAT)";
+
+            countSql = @"
+            SELECT COUNT(*) AS CNT
+              FROM HRMS.ECM100 EC
+              LEFT JOIN HRMS.HR_SURVEY_RESPONSE RESP
+                     ON RESP.SURVEY_ID = :SID AND RESP.EMPCD = EC.EMPCD" + filterWhere;
+
+            innerSql = @"
+                    SELECT EC.EMPCD, EC.CNAME AS FULL_NAME,
+                           EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                           NVL(RESP.STATUS,'NOT_STARTED') AS STATUS,
+                           RESP.SCORE, RESP.MAX_SCORE, RESP.IS_PASS,
+                           RESP.SUBMIT_DT, RESP.INST_DT AS START_DT
+                      FROM HRMS.ECM100 EC
+                      LEFT JOIN HRMS.HR_SURVEY_RESPONSE RESP
+                             ON RESP.SURVEY_ID = :SID AND RESP.EMPCD = EC.EMPCD" + filterWhere;
+        }
+        else
+        {
+            // Base = HR_SURVEY_RECIPIENT (scoped survey)
+            filterWhere = @"
+             WHERE R.SURVEY_ID = :SID
+               AND (:P_DEPT IS NULL OR EC.DEPTCD = :P_DEPT)
+               AND (:P_LINE IS NULL OR EC.LINECD = :P_LINE)
+               AND (:P_WORK IS NULL OR EC.WORKCD = :P_WORK)
+               AND (:P_EMP  IS NULL OR R.EMPCD   = :P_EMP)
+               AND (:P_STAT IS NULL OR NVL(RESP.STATUS,'NOT_STARTED') = :P_STAT)";
+
+            countSql = @"
+            SELECT COUNT(*) AS CNT FROM HRMS.HR_SURVEY_RECIPIENT R
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = R.EMPCD
+              LEFT JOIN HRMS.HR_SURVEY_RESPONSE RESP
+                     ON RESP.SURVEY_ID = R.SURVEY_ID AND RESP.EMPCD = R.EMPCD" + filterWhere;
+
+            innerSql = @"
+                    SELECT R.EMPCD, EC.CNAME AS FULL_NAME,
+                           EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                           NVL(RESP.STATUS,'NOT_STARTED') AS STATUS,
+                           RESP.SCORE, RESP.MAX_SCORE, RESP.IS_PASS,
+                           RESP.SUBMIT_DT, RESP.INST_DT AS START_DT
+                      FROM HRMS.HR_SURVEY_RECIPIENT R
+                      LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = R.EMPCD
+                      LEFT JOIN HRMS.HR_SURVEY_RESPONSE RESP
+                             ON RESP.SURVEY_ID = R.SURVEY_ID AND RESP.EMPCD = R.EMPCD" + filterWhere;
+        }
+
+        var listSql = @"
+            SELECT * FROM (
+                SELECT A.*, ROWNUM RN FROM (" + innerSql + @"
+                     ORDER BY RESP.SUBMIT_DT DESC NULLS LAST, EC.EMPCD
+                ) A WHERE ROWNUM <= :END_ROW
+            ) WHERE RN > :START_ROW";
+
+        OracleParameter[] Params() => new[]
+        {
+            new OracleParameter("SID",    surveyId),
+            new OracleParameter("P_DEPT", (object?)deptcd ?? DBNull.Value),
+            new OracleParameter("P_LINE", (object?)linecd ?? DBNull.Value),
+            new OracleParameter("P_WORK", (object?)workcd ?? DBNull.Value),
+            new OracleParameter("P_EMP",  (object?)empcd  ?? DBNull.Value),
+            new OracleParameter("P_STAT", (object?)status ?? DBNull.Value),
+        };
+
+        var countRows = await _db.ExecuteQueryAsync(countSql, r => Convert.ToInt32(r["CNT"]), Params());
+        int total = countRows.FirstOrDefault();
+
+        var listParams = Params().Concat(new[]
+        {
+            new OracleParameter("END_ROW",   endRow),
+            new OracleParameter("START_ROW", startRow),
+        }).ToArray();
+
+        var items = await _db.ExecuteQueryAsync(listSql, r => new SurveyParticipantModel
+        {
+            EMPCD     = r["EMPCD"]?.ToString() ?? "",
+            FULL_NAME = r["FULL_NAME"] as string,
+            DEPTCD    = r["DEPTCD"] as string,
+            LINECD    = r["LINECD"] as string,
+            WORKCD    = r["WORKCD"] as string,
+            STATUS    = r["STATUS"]?.ToString() ?? "NOT_STARTED",
+            SCORE     = r["SCORE"]     == DBNull.Value ? null : Convert.ToDecimal(r["SCORE"]),
+            MAX_SCORE = r["MAX_SCORE"] == DBNull.Value ? null : Convert.ToDecimal(r["MAX_SCORE"]),
+            IS_PASS   = r["IS_PASS"]   == DBNull.Value ? null : Convert.ToInt32(r["IS_PASS"]),
+            SUBMIT_DT = r["SUBMIT_DT"] as DateTime?,
+            START_DT  = r["START_DT"]  as DateTime?,
+        }, listParams);
+
+        return new SurveyParticipantPageModel { ITEMS = items, TOTAL = total, PAGE = page, PAGE_SIZE = pageSize };
+    }
+
+    public async Task<SurveyParticipantDetailModel?> GetParticipantAnswersAsync(int surveyId, string empcd)
+    {
+        // Check mode
+        var modeRows = await _db.ExecuteQueryAsync(
+            "SELECT RECIPIENT_MODE FROM HRMS.HR_SURVEY WHERE ID = :ID",
+            r => r["RECIPIENT_MODE"]?.ToString() ?? "ALL",
+            new OracleParameter("ID", surveyId));
+        bool isAll = (modeRows.FirstOrDefault() ?? "ALL") == "ALL";
+
+        // info — ALL mode dùng ECM100 làm base, SPECIFIC mode dùng HR_SURVEY_RECIPIENT
+        string infoSql = isAll
+            ? @"SELECT EC.EMPCD, EC.CNAME AS FULL_NAME, EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                       NVL(RESP.STATUS,'NOT_STARTED') AS STATUS,
+                       RESP.SCORE, RESP.MAX_SCORE, RESP.IS_PASS, RESP.SUBMIT_DT, RESP.INST_DT AS START_DT
+                  FROM HRMS.ECM100 EC
+                  LEFT JOIN HRMS.HR_SURVEY_RESPONSE RESP ON RESP.SURVEY_ID = :SID AND RESP.EMPCD = EC.EMPCD
+                 WHERE EC.EMPCD = :EMPCD AND ROWNUM = 1"
+            : @"SELECT R.EMPCD, EC.CNAME AS FULL_NAME, EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                       NVL(RESP.STATUS,'NOT_STARTED') AS STATUS,
+                       RESP.SCORE, RESP.MAX_SCORE, RESP.IS_PASS, RESP.SUBMIT_DT, RESP.INST_DT AS START_DT
+                  FROM HRMS.HR_SURVEY_RECIPIENT R
+                  LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = R.EMPCD
+                  LEFT JOIN HRMS.HR_SURVEY_RESPONSE RESP ON RESP.SURVEY_ID = R.SURVEY_ID AND RESP.EMPCD = R.EMPCD
+                 WHERE R.SURVEY_ID = :SID AND R.EMPCD = :EMPCD AND ROWNUM = 1";
+
+        var infoList = await _db.ExecuteQueryAsync(infoSql, r => new SurveyParticipantModel
+        {
+            EMPCD     = r["EMPCD"]?.ToString() ?? "",
+            FULL_NAME = r["FULL_NAME"] as string,
+            DEPTCD    = r["DEPTCD"] as string,
+            LINECD    = r["LINECD"] as string,
+            WORKCD    = r["WORKCD"] as string,
+            STATUS    = r["STATUS"]?.ToString() ?? "NOT_STARTED",
+            SCORE     = r["SCORE"]     == DBNull.Value ? null : Convert.ToDecimal(r["SCORE"]),
+            MAX_SCORE = r["MAX_SCORE"] == DBNull.Value ? null : Convert.ToDecimal(r["MAX_SCORE"]),
+            IS_PASS   = r["IS_PASS"]   == DBNull.Value ? null : Convert.ToInt32(r["IS_PASS"]),
+            SUBMIT_DT = r["SUBMIT_DT"] as DateTime?,
+            START_DT  = r["START_DT"]  as DateTime?,
+        }, new OracleParameter("SID", surveyId), new OracleParameter("EMPCD", empcd));
+
+        if (!infoList.Any()) return null;
+        var info = infoList[0];
+
+        // questions + options (IS_CORRECT visible for admin)
+        const string qSql = @"
+            SELECT Q.ID, Q.QUESTION_TEXT, Q.QUESTION_TYPE, Q.DISPLAY_ORDER, Q.POINTS, Q.IS_REQUIRED
+              FROM HRMS.HR_SURVEY_QUESTION Q
+             WHERE Q.SURVEY_ID = :SID
+             ORDER BY Q.DISPLAY_ORDER";
+
+        var questions = await _db.ExecuteQueryAsync(qSql, r => new SurveyQuestionModel
+        {
+            ID            = Convert.ToInt32(r["ID"]),
+            SURVEY_ID     = surveyId,
+            QUESTION_TEXT = r["QUESTION_TEXT"]?.ToString() ?? "",
+            QUESTION_TYPE = r["QUESTION_TYPE"]?.ToString() ?? "SINGLE",
+            DISPLAY_ORDER = Convert.ToInt32(r["DISPLAY_ORDER"]),
+            POINTS        = r["POINTS"] == DBNull.Value ? 0 : Convert.ToDecimal(r["POINTS"]),
+            IS_REQUIRED   = r["IS_REQUIRED"] == DBNull.Value ? 1 : Convert.ToInt32(r["IS_REQUIRED"]),
+        }, new OracleParameter("SID", surveyId));
+
+        if (questions.Any())
+        {
+            const string optSql = @"
+                SELECT O.ID, O.QUESTION_ID, O.OPTION_TEXT, O.DISPLAY_ORDER, O.IS_CORRECT
+                  FROM HRMS.HR_SURVEY_OPTION O
+                 WHERE O.QUESTION_ID IN (
+                         SELECT ID FROM HRMS.HR_SURVEY_QUESTION WHERE SURVEY_ID = :SID
+                       )
+                 ORDER BY O.QUESTION_ID, O.DISPLAY_ORDER";
+
+            var options = await _db.ExecuteQueryAsync(optSql, r => new SurveyOptionModel
+            {
+                ID            = Convert.ToInt32(r["ID"]),
+                QUESTION_ID   = Convert.ToInt32(r["QUESTION_ID"]),
+                OPTION_TEXT   = r["OPTION_TEXT"]?.ToString() ?? "",
+                DISPLAY_ORDER = Convert.ToInt32(r["DISPLAY_ORDER"]),
+                IS_CORRECT    = r["IS_CORRECT"] == DBNull.Value ? null : Convert.ToInt32(r["IS_CORRECT"]),
+            }, new OracleParameter("SID", surveyId));
+
+            var optByQ = options.GroupBy(o => o.QUESTION_ID).ToDictionary(g => g.Key, g => g.ToList());
+            foreach (var q in questions)
+                q.OPTIONS = optByQ.GetValueOrDefault(q.ID) ?? new();
+        }
+
+        // answers (if any response)
+        var answers = new List<SurveyAnswerModel>();
+        const string ansSql = @"
+            SELECT A.QUESTION_ID, A.ANSWER_OPTION_IDS, A.ANSWER_TEXT, A.ANSWER_NUMBER
+              FROM HRMS.HR_SURVEY_ANSWER A
+              JOIN HRMS.HR_SURVEY_RESPONSE R ON R.ID = A.RESPONSE_ID
+             WHERE R.SURVEY_ID = :SID AND R.EMPCD = :EMPCD";
+
+        if (info.STATUS != "NOT_STARTED")
+        {
+            answers = await _db.ExecuteQueryAsync(ansSql, r => new SurveyAnswerModel
+            {
+                QUESTION_ID       = Convert.ToInt32(r["QUESTION_ID"]),
+                ANSWER_OPTION_IDS = r["ANSWER_OPTION_IDS"] as string,
+                ANSWER_TEXT       = r["ANSWER_TEXT"] as string,
+                ANSWER_NUMBER     = r["ANSWER_NUMBER"] == DBNull.Value ? null : Convert.ToDecimal(r["ANSWER_NUMBER"]),
+            }, new OracleParameter("SID", surveyId), new OracleParameter("EMPCD", empcd));
+        }
+
+        return new SurveyParticipantDetailModel { INFO = info, QUESTIONS = questions, ANSWERS = answers };
     }
 
     // ═══════════════════════════════════════════════════════════════

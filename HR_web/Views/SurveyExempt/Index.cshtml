@@ -286,7 +286,7 @@
             EffectiveDate: eff || null,
             IsActive:      document.getElementById('fActive').checked ? 1 : 0,
         };
-        const r = await post('/SurveyExempt/Save', payload);
+        const r = await post('@Url.Action("Save", "SurveyExempt")', payload);
         if (r?.success) { toast('Đã lưu', 'success'); setTimeout(() => location.reload(), 500); }
         else toast(r?.message || 'Lưu thất bại', 'error');
     });
@@ -295,7 +295,7 @@
         btn.addEventListener('click', () => {
             const tr = btn.closest('tr');
             const doIt = async () => {
-                const r = await post('/SurveyExempt/Delete', { EmpCd: tr.dataset.empcd, ExemptType: tr.dataset.type });
+                const r = await post('@Url.Action("Delete", "SurveyExempt")', { EmpCd: tr.dataset.empcd, ExemptType: tr.dataset.type });
                 if (r?.success) { toast('Đã tắt', 'success'); setTimeout(() => location.reload(), 500); }
                 else toast(r?.message || 'Không tắt được', 'error');
             };
@@ -317,7 +317,7 @@
         fd.append('file', file);
         fd.append('__RequestVerificationToken', TOKEN);
 
-        const res = await fetch('/SurveyExempt/Import', { method: 'POST', body: fd });
+        const res = await fetch('@Url.Action("Import", "SurveyExempt")', { method: 'POST', body: fd });
         const j   = await res.json();
         if (j.success) { toast(j.message || 'Import thành công', 'success'); setTimeout(() => location.reload(), 600); }
         else toast(j.message || 'Import thất bại', 'error');

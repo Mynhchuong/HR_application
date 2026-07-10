@@ -45,4 +45,25 @@ public class SurveyReportService
             $"qid={questionId}&page={page}&pageSize={pageSize}");
         return r?.success == true ? r.data ?? new() : new();
     }
+
+    public async Task<SurveyParticipantPageModel> GetParticipantsAsync(
+        int surveyId, string? deptcd, string? linecd, string? workcd, string? empcd, string? status, int page, int pageSize)
+    {
+        var qs = new List<string> { $"id={surveyId}", $"page={page}", $"pageSize={pageSize}" };
+        if (!string.IsNullOrEmpty(deptcd))  qs.Add($"deptcd={Uri.EscapeDataString(deptcd)}");
+        if (!string.IsNullOrEmpty(linecd))  qs.Add($"linecd={Uri.EscapeDataString(linecd)}");
+        if (!string.IsNullOrEmpty(workcd))  qs.Add($"workcd={Uri.EscapeDataString(workcd)}");
+        if (!string.IsNullOrEmpty(empcd))   qs.Add($"empcd={Uri.EscapeDataString(empcd)}");
+        if (!string.IsNullOrEmpty(status))  qs.Add($"status={Uri.EscapeDataString(status)}");
+        var r = await _api.GetAsync<R<SurveyParticipantPageModel>>("SurveyAdmin/participants", string.Join("&", qs));
+        return r?.success == true ? r.data ?? new() : new();
+    }
+
+    public async Task<SurveyParticipantDetailModel?> GetParticipantAnswersAsync(int surveyId, string empcd)
+    {
+        var r = await _api.GetAsync<R<SurveyParticipantDetailModel>>(
+            "SurveyAdmin/participant-answers",
+            $"surveyId={surveyId}&empcd={Uri.EscapeDataString(empcd)}");
+        return r?.success == true ? r.data : null;
+    }
 }

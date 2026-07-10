@@ -185,8 +185,126 @@ public class SurveyAdminController : BaseController
     [HttpGet]
     public async Task<IActionResult> ReportTextAnswers(int qid, int page = 1)
     {
-        var data = await _report.GetTextAnswersAsync(qid, page, 20);
+        var data = await _report.GetTextAnswersAsync(qid, page, 9999);
         return Json(new { success = true, data });
+    }
+
+    // GET /SurveyAdmin/Participants/5?deptcd=&linecd=&workcd=&empcd=&status=&page=
+    public async Task<IActionResult> Participants(int id, string? deptcd, string? linecd,
+        string? workcd, string? empcd, string? status, int page = 1)
+    {
+        var survey = await _admin.GetDetailAsync(id);
+        if (survey == null) return NotFound();
+
+        var pageData = await _report.GetParticipantsAsync(id, deptcd, linecd, workcd, empcd, status, page, 30);
+        var depts = await _dropdown.GetDeptAsync();
+
+        var vm = new SurveyParticipantPageViewModel
+        {
+            SURVEY_ID    = id,
+            TITLE        = survey.TITLE,
+            SURVEY_TYPE  = survey.SURVEY_TYPE,
+            Page         = pageData,
+            FilterDept   = deptcd,
+            FilterLine   = linecd,
+            FilterWork   = workcd,
+            FilterEmpcd  = empcd,
+            FilterStatus = status,
+            Depts        = depts,
+        };
+        return View(vm);
+    }
+
+    // GET /SurveyAdmin/ParticipantAnswers?surveyId=&empcd=   (AJAX)
+    [HttpGet]
+    public async Task<IActionResult> ParticipantAnswers(int surveyId, string empcd)
+    {
+        var data = await _report.GetParticipantAnswersAsync(surveyId, empcd);
+        if (data == null) return Json(new { success = false, message = "Không tìm thấy" });
+        return Json(new { success = true, data });
+    }
+
+    // GET /SurveyAdmin/ParticipantExport?id=&deptcd=&linecd=&workcd=&empcd=&status=
+    [HttpGet]
+    public async Task<IActionResult> ParticipantExport(int id, string? deptcd, string? linecd,
+        string? workcd, string? empcd, string? status)
+    {
+        var survey = await _admin.GetDetailAsync(id);
+        if (survey == null) return NotFound();
+
+        // Get all (pageSize=9999)
+        var pageData = await _report.GetParticipantsAsync(id, deptcd, linecd, workcd, empcd, status, 1, 9999);
+        bool isQuiz = survey.SURVEY_TYPE == "QUIZ";
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Danh sách");
+
+        // Header
+        int col = 1;
+        ws.Cell(1, col++).Value = "STT";
+        ws.Cell(1, col++).Value = "Mã NV";
+        ws.Cell(1, col++).Value = "Họ tên";
+        ws.Cell(1, col++).Value = "Phòng ban";
+        ws.Cell(1, col++).Value = "Dây chuyền";
+        ws.Cell(1, col++).Value = "Công đoạn";
+        ws.Cell(1, col++).Value = "Trạng thái";
+        if (isQuiz)
+        {
+            ws.Cell(1, col++).Value = "Điểm";
+            ws.Cell(1, col++).Value = "Tối đa";
+            ws.Cell(1, col++).Value = "Kết quả";
+        }
+        ws.Cell(1, col++).Value = "Bắt đầu";
+        ws.Cell(1, col++).Value = "Thời gian nộp";
+
+        var headerRow = ws.Row(1);
+        headerRow.Style.Font.Bold = true;
+        headerRow.Style.Fill.BackgroundColor = XLColor.FromHtml("#1e3a5f");
+        headerRow.Style.Font.FontColor = XLColor.White;
+
+        var statusMap = new Dictionary<string, string>
+        {
+            ["SUBMITTED"]       = "Đã nộp",
+            ["AUTO_SUBMITTED"]  = "Tự nộp (hết hạn)",
+            ["ILLITERATE_SKIP"] = "Mù chữ",
+            ["IN_PROGRESS"]     = "Đang làm",
+            ["NOT_STARTED"]     = "Chưa làm",
+        };
+
+        int row = 2;
+        int stt = 1;
+        foreach (var p in pageData.ITEMS)
+        {
+            col = 1;
+            ws.Cell(row, col++).Value = stt++;
+            ws.Cell(row, col++).Value = p.EMPCD;
+            ws.Cell(row, col++).Value = p.FULL_NAME ?? "";
+            ws.Cell(row, col++).Value = p.DEPTCD ?? "";
+            ws.Cell(row, col++).Value = p.LINECD ?? "";
+            ws.Cell(row, col++).Value = p.WORKCD ?? "";
+            ws.Cell(row, col++).Value = statusMap.GetValueOrDefault(p.STATUS, p.STATUS);
+            if (isQuiz)
+            {
+                if (p.SCORE.HasValue) ws.Cell(row, col).Value = p.SCORE.Value;
+                else ws.Cell(row, col).Value = "";
+                col++;
+                if (p.MAX_SCORE.HasValue) ws.Cell(row, col).Value = p.MAX_SCORE.Value;
+                else ws.Cell(row, col).Value = "";
+                col++;
+                ws.Cell(row, col++).Value = p.IS_PASS == 1 ? "PASS" : p.IS_PASS == 0 ? "FAIL" : "";
+            }
+            ws.Cell(row, col++).Value = p.START_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
+            ws.Cell(row, col++).Value = p.SUBMIT_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
+            row++;
+        }
+
+        ws.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"Survey_{id}_DanhSach_{DateTime.Now:yyyyMMdd}.xlsx");
     }
 
     // GET /SurveyAdmin/ReportExport?id=  → 1 file Excel gồm Overview + Quiz sheet (nếu quiz)
@@ -200,8 +318,13 @@ public class SurveyAdminController : BaseController
             return RedirectToAction("Index");
         }
 
+        // Pre-fetch all TEXT answers for Excel
+        var textAnswers = new Dictionary<int, List<SurveyReportTextAnswerModel>>();
+        foreach (var q in overview.QUESTIONS.Where(q => q.QUESTION_TYPE == "TEXT"))
+            textAnswers[q.QUESTION_ID] = await _report.GetTextAnswersAsync(q.QUESTION_ID, 1, 9999);
+
         using var wb = new XLWorkbook();
-        BuildOverviewSheet(wb, overview);
+        BuildOverviewSheet(wb, overview, textAnswers);
         if (overview.SURVEY_TYPE == "QUIZ")
         {
             var quiz = await _report.GetQuizAsync(id);
@@ -215,7 +338,8 @@ public class SurveyAdminController : BaseController
             $"Survey_{id}_{DateTime.Now:yyyyMMdd}.xlsx");
     }
 
-    private static void BuildOverviewSheet(XLWorkbook wb, SurveyReportOverviewModel o)
+    private static void BuildOverviewSheet(XLWorkbook wb, SurveyReportOverviewModel o,
+        Dictionary<int, List<SurveyReportTextAnswerModel>>? textAnswers = null)
     {
         var ws = wb.Worksheets.Add("Overview");
         ws.Cell(1, 1).Value = "Survey #" + o.SURVEY_ID + " — " + o.TITLE;
@@ -269,6 +393,8 @@ public class SurveyAdminController : BaseController
                     qs.Cell(r2, 2).Value = opt.COUNT;
                     r2++;
                 }
+                qs.Column(1).Width = 40;
+                qs.Column(2).Width = 12;
             }
             else if (q.RATING_DIST != null)
             {
@@ -281,14 +407,47 @@ public class SurveyAdminController : BaseController
                     qs.Cell(4 + i, 1).Value = (i + 1) + " sao";
                     qs.Cell(4 + i, 2).Value = q.RATING_DIST[i];
                 }
+                qs.Column(1).Width = 40;
+                qs.Column(2).Width = 12;
             }
             else if (q.QUESTION_TYPE == "TEXT")
             {
-                qs.Cell(3, 1).Value = $"Số câu trả lời TEXT: {q.TEXT_COUNT}";
-                qs.Cell(4, 1).Value = "(Xem chi tiết trên trang Report)";
+                if (textAnswers != null && textAnswers.TryGetValue(q.QUESTION_ID, out var ans) && ans.Count > 0)
+                {
+                    string[] hdr = { "Mã NV", "Họ tên", "Câu trả lời", "Thời gian" };
+                    for (int i = 0; i < hdr.Length; i++)
+                    {
+                        var c = qs.Cell(3, i + 1);
+                        c.Value = hdr[i];
+                        c.Style.Font.Bold = true;
+                    }
+                    int r2 = 4;
+                    foreach (var a in ans)
+                    {
+                        qs.Cell(r2, 1).Value = a.EMPCD;
+                        qs.Cell(r2, 2).Value = a.FULL_NAME ?? "";
+                        qs.Cell(r2, 3).Value = a.ANSWER_TEXT ?? "";
+                        qs.Cell(r2, 4).Value = a.INST_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
+                        r2++;
+                    }
+                    qs.Column(1).Width = 14;
+                    qs.Column(2).Width = 26;
+                    qs.Column(3).Width = 50;
+                    qs.Column(4).Width = 18;
+                }
+                else
+                {
+                    qs.Cell(3, 1).Value = $"Số câu trả lời: {q.TEXT_COUNT}";
+                    qs.Cell(4, 1).Value = "(Chưa có câu trả lời)";
+                    qs.Column(1).Width = 40;
+                    qs.Column(2).Width = 12;
+                }
             }
-            qs.Column(1).Width = 40;
-            qs.Column(2).Width = 12;
+            else
+            {
+                qs.Column(1).Width = 40;
+                qs.Column(2).Width = 12;
+            }
         }
     }
 

@@ -21,6 +21,9 @@
                 Report — @o.TITLE
             </span>
             <div class="d-flex gap-2">
+                <a href="@Url.Action("Participants", new { id = o.SURVEY_ID })" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-people me-1"></i> Danh sách NV
+                </a>
                 <a href="@Url.Action("ReportExport", new { id = o.SURVEY_ID })"
                    class="btn btn-sm btn-success sa-export-btn" download
                    title="Xuất báo cáo Excel — gồm Overview + Quiz (nếu là quiz)">
@@ -45,12 +48,6 @@
                     <div class="sa-stat sa-stat-success">
                         <div class="sa-stat-value">@o.SUBMITTED_COUNT</div>
                         <div class="sa-stat-label">Đã nộp (@Pct(o.SUBMITTED_COUNT))</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-2">
-                    <div class="sa-stat sa-stat-warning">
-                        <div class="sa-stat-value">@o.AUTO_SUBMIT_COUNT</div>
-                        <div class="sa-stat-label">Auto-submit (@Pct(o.AUTO_SUBMIT_COUNT))</div>
                     </div>
                 </div>
                 <div class="col-6 col-md-3">
@@ -244,10 +241,10 @@
     new Chart(el, {
         type: 'doughnut',
         data: {
-            labels: ['Đã nộp', 'Auto-submit', 'Đang làm', 'Chưa làm'],
+            labels: ['Đã nộp', 'Đang làm', 'Chưa làm'],
             datasets: [{
-                data: [@o.SUBMITTED_COUNT, @o.AUTO_SUBMIT_COUNT, @o.IN_PROGRESS_COUNT, @o.NOT_STARTED_COUNT],
-                backgroundColor: ['#16a34a', '#f59e0b', '#3b82f6', '#94a3b8'],
+                data: [@o.SUBMITTED_COUNT, @o.IN_PROGRESS_COUNT, @o.NOT_STARTED_COUNT],
+                backgroundColor: ['#16a34a', '#3b82f6', '#94a3b8'],
                 borderWidth: 2, borderColor: '#fff'
             }]
         },
@@ -291,7 +288,7 @@ document.querySelectorAll('.sa-load-text').forEach(btn => {
         const $box = document.querySelector('.sa-text-answers[data-qid="' + qid + '"]');
         btn.disabled = true;
         try {
-            const res  = await fetch('/SurveyAdmin/ReportTextAnswers?qid=' + qid + '&page=1');
+            const res  = await fetch('@Url.Action("ReportTextAnswers", "SurveyAdmin")?qid=' + qid + '&page=1');
             const j    = await res.json();
             if (!j.success) { alert(j.message || 'Lỗi tải'); return; }
             $box.classList.remove('d-none');
@@ -300,7 +297,7 @@ document.querySelectorAll('.sa-load-text').forEach(btn => {
                 : j.data.map(a => `
                     <div class="sa-text-answer">
                         <div class="sa-text-answer-meta">
-                            <b>${a.EMPCD}</b> ${a.FULL_NAME ? '— ' + a.FULL_NAME : ''}
+                            <b>${a.EMPCD}</b> ${a.FULL_NAME ? '— <span class="vni-font">' + a.FULL_NAME + '</span>' : ''}
                             ${a.INST_DT ? '<span class="text-muted small ms-2">' + new Date(a.INST_DT).toLocaleString('vi-VN') + '</span>' : ''}
                         </div>
                         <div class="sa-text-answer-body">${(a.ANSWER_TEXT || '').replace(/</g, '&lt;')}</div>

@@ -63,7 +63,7 @@ public class SurveyBlockerFilter : IAsyncActionFilter
 
         if (pendingId.HasValue && pendingId.Value > 0)
         {
-            context.Result = new RedirectResult($"/Survey/Do/{pendingId.Value}");
+            context.Result = new RedirectToActionResult("Do", "Survey", new { id = pendingId.Value });
             return;
         }
 

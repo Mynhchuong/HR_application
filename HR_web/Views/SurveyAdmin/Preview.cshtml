@@ -57,6 +57,14 @@
             questions: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.QUESTIONS)),
             answers:   [],
             mode:      'preview',   // Không save/submit
+            urls: {
+                saveAnswer: '@Url.Action("SaveAnswer", "Survey")',
+                submit:     '@Url.Action("Submit", "Survey")',
+                skip:       '@Url.Action("Skip", "Survey")',
+                testSubmit: '@Url.Action("TestSubmit", "SurveyAdmin")',
+                homeIndex:  '@Url.Action("Index", "Home")',
+                adminIndex: '@Url.Action("Index", "SurveyAdmin")',
+            }
         };
     </script>
     <script src="~/assets/js/survey.js" asp-append-version="true"></script>

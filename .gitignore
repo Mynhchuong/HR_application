@@ -93,3 +93,5 @@ HR_api/Scripts/survey_rules.md
 .gitignore
 HR_api/Scripts/training_rules.md
 HR_api/Scripts/training_plan.md
+HR_api/Scripts/training_deployment.md
+HR_api/Scripts/training_qa.md

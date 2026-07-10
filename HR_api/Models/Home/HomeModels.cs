@@ -68,9 +68,10 @@ public class HomeSummaryModel
     public int      OT_TOTAL      { get; set; }
     public int      TEAM_BIRTHDAY_COUNT { get; set; }
 
-    // Cho Clerk theo dõi team: tổng số NV nghỉ / ra cổng hôm nay
-    public int      LEAVE_TODAY_TOTAL { get; set; }
-    public int      GP_TODAY_TOTAL    { get; set; }
+    // Cho Clerk theo dõi team: tổng số NV nghỉ / ra cổng / có tiết học hôm nay
+    public int      LEAVE_TODAY_TOTAL    { get; set; }
+    public int      GP_TODAY_TOTAL       { get; set; }
+    public int      TRAINING_TODAY_TOTAL { get; set; }   // §14.5 — số NV có session hôm nay
 
     public DateTime AS_OF         { get; set; } = DateTime.Now;
 }

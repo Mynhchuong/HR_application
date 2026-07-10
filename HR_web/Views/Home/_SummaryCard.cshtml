@@ -14,6 +14,7 @@
     var otLabel      = isEn ? "OT status"         : "Tăng ca";
     var leaveTodayLabel = isEn ? "On leave today" : "Nghỉ hôm nay";
     var gpTodayLabel    = isEn ? "Gate pass today" : "Ra cổng hôm nay";
+    var trainingTodayLabel = isEn ? "In training today" : "Đang học hôm nay";
     var otSubNeed    = isEn ? "need sign"         : "cần ký";
     var otSubSigned  = isEn ? "signed"            : "đã ký";
     var otSubTotal   = isEn ? "total"             : "tổng";
@@ -24,6 +25,7 @@
     var errorLabel   = isEn ? "Failed to load list" : "Không tải được danh sách";
 
     // Route KPI — role-specific
+    string trainingTodayUrl = Url.Action("TeamSchedule", "Training", new { today = 1 })!;
     string leaveUrl = isExpat
         ? Url.Action("LeaveApprovalForExpat", "Leave")!
         : Url.Action("LeaveApprovalList",     "Leave")!;
@@ -78,6 +80,10 @@
                     <div class="home-kpi-label">@gpLabel</div>
                 </a>
             }
+            <a href="@trainingTodayUrl" class="home-kpi home-kpi-training" data-kpi-card="training-today" hidden>
+                <div class="home-kpi-number" data-kpi="training-today">0</div>
+                <div class="home-kpi-label">🎓 @trainingTodayLabel</div>
+            </a>
             <a href="@otUrl" class="home-kpi home-kpi-ot">
                 <div class="home-kpi-ot-numbers">
                     <span data-kpi="ot-need" class="home-kpi-ot-need">0</span>

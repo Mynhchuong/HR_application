@@ -1,0 +1,107 @@
+namespace HR_api.Models.Training;
+
+// §14.1 Report Class overview
+public class ReportClassModel
+{
+    public int    CLASS_ID { get; set; }
+    public string CLASS_NAME { get; set; } = "";
+    public string COURSE_TITLE { get; set; } = "";
+    public string? CLASS_STATUS { get; set; }
+    public int    ENROLLED_COUNT { get; set; }
+    public int    ASSIGNED_COUNT { get; set; }         // SOURCE='ASSIGNED' (§3.3 mandatory)
+    public int    SELF_REGISTER_COUNT { get; set; }
+    public int    DROPPED_COUNT { get; set; }
+    public int    COMPLETED_COUNT { get; set; }
+    public int    FAILED_COUNT { get; set; }
+    public int    CERTIFIED_COUNT { get; set; }
+    public decimal? AVG_ATTENDANCE_PERCENT { get; set; }
+    public decimal? AVG_FINAL_SCORE { get; set; }
+
+    // Histogram điểm final test (§14.1)
+    public List<ScoreBucket> SCORE_HISTOGRAM { get; set; } = new();
+    // Per-group breakdown (nếu Class có group §5b)
+    public List<GroupBreakdown> GROUP_BREAKDOWN { get; set; } = new();
+}
+
+public class ScoreBucket
+{
+    public string LABEL { get; set; } = "";     // "0-2", "2-4", "4-6", "6-8", "8-10"
+    public int    COUNT { get; set; }
+}
+
+public class GroupBreakdown
+{
+    public int?   GROUP_ID { get; set; }
+    public string GROUP_NAME { get; set; } = "";
+    public int    ENROLLED { get; set; }
+    public int    COMPLETED { get; set; }
+    public int    CERTIFIED { get; set; }
+    public decimal? AVG_ATTENDANCE { get; set; }
+}
+
+// §14.2 Report Attendance — matrix EMPCD × Session
+public class ReportAttendanceMatrix
+{
+    public List<AttendanceMatrixSession> SESSIONS { get; set; } = new();
+    public List<AttendanceMatrixStudent> STUDENTS { get; set; } = new();
+}
+
+public class AttendanceMatrixSession
+{
+    public int SESSION_ID { get; set; }
+    public int SESSION_NO { get; set; }
+    public DateTime SESSION_DATE { get; set; }
+    public string? TOPIC { get; set; }
+    public string SESSION_STATUS { get; set; } = "";
+    public int?   GROUP_ID { get; set; }
+    public string? GROUP_NAME { get; set; }
+}
+
+public class AttendanceMatrixStudent
+{
+    public string EMPCD { get; set; } = "";
+    public string? EMP_NAME { get; set; }
+    public int?   GROUP_ID { get; set; }
+    public string? GROUP_NAME { get; set; }
+    public decimal ATTENDANCE_PERCENT { get; set; }
+    public Dictionary<int, string> STATUS_PER_SESSION { get; set; } = new();
+    // key = SESSION_ID, value = PRESENT|LATE|ABSENT|EXCUSED|"" (không thuộc group session này)
+}
+
+// §14.3 Report Test — điểm từng học viên + trung bình + top 5 câu sai
+public class ReportTestModel
+{
+    public int    TEST_ID { get; set; }
+    public string TEST_TITLE { get; set; } = "";
+    public decimal? PASS_SCORE { get; set; }
+    public int    ATTEMPT_COUNT { get; set; }
+    public int    PASS_COUNT { get; set; }
+    public int    FAIL_COUNT { get; set; }
+    public decimal? AVG_SCORE { get; set; }
+    public decimal? MAX_SCORE { get; set; }
+    public decimal? MIN_SCORE { get; set; }
+
+    public List<TestScoreItem>  SCORES { get; set; } = new();
+    public List<TestWrongItem>  TOP_WRONG_QUESTIONS { get; set; } = new();  // Top 5 câu sai nhiều nhất
+}
+
+public class TestScoreItem
+{
+    public string EMPCD { get; set; } = "";
+    public string? EMP_NAME { get; set; }
+    public decimal? SCORE { get; set; }
+    public decimal? MAX_SCORE { get; set; }
+    public int?   IS_PASS { get; set; }
+    public string STATUS { get; set; } = "";
+    public DateTime? SUBMIT_DT { get; set; }
+}
+
+public class TestWrongItem
+{
+    public int    QUESTION_ID { get; set; }
+    public string QUESTION_TEXT { get; set; } = "";
+    public string QUESTION_TYPE { get; set; } = "";
+    public int    ATTEMPT_COUNT { get; set; }
+    public int    WRONG_COUNT { get; set; }
+    public decimal WRONG_PERCENT { get; set; }
+}

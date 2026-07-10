@@ -1,11 +1,21 @@
 @{
-    ViewData["Title"] = "Lịch nghỉ & Cổng";
+    ViewData["Title"] = "Lịch team";
     int curMonth = (int)(ViewBag.CurrentMonth ?? DateTime.Today.Month);
     int curYear  = (int)(ViewBag.CurrentYear  ?? DateTime.Today.Year);
     string currentRole = ViewBag.CurrentRole ?? "";
     string todayStr    = DateTime.Today.ToString("yyyy-MM-dd");
     string gpEndpoint  = (currentRole == "Clerk") ? "GetClerkPage" : "GetSupervisorPage";
+    string trainingUrl = Url.Action("TeamSchedule", "Training")!;
 }
+
+@* Quick link sang lịch Training team §14.5 — không tạo menu mới, tích hợp vào cùng "Lịch team" *@
+<div class="container-fluid pt-3">
+    <a href="@trainingUrl" class="d-inline-flex align-items-center gap-2 text-decoration-none">
+        <span class="badge bg-gradient-info shadow-info" style="font-size:.85rem;padding:.5rem .8rem;border-radius:8px;">
+            🎓 Xem lịch training team &nbsp;<i class="bi bi-arrow-right"></i>
+        </span>
+    </a>
+</div>
 
 @section Styles {
 <style>

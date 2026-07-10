@@ -173,6 +173,10 @@
             setNum('ot-signed',    data.OT_SIGNED);
             setNum('ot-total',     data.OT_TOTAL);
             setNum('bd',           data.TEAM_BIRTHDAY_COUNT);
+            // Training today — chỉ show card khi > 0 (tránh clutter khi không có session)
+            setNum('training-today', data.TRAINING_TODAY_TOTAL);
+            const trainingCard = body.querySelector('[data-kpi-card="training-today"]');
+            if (trainingCard) trainingCard.hidden = !(data.TRAINING_TODAY_TOTAL > 0);
 
             const a = asofEl();
             if (a && data.AS_OF) {

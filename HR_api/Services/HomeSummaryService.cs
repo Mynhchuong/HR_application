@@ -13,15 +13,18 @@ public class HomeSummaryService
 {
     private readonly OracleService       _oracleService;
     private readonly HomeBirthdayService _birthdayService;
+    private readonly TrainingTeamService _trainingTeam;
     private readonly IMemoryCache        _cache;
 
     public HomeSummaryService(
         OracleService       oracleService,
         HomeBirthdayService birthdayService,
+        TrainingTeamService trainingTeam,
         IMemoryCache        cache)
     {
         _oracleService   = oracleService;
         _birthdayService = birthdayService;
+        _trainingTeam    = trainingTeam;
         _cache           = cache;
     }
 
@@ -61,24 +64,26 @@ public class HomeSummaryService
             return result;
         }
 
-        // Chạy song song 6 query độc lập
+        // Chạy song song 7 query độc lập
         var leaveTask       = CountLeavePendingAsync(user.EMPCD);
         var gpTask          = CountGpPendingAsync(user.EMPCD);
         var otTask          = CountOtAsync(user.EMPCD);
         var bdTask          = _birthdayService.GetTeamBirthdayAsync(user);
         var leaveTodayTask  = CountLeaveTodayAsync(user.EMPCD);
         var gpTodayTask     = CountGpTodayAsync(user.EMPCD);
+        var trainingTodayTask = _trainingTeam.CountTodayInScopeAsync(user.EMPCD);
 
-        await Task.WhenAll(leaveTask, gpTask, otTask, bdTask, leaveTodayTask, gpTodayTask);
+        await Task.WhenAll(leaveTask, gpTask, otTask, bdTask, leaveTodayTask, gpTodayTask, trainingTodayTask);
 
-        result.LEAVE_PENDING       = leaveTask.Result;
-        result.GP_PENDING          = gpTask.Result;
-        result.OT_NEED_SIGN        = otTask.Result.NeedSign;
-        result.OT_SIGNED           = otTask.Result.Signed;
-        result.OT_TOTAL            = otTask.Result.Total;
-        result.TEAM_BIRTHDAY_COUNT = bdTask.Result.Count;
-        result.LEAVE_TODAY_TOTAL   = leaveTodayTask.Result;
-        result.GP_TODAY_TOTAL      = gpTodayTask.Result;
+        result.LEAVE_PENDING        = leaveTask.Result;
+        result.GP_PENDING           = gpTask.Result;
+        result.OT_NEED_SIGN         = otTask.Result.NeedSign;
+        result.OT_SIGNED            = otTask.Result.Signed;
+        result.OT_TOTAL             = otTask.Result.Total;
+        result.TEAM_BIRTHDAY_COUNT  = bdTask.Result.Count;
+        result.LEAVE_TODAY_TOTAL    = leaveTodayTask.Result;
+        result.GP_TODAY_TOTAL       = gpTodayTask.Result;
+        result.TRAINING_TODAY_TOTAL = trainingTodayTask.Result;
 
         return result;
     }

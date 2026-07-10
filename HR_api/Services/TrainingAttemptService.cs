@@ -1,0 +1,592 @@
+using HR_api.Data;
+using HR_api.Models.Training;
+using Oracle.ManagedDataAccess.Client;
+
+namespace HR_api.Services;
+
+// Test-taking + grading (§6). Complement TrainingTestService.
+// Attempt state: IN_PROGRESS → SUBMITTED / AUTO_SUBMITTED
+// Grading state: attempt.IS_GRADED=0 (có ESSAY chưa chấm) → 1 (đã chấm hết)
+public class TrainingAttemptService
+{
+    private readonly OracleService _db;
+    private readonly TrainingNotificationService? _noti;
+
+    public TrainingAttemptService(OracleService db, TrainingNotificationService? noti = null)
+    {
+        _db = db;
+        _noti = noti;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  START ATTEMPT — student bấm "Bắt đầu"
+    //  Idempotent: nếu đã có attempt IN_PROGRESS → trả lại. PK violation nếu race.
+    // ═══════════════════════════════════════════════════════════════
+
+    public async Task<(AttemptModel? attempt, string? error)> StartAttemptAsync(StartAttemptRequest req)
+    {
+        // Fetch test meta
+        var test = (await _db.ExecuteQueryAsync(@"
+            SELECT ID, CLASS_ID, IS_TEMPLATE, STATUS, DURATION_MINUTES,
+                   AVAILABLE_FROM, AVAILABLE_TO, PASS_SCORE, MAX_ATTEMPTS
+              FROM HRMS.HR_TRAINING_TEST WHERE ID = :ID",
+            r => new
+            {
+                ID       = Convert.ToInt32(r["ID"]),
+                CLASS_ID = r["CLASS_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["CLASS_ID"]),
+                TPL      = Convert.ToInt32(r["IS_TEMPLATE"]),
+                ST       = r["STATUS"]?.ToString() ?? "",
+                DUR      = Convert.ToInt32(r["DURATION_MINUTES"]),
+                AF       = r["AVAILABLE_FROM"] as DateTime?,
+                AT       = r["AVAILABLE_TO"]   as DateTime?,
+                PS       = r["PASS_SCORE"] is DBNull ? (decimal?)null : Convert.ToDecimal(r["PASS_SCORE"]),
+            }, new OracleParameter("ID", req.TEST_ID))).FirstOrDefault();
+
+        if (test == null) return (null, "Không tìm thấy test");
+        if (test.TPL == 1) return (null, "Template test không dùng để làm bài (§16)");
+        if (test.ST is not ("PUBLISHED" or "OPEN"))
+            return (null, $"Test đang {test.ST}, chưa mở làm bài");
+        var now = DateTime.Now;
+        if (test.AF.HasValue && now < test.AF.Value) return (null, "Chưa đến giờ làm bài");
+        if (test.AT.HasValue && now > test.AT.Value) return (null, "Đã hết hạn làm bài");
+
+        // Verify student enrolled trong class của test
+        if (test.CLASS_ID.HasValue)
+        {
+            var okEnroll = (await _db.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID AND EMPCD = :EMP AND STATUS = 'ENROLLED'",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("CID", test.CLASS_ID.Value),
+                new OracleParameter("EMP", req.EMPCD))).First();
+            if (okEnroll == 0) return (null, "Bạn không thuộc lớp này");
+        }
+
+        // Đã có attempt? Trả lại (idempotent).
+        var existing = await GetAttemptByTestEmpAsync(req.TEST_ID, req.EMPCD);
+        if (existing != null) return (existing, null);
+
+        // START_DT = SYSDATE, EFFECTIVE_DEADLINE = MIN(START + DURATION, AVAILABLE_TO)
+        var deadline = now.AddMinutes(test.DUR);
+        if (test.AT.HasValue && test.AT.Value < deadline) deadline = test.AT.Value;
+
+        try
+        {
+            const string sqlIns = @"
+                INSERT INTO HRMS.HR_TRAINING_TEST_ATTEMPT
+                    (TEST_ID, EMPCD, STATUS, START_DT, EFFECTIVE_DEADLINE, IP_ADDRESS, USER_AGENT)
+                VALUES (:TID, :EMP, 'IN_PROGRESS', :NOW, :DL, :IP, :UA)
+                RETURNING ID INTO :NEW_ID";
+            var idParam = new OracleParameter("NEW_ID", OracleDbType.Int32)
+            {
+                Direction = System.Data.ParameterDirection.Output
+            };
+            await _db.ExecuteNonQueryAsync(sqlIns,
+                new OracleParameter("TID", req.TEST_ID),
+                new OracleParameter("EMP", req.EMPCD),
+                new OracleParameter("NOW", now),
+                new OracleParameter("DL",  deadline),
+                new OracleParameter("IP",  (object?)req.IP_ADDRESS ?? DBNull.Value),
+                new OracleParameter("UA",  (object?)req.USER_AGENT ?? DBNull.Value),
+                idParam);
+        }
+        catch (OracleException ex) when (ex.Number == 1)
+        {
+            // Race: request thứ 2 lọt qua GetAttempt → PK conflict. Trả row cũ.
+            return (await GetAttemptByTestEmpAsync(req.TEST_ID, req.EMPCD), null);
+        }
+
+        var created = await GetAttemptByTestEmpAsync(req.TEST_ID, req.EMPCD);
+        return (created, null);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  SAVE ANSWER (auto-save mỗi câu)
+    // ═══════════════════════════════════════════════════════════════
+
+    public async Task<(bool ok, string? error)> SaveAnswerAsync(SaveAnswerRequest req)
+    {
+        // Verify attempt IN_PROGRESS + đúng EMPCD + trong deadline
+        var attempt = (await _db.ExecuteQueryAsync(@"
+            SELECT ID, EMPCD, STATUS, EFFECTIVE_DEADLINE
+              FROM HRMS.HR_TRAINING_TEST_ATTEMPT WHERE ID = :ID",
+            r => new
+            {
+                ID       = Convert.ToInt32(r["ID"]),
+                EMP      = r["EMPCD"]?.ToString() ?? "",
+                ST       = r["STATUS"]?.ToString() ?? "",
+                DEADLINE = Convert.ToDateTime(r["EFFECTIVE_DEADLINE"]),
+            }, new OracleParameter("ID", req.ATTEMPT_ID))).FirstOrDefault();
+        if (attempt == null) return (false, "Không tìm thấy attempt");
+        if (attempt.EMP != req.EMPCD) return (false, "Attempt không thuộc bạn");
+        if (attempt.ST != "IN_PROGRESS") return (false, $"Attempt đã {attempt.ST}");
+        if (DateTime.Now > attempt.DEADLINE) return (false, "Hết giờ, không lưu được");
+
+        // Upsert answer — MERGE (UNIQUE (ATTEMPT_ID, QUESTION_ID))
+        await _db.ExecuteNonQueryAsync(@"
+            MERGE INTO HRMS.HR_TRAINING_TEST_ANSWER T
+            USING (SELECT :AID AS AID, :QID AS QID FROM DUAL) S
+               ON (T.ATTEMPT_ID = S.AID AND T.QUESTION_ID = S.QID)
+            WHEN MATCHED THEN
+              UPDATE SET ANSWER_OPTION_IDS = :OPTS, ANSWER_TEXT = :TXT
+            WHEN NOT MATCHED THEN
+              INSERT (ATTEMPT_ID, QUESTION_ID, ANSWER_OPTION_IDS, ANSWER_TEXT)
+              VALUES (S.AID, S.QID, :OPTS, :TXT)",
+            new OracleParameter("AID",  req.ATTEMPT_ID),
+            new OracleParameter("QID",  req.QUESTION_ID),
+            new OracleParameter("OPTS", (object?)req.ANSWER_OPTION_IDS ?? DBNull.Value),
+            new OracleParameter("TXT",  (object?)req.ANSWER_TEXT ?? DBNull.Value));
+        return (true, null);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  SUBMIT (student bấm Nộp bài) — chấm auto + set IS_GRADED
+    // ═══════════════════════════════════════════════════════════════
+
+    public async Task<(AttemptModel? result, string? error)> SubmitAsync(SubmitAttemptRequest req)
+    {
+        var attempt = await GetAttemptByIdAsync(req.ATTEMPT_ID);
+        if (attempt == null) return (null, "Không tìm thấy attempt");
+        if (attempt.EMPCD != req.EMPCD) return (null, "Attempt không thuộc bạn");
+        if (attempt.STATUS != "IN_PROGRESS") return (null, $"Attempt đã {attempt.STATUS}");
+
+        await FinalizeAttemptAsync(req.ATTEMPT_ID, "SUBMITTED");
+        return (await GetAttemptByIdAsync(req.ATTEMPT_ID), null);
+    }
+
+    // Batch auto-submit — batch job Phase 5 gọi.
+    // Idempotent: chỉ đụng IN_PROGRESS + đã quá EFFECTIVE_DEADLINE.
+    public async Task<int> AutoSubmitExpiredAsync()
+    {
+        var expired = await _db.ExecuteQueryAsync(@"
+            SELECT ID FROM HRMS.HR_TRAINING_TEST_ATTEMPT
+             WHERE STATUS = 'IN_PROGRESS'
+               AND SYSDATE > EFFECTIVE_DEADLINE",
+            r => Convert.ToInt32(r["ID"]));
+
+        int n = 0;
+        foreach (var id in expired)
+        {
+            await FinalizeAttemptAsync(id, "AUTO_SUBMITTED");
+            n++;
+        }
+        return n;
+    }
+
+    // Core finalize: chấm auto các câu SINGLE/MULTI/YESNO/DROPDOWN, compute SCORE, MAX_SCORE, IS_PASS.
+    // ESSAY (TEXT) → IS_GRADED=0, chờ teacher. Nếu không có ESSAY → IS_GRADED=1 luôn.
+    private async Task FinalizeAttemptAsync(int attemptId, string status)
+    {
+        // Load questions + correct options + student answers
+        var qs = await _db.ExecuteQueryAsync(@"
+            SELECT Q.ID, Q.QUESTION_TYPE, Q.POINTS
+              FROM HRMS.HR_TRAINING_TEST_QUESTION Q
+              JOIN HRMS.HR_TRAINING_TEST_ATTEMPT A ON A.TEST_ID = Q.TEST_ID
+             WHERE A.ID = :AID
+             ORDER BY Q.DISPLAY_ORDER, Q.ID",
+            r => new
+            {
+                ID     = Convert.ToInt32(r["ID"]),
+                TYPE   = r["QUESTION_TYPE"]?.ToString() ?? "",
+                POINTS = Convert.ToDecimal(r["POINTS"]),
+            }, new OracleParameter("AID", attemptId));
+
+        // Correct options per question (dùng batch fetch để tránh N+1)
+        var correctByQ = new Dictionary<int, HashSet<int>>();
+        if (qs.Count > 0)
+        {
+            var correctRows = await _db.ExecuteQueryAsync(@"
+                SELECT O.QUESTION_ID, O.ID
+                  FROM HRMS.HR_TRAINING_TEST_OPTION O
+                  JOIN HRMS.HR_TRAINING_TEST_QUESTION Q ON Q.ID = O.QUESTION_ID
+                  JOIN HRMS.HR_TRAINING_TEST_ATTEMPT A ON A.TEST_ID = Q.TEST_ID
+                 WHERE A.ID = :AID AND O.IS_CORRECT = 1",
+                r => new
+                {
+                    QID = Convert.ToInt32(r["QUESTION_ID"]),
+                    OID = Convert.ToInt32(r["ID"]),
+                }, new OracleParameter("AID", attemptId));
+            foreach (var g in correctRows.GroupBy(x => x.QID))
+                correctByQ[g.Key] = new HashSet<int>(g.Select(x => x.OID));
+        }
+
+        var answers = await _db.ExecuteQueryAsync(@"
+            SELECT ID, QUESTION_ID, ANSWER_OPTION_IDS
+              FROM HRMS.HR_TRAINING_TEST_ANSWER
+             WHERE ATTEMPT_ID = :AID",
+            r => new
+            {
+                ID   = Convert.ToInt32(r["ID"]),
+                QID  = Convert.ToInt32(r["QUESTION_ID"]),
+                OPTS = r["ANSWER_OPTION_IDS"] as string,
+            }, new OracleParameter("AID", attemptId));
+        var answerByQ = answers.ToDictionary(a => a.QID);
+
+        // Chấm auto per question
+        decimal earned = 0m;
+        decimal maxScore = 0m;
+        bool hasEssay = false;
+        foreach (var q in qs)
+        {
+            maxScore += q.POINTS;
+            if (q.TYPE == "TEXT")
+            {
+                hasEssay = true;
+                continue;   // teacher chấm sau
+            }
+            if (!answerByQ.TryGetValue(q.ID, out var ans) || string.IsNullOrEmpty(ans.OPTS))
+                continue;   // không trả lời
+
+            var chosen = ParseOptionIds(ans.OPTS);
+            var correct = correctByQ.TryGetValue(q.ID, out var s) ? s : new HashSet<int>();
+
+            bool isRight = q.TYPE switch
+            {
+                "MULTI"    => chosen.Count > 0 && chosen.SetEquals(correct),
+                _          => chosen.Count == 1 && correct.Contains(chosen.First()),  // SINGLE/YESNO/DROPDOWN
+            };
+            if (isRight) earned += q.POINTS;
+
+            // Chấm auto rồi → set POINTS_AWARDED vào answer để report thấy được
+            await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_TRAINING_TEST_ANSWER
+                   SET POINTS_AWARDED = :PT
+                 WHERE ID = :ID",
+                new OracleParameter("PT", isRight ? q.POINTS : 0m),
+                new OracleParameter("ID", ans.ID));
+        }
+
+        // Compute IS_PASS nếu test có PASS_SCORE + không còn essay chưa chấm
+        var passScore = (await _db.ExecuteQueryAsync(@"
+            SELECT T.PASS_SCORE FROM HRMS.HR_TRAINING_TEST T
+              JOIN HRMS.HR_TRAINING_TEST_ATTEMPT A ON A.TEST_ID = T.ID
+             WHERE A.ID = :AID",
+            r => r["PASS_SCORE"] is DBNull ? (decimal?)null : Convert.ToDecimal(r["PASS_SCORE"]),
+            new OracleParameter("AID", attemptId))).FirstOrDefault();
+
+        int isGraded = hasEssay ? 0 : 1;
+        int? isPass = null;
+        if (isGraded == 1 && passScore.HasValue)
+            isPass = earned >= passScore.Value ? 1 : 0;
+
+        await _db.ExecuteNonQueryAsync(@"
+            UPDATE HRMS.HR_TRAINING_TEST_ATTEMPT
+               SET STATUS    = :ST,
+                   SUBMIT_DT = SYSDATE,
+                   SCORE     = :SC,
+                   MAX_SCORE = :MX,
+                   IS_PASS   = :PS,
+                   IS_GRADED = :GR
+             WHERE ID = :ID",
+            new OracleParameter("ST", status),
+            new OracleParameter("SC", earned),
+            new OracleParameter("MX", maxScore),
+            new OracleParameter("PS", (object?)isPass ?? DBNull.Value),
+            new OracleParameter("GR", isGraded),
+            new OracleParameter("ID", attemptId));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  GRADING ESSAY (§6.4)
+    // ═══════════════════════════════════════════════════════════════
+
+    // Teacher chấm 1 câu ESSAY. Nếu tất cả ESSAY đã chấm xong → IS_GRADED=1 + compute SCORE + IS_PASS.
+    public async Task<(bool ok, string? error)> GradeAnswerAsync(GradeAnswerRequest req)
+    {
+        // Verify teacher của Class có test này
+        var ok = (await _db.ExecuteQueryAsync(@"
+            SELECT COUNT(*) CNT
+              FROM HRMS.HR_TRAINING_CLASS_TEACHER T
+              JOIN HRMS.HR_TRAINING_TEST TS ON TS.CLASS_ID = T.CLASS_ID
+              JOIN HRMS.HR_TRAINING_TEST_QUESTION Q ON Q.TEST_ID = TS.ID
+              JOIN HRMS.HR_TRAINING_TEST_ANSWER AN ON AN.QUESTION_ID = Q.ID
+             WHERE AN.ID = :AID AND T.EMPCD = :EMP",
+            r => Convert.ToInt32(r["CNT"]),
+            new OracleParameter("AID", req.ANSWER_ID),
+            new OracleParameter("EMP", req.LOGIN_USER))).First();
+        if (ok == 0) return (false, "Bạn không phải teacher của lớp có test này");
+
+        // Update answer
+        var rows = await _db.ExecuteNonQueryAsync(@"
+            UPDATE HRMS.HR_TRAINING_TEST_ANSWER
+               SET POINTS_AWARDED = :PT,
+                   GRADER_COMMENT = :CM,
+                   GRADED_BY      = :EMP,
+                   GRADED_DT      = SYSDATE
+             WHERE ID = :ID",
+            new OracleParameter("PT",  req.POINTS_AWARDED),
+            new OracleParameter("CM",  (object?)req.GRADER_COMMENT ?? DBNull.Value),
+            new OracleParameter("EMP", req.LOGIN_USER),
+            new OracleParameter("ID",  req.ANSWER_ID));
+        if (rows == 0) return (false, "Không tìm thấy answer");
+
+        // Attempt của answer
+        var attemptId = (await _db.ExecuteQueryAsync(
+            "SELECT ATTEMPT_ID FROM HRMS.HR_TRAINING_TEST_ANSWER WHERE ID = :ID",
+            r => Convert.ToInt32(r["ATTEMPT_ID"]),
+            new OracleParameter("ID", req.ANSWER_ID))).First();
+
+        // Check còn ESSAY chưa chấm (POINTS_AWARDED NULL)
+        var pending = (await _db.ExecuteQueryAsync(@"
+            SELECT COUNT(*) CNT
+              FROM HRMS.HR_TRAINING_TEST_ANSWER AN
+              JOIN HRMS.HR_TRAINING_TEST_QUESTION Q ON Q.ID = AN.QUESTION_ID
+             WHERE AN.ATTEMPT_ID = :AID
+               AND Q.QUESTION_TYPE = 'TEXT'
+               AND AN.POINTS_AWARDED IS NULL",
+            r => Convert.ToInt32(r["CNT"]),
+            new OracleParameter("AID", attemptId))).First();
+
+        if (pending == 0)
+        {
+            // Total = auto + essay. Recompute từ SUM(POINTS_AWARDED).
+            var total = (await _db.ExecuteQueryAsync(@"
+                SELECT NVL(SUM(POINTS_AWARDED),0) TT
+                  FROM HRMS.HR_TRAINING_TEST_ANSWER
+                 WHERE ATTEMPT_ID = :AID",
+                r => Convert.ToDecimal(r["TT"]),
+                new OracleParameter("AID", attemptId))).First();
+
+            var passScore = (await _db.ExecuteQueryAsync(@"
+                SELECT T.PASS_SCORE FROM HRMS.HR_TRAINING_TEST T
+                  JOIN HRMS.HR_TRAINING_TEST_ATTEMPT A ON A.TEST_ID = T.ID
+                 WHERE A.ID = :AID",
+                r => r["PASS_SCORE"] is DBNull ? (decimal?)null : Convert.ToDecimal(r["PASS_SCORE"]),
+                new OracleParameter("AID", attemptId))).FirstOrDefault();
+
+            int? isPass = passScore.HasValue ? (total >= passScore.Value ? 1 : 0) : (int?)null;
+
+            await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_TRAINING_TEST_ATTEMPT
+                   SET SCORE = :SC, IS_PASS = :PS, IS_GRADED = 1
+                 WHERE ID = :AID",
+                new OracleParameter("SC",  total),
+                new OracleParameter("PS",  (object?)isPass ?? DBNull.Value),
+                new OracleParameter("AID", attemptId));
+
+            // Enqueue TRAINING_TEST_GRADED cho student (§13)
+            if (_noti != null)
+            {
+                var info = (await _db.ExecuteQueryAsync(@"
+                    SELECT A.EMPCD, T.TITLE, T.CLASS_ID
+                      FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
+                      JOIN HRMS.HR_TRAINING_TEST T ON T.ID = A.TEST_ID
+                     WHERE A.ID = :AID",
+                    r => new
+                    {
+                        EMP   = r["EMPCD"]?.ToString() ?? "",
+                        TITLE = r["TITLE"]?.ToString() ?? "",
+                        CID   = r["CLASS_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["CLASS_ID"]),
+                    }, new OracleParameter("AID", attemptId))).First();
+                await _noti.EnqueueAsync("TRAINING_TEST_GRADED", info.EMP,
+                    new Dictionary<string, string>
+                    {
+                        ["testTitle"] = info.TITLE,
+                        ["score"]     = total.ToString("0.##"),
+                    }, classId: info.CID, testId: null);
+            }
+        }
+        return (true, null);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  STUDENT-FACING views
+    // ═══════════════════════════════════════════════════════════════
+
+    // Full data để student làm bài — meta + questions (không IS_CORRECT) + attempt + saved answers + timer.
+    // Nếu chưa có attempt → tạo mới (tương đương StartAttempt gộp).
+    public async Task<(TestForStudentView? view, string? error)> GetForStudentAsync(int testId, string empcd)
+    {
+        var test = (await _db.ExecuteQueryAsync(@"
+            SELECT ID, CLASS_ID, IS_TEMPLATE, TITLE, DESCRIPTION, STATUS,
+                   DURATION_MINUTES, AVAILABLE_FROM, AVAILABLE_TO, PASS_SCORE, MAX_ATTEMPTS, CREATED_BY,
+                   INST_DT, UPDT_DT
+              FROM HRMS.HR_TRAINING_TEST WHERE ID = :ID",
+            r => new TestModel
+            {
+                ID                 = Convert.ToInt32(r["ID"]),
+                CLASS_ID           = r["CLASS_ID"] is DBNull ? null : Convert.ToInt32(r["CLASS_ID"]),
+                IS_TEMPLATE        = Convert.ToInt32(r["IS_TEMPLATE"]),
+                TITLE              = r["TITLE"]?.ToString() ?? "",
+                DESCRIPTION        = r["DESCRIPTION"] as string,
+                STATUS             = r["STATUS"]?.ToString() ?? "DRAFT",
+                DURATION_MINUTES   = Convert.ToInt32(r["DURATION_MINUTES"]),
+                AVAILABLE_FROM     = r["AVAILABLE_FROM"] as DateTime?,
+                AVAILABLE_TO       = r["AVAILABLE_TO"]   as DateTime?,
+                PASS_SCORE         = r["PASS_SCORE"] is DBNull ? null : Convert.ToDecimal(r["PASS_SCORE"]),
+                MAX_ATTEMPTS       = Convert.ToInt32(r["MAX_ATTEMPTS"]),
+                CREATED_BY         = r["CREATED_BY"]?.ToString() ?? "",
+                INST_DT            = r["INST_DT"] as DateTime?,
+                UPDT_DT            = r["UPDT_DT"] as DateTime?,
+            }, new OracleParameter("ID", testId))).FirstOrDefault();
+        if (test == null) return (null, "Không tìm thấy test");
+
+        var attempt = await GetAttemptByTestEmpAsync(testId, empcd);
+
+        // Questions + options (strip IS_CORRECT)
+        var qs = await new TrainingTestService(_db).GetQuestionsAsync(testId, forStudent: true);
+
+        var answers = new List<AttemptAnswerModel>();
+        if (attempt != null)
+        {
+            answers = await _db.ExecuteQueryAsync(@"
+                SELECT ID, ATTEMPT_ID, QUESTION_ID, ANSWER_OPTION_IDS, ANSWER_TEXT
+                  FROM HRMS.HR_TRAINING_TEST_ANSWER
+                 WHERE ATTEMPT_ID = :AID",
+                r => new AttemptAnswerModel
+                {
+                    ID                = Convert.ToInt32(r["ID"]),
+                    ATTEMPT_ID        = Convert.ToInt32(r["ATTEMPT_ID"]),
+                    QUESTION_ID       = Convert.ToInt32(r["QUESTION_ID"]),
+                    ANSWER_OPTION_IDS = r["ANSWER_OPTION_IDS"] as string,
+                    ANSWER_TEXT       = r["ANSWER_TEXT"] as string,
+                }, new OracleParameter("AID", attempt.ID));
+        }
+
+        int remaining = 0;
+        if (attempt != null && attempt.STATUS == "IN_PROGRESS")
+        {
+            remaining = Math.Max(0, (int)Math.Floor((attempt.EFFECTIVE_DEADLINE - DateTime.Now).TotalSeconds));
+        }
+
+        return (new TestForStudentView
+        {
+            TEST              = test,
+            QUESTIONS         = qs,
+            ATTEMPT           = attempt,
+            ANSWERS           = answers,
+            SECONDS_REMAINING = remaining,
+        }, null);
+    }
+
+    // My result — sau khi submit (§6.5): điểm + PASS/FAIL, KHÔNG show đáp án đúng
+    public async Task<MyResultView?> GetMyResultAsync(int testId, string empcd)
+    {
+        var att = await GetAttemptByTestEmpAsync(testId, empcd);
+        if (att == null) return null;
+
+        var passScore = (await _db.ExecuteQueryAsync(
+            "SELECT PASS_SCORE FROM HRMS.HR_TRAINING_TEST WHERE ID = :ID",
+            r => r["PASS_SCORE"] is DBNull ? (decimal?)null : Convert.ToDecimal(r["PASS_SCORE"]),
+            new OracleParameter("ID", testId))).FirstOrDefault();
+
+        string? passFail = null;
+        if (att.IS_GRADED == 1 && passScore.HasValue && att.SCORE.HasValue)
+            passFail = att.SCORE.Value >= passScore.Value ? "PASS" : "FAIL";
+
+        return new MyResultView { ATTEMPT = att, PASS_FAIL = passFail };
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TEACHER-FACING
+    // ═══════════════════════════════════════════════════════════════
+
+    public async Task<List<GradingItemModel>> GetPendingGradeAsync(int testId)
+    {
+        // Attempts có ESSAY chưa chấm (IS_GRADED=0 + có row TEXT chưa POINTS_AWARDED)
+        var attempts = await _db.ExecuteQueryAsync(@"
+            SELECT DISTINCT A.ID, A.TEST_ID, A.EMPCD, EC.CNAME EMP_NAME,
+                   A.STATUS, A.START_DT, A.SUBMIT_DT, A.EFFECTIVE_DEADLINE,
+                   A.SCORE, A.MAX_SCORE, A.IS_PASS, A.IS_GRADED,
+                   A.INST_DT, A.UPDT_DT
+              FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = A.EMPCD
+              JOIN HRMS.HR_TRAINING_TEST_ANSWER AN ON AN.ATTEMPT_ID = A.ID
+              JOIN HRMS.HR_TRAINING_TEST_QUESTION Q ON Q.ID = AN.QUESTION_ID
+             WHERE A.TEST_ID = :TID
+               AND A.STATUS IN ('SUBMITTED','AUTO_SUBMITTED')
+               AND A.IS_GRADED = 0
+               AND Q.QUESTION_TYPE = 'TEXT'
+               AND AN.POINTS_AWARDED IS NULL
+             ORDER BY A.SUBMIT_DT",
+            r => MapAttemptWithName(r),
+            new OracleParameter("TID", testId));
+
+        var result = new List<GradingItemModel>();
+        foreach (var att in attempts)
+        {
+            var essays = await _db.ExecuteQueryAsync(@"
+                SELECT AN.ID ANSWER_ID, Q.ID QUESTION_ID, Q.QUESTION_TEXT, Q.POINTS,
+                       AN.ANSWER_TEXT, AN.POINTS_AWARDED, AN.GRADER_COMMENT
+                  FROM HRMS.HR_TRAINING_TEST_ANSWER AN
+                  JOIN HRMS.HR_TRAINING_TEST_QUESTION Q ON Q.ID = AN.QUESTION_ID
+                 WHERE AN.ATTEMPT_ID = :AID
+                   AND Q.QUESTION_TYPE = 'TEXT'
+                 ORDER BY Q.DISPLAY_ORDER",
+                r => new EssayItem
+                {
+                    ANSWER_ID       = Convert.ToInt32(r["ANSWER_ID"]),
+                    QUESTION_ID     = Convert.ToInt32(r["QUESTION_ID"]),
+                    QUESTION_TEXT   = r["QUESTION_TEXT"]?.ToString() ?? "",
+                    QUESTION_POINTS = Convert.ToDecimal(r["POINTS"]),
+                    ANSWER_TEXT     = r["ANSWER_TEXT"] as string,
+                    POINTS_AWARDED  = r["POINTS_AWARDED"] is DBNull ? null : Convert.ToDecimal(r["POINTS_AWARDED"]),
+                    GRADER_COMMENT  = r["GRADER_COMMENT"] as string,
+                }, new OracleParameter("AID", att.ID));
+
+            result.Add(new GradingItemModel { ATTEMPT = att, ESSAYS = essays });
+        }
+        return result;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  Helpers
+    // ═══════════════════════════════════════════════════════════════
+
+    private async Task<AttemptModel?> GetAttemptByTestEmpAsync(int testId, string empcd)
+    {
+        return (await _db.ExecuteQueryAsync(@"
+            SELECT A.ID, A.TEST_ID, A.EMPCD, EC.CNAME EMP_NAME,
+                   A.STATUS, A.START_DT, A.SUBMIT_DT, A.EFFECTIVE_DEADLINE,
+                   A.SCORE, A.MAX_SCORE, A.IS_PASS, A.IS_GRADED,
+                   A.INST_DT, A.UPDT_DT
+              FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = A.EMPCD
+             WHERE A.TEST_ID = :TID AND A.EMPCD = :EMP",
+            MapAttemptWithName,
+            new OracleParameter("TID", testId),
+            new OracleParameter("EMP", empcd))).FirstOrDefault();
+    }
+
+    private async Task<AttemptModel?> GetAttemptByIdAsync(int attemptId)
+    {
+        return (await _db.ExecuteQueryAsync(@"
+            SELECT A.ID, A.TEST_ID, A.EMPCD, EC.CNAME EMP_NAME,
+                   A.STATUS, A.START_DT, A.SUBMIT_DT, A.EFFECTIVE_DEADLINE,
+                   A.SCORE, A.MAX_SCORE, A.IS_PASS, A.IS_GRADED,
+                   A.INST_DT, A.UPDT_DT
+              FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = A.EMPCD
+             WHERE A.ID = :ID",
+            MapAttemptWithName,
+            new OracleParameter("ID", attemptId))).FirstOrDefault();
+    }
+
+    private static AttemptModel MapAttemptWithName(OracleDataReader r) => new()
+    {
+        ID                 = Convert.ToInt32(r["ID"]),
+        TEST_ID            = Convert.ToInt32(r["TEST_ID"]),
+        EMPCD              = r["EMPCD"]?.ToString() ?? "",
+        EMP_NAME           = r["EMP_NAME"] as string,
+        STATUS             = r["STATUS"]?.ToString() ?? "IN_PROGRESS",
+        START_DT           = Convert.ToDateTime(r["START_DT"]),
+        SUBMIT_DT          = r["SUBMIT_DT"] as DateTime?,
+        EFFECTIVE_DEADLINE = Convert.ToDateTime(r["EFFECTIVE_DEADLINE"]),
+        SCORE              = r["SCORE"]     is DBNull ? null : Convert.ToDecimal(r["SCORE"]),
+        MAX_SCORE          = r["MAX_SCORE"] is DBNull ? null : Convert.ToDecimal(r["MAX_SCORE"]),
+        IS_PASS            = r["IS_PASS"]   is DBNull ? null : Convert.ToInt32(r["IS_PASS"]),
+        IS_GRADED          = Convert.ToInt32(r["IS_GRADED"]),
+        INST_DT            = r["INST_DT"] as DateTime?,
+        UPDT_DT            = r["UPDT_DT"] as DateTime?,
+    };
+
+    // CSV "12,34,56" → {12,34,56}
+    private static HashSet<int> ParseOptionIds(string? csv)
+    {
+        if (string.IsNullOrWhiteSpace(csv)) return new HashSet<int>();
+        return csv.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                  .Select(s => s.Trim())
+                  .Where(s => int.TryParse(s, out _))
+                  .Select(int.Parse)
+                  .ToHashSet();
+    }
+}

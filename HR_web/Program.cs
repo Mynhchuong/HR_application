@@ -83,6 +83,7 @@ builder.WebHost.ConfigureKestrel(k =>
 builder.Services.AddScoped<HR_web.API.ApiService>();
 builder.Services.AddScoped<HR_web.API.Service.AccountService>();
 builder.Services.AddScoped<HR_web.API.Service.OtService>();
+builder.Services.AddScoped<HR_web.API.Service.TrainingService>();
 builder.Services.AddScoped<HR_web.API.Service.PayslipService>();
 builder.Services.AddScoped<HR_web.API.Service.DropdownService>();
 builder.Services.AddScoped<HR_web.API.Service.UserDeptService>();

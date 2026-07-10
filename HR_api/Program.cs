@@ -65,6 +65,25 @@ builder.Services.AddScoped<HR_api.Services.SurveyExemptService>();
 builder.Services.AddScoped<HR_api.Services.SurveyReportService>();
 builder.Services.AddHostedService<HR_api.HostedServices.SurveyLifecycleService>();
 
+// ============================================================
+// Training — Course/Class/Enrollment/Session/Material/Q&A/Test (phase 1 + 2 + 3)
+// ============================================================
+builder.Services.AddScoped<HR_api.Services.TrainingCourseService>();
+builder.Services.AddScoped<HR_api.Services.TrainingClassService>();
+builder.Services.AddScoped<HR_api.Services.TrainingEnrollmentService>();
+builder.Services.AddScoped<HR_api.Services.TrainingSessionService>();
+builder.Services.AddScoped<HR_api.Services.TrainingMaterialService>();
+builder.Services.AddScoped<HR_api.Services.TrainingQAService>();
+builder.Services.AddScoped<HR_api.Services.TrainingTestService>();
+builder.Services.AddScoped<HR_api.Services.TrainingAttemptService>();
+builder.Services.AddScoped<HR_api.Services.TrainingReviewService>();
+builder.Services.AddScoped<HR_api.Services.TrainingCompletionService>();
+builder.Services.AddScoped<HR_api.Services.TrainingReportService>();
+builder.Services.AddScoped<HR_api.Services.TrainingNotificationService>();
+builder.Services.AddScoped<HR_api.Services.TrainingTeamService>();
+builder.Services.AddHostedService<HR_api.HostedServices.TrainingLifecycleService>();
+builder.Services.AddHostedService<HR_api.HostedServices.TrainingNotificationWorker>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>

@@ -167,7 +167,7 @@ public class TrainingTestService
                 new OracleParameter("PS",   (object?)req.PASS_SCORE     ?? DBNull.Value),
                 new OracleParameter("USR",  req.LOGIN_USER),
                 idParam);
-            return Convert.ToInt32(idParam.Value);
+            return OracleService.ConvertToInt(idParam.Value);
         }
         else
         {
@@ -262,7 +262,7 @@ public class TrainingTestService
                 new OracleParameter("PT",  q.POINTS),
                 new OracleParameter("USR", req.LOGIN_USER),
                 qidParam);
-            var newQid = Convert.ToInt32(qidParam.Value);
+            var newQid = OracleService.ConvertToInt(qidParam.Value);
 
             int oord = 0;
             foreach (var o in q.OPTIONS ?? new())

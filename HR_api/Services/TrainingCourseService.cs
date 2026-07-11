@@ -132,7 +132,7 @@ public class TrainingCourseService
                 new OracleParameter("LOGIN_USER",             req.LOGIN_USER),
                 idParam);
 
-            return Convert.ToInt32(idParam.Value);
+            return OracleService.ConvertToInt(idParam.Value);
         }
         else
         {
@@ -269,5 +269,62 @@ public class TrainingCourseService
     {
         var v = r[col];
         return v is DBNull ? null : Convert.ToDecimal(v);
+    }
+
+    public async Task DeleteAsync(int id, string loginUser)
+    {
+        // 1. Check if course is used in any classes
+        var classCount = await _db.ExecuteQueryAsync(@"
+            SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_CLASS
+             WHERE COURSE_ID = :CID",
+            r => Convert.ToInt32(r["CNT"]),
+            new OracleParameter("CID", id));
+
+        if (classCount.FirstOrDefault() > 0)
+        {
+            throw new InvalidOperationException("Không thể xóa khóa học đã được tổ chức lớp học! Vui lòng chọn Lưu trữ.");
+        }
+
+        // 2. Find and delete test templates associated with the course
+        var testIds = await _db.ExecuteQueryAsync(@"
+            SELECT ID FROM HRMS.HR_TRAINING_TEST
+             WHERE CLASS_ID IS NULL AND TEMPLATE_COURSE_ID = :CID",
+            r => Convert.ToInt32(r["ID"]),
+            new OracleParameter("CID", id));
+
+        foreach (var tid in testIds)
+        {
+            await _db.ExecuteNonQueryAsync(@"
+                DELETE FROM HRMS.HR_TRAINING_TEST_OPTION
+                 WHERE QUESTION_ID IN (SELECT ID FROM HRMS.HR_TRAINING_TEST_QUESTION WHERE TEST_ID = :TID)",
+                new OracleParameter("TID", tid));
+
+            await _db.ExecuteNonQueryAsync(
+                "DELETE FROM HRMS.HR_TRAINING_TEST_QUESTION WHERE TEST_ID = :TID",
+                new OracleParameter("TID", tid));
+
+            await _db.ExecuteNonQueryAsync(
+                "DELETE FROM HRMS.HR_TRAINING_TEST WHERE ID = :TID",
+                new OracleParameter("TID", tid));
+        }
+
+        // 3. Delete session templates
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TR_COURSE_SES_TMPL
+             WHERE COURSE_ID = :CID",
+            new OracleParameter("CID", id));
+
+        // 4. Delete course material templates
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_MATERIAL
+             WHERE COURSE_ID = :CID",
+            new OracleParameter("CID", id));
+
+        // 5. Delete course itself
+        var rows = await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_COURSE
+             WHERE ID = :ID",
+            new OracleParameter("ID", id));
+        if (rows == 0) throw new InvalidOperationException("Không tìm thấy khóa học để xóa.");
     }
 }

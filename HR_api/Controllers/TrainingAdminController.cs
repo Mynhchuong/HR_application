@@ -1,3 +1,4 @@
+using HR_api.Helpers;
 using HR_api.Models.Training;
 using HR_api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +21,7 @@ public partial class TrainingAdminController : ControllerBase
     private readonly TrainingReviewService _review;
     private readonly TrainingCompletionService _completion;
     private readonly TrainingReportService _report;
+    private readonly TrainingAuthHelper _auth;
 
     public TrainingAdminController(
         TrainingCourseService course,
@@ -31,7 +33,8 @@ public partial class TrainingAdminController : ControllerBase
         TrainingAttemptService attempt,
         TrainingReviewService review,
         TrainingCompletionService completion,
-        TrainingReportService report)
+        TrainingReportService report,
+        TrainingAuthHelper auth)
     {
         _course = course;
         _class = cls;
@@ -43,13 +46,9 @@ public partial class TrainingAdminController : ControllerBase
         _review = review;
         _completion = completion;
         _report = report;
+        _auth = auth;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    //  COURSE
-    // ═══════════════════════════════════════════════════════════════
-
-    // GET /apiHR/TrainingAdmin/course/list?mode=STANDARD&active=1&search=abc
     [HttpGet("course/list")]
     public async Task<IActionResult> CourseList(
         [FromQuery] string? mode,
@@ -114,6 +113,21 @@ public partial class TrainingAdminController : ControllerBase
         }
     }
 
+    // POST /apiHR/TrainingAdmin/course/delete
+    [HttpPost("course/delete")]
+    public async Task<IActionResult> CourseDelete([FromBody] ArchiveCourseRequest req)
+    {
+        try
+        {
+            await _course.DeleteAsync(req.ID, req.LOGIN_USER ?? "HR");
+            return Ok(new { success = true, message = "Đã xóa khóa học thành công." });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     // GET /apiHR/TrainingAdmin/course/session-templates?courseId=1
     [HttpGet("course/session-templates")]
     public async Task<IActionResult> SessionTemplateList([FromQuery] int courseId)
@@ -158,10 +172,11 @@ public partial class TrainingAdminController : ControllerBase
     {
         var c = await _class.GetDetailAsync(id);
         if (c == null) return Ok(new { success = false, message = "Không tìm thấy lớp" });
-        var sessions = await _class.GetSessionsAsync(id);
-        var teachers = await _class.GetTeachersAsync(id);
-        var groups   = await _class.GetGroupsAsync(id);
-        return Ok(new { success = true, data = new { cls = c, sessions, teachers, groups } });
+        var sessions    = await _class.GetSessionsAsync(id);
+        var teachers    = await _class.GetTeachersAsync(id);
+        var groups      = await _class.GetGroupsAsync(id);
+        var enrollments = await _enroll.ListAsync(id, null, null);
+        return Ok(new { success = true, data = new { cls = c, sessions, teachers, groups, enrollments } });
     }
 
     // POST /apiHR/TrainingAdmin/class/save
@@ -245,9 +260,18 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/assign-teacher")]
     public async Task<IActionResult> AssignTeacher([FromBody] AssignTeacherRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền thực hiện chức năng này" });
+        }
+
         try
         {
             await _class.AssignTeacherAsync(req);
+            _auth.InvalidateActiveTeacher(req.EMPCD);
             return Ok(new { success = true });
         }
         catch (InvalidOperationException ex)
@@ -260,7 +284,16 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/remove-teacher")]
     public async Task<IActionResult> RemoveTeacher([FromBody] RemoveTeacherRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền thực hiện chức năng này" });
+        }
+
         await _class.RemoveTeacherAsync(req);
+        _auth.InvalidateActiveTeacher(req.EMPCD);
         return Ok(new { success = true });
     }
 

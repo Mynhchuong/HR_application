@@ -48,13 +48,14 @@ public class TrainingService
     //  §14 REPORTS
     // ═══════════════════════════════════════════════════════════════
 
-    public async Task<List<ClassListItem>> GetClassListAsync(string? status = null, string? search = null)
+    public async Task<List<ClassListItem>> GetClassListAsync(string? status = null, string? search = null, int? courseId = null)
     {
         try
         {
             var q = "";
             if (!string.IsNullOrWhiteSpace(status)) q += $"status={status}&";
             if (!string.IsNullOrWhiteSpace(search)) q += $"search={Uri.EscapeDataString(search)}&";
+            if (courseId.HasValue)                 q += $"courseId={courseId.Value}&";
             var res = await _api.GetAsync<ClassListResponse>("TrainingAdmin/class/list", q);
             return res?.data ?? new();
         }
@@ -99,5 +100,25 @@ public class TrainingService
             return res?.data;
         }
         catch (Exception ex) { Console.WriteLine($"[TrainingService] GetSatisfaction error: {ex.Message}"); return null; }
+    }
+
+    public async Task<bool> IsActiveTeacherAsync(string empcd)
+    {
+        try
+        {
+            var res = await _api.GetAsync<HasScopeResponse>("Training/is-active-teacher", $"empcd={empcd}");
+            return res?.success == true && res.data;
+        }
+        catch (Exception ex) { Console.WriteLine($"[TrainingService] IsActiveTeacher error: {ex.Message}"); return false; }
+    }
+
+    public async Task<T?> GetFromApiAsync<T>(string endpoint, string q = "")
+    {
+        return await _api.GetAsync<T>(endpoint, q);
+    }
+
+    public async Task<HttpResponseMessage?> PostToApiAsync(string endpoint, object data)
+    {
+        return await _api.PostAsync(endpoint, data);
     }
 }

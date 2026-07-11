@@ -297,6 +297,718 @@ public class TrainingController : BaseController
         return BuildXlsx(wb, $"report_satisfaction_{classId}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  STUDENT VIEWS
+    // ═══════════════════════════════════════════════════════════════
+
+    public IActionResult Index()
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+        ViewBag.EmpCd = empcd;
+        return View("Student/Index");
+    }
+
+    public IActionResult ClassDetail(int id)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+        ViewBag.EmpCd = empcd;
+        ViewBag.ClassId = id;
+        return View("Student/ClassDetail");
+    }
+
+    public IActionResult TestAttempt(int id)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+        ViewBag.EmpCd = empcd;
+        ViewBag.TestId = id;
+        return View("Student/TestAttempt");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TEACHER VIEWS
+    // ═══════════════════════════════════════════════════════════════
+
+    public IActionResult TeacherDashboard()
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+        ViewBag.EmpCd = empcd;
+        return View("Teacher/Dashboard");
+    }
+
+    public IActionResult TeacherAttendance(int sessionId)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+        ViewBag.EmpCd = empcd;
+        ViewBag.SessionId = sessionId;
+        return View("Teacher/Attendance");
+    }
+
+    public IActionResult TestGrading(int testId)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+        ViewBag.EmpCd = empcd;
+        ViewBag.TestId = testId;
+        return View("Teacher/TestGrading");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  STUDENT AJAX PROXIES
+    // ═══════════════════════════════════════════════════════════════
+
+    [HttpGet]
+    public async Task<IActionResult> GetMyClasses(string empcd)
+    {
+        var res = await _training.GetFromApiAsync<object>("Training/my-classes", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetClassDetail(int classId, string empcd)
+    {
+        var res = await _training.GetFromApiAsync<object>($"Training/class/{classId}/detail", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetClassTests(int classId)
+    {
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/test/list", $"classId={classId}");
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> RegisterClass(int classId, [FromBody] SelfRegisterRequest req)
+    {
+        var response = await _training.PostToApiAsync($"Training/class/{classId}/register", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetSessionDetail(int sessionId, string empcd)
+    {
+        var res = await _training.GetFromApiAsync<object>($"Training/session/{sessionId}/detail", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SessionCheckIn([FromBody] CheckInRequest req)
+    {
+        req.EMPCD = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("Training/session/checkin", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> TrackMaterialView([FromBody] MaterialViewRequest req)
+    {
+        req.EMPCD = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("Training/material/view", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetQAList(int classId, string empcd)
+    {
+        var res = await _training.GetFromApiAsync<object>($"Training/class/{classId}/qa", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> AskQuestion([FromBody] AskQuestionRequest req)
+    {
+        req.EMPCD = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("Training/qa/ask", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetTestForStudent(int id, string empcd)
+    {
+        var res = await _training.GetFromApiAsync<object>($"Training/test/{id}", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> StartTest([FromBody] StartAttemptRequest req)
+    {
+        req.EMPCD = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("Training/test/start", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveTestAnswer([FromBody] SaveAnswerRequest req)
+    {
+        req.EMPCD = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("Training/test/save-answer", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SubmitTest([FromBody] SubmitAttemptRequest req)
+    {
+        req.EMPCD = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("Training/test/submit", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetTestResult(int id, string empcd)
+    {
+        var res = await _training.GetFromApiAsync<object>($"Training/test/{id}/my-result", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SubmitReview([FromBody] SubmitReviewRequest req)
+    {
+        req.EMPCD = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("Training/review/submit", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetMyReview(int id, string empcd)
+    {
+        var res = await _training.GetFromApiAsync<object>($"Training/class/{id}/my-review", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TEACHER AJAX PROXIES
+    // ═══════════════════════════════════════════════════════════════
+
+    [HttpGet]
+    public async Task<IActionResult> GetTeacherClasses(string empcd)
+    {
+        var res = await _training.GetFromApiAsync<object>("TrainingTeach/my-classes", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetTeacherAttendanceView(int sessionId, string empcd)
+    {
+        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/session/{sessionId}/attendance", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ConfirmAttendance([FromBody] ConfirmAttendanceRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/session/confirm", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ConfirmAttendanceBatch([FromBody] ConfirmAttendanceBatchRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/session/confirm-batch", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAbsentStats(int classId, string empcd)
+    {
+        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/class/{classId}/absent-stats", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DropStudent([FromBody] DropStudentRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/enrollment/drop", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveMaterial([FromBody] SaveMaterialRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/material/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DeleteMaterial([FromBody] DeleteMaterialRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/material/delete", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> QAAnswer([FromBody] AnswerQuestionRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/qa/answer", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> QADelete([FromBody] DeleteQuestionRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/qa/delete", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> TestSave([FromBody] SaveTestRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/test/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> TestQuestionsSave([FromBody] SaveTestQuestionsRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/test/questions/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> TestPublish([FromBody] ChangeTestStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/test/publish", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetPendingGrade(int id, string empcd)
+    {
+        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/test/{id}/pending-grade", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Grade([FromBody] GradeAnswerRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/test/grade", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  HR/ADMIN VIEWS & AJAX PROXIES
+    // ═══════════════════════════════════════════════════════════════
+
+    [HttpGet]
+    public async Task<IActionResult> GetClassList(string? status = null, string? search = null, int? courseId = null)
+    {
+        var res = await _training.GetClassListAsync(status, search, courseId);
+        return Json(new { success = true, data = res });
+    }
+
+    [Authorize(Roles = "Admin,HR")]
+    public IActionResult Manage()
+    {
+        return View("Admin/Manage");
+    }
+
+    [HttpGet, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> GetCourses(string? mode = null, int? active = null, string? search = null)
+    {
+        var qs = "";
+        if (!string.IsNullOrEmpty(mode)) qs += $"mode={mode}&";
+        if (active.HasValue)             qs += $"active={active.Value}&";
+        if (!string.IsNullOrEmpty(search)) qs += $"search={Uri.EscapeDataString(search)}&";
+
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/course/list", qs);
+        return Json(res);
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> SaveCourse([FromBody] SaveCourseRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/course/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> SaveClass([FromBody] SaveClassRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [Authorize(Roles = "Admin,HR")]
+    public IActionResult ClassDetailAdmin(int id)
+    {
+        ViewBag.ClassId = id;
+        return View("Admin/ClassDetailAdmin");
+    }
+
+    [HttpGet, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> GetClassDetailAdmin(int classId)
+    {
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/class/detail", $"id={classId}");
+        return Json(res);
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> SaveSession([FromBody] SaveSessionRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/session/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> AssignTeacher([FromBody] AssignTeacherRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/assign-teacher", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> RemoveTeacher([FromBody] RemoveTeacherRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/remove-teacher", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> AssignStudent([FromBody] AssignStudentRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var empcds = req.EMPCDS ?? new List<string>();
+        if (empcds.Count == 0 && !string.IsNullOrEmpty(req.EMPCD))
+        {
+            empcds.Add(req.EMPCD);
+        }
+
+        var apiReq = new {
+            CLASS_ID = req.CLASS_ID,
+            EMPCDS = empcds,
+            LOGIN_USER = req.LOGIN_USER
+        };
+
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/assign", apiReq);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> ApproveEnrollment([FromBody] ApproveEnrollmentRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/approve", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> RejectEnrollment([FromBody] RejectEnrollmentRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/reject", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> SaveGroup([FromBody] SaveGroupRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/group/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> AutoSplitGroup([FromBody] AutoSplitRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/group/auto-split", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> AssignGroup([FromBody] AssignGroupRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/assign-group", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> SaveAdminTest([FromBody] SaveTestRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/test/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> SaveAdminTestQuestions([FromBody] SaveTestQuestionsRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/test/questions/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> PublishAdminTest([FromBody] ChangeTestStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/test/publish", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  LIFECYCLE PROXIES (Class, Session, Enrollment, Certificate)
+    // ═══════════════════════════════════════════════════════════════
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> ArchiveCourse([FromBody] ArchiveCourseRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/course/archive", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> UnarchiveCourse([FromBody] ArchiveCourseRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/course/unarchive", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> DeleteCourse([FromBody] ArchiveCourseRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/course/delete", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> PublishRegistration([FromBody] ChangeClassStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/publish-registration", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> FinalizeEnrollment([FromBody] ChangeClassStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/finalize-enrollment", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> CancelClass([FromBody] ChangeClassStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/cancel", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> CloseClass([FromBody] ChangeClassStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/close", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> ExpressCreate([FromBody] ExpressCreateRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/express-create", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> CloneFromCourse([FromBody] CloneFromCourseRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/clone-from-course", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> RescheduleSession([FromBody] RescheduleSessionRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/session/reschedule", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> CancelSession([FromBody] CancelSessionRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/session/cancel", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> PreAssignEnrollment([FromBody] BulkPreAssignRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/pre-assign", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> RecoverEnrollment([FromBody] RecoverEnrollmentRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/recover", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> CloseAdminTest([FromBody] ChangeTestStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/test/close", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> GetReviewReport(int classId)
+    {
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/review/report", $"classId={classId}");
+        return Json(res);
+    }
+
+    [HttpGet, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> GetCertificateList(int classId)
+    {
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/certificate/list", $"classId={classId}");
+        return Json(res);
+    }
+
+    [HttpPost, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> RevokeCertificate([FromBody] RevokeCertificateRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/certificate/revoke", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> GetEnrollments(int classId, string? status = null)
+    {
+        var qs = $"status={status}";
+        var res = await _training.GetFromApiAsync<object>($"TrainingAdmin/class/{classId}/enrollments", qs);
+        return Json(res);
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────
 
     private static void WriteHeader(IXLWorksheet ws, int row, string[] headers)

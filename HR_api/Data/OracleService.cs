@@ -119,7 +119,6 @@ public class OracleService
         using var cmd = new OracleCommand(sql, conn);
         cmd.BindByName = true;
         cmd.ArrayBindCount = arrayBindCount;
-
         if (parameters != null)
         {
             foreach (var p in parameters)
@@ -129,5 +128,15 @@ public class OracleService
         }
 
         return await cmd.ExecuteNonQueryAsync();
+    }
+
+    public static int ConvertToInt(object value)
+    {
+        if (value == null || value is DBNull) return 0;
+        if (value is Oracle.ManagedDataAccess.Types.OracleDecimal od)
+        {
+            return od.IsNull ? 0 : decimal.ToInt32(od.Value);
+        }
+        return Convert.ToInt32(value);
     }
 }

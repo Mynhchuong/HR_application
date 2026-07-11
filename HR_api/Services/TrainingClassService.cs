@@ -102,11 +102,11 @@ public class TrainingClassService
             throw new InvalidOperationException("Tên lớp không được để trống");
         if (req.CLASS_NAME.Length > 80)
             throw new InvalidOperationException("Tên lớp tối đa 80 ký tự (§12 cert display)");
-        if (req.REGISTRATION_MODE != "ASSIGNED" && req.REGISTRATION_MODE != "OPEN")
-            throw new InvalidOperationException("REGISTRATION_MODE phải là ASSIGNED hoặc OPEN");
-        // OPEN mode: MAX_STUDENTS nullable (null = unlimited §3.2), REGISTRATION_DEADLINE bắt buộc
-        if (req.REGISTRATION_MODE == "OPEN" && req.REGISTRATION_DEADLINE == null)
-            throw new InvalidOperationException("Class OPEN phải có REGISTRATION_DEADLINE");
+        if (req.REGISTRATION_MODE != "ASSIGNED" && req.REGISTRATION_MODE != "OPEN" && req.REGISTRATION_MODE != "HYBRID")
+            throw new InvalidOperationException("REGISTRATION_MODE phải là ASSIGNED, OPEN hoặc HYBRID");
+        // OPEN or HYBRID mode: MAX_STUDENTS nullable (null = unlimited §3.2), REGISTRATION_DEADLINE bắt buộc
+        if ((req.REGISTRATION_MODE == "OPEN" || req.REGISTRATION_MODE == "HYBRID") && req.REGISTRATION_DEADLINE == null)
+            throw new InvalidOperationException("Class OPEN hoặc HYBRID phải có REGISTRATION_DEADLINE");
         if (req.MIN_ATTENDANCE_PERCENT.HasValue &&
             (req.MIN_ATTENDANCE_PERCENT < 0 || req.MIN_ATTENDANCE_PERCENT > 100))
             throw new InvalidOperationException("MIN_ATTENDANCE_PERCENT phải trong 0..100");
@@ -150,7 +150,7 @@ public class TrainingClassService
                 new OracleParameter("REQ_REVIEW",   req.REQUIRE_POST_REVIEW ?? 0),
                 new OracleParameter("LOGIN_USER",   req.LOGIN_USER),
                 idParam);
-            return Convert.ToInt32(idParam.Value);
+            return OracleService.ConvertToInt(idParam.Value);
         }
         else
         {
@@ -385,7 +385,7 @@ public class TrainingClassService
             new OracleParameter("MIN",  course.MIN_ATT),
             new OracleParameter("USR",  req.LOGIN_USER),
             idParam);
-        var newClassId = Convert.ToInt32(idParam.Value);
+        var newClassId = OracleService.ConvertToInt(idParam.Value);
 
         // Compensating rollback: nếu Step B/C/D fail, DELETE Class + children (avoid orphan).
         // Không dùng OracleTransaction vì OracleService.ExecuteNonQueryAsync tạo connection mới per call.
@@ -510,7 +510,7 @@ public class TrainingClassService
             new OracleParameter("FT",   (object?)req.FINAL_TEST_ID ?? DBNull.Value),
             new OracleParameter("USR",  req.LOGIN_USER),
             idParam);
-        var newClassId = Convert.ToInt32(idParam.Value);
+        var newClassId = OracleService.ConvertToInt(idParam.Value);
 
         // Compensating rollback nếu Step B/C/D fail
         try
@@ -627,7 +627,7 @@ public class TrainingClassService
             {
                 throw new InvalidOperationException($"Nhóm '{req.GROUP_NAME}' đã tồn tại trong lớp này");
             }
-            return Convert.ToInt32(idParam.Value);
+            return OracleService.ConvertToInt(idParam.Value);
         }
         else
         {

@@ -1,0 +1,402 @@
+@{
+    ViewData["Title"] = "Bảng điều khiển Giảng dạy";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var empCd = ViewBag.EmpCd as string;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Header Banner -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 20px; background: linear-gradient(135deg, #198754 0%, #157347 100%);">
+                <div class="card-body p-4 text-white position-relative">
+                    <div class="position-absolute end-0 bottom-0 opacity-10 d-none d-md-block" style="transform: translate(10%, 10%);">
+                        <span class="material-symbols-rounded" style="font-size: 15rem;">assignment_ind</span>
+                    </div>
+                    <h2 class="fw-bold mb-1">Bảng Điều Khiển Giảng Dạy</h2>
+                    <p class="mb-0 opacity-75">Quản lý lớp học bạn phụ trách, thực hiện điểm danh, đăng tài liệu bài học và chấm điểm tự luận bài kiểm tra.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Teacher Classes -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
+                <h5 class="fw-bold mb-4">Danh sách lớp giảng dạy</h5>
+                <div class="row" id="teacher-classes-container">
+                    <div class="col-12 text-center py-5">
+                        <div class="spinner-border text-success" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Đang tải danh sách lớp học của bạn...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- UPLOAD MATERIAL MODAL -->
+<div class="modal fade" id="uploadMaterialModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-bottom-0 p-4 pb-0">
+                <h5 class="fw-bold modal-title">Tải lên Tài liệu học tập</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="materialForm">
+                    <input type="hidden" id="mat-class-id" />
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Tiêu đề tài liệu</label>
+                        <input type="text" id="mat-title" class="form-control" placeholder="Ví dụ: Slide bài học số 1, Video quy trình..." required style="border-radius: 8px;" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Chọn file tài liệu (PDF, DOCX, MP4, IMG - Tối đa 500MB)</label>
+                        <input type="file" id="mat-file" class="form-control" required style="border-radius: 8px;" />
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="mat-required" checked>
+                            <label class="form-check-label small fw-bold text-muted" for="mat-required">Học viên bắt buộc phải đọc/xem tài liệu này</label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Thứ tự hiển thị</label>
+                        <input type="number" id="mat-order" class="form-control" value="1" min="1" style="border-radius: 8px;" />
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="button" onclick="uploadMaterialSubmit()" class="btn btn-success py-2.5 rounded-3 fw-bold">
+                            <span id="mat-upload-spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                            Lưu tài liệu
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .teacher-class-card {
+        border-radius: 16px;
+        border: 1px solid rgba(0,0,0,0.06);
+        transition: all 0.3s ease;
+    }
+    .teacher-class-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08) !important;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            getTeacherClasses: '@Url.Action("GetTeacherClasses", "Training")',
+            getClassDetail: '@Url.Action("GetClassDetail", "Training")',
+            getClassTests: '@Url.Action("GetClassTests", "Training")',
+            saveMaterial: '@Url.Action("SaveMaterial", "Training")',
+            teacherAttendance: '@Url.Action("TeacherAttendance", "Training")',
+            testGrading: '@Url.Action("TestGrading", "Training")'
+        };
+        const empCd = '@empCd';
+        let uploadModal = null;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            uploadModal = new bootstrap.Modal(document.getElementById('uploadMaterialModal'));
+            loadTeacherClasses();
+        });
+
+        // 1. Tải danh sách lớp giảng dạy
+        function loadTeacherClasses() {
+            const container = document.getElementById('teacher-classes-container');
+            
+            fetch(`${window.TRAINING_URLS.getTeacherClasses}?empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        container.innerHTML = `<div class="col-12"><div class="alert alert-warning">${res.message || 'Lỗi tải danh sách lớp.'}</div></div>`;
+                        return;
+                    }
+
+                    const list = res.data || [];
+                    if (list.length === 0) {
+                        container.innerHTML = `
+                            <div class="col-12 text-center py-5">
+                                <span class="material-symbols-rounded text-muted" style="font-size: 5rem;">assignment_ind</span>
+                                <h5 class="fw-bold mt-3">Bạn chưa được phân công giảng dạy lớp học nào</h5>
+                                <p class="text-muted small">Hãy liên hệ với HR/Bộ phận Nhân sự để nhận lịch dạy.</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    container.innerHTML = '';
+                    list.forEach(item => {
+                        const start = new Date(item.START_DATE).toLocaleDateString('vi-VN');
+                        const end = new Date(item.END_DATE).toLocaleDateString('vi-VN');
+
+                        // Lấy số lượng bài thi tự luận cần chấm của lớp học này
+                        // Chúng ta sẽ lấy danh sách các bài test của lớp học qua API GetClassTests
+                        // Và hiển thị một nút chấm tự luận nếu lớp học có bài test
+                        let testGradingBtn = '';
+                        
+                        container.innerHTML += `
+                            <div class="col-12 col-md-6 col-lg-4 mb-4">
+                                <div class="card h-100 border-0 shadow-sm teacher-class-card">
+                                    <div class="card-body p-4 d-flex flex-column">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <span class="badge bg-success-soft text-success rounded px-2.5 py-1.5 fw-bold small">Giáo viên phụ trách</span>
+                                            <span class="small text-muted">${start} - ${end}</span>
+                                        </div>
+                                        <h5 class="fw-bold text-dark mb-1 text-truncate-2">${item.COURSE_TITLE}</h5>
+                                        <p class="text-muted small mb-3">Mã lớp: <strong>${item.CLASS_NAME}</strong></p>
+
+                                        <div class="card bg-light border-0 p-3 mb-4" style="border-radius: 12px;">
+                                            <div class="d-flex justify-content-between small text-muted mb-1">
+                                                <span>Tổng số buổi học:</span>
+                                                <span class="fw-bold text-dark">${item.SESSION_COUNT || 0} buổi</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between small text-muted">
+                                                <span>Sĩ số học viên:</span>
+                                                <span class="fw-bold text-dark">${item.STUDENT_COUNT || 0} học viên</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-auto d-flex flex-column gap-2">
+                                            <button onclick="openUploadMaterial(${item.ID})" class="btn btn-outline-success w-100 py-2.5 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-1">
+                                                <span class="material-symbols-rounded" style="font-size: 1.2rem;">upload_file</span>
+                                                Đăng tài liệu lớp
+                                            </button>
+                                            
+                                            <div class="d-flex gap-2">
+                                                <button onclick="goToAttendanceList(${item.ID})" class="btn btn-success flex-fill py-2.5 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-1">
+                                                    <span class="material-symbols-rounded" style="font-size: 1.2rem;">checklist</span>
+                                                    Điểm danh học viên
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Chấm điểm tự luận -->
+                                            <button onclick="goToTestGradingPanel(${item.ID})" class="btn btn-warning w-100 py-2.5 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-1">
+                                                <span class="material-symbols-rounded" style="font-size: 1.2rem;">grade</span>
+                                                Chấm tự luận bài thi
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                })
+                .catch(err => {
+                    container.innerHTML = `<div class="col-12"><div class="alert alert-danger">Lỗi kết nối hệ thống: ${err.message}</div></div>`;
+                });
+        }
+
+        // Điểm danh: vì cần chọn buổi học của lớp học, nên khi nhấn "Điểm danh học viên", chúng ta sẽ chuyển hướng hoặc mở panel chọn session của lớp
+        // Chúng ta sẽ cho giảng viên xem danh sách các buổi học của lớp đó rồi mới chọn điểm danh buổi học
+        // Cách nhanh nhất và tiện nhất: chúng ta redirect giảng viên tới trang ClassDetail (Student/ClassDetail) nhưng nếu họ là giáo viên, chúng ta hiển thị nút điểm danh cho mọi buổi học!
+        // Hoặc chúng ta redirect qua một trang danh sách buổi học của giáo viên.
+        // Let's create a beautiful flow:
+        // Khi nhấn "Điểm danh học viên", chúng ta show một popup danh sách các buổi học của lớp, giáo viên chỉ cần click "Điểm danh" buổi tương ứng để dẫn tới trang TeacherAttendance
+        function goToAttendanceList(classId) {
+            // Fetch chi tiết lớp học để lấy danh sách buổi học
+            fetch(`${window.TRAINING_URLS.getClassDetail}?classId=${classId}&empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        window.showToast('Không thể lấy danh sách buổi học.', 'error');
+                        return;
+                    }
+
+                    const sessions = res.data.sessions || [];
+                    if (sessions.length === 0) {
+                        window.showToast('Lớp học này chưa được sắp lịch học nào.', 'warning');
+                        return;
+                    }
+
+                    // Render danh sách buổi học vào modal confirm hoặc hiển thị
+                    // Hãy show một popup chọn buổi học
+                    let optionsHtml = '';
+                    sessions.forEach(s => {
+                        optionsHtml += `
+                            <button onclick="window.location.href='${window.TRAINING_URLS.teacherAttendance}?sessionId=${s.ID}'" class="btn btn-outline-success w-100 text-start py-2.5 mb-2 rounded-3 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="fw-bold">Buổi ${s.SESSION_NO}: ${s.TOPIC || 'Chủ đề bài học'}</span>
+                                    <span class="small text-muted d-block">${new Date(s.SESSION_DATE).toLocaleDateString('vi-VN')} | Phòng: ${s.LOCATION || 'N/A'}</span>
+                                </div>
+                                <span class="material-symbols-rounded">chevron_right</span>
+                            </button>
+                        `;
+                    });
+
+                    const pickerModal = document.createElement('div');
+                    pickerModal.className = 'modal fade';
+                    pickerModal.id = 'tempSessionPickerModal';
+                    pickerModal.innerHTML = `
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+                                <div class="modal-header border-bottom-0 p-4 pb-0">
+                                    <h5 class="fw-bold modal-title">Chọn Buổi học để Điểm danh</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body p-4" style="max-height: 400px; overflow-y: auto;">
+                                    ${optionsHtml}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(pickerModal);
+                    const bsModal = new bootstrap.Modal(pickerModal);
+                    bsModal.show();
+                    
+                    pickerModal.addEventListener('hidden.bs.modal', function () {
+                        pickerModal.remove();
+                    });
+                });
+        }
+
+        // Chuyển hướng chấm tự luận:
+        // Cần chọn bài thi của lớp trước, giống như điểm danh
+        function goToTestGradingPanel(classId) {
+            fetch(`${window.TRAINING_URLS.getClassTests}?classId=${classId}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        window.showToast('Không lấy được danh sách bài thi.', 'error');
+                        return;
+                    }
+
+                    const list = res.data || [];
+                    if (list.length === 0) {
+                        window.showToast('Lớp học này chưa có bài thi nào.', 'warning');
+                        return;
+                    }
+
+                    let optionsHtml = '';
+                    list.forEach(t => {
+                        optionsHtml += `
+                            <button onclick="window.location.href='${window.TRAINING_URLS.testGrading}?testId=${t.ID}'" class="btn btn-outline-warning w-100 text-start py-2.5 mb-2 rounded-3 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="fw-bold text-dark">${t.TITLE}</span>
+                                    <span class="small text-muted d-block">Hình thức: Tự luận & trắc nghiệm</span>
+                                </div>
+                                <span class="material-symbols-rounded text-warning">grade</span>
+                            </button>
+                        `;
+                    });
+
+                    const pickerModal = document.createElement('div');
+                    pickerModal.className = 'modal fade';
+                    pickerModal.id = 'tempTestPickerModal';
+                    pickerModal.innerHTML = `
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+                                <div class="modal-header border-bottom-0 p-4 pb-0">
+                                    <h5 class="fw-bold modal-title">Chọn Bài thi để Chấm điểm</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body p-4" style="max-height: 400px; overflow-y: auto;">
+                                    ${optionsHtml}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(pickerModal);
+                    const bsModal = new bootstrap.Modal(pickerModal);
+                    bsModal.show();
+                    
+                    pickerModal.addEventListener('hidden.bs.modal', function () {
+                        pickerModal.remove();
+                    });
+                });
+        }
+
+        // 2. Upload tài liệu bài học
+        function openUploadMaterial(classId) {
+            document.getElementById('mat-class-id').value = classId;
+            document.getElementById('mat-title').value = '';
+            document.getElementById('mat-file').value = '';
+            document.getElementById('mat-required').checked = true;
+            document.getElementById('mat-order').value = 1;
+            uploadModal.show();
+        }
+
+        function uploadMaterialSubmit() {
+            const classId = document.getElementById('mat-class-id').value;
+            const title = document.getElementById('mat-title').value.trim();
+            const fileInput = document.getElementById('mat-file');
+            const isRequired = document.getElementById('mat-required').checked ? 1 : 0;
+            const order = document.getElementById('mat-order').value;
+
+            if (!title) {
+                window.showToast('Vui lòng nhập tiêu đề tài liệu!', 'warning');
+                return;
+            }
+            if (fileInput.files.length === 0) {
+                window.showToast('Vui lòng chọn file tài liệu tải lên!', 'warning');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const spinner = document.getElementById('mat-upload-spinner');
+            spinner.classList.remove('d-none');
+
+            // Bước 1: Upload file vật lý thông qua FileController
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('level', 'CLASS');
+            formData.append('classId', classId);
+
+            fetch('/File/UploadTrainingMaterial', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(resUpload => {
+                if (!resUpload.success) {
+                    spinner.classList.add('d-none');
+                    window.showToast(resUpload.message || 'Lỗi tải file vật lý.', 'error');
+                    return;
+                }
+
+                // Bước 2: Lưu metadata tài liệu vào API bằng AJAX
+                return fetch(window.TRAINING_URLS.saveMaterial, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        CLASS_ID: parseInt(classId),
+                        MATERIAL_LEVEL: 'CLASS',
+                        TITLE: title,
+                        FILE_NAME: resUpload.fileName,
+                        FILE_TYPE: resUpload.fileType,
+                        FILE_URL: resUpload.url,
+                        IS_REQUIRED: isRequired,
+                        DISPLAY_ORDER: parseInt(order)
+                    })
+                });
+            })
+            .then(r => r.json())
+            .then(resMeta => {
+                spinner.classList.add('d-none');
+                if (resMeta.success) {
+                    window.showToast('Đã tải lên và lưu tài liệu lớp học!', 'success');
+                    uploadModal.hide();
+                } else {
+                    window.showToast(resMeta.message || 'Lỗi lưu metadata tài liệu.', 'error');
+                }
+            })
+            .catch(err => {
+                spinner.classList.add('d-none');
+                window.showToast('Lỗi kết nối: ' + err.message, 'error');
+            });
+        }
+    </script>
+}

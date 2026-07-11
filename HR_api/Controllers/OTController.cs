@@ -152,28 +152,35 @@ public class OTController : ControllerBase
 
             if (existingRows.Count > 0 && existingRows[0] != null)
             {
-                // Đã có trong HR_OT_REQUEST → UPDATE cả hai bảng
+                // Đã có trong HR_OT_REQUEST → Kiểm tra nếu có thay đổi trạng thái hoặc số giờ thì xoá và tạo lại
                 var existing = existingRows[0];
                 bool hoursChanged = existing.OT_HOURS.HasValue && model.OT_HOURS.HasValue && existing.OT_HOURS != model.OT_HOURS;
 
                 if (existing.CONFIRM_STATUS != model.CONFIRM_STATUS || hoursChanged)
                 {
-                    string sqlUpdateOT = "UPDATE HRMS.HR_OT_REQUEST SET CONFIRM_STATUS = :CONFIRM_STATUS, OT_HOURS = :OT_HOURS, CONFIRM_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID";
-                    await _oracleService.ExecuteNonQueryAsync(sqlUpdateOT,
-                        new OracleParameter("CONFIRM_STATUS", model.CONFIRM_STATUS),
-                        new OracleParameter("OT_HOURS", (object?)model.OT_HOURS ?? DBNull.Value),
-                        new OracleParameter("REQUEST_ID", existing.REQUEST_ID));
-
-                    string sqlUpdateReq = "UPDATE HRMS.HR_REQUEST SET STATUS = :STATUS, UPDATED_BY = :EMPCD, UPDATED_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID";
-                    await _oracleService.ExecuteNonQueryAsync(sqlUpdateReq,
-                        new OracleParameter("STATUS", model.CONFIRM_STATUS),
+                    // Lấy tất cả REQUEST_ID liên quan đến nhân viên và ngày làm việc này
+                    string sqlGetReqIds = "SELECT REQUEST_ID FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE";
+                    var reqIds = await _oracleService.ExecuteQueryAsync(sqlGetReqIds, r => r["REQUEST_ID"]?.ToString(),
                         new OracleParameter("EMPCD", model.EMPCD),
-                        new OracleParameter("REQUEST_ID", existing.REQUEST_ID));
+                        new OracleParameter("WORK_DATE", workDate));
 
-                    await UpdateErpSignedAsync(model.EMPCD, workDate, model.CONFIRM_STATUS);
+                    if (reqIds.Count > 0)
+                    {
+                        foreach (var reqId in reqIds)
+                        {
+                            if (string.IsNullOrEmpty(reqId)) continue;
 
-                    string msgUpdate = model.CONFIRM_STATUS == "CONFIRMED" ? "Xác nhận tăng ca thành công" : "Từ chối tăng ca thành công";
-                    return Ok(new { success = true, message = msgUpdate, request_id = existing.REQUEST_ID });
+                            // Xoá bảng con HR_OT_REQUEST trước do ràng buộc khoá ngoại FK_OT_REQ
+                            string sqlDeleteOt = "DELETE FROM HRMS.HR_OT_REQUEST WHERE REQUEST_ID = :REQUEST_ID";
+                            await _oracleService.ExecuteNonQueryAsync(sqlDeleteOt, new OracleParameter("REQUEST_ID", reqId));
+
+                            // Xoá bảng cha HR_REQUEST
+                            string sqlDeleteReq = "DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :REQUEST_ID";
+                            await _oracleService.ExecuteNonQueryAsync(sqlDeleteReq, new OracleParameter("REQUEST_ID", reqId));
+                        }
+                    }
+
+                    // Không return nữa mà trôi xuống Bước 2 phía dưới để tiến hành INSERT mới
                 }
                 else
                 {

@@ -1,0 +1,222 @@
+@{
+    ViewData["Title"] = "Chấm điểm tự luận";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var empCd = ViewBag.EmpCd as string;
+    var testId = ViewBag.TestId;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Back to Dashboard -->
+    <div class="mb-3">
+        <a href="@Url.Action("TeacherDashboard", "Training")" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
+            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
+            Quay lại bảng điều khiển giảng dạy
+        </a>
+    </div>
+
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                    <div>
+                        <span class="badge bg-warning-soft text-warning px-2.5 py-1.5 fw-bold mb-2">Chấm điểm Tự luận</span>
+                        <h3 class="fw-bold mb-1 text-dark" id="test-title">Đang tải tên bài kiểm tra...</h3>
+                        <p class="text-muted mb-0">Chấm điểm các câu trả lời tự luận viết tay từ học viên để hoàn tất kết quả bài thi.</p>
+                    </div>
+                    <div class="bg-light px-4 py-3 text-center rounded-3" style="min-width: 150px;">
+                        <span class="small text-muted d-block">Bài thi chưa chấm</span>
+                        <span class="fs-2 fw-bold text-warning" id="pending-count">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Attempt List with Essays -->
+    <div class="row">
+        <div class="col-12" id="attempts-container">
+            <div class="text-center py-5">
+                <div class="spinner-border text-warning" role="status"><span class="visually-hidden">Loading...</span></div>
+                <p class="mt-2 text-muted">Đang tải danh sách bài thi cần chấm tự luận...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .attempt-card {
+        border-radius: 16px;
+        border: 1px solid rgba(0,0,0,0.06);
+        background-color: #fff;
+        transition: all 0.2s;
+    }
+    .essay-card {
+        border-radius: 12px;
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            getPendingGrade: '@Url.Action("GetPendingGrade", "Training")',
+            grade: '@Url.Action("Grade", "Training")'
+        };
+        const empCd = '@empCd';
+        const testId = @testId;
+
+        let gradingData = [];
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadGradingData();
+        });
+
+        // 1. Tải danh sách bài thi cần chấm
+        function loadGradingData() {
+            fetch(`${window.TRAINING_URLS.getPendingGrade}?id=${testId}&empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (res.status === 403) {
+                        document.getElementById('attempts-container').innerHTML = `<div class="alert alert-danger text-center">Bạn không có quyền chấm bài kiểm tra này!</div>`;
+                        return;
+                    }
+                    if (!res.success) {
+                        document.getElementById('attempts-container').innerHTML = `<div class="alert alert-warning text-center">${res.message || 'Lỗi tải bài thi cần chấm.'}</div>`;
+                        return;
+                    }
+
+                    gradingData = res.data || [];
+                    
+                    // Cập nhật số lượng
+                    document.getElementById('pending-count').textContent = gradingData.length;
+
+                    // Lấy tiêu đề test từ item đầu tiên nếu có
+                    if (gradingData.length > 0 && gradingData[0].attempt) {
+                        document.getElementById('test-title').textContent = "Bài thi: " + (gradingData[0].attempt.TEST_TITLE || "Đánh giá đào tạo");
+                    } else {
+                        document.getElementById('test-title').textContent = "Chưa có bài thi cần chấm tự luận";
+                    }
+
+                    renderAttempts();
+                });
+        }
+
+        // 2. Render danh sách bài thi và câu tự luận
+        function renderAttempts() {
+            const container = document.getElementById('attempts-container');
+            
+            if (gradingData.length === 0) {
+                container.innerHTML = `
+                    <div class="card border-0 shadow-sm text-center py-5" style="border-radius: 16px;">
+                        <span class="material-symbols-rounded text-success" style="font-size: 5rem;">verified</span>
+                        <h5 class="fw-bold text-dark mt-3">Tất cả bài thi đã được chấm điểm hoàn chỉnh!</h5>
+                        <p class="text-muted small">Không còn bài làm tự luận nào đang chờ giảng viên chấm điểm.</p>
+                        <div class="mt-2">
+                             <a href="@Url.Action("TeacherDashboard", "Training")" class="btn btn-outline-success rounded-3 fw-bold px-4">Quay về Trang chủ</a>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            gradingData.forEach((item, idx) => {
+                const att = item.attempt;
+                const submitDate = new Date(att.SUBMIT_DT).toLocaleString('vi-VN');
+                
+                let essaysHtml = '';
+                item.essays.forEach(es => {
+                    // Hiển thị từng câu tự luận cần chấm
+                    const pointsId = `points_${es.ANSWER_ID}`;
+                    const commentId = `comment_${es.ANSWER_ID}`;
+                    
+                    essaysHtml += `
+                        <div class="essay-card p-4 mb-3 position-relative">
+                            <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
+                                <h6 class="fw-bold text-primary mb-0"><i class="bi bi-question-circle-fill me-1"></i>Câu hỏi: ${es.QUESTION_TEXT}</h6>
+                                <span class="badge bg-secondary-soft text-secondary px-2 py-1 small">Điểm tối đa: ${es.QUESTION_POINTS}đ</span>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="small fw-bold text-muted mb-1 d-block">Câu trả lời của học viên:</label>
+                                <div class="bg-white p-3 border rounded text-dark small" style="white-space: pre-wrap; min-height: 80px;">${es.ANSWER_TEXT || 'Không có câu trả lời.'}</div>
+                            </div>
+                            
+                            <div class="row g-3">
+                                <div class="col-12 col-md-3">
+                                    <label class="form-label small fw-bold text-muted">Điểm cho học viên (0 - ${es.QUESTION_POINTS})</label>
+                                    <input type="number" id="${pointsId}" class="form-control" placeholder="Điểm..." min="0" max="${es.QUESTION_POINTS}" step="0.5" style="border-radius: 8px;" />
+                                </div>
+                                <div class="col-12 col-md-7">
+                                    <label class="form-label small fw-bold text-muted">Nhận xét của giáo viên (tuỳ chọn)</label>
+                                    <input type="text" id="${commentId}" class="form-control" placeholder="Nhập nhận xét..." style="border-radius: 8px;" />
+                                </div>
+                                <div class="col-12 col-md-2 text-end pt-md-4">
+                                    <button onclick="submitGrade(${es.ANSWER_ID}, ${es.QUESTION_POINTS})" class="btn btn-warning w-100 py-2 rounded-3 fw-bold d-inline-flex align-items-center justify-content-center gap-1">
+                                        <span class="material-symbols-rounded" style="font-size: 1.1rem;">save</span>
+                                        Lưu điểm
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML += `
+                    <div class="card border-0 shadow-sm p-4 mb-4 attempt-card">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 bg-light p-3 rounded-3">
+                            <div>
+                                <h6 class="fw-bold text-dark mb-0"><i class="bi bi-person-fill me-1"></i>Học viên: ${att.EMP_NAME || 'N/A'} (${att.EMPCD})</h6>
+                                <span class="small text-muted">Nộp bài ngày: ${submitDate} | Số lần thi: Lượt ${att.ATTEMPT_NO}</span>
+                            </div>
+                            <div class="text-md-end">
+                                <span class="small text-muted d-block">Trắc nghiệm đạt:</span>
+                                <span class="fw-bold text-dark">${att.SCORE} điểm</span>
+                            </div>
+                        </div>
+                        
+                        <div class="essays-wrapper mt-3">
+                            ${essaysHtml}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // 3. Gửi điểm chấm lên API
+        window.submitGrade = function(answerId, maxPoints) {
+            const ptsInput = document.getElementById(`points_${answerId}`);
+            const commentInput = document.getElementById(`comment_${answerId}`);
+            
+            const pointsVal = parseFloat(ptsInput.value);
+            const comment = commentInput.value.trim();
+
+            if (isNaN(pointsVal) || pointsVal < 0 || pointsVal > maxPoints) {
+                window.showToast(`Điểm số không hợp lệ! Vui lòng nhập điểm từ 0 đến ${maxPoints}`, 'warning');
+                return;
+            }
+
+            fetch(window.TRAINING_URLS.grade, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ANSWER_ID: answerId,
+                    POINTS_AWARDED: pointsVal,
+                    GRADER_COMMENT: comment || null
+                })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast('Lưu điểm thành công!', 'success');
+                    loadGradingData(); // Tải lại dữ liệu (sẽ tự động mất bài này nếu đã chấm hết các câu tự luận)
+                } else {
+                    window.showToast(res.message || 'Lỗi chấm điểm.', 'error');
+                }
+            })
+            .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+        };
+    </script>
+}

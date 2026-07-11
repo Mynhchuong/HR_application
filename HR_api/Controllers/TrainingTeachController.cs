@@ -1,11 +1,11 @@
+using HR_api.Helpers;
 using HR_api.Models.Training;
 using HR_api.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HR_api.Controllers;
 
-// Teacher-specific endpoints. Route guard đơn giản: gọi service check EMPCD có thuộc HR_TRAINING_CLASS_TEACHER
-// của target Class không. Chi tiết auth pattern xem training_plan.md §7 (TrainingAuthHelper — sẽ làm Phase 5).
+// Teacher-specific endpoints.
 [ApiController]
 [Route("apiHR/[controller]")]
 public class TrainingTeachController : ControllerBase
@@ -16,6 +16,7 @@ public class TrainingTeachController : ControllerBase
     private readonly TrainingClassService _class;
     private readonly TrainingTestService _test;
     private readonly TrainingAttemptService _attempt;
+    private readonly TrainingAuthHelper _auth;
 
     public TrainingTeachController(
         TrainingSessionService session,
@@ -23,7 +24,8 @@ public class TrainingTeachController : ControllerBase
         TrainingQAService qa,
         TrainingClassService cls,
         TrainingTestService test,
-        TrainingAttemptService attempt)
+        TrainingAttemptService attempt,
+        TrainingAuthHelper auth)
     {
         _session  = session;
         _material = material;
@@ -31,6 +33,7 @@ public class TrainingTeachController : ControllerBase
         _class    = cls;
         _test     = test;
         _attempt  = attempt;
+        _auth     = auth;
     }
 
     // GET /apiHR/TrainingTeach/my-classes?empcd=
@@ -47,10 +50,18 @@ public class TrainingTeachController : ControllerBase
         return Ok(new { success = true, data = mine });
     }
 
-    // GET /apiHR/TrainingTeach/session/{id}/attendance — teacher view
+    // GET /apiHR/TrainingTeach/session/{id}/attendance?empcd= — teacher view
     [HttpGet("session/{id}/attendance")]
-    public async Task<IActionResult> SessionAttendance(int id)
+    public async Task<IActionResult> SessionAttendance(int id, [FromQuery] string empcd)
     {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+
+        if (!await _auth.IsTeacherOfSessionAsync(empcd, id) && !await _auth.IsHrOrAdminAsync(empcd))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền truy cập buổi học này" });
+        }
+
         var v = await _session.GetAttendanceViewAsync(id);
         if (v.SESSION == null) return Ok(new { success = false, message = "Không tìm thấy session" });
         return Ok(new { success = true, data = v });
@@ -60,6 +71,14 @@ public class TrainingTeachController : ControllerBase
     [HttpPost("session/confirm")]
     public async Task<IActionResult> ConfirmAttendance([FromBody] ConfirmAttendanceRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherOfSessionAsync(req.LOGIN_USER, req.SESSION_ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền xác nhận điểm danh cho buổi học này" });
+        }
+
         try
         {
             await _session.ConfirmAttendanceAsync(req);
@@ -75,6 +94,14 @@ public class TrainingTeachController : ControllerBase
     [HttpPost("session/confirm-batch")]
     public async Task<IActionResult> ConfirmAttendanceBatch([FromBody] ConfirmAttendanceBatchRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherOfSessionAsync(req.LOGIN_USER, req.SESSION_ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền xác nhận điểm danh cho buổi học này" });
+        }
+
         try
         {
             var n = await _session.ConfirmAttendanceBatchAsync(req);
@@ -86,10 +113,18 @@ public class TrainingTeachController : ControllerBase
         }
     }
 
-    // GET /apiHR/TrainingTeach/class/{id}/absent-stats
+    // GET /apiHR/TrainingTeach/class/{id}/absent-stats?empcd=
     [HttpGet("class/{id}/absent-stats")]
-    public async Task<IActionResult> AbsentStats(int id)
+    public async Task<IActionResult> AbsentStats(int id, [FromQuery] string empcd)
     {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+
+        if (!await _auth.IsTeacherAsync(empcd, id) && !await _auth.IsHrOrAdminAsync(empcd))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền xem thống kê vắng của lớp học này" });
+        }
+
         var data = await _session.GetAbsentStatsAsync(id);
         return Ok(new { success = true, data });
     }
@@ -98,6 +133,14 @@ public class TrainingTeachController : ControllerBase
     [HttpPost("enrollment/drop")]
     public async Task<IActionResult> DropStudent([FromBody] DropStudentRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherAsync(req.LOGIN_USER, req.CLASS_ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền xoá học viên khỏi lớp học này" });
+        }
+
         try
         {
             await _session.DropStudentAsync(req);
@@ -113,6 +156,24 @@ public class TrainingTeachController : ControllerBase
     [HttpPost("material/save")]
     public async Task<IActionResult> MaterialSave([FromBody] SaveMaterialRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (req.CLASS_ID.HasValue)
+        {
+            if (!await _auth.IsTeacherAsync(req.LOGIN_USER, req.CLASS_ID.Value) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+            {
+                return StatusCode(403, new { success = false, message = "Bạn không có quyền tải tài liệu lên lớp học này" });
+            }
+        }
+        else
+        {
+            if (!await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+            {
+                return StatusCode(403, new { success = false, message = "Chỉ có HR/Admin mới được tải tài liệu hệ thống" });
+            }
+        }
+
         try
         {
             var id = await _material.SaveAsync(req);
@@ -128,6 +189,14 @@ public class TrainingTeachController : ControllerBase
     [HttpPost("material/delete")]
     public async Task<IActionResult> MaterialDelete([FromBody] DeleteMaterialRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherOfMaterialAsync(req.LOGIN_USER, req.ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền xoá tài liệu này" });
+        }
+
         try
         {
             await _material.DeleteAsync(req);
@@ -143,6 +212,14 @@ public class TrainingTeachController : ControllerBase
     [HttpPost("qa/answer")]
     public async Task<IActionResult> QAAnswer([FromBody] AnswerQuestionRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherOfQuestionAsync(req.LOGIN_USER, req.ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền trả lời câu hỏi này" });
+        }
+
         try
         {
             await _qa.AnswerAsync(req);
@@ -158,6 +235,14 @@ public class TrainingTeachController : ControllerBase
     [HttpPost("qa/delete")]
     public async Task<IActionResult> QADelete([FromBody] DeleteQuestionRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherOfQuestionAsync(req.LOGIN_USER, req.ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền xoá câu hỏi này" });
+        }
+
         try
         {
             await _qa.DeleteAsync(req);
@@ -177,6 +262,24 @@ public class TrainingTeachController : ControllerBase
     [HttpPost("test/save")]
     public async Task<IActionResult> TestSave([FromBody] SaveTestRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (req.CLASS_ID.HasValue)
+        {
+            if (!await _auth.IsTeacherAsync(req.LOGIN_USER, req.CLASS_ID.Value) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+            {
+                return StatusCode(403, new { success = false, message = "Bạn không có quyền tạo/sửa bài kiểm tra cho lớp học này" });
+            }
+        }
+        else
+        {
+            if (!await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+            {
+                return StatusCode(403, new { success = false, message = "Chỉ có HR/Admin mới được tạo đề thi mẫu" });
+            }
+        }
+
         try
         {
             var id = await _test.SaveAsync(req);
@@ -192,6 +295,14 @@ public class TrainingTeachController : ControllerBase
     [HttpPost("test/questions/save")]
     public async Task<IActionResult> TestQuestionsSave([FromBody] SaveTestQuestionsRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherOfTestAsync(req.LOGIN_USER, req.TEST_ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền sửa câu hỏi cho bài kiểm tra này" });
+        }
+
         try
         {
             await _test.SaveQuestionsAsync(req);
@@ -207,6 +318,14 @@ public class TrainingTeachController : ControllerBase
     [HttpPost("test/publish")]
     public async Task<IActionResult> TestPublish([FromBody] ChangeTestStatusRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherOfTestAsync(req.LOGIN_USER, req.ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền xuất bản bài kiểm tra này" });
+        }
+
         try
         {
             await _test.PublishAsync(req.ID, req.LOGIN_USER);
@@ -218,10 +337,18 @@ public class TrainingTeachController : ControllerBase
         }
     }
 
-    // GET /apiHR/TrainingTeach/test/{id}/pending-grade — attempts có ESSAY chưa chấm
+    // GET /apiHR/TrainingTeach/test/{id}/pending-grade?empcd= — attempts có ESSAY chưa chấm
     [HttpGet("test/{id}/pending-grade")]
-    public async Task<IActionResult> PendingGrade(int id)
+    public async Task<IActionResult> PendingGrade(int id, [FromQuery] string empcd)
     {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+
+        if (!await _auth.IsTeacherOfTestAsync(empcd, id) && !await _auth.IsHrOrAdminAsync(empcd))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền chấm bài kiểm tra này" });
+        }
+
         var data = await _attempt.GetPendingGradeAsync(id);
         return Ok(new { success = true, data });
     }
@@ -230,6 +357,14 @@ public class TrainingTeachController : ControllerBase
     [HttpPost("test/grade")]
     public async Task<IActionResult> Grade([FromBody] GradeAnswerRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherOfAnswerAsync(req.LOGIN_USER, req.ANSWER_ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền chấm câu hỏi này" });
+        }
+
         var (ok, err) = await _attempt.GradeAnswerAsync(req);
         return Ok(new { success = ok, message = err });
     }

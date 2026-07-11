@@ -1,3 +1,4 @@
+using HR_api.Helpers;
 using HR_api.Models.Training;
 using HR_api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +18,7 @@ public class TrainingController : ControllerBase
     private readonly TrainingAttemptService _attempt;
     private readonly TrainingReviewService _review;
     private readonly TrainingTeamService _team;
+    private readonly TrainingAuthHelper _auth;
 
     public TrainingController(
         TrainingEnrollmentService enroll,
@@ -26,7 +28,8 @@ public class TrainingController : ControllerBase
         TrainingQAService qa,
         TrainingAttemptService attempt,
         TrainingReviewService review,
-        TrainingTeamService team)
+        TrainingTeamService team,
+        TrainingAuthHelper auth)
     {
         _enroll   = enroll;
         _session  = session;
@@ -36,6 +39,7 @@ public class TrainingController : ControllerBase
         _attempt  = attempt;
         _review   = review;
         _team     = team;
+        _auth     = auth;
     }
 
     // GET /apiHR/Training/my-classes?empcd=
@@ -48,10 +52,30 @@ public class TrainingController : ControllerBase
         return Ok(new { success = true, data });
     }
 
+    // GET /apiHR/Training/is-active-teacher?empcd=
+    [HttpGet("is-active-teacher")]
+    public async Task<IActionResult> IsActiveTeacher([FromQuery] string empcd)
+    {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+        var active = await _auth.IsActiveTeacherAsync(empcd);
+        return Ok(new { success = true, data = active });
+    }
+
     // GET /apiHR/Training/class/{id}/detail?empcd= — cho student xem lớp mình được assign
     [HttpGet("class/{id}/detail")]
     public async Task<IActionResult> ClassDetail(int id, [FromQuery] string? empcd)
     {
+        if (!string.IsNullOrWhiteSpace(empcd))
+        {
+            if (!await _auth.IsStudentAsync(empcd, id) &&
+                !await _auth.IsTeacherAsync(empcd, id) &&
+                !await _auth.IsHrOrAdminAsync(empcd))
+            {
+                return StatusCode(403, new { success = false, message = "Bạn không có quyền truy cập thông tin lớp học này" });
+            }
+        }
+
         var cls = await _class.GetDetailAsync(id);
         if (cls == null) return Ok(new { success = false, message = "Không tìm thấy lớp" });
         var sessions = await _class.GetSessionsAsync(id);
@@ -72,12 +96,23 @@ public class TrainingController : ControllerBase
         return Ok(new { success = ok, message = err });
     }
 
-    // GET /apiHR/Training/session/{id}/detail
+    // GET /apiHR/Training/session/{id}/detail?empcd=
     [HttpGet("session/{id}/detail")]
-    public async Task<IActionResult> SessionDetail(int id)
+    public async Task<IActionResult> SessionDetail(int id, [FromQuery] string empcd)
     {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+
         var s = await _session.GetDetailAsync(id);
         if (s == null) return Ok(new { success = false, message = "Không tìm thấy session" });
+
+        if (!await _auth.IsStudentAsync(empcd, s.CLASS_ID) &&
+            !await _auth.IsTeacherAsync(empcd, s.CLASS_ID) &&
+            !await _auth.IsHrOrAdminAsync(empcd))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền truy cập thông tin buổi học này" });
+        }
+
         return Ok(new { success = true, data = s });
     }
 
@@ -93,6 +128,16 @@ public class TrainingController : ControllerBase
     [HttpGet("class/{id}/materials")]
     public async Task<IActionResult> Materials(int id, [FromQuery] string? empcd)
     {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+
+        if (!await _auth.IsStudentAsync(empcd, id) &&
+            !await _auth.IsTeacherAsync(empcd, id) &&
+            !await _auth.IsHrOrAdminAsync(empcd))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền truy cập tài liệu lớp học này" });
+        }
+
         var data = await _material.ListByClassAsync(id, empcd);
         return Ok(new { success = true, data });
     }
@@ -105,10 +150,20 @@ public class TrainingController : ControllerBase
         return Ok(new { success = true, data = new { newView } });
     }
 
-    // GET /apiHR/Training/class/{id}/qa
+    // GET /apiHR/Training/class/{id}/qa?empcd=
     [HttpGet("class/{id}/qa")]
-    public async Task<IActionResult> QAList(int id)
+    public async Task<IActionResult> QAList(int id, [FromQuery] string empcd)
     {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+
+        if (!await _auth.IsStudentAsync(empcd, id) &&
+            !await _auth.IsTeacherAsync(empcd, id) &&
+            !await _auth.IsHrOrAdminAsync(empcd))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền xem Q&A của lớp học này" });
+        }
+
         var data = await _qa.ListByClassAsync(id);
         return Ok(new { success = true, data });
     }
@@ -117,6 +172,15 @@ public class TrainingController : ControllerBase
     [HttpPost("qa/ask")]
     public async Task<IActionResult> QAAsk([FromBody] AskQuestionRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.EMPCD))
+            return Ok(new { success = false, message = "EMPCD required" });
+
+        if (!await _auth.IsStudentAsync(req.EMPCD, req.CLASS_ID) &&
+            !await _auth.IsHrOrAdminAsync(req.EMPCD))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền đặt câu hỏi trong lớp học này" });
+        }
+
         try
         {
             var id = await _qa.AskAsync(req);
@@ -138,6 +202,14 @@ public class TrainingController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(empcd))
             return Ok(new { success = false, message = "empcd required" });
+
+        if (!await _auth.IsStudentOfTestAsync(empcd, id) &&
+            !await _auth.IsTeacherOfTestAsync(empcd, id) &&
+            !await _auth.IsHrOrAdminAsync(empcd))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền thực hiện bài kiểm tra này" });
+        }
+
         var (view, err) = await _attempt.GetForStudentAsync(id, empcd);
         return Ok(new { success = view != null, message = err, data = view });
     }
@@ -146,6 +218,15 @@ public class TrainingController : ControllerBase
     [HttpPost("test/start")]
     public async Task<IActionResult> TestStart([FromBody] StartAttemptRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.EMPCD))
+            return Ok(new { success = false, message = "EMPCD required" });
+
+        if (!await _auth.IsStudentOfTestAsync(req.EMPCD, req.TEST_ID) &&
+            !await _auth.IsHrOrAdminAsync(req.EMPCD))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền làm bài kiểm tra này" });
+        }
+
         // Lấy IP + UserAgent để log
         req.IP_ADDRESS ??= HttpContext.Connection.RemoteIpAddress?.ToString();
         req.USER_AGENT ??= Request.Headers.UserAgent.ToString();
@@ -157,6 +238,15 @@ public class TrainingController : ControllerBase
     [HttpPost("test/save-answer")]
     public async Task<IActionResult> TestSaveAnswer([FromBody] SaveAnswerRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.EMPCD))
+            return Ok(new { success = false, message = "EMPCD required" });
+
+        if (!await _auth.IsOwnerOfAttemptAsync(req.EMPCD, req.ATTEMPT_ID) &&
+            !await _auth.IsHrOrAdminAsync(req.EMPCD))
+        {
+            return StatusCode(403, new { success = false, message = "Lượt làm bài không hợp lệ" });
+        }
+
         var (ok, err) = await _attempt.SaveAnswerAsync(req);
         return Ok(new { success = ok, message = err });
     }
@@ -165,6 +255,15 @@ public class TrainingController : ControllerBase
     [HttpPost("test/submit")]
     public async Task<IActionResult> TestSubmit([FromBody] SubmitAttemptRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.EMPCD))
+            return Ok(new { success = false, message = "EMPCD required" });
+
+        if (!await _auth.IsOwnerOfAttemptAsync(req.EMPCD, req.ATTEMPT_ID) &&
+            !await _auth.IsHrOrAdminAsync(req.EMPCD))
+        {
+            return StatusCode(403, new { success = false, message = "Lượt làm bài không hợp lệ" });
+        }
+
         var (result, err) = await _attempt.SubmitAsync(req);
         return Ok(new { success = result != null, message = err, data = result });
     }
@@ -175,6 +274,14 @@ public class TrainingController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(empcd))
             return Ok(new { success = false, message = "empcd required" });
+
+        if (!await _auth.IsStudentOfTestAsync(empcd, id) &&
+            !await _auth.IsTeacherOfTestAsync(empcd, id) &&
+            !await _auth.IsHrOrAdminAsync(empcd))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền xem kết quả bài kiểm tra này" });
+        }
+
         var data = await _attempt.GetMyResultAsync(id, empcd);
         return Ok(new { success = data != null, data });
     }
@@ -187,6 +294,15 @@ public class TrainingController : ControllerBase
     [HttpPost("review/submit")]
     public async Task<IActionResult> ReviewSubmit([FromBody] SubmitReviewRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.EMPCD))
+            return Ok(new { success = false, message = "EMPCD required" });
+
+        if (!await _auth.IsStudentAsync(req.EMPCD, req.CLASS_ID) &&
+            !await _auth.IsHrOrAdminAsync(req.EMPCD))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền gửi đánh giá cho lớp học này" });
+        }
+
         var (ok, err) = await _review.SubmitAsync(req);
         return Ok(new { success = ok, message = err });
     }
@@ -197,6 +313,14 @@ public class TrainingController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(empcd))
             return Ok(new { success = false, message = "empcd required" });
+
+        if (!await _auth.IsStudentAsync(empcd, id) &&
+            !await _auth.IsTeacherAsync(empcd, id) &&
+            !await _auth.IsHrOrAdminAsync(empcd))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền xem đánh giá của lớp học này" });
+        }
+
         var data = await _review.GetMyReviewAsync(id, empcd);
         return Ok(new { success = true, data });
     }

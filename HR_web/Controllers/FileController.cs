@@ -28,7 +28,7 @@ public class FileController : BaseController
     // Return: { success, url, fileName, fileType }
     // ─────────────────────────────────────────────────────────────
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize]
     [IgnoreAntiforgeryToken]
     [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadTrainingMaterial(

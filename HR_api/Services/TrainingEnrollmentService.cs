@@ -80,6 +80,18 @@ public class TrainingEnrollmentService
         var newAssigned = new List<string>();
         foreach (var empcd in req.EMPCDS.Distinct())
         {
+            // Check if employee exists in ECM100
+            var count = await _db.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT FROM HRMS.ECM100 WHERE EMPCD = :EMP",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("EMP", empcd));
+            
+            if (count.FirstOrDefault() == 0)
+            {
+                res.FAILED_EMPCDS.Add(empcd);
+                continue;
+            }
+
             var kind = await UpsertEnrollmentAsync(req.CLASS_ID, empcd, req.LOGIN_USER);
             switch (kind)
             {
@@ -174,7 +186,7 @@ public class TrainingEnrollmentService
 
         if (meta == null) return (false, "Không tìm thấy Class");
         if (meta.ST != "OPEN_FOR_REGISTRATION") return (false, "Lớp không mở đăng ký");
-        if (meta.MODE != "OPEN") return (false, "Lớp không phải chế độ OPEN");
+        if (meta.MODE != "OPEN" && meta.MODE != "HYBRID") return (false, "Lớp không hỗ trợ chế độ tự đăng ký");
         if (meta.DEADLINE.HasValue && DateTime.Now > meta.DEADLINE.Value)
             return (false, "Đã hết hạn đăng ký");
 

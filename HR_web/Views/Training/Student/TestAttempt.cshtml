@@ -1,0 +1,383 @@
+@{
+    ViewData["Title"] = "Làm bài kiểm tra";
+    Layout = "~/Views/Shared/_LayoutEmbed.cshtml"; // Distraction-free layout
+    var empCd = ViewBag.EmpCd as string;
+    var testId = ViewBag.TestId;
+}
+
+<div class="container py-5" style="font-family: 'Outfit', sans-serif; max-width: 900px;" id="quiz-root">
+    <!-- Loading Spinner -->
+    <div class="text-center py-5" id="quiz-loading">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-3 text-muted">Đang thiết lập phòng thi trực tuyến của bạn...</p>
+    </div>
+
+    <!-- Main Quiz Interface (Initially Hidden) -->
+    <div id="quiz-interface" class="d-none">
+        <!-- Floating Header -->
+        <div class="row sticky-top bg-white py-3 border-bottom mb-4 shadow-sm" style="z-index: 1000; top: 0; border-radius: 0 0 16px 16px;">
+            <div class="col-12 d-flex justify-content-between align-items-center px-4">
+                <div>
+                    <h5 class="fw-bold mb-0 text-dark text-truncate" id="test-title" style="max-width: 500px;">Đang tải...</h5>
+                    <span class="text-muted small">Mã nhân viên: <strong>@empCd</strong></span>
+                </div>
+                <div class="text-end">
+                    <div class="card border-0 px-3 py-2 text-white bg-success fw-bold d-flex align-items-center gap-1 flex-row" id="timer-card" style="border-radius: 12px; font-size: 1.2rem;">
+                        <span class="material-symbols-rounded">hourglass_empty</span>
+                        <span id="timer-text">--:--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- anti-cheat alert -->
+        <div class="alert alert-warning border-0 shadow-sm mb-4 d-flex align-items-center gap-2" style="border-radius: 12px;" id="anticheat-alert">
+            <span class="material-symbols-rounded text-warning">warning</span>
+            <span class="small"><strong>Lưu ý bảo mật:</strong> Không được chuyển tab hoặc rời khỏi trình duyệt trong khi làm bài. Số lần rời màn hình quá mức cho phép sẽ khiến bài thi tự động nộp. (Cảnh báo: <strong id="warn-count">0/3</strong>)</span>
+        </div>
+
+        <!-- Questions List -->
+        <div id="questions-container">
+            <!-- JS dynamic question list -->
+        </div>
+
+        <!-- Submit Button -->
+        <div class="text-center mt-5 mb-5">
+            <button onclick="submitQuizConfirm()" class="btn btn-primary btn-lg px-5 py-3 rounded-pill fw-bold shadow">
+                <span class="material-symbols-rounded align-middle me-1">publish</span>
+                Nộp bài thi ngay
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .question-card {
+        border-radius: 16px;
+        border: 1px solid rgba(0,0,0,0.08);
+        transition: all 0.2s;
+    }
+    .question-card:hover {
+        border-color: #0d6efd;
+    }
+    .option-item {
+        border-radius: 10px;
+        transition: all 0.2s;
+        border: 1px solid #dee2e6;
+    }
+    .option-item:hover {
+        background-color: #f8f9fa;
+        border-color: #ced4da;
+    }
+    .option-input:checked + .option-label {
+        color: #0d6efd;
+        font-weight: bold;
+    }
+    .option-input:checked ~ .option-item {
+        border-color: #0d6efd;
+        background-color: #e7f1ff;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            startTest: '@Url.Action("StartTest", "Training")',
+            saveTestAnswer: '@Url.Action("SaveTestAnswer", "Training")',
+            submitTest: '@Url.Action("SubmitTest", "Training")',
+            trainingIndex: '@Url.Action("Index", "Training")'
+        };
+        const empCd = '@empCd';
+        const testId = @testId;
+        
+        let attempt = null;
+        let questions = [];
+        let timeRemainingSeconds = 0;
+        let timerInterval = null;
+        let isSubmitted = false;
+        
+        // Anti-cheat variables
+        let tabSwitchCount = 0;
+        const maxTabSwitches = 3;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            startAttempt();
+
+            // Anti-cheat setup
+            window.addEventListener('blur', handleTabLeave);
+            window.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    handleTabLeave();
+                }
+            });
+
+            // Prevent leaving page warning
+            window.addEventListener('beforeunload', function (e) {
+                if (!isSubmitted) {
+                    e.preventDefault();
+                    e.returnValue = 'Bạn có chắc chắn muốn rời khỏi phòng thi? Bài thi chưa nộp sẽ không được lưu đầy đủ.';
+                }
+            });
+        });
+
+        // 1. Khởi động làm bài (Start/Resume Attempt)
+        function startAttempt() {
+            fetch(window.TRAINING_URLS.startTest, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ TEST_ID: testId, EMPCD: empCd })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status === 403) {
+                    document.getElementById('quiz-root').innerHTML = `<div class="alert alert-danger text-center">Bạn không có quyền tham gia bài thi này!</div>`;
+                    return;
+                }
+                if (!res.success) {
+                    document.getElementById('quiz-root').innerHTML = `<div class="alert alert-warning text-center">${res.message || 'Lỗi khởi chạy bài kiểm tra.'}</div>`;
+                    return;
+                }
+
+                attempt = res.data.attempt;
+                questions = res.data.questions || [];
+                
+                // Tính toán thời gian làm bài
+                // Duration tính bằng giây
+                const durationMinutes = res.data.test.DURATION_MINUTES || 45;
+                const startDt = new Date(attempt.START_DT);
+                const endDt = new Date(startDt.getTime() + durationMinutes * 60 * 1000);
+                const now = new Date();
+                
+                timeRemainingSeconds = Math.max(0, Math.floor((endDt.getTime() - now.getTime()) / 1000));
+
+                if (timeRemainingSeconds <= 0) {
+                    // Hết thời gian trực tiếp nộp bài
+                    submitQuiz(true);
+                    return;
+                }
+
+                // Thiết lập giao diện
+                document.getElementById('test-title').textContent = res.data.test.TITLE;
+                document.getElementById('quiz-loading').classList.add('d-none');
+                document.getElementById('quiz-interface').classList.remove('d-none');
+
+                renderQuestions(res.data.savedAnswers || []);
+                startTimer();
+            });
+        }
+
+        // 2. Render danh sách câu hỏi
+        function renderQuestions(savedAnswers) {
+            const container = document.getElementById('questions-container');
+            container.innerHTML = '';
+
+            // Map saved answers by QuestionID for easy access
+            const answersMap = {};
+            savedAnswers.forEach(ans => {
+                answersMap[ans.QUESTION_ID] = ans;
+            });
+
+            questions.forEach((q, idx) => {
+                const saved = answersMap[q.ID] || {};
+                let inputHtml = '';
+
+                if (q.QUESTION_TYPE === 'SINGLE' || q.QUESTION_TYPE === 'YESNO') {
+                    // Trắc nghiệm chọn 1
+                    q.OPTIONS.forEach(opt => {
+                        const isChecked = saved.ANSWER_OPTION_IDS && saved.ANSWER_OPTION_IDS.split(',').includes(opt.ID.ToString()) ? 'checked' : '';
+                        inputHtml += `
+                            <div class="form-check p-0 mb-2">
+                                <label class="d-flex align-items-center gap-3 p-3 option-item border" style="cursor: pointer;">
+                                    <input type="radio" name="q_${q.ID}" value="${opt.ID}" class="form-check-input option-input m-0" onchange="saveAnswer(${q.ID})" ${isChecked}>
+                                    <span class="text-dark option-label">${opt.OPTION_TEXT}</span>
+                                </label>
+                            </div>
+                        `;
+                    });
+                } else if (q.QUESTION_TYPE === 'MULTI') {
+                    // Trắc nghiệm nhiều lựa chọn
+                    q.OPTIONS.forEach(opt => {
+                        const isChecked = saved.ANSWER_OPTION_IDS && saved.ANSWER_OPTION_IDS.split(',').includes(opt.ID.ToString()) ? 'checked' : '';
+                        inputHtml += `
+                            <div class="form-check p-0 mb-2">
+                                <label class="d-flex align-items-center gap-3 p-3 option-item border" style="cursor: pointer;">
+                                    <input type="checkbox" name="q_${q.ID}" value="${opt.ID}" class="form-check-input option-input m-0" onchange="saveAnswer(${q.ID})" ${isChecked}>
+                                    <span class="text-dark option-label">${opt.OPTION_TEXT}</span>
+                                </label>
+                            </div>
+                        `;
+                    });
+                } else if (q.QUESTION_TYPE === 'TEXT') {
+                    // Tự luận
+                    const textVal = saved.ANSWER_TEXT || '';
+                    inputHtml += `
+                        <textarea name="q_${q.ID}" class="form-control py-3 px-4" placeholder="Nhập câu trả lời tự luận của bạn..." rows="5" style="border-radius: 12px;" onchange="saveAnswer(${q.ID})">${textVal}</textarea>
+                    `;
+                }
+
+                container.innerHTML += `
+                    <div class="card border-0 shadow-sm p-4 mb-4 question-card" id="card_q_${q.ID}">
+                        <div class="d-flex align-items-start gap-2 mb-3">
+                            <span class="badge bg-primary rounded px-2.5 py-1.5 fw-bold">Câu ${idx + 1}</span>
+                            <h6 class="fw-bold mb-0 text-dark pt-1 lh-base">${q.QUESTION_TEXT}</h6>
+                            <span class="small text-muted ms-auto">${q.POINTS} điểm</span>
+                        </div>
+                        <div class="question-body">
+                            ${inputHtml}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // 3. Tự động lưu đáp án khi học viên click chọn
+        function saveAnswer(questionId) {
+            const inputs = document.getElementsByName(`q_${questionId}`);
+            let answerOptionIds = '';
+            let answerText = '';
+
+            const q = questions.find(item => item.ID === questionId);
+            if (q.QUESTION_TYPE === 'SINGLE' || q.QUESTION_TYPE === 'YESNO') {
+                const checked = Array.from(inputs).find(i => i.checked);
+                if (checked) answerOptionIds = checked.value;
+            } else if (q.QUESTION_TYPE === 'MULTI') {
+                const checked = Array.from(inputs).filter(i => i.checked);
+                answerOptionIds = checked.map(i => i.value).join(',');
+            } else if (q.QUESTION_TYPE === 'TEXT') {
+                answerText = inputs[0].value.trim();
+            }
+
+            fetch(window.TRAINING_URLS.saveTestAnswer, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ATTEMPT_ID: attempt.ID,
+                    QUESTION_ID: questionId,
+                    ANSWER_OPTION_IDS: answerOptionIds || null,
+                    ANSWER_TEXT: answerText || null,
+                    EMPCD: empCd
+                })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    // Hiển thị trạng thái đã lưu (nếu cần micro-animation)
+                    console.log('Saved answer for q_' + questionId);
+                }
+            });
+        }
+
+        // 4. Quản lý đồng hồ đếm ngược
+        function startTimer() {
+            const tText = document.getElementById('timer-text');
+            const tCard = document.getElementById('timer-card');
+
+            timerInterval = setInterval(() => {
+                timeRemainingSeconds--;
+
+                if (timeRemainingSeconds <= 0) {
+                    clearInterval(timerInterval);
+                    tText.textContent = "HẾT GIỜ";
+                    submitQuiz(true); // Tự động nộp
+                    return;
+                }
+
+                // Cảnh báo đỏ nếu dưới 2 phút
+                if (timeRemainingSeconds < 120) {
+                    tCard.classList.remove('bg-success');
+                    tCard.classList.add('bg-danger');
+                }
+
+                const m = Math.floor(timeRemainingSeconds / 60);
+                const s = timeRemainingSeconds % 60;
+                tText.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        // 5. Rời tab / Anti-cheat
+        function handleTabLeave() {
+            if (isSubmitted) return;
+            
+            tabSwitchCount++;
+            document.getElementById('warn-count').textContent = `${tabSwitchCount}/${maxTabSwitches}`;
+            
+            if (tabSwitchCount >= maxTabSwitches) {
+                window.showToast('Bạn đã chuyển tab quá số lần quy định. Bài thi sẽ tự động nộp!', 'error');
+                submitQuiz(true);
+            } else {
+                window.showToast(`Cảnh báo gian lận! Bạn không được rời màn hình làm bài! (${tabSwitchCount}/${maxTabSwitches})`, 'warning');
+            }
+        }
+
+        // 6. Xác nhận nộp bài chủ động
+        function submitQuizConfirm() {
+            window.showConfirm('Bạn đã chắc chắn muốn nộp bài thi này?', () => {
+                submitQuiz(false);
+            }, {
+                title: 'Xác nhận Nộp bài',
+                okText: 'Nộp bài',
+                okClass: 'btn-primary',
+                icon: 'publish',
+                iconColor: '#0d6efd',
+                iconBg: '#e7f1ff'
+            });
+        }
+
+        // 7. Thực hiện nộp bài lên API
+        function submitQuiz(force = false) {
+            isSubmitted = true;
+            clearInterval(timerInterval);
+
+            fetch(window.TRAINING_URLS.submitTest, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ATTEMPT_ID: attempt.ID, EMPCD: empCd })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    const result = res.data;
+                    const isPass = result.IS_PASS === 1;
+                    const score = result.SCORE;
+
+                    let resultHtml = '';
+                    if (result.IS_GRADED === 1) {
+                        resultHtml = `
+                            <h3 class="fw-bold ${isPass ? 'text-success' : 'text-danger'} mt-3">${isPass ? 'ĐẠT KHOÁ HỌC' : 'KHÔNG ĐẠT'}</h3>
+                            <p class="fs-4 text-dark mt-2">Điểm số của bạn: <strong>${score} điểm</strong></p>
+                        `;
+                    } else {
+                        resultHtml = `
+                            <h3 class="fw-bold text-warning mt-3">ĐÃ GỬI BÀI THI THÀNH CÔNG</h3>
+                            <p class="text-muted mt-2">Bài thi chứa câu hỏi tự luận. Vui lòng chờ giáo viên chấm điểm để nhận kết quả cuối cùng.</p>
+                        `;
+                    }
+
+                    document.getElementById('quiz-root').innerHTML = `
+                        <div class="card border-0 shadow-lg text-center p-5 mx-auto mt-5" style="border-radius: 24px; max-width: 600px;">
+                            <div class="mb-3">
+                                <div class="rounded-circle bg-success-soft d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                                    <span class="material-symbols-rounded text-success" style="font-size: 3.5rem;">check_circle</span>
+                                </div>
+                            </div>
+                            <h4 class="fw-bold text-dark mb-1">Nộp bài thi thành công!</h4>
+                            ${resultHtml}
+                            <div class="d-grid mt-4">
+                                <a href="${window.TRAINING_URLS.trainingIndex}" class="btn btn-primary py-3 rounded-3 fw-bold">Trở lại Cổng Đào Tạo</a>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    window.showToast(res.message || 'Lỗi nộp bài thi.', 'error');
+                    isSubmitted = false; // Reset to let them try again
+                }
+            })
+            .catch(err => {
+                window.showToast('Lỗi kết nối: ' + err.message, 'error');
+                isSubmitted = false;
+            });
+        }
+    </script>
+}

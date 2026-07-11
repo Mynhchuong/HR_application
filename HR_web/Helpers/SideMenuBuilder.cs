@@ -5,7 +5,7 @@ namespace HR_web.Helpers;
 
 public static class SideMenuBuilder
 {
-    public static List<SideMenuItem> Build(UserInfoModel? user, bool isMobileApp = false)
+    public static List<SideMenuItem> Build(UserInfoModel? user, bool isMobileApp = false, bool isActiveTeacher = false)
     {
         if (user == null) return new List<SideMenuItem>();
 
@@ -50,6 +50,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",           Icon = "door_front"    },
                     new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",           Icon = "event_busy"    },
                     new SideMenuItem { Title = "Hộp thư",             Url = "~/EmployeeInquiry/Index",           Icon = "forum"         },
+                    new SideMenuItem { Title = "Đào tạo cá nhân",     Url = "~/Training/Index",                  Icon = "school"        },
                 }
             },
 
@@ -144,7 +145,21 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum"                  },
                     new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",             Icon = "home_app_logo"          },
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",           Icon = "poll"                   },
+                    new SideMenuItem { Title = "Báo cáo Đào tạo",      Url = "~/Training/Reports",            Icon = "analytics"              },
+                    new SideMenuItem { Title = "Quản lý Đào tạo",      Url = "~/Training/Manage",             Icon = "school"                 },
                 //    new SideMenuItem { Title = "DS miễn làm Survey",    Url = "~/SurveyExempt/Index",          Icon = "person_off"             },
+                }
+            },
+
+            new SideMenuItem
+            {
+                Id = "Teacher",
+                Title = "Giảng dạy",
+                Icon = "school",
+                VisibleWhen = () => isActiveTeacher && !isMobileApp && !isExpat && !isCanteen,
+                Children = new List<SideMenuItem>
+                {
+                    new SideMenuItem { Title = "Lớp giảng dạy",       Url = "~/Training/TeacherDashboard",      Icon = "dashboard"   },
                 }
             },
 

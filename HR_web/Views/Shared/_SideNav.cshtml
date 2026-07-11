@@ -1,11 +1,17 @@
 @using HR_web.Helpers
 @using HR_web.Models.Account
+@inject HR_web.API.Service.TrainingService TrainingService
 
 @{
     var user = AuthHelper.GetCurrentUser(User);
     var currentPath = Context.Request.Path.Value?.ToLower().TrimEnd('/') ?? "";
     var isMobileApp = MobileHelper.IsMobileApp(Context);
-    var menus = SideMenuBuilder.Build(user, isMobileApp);
+    bool isActiveTeacher = false;
+    if (user != null)
+    {
+        isActiveTeacher = await TrainingService.IsActiveTeacherAsync(user.EmpCd);
+    }
+    var menus = SideMenuBuilder.Build(user, isMobileApp, isActiveTeacher);
     var menuThemes = new[]
     {
         "menu-theme-personal",

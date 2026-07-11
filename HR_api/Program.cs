@@ -15,6 +15,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "HR API - Samho", Version = "v1" });
+    c.CustomSchemaIds(type => type.FullName);
 
     // Thêm ô nhập API Key trên Swagger UI
     c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
@@ -81,6 +82,7 @@ builder.Services.AddScoped<HR_api.Services.TrainingCompletionService>();
 builder.Services.AddScoped<HR_api.Services.TrainingReportService>();
 builder.Services.AddScoped<HR_api.Services.TrainingNotificationService>();
 builder.Services.AddScoped<HR_api.Services.TrainingTeamService>();
+builder.Services.AddScoped<HR_api.Helpers.TrainingAuthHelper>();
 builder.Services.AddHostedService<HR_api.HostedServices.TrainingLifecycleService>();
 builder.Services.AddHostedService<HR_api.HostedServices.TrainingNotificationWorker>();
 

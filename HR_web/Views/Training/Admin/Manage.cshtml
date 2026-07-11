@@ -1,0 +1,591 @@
+@{
+    ViewData["Title"] = "Quản lý Đào tạo";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var empCd = ViewBag.EmpCd as string;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Header Banner -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 20px; background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);">
+                <div class="card-body p-4 text-white position-relative">
+                    <div class="position-absolute end-0 bottom-0 opacity-10 d-none d-md-block" style="transform: translate(10%, 10%);">
+                        <span class="material-symbols-rounded" style="font-size: 15rem;">settings_system_daydream</span>
+                    </div>
+                    <h2 class="fw-bold mb-1">Hệ Thống Quản Trị Đào Tạo</h2>
+                    <p class="mb-0 opacity-75">Quản lý danh sách khóa học, tổ chức lớp học, sắp lịch buổi học, phân công giáo viên, gán học viên và chia nhóm học tập.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Navigation Tabs -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm" style="border-radius: 12px;">
+                <div class="card-body p-2">
+                    <ul class="nav nav-tabs nav-justified border-0" id="adminTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-courses" data-bs-toggle="tab" data-bs-target="#courses-panel">
+                                <span class="material-symbols-rounded">menu_book</span>
+                                Quản lý Khóa học
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-classes" data-bs-toggle="tab" data-bs-target="#classes-panel">
+                                <span class="material-symbols-rounded">groups</span>
+                                Quản lý Lớp học
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="adminTabsContent">
+        <!-- 1. COURSES PANEL -->
+        <div class="tab-pane fade show active" id="courses-panel">
+            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0">Danh sách Khóa học thiết lập</h5>
+                    <button onclick="openCreateCourseModal()" class="btn btn-primary rounded-3 fw-bold d-flex align-items-center gap-1">
+                        <span class="material-symbols-rounded">add</span>
+                        Thêm Khóa học
+                    </button>
+                </div>
+                <!-- Filters for Courses -->
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <input type="text" id="course-filter-search" class="form-control form-control-sm" placeholder="Tìm tên khóa học..." oninput="loadCourses()" />
+                    </div>
+                    <div class="col-md-3">
+                        <select id="course-filter-active" class="form-select form-select-sm" onchange="loadCourses()">
+                            <option value="">-- Tất cả trạng thái --</option>
+                            <option value="1" selected>Đang hoạt động</option>
+                            <option value="0">Đã lưu trữ</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-nowrap">
+                        <thead class="bg-light table-head-custom">
+                            <tr>
+                                <th class="ps-4">Mã Khóa học</th>
+                                <th>Tên Khóa học</th>
+                                <th>Mô tả tóm tắt</th>
+                                <th>Trạng thái</th>
+                                <th class="pe-4 text-end">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="course-grid">
+                            <!-- JS loading -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. CLASSES PANEL -->
+        <div class="tab-pane fade" id="classes-panel">
+            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0">Danh sách Lớp học tổ chức</h5>
+                    <button onclick="openCreateClassModal()" class="btn btn-primary rounded-3 fw-bold d-flex align-items-center gap-1">
+                        <span class="material-symbols-rounded">add</span>
+                        Mở Lớp học mới
+                    </button>
+                </div>
+                <!-- Filters for Classes -->
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <input type="text" id="class-filter-search" class="form-control form-control-sm" placeholder="Tìm mã lớp/tên lớp..." oninput="loadClasses()" />
+                    </div>
+                    <div class="col-md-3">
+                        <select id="class-filter-status" class="form-select form-select-sm" onchange="loadClasses()">
+                            <option value="">-- Tất cả trạng thái lớp --</option>
+                            <option value="DRAFT">Draft</option>
+                            <option value="SCHEDULED">Scheduled</option>
+                            <option value="IN_PROGRESS">In Progress</option>
+                            <option value="CLOSED">Closed</option>
+                            <option value="CANCELLED">Cancelled</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="class-filter-course" class="form-select form-select-sm" onchange="loadClasses()">
+                            <option value="">-- Tất cả khóa học --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-nowrap">
+                        <thead class="bg-light table-head-custom">
+                            <tr>
+                                <th class="ps-4">Mã Lớp</th>
+                                <th>Khóa học</th>
+                                <th>Ngày học</th>
+                                <th>Chế độ</th>
+                                <th>Đăng ký</th>
+                                <th>Trạng thái</th>
+                                <th class="pe-4 text-end">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="class-grid">
+                            <!-- JS loading -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Class Detail moved to dedicated ClassDetailAdmin page -->
+        </div>
+    </div>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- CREATE COURSE MODAL -->
+<div class="modal fade" id="createCourseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-bottom-0 p-4 pb-0">
+                <h5 class="fw-bold">Thêm mới Khóa học</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="courseForm">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Mã Khóa học</label>
+                        <input type="text" id="course-code" class="form-control" value="Tự động phát sinh" readonly />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Tên Khóa học</label>
+                        <input type="text" id="course-title" class="form-control" placeholder="Ví dụ: Đào tạo an toàn vệ sinh lao động" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Mô tả chi tiết</label>
+                        <textarea id="course-desc" class="form-control" placeholder="Mô tả tóm tắt nội dung..." rows="3"></textarea>
+                    </div>
+                    <div class="d-grid mt-4">
+                        <button type="button" onclick="submitCreateCourse()" class="btn btn-primary py-2.5 rounded-3 fw-bold">Lưu Khóa học</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CREATE CLASS MODAL -->
+<div class="modal fade" id="createClassModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-bottom-0 p-4 pb-0">
+                <h5 class="fw-bold">Mở lớp học mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="classForm">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Chọn Khóa học</label>
+                        <select id="class-course-code" class="form-select" required>
+                            <!-- JS load courses -->
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Tên Lớp học</label>
+                        <input type="text" id="class-name" class="form-control" placeholder="Ví dụ: Lớp An Toàn Tháng 7" required />
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Ngày bắt đầu</label>
+                            <input type="date" id="class-start-date" class="form-control" required />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Ngày kết thúc</label>
+                            <input type="date" id="class-end-date" class="form-control" required />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Hình thức đào tạo</label>
+                        <select id="class-mode" class="form-select">
+                            <option value="STANDARD">STANDARD (Tiêu chuẩn)</option>
+                            <option value="EXPRESS">EXPRESS (Học nhanh)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Chế độ đăng ký học</label>
+                        <select id="class-reg-mode" class="form-select" onchange="toggleRegistrationOptions()">
+                            <option value="ASSIGNED">ASSIGNED (Chỉ định học viên)</option>
+                            <option value="OPEN">OPEN (Học viên tự đăng ký tự do)</option>
+                            <option value="HYBRID">HYBRID (Chỉ định + Tự do đăng ký)</option>
+                        </select>
+                    </div>
+                    <div id="class-registration-options" class="d-none">
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted">Hạn chót đăng ký</label>
+                                <input type="date" id="class-reg-deadline" class="form-control" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted">Số học viên tối đa</label>
+                                <input type="number" id="class-max-students" class="form-control" placeholder="Để trống = Không giới hạn" min="1" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-grid mt-4">
+                        <button type="button" onclick="submitCreateClass()" class="btn btn-primary py-2.5 rounded-3 fw-bold">Tạo Lớp học</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals relating to class details are moved to ClassDetailAdmin page -->
+
+<style>
+    .table-head-custom th {
+        font-weight: 700;
+        color: #495057;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+        padding-top: 16px;
+        padding-bottom: 16px;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .class-active-row {
+        background-color: #f1f3f5;
+        border-left: 4px solid #0d6efd;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        let courseList = [];
+        window.TRAINING_URLS = {
+            getCourses: '@Url.Action("GetCourses", "Training")',
+            archiveCourse: '@Url.Action("ArchiveCourse", "Training")',
+            unarchiveCourse: '@Url.Action("UnarchiveCourse", "Training")',
+            deleteCourse: '@Url.Action("DeleteCourse", "Training")',
+            saveCourse: '@Url.Action("SaveCourse", "Training")',
+            getClassList: '@Url.Action("GetClassList", "Training")',
+            saveClass: '@Url.Action("SaveClass", "Training")',
+            getClassDetailAdmin: '@Url.Action("GetClassDetailAdmin", "Training")',
+            publishRegistration: '@Url.Action("PublishRegistration", "Training")',
+            finalizeEnrollment: '@Url.Action("FinalizeEnrollment", "Training")',
+            cancelClass: '@Url.Action("CancelClass", "Training")',
+            closeClass: '@Url.Action("CloseClass", "Training")',
+            saveSession: '@Url.Action("SaveSession", "Training")',
+            assignTeacher: '@Url.Action("AssignTeacher", "Training")',
+            removeTeacher: '@Url.Action("RemoveTeacher", "Training")',
+            assignStudent: '@Url.Action("AssignStudent", "Training")',
+            approveEnrollment: '@Url.Action("ApproveEnrollment", "Training")',
+            rejectEnrollment: '@Url.Action("RejectEnrollment", "Training")',
+            saveGroup: '@Url.Action("SaveGroup", "Training")',
+            autoSplitGroup: '@Url.Action("AutoSplitGroup", "Training")',
+            assignGroup: '@Url.Action("AssignGroup", "Training")'
+        };
+        let editingCourseId = null;
+        let classList = [];
+
+        // Modals
+        let modalCourse = null;
+        let modalClass = null;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            modalCourse = new bootstrap.Modal(document.getElementById('createCourseModal'));
+            modalClass = new bootstrap.Modal(document.getElementById('createClassModal'));
+
+            loadCourses();
+            loadClasses();
+
+            // Lazy fetch class list on tab activate
+            document.getElementById('tab-classes').addEventListener('shown.bs.tab', loadClasses);
+        });
+
+        // 1. COURSES OPERATIONS
+        function loadCourses() {
+            const search = document.getElementById('course-filter-search')?.value || '';
+            const active = document.getElementById('course-filter-active')?.value || '';
+            
+            const url = `${window.TRAINING_URLS.getCourses}?search=${encodeURIComponent(search)}&active=${active}`;
+            fetch(url)
+                .then(r => r.json())
+                .then(res => {
+                    courseList = res.data || [];
+                    
+                    // Render to grid
+                    const tbody = document.getElementById('course-grid');
+                    tbody.innerHTML = '';
+                    courseList.forEach(c => {
+                        const statusBadge = c.IS_ACTIVE === 1
+                            ? '<span class="badge bg-success-soft text-success px-2.5 py-1 fw-bold">Hoạt động</span>'
+                            : '<span class="badge bg-secondary-soft text-secondary px-2.5 py-1 fw-bold">Lưu trữ</span>';
+
+                        let actionBtn = `<button onclick="openEditCourseModal(${c.ID})" class="btn btn-xs btn-outline-primary fw-bold me-1">Sửa</button>`;
+                        actionBtn += c.IS_ACTIVE === 1
+                            ? `<button onclick="archiveCourse(${c.ID}, true)" class="btn btn-xs btn-outline-warning fw-bold me-1">Lưu trữ</button>`
+                            : `<button onclick="archiveCourse(${c.ID}, false)" class="btn btn-xs btn-outline-success fw-bold me-1">Kích hoạt</button>`;
+                        actionBtn += `<button onclick="deleteCourse(${c.ID})" class="btn btn-xs btn-outline-danger fw-bold">Xóa</button>`;
+
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="ps-4 fw-bold text-dark">CRS${String(c.ID).padStart(3, '0')}</td>
+                                <td>${c.TITLE}</td>
+                                <td class="text-truncate" style="max-width: 300px;">${c.DESCRIPTION || '-'}</td>
+                                <td>${statusBadge}</td>
+                                <td class="pe-4 text-end">${actionBtn}</td>
+                            </tr>
+                        `;
+                    });
+
+                    // Render select options for class form (only active courses)
+                    const select = document.getElementById('class-course-code');
+                    select.innerHTML = '<option value="">-- Chọn Khóa học --</option>';
+                    courseList.filter(c => c.IS_ACTIVE === 1).forEach(c => {
+                        const formattedCode = `CRS${String(c.ID).padStart(3, '0')}`;
+                        select.innerHTML += `<option value="${c.ID}">${c.TITLE} (${formattedCode})</option>`;
+                    });
+
+                    // Render select options for class filter (all courses)
+                    const filterSelect = document.getElementById('class-filter-course');
+                    if (filterSelect) {
+                        const val = filterSelect.value;
+                        filterSelect.innerHTML = '<option value="">-- Tất cả khóa học --</option>';
+                        courseList.forEach(c => {
+                            const formattedCode = `CRS${String(c.ID).padStart(3, '0')}`;
+                            filterSelect.innerHTML += `<option value="${c.ID}">${c.TITLE} (${formattedCode})</option>`;
+                        });
+                        filterSelect.value = val;
+                    }
+                });
+        }
+
+        function archiveCourse(courseId, shouldArchive) {
+            const act = shouldArchive ? 'Lưu trữ' : 'Kích hoạt';
+            const url = shouldArchive ? window.TRAINING_URLS.archiveCourse : window.TRAINING_URLS.unarchiveCourse;
+            window.showConfirm(`Bạn chắc chắn muốn ${act.toLowerCase()} khóa học này không?`, () => {
+                fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ID: courseId })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.showToast(`Đã ${act.toLowerCase()} khóa học thành công!`, 'success');
+                        loadCourses();
+                    } else {
+                        window.showToast(res.message || `Lỗi ${act.toLowerCase()} khóa học.`, 'error');
+                    }
+                })
+                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+            });
+        }
+
+        function deleteCourse(courseId) {
+            window.showConfirm("Bạn có chắc chắn muốn XÓA VĨNH VIỄN khóa học này không? Hành động này không thể hoàn tác.", () => {
+                fetch(window.TRAINING_URLS.deleteCourse, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ID: courseId })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.showToast('Đã xóa khóa học thành công!', 'success');
+                        loadCourses();
+                    } else {
+                        window.showToast(res.message || 'Lỗi khi xóa khóa học.', 'error');
+                    }
+                })
+                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+            });
+        }
+
+        function openCreateCourseModal() {
+            editingCourseId = null;
+            document.getElementById('course-code').value = 'Tự động phát sinh';
+            document.getElementById('course-title').value = '';
+            document.getElementById('course-desc').value = '';
+            const titleEl = document.querySelector('#createCourseModal .modal-header h5');
+            if (titleEl) titleEl.innerText = 'Thêm mới Khóa học';
+            modalCourse.show();
+        }
+
+        function openEditCourseModal(courseId) {
+            const c = courseList.find(x => x.ID === courseId);
+            if (!c) return;
+            editingCourseId = courseId;
+            document.getElementById('course-code').value = `CRS${String(c.ID).padStart(3, '0')}`;
+            document.getElementById('course-title').value = c.TITLE;
+            document.getElementById('course-desc').value = c.DESCRIPTION || '';
+            const titleEl = document.querySelector('#createCourseModal .modal-header h5');
+            if (titleEl) titleEl.innerText = 'Cập nhật Khóa học';
+            modalCourse.show();
+        }
+
+        function submitCreateCourse() {
+            const title = document.getElementById('course-title').value.trim();
+            const desc = document.getElementById('course-desc').value.trim();
+
+            if (!title) {
+                window.showToast('Vui lòng điền tên khóa học!', 'warning');
+                return;
+            }
+
+            const payload = { TITLE: title, DESCRIPTION: desc };
+            if (editingCourseId) {
+                payload.ID = editingCourseId;
+            }
+
+            fetch(window.TRAINING_URLS.saveCourse, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    const msg = editingCourseId ? 'Cập nhật Khóa học thành công!' : 'Đã thêm mới Khóa học thành công!';
+                    window.showToast(msg, 'success');
+                    modalCourse.hide();
+                    loadCourses();
+                } else {
+                    window.showToast(res.message || 'Lỗi lưu Khóa học.', 'error');
+                }
+            })
+            .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+        }
+
+        // 2. CLASSES OPERATIONS
+        function loadClasses() {
+            const search = document.getElementById('class-filter-search')?.value || '';
+            const status = document.getElementById('class-filter-status')?.value || '';
+            const courseId = document.getElementById('class-filter-course')?.value || '';
+            
+            const url = `${window.TRAINING_URLS.getClassList}?search=${encodeURIComponent(search)}&status=${status}&courseId=${courseId}`;
+            fetch(url)
+                .then(r => r.json())
+                .then(res => {
+                    classList = res.data || [];
+                    const tbody = document.getElementById('class-grid');
+                    tbody.innerHTML = '';
+                    classList.forEach(c => {
+                        const start = new Date(c.START_DATE).toLocaleDateString('vi-VN');
+                        const end = new Date(c.END_DATE).toLocaleDateString('vi-VN');
+
+                        const badgeMode = c.CLASS_MODE === 'EXPRESS' 
+                            ? '<span class="badge bg-warning-soft text-warning">Học nhanh</span>' 
+                            : '<span class="badge bg-success-soft text-success">Tiêu chuẩn</span>';
+                        
+                        let badgeReg = '';
+                        if (c.REGISTRATION_MODE === 'OPEN') {
+                            badgeReg = '<span class="badge bg-info-soft text-info">Tự do</span>';
+                        } else if (c.REGISTRATION_MODE === 'HYBRID') {
+                            badgeReg = '<span class="badge bg-warning-soft text-warning">Kết hợp</span>';
+                        } else {
+                            badgeReg = '<span class="badge bg-secondary-soft text-secondary">Chỉ định</span>';
+                        }
+
+                        const badgeStatus = c.STATUS === 'SCHEDULED' 
+                            ? '<span class="badge bg-primary">Lên lịch</span>' 
+                            : `<span class="badge bg-dark">${c.STATUS}</span>`;
+
+                        const rowClass = '';
+
+                        tbody.innerHTML += `
+                            <tr id="class_row_${c.ID}" class="${rowClass}">
+                                <td class="ps-4 fw-bold text-dark">${c.CLASS_NAME}</td>
+                                <td class="text-truncate" style="max-width: 200px;">${c.COURSE_TITLE}</td>
+                                <td>${start} - ${end}</td>
+                                <td>${badgeMode}</td>
+                                <td>${badgeReg}</td>
+                                <td>${badgeStatus}</td>
+                                <td class="pe-4 text-end">
+                                    <button onclick="selectClassAdmin(${c.ID})" class="btn btn-sm btn-outline-primary fw-bold">Quản trị</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                });
+        }
+
+        function openCreateClassModal() {
+            document.getElementById('class-course-code').value = '';
+            document.getElementById('class-name').value = '';
+            document.getElementById('class-start-date').value = '';
+            document.getElementById('class-end-date').value = '';
+            document.getElementById('class-reg-mode').value = 'ASSIGNED';
+            document.getElementById('class-reg-deadline').value = '';
+            document.getElementById('class-max-students').value = '';
+            toggleRegistrationOptions();
+            modalClass.show();
+        }
+
+        window.toggleRegistrationOptions = function() {
+            const mode = document.getElementById('class-reg-mode').value;
+            const container = document.getElementById('class-registration-options');
+            if (mode === 'OPEN' || mode === 'HYBRID') {
+                container.classList.remove('d-none');
+            } else {
+                container.classList.add('d-none');
+            }
+        };
+
+        function submitCreateClass() {
+            const courseId = document.getElementById('class-course-code').value;
+            const className = document.getElementById('class-name').value.trim();
+            const start = document.getElementById('class-start-date').value;
+            const end = document.getElementById('class-end-date').value;
+            const mode = document.getElementById('class-mode').value;
+            const regMode = document.getElementById('class-reg-mode').value;
+            const regDeadline = document.getElementById('class-reg-deadline').value;
+            const maxStudents = document.getElementById('class-max-students').value;
+
+            if (!courseId || !className || !start || !end) {
+                window.showToast('Vui lòng điền đầy đủ các thông tin!', 'warning');
+                return;
+            }
+
+            if ((regMode === 'OPEN' || regMode === 'HYBRID') && !regDeadline) {
+                window.showToast('Chế độ OPEN hoặc HYBRID yêu cầu chọn Hạn chót đăng ký!', 'warning');
+                return;
+            }
+
+            fetch(window.TRAINING_URLS.saveClass, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    COURSE_ID: parseInt(courseId),
+                    CLASS_NAME: className,
+                    START_DATE: start,
+                    END_DATE: end,
+                    CLASS_MODE: mode,
+                    REGISTRATION_MODE: regMode,
+                    REGISTRATION_DEADLINE: regDeadline ? regDeadline : null,
+                    MAX_STUDENTS: maxStudents ? parseInt(maxStudents) : null
+                })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast('Đã tổ chức lớp học mới thành công!', 'success');
+                    modalClass.hide();
+                    loadClasses();
+                } else {
+                    window.showToast(res.message || 'Lỗi lưu Lớp học.', 'error');
+                }
+            })
+            .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+        }
+
+        // 3. SELECT CLASS FOR DETAIL ADMINISTRATION
+        function selectClassAdmin(classId) {
+            window.location.href = '@Url.Action("ClassDetailAdmin", "Training")/' + classId;
+        }
+    </script>
+}

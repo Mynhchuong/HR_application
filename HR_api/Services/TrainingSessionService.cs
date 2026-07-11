@@ -103,7 +103,7 @@ public class TrainingSessionService
             {
                 throw new InvalidOperationException($"SESSION_NO={req.SESSION_NO} đã tồn tại trong Class");
             }
-            return Convert.ToInt32(idParam.Value);
+            return OracleService.ConvertToInt(idParam.Value);
         }
         else
         {

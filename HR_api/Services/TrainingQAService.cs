@@ -76,7 +76,7 @@ public class TrainingQAService
             new OracleParameter("EMP", req.EMPCD),
             new OracleParameter("Q",   req.QUESTION_TEXT),
             idParam);
-        return Convert.ToInt32(idParam.Value);
+        return OracleService.ConvertToInt(idParam.Value);
     }
 
     public async Task AnswerAsync(AnswerQuestionRequest req)

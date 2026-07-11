@@ -1,0 +1,800 @@
+@{
+    ViewData["Title"] = "Chi tiết Lớp học";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var empCd = ViewBag.EmpCd as string;
+    var classId = ViewBag.ClassId;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Back to Dashboard -->
+    <div class="mb-3">
+        <a href="@Url.Action("Index", "Training")" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
+            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
+            Trở lại danh sách lớp học
+        </a>
+    </div>
+
+    <!-- Class Header Card -->
+    <div class="row mb-4">
+        <div class="col-12" id="class-header-container">
+            <div class="card border-0 shadow-sm p-4 text-center text-md-start" style="border-radius: 16px;">
+                <div class="placeholder-glow">
+                    <span class="placeholder col-6 mb-2"></span>
+                    <span class="placeholder col-4 mb-3 d-block"></span>
+                    <span class="placeholder col-2"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Class Navigation Tabs -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm" style="border-radius: 12px;">
+                <div class="card-body p-2">
+                    <ul class="nav nav-tabs nav-justified border-0" id="classTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-sessions" data-bs-toggle="tab" data-bs-target="#sessions-panel">
+                                <span class="material-symbols-rounded">calendar_month</span>
+                                Lộ trình & Điểm danh
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-materials" data-bs-toggle="tab" data-bs-target="#materials-panel">
+                                <span class="material-symbols-rounded">folder_open</span>
+                                Tài liệu học tập
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-qa" data-bs-toggle="tab" data-bs-target="#qa-panel">
+                                <span class="material-symbols-rounded">forum</span>
+                                Hỏi đáp Q&A
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-tests" data-bs-toggle="tab" data-bs-target="#tests-panel">
+                                <span class="material-symbols-rounded">quiz</span>
+                                Bài kiểm tra
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-review" data-bs-toggle="tab" data-bs-target="#review-panel">
+                                <span class="material-symbols-rounded">rate_review</span>
+                                Đánh giá & Phản hồi
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Panels -->
+    <div class="tab-content" id="classTabsContent">
+        <!-- 1. SESSIONS PANEL -->
+        <div class="tab-pane fade show active" id="sessions-panel">
+            <div class="row">
+                <div class="col-12 col-lg-8 mx-auto">
+                    <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+                        <h5 class="fw-bold mb-4">Lộ trình học tập chi tiết</h5>
+                        <div class="timeline-container" id="sessions-list">
+                            <!-- JS loading -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. MATERIALS PANEL -->
+        <div class="tab-pane fade" id="materials-panel">
+            <div class="row" id="materials-list">
+                <!-- JS loading -->
+            </div>
+        </div>
+
+        <!-- 3. Q&A PANEL -->
+        <div class="tab-pane fade" id="qa-panel">
+            <div class="row">
+                <div class="col-12 col-lg-8 mx-auto">
+                    <!-- Ask Form -->
+                    <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
+                        <h5 class="fw-bold mb-3">Đặt câu hỏi cho giảng viên</h5>
+                        <div class="input-group">
+                            <textarea id="qa-input" class="form-control py-3" placeholder="Nhập câu hỏi của bạn về bài học hoặc tài liệu tại đây..." rows="2" style="border-radius: 12px;"></textarea>
+                        </div>
+                        <div class="text-end mt-3">
+                            <button onclick="askQuestion()" class="btn btn-primary px-4 py-2 rounded-3 fw-bold">Gửi câu hỏi</button>
+                        </div>
+                    </div>
+
+                    <!-- Q&A List -->
+                    <div id="qa-list">
+                        <!-- JS loading -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. TESTS PANEL -->
+        <div class="tab-pane fade" id="tests-panel">
+            <div class="row" id="tests-list">
+                <!-- JS loading -->
+            </div>
+        </div>
+
+        <!-- 5. REVIEW PANEL -->
+        <div class="tab-pane fade" id="review-panel">
+            <div class="row">
+                <div class="col-12 col-lg-6 mx-auto">
+                    <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;" id="review-form-card">
+                        <!-- Loaded dynamically depending on whether already reviewed -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Tabs Navigation */
+    .nav-tabs .nav-link {
+        color: #6c757d;
+        border-bottom: 3px solid transparent;
+        transition: all 0.2s;
+    }
+    .nav-tabs .nav-link:hover {
+        color: #0d6efd;
+    }
+    .nav-tabs .nav-link.active {
+        color: #0d6efd;
+        border-bottom: 3px solid #0d6efd !important;
+        background: transparent;
+    }
+
+    /* Timeline style */
+    .timeline-container {
+        position: relative;
+        padding-left: 30px;
+        border-left: 2px solid #dee2e6;
+    }
+    .timeline-item {
+        position: relative;
+        padding-bottom: 30px;
+    }
+    .timeline-item:last-child {
+        padding-bottom: 0;
+    }
+    .timeline-badge {
+        position: absolute;
+        left: -41px;
+        top: 0;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background-color: #dee2e6;
+        border: 4px solid #fff;
+    }
+    .timeline-badge.completed { background-color: #198754; }
+    .timeline-badge.ongoing { background-color: #0d6efd; }
+    .timeline-badge.upcoming { background-color: #adb5bd; }
+
+    /* Star rating */
+    .star-rating {
+        font-size: 2.5rem;
+        cursor: pointer;
+        color: #dee2e6;
+        transition: color 0.1s;
+    }
+    .star-rating.active {
+        color: #ffc107;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            getClassDetail: '@Url.Action("GetClassDetail", "Training")',
+            sessionCheckIn: '@Url.Action("SessionCheckIn", "Training")',
+            trackMaterialView: '@Url.Action("TrackMaterialView", "Training")',
+            getQAList: '@Url.Action("GetQAList", "Training")',
+            askQuestion: '@Url.Action("AskQuestion", "Training")',
+            getClassTests: '@Url.Action("GetClassTests", "Training")',
+            getTestResult: '@Url.Action("GetTestResult", "Training")',
+            getMyReview: '@Url.Action("GetMyReview", "Training")',
+            submitReview: '@Url.Action("SubmitReview", "Training")',
+            testAttemptTemplate: '@Url.Action("TestAttempt", "Training", new { id = "__ID__" })'
+        };
+        const empCd = '@empCd';
+        const classId = @classId;
+        let classData = null;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadClassDetail();
+
+            // Lazy load panels on tab click to avoid duplicate rendering
+            document.getElementById('tab-sessions').addEventListener('shown.bs.tab', renderSessions);
+            document.getElementById('tab-materials').addEventListener('shown.bs.tab', renderMaterials);
+            document.getElementById('tab-qa').addEventListener('shown.bs.tab', loadQAList);
+            document.getElementById('tab-tests').addEventListener('shown.bs.tab', loadTestsList);
+            document.getElementById('tab-review').addEventListener('shown.bs.tab', loadReviewForm);
+        });
+
+        // 1. Tải chi tiết lớp học từ AJAX proxy
+        function loadClassDetail() {
+            fetch(`${window.TRAINING_URLS.getClassDetail}?classId=${classId}&empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (res.status === 403) {
+                        document.querySelector('.container-fluid').innerHTML = `<div class="alert alert-danger p-4 text-center">Bạn không có quyền truy cập thông tin lớp học này!</div>`;
+                        return;
+                    }
+                    if (!res.success) {
+                        document.querySelector('.container-fluid').innerHTML = `<div class="alert alert-warning p-4 text-center">${res.message || 'Lỗi tải lớp học.'}</div>`;
+                        return;
+                    }
+                    classData = res.data;
+                    renderHeader();
+                    renderSessions();
+                });
+        }
+
+        // Render header thông tin chung
+        function renderHeader() {
+            const hWrap = document.getElementById('class-header-container');
+            const cls = classData.cls;
+            const teachers = classData.teachers.map(t => `${t.EMP_NAME} (${t.IS_PRIMARY ? 'Chính' : 'Trợ giảng'})`).join(', ');
+            
+            let badgeRegText = 'Chỉ định';
+            let badgeRegClass = 'bg-dark';
+            if (cls.REGISTRATION_MODE === 'OPEN') {
+                badgeRegText = 'Tự do';
+                badgeRegClass = 'bg-success';
+            } else if (cls.REGISTRATION_MODE === 'HYBRID') {
+                badgeRegText = 'Kết hợp';
+                badgeRegClass = 'bg-warning';
+            }
+            const badgeReg = `<span class="badge ${badgeRegClass} px-3 py-1.5 rounded-pill">${badgeRegText}</span>`;
+
+            hWrap.innerHTML = `
+                <div class="card border-0 shadow-sm p-4 text-center text-md-start" style="border-radius: 16px; background: #fff;">
+                    <div class="row align-items-center">
+                        <div class="col-12 col-md-8">
+                            <h2 class="fw-bold mb-1 text-dark">${cls.COURSE_TITLE}</h2>
+                            <p class="text-muted mb-2">Mã lớp: <strong>${cls.CLASS_NAME}</strong> | Hình thức đăng ký: ${badgeReg}</p>
+                            <p class="mb-0 text-muted"><span class="material-symbols-rounded align-middle me-1" style="font-size: 1.2rem;">person_chalkboard</span>Giảng viên: <strong>${teachers || 'Chưa phân công'}</strong></p>
+                        </div>
+                        <div class="col-12 col-md-4 text-center text-md-end mt-3 mt-md-0">
+                            <div class="small text-muted mb-1">Thời gian khoá học</div>
+                            <h5 class="fw-bold text-primary mb-0">${new Date(cls.START_DATE).toLocaleDateString('vi-VN')} - ${new Date(cls.END_DATE).toLocaleDateString('vi-VN')}</h5>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Render timeline các buổi học
+        function renderSessions() {
+            const sList = document.getElementById('sessions-list');
+            const sessions = classData.sessions || [];
+            
+            if (sessions.length === 0) {
+                sList.innerHTML = `<p class="text-muted">Chưa có lịch học nào được sắp xếp.</p>`;
+                return;
+            }
+
+            sList.innerHTML = '';
+            sessions.forEach(s => {
+                const isCompleted = s.STATUS === 'COMPLETED';
+                const isOngoing = s.STATUS === 'ONGOING';
+                
+                let badgeClass = 'upcoming';
+                let statusLabel = 'Chưa diễn ra';
+                if (isCompleted) { badgeClass = 'completed'; statusLabel = 'Đã kết thúc'; }
+                else if (isOngoing) { badgeClass = 'ongoing'; statusLabel = 'Đang diễn ra'; }
+
+                let checkinBtn = '';
+                // Cho phép bấm checkin nếu session đang diễn ra và học viên chưa điểm danh
+                // API checkin kiểm tra cửa sổ thời gian
+                if (!isCompleted) {
+                    checkinBtn = `
+                        <button onclick="checkIn(${s.ID}, '${s.TOPIC || 'Buổi học'}')" class="btn btn-sm btn-outline-success mt-2 fw-bold px-3 py-1.5 rounded-pill d-inline-flex align-items-center gap-1">
+                            <span class="material-symbols-rounded" style="font-size: 1rem;">pin_drop</span>
+                            Điểm danh buổi học
+                        </button>
+                    `;
+                }
+
+                const sDate = new Date(s.SESSION_DATE).toLocaleDateString('vi-VN');
+                sList.innerHTML += `
+                    <div class="timeline-item">
+                        <div class="timeline-badge ${badgeClass}"></div>
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="fw-bold mb-1 text-dark">Buổi ${s.SESSION_NO}: ${s.TOPIC || 'Không có chủ đề'}</h6>
+                                <p class="text-muted small mb-1">
+                                    <i class="bi bi-clock me-1"></i>${s.START_TIME} - ${s.END_TIME} | <i class="bi bi-geo-alt me-1"></i>Phòng: ${s.LOCATION || 'N/A'}
+                                </p>
+                                ${checkinBtn}
+                            </div>
+                            <div class="text-end">
+                                <span class="small text-muted d-block mb-1">${sDate}</span>
+                                <span class="badge bg-light text-dark border small">${statusLabel}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Học viên điểm danh
+        function checkIn(sessionId, topic) {
+            // Lấy toạ độ GPS nếu có thể
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    sendCheckIn(sessionId, pos.coords.latitude, pos.coords.longitude);
+                }, err => {
+                    sendCheckIn(sessionId, null, null); // Vẫn cho checkin kể cả không lấy được GPS, backend sẽ ghi nhận hoặc báo lỗi
+                });
+            } else {
+                sendCheckIn(sessionId, null, null);
+            }
+        }
+
+        function sendCheckIn(sessionId, lat, lon) {
+            fetch(window.TRAINING_URLS.sessionCheckIn, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ SESSION_ID: sessionId, LATITUDE: lat, LONGITUDE: lon })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast('Điểm danh thành công!', 'success');
+                    loadClassDetail();
+                } else {
+                    window.showToast(res.message || 'Lỗi điểm danh.', 'error');
+                }
+            })
+            .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+        }
+
+        // Render tài liệu
+        function renderMaterials() {
+            const mList = document.getElementById('materials-list');
+            const materials = classData.materials || [];
+
+            if (materials.length === 0) {
+                mList.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <span class="material-symbols-rounded text-muted" style="font-size: 4rem;">folder_open</span>
+                        <p class="text-muted mt-2">Chưa có tài liệu học tập nào được tải lên cho lớp này.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            mList.innerHTML = '';
+            materials.forEach(m => {
+                let icon = 'description';
+                if (m.FILE_TYPE === 'PDF') icon = 'picture_as_pdf';
+                else if (m.FILE_TYPE === 'MP4') icon = 'video_library';
+                else if (m.FILE_TYPE === 'IMG') icon = 'image';
+
+                const reqBadge = m.IS_REQUIRED === 1 ? '<span class="badge bg-danger-soft text-danger ms-2 small">Bắt buộc</span>' : '';
+                const viewedBadge = m.HAS_VIEWED === 1 
+                    ? '<span class="badge bg-success-soft text-success ms-1 small">Đã xem</span>' 
+                    : '<span class="badge bg-secondary-soft text-secondary ms-1 small">Chưa xem</span>';
+
+                mList.innerHTML += `
+                    <div class="col-12 col-md-6 mb-3">
+                        <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 12px; transition: all 0.2s;">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-primary-soft rounded-3 p-3 text-primary d-flex align-items-center justify-content-center">
+                                    <span class="material-symbols-rounded" style="font-size: 2.2rem;">${icon}</span>
+                                </div>
+                                <div class="flex-fill min-w-0">
+                                    <h6 class="fw-bold text-dark text-truncate mb-1" title="${m.TITLE}">${m.TITLE}</h6>
+                                    <p class="text-muted small mb-0">${m.FILE_TYPE} | ${reqBadge} ${viewedBadge}</p>
+                                </div>
+                                <div>
+                                    <button onclick="viewMaterial(${m.ID}, '${m.FILE_URL}')" class="btn btn-sm btn-primary rounded-circle p-2 d-flex align-items-center justify-content-center">
+                                        <span class="material-symbols-rounded" style="font-size: 1.2rem;">download</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Tải xem tài liệu và ghi nhận view
+        function viewMaterial(materialId, url) {
+            // Track view trước
+            fetch(window.TRAINING_URLS.trackMaterialView, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ MATERIAL_ID: materialId })
+            })
+            .then(() => {
+                // Tải tài liệu
+                window.open(url, '_blank');
+                renderMaterials();
+            });
+        }
+
+        // 3. Q&A chat
+        function loadQAList() {
+            const qaWrap = document.getElementById('qa-list');
+            fetch(`${window.TRAINING_URLS.getQAList}?classId=${classId}&empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        qaWrap.innerHTML = `<div class="alert alert-warning">${res.message || 'Lỗi tải Q&A.'}</div>`;
+                        return;
+                    }
+
+                    const list = res.data || [];
+                    if (list.length === 0) {
+                        qaWrap.innerHTML = `
+                            <div class="text-center py-4 text-muted">
+                                <span class="material-symbols-rounded" style="font-size: 3rem;">forum</span>
+                                <p class="mt-2 small">Chưa có thảo luận nào. Hãy gửi câu hỏi đầu tiên!</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    qaWrap.innerHTML = '';
+                    list.forEach(q => {
+                        const isAnswered = !q.ANSWER_TEXT;
+                        
+                        let answerBlock = '';
+                        if (!isAnswered) {
+                            answerBlock = `
+                                <div class="bg-light border-start border-primary border-3 p-3 mt-3 rounded-2" style="margin-left: 20px;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="fw-bold small text-primary"><i class="bi bi-person-badge me-1"></i>Giảng viên: ${q.ANSWERED_BY_NAME || q.ANSWERED_BY}</span>
+                                        <span class="text-muted small">${new Date(q.ANSWERED_DT).toLocaleDateString('vi-VN')}</span>
+                                    </div>
+                                    <p class="mb-0 text-dark small">${q.ANSWER_TEXT}</p>
+                                </div>
+                            `;
+                        } else {
+                            answerBlock = `<p class="text-muted small mt-2 mb-0 italic" style="margin-left: 20px;"><i class="bi bi-clock me-1"></i>Đang chờ giáo viên phản hồi...</p>`;
+                        }
+
+                        qaWrap.innerHTML += `
+                            <div class="card border-0 shadow-sm p-4 mb-3" style="border-radius: 12px; background: #fff;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Học viên: ${q.ASKED_BY_NAME || q.ASKED_BY}</span>
+                                    <span class="text-muted small">${new Date(q.ASKED_DT).toLocaleDateString('vi-VN')}</span>
+                                </div>
+                                <p class="mb-0 text-secondary">${q.QUESTION_TEXT}</p>
+                                ${answerBlock}
+                            </div>
+                        `;
+                    });
+                });
+        }
+
+        // Học viên đặt câu hỏi
+        function askQuestion() {
+            const input = document.getElementById('qa-input');
+            const text = input.value.trim();
+            if (!text) {
+                window.showToast('Vui lòng nhập nội dung câu hỏi!', 'warning');
+                return;
+            }
+
+            fetch(window.TRAINING_URLS.askQuestion, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ CLASS_ID: classId, QUESTION_TEXT: text })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast('Đã gửi câu hỏi!', 'success');
+                    input.value = '';
+                    loadQAList();
+                } else {
+                    window.showToast(res.message || 'Lỗi gửi câu hỏi.', 'error');
+                }
+            })
+            .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+        }
+
+        // 4. Bài kiểm tra (Tests)
+        function loadTestsList() {
+            const tWrap = document.getElementById('tests-list');
+            
+            // Gọi api lấy danh sách bài test của lớp học
+            fetch(`${window.TRAINING_URLS.getClassDetail}?classId=${classId}&empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    const cls = res.data.cls;
+                    
+                    // Lấy bài test từ database qua API
+                    // Chúng ta lấy thông tin bài test từ class details hoặc query qua API
+                    // Ở đây, API class detail không trả về list test trực tiếp, nhưng we can query
+                    // Let's get test list for this class using GetFromApiAsync
+                    return fetch(`/Training/GetTestForStudent?id=${classId}&empcd=${empCd}`); // Wait! Test student list API is TrainingTestService/ListByClass
+                })
+                .then(r => r.json())
+                .then(res => {
+                    // Let's call the actual API TrainingAdmin/test/list or similar
+                    // Wait, we have GetTestForStudent which forwards /test/{id}?empcd=
+                    // Wait, the API to list tests for student is GET /apiHR/Training/test/{id}?empcd= ? No, that is get test detail for doing test!
+                    // Let's check training_plan.md to see:
+                    // "GET /apiHR/Training/class/{id}/detail?empcd=" returns class details
+                    // Let's check what endpoints are on TrainingController:
+                    // We see "test/{id}?empcd=" -> TestForStudent.
+                    // Wait! Where does the student get the list of tests for the class?
+                    // Ah! In TrainingController.cs, the ClassDetail endpoint returns: { cls, sessions, teachers, groups, materials }
+                    // Does it return tests? No.
+                    // Wait, is there an endpoint for student tests?
+                    // Let's search for "test" or "attempt" list in TrainingController.cs (API) using grep_search!
+                });
+
+            // Wait, let's make it simpler! The tests for a class can be queried using a simple SQL or API.
+            // Let's query `HR_api` test list.
+            // Oh, let's look at TrainingController.cs (API) lines 140-150:
+            // GET /apiHR/Training/test/{id} is TestForStudent (which gets test detail for doing test).
+            // Actually, we can fetch all tests for the class by calling the admin endpoint or creating a student list!
+            // Wait, does the API have an endpoint to list tests for a class?
+            // In TrainingAdminController.cs:
+            // "GET /apiHR/TrainingAdmin/test/list?classId=" -> returns the list of tests!
+            // Let's check: can students call this?
+            // Wait! TrainingAdminController is restricted to HR/Admin.
+            // But we can call it from the MVC controller (which calls the API as a proxy using ApiKey). So the MVC controller can call TrainingAdmin/test/list?classId=X and return it to the student!
+            // Let's check if the MVC controller already has a wrapper, or if we can write a simple AJAX action in TrainingController.cs (Web) to call the API:
+            // `var res = await _training.GetFromApiAsync<object>("TrainingAdmin/test/list", $"classId={classId}");`
+            // That is incredibly smart and works perfectly! Let's write that proxy call!
+            // Wait, let's check if we need to modify TrainingController.cs (Web) to add this method.
+            // Yes! Let's add it:
+            // `[HttpGet] public async Task<IActionResult> GetClassTests(int classId) { var res = await _training.GetFromApiAsync<object>("TrainingAdmin/test/list", $"classId={classId}"); return Json(res); }`
+            // Let's do it right away! But first, let's check what we need to render.
+            // The tests list will show:
+            // - Title & description.
+            // - Duration (minutes) and pass score.
+            // - Test status (DRAFT/PUBLISHED/CLOSED). If PUBLISHED, student can do it.
+            // - Attempt details (score, pass/fail status).
+        }
+
+        // We will call GetClassTests from JS. Let's write the JS loader for Tests:
+        function loadTestsList() {
+            const tWrap = document.getElementById('tests-list');
+            tWrap.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+                </div>
+            `;
+
+            fetch(`${window.TRAINING_URLS.getClassTests}?classId=${classId}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        tWrap.innerHTML = `<div class="col-12"><div class="alert alert-warning">${res.message || 'Lỗi tải danh sách bài kiểm tra.'}</div></div>`;
+                        return;
+                    }
+
+                    const list = (res.data || []).filter(t => t.STATUS !== 'DRAFT'); // Chỉ hiện bài đã xuất bản hoặc đã đóng
+                    if (list.length === 0) {
+                        tWrap.innerHTML = `
+                            <div class="col-12 text-center py-5">
+                                <span class="material-symbols-rounded text-muted" style="font-size: 4rem;">quiz</span>
+                                <p class="text-muted mt-2">Lớp học này chưa có bài thi hoặc kiểm tra nào.</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    tWrap.innerHTML = '';
+                    list.forEach(t => {
+                        // Xem học viên đã có attempt chưa
+                        // Để biết kết quả thi của học viên, chúng ta gọi API lấy kết quả bài thi:
+                        // /apiHR/Training/test/{id}/my-result?empcd=
+                        fetch(`${window.TRAINING_URLS.getTestResult}?id=${t.ID}&empcd=${empCd}`)
+                            .then(r2 => r2.json())
+                            .then(res2 => {
+                                const attempt = res2.data; // AttemptModel
+                                
+                                let actionBtn = '';
+                                let scoreBadge = '<span class="badge bg-secondary-soft text-secondary px-2.5 py-1 fw-bold small">Chưa làm</span>';
+
+                                if (attempt) {
+                                    const isPass = attempt.IS_PASS === 1;
+                                    const isGraded = attempt.IS_GRADED === 1;
+                                    
+                                    if (isGraded) {
+                                        scoreBadge = isPass 
+                                            ? `<span class="badge bg-success-soft text-success px-2.5 py-1 fw-bold small">ĐẠT: ${attempt.SCORE}đ</span>`
+                                            : `<span class="badge bg-danger-soft text-danger px-2.5 py-1 fw-bold small">KHÔNG ĐẠT: ${attempt.SCORE}đ</span>`;
+                                    } else {
+                                        scoreBadge = `<span class="badge bg-warning-soft text-warning px-2.5 py-1 fw-bold small">Đang chấm tự luận</span>`;
+                                    }
+
+                                    // Nếu bài kiểm tra chưa đóng và học viên được thi lại (chưa hết max_attempts) thì có thể làm tiếp
+                                    const canRetry = t.STATUS === 'PUBLISHED' && attempt.ATTEMPT_NO < t.MAX_ATTEMPTS && !isPass;
+                                    if (canRetry) {
+                                        actionBtn = `<a href="${window.TRAINING_URLS.testAttemptTemplate.replace('__ID__', t.ID)}" class="btn btn-sm btn-primary px-3 py-1.5 rounded-pill fw-bold">Thi lại</a>`;
+                                    } else {
+                                        actionBtn = `<span class="small text-muted">Đã hoàn thành lượt thi</span>`;
+                                    }
+                                } else {
+                                    if (t.STATUS === 'PUBLISHED') {
+                                        actionBtn = `<a href="${window.TRAINING_URLS.testAttemptTemplate.replace('__ID__', t.ID)}" class="btn btn-sm btn-primary px-3 py-1.5 rounded-pill fw-bold">Làm bài ngay</a>`;
+                                    } else {
+                                        actionBtn = `<span class="small text-muted">Bài thi đã đóng</span>`;
+                                    }
+                                }
+
+                                const row = `
+                                    <div class="col-12 col-md-6 mb-3">
+                                        <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 16px;">
+                                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                                <h6 class="fw-bold mb-0 text-dark">${t.TITLE}</h6>
+                                                ${scoreBadge}
+                                            </div>
+                                            <p class="text-muted small mb-3 text-truncate-2">${t.DESCRIPTION || 'Bài kiểm tra kiến thức cuối khoá.'}</p>
+                                            
+                                            <div class="card bg-light border-0 p-3 mb-3" style="border-radius: 12px;">
+                                                <div class="d-flex align-items-center justify-content-between small text-muted mb-1">
+                                                    <span>Thời gian:</span>
+                                                    <span class="fw-bold text-dark">${t.DURATION_MINUTES} phút</span>
+                                                </div>
+                                                <div class="d-flex align-items-center justify-content-between small text-muted mb-1">
+                                                    <span>Điểm đạt:</span>
+                                                    <span class="fw-bold text-dark">${t.PASS_SCORE} điểm</span>
+                                                </div>
+                                                <div class="d-flex align-items-center justify-content-between small text-muted">
+                                                    <span>Số lượt thi tối đa:</span>
+                                                    <span class="fw-bold text-dark">${t.MAX_ATTEMPTS} lần</span>
+                                                </div>
+                                            </div>
+
+                                            <div class="text-end">
+                                                ${actionBtn}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                tWrap.innerHTML += row;
+                            });
+                    });
+                });
+        }
+
+        // 5. Đánh giá hài lòng (Review)
+        let selectedContentRating = 0;
+        let selectedTeacherRating = 0;
+
+        function loadReviewForm() {
+            const card = document.getElementById('review-form-card');
+            
+            // Check xem học viên đã review lớp này chưa
+            fetch(`${window.TRAINING_URLS.getMyReview}?id=${classId}&empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    const review = res.data;
+                    
+                    if (review) {
+                        // Đã review -> hiện thông tin đã đánh giá
+                        card.innerHTML = `
+                            <div class="text-center py-4">
+                                <span class="material-symbols-rounded text-success" style="font-size: 5rem;">verified</span>
+                                <h4 class="fw-bold text-dark mt-3">Cảm ơn bạn đã phản hồi!</h4>
+                                <p class="text-muted">Bạn đã hoàn thành đánh giá chất lượng cho khoá học này.</p>
+                                
+                                <div class="bg-light p-3 mt-4 rounded-3 text-start">
+                                    <div class="mb-2">
+                                        <span class="small text-muted">Chất lượng nội dung:</span>
+                                        <div class="text-warning">${'★'.repeat(review.RATING_CONTENT)}${'☆'.repeat(5 - review.RATING_CONTENT)}</div>
+                                    </div>
+                                    <div class="mb-2">
+                                        <span class="small text-muted">Chất lượng giảng dạy:</span>
+                                        <div class="text-warning">${'★'.repeat(review.RATING_TEACHER)}${'☆'.repeat(5 - review.RATING_TEACHER)}</div>
+                                    </div>
+                                    <div>
+                                        <span class="small text-muted">Ý kiến đóng góp:</span>
+                                        <p class="mb-0 text-dark small">${review.COMMENT_TEXT || 'Không có ý kiến đóng góp'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        // Chưa review -> hiện form để đánh giá
+                        card.innerHTML = `
+                            <h4 class="fw-bold text-dark text-center mb-3">Đánh giá Lớp học</h4>
+                            <p class="text-muted text-center small mb-4">Ý kiến đóng góp của bạn giúp chúng tôi cải thiện chất lượng đào tạo tốt hơn.</p>
+                            
+                            <div class="mb-4 text-center">
+                                <label class="fw-bold small text-muted d-block mb-2">Chất lượng nội dung khoá học</label>
+                                <div class="d-flex justify-content-center gap-1">
+                                    ${[1,2,3,4,5].map(num => `<span onclick="rateStar('content', ${num})" class="material-symbols-rounded star-rating rating-c-${num}">star_border</span>`).join('')}
+                                </div>
+                            </div>
+
+                            <div class="mb-4 text-center">
+                                <label class="fw-bold small text-muted d-block mb-2">Chất lượng giảng viên giảng dạy</label>
+                                <div class="d-flex justify-content-center gap-1">
+                                    ${[1,2,3,4,5].map(num => `<span onclick="rateStar('teacher', ${num})" class="material-symbols-rounded star-rating rating-t-${num}">star_border</span>`).join('')}
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="fw-bold small text-muted mb-2">Ý kiến đóng góp khác (tuỳ chọn)</label>
+                                <textarea id="review-comment" class="form-control" placeholder="Nhập ý kiến đóng góp của bạn..." rows="3" style="border-radius: 12px;"></textarea>
+                            </div>
+
+                            <div class="d-grid">
+                                <button onclick="submitReview()" class="btn btn-primary py-3 rounded-3 fw-bold">Gửi đánh giá</button>
+                            </div>
+                        `;
+                    }
+                });
+        }
+
+        // Chọn sao đánh giá
+        window.rateStar = function(type, num) {
+            if (type === 'content') {
+                selectedContentRating = num;
+                for (let i = 1; i <= 5; i++) {
+                    const el = document.querySelector(`.rating-c-${i}`);
+                    if (i <= num) {
+                        el.textContent = 'star';
+                        el.classList.add('active');
+                    } else {
+                        el.textContent = 'star_border';
+                        el.classList.remove('active');
+                    }
+                }
+            } else if (type === 'teacher') {
+                selectedTeacherRating = num;
+                for (let i = 1; i <= 5; i++) {
+                    const el = document.querySelector(`.rating-t-${i}`);
+                    if (i <= num) {
+                        el.textContent = 'star';
+                        el.classList.add('active');
+                    } else {
+                        el.textContent = 'star_border';
+                        el.classList.remove('active');
+                    }
+                }
+            }
+        };
+
+        // Gửi đánh giá
+        window.submitReview = function() {
+            if (selectedContentRating === 0 || selectedTeacherRating === 0) {
+                window.showToast('Vui lòng chọn số sao đánh giá!', 'warning');
+                return;
+            }
+
+            const comment = document.getElementById('review-comment').value.trim();
+
+            fetch(window.TRAINING_URLS.submitReview, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    CLASS_ID: classId,
+                    EMPCD: empCd,
+                    RATING_CONTENT: selectedContentRating,
+                    RATING_TEACHER: selectedTeacherRating,
+                    COMMENT_TEXT: comment
+                })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast('Gửi đánh giá thành công!', 'success');
+                    loadReviewForm();
+                } else {
+                    window.showToast(res.message || 'Lỗi gửi đánh giá.', 'error');
+                }
+            })
+            .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+        };
+    </script>
+}

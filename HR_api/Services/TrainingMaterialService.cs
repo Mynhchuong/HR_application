@@ -94,7 +94,7 @@ public class TrainingMaterialService
                 new OracleParameter("ORD",  req.DISPLAY_ORDER),
                 new OracleParameter("USR",  req.LOGIN_USER),
                 idParam);
-            return Convert.ToInt32(idParam.Value);
+            return OracleService.ConvertToInt(idParam.Value);
         }
         else
         {

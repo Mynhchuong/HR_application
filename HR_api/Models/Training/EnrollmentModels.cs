@@ -67,6 +67,7 @@ public class BulkAssignResult
     public int SKIPPED_DROPPED { get; set; }
     public int SKIPPED_EXISTED { get; set; }
     public int TOTAL_INPUT { get; set; }
+    public List<string> FAILED_EMPCDS { get; set; } = new();
 }
 
 public class SelfRegisterRequest

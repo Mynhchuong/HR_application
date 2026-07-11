@@ -1860,8 +1860,8 @@ public class LeaveController : ControllerBase
             if (fromDate > toDate)
                 return Ok(new { success = false, message = "Ngày kết thúc phải sau ngày bắt đầu" });
 
-            if (fromDate.Date <= DateTime.Today)
-                return Ok(new { success = false, message = "Chỉ được sắp lịch từ ngày mai trở đi" });
+            if (fromDate.Date < DateTime.Today)
+                return Ok(new { success = false, message = "Chỉ được sắp lịch từ ngày hôm nay trở đi" });
 
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
@@ -1910,6 +1910,7 @@ public class LeaveController : ControllerBase
                         new OracleParameter("EMPCD", targetEmpcd));
                     string empName = empRows.FirstOrDefault() ?? "";
 
+                    int leftNum = 999;
                     if (model.LEAVE_TYPE == "AL")
                     {
                         var balRows = await _oracleService.ExecuteQueryAsync(@"
@@ -1931,7 +1932,7 @@ public class LeaveController : ControllerBase
                             new OracleParameter("EMPCD",  targetEmpcd),
                             new OracleParameter("EMPCD2", targetEmpcd));
 
-                        int leftNum = balRows.FirstOrDefault();
+                        leftNum = balRows.FirstOrDefault();
                         if (leftNum <= 0)
                             warnings.Add(new { empcd = targetEmpcd, emp_name = empName, left_num = leftNum });
                     }
@@ -1995,18 +1996,50 @@ public class LeaveController : ControllerBase
                                 && !(day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed))
                                 continue;
 
-                            // SP_015_NEW skip Chủ Nhật → dùng SP_015_FORHRAPP cho NV whitelist
-                            string spName = (day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed)
-                                ? "HRMS.SP_015_FORHRAPP"
-                                : "HRMS.SP_015_NEW";
+                            if (model.LEAVE_TYPE == "AL" && leftNum <= 0)
+                            {
+                                // Hết phép năm nhưng Admin vẫn sắp -> Ghi trực tiếp vào EFM410 (bỏ qua checks/exit trong SP_015_NEW)
+                                var cntRows = await _oracleService.ExecuteQueryAsync(
+                                    "SELECT COUNT(*) AS CNT FROM HRMS.EFM410 WHERE EMPCD = :EMPCD AND FR_DAT = :FR_DAT",
+                                    r => Convert.ToInt32(r["CNT"]),
+                                    new OracleParameter("EMPCD", targetEmpcd),
+                                    new OracleParameter { ParameterName = "FR_DAT", OracleDbType = OracleDbType.Date, Value = day });
 
-                            await _oracleService.ExecuteProcedureAsync(spName,
-                                new OracleParameter("AS_EMPCD",   targetEmpcd),
-                                new OracleParameter("AS_LEAVECD", erpCd),
-                                new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = OracleDbType.Date, Value = day },
-                                new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = OracleDbType.Date, Value = day },
-                                new OracleParameter("AS_IN_ID",   model.ASSIGNER_EMPCD),
-                                new OracleParameter("AS_REMAR",   erpRemark));
+                                if (cntRows.FirstOrDefault() == 0)
+                                {
+                                    await _oracleService.ExecuteNonQueryAsync(
+                                        "INSERT INTO HRMS.EFM410 (EMPCD, LEAVECD, FR_DAT, IN_ID, REMAR) VALUES (:EMPCD, :LEAVECD, :FR_DAT, :IN_ID, :REMAR)",
+                                        new OracleParameter("EMPCD", targetEmpcd),
+                                        new OracleParameter("LEAVECD", erpCd),
+                                        new OracleParameter { ParameterName = "FR_DAT", OracleDbType = OracleDbType.Date, Value = day },
+                                        new OracleParameter("IN_ID", model.ASSIGNER_EMPCD),
+                                        new OracleParameter("REMAR", erpRemark));
+                                }
+                                else
+                                {
+                                    await _oracleService.ExecuteNonQueryAsync(
+                                        "UPDATE HRMS.EFM410 SET LEAVECD = :LEAVECD, REMAR = :REMAR WHERE EMPCD = :EMPCD AND FR_DAT = :FR_DAT",
+                                        new OracleParameter("LEAVECD", erpCd),
+                                        new OracleParameter("REMAR", erpRemark),
+                                        new OracleParameter("EMPCD", targetEmpcd),
+                                        new OracleParameter { ParameterName = "FR_DAT", OracleDbType = OracleDbType.Date, Value = day });
+                                }
+                            }
+                            else
+                            {
+                                // SP_015_NEW skip Chủ Nhật → dùng SP_015_FORHRAPP cho NV whitelist
+                                string spName = (day.DayOfWeek == DayOfWeek.Sunday && isSundayAllowed)
+                                    ? "HRMS.SP_015_FORHRAPP"
+                                    : "HRMS.SP_015_NEW";
+
+                                await _oracleService.ExecuteProcedureAsync(spName,
+                                    new OracleParameter("AS_EMPCD",   targetEmpcd),
+                                    new OracleParameter("AS_LEAVECD", erpCd),
+                                    new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = OracleDbType.Date, Value = day },
+                                    new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = OracleDbType.Date, Value = day },
+                                    new OracleParameter("AS_IN_ID",   model.ASSIGNER_EMPCD),
+                                    new OracleParameter("AS_REMAR",   erpRemark));
+                            }
                         }
 
                         await _oracleService.ExecuteNonQueryAsync(

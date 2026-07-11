@@ -1504,3 +1504,1137 @@ COMMIT;
 -- DROP TABLE HRMS.HR_SURVEY_QUESTION   CASCADE CONSTRAINTS PURGE;
 -- DROP TABLE HRMS.HR_SURVEY            CASCADE CONSTRAINTS PURGE;
 -- DELETE FROM HRMS.HR_NOTI_TEMPLATES WHERE TEMPLATE_KEY = 'SURVEY_NEW';
+-- ============================================================
+-- TRAINING — DDL (Oracle 10 compat)
+-- Tham khảo: training_rules.md, training_plan.md
+-- Convention (bám HR_BULLETIN / HR_HOME_* / HR_SURVEY_*):
+--   * SEQ_<TABLE>_BI BEFORE INSERT auto-fill ID
+--   * Cột audit chuẩn: INST_ID, INST_DT, UPDT_ID, UPDT_DT
+--   * NCLOB có LOB ... STORE AS ...
+--   * Tablespace: HRMSD
+--   * Tất cả identifier ≤ 30 chars (Oracle 10 limit)
+--   * KHÔNG dùng FETCH FIRST / SKIP LOCKED / IDENTITY / JSON_TABLE / LISTAGG
+-- ============================================================
+
+-- ============================================================
+-- CLEANUP (safe re-run)
+-- Xoá tables + sequences cũ. Ignore ORA-00942 (table not exist)
+-- và ORA-02289 (sequence not exist).
+-- Oracle 10 KHÔNG có IF EXISTS → dùng PL/SQL block với EXCEPTION handler.
+-- ============================================================
+BEGIN
+    -- Drop tables theo reverse FK order
+    FOR t IN (
+        SELECT 'HR_TRAINING_NOTI_QUEUE'         AS n FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_AUDIT'              FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_REVIEW_TEACHER'     FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_REVIEW'             FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_TEST_ANSWER'        FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_TEST_ATTEMPT'       FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_TEST_OPTION'        FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_TEST_QUESTION'      FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_TEST'               FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_QUESTION'           FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_MATERIAL_VIEW'      FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_MATERIAL'           FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_ATTENDANCE'         FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_ENROLLMENT'         FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_SESSION'            FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_CLASS_GROUP'        FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_CLASS_TEACHER'      FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_CLASS'              FROM DUAL UNION ALL
+        SELECT 'HR_TR_COURSE_SES_TMPL'          FROM DUAL UNION ALL
+        SELECT 'HR_TRAINING_COURSE'             FROM DUAL
+    ) LOOP
+        BEGIN
+            EXECUTE IMMEDIATE 'DROP TABLE HRMS.' || t.n || ' CASCADE CONSTRAINTS PURGE';
+        EXCEPTION WHEN OTHERS THEN NULL; -- ignore if table không tồn tại
+        END;
+    END LOOP;
+
+    -- Drop sequences
+    FOR s IN (
+        SELECT 'SEQ_HR_TR_COURSE'         AS n FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_COURSE_ST'      FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_CLASS'          FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_CLASS_GROUP'    FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_SESSION'        FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_MATERIAL'       FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_QUESTION'       FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_TEST'           FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_TEST_Q'         FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_TEST_OPT'       FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_TEST_ATTEMPT'   FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_TEST_ANSWER'    FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_AUDIT'          FROM DUAL UNION ALL
+        SELECT 'SEQ_HR_TR_NOTIQ'          FROM DUAL
+    ) LOOP
+        BEGIN
+            EXECUTE IMMEDIATE 'DROP SEQUENCE HRMS.' || s.n;
+        EXCEPTION WHEN OTHERS THEN NULL; -- ignore if sequence không tồn tại
+        END;
+    END LOOP;
+
+    -- Cleanup noti template + inquiry topic seeds cũ (sẽ được insert lại cuối file)
+    BEGIN
+        EXECUTE IMMEDIATE 'DELETE FROM HRMS.HR_NOTI_TEMPLATES WHERE TEMPLATE_KEY LIKE ''TRAINING_%''';
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+    BEGIN
+        EXECUTE IMMEDIATE 'DELETE FROM HRMS.HR_INQUIRY_TOPIC WHERE TOPIC_CD = ''TRAINING''';
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+    COMMIT;
+END;
+/
+
+
+-- ============================================================
+-- 1. HR_TRAINING_COURSE — giáo trình template
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_COURSE (
+    ID              NUMBER          NOT NULL,
+    -- TITLE hiển thị trên chứng chỉ (§12) — giữ ngắn để cert layout đẹp (max 100 chars ~ 2 dòng 40pt A4 ngang)
+    TITLE           NVARCHAR2(100)  NOT NULL,
+    DESCRIPTION     NVARCHAR2(2000),
+    OBJECTIVES      NVARCHAR2(2000),                    -- mục tiêu (đủ dùng, tránh NCLOB TTC Error)
+    CATEGORY        NVARCHAR2(100),                     -- VD 'Safety', 'Skill', 'Compliance'
+
+    -- Mode Course (2026-07-04 — Express + Recurring)
+    COURSE_MODE     VARCHAR2(15)    DEFAULT 'STANDARD' NOT NULL,
+                                                        -- STANDARD | EXPRESS (1 buổi, không test, không review)
+    DEFAULT_DURATION_MIN NUMBER,                        -- EXPRESS: mặc định 120 phút
+
+    -- Auto-open recurring (VD onboarding hàng tháng)
+    AUTO_OPEN_MONTHLY    NUMBER(1)  DEFAULT 0 NOT NULL,
+    AUTO_OPEN_DAY        NUMBER(2),                     -- ngày trong tháng 1-28
+
+    -- Defaults khi clone Course → Class (giảm click)
+    DEFAULT_PASS_SCORE       NUMBER,
+    DEFAULT_MIN_ATTEND_PCT   NUMBER,                    -- default cho HR_TRAINING_CLASS.MIN_ATTENDANCE_PERCENT
+
+    IS_ACTIVE       NUMBER(1)       DEFAULT 1 NOT NULL,
+
+    INST_ID         VARCHAR2(50),
+    INST_DT         DATE            DEFAULT SYSDATE,
+    UPDT_ID         VARCHAR2(50),
+    UPDT_DT         DATE,
+
+    CONSTRAINT PK_HR_TR_COURSE     PRIMARY KEY (ID),
+    CONSTRAINT CHK_TRC_ACTIVE      CHECK (IS_ACTIVE IN (0,1)),
+    CONSTRAINT CHK_TRC_MODE        CHECK (COURSE_MODE IN ('STANDARD','EXPRESS')),
+    CONSTRAINT CHK_TRC_AUTO_FLAG   CHECK (AUTO_OPEN_MONTHLY IN (0,1)),
+    CONSTRAINT CHK_TRC_AUTO_DAY    CHECK (AUTO_OPEN_DAY IS NULL OR AUTO_OPEN_DAY BETWEEN 1 AND 28),
+    CONSTRAINT CHK_TRC_AUTO_REQ    CHECK (AUTO_OPEN_MONTHLY = 0 OR AUTO_OPEN_DAY IS NOT NULL),
+    CONSTRAINT CHK_TRC_MIN_ATT     CHECK (DEFAULT_MIN_ATTEND_PCT IS NULL OR DEFAULT_MIN_ATTEND_PCT BETWEEN 0 AND 100),
+    CONSTRAINT CHK_TRC_TITLE_LEN   CHECK (LENGTH(TITLE) BETWEEN 1 AND 100)   -- cert display §12
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_COURSE START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_COURSE_BI
+BEFORE INSERT OR UPDATE ON HRMS.HR_TRAINING_COURSE
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT HRMS.SEQ_HR_TR_COURSE.NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_COURSE_BI ENABLE;
+
+
+-- ============================================================
+-- 1b. HR_TR_COURSE_SES_TMPL — cấu trúc buổi học chuẩn của Course
+-- Dùng để clone Class mới cho lứa NV mới (recurring onboarding).
+-- Không có SESSION_DATE — chỉ có DAY_OFFSET tính từ START_DATE của Class.
+-- Không cần cho Course EXPRESS (1 buổi, HR nhập trực tiếp lúc Quick Create).
+-- ============================================================
+CREATE TABLE HRMS.HR_TR_COURSE_SES_TMPL (
+    ID              NUMBER          NOT NULL,
+    COURSE_ID       NUMBER          NOT NULL,
+    SESSION_NO      NUMBER          NOT NULL,             -- buổi 1, 2, 3
+    TOPIC           NVARCHAR2(500),
+    DAY_OFFSET      NUMBER          DEFAULT 0 NOT NULL,   -- +0 (bắt đầu), +2, +7
+    START_TIME      VARCHAR2(4)     NOT NULL,             -- HHMM default '0800'
+    END_TIME        VARCHAR2(4)     NOT NULL,             -- HHMM default '1130'
+    LOCATION        NVARCHAR2(200),
+    TEACHER_ROLE    NVARCHAR2(100),                       -- "GV An toàn", "GV Sản xuất"
+    IS_TEST_SESSION NUMBER(1)       DEFAULT 0 NOT NULL,   -- buổi cuối làm test?
+    NOTES           NVARCHAR2(1000),
+
+    INST_ID         VARCHAR2(50),
+    INST_DT         DATE            DEFAULT SYSDATE,
+
+    CONSTRAINT PK_HR_TR_COURSE_ST      PRIMARY KEY (ID),
+    CONSTRAINT FK_TRCST_COURSE         FOREIGN KEY (COURSE_ID) REFERENCES HRMS.HR_TRAINING_COURSE (ID),
+    CONSTRAINT UQ_TRCST_NO             UNIQUE (COURSE_ID, SESSION_NO),
+    CONSTRAINT CHK_TRCST_OFFSET        CHECK (DAY_OFFSET >= 0),
+    CONSTRAINT CHK_TRCST_TIME_S        CHECK (LENGTH(START_TIME) = 4),
+    CONSTRAINT CHK_TRCST_TIME_E        CHECK (LENGTH(END_TIME) = 4),
+    CONSTRAINT CHK_TRCST_TEST          CHECK (IS_TEST_SESSION IN (0,1))
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_COURSE_ST START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_COURSE_ST_BI
+BEFORE INSERT ON HRMS.HR_TR_COURSE_SES_TMPL
+FOR EACH ROW
+BEGIN
+    IF :NEW.ID IS NULL THEN
+        SELECT HRMS.SEQ_HR_TR_COURSE_ST.NEXTVAL INTO :NEW.ID FROM DUAL;
+    END IF;
+    IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_COURSE_ST_BI ENABLE;
+
+-- Index đã có sẵn qua UNIQUE constraint UQ_TRCST_NO (COURSE_ID, SESSION_NO).
+-- Oracle tự tạo implicit index cho UNIQUE — không cần CREATE INDEX riêng (ORA-01408).
+
+
+-- ============================================================
+-- 2. HR_TRAINING_CLASS — lớp cụ thể
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_CLASS (
+    ID                        NUMBER          NOT NULL,
+    COURSE_ID                 NUMBER          NOT NULL,
+
+    -- CLASS_NAME hiển thị trên chứng chỉ + noti (§12) — giữ ngắn (max 80 chars)
+    -- Convention: "<TitleNgắn> K<N>/<MM>/<YYYY>" VD "An toàn K1/07/2026"
+    CLASS_NAME                NVARCHAR2(80)   NOT NULL,
+    DESCRIPTION               NVARCHAR2(2000),
+
+    STATUS                    VARCHAR2(30)    DEFAULT 'DRAFT' NOT NULL,
+                                              -- DRAFT | OPEN_FOR_REGISTRATION | SCHEDULED
+                                              -- IN_PROGRESS | COMPLETED | CLOSED | CANCELLED
+    REGISTRATION_MODE         VARCHAR2(15)    NOT NULL,
+                                              -- ASSIGNED | OPEN
+    MAX_STUDENTS              NUMBER,                  -- OPEN: NULL = unlimited (đóng khi hết deadline), số = cap
+    REGISTRATION_DEADLINE     DATE,                    -- required nếu OPEN (cả sub-mode có giới hạn lẫn không giới hạn)
+
+    START_DATE                DATE,                    -- required khi Publish
+    END_DATE                  DATE,                    -- required khi Publish
+
+    -- Completion criteria
+    MIN_ATTENDANCE_PERCENT    NUMBER          DEFAULT 75,
+    FINAL_TEST_ID             NUMBER,                  -- FK sau khi tạo test — nullable
+    REQUIRE_POST_REVIEW       NUMBER(1)       DEFAULT 0 NOT NULL,   -- v1 default OFF
+
+    -- Express (Quick Create) và Recurring (Clone) tracking
+    IS_EXPRESS                NUMBER(1)       DEFAULT 0 NOT NULL,   -- 1 = tạo từ modal 1-step
+    CLONED_FROM_CLASS_ID      NUMBER,                               -- FK self — traceability
+    CLONED_FROM_TYPE          VARCHAR2(15),                         -- COURSE_TEMPLATE | PREV_CLASS | NULL
+
+    INST_ID                   VARCHAR2(50),
+    INST_DT                   DATE            DEFAULT SYSDATE,
+    UPDT_ID                   VARCHAR2(50),
+    UPDT_DT                   DATE,
+
+    CONSTRAINT PK_HR_TR_CLASS       PRIMARY KEY (ID),
+    CONSTRAINT FK_TRCL_COURSE       FOREIGN KEY (COURSE_ID) REFERENCES HRMS.HR_TRAINING_COURSE (ID),
+    CONSTRAINT FK_TRCL_CLONE_FROM   FOREIGN KEY (CLONED_FROM_CLASS_ID) REFERENCES HRMS.HR_TRAINING_CLASS (ID),
+    CONSTRAINT CHK_TRCL_STATUS      CHECK (STATUS IN ('DRAFT','OPEN_FOR_REGISTRATION','SCHEDULED','IN_PROGRESS','COMPLETED','CLOSED','CANCELLED')),
+    CONSTRAINT CHK_TRCL_MODE        CHECK (REGISTRATION_MODE IN ('ASSIGNED','OPEN')),
+    CONSTRAINT CHK_TRCL_REVIEW      CHECK (REQUIRE_POST_REVIEW IN (0,1)),
+    CONSTRAINT CHK_TRCL_DATE        CHECK (END_DATE IS NULL OR START_DATE IS NULL OR END_DATE >= START_DATE),
+    CONSTRAINT CHK_TRCL_ATT         CHECK (MIN_ATTENDANCE_PERCENT BETWEEN 0 AND 100),
+    CONSTRAINT CHK_TRCL_EXPRESS     CHECK (IS_EXPRESS IN (0,1)),
+    CONSTRAINT CHK_TRCL_CLONE_TYPE  CHECK (CLONED_FROM_TYPE IS NULL OR CLONED_FROM_TYPE IN ('COURSE_TEMPLATE','PREV_CLASS')),
+    CONSTRAINT CHK_TRCL_NAME_LEN    CHECK (LENGTH(CLASS_NAME) BETWEEN 1 AND 80)   -- cert display §12
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_CLASS START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_CLASS_BI
+BEFORE INSERT OR UPDATE ON HRMS.HR_TRAINING_CLASS
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT HRMS.SEQ_HR_TR_CLASS.NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_CLASS_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRCL_STATUS ON HRMS.HR_TRAINING_CLASS (STATUS, START_DATE) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 3. HR_TRAINING_CLASS_TEACHER — teacher(s) assign vào class
+-- ============================================================
+-- DESIGN: KHÔNG tạo role TEACHER mới trong RoleName.
+-- Teacher là CAPABILITY tạm thời, tính runtime từ bảng này.
+-- User có row ở đây + Class SCHEDULED/IN_PROGRESS  → active teacher.
+-- Xoá row → không còn teacher nữa (không ảnh hưởng RoleName gốc).
+-- Xem training_rules.md §1.1 để biết chi tiết lý do.
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_CLASS_TEACHER (
+    CLASS_ID        NUMBER          NOT NULL,
+    EMPCD           VARCHAR2(20)    NOT NULL,
+    IS_PRIMARY      NUMBER(1)       DEFAULT 0 NOT NULL,  -- teacher chính (1) — chỉ 1 per class
+
+    INST_ID         VARCHAR2(50),
+    INST_DT         DATE            DEFAULT SYSDATE,
+
+    CONSTRAINT PK_HR_TR_CLASS_TEACHER  PRIMARY KEY (CLASS_ID, EMPCD),
+    CONSTRAINT FK_TRCT_CLASS           FOREIGN KEY (CLASS_ID) REFERENCES HRMS.HR_TRAINING_CLASS (ID),
+    CONSTRAINT CHK_TRCT_PRIMARY        CHECK (IS_PRIMARY IN (0,1))
+) TABLESPACE HRMSD;
+
+-- Index trên EMPCD — critical cho query "user X có phải teacher active không?"
+CREATE INDEX HRMS.IDX_TRCT_EMPCD ON HRMS.HR_TRAINING_CLASS_TEACHER (EMPCD) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 3b. HR_TRAINING_CLASS_GROUP — chia nhóm trong Class (§5b rules)
+-- ============================================================
+-- DESIGN: Nếu Class có sĩ số lớn hoặc phòng học nhỏ, HR chia thành nhiều
+-- group khác ngày. Session có GROUP_ID = group nào thì chỉ học viên thuộc
+-- group đó attend. Session GROUP_ID=NULL = session chung cả lớp.
+-- Xem training_rules.md §5b để biết flow đầy đủ.
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_CLASS_GROUP (
+    ID              NUMBER          NOT NULL,
+    CLASS_ID        NUMBER          NOT NULL,
+    GROUP_NAME      NVARCHAR2(100)  NOT NULL,          -- VD "Nhóm A", "Nhóm B"
+    MAX_STUDENTS    NUMBER,                            -- nullable — cap riêng per group (option)
+
+    INST_ID         VARCHAR2(50),
+    INST_DT         DATE            DEFAULT SYSDATE,
+    UPDT_ID         VARCHAR2(50),
+    UPDT_DT         DATE,
+
+    CONSTRAINT PK_HR_TR_CLASS_GROUP  PRIMARY KEY (ID),
+    CONSTRAINT FK_TRCG_CLASS         FOREIGN KEY (CLASS_ID) REFERENCES HRMS.HR_TRAINING_CLASS (ID),
+    CONSTRAINT UQ_TRCG_CLASS_NAME    UNIQUE (CLASS_ID, GROUP_NAME)
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_CLASS_GROUP START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_CLASS_GROUP_BI
+BEFORE INSERT OR UPDATE ON HRMS.HR_TRAINING_CLASS_GROUP
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT HRMS.SEQ_HR_TR_CLASS_GROUP.NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_CLASS_GROUP_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRCG_CLASS ON HRMS.HR_TRAINING_CLASS_GROUP (CLASS_ID) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 4. HR_TRAINING_SESSION — buổi học
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_SESSION (
+    ID              NUMBER          NOT NULL,
+    CLASS_ID        NUMBER          NOT NULL,
+    SESSION_NO      NUMBER          NOT NULL,          -- 1, 2, 3, ...
+    SESSION_DATE    DATE            NOT NULL,
+    START_TIME      VARCHAR2(4)     NOT NULL,          -- HHMM (VD '0800')
+    END_TIME        VARCHAR2(4)     NOT NULL,          -- HHMM (VD '1130')
+    TOPIC           NVARCHAR2(500),
+    LOCATION        NVARCHAR2(200),
+
+    STATUS          VARCHAR2(15)    DEFAULT 'UPCOMING' NOT NULL,
+                                    -- UPCOMING | ONGOING | COMPLETED | CANCELLED
+
+    -- Group filter (§5b): NULL = session chung cả lớp;
+    -- có value = chỉ học viên cùng GROUP_ID attend session này.
+    -- FK check chỉ đảm bảo group tồn tại. Ràng buộc "group thuộc cùng CLASS_ID"
+    -- kiểm tra ở service layer (Oracle không hỗ trợ FK composite trên nullable cột).
+    GROUP_ID        NUMBER,
+
+    INST_ID         VARCHAR2(50),
+    INST_DT         DATE            DEFAULT SYSDATE,
+    UPDT_ID         VARCHAR2(50),
+    UPDT_DT         DATE,
+
+    CONSTRAINT PK_HR_TR_SESSION      PRIMARY KEY (ID),
+    CONSTRAINT FK_TRS_CLASS          FOREIGN KEY (CLASS_ID) REFERENCES HRMS.HR_TRAINING_CLASS (ID),
+    CONSTRAINT FK_TRS_GROUP          FOREIGN KEY (GROUP_ID) REFERENCES HRMS.HR_TRAINING_CLASS_GROUP (ID),
+    CONSTRAINT UQ_TRS_CLASS_NO       UNIQUE (CLASS_ID, SESSION_NO),
+    CONSTRAINT CHK_TRS_STATUS        CHECK (STATUS IN ('UPCOMING','ONGOING','COMPLETED','CANCELLED')),
+    CONSTRAINT CHK_TRS_TIME_START    CHECK (LENGTH(START_TIME) = 4),
+    CONSTRAINT CHK_TRS_TIME_END      CHECK (LENGTH(END_TIME) = 4)
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_SESSION START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_SESSION_BI
+BEFORE INSERT OR UPDATE ON HRMS.HR_TRAINING_SESSION
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT HRMS.SEQ_HR_TR_SESSION.NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_SESSION_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRS_CLASS_DATE ON HRMS.HR_TRAINING_SESSION (CLASS_ID, SESSION_DATE) TABLESPACE HRMSD;
+CREATE INDEX HRMS.IDX_TRS_STATUS ON HRMS.HR_TRAINING_SESSION (STATUS, SESSION_DATE) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 5. HR_TRAINING_ENROLLMENT — học viên trong class
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_ENROLLMENT (
+    CLASS_ID              NUMBER          NOT NULL,
+    EMPCD                 VARCHAR2(20)    NOT NULL,
+
+    SOURCE                VARCHAR2(15)    NOT NULL,
+                                          -- ASSIGNED | SELF_REGISTER
+    STATUS                VARCHAR2(20)    DEFAULT 'ENROLLED' NOT NULL,
+                                          -- PENDING_APPROVAL | ENROLLED | REJECTED
+                                          -- DROPPED | COMPLETED | FAILED
+    DROP_REASON           VARCHAR2(50),   -- ABSENCE_EXCEEDED | MANUAL | ...
+
+    -- Group của học viên (§5b): NULL = chưa gán group (hoặc Class không dùng group)
+    -- Ràng buộc "GROUP_ID phải cùng CLASS_ID" check ở service layer (Oracle không FK composite trên nullable)
+    GROUP_ID              NUMBER,
+
+    -- Completion (populate khi class COMPLETED)
+    FINAL_SCORE           NUMBER,
+    ATTENDANCE_PERCENT    NUMBER,
+    IS_CERTIFIED          NUMBER(1)       DEFAULT 0 NOT NULL,
+    COMPLETION_DATE       DATE,
+
+    INST_ID               VARCHAR2(50),
+    INST_DT               DATE            DEFAULT SYSDATE,
+    UPDT_ID               VARCHAR2(50),
+    UPDT_DT               DATE,
+
+    CONSTRAINT PK_HR_TR_ENROLLMENT  PRIMARY KEY (CLASS_ID, EMPCD),
+    CONSTRAINT FK_TRE_CLASS         FOREIGN KEY (CLASS_ID) REFERENCES HRMS.HR_TRAINING_CLASS (ID),
+    CONSTRAINT FK_TRE_GROUP         FOREIGN KEY (GROUP_ID) REFERENCES HRMS.HR_TRAINING_CLASS_GROUP (ID),
+    CONSTRAINT CHK_TRE_SOURCE       CHECK (SOURCE IN ('ASSIGNED','SELF_REGISTER')),
+    CONSTRAINT CHK_TRE_STATUS       CHECK (STATUS IN ('PENDING_APPROVAL','ENROLLED','REJECTED','DROPPED','COMPLETED','FAILED')),
+    CONSTRAINT CHK_TRE_CERT         CHECK (IS_CERTIFIED IN (0,1))
+) TABLESPACE HRMSD;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_ENROLLMENT_BI
+BEFORE INSERT OR UPDATE ON HRMS.HR_TRAINING_ENROLLMENT
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_ENROLLMENT_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRE_EMPCD ON HRMS.HR_TRAINING_ENROLLMENT (EMPCD, STATUS) TABLESPACE HRMSD;
+-- Index cho query "list học viên trong group X của Class Y" (§5b.3 batch absent + report)
+CREATE INDEX HRMS.IDX_TRE_GROUP ON HRMS.HR_TRAINING_ENROLLMENT (CLASS_ID, GROUP_ID, STATUS) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 6. HR_TRAINING_ATTENDANCE — điểm danh buổi
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_ATTENDANCE (
+    SESSION_ID          NUMBER          NOT NULL,
+    EMPCD               VARCHAR2(20)    NOT NULL,
+
+    CHECKIN_TIME        DATE,                          -- NV bấm check-in
+    STATUS              VARCHAR2(10)    NOT NULL,      -- PRESENT | LATE | ABSENT | EXCUSED
+    TEACHER_CONFIRMED   NUMBER(1)       DEFAULT 0 NOT NULL,
+    CONFIRMED_BY        VARCHAR2(20),
+    CONFIRMED_DT        DATE,
+
+    NOTE                NVARCHAR2(500),
+
+    CONSTRAINT PK_HR_TR_ATTENDANCE   PRIMARY KEY (SESSION_ID, EMPCD),
+    CONSTRAINT FK_TRA_SESSION        FOREIGN KEY (SESSION_ID) REFERENCES HRMS.HR_TRAINING_SESSION (ID),
+    CONSTRAINT CHK_TRA_STATUS        CHECK (STATUS IN ('PRESENT','LATE','ABSENT','EXCUSED')),
+    CONSTRAINT CHK_TRA_CONFIRMED     CHECK (TEACHER_CONFIRMED IN (0,1))
+) TABLESPACE HRMSD;
+
+CREATE INDEX HRMS.IDX_TRA_EMPCD ON HRMS.HR_TRAINING_ATTENDANCE (EMPCD, STATUS) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 7. HR_TRAINING_MATERIAL — tài liệu (level COURSE hoặc CLASS)
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_MATERIAL (
+    ID                NUMBER          NOT NULL,
+    MATERIAL_LEVEL    VARCHAR2(10)    NOT NULL,        -- COURSE | CLASS
+    COURSE_ID         NUMBER,                          -- required nếu level = COURSE
+    CLASS_ID          NUMBER,                          -- required nếu level = CLASS
+
+    TITLE             NVARCHAR2(300)  NOT NULL,
+    FILE_NAME         VARCHAR2(300)   NOT NULL,        -- tên file trong network share
+    FILE_TYPE         VARCHAR2(10)    NOT NULL,        -- PDF | DOCX | MP4 | IMG | LINK
+    FILE_URL          VARCHAR2(500),                   -- dùng cho LINK type
+
+    IS_REQUIRED       NUMBER(1)       DEFAULT 0 NOT NULL,
+    DISPLAY_ORDER     NUMBER          DEFAULT 0 NOT NULL,
+
+    INST_ID           VARCHAR2(50),
+    INST_DT           DATE            DEFAULT SYSDATE,
+    UPDT_ID           VARCHAR2(50),
+    UPDT_DT           DATE,
+
+    CONSTRAINT PK_HR_TR_MATERIAL   PRIMARY KEY (ID),
+    CONSTRAINT FK_TRM_COURSE       FOREIGN KEY (COURSE_ID) REFERENCES HRMS.HR_TRAINING_COURSE (ID),
+    CONSTRAINT FK_TRM_CLASS        FOREIGN KEY (CLASS_ID) REFERENCES HRMS.HR_TRAINING_CLASS (ID),
+    CONSTRAINT CHK_TRM_LEVEL       CHECK (MATERIAL_LEVEL IN ('COURSE','CLASS')),
+    CONSTRAINT CHK_TRM_TYPE        CHECK (FILE_TYPE IN ('PDF','DOCX','MP4','IMG','LINK')),
+    CONSTRAINT CHK_TRM_REQUIRED    CHECK (IS_REQUIRED IN (0,1)),
+    CONSTRAINT CHK_TRM_CONSISTENT  CHECK (
+        (MATERIAL_LEVEL = 'COURSE' AND COURSE_ID IS NOT NULL AND CLASS_ID IS NULL)
+        OR
+        (MATERIAL_LEVEL = 'CLASS'  AND CLASS_ID  IS NOT NULL AND COURSE_ID IS NULL)
+    )
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_MATERIAL START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_MATERIAL_BI
+BEFORE INSERT OR UPDATE ON HRMS.HR_TRAINING_MATERIAL
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT HRMS.SEQ_HR_TR_MATERIAL.NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_MATERIAL_BI ENABLE;
+
+
+-- ============================================================
+-- 8. HR_TRAINING_MATERIAL_VIEW — track ai đã xem material
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_MATERIAL_VIEW (
+    MATERIAL_ID     NUMBER          NOT NULL,
+    EMPCD           VARCHAR2(20)    NOT NULL,
+    FIRST_VIEW_DT   DATE            DEFAULT SYSDATE NOT NULL,
+
+    CONSTRAINT PK_HR_TR_MATERIAL_VIEW PRIMARY KEY (MATERIAL_ID, EMPCD),
+    CONSTRAINT FK_TRMV_MATERIAL       FOREIGN KEY (MATERIAL_ID) REFERENCES HRMS.HR_TRAINING_MATERIAL (ID)
+) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 9. HR_TRAINING_QUESTION — Q&A student ↔ teacher
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_QUESTION (
+    ID              NUMBER          NOT NULL,
+    CLASS_ID        NUMBER          NOT NULL,
+
+    ASKED_BY        VARCHAR2(20)    NOT NULL,
+    QUESTION_TEXT   NVARCHAR2(2000) NOT NULL,
+    ASKED_DT        DATE            DEFAULT SYSDATE NOT NULL,
+
+    ANSWERED_BY     VARCHAR2(20),
+    ANSWER_TEXT     NVARCHAR2(2000),
+    ANSWERED_DT     DATE,
+
+    IS_DELETED      NUMBER(1)       DEFAULT 0 NOT NULL,
+
+    CONSTRAINT PK_HR_TR_QUESTION  PRIMARY KEY (ID),
+    CONSTRAINT FK_TRQ_CLASS       FOREIGN KEY (CLASS_ID) REFERENCES HRMS.HR_TRAINING_CLASS (ID),
+    CONSTRAINT CHK_TRQ_DELETED    CHECK (IS_DELETED IN (0,1))
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_QUESTION START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_QUESTION_BI
+BEFORE INSERT ON HRMS.HR_TRAINING_QUESTION
+FOR EACH ROW
+BEGIN
+    IF :NEW.ID IS NULL THEN
+        SELECT HRMS.SEQ_HR_TR_QUESTION.NEXTVAL INTO :NEW.ID FROM DUAL;
+    END IF;
+    IF :NEW.ASKED_DT IS NULL THEN :NEW.ASKED_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_QUESTION_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRQ_CLASS ON HRMS.HR_TRAINING_QUESTION (CLASS_ID, IS_DELETED, ASKED_DT DESC) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 10. HR_TRAINING_TEST — bài test
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_TEST (
+    ID                    NUMBER          NOT NULL,
+    CLASS_ID              NUMBER,                     -- NULL khi IS_TEMPLATE=1 (test bank của Course)
+    IS_TEMPLATE           NUMBER(1)       DEFAULT 0 NOT NULL,   -- 1 = template, không dùng để làm bài
+    TEMPLATE_COURSE_ID    NUMBER,                     -- required khi IS_TEMPLATE=1
+
+    TITLE                 NVARCHAR2(300)  NOT NULL,
+    DESCRIPTION           NVARCHAR2(1000),
+
+    STATUS                VARCHAR2(15)    DEFAULT 'DRAFT' NOT NULL,
+                                          -- DRAFT | PUBLISHED | OPEN | CLOSED | GRADING | COMPLETED
+                                          -- IS_TEMPLATE=1 luôn dùng STATUS='DRAFT'
+
+    DURATION_MINUTES      NUMBER          NOT NULL,    -- VD 20
+    AVAILABLE_FROM        DATE,                        -- required khi Publish (non-template)
+    AVAILABLE_TO          DATE,                        -- required khi Publish (non-template)
+
+    PASS_SCORE            NUMBER,                      -- nullable (không bắt buộc)
+    MAX_ATTEMPTS          NUMBER          DEFAULT 1 NOT NULL,   -- v1 luôn = 1
+
+    CREATED_BY            VARCHAR2(20)    NOT NULL,    -- EMPCD teacher / HR
+
+    INST_ID               VARCHAR2(50),
+    INST_DT               DATE            DEFAULT SYSDATE,
+    UPDT_ID               VARCHAR2(50),
+    UPDT_DT               DATE,
+
+    CONSTRAINT PK_HR_TR_TEST      PRIMARY KEY (ID),
+    CONSTRAINT FK_TRT_CLASS       FOREIGN KEY (CLASS_ID)          REFERENCES HRMS.HR_TRAINING_CLASS (ID),
+    CONSTRAINT FK_TRT_TMPL_COURSE FOREIGN KEY (TEMPLATE_COURSE_ID) REFERENCES HRMS.HR_TRAINING_COURSE (ID),
+    CONSTRAINT CHK_TRT_STATUS     CHECK (STATUS IN ('DRAFT','PUBLISHED','OPEN','CLOSED','GRADING','COMPLETED')),
+    CONSTRAINT CHK_TRT_DURATION   CHECK (DURATION_MINUTES > 0),
+    CONSTRAINT CHK_TRT_WINDOW     CHECK (AVAILABLE_TO IS NULL OR AVAILABLE_FROM IS NULL OR AVAILABLE_TO >= AVAILABLE_FROM),
+    CONSTRAINT CHK_TRT_MAXATT     CHECK (MAX_ATTEMPTS >= 1),
+    CONSTRAINT CHK_TRT_TEMPLATE   CHECK (IS_TEMPLATE IN (0,1)),
+    -- Ràng buộc: IS_TEMPLATE=1 ⇒ CLASS_ID NULL và TEMPLATE_COURSE_ID NOT NULL. Ngược lại thì CLASS_ID NOT NULL và TEMPLATE_COURSE_ID NULL.
+    CONSTRAINT CHK_TRT_TMPL_MODE  CHECK (
+        (IS_TEMPLATE = 1 AND CLASS_ID IS NULL     AND TEMPLATE_COURSE_ID IS NOT NULL) OR
+        (IS_TEMPLATE = 0 AND CLASS_ID IS NOT NULL AND TEMPLATE_COURSE_ID IS NULL)
+    )
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_TEST START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_TEST_BI
+BEFORE INSERT OR UPDATE ON HRMS.HR_TRAINING_TEST
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT HRMS.SEQ_HR_TR_TEST.NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_TEST_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRT_CLASS    ON HRMS.HR_TRAINING_TEST (CLASS_ID, STATUS) TABLESPACE HRMSD;
+CREATE INDEX HRMS.IDX_TRT_TEMPLATE ON HRMS.HR_TRAINING_TEST (TEMPLATE_COURSE_ID) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 11. HR_TRAINING_TEST_QUESTION — câu hỏi trong test
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_TEST_QUESTION (
+    ID              NUMBER          NOT NULL,
+    TEST_ID         NUMBER          NOT NULL,
+
+    QUESTION_TEXT   NVARCHAR2(2000) NOT NULL,
+    QUESTION_TYPE   VARCHAR2(15)    NOT NULL,        -- SINGLE | MULTI | YESNO | DROPDOWN | TEXT (essay)
+    IS_REQUIRED     NUMBER(1)       DEFAULT 1 NOT NULL,
+    DISPLAY_ORDER   NUMBER          DEFAULT 0 NOT NULL,
+    POINTS          NUMBER          DEFAULT 0 NOT NULL,
+
+    INST_ID         VARCHAR2(50),
+    INST_DT         DATE            DEFAULT SYSDATE,
+    UPDT_ID         VARCHAR2(50),
+    UPDT_DT         DATE,
+
+    CONSTRAINT PK_HR_TR_TEST_Q   PRIMARY KEY (ID),
+    CONSTRAINT FK_TRTQ_TEST      FOREIGN KEY (TEST_ID) REFERENCES HRMS.HR_TRAINING_TEST (ID),
+    CONSTRAINT CHK_TRTQ_TYPE     CHECK (QUESTION_TYPE IN ('SINGLE','MULTI','YESNO','DROPDOWN','TEXT')),
+    CONSTRAINT CHK_TRTQ_REQ      CHECK (IS_REQUIRED IN (0,1)),
+    CONSTRAINT CHK_TRTQ_POINTS   CHECK (POINTS >= 0)
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_TEST_Q START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_TEST_Q_BI
+BEFORE INSERT OR UPDATE ON HRMS.HR_TRAINING_TEST_QUESTION
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT HRMS.SEQ_HR_TR_TEST_Q.NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_TEST_Q_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRTQ_TEST ON HRMS.HR_TRAINING_TEST_QUESTION (TEST_ID, DISPLAY_ORDER) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 12. HR_TRAINING_TEST_OPTION — đáp án cho SINGLE/MULTI/YESNO
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_TEST_OPTION (
+    ID              NUMBER          NOT NULL,
+    QUESTION_ID     NUMBER          NOT NULL,
+
+    OPTION_TEXT     NVARCHAR2(500)  NOT NULL,
+    DISPLAY_ORDER   NUMBER          DEFAULT 0 NOT NULL,
+    IS_CORRECT      NUMBER(1)       DEFAULT 0 NOT NULL,
+
+    CONSTRAINT PK_HR_TR_TEST_OPT   PRIMARY KEY (ID),
+    CONSTRAINT FK_TRTO_QUESTION    FOREIGN KEY (QUESTION_ID) REFERENCES HRMS.HR_TRAINING_TEST_QUESTION (ID),
+    CONSTRAINT CHK_TRTO_CORRECT    CHECK (IS_CORRECT IN (0,1))
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_TEST_OPT START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_TEST_OPT_BI
+BEFORE INSERT ON HRMS.HR_TRAINING_TEST_OPTION
+FOR EACH ROW
+BEGIN
+    IF :NEW.ID IS NULL THEN
+        SELECT HRMS.SEQ_HR_TR_TEST_OPT.NEXTVAL INTO :NEW.ID FROM DUAL;
+    END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_TEST_OPT_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRTO_QUESTION ON HRMS.HR_TRAINING_TEST_OPTION (QUESTION_ID, DISPLAY_ORDER) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 13. HR_TRAINING_TEST_ATTEMPT — 1 lần student làm test
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_TEST_ATTEMPT (
+    ID                    NUMBER          NOT NULL,
+    TEST_ID               NUMBER          NOT NULL,
+    EMPCD                 VARCHAR2(20)    NOT NULL,
+
+    STATUS                VARCHAR2(20)    DEFAULT 'IN_PROGRESS' NOT NULL,
+                                          -- IN_PROGRESS | SUBMITTED | AUTO_SUBMITTED
+
+    START_DT              DATE            DEFAULT SYSDATE NOT NULL,
+    SUBMIT_DT             DATE,
+    EFFECTIVE_DEADLINE    DATE            NOT NULL,    -- min(START+DURATION, AVAILABLE_TO)
+
+    SCORE                 NUMBER,
+    MAX_SCORE             NUMBER,
+    IS_PASS               NUMBER(1),
+    IS_GRADED             NUMBER(1)       DEFAULT 0 NOT NULL,   -- 0 nếu có ESSAY chưa chấm
+
+    IP_ADDRESS            VARCHAR2(50),
+    USER_AGENT            VARCHAR2(500),
+
+    INST_DT               DATE            DEFAULT SYSDATE,
+    UPDT_DT               DATE,
+
+    CONSTRAINT PK_HR_TR_TEST_ATTEMPT   PRIMARY KEY (ID),
+    CONSTRAINT FK_TRTA_TEST            FOREIGN KEY (TEST_ID) REFERENCES HRMS.HR_TRAINING_TEST (ID),
+    CONSTRAINT UQ_TRTA_USER            UNIQUE (TEST_ID, EMPCD),
+    CONSTRAINT CHK_TRTA_STATUS         CHECK (STATUS IN ('IN_PROGRESS','SUBMITTED','AUTO_SUBMITTED')),
+    CONSTRAINT CHK_TRTA_PASS           CHECK (IS_PASS IS NULL OR IS_PASS IN (0,1)),
+    CONSTRAINT CHK_TRTA_GRADED         CHECK (IS_GRADED IN (0,1))
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_TEST_ATTEMPT START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_TEST_ATT_BI
+BEFORE INSERT OR UPDATE ON HRMS.HR_TRAINING_TEST_ATTEMPT
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT HRMS.SEQ_HR_TR_TEST_ATTEMPT.NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_TEST_ATT_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRTA_EMPCD  ON HRMS.HR_TRAINING_TEST_ATTEMPT (EMPCD, STATUS)  TABLESPACE HRMSD;
+CREATE INDEX HRMS.IDX_TRTA_TEST   ON HRMS.HR_TRAINING_TEST_ATTEMPT (TEST_ID, STATUS) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 14. HR_TRAINING_TEST_ANSWER — câu trả lời
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_TEST_ANSWER (
+    ID                    NUMBER          NOT NULL,
+    ATTEMPT_ID            NUMBER          NOT NULL,
+    QUESTION_ID           NUMBER          NOT NULL,
+
+    ANSWER_OPTION_IDS     VARCHAR2(500),                  -- CSV cho MULTI, single ID SINGLE/YESNO
+    ANSWER_TEXT           NCLOB,                          -- cho TEXT (essay)
+
+    POINTS_AWARDED        NUMBER,                         -- teacher chấm ESSAY
+    GRADER_COMMENT        NVARCHAR2(1000),
+    GRADED_BY             VARCHAR2(20),
+    GRADED_DT             DATE,
+
+    INST_DT               DATE            DEFAULT SYSDATE,
+    UPDT_DT               DATE,
+
+    CONSTRAINT PK_HR_TR_TEST_ANSWER   PRIMARY KEY (ID),
+    CONSTRAINT FK_TRTAN_ATTEMPT       FOREIGN KEY (ATTEMPT_ID) REFERENCES HRMS.HR_TRAINING_TEST_ATTEMPT (ID),
+    CONSTRAINT FK_TRTAN_QUESTION      FOREIGN KEY (QUESTION_ID) REFERENCES HRMS.HR_TRAINING_TEST_QUESTION (ID),
+    CONSTRAINT UQ_TRTAN_ATT_Q         UNIQUE (ATTEMPT_ID, QUESTION_ID)
+) TABLESPACE HRMSD
+LOB (ANSWER_TEXT) STORE AS (
+    TABLESPACE HRMSD ENABLE STORAGE IN ROW CHUNK 8192 NOCACHE LOGGING
+);
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_TEST_ANSWER START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_TEST_ANS_BI
+BEFORE INSERT OR UPDATE ON HRMS.HR_TRAINING_TEST_ANSWER
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT HRMS.SEQ_HR_TR_TEST_ANSWER.NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+    END IF;
+    IF UPDATING THEN :NEW.UPDT_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_TEST_ANS_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRTAN_ATTEMPT ON HRMS.HR_TRAINING_TEST_ANSWER (ATTEMPT_ID) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 15. HR_TRAINING_REVIEW — đánh giá tổng quan khóa (per student)
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_REVIEW (
+    CLASS_ID            NUMBER          NOT NULL,
+    EMPCD               VARCHAR2(20)    NOT NULL,
+
+    CONTENT_RATING      NUMBER(1)       NOT NULL,       -- 1..5
+    ORGANIZATION_RATING NUMBER(1)       NOT NULL,       -- 1..5
+    FEEDBACK_TEXT       NVARCHAR2(2000),
+
+    INST_DT             DATE            DEFAULT SYSDATE NOT NULL,
+
+    CONSTRAINT PK_HR_TR_REVIEW  PRIMARY KEY (CLASS_ID, EMPCD),
+    CONSTRAINT FK_TRR_CLASS     FOREIGN KEY (CLASS_ID) REFERENCES HRMS.HR_TRAINING_CLASS (ID),
+    CONSTRAINT CHK_TRR_CONTENT  CHECK (CONTENT_RATING BETWEEN 1 AND 5),
+    CONSTRAINT CHK_TRR_ORG      CHECK (ORGANIZATION_RATING BETWEEN 1 AND 5)
+) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 16. HR_TRAINING_REVIEW_TEACHER — đánh giá cho từng teacher
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_REVIEW_TEACHER (
+    CLASS_ID          NUMBER          NOT NULL,
+    EMPCD             VARCHAR2(20)    NOT NULL,      -- student
+    TEACHER_EMPCD     VARCHAR2(20)    NOT NULL,      -- teacher được đánh giá
+
+    RATING            NUMBER(1)       NOT NULL,     -- 1..5
+    FEEDBACK_TEXT     NVARCHAR2(2000),
+
+    INST_DT           DATE            DEFAULT SYSDATE NOT NULL,
+
+    CONSTRAINT PK_HR_TR_REVIEW_TEACHER PRIMARY KEY (CLASS_ID, EMPCD, TEACHER_EMPCD),
+    CONSTRAINT FK_TRRT_CLASS  FOREIGN KEY (CLASS_ID) REFERENCES HRMS.HR_TRAINING_CLASS (ID),
+    CONSTRAINT CHK_TRRT_RATING CHECK (RATING BETWEEN 1 AND 5)
+) TABLESPACE HRMSD;
+
+CREATE INDEX HRMS.IDX_TRRT_TEACHER ON HRMS.HR_TRAINING_REVIEW_TEACHER (TEACHER_EMPCD) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- FK: HR_TRAINING_CLASS.FINAL_TEST_ID → HR_TRAINING_TEST.ID
+-- Thêm SAU khi tạo cả 2 bảng để tránh circular ordering
+-- ============================================================
+ALTER TABLE HRMS.HR_TRAINING_CLASS ADD CONSTRAINT FK_TRCL_FINAL_TEST
+    FOREIGN KEY (FINAL_TEST_ID) REFERENCES HRMS.HR_TRAINING_TEST (ID);
+
+
+-- ============================================================
+-- SEED — NOTI TEMPLATES cho training
+-- ============================================================
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_ASSIGNED',
+ N'Bạn được assign vào lớp: {className}',
+ N'Ngày bắt đầu: {startDate}. Vào app để xem chi tiết.',
+ N'You have been assigned to class: {className}',
+ N'Start date: {startDate}. Open the app for details.',
+ 1, 'SYSTEM');
+
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_REGISTRATION_OPEN',
+ N'Lớp học mới mở đăng ký: {className}',
+ N'Hạn đăng ký: {registerDeadline}. Vào app để đăng ký.',
+ N'New class open for registration: {className}',
+ N'Registration deadline: {registerDeadline}.',
+ 1, 'SYSTEM');
+
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_REGISTER_APPROVED',
+ N'Đơn đăng ký lớp {className} đã được duyệt',
+ N'Chuẩn bị tham gia lớp học sắp tới.',
+ N'Your registration for {className} is approved',
+ N'Get ready for the upcoming class.',
+ 1, 'SYSTEM');
+
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_REGISTER_REJECTED',
+ N'Đơn đăng ký lớp {className} đã bị từ chối',
+ N'Vui lòng liên hệ HR nếu cần thêm thông tin.',
+ N'Your registration for {className} has been rejected',
+ N'Please contact HR for details.',
+ 1, 'SYSTEM');
+
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_SESSION_TODAY',
+ N'Bạn có tiết học hôm nay: {className}',
+ N'{sessionTopic} — bắt đầu {startTime}.',
+ N'You have a session today: {className}',
+ N'{sessionTopic} — starts at {startTime}.',
+ 1, 'SYSTEM');
+
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_ABSENT',
+ N'Bạn vắng buổi học hôm nay: {className}',
+ N'Ngày {sessionDate}. Nếu có lý do, liên hệ giáo viên.',
+ N'You were absent today: {className}',
+ N'Date: {sessionDate}. Contact your teacher if needed.',
+ 1, 'SYSTEM');
+
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_DROPPED',
+ N'Bạn đã bị loại khỏi lớp {className}',
+ N'Lý do: {reason}',
+ N'You have been removed from class {className}',
+ N'Reason: {reason}',
+ 1, 'SYSTEM');
+
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_TEST_OPEN',
+ N'Bài test mới mở: {testTitle}',
+ N'Đến {availableTo} — thời gian làm {duration} phút.',
+ N'New test open: {testTitle}',
+ N'Until {availableTo} — duration {duration} minutes.',
+ 1, 'SYSTEM');
+
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_TEST_GRADED',
+ N'Bài test {testTitle} đã có kết quả',
+ N'Điểm của bạn: {score}',
+ N'Test {testTitle} results are available',
+ N'Your score: {score}',
+ 1, 'SYSTEM');
+
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_CLASS_COMPLETED',
+ N'Lớp {className} đã kết thúc',
+ N'Kết quả của bạn: {result}',
+ N'Class {className} has ended',
+ N'Your result: {result}',
+ 1, 'SYSTEM');
+
+-- T-1h reminder (§13)
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_SESSION_SOON',
+ N'Sắp tới giờ: {className}',
+ N'{sessionTopic} — bắt đầu {startTime} (còn 1 giờ).',
+ N'Starting soon: {className}',
+ N'{sessionTopic} — starts at {startTime} (in 1 hour).',
+ 1, 'SYSTEM');
+
+-- Session đổi lịch
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_SESSION_RESCHEDULED',
+ N'Buổi học đổi lịch: {className}',
+ N'{sessionTopic} chuyển từ {oldDate} sang {newDate}.',
+ N'Session rescheduled: {className}',
+ N'{sessionTopic} moved from {oldDate} to {newDate}.',
+ 1, 'SYSTEM');
+
+-- Session bị huỷ
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE, UPDATED_BY) VALUES
+('TRAINING_SESSION_CANCELLED',
+ N'Buổi học bị huỷ: {className}',
+ N'{sessionTopic} ngày {sessionDate} đã bị huỷ.',
+ N'Session cancelled: {className}',
+ N'{sessionTopic} on {sessionDate} has been cancelled.',
+ 1, 'SYSTEM');
+
+-- ============================================================
+-- SEED — INQUIRY TOPIC (§11 Phản ánh khoá học)
+-- Class Detail student view sẽ dùng topic này để tạo HR_INQUIRY.
+-- Nếu HR_INQUIRY_TOPIC không tồn tại hoặc topic đã có → bỏ qua.
+-- ============================================================
+BEGIN
+    EXECUTE IMMEDIATE
+        'INSERT INTO HRMS.HR_INQUIRY_TOPIC (TOPIC_CD, TOPIC_NAME, IS_ACTIVE) ' ||
+        'SELECT ''TRAINING'', ''Phản ánh khoá học'', 1 FROM DUAL ' ||
+        ' WHERE NOT EXISTS (SELECT 1 FROM HRMS.HR_INQUIRY_TOPIC WHERE TOPIC_CD = ''TRAINING'')';
+EXCEPTION
+    WHEN OTHERS THEN NULL; -- ignore nếu bảng HR_INQUIRY_TOPIC không tồn tại / schema khác
+END;
+/
+
+COMMIT;
+
+
+-- ============================================================
+-- 17. HR_TRAINING_AUDIT — log bulk action (assign, approve, drop, publish, ...)
+-- Dùng để tra cứu "ai bulk assign 200 người vào Class X lúc nào"
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_AUDIT (
+    ID              NUMBER          NOT NULL,
+    ACTION          VARCHAR2(40)    NOT NULL,       -- BULK_ASSIGN | BULK_APPROVE | BULK_REJECT | BULK_DROP | PUBLISH | UNPUBLISH | CANCEL_CLASS | RESCHEDULE_SESSION
+    CLASS_ID        NUMBER,
+    SESSION_ID      NUMBER,                          -- nullable
+    TEST_ID         NUMBER,                          -- nullable
+    AFFECTED_COUNT  NUMBER          DEFAULT 0 NOT NULL,
+    PAYLOAD         NVARCHAR2(2000),                 -- JSON tùy chọn: {"empcds":["...","..."], "reason":"..."}
+    ACTOR_EMPCD     VARCHAR2(20),
+    INST_DT         DATE            DEFAULT SYSDATE,
+
+    CONSTRAINT PK_HR_TR_AUDIT   PRIMARY KEY (ID)
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_AUDIT START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_AUDIT_BI
+BEFORE INSERT ON HRMS.HR_TRAINING_AUDIT
+FOR EACH ROW
+BEGIN
+    IF :NEW.ID IS NULL THEN
+        SELECT HRMS.SEQ_HR_TR_AUDIT.NEXTVAL INTO :NEW.ID FROM DUAL;
+    END IF;
+    IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_AUDIT_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRAUD_CLASS ON HRMS.HR_TRAINING_AUDIT (CLASS_ID, INST_DT DESC) TABLESPACE HRMSD;
+CREATE INDEX HRMS.IDX_TRAUD_ACTOR ON HRMS.HR_TRAINING_AUDIT (ACTOR_EMPCD, INST_DT DESC) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 18. HR_TRAINING_NOTI_QUEUE — persistent queue + retry cho FCM
+-- Notification thất bại (FCM down, token invalid) → save vào đây, batch job retry.
+-- ============================================================
+CREATE TABLE HRMS.HR_TRAINING_NOTI_QUEUE (
+    ID              NUMBER          NOT NULL,
+    TEMPLATE_KEY    VARCHAR2(60)    NOT NULL,        -- TRAINING_ASSIGNED, TRAINING_SESSION_TODAY, ...
+    TARGET_EMPCD    VARCHAR2(20)    NOT NULL,
+    PLACEHOLDERS    NVARCHAR2(2000),                 -- JSON: {"className":"...","startDate":"..."}
+    RELATED_CLASS_ID  NUMBER,
+    RELATED_SESSION_ID NUMBER,
+    RELATED_TEST_ID   NUMBER,
+
+    -- CLAIMED status cho UPDATE-claim pattern (§13 rules — Oracle 10 không có FOR UPDATE SKIP LOCKED)
+    STATUS          VARCHAR2(15)    DEFAULT 'PENDING' NOT NULL,
+                                                     -- PENDING | CLAIMED | SENT | FAILED
+    CLAIMED_BY      VARCHAR2(50),                    -- worker instance ID
+    CLAIMED_DT      DATE,                            -- stuck > 5 min → reset về PENDING
+
+    RETRY_COUNT     NUMBER          DEFAULT 0 NOT NULL,
+    LAST_ERROR      NVARCHAR2(500),
+    NEXT_ATTEMPT_DT DATE            DEFAULT SYSDATE NOT NULL,
+
+    INST_DT         DATE            DEFAULT SYSDATE,
+    SENT_DT         DATE,
+
+    CONSTRAINT PK_HR_TR_NOTIQ   PRIMARY KEY (ID),
+    CONSTRAINT CHK_TRNQ_STATUS  CHECK (STATUS IN ('PENDING','CLAIMED','SENT','FAILED'))
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_TR_NOTIQ START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_TR_NOTIQ_BI
+BEFORE INSERT ON HRMS.HR_TRAINING_NOTI_QUEUE
+FOR EACH ROW
+BEGIN
+    IF :NEW.ID IS NULL THEN
+        SELECT HRMS.SEQ_HR_TR_NOTIQ.NEXTVAL INTO :NEW.ID FROM DUAL;
+    END IF;
+    IF :NEW.INST_DT IS NULL THEN :NEW.INST_DT := SYSDATE; END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_TR_NOTIQ_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_TRNQ_PENDING ON HRMS.HR_TRAINING_NOTI_QUEUE (STATUS, NEXT_ATTEMPT_DT) TABLESPACE HRMSD;
+
+
+COMMIT;
+
+
+-- ============================================================
+-- ROLLBACK (uncomment theo thứ tự ngược vì có FK)
+-- ============================================================
+-- DROP TRIGGER HRMS.TRG_HR_TR_NOTIQ_BI;
+-- DROP TRIGGER HRMS.TRG_HR_TR_AUDIT_BI;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_NOTIQ;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_AUDIT;
+-- DROP TABLE HRMS.HR_TRAINING_NOTI_QUEUE  CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_AUDIT       CASCADE CONSTRAINTS PURGE;
+-- ALTER TABLE HRMS.HR_TRAINING_CLASS DROP CONSTRAINT FK_TRCL_FINAL_TEST;
+-- DROP TRIGGER HRMS.TRG_HR_TR_TEST_ANS_BI;
+-- DROP TRIGGER HRMS.TRG_HR_TR_TEST_ATT_BI;
+-- DROP TRIGGER HRMS.TRG_HR_TR_TEST_OPT_BI;
+-- DROP TRIGGER HRMS.TRG_HR_TR_TEST_Q_BI;
+-- DROP TRIGGER HRMS.TRG_HR_TR_TEST_BI;
+-- DROP TRIGGER HRMS.TRG_HR_TR_QUESTION_BI;
+-- DROP TRIGGER HRMS.TRG_HR_TR_MATERIAL_BI;
+-- DROP TRIGGER HRMS.TRG_HR_TR_ENROLLMENT_BI;
+-- DROP TRIGGER HRMS.TRG_HR_TR_SESSION_BI;
+-- DROP TRIGGER HRMS.TRG_HR_TR_CLASS_BI;
+-- DROP TRIGGER HRMS.TRG_HR_TR_COURSE_BI;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_TEST_ANSWER;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_TEST_ATTEMPT;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_TEST_OPT;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_TEST_Q;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_TEST;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_QUESTION;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_MATERIAL;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_SESSION;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_CLASS;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_COURSE;
+-- DROP TABLE HRMS.HR_TRAINING_REVIEW_TEACHER  CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_REVIEW          CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_TEST_ANSWER     CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_TEST_ATTEMPT    CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_TEST_OPTION     CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_TEST_QUESTION   CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_TEST            CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_QUESTION        CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_MATERIAL_VIEW   CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_MATERIAL        CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_ATTENDANCE           CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_ENROLLMENT           CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_SESSION              CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_CLASS_TEACHER        CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TRAINING_CLASS                CASCADE CONSTRAINTS PURGE;
+-- DROP TABLE HRMS.HR_TR_COURSE_SES_TMPL CASCADE CONSTRAINTS PURGE;
+-- DROP SEQUENCE HRMS.SEQ_HR_TR_COURSE_ST;
+-- DROP TRIGGER HRMS.TRG_HR_TR_COURSE_ST_BI;
+-- DROP TABLE HRMS.HR_TRAINING_COURSE               CASCADE CONSTRAINTS PURGE;
+-- DELETE FROM HRMS.HR_NOTI_TEMPLATES WHERE TEMPLATE_KEY LIKE 'TRAINING_%';

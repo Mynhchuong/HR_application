@@ -403,8 +403,9 @@
         const reason    = document.getElementById('reason').value.trim() || null;
 
         if (!fromDate || !toDate)             { showToast('Vui lòng chọn ngày bắt đầu và kết thúc.', 'warning'); return; }
-        const _today = new Date(); _today.setHours(0,0,0,0);
-        if (new Date(fromDate) < _today)      { showToast('Không được sắp lịch ngày quá khứ.', 'warning'); return; }
+        const d = new Date();
+        const todayStr = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+        if (fromDate < todayStr) { showToast('Không được sắp lịch ngày quá khứ.', 'warning'); return; }
         if (isNaN(totalDays) || totalDays <= 0) { showToast('Số ngày nghỉ không hợp lệ.', 'warning'); return; }
         if (selectedSet.size === 0)           { showToast('Chưa chọn nhân viên.', 'warning'); return; }
 

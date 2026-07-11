@@ -198,7 +198,7 @@
                                             <button type="button" class="btn btn-sm btn-outline-secondary sa-opt-detail py-0 px-2 ms-2"
                                                     style="font-size:.72rem;white-space:nowrap;"
                                                     data-opt-id="@op.OPTION_ID"
-                                                    data-opt-text="@Html.Raw(System.Text.Json.JsonSerializer.Serialize(op.OPTION_TEXT))">
+                                                    data-opt-text="@op.OPTION_TEXT">
                                                 <i class="bi bi-people me-1"></i>Xem chi tiết
                                             </button>
                                         }
@@ -322,7 +322,7 @@ let optModal;
 document.querySelectorAll('.sa-opt-detail').forEach(btn => {
     btn.addEventListener('click', async () => {
         const optId   = btn.dataset.optId;
-        const optText = JSON.parse(btn.dataset.optText);
+        const optText = btn.dataset.optText;
 
         if (!optModal) optModal = new bootstrap.Modal(document.getElementById('optRespondentsModal'));
         document.getElementById('optModalTitle').textContent = optText;

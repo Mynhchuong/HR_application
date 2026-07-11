@@ -193,6 +193,15 @@
                                             <div class="sa-answer-bar" style="width: @(pct)%"></div>
                                         </div>
                                         <div class="sa-answer-bar-value">@op.COUNT</div>
+                                        @if (op.COUNT > 0)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-secondary sa-opt-detail py-0 px-2 ms-2"
+                                                    style="font-size:.72rem;white-space:nowrap;"
+                                                    data-opt-id="@op.OPTION_ID"
+                                                    data-opt-text="@Html.Raw(System.Text.Json.JsonSerializer.Serialize(op.OPTION_TEXT))">
+                                                <i class="bi bi-people me-1"></i>Xem chi tiết
+                                            </button>
+                                        }
                                     </div>
                                 }
                             </div>
@@ -227,6 +236,29 @@
                     </div>
                 </div>
             }
+        </div>
+    </div>
+</div>
+
+<!-- Modal: danh sách NV chọn đáp án -->
+<div class="modal fade" id="optRespondentsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2" style="background:#1e3a5f;">
+                <div class="d-flex flex-column">
+                    <h6 class="modal-title text-white mb-0">Ai đã chọn đáp án này?</h6>
+                    <small class="text-white-50" id="optModalTitle" style="font-size:.75rem;"></small>
+                </div>
+                <div class="d-flex gap-2 ms-3">
+                    <a id="optModalExport" href="#" class="btn btn-sm btn-success py-0 px-2" download style="font-size:.75rem;">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                    </a>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0" id="optModalBody" style="max-height:65vh;overflow-y:auto;">
+                <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+            </div>
         </div>
     </div>
 </div>
@@ -281,6 +313,64 @@
     })();
     </text>
 }
+
+// ── Option respondents modal ──
+const RESP_URL   = '@Url.Action("ReportOptionRespondents", "SurveyAdmin")';
+const EXPORT_URL = '@Url.Action("ReportOptionExport", "SurveyAdmin")';
+let optModal;
+
+document.querySelectorAll('.sa-opt-detail').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const optId   = btn.dataset.optId;
+        const optText = JSON.parse(btn.dataset.optText);
+
+        if (!optModal) optModal = new bootstrap.Modal(document.getElementById('optRespondentsModal'));
+        document.getElementById('optModalTitle').textContent = optText;
+        document.getElementById('optModalBody').innerHTML =
+            '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+        document.getElementById('optModalExport').href =
+            EXPORT_URL + '?optId=' + optId + '&optionText=' + encodeURIComponent(optText);
+        optModal.show();
+
+        try {
+            const res = await fetch(RESP_URL + '?optId=' + optId);
+            const j   = await res.json();
+            if (!j.success) { document.getElementById('optModalBody').innerHTML = '<div class="text-danger p-3">Lỗi tải</div>'; return; }
+            const data = j.data;
+            if (!data.length) {
+                document.getElementById('optModalBody').innerHTML = '<div class="text-muted text-center py-4">Không có dữ liệu</div>';
+                return;
+            }
+            let html = `<table class="table table-sm table-hover mb-0" style="font-size:.8rem;">
+                <thead style="position:sticky;top:0;background:#f8fafc;">
+                    <tr>
+                        <th style="font-size:.72rem;color:#64748b;padding:5px 8px;">#</th>
+                        <th style="font-size:.72rem;color:#64748b;padding:5px 8px;">Mã NV</th>
+                        <th style="font-size:.72rem;color:#64748b;padding:5px 8px;">Họ tên</th>
+                        <th style="font-size:.72rem;color:#64748b;padding:5px 8px;">Phòng / Chuyền / Tổ</th>
+                        <th style="font-size:.72rem;color:#64748b;padding:5px 8px;">Nộp lúc</th>
+                    </tr>
+                </thead><tbody>`;
+            data.forEach((r, i) => {
+                const loc = [r.DEPTCD, r.LINECD, r.WORKCD].filter(Boolean).join(' / ');
+                const dt  = r.SUBMIT_DT ? new Date(r.SUBMIT_DT).toLocaleString('vi-VN', {dateStyle:'short',timeStyle:'short'}) : '—';
+                html += `<tr>
+                    <td style="padding:4px 8px;color:#94a3b8;">${i+1}</td>
+                    <td style="padding:4px 8px;font-family:monospace;font-size:.75rem;font-weight:600;">${esc(r.EMPCD)}</td>
+                    <td style="padding:4px 8px;" class="vni-font">${esc(r.FULL_NAME||'')}</td>
+                    <td style="padding:4px 8px;font-size:.72rem;color:#64748b;">${esc(loc)}</td>
+                    <td style="padding:4px 8px;font-size:.75rem;color:#64748b;white-space:nowrap;">${dt}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            document.getElementById('optModalBody').innerHTML = html;
+        } catch(e) {
+            document.getElementById('optModalBody').innerHTML = '<div class="text-danger p-3">Lỗi kết nối</div>';
+        }
+    });
+});
+
+function esc(s) { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 document.querySelectorAll('.sa-load-text').forEach(btn => {
     btn.addEventListener('click', async () => {

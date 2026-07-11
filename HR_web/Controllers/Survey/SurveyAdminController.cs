@@ -189,6 +189,57 @@ public class SurveyAdminController : BaseController
         return Json(new { success = true, data });
     }
 
+    // GET /SurveyAdmin/ReportOptionRespondents?optId=  (AJAX)
+    [HttpGet]
+    public async Task<IActionResult> ReportOptionRespondents(int optId)
+    {
+        var data = await _report.GetOptionRespondentsAsync(optId);
+        return Json(new { success = true, data });
+    }
+
+    // GET /SurveyAdmin/ReportOptionExport?optId=&optionText=
+    [HttpGet]
+    public async Task<IActionResult> ReportOptionExport(int optId, string? optionText)
+    {
+        var data = await _report.GetOptionRespondentsAsync(optId);
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Danh sách");
+
+        string[] headers = { "STT", "Mã NV", "Họ tên", "Phòng ban", "Dây chuyền", "Công đoạn", "Nộp lúc" };
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var c = ws.Cell(1, i + 1);
+            c.Value = headers[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#1e3a5f");
+            c.Style.Font.FontColor = XLColor.White;
+        }
+
+        int row = 2, stt = 1;
+        foreach (var p in data)
+        {
+            ws.Cell(row, 1).Value = stt++;
+            ws.Cell(row, 2).Value = p.EMPCD;
+            ws.Cell(row, 3).Value = p.FULL_NAME ?? "";
+            ws.Cell(row, 4).Value = p.DEPTCD ?? "";
+            ws.Cell(row, 5).Value = p.LINECD ?? "";
+            ws.Cell(row, 6).Value = p.WORKCD ?? "";
+            ws.Cell(row, 7).Value = p.SUBMIT_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
+            row++;
+        }
+
+        int[] widths = { 6, 14, 26, 14, 14, 14, 18 };
+        for (int i = 0; i < widths.Length; i++) ws.Column(i + 1).Width = widths[i];
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        var safeName = string.IsNullOrWhiteSpace(optionText) ? $"Option_{optId}" : optionText.Length > 30 ? optionText[..30] : optionText;
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"DapAn_{safeName}_{DateTime.Now:yyyyMMdd}.xlsx");
+    }
+
     // GET /SurveyAdmin/Participants/5?deptcd=&linecd=&workcd=&empcd=&status=&page=
     public async Task<IActionResult> Participants(int id, string? deptcd, string? linecd,
         string? workcd, string? empcd, string? status, int page = 1)

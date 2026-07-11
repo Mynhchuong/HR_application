@@ -204,6 +204,29 @@ public class SurveyReportService
     }
 
     // ═══════════════════════════════════════════════════════════════
+    //  OPTION RESPONDENTS: ai đã chọn đáp án này
+    // ═══════════════════════════════════════════════════════════════
+    public async Task<List<SurveyOptionRespondentModel>> GetOptionRespondentsAsync(int optionId)
+    {
+        const string sql = @"
+            SELECT R.EMPCD, EC.CNAME AS FULL_NAME, EC.DEPTCD, EC.LINECD, EC.WORKCD, R.SUBMIT_DT
+              FROM HRMS.HR_SURVEY_ANSWER A
+              JOIN HRMS.HR_SURVEY_RESPONSE R ON R.ID = A.RESPONSE_ID
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = R.EMPCD
+             WHERE INSTR(',' || A.ANSWER_OPTION_IDS || ',', ',' || TO_CHAR(:OPT_ID) || ',') > 0
+             ORDER BY EC.DEPTCD, EC.LINECD, EC.EMPCD";
+        return await _db.ExecuteQueryAsync(sql, r => new SurveyOptionRespondentModel
+        {
+            EMPCD     = r["EMPCD"]?.ToString() ?? "",
+            FULL_NAME = r["FULL_NAME"] as string,
+            DEPTCD    = r["DEPTCD"]   as string,
+            LINECD    = r["LINECD"]   as string,
+            WORKCD    = r["WORKCD"]   as string,
+            SUBMIT_DT = r["SUBMIT_DT"] as DateTime?,
+        }, new OracleParameter("OPT_ID", optionId));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     //  QUIZ report: score per user + distribution
     // ═══════════════════════════════════════════════════════════════
     public async Task<SurveyReportQuizModel?> GetQuizReportAsync(int surveyId)
@@ -303,6 +326,9 @@ public class SurveyReportService
             innerSql = @"
                     SELECT EC.EMPCD, EC.CNAME AS FULL_NAME,
                            EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                           (SELECT MIN(EA1.DEPTNM) FROM HRMS.EAM410 EA1 WHERE EA1.DEPTCD = EC.DEPTCD AND EA1.USEYN = 'Y') AS DEPT_NAME,
+                           (SELECT MIN(EA2.TEAMNM) FROM HRMS.EAM410 EA2 WHERE EA2.LINECD = EC.LINECD AND EA2.USEYN = 'Y') AS LINE_NAME,
+                           (SELECT MIN(EA3.WORKNM) FROM HRMS.EAM410 EA3 WHERE EA3.WORKCD = EC.WORKCD AND EA3.USEYN = 'Y') AS WORK_NAME,
                            NVL(RESP.STATUS,'NOT_STARTED') AS STATUS,
                            RESP.SCORE, RESP.MAX_SCORE, RESP.IS_PASS,
                            RESP.SUBMIT_DT, RESP.INST_DT AS START_DT
@@ -330,6 +356,9 @@ public class SurveyReportService
             innerSql = @"
                     SELECT R.EMPCD, EC.CNAME AS FULL_NAME,
                            EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                           (SELECT MIN(EA1.DEPTNM) FROM HRMS.EAM410 EA1 WHERE EA1.DEPTCD = EC.DEPTCD AND EA1.USEYN = 'Y') AS DEPT_NAME,
+                           (SELECT MIN(EA2.TEAMNM) FROM HRMS.EAM410 EA2 WHERE EA2.LINECD = EC.LINECD AND EA2.USEYN = 'Y') AS LINE_NAME,
+                           (SELECT MIN(EA3.WORKNM) FROM HRMS.EAM410 EA3 WHERE EA3.WORKCD = EC.WORKCD AND EA3.USEYN = 'Y') AS WORK_NAME,
                            NVL(RESP.STATUS,'NOT_STARTED') AS STATUS,
                            RESP.SCORE, RESP.MAX_SCORE, RESP.IS_PASS,
                            RESP.SUBMIT_DT, RESP.INST_DT AS START_DT
@@ -372,6 +401,9 @@ public class SurveyReportService
             DEPTCD    = r["DEPTCD"] as string,
             LINECD    = r["LINECD"] as string,
             WORKCD    = r["WORKCD"] as string,
+            DEPT_NAME = r["DEPT_NAME"] as string,
+            LINE_NAME = r["LINE_NAME"] as string,
+            WORK_NAME = r["WORK_NAME"] as string,
             STATUS    = r["STATUS"]?.ToString() ?? "NOT_STARTED",
             SCORE     = r["SCORE"]     == DBNull.Value ? null : Convert.ToDecimal(r["SCORE"]),
             MAX_SCORE = r["MAX_SCORE"] == DBNull.Value ? null : Convert.ToDecimal(r["MAX_SCORE"]),
@@ -395,12 +427,18 @@ public class SurveyReportService
         // info — ALL mode dùng ECM100 làm base, SPECIFIC mode dùng HR_SURVEY_RECIPIENT
         string infoSql = isAll
             ? @"SELECT EC.EMPCD, EC.CNAME AS FULL_NAME, EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                       (SELECT MIN(EA1.DEPTNM) FROM HRMS.EAM410 EA1 WHERE EA1.DEPTCD = EC.DEPTCD AND EA1.USEYN = 'Y') AS DEPT_NAME,
+                       (SELECT MIN(EA2.TEAMNM) FROM HRMS.EAM410 EA2 WHERE EA2.LINECD = EC.LINECD AND EA2.USEYN = 'Y') AS LINE_NAME,
+                       (SELECT MIN(EA3.WORKNM) FROM HRMS.EAM410 EA3 WHERE EA3.WORKCD = EC.WORKCD AND EA3.USEYN = 'Y') AS WORK_NAME,
                        NVL(RESP.STATUS,'NOT_STARTED') AS STATUS,
                        RESP.SCORE, RESP.MAX_SCORE, RESP.IS_PASS, RESP.SUBMIT_DT, RESP.INST_DT AS START_DT
                   FROM HRMS.ECM100 EC
                   LEFT JOIN HRMS.HR_SURVEY_RESPONSE RESP ON RESP.SURVEY_ID = :SID AND RESP.EMPCD = EC.EMPCD
                  WHERE EC.EMPCD = :EMPCD AND ROWNUM = 1"
             : @"SELECT R.EMPCD, EC.CNAME AS FULL_NAME, EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                       (SELECT MIN(EA1.DEPTNM) FROM HRMS.EAM410 EA1 WHERE EA1.DEPTCD = EC.DEPTCD AND EA1.USEYN = 'Y') AS DEPT_NAME,
+                       (SELECT MIN(EA2.TEAMNM) FROM HRMS.EAM410 EA2 WHERE EA2.LINECD = EC.LINECD AND EA2.USEYN = 'Y') AS LINE_NAME,
+                       (SELECT MIN(EA3.WORKNM) FROM HRMS.EAM410 EA3 WHERE EA3.WORKCD = EC.WORKCD AND EA3.USEYN = 'Y') AS WORK_NAME,
                        NVL(RESP.STATUS,'NOT_STARTED') AS STATUS,
                        RESP.SCORE, RESP.MAX_SCORE, RESP.IS_PASS, RESP.SUBMIT_DT, RESP.INST_DT AS START_DT
                   FROM HRMS.HR_SURVEY_RECIPIENT R
@@ -415,6 +453,9 @@ public class SurveyReportService
             DEPTCD    = r["DEPTCD"] as string,
             LINECD    = r["LINECD"] as string,
             WORKCD    = r["WORKCD"] as string,
+            DEPT_NAME = r["DEPT_NAME"] as string,
+            LINE_NAME = r["LINE_NAME"] as string,
+            WORK_NAME = r["WORK_NAME"] as string,
             STATUS    = r["STATUS"]?.ToString() ?? "NOT_STARTED",
             SCORE     = r["SCORE"]     == DBNull.Value ? null : Convert.ToDecimal(r["SCORE"]),
             MAX_SCORE = r["MAX_SCORE"] == DBNull.Value ? null : Convert.ToDecimal(r["MAX_SCORE"]),
@@ -471,7 +512,9 @@ public class SurveyReportService
         // answers (if any response)
         var answers = new List<SurveyAnswerModel>();
         const string ansSql = @"
-            SELECT A.QUESTION_ID, A.ANSWER_OPTION_IDS, A.ANSWER_TEXT, A.ANSWER_NUMBER
+            SELECT A.QUESTION_ID, A.ANSWER_OPTION_IDS,
+                   DBMS_LOB.SUBSTR(A.ANSWER_TEXT, 4000, 1) AS ANSWER_TEXT,
+                   A.ANSWER_NUMBER
               FROM HRMS.HR_SURVEY_ANSWER A
               JOIN HRMS.HR_SURVEY_RESPONSE R ON R.ID = A.RESPONSE_ID
              WHERE R.SURVEY_ID = :SID AND R.EMPCD = :EMPCD";

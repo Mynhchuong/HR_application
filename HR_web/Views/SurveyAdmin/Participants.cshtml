@@ -175,7 +175,7 @@
                                 <td style="color:#94a3b8;font-size:.72rem;">@(stt++)</td>
                                 <td style="font-family:monospace;font-size:.75rem;font-weight:600;">@p.EMPCD</td>
                                 <td class="emp-name-cell">@p.FULL_NAME</td>
-                                <td style="font-size:.72rem;color:#64748b;">@string.Join(" / ", new[]{ p.DEPTCD, p.LINECD, p.WORKCD }.Where(x => !string.IsNullOrEmpty(x)))</td>
+                                <td style="font-size:.72rem;color:#64748b;">@string.Join(" / ", new[]{ p.DEPT_NAME ?? p.DEPTCD, p.LINE_NAME ?? p.LINECD, p.WORK_NAME ?? p.WORKCD }.Where(x => !string.IsNullOrEmpty(x)))</td>
                                 <td><span class="status-pill" style="@StatusStyle(p.STATUS)">@StatusLabel(p.STATUS)</span></td>
                                 @if (isQuiz)
                                 {
@@ -251,23 +251,33 @@ const LINE_URL    = '@Url.Action("GetLineByDept", "Dropdown")';
 const WORK_URL    = '@Url.Action("GetWorkByLine", "Dropdown")';
 
 // ── Row click → modal ────────────────────────────────────────────────────────
-const detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
 document.querySelectorAll('.emp-row').forEach(tr => {
     tr.addEventListener('click', () => openDetail(tr.dataset.empcd));
 });
 
 async function openDetail(empcd) {
+    const modalEl = document.getElementById('detailModal');
+    const detailModal = bootstrap.Modal.getOrCreateInstance(modalEl);
     document.getElementById('detailModalTitle').textContent = 'Câu trả lời — ' + empcd;
     document.getElementById('detailModalBody').innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div></div>';
     detailModal.show();
     try {
         const res = await fetch(ANSWERS_URL + '?surveyId=' + SURVEY_ID + '&empcd=' + encodeURIComponent(empcd));
-        const j   = await res.json();
+        if (!res.ok) {
+            document.getElementById('detailModalBody').innerHTML = '<div class="text-danger p-3">Lỗi server: ' + res.status + '</div>';
+            return;
+        }
+        const j = await res.json();
         if (!j.success) {
             document.getElementById('detailModalBody').innerHTML = '<div class="text-danger p-3">' + esc(j.message || 'Lỗi tải dữ liệu') + '</div>';
             return;
         }
-        renderDetail(j.data);
+        try {
+            renderDetail(j.data);
+        } catch(renderErr) {
+            console.error('renderDetail error:', renderErr);
+            document.getElementById('detailModalBody').innerHTML = '<div class="text-danger p-3">Lỗi hiển thị: ' + esc(String(renderErr)) + '</div>';
+        }
     } catch(e) {
         document.getElementById('detailModalBody').innerHTML = '<div class="text-danger p-3">Lỗi kết nối</div>';
     }
@@ -275,11 +285,12 @@ async function openDetail(empcd) {
 
 function renderDetail(d) {
     const info = d.INFO;
+    if (!info) throw new Error('Không có dữ liệu INFO');
     const statusLabel = { SUBMITTED:'Đã nộp', AUTO_SUBMITTED:'Tự nộp', ILLITERATE_SKIP:'Mù chữ', IN_PROGRESS:'Đang làm', NOT_STARTED:'Chưa làm' };
     const answerMap = {};
     (d.ANSWERS || []).forEach(a => { answerMap[a.QUESTION_ID] = a; });
 
-    const loc = [info.DEPTCD, info.LINECD, info.WORKCD].filter(Boolean).join(' / ');
+    const loc = [info.DEPT_NAME || info.DEPTCD, info.LINE_NAME || info.LINECD, info.WORK_NAME || info.WORKCD].filter(Boolean).join(' / ');
     let html = `<div class="sp-info-chips">
         <span class="sp-chip" style="font-family:monospace;font-weight:700;">${esc(info.EMPCD)}</span>
         <span class="sp-chip emp-name-cell">${esc(info.FULL_NAME || '—')}</span>

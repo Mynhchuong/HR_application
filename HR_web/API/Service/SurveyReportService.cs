@@ -46,6 +46,14 @@ public class SurveyReportService
         return r?.success == true ? r.data ?? new() : new();
     }
 
+    public async Task<List<SurveyOptionRespondentModel>> GetOptionRespondentsAsync(int optionId)
+    {
+        var r = await _api.GetAsync<R<List<SurveyOptionRespondentModel>>>(
+            "SurveyAdmin/report/option-respondents",
+            $"optId={optionId}");
+        return r?.success == true ? r.data ?? new() : new();
+    }
+
     public async Task<SurveyParticipantPageModel> GetParticipantsAsync(
         int surveyId, string? deptcd, string? linecd, string? workcd, string? empcd, string? status, int page, int pageSize)
     {

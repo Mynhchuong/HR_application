@@ -73,6 +73,14 @@ public class SurveyAdminController : ControllerBase
         return Ok(new { success = true, data });
     }
 
+    // GET /apiHR/SurveyAdmin/report/option-respondents?optId=
+    [HttpGet("report/option-respondents")]
+    public async Task<IActionResult> OptionRespondents([FromQuery] int optId)
+    {
+        var data = await _report.GetOptionRespondentsAsync(optId);
+        return Ok(new { success = true, data });
+    }
+
     // GET /apiHR/SurveyAdmin/list?status=DRAFT&type=QUIZ&search=abc
     [HttpGet("list")]
     public async Task<IActionResult> List([FromQuery] string? status, [FromQuery] string? type, [FromQuery] string? search)

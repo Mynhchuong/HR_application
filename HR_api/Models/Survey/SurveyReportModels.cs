@@ -48,6 +48,16 @@ public class SurveyReportTextAnswerModel
     public DateTime? INST_DT     { get; set; }
 }
 
+public class SurveyOptionRespondentModel
+{
+    public string    EMPCD     { get; set; } = "";
+    public string?   FULL_NAME { get; set; }
+    public string?   DEPTCD    { get; set; }
+    public string?   LINECD    { get; set; }
+    public string?   WORKCD    { get; set; }
+    public DateTime? SUBMIT_DT { get; set; }
+}
+
 public class SurveyReportQuizModel
 {
     public int      SURVEY_ID  { get; set; }
@@ -90,6 +100,9 @@ public class SurveyParticipantModel
     public string?   DEPTCD    { get; set; }
     public string?   LINECD    { get; set; }
     public string?   WORKCD    { get; set; }
+    public string?   DEPT_NAME { get; set; }
+    public string?   LINE_NAME { get; set; }
+    public string?   WORK_NAME { get; set; }
     public string    STATUS    { get; set; } = "NOT_STARTED";
     public decimal?  SCORE     { get; set; }
     public decimal?  MAX_SCORE { get; set; }

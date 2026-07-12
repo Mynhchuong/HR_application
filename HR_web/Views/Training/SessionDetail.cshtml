@@ -1,0 +1,197 @@
+@{
+    ViewData["Title"] = "Điểm danh Buổi học";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var empCd = ViewBag.EmpCd as string;
+    var sessionId = ViewBag.SessionId;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Back to Class Detail -->
+    <div class="mb-4">
+        <a id="back-link" href="#" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
+            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
+            Trở lại chi tiết lớp học
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-12 col-md-8 col-lg-6 mx-auto">
+            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 20px;">
+                <!-- Header Status Area -->
+                <div class="card-header border-0 bg-primary text-white p-4 text-center position-relative">
+                    <span class="material-symbols-rounded position-absolute opacity-10 end-0 bottom-0" style="font-size: 8rem; transform: translate(10%, 10%);">qr_code_scanner</span>
+                    <h3 class="fw-bold mb-1" id="session-title">Đang tải buổi học...</h3>
+                    <p class="mb-0 opacity-75" id="class-title">Đang tải tên lớp học...</p>
+                </div>
+                
+                <!-- Body Detail -->
+                <div class="card-body p-4">
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h5 class="fw-bold mb-3 text-dark">Thông tin buổi học</h5>
+                            
+                            <div class="list-group list-group-flush">
+                                <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                                    <span class="text-muted d-flex align-items-center gap-2">
+                                        <span class="material-symbols-rounded text-primary">calendar_month</span>
+                                        Ngày học
+                                    </span>
+                                    <span class="fw-bold text-dark" id="session-date">-</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                                    <span class="text-muted d-flex align-items-center gap-2">
+                                        <span class="material-symbols-rounded text-primary">schedule</span>
+                                        Thời gian
+                                    </span>
+                                    <span class="fw-bold text-dark" id="session-time">-</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                                    <span class="text-muted d-flex align-items-center gap-2">
+                                        <span class="material-symbols-rounded text-primary">pin_drop</span>
+                                        Địa điểm / Phòng học
+                                    </span>
+                                    <span class="fw-bold text-dark" id="session-location">-</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                                    <span class="text-muted d-flex align-items-center gap-2">
+                                        <span class="material-symbols-rounded text-primary">info</span>
+                                        Trạng thái buổi học
+                                    </span>
+                                    <span class="badge bg-light text-dark border px-3 py-2 rounded-pill" id="session-status">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Attendance Checkin Status Card -->
+                    <div class="card border p-4 mb-3 text-center" style="border-radius: 16px; background-color: #f8f9fa;">
+                        <h6 class="text-muted small fw-bold uppercase mb-2">Trạng thái điểm danh của bạn</h6>
+                        <h3 class="fw-bold mb-3" id="attendance-status">Đang tải...</h3>
+                        
+                        <div id="checkin-action-area" class="d-none">
+                            <button onclick="performCheckIn()" class="btn btn-primary w-100 py-3 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm">
+                                <span class="material-symbols-rounded">check_circle</span>
+                                Bấm điểm danh (GPS)
+                            </button>
+                            <p class="small text-muted mt-2 mb-0">Hệ thống sẽ lấy toạ độ GPS để xác minh vị trí phòng học.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            getSessionDetail: '@Url.Action("GetSessionDetail", "Training")',
+            sessionCheckIn: '@Url.Action("SessionCheckIn", "Training")',
+            classDetail: '@Url.Action("ClassDetail", "Training", new { id = "__ID__" })'
+        };
+        const empCd = '@empCd';
+        const sessionId = @sessionId;
+        let sessionData = null;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadSessionDetail();
+        });
+
+        function loadSessionDetail() {
+            fetch(`${window.TRAINING_URLS.getSessionDetail}?sessionId=${sessionId}&empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (res.status === 403) {
+                        document.querySelector('.container-fluid').innerHTML = `<div class="alert alert-danger p-4 text-center">Bạn không có quyền truy cập buổi học này!</div>`;
+                        return;
+                    }
+                    if (!res.success) {
+                        document.querySelector('.container-fluid').innerHTML = `<div class="alert alert-warning p-4 text-center">${res.message || 'Lỗi tải buổi học.'}</div>`;
+                        return;
+                    }
+
+                    sessionData = res.data;
+                    document.getElementById('back-link').href = window.TRAINING_URLS.classDetail.replace('__ID__', sessionData.CLASS_ID);
+                    
+                    renderDetails();
+                })
+                .catch(err => {
+                    window.showToast('Lỗi tải buổi học: ' + err.message, 'error');
+                });
+        }
+
+        function renderDetails() {
+            const s = sessionData;
+            document.getElementById('session-title').innerText = `Buổi ${s.SESSION_NO}: ${s.TOPIC || 'Chủ đề buổi học'}`;
+            document.getElementById('class-title').innerText = `Lớp học ID: ${s.CLASS_ID}`; // You can replace with class name if model returns it
+            document.getElementById('session-date').innerText = s.SESSION_DATE ? new Date(s.SESSION_DATE).toLocaleDateString('vi-VN') : '-';
+            document.getElementById('session-time').innerText = `${s.START_TIME || ''} - ${s.END_TIME || ''}`;
+            document.getElementById('session-location').innerText = s.LOCATION || 'Phòng học';
+            
+            let statusLabel = 'Chưa diễn ra';
+            if (s.STATUS === 'COMPLETED') statusLabel = 'Đã hoàn thành';
+            else if (s.STATUS === 'ONGOING') statusLabel = 'Đang diễn ra';
+            document.getElementById('session-status').innerText = statusLabel;
+
+            // Attendance check
+            const attWrap = document.getElementById('attendance-status');
+            const actionArea = document.getElementById('checkin-action-area');
+            
+            if (s.ATTENDANCE_STATUS) {
+                let text = s.ATTENDANCE_STATUS;
+                let color = 'text-muted';
+                
+                if (s.ATTENDANCE_STATUS === 'PRESENT') { text = 'Đã Điểm Danh (Có mặt)'; color = 'text-success'; }
+                else if (s.ATTENDANCE_STATUS === 'LATE') { text = 'Đi Muộn'; color = 'text-warning'; }
+                else if (s.ATTENDANCE_STATUS === 'ABSENT') { text = 'Vắng mặt'; color = 'text-danger'; }
+                else if (s.ATTENDANCE_STATUS === 'EXCUSED') { text = 'Vắng có phép'; color = 'text-info'; }
+                
+                attWrap.className = 'fw-bold mb-3 ' + color;
+                attWrap.innerText = text;
+                actionArea.className = 'd-none'; // Hide checkin button
+            } else {
+                attWrap.className = 'fw-bold text-muted mb-3';
+                attWrap.innerText = 'Chưa điểm danh';
+                
+                // Show checkin button if session is ongoing or upcoming
+                if (s.STATUS === 'ONGOING' || s.STATUS === 'UPCOMING') {
+                    actionArea.className = 'd-block';
+                } else {
+                    actionArea.className = 'd-none';
+                }
+            }
+        }
+
+        function performCheckIn() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    sendCheckIn(pos.coords.latitude, pos.coords.longitude);
+                }, err => {
+                    sendCheckIn(null, null); // Backend handles null coords
+                });
+            } else {
+                sendCheckIn(null, null);
+            }
+        }
+
+        function sendCheckIn(lat, lon) {
+            fetch(window.TRAINING_URLS.sessionCheckIn, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ SESSION_ID: sessionId, LATITUDE: lat, LONGITUDE: lon })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast('Điểm danh thành công!', 'success');
+                    loadSessionDetail();
+                } else {
+                    window.showToast(res.message || 'Lỗi điểm danh.', 'error');
+                }
+            })
+            .catch(err => {
+                window.showToast('Lỗi kết nối: ' + err.message, 'error');
+            });
+        }
+    </script>
+}

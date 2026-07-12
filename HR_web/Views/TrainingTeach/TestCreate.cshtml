@@ -1,0 +1,291 @@
+@{
+    ViewData["Title"] = "Tạo đề thi mới";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var empCd = ViewBag.EmpCd as string;
+    var classId = ViewBag.ClassId;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "TrainingTeach")" class="text-decoration-none">Giảng dạy</a></li>
+            <li class="breadcrumb-item"><a href="@Url.Action("ClassManage", "TrainingTeach", new { id = classId })" class="text-decoration-none">Quản lý lớp học</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Tạo đề thi</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-12 col-lg-8 mx-auto">
+            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
+                <h4 class="fw-bold text-dark mb-4">Cấu hình Đề kiểm tra mới</h4>
+                
+                <form id="testConfigForm">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted">Tiêu đề bài kiểm tra</label>
+                            <input type="text" id="test-title" class="form-control py-2.5" placeholder="Ví dụ: Kiểm tra cuối khoá An toàn Lao động..." required style="border-radius: 8px;" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted">Mô tả bài kiểm tra</label>
+                            <textarea id="test-desc" class="form-control" rows="2" placeholder="Nhập mô tả hoặc hướng dẫn làm bài..." style="border-radius: 8px;"></textarea>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-bold text-muted">Thời gian làm bài (Phút)</label>
+                            <input type="number" id="test-duration" class="form-control py-2.5" value="45" min="5" style="border-radius: 8px;" />
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-bold text-muted">Điểm sàn đạt (Pass score)</label>
+                            <input type="number" id="test-pass-score" class="form-control py-2.5" value="5.0" step="0.5" min="0" style="border-radius: 8px;" />
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-bold text-muted">Số lượt thi tối đa</label>
+                            <input type="number" id="test-max-attempts" class="form-control py-2.5" value="1" min="1" style="border-radius: 8px;" />
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Questions Creator Section -->
+            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0 text-dark">Danh sách câu hỏi</h5>
+                    <button onclick="addQuestionCard()" class="btn btn-sm btn-success fw-bold rounded-2">
+                        + Thêm câu hỏi
+                    </button>
+                </div>
+
+                <div id="questions-builder-container">
+                    <!-- Dynamic Question Cards -->
+                </div>
+
+                <div class="d-grid mt-4">
+                    <button type="button" onclick="saveTestWithQuestions()" class="btn btn-primary py-3 rounded-3 fw-bold shadow-sm">
+                        <span id="save-spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                        Lưu và Xuất bản đề thi
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .builder-question-card {
+        border-radius: 12px;
+        border: 1px solid #e9ecef;
+        background-color: #f8f9fa;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            testSave: '@Url.Action("TestSave", "TrainingTeach")',
+            testQuestionsSave: '@Url.Action("TestQuestionsSave", "TrainingTeach")',
+            testPublish: '@Url.Action("TestPublish", "TrainingTeach")',
+            classManage: '@Url.Action("ClassManage", "TrainingTeach", new { id = classId })'
+        };
+        const empCd = '@empCd';
+        const classId = @classId;
+
+        let questionCount = 0;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // Add initial question card
+            addQuestionCard();
+        });
+
+        function addQuestionCard() {
+            questionCount++;
+            const container = document.getElementById('questions-builder-container');
+            const qId = questionCount;
+
+            const card = document.createElement('div');
+            card.className = 'card builder-question-card p-3 mb-3 position-relative';
+            card.id = `q_card_${qId}`;
+            card.innerHTML = `
+                <button type="button" onclick="removeQuestionCard(${qId})" class="btn-close position-absolute end-0 top-0 m-3" aria-label="Close"></button>
+                
+                <div class="row g-3">
+                    <div class="col-12 col-md-3">
+                        <label class="form-label small fw-bold text-muted">Loại câu hỏi</label>
+                        <select class="form-select" id="q_type_${qId}" onchange="toggleOptionsArea(${qId})" style="border-radius: 8px;">
+                            <option value="SINGLE">Trắc nghiệm 1 đáp án</option>
+                            <option value="MULTI">Trắc nghiệm nhiều đáp án</option>
+                            <option value="TEXT">Tự luận viết tay</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-7">
+                        <label class="form-label small fw-bold text-muted">Nội dung câu hỏi</label>
+                        <input type="text" id="q_text_${qId}" class="form-control" placeholder="Nhập câu hỏi..." style="border-radius: 8px;" />
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <label class="form-label small fw-bold text-muted">Điểm số</label>
+                        <input type="number" id="q_points_${qId}" class="form-control" value="1.0" min="0.5" step="0.5" style="border-radius: 8px;" />
+                    </div>
+                    
+                    <!-- Options area (hidden for text/essay question) -->
+                    <div class="col-12" id="q_options_area_${qId}">
+                        <label class="form-label small fw-bold text-muted d-block mb-2">Các đáp án lựa chọn (Đánh dấu tick/radio vào câu đúng)</label>
+                        <div id="options_container_${qId}">
+                            <!-- Initial options -->
+                            ${renderOptionRow(qId, 1)}
+                            ${renderOptionRow(qId, 2)}
+                        </div>
+                        <button type="button" onclick="addOptionRow(${qId})" class="btn btn-xs btn-outline-success mt-2">
+                            + Thêm đáp án
+                        </button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        }
+
+        function removeQuestionCard(qId) {
+            const card = document.getElementById(`q_card_${qId}`);
+            if (card) card.remove();
+        }
+
+        function toggleOptionsArea(qId) {
+            const type = document.getElementById(`q_type_${qId}`).value;
+            const area = document.getElementById(`q_options_area_${qId}`);
+            if (type === 'TEXT') {
+                area.classList.add('d-none');
+            } else {
+                area.classList.remove('d-none');
+            }
+        }
+
+        function renderOptionRow(qId, optId) {
+            return `
+                <div class="input-group mb-2" id="q_${qId}_opt_row_${optId}">
+                    <div class="input-group-text bg-white">
+                        <input type="checkbox" class="form-check-input mt-0 correct-indicator-${qId}" value="${optId}">
+                    </div>
+                    <input type="text" class="form-control opt-text-${qId}" placeholder="Nhập đáp án..." style="border-radius: 0 8px 8px 0;">
+                    <button type="button" onclick="removeOptionRow(${qId}, ${optId})" class="btn btn-outline-danger">Xóa</button>
+                </div>
+            `;
+        }
+
+        function addOptionRow(qId) {
+            const container = document.getElementById(`options_container_${qId}`);
+            const optId = container.children.length + 1;
+            const row = document.createElement('div');
+            row.innerHTML = renderOptionRow(qId, optId);
+            container.appendChild(row.firstElementChild);
+        }
+
+        function removeOptionRow(qId, optId) {
+            const row = document.getElementById(`q_${qId}_opt_row_${optId}`);
+            if (row) row.remove();
+        }
+
+        function saveTestWithQuestions() {
+            const title = document.getElementById('test-title').value.trim();
+            const desc = document.getElementById('test-desc').value.trim();
+            const duration = parseInt(document.getElementById('test-duration').value);
+            const passScore = parseFloat(document.getElementById('test-pass-score').value);
+            const maxAttempts = parseInt(document.getElementById('test-max-attempts').value);
+
+            if (!title) {
+                window.showToast('Vui lòng nhập tiêu đề bài thi!', 'warning');
+                return;
+            }
+
+            const spinner = document.getElementById('save-spinner');
+            spinner.classList.remove('d-none');
+
+            // 1. Save Test Config
+            fetch(window.TRAINING_URLS.testSave, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    CLASS_ID: classId,
+                    IS_TEMPLATE: 0,
+                    TITLE: title,
+                    DESCRIPTION: desc || null,
+                    DURATION_MINUTES: duration,
+                    PASS_SCORE: passScore,
+                    MAX_ATTEMPTS: maxAttempts
+                })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) {
+                    throw new Error(res.message || 'Lỗi lưu thông tin bài thi.');
+                }
+                const savedTestId = res.data.ID;
+
+                // 2. Prepare questions payload
+                const questionsPayload = [];
+                const cards = document.querySelectorAll('.builder-question-card');
+                
+                cards.forEach((card, idx) => {
+                    const cardId = card.id.replace('q_card_', '');
+                    const type = document.getElementById(`q_type_${cardId}`).value;
+                    const text = document.getElementById(`q_text_${cardId}`).value.trim();
+                    const points = parseFloat(document.getElementById(`q_points_${cardId}`).value);
+
+                    const qItem = {
+                        QUESTION_TEXT: text,
+                        QUESTION_TYPE: type,
+                        POINTS: points,
+                        DISPLAY_ORDER: idx + 1,
+                        OPTIONS: []
+                    };
+
+                    if (type !== 'TEXT') {
+                        const optTexts = card.querySelectorAll(`.opt-text-${cardId}`);
+                        const indicators = card.querySelectorAll(`.correct-indicator-${cardId}`);
+                        
+                        optTexts.forEach((optInput, optIdx) => {
+                            qItem.OPTIONS.push({
+                                OPTION_TEXT: optInput.value.trim(),
+                                IS_CORRECT: indicators[optIdx].checked ? 1 : 0,
+                                DISPLAY_ORDER: optIdx + 1
+                            });
+                        });
+                    }
+
+                    questionsPayload.push(qItem);
+                });
+
+                // Save questions
+                return fetch(window.TRAINING_URLS.testQuestionsSave, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        TEST_ID: savedTestId,
+                        QUESTIONS: questionsPayload
+                    })
+                }).then(r => r.json()).then(resQ => {
+                    if (!resQ.success) throw new Error(resQ.message || 'Lỗi lưu câu hỏi.');
+                    
+                    // 3. Publish test
+                    return fetch(window.TRAINING_URLS.testPublish, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ID: savedTestId })
+                    }).then(r => r.json());
+                });
+            })
+            .then(resPub => {
+                spinner.classList.add('d-none');
+                if (resPub && resPub.success) {
+                    window.showToast('Tạo và Xuất bản đề thi thành công!', 'success');
+                    setTimeout(() => {
+                        window.location.href = window.TRAINING_URLS.classManage;
+                    }, 1500);
+                } else {
+                    window.showToast((resPub && resPub.message) || 'Lỗi xuất bản đề thi.', 'error');
+                }
+            })
+            .catch(err => {
+                spinner.classList.add('d-none');
+                window.showToast(err.message || 'Lỗi hệ thống', 'error');
+            });
+        }
+    </script>
+}

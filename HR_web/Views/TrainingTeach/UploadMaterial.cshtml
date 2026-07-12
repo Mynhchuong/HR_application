@@ -1,0 +1,140 @@
+@{
+    ViewData["Title"] = "Tải lên tài liệu";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var empCd = ViewBag.EmpCd as string;
+    var classId = ViewBag.ClassId;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "TrainingTeach")" class="text-decoration-none">Giảng dạy</a></li>
+            <li class="breadcrumb-item"><a href="@Url.Action("ClassManage", "TrainingTeach", new { id = classId })" class="text-decoration-none">Quản lý lớp học</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Tải lên tài liệu</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-12 col-md-8 col-lg-6 mx-auto">
+            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+                <h4 class="fw-bold text-dark mb-3">Tải lên tài liệu bài học</h4>
+                
+                <form id="materialForm">
+                    <input type="hidden" id="mat-class-id" value="@classId" />
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Tiêu đề tài liệu</label>
+                        <input type="text" id="mat-title" class="form-control" placeholder="Ví dụ: Slide bài giảng ATLĐ, Quy chuẩn 5S..." required style="border-radius: 8px;" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Chọn file tài liệu (PDF, DOCX, MP4, IMG - Tối đa 500MB)</label>
+                        <input type="file" id="mat-file" class="form-control" required style="border-radius: 8px;" />
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="mat-required" checked>
+                            <label class="form-check-label small fw-bold text-muted" for="mat-required">Học viên bắt buộc phải đọc/xem tài liệu này</label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Thứ tự hiển thị</label>
+                        <input type="number" id="mat-order" class="form-control" value="1" min="1" style="border-radius: 8px;" />
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="button" onclick="uploadMaterialSubmit()" class="btn btn-success py-2.5 rounded-3 fw-bold shadow-sm">
+                            <span id="mat-upload-spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                            Tải lên & Lưu tài liệu
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            saveMaterial: '@Url.Action("SaveMaterial", "TrainingTeach")',
+            classManage: '@Url.Action("ClassManage", "TrainingTeach", new { id = classId })'
+        };
+        const empCd = '@empCd';
+        const classId = @classId;
+
+        function uploadMaterialSubmit() {
+            const title = document.getElementById('mat-title').value.trim();
+            const fileInput = document.getElementById('mat-file');
+            const isRequired = document.getElementById('mat-required').checked ? 1 : 0;
+            const order = document.getElementById('mat-order').value;
+
+            if (!title) {
+                window.showToast('Vui lòng nhập tiêu đề tài liệu!', 'warning');
+                return;
+            }
+            if (fileInput.files.length === 0) {
+                window.showToast('Vui lòng chọn file tài liệu tải lên!', 'warning');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const spinner = document.getElementById('mat-upload-spinner');
+            spinner.classList.remove('d-none');
+
+            // Bước 1: Upload file thông qua FileController của ứng dụng
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('level', 'CLASS');
+            formData.append('classId', classId);
+
+            fetch('/File/UploadTrainingMaterial', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(resUpload => {
+                if (!resUpload.success) {
+                    spinner.classList.add('d-none');
+                    window.showToast(resUpload.message || 'Lỗi tải file lên máy chủ.', 'error');
+                    return;
+                }
+
+                // Bước 2: Lưu metadata tài liệu vào API bằng AJAX
+                return fetch(window.TRAINING_URLS.saveMaterial, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        CLASS_ID: parseInt(classId),
+                        MATERIAL_LEVEL: 'CLASS',
+                        TITLE: title,
+                        FILE_NAME: resUpload.fileName,
+                        FILE_TYPE: resUpload.fileType,
+                        FILE_URL: resUpload.url,
+                        IS_REQUIRED: isRequired,
+                        DISPLAY_ORDER: parseInt(order)
+                    })
+                });
+            })
+            .then(r => r.json())
+            .then(resMeta => {
+                spinner.classList.add('d-none');
+                if (resMeta && resMeta.success) {
+                    window.showToast('Đã tải lên và lưu tài liệu lớp học thành công!', 'success');
+                    setTimeout(() => {
+                        window.location.href = window.TRAINING_URLS.classManage;
+                    }, 1500);
+                } else {
+                    window.showToast((resMeta && resMeta.message) || 'Lỗi lưu metadata tài liệu.', 'error');
+                }
+            })
+            .catch(err => {
+                spinner.classList.add('d-none');
+                window.showToast('Lỗi kết nối: ' + err.message, 'error');
+            });
+        }
+    </script>
+}

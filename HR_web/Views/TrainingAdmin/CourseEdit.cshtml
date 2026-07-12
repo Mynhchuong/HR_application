@@ -1,0 +1,116 @@
+@{
+    ViewData["Title"] = "Cập nhật Khóa học";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var courseId = ViewBag.CourseId;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="@Url.Action("Index", "TrainingAdmin")" class="text-decoration-none">Cổng quản trị</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Sửa khóa học</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-12 col-md-8 col-lg-6 mx-auto">
+            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+                <h4 class="fw-bold text-dark mb-4">Cập nhật Giáo trình Khóa học</h4>
+                
+                <form id="courseEditForm">
+                    <input type="hidden" id="edit-course-id" value="@courseId" />
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Mã Khóa học</label>
+                        <input type="text" id="course-code" class="form-control" readonly style="border-radius: 8px;" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Tên Khóa học (Giáo trình)</label>
+                        <input type="text" id="course-title" class="form-control py-2.5" required style="border-radius: 8px;" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Mô tả giáo trình</label>
+                        <textarea id="course-desc" class="form-control" rows="4" style="border-radius: 8px;"></textarea>
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="button" onclick="submitEditCourse()" class="btn btn-primary py-2.5 rounded-3 fw-bold shadow-sm">
+                            <span id="edit-spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                            Lưu thay đổi
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            getCourses: '@Url.Action("GetCourses", "TrainingAdmin")',
+            saveCourse: '@Url.Action("SaveCourse", "TrainingAdmin")',
+            index: '@Url.Action("Index", "TrainingAdmin")'
+        };
+
+        const courseId = @courseId;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadCourseData();
+        });
+
+        function loadCourseData() {
+            fetch(`${window.TRAINING_URLS.getCourses}?active=1`)
+                .then(r => r.json())
+                .then(res => {
+                    const list = res.data || [];
+                    const c = list.find(x => x.ID === courseId);
+                    if (c) {
+                        document.getElementById('course-code').value = `CRS${String(c.ID).padStart(3, '0')}`;
+                        document.getElementById('course-title').value = c.TITLE;
+                        document.getElementById('course-desc').value = c.DESCRIPTION || '';
+                    } else {
+                        window.showToast('Không tìm thấy khóa học cần chỉnh sửa.', 'error');
+                    }
+                });
+        }
+
+        function submitEditCourse() {
+            const title = document.getElementById('course-title').value.trim();
+            const desc = document.getElementById('course-desc').value.trim();
+
+            if (!title) {
+                window.showToast('Vui lòng điền tên khóa học!', 'warning');
+                return;
+            }
+
+            const spinner = document.getElementById('edit-spinner');
+            spinner.classList.remove('d-none');
+
+            fetch(window.TRAINING_URLS.saveCourse, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ID: courseId, TITLE: title, DESCRIPTION: desc })
+            })
+            .then(r => r.json())
+            .then(res => {
+                spinner.classList.add('d-none');
+                if (res.success) {
+                    window.showToast('Cập nhật khóa học thành công!', 'success');
+                    setTimeout(() => {
+                        window.location.href = window.TRAINING_URLS.index;
+                    }, 1500);
+                } else {
+                    window.showToast(res.message || 'Lỗi lưu Khóa học.', 'error');
+                }
+            })
+            .catch(err => {
+                spinner.classList.add('d-none');
+                window.showToast('Lỗi kết nối: ' + err.message, 'error');
+            });
+        }
+    </script>
+}

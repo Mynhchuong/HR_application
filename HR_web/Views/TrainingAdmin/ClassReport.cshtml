@@ -1,0 +1,383 @@
+@{
+    ViewData["Title"] = "Báo cáo Lớp học";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var classId = ViewBag.ClassId;
+    var empCd = ViewBag.EmpCd as string;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="@Url.Action("Index", "TrainingAdmin")" class="text-decoration-none">Cổng quản trị</a></li>
+            <li class="breadcrumb-item"><a href="@Url.Action("ClassAssign", "TrainingAdmin", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Báo cáo lớp học</li>
+        </ol>
+    </nav>
+
+    <!-- Navigation Sub-tabs for Reports -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm" style="border-radius: 12px;">
+                <div class="card-body p-2">
+                    <ul class="nav nav-tabs nav-justified border-0" id="reportTabs" role="tablist">
+                        <li class="nav-item">
+                            <button onclick="switchTab('class')" class="nav-link active py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-overview">
+                                <span class="material-symbols-rounded text-primary">analytics</span>
+                                Tổng quan Lớp học
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button onclick="switchTab('test')" class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-test">
+                                <span class="material-symbols-rounded text-warning">quiz</span>
+                                Báo cáo Bài thi
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button onclick="switchTab('satisfaction')" class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-satisfaction">
+                                <span class="material-symbols-rounded text-success">sentiment_satisfied</span>
+                                Khảo sát học viên
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Body Container -->
+    <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;" id="report-card">
+        <div id="reportContent" class="py-5 text-center">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted mb-0">Đang tải dữ liệu báo cáo...</p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .kpi-box {
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 12px;
+        padding: 1.25rem;
+        background: #f8fafc;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+    .kpi-box .val {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #0d6efd;
+    }
+    .kpi-box .lbl {
+        font-size: .8rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+        font-weight: 600;
+    }
+    .top-wrong-item {
+        border-left: 3px solid #dc3545;
+        padding: .5rem .8rem;
+        background: #fff5f5;
+        border-radius: 4px;
+        margin-bottom: .6rem;
+    }
+    #histoChart {
+        max-height: 280px;
+    }
+</style>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script>
+        window.TRAINING_URLS = {
+            class: '@Url.Action("GetReportClass", "TrainingAdmin")',
+            test: '@Url.Action("GetReportTest", "TrainingAdmin")',
+            satisfaction: '@Url.Action("GetReportSatisfaction", "TrainingAdmin")',
+            expClass: '@Url.Action("ExportClass", "TrainingAdmin")',
+            expTest: '@Url.Action("ExportTest", "TrainingAdmin")',
+            expSat: '@Url.Action("ExportSatisfaction", "TrainingAdmin")',
+            getClassTests: '@Url.Action("GetClassTests", "TrainingTeach")'
+        };
+
+        const CLASS_ID = @classId;
+        let currentTab = 'class';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            switchTab('class');
+        });
+
+        function esc(s) {
+            if (s == null) return '';
+            return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        function num(v) { 
+            return v == null ? '-' : v; 
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // Toggle active tabs class
+            document.querySelectorAll('#reportTabs button').forEach(btn => btn.classList.remove('active'));
+            if (tab === 'class') document.getElementById('tab-overview').classList.add('active');
+            else if (tab === 'test') document.getElementById('tab-test').classList.add('active');
+            else if (tab === 'satisfaction') document.getElementById('tab-satisfaction').classList.add('active');
+
+            document.getElementById('reportContent').innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted mb-0">Đang tải...</p>
+                </div>
+            `;
+
+            if (tab === 'class') loadClassReport();
+            else if (tab === 'test') loadTestSelection();
+            else if (tab === 'satisfaction') loadSatisfactionReport();
+        }
+
+        async function loadClassReport() {
+            const res = await fetch(`${window.TRAINING_URLS.class}?classId=${CLASS_ID}`);
+            const json = await res.json();
+            if (!json.success || !json.data) return renderErr('Không có dữ liệu tổng quan.');
+            
+            const d = json.data;
+            const html = `
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div>
+                        <h4 class="fw-bold mb-0 text-dark">${esc(d.CLASS_NAME)}</h4>
+                        <span class="text-muted small">${esc(d.COURSE_TITLE)}</span>
+                    </div>
+                    <a href="${window.TRAINING_URLS.expClass}?classId=${CLASS_ID}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
+                        <span class="material-symbols-rounded" style="font-size: 1.2rem;">download</span> Xuất Excel
+                    </a>
+                </div>
+                
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val">${d.ENROLLED_COUNT}</div><div class="lbl">Học viên</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${d.COMPLETED_COUNT}</div><div class="lbl">Hoàn thành</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-danger">${d.FAILED_COUNT}</div><div class="lbl">Không đạt</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-info">${d.CERTIFIED_COUNT}</div><div class="lbl">Cấp chứng chỉ</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-primary">${d.ASSIGNED_COUNT}</div><div class="lbl">Chỉ định</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-info">${d.SELF_REGISTER_COUNT}</div><div class="lbl">Tự đăng ký</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-warning">${d.DROPPED_COUNT}</div><div class="lbl">Bị gỡ lớp</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${num(d.AVG_ATTENDANCE_PERCENT?.toFixed?.(1))}%</div><div class="lbl">Chuyên cần TB</div></div></div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-12 col-lg-6">
+                        <div class="card border p-3" style="border-radius: 12px;">
+                            <h6 class="fw-bold mb-3 text-dark">Phân phối điểm bài thi cuối khoá</h6>
+                            <canvas id="histoChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="card border p-3" style="border-radius: 12px;">
+                            <h6 class="fw-bold mb-3 text-dark">Breakdown theo Tổ/Nhóm</h6>
+                            ${d.GROUP_BREAKDOWN.length === 0
+                                ? '<p class="text-muted text-center py-4 small">Lớp học này không chia Tổ/Nhóm.</p>'
+                                : `<div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead><tr><th>Tổ Nhóm</th><th>Sĩ số</th><th>Đạt</th><th>Chứng chỉ</th><th>Chuyên cần</th></tr></thead>
+                                        <tbody>${d.GROUP_BREAKDOWN.map(g => `<tr>
+                                            <td><strong>${esc(g.GROUP_NAME)}</strong></td>
+                                            <td>${g.ENROLLED}</td>
+                                            <td>${g.COMPLETED}</td>
+                                            <td>${g.CERTIFIED}</td>
+                                            <td><strong>${g.AVG_ATTENDANCE == null ? '-' : g.AVG_ATTENDANCE.toFixed(1) + '%'}</strong></td>
+                                        </tr>`).join('')}</tbody>
+                                    </table>
+                                  </div>`}
+                        </div>
+                    </div>
+                </div>`;
+            
+            document.getElementById('reportContent').innerHTML = html;
+
+            if (d.SCORE_HISTOGRAM && d.SCORE_HISTOGRAM.length > 0) {
+                new Chart(document.getElementById('histoChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: d.SCORE_HISTOGRAM.map(x => x.LABEL),
+                        datasets: [{ 
+                            data: d.SCORE_HISTOGRAM.map(x => x.COUNT), 
+                            backgroundColor: '#0d6efd',
+                            borderRadius: 6
+                        }]
+                    },
+                    options: { 
+                        plugins: { legend: { display: false } }, 
+                        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } 
+                    }
+                });
+            }
+        }
+
+        async function loadTestSelection() {
+            // Load list of tests in class first
+            const listRes = await fetch(`${window.TRAINING_URLS.getClassTests}?classId=${CLASS_ID}`);
+            const listJson = await listRes.json();
+            
+            if (!listJson.success || !listJson.data || listJson.data.length === 0) {
+                document.getElementById('reportContent').innerHTML = `
+                    <div class="text-center py-5 text-muted">
+                        <span class="material-symbols-rounded" style="font-size: 4rem;">quiz</span>
+                        <p class="mt-2 mb-0">Lớp học này chưa tổ chức bài kiểm tra nào.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const tests = listJson.data;
+            document.getElementById('reportContent').innerHTML = `
+                <div class="alert alert-info border-0 p-4 mb-4" style="border-radius: 12px;">
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <span class="material-symbols-rounded text-primary">info</span>
+                        <h6 class="fw-bold mb-0 text-dark">Chọn bài kiểm tra cần xem báo cáo</h6>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <select id="selectedTestId" class="form-select py-2 w-auto" style="border-radius: 8px; min-width: 250px;">
+                            ${tests.map(t => `<option value="${t.ID}">${t.TITLE} (${t.STATUS})</option>`).join('')}
+                        </select>
+                        <button onclick="loadTestReport()" class="btn btn-primary fw-bold px-4 py-2" style="border-radius: 8px;">Xem báo cáo</button>
+                    </div>
+                </div>
+                <div id="testReportBody"></div>
+            `;
+            
+            // Auto load first test report
+            loadTestReport();
+        }
+
+        async function loadTestReport() {
+            const testId = document.getElementById('selectedTestId')?.value;
+            if (!testId) return;
+
+            const wrap = document.getElementById('testReportBody');
+            wrap.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-warning" role="status"></div>
+                </div>
+            `;
+
+            const res = await fetch(`${window.TRAINING_URLS.test}?testId=${testId}`);
+            const json = await res.json();
+            if (!json.success || !json.data) {
+                wrap.innerHTML = '<div class="alert alert-warning">Không có dữ liệu bài thi.</div>';
+                return;
+            }
+
+            const d = json.data;
+            wrap.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0 text-dark">${esc(d.TEST_TITLE)}</h5>
+                    <a href="${window.TRAINING_URLS.expTest}?testId=${testId}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
+                        <span class="material-symbols-rounded" style="font-size: 1.2rem;">download</span> Xuất Excel
+                    </a>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val">${d.ATTEMPT_COUNT}</div><div class="lbl">Lượt làm bài</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${d.PASS_COUNT}</div><div class="lbl">Học viên Đạt</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-danger">${d.FAIL_COUNT}</div><div class="lbl">Học viên Rớt</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-primary">${num(d.AVG_SCORE?.toFixed?.(1))}</div><div class="lbl">Điểm số trung bình</div></div></div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-12 col-lg-8">
+                        <div class="card border p-3 shadow-sm rounded-3">
+                            <h6 class="fw-bold mb-3 text-dark">Bảng điểm thi học viên</h6>
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead><tr><th>Mã NV</th><th>Học tên</th><th>Điểm số</th><th>Kết quả</th><th>Ngày nộp</th></tr></thead>
+                                    <tbody>${d.SCORES.map(s => `<tr>
+                                        <td>${esc(s.EMPCD)}</td>
+                                        <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(s.EMP_NAME||'')}</td>
+                                        <td><strong>${s.SCORE == null ? '-' : s.SCORE}${s.MAX_SCORE ? '/' + s.MAX_SCORE : ''}</strong></td>
+                                        <td>${s.IS_PASS == 1 ? '<span class="badge bg-success-soft text-success">PASS</span>' : s.IS_PASS == 0 ? '<span class="badge bg-danger-soft text-danger">FAIL</span>' : '-'}</td>
+                                        <td class="text-muted small">${s.SUBMIT_DT ? new Date(s.SUBMIT_DT).toLocaleString('vi-VN') : '-'}</td>
+                                    </tr>`).join('')}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <div class="card border p-3 shadow-sm rounded-3">
+                            <h6 class="fw-bold mb-3 text-dark">Top 5 câu sai nhiều nhất</h6>
+                            ${d.TOP_WRONG_QUESTIONS.length === 0 
+                                ? '<p class="text-muted text-center py-4 small">Chưa ghi nhận câu trả lời sai.</p>' 
+                                : d.TOP_WRONG_QUESTIONS.map(q => `<div class="top-wrong-item">
+                                    <div class="small text-muted mb-1">${q.QUESTION_TYPE}</div>
+                                    <div class="small text-dark fw-bold mb-1">${esc(q.QUESTION_TEXT)}</div>
+                                    <div class="small text-danger fw-bold">${q.WRONG_COUNT}/${q.ATTEMPT_COUNT} học viên trả lời sai (${q.WRONG_PERCENT}%)</div>
+                                  </div>`).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadSatisfactionReport() {
+            const res = await fetch(`${window.TRAINING_URLS.satisfaction}?classId=${CLASS_ID}`);
+            const json = await res.json();
+            if (!json.success || !json.data) return renderErr('Không có dữ liệu đánh giá.');
+            
+            const d = json.data;
+            document.getElementById('reportContent').innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">Đánh giá khảo sát sau khóa học</h5>
+                        <span class="text-muted small">Khảo sát chất lượng đào tạo (Tổng số phản hồi: ${d.RESPONSE_COUNT})</span>
+                    </div>
+                    <a href="${window.TRAINING_URLS.expSat}?classId=${CLASS_ID}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
+                        <span class="material-symbols-rounded" style="font-size: 1.2rem;">download</span> Xuất Excel
+                    </a>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6"><div class="kpi-box"><div class="val text-success">${num(d.AVG_CONTENT?.toFixed?.(2))} / 5 ★</div><div class="lbl">📚 Chất lượng nội dung giáo trình</div></div></div>
+                    <div class="col-12 col-md-6"><div class="kpi-box"><div class="val text-primary">${num(d.AVG_ORGANIZATION?.toFixed?.(2))} / 5 ★</div><div class="lbl">🎯 Chất lượng công tác tổ chức lớp</div></div></div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-12 col-lg-6">
+                        <div class="card border p-3 shadow-sm rounded-3">
+                            <h6 class="fw-bold mb-3 text-dark">Đánh giá giảng dạy Giáo viên</h6>
+                            ${d.TEACHER_AGGREGATES.length === 0 
+                                ? '<p class="text-muted text-center py-4 small">Chưa có đánh giá về giáo viên.</p>' 
+                                : `<div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead><tr><th>Giảng viên</th><th>Điểm đánh giá</th><th>Lượt phản hồi</th></tr></thead>
+                                        <tbody>${d.TEACHER_AGGREGATES.map(t => `<tr>
+                                            <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(t.TEACHER_NAME||t.TEACHER_EMPCD)}</td>
+                                            <td><strong class="text-warning">${t.AVG_RATING.toFixed(2)}/5.0 ★</strong></td>
+                                            <td>${t.COUNT}</td>
+                                        </tr>`).join('')}</tbody>
+                                    </table>
+                                   </div>`}
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="card border p-3 shadow-sm rounded-3">
+                            <h6 class="fw-bold mb-3 text-dark">Ý kiến đóng góp từ Học viên</h6>
+                            <div style="max-height: 400px; overflow-y: auto;" class="pe-1">
+                                ${d.FEEDBACK_LIST.length === 0 
+                                    ? '<p class="text-muted text-center py-4 small">Chưa ghi nhận ý kiến đóng góp.</p>' 
+                                    : d.FEEDBACK_LIST.map(f => `<div class="border-start border-3 border-success ps-3 py-2 mb-3 bg-light rounded-2 text-dark small" style="white-space: pre-wrap;">${esc(f)}</div>`).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderErr(msg) {
+            document.getElementById('reportContent').innerHTML = `
+                <div class="alert alert-warning text-center border-0 py-4 shadow-sm" style="border-radius: 12px;">
+                    <span class="material-symbols-rounded text-warning mb-2" style="font-size: 2.5rem;">warning</span>
+                    <p class="mb-0 text-dark fw-bold">${esc(msg)}</p>
+                </div>
+            `;
+        }
+    </script>
+}

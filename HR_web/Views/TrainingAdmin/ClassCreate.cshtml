@@ -1,0 +1,397 @@
+@{
+    ViewData["Title"] = "Mở Lớp học mới";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var empCd = ViewBag.EmpCd as string;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="@Url.Action("Index", "TrainingAdmin")" class="text-decoration-none">Cổng quản trị</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Mở lớp học mới</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-12 col-lg-8 mx-auto">
+            <!-- Wizard Step Indicator -->
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between wizard-steps">
+                        <div class="step-indicator active" id="indicator-1">
+                            <span class="step-num">1</span>
+                            <span class="step-label d-none d-md-inline">Khóa học</span>
+                        </div>
+                        <div class="step-indicator" id="indicator-2">
+                            <span class="step-num">2</span>
+                            <span class="step-label d-none d-md-inline">Cấu hình</span>
+                        </div>
+                        <div class="step-indicator" id="indicator-3">
+                            <span class="step-num">3</span>
+                            <span class="step-label d-none d-md-inline">Lịch học</span>
+                        </div>
+                        <div class="step-indicator" id="indicator-4">
+                            <span class="step-num">4</span>
+                            <span class="step-label d-none d-md-inline">Học viên</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 1: Khóa học & Thông tin chung -->
+            <div class="card border-0 shadow-sm p-4 mb-4 wizard-panel active" id="panel-1">
+                <h5 class="fw-bold text-dark mb-4">Bước 1: Chọn khóa học & Thông tin cơ bản</h5>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Chọn khóa học Giáo trình</label>
+                    <select id="wizard-course" class="form-select py-2.5" onchange="onCourseSelected()" style="border-radius: 8px;">
+                        <option value="">-- Chọn Khóa học --</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Tên Lớp học</label>
+                    <input type="text" id="wizard-class-name" class="form-control py-2.5" placeholder="Ví dụ: Lớp ATLĐ Khối Sản Xuất - Kỳ 2" style="border-radius: 8px;" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Ngày bắt đầu lớp học</label>
+                    <input type="date" id="wizard-start-date" class="form-control py-2.5" onchange="calculateSessionDates()" style="border-radius: 8px;" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Mô tả lớp học (tùy chọn)</label>
+                    <textarea id="wizard-desc" class="form-control" rows="3" placeholder="Nhập mô tả lớp học..." style="border-radius: 8px;"></textarea>
+                </div>
+                <div class="text-end mt-4">
+                    <button onclick="goToStep(2)" class="btn btn-primary px-4 py-2.5 fw-bold shadow-sm">Tiếp tục</button>
+                </div>
+            </div>
+
+            <!-- Panel 2: Cấu hình đăng ký & Giảng viên -->
+            <div class="card border-0 shadow-sm p-4 mb-4 wizard-panel d-none" id="panel-2">
+                <h5 class="fw-bold text-dark mb-4">Bước 2: Cấu hình Đăng ký & Giảng viên</h5>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Giảng viên chính phụ trách (EMPCD)</label>
+                    <input type="text" id="wizard-teacher" class="form-control py-2.5" placeholder="Nhập mã giảng viên (ví dụ: 240901)" style="border-radius: 8px;" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Chế độ đăng ký học</label>
+                    <select id="wizard-reg-mode" class="form-select py-2.5" onchange="toggleRegOptions()" style="border-radius: 8px;">
+                        <option value="ASSIGNED">ASSIGNED (Chỉ định học viên)</option>
+                        <option value="OPEN">OPEN (Học viên tự đăng ký tự do)</option>
+                        <option value="HYBRID">HYBRID (Chỉ định + Tự do đăng ký)</option>
+                    </select>
+                </div>
+                <div id="reg-options-container" class="d-none">
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Hạn chót đăng ký</label>
+                            <input type="date" id="wizard-reg-deadline" class="form-control py-2.5" style="border-radius: 8px;" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Số lượng học viên tối đa</label>
+                            <input type="number" id="wizard-max-students" class="form-control py-2.5" placeholder="Không giới hạn" min="1" style="border-radius: 8px;" />
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between mt-4">
+                    <button onclick="goToStep(1)" class="btn btn-outline-secondary px-4 py-2.5 fw-bold">Quay lại</button>
+                    <button onclick="goToStep(3)" class="btn btn-primary px-4 py-2.5 fw-bold shadow-sm">Tiếp tục</button>
+                </div>
+            </div>
+
+            <!-- Panel 3: Xem trước Buổi học -->
+            <div class="card border-0 shadow-sm p-4 mb-4 wizard-panel d-none" id="panel-3">
+                <h5 class="fw-bold text-dark mb-4">Bước 3: Lập lịch các buổi học (Xem trước)</h5>
+                <p class="text-muted small mb-3">Danh sách buổi học được clone từ Giáo trình template dựa trên ngày bắt đầu đã chọn.</p>
+                
+                <div class="table-responsive bg-light p-3 rounded-3 mb-4" style="max-height: 350px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0 text-nowrap bg-white rounded shadow-sm">
+                        <thead>
+                            <tr>
+                                <th class="ps-3">Buổi</th>
+                                <th>Ngày học</th>
+                                <th>Giờ học</th>
+                                <th>Phòng học</th>
+                                <th class="pe-3">Chủ đề bài học</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preview-sessions-tbody">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">Vui lòng chọn khóa học và ngày bắt đầu ở Bước 1.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                    <button onclick="goToStep(2)" class="btn btn-outline-secondary px-4 py-2.5 fw-bold">Quay lại</button>
+                    <button onclick="goToStep(4)" class="btn btn-primary px-4 py-2.5 fw-bold shadow-sm">Tiếp tục</button>
+                </div>
+            </div>
+
+            <!-- Panel 4: Gán học viên & Hoàn tất -->
+            <div class="card border-0 shadow-sm p-4 mb-4 wizard-panel d-none" id="panel-4">
+                <h5 class="fw-bold text-dark mb-4">Bước 4: Chỉ định danh sách Học viên</h5>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Nhập danh sách Mã số nhân viên (EMPCD)</label>
+                    <textarea id="wizard-students-textarea" class="form-control" rows="6" placeholder="Ngăn cách bằng dấu phẩy, khoảng trắng hoặc dấu xuống dòng.&#10;Ví dụ: 240901, 240902, 240903" style="border-radius: 12px;"></textarea>
+                </div>
+
+                <div id="wizard-progress-bar" class="d-none bg-light p-3 rounded-3 text-center mb-3">
+                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                    <span id="wizard-progress-text" class="small text-muted ms-2">Đang tạo lớp và phân phối học viên...</span>
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                    <button onclick="goToStep(3)" class="btn btn-outline-secondary px-4 py-2.5 fw-bold" id="btn-wizard-back">Quay lại</button>
+                    <button onclick="submitWizard()" class="btn btn-success px-5 py-2.5 fw-bold shadow-sm" id="btn-wizard-submit">Hoàn tất & Mở Lớp</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Wizard Steps Styling */
+    .wizard-steps {
+        display: flex;
+        justify-content: space-around;
+        position: relative;
+    }
+    .step-indicator {
+        text-align: center;
+        flex: 1;
+        position: relative;
+        z-index: 1;
+    }
+    .step-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background-color: #f1f3f5;
+        color: #6c757d;
+        font-weight: 700;
+        margin-bottom: 5px;
+        transition: all 0.2s ease;
+        border: 2px solid #dee2e6;
+    }
+    .step-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        font-weight: 600;
+    }
+    .step-indicator.active .step-num {
+        background-color: #0d6efd;
+        color: #fff;
+        border-color: #0d6efd;
+    }
+    .step-indicator.active .step-label {
+        color: #0d6efd;
+        font-weight: 700;
+    }
+    .step-indicator.completed .step-num {
+        background-color: #198754;
+        color: #fff;
+        border-color: #198754;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            getCourses: '@Url.Action("GetCourses", "TrainingAdmin")',
+            cloneFromCourse: '@Url.Action("CloneFromCourse", "TrainingAdmin")',
+            saveClass: '@Url.Action("SaveClass", "TrainingAdmin")',
+            classAssign: '@Url.Action("ClassAssign", "TrainingAdmin", new { id = "__ID__" })'
+        };
+
+        let courseList = [];
+        let currentStep = 1;
+        let selectedCourse = null;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadCourses();
+        });
+
+        function loadCourses() {
+            fetch(`${window.TRAINING_URLS.getCourses}?active=1`)
+                .then(r => r.json())
+                .then(res => {
+                    courseList = res.data || [];
+                    const select = document.getElementById('wizard-course');
+                    courseList.forEach(c => {
+                        select.innerHTML += `<option value="${c.ID}">${c.TITLE}</option>`;
+                    });
+                });
+        }
+
+        function onCourseSelected() {
+            const courseId = parseInt(document.getElementById('wizard-course').value);
+            selectedCourse = courseList.find(c => c.ID === courseId) || null;
+            if (selectedCourse) {
+                // Auto fill name
+                document.getElementById('wizard-class-name').value = `${selectedCourse.TITLE} - Lớp ${new Date().getMonth() + 1}/${new Date().getFullYear()}`;
+            }
+            calculateSessionDates();
+        }
+
+        function calculateSessionDates() {
+            const startVal = document.getElementById('wizard-start-date').value;
+            const tbody = document.getElementById('preview-sessions-tbody');
+            
+            if (!selectedCourse || !startVal) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Vui lòng chọn khóa học và ngày bắt đầu ở Bước 1.</td></tr>';
+                return;
+            }
+
+            const startDate = new Date(startVal);
+            
+            // Get session templates by calling an API or fetching from selectedCourse templates
+            // Since course templates are mapped in course data, we can preview sessions
+            // Wait, we query course templates from server. Let's do a fetch!
+            fetch(`/TrainingAdmin/GetCourseSessions?courseId=${selectedCourse.ID}`)
+                .then(r => r.json())
+                .then(res => {
+                    const templates = res.data || [];
+                    if (templates.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-warning py-4">Giáo trình này chưa cấu hình các buổi học template.</td></tr>';
+                        return;
+                    }
+
+                    tbody.innerHTML = '';
+                    templates.forEach(t => {
+                        const sDate = new Date(startDate.getTime());
+                        sDate.setDate(sDate.getDate() + (t.DAY_OFFSET || 0));
+                        const dateStr = sDate.toLocaleDateString('vi-VN');
+
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="ps-3 fw-bold text-dark">Buổi ${t.SESSION_NO}</td>
+                                <td>${dateStr} (Offset +${t.DAY_OFFSET})</td>
+                                <td>${t.START_TIME} - ${t.END_TIME}</td>
+                                <td>${t.LOCATION || 'Phòng học'}</td>
+                                <td class="pe-3">${t.TOPIC || 'Chủ đề'}</td>
+                            </tr>
+                        `;
+                    });
+                })
+                .catch(() => {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Không tải được lịch học xem trước.</td></tr>';
+                });
+        }
+
+        function toggleRegOptions() {
+            const mode = document.getElementById('wizard-reg-mode').value;
+            const container = document.getElementById('reg-options-container');
+            if (mode === 'OPEN' || mode === 'HYBRID') {
+                container.classList.remove('d-none');
+            } else {
+                container.classList.add('d-none');
+            }
+        }
+
+        function goToStep(step) {
+            // Validation step 1
+            if (step === 2 && currentStep === 1) {
+                const course = document.getElementById('wizard-course').value;
+                const name = document.getElementById('wizard-class-name').value.trim();
+                const start = document.getElementById('wizard-start-date').value;
+                if (!course || !name || !start) {
+                    window.showToast('Vui lòng điền đầy đủ: Khóa học, Tên lớp và Ngày bắt đầu!', 'warning');
+                    return;
+                }
+            }
+
+            // Update Panel Visibility
+            document.querySelectorAll('.wizard-panel').forEach(p => p.classList.add('d-none'));
+            document.getElementById(`panel-${step}`).classList.remove('d-none');
+
+            // Update Step Indicators
+            document.querySelectorAll('.step-indicator').forEach((ind, idx) => {
+                const i = idx + 1;
+                ind.classList.remove('active', 'completed');
+                if (i === step) ind.classList.add('active');
+                else if (i < step) ind.classList.add('completed');
+            });
+
+            currentStep = step;
+        }
+
+        function submitWizard() {
+            const courseId = parseInt(document.getElementById('wizard-course').value);
+            const className = document.getElementById('wizard-class-name').value.trim();
+            const startDate = document.getElementById('wizard-start-date').value;
+            const desc = document.getElementById('wizard-desc').value.trim();
+            const teacher = document.getElementById('wizard-teacher').value.trim();
+            const regMode = document.getElementById('wizard-reg-mode').value;
+            const regDeadline = document.getElementById('wizard-reg-deadline').value;
+            const maxStudents = document.getElementById('wizard-max-students').value;
+            const studentsRaw = document.getElementById('wizard-students-textarea').value.trim();
+
+            const parsedStudents = studentsRaw ? studentsRaw.split(/[\s,;\n]+/).map(x => x.trim()).filter(x => x.length > 0) : [];
+
+            // UI Disable
+            const btnBack = document.getElementById('btn-wizard-back');
+            const btnSub = document.getElementById('btn-wizard-submit');
+            const progress = document.getElementById('wizard-progress-bar');
+            
+            btnBack.disabled = true;
+            btnSub.disabled = true;
+            progress.classList.remove('d-none');
+
+            // Step 1 & 2: Clone from course template
+            fetch(window.TRAINING_URLS.cloneFromCourse, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    COURSE_ID: courseId,
+                    CLASS_NAME: className,
+                    START_DATE: startDate,
+                    DESCRIPTION: desc || null,
+                    PRIMARY_TEACHER_EMPCD: teacher || null,
+                    EMPCDS: parsedStudents
+                })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) {
+                    throw new Error(res.message || 'Lỗi clone lớp học từ template.');
+                }
+                const newClassId = res.data;
+
+                // Step 3: Save configuration properties
+                return fetch(window.TRAINING_URLS.saveClass, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ID: newClassId,
+                        COURSE_ID: courseId,
+                        CLASS_NAME: className,
+                        START_DATE: startDate,
+                        REGISTRATION_MODE: regMode,
+                        REGISTRATION_DEADLINE: regDeadline ? regDeadline : null,
+                        MAX_STUDENTS: maxStudents ? parseInt(maxStudents) : null
+                    })
+                }).then(r => r.json()).then(resSave => {
+                    if (!resSave.success) throw new Error(resSave.message || 'Lỗi lưu cấu hình đăng ký lớp.');
+                    return newClassId;
+                });
+            })
+            .then(classId => {
+                progress.classList.add('d-none');
+                window.showToast('Mở lớp học theo tiến trình wizard thành công!', 'success');
+                setTimeout(() => {
+                    window.location.href = window.TRAINING_URLS.classAssign.replace('__ID__', classId);
+                }, 1500);
+            })
+            .catch(err => {
+                btnBack.disabled = false;
+                btnSub.disabled = false;
+                progress.classList.add('d-none');
+                window.showToast('Lỗi: ' + err.message, 'error');
+            });
+        }
+    </script>
+}

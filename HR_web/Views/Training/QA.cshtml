@@ -1,0 +1,158 @@
+@{
+    ViewData["Title"] = "Hỏi đáp Q&A";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var empCd = ViewBag.EmpCd as string;
+    var classId = ViewBag.ClassId;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "Training")" class="text-decoration-none">Đào tạo của tôi</a></li>
+            <li class="breadcrumb-item"><a id="class-link" href="@Url.Action("ClassDetail", "Training", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Hỏi đáp Q&A</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-12 col-lg-8 mx-auto">
+            <!-- Header Card -->
+            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px; background: linear-gradient(135deg, #198754 0%, #157347 100%); text-white">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="bg-white bg-opacity-20 text-white rounded-3 p-3 d-flex align-items-center justify-content-center">
+                        <span class="material-symbols-rounded" style="font-size: 2.5rem;">forum</span>
+                    </div>
+                    <div>
+                        <h3 class="fw-bold text-white mb-1">Thảo Luận Q&A</h3>
+                        <p class="mb-0 text-white text-opacity-75 small">Nơi học viên trao đổi, đặt câu hỏi cho Giảng viên về nội dung bài học.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ask Form -->
+            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
+                <h5 class="fw-bold mb-3 text-dark">Đặt câu hỏi cho giảng viên</h5>
+                <div class="input-group">
+                    <textarea id="qa-input" class="form-control py-3" placeholder="Nhập câu hỏi của bạn về bài học hoặc tài liệu tại đây..." rows="3" style="border-radius: 12px;"></textarea>
+                </div>
+                <div class="text-end mt-3">
+                    <button onclick="askQuestion()" class="btn btn-success px-4 py-2 rounded-3 fw-bold shadow-sm">Gửi câu hỏi</button>
+                </div>
+            </div>
+
+            <!-- Q&A List Container -->
+            <h5 class="fw-bold mb-3 text-dark">Thảo luận cùng lớp</h5>
+            <div id="qa-list">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-success" role="status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            getQAList: '@Url.Action("GetQAList", "Training")',
+            askQuestion: '@Url.Action("AskQuestion", "Training")'
+        };
+        const empCd = '@empCd';
+        const classId = @classId;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadQAList();
+        });
+
+        function loadQAList() {
+            const qaWrap = document.getElementById('qa-list');
+            fetch(`${window.TRAINING_URLS.getQAList}?classId=${classId}&empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        qaWrap.innerHTML = `<div class="alert alert-warning">${res.message || 'Lỗi tải Q&A.'}</div>`;
+                        return;
+                    }
+
+                    const list = res.data || [];
+                    if (list.length === 0) {
+                        qaWrap.innerHTML = `
+                            <div class="card border-0 shadow-sm p-5 text-center text-muted" style="border-radius: 16px;">
+                                <span class="material-symbols-rounded text-muted" style="font-size: 4rem;">forum</span>
+                                <h6 class="fw-bold mt-2">Chưa có thảo luận nào</h6>
+                                <p class="text-muted small mb-0">Hãy đặt câu hỏi đầu tiên ở khung nhập phía trên!</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    qaWrap.innerHTML = '';
+                    list.forEach(q => {
+                        const isAnswered = !!q.ANSWER_TEXT;
+                        
+                        let answerBlock = '';
+                        if (isAnswered) {
+                            answerBlock = `
+                                <div class="bg-light border-start border-success border-3 p-3 mt-3 rounded-2" style="margin-left: 20px;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="fw-bold small text-success"><i class="bi bi-person-badge me-1"></i>Giảng viên: ${q.ANSWERED_BY_NAME || q.ANSWERED_BY}</span>
+                                        <span class="text-muted small">${new Date(q.ANSWERED_DT).toLocaleDateString('vi-VN')}</span>
+                                    </div>
+                                    <p class="mb-0 text-dark small">${q.ANSWER_TEXT}</p>
+                                </div>
+                            `;
+                        } else {
+                            answerBlock = `
+                                <div class="p-2 mt-2" style="margin-left: 20px;">
+                                    <p class="text-muted small mb-0 italic"><i class="bi bi-clock me-1"></i>Đang chờ giáo viên phản hồi...</p>
+                                </div>
+                            `;
+                        }
+
+                        qaWrap.innerHTML += `
+                            <div class="card border-0 shadow-sm p-4 mb-3" style="border-radius: 12px; background: #fff;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Học viên: ${q.ASKED_BY_NAME || q.ASKED_BY}</span>
+                                    <span class="text-muted small">${new Date(q.ASKED_DT).toLocaleDateString('vi-VN')}</span>
+                                </div>
+                                <p class="mb-0 text-secondary">${q.QUESTION_TEXT}</p>
+                                ${answerBlock}
+                            </div>
+                        `;
+                    });
+                })
+                .catch(err => {
+                    qaWrap.innerHTML = `<div class="alert alert-danger">Lỗi kết nối: ${err.message}</div>`;
+                });
+        }
+
+        function askQuestion() {
+            const input = document.getElementById('qa-input');
+            const text = input.value.trim();
+            if (!text) {
+                window.showToast('Vui lòng nhập nội dung câu hỏi!', 'warning');
+                return;
+            }
+
+            fetch(window.TRAINING_URLS.askQuestion, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ CLASS_ID: classId, QUESTION_TEXT: text })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast('Đã gửi câu hỏi thành công!', 'success');
+                    input.value = '';
+                    loadQAList();
+                } else {
+                    window.showToast(res.message || 'Không thể gửi câu hỏi.', 'error');
+                }
+            })
+            .catch(err => {
+                window.showToast('Lỗi gửi câu hỏi: ' + err.message, 'error');
+            });
+        }
+    </script>
+}

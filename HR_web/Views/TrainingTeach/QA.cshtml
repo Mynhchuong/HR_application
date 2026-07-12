@@ -1,0 +1,199 @@
+@{
+    ViewData["Title"] = "Trả lời Hỏi đáp Q&A";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var empCd = ViewBag.EmpCd as string;
+    var classId = ViewBag.ClassId;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "TrainingTeach")" class="text-decoration-none">Giảng dạy</a></li>
+            <li class="breadcrumb-item"><a href="@Url.Action("ClassManage", "TrainingTeach", new { id = classId })" class="text-decoration-none">Quản lý lớp học</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Hỏi đáp học viên</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-12 col-lg-8 mx-auto">
+            <!-- Header Card -->
+            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px; background: linear-gradient(135deg, #198754 0%, #157347 100%); text-white">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="bg-white bg-opacity-20 text-white rounded-3 p-3 d-flex align-items-center justify-content-center">
+                        <span class="material-symbols-rounded" style="font-size: 2.5rem;">forum</span>
+                    </div>
+                    <div>
+                        <h3 class="fw-bold text-white mb-1">Trả Lời Hỏi Đáp Q&A</h3>
+                        <p class="mb-0 text-white text-opacity-75 small">Xem danh sách các câu hỏi từ học viên lớp học và phản hồi trực tiếp cho họ.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Q&A List Container -->
+            <div id="qa-list">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-success" role="status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            getQAList: '@Url.Action("GetQAList", "TrainingTeach")',
+            qaAnswer: '@Url.Action("QAAnswer", "TrainingTeach")',
+            qaDelete: '@Url.Action("QADelete", "TrainingTeach")'
+        };
+        const empCd = '@empCd';
+        const classId = @classId;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadQAList();
+        });
+
+        function loadQAList() {
+            const qaWrap = document.getElementById('qa-list');
+            fetch(`${window.TRAINING_URLS.getQAList}?classId=${classId}&empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        qaWrap.innerHTML = `<div class="alert alert-warning">${res.message || 'Lỗi tải Q&A.'}</div>`;
+                        return;
+                    }
+
+                    const list = res.data || [];
+                    if (list.length === 0) {
+                        qaWrap.innerHTML = `
+                            <div class="card border-0 shadow-sm p-5 text-center text-muted" style="border-radius: 16px;">
+                                <span class="material-symbols-rounded text-muted" style="font-size: 4rem;">forum</span>
+                                <h6 class="fw-bold mt-2">Chưa có câu hỏi nào từ học viên</h6>
+                                <p class="text-muted small mb-0">Các câu hỏi thảo luận trong lớp sẽ xuất hiện tại đây.</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    qaWrap.innerHTML = '';
+                    list.forEach(q => {
+                        const isAnswered = !!q.ANSWER_TEXT;
+                        
+                        let answerFormOrBlock = '';
+                        if (isAnswered) {
+                            answerFormOrBlock = `
+                                <div class="bg-light border-start border-success border-3 p-3 mt-3 rounded-2" style="margin-left: 20px;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="fw-bold small text-success"><i class="bi bi-person-badge me-1"></i>Bạn trả lời:</span>
+                                        <span class="text-muted small">${new Date(q.ANSWERED_DT).toLocaleDateString('vi-VN')}</span>
+                                    </div>
+                                    <p class="mb-2 text-dark small">${q.ANSWER_TEXT}</p>
+                                    <div class="text-end">
+                                        <button onclick="editAnswer(${q.ID}, '${escapeJs(q.ANSWER_TEXT)}')" class="btn btn-xs btn-outline-success me-1">Sửa</button>
+                                        <button onclick="deleteQuestion(${q.ID})" class="btn btn-xs btn-outline-danger">Xóa câu hỏi</button>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            answerFormOrBlock = `
+                                <div class="bg-light p-3 mt-3 rounded-2 border" style="margin-left: 20px;">
+                                    <label class="form-label small fw-bold text-muted mb-1">Trả lời câu hỏi:</label>
+                                    <textarea id="answer_${q.ID}" class="form-control mb-2" rows="2" placeholder="Nhập câu trả lời..." style="border-radius: 8px;"></textarea>
+                                    <div class="text-end">
+                                        <button onclick="submitAnswer(${q.ID})" class="btn btn-sm btn-success px-3 rounded-2 fw-bold">Gửi phản hồi</button>
+                                        <button onclick="deleteQuestion(${q.ID})" class="btn btn-sm btn-outline-danger px-3 rounded-2 fw-bold ms-1">Xóa</button>
+                                    </div>
+                                </div>
+                            `;
+                        }
+
+                        qaWrap.innerHTML += `
+                            <div class="card border-0 shadow-sm p-4 mb-3" style="border-radius: 12px; background: #fff;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Học viên: ${q.ASKED_BY_NAME || q.ASKED_BY}</span>
+                                    <span class="text-muted small">${new Date(q.ASKED_DT).toLocaleDateString('vi-VN')}</span>
+                                </div>
+                                <p class="mb-0 text-secondary">${q.QUESTION_TEXT}</p>
+                                ${answerFormOrBlock}
+                            </div>
+                        `;
+                    });
+                })
+                .catch(err => {
+                    qaWrap.innerHTML = `<div class="alert alert-danger">Lỗi kết nối: ${err.message}</div>`;
+                });
+        }
+
+        function submitAnswer(id) {
+            const txtArea = document.getElementById(`answer_${id}`);
+            const text = txtArea.value.trim();
+
+            if (!text) {
+                window.showToast('Vui lòng nhập nội dung câu trả lời!', 'warning');
+                return;
+            }
+
+            fetch(window.TRAINING_URLS.qaAnswer, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ID: id, ANSWER_TEXT: text })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast('Đã gửi trả lời thành công!', 'success');
+                    loadQAList();
+                } else {
+                    window.showToast(res.message || 'Lỗi gửi câu trả lời.', 'error');
+                }
+            })
+            .catch(err => window.showToast('Lỗi: ' + err.message, 'error'));
+        }
+
+        function editAnswer(id, oldText) {
+            window.showPrompt('Chỉnh sửa câu trả lời của bạn:', (newText) => {
+                if (!newText.trim()) return;
+                
+                fetch(window.TRAINING_URLS.qaAnswer, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ID: id, ANSWER_TEXT: newText.trim() })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.showToast('Cập nhật trả lời thành công!', 'success');
+                        loadQAList();
+                    } else {
+                        window.showToast(res.message || 'Lỗi cập nhật.', 'error');
+                    }
+                });
+            }, oldText);
+        }
+
+        function deleteQuestion(id) {
+            window.showConfirm('Bạn chắc chắn muốn xóa câu hỏi này không?', () => {
+                fetch(window.TRAINING_URLS.qaDelete, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ID: id })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.showToast('Đã xóa câu hỏi!', 'success');
+                        loadQAList();
+                    } else {
+                        window.showToast(res.message || 'Lỗi xóa câu hỏi.', 'error');
+                    }
+                });
+            });
+        }
+
+        function escapeJs(str) {
+            if (!str) return '';
+            return str.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
+        }
+    </script>
+}

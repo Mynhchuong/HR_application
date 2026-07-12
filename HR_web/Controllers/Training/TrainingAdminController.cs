@@ -1,0 +1,683 @@
+using ClosedXML.Excel;
+using HR_web.API.Service;
+using HR_web.Models.Training;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HR_web.Controllers.Training;
+
+[Authorize(Roles = "Admin,HR")]
+public class TrainingAdminController : BaseController
+{
+    private readonly TrainingService _training;
+
+    public TrainingAdminController(TrainingService training)
+    {
+        _training = training;
+    }
+
+    // GET /TrainingAdmin/Index
+    public IActionResult Index()
+    {
+        return View();
+    }
+
+    // GET /TrainingAdmin/Reports
+    public async Task<IActionResult> Reports(int? classId = null, string? tab = null)
+    {
+        var classes = await _training.GetClassListAsync();
+        ViewBag.Classes = classes;
+        ViewBag.SelectedClassId = classId;
+        ViewBag.Tab = tab ?? "class";
+        return View();
+    }
+
+    // GET /TrainingAdmin/CourseCreate
+    public IActionResult CourseCreate()
+    {
+        return View();
+    }
+
+    // GET /TrainingAdmin/CourseEdit/{id}
+    public IActionResult CourseEdit(int id)
+    {
+        ViewBag.CourseId = id;
+        return View();
+    }
+
+    // GET /TrainingAdmin/ClassCreate
+    public IActionResult ClassCreate()
+    {
+        return View();
+    }
+
+    // GET /TrainingAdmin/ClassEdit/{id}
+    public IActionResult ClassEdit(int id)
+    {
+        ViewBag.ClassId = id;
+        return View();
+    }
+
+    // GET /TrainingAdmin/ClassAssign/{id}
+    public IActionResult ClassAssign(int id)
+    {
+        ViewBag.ClassId = id;
+        return View();
+    }
+
+    // GET /TrainingAdmin/ClassReport/{id}
+    public IActionResult ClassReport(int id)
+    {
+        ViewBag.ClassId = id;
+        return View();
+    }
+
+    // GET /TrainingAdmin/AttendanceReport/{id}
+    public IActionResult AttendanceReport(int id)
+    {
+        ViewBag.ClassId = id;
+        return View();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  REPORTS & EXCEL EXPORTS
+    // ═══════════════════════════════════════════════════════════════
+
+    [HttpGet]
+    public async Task<IActionResult> GetReportClass(int classId)
+    {
+        var data = await _training.GetClassReportAsync(classId);
+        return Json(new { success = data != null, data });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetReportAttendance(int classId)
+    {
+        var data = await _training.GetAttendanceMatrixAsync(classId);
+        return Json(new { success = data != null, data });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetReportTest(int testId)
+    {
+        var data = await _training.GetTestReportAsync(testId);
+        return Json(new { success = data != null, data });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetReportSatisfaction(int classId)
+    {
+        var data = await _training.GetSatisfactionReportAsync(classId);
+        return Json(new { success = data != null, data });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExportClass(int classId)
+    {
+        var report = await _training.GetClassReportAsync(classId);
+        if (report == null) return NotFound();
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Overview");
+        WriteHeader(ws, 1, new[] { "Metric", "Value" });
+        int r = 2;
+        ws.Cell(r++, 1).Value = "Class name";                    ws.Cell(r-1, 2).Value = report.CLASS_NAME;
+        ws.Cell(r++, 1).Value = "Course";                        ws.Cell(r-1, 2).Value = report.COURSE_TITLE;
+        ws.Cell(r++, 1).Value = "Status";                        ws.Cell(r-1, 2).Value = report.CLASS_STATUS ?? "";
+        ws.Cell(r++, 1).Value = "Enrolled";                      ws.Cell(r-1, 2).Value = report.ENROLLED_COUNT;
+        ws.Cell(r++, 1).Value = "Assigned (mandatory)";          ws.Cell(r-1, 2).Value = report.ASSIGNED_COUNT;
+        ws.Cell(r++, 1).Value = "Self-registered";               ws.Cell(r-1, 2).Value = report.SELF_REGISTER_COUNT;
+        ws.Cell(r++, 1).Value = "Dropped";                       ws.Cell(r-1, 2).Value = report.DROPPED_COUNT;
+        ws.Cell(r++, 1).Value = "Completed";                     ws.Cell(r-1, 2).Value = report.COMPLETED_COUNT;
+        ws.Cell(r++, 1).Value = "Failed";                        ws.Cell(r-1, 2).Value = report.FAILED_COUNT;
+        ws.Cell(r++, 1).Value = "Certified";                     ws.Cell(r-1, 2).Value = report.CERTIFIED_COUNT;
+        ws.Cell(r++, 1).Value = "Avg attendance %";              ws.Cell(r-1, 2).Value = report.AVG_ATTENDANCE_PERCENT ?? 0;
+        ws.Cell(r++, 1).Value = "Avg final score";               ws.Cell(r-1, 2).Value = report.AVG_FINAL_SCORE ?? 0;
+
+        var wsH = wb.Worksheets.Add("Score histogram");
+        WriteHeader(wsH, 1, new[] { "Bucket", "Count" });
+        for (int i = 0; i < report.SCORE_HISTOGRAM.Count; i++)
+        {
+            wsH.Cell(i + 2, 1).Value = report.SCORE_HISTOGRAM[i].LABEL;
+            wsH.Cell(i + 2, 2).Value = report.SCORE_HISTOGRAM[i].COUNT;
+        }
+        wsH.Columns().AdjustToContents();
+
+        if (report.GROUP_BREAKDOWN.Count > 0)
+        {
+            var wsG = wb.Worksheets.Add("Groups");
+            WriteHeader(wsG, 1, new[] { "Group", "Enrolled", "Completed", "Certified", "Avg attendance" });
+            for (int i = 0; i < report.GROUP_BREAKDOWN.Count; i++)
+            {
+                var g = report.GROUP_BREAKDOWN[i];
+                wsG.Cell(i + 2, 1).Value = g.GROUP_NAME;
+                wsG.Cell(i + 2, 2).Value = g.ENROLLED;
+                wsG.Cell(i + 2, 3).Value = g.COMPLETED;
+                wsG.Cell(i + 2, 4).Value = g.CERTIFIED;
+                wsG.Cell(i + 2, 5).Value = g.AVG_ATTENDANCE ?? 0;
+            }
+            wsG.Columns().AdjustToContents();
+        }
+
+        ws.Columns().AdjustToContents();
+        return BuildXlsx(wb, $"report_class_{classId}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExportAttendance(int classId)
+    {
+        var m = await _training.GetAttendanceMatrixAsync(classId);
+        if (m == null) return NotFound();
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Attendance matrix");
+
+        var head = new List<string> { "EMPCD", "Name", "Group", "Attendance %" };
+        foreach (var s in m.SESSIONS)
+        {
+            var lbl = $"#{s.SESSION_NO} {s.SESSION_DATE:dd/MM}";
+            if (s.GROUP_NAME != null) lbl += $" [{s.GROUP_NAME}]";
+            head.Add(lbl);
+        }
+        WriteHeader(ws, 1, head.ToArray());
+
+        for (int i = 0; i < m.STUDENTS.Count; i++)
+        {
+            var st = m.STUDENTS[i];
+            int col = 1;
+            ws.Cell(i + 2, col++).Value = st.EMPCD;
+            ws.Cell(i + 2, col++).Value = st.EMP_NAME ?? "";
+            ws.Cell(i + 2, col++).Value = st.GROUP_NAME ?? "";
+            ws.Cell(i + 2, col++).Value = st.ATTENDANCE_PERCENT;
+            foreach (var s in m.SESSIONS)
+            {
+                var key = s.SESSION_ID.ToString();
+                ws.Cell(i + 2, col++).Value = st.STATUS_PER_SESSION.TryGetValue(key, out var v) ? v : "";
+            }
+        }
+
+        ws.Columns().AdjustToContents();
+        return BuildXlsx(wb, $"report_attendance_{classId}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExportTest(int testId)
+    {
+        var r = await _training.GetTestReportAsync(testId);
+        if (r == null) return NotFound();
+
+        using var wb = new XLWorkbook();
+        var wsS = wb.Worksheets.Add("Scores");
+        WriteHeader(wsS, 1, new[] { "EMPCD", "Name", "Score", "Max score", "Pass", "Status", "Submit" });
+        for (int i = 0; i < r.SCORES.Count; i++)
+        {
+            var s = r.SCORES[i];
+            wsS.Cell(i + 2, 1).Value = s.EMPCD;
+            wsS.Cell(i + 2, 2).Value = s.EMP_NAME ?? "";
+            wsS.Cell(i + 2, 3).Value = s.SCORE ?? 0;
+            wsS.Cell(i + 2, 4).Value = s.MAX_SCORE ?? 0;
+            wsS.Cell(i + 2, 5).Value = s.IS_PASS == 1 ? "PASS" : (s.IS_PASS == 0 ? "FAIL" : "-");
+            wsS.Cell(i + 2, 6).Value = s.STATUS;
+            wsS.Cell(i + 2, 7).Value = s.SUBMIT_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
+        }
+        wsS.Columns().AdjustToContents();
+
+        var wsSum = wb.Worksheets.Add("Summary");
+        WriteHeader(wsSum, 1, new[] { "Metric", "Value" });
+        var rows = new (string, object)[]
+        {
+            ("Test title",     r.TEST_TITLE),
+            ("Pass score",     r.PASS_SCORE ?? 0),
+            ("Attempt count",  r.ATTEMPT_COUNT),
+            ("Pass count",     r.PASS_COUNT),
+            ("Fail count",     r.FAIL_COUNT),
+            ("Avg score",      r.AVG_SCORE ?? 0),
+            ("Max score",      r.MAX_SCORE ?? 0),
+            ("Min score",      r.MIN_SCORE ?? 0),
+        };
+        for (int i = 0; i < rows.Length; i++)
+        {
+            wsSum.Cell(i + 2, 1).Value = rows[i].Item1;
+            wsSum.Cell(i + 2, 2).Value = XLCellValue.FromObject(rows[i].Item2);
+        }
+        wsSum.Columns().AdjustToContents();
+
+        var wsW = wb.Worksheets.Add("Top wrong questions");
+        WriteHeader(wsW, 1, new[] { "Question", "Type", "Attempts", "Wrong", "Wrong %" });
+        for (int i = 0; i < r.TOP_WRONG_QUESTIONS.Count; i++)
+        {
+            var q = r.TOP_WRONG_QUESTIONS[i];
+            wsW.Cell(i + 2, 1).Value = q.QUESTION_TEXT;
+            wsW.Cell(i + 2, 2).Value = q.QUESTION_TYPE;
+            wsW.Cell(i + 2, 3).Value = q.ATTEMPT_COUNT;
+            wsW.Cell(i + 2, 4).Value = q.WRONG_COUNT;
+            wsW.Cell(i + 2, 5).Value = q.WRONG_PERCENT;
+        }
+        wsW.Columns().AdjustToContents();
+
+        return BuildXlsx(wb, $"report_test_{testId}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExportSatisfaction(int classId)
+    {
+        var s = await _training.GetSatisfactionReportAsync(classId);
+        if (s == null) return NotFound();
+
+        using var wb = new XLWorkbook();
+        var wsSum = wb.Worksheets.Add("Summary");
+        WriteHeader(wsSum, 1, new[] { "Metric", "Value" });
+        wsSum.Cell(2, 1).Value = "Responses";       wsSum.Cell(2, 2).Value = s.RESPONSE_COUNT;
+        wsSum.Cell(3, 1).Value = "Avg content";     wsSum.Cell(3, 2).Value = s.AVG_CONTENT ?? 0;
+        wsSum.Cell(4, 1).Value = "Avg organization";wsSum.Cell(4, 2).Value = s.AVG_ORGANIZATION ?? 0;
+        wsSum.Columns().AdjustToContents();
+
+        var wsT = wb.Worksheets.Add("Teacher aggregate");
+        WriteHeader(wsT, 1, new[] { "Teacher EMPCD", "Name", "Avg rating", "Count" });
+        for (int i = 0; i < s.TEACHER_AGGREGATES.Count; i++)
+        {
+            var t = s.TEACHER_AGGREGATES[i];
+            wsT.Cell(i + 2, 1).Value = t.TEACHER_EMPCD;
+            wsT.Cell(i + 2, 2).Value = t.TEACHER_NAME ?? "";
+            wsT.Cell(i + 2, 3).Value = t.AVG_RATING;
+            wsT.Cell(i + 2, 4).Value = t.COUNT;
+        }
+        wsT.Columns().AdjustToContents();
+
+        var wsFB = wb.Worksheets.Add("Feedback");
+        WriteHeader(wsFB, 1, new[] { "#", "Feedback text" });
+        for (int i = 0; i < s.FEEDBACK_LIST.Count; i++)
+        {
+            wsFB.Cell(i + 2, 1).Value = i + 1;
+            wsFB.Cell(i + 2, 2).Value = s.FEEDBACK_LIST[i];
+        }
+        wsFB.Columns().AdjustToContents();
+
+        return BuildXlsx(wb, $"report_satisfaction_{classId}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  HR/ADMIN AJAX PROXIES
+    // ═══════════════════════════════════════════════════════════════
+
+    [HttpGet]
+    public async Task<IActionResult> GetClassList(string? status = null, string? search = null, int? courseId = null)
+    {
+        var qs = $"status={status}&search={Uri.EscapeDataString(search ?? "")}&courseId={courseId}";
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/class/list", qs);
+        return Json(res);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetCourses(string? mode = null, int? active = null, string? search = null)
+    {
+        var qs = "";
+        if (!string.IsNullOrEmpty(mode)) qs += $"mode={mode}&";
+        if (active.HasValue)             qs += $"active={active.Value}&";
+        if (!string.IsNullOrEmpty(search)) qs += $"search={Uri.EscapeDataString(search)}&";
+
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/course/list", qs);
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveCourse([FromBody] SaveCourseRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/course/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveClass([FromBody] SaveClassRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetClassDetailAdmin(int classId)
+    {
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/class/detail", $"id={classId}");
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveSession([FromBody] SaveSessionRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/session/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> AssignTeacher([FromBody] AssignTeacherRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/assign-teacher", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> RemoveTeacher([FromBody] RemoveTeacherRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/remove-teacher", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> AssignStudent([FromBody] AssignStudentRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var empcds = req.EMPCDS ?? new List<string>();
+        if (empcds.Count == 0 && !string.IsNullOrEmpty(req.EMPCD))
+        {
+            empcds.Add(req.EMPCD);
+        }
+
+        var apiReq = new {
+            CLASS_ID = req.CLASS_ID,
+            EMPCDS = empcds,
+            LOGIN_USER = req.LOGIN_USER
+        };
+
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/assign", apiReq);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ApproveEnrollment([FromBody] ApproveEnrollmentRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/approve", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> RejectEnrollment([FromBody] RejectEnrollmentRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/reject", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveGroup([FromBody] SaveGroupRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/group/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> AutoSplitGroup([FromBody] AutoSplitRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/group/auto-split", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> AssignGroup([FromBody] AssignGroupRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/assign-group", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveAdminTest([FromBody] SaveTestRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/test/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveAdminTestQuestions([FromBody] SaveTestQuestionsRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/test/questions/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> PublishAdminTest([FromBody] ChangeTestStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/test/publish", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ArchiveCourse([FromBody] ArchiveCourseRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/course/archive", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> UnarchiveCourse([FromBody] ArchiveCourseRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/course/unarchive", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DeleteCourse([FromBody] ArchiveCourseRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/course/delete", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> PublishRegistration([FromBody] ChangeClassStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/publish-registration", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> FinalizeEnrollment([FromBody] ChangeClassStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/finalize-enrollment", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CancelClass([FromBody] ChangeClassStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/cancel", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CloseClass([FromBody] ChangeClassStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/close", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ExpressCreate([FromBody] ExpressCreateRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/express-create", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CloneFromCourse([FromBody] CloneFromCourseRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/clone-from-course", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> RescheduleSession([FromBody] RescheduleSessionRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/session/reschedule", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CancelSession([FromBody] CancelSessionRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/session/cancel", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> PreAssignEnrollment([FromBody] BulkPreAssignRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/pre-assign", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> RecoverEnrollment([FromBody] RecoverEnrollmentRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/recover", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CloseAdminTest([FromBody] ChangeTestStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/test/close", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetReviewReport(int classId)
+    {
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/review/report", $"classId={classId}");
+        return Json(res);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetCertificateList(int classId)
+    {
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/certificate/list", $"classId={classId}");
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> RevokeCertificate([FromBody] RevokeCertificateRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/certificate/revoke", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetCourseSessions(int courseId)
+    {
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/course/session-templates", $"courseId={courseId}");
+        return Json(res);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetEnrollments(int classId, string? status = null)
+    {
+        var qs = $"status={status}";
+        var res = await _training.GetFromApiAsync<object>($"TrainingAdmin/class/{classId}/enrollments", qs);
+        return Json(res);
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────
+
+    private static void WriteHeader(IXLWorksheet ws, int row, string[] headers)
+    {
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var c = ws.Cell(row, i + 1);
+            c.Value = headers[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#0d6efd");
+            c.Style.Font.FontColor = XLColor.White;
+        }
+    }
+
+    private FileContentResult BuildXlsx(XLWorkbook wb, string fileName)
+    {
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            fileName);
+    }
+}

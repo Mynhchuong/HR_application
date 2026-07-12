@@ -8,9 +8,9 @@
 <div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
     <!-- Back to Dashboard -->
     <div class="mb-3">
-        <a href="@Url.Action("TeacherDashboard", "Training")" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
+        <a href="@Url.Action("MyClasses", "TrainingTeach")" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
             <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            Quay lại bảng điều khiển giảng dạy
+            Quay lại cổng giảng dạy
         </a>
     </div>
 
@@ -56,13 +56,14 @@
         background-color: #f8f9fa;
         border: 1px solid #e9ecef;
     }
+    .bg-warning-soft { background-color: #fff3cd; color: #664d03; }
 </style>
 
 @section Scripts {
     <script>
         window.TRAINING_URLS = {
-            getPendingGrade: '@Url.Action("GetPendingGrade", "Training")',
-            grade: '@Url.Action("Grade", "Training")'
+            getPendingGrade: '@Url.Action("GetPendingGrade", "TrainingTeach")',
+            grade: '@Url.Action("Grade", "TrainingTeach")'
         };
         const empCd = '@empCd';
         const testId = @testId;
@@ -73,7 +74,6 @@
             loadGradingData();
         });
 
-        // 1. Tải danh sách bài thi cần chấm
         function loadGradingData() {
             fetch(`${window.TRAINING_URLS.getPendingGrade}?id=${testId}&empcd=${empCd}`)
                 .then(r => r.json())
@@ -88,11 +88,8 @@
                     }
 
                     gradingData = res.data || [];
-                    
-                    // Cập nhật số lượng
                     document.getElementById('pending-count').textContent = gradingData.length;
 
-                    // Lấy tiêu đề test từ item đầu tiên nếu có
                     if (gradingData.length > 0 && gradingData[0].attempt) {
                         document.getElementById('test-title').textContent = "Bài thi: " + (gradingData[0].attempt.TEST_TITLE || "Đánh giá đào tạo");
                     } else {
@@ -103,7 +100,6 @@
                 });
         }
 
-        // 2. Render danh sách bài thi và câu tự luận
         function renderAttempts() {
             const container = document.getElementById('attempts-container');
             
@@ -114,7 +110,7 @@
                         <h5 class="fw-bold text-dark mt-3">Tất cả bài thi đã được chấm điểm hoàn chỉnh!</h5>
                         <p class="text-muted small">Không còn bài làm tự luận nào đang chờ giảng viên chấm điểm.</p>
                         <div class="mt-2">
-                             <a href="@Url.Action("TeacherDashboard", "Training")" class="btn btn-outline-success rounded-3 fw-bold px-4">Quay về Trang chủ</a>
+                             <a href="@Url.Action("MyClasses", "TrainingTeach")" class="btn btn-outline-success rounded-3 fw-bold px-4">Quay về cổng giảng dạy</a>
                         </div>
                     </div>
                 `;
@@ -128,7 +124,6 @@
                 
                 let essaysHtml = '';
                 item.essays.forEach(es => {
-                    // Hiển thị từng câu tự luận cần chấm
                     const pointsId = `points_${es.ANSWER_ID}`;
                     const commentId = `comment_${es.ANSWER_ID}`;
                     
@@ -185,7 +180,6 @@
             });
         }
 
-        // 3. Gửi điểm chấm lên API
         window.submitGrade = function(answerId, maxPoints) {
             const ptsInput = document.getElementById(`points_${answerId}`);
             const commentInput = document.getElementById(`comment_${answerId}`);
@@ -211,7 +205,7 @@
             .then(res => {
                 if (res.success) {
                     window.showToast('Lưu điểm thành công!', 'success');
-                    loadGradingData(); // Tải lại dữ liệu (sẽ tự động mất bài này nếu đã chấm hết các câu tự luận)
+                    loadGradingData();
                 } else {
                     window.showToast(res.message || 'Lỗi chấm điểm.', 'error');
                 }

@@ -145,8 +145,8 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum"                  },
                     new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",             Icon = "home_app_logo"          },
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",           Icon = "poll"                   },
-                    new SideMenuItem { Title = "Báo cáo Đào tạo",      Url = "~/Training/Reports",            Icon = "analytics"              },
-                    new SideMenuItem { Title = "Quản lý Đào tạo",      Url = "~/Training/Manage",             Icon = "school"                 },
+                    new SideMenuItem { Title = "Báo cáo Đào tạo",      Url = "~/TrainingAdmin/Reports",            Icon = "analytics"              },
+                    new SideMenuItem { Title = "Quản lý Đào tạo",      Url = "~/TrainingAdmin/Index",             Icon = "school"                 },
                 //    new SideMenuItem { Title = "DS miễn làm Survey",    Url = "~/SurveyExempt/Index",          Icon = "person_off"             },
                 }
             },
@@ -159,7 +159,7 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isActiveTeacher && !isMobileApp && !isExpat && !isCanteen,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Lớp giảng dạy",       Url = "~/Training/TeacherDashboard",      Icon = "dashboard"   },
+                    new SideMenuItem { Title = "Lớp giảng dạy",       Url = "~/TrainingTeach/MyClasses",      Icon = "dashboard"   },
                 }
             },
 

@@ -1,0 +1,209 @@
+@{
+    ViewData["Title"] = "Chỉnh sửa Lớp học";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var classId = ViewBag.ClassId;
+    var empCd = ViewBag.EmpCd as string;
+}
+
+<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="@Url.Action("Index", "TrainingAdmin")" class="text-decoration-none">Cổng quản trị</a></li>
+            <li class="breadcrumb-item"><a href="@Url.Action("ClassAssign", "TrainingAdmin", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Chỉnh sửa lớp học</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-12 col-md-8 col-lg-6 mx-auto">
+            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+                <h4 class="fw-bold text-dark mb-4">Chỉnh sửa thông tin Lớp học</h4>
+                
+                <form id="editClassForm">
+                    <input type="hidden" id="edit-class-id" value="@classId" />
+                    <input type="hidden" id="edit-course-id" />
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Tên Lớp học</label>
+                        <input type="text" id="edit-class-name" class="form-control" required style="border-radius: 8px;" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Mô tả lớp học</label>
+                        <textarea id="edit-class-desc" class="form-control" rows="3" style="border-radius: 8px;"></textarea>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Ngày bắt đầu</label>
+                            <input type="date" id="edit-class-start" class="form-control" required style="border-radius: 8px;" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Ngày kết thúc</label>
+                            <input type="date" id="edit-class-end" class="form-control" required style="border-radius: 8px;" />
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Hình thức đào tạo</label>
+                            <select id="edit-class-mode" class="form-select" style="border-radius: 8px;">
+                                <option value="STANDARD">STANDARD (Tiêu chuẩn)</option>
+                                <option value="EXPRESS">EXPRESS (Học nhanh)</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Chế độ đăng ký</label>
+                            <select id="edit-class-reg-mode" class="form-select" onchange="toggleRegOptions()" style="border-radius: 8px;">
+                                <option value="ASSIGNED">ASSIGNED (Chỉ định)</option>
+                                <option value="OPEN">OPEN (Tự do đăng ký)</option>
+                                <option value="HYBRID">HYBRID (Kết hợp)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="edit-reg-options" class="d-none">
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted">Hạn chót đăng ký</label>
+                                <input type="date" id="edit-class-deadline" class="form-control" style="border-radius: 8px;" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted">Số học viên tối đa</label>
+                                <input type="number" id="edit-class-max" class="form-control" placeholder="Không giới hạn" style="border-radius: 8px;" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">Tỷ lệ điểm danh tối thiểu (%)</label>
+                            <input type="number" id="edit-class-min-attend" class="form-control" value="75" min="0" max="100" style="border-radius: 8px;" />
+                        </div>
+                        <div class="col-6">
+                            <div class="form-check form-switch pt-4">
+                                <input class="form-check-input" type="checkbox" id="edit-class-require-review">
+                                <label class="form-check-label small fw-bold text-muted" for="edit-class-require-review">Bắt buộc đánh giá sau khóa</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="button" onclick="submitEditClass()" class="btn btn-primary py-2.5 rounded-3 fw-bold shadow-sm">
+                            <span id="edit-spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                            Lưu thay đổi
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            getClassDetailAdmin: '@Url.Action("GetClassDetailAdmin", "TrainingAdmin")',
+            saveClass: '@Url.Action("SaveClass", "TrainingAdmin")',
+            classAssign: '@Url.Action("ClassAssign", "TrainingAdmin", new { id = classId })'
+        };
+
+        const classId = @classId;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadClassData();
+        });
+
+        function loadClassData() {
+            fetch(`${window.TRAINING_URLS.getClassDetailAdmin}?classId=${classId}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        window.showToast('Lỗi tải dữ liệu lớp học.', 'error');
+                        return;
+                    }
+                    const c = res.data.cls;
+                    document.getElementById('edit-course-id').value = c.COURSE_ID;
+                    document.getElementById('edit-class-name').value = c.CLASS_NAME;
+                    document.getElementById('edit-class-desc').value = c.DESCRIPTION || '';
+                    document.getElementById('edit-class-start').value = c.START_DATE ? c.START_DATE.substring(0, 10) : '';
+                    document.getElementById('edit-class-end').value = c.END_DATE ? c.END_DATE.substring(0, 10) : '';
+                    document.getElementById('edit-class-mode').value = c.CLASS_MODE || 'STANDARD';
+                    document.getElementById('edit-class-reg-mode').value = c.REGISTRATION_MODE || 'ASSIGNED';
+                    document.getElementById('edit-class-deadline').value = c.REGISTRATION_DEADLINE ? c.REGISTRATION_DEADLINE.substring(0, 10) : '';
+                    document.getElementById('edit-class-max').value = c.MAX_STUDENTS || '';
+                    document.getElementById('edit-class-min-attend').value = c.MIN_ATTENDANCE_PERCENT || 75;
+                    document.getElementById('edit-class-require-review').checked = c.REQUIRE_POST_REVIEW === 1;
+
+                    toggleRegOptions();
+                });
+        }
+
+        function toggleRegOptions() {
+            const mode = document.getElementById('edit-class-reg-mode').value;
+            const container = document.getElementById('edit-reg-options');
+            if (mode === 'OPEN' || mode === 'HYBRID') {
+                container.classList.remove('d-none');
+            } else {
+                container.classList.add('d-none');
+            }
+        }
+
+        function submitEditClass() {
+            const courseId = parseInt(document.getElementById('edit-course-id').value);
+            const className = document.getElementById('edit-class-name').value.trim();
+            const start = document.getElementById('edit-class-start').value;
+            const end = document.getElementById('edit-class-end').value;
+            const mode = document.getElementById('edit-class-mode').value;
+            const regMode = document.getElementById('edit-class-reg-mode').value;
+            const regDeadline = document.getElementById('edit-class-deadline').value;
+            const maxStudents = document.getElementById('edit-class-max').value;
+            const minAttend = document.getElementById('edit-class-min-attend').value;
+            const reqReview = document.getElementById('edit-class-require-review').checked ? 1 : 0;
+
+            if (!className || !start || !end) {
+                window.showToast('Vui lòng điền các trường bắt buộc!', 'warning');
+                return;
+            }
+
+            const spinner = document.getElementById('edit-spinner');
+            spinner.classList.remove('d-none');
+
+            fetch(window.TRAINING_URLS.saveClass, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ID: classId,
+                    COURSE_ID: courseId,
+                    CLASS_NAME: className,
+                    DESCRIPTION: document.getElementById('edit-class-desc').value.trim() || null,
+                    START_DATE: start,
+                    END_DATE: end,
+                    CLASS_MODE: mode,
+                    REGISTRATION_MODE: regMode,
+                    REGISTRATION_DEADLINE: regDeadline ? regDeadline : null,
+                    MAX_STUDENTS: maxStudents ? parseInt(maxStudents) : null,
+                    MIN_ATTENDANCE_PERCENT: minAttend ? parseInt(minAttend) : 75,
+                    REQUIRE_POST_REVIEW: reqReview
+                })
+            })
+            .then(r => r.json())
+            .then(res => {
+                spinner.classList.add('d-none');
+                if (res.success) {
+                    window.showToast('Cập nhật cấu hình lớp học thành công!', 'success');
+                    setTimeout(() => {
+                        window.location.href = window.TRAINING_URLS.classAssign;
+                    }, 1500);
+                } else {
+                    window.showToast(res.message || 'Lỗi cập nhật cấu hình.', 'error');
+                }
+            })
+            .catch(err => {
+                spinner.classList.add('d-none');
+                window.showToast('Lỗi kết nối: ' + err.message, 'error');
+            });
+        }
+    </script>
+}

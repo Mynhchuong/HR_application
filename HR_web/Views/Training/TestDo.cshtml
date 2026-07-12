@@ -87,7 +87,7 @@
             startTest: '@Url.Action("StartTest", "Training")',
             saveTestAnswer: '@Url.Action("SaveTestAnswer", "Training")',
             submitTest: '@Url.Action("SubmitTest", "Training")',
-            trainingIndex: '@Url.Action("Index", "Training")'
+            trainingIndex: '@Url.Action("MyClasses", "Training")'
         };
         const empCd = '@empCd';
         const testId = @testId;
@@ -144,7 +144,6 @@
                 questions = res.data.questions || [];
                 
                 // Tính toán thời gian làm bài
-                // Duration tính bằng giây
                 const durationMinutes = res.data.test.DURATION_MINUTES || 45;
                 const startDt = new Date(attempt.START_DT);
                 const endDt = new Date(startDt.getTime() + durationMinutes * 60 * 1000);
@@ -153,12 +152,11 @@
                 timeRemainingSeconds = Math.max(0, Math.floor((endDt.getTime() - now.getTime()) / 1000));
 
                 if (timeRemainingSeconds <= 0) {
-                    // Hết thời gian trực tiếp nộp bài
                     submitQuiz(true);
                     return;
                 }
 
-                // Thiết lập giao diện
+                // Giao diện
                 document.getElementById('test-title').textContent = res.data.test.TITLE;
                 document.getElementById('quiz-loading').classList.add('d-none');
                 document.getElementById('quiz-interface').classList.remove('d-none');
@@ -173,7 +171,6 @@
             const container = document.getElementById('questions-container');
             container.innerHTML = '';
 
-            // Map saved answers by QuestionID for easy access
             const answersMap = {};
             savedAnswers.forEach(ans => {
                 answersMap[ans.QUESTION_ID] = ans;
@@ -184,9 +181,8 @@
                 let inputHtml = '';
 
                 if (q.QUESTION_TYPE === 'SINGLE' || q.QUESTION_TYPE === 'YESNO') {
-                    // Trắc nghiệm chọn 1
                     q.OPTIONS.forEach(opt => {
-                        const isChecked = saved.ANSWER_OPTION_IDS && saved.ANSWER_OPTION_IDS.split(',').includes(opt.ID.ToString()) ? 'checked' : '';
+                        const isChecked = saved.ANSWER_OPTION_IDS && saved.ANSWER_OPTION_IDS.split(',').includes(opt.ID.toString()) ? 'checked' : '';
                         inputHtml += `
                             <div class="form-check p-0 mb-2">
                                 <label class="d-flex align-items-center gap-3 p-3 option-item border" style="cursor: pointer;">
@@ -197,9 +193,8 @@
                         `;
                     });
                 } else if (q.QUESTION_TYPE === 'MULTI') {
-                    // Trắc nghiệm nhiều lựa chọn
                     q.OPTIONS.forEach(opt => {
-                        const isChecked = saved.ANSWER_OPTION_IDS && saved.ANSWER_OPTION_IDS.split(',').includes(opt.ID.ToString()) ? 'checked' : '';
+                        const isChecked = saved.ANSWER_OPTION_IDS && saved.ANSWER_OPTION_IDS.split(',').includes(opt.ID.toString()) ? 'checked' : '';
                         inputHtml += `
                             <div class="form-check p-0 mb-2">
                                 <label class="d-flex align-items-center gap-3 p-3 option-item border" style="cursor: pointer;">
@@ -210,7 +205,6 @@
                         `;
                     });
                 } else if (q.QUESTION_TYPE === 'TEXT') {
-                    // Tự luận
                     const textVal = saved.ANSWER_TEXT || '';
                     inputHtml += `
                         <textarea name="q_${q.ID}" class="form-control py-3 px-4" placeholder="Nhập câu trả lời tự luận của bạn..." rows="5" style="border-radius: 12px;" onchange="saveAnswer(${q.ID})">${textVal}</textarea>
@@ -232,7 +226,7 @@
             });
         }
 
-        // 3. Tự động lưu đáp án khi học viên click chọn
+        // 3. Tự động lưu đáp án
         function saveAnswer(questionId) {
             const inputs = document.getElementsByName(`q_${questionId}`);
             let answerOptionIds = '';
@@ -263,13 +257,12 @@
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
-                    // Hiển thị trạng thái đã lưu (nếu cần micro-animation)
                     console.log('Saved answer for q_' + questionId);
                 }
             });
         }
 
-        // 4. Quản lý đồng hồ đếm ngược
+        // 4. Đồng hồ đếm ngược
         function startTimer() {
             const tText = document.getElementById('timer-text');
             const tCard = document.getElementById('timer-card');
@@ -280,11 +273,10 @@
                 if (timeRemainingSeconds <= 0) {
                     clearInterval(timerInterval);
                     tText.textContent = "HẾT GIỜ";
-                    submitQuiz(true); // Tự động nộp
+                    submitQuiz(true);
                     return;
                 }
 
-                // Cảnh báo đỏ nếu dưới 2 phút
                 if (timeRemainingSeconds < 120) {
                     tCard.classList.remove('bg-success');
                     tCard.classList.add('bg-danger');
@@ -296,7 +288,7 @@
             }, 1000);
         }
 
-        // 5. Rời tab / Anti-cheat
+        // 5. Anti-cheat
         function handleTabLeave() {
             if (isSubmitted) return;
             
@@ -311,7 +303,7 @@
             }
         }
 
-        // 6. Xác nhận nộp bài chủ động
+        // 6. Xác nhận nộp bài
         function submitQuizConfirm() {
             window.showConfirm('Bạn đã chắc chắn muốn nộp bài thi này?', () => {
                 submitQuiz(false);
@@ -325,7 +317,7 @@
             });
         }
 
-        // 7. Thực hiện nộp bài lên API
+        // 7. Thực hiện nộp bài
         function submitQuiz(force = false) {
             isSubmitted = true;
             clearInterval(timerInterval);
@@ -371,7 +363,7 @@
                     `;
                 } else {
                     window.showToast(res.message || 'Lỗi nộp bài thi.', 'error');
-                    isSubmitted = false; // Reset to let them try again
+                    isSubmitted = false;
                 }
             })
             .catch(err => {

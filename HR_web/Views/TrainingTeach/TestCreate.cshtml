@@ -154,27 +154,51 @@
                 area.classList.add('d-none');
             } else {
                 area.classList.remove('d-none');
+                
+                // Update indicator types dynamically (radio vs checkbox)
+                const indicators = area.querySelectorAll(`.correct-indicator-${qId}`);
+                const inputType = type === 'MULTI' ? 'checkbox' : 'radio';
+                indicators.forEach(ind => {
+                    ind.type = inputType;
+                    if (inputType === 'radio') {
+                        ind.name = `correct_answer_${qId}`;
+                    } else {
+                        ind.removeAttribute('name');
+                    }
+                });
             }
         }
 
         function renderOptionRow(qId, optId) {
+            const qTypeSelect = document.getElementById(`q_type_${qId}`);
+            const type = qTypeSelect ? qTypeSelect.value : 'SINGLE';
+            const inputType = type === 'MULTI' ? 'checkbox' : 'radio';
+            const nameAttr = inputType === 'radio' ? `name="correct_answer_${qId}"` : '';
+
             return `
-                <div class="input-group mb-2" id="q_${qId}_opt_row_${optId}">
-                    <div class="input-group-text bg-white">
-                        <input type="checkbox" class="form-check-input mt-0 correct-indicator-${qId}" value="${optId}">
+                <div class="d-flex align-items-center mb-2" id="q_${qId}_opt_row_${optId}" style="border: 1px solid #ced4da; border-radius: 8px; background-color: #fff; overflow: hidden;">
+                    <!-- Correct Answer Indicator Panel -->
+                    <div class="d-flex align-items-center bg-light px-3 py-2" style="border-right: 1px solid #ced4da; user-select: none;">
+                        <input type="${inputType}" ${nameAttr} class="form-check-input mt-0 correct-indicator-${qId}" value="${optId}" style="cursor: pointer; width: 18px; height: 18px; border: 1px solid #adb5bd; background-color: #fff; margin-right: 6px;">
+                        <span class="small text-success fw-bold" style="font-size: 0.85rem;">Đúng</span>
                     </div>
-                    <input type="text" class="form-control opt-text-${qId}" placeholder="Nhập đáp án..." style="border-radius: 0 8px 8px 0;">
-                    <button type="button" onclick="removeOptionRow(${qId}, ${optId})" class="btn btn-outline-danger">Xóa</button>
+                    <!-- Option Text Input -->
+                    <input type="text" class="form-control opt-text-${qId}" placeholder="Nhập đáp án..." style="border: none; border-radius: 0; padding: 10px 12px; box-shadow: none; height: auto; background-color: transparent;">
+                    <!-- Delete Button -->
+                    <button type="button" onclick="removeOptionRow(${qId}, ${optId})" class="btn btn-link text-danger m-0 p-2 d-flex align-items-center justify-content-center" style="border-left: 1px solid #ced4da; border-radius: 0; box-shadow: none;">
+                        <span class="material-symbols-rounded" style="font-size: 1.25rem;">delete</span>
+                    </button>
                 </div>
             `;
         }
 
         function addOptionRow(qId) {
             const container = document.getElementById(`options_container_${qId}`);
-            const optId = container.children.length + 1;
-            const row = document.createElement('div');
-            row.innerHTML = renderOptionRow(qId, optId);
-            container.appendChild(row.firstElementChild);
+            // Generate a unique optId based on timestamp to avoid duplicate ID issues when deleting/adding rows
+            const optId = Date.now() + Math.floor(Math.random() * 1000);
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = renderOptionRow(qId, optId);
+            container.appendChild(tempDiv.firstElementChild);
         }
 
         function removeOptionRow(qId, optId) {
@@ -191,6 +215,54 @@
 
             if (!title) {
                 window.showToast('Vui lòng nhập tiêu đề bài thi!', 'warning');
+                return;
+            }
+
+            // Validation for questions & options
+            const cards = document.querySelectorAll('.builder-question-card');
+            if (cards.length === 0) {
+                window.showToast('Vui lòng tạo ít nhất 1 câu hỏi!', 'warning');
+                return;
+            }
+
+            let validationError = null;
+            cards.forEach((card, idx) => {
+                const cardId = card.id.replace('q_card_', '');
+                const type = document.getElementById(`q_type_${cardId}`).value;
+                const text = document.getElementById(`q_text_${cardId}`).value.trim();
+                const points = parseFloat(document.getElementById(`q_points_${cardId}`).value);
+
+                if (!text && !validationError) {
+                    validationError = `Vui lòng nhập nội dung câu hỏi cho Câu ${idx + 1}`;
+                }
+
+                if (type !== 'TEXT' && !validationError) {
+                    const optTexts = card.querySelectorAll(`.opt-text-${cardId}`);
+                    const indicators = card.querySelectorAll(`.correct-indicator-${cardId}`);
+                    
+                    if (optTexts.length < 2) {
+                        validationError = `Câu hỏi trắc nghiệm (Câu ${idx + 1}) cần có ít nhất 2 đáp án!`;
+                    }
+                    
+                    let hasCorrect = false;
+                    optTexts.forEach((optInput, optIdx) => {
+                        const optVal = optInput.value.trim();
+                        if (!optVal && !validationError) {
+                            validationError = `Vui lòng không để trống đáp án của Câu ${idx + 1}`;
+                        }
+                        if (indicators[optIdx] && indicators[optIdx].checked) {
+                            hasCorrect = true;
+                        }
+                    });
+
+                    if (!hasCorrect && !validationError) {
+                        validationError = `Vui lòng chọn ít nhất 1 đáp án đúng cho Câu ${idx + 1}`;
+                    }
+                }
+            });
+
+            if (validationError) {
+                window.showToast(validationError, 'warning');
                 return;
             }
 
@@ -216,7 +288,7 @@
                 if (!res.success) {
                     throw new Error(res.message || 'Lỗi lưu thông tin bài thi.');
                 }
-                const savedTestId = res.data.ID;
+                const savedTestId = res.data?.id || res.data?.ID;
 
                 // 2. Prepare questions payload
                 const questionsPayload = [];
@@ -260,8 +332,17 @@
                         TEST_ID: savedTestId,
                         QUESTIONS: questionsPayload
                     })
-                }).then(r => r.json()).then(resQ => {
-                    if (!resQ.success) throw new Error(resQ.message || 'Lỗi lưu câu hỏi.');
+                }).then(async r => {
+                    const resQ = await r.json();
+                    if (!r.ok || !resQ.success) {
+                        let errorMsg = resQ.message || 'Lỗi lưu câu hỏi.';
+                        if (resQ.errors) {
+                            errorMsg = Object.values(resQ.errors).flat().join('\n');
+                        }
+                        throw new Error(errorMsg);
+                    }
+                    return resQ;
+                }).then(resQ => {
                     
                     // 3. Publish test
                     return fetch(window.TRAINING_URLS.testPublish, {

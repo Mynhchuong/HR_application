@@ -10,11 +10,13 @@ public class LeaveController : BaseController
 {
     private readonly LeaveService    _leaveService;
     private readonly GatePassService _gatePassService;
+    private readonly TrainingService _trainingService;
 
-    public LeaveController(LeaveService leaveService, GatePassService gatePassService)
+    public LeaveController(LeaveService leaveService, GatePassService gatePassService, TrainingService trainingService)
     {
         _leaveService    = leaveService;
         _gatePassService = gatePassService;
+        _trainingService = trainingService;
     }
 
     // ─────────────────────────────────────────────
@@ -267,6 +269,29 @@ public class LeaveController : BaseController
         }
         catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
     }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/GetTeamTrainingSchedule (AJAX)
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetTeamTrainingSchedule(int? month = null, int? year = null)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+            
+            int y = year  ?? DateTime.Today.Year;
+            int m = month ?? DateTime.Today.Month;
+            var fromDate = new DateTime(y, m, 1);
+            var toDate = fromDate.AddMonths(1).AddDays(-1);
+
+            var list = await _trainingService.GetTeamScheduleAsync(CurrentUser.EmpCd, fromDate, toDate, null);
+            return Json(new { success = true, data = list });
+        }
+        catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+    }
+
 
     // ─────────────────────────────────────────────
     // POST: /Leave/AssignLeave (AJAX)

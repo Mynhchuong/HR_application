@@ -58,6 +58,12 @@ public class TrainingAdminController : BaseController
         return View();
     }
 
+    // GET /TrainingAdmin/Certificates
+    public IActionResult Certificates()
+    {
+        return View();
+    }
+
     // GET /TrainingAdmin/ClassAssign/{id}
     public IActionResult ClassAssign(int id)
     {
@@ -627,9 +633,21 @@ public class TrainingAdminController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetCertificateList(int classId)
+    public async Task<IActionResult> GetCertificateList(
+        int? classId = null, string? empcd = null, string? deptcd = null, 
+        string? linecd = null, string? workcd = null, DateTime? from = null, DateTime? to = null)
     {
-        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/certificate/list", $"classId={classId}");
+        var loginUser = CurrentUser?.EmpCd ?? "";
+        var qs = $"loginUser={loginUser}";
+        if (classId.HasValue)             qs += $"&classId={classId.Value}";
+        if (!string.IsNullOrEmpty(empcd))  qs += $"&empcd={empcd}";
+        if (!string.IsNullOrEmpty(deptcd)) qs += $"&deptcd={deptcd}";
+        if (!string.IsNullOrEmpty(linecd)) qs += $"&linecd={linecd}";
+        if (!string.IsNullOrEmpty(workcd)) qs += $"&workcd={workcd}";
+        if (from.HasValue)                qs += $"&from={from.Value:yyyy-MM-dd}";
+        if (to.HasValue)                  qs += $"&to={to.Value:yyyy-MM-dd}";
+
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/certificate/list", qs);
         return Json(res);
     }
 

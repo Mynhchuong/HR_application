@@ -78,19 +78,26 @@ public class TrainingAuthHelper
         return rows.Any();
     }
 
-    // Check user là teacher của test không (test thuộc class user teach)
+    // Check user là teacher của test không (test thuộc class user teach, HOẶC user là người tạo test)
     public async Task<bool> IsTeacherOfTestAsync(string empcd, int testId)
     {
         if (string.IsNullOrWhiteSpace(empcd)) return false;
         var rows = await _db.ExecuteQueryAsync(@"
-            SELECT 1 FROM HRMS.HR_TRAINING_CLASS_TEACHER CT
-              JOIN HRMS.HR_TRAINING_TEST T ON T.CLASS_ID = CT.CLASS_ID
+            SELECT 1 FROM HRMS.HR_TRAINING_TEST T
              WHERE T.ID = :TEST_ID
-               AND CT.EMPCD = :EMPCD
+               AND (
+                     T.CREATED_BY = :EMPCD1
+                     OR EXISTS (
+                         SELECT 1 FROM HRMS.HR_TRAINING_CLASS_TEACHER CT
+                          WHERE CT.CLASS_ID = T.CLASS_ID
+                            AND CT.EMPCD = :EMPCD2
+                     )
+                   )
                AND ROWNUM = 1",
             r => 1,
             new OracleParameter("TEST_ID", testId),
-            new OracleParameter("EMPCD", empcd));
+            new OracleParameter("EMPCD1", empcd),
+            new OracleParameter("EMPCD2", empcd));
         return rows.Any();
     }
 

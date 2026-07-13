@@ -89,6 +89,15 @@
                         </div>
                     </div>
 
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted">Bài thi cuối khóa (Final Test)</label>
+                            <select id="edit-class-final-test" class="form-select" style="border-radius: 8px;">
+                                <option value="">-- Không chỉ định bài thi cuối khóa --</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="d-grid mt-4">
                         <button type="button" onclick="submitEditClass()" class="btn btn-primary py-2.5 rounded-3 fw-bold shadow-sm">
                             <span id="edit-spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
@@ -106,6 +115,7 @@
         window.TRAINING_URLS = {
             getClassDetailAdmin: '@Url.Action("GetClassDetailAdmin", "TrainingAdmin")',
             saveClass: '@Url.Action("SaveClass", "TrainingAdmin")',
+            getClassTests: '@Url.Action("GetClassTests", "Training")',
             classAssign: '@Url.Action("ClassAssign", "TrainingAdmin", new { id = classId })'
         };
 
@@ -116,25 +126,42 @@
         });
 
         function loadClassData() {
-            fetch(`${window.TRAINING_URLS.getClassDetailAdmin}?classId=${classId}`)
+            // First fetch the tests of this class to populate the dropdown
+            fetch(`${window.TRAINING_URLS.getClassTests}?classId=${classId}`)
+                .then(r => r.json())
+                .then(resTests => {
+                    const select = document.getElementById('edit-class-final-test');
+                    select.innerHTML = '<option value="">-- Không chỉ định bài thi cuối khóa --</option>';
+                    if (resTests.success && resTests.data) {
+                        resTests.data.forEach(t => {
+                            select.innerHTML += `<option value="${t.ID || t.id}">${t.TITLE || t.title}</option>`;
+                        });
+                    }
+                    
+                    // Then load class details
+                    return fetch(`${window.TRAINING_URLS.getClassDetailAdmin}?classId=${classId}`);
+                })
                 .then(r => r.json())
                 .then(res => {
                     if (!res.success) {
                         window.showToast('Lỗi tải dữ liệu lớp học.', 'error');
                         return;
                     }
-                    const c = res.data.cls;
-                    document.getElementById('edit-course-id').value = c.COURSE_ID;
-                    document.getElementById('edit-class-name').value = c.CLASS_NAME;
-                    document.getElementById('edit-class-desc').value = c.DESCRIPTION || '';
-                    document.getElementById('edit-class-start').value = c.START_DATE ? c.START_DATE.substring(0, 10) : '';
-                    document.getElementById('edit-class-end').value = c.END_DATE ? c.END_DATE.substring(0, 10) : '';
-                    document.getElementById('edit-class-mode').value = c.CLASS_MODE || 'STANDARD';
-                    document.getElementById('edit-class-reg-mode').value = c.REGISTRATION_MODE || 'ASSIGNED';
-                    document.getElementById('edit-class-deadline').value = c.REGISTRATION_DEADLINE ? c.REGISTRATION_DEADLINE.substring(0, 10) : '';
-                    document.getElementById('edit-class-max').value = c.MAX_STUDENTS || '';
-                    document.getElementById('edit-class-min-attend').value = c.MIN_ATTENDANCE_PERCENT || 75;
-                    document.getElementById('edit-class-require-review').checked = c.REQUIRE_POST_REVIEW === 1;
+                    const c = res.data.cls || res.data;
+                    document.getElementById('edit-course-id').value = c.COURSE_ID || c.courseId || 0;
+                    document.getElementById('edit-class-name').value = c.CLASS_NAME || c.className || '';
+                    document.getElementById('edit-class-desc').value = c.DESCRIPTION || c.description || '';
+                    document.getElementById('edit-class-start').value = (c.START_DATE || c.startDate) ? (c.START_DATE || c.startDate).substring(0, 10) : '';
+                    document.getElementById('edit-class-end').value = (c.END_DATE || c.endDate) ? (c.END_DATE || c.endDate).substring(0, 10) : '';
+                    document.getElementById('edit-class-mode').value = c.CLASS_MODE || c.classMode || 'STANDARD';
+                    document.getElementById('edit-class-reg-mode').value = c.REGISTRATION_MODE || c.registrationMode || 'ASSIGNED';
+                    document.getElementById('edit-class-deadline').value = (c.REGISTRATION_DEADLINE || c.registrationDeadline) ? (c.REGISTRATION_DEADLINE || c.registrationDeadline).substring(0, 10) : '';
+                    document.getElementById('edit-class-max').value = c.MAX_STUDENTS || c.maxStudents || '';
+                    document.getElementById('edit-class-min-attend').value = c.MIN_ATTENDANCE_PERCENT || c.minAttendancePercent || 75;
+                    document.getElementById('edit-class-require-review').checked = (c.REQUIRE_POST_REVIEW === 1 || c.requirePostReview === 1);
+                    
+                    // Set dropdown value for final test
+                    document.getElementById('edit-class-final-test').value = c.FINAL_TEST_ID || c.finalTestId || '';
 
                     toggleRegOptions();
                 });
@@ -161,6 +188,7 @@
             const maxStudents = document.getElementById('edit-class-max').value;
             const minAttend = document.getElementById('edit-class-min-attend').value;
             const reqReview = document.getElementById('edit-class-require-review').checked ? 1 : 0;
+            const finalTestVal = document.getElementById('edit-class-final-test').value;
 
             if (!className || !start || !end) {
                 window.showToast('Vui lòng điền các trường bắt buộc!', 'warning');
@@ -185,7 +213,8 @@
                     REGISTRATION_DEADLINE: regDeadline ? regDeadline : null,
                     MAX_STUDENTS: maxStudents ? parseInt(maxStudents) : null,
                     MIN_ATTENDANCE_PERCENT: minAttend ? parseInt(minAttend) : 75,
-                    REQUIRE_POST_REVIEW: reqReview
+                    REQUIRE_POST_REVIEW: reqReview,
+                    FINAL_TEST_ID: finalTestVal ? parseInt(finalTestVal) : null
                 })
             })
             .then(r => r.json())

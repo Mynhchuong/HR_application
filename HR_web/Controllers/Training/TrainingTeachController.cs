@@ -96,27 +96,68 @@ public class TrainingTeachController : BaseController
     }
 
     [HttpGet]
+    public async Task<IActionResult> GetClassDetail(int classId)
+    {
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/class/detail", $"id={classId}");
+        return Json(res);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> GetTeacherAttendanceView(int sessionId, string empcd)
     {
-        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/session/{sessionId}/attendance-view", $"empcd={empcd}");
+        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/session/{sessionId}/attendance", $"empcd={empcd}");
+        if (res == null) return Json(new { success = false, status = 403, message = "Bạn không có quyền truy cập thông tin buổi học này" });
         return Json(res);
     }
 
     [HttpPost]
+    [HttpGet]
     public async Task<IActionResult> ConfirmAttendance([FromBody] ConfirmAttendanceRequest req)
     {
-        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
-        var response = await _training.PostToApiAsync($"TrainingTeach/session/{req.SESSION_ID}/confirm", req);
+        var apiReq = new
+        {
+            SESSION_ID = req.SESSION_ID,
+            EMPCD = req.ATTENDEE_EMPCD,
+            STATUS = req.ATTENDANCE_STATUS,
+            NOTE = req.REASON,
+            LOGIN_USER = CurrentUser?.EmpCd ?? ""
+        };
+        var response = await _training.PostToApiAsync($"TrainingTeach/session/confirm", apiReq);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");
     }
 
     [HttpPost]
+    [HttpGet]
     public async Task<IActionResult> ConfirmAttendanceBatch([FromBody] ConfirmAttendanceBatchRequest req)
     {
-        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
-        var response = await _training.PostToApiAsync($"TrainingTeach/session/{req.SESSION_ID}/confirm-batch", req);
+        var loginUser = CurrentUser?.EmpCd ?? "";
+
+        // 1. Fetch the list of students in the session to get their EMPCD and GROUP_NAME
+        var attRes = await _training.GetFromApiAsync<SessionAttendanceViewApiResponse>($"TrainingTeach/session/{req.SESSION_ID}/attendance", "");
+        var allItems = attRes?.data?.ATTENDANCE ?? new List<AttendanceModelApiItem>();
+
+        // 2. Filter students if group filter is active
+        if (!string.IsNullOrWhiteSpace(req.GROUP_NAME))
+        {
+            allItems = allItems.Where(i => i.GROUP_NAME == req.GROUP_NAME).ToList();
+        }
+
+        // 3. Map to ConfirmAttendanceBatchRequest structure expected by API
+        var apiReq = new
+        {
+            SESSION_ID = req.SESSION_ID,
+            LOGIN_USER = loginUser,
+            ITEMS = allItems.Select(i => new
+            {
+                EMPCD = i.EMPCD,
+                STATUS = req.ATTENDANCE_STATUS,
+                NOTE = (string?)null
+            }).ToList()
+        };
+
+        var response = await _training.PostToApiAsync($"TrainingTeach/session/confirm-batch", apiReq);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");
@@ -196,6 +237,10 @@ public class TrainingTeachController : BaseController
         var response = await _training.PostToApiAsync("TrainingTeach/test/questions/save", req);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"[API Error Details]: {json}");
+        }
         return Content(json, "application/json");
     }
 
@@ -225,4 +270,52 @@ public class TrainingTeachController : BaseController
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");
     }
+
+    [HttpPost]
+    public async Task<IActionResult> TestDelete([FromBody] ChangeTestStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/test/delete", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    // GET /TrainingTeach/TestPreview/{id}
+    public IActionResult TestPreview(int id)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+        ViewBag.EmpCd = empcd;
+        ViewBag.TestId = id;
+        return View();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetTestDetailForPreview(int id)
+    {
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/test/detail", $"id={id}");
+        return Json(res);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SetFinalTest([FromBody] SetFinalTestWebRequest req)
+    {
+        var loginUser = CurrentUser?.EmpCd ?? "";
+        var apiReq = new {
+            CLASS_ID = req.CLASS_ID,
+            TEST_ID = req.TEST_ID,
+            LOGIN_USER = loginUser
+        };
+        var response = await _training.PostToApiAsync("TrainingTeach/class/set-final-test", apiReq);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+}
+
+public class SetFinalTestWebRequest
+{
+    public int CLASS_ID { get; set; }
+    public int? TEST_ID { get; set; }
 }

@@ -145,7 +145,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum"                  },
                     new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",             Icon = "home_app_logo"          },
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",           Icon = "poll"                   },
-                    new SideMenuItem { Title = "Báo cáo Đào tạo",      Url = "~/TrainingAdmin/Reports",            Icon = "analytics"              },
+                    new SideMenuItem { Title = "Chứng chỉ Đào tạo",    Url = "~/TrainingAdmin/Certificates",        Icon = "card_membership"        },
                     new SideMenuItem { Title = "Quản lý Đào tạo",      Url = "~/TrainingAdmin/Index",             Icon = "school"                 },
                 //    new SideMenuItem { Title = "DS miễn làm Survey",    Url = "~/SurveyExempt/Index",          Icon = "person_off"             },
                 }

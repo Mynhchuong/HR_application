@@ -20,15 +20,20 @@ public class TestModel
     public DateTime? UPDT_DT { get; set; }
 
     // Denorm for UI
-    public string? CLASS_NAME { get; set; }
-    public string? COURSE_TITLE { get; set; }
-    public int?   QUESTION_COUNT { get; set; }
-    public int?   ATTEMPT_COUNT { get; set; }
+    public string?   CLASS_NAME { get; set; }
+    public string?   COURSE_TITLE { get; set; }
+    public int?      QUESTION_COUNT { get; set; }
+    public int?      ATTEMPT_COUNT { get; set; }
+
+    // Student attempt info (§6)
+    public string?   ATTEMPT_STATUS { get; set; }
+    public decimal?  SCORE { get; set; }
+    public decimal?  MAX_SCORE { get; set; }
 }
 
 public class TestQuestionModel
 {
-    public int    ID { get; set; }
+    public int?   ID { get; set; }
     public int    TEST_ID { get; set; }
     public string QUESTION_TEXT { get; set; } = "";
     public string QUESTION_TYPE { get; set; } = "SINGLE"; // SINGLE | MULTI | YESNO | DROPDOWN | TEXT
@@ -40,7 +45,7 @@ public class TestQuestionModel
 
 public class TestOptionModel
 {
-    public int    ID { get; set; }
+    public int?   ID { get; set; }
     public int    QUESTION_ID { get; set; }
     public string OPTION_TEXT { get; set; } = "";
     public int    DISPLAY_ORDER { get; set; }
@@ -76,6 +81,8 @@ public class SaveTestQuestionsRequest
 
 public class ChangeTestStatusRequest
 {
-    public int    ID { get; set; }
-    public string LOGIN_USER { get; set; } = "";
+    public int       ID             { get; set; }
+    public string    LOGIN_USER     { get; set; } = "";
+    public DateTime? AVAILABLE_FROM { get; set; }
+    public DateTime? AVAILABLE_TO   { get; set; }
 }

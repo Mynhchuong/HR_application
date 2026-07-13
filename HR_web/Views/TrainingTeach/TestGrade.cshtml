@@ -78,8 +78,12 @@
             fetch(`${window.TRAINING_URLS.getPendingGrade}?id=${testId}&empcd=${empCd}`)
                 .then(r => r.json())
                 .then(res => {
-                    if (res.status === 403) {
-                        document.getElementById('attempts-container').innerHTML = `<div class="alert alert-danger text-center">Bạn không có quyền chấm bài kiểm tra này!</div>`;
+                    if (!res) {
+                        document.getElementById('attempts-container').innerHTML = `<div class="alert alert-danger text-center">Bạn không có quyền truy cập hoặc lỗi kết nối máy chủ!</div>`;
+                        return;
+                    }
+                    if (res.status === 403 || res.statusCode === 403) {
+                        document.getElementById('attempts-container').innerHTML = `<div class="alert alert-danger text-center">${res.message || 'Bạn không có quyền chấm bài kiểm tra này!'}</div>`;
                         return;
                     }
                     if (!res.success) {
@@ -90,8 +94,10 @@
                     gradingData = res.data || [];
                     document.getElementById('pending-count').textContent = gradingData.length;
 
-                    if (gradingData.length > 0 && gradingData[0].attempt) {
-                        document.getElementById('test-title').textContent = "Bài thi: " + (gradingData[0].attempt.TEST_TITLE || "Đánh giá đào tạo");
+                    const firstItem = gradingData[0] || {};
+                    const firstAtt = firstItem.attempt || firstItem.ATTEMPT;
+                    if (firstAtt) {
+                        document.getElementById('test-title').textContent = "Bài thi: " + (firstAtt.TEST_TITLE || firstAtt.testTitle || "Đánh giá đào tạo");
                     } else {
                         document.getElementById('test-title').textContent = "Chưa có bài thi cần chấm tự luận";
                     }
@@ -119,37 +125,46 @@
 
             container.innerHTML = '';
             gradingData.forEach((item, idx) => {
-                const att = item.attempt;
-                const submitDate = new Date(att.SUBMIT_DT).toLocaleString('vi-VN');
+                const att = item.attempt || item.ATTEMPT;
+                if (!att) return;
+
+                const submitDtStr = att.SUBMIT_DT || att.submitDt;
+                const submitDate = submitDtStr ? new Date(submitDtStr).toLocaleString('vi-VN') : 'N/A';
                 
                 let essaysHtml = '';
-                item.essays.forEach(es => {
-                    const pointsId = `points_${es.ANSWER_ID}`;
-                    const commentId = `comment_${es.ANSWER_ID}`;
+                const essaysList = item.essays || item.ESSAYS || [];
+                essaysList.forEach(es => {
+                    const ansId = es.ANSWER_ID || es.answerId;
+                    const qText = es.QUESTION_TEXT || es.questionText;
+                    const qPoints = es.QUESTION_POINTS || es.questionPoints || 0;
+                    const aText = es.ANSWER_TEXT || es.answerText;
+                    
+                    const pointsId = `points_${ansId}`;
+                    const commentId = `comment_${ansId}`;
                     
                     essaysHtml += `
                         <div class="essay-card p-4 mb-3 position-relative">
                             <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
-                                <h6 class="fw-bold text-primary mb-0"><i class="bi bi-question-circle-fill me-1"></i>Câu hỏi: ${es.QUESTION_TEXT}</h6>
-                                <span class="badge bg-secondary-soft text-secondary px-2 py-1 small">Điểm tối đa: ${es.QUESTION_POINTS}đ</span>
+                                <h6 class="fw-bold text-primary mb-0"><i class="bi bi-question-circle-fill me-1"></i>Câu hỏi: ${qText}</h6>
+                                <span class="badge bg-secondary-soft text-secondary px-2 py-1 small">Điểm tối đa: ${qPoints}đ</span>
                             </div>
                             
                             <div class="mb-3">
                                 <label class="small fw-bold text-muted mb-1 d-block">Câu trả lời của học viên:</label>
-                                <div class="bg-white p-3 border rounded text-dark small" style="white-space: pre-wrap; min-height: 80px;">${es.ANSWER_TEXT || 'Không có câu trả lời.'}</div>
+                                <div class="bg-white p-3 border rounded text-dark small" style="white-space: pre-wrap; min-height: 80px;">${aText || 'Không có câu trả lời.'}</div>
                             </div>
                             
                             <div class="row g-3">
                                 <div class="col-12 col-md-3">
-                                    <label class="form-label small fw-bold text-muted">Điểm cho học viên (0 - ${es.QUESTION_POINTS})</label>
-                                    <input type="number" id="${pointsId}" class="form-control" placeholder="Điểm..." min="0" max="${es.QUESTION_POINTS}" step="0.5" style="border-radius: 8px;" />
+                                    <label class="form-label small fw-bold text-muted">Điểm cho học viên (0 - ${qPoints})</label>
+                                    <input type="number" id="${pointsId}" class="form-control" placeholder="Điểm..." min="0" max="${qPoints}" step="0.5" style="border-radius: 8px;" />
                                 </div>
                                 <div class="col-12 col-md-7">
                                     <label class="form-label small fw-bold text-muted">Nhận xét của giáo viên (tuỳ chọn)</label>
                                     <input type="text" id="${commentId}" class="form-control" placeholder="Nhập nhận xét..." style="border-radius: 8px;" />
                                 </div>
                                 <div class="col-12 col-md-2 text-end pt-md-4">
-                                    <button onclick="submitGrade(${es.ANSWER_ID}, ${es.QUESTION_POINTS})" class="btn btn-warning w-100 py-2 rounded-3 fw-bold d-inline-flex align-items-center justify-content-center gap-1">
+                                    <button onclick="submitGrade(${ansId}, ${qPoints})" class="btn btn-warning w-100 py-2 rounded-3 fw-bold d-inline-flex align-items-center justify-content-center gap-1">
                                         <span class="material-symbols-rounded" style="font-size: 1.1rem;">save</span>
                                         Lưu điểm
                                     </button>
@@ -159,16 +174,21 @@
                     `;
                 });
 
+                const empCdVal = att.EMPCD || att.empcd || '';
+                const empNameVal = att.EMP_NAME || att.empName || 'N/A';
+                const attemptNoVal = att.ATTEMPT_NO || att.attemptNo || 1;
+                const scoreVal = att.SCORE || att.score || 0;
+
                 container.innerHTML += `
                     <div class="card border-0 shadow-sm p-4 mb-4 attempt-card">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 bg-light p-3 rounded-3">
                             <div>
-                                <h6 class="fw-bold text-dark mb-0"><i class="bi bi-person-fill me-1"></i>Học viên: ${att.EMP_NAME || 'N/A'} (${att.EMPCD})</h6>
-                                <span class="small text-muted">Nộp bài ngày: ${submitDate} | Số lần thi: Lượt ${att.ATTEMPT_NO}</span>
+                                <h6 class="fw-bold text-dark mb-0"><i class="bi bi-person-fill me-1"></i>Học viên: ${empNameVal} (${empCdVal})</h6>
+                                <span class="small text-muted">Nộp bài ngày: ${submitDate} | Số lần thi: Lượt ${attemptNoVal}</span>
                             </div>
                             <div class="text-md-end">
                                 <span class="small text-muted d-block">Trắc nghiệm đạt:</span>
-                                <span class="fw-bold text-dark">${att.SCORE} điểm</span>
+                                <span class="fw-bold text-dark">${scoreVal} điểm</span>
                             </div>
                         </div>
                         

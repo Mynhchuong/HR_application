@@ -40,17 +40,17 @@
                     </div>
                     <!-- Search -->
                     <div class="col-12 col-md-4">
-                        <label class="form-label small fw-bold text-muted mb-1">Tìm học viên (Tên/Mã NV)</label>
-                        <input type="text" id="search-input" class="form-control" placeholder="Nhập tên hoặc mã nhân viên..." oninput="filterStudents()" style="border-radius: 8px;" />
+                        <label class="form-label small fw-bold text-muted mb-1">Tìm học viên (Mã NV)</label>
+                        <input type="text" id="search-input" class="form-control" placeholder="Nhập mã nhân viên..." oninput="filterStudents()" style="border-radius: 8px;" />
                     </div>
                     <!-- Batch Action Buttons -->
                     <div class="col-12 col-md-4 text-md-end pt-md-4">
                         <div class="btn-group w-100 w-md-auto">
-                            <button onclick="confirmAttendanceBatch('PRESENT')" class="btn btn-outline-success fw-bold d-flex align-items-center justify-content-center gap-1" style="border-radius: 8px 0 0 8px;">
+                            <button id="btn-batch-present" onclick="confirmAttendanceBatch('PRESENT')" class="btn btn-outline-success fw-bold d-flex align-items-center justify-content-center gap-1" style="border-radius: 8px 0 0 8px;">
                                 <span class="material-symbols-rounded" style="font-size: 1.1rem;">done_all</span>
                                 Có mặt tất cả
                             </button>
-                            <button onclick="confirmAttendanceBatch('ABSENT')" class="btn btn-outline-danger fw-bold d-flex align-items-center justify-content-center gap-1" style="border-radius: 0 8px 8px 0;">
+                            <button id="btn-batch-absent" onclick="confirmAttendanceBatch('ABSENT')" class="btn btn-outline-danger fw-bold d-flex align-items-center justify-content-center gap-1" style="border-radius: 0 8px 8px 0;">
                                 <span class="material-symbols-rounded" style="font-size: 1.1rem;">close</span>
                                 Vắng tất cả
                             </button>
@@ -151,11 +151,25 @@
             loadAttendanceData();
         });
 
+        function normalizeKeys(obj) {
+            if (!obj || typeof obj !== 'object') return obj;
+            if (Array.isArray(obj)) {
+                return obj.map(normalizeKeys);
+            }
+            const res = {};
+            for (const key in obj) {
+                if (obj.hasOwnProperty(key)) {
+                    res[key.toUpperCase()] = normalizeKeys(obj[key]);
+                }
+            }
+            return res;
+        }
+
         function loadAttendanceData() {
             fetch(`${window.TRAINING_URLS.getTeacherAttendanceView}?sessionId=${sessionId}&empcd=${empCd}`)
                 .then(r => r.json())
                 .then(res => {
-                    if (res.status === 403) {
+                    if (!res || res.status === 403 || res.statusCode === 403) {
                         document.querySelector('.container-fluid').innerHTML = `<div class="alert alert-danger text-center">Bạn không phải giảng viên đứng lớp của buổi học này!</div>`;
                         return;
                     }
@@ -164,8 +178,9 @@
                         return;
                     }
 
-                    sessionInfo = res.data.session;
-                    allStudents = res.data.students || [];
+                    const normalizedData = normalizeKeys(res.data);
+                    sessionInfo = normalizedData.SESSION;
+                    allStudents = normalizedData.ATTENDANCE || [];
 
                     document.getElementById('back-link').href = window.TRAINING_URLS.classManage.replace('__ID__', sessionInfo.CLASS_ID);
 
@@ -179,12 +194,24 @@
             const wrap = document.getElementById('session-header-container');
             const s = sessionInfo;
             const dateStr = new Date(s.SESSION_DATE).toLocaleDateString('vi-VN');
+            const isFinished = s.STATUS === 'FINISHED';
+
+            const badgeHtml = isFinished
+                ? `<span class="badge bg-danger text-white px-2.5 py-1.5 fw-bold mb-2">Buổi học đã kết thúc</span>`
+                : `<span class="badge bg-success-soft text-success px-2.5 py-1.5 fw-bold mb-2">Điểm danh Buổi học</span>`;
+
+            const warningHtml = isFinished
+                ? `<div class="alert alert-danger border-0 d-flex align-items-center gap-2 mb-0 mt-3 rounded-3" style="font-size: .85rem;">
+                       <span class="material-symbols-rounded text-danger" style="font-size: 1.2rem;">warning</span>
+                       <div>Buổi học này đã kết thúc. Bạn không thể cập nhật hoặc sửa đổi thông tin điểm danh.</div>
+                   </div>`
+                : '';
 
             wrap.innerHTML = `
                 <div class="card border-0 shadow-sm p-4" style="border-radius: 16px; background: #fff;">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <span class="badge bg-success-soft text-success px-2.5 py-1.5 fw-bold mb-2">Điểm danh Buổi học</span>
+                            ${badgeHtml}
                             <h3 class="fw-bold mb-1 text-dark">${s.TOPIC || 'Không có chủ đề'}</h3>
                             <p class="text-muted mb-0">Lớp: <strong>${s.CLASS_NAME}</strong> | Thời gian: <strong>${s.START_TIME} - ${s.END_TIME} (${dateStr})</strong> | Phòng: <strong>${s.LOCATION || 'N/A'}</strong></p>
                         </div>
@@ -193,8 +220,16 @@
                             <span class="fs-2 fw-bold text-success">${allStudents.length}</span>
                         </div>
                     </div>
+                    ${warningHtml}
                 </div>
             `;
+
+            if (isFinished) {
+                const btnPres = document.getElementById('btn-batch-present');
+                const btnAbs = document.getElementById('btn-batch-absent');
+                if (btnPres) btnPres.disabled = true;
+                if (btnAbs) btnAbs.disabled = true;
+            }
         }
 
         function renderGroupFilter() {
@@ -211,29 +246,65 @@
             });
         }
 
+        function toUnsigned(str) {
+            if (!str) return '';
+            let text = str.toLowerCase().trim();
+            const vniMap = {
+                'aù':'u', 'aø':'a', 'aû':'a', 'aõ':'a', 'aï':'a', 'aâ':'a', 'aê':'a',
+                'eù':'e', 'eø':'e', 'eû':'e', 'eã':'e', 'eï':'e', 'eâ':'e',
+                'où':'o', 'oø':'o', 'oû':'o', 'oõ':'o', 'oï':'o', 'oô':'o',
+                'uù':'u', 'uø':'u', 'uû':'u', 'uõ':'u', 'uï':'u',
+                'yù':'y', 'yø':'y', 'yû':'y', 'yõ':'y', 'yï':'y',
+                'ö':'u', 'ô':'o', 'ñ':'d',
+                'á':'a', 'à':'a', 'ả':'a', 'ã':'a', 'ạ':'a',
+                'ă':'a', 'ắ':'a', 'ằ':'a', 'ẳ':'a', 'ẵ':'a', 'ặ':'a',
+                'â':'a', 'ấ':'a', 'ầ':'a', 'ẩ':'a', 'ẫ':'a', 'ậ':'a',
+                'é':'e', 'è':'e', 'ẻ':'e', 'ẽ':'e', 'ẹ':'e',
+                'ê':'e', 'ế':'e', 'ề':'e', 'ể':'e', 'ễ':'e', 'ệ':'e',
+                'í':'i', 'ì':'i', 'ỉ':'i', 'ĩ':'i', 'ị':'i',
+                'ó':'o', 'ò':'o', 'ỏ':'o', 'õ':'o', 'ọ':'o',
+                'ô':'o', 'ố':'o', 'ồ':'o', 'ổ':'o', 'ỗ':'o', 'ộ':'o',
+                'ơ':'o', 'ớ':'o', 'ờ':'o', 'ở':'o', 'ỡ':'o', 'ợ':'o',
+                'ú':'u', 'ù':'u', 'ủ':'u', 'ũ':'u', 'ụ':'u',
+                'ư':'u', 'ứ':'u', 'ừ':'u', 'ử':'u', 'ữ':'u', 'ự':'u',
+                'ý':'y', 'ỳ':'y', 'ỷ':'y', 'ỹ':'y', 'ỵ':'y',
+                'đ':'d'
+            };
+            for (const key in vniMap) {
+                if (key.length > 1) text = text.replaceAll(key, vniMap[key]);
+            }
+            for (const key in vniMap) {
+                if (key.length === 1) text = text.replaceAll(key, vniMap[key]);
+            }
+            return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        }
+
         function renderGrid() {
             const tbody = document.getElementById('student-grid');
             const filterGroup = document.getElementById('group-filter').value;
-            const search = document.getElementById('search-input').value.toLowerCase().trim();
+            const search = toUnsigned(document.getElementById('search-input').value);
 
             tbody.innerHTML = '';
             
             let count = 0;
+            const isFinished = sessionInfo && sessionInfo.STATUS === 'FINISHED';
+            const disabledAttr = isFinished ? 'disabled' : '';
+
             allStudents.forEach(st => {
                 if (filterGroup && st.GROUP_NAME !== filterGroup) return;
                 
-                const matchesSearch = st.EMPCD.toLowerCase().includes(search) || 
-                                      (st.EMP_NAME && st.EMP_NAME.toLowerCase().includes(search));
+                const empcdUnsigned = toUnsigned(st.EMPCD);
+                const matchesSearch = empcdUnsigned.includes(search);
                 if (!matchesSearch) return;
 
                 count++;
 
-                const status = st.ATTENDANCE_STATUS || 'PRESENT';
+                const status = st.ATTENDANCE_STATUS || st.STATUS || 'PRESENT';
                 const actPresent = status === 'PRESENT' ? 'active' : '';
                 const actLate    = status === 'LATE'    ? 'active' : '';
                 const actAbsent  = status === 'ABSENT'  ? 'active' : '';
 
-                const reasonVal = st.REASON || '';
+                const reasonVal = st.REASON || st.NOTE || '';
 
                 tbody.innerHTML += `
                     <tr id="row_${st.EMPCD}">
@@ -242,16 +313,16 @@
                         <td><span class="badge bg-light text-dark border">${st.GROUP_NAME || '-'}</span></td>
                         <td class="text-center">
                             <div class="status-btn-group">
-                                <button onclick="setStatus('${st.EMPCD}', 'PRESENT')" class="status-btn present ${actPresent}" id="btn_P_${st.EMPCD}">P (Có mặt)</button>
-                                <button onclick="setStatus('${st.EMPCD}', 'LATE')" class="status-btn late ${actLate}" id="btn_L_${st.EMPCD}">L (Muộn)</button>
-                                <button onclick="setStatus('${st.EMPCD}', 'ABSENT')" class="status-btn absent ${actAbsent}" id="btn_A_${st.EMPCD}">A (Vắng)</button>
+                                <button onclick="setStatus('${st.EMPCD}', 'PRESENT')" class="status-btn present ${actPresent}" id="btn_P_${st.EMPCD}" ${disabledAttr}>P (Có mặt)</button>
+                                <button onclick="setStatus('${st.EMPCD}', 'LATE')" class="status-btn late ${actLate}" id="btn_L_${st.EMPCD}" ${disabledAttr}>L (Muộn)</button>
+                                <button onclick="setStatus('${st.EMPCD}', 'ABSENT')" class="status-btn absent ${actAbsent}" id="btn_A_${st.EMPCD}" ${disabledAttr}>A (Vắng)</button>
                             </div>
                         </td>
                         <td>
-                            <input type="text" id="reason_${st.EMPCD}" class="form-control form-control-sm" placeholder="Ghi chú lý do..." value="${reasonVal}" style="border-radius: 6px; max-width: 250px;" onchange="saveReason('${st.EMPCD}')" />
+                            <input type="text" id="reason_${st.EMPCD}" class="form-control form-control-sm" placeholder="Ghi chú lý do..." value="${reasonVal}" style="border-radius: 6px; max-width: 250px;" onchange="saveReason('${st.EMPCD}')" ${disabledAttr} />
                         </td>
                         <td class="pe-4 text-end">
-                            <button onclick="confirmAttendanceSingle('${st.EMPCD}')" class="btn btn-sm btn-success rounded-3 fw-bold d-inline-flex align-items-center gap-0.5">
+                            <button onclick="confirmAttendanceSingle('${st.EMPCD}')" class="btn btn-sm btn-success rounded-3 fw-bold d-inline-flex align-items-center gap-0.5" ${disabledAttr}>
                                 <span class="material-symbols-rounded" style="font-size: 1rem;">save</span>
                                 Lưu
                             </button>
@@ -305,7 +376,7 @@
                 body: JSON.stringify({
                     SESSION_ID: sessionId,
                     ATTENDEE_EMPCD: student.EMPCD,
-                    ATTENDANCE_STATUS: student.ATTENDANCE_STATUS || 'PRESENT',
+                    ATTENDANCE_STATUS: student.ATTENDANCE_STATUS || student.STATUS || 'PRESENT',
                     REASON: student.REASON || null
                 })
             })

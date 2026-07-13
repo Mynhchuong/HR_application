@@ -18,6 +18,8 @@ public class SessionModel
     public DateTime? INST_DT { get; set; }
     public string? UPDT_ID { get; set; }
     public DateTime? UPDT_DT { get; set; }
+    public string? CLASS_NAME { get; set; }
+    public string? ATTENDANCE_STATUS { get; set; }
 }
 
 // HR_TRAINING_ATTENDANCE — điểm danh

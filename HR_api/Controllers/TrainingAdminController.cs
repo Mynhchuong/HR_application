@@ -2,6 +2,7 @@ using HR_api.Helpers;
 using HR_api.Models.Training;
 using HR_api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Oracle.ManagedDataAccess.Client;
 
 namespace HR_api.Controllers;
 
@@ -22,6 +23,7 @@ public partial class TrainingAdminController : ControllerBase
     private readonly TrainingCompletionService _completion;
     private readonly TrainingReportService _report;
     private readonly TrainingAuthHelper _auth;
+    private readonly TrainingTeamService _team;
 
     public TrainingAdminController(
         TrainingCourseService course,
@@ -34,7 +36,8 @@ public partial class TrainingAdminController : ControllerBase
         TrainingReviewService review,
         TrainingCompletionService completion,
         TrainingReportService report,
-        TrainingAuthHelper auth)
+        TrainingAuthHelper auth,
+        TrainingTeamService team)
     {
         _course = course;
         _class = cls;
@@ -47,6 +50,7 @@ public partial class TrainingAdminController : ControllerBase
         _completion = completion;
         _report = report;
         _auth = auth;
+        _team = team;
     }
 
     [HttpGet("course/list")]
@@ -617,7 +621,7 @@ public partial class TrainingAdminController : ControllerBase
     {
         try
         {
-            await _test.PublishAsync(req.ID, req.LOGIN_USER);
+            await _test.PublishAsync(req.ID, req.LOGIN_USER, req.AVAILABLE_FROM, req.AVAILABLE_TO);
             return Ok(new { success = true });
         }
         catch (InvalidOperationException ex)
@@ -676,7 +680,7 @@ public partial class TrainingAdminController : ControllerBase
         }
     }
 
-    // GET /apiHR/TrainingAdmin/certificate/list?classId=&deptcd=&linecd=&workcd=&from=&to=
+    // GET /apiHR/TrainingAdmin/certificate/list?classId=&deptcd=&linecd=&workcd=&from=&to=&empcd=&loginUser=
     [HttpGet("certificate/list")]
     public async Task<IActionResult> CertificateList(
         [FromQuery] int? classId,
@@ -684,9 +688,34 @@ public partial class TrainingAdminController : ControllerBase
         [FromQuery] string? linecd,
         [FromQuery] string? workcd,
         [FromQuery] DateTime? from,
-        [FromQuery] DateTime? to)
+        [FromQuery] DateTime? to,
+        [FromQuery] string? empcd,
+        [FromQuery] string? loginUser)
     {
-        var data = await _completion.ListCertificatesAsync(classId, deptcd, linecd, workcd, from, to);
+        string? scopeSql = null;
+        List<OracleParameter>? scopeParams = null;
+        string? searchEmpcd = empcd;
+
+        if (!string.IsNullOrEmpty(loginUser))
+        {
+            var isHrOrAdmin = await _auth.IsHrOrAdminAsync(loginUser);
+            if (!isHrOrAdmin)
+            {
+                var hasScope = await _team.HasScopeAsync(loginUser);
+                if (hasScope)
+                {
+                    var scope = OTScopeFilterHelper.ForScopeByTuple(loginUser, empAlias: "EC", prefix: "CF");
+                    scopeSql = scope.SqlClause;
+                    scopeParams = scope.Params;
+                }
+                else
+                {
+                    searchEmpcd = loginUser;
+                }
+            }
+        }
+
+        var data = await _completion.ListCertificatesAsync(classId, deptcd, linecd, workcd, from, to, searchEmpcd, scopeSql, scopeParams);
         return Ok(new { success = true, data });
     }
 

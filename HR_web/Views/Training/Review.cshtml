@@ -66,6 +66,10 @@
                     const review = res.data;
                     
                     if (review) {
+                        const contentRating = review.RATING_CONTENT || review.ratingContent || review.rating_content || 0;
+                        const teacherRating = review.RATING_TEACHER || review.ratingTeacher || review.rating_teacher || 0;
+                        const commentText = review.COMMENT_TEXT || review.commentText || review.comment_text || '';
+
                         card.innerHTML = `
                             <div class="text-center py-4">
                                 <span class="material-symbols-rounded text-success" style="font-size: 5rem;">verified</span>
@@ -75,15 +79,15 @@
                                 <div class="bg-light p-4 mt-4 rounded-3 text-start border">
                                     <div class="mb-3 border-bottom pb-2">
                                         <span class="small text-muted d-block mb-1">Chất lượng nội dung:</span>
-                                        <div class="text-warning fs-4">${'★'.repeat(review.RATING_CONTENT)}${'☆'.repeat(5 - review.RATING_CONTENT)}</div>
+                                        <div class="text-warning fs-4">${'★'.repeat(contentRating)}${'☆'.repeat(5 - contentRating)}</div>
                                     </div>
                                     <div class="mb-3 border-bottom pb-2">
                                         <span class="small text-muted d-block mb-1">Chất lượng giảng dạy:</span>
-                                        <div class="text-warning fs-4">${'★'.repeat(review.RATING_TEACHER)}${'☆'.repeat(5 - review.RATING_TEACHER)}</div>
+                                        <div class="text-warning fs-4">${'★'.repeat(teacherRating)}${'☆'.repeat(5 - teacherRating)}</div>
                                     </div>
                                     <div>
                                         <span class="small text-muted d-block mb-1">Ý kiến đóng góp:</span>
-                                        <p class="mb-0 text-dark small">${review.COMMENT_TEXT || 'Không có ý kiến đóng góp'}</p>
+                                        <p class="mb-0 text-dark small">${commentText || 'Không có ý kiến đóng góp'}</p>
                                     </div>
                                 </div>
                             </div>

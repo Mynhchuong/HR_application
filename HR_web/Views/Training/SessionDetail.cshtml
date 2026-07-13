@@ -71,10 +71,11 @@
                         <div id="checkin-action-area" class="d-none">
                             <button onclick="performCheckIn()" class="btn btn-primary w-100 py-3 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm">
                                 <span class="material-symbols-rounded">check_circle</span>
-                                Bấm điểm danh (GPS)
+                                Bấm điểm danh
                             </button>
-                            <p class="small text-muted mt-2 mb-0">Hệ thống sẽ lấy toạ độ GPS để xác minh vị trí phòng học.</p>
+                            <p class="small text-muted mt-2 mb-0">Hệ thống sẽ ghi nhận thời gian điểm danh của bạn.</p>
                         </div>
+                        <p class="small text-warning mt-2 mb-0 fw-bold d-none" id="checkin-info-msg"></p>
                     </div>
                 </div>
             </div>
@@ -120,58 +121,102 @@
                 });
         }
 
+        function isWithinCheckInWindow(s) {
+            const sessionDateVal = s.SESSION_DATE || s.sessionDate || s.session_date;
+            const startTimeVal = s.START_TIME || s.startTime || s.start_time;
+            const endTimeVal = s.END_TIME || s.endTime || s.end_time;
+
+            if (!sessionDateVal || !startTimeVal || !endTimeVal) return false;
+            
+            const cleanStart = startTimeVal.replace(':', '').trim().padStart(4, '0');
+            const cleanEnd = endTimeVal.replace(':', '').trim().padStart(4, '0');
+            
+            const startH = parseInt(cleanStart.substring(0, 2), 10);
+            const startM = parseInt(cleanStart.substring(2, 4), 10);
+            const endH = parseInt(cleanEnd.substring(0, 2), 10);
+            const endM = parseInt(cleanEnd.substring(2, 4), 10);
+            
+            const sessionDate = new Date(sessionDateVal);
+            
+            const startDt = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate(), startH, startM, 0);
+            const endDt = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate(), endH, endM, 0);
+            
+            const openFrom = new Date(startDt.getTime() - 15 * 60 * 1000);
+            const openTo = new Date(endDt.getTime() + 15 * 60 * 1000);
+            
+            const now = new Date();
+            return now >= openFrom && now <= openTo;
+        }
+
         function renderDetails() {
-            const s = sessionData;
-            document.getElementById('session-title').innerText = `Buổi ${s.SESSION_NO}: ${s.TOPIC || 'Chủ đề buổi học'}`;
-            document.getElementById('class-title').innerText = `Lớp học ID: ${s.CLASS_ID}`; // You can replace with class name if model returns it
-            document.getElementById('session-date').innerText = s.SESSION_DATE ? new Date(s.SESSION_DATE).toLocaleDateString('vi-VN') : '-';
-            document.getElementById('session-time').innerText = `${s.START_TIME || ''} - ${s.END_TIME || ''}`;
-            document.getElementById('session-location').innerText = s.LOCATION || 'Phòng học';
+            const s = sessionData || {};
+            const sessionNo = s.SESSION_NO || s.sessionNo || 0;
+            const topic = s.TOPIC || s.topic || '';
+            const classIdVal = s.CLASS_ID || s.classId || '';
+            const sessionDateVal = s.SESSION_DATE || s.sessionDate || s.session_date;
+            const startTimeVal = s.START_TIME || s.startTime || s.start_time || '';
+            const endTimeVal = s.END_TIME || s.endTime || s.end_time || '';
+            const locationVal = s.LOCATION || s.location || '';
+            const statusVal = s.STATUS || s.status || '';
+            const attendanceStatusVal = s.ATTENDANCE_STATUS || s.attendanceStatus || s.attendance_status || '';
+
+            document.getElementById('session-title').innerText = `Buổi ${sessionNo}: ${topic || 'Chủ đề buổi học'}`;
+            document.getElementById('class-title').innerText = `Lớp học ID: ${classIdVal}`;
+            document.getElementById('session-date').innerText = sessionDateVal ? new Date(sessionDateVal).toLocaleDateString('vi-VN') : '-';
+            document.getElementById('session-time').innerText = `${startTimeVal} - ${endTimeVal}`;
+            document.getElementById('session-location').innerText = locationVal || 'Phòng học';
             
             let statusLabel = 'Chưa diễn ra';
-            if (s.STATUS === 'COMPLETED') statusLabel = 'Đã hoàn thành';
-            else if (s.STATUS === 'ONGOING') statusLabel = 'Đang diễn ra';
+            if (statusVal === 'COMPLETED') statusLabel = 'Đã hoàn thành';
+            else if (statusVal === 'ONGOING') statusLabel = 'Đang diễn ra';
             document.getElementById('session-status').innerText = statusLabel;
 
-            // Attendance check
             const attWrap = document.getElementById('attendance-status');
             const actionArea = document.getElementById('checkin-action-area');
+            const infoMsg = document.getElementById('checkin-info-msg');
             
-            if (s.ATTENDANCE_STATUS) {
-                let text = s.ATTENDANCE_STATUS;
+            infoMsg.className = 'd-none'; // reset
+
+            if (attendanceStatusVal) {
+                let text = attendanceStatusVal;
                 let color = 'text-muted';
                 
-                if (s.ATTENDANCE_STATUS === 'PRESENT') { text = 'Đã Điểm Danh (Có mặt)'; color = 'text-success'; }
-                else if (s.ATTENDANCE_STATUS === 'LATE') { text = 'Đi Muộn'; color = 'text-warning'; }
-                else if (s.ATTENDANCE_STATUS === 'ABSENT') { text = 'Vắng mặt'; color = 'text-danger'; }
-                else if (s.ATTENDANCE_STATUS === 'EXCUSED') { text = 'Vắng có phép'; color = 'text-info'; }
+                if (attendanceStatusVal === 'PRESENT') { text = 'Đã Điểm Danh (Có mặt)'; color = 'text-success'; }
+                else if (attendanceStatusVal === 'LATE') { text = 'Đi Muộn'; color = 'text-warning'; }
+                else if (attendanceStatusVal === 'ABSENT') { text = 'Vắng mặt'; color = 'text-danger'; }
+                else if (attendanceStatusVal === 'EXCUSED') { text = 'Vắng có phép'; color = 'text-info'; }
                 
                 attWrap.className = 'fw-bold mb-3 ' + color;
                 attWrap.innerText = text;
-                actionArea.className = 'd-none'; // Hide checkin button
+                actionArea.className = 'd-none';
             } else {
                 attWrap.className = 'fw-bold text-muted mb-3';
                 attWrap.innerText = 'Chưa điểm danh';
                 
-                // Show checkin button if session is ongoing or upcoming
-                if (s.STATUS === 'ONGOING' || s.STATUS === 'UPCOMING') {
+                if ((statusVal === 'ONGOING' || statusVal === 'UPCOMING') && isWithinCheckInWindow(s)) {
                     actionArea.className = 'd-block';
                 } else {
                     actionArea.className = 'd-none';
+                    if (statusVal === 'UPCOMING') {
+                        const cleanStart = startTimeVal.replace(':', '').trim().padStart(4, '0');
+                        const startH = parseInt(cleanStart.substring(0, 2), 10);
+                        const startM = parseInt(cleanStart.substring(2, 4), 10);
+                        const sessionDate = new Date(sessionDateVal);
+                        const startDt = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate(), startH, startM, 0);
+                        const openFrom = new Date(startDt.getTime() - 15 * 60 * 1000);
+                        
+                        const timeStr = openFrom.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                        const dateStr = openFrom.toLocaleDateString('vi-VN');
+                        
+                        infoMsg.innerText = `Nút điểm danh sẽ mở từ ${timeStr} ngày ${dateStr}.`;
+                        infoMsg.className = 'small text-warning mt-2 mb-0 fw-bold';
+                    }
                 }
             }
         }
 
         function performCheckIn() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    sendCheckIn(pos.coords.latitude, pos.coords.longitude);
-                }, err => {
-                    sendCheckIn(null, null); // Backend handles null coords
-                });
-            } else {
-                sendCheckIn(null, null);
-            }
+            sendCheckIn(null, null);
         }
 
         function sendCheckIn(lat, lon) {

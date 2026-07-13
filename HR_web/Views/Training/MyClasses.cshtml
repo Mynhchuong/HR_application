@@ -20,26 +20,77 @@
         </div>
     </div>
 
-    <!-- Quick Stats & Actions -->
-    <div class="row mb-4 align-items-center">
-        <div class="col-12 col-md-6">
-            <h4 class="fw-bold text-dark mb-0">Lớp học của tôi</h4>
-        </div>
-        <div class="col-12 col-md-6 text-md-end mt-2 mt-md-0">
-            <a href="@Url.Action("BulletinRegister", "Training", new { id = 0 })" class="btn btn-primary px-4 py-2.5 rounded-3 fw-bold shadow-sm d-inline-flex align-items-center gap-2">
-                <span class="material-symbols-rounded">add_circle</span>
-                Đăng ký lớp học mới
-            </a>
+    <!-- Navigation Tabs -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm" style="border-radius: 12px;">
+                <div class="card-body p-2">
+                    <ul class="nav nav-tabs nav-justified border-0" id="studentTabs" role="tablist">
+                        <li class="nav-item">
+                            <button onclick="switchTab('classes')" class="nav-link active py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-classes">
+                                <span class="material-symbols-rounded">menu_book</span>
+                                Lớp học của tôi
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button onclick="switchTab('certs')" class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-certs">
+                                <span class="material-symbols-rounded">card_membership</span>
+                                Chứng chỉ của tôi
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Classes Container -->
-    <div class="row" id="my-classes-container">
-        <div class="col-12 text-center py-5">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
+    <!-- Tab 1: Lớp học -->
+    <div id="panel-classes" class="tab-panel">
+        <div class="row mb-4 align-items-center">
+            <div class="col-12 col-md-6">
+                <h4 class="fw-bold text-dark mb-0">Lớp học đang tham gia</h4>
             </div>
-            <p class="mt-2 text-muted">Đang tải danh sách lớp học của bạn...</p>
+            <div class="col-12 col-md-6 text-md-end mt-2 mt-md-0">
+                <a href="@Url.Action("BulletinRegister", "Training", new { id = 0 })" class="btn btn-primary px-4 py-2.5 rounded-3 fw-bold shadow-sm d-inline-flex align-items-center gap-2">
+                    <span class="material-symbols-rounded">add_circle</span>
+                    Đăng ký lớp học mới
+                </a>
+            </div>
+        </div>
+        <div class="row" id="my-classes-container">
+            <div class="col-12 text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">Đang tải danh sách lớp học...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Chứng chỉ -->
+    <div id="panel-certs" class="tab-panel d-none">
+        <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+            <h4 class="fw-bold text-dark mb-4">Danh sách chứng chỉ đào tạo đã đạt</h4>
+            
+            <div class="table-responsive bg-light p-2 rounded-3">
+                <table class="table table-hover align-middle mb-0 bg-white rounded shadow-sm text-nowrap">
+                    <thead>
+                        <tr class="text-muted small">
+                            <th class="ps-3">Tên khóa học</th>
+                            <th>Lớp học</th>
+                            <th>Ngày cấp</th>
+                            <th>Điểm số</th>
+                            <th class="pe-3">Chuyên cần</th>
+                        </tr>
+                    </thead>
+                    <tbody id="my-certs-tbody">
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-5">
+                                <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                                <span class="ms-2">Đang tải...</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -73,7 +124,8 @@
     <script>
         window.TRAINING_URLS = {
             getMyClasses: '@Url.Action("GetMyClasses", "Training")',
-            classDetailTemplate: '@Url.Action("ClassDetail", "Training", new { id = "__ID__" })'
+            classDetailTemplate: '@Url.Action("ClassDetail", "Training", new { id = "__ID__" })',
+            getCertificateList: '@Url.Action("GetMyCertificates", "Training")'
         };
         const empCd = '@empCd';
 
@@ -81,14 +133,35 @@
             loadMyClasses();
         });
 
+        function switchTab(tab) {
+            document.querySelectorAll('#studentTabs button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('d-none'));
+
+            if (tab === 'classes') {
+                document.getElementById('tab-classes').classList.add('active');
+                document.getElementById('panel-classes').classList.remove('d-none');
+                loadMyClasses();
+            } else if (tab === 'certs') {
+                document.getElementById('tab-certs').classList.add('active');
+                document.getElementById('panel-certs').classList.remove('d-none');
+                loadMyCertificates();
+            }
+        }
+
         function loadMyClasses() {
             const container = document.getElementById('my-classes-container');
+            container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Đang tải...</p>
+                </div>
+            `;
             
             fetch(`${window.TRAINING_URLS.getMyClasses}?empcd=${empCd}`)
                 .then(r => r.json())
                 .then(res => {
-                    if (!res.success) {
-                        container.innerHTML = `<div class="col-12"><div class="alert alert-warning">${res.message || 'Lỗi tải danh sách lớp học.'}</div></div>`;
+                    if (!res || !res.success) {
+                        container.innerHTML = `<div class="col-12"><div class="alert alert-warning">${(res && res.message) || 'Lỗi kết nối máy chủ.'}</div></div>`;
                         return;
                     }
 
@@ -117,8 +190,8 @@
                         let groupText = item.GROUP_NAME ? `<span class="badge bg-secondary ms-1">${item.GROUP_NAME}</span>` : '';
 
                         const modeBadge = item.CLASS_MODE === 'EXPRESS' 
-                            ? `<span class="badge badge-express px-2 py-1 small">Học nhanh</span>`
-                            : `<span class="badge badge-standard px-2 py-1 small">Tiêu chuẩn</span>`;
+                             ? `<span class="badge badge-express px-2 py-1 small">Học nhanh</span>`
+                             : `<span class="badge badge-standard px-2 py-1 small">Tiêu chuẩn</span>`;
 
                         container.innerHTML += `
                             <div class="col-12 col-md-6 col-lg-4 mb-4">
@@ -135,7 +208,7 @@
                                             <!-- Giáo viên -->
                                             <div class="d-flex align-items-center gap-2 mb-3">
                                                 <span class="material-symbols-rounded text-muted" style="font-size: 1.2rem;">person</span>
-                                                <span class="small text-muted">GV: ${item.PRIMARY_TEACHER_NAME || 'Chưa phân công'}</span>
+                                                <span class="small text-muted">GV: <span class="vni-font font-semibold">${item.PRIMARY_TEACHER_NAME || 'Chưa phân công'}</span></span>
                                             </div>
 
                                             <!-- Tiến độ -->
@@ -164,6 +237,53 @@
                 })
                 .catch(err => {
                     container.innerHTML = `<div class="col-12"><div class="alert alert-danger">Lỗi kết nối hệ thống: ${err.message}</div></div>`;
+                });
+        }
+
+        function loadMyCertificates() {
+            const tbody = document.getElementById('my-certs-tbody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-5">
+                        <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                        <span class="ms-2">Đang tải danh sách chứng chỉ...</span>
+                    </td>
+                </tr>
+            `;
+
+            fetch(`${window.TRAINING_URLS.getCertificateList}?empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success || !res.data) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Bạn chưa có chứng chỉ nào.</td></tr>';
+                        return;
+                    }
+
+                    const list = res.data;
+                    if (list.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Bạn chưa có chứng chỉ nào.</td></tr>';
+                        return;
+                    }
+
+                    tbody.innerHTML = '';
+                    list.forEach(c => {
+                        const dateStr = c.COMPLETION_DATE ? new Date(c.COMPLETION_DATE).toLocaleDateString('vi-VN') : '-';
+                        const scoreStr = c.FINAL_SCORE !== null ? `${c.FINAL_SCORE} / 100` : '-';
+                        const attendStr = c.ATTENDANCE_PERCENT !== null ? `${c.ATTENDANCE_PERCENT.toFixed(1)}%` : '-';
+
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="ps-3 fw-bold text-dark">${c.COURSE_TITLE}</td>
+                                <td>${c.CLASS_NAME}</td>
+                                <td>${dateStr}</td>
+                                <td><strong class="text-success">${scoreStr}</strong></td>
+                                <td class="pe-3"><strong class="text-primary">${attendStr}</strong></td>
+                            </tr>
+                        `;
+                    });
+                })
+                .catch(() => {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Lỗi kết nối hệ thống. Vui lòng thử lại sau.</td></tr>';
                 });
         }
     </script>

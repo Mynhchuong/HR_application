@@ -46,7 +46,7 @@ public class TrainingClassService
             new OracleParameter("P_SEARCH", (object?)search   ?? DBNull.Value));
     }
 
-    public async Task<ClassModel?> GetDetailAsync(int id)
+    public async Task<ClassModel?> GetDetailAsync(int id, string? empcd = null)
     {
         const string sql = @"
             SELECT CL.ID, CL.COURSE_ID, CL.CLASS_NAME, CL.DESCRIPTION, CL.STATUS,
@@ -62,33 +62,95 @@ public class TrainingClassService
 
         var list = await _db.ExecuteQueryAsync(sql, MapClassFullWithCourse,
             new OracleParameter("ID", id));
-        return list.FirstOrDefault();
+        var cls = list.FirstOrDefault();
+        if (cls == null) return null;
+
+        if (!string.IsNullOrWhiteSpace(empcd))
+        {
+            var progress = (await _db.ExecuteQueryAsync(@"
+                SELECT 
+                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S
+                      WHERE S.CLASS_ID = E.CLASS_ID
+                        AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)) AS TOTAL_SESSIONS,
+                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ATTENDANCE A
+                      WHERE A.EMPCD = E.EMPCD
+                        AND A.STATUS IN ('PRESENT', 'LATE')
+                        AND A.SESSION_ID IN (
+                            SELECT S.ID FROM HRMS.HR_TRAINING_SESSION S
+                             WHERE S.CLASS_ID = E.CLASS_ID
+                               AND S.STATUS = 'COMPLETED'
+                               AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)
+                        )) AS COMPLETED_SESSIONS
+                  FROM HRMS.HR_TRAINING_ENROLLMENT E
+                 WHERE E.CLASS_ID = :CID AND E.EMPCD = :EMP",
+                r => new {
+                    Total = Convert.ToInt32(r["TOTAL_SESSIONS"]),
+                    Completed = Convert.ToInt32(r["COMPLETED_SESSIONS"])
+                },
+                new OracleParameter("CID", id),
+                new OracleParameter("EMP", empcd)
+            )).FirstOrDefault();
+
+            if (progress != null)
+            {
+                cls.TOTAL_SESSIONS = progress.Total;
+                cls.COMPLETED_SESSIONS = progress.Completed;
+            }
+            else
+            {
+                var total = (await _db.ExecuteQueryAsync(@"
+                    SELECT COUNT(*) AS CNT FROM HRMS.HR_TRAINING_SESSION WHERE CLASS_ID = :CID",
+                    r => Convert.ToInt32(r["CNT"]),
+                    new OracleParameter("CID", id)
+                )).FirstOrDefault();
+                cls.TOTAL_SESSIONS = total;
+                cls.COMPLETED_SESSIONS = 0;
+            }
+        }
+        else
+        {
+            var total = (await _db.ExecuteQueryAsync(@"
+                SELECT COUNT(*) AS CNT FROM HRMS.HR_TRAINING_SESSION WHERE CLASS_ID = :CID",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("CID", id)
+            )).FirstOrDefault();
+            cls.TOTAL_SESSIONS = total;
+            cls.COMPLETED_SESSIONS = 0;
+        }
+
+        return cls;
     }
 
-    public async Task<List<ClassSessionLightModel>> GetSessionsAsync(int classId)
+    public async Task<List<ClassSessionLightModel>> GetSessionsAsync(int classId, string? empcd = null)
     {
         const string sql = @"
             SELECT S.ID, S.CLASS_ID, S.SESSION_NO, S.SESSION_DATE, S.START_TIME, S.END_TIME,
                    S.TOPIC, S.LOCATION, S.STATUS, S.GROUP_ID,
-                   G.GROUP_NAME
+                   G.GROUP_NAME,
+                   A.STATUS AS ATTENDANCE_STATUS
               FROM HRMS.HR_TRAINING_SESSION S
               LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = S.GROUP_ID
+              LEFT JOIN HRMS.HR_TRAINING_ATTENDANCE A ON A.SESSION_ID = S.ID AND A.EMPCD = :EMP
              WHERE S.CLASS_ID = :CID
              ORDER BY S.SESSION_DATE, S.START_TIME";
+             
         return await _db.ExecuteQueryAsync(sql, r => new ClassSessionLightModel
         {
-            ID           = Convert.ToInt32(r["ID"]),
-            CLASS_ID     = Convert.ToInt32(r["CLASS_ID"]),
-            SESSION_NO   = Convert.ToInt32(r["SESSION_NO"]),
-            SESSION_DATE = Convert.ToDateTime(r["SESSION_DATE"]),
-            START_TIME   = r["START_TIME"]?.ToString() ?? "",
-            END_TIME     = r["END_TIME"]?.ToString() ?? "",
-            TOPIC        = r["TOPIC"] as string,
-            LOCATION     = r["LOCATION"] as string,
-            STATUS       = r["STATUS"]?.ToString() ?? "UPCOMING",
-            GROUP_ID     = r["GROUP_ID"] is DBNull ? null : Convert.ToInt32(r["GROUP_ID"]),
-            GROUP_NAME   = r["GROUP_NAME"] as string,
-        }, new OracleParameter("CID", classId));
+            ID                = Convert.ToInt32(r["ID"]),
+            CLASS_ID          = Convert.ToInt32(r["CLASS_ID"]),
+            SESSION_NO        = Convert.ToInt32(r["SESSION_NO"]),
+            SESSION_DATE      = Convert.ToDateTime(r["SESSION_DATE"]),
+            START_TIME        = r["START_TIME"]?.ToString() ?? "",
+            END_TIME          = r["END_TIME"]?.ToString() ?? "",
+            TOPIC             = r["TOPIC"] as string,
+            LOCATION          = r["LOCATION"] as string,
+            STATUS            = r["STATUS"]?.ToString() ?? "UPCOMING",
+            GROUP_ID          = r["GROUP_ID"] is DBNull ? null : Convert.ToInt32(r["GROUP_ID"]),
+            GROUP_NAME        = r["GROUP_NAME"] as string,
+            ATTENDANCE_STATUS = r["ATTENDANCE_STATUS"] as string
+        }, 
+        new OracleParameter("EMP", (object?)empcd ?? DBNull.Value),
+        new OracleParameter("CID", classId));
     }
 
     // ═══════════════════════════════════════════════════════════════

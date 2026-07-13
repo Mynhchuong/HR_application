@@ -23,7 +23,7 @@ public class TrainingTestService
     // ═══════════════════════════════════════════════════════════════
 
     // isTemplate NULL = all, 0 = class test only, 1 = template only
-    public async Task<List<TestModel>> ListAsync(int? classId, int? templateCourseId, int? isTemplate, string? status)
+    public async Task<List<TestModel>> ListAsync(int? classId, int? templateCourseId, int? isTemplate, string? status, string? empcd = null)
     {
         const string sql = @"
             SELECT T.ID, T.CLASS_ID, T.IS_TEMPLATE, T.TEMPLATE_COURSE_ID,
@@ -33,10 +33,12 @@ public class TrainingTestService
                    T.INST_DT, T.UPDT_DT,
                    CL.CLASS_NAME, CO.TITLE COURSE_TITLE,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_TEST_QUESTION Q WHERE Q.TEST_ID = T.ID) QUESTION_COUNT,
-                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_TEST_ATTEMPT A WHERE A.TEST_ID = T.ID) ATTEMPT_COUNT
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_TEST_ATTEMPT A WHERE A.TEST_ID = T.ID) ATTEMPT_COUNT,
+                   ATT.STATUS AS ATTEMPT_STATUS, ATT.SCORE AS SCORE, ATT.MAX_SCORE AS MAX_SCORE
               FROM HRMS.HR_TRAINING_TEST T
               LEFT JOIN HRMS.HR_TRAINING_CLASS  CL ON CL.ID = T.CLASS_ID
               LEFT JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = T.TEMPLATE_COURSE_ID
+              LEFT JOIN HRMS.HR_TRAINING_TEST_ATTEMPT ATT ON ATT.TEST_ID = T.ID AND ATT.EMPCD = :P_EMP
              WHERE (:P_CID  IS NULL OR T.CLASS_ID          = :P_CID)
                AND (:P_TCID IS NULL OR T.TEMPLATE_COURSE_ID = :P_TCID)
                AND (:P_TPL  IS NULL OR T.IS_TEMPLATE       = :P_TPL)
@@ -46,7 +48,8 @@ public class TrainingTestService
             new OracleParameter("P_CID",  (object?)classId          ?? DBNull.Value),
             new OracleParameter("P_TCID", (object?)templateCourseId ?? DBNull.Value),
             new OracleParameter("P_TPL",  (object?)isTemplate       ?? DBNull.Value),
-            new OracleParameter("P_ST",   (object?)status           ?? DBNull.Value));
+            new OracleParameter("P_ST",   (object?)status           ?? DBNull.Value),
+            new OracleParameter("P_EMP",  (object?)empcd            ?? DBNull.Value));
     }
 
     public async Task<TestModel?> GetDetailAsync(int id)
@@ -104,7 +107,7 @@ public class TrainingTestService
 
         var byQ = opts.GroupBy(o => o.QUESTION_ID).ToDictionary(g => g.Key, g => g.ToList());
         foreach (var q in qs)
-            if (byQ.TryGetValue(q.ID, out var list)) q.OPTIONS = list;
+            if (q.ID.HasValue && byQ.TryGetValue(q.ID.Value, out var list)) q.OPTIONS = list;
         return qs;
     }
 
@@ -283,8 +286,8 @@ public class TrainingTestService
     //  STATE MACHINE (DRAFT → PUBLISHED → OPEN → CLOSED → GRADING → COMPLETED)
     // ═══════════════════════════════════════════════════════════════
 
-    // DRAFT → PUBLISHED: validate có ≥ 1 câu, có AVAILABLE_FROM/TO.
-    public async Task PublishAsync(int testId, string actor)
+    // DRAFT → PUBLISHED: validate có ≥ 1 câu, update AVAILABLE_FROM/TO, gửi thông báo.
+    public async Task PublishAsync(int testId, string actor, DateTime? availableFrom, DateTime? availableTo)
     {
         var test = await GetDetailAsync(testId)
             ?? throw new InvalidOperationException("Không tìm thấy test");
@@ -292,28 +295,41 @@ public class TrainingTestService
             throw new InvalidOperationException($"Test đang {test.STATUS}, chỉ publish từ DRAFT");
         if (test.IS_TEMPLATE == 1)
             throw new InvalidOperationException("Template test không dùng để làm bài, không cần publish");
-        if (test.AVAILABLE_FROM == null || test.AVAILABLE_TO == null)
-            throw new InvalidOperationException("Publish cần AVAILABLE_FROM và AVAILABLE_TO");
-        if (test.AVAILABLE_TO < DateTime.Now)
-            throw new InvalidOperationException("AVAILABLE_TO trong quá khứ, không publish được (§16 edge case)");
+        if (availableFrom == null || availableTo == null)
+            throw new InvalidOperationException("Vui lòng chọn thời gian mở và đóng bài");
+        if (availableTo <= availableFrom)
+            throw new InvalidOperationException("Thời gian đóng bài phải sau thời gian mở bài");
+        if (availableTo < DateTime.Now)
+            throw new InvalidOperationException("Thời gian đóng bài không được ở trong quá khứ");
 
         var qCount = (await _db.ExecuteQueryAsync(
             "SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_TEST_QUESTION WHERE TEST_ID = :ID",
             r => Convert.ToInt32(r["CNT"]),
             new OracleParameter("ID", testId))).First();
         if (qCount == 0)
-            throw new InvalidOperationException("Test không có câu hỏi");
+            throw new InvalidOperationException("Không thể xuất bản bài kiểm tra chưa có câu hỏi");
+
+        // Cập nhật AVAILABLE_FROM / AVAILABLE_TO
+        await _db.ExecuteNonQueryAsync(@"
+            UPDATE HRMS.HR_TRAINING_TEST
+               SET AVAILABLE_FROM = :AF, AVAILABLE_TO = :AT, UPDT_DT = SYSDATE
+             WHERE ID = :TID",
+            new OracleParameter("AF",  availableFrom),
+            new OracleParameter("AT",  availableTo),
+            new OracleParameter("TID", testId));
 
         await SetStatusAsync(testId, "PUBLISHED", actor);
 
-        // Enqueue TRAINING_TEST_OPEN cho students của Class (§13)
+        // Enqueue TRAINING_TEST_OPEN cho students của Class
+        test.AVAILABLE_FROM = availableFrom;
+        test.AVAILABLE_TO   = availableTo;
         if (_noti != null && test.CLASS_ID.HasValue)
         {
             await _noti.EnqueueForClassEnrollmentsAsync(test.CLASS_ID.Value, "TRAINING_TEST_OPEN",
                 new Dictionary<string, string>
                 {
                     ["testTitle"]   = test.TITLE,
-                    ["availableTo"] = test.AVAILABLE_TO?.ToString("dd/MM/yyyy HH:mm") ?? "",
+                    ["availableTo"] = availableTo?.ToString("dd/MM/yyyy HH:mm") ?? "",
                     ["duration"]    = test.DURATION_MINUTES.ToString(),
                 }, testId: testId);
         }
@@ -357,6 +373,10 @@ public class TrainingTestService
         var t = MapTestFull(r);
         t.QUESTION_COUNT = r["QUESTION_COUNT"] is DBNull ? 0 : Convert.ToInt32(r["QUESTION_COUNT"]);
         t.ATTEMPT_COUNT  = r["ATTEMPT_COUNT"]  is DBNull ? 0 : Convert.ToInt32(r["ATTEMPT_COUNT"]);
+        
+        t.ATTEMPT_STATUS = r["ATTEMPT_STATUS"] as string;
+        t.SCORE          = r["SCORE"]     is DBNull ? null : Convert.ToDecimal(r["SCORE"]);
+        t.MAX_SCORE      = r["MAX_SCORE"] is DBNull ? null : Convert.ToDecimal(r["MAX_SCORE"]);
         return t;
     }
 
@@ -380,4 +400,24 @@ public class TrainingTestService
         CLASS_NAME         = r["CLASS_NAME"] as string,
         COURSE_TITLE       = r["COURSE_TITLE"] as string,
     };
+
+    // Xóa test DRAFT (cascade options + questions)
+    public async Task DeleteAsync(int id)
+    {
+        var status = await GetStatusAsync(id)
+            ?? throw new InvalidOperationException("Không tìm thấy bài kiểm tra");
+        if (status != "DRAFT")
+            throw new InvalidOperationException("Chỉ xóa được bài kiểm tra ở trạng thái Nháp");
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_TEST_OPTION
+             WHERE QUESTION_ID IN (SELECT ID FROM HRMS.HR_TRAINING_TEST_QUESTION WHERE TEST_ID = :TID)",
+            new OracleParameter("TID", id));
+        await _db.ExecuteNonQueryAsync(
+            "DELETE FROM HRMS.HR_TRAINING_TEST_QUESTION WHERE TEST_ID = :TID",
+            new OracleParameter("TID", id));
+        await _db.ExecuteNonQueryAsync(
+            "DELETE FROM HRMS.HR_TRAINING_TEST WHERE ID = :TID",
+            new OracleParameter("TID", id));
+    }
 }

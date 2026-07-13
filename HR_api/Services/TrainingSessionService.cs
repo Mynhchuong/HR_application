@@ -31,8 +31,10 @@ public class TrainingSessionService
             SELECT S.ID, S.CLASS_ID, S.SESSION_NO, S.SESSION_DATE, S.START_TIME, S.END_TIME,
                    S.TOPIC, S.LOCATION, S.STATUS, S.GROUP_ID,
                    G.GROUP_NAME,
+                   C.CLASS_NAME,
                    S.INST_ID, S.INST_DT, S.UPDT_ID, S.UPDT_DT
               FROM HRMS.HR_TRAINING_SESSION S
+              LEFT JOIN HRMS.HR_TRAINING_CLASS C ON C.ID = S.CLASS_ID
               LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = S.GROUP_ID
              WHERE S.CLASS_ID = :CID
              ORDER BY S.SESSION_DATE, S.START_TIME";
@@ -40,18 +42,33 @@ public class TrainingSessionService
             new OracleParameter("CID", classId));
     }
 
-    public async Task<SessionModel?> GetDetailAsync(int sessionId)
+    public async Task<SessionModel?> GetDetailAsync(int sessionId, string? empcd = null)
     {
         const string sql = @"
             SELECT S.ID, S.CLASS_ID, S.SESSION_NO, S.SESSION_DATE, S.START_TIME, S.END_TIME,
                    S.TOPIC, S.LOCATION, S.STATUS, S.GROUP_ID,
                    G.GROUP_NAME,
+                   C.CLASS_NAME,
                    S.INST_ID, S.INST_DT, S.UPDT_ID, S.UPDT_DT
               FROM HRMS.HR_TRAINING_SESSION S
+              LEFT JOIN HRMS.HR_TRAINING_CLASS C ON C.ID = S.CLASS_ID
               LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = S.GROUP_ID
              WHERE S.ID = :ID";
         var list = await _db.ExecuteQueryAsync(sql, MapSession, new OracleParameter("ID", sessionId));
-        return list.FirstOrDefault();
+        var s = list.FirstOrDefault();
+        if (s == null) return null;
+
+        if (!string.IsNullOrWhiteSpace(empcd))
+        {
+            s.ATTENDANCE_STATUS = (await _db.ExecuteQueryAsync(@"
+                SELECT STATUS FROM HRMS.HR_TRAINING_ATTENDANCE
+                 WHERE SESSION_ID = :SID AND EMPCD = :EMP",
+                r => r["STATUS"]?.ToString(),
+                new OracleParameter("SID", sessionId),
+                new OracleParameter("EMP", empcd))).FirstOrDefault();
+        }
+
+        return s;
     }
 
     public async Task<int> SaveAsync(SaveSessionRequest req)
@@ -302,6 +319,15 @@ public class TrainingSessionService
         if (!IsValidAttendanceStatus(req.STATUS))
             throw new InvalidOperationException("STATUS phải PRESENT | LATE | ABSENT | EXCUSED");
 
+        var sessionStatus = (await _db.ExecuteQueryAsync(
+            "SELECT STATUS FROM HRMS.HR_TRAINING_SESSION WHERE ID = :SID",
+            r => r["STATUS"]?.ToString() ?? "",
+            new OracleParameter("SID", req.SESSION_ID))).FirstOrDefault();
+        if (sessionStatus == "FINISHED")
+        {
+            throw new InvalidOperationException("Buổi học đã kết thúc, không thể cập nhật điểm danh");
+        }
+
         await _db.ExecuteNonQueryAsync(@"
             MERGE INTO HRMS.HR_TRAINING_ATTENDANCE T
             USING (SELECT :SID AS SID, :EMP AS EMP FROM DUAL) S
@@ -468,10 +494,17 @@ public class TrainingSessionService
     // HHMM → DateTime absolute cho SESSION_DATE
     private static (DateTime start, DateTime end) BuildSessionWindow(SessionModel s)
     {
-        var startH = int.Parse(s.START_TIME.Substring(0, 2));
-        var startM = int.Parse(s.START_TIME.Substring(2, 2));
-        var endH   = int.Parse(s.END_TIME.Substring(0, 2));
-        var endM   = int.Parse(s.END_TIME.Substring(2, 2));
+        var cleanStart = (s.START_TIME ?? "").Replace(":", "").Trim();
+        var cleanEnd = (s.END_TIME ?? "").Replace(":", "").Trim();
+        
+        if (cleanStart.Length < 4) cleanStart = cleanStart.PadLeft(4, '0');
+        if (cleanEnd.Length < 4) cleanEnd = cleanEnd.PadLeft(4, '0');
+
+        var startH = int.Parse(cleanStart.Substring(0, 2));
+        var startM = int.Parse(cleanStart.Substring(2, 2));
+        var endH   = int.Parse(cleanEnd.Substring(0, 2));
+        var endM   = int.Parse(cleanEnd.Substring(2, 2));
+        
         var d = s.SESSION_DATE.Date;
         return (d.AddHours(startH).AddMinutes(startM), d.AddHours(endH).AddMinutes(endM));
     }
@@ -492,6 +525,7 @@ public class TrainingSessionService
         STATUS       = r["STATUS"]?.ToString() ?? "UPCOMING",
         GROUP_ID     = r["GROUP_ID"] is DBNull ? null : Convert.ToInt32(r["GROUP_ID"]),
         GROUP_NAME   = r["GROUP_NAME"] as string,
+        CLASS_NAME   = r["CLASS_NAME"] as string,
         INST_ID      = r["INST_ID"] as string,
         INST_DT      = r["INST_DT"] as DateTime?,
         UPDT_ID      = r["UPDT_ID"] as string,

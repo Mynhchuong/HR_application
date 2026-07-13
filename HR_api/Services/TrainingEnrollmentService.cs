@@ -368,7 +368,22 @@ public class TrainingEnrollmentService
                    E.INST_ID, E.INST_DT, E.UPDT_ID, E.UPDT_DT,
                    CL.CLASS_NAME, CL.STATUS AS CLASS_STATUS,
                    CL.START_DATE AS CLASS_START_DATE, CL.END_DATE AS CLASS_END_DATE,
-                   CO.TITLE AS COURSE_TITLE
+                   CO.TITLE AS COURSE_TITLE, CO.COURSE_MODE AS CLASS_MODE,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S
+                     WHERE S.CLASS_ID = E.CLASS_ID
+                       AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)) AS TOTAL_SESSIONS,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ATTENDANCE A
+                     WHERE A.EMPCD = E.EMPCD
+                       AND A.STATUS IN ('PRESENT', 'LATE')
+                       AND A.SESSION_ID IN (
+                           SELECT S.ID FROM HRMS.HR_TRAINING_SESSION S
+                            WHERE S.CLASS_ID = E.CLASS_ID
+                              AND S.STATUS = 'COMPLETED'
+                              AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)
+                       )) AS COMPLETED_SESSIONS,
+                   (SELECT T_EC.CNAME FROM HRMS.HR_TRAINING_CLASS_TEACHER T
+                      LEFT JOIN HRMS.ECM100 T_EC ON T_EC.EMPCD = T.EMPCD
+                     WHERE T.CLASS_ID = E.CLASS_ID AND T.IS_PRIMARY = 1 AND ROWNUM = 1) AS PRIMARY_TEACHER_NAME
               FROM HRMS.HR_TRAINING_ENROLLMENT E
               JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = E.CLASS_ID
               JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID
@@ -446,11 +461,15 @@ public class TrainingEnrollmentService
     private static EnrollmentModel MapEnrollmentWithClass(OracleDataReader r)
     {
         var e = MapEnrollment(r);
-        e.CLASS_NAME       = r["CLASS_NAME"] as string;
-        e.CLASS_STATUS     = r["CLASS_STATUS"] as string;
-        e.CLASS_START_DATE = r["CLASS_START_DATE"] as DateTime?;
-        e.CLASS_END_DATE   = r["CLASS_END_DATE"] as DateTime?;
-        e.COURSE_TITLE     = r["COURSE_TITLE"] as string;
+        e.CLASS_NAME           = r["CLASS_NAME"] as string;
+        e.CLASS_STATUS         = r["CLASS_STATUS"] as string;
+        e.CLASS_START_DATE     = r["CLASS_START_DATE"] as DateTime?;
+        e.CLASS_END_DATE       = r["CLASS_END_DATE"] as DateTime?;
+        e.COURSE_TITLE         = r["COURSE_TITLE"] as string;
+        e.CLASS_MODE           = r["CLASS_MODE"] as string;
+        e.TOTAL_SESSIONS       = r["TOTAL_SESSIONS"] is DBNull ? 0 : Convert.ToInt32(r["TOTAL_SESSIONS"]);
+        e.COMPLETED_SESSIONS   = r["COMPLETED_SESSIONS"] is DBNull ? 0 : Convert.ToInt32(r["COMPLETED_SESSIONS"]);
+        e.PRIMARY_TEACHER_NAME = r["PRIMARY_TEACHER_NAME"] as string;
         return e;
     }
 

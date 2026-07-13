@@ -248,9 +248,27 @@ public class TrainingCompletionService
     //  CERTIFICATE LIST (§12)
     // ═══════════════════════════════════════════════════════════════
 
-    public async Task<List<CertificateItem>> ListCertificatesAsync(int? classId, string? deptcd, string? linecd, string? workcd, DateTime? from, DateTime? to)
+    public async Task<List<CertificateItem>> ListCertificatesAsync(
+        int? classId, string? deptcd, string? linecd, string? workcd, 
+        DateTime? from, DateTime? to, string? searchEmpcd = null,
+        string? scopeSql = null, List<OracleParameter>? scopeParams = null)
     {
-        const string sql = @"
+        var ps = new List<OracleParameter>
+        {
+            new OracleParameter("P_CID",  (object?)classId ?? DBNull.Value),
+            new OracleParameter("P_DPT",  (object?)deptcd  ?? DBNull.Value),
+            new OracleParameter("P_LN",   (object?)linecd  ?? DBNull.Value),
+            new OracleParameter("P_WK",   (object?)workcd  ?? DBNull.Value),
+            new OracleParameter("P_FROM", (object?)from    ?? DBNull.Value),
+            new OracleParameter("P_TO",   (object?)to      ?? DBNull.Value),
+            new OracleParameter("P_SEMP", (object?)searchEmpcd ?? DBNull.Value)
+        };
+        if (scopeParams != null)
+        {
+            ps.AddRange(scopeParams);
+        }
+
+        string sql = $@"
             SELECT E.CLASS_ID, CL.CLASS_NAME, CO.TITLE COURSE_TITLE,
                    E.EMPCD, EC.CNAME EMP_NAME,
                    EC.DEPTCD, EC.LINECD, EC.WORKCD,
@@ -266,7 +284,10 @@ public class TrainingCompletionService
                AND (:P_WK   IS NULL OR EC.WORKCD  = :P_WK)
                AND (:P_FROM IS NULL OR E.COMPLETION_DATE >= :P_FROM)
                AND (:P_TO   IS NULL OR E.COMPLETION_DATE <= :P_TO)
+               AND (:P_SEMP IS NULL OR E.EMPCD = :P_SEMP)
+               {scopeSql}
              ORDER BY E.COMPLETION_DATE DESC, E.EMPCD";
+
         return await _db.ExecuteQueryAsync(sql, r => new CertificateItem
         {
             CLASS_ID           = Convert.ToInt32(r["CLASS_ID"]),
@@ -280,13 +301,7 @@ public class TrainingCompletionService
             COMPLETION_DATE    = r["COMPLETION_DATE"] as DateTime?,
             FINAL_SCORE        = r["FINAL_SCORE"]        is DBNull ? null : Convert.ToDecimal(r["FINAL_SCORE"]),
             ATTENDANCE_PERCENT = r["ATTENDANCE_PERCENT"] is DBNull ? null : Convert.ToDecimal(r["ATTENDANCE_PERCENT"]),
-        },
-        new OracleParameter("P_CID",  (object?)classId ?? DBNull.Value),
-        new OracleParameter("P_DPT",  (object?)deptcd  ?? DBNull.Value),
-        new OracleParameter("P_LN",   (object?)linecd  ?? DBNull.Value),
-        new OracleParameter("P_WK",   (object?)workcd  ?? DBNull.Value),
-        new OracleParameter("P_FROM", (object?)from    ?? DBNull.Value),
-        new OracleParameter("P_TO",   (object?)to      ?? DBNull.Value));
+        }, ps.ToArray());
     }
 
     // HR revoke certificate — set IS_CERTIFIED=0 với audit

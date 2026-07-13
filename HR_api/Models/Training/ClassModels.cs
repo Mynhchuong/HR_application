@@ -39,6 +39,8 @@ public class ClassModel
     public string? COURSE_MODE { get; set; }
     public int? ENROLLMENT_COUNT { get; set; }
     public int? SESSION_COUNT { get; set; }
+    public int? TOTAL_SESSIONS { get; set; }
+    public int? COMPLETED_SESSIONS { get; set; }
 }
 
 // Bảng phụ HR_TRAINING_CLASS_TEACHER
@@ -74,6 +76,7 @@ public class ClassSessionLightModel
     public string STATUS { get; set; } = "UPCOMING";
     public int?   GROUP_ID { get; set; }
     public string? GROUP_NAME { get; set; }
+    public string? ATTENDANCE_STATUS { get; set; }
 }
 
 // ═══════════════════════════════════════════════════════════════

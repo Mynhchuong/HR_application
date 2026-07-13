@@ -164,6 +164,8 @@ public class ChangeTestStatusRequest
 {
     public int ID { get; set; }
     public string LOGIN_USER { get; set; } = "";
+    public DateTime? AVAILABLE_FROM { get; set; }
+    public DateTime? AVAILABLE_TO { get; set; }
 }
 
 public class GradeAnswerRequest
@@ -361,3 +363,49 @@ public class ExpressCreateRequest
     public string LOGIN_USER { get; set; } = "";
 }
 
+public class ClassDetailApiResponse
+{
+    public bool success { get; set; }
+    public ClassDetailApiData? data { get; set; }
+}
+
+public class ClassDetailApiData
+{
+    public List<ClassTeacherApiItem>? teachers { get; set; }
+}
+
+public class ClassTeacherApiItem
+{
+    public string EMPCD { get; set; } = "";
+    public int IS_PRIMARY { get; set; }
+}
+
+public class GetMyReviewApiResponse
+{
+    public bool success { get; set; }
+    public ReviewModelApi? data { get; set; }
+}
+
+public class ReviewModelApi
+{
+    public int CONTENT_RATING { get; set; }
+    public int ORGANIZATION_RATING { get; set; }
+    public string? FEEDBACK_TEXT { get; set; }
+}
+
+public class SessionAttendanceViewApiResponse
+{
+    public bool success { get; set; }
+    public SessionAttendanceViewApiData? data { get; set; }
+}
+
+public class SessionAttendanceViewApiData
+{
+    public List<AttendanceModelApiItem>? ATTENDANCE { get; set; }
+}
+
+public class AttendanceModelApiItem
+{
+    public string EMPCD { get; set; } = "";
+    public string? GROUP_NAME { get; set; }
+}

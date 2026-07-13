@@ -140,12 +140,14 @@
                     return;
                 }
 
-                attempt = res.data.attempt;
-                questions = res.data.questions || [];
+                attempt = res.data.attempt || res.data.ATTEMPT;
+                questions = res.data.questions || res.data.QUESTIONS || [];
                 
                 // Tính toán thời gian làm bài
-                const durationMinutes = res.data.test.DURATION_MINUTES || 45;
-                const startDt = new Date(attempt.START_DT);
+                const testMeta = res.data.test || res.data.TEST || {};
+                const durationMinutes = testMeta.DURATION_MINUTES || testMeta.durationMinutes || 45;
+                const startDtStr = ((attempt && (attempt.START_DT || attempt.startDt)) || '').toString().replace(' ', 'T');
+                const startDt = startDtStr ? new Date(startDtStr) : new Date();
                 const endDt = new Date(startDt.getTime() + durationMinutes * 60 * 1000);
                 const now = new Date();
                 
@@ -157,11 +159,11 @@
                 }
 
                 // Giao diện
-                document.getElementById('test-title').textContent = res.data.test.TITLE;
+                document.getElementById('test-title').textContent = testMeta.TITLE || testMeta.title || 'Bài kiểm tra';
                 document.getElementById('quiz-loading').classList.add('d-none');
                 document.getElementById('quiz-interface').classList.remove('d-none');
 
-                renderQuestions(res.data.savedAnswers || []);
+                renderQuestions(res.data.answers || res.data.ANSWERS || res.data.savedAnswers || []);
                 startTimer();
             });
         }

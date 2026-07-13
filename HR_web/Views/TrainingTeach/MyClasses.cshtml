@@ -8,49 +8,141 @@
     <!-- Header Banner -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 20px; background: linear-gradient(135deg, #198754 0%, #157347 100%);">
-                <div class="card-body p-4 text-white position-relative">
-                    <div class="position-absolute end-0 bottom-0 opacity-10 d-none d-md-block" style="transform: translate(10%, 10%);">
-                        <span class="material-symbols-rounded" style="font-size: 15rem;">assignment_ind</span>
+            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 24px; background: linear-gradient(135deg, #1e7e34 0%, #155724 100%);">
+                <div class="card-body p-4 p-md-5 text-white position-relative">
+                    <div class="position-absolute end-0 bottom-0 opacity-10 d-none d-md-block" style="transform: translate(5%, 15%);">
+                        <span class="material-symbols-rounded" style="font-size: 18rem;">local_library</span>
                     </div>
-                    <h2 class="fw-bold mb-1">Cổng Giảng Dạy Đào Tạo</h2>
-                    <p class="mb-0 opacity-75">Quản lý lớp học bạn phụ trách, thực hiện điểm danh, đăng tải tài liệu và chấm điểm bài kiểm tra.</p>
+                    <div class="row align-items-center">
+                        <div class="col-12 col-md-8">
+                            <span class="badge bg-white-soft text-white px-3 py-2 rounded-pill mb-3 fw-bold small uppercase" style="background: rgba(255,255,255,0.15);">CỔNG GIẢNG DẠY</span>
+                            <h1 class="fw-bold mb-2 display-6">Quản Lý Lớp Học Giảng Dạy</h1>
+                            <p class="mb-0 opacity-85 fs-5">Điểm danh học viên, quản lý và đăng tải tài liệu giảng dạy, chấm điểm tự luận các bài thi.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Teacher Classes -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
-                <h5 class="fw-bold mb-4 text-dark">Danh sách lớp giảng dạy</h5>
-                <div class="row" id="teacher-classes-container">
-                    <div class="col-12 text-center py-5">
-                        <div class="spinner-border text-success" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2 text-muted">Đang tải danh sách lớp học của bạn...</p>
+    <!-- Quick Stats Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-4">
+            <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 16px; border-left: 5px solid #0d6efd !important;">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="text-muted small fw-bold text-uppercase mb-1">Tổng lớp phụ trách</h6>
+                        <h3 class="fw-bold mb-0 text-dark" id="stat-total-classes">0</h3>
                     </div>
+                    <span class="material-symbols-rounded text-primary bg-primary-soft p-3 rounded-3" style="font-size: 2rem;">class</span>
                 </div>
             </div>
+        </div>
+        <div class="col-12 col-sm-4">
+            <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 16px; border-left: 5px solid #198754 !important;">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="text-muted small fw-bold text-uppercase mb-1">Lớp đang giảng dạy</h6>
+                        <h3 class="fw-bold mb-0 text-success" id="stat-active-classes">0</h3>
+                    </div>
+                    <span class="material-symbols-rounded text-success bg-success-soft p-3 rounded-3" style="font-size: 2rem;">history_edu</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-4">
+            <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 16px; border-left: 5px solid #6c757d !important;">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="text-muted small fw-bold text-uppercase mb-1">Lớp đã kết thúc</h6>
+                        <h3 class="fw-bold mb-0 text-secondary" id="stat-completed-classes">0</h3>
+                    </div>
+                    <span class="material-symbols-rounded text-secondary bg-secondary-soft p-3 rounded-3" style="font-size: 2rem;">school</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter & View Controls -->
+    <div class="card border-0 shadow-sm p-3 mb-4" style="border-radius: 16px;">
+        <div class="row align-items-center g-3">
+            <div class="col-12 col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-0" style="border-radius: 10px 0 0 10px;"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="search-input" class="form-control bg-light border-0" placeholder="Tìm kiếm tên lớp, khóa học..." style="border-radius: 0 10px 10px 0; height: 45px;" oninput="filterAndRender()" />
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <select id="status-filter" class="form-select bg-light border-0" style="border-radius: 10px; height: 45px;" onchange="filterAndRender()">
+                    <option value="">-- Tất cả trạng thái --</option>
+                    <option value="IN_PROGRESS">Đang học (IN_PROGRESS)</option>
+                    <option value="SCHEDULED">Đã lên lịch (SCHEDULED)</option>
+                    <option value="COMPLETED">Đã kết thúc (COMPLETED)</option>
+                    <option value="DRAFT">Nháp (DRAFT)</option>
+                    <option value="OPEN_FOR_REGISTRATION">Đang mở đăng ký</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-4 text-end d-flex align-items-center justify-content-md-end gap-2">
+                <span class="small text-muted me-2 d-none d-lg-inline">Chế độ xem:</span>
+                <button type="button" class="btn btn-light shadow-xs py-2 px-3 fw-bold d-inline-flex align-items-center gap-1 active-view-btn" id="btn-grid-view" onclick="switchView('grid')" style="border-radius: 10px; height: 45px;">
+                    <span class="material-symbols-rounded">grid_view</span> Lưới
+                </button>
+                <button type="button" class="btn btn-light shadow-xs py-2 px-3 fw-bold d-inline-flex align-items-center gap-1" id="btn-table-view" onclick="switchView('table')" style="border-radius: 10px; height: 45px;">
+                    <span class="material-symbols-rounded">format_list_bulleted</span> Bảng
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Classes Content Area -->
+    <div id="classes-list-container">
+        <!-- Rendered dynamically -->
+        <div class="text-center py-5">
+            <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Đang tải danh sách lớp học của bạn...</p>
         </div>
     </div>
 </div>
 
 <style>
     .teacher-class-card {
-        border-radius: 16px;
-        border: 1px solid rgba(0,0,0,0.06);
-        transition: all 0.3s ease;
+        border-radius: 20px;
+        border: 1px solid rgba(0,0,0,0.05);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        background: #fff;
     }
     .teacher-class-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08) !important;
+        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.08) !important;
     }
     .bg-success-soft {
-        background-color: #d1e7dd;
-        color: #0f5132;
+        background-color: rgba(25, 135, 84, 0.1) !important;
+        color: #198754 !important;
+    }
+    .bg-primary-soft {
+        background-color: rgba(13, 110, 253, 0.1) !important;
+        color: #0d6efd !important;
+    }
+    .bg-secondary-soft {
+        background-color: rgba(108, 117, 125, 0.1) !important;
+        color: #6c757d !important;
+    }
+    .bg-warning-soft {
+        background-color: rgba(255, 193, 7, 0.12) !important;
+        color: #ffc107 !important;
+    }
+    .active-view-btn {
+        background-color: #198754 !important;
+        color: #fff !important;
+        border: none !important;
+    }
+    .text-truncate-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 </style>
 
@@ -61,76 +153,215 @@
             classManage: '@Url.Action("ClassManage", "TrainingTeach", new { id = "__ID__" })'
         };
         const empCd = '@empCd';
+        let allClasses = [];
+        let viewMode = 'grid';
 
         document.addEventListener('DOMContentLoaded', function () {
             loadTeacherClasses();
         });
 
         function loadTeacherClasses() {
-            const container = document.getElementById('teacher-classes-container');
-            
             fetch(`${window.TRAINING_URLS.getTeacherClasses}?empcd=${empCd}`)
                 .then(r => r.json())
                 .then(res => {
                     if (!res.success) {
-                        container.innerHTML = `<div class="col-12"><div class="alert alert-warning">${res.message || 'Lỗi tải danh sách lớp.'}</div></div>`;
-                        return;
-                    }
-
-                    const list = res.data || [];
-                    if (list.length === 0) {
-                        container.innerHTML = `
-                            <div class="col-12 text-center py-5">
-                                <span class="material-symbols-rounded text-muted" style="font-size: 5rem;">assignment_ind</span>
-                                <h5 class="fw-bold mt-3">Bạn chưa được phân công giảng dạy lớp học nào</h5>
-                                <p class="text-muted small">Hãy liên hệ với HR/Bộ phận Nhân sự để nhận lịch dạy.</p>
-                            </div>
+                        document.getElementById('classes-list-container').innerHTML = `
+                            <div class="alert alert-warning text-center p-4">${res.message || 'Lỗi tải danh sách lớp.'}</div>
                         `;
                         return;
                     }
 
-                    container.innerHTML = '';
-                    list.forEach(item => {
-                        const start = new Date(item.START_DATE).toLocaleDateString('vi-VN');
-                        const end = new Date(item.END_DATE).toLocaleDateString('vi-VN');
-
-                        container.innerHTML += `
-                            <div class="col-12 col-md-6 col-lg-4 mb-4">
-                                <div class="card h-100 border-0 shadow-sm teacher-class-card">
-                                    <div class="card-body p-4 d-flex flex-column">
-                                        <div class="d-flex justify-content-between align-items-start mb-3">
-                                            <span class="badge bg-success-soft text-success rounded px-2.5 py-1.5 fw-bold small">Giáo viên phụ trách</span>
-                                            <span class="small text-muted">${start} - ${end}</span>
-                                        </div>
-                                        <h5 class="fw-bold text-dark mb-1 text-truncate-2">${item.COURSE_TITLE}</h5>
-                                        <p class="text-muted small mb-3">Mã lớp: <strong>${item.CLASS_NAME}</strong></p>
-
-                                        <div class="card bg-light border-0 p-3 mb-4" style="border-radius: 12px;">
-                                            <div class="d-flex justify-content-between small text-muted mb-1">
-                                                <span>Tổng số buổi học:</span>
-                                                <span class="fw-bold text-dark">${item.SESSION_COUNT || 0} buổi</span>
-                                            </div>
-                                            <div class="d-flex justify-content-between small text-muted">
-                                                <span>Sĩ số học viên:</span>
-                                                <span class="fw-bold text-dark">${item.STUDENT_COUNT || 0} học viên</span>
-                                            </div>
-                                        </div>
-
-                                        <div class="mt-auto">
-                                            <a href="${window.TRAINING_URLS.classManage.replace('__ID__', item.ID)}" class="btn btn-success w-100 py-2.5 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-1 shadow-sm">
-                                                <span class="material-symbols-rounded" style="font-size: 1.2rem;">edit_calendar</span>
-                                                Quản lý lớp học
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
+                    allClasses = res.data || [];
+                    computeStats();
+                    filterAndRender();
                 })
                 .catch(err => {
-                    container.innerHTML = `<div class="col-12"><div class="alert alert-danger">Lỗi kết nối hệ thống: ${err.message}</div></div>`;
+                    document.getElementById('classes-list-container').innerHTML = `
+                        <div class="alert alert-danger text-center p-4">Lỗi kết nối hệ thống: ${err.message}</div>
+                    `;
                 });
+        }
+
+        function computeStats() {
+            document.getElementById('stat-total-classes').textContent = allClasses.length;
+            document.getElementById('stat-active-classes').textContent = allClasses.filter(c => (c.STATUS || c.status) === 'IN_PROGRESS').length;
+            document.getElementById('stat-completed-classes').textContent = allClasses.filter(c => (c.STATUS || c.status) === 'COMPLETED').length;
+        }
+
+        function filterAndRender() {
+            const searchVal = document.getElementById('search-input').value.toLowerCase().trim();
+            const statusVal = document.getElementById('status-filter').value;
+            
+            let filtered = allClasses;
+            if (searchVal) {
+                filtered = filtered.filter(c => 
+                    (c.CLASS_NAME || c.className || '').toLowerCase().includes(searchVal) ||
+                    (c.COURSE_TITLE || c.courseTitle || '').toLowerCase().includes(searchVal)
+                );
+            }
+            if (statusVal) {
+                filtered = filtered.filter(c => (c.STATUS || c.status) === statusVal);
+            }
+            
+            renderClasses(filtered);
+        }
+
+        function switchView(mode) {
+            viewMode = mode;
+            document.getElementById('btn-grid-view').classList.toggle('active-view-btn', mode === 'grid');
+            document.getElementById('btn-table-view').classList.toggle('active-view-btn', mode === 'table');
+            filterAndRender();
+        }
+
+        function renderClasses(list) {
+            const container = document.getElementById('classes-list-container');
+            if (list.length === 0) {
+                container.innerHTML = `
+                    <div class="card border-0 shadow-sm text-center py-5" style="border-radius: 16px;">
+                        <span class="material-symbols-rounded text-muted" style="font-size: 5rem;">search_off</span>
+                        <h5 class="fw-bold text-dark mt-3">Không tìm thấy lớp học phù hợp</h5>
+                        <p class="text-muted small">Vui lòng điều chỉnh lại bộ lọc tìm kiếm của bạn.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (viewMode === 'table') {
+                renderTableView(list, container);
+            } else {
+                renderGridView(list, container);
+            }
+        }
+
+        function renderGridView(list, container) {
+            let html = '<div class="row">';
+            list.forEach(item => {
+                const classId = item.ID || item.id;
+                const courseTitle = item.COURSE_TITLE || item.courseTitle || 'Chưa rõ khóa học';
+                const className = item.CLASS_NAME || item.className || 'Chưa rõ';
+                const start = item.START_DATE || item.startDate ? new Date(item.START_DATE || item.startDate).toLocaleDateString('vi-VN') : 'N/A';
+                const end = item.END_DATE || item.endDate ? new Date(item.END_DATE || item.endDate).toLocaleDateString('vi-VN') : 'N/A';
+                const status = item.STATUS || item.status || 'DRAFT';
+                const sessionCount = item.SESSION_COUNT || item.sessionCount || 0;
+                
+                // FIXED BUG 1: Map ENROLLMENT_COUNT/enrollmentCount correctly
+                const studentCount = item.ENROLLMENT_COUNT || item.enrollmentCount || 0;
+
+                const badge = getStatusBadge(status);
+
+                html += `
+                    <div class="col-12 col-md-6 col-lg-4 mb-4">
+                        <div class="card h-100 border-0 shadow-sm teacher-class-card">
+                            <div class="card-body p-4 d-flex flex-column">
+                                <div class="d-flex justify-content-between align-items-start mb-3 gap-1">
+                                    <span class="badge ${badge.cls} px-2.5 py-1.5 fw-bold small">${badge.label}</span>
+                                    <span class="small text-muted fw-medium">${start} - ${end}</span>
+                                </div>
+                                <h5 class="fw-bold text-dark mb-1 text-truncate-2" style="line-height: 1.4; height: 2.8rem; overflow: hidden;" title="${courseTitle}">${courseTitle}</h5>
+                                <p class="text-muted small mb-3">Mã lớp: <strong class="text-dark">${className}</strong></p>
+
+                                <div class="card bg-light border-0 p-3 mb-4" style="border-radius: 12px;">
+                                    <div class="d-flex justify-content-between small text-muted mb-2">
+                                        <span><i class="bi bi-calendar3 me-1"></i>Tổng số buổi:</span>
+                                        <span class="fw-bold text-dark">${sessionCount} buổi</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted">
+                                        <span><i class="bi bi-people-fill me-1"></i>Sĩ số học viên:</span>
+                                        <span class="fw-bold text-success">${studentCount} học viên</span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto">
+                                    <a href="${window.TRAINING_URLS.classManage.replace('__ID__', classId)}" class="btn btn-success w-100 py-2.5 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-1 shadow-sm">
+                                        <span class="material-symbols-rounded" style="font-size: 1.2rem;">edit_calendar</span>
+                                        Quản lý lớp học
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function renderTableView(list, container) {
+            let html = `
+                <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle text-nowrap">
+                            <thead>
+                                <tr class="table-light">
+                                    <th class="ps-3">Khóa học</th>
+                                    <th>Mã lớp</th>
+                                    <th>Thời gian học</th>
+                                    <th class="text-center">Số buổi</th>
+                                    <th class="text-center">Sĩ số</th>
+                                    <th class="text-center">Trạng thái</th>
+                                    <th class="text-end pe-3">Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+
+            list.forEach(item => {
+                const classId = item.ID || item.id;
+                const courseTitle = item.COURSE_TITLE || item.courseTitle || 'Chưa rõ khóa học';
+                const className = item.CLASS_NAME || item.className || 'Chưa rõ';
+                const start = item.START_DATE || item.startDate ? new Date(item.START_DATE || item.startDate).toLocaleDateString('vi-VN') : 'N/A';
+                const end = item.END_DATE || item.endDate ? new Date(item.END_DATE || item.endDate).toLocaleDateString('vi-VN') : 'N/A';
+                const status = item.STATUS || item.status || 'DRAFT';
+                const sessionCount = item.SESSION_COUNT || item.sessionCount || 0;
+                
+                // FIXED BUG 1: Map ENROLLMENT_COUNT/enrollmentCount correctly
+                const studentCount = item.ENROLLMENT_COUNT || item.enrollmentCount || 0;
+
+                const badge = getStatusBadge(status);
+
+                html += `
+                    <tr>
+                        <td class="ps-3">
+                            <div class="fw-bold text-dark text-wrap" style="max-width: 320px;">${courseTitle}</div>
+                        </td>
+                        <td><span class="badge bg-light text-dark border px-2 py-1.5 fw-bold">${className}</span></td>
+                        <td class="small text-muted">${start} - ${end}</td>
+                        <td class="text-center fw-bold text-dark">${sessionCount}</td>
+                        <td class="text-center fw-bold text-success">${studentCount}</td>
+                        <td class="text-center"><span class="badge ${badge.cls} px-2.5 py-1.5 fw-bold">${badge.label}</span></td>
+                        <td class="text-end pe-3">
+                            <a href="${window.TRAINING_URLS.classManage.replace('__ID__', classId)}" class="btn btn-sm btn-success px-3 py-2 rounded-2 fw-bold d-inline-flex align-items-center gap-1">
+                                <span class="material-symbols-rounded" style="font-size: 1.1rem;">edit_calendar</span> Quản lý
+                            </a>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        function getStatusBadge(status) {
+            switch (status) {
+                case 'IN_PROGRESS':
+                    return { cls: 'bg-success-soft text-success', label: 'Đang giảng dạy' };
+                case 'SCHEDULED':
+                    return { cls: 'bg-primary-soft text-primary', label: 'Đã lên lịch' };
+                case 'COMPLETED':
+                    return { cls: 'bg-secondary-soft text-secondary', label: 'Đã kết thúc' };
+                case 'DRAFT':
+                    return { cls: 'bg-light text-dark border', label: 'Nháp' };
+                case 'OPEN_FOR_REGISTRATION':
+                    return { cls: 'bg-warning-soft text-warning', label: 'Mở đăng ký' };
+                default:
+                    return { cls: 'bg-light text-dark', label: status };
+            }
         }
     </script>
 }

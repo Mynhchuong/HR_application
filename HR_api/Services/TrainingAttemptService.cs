@@ -429,7 +429,8 @@ public class TrainingAttemptService
         if (attempt != null)
         {
             answers = await _db.ExecuteQueryAsync(@"
-                SELECT ID, ATTEMPT_ID, QUESTION_ID, ANSWER_OPTION_IDS, ANSWER_TEXT
+                SELECT ID, ATTEMPT_ID, QUESTION_ID, ANSWER_OPTION_IDS,
+                       DBMS_LOB.SUBSTR(ANSWER_TEXT, 4000, 1) AS ANSWER_TEXT
                   FROM HRMS.HR_TRAINING_TEST_ANSWER
                  WHERE ATTEMPT_ID = :AID",
                 r => new AttemptAnswerModel
@@ -505,8 +506,10 @@ public class TrainingAttemptService
         foreach (var att in attempts)
         {
             var essays = await _db.ExecuteQueryAsync(@"
-                SELECT AN.ID ANSWER_ID, Q.ID QUESTION_ID, Q.QUESTION_TEXT, Q.POINTS,
-                       AN.ANSWER_TEXT, AN.POINTS_AWARDED, AN.GRADER_COMMENT
+                SELECT AN.ID ANSWER_ID, Q.ID QUESTION_ID,
+                       DBMS_LOB.SUBSTR(Q.QUESTION_TEXT, 4000, 1) AS QUESTION_TEXT, Q.POINTS,
+                       DBMS_LOB.SUBSTR(AN.ANSWER_TEXT, 4000, 1) AS ANSWER_TEXT, AN.POINTS_AWARDED,
+                       DBMS_LOB.SUBSTR(AN.GRADER_COMMENT, 4000, 1) AS GRADER_COMMENT
                   FROM HRMS.HR_TRAINING_TEST_ANSWER AN
                   JOIN HRMS.HR_TRAINING_TEST_QUESTION Q ON Q.ID = AN.QUESTION_ID
                  WHERE AN.ATTEMPT_ID = :AID

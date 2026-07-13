@@ -19,6 +19,9 @@
         <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
             <h4 class="fw-bold mb-0 text-primary" id="detail-class-name">Chi tiết Lớp: --</h4>
             <div>
+                <a href="@Url.Action("ClassEdit", "TrainingAdmin", new { id = classId })" class="btn btn-sm btn-outline-warning fw-bold me-1">
+                    <span class="material-symbols-rounded align-middle me-1" style="font-size: 1.1rem;">settings</span>Cấu hình & Bài thi cuối khóa
+                </a>
                 <a href="@Url.Action("ClassReport", "TrainingAdmin", new { id = classId })" class="btn btn-sm btn-outline-primary fw-bold me-1">
                     <span class="material-symbols-rounded align-middle me-1" style="font-size: 1.1rem;">assessment</span>Báo cáo lớp
                 </a>

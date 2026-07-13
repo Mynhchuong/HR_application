@@ -19,6 +19,7 @@ public class TrainingController : ControllerBase
     private readonly TrainingReviewService _review;
     private readonly TrainingTeamService _team;
     private readonly TrainingAuthHelper _auth;
+    private readonly TrainingTestService _test;
 
     public TrainingController(
         TrainingEnrollmentService enroll,
@@ -29,7 +30,8 @@ public class TrainingController : ControllerBase
         TrainingAttemptService attempt,
         TrainingReviewService review,
         TrainingTeamService team,
-        TrainingAuthHelper auth)
+        TrainingAuthHelper auth,
+        TrainingTestService test)
     {
         _enroll   = enroll;
         _session  = session;
@@ -40,6 +42,7 @@ public class TrainingController : ControllerBase
         _review   = review;
         _team     = team;
         _auth     = auth;
+        _test     = test;
     }
 
     // GET /apiHR/Training/my-classes?empcd=
@@ -76,9 +79,9 @@ public class TrainingController : ControllerBase
             }
         }
 
-        var cls = await _class.GetDetailAsync(id);
+        var cls = await _class.GetDetailAsync(id, empcd);
         if (cls == null) return Ok(new { success = false, message = "Không tìm thấy lớp" });
-        var sessions = await _class.GetSessionsAsync(id);
+        var sessions = await _class.GetSessionsAsync(id, empcd);
         var teachers = await _class.GetTeachersAsync(id);
         var groups   = await _class.GetGroupsAsync(id);
         var materials = await _material.ListByClassAsync(id, empcd);
@@ -103,7 +106,7 @@ public class TrainingController : ControllerBase
         if (string.IsNullOrWhiteSpace(empcd))
             return Ok(new { success = false, message = "empcd required" });
 
-        var s = await _session.GetDetailAsync(id);
+        var s = await _session.GetDetailAsync(id, empcd);
         if (s == null) return Ok(new { success = false, message = "Không tìm thấy session" });
 
         if (!await _auth.IsStudentAsync(empcd, s.CLASS_ID) &&
@@ -192,6 +195,14 @@ public class TrainingController : ControllerBase
         }
     }
 
+    // GET /apiHR/Training/class/{classId}/tests?empcd=
+    [HttpGet("class/{classId}/tests")]
+    public async Task<IActionResult> GetClassTests(int classId, [FromQuery] string? empcd)
+    {
+        var data = await _test.ListAsync(classId, null, null, null, empcd);
+        return Ok(new { success = true, data });
+    }
+
     // ═══════════════════════════════════════════════════════════════
     //  TEST — student làm bài (§6.2-6.5)
     // ═══════════════════════════════════════════════════════════════
@@ -231,7 +242,11 @@ public class TrainingController : ControllerBase
         req.IP_ADDRESS ??= HttpContext.Connection.RemoteIpAddress?.ToString();
         req.USER_AGENT ??= Request.Headers.UserAgent.ToString();
         var (att, err) = await _attempt.StartAttemptAsync(req);
-        return Ok(new { success = att != null, message = err, data = att });
+        if (att == null)
+            return Ok(new { success = false, message = err });
+
+        var (view, viewErr) = await _attempt.GetForStudentAsync(req.TEST_ID, req.EMPCD);
+        return Ok(new { success = view != null, message = viewErr, data = view });
     }
 
     // POST /apiHR/Training/test/save-answer — auto-save mỗi câu

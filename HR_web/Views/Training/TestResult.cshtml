@@ -53,14 +53,18 @@
                         return;
                     }
 
-                    const data = res.data;
-                    const att = data.att || data.ATTEMPT || {}; // Handle property names
-                    const passFail = data.pass_FAIL || data.PASS_FAIL;
-                    const isGraded = att.IS_GRADED === 1;
+                    const data = res.data || {};
+                    const att = data.att || data.ATTEMPT || data.attempt || {}; // Handle property names
+                    const passFailStr = data.pass_FAIL || data.PASS_FAIL || data.passFail || data.pass_fail || '';
+                    const passFail = passFailStr.toUpperCase();
+                    
+                    const isGradedVal = att.IS_GRADED ?? att.isGraded ?? att.is_graded;
+                    const isGraded = isGradedVal === 1 || isGradedVal === true;
 
                     // Set back link to Class Detail if test has class id
-                    if (att.CLASS_ID) {
-                        document.getElementById('back-link').href = window.TRAINING_URLS.getClassDetail.replace('__ID__', att.CLASS_ID);
+                    const classIdVal = att.CLASS_ID || att.classId || att.class_id;
+                    if (classIdVal) {
+                        document.getElementById('back-link').href = window.TRAINING_URLS.getClassDetail.replace('__ID__', classIdVal);
                     } else {
                         document.getElementById('back-link').href = '@Url.Action("MyClasses", "Training")';
                     }
@@ -87,9 +91,11 @@
                         }
                     }
 
-                    const submitDate = att.SUBMIT_DT ? new Date(att.SUBMIT_DT).toLocaleString('vi-VN') : '-';
-                    const score = att.SCORE !== null && att.SCORE !== undefined ? att.SCORE : '-';
-                    const maxScore = att.MAX_SCORE !== null && att.MAX_SCORE !== undefined ? att.MAX_SCORE : '-';
+                    const submitDtVal = att.SUBMIT_DT || att.submitDt || att.submit_dt;
+                    const submitDate = submitDtVal ? new Date(submitDtVal).toLocaleString('vi-VN') : '-';
+                    const score = (att.SCORE !== null && att.SCORE !== undefined) ? att.SCORE : ((att.score !== null && att.score !== undefined) ? att.score : '-');
+                    const maxScore = (att.MAX_SCORE !== null && att.MAX_SCORE !== undefined) ? att.MAX_SCORE : ((att.maxScore !== null && att.maxScore !== undefined) ? att.maxScore : '-');
+                    const empcdVal = att.EMPCD || att.empcd || '';
 
                     wrap.innerHTML = `
                         <div class="card-body text-center p-5">
@@ -105,7 +111,7 @@
                             <div class="card border-0 p-4 mb-4" style="border-radius: 16px; background-color: #f8f9fa;">
                                 <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
                                     <span class="text-muted">Mã nhân viên:</span>
-                                    <span class="fw-bold text-dark">${att.EMPCD}</span>
+                                    <span class="fw-bold text-dark">${empcdVal}</span>
                                 </div>
                                 <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
                                     <span class="text-muted">Trạng thái chấm:</span>

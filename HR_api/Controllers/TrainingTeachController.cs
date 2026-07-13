@@ -1,6 +1,8 @@
 using HR_api.Helpers;
 using HR_api.Models.Training;
 using HR_api.Services;
+using HR_api.Data;
+using Oracle.ManagedDataAccess.Client;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HR_api.Controllers;
@@ -17,6 +19,7 @@ public class TrainingTeachController : ControllerBase
     private readonly TrainingTestService _test;
     private readonly TrainingAttemptService _attempt;
     private readonly TrainingAuthHelper _auth;
+    private readonly OracleService _db;
 
     public TrainingTeachController(
         TrainingSessionService session,
@@ -25,7 +28,8 @@ public class TrainingTeachController : ControllerBase
         TrainingClassService cls,
         TrainingTestService test,
         TrainingAttemptService attempt,
-        TrainingAuthHelper auth)
+        TrainingAuthHelper auth,
+        OracleService db)
     {
         _session  = session;
         _material = material;
@@ -34,6 +38,7 @@ public class TrainingTeachController : ControllerBase
         _test     = test;
         _attempt  = attempt;
         _auth     = auth;
+        _db       = db;
     }
 
     // GET /apiHR/TrainingTeach/my-classes?empcd=
@@ -298,7 +303,10 @@ public class TrainingTeachController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
             return Ok(new { success = false, message = "LOGIN_USER required" });
 
-        if (!await _auth.IsTeacherOfTestAsync(req.LOGIN_USER, req.TEST_ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        // Chỉ cần là giáo viên đang hoạt động hoặc HR/Admin.
+        // Quyền tạo test cho lớp đã được kiểm tra ở TestSave.
+        // SaveQuestionsAsync tự validate test phải ở DRAFT.
+        if (!await _auth.IsActiveTeacherAsync(req.LOGIN_USER) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
         {
             return StatusCode(403, new { success = false, message = "Bạn không có quyền sửa câu hỏi cho bài kiểm tra này" });
         }
@@ -328,7 +336,7 @@ public class TrainingTeachController : ControllerBase
 
         try
         {
-            await _test.PublishAsync(req.ID, req.LOGIN_USER);
+            await _test.PublishAsync(req.ID, req.LOGIN_USER, req.AVAILABLE_FROM, req.AVAILABLE_TO);
             return Ok(new { success = true });
         }
         catch (InvalidOperationException ex)
@@ -368,4 +376,61 @@ public class TrainingTeachController : ControllerBase
         var (ok, err) = await _attempt.GradeAnswerAsync(req);
         return Ok(new { success = ok, message = err });
     }
+
+    // POST /apiHR/TrainingTeach/test/delete — chỉ xóa DRAFT
+    [HttpPost("test/delete")]
+    public async Task<IActionResult> TestDelete([FromBody] ChangeTestStatusRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsActiveTeacherAsync(req.LOGIN_USER) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+            return StatusCode(403, new { success = false, message = "Không có quyền xóa bài kiểm tra" });
+
+        try
+        {
+            await _test.DeleteAsync(req.ID);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/TrainingTeach/class/set-final-test
+    [HttpPost("class/set-final-test")]
+    public async Task<IActionResult> SetFinalTest([FromBody] SetFinalTestRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherAsync(req.LOGIN_USER, req.CLASS_ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền sửa cấu hình lớp học này" });
+        }
+
+        try
+        {
+            await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_TRAINING_CLASS
+                   SET FINAL_TEST_ID = :FTID
+                 WHERE ID = :CID",
+                new OracleParameter("FTID", (object?)req.TEST_ID ?? DBNull.Value),
+                new OracleParameter("CID",  req.CLASS_ID));
+
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+}
+
+public class SetFinalTestRequest
+{
+    public int CLASS_ID { get; set; }
+    public int? TEST_ID { get; set; }
+    public string LOGIN_USER { get; set; } = "";
 }

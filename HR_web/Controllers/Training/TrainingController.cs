@@ -151,6 +151,15 @@ public class TrainingController : BaseController
     }
 
     [HttpGet]
+    public async Task<IActionResult> GetMyCertificates(string empcd)
+    {
+        var loginUser = CurrentUser?.EmpCd ?? "";
+        if (string.IsNullOrEmpty(loginUser)) return Json(new { success = false, message = "Chưa đăng nhập" });
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/certificate/list", $"loginUser={loginUser}&empcd={loginUser}");
+        return Json(res);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> GetClassDetail(int classId, string empcd)
     {
         var res = await _training.GetFromApiAsync<object>($"Training/class/{classId}/detail", $"empcd={empcd}");
@@ -160,7 +169,8 @@ public class TrainingController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetClassTests(int classId)
     {
-        var res = await _training.GetFromApiAsync<object>($"Training/class/{classId}/tests", "");
+        var empcd = CurrentUser?.EmpCd ?? "";
+        var res = await _training.GetFromApiAsync<object>($"Training/class/{classId}/tests", $"empcd={empcd}");
         return Json(res);
     }
 
@@ -181,9 +191,11 @@ public class TrainingController : BaseController
     }
 
     [HttpPost]
+    [HttpGet]
     public async Task<IActionResult> SessionCheckIn([FromBody] CheckInRequest req)
     {
-        var response = await _training.PostToApiAsync($"Training/session/{req.SESSION_ID}/checkin", req);
+        req.EMPCD = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("Training/session/checkin", req);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");
@@ -226,7 +238,7 @@ public class TrainingController : BaseController
     public async Task<IActionResult> StartTest([FromBody] StartAttemptRequest req)
     {
         req.EMPCD = CurrentUser?.EmpCd ?? "";
-        var response = await _training.PostToApiAsync($"Training/test/{req.TEST_ID}/start", req);
+        var response = await _training.PostToApiAsync("Training/test/start", req);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");
@@ -260,10 +272,31 @@ public class TrainingController : BaseController
     }
 
     [HttpPost]
+    [HttpGet]
     public async Task<IActionResult> SubmitReview([FromBody] SubmitReviewRequest req)
     {
         req.EMPCD = CurrentUser?.EmpCd ?? "";
-        var response = await _training.PostToApiAsync($"Training/class/{req.CLASS_ID}/review", req);
+        
+        // Fetch class detail to get the teachers of the class
+        var detailRes = await _training.GetFromApiAsync<ClassDetailApiResponse>($"Training/class/{req.CLASS_ID}/detail", $"empcd={req.EMPCD}");
+        var teachers = detailRes?.data?.teachers ?? new List<ClassTeacherApiItem>();
+
+        // Map web model properties to backend API expected properties
+        var apiReq = new
+        {
+            CLASS_ID = req.CLASS_ID,
+            EMPCD = req.EMPCD,
+            CONTENT_RATING = (int)req.RATING_CONTENT,
+            ORGANIZATION_RATING = (int)req.RATING_TEACHER,
+            FEEDBACK_TEXT = req.COMMENT_TEXT,
+            TEACHER_RATINGS = teachers.Select(t => new {
+                TEACHER_EMPCD = t.EMPCD,
+                RATING = (int)req.RATING_TEACHER,
+                FEEDBACK_TEXT = (string?)null
+            }).ToList()
+        };
+
+        var response = await _training.PostToApiAsync("Training/review/submit", apiReq);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");
@@ -272,7 +305,17 @@ public class TrainingController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetMyReview(int id, string empcd)
     {
-        var res = await _training.GetFromApiAsync<object>($"Training/class/{id}/my-review", $"empcd={empcd}");
-        return Json(res);
+        var apiRes = await _training.GetFromApiAsync<GetMyReviewApiResponse>($"Training/class/{id}/my-review", $"empcd={empcd}");
+        if (apiRes?.success == true && apiRes.data != null)
+        {
+            var webReview = new
+            {
+                RATING_CONTENT = apiRes.data.CONTENT_RATING,
+                RATING_TEACHER = apiRes.data.ORGANIZATION_RATING,
+                COMMENT_TEXT = apiRes.data.FEEDBACK_TEXT
+            };
+            return Json(new { success = true, data = webReview });
+        }
+        return Json(new { success = true, data = (object?)null });
     }
 }

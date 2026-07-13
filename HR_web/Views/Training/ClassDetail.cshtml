@@ -191,7 +191,7 @@
         function renderHeader() {
             const hWrap = document.getElementById('class-header-container');
             const cls = classData.cls;
-            const teachers = classData.teachers.map(t => `${t.EMP_NAME} (${t.IS_PRIMARY ? 'Chính' : 'Trợ giảng'})`).join(', ');
+            const teachers = classData.teachers.map(t => `<span class="vni-font">${t.EMP_NAME}</span> (${t.IS_PRIMARY ? 'Chính' : 'Trợ giảng'})`).join(', ');
             
             let badgeRegText = 'Chỉ định';
             let badgeRegClass = 'bg-dark';

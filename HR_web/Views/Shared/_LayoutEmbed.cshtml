@@ -25,6 +25,72 @@
 </head>
 <body>
     @RenderBody()
+    
+    <!-- Toast container -->
+    <div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index: 9999;"></div>
+
+    <!-- Global Confirm Modal -->
+    <div class="modal fade" id="globalConfirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 28px;">
+                <div class="modal-body p-4 text-center">
+                    <div class="mb-3">
+                        <div id="globalConfirmIconWrap" class="rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 70px; height: 70px; background: #fee2e2;">
+                            <span class="material-symbols-rounded" id="globalConfirmIcon" style="font-size: 2.5rem; color: #dc2626;">delete</span>
+                        </div>
+                    </div>
+                    <h5 class="fw-bold mb-2" id="globalConfirmTitle">Xác nhận</h5>
+                    <p class="text-muted small mb-4" id="globalConfirmMessage"></p>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-light w-100 py-2 rounded-3 fw-bold" data-bs-dismiss="modal">Hủy</button>
+                        <button type="button" class="btn btn-danger w-100 py-2 rounded-3 fw-bold" id="globalConfirmOk">Xóa</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        window.showToast = function(message, type) {
+            const colors = { success: 'text-bg-success', error: 'text-bg-danger', warning: 'text-bg-warning', info: 'text-bg-info' };
+            const icons  = { success: 'check_circle', error: 'error', warning: 'warning', info: 'info' };
+            const cls = colors[type||'success'] || colors.success;
+            const ico = icons[type||'success']  || icons.success;
+            const div = document.createElement('div');
+            div.className = `toast align-items-center ${cls} border-0 show`;
+            div.setAttribute('role','alert');
+            div.style.marginBottom = '8px';
+            div.innerHTML = `<div class="d-flex align-items-center"><div class="toast-body flex-fill"><span class="material-symbols-rounded me-2" style="vertical-align:middle;font-size:1.1rem;">${ico}</span>${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+            document.getElementById('toast-container').appendChild(div);
+            setTimeout(() => { div.classList.remove('show'); setTimeout(() => div.remove(), 400); }, 3500);
+        };
+        window.showConfirm = function(message, onConfirm, options) {
+            const opts = options || {};
+            document.getElementById('globalConfirmTitle').textContent   = opts.title   || 'Xác nhận';
+            document.getElementById('globalConfirmMessage').textContent = message;
+            document.getElementById('globalConfirmOk').textContent      = opts.okText  || 'Xác nhận';
+            document.getElementById('globalConfirmOk').className        = 'btn w-100 py-2 rounded-3 fw-bold ' + (opts.okClass || 'btn-primary');
+            
+            const iconEl   = document.getElementById('globalConfirmIcon');
+            const iconWrap = document.getElementById('globalConfirmIconWrap');
+            iconEl.textContent           = opts.icon      || 'help';
+            iconEl.style.color           = opts.iconColor || '#0d6efd';
+            iconWrap.style.background    = opts.iconBg    || '#e7f1ff';
+            
+            const modalEl = document.getElementById('globalConfirmModal');
+            const modal   = new bootstrap.Modal(modalEl);
+            const okBtn   = document.getElementById('globalConfirmOk');
+            const handler = function() { modal.hide(); onConfirm(); };
+            okBtn.addEventListener('click', handler, { once: true });
+            modalEl.addEventListener('hidden.bs.modal', function() {
+                okBtn.removeEventListener('click', handler);
+            }, { once: true });
+            modal.show();
+        };
+    </script>
     @RenderSection("Scripts", required: false)
 </body>
 </html>

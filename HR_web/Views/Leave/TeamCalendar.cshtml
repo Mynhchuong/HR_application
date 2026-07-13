@@ -44,11 +44,13 @@
     .cal-cell.cal-selected .cal-daynum   { color:#fff !important; }
     .cal-cell.cal-selected .cal-count    { background:#fff !important; color:#1d4ed8 !important; }
     .cal-cell.cal-selected .cal-gp-count { background:#fff !important; color:#0369a1 !important; }
+    .cal-cell.cal-selected .cal-tr-count { background:#fff !important; color:#065f46 !important; }
     .cal-daynum { font-size:.73rem; font-weight:600; color:#374151; line-height:1; }
     .cal-cell.cal-past  .cal-daynum { color:#9ca3af; }
     .cal-cell.cal-today .cal-daynum { color:#1d4ed8; font-weight:800; }
     .cal-count    { font-size:.55rem; padding:1px 5px; border-radius:8px; font-weight:700; color:#fff; line-height:1.3; }
     .cal-gp-count { font-size:.55rem; padding:1px 5px; border-radius:8px; font-weight:700; color:#fff; line-height:1.3; background:#0ea5e9; }
+    .cal-tr-count { font-size:.55rem; padding:1px 5px; border-radius:8px; font-weight:700; color:#fff; line-height:1.3; background:#10b981; }
     .cal-empty { opacity:0; pointer-events:none; }
     tr.sch-past   td { color:#9ca3af !important; }
     tr.sch-past   .badge { opacity:.5; }
@@ -70,7 +72,7 @@
         .cal-grid { gap:2px; }
         .cal-cell { min-height:48px; padding:3px 1px 2px; border-radius:4px; }
         .cal-daynum { font-size:.6rem; }
-        .cal-count,.cal-gp-count { font-size:.5rem; padding:1px 3px; border-radius:5px; }
+        .cal-count,.cal-gp-count,.cal-tr-count { font-size:.5rem; padding:1px 3px; border-radius:5px; }
         .cal-hdr    { font-size:.54rem; padding:1px 0; }
         #calLegend  { font-size:.7rem !important; gap:8px !important; }
         .table-responsive { padding-left:.35rem !important; padding-right:.35rem !important; }
@@ -79,6 +81,7 @@
         .gp-filter-input[type=date] { width:110px; }
         #gpFilterRow { overflow-x:auto; flex-wrap:nowrap !important; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
         #gpFilterRow::-webkit-scrollbar { display:none; }
+    } { display:none; }
     }
 </style>
 }
@@ -117,6 +120,7 @@
                         <span><span class="cal-count" style="background:#d97706;">4-7</span> nghỉ vừa</span>
                         <span><span class="cal-count" style="background:#dc2626;">8+</span> nghỉ nhiều</span>
                         <span><span class="cal-gp-count">N</span> ra cổng</span>
+                        <span><span class="cal-tr-count">N</span> lịch học</span>
                     </div>
                 </div>
             </div>
@@ -146,6 +150,12 @@
                     <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabGp">
                         <i class="bi bi-door-open me-1"></i>Ra Vào Cổng
                         <span class="badge ms-1" id="gpCountBadge" style="font-size:.65rem;background:#0ea5e9;display:none;"></span>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabTraining">
+                        <i class="bi bi-mortarboard me-1"></i>Lịch Học
+                        <span class="badge bg-success ms-1" id="trainingCountBadge" style="font-size:.65rem;display:none;"></span>
                     </button>
                 </li>
             </ul>
@@ -216,6 +226,37 @@
                     </div>
                 </div>
 
+                <!-- ─── Tab 3: Lịch Học ─── -->
+                <div class="tab-pane fade" id="tabTraining">
+                    <div class="px-4 pt-2 pb-2 d-flex align-items-center gap-2 flex-wrap">
+                        <div class="empcd-wrap">
+                            <i class="bi bi-search"></i>
+                            <input type="text" id="trainingEmpFilter" class="empcd-filter" placeholder="Mã NV..."
+                                   oninput="renderTraining()">
+                        </div>
+                    </div>
+                    <div class="table-responsive px-4">
+                        <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">#</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Mã NV</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Họ &amp; Tên</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Lớp / Khoá học</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Buổi học</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ngày học</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Giờ học</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Địa điểm</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trainingBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center px-4 mt-2 mb-2">
+                        <div id="trainingCount" class="text-sm text-secondary"></div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -237,6 +278,7 @@ function emptyRow(msg, cols) {
 
 const SCHEDULE_URL = '@Url.Action("GetTeamSchedulePage","Leave")';
 const GP_URL       = '@Url.Action(gpEndpoint,"GatePass")';
+const TRAINING_URL = '@Url.Action("GetTeamTrainingSchedule","Leave")';
 const MONTHS_VI    = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
                       'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
 const LEAVE_LABEL  = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác' };
@@ -245,7 +287,7 @@ const GP_TYPE_LABEL = { OUT:'Ra ngoài', IN:'Vào trong', MID:'Ra - Vào' };
 const GP_TYPE_COLOR = { OUT:'warning', IN:'info', MID:'primary' };
 
 let curMonth = @curMonth, curYear = @curYear;
-let scheduleData = [], gpCalData = [];
+let scheduleData = [], gpCalData = [], trainingCalData = [];
 let schPage = 1, schPageSize = 20;
 let calVisible = true, selectedCalDay = null, calDayNames = {};
 const GP_PAGE_SZ = 20;
@@ -264,6 +306,7 @@ function changeMonth(delta) {
     updateMonthLabel();
     loadSchedule();
     loadGpForCalendar();
+    loadTrainingForCalendar();
 }
 
 // ─── Calendar ─────────────────────────────────────────────────
@@ -273,7 +316,7 @@ function dayKey(d) {
 
 function buildCalendar(data) {
     const today = new Date(); today.setHours(0,0,0,0);
-    const dayMap = {}, gpDayMap = {};
+    const dayMap = {}, gpDayMap = {}, trainingDayMap = {};
     calDayNames = {};
 
     data.forEach(item => {
@@ -285,7 +328,7 @@ function buildCalendar(data) {
             if (d.getDay() !== 0 && d.getMonth()+1 === curMonth && d.getFullYear() === curYear) {
                 const key = dayKey(d);
                 dayMap[key] = (dayMap[key]||0) + 1;
-                if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[] };
+                if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[], training:[] };
                 calDayNames[key].leave.push(item.EMP_NAME||item.EMPCD||'');
             }
             d.setDate(d.getDate()+1);
@@ -299,8 +342,20 @@ function buildCalendar(data) {
         if (d.getMonth()+1 === curMonth && d.getFullYear() === curYear) {
             const key = dayKey(d);
             gpDayMap[key] = (gpDayMap[key]||0) + 1;
-            if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[] };
+            if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[], training:[] };
             calDayNames[key].gp.push(item.EMP_NAME||item.EMPCD||'');
+        }
+    });
+
+    trainingCalData.forEach(item => {
+        if (!item.SESSION_DATE) return;
+        const d = new Date(item.SESSION_DATE); d.setHours(0,0,0,0);
+        if (d.getMonth()+1 === curMonth && d.getFullYear() === curYear) {
+            const key = dayKey(d);
+            trainingDayMap[key] = (trainingDayMap[key]||0) + 1;
+            if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[], training:[] };
+            if (!calDayNames[key].training) calDayNames[key].training = [];
+            calDayNames[key].training.push(`${item.EMP_NAME || item.EMPCD || ''} (${item.COURSE_TITLE || ''})`);
         }
     });
 
@@ -314,11 +369,12 @@ function buildCalendar(data) {
         const key     = curYear+'-'+String(curMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');
         const count   = dayMap[key]   || 0;
         const gpCount = gpDayMap[key] || 0;
+        const trCount = trainingDayMap[key] || 0;
         const d       = new Date(curYear, curMonth-1, day); d.setHours(0,0,0,0);
         const isToday    = d.getTime() === today.getTime();
         const isPast     = d < today && !isToday;
         const isSelected = selectedCalDay === key;
-        const hasData    = count > 0 || gpCount > 0;
+        const hasData    = count > 0 || gpCount > 0 || trCount > 0;
 
         let badges = '';
         if (count > 0) {
@@ -327,6 +383,9 @@ function buildCalendar(data) {
         }
         if (gpCount > 0) {
             badges += `<span class="cal-gp-count">${gpCount} cổng</span>`;
+        }
+        if (trCount > 0) {
+            badges += `<span class="cal-tr-count">${trCount} học</span>`;
         }
 
         const cls = ['cal-cell', isToday?'cal-today':'', isPast?'cal-past':'',
@@ -354,6 +413,7 @@ function selectCalDay(key) {
     updateDayBadge();
     renderSchedule();
     loadGatePass();
+    renderTraining();
     if (selectedCalDay && window.matchMedia('(hover:none)').matches) {
         const sel = document.querySelector('#calGrid .cal-cell.cal-selected');
         if (sel) { showCalHover(sel, selectedCalDay); setTimeout(hideCalHover, 2800); }
@@ -367,6 +427,7 @@ function clearCalDay() {
     updateDayBadge();
     renderSchedule();
     loadGatePass();
+    renderTraining();
 }
 
 function updateDayBadge() {
@@ -384,8 +445,8 @@ function updateDayBadge() {
 function showCalHover(el, key) {
     const info = calDayNames[key];
     if (!info) return;
-    const leaveList = info.leave || [], gpList = info.gp || [];
-    if (!leaveList.length && !gpList.length) return;
+    const leaveList = info.leave || [], gpList = info.gp || [], trList = info.training || [];
+    if (!leaveList.length && !gpList.length && !trList.length) return;
     let html = '';
     if (leaveList.length) {
         html += `<div style="font-weight:700;margin-bottom:3px;border-bottom:1px solid rgba(255,255,255,.2);padding-bottom:3px;"><i class="bi bi-calendar3 me-1"></i>${leaveList.length} nghỉ phép</div>`;
@@ -395,6 +456,11 @@ function showCalHover(el, key) {
         if (html) html += '<hr style="border-color:rgba(255,255,255,.2);margin:5px 0 4px;">';
         html += `<div style="font-weight:700;margin-bottom:3px;"><i class="bi bi-door-open me-1"></i>${gpList.length} ra vào cổng</div>`;
         html += gpList.map(n => `<span class="vni-font">${escHtml(n)}</span>`).join('<br>');
+    }
+    if (trList.length) {
+        if (html) html += '<hr style="border-color:rgba(255,255,255,.2);margin:5px 0 4px;">';
+        html += `<div style="font-weight:700;margin-bottom:3px;"><i class="bi bi-mortarboard me-1"></i>${trList.length} lịch học</div>`;
+        html += trList.map(n => `<span class="vni-font" style="font-size:0.75rem;">${escHtml(n)}</span>`).join('<br>');
     }
     const box = document.getElementById('calHoverBox');
     document.getElementById('calHoverContent').innerHTML = html;
@@ -651,17 +717,96 @@ function renderGpPagination() {
     $bar.append(mk('&rsaquo;', gpPage+1, gpPage>=gpTotalPages));
 }
 
+function loadTrainingForCalendar() {
+    document.getElementById('trainingBody').innerHTML =
+        `<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-success" role="status"></div></td></tr>`;
+    MobileTableHelper.refresh('trainingBody');
+    document.getElementById('trainingCount').textContent = '';
+    
+    $.ajax({
+        url: TRAINING_URL, type: 'GET', data: { month: curMonth, year: curYear },
+        success: function(res) {
+            trainingCalData = (res.success && res.data) ? res.data : [];
+            buildCalendar(scheduleData);
+            renderTraining();
+        },
+        error: function() {
+            document.getElementById('trainingBody').innerHTML =
+                `<tr><td colspan="8" class="text-center text-danger py-4">Lỗi kết nối lịch học</td></tr>`;
+            MobileTableHelper.refresh('trainingBody');
+        }
+    });
+}
+
+function renderTraining() {
+    const q = (document.getElementById('trainingEmpFilter').value || '').trim().toUpperCase();
+    let filtered = q
+        ? trainingCalData.filter(d => (d.EMPCD||'').toUpperCase().includes(q) || (d.EMP_NAME||'').toUpperCase().includes(q))
+        : [...trainingCalData];
+
+    if (selectedCalDay) {
+        const selDate = new Date(selectedCalDay); selDate.setHours(0,0,0,0);
+        filtered = filtered.filter(item => {
+            if (!item.SESSION_DATE) return false;
+            const d = new Date(item.SESSION_DATE); d.setHours(0,0,0,0);
+            return d.getTime() === selDate.getTime();
+        });
+    }
+
+    const tbody = document.getElementById('trainingBody');
+    tbody.innerHTML = '';
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = emptyRow('Không có lịch học nào phù hợp', 8);
+        MobileTableHelper.refresh('trainingBody');
+        document.getElementById('trainingCount').textContent = '';
+        document.getElementById('trainingCountBadge').style.display = 'none';
+        return;
+    }
+
+    // Sắp xếp theo ngày -> giờ -> mã nhân viên
+    filtered.sort((a, b) => {
+        const da = new Date(a.SESSION_DATE), db = new Date(b.SESSION_DATE);
+        if (da.getTime() !== db.getTime()) return da - db;
+        return a.START_TIME.localeCompare(b.START_TIME);
+    });
+
+    filtered.forEach((item, idx) => {
+        tbody.innerHTML += `
+            <tr>
+                <td class="px-2 text-xs text-secondary">${idx + 1}</td>
+                <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+                <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
+                <td class="px-2"><div class="text-sm">${escHtml(item.COURSE_TITLE||'')}</div><div class="text-xs text-secondary">${escHtml(item.CLASS_NAME||'')}</div></td>
+                <td class="px-2 text-sm">Buổi ${item.SESSION_NO}</td>
+                <td class="px-2 text-sm text-nowrap">${formatDate(item.SESSION_DATE)}</td>
+                <td class="px-2 text-sm text-nowrap">${escHtml(item.START_TIME)} - ${escHtml(item.END_TIME)}</td>
+                <td class="px-2 text-sm">${escHtml(item.LOCATION || 'N/A')}</td>
+            </tr>
+        `;
+    });
+
+    MobileTableHelper.refresh('trainingBody');
+    document.getElementById('trainingCount').innerHTML = `Hiển thị <strong>${filtered.length}</strong> lịch học`;
+    
+    const badge = document.getElementById('trainingCountBadge');
+    badge.textContent = filtered.length;
+    badge.style.display = '';
+}
+
 // ─── Utilities ────────────────────────────────────────────────
 function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
-function formatTime(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+    function formatTime(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
 function escHtml(str)  { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 $(document).ready(function() {
     MobileTableHelper.init('scheduleBody');
     MobileTableHelper.init('gpBody');
+    MobileTableHelper.init('trainingBody');
     updateMonthLabel();
     loadSchedule();
     loadGpForCalendar();
+    loadTrainingForCalendar();
     loadGatePass();
     window.addEventListener('scroll', hideCalHover, { passive:true });
     document.addEventListener('touchmove', hideCalHover, { passive:true });

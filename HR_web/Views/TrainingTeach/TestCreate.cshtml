@@ -62,7 +62,7 @@
                 <div class="d-grid mt-4">
                     <button type="button" onclick="saveTestWithQuestions()" class="btn btn-primary py-3 rounded-3 fw-bold shadow-sm">
                         <span id="save-spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
-                        Lưu và Xuất bản đề thi
+                        Lưu đề thi (Nháp)
                     </button>
                 </div>
             </div>
@@ -343,25 +343,12 @@
                     }
                     return resQ;
                 }).then(resQ => {
-                    
-                    // 3. Publish test
-                    return fetch(window.TRAINING_URLS.testPublish, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ID: savedTestId })
-                    }).then(r => r.json());
-                });
-            })
-            .then(resPub => {
-                spinner.classList.add('d-none');
-                if (resPub && resPub.success) {
-                    window.showToast('Tạo và Xuất bản đề thi thành công!', 'success');
+                    spinner.classList.add('d-none');
+                    window.showToast('Tạo đề thi nháp thành công!', 'success');
                     setTimeout(() => {
                         window.location.href = window.TRAINING_URLS.classManage;
                     }, 1500);
-                } else {
-                    window.showToast((resPub && resPub.message) || 'Lỗi xuất bản đề thi.', 'error');
-                }
+                });
             })
             .catch(err => {
                 spinner.classList.add('d-none');

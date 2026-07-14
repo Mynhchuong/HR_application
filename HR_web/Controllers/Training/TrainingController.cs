@@ -230,7 +230,7 @@ public class TrainingController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetTestForStudent(int id, string empcd)
     {
-        var res = await _training.GetFromApiAsync<object>($"Training/test/{id}/student-view", $"empcd={empcd}");
+        var res = await _training.GetFromApiAsync<object>($"Training/test/{id}", $"empcd={empcd}");
         return Json(res);
     }
 

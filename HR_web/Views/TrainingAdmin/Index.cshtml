@@ -106,11 +106,12 @@
                     <div class="col-md-3">
                         <select id="class-filter-status" class="form-select form-select-sm" onchange="loadClasses()" style="border-radius: 8px;">
                             <option value="">-- Tất cả trạng thái lớp --</option>
-                            <option value="DRAFT">Draft</option>
-                            <option value="SCHEDULED">Scheduled</option>
-                            <option value="IN_PROGRESS">In Progress</option>
-                            <option value="CLOSED">Closed</option>
-                            <option value="CANCELLED">Cancelled</option>
+                            <option value="DRAFT">Nháp</option>
+                            <option value="SCHEDULED">Đã lên lịch</option>
+                            <option value="IN_PROGRESS">Đang học</option>
+                            <option value="OPEN_FOR_REGISTRATION">Đang mở đăng ký</option>
+                            <option value="COMPLETED">Đã kết thúc</option>
+                            <option value="CANCELLED">Đã hủy</option>
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -453,7 +454,7 @@
                         const start = new Date(c.START_DATE).toLocaleDateString('vi-VN');
                         const end = new Date(c.END_DATE).toLocaleDateString('vi-VN');
 
-                        const badgeMode = c.CLASS_MODE === 'EXPRESS' 
+                        const badgeMode = (c.IS_EXPRESS === 1 || c.isExpress === 1 || c.COURSE_MODE === 'EXPRESS' || c.CLASS_MODE === 'EXPRESS') 
                             ? '<span class="badge bg-warning-soft text-warning">Học nhanh</span>' 
                             : '<span class="badge bg-success-soft text-success">Tiêu chuẩn</span>';
                         
@@ -466,9 +467,15 @@
                             badgeReg = '<span class="badge bg-secondary-soft text-secondary">Chỉ định</span>';
                         }
 
-                        const badgeStatus = c.STATUS === 'SCHEDULED' 
-                            ? '<span class="badge bg-primary">Lên lịch</span>' 
-                            : `<span class="badge bg-dark">${c.STATUS}</span>`;
+                        const statusLabels = {
+                            'DRAFT': '<span class="badge bg-secondary">Nháp</span>',
+                            'OPEN_FOR_REGISTRATION': '<span class="badge bg-info text-dark">Đang mở ĐK</span>',
+                            'SCHEDULED': '<span class="badge bg-primary">Đã lên lịch</span>',
+                            'IN_PROGRESS': '<span class="badge bg-success">Đang học</span>',
+                            'COMPLETED': '<span class="badge bg-dark">Đã kết thúc</span>',
+                            'CANCELLED': '<span class="badge bg-danger">Đã hủy</span>'
+                        };
+                        const badgeStatus = statusLabels[c.STATUS] || `<span class="badge bg-secondary">${c.STATUS}</span>`;
 
                         tbody.innerHTML += `
                             <tr id="class_row_${c.ID}">
@@ -521,6 +528,11 @@
 
             if (!courseId || !className || !start || !end) {
                 window.showToast('Vui lòng điền đầy đủ các thông tin!', 'warning');
+                return;
+            }
+
+            if (mode === 'EXPRESS') {
+                window.showToast('Lớp học nhanh (EXPRESS) phải được mở thông qua quy trình tạo lớp nhanh chuyên biệt (Express Create) của API để thiết lập tự động buổi học và giáo viên!', 'warning');
                 return;
             }
 

@@ -198,7 +198,7 @@
 
     /* ── Class Detail / Header / Sessions / Materials ── */
     function loadClassDetail() {
-        fetch(`${window.TRAINING_URLS.getClassDetail}?classId=${classId}&empcd=${empCd}`)
+        return fetch(`${window.TRAINING_URLS.getClassDetail}?classId=${classId}&empcd=${empCd}`)
             .then(r => r.json())
             .then(res => {
                 if (!res.success) {
@@ -216,7 +216,7 @@
     function renderHeader() {
         const hWrap = document.getElementById('class-header-container');
         const cls = classData.cls;
-        const teachers = classData.teachers.map(t => `${t.EMP_NAME} (${t.IS_PRIMARY ? 'Chính' : 'Trợ giảng'})`).join(', ');
+        const teachers = classData.teachers.map(t => `<span class="vni-font">${t.EMP_NAME}</span> (${t.IS_PRIMARY ? 'Chính' : 'Trợ giảng'})`).join(', ');
         hWrap.innerHTML = `
             <div class="card border-0 shadow-sm p-4" style="border-radius:16px;">
                 <div class="row align-items-center">
@@ -377,7 +377,7 @@
                     Học viên <strong>chưa</strong> làm được. Nhấn <strong>Xuất bản</strong> để mở.
                 </div>` : '';
 
-            const isFinalTest = classData && classData.cls && (t.ID === (classData.cls.FINAL_TEST_ID || classData.cls.finalTestId));
+            const isFinalTest = classData && classData.cls && (t.ID == classData.cls.FINAL_TEST_ID || t.ID == classData.cls.finalTestId);
             const finalTestBadge = isFinalTest ? `
                 <span class="badge bg-danger text-white ms-2 d-inline-flex align-items-center gap-1" style="font-size:0.75rem;">
                     <span class="material-symbols-rounded" style="font-size:.9rem;">workspace_premium</span> Bài thi cuối khóa
@@ -495,7 +495,9 @@
             .then(res => {
                 if (res.success) {
                     window.showToast('Đã thiết lập bài thi cuối khóa thành công!', 'success');
-                    loadClassDetail(); // Reload class detail to refresh classData.cls.FINAL_TEST_ID
+                    loadClassDetail().then(() => {
+                        loadTestsList();
+                    });
                 } else {
                     window.showToast(res.message || 'Lỗi thiết lập bài thi cuối khóa.', 'error');
                 }

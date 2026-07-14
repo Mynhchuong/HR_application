@@ -87,7 +87,7 @@
 </style>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
         window.TRAINING_URLS = {
             class: '@Url.Action("GetReportClass", "TrainingAdmin")',
@@ -289,12 +289,12 @@
                             <h6 class="fw-bold mb-3 text-dark">Bảng điểm thi học viên</h6>
                             <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                 <table class="table table-hover align-middle mb-0">
-                                    <thead><tr><th>Mã NV</th><th>Học tên</th><th>Điểm số</th><th>Kết quả</th><th>Ngày nộp</th></tr></thead>
+                                    <thead><tr><th>Mã NV</th><th>Họ và tên</th><th>Điểm số</th><th>Kết quả</th><th>Ngày nộp</th></tr></thead>
                                     <tbody>${d.SCORES.map(s => `<tr>
                                         <td>${esc(s.EMPCD)}</td>
                                         <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(s.EMP_NAME||'')}</td>
                                         <td><strong>${s.SCORE == null ? '-' : s.SCORE}${s.MAX_SCORE ? '/' + s.MAX_SCORE : ''}</strong></td>
-                                        <td>${s.IS_PASS == 1 ? '<span class="badge bg-success-soft text-success">PASS</span>' : s.IS_PASS == 0 ? '<span class="badge bg-danger-soft text-danger">FAIL</span>' : '-'}</td>
+                                        <td>${s.IS_PASS == 1 ? '<span class="badge bg-success-soft text-success">Đạt</span>' : s.IS_PASS == 0 ? '<span class="badge bg-danger-soft text-danger">Không đạt</span>' : '-'}</td>
                                         <td class="text-muted small">${s.SUBMIT_DT ? new Date(s.SUBMIT_DT).toLocaleString('vi-VN') : '-'}</td>
                                     </tr>`).join('')}</tbody>
                                 </table>

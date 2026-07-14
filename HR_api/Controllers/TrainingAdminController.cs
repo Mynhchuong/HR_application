@@ -443,6 +443,21 @@ public partial class TrainingAdminController : ControllerBase
         }
     }
 
+    // POST /apiHR/TrainingAdmin/enrollment/remove — xóa học viên khỏi lớp
+    [HttpPost("enrollment/remove")]
+    public async Task<IActionResult> EnrollmentRemove([FromBody] RemoveEnrollmentRequest req)
+    {
+        try
+        {
+            await _enroll.RemoveAsync(req);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════
     //  SESSION (admin)
     // ═══════════════════════════════════════════════════════════════

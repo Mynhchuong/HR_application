@@ -153,7 +153,7 @@
                     document.getElementById('edit-class-desc').value = c.DESCRIPTION || c.description || '';
                     document.getElementById('edit-class-start').value = (c.START_DATE || c.startDate) ? (c.START_DATE || c.startDate).substring(0, 10) : '';
                     document.getElementById('edit-class-end').value = (c.END_DATE || c.endDate) ? (c.END_DATE || c.endDate).substring(0, 10) : '';
-                    document.getElementById('edit-class-mode').value = c.CLASS_MODE || c.classMode || 'STANDARD';
+                    document.getElementById('edit-class-mode').value = c.COURSE_MODE || c.courseMode || c.CLASS_MODE || c.classMode || 'STANDARD';
                     document.getElementById('edit-class-reg-mode').value = c.REGISTRATION_MODE || c.registrationMode || 'ASSIGNED';
                     document.getElementById('edit-class-deadline').value = (c.REGISTRATION_DEADLINE || c.registrationDeadline) ? (c.REGISTRATION_DEADLINE || c.registrationDeadline).substring(0, 10) : '';
                     document.getElementById('edit-class-max').value = c.MAX_STUDENTS || c.maxStudents || '';

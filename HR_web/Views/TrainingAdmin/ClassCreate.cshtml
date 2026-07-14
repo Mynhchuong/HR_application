@@ -359,7 +359,7 @@
                 if (!res.success) {
                     throw new Error(res.message || 'Lỗi clone lớp học từ template.');
                 }
-                const newClassId = res.data;
+                const newClassId = res.data?.id || res.data?.ID || res.data;
 
                 // Step 3: Save configuration properties
                 return fetch(window.TRAINING_URLS.saveClass, {

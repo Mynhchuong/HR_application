@@ -333,15 +333,26 @@
             .then(res => {
                 if (res.success) {
                     const result = res.data;
-                    const isPass = result.IS_PASS === 1;
                     const score = result.SCORE;
 
                     let resultHtml = '';
                     if (result.IS_GRADED === 1) {
-                        resultHtml = `
-                            <h3 class="fw-bold ${isPass ? 'text-success' : 'text-danger'} mt-3">${isPass ? 'ĐẠT KHOÁ HỌC' : 'KHÔNG ĐẠT'}</h3>
-                            <p class="fs-4 text-dark mt-2">Điểm số của bạn: <strong>${score} điểm</strong></p>
-                        `;
+                        if (result.IS_PASS === 1) {
+                            resultHtml = `
+                                <h3 class="fw-bold text-success mt-3">ĐẠT BÀI THI</h3>
+                                <p class="fs-4 text-dark mt-2">Điểm số của bạn: <strong>${score} điểm</strong></p>
+                            `;
+                        } else if (result.IS_PASS === 0) {
+                            resultHtml = `
+                                <h3 class="fw-bold text-danger mt-3">KHÔNG ĐẠT</h3>
+                                <p class="fs-4 text-dark mt-2">Điểm số của bạn: <strong>${score} điểm</strong></p>
+                            `;
+                        } else {
+                            resultHtml = `
+                                <h3 class="fw-bold text-success mt-3">HOÀN THÀNH</h3>
+                                <p class="fs-4 text-dark mt-2">Điểm số của bạn: <strong>${score} điểm</strong></p>
+                            `;
+                        }
                     } else {
                         resultHtml = `
                             <h3 class="fw-bold text-warning mt-3">ĐÃ GỬI BÀI THI THÀNH CÔNG</h3>

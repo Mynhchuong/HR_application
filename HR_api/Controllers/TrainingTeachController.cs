@@ -426,6 +426,39 @@ public class TrainingTeachController : ControllerBase
             return Ok(new { success = false, message = ex.Message });
         }
     }
+
+    // GET /apiHR/TrainingTeach/class/{id}/check-access
+    [HttpGet("class/{id}/check-access")]
+    public async Task<IActionResult> CheckClassAccess(int id, [FromQuery] string empcd)
+    {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+
+        var hasAccess = await _auth.IsTeacherAsync(empcd, id) || await _auth.IsHrOrAdminAsync(empcd);
+        return Ok(new { success = true, data = hasAccess });
+    }
+
+    // GET /apiHR/TrainingTeach/session/{id}/check-access
+    [HttpGet("session/{id}/check-access")]
+    public async Task<IActionResult> CheckSessionAccess(int id, [FromQuery] string empcd)
+    {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+
+        var hasAccess = await _auth.IsTeacherOfSessionAsync(empcd, id) || await _auth.IsHrOrAdminAsync(empcd);
+        return Ok(new { success = true, data = hasAccess });
+    }
+
+    // GET /apiHR/TrainingTeach/test/{id}/check-access
+    [HttpGet("test/{id}/check-access")]
+    public async Task<IActionResult> CheckTestAccess(int id, [FromQuery] string empcd)
+    {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+
+        var hasAccess = await _auth.IsTeacherOfTestAsync(empcd, id) || await _auth.IsHrOrAdminAsync(empcd);
+        return Ok(new { success = true, data = hasAccess });
+    }
 }
 
 public class SetFinalTestRequest

@@ -307,7 +307,8 @@
             rejectEnrollment: '@Url.Action("RejectEnrollment", "TrainingAdmin")',
             saveGroup: '@Url.Action("SaveGroup", "TrainingAdmin")',
             autoSplitGroup: '@Url.Action("AutoSplitGroup", "TrainingAdmin")',
-            assignGroup: '@Url.Action("AssignGroup", "TrainingAdmin")'
+            assignGroup: '@Url.Action("AssignGroup", "TrainingAdmin")',
+            removeStudent: '@Url.Action("RemoveStudent", "TrainingAdmin")'
         };
 
         const selectedClassId = @classId;
@@ -350,9 +351,17 @@
         function renderLifecycle() {
             const cls = selectedClassData.cls;
             document.getElementById('detail-class-name').innerText = `Quản trị Lớp: ${cls.CLASS_NAME}`;
-
             const badge = document.getElementById('detail-class-status-badge');
-            badge.innerText = cls.STATUS;
+
+            const statusLabelsMap = {
+                'DRAFT': 'Nháp',
+                'OPEN_FOR_REGISTRATION': 'Đang mở ĐK',
+                'SCHEDULED': 'Đã lên lịch',
+                'IN_PROGRESS': 'Đang học',
+                'COMPLETED': 'Đã kết thúc',
+                'CANCELLED': 'Đã hủy'
+            };
+            badge.innerText = statusLabelsMap[cls.STATUS] || cls.STATUS;
             badge.className = 'badge ' + (
                 cls.STATUS === 'DRAFT' ? 'bg-secondary' :
                 cls.STATUS === 'OPEN_FOR_REGISTRATION' ? 'bg-info text-dark' :
@@ -369,7 +378,7 @@
                 if (cls.REGISTRATION_MODE === 'OPEN' || cls.REGISTRATION_MODE === 'HYBRID') {
                     buttonsWrap.innerHTML += `<button onclick="publishRegistration(${cls.ID})" class="btn btn-sm btn-info fw-bold">Mở Đăng ký tự do</button>`;
                 } else {
-                    buttonsWrap.innerHTML += `<button onclick="finalizeEnrollment(${cls.ID})" class="btn btn-sm btn-primary fw-bold">Lên lịch học (Scheduled)</button>`;
+                    buttonsWrap.innerHTML += `<button onclick="finalizeEnrollment(${cls.ID})" class="btn btn-sm btn-primary fw-bold">Lên lịch học</button>`;
                 }
                 buttonsWrap.innerHTML += `<button onclick="cancelClass(${cls.ID})" class="btn btn-sm btn-outline-danger fw-bold">Hủy Lớp</button>`;
             } else if (cls.STATUS === 'OPEN_FOR_REGISTRATION') {
@@ -604,7 +613,10 @@
                         <td class="fw-bold vni-font" style="text-transform:uppercase;">${s.EMP_NAME || 'Nhân viên mới'}</td>
                         <td>${groupName}</td>
                         <td>${stBadge}</td>
-                        <td class="pe-3 text-end">${actionBtn}</td>
+                        <td class="pe-3 text-end">
+                            ${actionBtn}
+                            ${s.STATUS !== 'COMPLETED' ? `<button onclick="removeStudent('${s.EMPCD}', '${s.EMP_NAME || s.EMPCD}')" class="btn btn-xs btn-outline-danger fw-bold ms-1" title="Xóa khỏi lớp"><span class="material-symbols-rounded" style="font-size:1rem;">person_remove</span></button>` : ''}
+                        </td>
                     </tr>
                 `;
             });
@@ -612,6 +624,26 @@
             if (list.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted small">Chưa có học viên nào tham gia.</td></tr>`;
             }
+        }
+
+        function removeStudent(empcd, name) {
+            window.showConfirm(`Bạn có chắc muốn xóa học viên <strong>${name}</strong> (${empcd}) khỏi lớp học?`, () => {
+                fetch(window.TRAINING_URLS.removeStudent, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ CLASS_ID: selectedClassId, EMPCD: empcd })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.showToast('Đã xóa học viên khỏi lớp!', 'success');
+                        loadClassDetailAdmin();
+                    } else {
+                        window.showToast(res.message || 'Lỗi xóa học viên.', 'error');
+                    }
+                })
+                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+            });
         }
 
         function openAssignStudentModal() {

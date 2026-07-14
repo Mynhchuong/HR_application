@@ -495,4 +495,30 @@ public class TrainingEnrollmentService
         UPDT_ID            = r["UPDT_ID"] as string,
         UPDT_DT            = r["UPDT_DT"] as DateTime?,
     };
+
+    // ═══════════════════════════════════════════════════════════════
+    //  REMOVE — xóa học viên khỏi lớp (admin)
+    // ═══════════════════════════════════════════════════════════════
+    public async Task RemoveAsync(RemoveEnrollmentRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.EMPCD))
+            throw new InvalidOperationException("Mã nhân viên không hợp lệ.");
+
+        // Không cho xóa nếu học viên đã hoàn thành/thi đạt
+        var exists = (await _db.ExecuteQueryAsync(
+            "SELECT STATUS FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID AND EMPCD = :EMP",
+            r => r["STATUS"]?.ToString() ?? "",
+            new OracleParameter("CID", req.CLASS_ID),
+            new OracleParameter("EMP", req.EMPCD))).FirstOrDefault();
+
+        if (exists == null)
+            throw new InvalidOperationException("Không tìm thấy học viên trong lớp.");
+        if (exists == "COMPLETED")
+            throw new InvalidOperationException("Không thể xóa học viên đã hoàn thành khóa học.");
+
+        await _db.ExecuteNonQueryAsync(
+            "DELETE FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID AND EMPCD = :EMP",
+            new OracleParameter("CID", req.CLASS_ID),
+            new OracleParameter("EMP", req.EMPCD));
+    }
 }

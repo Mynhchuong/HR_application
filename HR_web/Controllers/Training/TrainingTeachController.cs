@@ -16,69 +16,98 @@ public class TrainingTeachController : BaseController
     }
 
     // GET /TrainingTeach/MyClasses
-    public IActionResult MyClasses()
+    public async Task<IActionResult> MyClasses()
     {
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        bool isTeacher = await _training.IsActiveTeacherAsync(empcd);
+        if (!isTeacher && !isHrOrAdmin) return Forbid();
+
         ViewBag.EmpCd = empcd;
         return View();
     }
 
     // GET /TrainingTeach/ClassManage/{id}
-    public IActionResult ClassManage(int id)
+    public async Task<IActionResult> ClassManage(int id)
     {
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(id, empcd)) return Forbid();
+
         ViewBag.EmpCd = empcd;
         ViewBag.ClassId = id;
         return View();
     }
 
     // GET /TrainingTeach/SessionAttendance/{id}
-    public IActionResult SessionAttendance(int id)
+    public async Task<IActionResult> SessionAttendance(int id)
     {
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckSessionAccessAsync(id, empcd)) return Forbid();
+
         ViewBag.EmpCd = empcd;
         ViewBag.SessionId = id;
         return View();
     }
 
     // GET /TrainingTeach/TestCreate/{id}
-    public IActionResult TestCreate(int id)
+    public async Task<IActionResult> TestCreate(int id)
     {
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(id, empcd)) return Forbid();
+
         ViewBag.EmpCd = empcd;
         ViewBag.ClassId = id;
         return View();
     }
 
     // GET /TrainingTeach/TestGrade/{id}
-    public IActionResult TestGrade(int id)
+    public async Task<IActionResult> TestGrade(int id)
     {
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckTestAccessAsync(id, empcd)) return Forbid();
+
         ViewBag.EmpCd = empcd;
         ViewBag.TestId = id;
         return View();
     }
 
     // GET /TrainingTeach/UploadMaterial/{id}
-    public IActionResult UploadMaterial(int id)
+    public async Task<IActionResult> UploadMaterial(int id)
     {
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(id, empcd)) return Forbid();
+
         ViewBag.EmpCd = empcd;
         ViewBag.ClassId = id;
         return View();
     }
 
     // GET /TrainingTeach/QA/{id}
-    public IActionResult QA(int id)
+    public async Task<IActionResult> QA(int id)
     {
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(id, empcd)) return Forbid();
+
         ViewBag.EmpCd = empcd;
         ViewBag.ClassId = id;
         return View();
@@ -91,6 +120,12 @@ public class TrainingTeachController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetTeacherClasses(string empcd)
     {
+        var loginUser = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(loginUser)) return Forbid();
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && empcd != loginUser) return Forbid();
+
         var res = await _training.GetFromApiAsync<object>("TrainingTeach/my-classes", $"empcd={empcd}");
         return Json(res);
     }
@@ -98,6 +133,12 @@ public class TrainingTeachController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetClassDetail(int classId)
     {
+        var loginUser = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(loginUser)) return Forbid();
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(classId, loginUser)) return Forbid();
+
         var res = await _training.GetFromApiAsync<object>("TrainingAdmin/class/detail", $"id={classId}");
         return Json(res);
     }
@@ -105,7 +146,13 @@ public class TrainingTeachController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetTeacherAttendanceView(int sessionId, string empcd)
     {
-        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/session/{sessionId}/attendance", $"empcd={empcd}");
+        var loginUser = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(loginUser)) return Forbid();
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckSessionAccessAsync(sessionId, loginUser)) return Forbid();
+
+        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/session/{sessionId}/attendance", $"empcd={loginUser}");
         if (res == null) return Json(new { success = false, status = 403, message = "Bạn không có quyền truy cập thông tin buổi học này" });
         return Json(res);
     }
@@ -135,7 +182,7 @@ public class TrainingTeachController : BaseController
         var loginUser = CurrentUser?.EmpCd ?? "";
 
         // 1. Fetch the list of students in the session to get their EMPCD and GROUP_NAME
-        var attRes = await _training.GetFromApiAsync<SessionAttendanceViewApiResponse>($"TrainingTeach/session/{req.SESSION_ID}/attendance", "");
+        var attRes = await _training.GetFromApiAsync<SessionAttendanceViewApiResponse>($"TrainingTeach/session/{req.SESSION_ID}/attendance", $"empcd={loginUser}");
         var allItems = attRes?.data?.ATTENDANCE ?? new List<AttendanceModelApiItem>();
 
         // 2. Filter students if group filter is active
@@ -166,7 +213,13 @@ public class TrainingTeachController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetAbsentStats(int classId, string empcd)
     {
-        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/class/{classId}/absent-stats", $"empcd={empcd}");
+        var loginUser = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(loginUser)) return Forbid();
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(classId, loginUser)) return Forbid();
+
+        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/class/{classId}/absent-stats", $"empcd={loginUser}");
         return Json(res);
     }
 
@@ -257,7 +310,13 @@ public class TrainingTeachController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetPendingGrade(int id, string empcd)
     {
-        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/test/{id}/pending-grade", $"empcd={empcd}");
+        var loginUser = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(loginUser)) return Forbid();
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckTestAccessAsync(id, loginUser)) return Forbid();
+
+        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/test/{id}/pending-grade", $"empcd={loginUser}");
         return Json(res);
     }
 
@@ -282,10 +341,14 @@ public class TrainingTeachController : BaseController
     }
 
     // GET /TrainingTeach/TestPreview/{id}
-    public IActionResult TestPreview(int id)
+    public async Task<IActionResult> TestPreview(int id)
     {
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckTestAccessAsync(id, empcd)) return Forbid();
+
         ViewBag.EmpCd = empcd;
         ViewBag.TestId = id;
         return View();
@@ -294,6 +357,12 @@ public class TrainingTeachController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetTestDetailForPreview(int id)
     {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return Forbid();
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckTestAccessAsync(id, empcd)) return Forbid();
+
         var res = await _training.GetFromApiAsync<object>("TrainingAdmin/test/detail", $"id={id}");
         return Json(res);
     }

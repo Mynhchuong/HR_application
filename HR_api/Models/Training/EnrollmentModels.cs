@@ -101,3 +101,11 @@ public class AssignGroupRequest
     public List<string> EMPCDS { get; set; } = new();
     public string LOGIN_USER { get; set; } = "";
 }
+
+// Xóa học viên khỏi lớp
+public class RemoveEnrollmentRequest
+{
+    public int    CLASS_ID { get; set; }
+    public string EMPCD { get; set; } = "";
+    public string LOGIN_USER { get; set; } = "";
+}

@@ -194,7 +194,7 @@
             const wrap = document.getElementById('session-header-container');
             const s = sessionInfo;
             const dateStr = new Date(s.SESSION_DATE).toLocaleDateString('vi-VN');
-            const isFinished = s.STATUS === 'FINISHED';
+            const isFinished = s.STATUS === 'COMPLETED' || s.STATUS === 'FINISHED';
 
             const badgeHtml = isFinished
                 ? `<span class="badge bg-danger text-white px-2.5 py-1.5 fw-bold mb-2">Buổi học đã kết thúc</span>`
@@ -287,7 +287,7 @@
             tbody.innerHTML = '';
             
             let count = 0;
-            const isFinished = sessionInfo && sessionInfo.STATUS === 'FINISHED';
+            const isFinished = sessionInfo && (sessionInfo.STATUS === 'COMPLETED' || sessionInfo.STATUS === 'FINISHED');
             const disabledAttr = isFinished ? 'disabled' : '';
 
             allStudents.forEach(st => {

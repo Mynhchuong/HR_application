@@ -260,12 +260,14 @@
                 // Điểm danh
                 let attendText = '<span class="text-muted small">Chưa điểm danh</span>';
                 if (s.ATTENDANCE_STATUS) {
-                    let badgeColor = 'bg-secondary';
-                    if (s.ATTENDANCE_STATUS === 'PRESENT') badgeColor = 'bg-success';
-                    else if (s.ATTENDANCE_STATUS === 'LATE') badgeColor = 'bg-warning';
-                    else if (s.ATTENDANCE_STATUS === 'ABSENT') badgeColor = 'bg-danger';
-                    else if (s.ATTENDANCE_STATUS === 'EXCUSED') badgeColor = 'bg-info';
-                    attendText = `<span class="badge ${badgeColor}">${s.ATTENDANCE_STATUS}</span>`;
+                    const attMap = {
+                        'PRESENT': { cls: 'bg-success', lbl: 'Có mặt' },
+                        'LATE':    { cls: 'bg-warning text-dark', lbl: 'Đi muộn' },
+                        'ABSENT':  { cls: 'bg-danger',  lbl: 'Vắng' },
+                        'EXCUSED': { cls: 'bg-info text-dark',   lbl: 'Có phép' }
+                    };
+                    const att = attMap[s.ATTENDANCE_STATUS] || { cls: 'bg-secondary', lbl: s.ATTENDANCE_STATUS };
+                    attendText = `<span class="badge ${att.cls}">${att.lbl}</span>`;
                 }
 
                 const sDate = s.SESSION_DATE ? new Date(s.SESSION_DATE).toLocaleDateString('vi-VN') : '';
@@ -316,6 +318,12 @@
                     list.forEach(t => {
                         const isDone = t.ATTEMPT_STATUS === 'SUBMITTED' || t.ATTEMPT_STATUS === 'AUTO_SUBMITTED' || t.ATTEMPT_STATUS === 'GRADED';
                         
+                        const isFinalTest = classData && classData.cls && (t.ID == classData.cls.FINAL_TEST_ID || t.ID == classData.cls.finalTestId);
+                        const finalBadge = isFinalTest 
+                            ? `<span class="badge border ms-2" style="background-color: #ffeef0; color: #dc3545; border-color: #fecdd3 !important; font-size: 0.7rem; font-weight: 700;"><i class="bi bi-award me-1"></i>Bài thi cuối khóa</span>` 
+                            : '';
+                        const borderClass = isFinalTest ? 'border-start border-danger border-3' : '';
+                        
                         let actionBtn = '';
                         if (isDone) {
                             actionBtn = `
@@ -335,8 +343,8 @@
                         const scoreText = isDone ? `Điểm: <strong class="text-primary">${t.SCORE ?? '-'} / ${t.MAX_SCORE ?? '-'}</strong>` : `Số câu hỏi: ${t.QUESTION_COUNT}`;
 
                         wrap.innerHTML += `
-                            <div class="card border p-3 mb-3 rounded-3 shadow-sm">
-                                <h6 class="fw-bold mb-1 text-dark">${t.TITLE}</h6>
+                            <div class="card border p-3 mb-3 rounded-3 shadow-sm ${borderClass}">
+                                <h6 class="fw-bold mb-1 text-dark d-flex align-items-center flex-wrap">${t.TITLE}${finalBadge}</h6>
                                 <p class="text-muted small mb-2">Thời gian làm bài: ${durationText}</p>
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <span class="small text-muted">${scoreText}</span>

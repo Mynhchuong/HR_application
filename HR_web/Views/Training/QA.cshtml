@@ -96,7 +96,7 @@
                             answerBlock = `
                                 <div class="bg-light border-start border-success border-3 p-3 mt-3 rounded-2" style="margin-left: 20px;">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <span class="fw-bold small text-success"><i class="bi bi-person-badge me-1"></i>Giảng viên: ${q.ANSWERED_BY_NAME || q.ANSWERED_BY}</span>
+                                        <span class="fw-bold small text-success"><i class="bi bi-person-badge me-1"></i>Giảng viên: <span class="vni-font">${q.ANSWERED_BY_NAME || q.ANSWERED_BY}</span></span>
                                         <span class="text-muted small">${new Date(q.ANSWERED_DT).toLocaleDateString('vi-VN')}</span>
                                     </div>
                                     <p class="mb-0 text-dark small">${q.ANSWER_TEXT}</p>
@@ -113,7 +113,7 @@
                         qaWrap.innerHTML += `
                             <div class="card border-0 shadow-sm p-4 mb-3" style="border-radius: 12px; background: #fff;">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Học viên: ${q.ASKED_BY_NAME || q.ASKED_BY}</span>
+                                    <span class="fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Học viên: <span class="vni-font">${q.ASKED_BY_NAME || q.ASKED_BY}</span></span>
                                     <span class="text-muted small">${new Date(q.ASKED_DT).toLocaleDateString('vi-VN')}</span>
                                 </div>
                                 <p class="mb-0 text-secondary">${q.QUESTION_TEXT}</p>

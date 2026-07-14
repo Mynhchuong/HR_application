@@ -616,6 +616,16 @@ public class TrainingAdminController : BaseController
     }
 
     [HttpPost]
+    public async Task<IActionResult> RemoveStudent([FromBody] RemoveEnrollmentWebRequest req)
+    {
+        var apiReq = new { CLASS_ID = req.CLASS_ID, EMPCD = req.EMPCD, LOGIN_USER = CurrentUser?.EmpCd ?? "" };
+        var response = await _training.PostToApiAsync("TrainingAdmin/enrollment/remove", apiReq);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
     public async Task<IActionResult> CloseAdminTest([FromBody] ChangeTestStatusRequest req)
     {
         req.LOGIN_USER = CurrentUser?.EmpCd ?? "";

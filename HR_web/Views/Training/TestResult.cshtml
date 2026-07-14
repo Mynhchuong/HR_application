@@ -78,16 +78,22 @@
                     if (isGraded) {
                         if (passFail === 'PASS') {
                             statusClass = 'text-success';
-                            statusLabel = 'ĐẠT KHOÁ HỌC';
+                            statusLabel = 'ĐẠT BÀI THI';
                             icon = 'check_circle';
                             iconColor = 'text-success';
                             iconBg = 'bg-success-soft';
-                        } else {
+                        } else if (passFail === 'FAIL') {
                             statusClass = 'text-danger';
                             statusLabel = 'KHÔNG ĐẠT';
                             icon = 'cancel';
                             iconColor = 'text-danger';
                             iconBg = 'bg-danger-soft';
+                        } else {
+                            statusClass = 'text-success';
+                            statusLabel = 'HOÀN THÀNH';
+                            icon = 'check_circle';
+                            iconColor = 'text-success';
+                            iconBg = 'bg-success-soft';
                         }
                     }
 

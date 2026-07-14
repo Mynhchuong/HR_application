@@ -327,6 +327,12 @@ public class RecoverEnrollmentRequest
     public string LOGIN_USER { get; set; } = "";
 }
 
+public class RemoveEnrollmentWebRequest
+{
+    public int CLASS_ID { get; set; }
+    public string EMPCD { get; set; } = "";
+}
+
 // ── Certificate ─────────────────────────────────────────────
 public class RevokeCertificateRequest
 {

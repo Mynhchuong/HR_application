@@ -112,6 +112,36 @@ public class TrainingService
         catch (Exception ex) { Console.WriteLine($"[TrainingService] IsActiveTeacher error: {ex.Message}"); return false; }
     }
 
+    public async Task<bool> CheckClassAccessAsync(int classId, string empcd)
+    {
+        try
+        {
+            var res = await _api.GetAsync<HasScopeResponse>($"TrainingTeach/class/{classId}/check-access", $"empcd={empcd}");
+            return res?.success == true && res.data;
+        }
+        catch { return false; }
+    }
+
+    public async Task<bool> CheckSessionAccessAsync(int sessionId, string empcd)
+    {
+        try
+        {
+            var res = await _api.GetAsync<HasScopeResponse>($"TrainingTeach/session/{sessionId}/check-access", $"empcd={empcd}");
+            return res?.success == true && res.data;
+        }
+        catch { return false; }
+    }
+
+    public async Task<bool> CheckTestAccessAsync(int testId, string empcd)
+    {
+        try
+        {
+            var res = await _api.GetAsync<HasScopeResponse>($"TrainingTeach/test/{testId}/check-access", $"empcd={empcd}");
+            return res?.success == true && res.data;
+        }
+        catch { return false; }
+    }
+
     public async Task<T?> GetFromApiAsync<T>(string endpoint, string q = "")
     {
         return await _api.GetAsync<T>(endpoint, q);

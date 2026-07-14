@@ -303,10 +303,10 @@ public class TrainingTeachController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
             return Ok(new { success = false, message = "LOGIN_USER required" });
 
-        // Chỉ cần là giáo viên đang hoạt động hoặc HR/Admin.
-        // Quyền tạo test cho lớp đã được kiểm tra ở TestSave.
-        // SaveQuestionsAsync tự validate test phải ở DRAFT.
-        if (!await _auth.IsActiveTeacherAsync(req.LOGIN_USER) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        // Phải là teacher CỦA CHÍNH Class chứa TEST_ID này (hoặc HR/Admin) — không dùng
+        // IsActiveTeacherAsync (chỉ check "đang dạy lớp active nào đó", không gắn với TEST_ID
+        // truyền vào) vì sẽ cho phép teacher lớp A sửa câu hỏi test của lớp B (đã phát hiện ở audit).
+        if (!await _auth.IsTeacherOfTestAsync(req.LOGIN_USER, req.TEST_ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
         {
             return StatusCode(403, new { success = false, message = "Bạn không có quyền sửa câu hỏi cho bài kiểm tra này" });
         }
@@ -384,7 +384,9 @@ public class TrainingTeachController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
             return Ok(new { success = false, message = "LOGIN_USER required" });
 
-        if (!await _auth.IsActiveTeacherAsync(req.LOGIN_USER) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        // Phải là teacher của Class chứa test này (hoặc HR/Admin) — trước đây dùng IsActiveTeacherAsync
+        // (chỉ check "đang dạy lớp active nào đó") nên teacher lớp khác cũng xoá được test này.
+        if (!await _auth.IsTeacherOfTestAsync(req.LOGIN_USER, req.ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
             return StatusCode(403, new { success = false, message = "Không có quyền xóa bài kiểm tra" });
 
         try
@@ -412,6 +414,9 @@ public class TrainingTeachController : ControllerBase
 
         try
         {
+            // §16 ràng buộc code layer: TEST_ID phải thuộc đúng Class này + IS_TEMPLATE=0.
+            await _class.ValidateFinalTestAsync(req.TEST_ID, req.CLASS_ID);
+
             await _db.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_TRAINING_CLASS
                    SET FINAL_TEST_ID = :FTID

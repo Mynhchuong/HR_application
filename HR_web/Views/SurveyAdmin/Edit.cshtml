@@ -2,7 +2,6 @@
 @{
     var isNew = (bool)(ViewBag.IsNew ?? true);
     ViewData["Title"] = isNew ? "Tạo Survey" : "Sửa Survey";
-    var depts   = ViewBag.Depts as List<HR_web.Models.DropdownModel> ?? new();
 }
 
 @section Styles {
@@ -160,6 +159,7 @@
                             Muốn giới hạn thì chọn Line/Work cụ thể.
                         </div>
                         <div id="scopeDLWList"></div>
+                        <div id="scopeTotalCount" class="text-end text-muted small mt-1 fw-semibold"></div>
                     </div>
 
                     <!-- EMPCD list -->
@@ -224,20 +224,11 @@
 
 <!-- Template row Dept/Line/Work (dùng bởi JS clone) -->
 <template id="tmplScopeDLW">
-    <div class="sa-dlw-row d-flex gap-2 mb-2">
-        <select class="form-select form-select-sm dlw-dept">
-            <option value="">Chọn Dept...</option>
-            @foreach (var d in depts)
-            {
-                <option value="@d.id">@d.text</option>
-            }
-        </select>
-        <select class="form-select form-select-sm dlw-line">
-            <option value="">Tất cả Line trong Dept</option>
-        </select>
-        <select class="form-select form-select-sm dlw-work">
-            <option value="">Tất cả Work trong Line</option>
-        </select>
+    <div class="sa-dlw-row d-flex gap-2 mb-2 align-items-center">
+        <select class="form-control form-control-sm dlw-dept" style="min-width:160px;"></select>
+        <select class="form-control form-control-sm dlw-line" style="min-width:140px;"></select>
+        <select class="form-control form-control-sm dlw-work" style="min-width:140px;"></select>
+        <span class="dlw-count badge bg-secondary" style="white-space:nowrap;min-width:64px;font-size:.75rem;"></span>
         <button type="button" class="btn btn-sm btn-outline-danger btn-del-dlw"><i class="bi bi-x"></i></button>
     </div>
 </template>
@@ -266,8 +257,10 @@
             isNew:   @(isNew.ToString().ToLower()),
             initial: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model)),
             urls: {
-                lineByDept:    '@Url.Action("GetLineByDept", "Dropdown")',
-                workByLine:    '@Url.Action("GetWorkByLine", "Dropdown")',
+                getDept:       '@Url.Action("GetDept",   "Dropdown")',
+                getLine:       '@Url.Action("GetLine",   "Dropdown")',
+                getWork:       '@Url.Action("GetWork",   "Dropdown")',
+                scopeCount:    '@Url.Action("ScopeCount", "SurveyAdmin")',
                 save:          '@Url.Action("Save", "SurveyAdmin")',
                 changeStatus:  '@Url.Action("ChangeStatus", "SurveyAdmin")',
                 publishStream: '@Url.Action("PublishStream", "SurveyAdmin")',

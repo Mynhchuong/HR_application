@@ -78,6 +78,31 @@ public class CancelSessionRequest
     public string LOGIN_USER { get; set; } = "";
 }
 
+// Import Excel nhiều buổi học 1 lần (HR_web parse file, gửi list row đã parse sang đây).
+public class BulkImportSessionRow
+{
+    public int    SESSION_NO { get; set; }
+    public DateTime SESSION_DATE { get; set; }
+    public string START_TIME { get; set; } = "";
+    public string END_TIME { get; set; } = "";
+    public string? TOPIC { get; set; }
+    public string? LOCATION { get; set; }
+}
+
+public class BulkImportSessionsRequest
+{
+    public int CLASS_ID { get; set; }
+    public List<BulkImportSessionRow> ROWS { get; set; } = new();
+    public string LOGIN_USER { get; set; } = "";
+}
+
+public class BulkImportSessionsResult
+{
+    public int INSERTED { get; set; }
+    // "Dòng 3: SESSION_NO=2 đã tồn tại trong Class" — 1 lỗi/dòng, không chặn các dòng còn lại.
+    public List<string> ERRORS { get; set; } = new();
+}
+
 public class CheckInRequest
 {
     public int    SESSION_ID { get; set; }

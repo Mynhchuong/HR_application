@@ -218,7 +218,6 @@
                         <select id="class-reg-mode" class="form-select" onchange="toggleRegistrationOptions()" style="border-radius: 8px;">
                             <option value="ASSIGNED">ASSIGNED (Chỉ định học viên)</option>
                             <option value="OPEN">OPEN (Học viên tự đăng ký tự do)</option>
-                            <option value="HYBRID">HYBRID (Chỉ định + Tự do đăng ký)</option>
                         </select>
                     </div>
                     <div id="class-registration-options" class="d-none">
@@ -461,8 +460,6 @@
                         let badgeReg = '';
                         if (c.REGISTRATION_MODE === 'OPEN') {
                             badgeReg = '<span class="badge bg-info-soft text-info">Tự do</span>';
-                        } else if (c.REGISTRATION_MODE === 'HYBRID') {
-                            badgeReg = '<span class="badge bg-warning-soft text-warning">Kết hợp</span>';
                         } else {
                             badgeReg = '<span class="badge bg-secondary-soft text-secondary">Chỉ định</span>';
                         }
@@ -509,7 +506,7 @@
         window.toggleRegistrationOptions = function() {
             const mode = document.getElementById('class-reg-mode').value;
             const container = document.getElementById('class-registration-options');
-            if (mode === 'OPEN' || mode === 'HYBRID') {
+            if (mode === 'OPEN') {
                 container.classList.remove('d-none');
             } else {
                 container.classList.add('d-none');
@@ -536,8 +533,8 @@
                 return;
             }
 
-            if ((regMode === 'OPEN' || regMode === 'HYBRID') && !regDeadline) {
-                window.showToast('Chế độ OPEN hoặc HYBRID yêu cầu chọn Hạn chót đăng ký!', 'warning');
+            if (regMode === 'OPEN' && !regDeadline) {
+                window.showToast('Chế độ OPEN yêu cầu chọn Hạn chót đăng ký!', 'warning');
                 return;
             }
 

@@ -5,7 +5,9 @@
     string currentRole = ViewBag.CurrentRole ?? "";
     string todayStr    = DateTime.Today.ToString("yyyy-MM-dd");
     string gpEndpoint  = "GetSupervisorPage";
-    string trainingUrl = Url.Action("TeamSchedule", "Training")!;
+    // Trang Training/TeamSchedule riêng đã bỏ — training schedule giờ nằm trong tab "Lịch Học"
+    // ở trang Leave/TeamCalendar (bản tiếng Việt, dùng chung data cho mọi role).
+    string trainingUrl = Url.Action("TeamCalendar", "Leave") + "?tab=training";
 }
 
 @* Quick link — Training schedule §14.5 (integrated into unified "Team calendar") *@

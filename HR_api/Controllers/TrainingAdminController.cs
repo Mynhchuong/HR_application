@@ -196,16 +196,25 @@ public partial class TrainingAdminController : ControllerBase
         {
             return Ok(new { success = false, message = ex.Message });
         }
+        catch (OracleException)
+        {
+            // Không để lộ chi tiết Oracle (VD ORA-02290 check constraint) ra ngoài — trả 400 thân thiện.
+            return StatusCode(400, new { success = false, message = "Dữ liệu lớp học không hợp lệ (vi phạm ràng buộc dữ liệu)." });
+        }
     }
 
     // POST /apiHR/TrainingAdmin/class/publish-registration — DRAFT → OPEN_FOR_REGISTRATION (OPEN mode only)
+    // Idempotent (§4.2): bấm lại khi đã publish rồi → success:true, ALREADY_PUBLISHED:true, không lỗi.
     [HttpPost("class/publish-registration")]
     public async Task<IActionResult> ClassPublishRegistration([FromBody] ChangeClassStatusRequest req)
     {
         try
         {
-            await _class.PublishRegistrationAsync(req.ID, req.LOGIN_USER);
-            return Ok(new { success = true });
+            var result = await _class.PublishRegistrationAsync(req.ID, req.LOGIN_USER);
+            var message = result.ALREADY_PUBLISHED
+                ? "Lớp đã publish trước đó."
+                : "Publish thành công.";
+            return Ok(new { success = true, message, data = result });
         }
         catch (InvalidOperationException ex)
         {
@@ -214,13 +223,18 @@ public partial class TrainingAdminController : ControllerBase
     }
 
     // POST /apiHR/TrainingAdmin/class/finalize-enrollment — chốt DS → SCHEDULED
+    // Idempotent (§4.2): bấm lại khi Class đã SCHEDULED/IN_PROGRESS → không lỗi, không đổi status,
+    // chỉ re-enqueue TRAINING_ASSIGNED cho học viên chưa nhận noti nào.
     [HttpPost("class/finalize-enrollment")]
     public async Task<IActionResult> ClassFinalize([FromBody] ChangeClassStatusRequest req)
     {
         try
         {
-            await _class.FinalizeEnrollmentAsync(req.ID, req.LOGIN_USER);
-            return Ok(new { success = true });
+            var result = await _class.FinalizeEnrollmentAsync(req.ID, req.LOGIN_USER);
+            var message = result.ALREADY_PUBLISHED
+                ? $"Đã publish trước đó — đã gửi lại thông báo cho {result.NOTIFIED_COUNT} học viên chưa nhận."
+                : $"Chốt danh sách thành công — đã gửi thông báo cho {result.NOTIFIED_COUNT} học viên.";
+            return Ok(new { success = true, message, data = result });
         }
         catch (InvalidOperationException ex)
         {
@@ -483,6 +497,14 @@ public partial class TrainingAdminController : ControllerBase
         {
             return Ok(new { success = false, message = ex.Message });
         }
+    }
+
+    // POST /apiHR/TrainingAdmin/session/bulk-import — import Excel nhiều buổi 1 lần (HR_web đã parse file)
+    [HttpPost("session/bulk-import")]
+    public async Task<IActionResult> SessionBulkImport([FromBody] BulkImportSessionsRequest req)
+    {
+        var result = await _session.BulkImportAsync(req);
+        return Ok(new { success = true, data = result });
     }
 
     // POST /apiHR/TrainingAdmin/session/reschedule
@@ -776,6 +798,29 @@ public partial class TrainingAdminController
         {
             return Ok(new { success = false, message = ex.Message });
         }
+        catch (OracleException)
+        {
+            return StatusCode(400, new { success = false, message = "Không tạo được lớp từ giáo trình (vi phạm ràng buộc dữ liệu)." });
+        }
+    }
+
+    // POST /apiHR/TrainingAdmin/class/clone-from-class — §15b Cách 2: sao chép từ Class trước sang đợt mới
+    [HttpPost("class/clone-from-class")]
+    public async Task<IActionResult> ClassCloneFromClass([FromBody] CloneFromClassRequest req)
+    {
+        try
+        {
+            var id = await _class.CloneFromClassAsync(req);
+            return Ok(new { success = true, data = new { id } });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+        catch (OracleException)
+        {
+            return StatusCode(400, new { success = false, message = "Không sao chép được lớp học (vi phạm ràng buộc dữ liệu)." });
+        }
     }
 
     // POST /apiHR/TrainingAdmin/class/express-create — §4.2 modal 1 form
@@ -790,6 +835,10 @@ public partial class TrainingAdminController
         catch (InvalidOperationException ex)
         {
             return Ok(new { success = false, message = ex.Message });
+        }
+        catch (OracleException)
+        {
+            return StatusCode(400, new { success = false, message = "Không tạo được lớp học nhanh (vi phạm ràng buộc dữ liệu)." });
         }
     }
 

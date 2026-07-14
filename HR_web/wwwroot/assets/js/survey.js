@@ -236,7 +236,7 @@
         const q = D.questions[currentIdx];
         $btnBack.disabled = currentIdx === 0;
         const isLast = currentIdx === D.questions.length - 1;
-        $btnNextLabel.textContent = isLast ? t.submit : t.next;
+        $btnNextLabel.textContent = isLast ? (mode === 'preview' ? (isEn ? 'Finish' : 'Kết thúc') : t.submit) : t.next;
         $btnNext.disabled = !isAnswerValid(q);
     }
 

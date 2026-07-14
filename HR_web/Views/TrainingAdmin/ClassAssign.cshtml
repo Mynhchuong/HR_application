@@ -54,10 +54,16 @@
                     <!-- Sessions list -->
                     <div class="col-12 col-lg-7 mb-4">
                         <div class="card bg-light border-0 p-3" style="border-radius: 12px;">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                                 <h6 class="fw-bold text-dark mb-0">Lịch các buổi học</h6>
-                                <button onclick="openCreateSessionModal()" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm">Sắp lịch buổi học</button>
+                                <div class="d-flex gap-2">
+                                    <a href="@Url.Action("SessionImportTemplate", "TrainingAdmin")" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm" download>Tải file mẫu</a>
+                                    <button onclick="document.getElementById('session-import-file').click()" class="btn btn-sm btn-outline-primary rounded-pill px-3 shadow-sm">Nhập từ Excel</button>
+                                    <input type="file" id="session-import-file" accept=".xlsx,.xls" class="d-none" onchange="submitSessionImport(this.files[0])" />
+                                    <button onclick="openCreateSessionModal()" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm">Sắp lịch buổi học</button>
+                                </div>
                             </div>
+                            <div id="session-import-progress" class="text-muted small mb-2 d-none">Đang nhập file...</div>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle text-nowrap bg-white rounded-3 shadow-sm">
                                     <thead>
@@ -66,7 +72,8 @@
                                             <th>Ngày</th>
                                             <th>Thời gian</th>
                                             <th>Phòng</th>
-                                            <th class="pe-3">Chủ đề</th>
+                                            <th>Chủ đề</th>
+                                            <th class="pe-3 text-end">Thao tác</th>
                                         </tr>
                                     </thead>
                                     <tbody id="sub-sessions-list">
@@ -102,12 +109,16 @@
                                 <h6 class="fw-bold text-dark mb-0">Danh sách học viên trong lớp</h6>
                                 <button onclick="openAssignStudentModal()" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm">Thêm học viên</button>
                             </div>
+                            <div class="mb-2">
+                                <input type="text" id="student-filter-empcd" class="form-control form-control-sm" style="max-width:260px;" placeholder="Lọc theo mã nhân viên..." oninput="onStudentFilterChange()" />
+                            </div>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle text-nowrap bg-white rounded-3 shadow-sm">
                                     <thead>
                                         <tr>
                                             <th class="ps-3">Mã NV</th>
                                             <th>Họ và tên</th>
+                                            <th>Bộ phận/Chuyền/Line</th>
                                             <th>Tổ/Nhóm</th>
                                             <th>Trạng thái</th>
                                             <th class="pe-3 text-end">Thao tác</th>
@@ -118,6 +129,12 @@
                                     </tbody>
                                 </table>
                             </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <span class="small text-muted" id="student-list-summary"></span>
+                                <nav>
+                                    <ul class="pagination pagination-sm mb-0" id="student-pagination"></ul>
+                                </nav>
+                            </div>
                         </div>
                     </div>
 
@@ -126,13 +143,22 @@
                         <div class="card bg-light border-0 p-3" style="border-radius: 12px;">
                             <h6 class="fw-bold text-dark mb-3">Phân chia Tổ/Nhóm học tập</h6>
                             
-                            <!-- Auto split form -->
+                            <!-- Auto split form — chia đều học viên (ENROLLED, chưa gán nhóm) vào TẤT CẢ
+                                 nhóm đã tạo bên dưới (round-robin theo EMPCD). Cần tạo nhóm trước. -->
+                            <div class="mb-3 bg-white p-3 rounded shadow-sm border">
+                                <label class="form-label small fw-bold text-muted d-block">Chia đều học viên chưa gán vào các nhóm hiện có</label>
+                                <button onclick="autoSplitGroupSubmit()" class="btn btn-primary fw-bold shadow-sm w-100">Chia tự động (round-robin)</button>
+                                <div class="form-text">Cần tạo nhóm trước ở khung bên dưới — học viên chưa gán nhóm sẽ được chia đều vào toàn bộ nhóm đã tạo.</div>
+                            </div>
+
+                            <!-- Bulk manual assign — nhập nhiều mã thẻ 1 lần vào 1 nhóm cụ thể -->
                             <div class="mb-4 bg-white p-3 rounded shadow-sm border">
-                                <label class="form-label small fw-bold text-muted">Chia lớp tự động thành N tổ</label>
-                                <div class="input-group">
-                                    <input type="number" id="split-count" class="form-control" value="2" min="2" max="10" />
-                                    <button onclick="autoSplitGroupSubmit()" class="btn btn-primary fw-bold shadow-sm">Chia tự động</button>
-                                </div>
+                                <label class="form-label small fw-bold text-muted">Gán nhiều học viên vào 1 nhóm (nhập tay)</label>
+                                <select id="bulk-assign-group" class="form-select form-select-sm mb-2" style="border-radius: 6px;">
+                                    <option value="">-- Chọn nhóm --</option>
+                                </select>
+                                <textarea id="bulk-assign-empcd" class="form-control form-control-sm mb-2" rows="3" placeholder="Nhập nhiều mã thẻ, cách nhau bởi dấu phẩy, khoảng trắng hoặc xuống dòng"></textarea>
+                                <button onclick="submitBulkAssignGroup()" class="btn btn-outline-primary btn-sm fw-bold w-100">Gán vào nhóm</button>
                             </div>
 
                             <!-- Group list -->
@@ -160,11 +186,12 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
             <div class="modal-header border-bottom-0 p-4 pb-0">
-                <h5 class="fw-bold modal-title">Sắp lịch buổi học mới</h5>
+                <h5 class="fw-bold modal-title" id="sessionModalTitle">Sắp lịch buổi học mới</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
                 <form id="sessionForm">
+                    <input type="hidden" id="sess-id" />
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-muted">Thứ tự buổi học (Số buổi)</label>
                         <input type="number" id="sess-no" class="form-control" value="1" min="1" required style="border-radius: 8px;" />
@@ -176,11 +203,11 @@
                     <div class="row mb-3">
                         <div class="col-6">
                             <label class="form-label small fw-bold text-muted">Giờ bắt đầu</label>
-                            <input type="text" id="sess-start" class="form-control" placeholder="Ví dụ: 08:00" required style="border-radius: 8px;" />
+                            <input type="time" id="sess-start" class="form-control" required style="border-radius: 8px;" />
                         </div>
                         <div class="col-6">
                             <label class="form-label small fw-bold text-muted">Giờ kết thúc</label>
-                            <input type="text" id="sess-end" class="form-control" placeholder="Ví dụ: 11:30" required style="border-radius: 8px;" />
+                            <input type="time" id="sess-end" class="form-control" required style="border-radius: 8px;" />
                         </div>
                     </div>
                     <div class="mb-3">
@@ -257,6 +284,37 @@
     </div>
 </div>
 
+<!-- CLONE CLASS MODAL (§15b Cách 2 — Sao chép sang đợt mới) -->
+<div class="modal fade" id="cloneClassModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-bottom-0 p-4 pb-0">
+                <h5 class="fw-bold modal-title">Sao chép sang đợt mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="clone-source-class-id" />
+                <p class="text-muted small">Giữ nguyên giáo trình, giáo viên, cấu trúc nhóm và đề thi (đề thi được sao chép riêng cho đợt mới, ở trạng thái Nháp — cần Publish lại). Buổi học sẽ dịch ngày theo đúng khoảng cách với ngày bắt đầu mới. Danh sách học viên và pre-assign phải nhập lại cho đợt mới.</p>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Tên đợt mới</label>
+                    <input type="text" id="clone-class-name" class="form-control" maxlength="80" placeholder="VD: An toàn K2/08/2026" required style="border-radius: 8px;" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Ngày bắt đầu đợt mới</label>
+                    <input type="date" id="clone-start-date" class="form-control" required style="border-radius: 8px;" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Danh sách học viên (tuỳ chọn — có thể bổ sung sau)</label>
+                    <textarea id="clone-empcd" class="form-control" placeholder="Nhập mã nhân viên, cách nhau bởi dấu phẩy, khoảng trắng hoặc dòng mới" rows="4" style="border-radius: 12px;"></textarea>
+                </div>
+                <div class="d-grid mt-4">
+                    <button type="button" id="btn-submit-clone-class" onclick="submitCloneClass()" class="btn btn-primary py-2.5 rounded-3 fw-bold shadow-sm">Tạo đợt mới (Nháp)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- CREATE GROUP MODAL -->
 <div class="modal fade" id="createGroupModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -300,20 +358,28 @@
             cancelClass: '@Url.Action("CancelClass", "TrainingAdmin")',
             closeClass: '@Url.Action("CloseClass", "TrainingAdmin")',
             saveSession: '@Url.Action("SaveSession", "TrainingAdmin")',
+            cancelSession: '@Url.Action("CancelSession", "TrainingAdmin")',
+            sessionImport: '@Url.Action("SessionImport", "TrainingAdmin")',
             assignTeacher: '@Url.Action("AssignTeacher", "TrainingAdmin")',
             removeTeacher: '@Url.Action("RemoveTeacher", "TrainingAdmin")',
             assignStudent: '@Url.Action("AssignStudent", "TrainingAdmin")',
             approveEnrollment: '@Url.Action("ApproveEnrollment", "TrainingAdmin")',
             rejectEnrollment: '@Url.Action("RejectEnrollment", "TrainingAdmin")',
             saveGroup: '@Url.Action("SaveGroup", "TrainingAdmin")',
+            deleteGroup: '@Url.Action("DeleteGroup", "TrainingAdmin")',
             autoSplitGroup: '@Url.Action("AutoSplitGroup", "TrainingAdmin")',
             assignGroup: '@Url.Action("AssignGroup", "TrainingAdmin")',
-            removeStudent: '@Url.Action("RemoveStudent", "TrainingAdmin")'
+            removeStudent: '@Url.Action("RemoveStudent", "TrainingAdmin")',
+            cloneFromClass: '@Url.Action("CloneFromClass", "TrainingAdmin")',
+            classAssignTemplate: '@Url.Action("ClassAssign", "TrainingAdmin", new { id = "__ID__" })'
         };
 
         const selectedClassId = @classId;
         const empCd = '@empCd';
         let selectedClassData = null;
+        let studentFilterText = '';
+        let studentsPage = 1;
+        const STUDENTS_PER_PAGE = 20;
 
         // Modals
         let modalSession = null;
@@ -375,7 +441,7 @@
             buttonsWrap.innerHTML = '';
 
             if (cls.STATUS === 'DRAFT') {
-                if (cls.REGISTRATION_MODE === 'OPEN' || cls.REGISTRATION_MODE === 'HYBRID') {
+                if (cls.REGISTRATION_MODE === 'OPEN') {
                     buttonsWrap.innerHTML += `<button onclick="publishRegistration(${cls.ID})" class="btn btn-sm btn-info fw-bold">Mở Đăng ký tự do</button>`;
                 } else {
                     buttonsWrap.innerHTML += `<button onclick="finalizeEnrollment(${cls.ID})" class="btn btn-sm btn-primary fw-bold">Lên lịch học</button>`;
@@ -389,6 +455,57 @@
             } else if (cls.STATUS === 'COMPLETED') {
                 buttonsWrap.innerHTML += `<button onclick="closeClass(${cls.ID})" class="btn btn-sm btn-dark fw-bold">Đóng & Lưu trữ lớp</button>`;
             }
+
+            // §15b Cách 2 — "Sao chép sang đợt mới": chỉ cho phép từ SCHEDULED hoặc COMPLETED
+            // (khớp validate server TrainingClassService.CloneFromClassAsync), và Class không phải EXPRESS.
+            if ((cls.STATUS === 'SCHEDULED' || cls.STATUS === 'COMPLETED') && cls.IS_EXPRESS !== 1 && cls.isExpress !== 1) {
+                buttonsWrap.innerHTML += `<button onclick="openCloneClassModal(${cls.ID}, '${(cls.CLASS_NAME || '').replace(/'/g, "\\'")}')" class="btn btn-sm btn-outline-primary fw-bold">Sao chép sang đợt mới</button>`;
+            }
+        }
+
+        function openCloneClassModal(id, className) {
+            document.getElementById('clone-source-class-id').value = id;
+            document.getElementById('clone-class-name').value = className ? (className + ' (Đợt mới)') : '';
+            document.getElementById('clone-start-date').value = '';
+            document.getElementById('clone-empcd').value = '';
+            new bootstrap.Modal(document.getElementById('cloneClassModal')).show();
+        }
+
+        function submitCloneClass() {
+            const sourceId   = parseInt(document.getElementById('clone-source-class-id').value, 10);
+            const className = document.getElementById('clone-class-name').value.trim();
+            const startDate  = document.getElementById('clone-start-date').value;
+            const empcdRaw   = document.getElementById('clone-empcd').value.trim();
+            const empcds = empcdRaw ? empcdRaw.split(/[\s,]+/).map(s => s.trim()).filter(Boolean) : [];
+
+            if (!className || !startDate) {
+                window.showToast('Vui lòng nhập tên đợt mới và ngày bắt đầu.', 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('btn-submit-clone-class');
+            btn.disabled = true;
+            fetch(window.TRAINING_URLS.cloneFromClass, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    SOURCE_CLASS_ID: sourceId,
+                    CLASS_NAME: className,
+                    START_DATE: startDate,
+                    EMPCDS: empcds
+                })
+            }).then(r => r.json()).then(res => {
+                btn.disabled = false;
+                if (res.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('cloneClassModal'))?.hide();
+                    window.showToast('Đã tạo đợt mới (Nháp) từ lớp này!', 'success');
+                    if (res.data && res.data.id) {
+                        window.location.href = window.TRAINING_URLS.classAssignTemplate.replace('__ID__', res.data.id);
+                    }
+                } else {
+                    window.showToast(res.message || 'Lỗi sao chép lớp học.', 'error');
+                }
+            }).catch(() => { btn.disabled = false; window.showToast('Lỗi kết nối máy chủ.', 'error'); });
         }
 
         function publishRegistration(id) {
@@ -398,7 +515,7 @@
                 body: JSON.stringify({ ID: id })
             }).then(r => r.json()).then(res => {
                 if (res.success) {
-                    window.showToast('Đã mở đăng ký tự do thành công!', 'success');
+                    window.showToast(res.message || 'Đã mở đăng ký tự do thành công!', 'success');
                     loadClassDetailAdmin();
                 } else {
                     window.showToast(res.message || 'Lỗi mở đăng ký.', 'error');
@@ -413,7 +530,7 @@
                 body: JSON.stringify({ ID: id })
             }).then(r => r.json()).then(res => {
                 if (res.success) {
-                    window.showToast('Đã chốt danh sách và lên lịch học thành công!', 'success');
+                    window.showToast(res.message || 'Đã chốt danh sách và lên lịch học thành công!', 'success');
                     loadClassDetailAdmin();
                 } else {
                     window.showToast(res.message || 'Lỗi lên lịch học.', 'error');
@@ -421,7 +538,9 @@
             });
         }
 
-        // Sessions list
+        // Sessions list — chỉ Sửa/Xóa được khi buổi còn UPCOMING (khớp rule §5: đã ONGOING/COMPLETED
+        // thì không sửa được nữa; CANCELLED thì đã xóa rồi). "Xóa" ở đây gọi API Cancel có sẵn
+        // (giữ record + tự động báo học viên buổi bị hủy) chứ không xóa hẳn khỏi DB.
         function renderSubSessions() {
             const tbody = document.getElementById('sub-sessions-list');
             const list = selectedClassData.sessions || [];
@@ -429,24 +548,39 @@
 
             list.forEach(s => {
                 const dateStr = s.SESSION_DATE ? new Date(s.SESSION_DATE).toLocaleDateString('vi-VN') : '';
+                const canEdit = s.STATUS === 'UPCOMING';
+                let actions = `<span class="badge bg-secondary-soft text-secondary">${s.STATUS === 'CANCELLED' ? 'Đã hủy' : (s.STATUS === 'COMPLETED' ? 'Đã xong' : s.STATUS === 'ONGOING' ? 'Đang diễn ra' : '')}</span>`;
+                if (canEdit) {
+                    actions = `
+                        <button onclick="openEditSessionModal(${s.ID})" class="btn btn-xs btn-outline-primary rounded-circle p-1 d-flex align-items-center justify-content-center d-inline-flex" title="Sửa buổi học">
+                            <span class="material-symbols-rounded" style="font-size:1rem;">edit</span>
+                        </button>
+                        <button onclick="cancelSession(${s.ID}, ${s.SESSION_NO})" class="btn btn-xs btn-outline-danger rounded-circle p-1 d-flex align-items-center justify-content-center d-inline-flex ms-1" title="Xóa buổi học">
+                            <span class="material-symbols-rounded" style="font-size:1rem;">delete</span>
+                        </button>`;
+                }
+
                 tbody.innerHTML += `
                     <tr>
                         <td class="ps-3 fw-bold text-dark">Buổi ${s.SESSION_NO}</td>
                         <td>${dateStr}</td>
                         <td>${s.START_TIME} - ${s.END_TIME}</td>
                         <td>${s.LOCATION || 'N/A'}</td>
-                        <td class="pe-3 text-truncate" style="max-width: 250px;" title="${s.TOPIC || ''}">${s.TOPIC || '-'}</td>
+                        <td class="text-truncate" style="max-width: 200px;" title="${s.TOPIC || ''}">${s.TOPIC || '-'}</td>
+                        <td class="pe-3 text-end">${actions}</td>
                     </tr>
                 `;
             });
 
             if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted small">Lớp học chưa được lên lịch buổi học nào.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-muted small">Lớp học chưa được lên lịch buổi học nào.</td></tr>`;
             }
         }
 
         function openCreateSessionModal() {
             const list = selectedClassData.sessions || [];
+            document.getElementById('sessionModalTitle').textContent = 'Sắp lịch buổi học mới';
+            document.getElementById('sess-id').value = '';
             document.getElementById('sess-no').value = list.length + 1;
             document.getElementById('sess-date').value = '';
             document.getElementById('sess-start').value = '08:00';
@@ -456,11 +590,32 @@
             modalSession.show();
         }
 
+        // HHMM ("0800") → "08:00" cho input type=time.
+        function hhmmToTimeInput(hhmm) {
+            if (!hhmm || hhmm.length !== 4) return '';
+            return `${hhmm.substring(0, 2)}:${hhmm.substring(2)}`;
+        }
+
+        function openEditSessionModal(id) {
+            const s = (selectedClassData.sessions || []).find(x => x.ID === id);
+            if (!s) return;
+            document.getElementById('sessionModalTitle').textContent = `Sửa Buổi ${s.SESSION_NO}`;
+            document.getElementById('sess-id').value = s.ID;
+            document.getElementById('sess-no').value = s.SESSION_NO;
+            document.getElementById('sess-date').value = s.SESSION_DATE ? s.SESSION_DATE.substring(0, 10) : '';
+            document.getElementById('sess-start').value = hhmmToTimeInput(s.START_TIME);
+            document.getElementById('sess-end').value = hhmmToTimeInput(s.END_TIME);
+            document.getElementById('sess-topic').value = s.TOPIC || '';
+            document.getElementById('sess-loc').value = s.LOCATION || '';
+            modalSession.show();
+        }
+
         function submitCreateSession() {
+            const id = document.getElementById('sess-id').value;
             const no = parseInt(document.getElementById('sess-no').value);
             const date = document.getElementById('sess-date').value;
-            const start = document.getElementById('sess-start').value.trim();
-            const end = document.getElementById('sess-end').value.trim();
+            const start = document.getElementById('sess-start').value.trim().replace(':', '');
+            const end = document.getElementById('sess-end').value.trim().replace(':', '');
             const topic = document.getElementById('sess-topic').value.trim();
             const loc = document.getElementById('sess-loc').value.trim();
 
@@ -473,6 +628,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    ID: id ? parseInt(id) : null,
                     CLASS_ID: selectedClassId,
                     SESSION_NO: no,
                     SESSION_DATE: date,
@@ -485,13 +641,69 @@
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
-                    window.showToast('Sắp xếp buổi học thành công!', 'success');
+                    window.showToast(id ? 'Đã cập nhật buổi học!' : 'Sắp xếp buổi học thành công!', 'success');
                     modalSession.hide();
                     loadClassDetailAdmin();
                 } else {
                     window.showToast(res.message || 'Lỗi sắp lịch.', 'error');
                 }
             });
+        }
+
+        function cancelSession(id, sessionNo) {
+            window.showConfirm(`Xóa buổi ${sessionNo}? Học viên sẽ nhận thông báo buổi học đã bị hủy.`, () => {
+                fetch(window.TRAINING_URLS.cancelSession, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ID: id })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.showToast('Đã xóa buổi học!', 'success');
+                        loadClassDetailAdmin();
+                    } else {
+                        window.showToast(res.message || 'Lỗi xóa buổi học.', 'error');
+                    }
+                })
+                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+            }, {
+                title: 'Xóa buổi học', okText: 'Xóa', okClass: 'btn-danger',
+                icon: 'delete', iconColor: '#dc3545', iconBg: '#fee2e2'
+            });
+        }
+
+        function submitSessionImport(file) {
+            if (!file) return;
+            const progress = document.getElementById('session-import-progress');
+            progress.classList.remove('d-none');
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('classId', selectedClassId);
+
+            fetch(window.TRAINING_URLS.sessionImport, { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(res => {
+                    progress.classList.add('d-none');
+                    document.getElementById('session-import-file').value = '';
+                    if (res.success) {
+                        const d = res.data || {};
+                        let msg = `Đã nhập ${d.INSERTED ?? 0} buổi học.`;
+                        loadClassDetailAdmin();
+                        if (d.ERRORS && d.ERRORS.length > 0) {
+                            window.showConfirm(`${msg}\n\nCó ${d.ERRORS.length} dòng lỗi:\n${d.ERRORS.join('\n')}`, () => {});
+                        } else {
+                            window.showToast(msg, 'success');
+                        }
+                    } else {
+                        window.showToast(res.message || 'Lỗi nhập file.', 'error');
+                    }
+                })
+                .catch(err => {
+                    progress.classList.add('d-none');
+                    window.showToast('Lỗi kết nối: ' + err.message, 'error');
+                });
         }
 
         // Teachers list
@@ -574,15 +786,37 @@
             });
         }
 
-        // Students list
+        // Students list — filter theo mã NV (client-side, toàn bộ enrollments đã tải sẵn 1 lần) +
+        // phân trang + cột Bộ phận/Chuyền/Line (DEPTCD/LINECD/WORKCD — API đã JOIN ECM100 sẵn).
+        function onStudentFilterChange() {
+            studentFilterText = document.getElementById('student-filter-empcd').value.trim().toUpperCase();
+            studentsPage = 1;
+            renderSubStudents();
+        }
+
+        function goToStudentPage(p) {
+            studentsPage = p;
+            renderSubStudents();
+        }
+
         function renderSubStudents() {
             const tbody = document.getElementById('sub-students-list');
-            const list = selectedClassData.enrollments || [];
+            const full = selectedClassData.enrollments || [];
+            const list = studentFilterText
+                ? full.filter(s => (s.EMPCD || '').toUpperCase().includes(studentFilterText))
+                : full;
+
+            const totalPages = Math.max(1, Math.ceil(list.length / STUDENTS_PER_PAGE));
+            if (studentsPage > totalPages) studentsPage = totalPages;
+            const startIdx = (studentsPage - 1) * STUDENTS_PER_PAGE;
+            const pageList = list.slice(startIdx, startIdx + STUDENTS_PER_PAGE);
+
             tbody.innerHTML = '';
 
-            list.forEach(s => {
+            pageList.forEach(s => {
                 const groupName = s.GROUP_NAME || '<span class="text-muted italic small">Chưa gán</span>';
-                
+                const deptLineWork = [s.DEPTCD, s.LINECD, s.WORKCD].filter(Boolean).join(' / ') || '<span class="text-muted small">-</span>';
+
                 let stBadge = s.STATUS;
                 if (s.STATUS === 'PENDING_APPROVAL') stBadge = '<span class="badge bg-warning text-dark">Chờ duyệt</span>';
                 else if (s.STATUS === 'ENROLLED') stBadge = '<span class="badge bg-success-soft text-success">Đã tham gia</span>';
@@ -594,7 +828,7 @@
                 const groups = selectedClassData.groups || [];
                 if (s.STATUS === 'ENROLLED') {
                     groupSelect = `<select onchange="assignStudentGroup('${s.EMPCD}', this.value)" class="form-select form-select-sm d-inline-block w-auto" style="border-radius: 6px;">
-                        <option value="">-- Gán nhóm --</option>
+                        <option value="" ${!s.GROUP_ID ? 'selected' : ''}>-- Chưa gán / Bỏ gán --</option>
                         ${groups.map(g => `<option value="${g.ID}" ${g.ID === s.GROUP_ID ? 'selected' : ''}>${g.GROUP_NAME}</option>`).join('')}
                     </select>`;
                 }
@@ -611,6 +845,7 @@
                     <tr>
                         <td class="ps-3 fw-bold text-dark">${s.EMPCD}</td>
                         <td class="fw-bold vni-font" style="text-transform:uppercase;">${s.EMP_NAME || 'Nhân viên mới'}</td>
+                        <td class="small text-muted">${deptLineWork}</td>
                         <td>${groupName}</td>
                         <td>${stBadge}</td>
                         <td class="pe-3 text-end">
@@ -622,8 +857,29 @@
             });
 
             if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted small">Chưa có học viên nào tham gia.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-muted small">${studentFilterText ? 'Không tìm thấy mã NV phù hợp.' : 'Chưa có học viên nào tham gia.'}</td></tr>`;
             }
+
+            document.getElementById('student-list-summary').textContent =
+                list.length === 0 ? '' : `Hiển thị ${startIdx + 1}-${Math.min(startIdx + STUDENTS_PER_PAGE, list.length)} / ${list.length} học viên`;
+            renderStudentPagination(totalPages);
+        }
+
+        function renderStudentPagination(totalPages) {
+            const wrap = document.getElementById('student-pagination');
+            wrap.innerHTML = '';
+            if (totalPages <= 1) return;
+
+            const mkItem = (label, page, disabled, active) => `
+                <li class="page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}">
+                    <a class="page-link" href="javascript:void(0)" onclick="${disabled ? '' : `goToStudentPage(${page})`}">${label}</a>
+                </li>`;
+
+            wrap.innerHTML += mkItem('«', studentsPage - 1, studentsPage === 1, false);
+            for (let p = 1; p <= totalPages; p++) {
+                wrap.innerHTML += mkItem(p, p, false, p === studentsPage);
+            }
+            wrap.innerHTML += mkItem('»', studentsPage + 1, studentsPage === totalPages, false);
         }
 
         function removeStudent(empcd, name) {
@@ -764,7 +1020,12 @@
                             <span class="fw-bold text-dark">${g.GROUP_NAME}</span>
                             <span class="small text-muted d-block">Giới hạn: ${g.MAX_STUDENTS || 'Không giới hạn'}</span>
                         </div>
-                        <span class="badge bg-secondary rounded-pill px-3 py-1.5">${g.ENROLLED_COUNT || 0} học viên</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-secondary rounded-pill px-3 py-1.5">${g.ENROLLED_COUNT || 0} học viên</span>
+                            <button onclick="deleteGroup(${g.ID}, '${(g.GROUP_NAME || '').replace(/'/g, "\\'")}')" class="btn btn-xs btn-outline-danger rounded-circle p-1 d-flex align-items-center justify-content-center" title="Xóa nhóm">
+                                <span class="material-symbols-rounded" style="font-size:1rem;">delete</span>
+                            </button>
+                        </div>
                     </div>
                 `;
             });
@@ -772,6 +1033,38 @@
             if (list.length === 0) {
                 wrap.innerHTML = `<p class="text-muted small text-center py-3">Chưa tạo tổ nhóm học tập nào.</p>`;
             }
+
+            // Populate dropdown chọn nhóm cho form "Gán nhiều học viên vào 1 nhóm"
+            const bulkSelect = document.getElementById('bulk-assign-group');
+            if (bulkSelect) {
+                const curVal = bulkSelect.value;
+                bulkSelect.innerHTML = '<option value="">-- Chọn nhóm --</option>' +
+                    list.map(g => `<option value="${g.ID}">${g.GROUP_NAME}</option>`).join('');
+                if (list.some(g => String(g.ID) === curVal)) bulkSelect.value = curVal;
+            }
+        }
+
+        function deleteGroup(id, name) {
+            window.showConfirm(`Xóa nhóm "${name}"? Chỉ xóa được khi nhóm không còn học viên và không gắn buổi học nào.`, () => {
+                fetch(window.TRAINING_URLS.deleteGroup, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ID: id })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.showToast('Đã xóa nhóm thành công!', 'success');
+                        loadClassDetailAdmin();
+                    } else {
+                        window.showToast(res.message || 'Lỗi xóa nhóm.', 'error');
+                    }
+                })
+                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+            }, {
+                title: 'Xóa nhóm', okText: 'Xóa', okClass: 'btn-danger',
+                icon: 'delete', iconColor: '#dc3545', iconBg: '#fee2e2'
+            });
         }
 
         function openCreateGroupModal() {
@@ -810,18 +1103,25 @@
             });
         }
 
+        // Chia đều học viên (ENROLLED, chưa gán nhóm) vào TẤT CẢ nhóm đã tạo sẵn — API yêu cầu
+        // GROUP_IDS của nhóm có sẵn (không tự tạo nhóm mới), nên lấy toàn bộ ID từ danh sách hiện tại.
         function autoSplitGroupSubmit() {
-            const count = document.getElementById('split-count').value;
-            window.showConfirm(`Bạn muốn tự động chia học viên lớp thành ${count} Tổ/Nhóm ngẫu nhiên không?`, () => {
+            const groups = selectedClassData?.groups || [];
+            if (groups.length === 0) {
+                window.showToast('Chưa có nhóm nào — hãy tạo nhóm trước khi chia tự động.', 'warning');
+                return;
+            }
+            const groupIds = groups.map(g => g.ID);
+            window.showConfirm(`Bạn muốn tự động chia đều học viên chưa gán nhóm vào ${groups.length} nhóm hiện có không?`, () => {
                 fetch(window.TRAINING_URLS.autoSplitGroup, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ CLASS_ID: selectedClassId, GROUP_COUNT: parseInt(count) })
+                    body: JSON.stringify({ CLASS_ID: selectedClassId, GROUP_IDS: groupIds })
                 })
                 .then(r => r.json())
                 .then(res => {
                     if (res.success) {
-                        window.showToast('Đã tự động chia nhóm thành công!', 'success');
+                        window.showToast(`Đã chia xong — cập nhật ${res.data?.updated ?? 0} học viên.`, 'success');
                         loadClassDetailAdmin();
                     } else {
                         window.showToast(res.message || 'Lỗi chia nhóm.', 'error');
@@ -830,27 +1130,63 @@
             });
         }
 
+        // groupId rỗng ("") = bỏ gán nhóm (unassign) — API nhận GROUP_ID=null cho case này.
         function assignStudentGroup(studentEmpcd, groupId) {
-            if (!groupId) return;
-            
             fetch(window.TRAINING_URLS.assignGroup, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     CLASS_ID: selectedClassId,
-                    EMPCD: studentEmpcd,
+                    EMPCDS: [studentEmpcd],
+                    GROUP_ID: groupId ? parseInt(groupId) : null
+                })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast(groupId ? 'Đã gán tổ nhóm thành công!' : 'Đã bỏ gán nhóm!', 'success');
+                    loadClassDetailAdmin();
+                } else {
+                    window.showToast(res.message || 'Lỗi gán nhóm.', 'error');
+                }
+            });
+        }
+
+        // Nhập tay nhiều mã thẻ 1 lần, gán chung vào 1 nhóm.
+        function submitBulkAssignGroup() {
+            const groupId = document.getElementById('bulk-assign-group').value;
+            const raw = document.getElementById('bulk-assign-empcd').value.trim();
+
+            if (!groupId) {
+                window.showToast('Vui lòng chọn nhóm cần gán!', 'warning');
+                return;
+            }
+            const empcds = raw ? raw.split(/[\s,;\n]+/).map(x => x.trim()).filter(Boolean) : [];
+            if (empcds.length === 0) {
+                window.showToast('Vui lòng nhập ít nhất 1 mã thẻ!', 'warning');
+                return;
+            }
+
+            fetch(window.TRAINING_URLS.assignGroup, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    CLASS_ID: selectedClassId,
+                    EMPCDS: empcds,
                     GROUP_ID: parseInt(groupId)
                 })
             })
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
-                    window.showToast('Đã gán tổ nhóm thành công!', 'success');
+                    window.showToast(`Đã gán ${res.data?.updated ?? 0}/${empcds.length} học viên vào nhóm!`, 'success');
+                    document.getElementById('bulk-assign-empcd').value = '';
                     loadClassDetailAdmin();
                 } else {
                     window.showToast(res.message || 'Lỗi gán nhóm.', 'error');
                 }
-            });
+            })
+            .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
         }
 
         function cancelClass(id) {

@@ -179,3 +179,23 @@ public class RecoverEnrollmentRequest
     public string REASON { get; set; } = "";           // Lý do recover (audit)
     public string LOGIN_USER { get; set; } = "";
 }
+
+// Kết quả Publish/Finalize — idempotent §4.2. ALREADY_PUBLISHED=true nghĩa là bấm lại lần 2+
+// (Class đã SCHEDULED/IN_PROGRESS), NOTIFIED_COUNT = số học viên vừa được re-enqueue noti.
+public class PublishResult
+{
+    public bool ALREADY_PUBLISHED { get; set; }
+    public int  NOTIFIED_COUNT { get; set; }
+}
+
+// §15b Cách 2 — Clone Class từ Class trước ("Sao chép sang đợt mới").
+// Giữ nguyên mọi setting khác của Class nguồn (mode, min_attendance, final_test, teachers, group
+// structure, test — deep copy riêng cho đợt mới) — chỉ đổi tên + ngày bắt đầu + DS học viên.
+public class CloneFromClassRequest
+{
+    public int      SOURCE_CLASS_ID { get; set; }
+    public string   CLASS_NAME { get; set; } = "";
+    public DateTime START_DATE { get; set; }
+    public List<string> EMPCDS { get; set; } = new();    // optional — có thể bỏ trống, HR nhập sau
+    public string   LOGIN_USER { get; set; } = "";
+}

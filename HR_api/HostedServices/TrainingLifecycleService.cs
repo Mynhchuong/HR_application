@@ -1,4 +1,5 @@
 using HR_api.Data;
+using HR_api.Helpers;
 using HR_api.Services;
 using Oracle.ManagedDataAccess.Client;
 
@@ -46,9 +47,10 @@ public class TrainingLifecycleService : BackgroundService
         var noti = sp.GetRequiredService<TrainingNotificationService>();
         var att  = sp.GetRequiredService<TrainingSessionService>();
         var test = sp.GetRequiredService<TrainingAttemptService>();
+        var auth = sp.GetRequiredService<TrainingAuthHelper>();
 
         await TransitionSessionsAsync(db, noti, att, stop);
-        await TransitionClassesAsync(db, stop);
+        await TransitionClassesAsync(db, auth, stop);
         await TransitionTestsAsync(db, stop);
         await test.AutoSubmitExpiredAsync();
         await SessionRemindersAsync(db, noti, stop);
@@ -135,7 +137,7 @@ public class TrainingLifecycleService : BackgroundService
     //  CLASS
     // ═══════════════════════════════════════════════════════════════
 
-    private async Task TransitionClassesAsync(OracleService db, CancellationToken stop)
+    private async Task TransitionClassesAsync(OracleService db, TrainingAuthHelper auth, CancellationToken stop)
     {
         // SCHEDULED → IN_PROGRESS
         var toRun = await db.ExecuteQueryAsync(@"
@@ -172,7 +174,20 @@ public class TrainingLifecycleService : BackgroundService
                    SET STATUS = 'COMPLETED', UPDT_ID = 'SYSTEM'
                  WHERE ID = :ID AND STATUS = 'IN_PROGRESS'",
                 new OracleParameter("ID", id));
-            if (claimed > 0) _log.LogInformation("Class {Id} → COMPLETED (HR bấm finalize để chốt criteria)", id);
+            if (claimed > 0)
+            {
+                _log.LogInformation("Class {Id} → COMPLETED (HR bấm finalize để chốt criteria)", id);
+
+                // §7.4 training_plan: Class → COMPLETED → invalidate cache IsActiveTeacherAsync cho
+                // tất cả teacher của class (trước đây chỉ invalidate lúc assign/remove teacher —
+                // cache tự hết hạn sau 5 phút nên tác động thấp, nhưng bổ sung cho đúng thiết kế).
+                var teacherEmpcds = await db.ExecuteQueryAsync(
+                    "SELECT EMPCD FROM HRMS.HR_TRAINING_CLASS_TEACHER WHERE CLASS_ID = :ID",
+                    r => r["EMPCD"]?.ToString() ?? "",
+                    new OracleParameter("ID", id));
+                foreach (var empcd in teacherEmpcds)
+                    auth.InvalidateActiveTeacher(empcd);
+            }
         }
     }
 

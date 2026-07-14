@@ -25,7 +25,8 @@
     var errorLabel   = isEn ? "Failed to load list" : "Không tải được danh sách";
 
     // Route KPI — role-specific
-    string trainingTodayUrl = Url.Action("TeamSchedule", "Training", new { today = 1 })!;
+    // Trang Training/TeamSchedule riêng đã bỏ — trỏ sang tab "Lịch Học" trong Leave/TeamCalendar.
+    string trainingTodayUrl = Url.Action("TeamCalendar", "Leave") + "?tab=training";
     string leaveUrl = isExpat
         ? Url.Action("LeaveApprovalForExpat", "Leave")!
         : Url.Action("LeaveApprovalList",     "Leave")!;

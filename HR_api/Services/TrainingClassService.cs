@@ -11,8 +11,13 @@ namespace HR_api.Services;
 public class TrainingClassService
 {
     private readonly OracleService _db;
+    private readonly TrainingNotificationService _noti;
 
-    public TrainingClassService(OracleService db) { _db = db; }
+    public TrainingClassService(OracleService db, TrainingNotificationService noti)
+    {
+        _db = db;
+        _noti = noti;
+    }
 
     // ═══════════════════════════════════════════════════════════════
     //  LIST + DETAIL
@@ -164,11 +169,13 @@ public class TrainingClassService
             throw new InvalidOperationException("Tên lớp không được để trống");
         if (req.CLASS_NAME.Length > 80)
             throw new InvalidOperationException("Tên lớp tối đa 80 ký tự (§12 cert display)");
-        if (req.REGISTRATION_MODE != "ASSIGNED" && req.REGISTRATION_MODE != "OPEN" && req.REGISTRATION_MODE != "HYBRID")
-            throw new InvalidOperationException("REGISTRATION_MODE phải là ASSIGNED, OPEN hoặc HYBRID");
-        // OPEN or HYBRID mode: MAX_STUDENTS nullable (null = unlimited §3.2), REGISTRATION_DEADLINE bắt buộc
-        if ((req.REGISTRATION_MODE == "OPEN" || req.REGISTRATION_MODE == "HYBRID") && req.REGISTRATION_DEADLINE == null)
-            throw new InvalidOperationException("Class OPEN hoặc HYBRID phải có REGISTRATION_DEADLINE");
+        // DDL CHK_TRCL_MODE chỉ cho phép ASSIGNED / OPEN (không có HYBRID — pre-assign bắt buộc trong
+        // Class OPEN dùng SOURCE='ASSIGNED' trên từng enrollment, xem rules §3.3, không phải mode riêng).
+        if (req.REGISTRATION_MODE != "ASSIGNED" && req.REGISTRATION_MODE != "OPEN")
+            throw new InvalidOperationException("REGISTRATION_MODE phải là ASSIGNED hoặc OPEN");
+        // OPEN mode: MAX_STUDENTS nullable (null = unlimited §3.2), REGISTRATION_DEADLINE bắt buộc
+        if (req.REGISTRATION_MODE == "OPEN" && req.REGISTRATION_DEADLINE == null)
+            throw new InvalidOperationException("Class OPEN phải có REGISTRATION_DEADLINE");
         if (req.MIN_ATTENDANCE_PERCENT.HasValue &&
             (req.MIN_ATTENDANCE_PERCENT < 0 || req.MIN_ATTENDANCE_PERCENT > 100))
             throw new InvalidOperationException("MIN_ATTENDANCE_PERCENT phải trong 0..100");
@@ -177,6 +184,13 @@ public class TrainingClassService
 
         if (req.ID == null)
         {
+            // FINAL_TEST_ID chỉ có thể trỏ tới 1 test đã tồn tại VÀ thuộc đúng Class (§16 ràng buộc
+            // code layer) — nhưng lúc tạo mới Class chưa có ID nên không thể có test nào thuộc về nó.
+            // Chặn ngay từ đầu, hướng dẫn HR gán final test sau khi Class + Test đã tồn tại.
+            if (req.FINAL_TEST_ID.HasValue)
+                throw new InvalidOperationException(
+                    "Không thể gán FINAL_TEST_ID khi tạo Class mới — hãy tạo Class, tạo Test cho Class đó, rồi gán Final Test sau.");
+
             const string sqlIns = @"
                 INSERT INTO HRMS.HR_TRAINING_CLASS
                     (COURSE_ID, CLASS_NAME, DESCRIPTION, STATUS,
@@ -222,6 +236,10 @@ public class TrainingClassService
             _ = await GetStatusAsync(req.ID.Value)
                 ?? throw new InvalidOperationException("Không tìm thấy Class");
 
+            // §16 ràng buộc code layer: FINAL_TEST_ID phải trỏ tới test CLASS_ID = chính Class này
+            // và IS_TEMPLATE=0 (không phải test mẫu của Course).
+            await ValidateFinalTestAsync(req.FINAL_TEST_ID, req.ID.Value);
+
             const string sqlUpd = @"
                 UPDATE HRMS.HR_TRAINING_CLASS
                    SET CLASS_NAME             = :CLASS_NAME,
@@ -257,11 +275,18 @@ public class TrainingClassService
     //  STATE MACHINE
     // ═══════════════════════════════════════════════════════════════
 
-    // DRAFT → OPEN_FOR_REGISTRATION (chỉ Class OPEN mode)
-    public async Task PublishRegistrationAsync(int classId, string actor)
+    // DRAFT → OPEN_FOR_REGISTRATION (chỉ Class OPEN mode).
+    // Idempotent (§4.2): bấm lại khi đã OPEN_FOR_REGISTRATION/SCHEDULED/IN_PROGRESS → không lỗi,
+    // không đổi status lùi, chỉ báo lại đã publish rồi (không có gì để re-enqueue ở bước này vì
+    // OPEN_FOR_REGISTRATION chưa có ai ENROLLED — noti "mời đăng ký" đi qua bulletin, không qua đây).
+    public async Task<PublishResult> PublishRegistrationAsync(int classId, string actor)
     {
         var current = await GetStatusAsync(classId)
             ?? throw new InvalidOperationException("Không tìm thấy Class");
+
+        if (current is "OPEN_FOR_REGISTRATION" or "SCHEDULED" or "IN_PROGRESS")
+            return new PublishResult { ALREADY_PUBLISHED = true, NOTIFIED_COUNT = 0 };
+
         if (current != "DRAFT")
             throw new InvalidOperationException($"Chỉ publish từ DRAFT, hiện đang {current}");
 
@@ -271,13 +296,25 @@ public class TrainingClassService
             throw new InvalidOperationException("Chỉ Class OPEN mới publish-registration. ASSIGNED dùng finalize thẳng.");
 
         await SetStatusAsync(classId, "OPEN_FOR_REGISTRATION", actor);
+        return new PublishResult { ALREADY_PUBLISHED = false, NOTIFIED_COUNT = 0 };
     }
 
-    // DRAFT / OPEN_FOR_REGISTRATION → SCHEDULED (chốt DS)
-    public async Task FinalizeEnrollmentAsync(int classId, string actor)
+    // DRAFT / OPEN_FOR_REGISTRATION → SCHEDULED (chốt DS).
+    // Idempotent (§4.2): bấm Publish/Finalize lại khi Class đã SCHEDULED/IN_PROGRESS → KHÔNG throw,
+    // KHÔNG đổi status — chỉ re-enqueue TRAINING_ASSIGNED cho các học viên ENROLLED chưa có noti
+    // nào (PENDING/CLAIMED/SENT) cho Class này, để bù các trường hợp FCM lỗi/học viên mới được
+    // pre-assign sau khi đã chốt lần đầu.
+    public async Task<PublishResult> FinalizeEnrollmentAsync(int classId, string actor)
     {
         var current = await GetStatusAsync(classId)
             ?? throw new InvalidOperationException("Không tìm thấy Class");
+
+        if (current is "SCHEDULED" or "IN_PROGRESS")
+        {
+            var resent = await ReEnqueueAssignedNotiAsync(classId);
+            return new PublishResult { ALREADY_PUBLISHED = true, NOTIFIED_COUNT = resent };
+        }
+
         if (current != "DRAFT" && current != "OPEN_FOR_REGISTRATION")
             throw new InvalidOperationException($"Chỉ chốt từ DRAFT / OPEN_FOR_REGISTRATION, hiện đang {current}");
 
@@ -290,6 +327,46 @@ public class TrainingClassService
             new OracleParameter("CID", classId));
 
         await SetStatusAsync(classId, "SCHEDULED", actor);
+
+        // Publish lần đầu — gửi TRAINING_ASSIGNED cho toàn bộ học viên ENROLLED (dedup theo noti
+        // queue để không gửi trùng nếu người đó đã được thông báo lúc bulk-assign trước đó).
+        var notified = await ReEnqueueAssignedNotiAsync(classId);
+        return new PublishResult { ALREADY_PUBLISHED = false, NOTIFIED_COUNT = notified };
+    }
+
+    // Enqueue TRAINING_ASSIGNED cho học viên ENROLLED của Class CHƯA có row nào trong
+    // HR_TRAINING_NOTI_QUEUE (PENDING/CLAIMED/SENT) ứng với template này — dùng để dedup
+    // "đã gửi chưa" theo đúng bảng queue hiện có, không cần thêm cột theo dõi mới.
+    private async Task<int> ReEnqueueAssignedNotiAsync(int classId)
+    {
+        var missing = await _db.ExecuteQueryAsync(@"
+            SELECT E.EMPCD
+              FROM HRMS.HR_TRAINING_ENROLLMENT E
+             WHERE E.CLASS_ID = :CID
+               AND E.STATUS = 'ENROLLED'
+               AND NOT EXISTS (
+                   SELECT 1 FROM HRMS.HR_TRAINING_NOTI_QUEUE Q
+                    WHERE Q.RELATED_CLASS_ID = E.CLASS_ID
+                      AND Q.TARGET_EMPCD     = E.EMPCD
+                      AND Q.TEMPLATE_KEY     = 'TRAINING_ASSIGNED'
+                      AND Q.STATUS IN ('PENDING','CLAIMED','SENT')
+               )",
+            r => r["EMPCD"]?.ToString() ?? "",
+            new OracleParameter("CID", classId));
+
+        if (missing.Count == 0) return 0;
+
+        var ph = (await _db.ExecuteQueryAsync(@"
+            SELECT CLASS_NAME, TO_CHAR(START_DATE,'DD/MM/YYYY') START_DATE_STR
+              FROM HRMS.HR_TRAINING_CLASS WHERE ID = :ID",
+            r => new Dictionary<string, string>
+            {
+                ["className"] = r["CLASS_NAME"]?.ToString() ?? "",
+                ["startDate"] = r["START_DATE_STR"]?.ToString() ?? "",
+            }, new OracleParameter("ID", classId))).FirstOrDefault() ?? new();
+
+        await _noti.EnqueueBulkAsync("TRAINING_ASSIGNED", missing, ph, classId: classId);
+        return missing.Count;
     }
 
     // Bất kỳ state (trừ CLOSED / CANCELLED / COMPLETED) → CANCELLED
@@ -481,6 +558,16 @@ public class TrainingClassService
                     new OracleParameter("USR", req.LOGIN_USER));
             }
 
+            // Step C.5: Test bank deep copy (§15b Cách 1, training_plan §5.7 Step C) — chỉ nếu
+            // Course có test template (IS_TEMPLATE=1, TEMPLATE_COURSE_ID=courseId). Test mới ở
+            // Class DRAFT — teacher publish lại với window ngày phù hợp đợt mới.
+            await DeepCopyTestsAsync(@"
+                SELECT ID, TITLE, DESCRIPTION, DURATION_MINUTES, PASS_SCORE
+                  FROM HRMS.HR_TRAINING_TEST
+                 WHERE IS_TEMPLATE = 1 AND TEMPLATE_COURSE_ID = :CID
+                 ORDER BY ID",
+                new OracleParameter("CID", req.COURSE_ID), newClassId, req.LOGIN_USER);
+
             // Step D: Enrollments (option — có thể bỏ trống, HR nhập sau)
             foreach (var emp in (req.EMPCDS ?? new()).Distinct())
             {
@@ -502,12 +589,239 @@ public class TrainingClassService
         return newClassId;
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  CLONE §15b Cách 2 — "Sao chép sang đợt mới" từ 1 Class đã có (COMPLETED hoặc SCHEDULED)
+    //  Giữ nguyên mọi setting khác của Class nguồn — chỉ đổi CLASS_NAME + START_DATE + DS học viên.
+    //  Sessions dịch ngày theo delta (START_DATE mới - START_DATE cũ). Teachers copy toàn bộ.
+    //  Test deep-copy riêng cho đợt mới (không đè scoring cũ). Groups clone cấu trúc (tên +
+    //  MAX_STUDENTS/group), KHÔNG clone ENROLLMENT.GROUP_ID — HR chia lại nhóm cho DS mới.
+    //  Pre-assign KHÔNG copy — Enrollments đợt mới toàn bộ từ req.EMPCDS (SOURCE='ASSIGNED').
+    // ═══════════════════════════════════════════════════════════════
+
+    public async Task<int> CloneFromClassAsync(CloneFromClassRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.CLASS_NAME))
+            throw new InvalidOperationException("CLASS_NAME required");
+        if (req.CLASS_NAME.Length > 80)
+            throw new InvalidOperationException("CLASS_NAME tối đa 80 ký tự (§12)");
+
+        var old = (await _db.ExecuteQueryAsync(@"
+            SELECT COURSE_ID, STATUS, DESCRIPTION, REGISTRATION_MODE, MAX_STUDENTS,
+                   REGISTRATION_DEADLINE, START_DATE, END_DATE,
+                   MIN_ATTENDANCE_PERCENT, REQUIRE_POST_REVIEW, FINAL_TEST_ID, IS_EXPRESS
+              FROM HRMS.HR_TRAINING_CLASS WHERE ID = :ID",
+            r => new
+            {
+                COURSE_ID    = Convert.ToInt32(r["COURSE_ID"]),
+                STATUS       = r["STATUS"]?.ToString() ?? "",
+                DESCRIPTION  = r["DESCRIPTION"] as string,
+                REG_MODE     = r["REGISTRATION_MODE"]?.ToString() ?? "ASSIGNED",
+                MAX_STUDENTS = r["MAX_STUDENTS"] is DBNull ? (int?)null : Convert.ToInt32(r["MAX_STUDENTS"]),
+                REG_DEADLINE = r["REGISTRATION_DEADLINE"] as DateTime?,
+                START_DATE   = r["START_DATE"] as DateTime?,
+                END_DATE     = r["END_DATE"] as DateTime?,
+                MIN_ATT      = Convert.ToDecimal(r["MIN_ATTENDANCE_PERCENT"]),
+                REQ_REVIEW   = Convert.ToInt32(r["REQUIRE_POST_REVIEW"]),
+                FINAL_TEST   = r["FINAL_TEST_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["FINAL_TEST_ID"]),
+                IS_EXPRESS   = Convert.ToInt32(r["IS_EXPRESS"]),
+            }, new OracleParameter("ID", req.SOURCE_CLASS_ID))).FirstOrDefault();
+
+        if (old == null) throw new InvalidOperationException("Không tìm thấy Class nguồn");
+        if (old.STATUS != "COMPLETED" && old.STATUS != "SCHEDULED")
+            throw new InvalidOperationException($"Class nguồn đang {old.STATUS} — chỉ sao chép được từ COMPLETED hoặc SCHEDULED");
+        if (old.IS_EXPRESS == 1)
+            throw new InvalidOperationException("Class EXPRESS không dùng Clone — dùng Express Create để tạo đợt mới");
+
+        // Dịch ngày: session/deadline/end_date của bản gốc dịch theo cùng 1 delta so với START_DATE mới.
+        var deltaDays = old.START_DATE.HasValue
+            ? (req.START_DATE.Date - old.START_DATE.Value.Date).TotalDays
+            : 0;
+        DateTime? newEndDate = old.END_DATE.HasValue ? old.END_DATE.Value.AddDays(deltaDays) : (DateTime?)null;
+        DateTime? newDeadline = old.REG_DEADLINE.HasValue ? old.REG_DEADLINE.Value.AddDays(deltaDays) : (DateTime?)null;
+
+        // Step A: INSERT Class DRAFT (giữ nguyên setting, trừ tên/ngày/DS học viên)
+        var idParam = new OracleParameter("NEW_ID", OracleDbType.Int32)
+        {
+            Direction = System.Data.ParameterDirection.Output
+        };
+        await _db.ExecuteNonQueryAsync(@"
+            INSERT INTO HRMS.HR_TRAINING_CLASS
+                (COURSE_ID, CLASS_NAME, DESCRIPTION,
+                 STATUS, REGISTRATION_MODE, MAX_STUDENTS, REGISTRATION_DEADLINE,
+                 START_DATE, END_DATE,
+                 MIN_ATTENDANCE_PERCENT, REQUIRE_POST_REVIEW,
+                 CLONED_FROM_CLASS_ID, CLONED_FROM_TYPE, IS_EXPRESS,
+                 INST_ID)
+            VALUES (:COID, :NAME, :DESC,
+                    'DRAFT', :REG_MODE, :MAX_STUDENTS, :REG_DEADLINE,
+                    :SD, :ED,
+                    :MIN_ATT, :REQ_REVIEW,
+                    :SRC_ID, 'PREV_CLASS', 0,
+                    :USR)
+            RETURNING ID INTO :NEW_ID",
+            new OracleParameter("COID",        old.COURSE_ID),
+            new OracleParameter("NAME",        req.CLASS_NAME),
+            new OracleParameter("DESC",        (object?)old.DESCRIPTION ?? DBNull.Value),
+            new OracleParameter("REG_MODE",    old.REG_MODE),
+            new OracleParameter("MAX_STUDENTS",(object?)old.MAX_STUDENTS ?? DBNull.Value),
+            new OracleParameter("REG_DEADLINE",(object?)newDeadline ?? DBNull.Value),
+            new OracleParameter("SD",          req.START_DATE.Date),
+            new OracleParameter("ED",          (object?)newEndDate ?? DBNull.Value),
+            new OracleParameter("MIN_ATT",     old.MIN_ATT),
+            new OracleParameter("REQ_REVIEW",  old.REQ_REVIEW),
+            new OracleParameter("SRC_ID",      req.SOURCE_CLASS_ID),
+            new OracleParameter("USR",         req.LOGIN_USER),
+            idParam);
+        var newClassId = OracleService.ConvertToInt(idParam.Value);
+
+        try
+        {
+            // Step B: Clone Group structure (tên + MAX_STUDENTS/group) — map oldGroupId → newGroupId
+            // để Step C (sessions) gán đúng GROUP_ID mới. KHÔNG clone ENROLLMENT.GROUP_ID (§15b).
+            var oldGroups = await _db.ExecuteQueryAsync(@"
+                SELECT ID, GROUP_NAME, MAX_STUDENTS FROM HRMS.HR_TRAINING_CLASS_GROUP
+                 WHERE CLASS_ID = :ID ORDER BY GROUP_NAME",
+                r => new
+                {
+                    ID   = Convert.ToInt32(r["ID"]),
+                    NAME = r["GROUP_NAME"]?.ToString() ?? "",
+                    MAX  = r["MAX_STUDENTS"] is DBNull ? (int?)null : Convert.ToInt32(r["MAX_STUDENTS"]),
+                }, new OracleParameter("ID", req.SOURCE_CLASS_ID));
+
+            var groupIdMap = new Dictionary<int, int>();
+            foreach (var g in oldGroups)
+            {
+                var gIdParam = new OracleParameter("NEW_GID", OracleDbType.Int32)
+                {
+                    Direction = System.Data.ParameterDirection.Output
+                };
+                await _db.ExecuteNonQueryAsync(@"
+                    INSERT INTO HRMS.HR_TRAINING_CLASS_GROUP (CLASS_ID, GROUP_NAME, MAX_STUDENTS, INST_ID)
+                    VALUES (:CID, :NAME, :MAX, :USR)
+                    RETURNING ID INTO :NEW_GID",
+                    new OracleParameter("CID",  newClassId),
+                    new OracleParameter("NAME", g.NAME),
+                    new OracleParameter("MAX",  (object?)g.MAX ?? DBNull.Value),
+                    new OracleParameter("USR",  req.LOGIN_USER),
+                    gIdParam);
+                groupIdMap[g.ID] = OracleService.ConvertToInt(gIdParam.Value);
+            }
+
+            // Step C: Clone sessions — dịch ngày theo delta, map GROUP_ID cũ → mới (NULL nếu session
+            // chung hoặc group đã bị xoá ở bản gốc).
+            var oldSessions = await _db.ExecuteQueryAsync(@"
+                SELECT SESSION_NO, SESSION_DATE, START_TIME, END_TIME, TOPIC, LOCATION, GROUP_ID
+                  FROM HRMS.HR_TRAINING_SESSION
+                 WHERE CLASS_ID = :ID ORDER BY SESSION_NO",
+                r => new
+                {
+                    NO    = Convert.ToInt32(r["SESSION_NO"]),
+                    DATE  = Convert.ToDateTime(r["SESSION_DATE"]),
+                    ST    = r["START_TIME"]?.ToString() ?? "0800",
+                    ET    = r["END_TIME"]?.ToString()   ?? "1130",
+                    TOPIC = r["TOPIC"] as string,
+                    LOC   = r["LOCATION"] as string,
+                    GID   = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
+                }, new OracleParameter("ID", req.SOURCE_CLASS_ID));
+
+            foreach (var s in oldSessions)
+            {
+                int? newGid = s.GID.HasValue && groupIdMap.TryGetValue(s.GID.Value, out var mapped) ? mapped : (int?)null;
+                await _db.ExecuteNonQueryAsync(@"
+                    INSERT INTO HRMS.HR_TRAINING_SESSION
+                        (CLASS_ID, SESSION_NO, SESSION_DATE, START_TIME, END_TIME, TOPIC, LOCATION, STATUS, GROUP_ID, INST_ID)
+                    VALUES (:CID, :NO, :DT, :ST, :ET, :TP, :LC, 'UPCOMING', :GID, :USR)",
+                    new OracleParameter("CID", newClassId),
+                    new OracleParameter("NO",  s.NO),
+                    new OracleParameter("DT",  s.DATE.AddDays(deltaDays).Date),
+                    new OracleParameter("ST",  s.ST),
+                    new OracleParameter("ET",  s.ET),
+                    new OracleParameter("TP",  (object?)s.TOPIC ?? DBNull.Value),
+                    new OracleParameter("LC",  (object?)s.LOC ?? DBNull.Value),
+                    new OracleParameter("GID", (object?)newGid ?? DBNull.Value),
+                    new OracleParameter("USR", req.LOGIN_USER));
+            }
+
+            // Step D: Copy toàn bộ teachers
+            var oldTeachers = await _db.ExecuteQueryAsync(@"
+                SELECT EMPCD, IS_PRIMARY FROM HRMS.HR_TRAINING_CLASS_TEACHER WHERE CLASS_ID = :ID",
+                r => new
+                {
+                    EMPCD = r["EMPCD"]?.ToString() ?? "",
+                    PRI   = Convert.ToInt32(r["IS_PRIMARY"]),
+                }, new OracleParameter("ID", req.SOURCE_CLASS_ID));
+
+            foreach (var t in oldTeachers)
+            {
+                await _db.ExecuteNonQueryAsync(@"
+                    INSERT INTO HRMS.HR_TRAINING_CLASS_TEACHER (CLASS_ID, EMPCD, IS_PRIMARY, INST_ID)
+                    VALUES (:CID, :EMP, :PRI, :USR)",
+                    new OracleParameter("CID", newClassId),
+                    new OracleParameter("EMP", t.EMPCD),
+                    new OracleParameter("PRI", t.PRI),
+                    new OracleParameter("USR", req.LOGIN_USER));
+            }
+
+            // Step E: Test deep copy — mỗi đợt có test riêng để không đè scoring cũ (§15b).
+            // Nếu bản gốc có FINAL_TEST_ID và test đó nằm trong DS được clone → remap sang bản mới.
+            var testIdMap = await DeepCopyTestsAsync(@"
+                SELECT ID, TITLE, DESCRIPTION, DURATION_MINUTES, PASS_SCORE
+                  FROM HRMS.HR_TRAINING_TEST
+                 WHERE CLASS_ID = :ID AND IS_TEMPLATE = 0
+                 ORDER BY ID",
+                new OracleParameter("ID", req.SOURCE_CLASS_ID), newClassId, req.LOGIN_USER);
+
+            if (old.FINAL_TEST.HasValue && testIdMap.TryGetValue(old.FINAL_TEST.Value, out var newFinalTestId))
+            {
+                await _db.ExecuteNonQueryAsync(
+                    "UPDATE HRMS.HR_TRAINING_CLASS SET FINAL_TEST_ID = :FTID WHERE ID = :CID",
+                    new OracleParameter("FTID", newFinalTestId),
+                    new OracleParameter("CID", newClassId));
+            }
+
+            // Step F: Enrollments — hoàn toàn từ input mới (KHÔNG copy DS/pre-assign cũ, §15b).
+            foreach (var emp in (req.EMPCDS ?? new()).Distinct())
+            {
+                await _db.ExecuteNonQueryAsync(@"
+                    INSERT INTO HRMS.HR_TRAINING_ENROLLMENT
+                        (CLASS_ID, EMPCD, SOURCE, STATUS, INST_ID)
+                    VALUES (:CID, :EMP, 'ASSIGNED', 'ENROLLED', :USR)",
+                    new OracleParameter("CID", newClassId),
+                    new OracleParameter("EMP", emp),
+                    new OracleParameter("USR", req.LOGIN_USER));
+            }
+        }
+        catch
+        {
+            await CompensatingDeleteClassAsync(newClassId);
+            throw;
+        }
+
+        return newClassId;
+    }
+
     // Compensation: xoá Class + tất cả child rows nếu clone thất bại giữa chừng.
     // Best-effort — nếu delete cũng fail, ghi log (silent) để tránh double-throw.
     private async Task CompensatingDeleteClassAsync(int classId)
     {
         try
         {
+            // Gỡ FK FINAL_TEST_ID trước (nếu trỏ tới 1 trong các test sắp xoá của chính Class này).
+            await _db.ExecuteNonQueryAsync("UPDATE HRMS.HR_TRAINING_CLASS SET FINAL_TEST_ID = NULL WHERE ID = :ID",
+                new OracleParameter("ID", classId));
+            await _db.ExecuteNonQueryAsync(@"
+                DELETE FROM HRMS.HR_TRAINING_TEST_OPTION
+                 WHERE QUESTION_ID IN (
+                     SELECT Q.ID FROM HRMS.HR_TRAINING_TEST_QUESTION Q
+                       JOIN HRMS.HR_TRAINING_TEST T ON T.ID = Q.TEST_ID
+                      WHERE T.CLASS_ID = :ID)",
+                new OracleParameter("ID", classId));
+            await _db.ExecuteNonQueryAsync(@"
+                DELETE FROM HRMS.HR_TRAINING_TEST_QUESTION
+                 WHERE TEST_ID IN (SELECT ID FROM HRMS.HR_TRAINING_TEST WHERE CLASS_ID = :ID)",
+                new OracleParameter("ID", classId));
+            await _db.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_TRAINING_TEST            WHERE CLASS_ID = :ID",
+                new OracleParameter("ID", classId));
             await _db.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_TRAINING_ENROLLMENT     WHERE CLASS_ID = :ID",
                 new OracleParameter("ID", classId));
             await _db.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_TRAINING_CLASS_TEACHER  WHERE CLASS_ID = :ID",
@@ -520,6 +834,116 @@ public class TrainingClassService
                 new OracleParameter("ID", classId));
         }
         catch { /* silent — best-effort cleanup */ }
+    }
+
+    // Deep copy N test (đề bài + câu hỏi + đáp án) sang Class mới. Test mới luôn CLASS_ID=newClassId,
+    // IS_TEMPLATE=0, STATUS reset về DRAFT (AVAILABLE_FROM/TO của bản gốc không còn hợp lệ cho đợt
+    // mới — teacher phải Publish lại với window mới). Trả về map oldTestId → newTestId để caller
+    // tự cập nhật FINAL_TEST_ID nếu cần.
+    // sourceTestsSql: câu SELECT trả về ID, TITLE, DESCRIPTION, DURATION_MINUTES, PASS_SCORE của các
+    // test nguồn (dùng chung cho cả clone-from-course (test bank IS_TEMPLATE=1) và
+    // clone-from-class (test thực IS_TEMPLATE=0 của Class cũ)).
+    private async Task<Dictionary<int, int>> DeepCopyTestsAsync(
+        string sourceTestsSql, OracleParameter sourceParam, int newClassId, string actor)
+    {
+        var testIdMap = new Dictionary<int, int>();
+
+        var sourceTests = await _db.ExecuteQueryAsync(sourceTestsSql,
+            r => new
+            {
+                ID     = Convert.ToInt32(r["ID"]),
+                TITLE  = r["TITLE"]?.ToString() ?? "",
+                DESC   = r["DESCRIPTION"] as string,
+                DUR    = Convert.ToInt32(r["DURATION_MINUTES"]),
+                PASS   = r["PASS_SCORE"] is DBNull ? (decimal?)null : Convert.ToDecimal(r["PASS_SCORE"]),
+            }, sourceParam);
+
+        foreach (var t in sourceTests)
+        {
+            var testIdParam = new OracleParameter("NEW_TID", OracleDbType.Int32)
+            {
+                Direction = System.Data.ParameterDirection.Output
+            };
+            await _db.ExecuteNonQueryAsync(@"
+                INSERT INTO HRMS.HR_TRAINING_TEST
+                    (CLASS_ID, IS_TEMPLATE, TITLE, DESCRIPTION, STATUS,
+                     DURATION_MINUTES, PASS_SCORE, MAX_ATTEMPTS, CREATED_BY, INST_ID)
+                VALUES (:CID, 0, :TT, :DS, 'DRAFT',
+                        :DUR, :PS, 1, :USR, :USR)
+                RETURNING ID INTO :NEW_TID",
+                new OracleParameter("CID", newClassId),
+                new OracleParameter("TT",  t.TITLE),
+                new OracleParameter("DS",  (object?)t.DESC ?? DBNull.Value),
+                new OracleParameter("DUR", t.DUR),
+                new OracleParameter("PS",  (object?)t.PASS ?? DBNull.Value),
+                new OracleParameter("USR", actor),
+                testIdParam);
+            var newTestId = OracleService.ConvertToInt(testIdParam.Value);
+            testIdMap[t.ID] = newTestId;
+
+            var questions = await _db.ExecuteQueryAsync(@"
+                SELECT ID, QUESTION_TEXT, QUESTION_TYPE, IS_REQUIRED, DISPLAY_ORDER, POINTS
+                  FROM HRMS.HR_TRAINING_TEST_QUESTION
+                 WHERE TEST_ID = :TID
+                 ORDER BY DISPLAY_ORDER, ID",
+                r => new
+                {
+                    ID     = Convert.ToInt32(r["ID"]),
+                    TEXT   = r["QUESTION_TEXT"]?.ToString() ?? "",
+                    TYPE   = r["QUESTION_TYPE"]?.ToString() ?? "SINGLE",
+                    REQ    = Convert.ToInt32(r["IS_REQUIRED"]),
+                    ORD    = Convert.ToInt32(r["DISPLAY_ORDER"]),
+                    POINTS = Convert.ToDecimal(r["POINTS"]),
+                }, new OracleParameter("TID", t.ID));
+
+            foreach (var q in questions)
+            {
+                var qIdParam = new OracleParameter("NEW_QID", OracleDbType.Int32)
+                {
+                    Direction = System.Data.ParameterDirection.Output
+                };
+                await _db.ExecuteNonQueryAsync(@"
+                    INSERT INTO HRMS.HR_TRAINING_TEST_QUESTION
+                        (TEST_ID, QUESTION_TEXT, QUESTION_TYPE, IS_REQUIRED, DISPLAY_ORDER, POINTS, INST_ID)
+                    VALUES (:TID, :TX, :TP, :RQ, :ORD, :PT, :USR)
+                    RETURNING ID INTO :NEW_QID",
+                    new OracleParameter("TID", newTestId),
+                    new OracleParameter("TX",  q.TEXT),
+                    new OracleParameter("TP",  q.TYPE),
+                    new OracleParameter("RQ",  q.REQ),
+                    new OracleParameter("ORD", q.ORD),
+                    new OracleParameter("PT",  q.POINTS),
+                    new OracleParameter("USR", actor),
+                    qIdParam);
+                var newQid = OracleService.ConvertToInt(qIdParam.Value);
+
+                var options = await _db.ExecuteQueryAsync(@"
+                    SELECT OPTION_TEXT, DISPLAY_ORDER, IS_CORRECT
+                      FROM HRMS.HR_TRAINING_TEST_OPTION
+                     WHERE QUESTION_ID = :QID
+                     ORDER BY DISPLAY_ORDER, ID",
+                    r => new
+                    {
+                        TEXT = r["OPTION_TEXT"]?.ToString() ?? "",
+                        ORD  = Convert.ToInt32(r["DISPLAY_ORDER"]),
+                        OK   = Convert.ToInt32(r["IS_CORRECT"]),
+                    }, new OracleParameter("QID", q.ID));
+
+                foreach (var o in options)
+                {
+                    await _db.ExecuteNonQueryAsync(@"
+                        INSERT INTO HRMS.HR_TRAINING_TEST_OPTION
+                            (QUESTION_ID, OPTION_TEXT, DISPLAY_ORDER, IS_CORRECT)
+                        VALUES (:QID, :TX, :ORD, :OK)",
+                        new OracleParameter("QID", newQid),
+                        new OracleParameter("TX",  o.TEXT),
+                        new OracleParameter("ORD", o.ORD),
+                        new OracleParameter("OK",  o.OK));
+                }
+            }
+        }
+
+        return testIdMap;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -545,6 +969,13 @@ public class TrainingClassService
         if (mode == null) throw new InvalidOperationException("Course không tồn tại");
         if (mode != "EXPRESS")
             throw new InvalidOperationException("Course không phải EXPRESS — dùng Clone template thay vì Express Create");
+
+        // §16 ràng buộc code layer: FINAL_TEST_ID phải trỏ tới test CLASS_ID = đúng Class này +
+        // IS_TEMPLATE=0. Lúc Express Create Class chưa tồn tại nên không thể có test nào thuộc về
+        // nó — chặn ngay, HR gán final test sau khi Class + Test đã tồn tại (qua set-final-test).
+        if (req.FINAL_TEST_ID.HasValue)
+            throw new InvalidOperationException(
+                "Không thể gán FINAL_TEST_ID khi tạo Express Class — hãy tạo Class trước, tạo Test cho Class đó, rồi gán Final Test sau.");
 
         // Step A: INSERT Class SCHEDULED (bỏ qua DRAFT)
         var idParam = new OracleParameter("NEW_ID", OracleDbType.Int32)
@@ -790,6 +1221,25 @@ public class TrainingClassService
         var v = rows.FirstOrDefault();
         if (v is null or DBNull) return default;
         return (T)Convert.ChangeType(v, typeof(T));
+    }
+
+    // §16 ràng buộc code layer (không check được bằng DB CHECK constraint — Oracle không cho subquery
+    // trong CHECK): HR_TRAINING_CLASS.FINAL_TEST_ID chỉ được trỏ tới test CLASS_ID = đúng Class này
+    // và IS_TEMPLATE = 0. Không validate gì nếu testId NULL (final test optional).
+    // Public — dùng lại ở TrainingTeachController.SetFinalTest.
+    public async Task ValidateFinalTestAsync(int? testId, int classId)
+    {
+        if (!testId.HasValue) return;
+
+        var ok = (await _db.ExecuteQueryAsync(
+            "SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_TEST WHERE ID = :TID AND CLASS_ID = :CID AND IS_TEMPLATE = 0",
+            r => Convert.ToInt32(r["CNT"]),
+            new OracleParameter("TID", testId.Value),
+            new OracleParameter("CID", classId))).First();
+
+        if (ok == 0)
+            throw new InvalidOperationException(
+                "FINAL_TEST_ID không hợp lệ — test phải thuộc đúng Class này và không phải test mẫu (template).");
     }
 
     private async Task SetStatusAsync(int classId, string status, string actor)

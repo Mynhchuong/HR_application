@@ -82,8 +82,8 @@
                         return;
                     }
 
-                    // Lọc những lớp học có REGISTRATION_MODE = 'OPEN' hoặc 'HYBRID'
-                    let list = (res.data || []).filter(c => c.REGISTRATION_MODE === 'OPEN' || c.REGISTRATION_MODE === 'HYBRID');
+                    // Lọc những lớp học có REGISTRATION_MODE = 'OPEN'
+                    let list = (res.data || []).filter(c => c.REGISTRATION_MODE === 'OPEN');
                     
                     // Nếu có chỉ định targetClassId cụ thể (link từ Bulletin)
                     if (targetClassId > 0) {

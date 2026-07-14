@@ -77,7 +77,11 @@ var Select2Helper = (function () {
                         if (!params.term && selectedId) query.id = selectedId;
                         return query;
                     },
-                    processResults: function (data) { return { results: data }; }
+                    processResults: function (data) {
+                        const all = $el.data('prepend-all');
+                        if (all) data = [{ id: '', text: all }].concat(data);
+                        return { results: data };
+                    }
                 } : null
             });
 

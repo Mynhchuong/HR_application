@@ -63,49 +63,107 @@ public class TrainingEnrollmentService
     //  Semantic: SOURCE='ASSIGNED', STATUS='ENROLLED' luôn. MERGE để idempotent.
     // ═══════════════════════════════════════════════════════════════
 
+    // Chạy toàn bộ trong 1 transaction thật (OracleTxScope) — khoá HR_TRAINING_CLASS bằng
+    // FOR UPDATE trước khi check cap + loop insert/upgrade, rollback hết nếu có bước fail giữa chừng
+    // (all-or-nothing đúng yêu cầu §3.3). Cùng lock với SelfRegisterAsync nên 2 luồng
+    // (HR bulk/pre-assign và NV tự đăng ký) không thể cùng đọc count "cũ" của nhau.
     public async Task<BulkAssignResult> BulkAssignAsync(BulkAssignRequest req)
     {
         var res = new BulkAssignResult { TOTAL_INPUT = req.EMPCDS?.Count ?? 0 };
         if (req.EMPCDS == null || req.EMPCDS.Count == 0) return res;
 
-        // Validate Class tồn tại + không CLOSED/CANCELLED
-        var status = await GetClassStatusAsync(req.CLASS_ID)
-            ?? throw new InvalidOperationException("Không tìm thấy Class");
-        if (status is "CLOSED" or "CANCELLED" or "COMPLETED")
-            throw new InvalidOperationException($"Class đang {status}, không assign được");
-
-        // Cap check (nếu Class OPEN có MAX_STUDENTS): occupied + newInput - existingInput
-        await ThrowIfExceedsCapAsync(req.CLASS_ID, req.EMPCDS);
-
+        var distinctIn = req.EMPCDS.Distinct().ToList();
         var newAssigned = new List<string>();
-        foreach (var empcd in req.EMPCDS.Distinct())
+
+        await using var scope = await _db.BeginTransactionAsync();
+        try
         {
-            // Check if employee exists in ECM100
-            var count = await _db.ExecuteQueryAsync(
-                "SELECT COUNT(*) CNT FROM HRMS.ECM100 WHERE EMPCD = :EMP",
-                r => Convert.ToInt32(r["CNT"]),
-                new OracleParameter("EMP", empcd));
-            
-            if (count.FirstOrDefault() == 0)
+            // Khoá Class row — validate status + đọc mode/cap trong cùng transaction.
+            var meta = (await _db.ExecuteQueryAsync(scope, @"
+                SELECT STATUS, MAX_STUDENTS FROM HRMS.HR_TRAINING_CLASS
+                 WHERE ID = :CID FOR UPDATE",
+                r => new
+                {
+                    ST  = r["STATUS"]?.ToString() ?? "",
+                    MAX = r["MAX_STUDENTS"] is DBNull ? (int?)null : Convert.ToInt32(r["MAX_STUDENTS"]),
+                }, new OracleParameter("CID", req.CLASS_ID))).FirstOrDefault();
+
+            if (meta == null) throw new InvalidOperationException("Không tìm thấy Class");
+            if (meta.ST is "CLOSED" or "CANCELLED" or "COMPLETED")
+                throw new InvalidOperationException($"Class đang {meta.ST}, không assign được");
+
+            // Cap check (nếu Class OPEN có MAX_STUDENTS): occupied + newInput - existingInput.
+            // An toàn tuyệt đối vì Class row đã bị khoá FOR UPDATE ở trên.
+            if (meta.MAX.HasValue)
             {
-                res.FAILED_EMPCDS.Add(empcd);
-                continue;
+                var occupied = (await _db.ExecuteQueryAsync(scope, @"
+                    SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_ENROLLMENT
+                     WHERE CLASS_ID = :CID AND STATUS IN ('ENROLLED','PENDING_APPROVAL')",
+                    r => Convert.ToInt32(r["CNT"]),
+                    new OracleParameter("CID", req.CLASS_ID))).First();
+
+                int existing = 0;
+                const int chunkSize = 500;
+                for (int i = 0; i < distinctIn.Count; i += chunkSize)
+                {
+                    var chunk = distinctIn.Skip(i).Take(chunkSize).ToList();
+                    var placeholders = string.Join(",", chunk.Select((_, idx) => $":E{idx}"));
+                    var sql = $@"
+                        SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_ENROLLMENT
+                         WHERE CLASS_ID = :CID AND EMPCD IN ({placeholders})
+                           AND STATUS IN ('ENROLLED','PENDING_APPROVAL')";
+                    var ps = new List<OracleParameter> { new OracleParameter("CID", req.CLASS_ID) };
+                    for (int idx = 0; idx < chunk.Count; idx++)
+                        ps.Add(new OracleParameter($"E{idx}", chunk[idx]));
+                    existing += (await _db.ExecuteQueryAsync(scope, sql, r => Convert.ToInt32(r["CNT"]), ps.ToArray())).First();
+                }
+
+                int netNew = distinctIn.Count - existing;
+                if (occupied + netNew > meta.MAX.Value)
+                {
+                    var over = occupied + netNew - meta.MAX.Value;
+                    throw new InvalidOperationException(
+                        $"Vượt cap {over} slot (occupied={occupied}, cap={meta.MAX}). Tăng MAX_STUDENTS hoặc bỏ bớt.");
+                }
             }
 
-            var kind = await UpsertEnrollmentAsync(req.CLASS_ID, empcd, req.LOGIN_USER);
-            switch (kind)
+            foreach (var empcd in distinctIn)
             {
-                case UpsertKind.Inserted:
-                    res.NEW_INSERTED++;
-                    newAssigned.Add(empcd);
-                    break;
-                case UpsertKind.Upgraded:       res.UPGRADED++;  newAssigned.Add(empcd); break;
-                case UpsertKind.SkippedDropped: res.SKIPPED_DROPPED++; break;
-                case UpsertKind.SkippedExisted: res.SKIPPED_EXISTED++; break;
+                // Check nhân viên tồn tại trong ECM100
+                var count = await _db.ExecuteQueryAsync(scope,
+                    "SELECT COUNT(*) CNT FROM HRMS.ECM100 WHERE EMPCD = :EMP",
+                    r => Convert.ToInt32(r["CNT"]),
+                    new OracleParameter("EMP", empcd));
+
+                if (count.FirstOrDefault() == 0)
+                {
+                    res.FAILED_EMPCDS.Add(empcd);
+                    continue;
+                }
+
+                var kind = await UpsertEnrollmentAsync(scope, req.CLASS_ID, empcd, req.LOGIN_USER);
+                switch (kind)
+                {
+                    case UpsertKind.Inserted:
+                        res.NEW_INSERTED++;
+                        newAssigned.Add(empcd);
+                        break;
+                    case UpsertKind.Upgraded:       res.UPGRADED++;  newAssigned.Add(empcd); break;
+                    case UpsertKind.SkippedDropped: res.SKIPPED_DROPPED++; break;
+                    case UpsertKind.SkippedExisted: res.SKIPPED_EXISTED++; break;
+                }
             }
+
+            await scope.CommitAsync();
+        }
+        catch
+        {
+            await scope.RollbackAsync();
+            throw;
         }
 
-        // Enqueue TRAINING_ASSIGNED cho các NV mới được assign / upgrade (§13)
+        // Enqueue TRAINING_ASSIGNED cho các NV mới được assign / upgrade (§13) — làm SAU khi commit
+        // thành công. Không cần chung transaction với enrollment (noti queue là hệ thống riêng, retry được).
         if (newAssigned.Count > 0)
         {
             var ph = await BuildClassPlaceholdersAsync(req.CLASS_ID);
@@ -126,10 +184,10 @@ public class TrainingEnrollmentService
     // Result kind for internal MERGE-lite
     private enum UpsertKind { Inserted, Upgraded, SkippedDropped, SkippedExisted }
 
-    private async Task<UpsertKind> UpsertEnrollmentAsync(int classId, string empcd, string actor)
+    private async Task<UpsertKind> UpsertEnrollmentAsync(OracleTxScope scope, int classId, string empcd, string actor)
     {
         // Check row cũ
-        var cur = (await _db.ExecuteQueryAsync(
+        var cur = (await _db.ExecuteQueryAsync(scope,
             "SELECT SOURCE, STATUS FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID AND EMPCD = :EMP",
             r => new { SOURCE = r["SOURCE"]?.ToString() ?? "", STATUS = r["STATUS"]?.ToString() ?? "" },
             new OracleParameter("CID", classId),
@@ -137,7 +195,7 @@ public class TrainingEnrollmentService
 
         if (cur == null)
         {
-            await _db.ExecuteNonQueryAsync(@"
+            await _db.ExecuteNonQueryAsync(scope, @"
                 INSERT INTO HRMS.HR_TRAINING_ENROLLMENT
                     (CLASS_ID, EMPCD, SOURCE, STATUS, INST_ID)
                 VALUES (:CID, :EMP, 'ASSIGNED', 'ENROLLED', :USR)",
@@ -153,7 +211,7 @@ public class TrainingEnrollmentService
             return UpsertKind.SkippedExisted;
 
         // Upgrade: SELF_REGISTER PENDING/ENROLLED, hoặc REJECTED → ASSIGNED/ENROLLED
-        await _db.ExecuteNonQueryAsync(@"
+        await _db.ExecuteNonQueryAsync(scope, @"
             UPDATE HRMS.HR_TRAINING_ENROLLMENT
                SET SOURCE = 'ASSIGNED', STATUS = 'ENROLLED', UPDT_ID = :USR
              WHERE CLASS_ID = :CID AND EMPCD = :EMP",
@@ -169,67 +227,90 @@ public class TrainingEnrollmentService
     //  Dùng OracleService không có transaction API — dùng optimistic check + PK violation làm safety net.
     // ═══════════════════════════════════════════════════════════════
 
+    // Race-safe (§3.2): SELECT ... FOR UPDATE trên HR_TRAINING_CLASS trước khi check cap + insert,
+    // tất cả trong CÙNG 1 transaction/connection (OracleTxScope) — khoá row Class cho tới commit/rollback
+    // nên request thứ 2 (self-register khác, hoặc bulk/pre-assign HR) phải đợi request đầu commit xong
+    // mới đọc được count mới nhất. Trước đây dùng 1 câu INSERT...SELECT không giữ lock nào → có thể
+    // vượt cap khi 2 request tới gần như đồng thời (đã ghi nhận ở audit).
     public async Task<(bool ok, string? error)> SelfRegisterAsync(SelfRegisterRequest req)
     {
-        // Fetch meta first cho tiện diagnose lỗi (mode / deadline mismatch cho message riêng).
-        var meta = (await _db.ExecuteQueryAsync(@"
-            SELECT STATUS, REGISTRATION_MODE, MAX_STUDENTS, REGISTRATION_DEADLINE
-              FROM HRMS.HR_TRAINING_CLASS
-             WHERE ID = :ID",
-            r => new
-            {
-                ST       = r["STATUS"]?.ToString() ?? "",
-                MODE     = r["REGISTRATION_MODE"]?.ToString() ?? "",
-                MAX      = r["MAX_STUDENTS"] is DBNull ? (int?)null : Convert.ToInt32(r["MAX_STUDENTS"]),
-                DEADLINE = r["REGISTRATION_DEADLINE"] as DateTime?,
-            }, new OracleParameter("ID", req.CLASS_ID))).FirstOrDefault();
-
-        if (meta == null) return (false, "Không tìm thấy Class");
-        if (meta.ST != "OPEN_FOR_REGISTRATION") return (false, "Lớp không mở đăng ký");
-        if (meta.MODE != "OPEN" && meta.MODE != "HYBRID") return (false, "Lớp không hỗ trợ chế độ tự đăng ký");
-        if (meta.DEADLINE.HasValue && DateTime.Now > meta.DEADLINE.Value)
-            return (false, "Đã hết hạn đăng ký");
-
-        // Conditional INSERT atomic — cap check + insert cùng 1 statement để tránh TOCTOU race.
-        // Rows affected = 0 nghĩa là hoặc lớp đầy hoặc đã đăng ký rồi. Query lại phân biệt.
-        // MAX_STUDENTS NULL = unlimited (§3.2) → NVL(MAX, 999999999) làm cap thực tế.
-        int inserted;
+        await using var scope = await _db.BeginTransactionAsync();
         try
         {
-            inserted = await _db.ExecuteNonQueryAsync(@"
-                INSERT INTO HRMS.HR_TRAINING_ENROLLMENT
-                    (CLASS_ID, EMPCD, SOURCE, STATUS, INST_ID)
-                SELECT :CID, :EMP, 'SELF_REGISTER', 'PENDING_APPROVAL', :EMP FROM DUAL
-                 WHERE NOT EXISTS (
-                       SELECT 1 FROM HRMS.HR_TRAINING_ENROLLMENT
-                        WHERE CLASS_ID = :CID AND EMPCD = :EMP
-                 )
-                   AND (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ENROLLMENT
-                         WHERE CLASS_ID = :CID
-                           AND STATUS IN ('ENROLLED','PENDING_APPROVAL'))
-                       < NVL((SELECT MAX_STUDENTS FROM HRMS.HR_TRAINING_CLASS WHERE ID = :CID), 999999999)",
-                new OracleParameter("CID", req.CLASS_ID),
-                new OracleParameter("EMP", req.EMPCD));
-        }
-        catch (OracleException ex) when (ex.Number == 1)
-        {
-            // Race hiếm — 2 request cùng lúc lọt qua NOT EXISTS, 1 win PK, 1 lose.
-            return (false, "Bạn đã đăng ký lớp này rồi");
-        }
+            var meta = (await _db.ExecuteQueryAsync(scope, @"
+                SELECT STATUS, REGISTRATION_MODE, MAX_STUDENTS, REGISTRATION_DEADLINE
+                  FROM HRMS.HR_TRAINING_CLASS
+                 WHERE ID = :ID
+                   FOR UPDATE",
+                r => new
+                {
+                    ST       = r["STATUS"]?.ToString() ?? "",
+                    MODE     = r["REGISTRATION_MODE"]?.ToString() ?? "",
+                    MAX      = r["MAX_STUDENTS"] is DBNull ? (int?)null : Convert.ToInt32(r["MAX_STUDENTS"]),
+                    DEADLINE = r["REGISTRATION_DEADLINE"] as DateTime?,
+                }, new OracleParameter("ID", req.CLASS_ID))).FirstOrDefault();
 
-        if (inserted == 0)
-        {
-            // Phân biệt lý do: đã đăng ký (thắng NOT EXISTS) hay lớp đầy
-            var exists = (await _db.ExecuteQueryAsync(
+            if (meta == null) { await scope.RollbackAsync(); return (false, "Không tìm thấy Class"); }
+            if (meta.ST != "OPEN_FOR_REGISTRATION") { await scope.RollbackAsync(); return (false, "Lớp không mở đăng ký"); }
+            if (meta.MODE != "OPEN") { await scope.RollbackAsync(); return (false, "Lớp không hỗ trợ chế độ tự đăng ký"); }
+            if (meta.DEADLINE.HasValue && DateTime.Now > meta.DEADLINE.Value)
+            {
+                await scope.RollbackAsync();
+                return (false, "Đã hết hạn đăng ký");
+            }
+
+            // Đã đăng ký rồi? (double-click / gọi lại)
+            var already = (await _db.ExecuteQueryAsync(scope,
                 "SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID AND EMPCD = :EMP",
                 r => Convert.ToInt32(r["CNT"]),
                 new OracleParameter("CID", req.CLASS_ID),
                 new OracleParameter("EMP", req.EMPCD))).First();
-            return exists > 0
-                ? (false, "Bạn đã đăng ký lớp này rồi")
-                : (false, "Lớp học đã đủ, không nhận đăng ký nữa");
+            if (already > 0)
+            {
+                await scope.RollbackAsync();
+                return (false, "Bạn đã đăng ký lớp này rồi");
+            }
+
+            // Cap check — an toàn vì Class row đã bị khoá FOR UPDATE, không request nào khác
+            // (self-register khác hoặc bulk/pre-assign HR) đọc được count "cũ" trong lúc này.
+            // MAX_STUDENTS NULL = unlimited (§3.2).
+            if (meta.MAX.HasValue)
+            {
+                var occupied = (await _db.ExecuteQueryAsync(scope, @"
+                    SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_ENROLLMENT
+                     WHERE CLASS_ID = :CID AND STATUS IN ('ENROLLED','PENDING_APPROVAL')",
+                    r => Convert.ToInt32(r["CNT"]),
+                    new OracleParameter("CID", req.CLASS_ID))).First();
+                if (occupied >= meta.MAX.Value)
+                {
+                    await scope.RollbackAsync();
+                    return (false, "Lớp học đã đủ, không nhận đăng ký nữa");
+                }
+            }
+
+            try
+            {
+                await _db.ExecuteNonQueryAsync(scope, @"
+                    INSERT INTO HRMS.HR_TRAINING_ENROLLMENT
+                        (CLASS_ID, EMPCD, SOURCE, STATUS, INST_ID)
+                    VALUES (:CID, :EMP, 'SELF_REGISTER', 'PENDING_APPROVAL', :EMP)",
+                    new OracleParameter("CID", req.CLASS_ID),
+                    new OracleParameter("EMP", req.EMPCD));
+            }
+            catch (OracleException ex) when (ex.Number == 1)
+            {
+                // An toàn lưới cuối — về lý thuyết không xảy ra nhờ FOR UPDATE, giữ lại phòng hờ.
+                await scope.RollbackAsync();
+                return (false, "Bạn đã đăng ký lớp này rồi");
+            }
+
+            await scope.CommitAsync();
+            return (true, null);
         }
-        return (true, null);
+        finally
+        {
+            // OracleTxScope.DisposeAsync tự rollback nếu Commit/Rollback chưa được gọi (VD exception lạ).
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════

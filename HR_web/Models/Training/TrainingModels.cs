@@ -222,6 +222,23 @@ public class SaveSessionRequest
     public string LOGIN_USER { get; set; } = "";
 }
 
+public class BulkImportSessionRow
+{
+    public int SESSION_NO { get; set; }
+    public DateTime SESSION_DATE { get; set; }
+    public string START_TIME { get; set; } = "";
+    public string END_TIME { get; set; } = "";
+    public string? TOPIC { get; set; }
+    public string? LOCATION { get; set; }
+}
+
+public class BulkImportSessionsRequest
+{
+    public int CLASS_ID { get; set; }
+    public List<BulkImportSessionRow> ROWS { get; set; } = new();
+    public string LOGIN_USER { get; set; } = "";
+}
+
 public class AssignTeacherRequest
 {
     public int CLASS_ID { get; set; }
@@ -271,15 +288,27 @@ public class SaveGroupRequest
 public class AutoSplitRequest
 {
     public int CLASS_ID { get; set; }
-    public int GROUP_COUNT { get; set; }
+    // Danh sách ID nhóm đã tạo sẵn để chia đều học viên vào — KHÔNG phải số lượng nhóm cần tạo
+    // (API HR_api yêu cầu GROUP_IDS của nhóm có sẵn, trước đây field này lệch tên (GROUP_COUNT)
+    // nên auto-split luôn nhận GROUP_IDS rỗng và báo lỗi "Cần ≥ 1 group để chia").
+    public List<int> GROUP_IDS { get; set; } = new();
     public string LOGIN_USER { get; set; } = "";
 }
 
 public class AssignGroupRequest
 {
     public int CLASS_ID { get; set; }
-    public string EMPCD { get; set; } = "";
-    public int GROUP_ID { get; set; }
+    // Bulk — cho phép gán nhiều học viên cùng lúc (trước đây chỉ có EMPCD đơn lẻ, lệch tên với
+    // API (EMPCDS) nên request luôn bị bỏ qua toàn bộ, cập nhật 0 dòng nhưng vẫn báo thành công).
+    public List<string> EMPCDS { get; set; } = new();
+    // NULL = bỏ gán nhóm (unassign) — trước đây khai int không nullable nên không gửi được NULL.
+    public int? GROUP_ID { get; set; }
+    public string LOGIN_USER { get; set; } = "";
+}
+
+public class DeleteGroupRequest
+{
+    public int ID { get; set; }
     public string LOGIN_USER { get; set; } = "";
 }
 
@@ -366,6 +395,16 @@ public class ExpressCreateRequest
     public string PRIMARY_TEACHER_EMPCD { get; set; } = "";
     public List<string> EMPCDS { get; set; } = new();
     public int? FINAL_TEST_ID { get; set; }
+    public string LOGIN_USER { get; set; } = "";
+}
+
+// §15b Cách 2 — "Sao chép sang đợt mới" từ 1 Class đã có (SCHEDULED/COMPLETED)
+public class CloneFromClassRequest
+{
+    public int SOURCE_CLASS_ID { get; set; }
+    public string CLASS_NAME { get; set; } = "";
+    public DateTime START_DATE { get; set; }
+    public List<string> EMPCDS { get; set; } = new();
     public string LOGIN_USER { get; set; } = "";
 }
 

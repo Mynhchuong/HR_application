@@ -367,39 +367,115 @@
 
     document.getElementById('btnAddScopeDLW').addEventListener('click', addDLWRow);
 
+    async function updateDLWCount(row) {
+        const dept  = row.querySelector('.dlw-dept').value;
+        const line  = row.querySelector('.dlw-line').value;
+        const work  = row.querySelector('.dlw-work').value;
+        const badge = row.querySelector('.dlw-count');
+        if (!dept || !badge) { if (badge) badge.textContent = ''; updateTotalCount(); return; }
+        badge.textContent = '…';
+        try {
+            const qs = new URLSearchParams({ deptcd: dept });
+            if (line) qs.set('linecd', line);
+            if (work) qs.set('workcd', work);
+            const r = await fetch(URLS.scopeCount + '?' + qs);
+            const j = await r.json();
+            badge.textContent = (j.count || 0) + ' NV';
+        } catch { badge.textContent = ''; }
+        updateTotalCount();
+    }
+
+    function updateTotalCount() {
+        const total = [...document.querySelectorAll('#scopeDLWList .dlw-count')]
+            .reduce((s, b) => s + (parseInt(b.textContent) || 0), 0);
+        const el = document.getElementById('scopeTotalCount');
+        if (el) el.textContent = total > 0 ? 'Tổng ước tính: ' + total + ' nhân viên' : '';
+    }
+
+    let _dlwN = 0;
     async function addDLWRow(prefill) {
-        const tmpl = document.getElementById('tmplScopeDLW').content.cloneNode(true);
-        const row  = tmpl.querySelector('.sa-dlw-row');
+        const tmpl  = document.getElementById('tmplScopeDLW').content.cloneNode(true);
+        const row   = tmpl.querySelector('.sa-dlw-row');
+        const n     = ++_dlwN;
         const $dept = row.querySelector('.dlw-dept');
         const $line = row.querySelector('.dlw-line');
         const $work = row.querySelector('.dlw-work');
 
-        row.querySelector('.btn-del-dlw').addEventListener('click', () => row.remove());
-        $dept.addEventListener('change', async (e) => {
-            const lines = await fetchDropdown(URLS.lineByDept, { deptCd: e.target.value });
-            fillDropdown($line, lines, 'Tất cả Line trong Dept');
-            fillDropdown($work, [],    'Tất cả Work trong Line');
-        });
-        $line.addEventListener('change', async (e) => {
-            const works = await fetchDropdown(URLS.workByLine, { lineCd: e.target.value });
-            fillDropdown($work, works, 'Tất cả Work trong Line');
-        });
-        document.getElementById('scopeDLWList').appendChild(row);
+        $dept.id = 'dlw-dept-' + n;
+        $line.id = 'dlw-line-' + n;
+        $work.id = 'dlw-work-' + n;
 
-        // Hydrate: fetch child dropdowns TRƯỚC khi set value, không thì option không tồn tại.
-        if (prefill) {
-            $dept.value = prefill.DEPTCD || '';
-            if (prefill.DEPTCD) {
-                const lines = await fetchDropdown(URLS.lineByDept, { deptCd: prefill.DEPTCD });
-                fillDropdown($line, lines, 'Tất cả Line trong Dept');
+        // Select2 AJAX config — giống _OTFilterBar
+        $dept.dataset.url         = URLS.getDept;
+        $dept.dataset.placeholder = 'Chọn Dept...';
+        $line.dataset.url         = URLS.getLine;
+        $line.dataset.parent      = '#dlw-dept-' + n;
+        $line.dataset.placeholder = 'Tất cả Line';
+        $line.dataset.prependAll  = 'Tất cả';
+        $work.dataset.url         = URLS.getWork;
+        $work.dataset.parent      = '#dlw-line-' + n;
+        $work.dataset.parentKey   = 'lineCd';
+        $work.dataset.placeholder = 'Tất cả Work';
+        $work.dataset.prependAll  = 'Tất cả';
+
+        // Select2Helper.init tìm theo class .select2
+        [$dept, $line, $work].forEach(s => s.classList.add('select2'));
+
+        document.getElementById('scopeDLWList').appendChild(row);
+        Select2Helper.init($(row));
+
+        // Work bị disabled cho đến khi user chọn Line cụ thể
+        $work.disabled = true;
+
+        const $s = (id) => $('#' + id);
+        $s('dlw-dept-' + n).on('change', function () {
+            if (row.dataset.prefilling) return;
+            $s('dlw-line-' + n).val(null).trigger('change');
+            // line change handler sẽ clear + disable work
+            updateDLWCount(row);
+        });
+        $s('dlw-line-' + n).on('change', function () {
+            if (row.dataset.prefilling) return;
+            const lineVal = $(this).val();
+            const $w = $s('dlw-work-' + n);
+            if (lineVal) {
+                $w.prop('disabled', false).val(null).trigger('change');
+            } else {
+                $w.val(null).trigger('change').prop('disabled', true);
+            }
+            updateDLWCount(row);
+        });
+        $s('dlw-work-' + n).on('change', () => updateDLWCount(row));
+
+        row.querySelector('.btn-del-dlw').addEventListener('click', () => {
+            [$dept, $line, $work].forEach(s => { try { $(s).select2('destroy'); } catch {} });
+            row.remove();
+            updateTotalCount();
+        });
+
+        if (prefill?.DEPTCD) {
+            row.dataset.prefilling = '1';
+            try {
+                const depts = await fetchDropdown(URLS.getDept, { id: prefill.DEPTCD });
+                if (depts.length) $s('dlw-dept-' + n).append(new Option(depts[0].text, depts[0].id, true, true)).trigger('change');
                 if (prefill.LINECD) {
-                    $line.value = prefill.LINECD;
-                    const works = await fetchDropdown(URLS.workByLine, { lineCd: prefill.LINECD });
-                    fillDropdown($work, works, 'Tất cả Work trong Line');
-                    if (prefill.WORKCD) $work.value = prefill.WORKCD;
+                    const lines = await fetchDropdown(URLS.getLine, { deptCd: prefill.DEPTCD });
+                    const ln    = lines.find(l => l.id === prefill.LINECD);
+                    if (ln) $s('dlw-line-' + n).append(new Option(ln.text, ln.id, true, true)).trigger('change');
+                    // Line có giá trị → enable Work
+                    $s('dlw-work-' + n).prop('disabled', false);
+                    if (prefill.WORKCD) {
+                        const works = await fetchDropdown(URLS.getWork, { lineCd: prefill.LINECD });
+                        const wk    = works.find(w => w.id === prefill.WORKCD);
+                        if (wk) $s('dlw-work-' + n).append(new Option(wk.text, wk.id, true, true)).trigger('change');
+                    }
                 }
+                // nếu không có LINECD → Work vẫn disabled (default)
+            } finally {
+                delete row.dataset.prefilling;
             }
         }
+        await updateDLWCount(row);
     }
 
     async function fetchDropdown(url, params) {
@@ -409,10 +485,6 @@
             if (!res.ok) return [];
             return await res.json();
         } catch { return []; }
-    }
-    function fillDropdown(sel, items, placeholder) {
-        sel.innerHTML = `<option value="">${placeholder}</option>` +
-            items.map(i => `<option value="${escapeAttr(i.id || '')}">${escapeAttr(i.text || '')}</option>`).join('');
     }
 
     // ── Step 4 — passScore visibility ─────────

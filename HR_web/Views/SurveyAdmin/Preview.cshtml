@@ -48,6 +48,17 @@
     </footer>
 </div>
 
+<!-- Kết thúc xem trước -->
+<div class="survey-modal" id="modalResult">
+    <div class="survey-modal-content">
+        <div class="survey-modal-title" id="resultTitle"></div>
+        <div class="survey-modal-body" id="resultBody"></div>
+        <div class="survey-modal-actions">
+            <a href="@Url.Action("Index", "SurveyAdmin")" class="btn btn-primary">Về danh sách</a>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script>
         window.SURVEY_DATA = {

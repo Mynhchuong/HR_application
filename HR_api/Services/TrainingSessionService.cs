@@ -154,6 +154,37 @@ public class TrainingSessionService
         }
     }
 
+    // Import Excel nhiều buổi 1 lần — tái dùng nguyên validate + insert của SaveAsync cho từng dòng.
+    // Lỗi 1 dòng (VD SESSION_NO trùng) không chặn các dòng còn lại — gom lỗi trả về cho HR xem.
+    public async Task<BulkImportSessionsResult> BulkImportAsync(BulkImportSessionsRequest req)
+    {
+        var result = new BulkImportSessionsResult();
+        for (int i = 0; i < req.ROWS.Count; i++)
+        {
+            var row = req.ROWS[i];
+            try
+            {
+                await SaveAsync(new SaveSessionRequest
+                {
+                    CLASS_ID     = req.CLASS_ID,
+                    SESSION_NO   = row.SESSION_NO,
+                    SESSION_DATE = row.SESSION_DATE,
+                    START_TIME   = row.START_TIME,
+                    END_TIME     = row.END_TIME,
+                    TOPIC        = row.TOPIC,
+                    LOCATION     = row.LOCATION,
+                    LOGIN_USER   = req.LOGIN_USER,
+                });
+                result.INSERTED++;
+            }
+            catch (InvalidOperationException ex)
+            {
+                result.ERRORS.Add($"Dòng {i + 2}: {ex.Message}");   // +2 vì Excel dòng 1 là header
+            }
+        }
+        return result;
+    }
+
     public async Task RescheduleAsync(RescheduleSessionRequest req)
     {
         var session = await GetDetailAsync(req.ID)
@@ -207,6 +238,32 @@ public class TrainingSessionService
                 ["sessionTopic"] = session.TOPIC ?? "",
                 ["sessionDate"]  = session.SESSION_DATE.ToString("dd/MM/yyyy"),
             }, sessionGroupId: session.GROUP_ID, sessionId: req.ID);
+
+        // §16 edge case: "Express Class chỉ có 1 buổi → session hôm đó CANCELLED → Class chuyển
+        // CANCELLED luôn." Chỉ áp dụng khi Class IS_EXPRESS=1 VÀ đây là session DUY NHẤT của Class
+        // (tránh cascade sai cho Class STANDARD nhiều buổi lỡ bị gắn nhầm IS_EXPRESS).
+        var classInfo = (await _db.ExecuteQueryAsync(@"
+            SELECT C.IS_EXPRESS, C.STATUS,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S WHERE S.CLASS_ID = C.ID) AS SESSION_COUNT
+              FROM HRMS.HR_TRAINING_CLASS C
+             WHERE C.ID = :CID",
+            r => new
+            {
+                IS_EXPRESS    = Convert.ToInt32(r["IS_EXPRESS"]),
+                STATUS        = r["STATUS"]?.ToString() ?? "",
+                SESSION_COUNT = Convert.ToInt32(r["SESSION_COUNT"]),
+            }, new OracleParameter("CID", session.CLASS_ID))).FirstOrDefault();
+
+        if (classInfo != null && classInfo.IS_EXPRESS == 1 && classInfo.SESSION_COUNT == 1
+            && classInfo.STATUS != "CANCELLED" && classInfo.STATUS != "CLOSED" && classInfo.STATUS != "COMPLETED")
+        {
+            await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_TRAINING_CLASS
+                   SET STATUS = 'CANCELLED', UPDT_ID = :USR
+                 WHERE ID = :CID",
+                new OracleParameter("USR", req.LOGIN_USER),
+                new OracleParameter("CID", session.CLASS_ID));
+        }
     }
 
     private async Task<string> GetClassNameAsync(int classId)
@@ -323,9 +380,14 @@ public class TrainingSessionService
             "SELECT STATUS FROM HRMS.HR_TRAINING_SESSION WHERE ID = :SID",
             r => r["STATUS"]?.ToString() ?? "",
             new OracleParameter("SID", req.SESSION_ID))).FirstOrDefault();
-        if (sessionStatus == "FINISHED")
+        // Trước đây so sánh với "FINISHED" — giá trị này không nằm trong CHK_TRS_STATUS
+        // (UPCOMING|ONGOING|COMPLETED|CANCELLED) nên điều kiện luôn false, không chặn được gì
+        // (đã phát hiện ở audit — dead code, khả năng gõ nhầm). Ý định đúng theo §5 rules: teacher
+        // VẪN được sửa điểm danh sau khi session COMPLETED (VD đổi ABSENT ↔ EXCUSED khi có leave nộp
+        // trễ) — chỉ chặn khi session đã CANCELLED (buổi học không diễn ra, không có gì để điểm danh).
+        if (sessionStatus == "CANCELLED")
         {
-            throw new InvalidOperationException("Buổi học đã kết thúc, không thể cập nhật điểm danh");
+            throw new InvalidOperationException("Buổi học đã bị huỷ, không thể cập nhật điểm danh");
         }
 
         await _db.ExecuteNonQueryAsync(@"

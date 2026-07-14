@@ -9,16 +9,6 @@ public class TrainingService
 
     public TrainingService(ApiService api) { _api = api; }
 
-    public async Task<bool> HasScopeAsync(string empcd)
-    {
-        try
-        {
-            var res = await _api.GetAsync<HasScopeResponse>("Training/team/has-scope", $"empcd={empcd}");
-            return res?.success == true && res.data;
-        }
-        catch (Exception ex) { Console.WriteLine($"[TrainingService] HasScope error: {ex.Message}"); return false; }
-    }
-
     public async Task<List<TeamScheduleItem>> GetTeamScheduleAsync(
         string empcd, DateTime? from, DateTime? to, string? status)
     {

@@ -139,4 +139,107 @@ public class OracleService
         }
         return Convert.ToInt32(value);
     }
+
+    // ============================================================
+    // 🔥 TRANSACTION-SHARING SUPPORT
+    // Dùng khi cần nhiều lệnh (SELECT FOR UPDATE, INSERT/UPDATE nhiều bước)
+    // chạy chung 1 connection/transaction thật — thay vì mỗi ExecuteNonQueryAsync/
+    // ExecuteQueryAsync ở trên tự mở 1 connection riêng (không share transaction được).
+    // Dùng: using var scope = await db.BeginTransactionAsync();
+    //       await db.ExecuteNonQueryAsync(scope, sql, ...);
+    //       await scope.CommitAsync();   // hoặc RollbackAsync() — Dispose tự rollback nếu quên.
+    // ============================================================
+    public async Task<OracleTxScope> BeginTransactionAsync()
+    {
+        var conn = new OracleConnection(_connStr);
+        await conn.OpenAsync();
+        var tx = conn.BeginTransaction();
+        return new OracleTxScope(conn, tx);
+    }
+
+    public async Task<int> ExecuteNonQueryAsync(OracleTxScope scope, string sql, params OracleParameter[] parameters)
+    {
+        using var cmd = new OracleCommand(sql, scope.Connection);
+        cmd.Transaction = scope.Transaction;
+        cmd.BindByName = true;
+
+        if (parameters != null)
+        {
+            foreach (var p in parameters)
+            {
+                p.Value ??= DBNull.Value;
+                cmd.Parameters.Add(p);
+            }
+        }
+
+        return await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<List<T>> ExecuteQueryAsync<T>(OracleTxScope scope, string sql, Func<OracleDataReader, T> map, params OracleParameter[] parameters)
+    {
+        var list = new List<T>();
+
+        using var cmd = new OracleCommand(sql, scope.Connection);
+        cmd.Transaction = scope.Transaction;
+        cmd.BindByName = true;
+        cmd.InitialLOBFetchSize = -1;
+
+        if (parameters != null)
+        {
+            foreach (var p in parameters)
+            {
+                p.Value ??= DBNull.Value;
+                cmd.Parameters.Add(p);
+            }
+        }
+
+        using var reader = (OracleDataReader)await cmd.ExecuteReaderAsync();
+        while (reader.Read())
+        {
+            list.Add(map(reader));
+        }
+
+        return list;
+    }
+}
+
+// Scope nhỏ gọn cho 1 connection + 1 transaction dùng chung nhiều lệnh.
+// IAsyncDisposable: nếu Commit/Rollback chưa được gọi tường minh thì Dispose sẽ tự Rollback
+// (an toàn — tránh treo transaction mở nếu code giữa chừng throw).
+public sealed class OracleTxScope : IAsyncDisposable
+{
+    public OracleConnection Connection { get; }
+    public OracleTransaction Transaction { get; }
+    private bool _completed;
+
+    internal OracleTxScope(OracleConnection conn, OracleTransaction tx)
+    {
+        Connection = conn;
+        Transaction = tx;
+    }
+
+    public async Task CommitAsync()
+    {
+        await Transaction.CommitAsync();
+        _completed = true;
+    }
+
+    public async Task RollbackAsync()
+    {
+        if (_completed) return;
+        await Transaction.RollbackAsync();
+        _completed = true;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (!_completed)
+        {
+            try { await Transaction.RollbackAsync(); }
+            catch { /* connection có thể đã đóng — bỏ qua */ }
+        }
+        Transaction.Dispose();
+        try { await Connection.CloseAsync(); } catch { /* ignore */ }
+        Connection.Dispose();
+    }
 }

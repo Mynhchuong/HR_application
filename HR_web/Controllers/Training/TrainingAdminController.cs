@@ -363,6 +363,116 @@ public class TrainingAdminController : BaseController
         return Content(json, "application/json");
     }
 
+    // GET /TrainingAdmin/SessionImportTemplate — tải file Excel mẫu để nhập nhiều buổi học 1 lần
+    [HttpGet]
+    public IActionResult SessionImportTemplate()
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Sessions");
+        string[] headers = { "SESSION_NO", "SESSION_DATE (yyyy-MM-dd)", "START_TIME (HHMM)", "END_TIME (HHMM)", "TOPIC", "LOCATION" };
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var c = ws.Cell(1, i + 1);
+            c.Value = headers[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#4f46e5");
+            c.Style.Font.FontColor = XLColor.White;
+        }
+
+        ws.Cell(2, 1).Value = 1;
+        ws.Cell(2, 2).Value = DateTime.Today.ToString("yyyy-MM-dd");
+        ws.Cell(2, 3).Value = "0800";
+        ws.Cell(2, 4).Value = "1130";
+        ws.Cell(2, 5).Value = "Giới thiệu tổng quan";
+        ws.Cell(2, 6).Value = "Hội trường A";
+        ws.Range(2, 3, 2, 4).Style.NumberFormat.Format = "@";   // giữ dạng text, tránh Excel tự bỏ số 0 đầu
+
+        ws.Cell(4, 1).Value = "* SESSION_NO: số buổi, không trùng trong cùng 1 lớp.";
+        ws.Cell(5, 1).Value = "* SESSION_DATE: định dạng yyyy-MM-dd (VD 2026-08-01).";
+        ws.Cell(6, 1).Value = "* START_TIME/END_TIME: 4 chữ số HHMM (VD 0800, 1130) — nên định dạng ô là Text để không bị Excel tự bỏ số 0 đầu.";
+        ws.Cell(7, 1).Value = "* TOPIC, LOCATION: có thể để trống.";
+        ws.Range(4, 1, 7, 1).Style.Font.Italic = true;
+        ws.Range(4, 1, 7, 1).Style.Font.FontColor = XLColor.Gray;
+
+        ws.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "MauImportBuoiHoc.xlsx");
+    }
+
+    // POST /TrainingAdmin/SessionImport — nhập nhiều buổi học từ file Excel
+    [HttpPost]
+    public async Task<IActionResult> SessionImport(IFormFile file, int classId)
+    {
+        if (file == null || file.Length == 0)
+            return Json(new { success = false, message = "Vui lòng chọn file Excel" });
+
+        var rows = new List<BulkImportSessionRow>();
+        int skipped = 0;
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            using var wb = new XLWorkbook(stream);
+            var ws = wb.Worksheet(1);
+            int lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
+
+            for (int r = 2; r <= lastRow; r++)
+            {
+                var noS   = ws.Cell(r, 1).GetString()?.Trim() ?? "";
+                var dateS = ws.Cell(r, 2).GetString()?.Trim() ?? "";
+                var start = NormalizeHHMM(ws.Cell(r, 3).GetString()?.Trim() ?? "");
+                var end   = NormalizeHHMM(ws.Cell(r, 4).GetString()?.Trim() ?? "");
+                var topic = ws.Cell(r, 5).GetString()?.Trim();
+                var loc   = ws.Cell(r, 6).GetString()?.Trim();
+
+                if (string.IsNullOrEmpty(noS) || string.IsNullOrEmpty(dateS) || start.Length != 4 || end.Length != 4)
+                { skipped++; continue; }
+                if (!int.TryParse(noS, out var sessionNo)) { skipped++; continue; }
+                if (!DateTime.TryParse(dateS, out var date)) { skipped++; continue; }
+
+                rows.Add(new BulkImportSessionRow
+                {
+                    SESSION_NO   = sessionNo,
+                    SESSION_DATE = date,
+                    START_TIME   = start,
+                    END_TIME     = end,
+                    TOPIC        = string.IsNullOrEmpty(topic) ? null : topic,
+                    LOCATION     = string.IsNullOrEmpty(loc) ? null : loc,
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "Lỗi đọc file: " + ex.Message });
+        }
+
+        if (rows.Count == 0)
+            return Json(new { success = false, message = "Không có dòng hợp lệ trong file" });
+
+        var apiReq = new BulkImportSessionsRequest
+        {
+            CLASS_ID   = classId,
+            ROWS       = rows,
+            LOGIN_USER = CurrentUser?.EmpCd ?? "",
+        };
+        var response = await _training.PostToApiAsync("TrainingAdmin/session/bulk-import", apiReq);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    // Chuẩn hoá "8:00", "800", "0800" đều về "0800" — Excel hay tự bỏ số 0 đầu khi ô là dạng số.
+    private static string NormalizeHHMM(string s)
+    {
+        s = s.Replace(":", "").Trim();
+        if (int.TryParse(s, out var n) && n >= 0) return n.ToString("D4");
+        return s;
+    }
+
     [HttpPost]
     public async Task<IActionResult> AssignTeacher([FromBody] AssignTeacherRequest req)
     {
@@ -430,6 +540,16 @@ public class TrainingAdminController : BaseController
     {
         req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
         var response = await _training.PostToApiAsync("TrainingAdmin/class/group/save", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DeleteGroup([FromBody] DeleteGroupRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/group/delete", req);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");
@@ -570,6 +690,17 @@ public class TrainingAdminController : BaseController
     {
         req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
         var response = await _training.PostToApiAsync("TrainingAdmin/class/clone-from-course", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    // §15b Cách 2 — "Sao chép sang đợt mới" từ 1 Class đã có (Class Detail)
+    [HttpPost]
+    public async Task<IActionResult> CloneFromClass([FromBody] CloneFromClassRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/clone-from-class", req);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");

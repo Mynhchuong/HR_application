@@ -12,17 +12,20 @@ public class SurveyAdminController : ControllerBase
     private readonly SurveyAdminService _admin;
     private readonly SurveyReportService _report;
     private readonly SurveyRecipientService _recipient;
+    private readonly SurveyScopeService _scope;
     private readonly NotificationService _noti;
 
     public SurveyAdminController(
         SurveyAdminService admin,
         SurveyReportService report,
         SurveyRecipientService recipient,
+        SurveyScopeService scope,
         NotificationService noti)
     {
         _admin = admin;
         _report = report;
         _recipient = recipient;
+        _scope = scope;
         _noti = noti;
     }
 
@@ -266,6 +269,18 @@ public class SurveyAdminController : ControllerBase
         if (string.IsNullOrWhiteSpace(csv)) return new();
         return csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                   .Where(s => int.TryParse(s, out _)).Select(int.Parse).ToHashSet();
+    }
+
+    // GET /apiHR/SurveyAdmin/scope-count?deptcd=X&linecd=Y&workcd=Z
+    [HttpGet("scope-count")]
+    public async Task<IActionResult> ScopeCount(
+        [FromQuery] string deptcd,
+        [FromQuery] string? linecd,
+        [FromQuery] string? workcd)
+    {
+        if (string.IsNullOrWhiteSpace(deptcd)) return Ok(new { count = 0 });
+        var count = await _scope.CountScopeAsync(deptcd, linecd, workcd);
+        return Ok(new { count });
     }
 
     public class TestSubmitRequest

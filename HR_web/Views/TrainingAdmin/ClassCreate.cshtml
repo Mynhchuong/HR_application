@@ -50,7 +50,8 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-muted">Tên Lớp học</label>
-                    <input type="text" id="wizard-class-name" class="form-control py-2.5" placeholder="Ví dụ: Lớp ATLĐ Khối Sản Xuất - Kỳ 2" style="border-radius: 8px;" />
+                    <input type="text" id="wizard-class-name" class="form-control py-2.5" maxlength="80" placeholder="Ví dụ: Lớp ATLĐ Khối Sản Xuất - Kỳ 2" style="border-radius: 8px;" />
+                    <div class="form-text">Tối đa 80 ký tự — tên lớp sẽ hiển thị trên chứng chỉ (§12).</div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-muted">Ngày bắt đầu lớp học</label>
@@ -77,7 +78,6 @@
                     <select id="wizard-reg-mode" class="form-select py-2.5" onchange="toggleRegOptions()" style="border-radius: 8px;">
                         <option value="ASSIGNED">ASSIGNED (Chỉ định học viên)</option>
                         <option value="OPEN">OPEN (Học viên tự đăng ký tự do)</option>
-                        <option value="HYBRID">HYBRID (Chỉ định + Tự do đăng ký)</option>
                     </select>
                 </div>
                 <div id="reg-options-container" class="d-none">
@@ -285,7 +285,7 @@
         function toggleRegOptions() {
             const mode = document.getElementById('wizard-reg-mode').value;
             const container = document.getElementById('reg-options-container');
-            if (mode === 'OPEN' || mode === 'HYBRID') {
+            if (mode === 'OPEN') {
                 container.classList.remove('d-none');
             } else {
                 container.classList.add('d-none');

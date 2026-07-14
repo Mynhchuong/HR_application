@@ -144,6 +144,10 @@
         <small><span class="vni-font">@Model.FullName</span> — @DateTime.Today.ToString("dd/MM/yyyy")</small>
     </div>
 
+    <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:.55rem .85rem;font-size:.78rem;color:#92400e;margin-bottom:.75rem;line-height:1.5;">
+        <b>⚠️ Lưu ý:</b> Đổi món ăn phải thực hiện <b>trước ít nhất 1 ngày</b> — không thể đổi cho ngày hôm nay.
+    </div>
+
     <!-- Đổi món bữa ăn ca (LUNCH) -->
     <div class="cm-section">
         <div class="cm-section-title lunch">
@@ -376,6 +380,12 @@ async function onMealDateChange() {
     const inp   = document.getElementById('mealDate');
     const label = document.getElementById('mealDateLabel');
     const tStr  = getTomorrowStr();
+    // iOS Safari bỏ qua min attribute → validate thủ công
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (inp.value <= todayStr) {
+        inp.value = tStr;
+        window.showToast('Chỉ được đổi món từ ngày mai trở đi', 'warning');
+    }
     label.textContent = inp.value === tStr ? 'ngày mai' : inp.value.split('-').reverse().join('/');
 
     document.getElementById('currentMealBadge').innerHTML =
@@ -392,6 +402,12 @@ async function onOtDateChange() {
     const inp   = document.getElementById('otDate');
     const label = document.getElementById('otDateLabel');
     const tStr  = getTomorrowStr();
+    // iOS Safari bỏ qua min attribute → validate thủ công
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (inp.value <= todayStr) {
+        inp.value = tStr;
+        window.showToast('Chỉ được đổi món từ ngày mai trở đi', 'warning');
+    }
     label.textContent = inp.value === tStr ? 'ngày mai' : inp.value.split('-').reverse().join('/');
 
     document.getElementById('currentOtBadge').innerHTML =
@@ -426,6 +442,11 @@ function submitMeal(type, label, typeMeal) {
     }
     const dateInputId = typeMeal === 'OT' ? 'otDate' : 'mealDate';
     const dateStr = document.getElementById(dateInputId).value;
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (!dateStr || dateStr <= todayStr) {
+        window.showToast('Chỉ được đổi món từ ngày mai trở đi', 'warning');
+        return;
+    }
     const [y, m, d] = dateStr.split('-');
     const dateLabel = `${d}/${m}/${y}`;
     const title = typeMeal === 'OT' ? 'Đổi món tăng ca' : 'Đổi món ăn ca';

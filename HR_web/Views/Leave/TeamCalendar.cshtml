@@ -5,17 +5,7 @@
     string currentRole = ViewBag.CurrentRole ?? "";
     string todayStr    = DateTime.Today.ToString("yyyy-MM-dd");
     string gpEndpoint  = (currentRole == "Clerk") ? "GetClerkPage" : "GetSupervisorPage";
-    string trainingUrl = Url.Action("TeamSchedule", "Training")!;
 }
-
-@* Quick link sang lịch Training team §14.5 — không tạo menu mới, tích hợp vào cùng "Lịch team" *@
-<div class="container-fluid pt-3">
-    <a href="@trainingUrl" class="d-inline-flex align-items-center gap-2 text-decoration-none">
-        <span class="badge bg-gradient-info shadow-info" style="font-size:.85rem;padding:.5rem .8rem;border-radius:8px;">
-            🎓 Xem lịch training team &nbsp;<i class="bi bi-arrow-right"></i>
-        </span>
-    </a>
-</div>
 
 @section Styles {
 <style>
@@ -82,7 +72,7 @@
         #gpFilterRow { overflow-x:auto; flex-wrap:nowrap !important; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
         #gpFilterRow::-webkit-scrollbar { display:none; }
     } { display:none; }
-    }
+    
 </style>
 }
 
@@ -141,19 +131,19 @@
             <!-- ─── Tab Nav ─── -->
             <ul class="nav mb-0 px-3" id="tableTabs">
                 <li class="nav-item">
-                    <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tabLeave">
+                    <button class="nav-link active" id="pillLeave" data-bs-toggle="pill" data-bs-target="#tabLeave">
                         <i class="bi bi-calendar3-range me-1"></i>Lịch Nghỉ
                         <span class="badge bg-primary ms-1" id="leaveCountBadge" style="font-size:.65rem;display:none;"></span>
                     </button>
                 </li>
                 <li class="nav-item">
-                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabGp">
+                    <button class="nav-link" id="pillGp" data-bs-toggle="pill" data-bs-target="#tabGp">
                         <i class="bi bi-door-open me-1"></i>Ra Vào Cổng
                         <span class="badge ms-1" id="gpCountBadge" style="font-size:.65rem;background:#0ea5e9;display:none;"></span>
                     </button>
                 </li>
                 <li class="nav-item">
-                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabTraining">
+                    <button class="nav-link" id="pillTraining" data-bs-toggle="pill" data-bs-target="#tabTraining">
                         <i class="bi bi-mortarboard me-1"></i>Lịch Học
                         <span class="badge bg-success ms-1" id="trainingCountBadge" style="font-size:.65rem;display:none;"></span>
                     </button>
@@ -810,6 +800,15 @@ $(document).ready(function() {
     loadGatePass();
     window.addEventListener('scroll', hideCalHover, { passive:true });
     document.addEventListener('touchmove', hideCalHover, { passive:true });
+
+    // Deep-link ?tab=training|gp|leave — dùng cho tile "Đang học hôm nay" ở Home dashboard
+    // (trước đây trỏ sang trang Training/TeamSchedule riêng, giờ trang đó đã bỏ, dùng chung tab này).
+    const tabParam = new URLSearchParams(window.location.search).get('tab');
+    const pillMap = { training: 'pillTraining', gp: 'pillGp', leave: 'pillLeave' };
+    if (tabParam && pillMap[tabParam]) {
+        const btn = document.getElementById(pillMap[tabParam]);
+        if (btn) new bootstrap.Tab(btn).show();
+    }
 });
 </script>
 }

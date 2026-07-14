@@ -730,9 +730,14 @@ function buildApprovalRow(item, idx) {
            </div>` : '';
     const sigCell = `<div class="sig-cell">${reqSig}${apSig}</div>`;
 
+    const deptParts = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean);
+    const deptLine  = deptParts.length
+        ? `<div class="text-xs text-secondary mt-0" style="line-height:1.2;">${deptParts.map(escHtml).join(' / ')}</div>`
+        : '';
     const empCell = `
         <div class="text-xs text-secondary">${escHtml(item.EMPCD||'')}</div>
         <div class="text-sm vni-font fw-bold" style="text-transform:uppercase;line-height:1.2;">${escHtml(item.EMP_NAME||'')}</div>
+        ${deptLine}
     `;
     const dateStr = `${formatDate(item.FROM_DATE)}${item.TO_DATE && item.TO_DATE !== item.FROM_DATE ? ' → ' + formatDate(item.TO_DATE) : ''}`;
     const timeCell = `

@@ -110,35 +110,6 @@ public class TrainingController : BaseController
         return View();
     }
 
-    // GET /Training/TeamSchedule?today=1
-    public async Task<IActionResult> TeamSchedule(int today = 0)
-    {
-        var empcd = CurrentUser?.EmpCd ?? "";
-        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
-
-        var hasScope = await _training.HasScopeAsync(empcd);
-        ViewBag.HasScope = hasScope;
-
-        var from = DateTime.Today;
-        var to = today == 1 ? DateTime.Today : DateTime.Today.AddDays(7);
-        ViewBag.From = from.ToString("yyyy-MM-dd");
-        ViewBag.To = to.ToString("yyyy-MM-dd");
-        ViewBag.Today = today == 1;
-
-        return View();
-    }
-
-    // GET /Training/GetTeamSchedule
-    [HttpGet]
-    public async Task<IActionResult> GetTeamSchedule(DateTime? from = null, DateTime? to = null, string? status = null)
-    {
-        var empcd = CurrentUser?.EmpCd ?? "";
-        if (string.IsNullOrEmpty(empcd)) return Json(new { success = false, message = "Chưa đăng nhập" });
-
-        var data = await _training.GetTeamScheduleAsync(empcd, from, to, status);
-        return Json(new { success = true, data });
-    }
-
     // ═══════════════════════════════════════════════════════════════
     //  STUDENT AJAX PROXIES
     // ═══════════════════════════════════════════════════════════════

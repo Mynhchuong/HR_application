@@ -166,12 +166,16 @@
         let classData = null;
 
         document.addEventListener('DOMContentLoaded', function () {
-            loadClassDetail();
-            loadTestsList();
+            // loadTestsList() đọc classData.cls.FINAL_TEST_ID để hiện badge "Bài thi cuối khóa" —
+            // phải chờ loadClassDetail() gán xong classData, nếu không sẽ race (tests list load
+            // xong trước → classData vẫn null → badge không hiện dù DB đã set đúng).
+            loadClassDetail().then(() => {
+                loadTestsList();
+            });
         });
 
         function loadClassDetail() {
-            fetch(`${window.TRAINING_URLS.getClassDetail}?classId=${classId}&empcd=${empCd}`)
+            return fetch(`${window.TRAINING_URLS.getClassDetail}?classId=${classId}&empcd=${empCd}`)
                 .then(r => r.json())
                 .then(res => {
                     if (res.status === 403) {
@@ -198,9 +202,6 @@
             if (cls.REGISTRATION_MODE === 'OPEN') {
                 badgeRegText = 'Tự do';
                 badgeRegClass = 'bg-success';
-            } else if (cls.REGISTRATION_MODE === 'HYBRID') {
-                badgeRegText = 'Chỉ định + Tự do';
-                badgeRegClass = 'bg-info';
             }
 
             const pct = cls.TOTAL_SESSIONS > 0 ? Math.round((cls.COMPLETED_SESSIONS / cls.TOTAL_SESSIONS) * 100) : 0;

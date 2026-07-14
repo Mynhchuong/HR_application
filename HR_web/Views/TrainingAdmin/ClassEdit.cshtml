@@ -26,7 +26,7 @@
 
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-muted">Tên Lớp học</label>
-                        <input type="text" id="edit-class-name" class="form-control" required style="border-radius: 8px;" />
+                        <input type="text" id="edit-class-name" class="form-control" maxlength="80" required style="border-radius: 8px;" />
                     </div>
 
                     <div class="mb-3">
@@ -58,7 +58,6 @@
                             <select id="edit-class-reg-mode" class="form-select" onchange="toggleRegOptions()" style="border-radius: 8px;">
                                 <option value="ASSIGNED">ASSIGNED (Chỉ định)</option>
                                 <option value="OPEN">OPEN (Tự do đăng ký)</option>
-                                <option value="HYBRID">HYBRID (Kết hợp)</option>
                             </select>
                         </div>
                     </div>
@@ -170,7 +169,7 @@
         function toggleRegOptions() {
             const mode = document.getElementById('edit-class-reg-mode').value;
             const container = document.getElementById('edit-reg-options');
-            if (mode === 'OPEN' || mode === 'HYBRID') {
+            if (mode === 'OPEN') {
                 container.classList.remove('d-none');
             } else {
                 container.classList.add('d-none');

@@ -266,6 +266,17 @@ public class SurveyAdminController : BaseController
         return View(vm);
     }
 
+    // GET /SurveyAdmin/ScopeCount?deptcd=X&linecd=Y&workcd=Z  (AJAX preview)
+    [HttpGet]
+    public async Task<IActionResult> ScopeCount(string deptcd, string? linecd, string? workcd)
+    {
+        var qs = $"deptcd={Uri.EscapeDataString(deptcd ?? "")}";
+        if (!string.IsNullOrEmpty(linecd)) qs += $"&linecd={Uri.EscapeDataString(linecd)}";
+        if (!string.IsNullOrEmpty(workcd)) qs += $"&workcd={Uri.EscapeDataString(workcd)}";
+        var result = await _api.GetAsync<object>("SurveyAdmin/scope-count", qs);
+        return Json(result ?? new { count = 0 });
+    }
+
     // GET /SurveyAdmin/ParticipantAnswers?surveyId=&empcd=   (AJAX)
     [HttpGet]
     public async Task<IActionResult> ParticipantAnswers(int surveyId, string empcd)

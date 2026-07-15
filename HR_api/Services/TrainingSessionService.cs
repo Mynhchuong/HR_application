@@ -125,10 +125,30 @@ public class TrainingSessionService
         else
         {
             // Chỉ update khi UPCOMING (§5 rules — không sửa khi đã ONGOING/COMPLETED)
-            var status = await GetStatusAsync(req.ID.Value)
+            var cur = (await _db.ExecuteQueryAsync(
+                "SELECT STATUS, GROUP_ID FROM HRMS.HR_TRAINING_SESSION WHERE ID = :ID",
+                r => new
+                {
+                    STATUS   = r["STATUS"]?.ToString() ?? "",
+                    GROUP_ID = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
+                },
+                new OracleParameter("ID", req.ID.Value))).FirstOrDefault()
                 ?? throw new InvalidOperationException("Không tìm thấy session");
-            if (status != "UPCOMING")
-                throw new InvalidOperationException($"Session đang {status}, chỉ sửa được khi UPCOMING");
+            if (cur.STATUS != "UPCOMING")
+                throw new InvalidOperationException($"Session đang {cur.STATUS}, chỉ sửa được khi UPCOMING");
+
+            // §5b.6 — đổi GROUP_ID khi buổi đã có điểm danh làm attendance cũ sai lệch report.
+            // Chặn: HR nên hủy buổi này và tạo buổi mới cho nhóm kia.
+            if (cur.GROUP_ID != req.GROUP_ID)
+            {
+                var attCnt = (await _db.ExecuteQueryAsync(
+                    "SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_ATTENDANCE WHERE SESSION_ID = :SID",
+                    r => Convert.ToInt32(r["CNT"]),
+                    new OracleParameter("SID", req.ID.Value))).First();
+                if (attCnt > 0)
+                    throw new InvalidOperationException(
+                        $"Buổi này đã có {attCnt} học viên điểm danh — không đổi được nhóm áp dụng. Hãy hủy buổi này và tạo buổi mới cho nhóm cần đổi.");
+            }
 
             await _db.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_TRAINING_SESSION
@@ -173,6 +193,7 @@ public class TrainingSessionService
                     END_TIME     = row.END_TIME,
                     TOPIC        = row.TOPIC,
                     LOCATION     = row.LOCATION,
+                    GROUP_ID     = row.GROUP_ID,
                     LOGIN_USER   = req.LOGIN_USER,
                 });
                 result.INSERTED++;
@@ -544,14 +565,6 @@ public class TrainingSessionService
     // ═══════════════════════════════════════════════════════════════
     //  Helpers
     // ═══════════════════════════════════════════════════════════════
-
-    private async Task<string?> GetStatusAsync(int sessionId)
-    {
-        return (await _db.ExecuteQueryAsync(
-            "SELECT STATUS FROM HRMS.HR_TRAINING_SESSION WHERE ID = :ID",
-            r => r["STATUS"]?.ToString(),
-            new OracleParameter("ID", sessionId))).FirstOrDefault();
-    }
 
     // HHMM → DateTime absolute cho SESSION_DATE
     private static (DateTime start, DateTime end) BuildSessionWindow(SessionModel s)

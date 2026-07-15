@@ -369,7 +369,7 @@ public class TrainingAdminController : BaseController
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Sessions");
-        string[] headers = { "SESSION_NO", "SESSION_DATE (yyyy-MM-dd)", "START_TIME (HHMM)", "END_TIME (HHMM)", "TOPIC", "LOCATION" };
+        string[] headers = { "SESSION_NO", "SESSION_DATE (yyyy-MM-dd)", "NHOM (tên nhóm, để trống = buổi chung)", "START_TIME (HHMM)", "END_TIME (HHMM)", "TOPIC", "LOCATION" };
         for (int i = 0; i < headers.Length; i++)
         {
             var c = ws.Cell(1, i + 1);
@@ -381,18 +381,27 @@ public class TrainingAdminController : BaseController
 
         ws.Cell(2, 1).Value = 1;
         ws.Cell(2, 2).Value = DateTime.Today.ToString("yyyy-MM-dd");
-        ws.Cell(2, 3).Value = "0800";
-        ws.Cell(2, 4).Value = "1130";
-        ws.Cell(2, 5).Value = "Giới thiệu tổng quan";
-        ws.Cell(2, 6).Value = "Hội trường A";
-        ws.Range(2, 3, 2, 4).Style.NumberFormat.Format = "@";   // giữ dạng text, tránh Excel tự bỏ số 0 đầu
+        ws.Cell(2, 3).Value = "";
+        ws.Cell(2, 4).Value = "0800";
+        ws.Cell(2, 5).Value = "1130";
+        ws.Cell(2, 6).Value = "Giới thiệu tổng quan";
+        ws.Cell(2, 7).Value = "Hội trường A";
+        ws.Cell(3, 1).Value = 2;
+        ws.Cell(3, 2).Value = DateTime.Today.ToString("yyyy-MM-dd");
+        ws.Cell(3, 3).Value = "Nhóm 1";
+        ws.Cell(3, 4).Value = "1300";
+        ws.Cell(3, 5).Value = "1430";
+        ws.Cell(3, 6).Value = "Thực hành";
+        ws.Cell(3, 7).Value = "Xưởng A";
+        ws.Range(2, 4, 3, 5).Style.NumberFormat.Format = "@";   // giữ dạng text, tránh Excel tự bỏ số 0 đầu
 
-        ws.Cell(4, 1).Value = "* SESSION_NO: số buổi, không trùng trong cùng 1 lớp.";
-        ws.Cell(5, 1).Value = "* SESSION_DATE: định dạng yyyy-MM-dd (VD 2026-08-01).";
-        ws.Cell(6, 1).Value = "* START_TIME/END_TIME: 4 chữ số HHMM (VD 0800, 1130) — nên định dạng ô là Text để không bị Excel tự bỏ số 0 đầu.";
-        ws.Cell(7, 1).Value = "* TOPIC, LOCATION: có thể để trống.";
-        ws.Range(4, 1, 7, 1).Style.Font.Italic = true;
-        ws.Range(4, 1, 7, 1).Style.Font.FontColor = XLColor.Gray;
+        ws.Cell(5, 1).Value = "* SESSION_NO: số buổi, không trùng trong cùng 1 lớp.";
+        ws.Cell(6, 1).Value = "* SESSION_DATE: định dạng yyyy-MM-dd (VD 2026-08-01).";
+        ws.Cell(7, 1).Value = "* NHOM: để trống = buổi chung cả lớp. Nếu lớp có chia nhóm (VD Nhóm 1, Nhóm 2...), nhập đúng tên nhóm đã tạo trong lớp — buổi đó chỉ áp dụng cho nhóm này (nhiều nhóm có thể học cùng ngày khác giờ).";
+        ws.Cell(8, 1).Value = "* START_TIME/END_TIME: 4 chữ số HHMM (VD 0800, 1130) — nên định dạng ô là Text để không bị Excel tự bỏ số 0 đầu.";
+        ws.Cell(9, 1).Value = "* TOPIC, LOCATION: có thể để trống.";
+        ws.Range(5, 1, 9, 1).Style.Font.Italic = true;
+        ws.Range(5, 1, 9, 1).Style.Font.FontColor = XLColor.Gray;
 
         ws.Columns().AdjustToContents();
 
@@ -410,7 +419,14 @@ public class TrainingAdminController : BaseController
         if (file == null || file.Length == 0)
             return Json(new { success = false, message = "Vui lòng chọn file Excel" });
 
+        // Resolve tên nhóm (cột NHOM) sang GROUP_ID — cần DS nhóm hiện có của Class.
+        var groupsRes = await _training.GetFromApiAsync<SimpleGroupListResponse>($"TrainingAdmin/class/{classId}/groups");
+        var groupMap = (groupsRes?.data ?? new())
+            .GroupBy(g => g.GROUP_NAME.Trim().ToUpperInvariant())
+            .ToDictionary(g => g.Key, g => g.First().ID);
+
         var rows = new List<BulkImportSessionRow>();
+        var groupErrors = new List<string>();
         int skipped = 0;
 
         try
@@ -420,19 +436,33 @@ public class TrainingAdminController : BaseController
             var ws = wb.Worksheet(1);
             int lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
 
+            // Template cũ (trước khi thêm cột NHOM) có START_TIME ở cột 3 — nếu import sẽ đọc lệch
+            // hết các cột sau. Chặn sớm với message rõ ràng thay vì báo "không tìm thấy nhóm '0800'".
+            var header3 = ws.Cell(1, 3).GetString()?.Trim() ?? "";
+            if (header3.StartsWith("START_TIME", StringComparison.OrdinalIgnoreCase))
+                return Json(new { success = false, message = "File này dùng template cũ (chưa có cột NHOM). Vui lòng bấm 'Tải template' để lấy file mẫu mới rồi nhập lại." });
+
             for (int r = 2; r <= lastRow; r++)
             {
-                var noS   = ws.Cell(r, 1).GetString()?.Trim() ?? "";
-                var dateS = ws.Cell(r, 2).GetString()?.Trim() ?? "";
-                var start = NormalizeHHMM(ws.Cell(r, 3).GetString()?.Trim() ?? "");
-                var end   = NormalizeHHMM(ws.Cell(r, 4).GetString()?.Trim() ?? "");
-                var topic = ws.Cell(r, 5).GetString()?.Trim();
-                var loc   = ws.Cell(r, 6).GetString()?.Trim();
+                var noS      = ws.Cell(r, 1).GetString()?.Trim() ?? "";
+                var dateS    = ws.Cell(r, 2).GetString()?.Trim() ?? "";
+                var groupS   = ws.Cell(r, 3).GetString()?.Trim() ?? "";
+                var start    = NormalizeHHMM(ws.Cell(r, 4).GetString()?.Trim() ?? "");
+                var end      = NormalizeHHMM(ws.Cell(r, 5).GetString()?.Trim() ?? "");
+                var topic    = ws.Cell(r, 6).GetString()?.Trim();
+                var loc      = ws.Cell(r, 7).GetString()?.Trim();
 
                 if (string.IsNullOrEmpty(noS) || string.IsNullOrEmpty(dateS) || start.Length != 4 || end.Length != 4)
                 { skipped++; continue; }
                 if (!int.TryParse(noS, out var sessionNo)) { skipped++; continue; }
                 if (!DateTime.TryParse(dateS, out var date)) { skipped++; continue; }
+
+                int? groupId = null;
+                if (!string.IsNullOrEmpty(groupS))
+                {
+                    if (groupMap.TryGetValue(groupS.ToUpperInvariant(), out var gid)) groupId = gid;
+                    else { groupErrors.Add($"Dòng {r}: không tìm thấy nhóm '{groupS}' trong lớp — bỏ qua dòng này."); continue; }
+                }
 
                 rows.Add(new BulkImportSessionRow
                 {
@@ -442,6 +472,7 @@ public class TrainingAdminController : BaseController
                     END_TIME     = end,
                     TOPIC        = string.IsNullOrEmpty(topic) ? null : topic,
                     LOCATION     = string.IsNullOrEmpty(loc) ? null : loc,
+                    GROUP_ID     = groupId,
                 });
             }
         }
@@ -451,7 +482,11 @@ public class TrainingAdminController : BaseController
         }
 
         if (rows.Count == 0)
+        {
+            if (groupErrors.Count > 0)
+                return Json(new { success = false, message = "Không có dòng hợp lệ trong file:\n" + string.Join("\n", groupErrors) });
             return Json(new { success = false, message = "Không có dòng hợp lệ trong file" });
+        }
 
         var apiReq = new BulkImportSessionsRequest
         {
@@ -462,6 +497,26 @@ public class TrainingAdminController : BaseController
         var response = await _training.PostToApiAsync("TrainingAdmin/session/bulk-import", apiReq);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
+
+        // Gộp lỗi "không tìm thấy nhóm" (phát hiện lúc parse ở HR_web) vào ERRORS trả về từ API.
+        // API fail (không có data) → gộp vào message để lỗi nhóm không bị nuốt mất.
+        if (groupErrors.Count > 0)
+        {
+            var obj = Newtonsoft.Json.Linq.JObject.Parse(json);
+            if (obj["data"] is Newtonsoft.Json.Linq.JObject dataObj)
+            {
+                var errArr = dataObj["ERRORS"] as Newtonsoft.Json.Linq.JArray ?? new Newtonsoft.Json.Linq.JArray();
+                foreach (var e in groupErrors) errArr.Add(e);
+                dataObj["ERRORS"] = errArr;
+            }
+            else
+            {
+                var msg = obj["message"]?.ToString() ?? "";
+                obj["message"] = (msg + "\n" + string.Join("\n", groupErrors)).Trim();
+            }
+            return Content(obj.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+        }
+
         return Content(json, "application/json");
     }
 
@@ -513,6 +568,131 @@ public class TrainingAdminController : BaseController
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");
+    }
+
+    // GET /TrainingAdmin/StudentImportTemplate — file Excel mẫu nhập DS học viên (+ nhóm)
+    [HttpGet]
+    public IActionResult StudentImportTemplate()
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Students");
+        WriteHeader(ws, 1, new[] { "EMPCD (mã nhân viên)", "NHOM (tên nhóm, để trống = chưa chia)" });
+
+        ws.Cell(2, 1).Value = "18042301";
+        ws.Cell(2, 2).Value = "Nhóm 1";
+        ws.Cell(3, 1).Value = "25081801";
+        ws.Cell(3, 2).Value = "";
+        ws.Column(1).Style.NumberFormat.Format = "@";   // EMPCD giữ dạng text, không mất số 0 đầu
+
+        ws.Cell(5, 1).Value = "* EMPCD: mã nhân viên, mỗi dòng 1 người. Trùng mã → lấy dòng cuối.";
+        ws.Cell(6, 1).Value = "* NHOM: tên nhóm học. Nhóm chưa có trong lớp → hệ thống TỰ TẠO nhóm mới rồi gán vào. Để trống = chưa chia nhóm.";
+        ws.Cell(7, 1).Value = "* Học viên đã có trong lớp sẽ không bị thêm trùng (chỉ cập nhật nhóm nếu có).";
+        ws.Range(5, 1, 7, 1).Style.Font.Italic = true;
+        ws.Range(5, 1, 7, 1).Style.Font.FontColor = XLColor.Gray;
+
+        ws.Columns().AdjustToContents();
+        return BuildXlsx(wb, "Mau_DanhSachHocVien.xlsx");
+    }
+
+    // POST /TrainingAdmin/StudentImport — nhập DS học viên từ Excel: enroll + tự tạo nhóm thiếu + gán nhóm.
+    // Orchestrate 3 API sẵn có (enrollment/assign → class/group/save → enrollment/assign-group) —
+    // không atomic toàn cục nhưng từng bước idempotent (MERGE/PK) nên chạy lại file là bù được.
+    [HttpPost]
+    public async Task<IActionResult> StudentImport(IFormFile file, int classId)
+    {
+        if (file == null || file.Length == 0)
+            return Json(new { success = false, message = "Vui lòng chọn file Excel" });
+        var loginUser = CurrentUser?.EmpCd ?? "";
+
+        // Parse file: EMPCD | NHOM. Trùng EMPCD → dòng cuối thắng.
+        var byEmp = new Dictionary<string, string>();
+        try
+        {
+            using var stream = file.OpenReadStream();
+            using var wb = new XLWorkbook(stream);
+            var ws = wb.Worksheet(1);
+            int lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
+            for (int r = 2; r <= lastRow; r++)
+            {
+                var emp = ws.Cell(r, 1).GetString()?.Trim() ?? "";
+                var grp = ws.Cell(r, 2).GetString()?.Trim() ?? "";
+                if (string.IsNullOrEmpty(emp) || emp.StartsWith("*")) continue;   // bỏ dòng trống / ghi chú
+                byEmp[emp] = grp;
+            }
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "Lỗi đọc file: " + ex.Message });
+        }
+        if (byEmp.Count == 0)
+            return Json(new { success = false, message = "Không có dòng hợp lệ trong file" });
+
+        // 1. Enroll toàn bộ (all-or-nothing phía API: vượt cap / lớp đã đóng → fail nguyên file)
+        var assignRes = await _training.PostToApiAsync("TrainingAdmin/enrollment/assign",
+            new { CLASS_ID = classId, EMPCDS = byEmp.Keys.ToList(), LOGIN_USER = loginUser });
+        if (assignRes == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var assignObj = Newtonsoft.Json.Linq.JObject.Parse(await assignRes.Content.ReadAsStringAsync());
+        if ((bool?)assignObj["success"] != true)
+            return Content(assignObj.ToString(Newtonsoft.Json.Formatting.None), "application/json");
+        var assignData = assignObj["data"];
+
+        // 2. Map nhóm hiện có của lớp
+        var groupsRes = await _training.GetFromApiAsync<SimpleGroupListResponse>($"TrainingAdmin/class/{classId}/groups");
+        var groupMap = (groupsRes?.data ?? new())
+            .GroupBy(g => g.GROUP_NAME.Trim().ToUpperInvariant())
+            .ToDictionary(g => g.Key, g => g.First().ID);
+
+        // 3. Từng nhóm trong file: chưa có → tạo mới; rồi bulk gán các EMPCD của nhóm đó
+        var errors = new List<string>();
+        int groupsCreated = 0, groupAssigned = 0;
+        var buckets = byEmp.Where(kv => !string.IsNullOrEmpty(kv.Value))
+                           .GroupBy(kv => kv.Value.ToUpperInvariant());
+        foreach (var bucket in buckets)
+        {
+            var displayName = bucket.First().Value.Trim();
+            if (!groupMap.TryGetValue(bucket.Key, out var gid))
+            {
+                var saveRes = await _training.PostToApiAsync("TrainingAdmin/class/group/save",
+                    new { CLASS_ID = classId, GROUP_NAME = displayName, LOGIN_USER = loginUser });
+                var saveObj = saveRes == null ? null
+                    : Newtonsoft.Json.Linq.JObject.Parse(await saveRes.Content.ReadAsStringAsync());
+                if ((bool?)saveObj?["success"] == true && saveObj["data"]?["id"] != null)
+                {
+                    gid = (int)saveObj["data"]!["id"]!;
+                    groupMap[bucket.Key] = gid;
+                    groupsCreated++;
+                }
+                else
+                {
+                    errors.Add($"Không tạo được nhóm '{displayName}': {saveObj?["message"]?.ToString() ?? "lỗi kết nối"}");
+                    continue;
+                }
+            }
+
+            var gaRes = await _training.PostToApiAsync("TrainingAdmin/enrollment/assign-group",
+                new { CLASS_ID = classId, GROUP_ID = gid, EMPCDS = bucket.Select(kv => kv.Key).ToList(), LOGIN_USER = loginUser });
+            var gaObj = gaRes == null ? null
+                : Newtonsoft.Json.Linq.JObject.Parse(await gaRes.Content.ReadAsStringAsync());
+            if ((bool?)gaObj?["success"] == true)
+                groupAssigned += (int?)gaObj["data"]?["updated"] ?? 0;
+            else
+                errors.Add($"Gán nhóm '{displayName}' lỗi: {gaObj?["message"]?.ToString() ?? "lỗi kết nối"}");
+        }
+
+        return Json(new
+        {
+            success = true,
+            data = new
+            {
+                NEW_INSERTED    = assignData?["NEW_INSERTED"],
+                UPGRADED        = assignData?["UPGRADED"],
+                SKIPPED_EXISTED = assignData?["SKIPPED_EXISTED"],
+                SKIPPED_DROPPED = assignData?["SKIPPED_DROPPED"],
+                GROUPS_CREATED  = groupsCreated,
+                GROUP_ASSIGNED  = groupAssigned,
+                ERRORS          = errors,
+            }
+        });
     }
 
     [HttpPost]
@@ -675,6 +855,17 @@ public class TrainingAdminController : BaseController
         return Content(json, "application/json");
     }
 
+    // POST /TrainingAdmin/FinalizeClass — chốt kết quả lớp: compute attendance/điểm + cấp chứng chỉ (§7)
+    [HttpPost]
+    public async Task<IActionResult> FinalizeClass([FromBody] ChangeClassStatusRequest req)
+    {
+        var apiReq = new { CLASS_ID = req.ID, LOGIN_USER = CurrentUser?.EmpCd ?? "" };
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/finalize", apiReq);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
     [HttpPost]
     public async Task<IActionResult> ExpressCreate([FromBody] ExpressCreateRequest req)
     {
@@ -816,6 +1007,55 @@ public class TrainingAdminController : BaseController
         var res = await _training.GetFromApiAsync<object>($"TrainingAdmin/class/{classId}/enrollments", qs);
         return Json(res);
     }
+
+    // GET /TrainingAdmin/ExportEnrollments?classId=4&groupId=&search= — xuất DS học viên trong lớp
+    [HttpGet]
+    public async Task<IActionResult> ExportEnrollments(int classId, string? groupId = null, string? search = null)
+    {
+        var res = await _training.GetFromApiAsync<object>($"TrainingAdmin/class/{classId}/enrollments", "");
+        var list = (res as Newtonsoft.Json.Linq.JObject)?["data"] as Newtonsoft.Json.Linq.JArray
+                   ?? new Newtonsoft.Json.Linq.JArray();
+
+        var searchUp = (search ?? "").Trim().ToUpperInvariant();
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Học viên");
+        WriteHeader(ws, 1, new[] { "STT", "Mã NV", "Họ và tên", "Dept", "Line", "Work", "Tổ/Nhóm", "Nguồn", "Trạng thái" });
+
+        int row = 2;
+        foreach (var item in list)
+        {
+            var empcd = item["EMPCD"]?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(searchUp) && !empcd.ToUpperInvariant().Contains(searchUp)) continue;
+            if (!string.IsNullOrEmpty(groupId) && (item["GROUP_ID"]?.ToString() ?? "") != groupId) continue;
+
+            ws.Cell(row, 1).Value = row - 1;
+            ws.Cell(row, 2).Value = empcd;
+            ws.Cell(row, 3).Value = item["EMP_NAME"]?.ToString() ?? "";
+            ws.Cell(row, 4).Value = item["DEPTCD"]?.ToString() ?? "";
+            ws.Cell(row, 5).Value = item["LINECD"]?.ToString() ?? "";
+            ws.Cell(row, 6).Value = item["WORKCD"]?.ToString() ?? "";
+            ws.Cell(row, 7).Value = item["GROUP_NAME"]?.ToString() ?? "";
+            ws.Cell(row, 8).Value = item["SOURCE"]?.ToString() == "ASSIGNED" ? "Chỉ định" : "Tự đăng ký";
+            ws.Cell(row, 9).Value = StatusLabelVi(item["STATUS"]?.ToString());
+            row++;
+        }
+        ws.Range(1, 1, 1, 9).SetAutoFilter();
+        ws.Columns().AdjustToContents();
+
+        return BuildXlsx(wb, $"HocVien_Lop{classId}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+    }
+
+    private static string StatusLabelVi(string? status) => status switch
+    {
+        "PENDING_APPROVAL" => "Chờ duyệt",
+        "ENROLLED"         => "Đã tham gia",
+        "COMPLETED"        => "Hoàn thành",
+        "FAILED"           => "Không đạt",
+        "REJECTED"         => "Từ chối",
+        "DROPPED"          => "Đã loại",
+        _                  => status ?? ""
+    };
 
     // ─── Helpers ──────────────────────────────────────────────────
 

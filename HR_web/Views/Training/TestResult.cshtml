@@ -39,6 +39,12 @@
             loadTestResult();
         });
 
+        function escapeHtml(s) {
+            const div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        }
+
         function loadTestResult() {
             const wrap = document.getElementById('result-card');
             fetch(`${window.TRAINING_URLS.getTestResult}?id=${testId}&empcd=${empCd}`)
@@ -61,8 +67,8 @@
                     const isGradedVal = att.IS_GRADED ?? att.isGraded ?? att.is_graded;
                     const isGraded = isGradedVal === 1 || isGradedVal === true;
 
-                    // Set back link to Class Detail if test has class id
-                    const classIdVal = att.CLASS_ID || att.classId || att.class_id;
+                    // Set back link to Class Detail — CLASS_ID nằm ở data (API my-result), không phải attempt
+                    const classIdVal = data.CLASS_ID || att.CLASS_ID || att.classId || att.class_id;
                     if (classIdVal) {
                         document.getElementById('back-link').href = window.TRAINING_URLS.getClassDetail.replace('__ID__', classIdVal);
                     } else {
@@ -103,6 +109,33 @@
                     const maxScore = (att.MAX_SCORE !== null && att.MAX_SCORE !== undefined) ? att.MAX_SCORE : ((att.maxScore !== null && att.maxScore !== undefined) ? att.maxScore : '-');
                     const empcdVal = att.EMPCD || att.empcd || '';
 
+                    // Câu tự luận của chính mình: đề + bài làm + điểm & nhận xét GV (nếu đã chấm).
+                    // API chỉ trả câu TEXT — không có đáp án đúng nên không vi phạm quy chế.
+                    const essays = data.ESSAYS || data.essays || [];
+                    let essayHtml = '';
+                    if (essays.length > 0) {
+                        essayHtml = `
+                            <div class="text-start mb-4">
+                                <h6 class="fw-bold text-dark mb-3">Phần tự luận (${essays.length} câu)</h6>
+                                ${essays.map((e, i) => {
+                                    const graded = e.POINTS_AWARDED !== null && e.POINTS_AWARDED !== undefined;
+                                    const badge = graded
+                                        ? `<span class="badge bg-primary text-nowrap">${e.POINTS_AWARDED} / ${e.QUESTION_POINTS} điểm</span>`
+                                        : `<span class="badge bg-warning text-dark text-nowrap">Chờ chấm</span>`;
+                                    return `
+                                    <div class="card border p-3 mb-2" style="border-radius: 12px;">
+                                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                            <span class="fw-bold text-dark small">Câu ${i + 1}: ${escapeHtml(e.QUESTION_TEXT || '')}</span>
+                                            ${badge}
+                                        </div>
+                                        <div class="small text-muted mb-1">Bài làm của bạn:</div>
+                                        <div class="small text-dark bg-light rounded p-2 ${e.GRADER_COMMENT ? 'mb-2' : 'mb-0'}" style="white-space: pre-wrap;">${escapeHtml(e.ANSWER_TEXT || '(bỏ trống)')}</div>
+                                        ${e.GRADER_COMMENT ? `<div class="small"><span class="text-muted">Nhận xét của giáo viên:</span> <span class="fst-italic text-dark">${escapeHtml(e.GRADER_COMMENT)}</span></div>` : ''}
+                                    </div>`;
+                                }).join('')}
+                            </div>`;
+                    }
+
                     wrap.innerHTML = `
                         <div class="card-body text-center p-5">
                             <div class="mb-4">
@@ -132,8 +165,10 @@
                                     <span class="fs-4 fw-bold text-primary">${score} / ${maxScore} điểm</span>
                                 </div>
                             </div>
-                            
-                            <p class="small text-muted mb-0">Theo quy chế bảo mật đào tạo của công ty, đáp án chi tiết các câu hỏi sẽ không được hiển thị.</p>
+
+                            ${essayHtml}
+
+                            <p class="small text-muted mb-0">Theo quy chế bảo mật đào tạo của công ty, đáp án đúng của các câu hỏi sẽ không được hiển thị.</p>
                         </div>
                     `;
                 })

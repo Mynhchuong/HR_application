@@ -82,6 +82,13 @@ public class TrainingTeachController : BaseController
 
         ViewBag.EmpCd = empcd;
         ViewBag.TestId = id;
+
+        // Lấy CLASS_ID của test để nút "Quay về quản lý" trỏ đúng lớp (không phải cổng giảng dạy chung).
+        // API test/detail trả data = { test, questions } → CLASS_ID nằm trong data.test.
+        var testRes = await _training.GetFromApiAsync<object>("TrainingAdmin/test/detail", $"id={id}");
+        var classIdStr = ((testRes as Newtonsoft.Json.Linq.JObject)?["data"]?["test"]?["CLASS_ID"])?.ToString();
+        ViewBag.ClassId = int.TryParse(classIdStr, out var cid) ? cid : (int?)null;
+
         return View();
     }
 

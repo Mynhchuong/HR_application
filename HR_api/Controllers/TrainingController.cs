@@ -85,7 +85,9 @@ public class TrainingController : ControllerBase
         var teachers = await _class.GetTeachersAsync(id);
         var groups   = await _class.GetGroupsAsync(id);
         var materials = await _material.ListByClassAsync(id, empcd);
-        return Ok(new { success = true, data = new { cls, sessions, teachers, groups, materials } });
+        // Enrollment của chính người xem — FE dùng GROUP_ID/GROUP_NAME để hiện "nhóm của bạn + GV nhóm mình"
+        var myEnrollment = string.IsNullOrWhiteSpace(empcd) ? null : await _enroll.GetOneAsync(id, empcd);
+        return Ok(new { success = true, data = new { cls, sessions, teachers, groups, materials, myEnrollment } });
     }
 
     // POST /apiHR/Training/class/{id}/register — OPEN mode, NV tự đăng ký

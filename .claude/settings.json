@@ -3,7 +3,24 @@
     "allow": [
       "Bash(identify /Users/minhtruong/Documents/Project/HR_application/android/app/src/main/res/drawable/a_hoi.png)",
       "Bash(identify /Users/minhtruong/Documents/Project/HR_application/android/app/src/main/res/drawable/chi.png)",
-      "Bash(sips -g pixelWidth -g pixelHeight /Users/minhtruong/Documents/Project/HR_application/android/app/src/main/res/drawable/a_hoi.png /Users/minhtruong/Documents/Project/HR_application/android/app/src/main/res/drawable/chi.png)"
+      "Bash(sips -g pixelWidth -g pixelHeight /Users/minhtruong/Documents/Project/HR_application/android/app/src/main/res/drawable/a_hoi.png /Users/minhtruong/Documents/Project/HR_application/android/app/src/main/res/drawable/chi.png)",
+      "Bash(ASPNETCORE_ENVIRONMENT=Development dotnet run --no-build --urls http://localhost:5089)",
+      "Bash(ASPNETCORE_ENVIRONMENT=Development dotnet run --no-build --urls http://localhost:5050)",
+      "Bash(curl -s -o /dev/null -w \"API: %{http_code}\\\\n\" http://localhost:5089/apiHR/TrainingAdmin/course/list)",
+      "Bash(curl -s -o /dev/null -w \"WEB: %{http_code}\\\\n\" http://localhost:5050/)",
+      "Bash(curl -s -H 'X-Api-Key: ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9' http://localhost:5089/apiHR/TrainingAdmin/class/detail?id=1)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -H 'X-Api-Key: ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9' http://localhost:5089/apiHR/TrainingAdmin/test/detail?id=23)",
+      "Bash(curl -s -H 'X-Api-Key: ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9' http://localhost:5089/apiHR/TrainingTeach/test/23/pending-grade?empcd=24092522)",
+      "Bash(curl -s -X POST -H 'X-Api-Key: ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9' -H 'Content-Type: application/json' -d '{\"ID\":1,\"LOGIN_USER\":\"admin\"}' http://localhost:5089/apiHR/TrainingAdmin/class/close)",
+      "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)['data']['cls']['STATUS']\\)\")",
+      "Bash(curl -s -H 'X-Api-Key: __TRACKED_VAR__' http://localhost:5089/apiHR/TrainingAdmin/class/detail?id=1)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('API OK, class 1 status:', d['data']['cls']['STATUS']\\)\")",
+      "Bash(curl -s -H 'X-Api-Key: ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9' http://localhost:5089/apiHR/TrainingAdmin/report/attendance/1)",
+      "Bash(curl -s -o /dev/null -w \"HR_api  \\(5089\\): %{http_code}\\\\n\" http://localhost:5089/apiHR/TrainingAdmin/course/list)",
+      "Bash(curl -s -o /dev/null -w \"HR_web  \\(5050\\): %{http_code}\\\\n\" http://localhost:5050/)",
+      "Bash(lsof -nP -iTCP:5050 -iTCP:5089 -sTCP:LISTEN)",
+      "Bash(awk '{print $1, $2, $9}')"
     ]
   }
 }

@@ -27,9 +27,9 @@
         </div>
     </div>
 
-    <!-- Quick Navigation Cards -->
+    <!-- Quick Navigation Cards — panel "Bài kiểm tra" đã hiện sẵn bên phải nên không cần card anchor -->
     <div class="row mb-4">
-        <div class="col-6 col-md-3 mb-3">
+        <div class="col-6 col-md-4 mb-3">
             <a href="@Url.Action("Materials", "Training", new { id = classId })" class="card border-0 shadow-sm text-decoration-none h-100 p-3 text-center nav-feature-card">
                 <div class="feature-icon-wrapper bg-primary-soft text-primary mx-auto mb-2">
                     <span class="material-symbols-rounded">folder_open</span>
@@ -37,7 +37,7 @@
                 <h6 class="fw-bold text-dark mb-0">Tài liệu học tập</h6>
             </a>
         </div>
-        <div class="col-6 col-md-3 mb-3">
+        <div class="col-6 col-md-4 mb-3">
             <a href="@Url.Action("QA", "Training", new { id = classId })" class="card border-0 shadow-sm text-decoration-none h-100 p-3 text-center nav-feature-card">
                 <div class="feature-icon-wrapper bg-success-soft text-success mx-auto mb-2">
                     <span class="material-symbols-rounded">forum</span>
@@ -45,20 +45,12 @@
                 <h6 class="fw-bold text-dark mb-0">Hỏi đáp Q&A</h6>
             </a>
         </div>
-        <div class="col-6 col-md-3 mb-3">
+        <div class="col-6 col-md-4 mb-3">
             <a href="@Url.Action("Review", "Training", new { id = classId })" class="card border-0 shadow-sm text-decoration-none h-100 p-3 text-center nav-feature-card">
                 <div class="feature-icon-wrapper bg-warning-soft text-warning mx-auto mb-2">
                     <span class="material-symbols-rounded">rate_review</span>
                 </div>
                 <h6 class="fw-bold text-dark mb-0">Đánh giá & Khảo sát</h6>
-            </a>
-        </div>
-        <div class="col-6 col-md-3 mb-3">
-            <a href="#tests-section" class="card border-0 shadow-sm text-decoration-none h-100 p-3 text-center nav-feature-card">
-                <div class="feature-icon-wrapper bg-info-soft text-info mx-auto mb-2">
-                    <span class="material-symbols-rounded">quiz</span>
-                </div>
-                <h6 class="fw-bold text-dark mb-0">Bài kiểm tra</h6>
             </a>
         </div>
     </div>
@@ -195,7 +187,22 @@
         function renderHeader() {
             const hWrap = document.getElementById('class-header-container');
             const cls = classData.cls;
-            const teachers = classData.teachers.map(t => `<span class="vni-font">${t.EMP_NAME}</span> (${t.IS_PRIMARY ? 'Chính' : 'Trợ giảng'})`).join(', ');
+
+            // GV theo nhóm: chỉ hiện GV dạy cả lớp (GROUP_ID null) + GV phụ trách nhóm của mình.
+            // Chưa được chia nhóm → hiện tất cả kèm tên nhóm để biết ai dạy nhóm nào.
+            const myGroupId = classData.myEnrollment ? classData.myEnrollment.GROUP_ID : null;
+            const allTeachers = classData.teachers || [];
+            const visibleTeachers = myGroupId
+                ? allTeachers.filter(t => !t.GROUP_ID || t.GROUP_ID === myGroupId)
+                : allTeachers;
+            const teachers = visibleTeachers.map(t => {
+                const role = t.IS_PRIMARY ? 'Chính' : 'Trợ giảng';
+                const grp = t.GROUP_NAME ? ` – ${t.GROUP_NAME}` : '';
+                return `<span class="vni-font">${t.EMP_NAME}</span> (${role}${grp})`;
+            }).join(', ');
+            const myGroupLabel = classData.myEnrollment && classData.myEnrollment.GROUP_NAME
+                ? `<span class="badge bg-info-soft text-dark px-3 py-2 rounded-pill">Nhóm của bạn: ${classData.myEnrollment.GROUP_NAME}</span>`
+                : '';
             
             let badgeRegText = 'Chỉ định';
             let badgeRegClass = 'bg-dark';
@@ -215,6 +222,7 @@
                             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                                 <span class="badge bg-primary px-3 py-2 rounded-pill">${cls.CLASS_MODE === 'EXPRESS' ? 'Học nhanh' : 'Tiêu chuẩn'}</span>
                                 <span class="badge ${badgeRegClass} px-3 py-2 rounded-pill">Đăng ký: ${badgeRegText}</span>
+                                ${myGroupLabel}
                             </div>
                             <h3 class="fw-bold text-dark mb-1">${cls.COURSE_TITLE}</h3>
                             <h6 class="text-muted mb-3">Lớp: ${cls.CLASS_NAME} | Thời gian: ${startDt} - ${endDt}</h6>

@@ -44,7 +44,10 @@ public class TrainingCompletionService
                 COURSE_MODE = r["COURSE_MODE"]?.ToString() ?? "STANDARD",
             }, new OracleParameter("ID", req.CLASS_ID))).FirstOrDefault();
         if (meta == null) throw new InvalidOperationException("Không tìm thấy Class");
-        if (meta.ST != "COMPLETED")
+        // COMPLETED là trạng thái chuẩn để chốt. CLOSED vẫn cho chạy — recovery cho lớp lỡ bị đóng
+        // trước khi chốt (query học viên chỉ lấy STATUS='ENROLLED' nên lớp đã chốt xong mà chạy lại
+        // chỉ là no-op, không đè kết quả cũ).
+        if (meta.ST != "COMPLETED" && meta.ST != "CLOSED")
             throw new InvalidOperationException($"Class đang {meta.ST}, chỉ chốt được khi COMPLETED");
 
         // List học viên ENROLLED của Class

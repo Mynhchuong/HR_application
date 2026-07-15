@@ -50,6 +50,10 @@ public class ClassTeacherModel
     public string EMPCD { get; set; } = "";
     public string? EMP_NAME { get; set; }       // JOIN ECM100 for display
     public int    IS_PRIMARY { get; set; }
+    // NULL = dạy cả lớp (behavior cũ); có giá trị = phụ trách nhóm đó
+    // (học viên thấy GV nhóm mình, GV chấm bài nhóm mình — alter_teacher_group.sql 15/07/2026)
+    public int?   GROUP_ID { get; set; }
+    public string? GROUP_NAME { get; set; }
 }
 
 // Bảng HR_TRAINING_CLASS_GROUP (§5b)
@@ -111,6 +115,7 @@ public class AssignTeacherRequest
     public int    CLASS_ID { get; set; }
     public string EMPCD { get; set; } = "";
     public int    IS_PRIMARY { get; set; }
+    public int?   GROUP_ID { get; set; }        // NULL = dạy cả lớp; có giá trị = phụ trách nhóm đó
     public string LOGIN_USER { get; set; } = "";
 }
 

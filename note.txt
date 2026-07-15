@@ -1793,6 +1793,17 @@ CREATE TABLE HRMS.HR_TRAINING_CLASS_TEACHER (
 -- Index trên EMPCD — critical cho query "user X có phải teacher active không?"
 CREATE INDEX HRMS.IDX_TRCT_EMPCD ON HRMS.HR_TRAINING_CLASS_TEACHER (EMPCD) TABLESPACE HRMSD;
 
+-- GROUP_ID column (ADDED 15/07/2026 — ĐÃ CHẠY trên DB) — GV theo nhóm.
+-- NULL = dạy/quản lý CẢ LỚP (behavior cũ, mặc định cho data có sẵn).
+-- Có giá trị = chỉ phụ trách nhóm đó: học viên thấy đúng GV nhóm mình (Training/ClassDetail),
+-- GV chỉ thấy bài chấm của học viên nhóm mình (pending-grade filter), admin gán nhóm
+-- qua dropdown ở TrainingAdmin/ClassAssign. Script: HR_api/Scripts/alter_teacher_group.sql
+-- Ràng buộc code layer (§16): GROUP_ID phải thuộc group cùng CLASS_ID — validate trong
+-- TrainingClassService.AssignTeacherAsync (FK Oracle không check chéo được).
+ALTER TABLE HRMS.HR_TRAINING_CLASS_TEACHER ADD GROUP_ID NUMBER;
+ALTER TABLE HRMS.HR_TRAINING_CLASS_TEACHER ADD CONSTRAINT FK_TRCT_GROUP
+    FOREIGN KEY (GROUP_ID) REFERENCES HRMS.HR_TRAINING_CLASS_GROUP (ID);
+
 
 -- ============================================================
 -- 3b. HR_TRAINING_CLASS_GROUP — chia nhóm trong Class (§5b rules)

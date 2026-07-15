@@ -48,6 +48,10 @@ public class MyResultView
 {
     public AttemptModel? ATTEMPT { get; set; }
     public string? PASS_FAIL { get; set; }        // "PASS" | "FAIL" | null (không có PASS_SCORE)
+    public int?    CLASS_ID { get; set; }         // lớp của test — FE dùng cho nút "Trở lại chi tiết lớp học"
+    // Câu tự luận của chính học viên: đề + bài làm + điểm/nhận xét GV (POINTS_AWARDED null = chưa chấm).
+    // TEXT không có đáp án mẫu nên không vi phạm rule "không hiển đáp án đúng" §6.5.
+    public List<EssayItem> ESSAYS { get; set; } = new();
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -219,6 +219,8 @@ public class SaveSessionRequest
     public string END_TIME { get; set; } = "";
     public string? TOPIC { get; set; }
     public string? LOCATION { get; set; }
+    // NULL = buổi chung cả lớp; có giá trị = buổi riêng cho 1 nhóm (§5b).
+    public int? GROUP_ID { get; set; }
     public string LOGIN_USER { get; set; } = "";
 }
 
@@ -230,6 +232,7 @@ public class BulkImportSessionRow
     public string END_TIME { get; set; } = "";
     public string? TOPIC { get; set; }
     public string? LOCATION { get; set; }
+    public int? GROUP_ID { get; set; }
 }
 
 public class BulkImportSessionsRequest
@@ -239,11 +242,25 @@ public class BulkImportSessionsRequest
     public string LOGIN_USER { get; set; } = "";
 }
 
+// Dùng để resolve tên nhóm (Excel) sang GROUP_ID khi import buổi học.
+public class SimpleGroupListResponse
+{
+    public bool success { get; set; }
+    public List<SimpleGroupItem> data { get; set; } = new();
+}
+
+public class SimpleGroupItem
+{
+    public int ID { get; set; }
+    public string GROUP_NAME { get; set; } = "";
+}
+
 public class AssignTeacherRequest
 {
     public int CLASS_ID { get; set; }
     public string EMPCD { get; set; } = "";
     public int IS_PRIMARY { get; set; }
+    public int? GROUP_ID { get; set; }          // NULL = dạy cả lớp; có giá trị = phụ trách nhóm đó
     public string LOGIN_USER { get; set; } = "";
 }
 

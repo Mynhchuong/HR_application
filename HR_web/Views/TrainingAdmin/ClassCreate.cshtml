@@ -202,6 +202,7 @@
     <script>
         window.TRAINING_URLS = {
             getCourses: '@Url.Action("GetCourses", "TrainingAdmin")',
+            getCourseSessions: '@Url.Action("GetCourseSessions", "TrainingAdmin")',
             cloneFromCourse: '@Url.Action("CloneFromCourse", "TrainingAdmin")',
             saveClass: '@Url.Action("SaveClass", "TrainingAdmin")',
             classAssign: '@Url.Action("ClassAssign", "TrainingAdmin", new { id = "__ID__" })'
@@ -251,7 +252,7 @@
             // Get session templates by calling an API or fetching from selectedCourse templates
             // Since course templates are mapped in course data, we can preview sessions
             // Wait, we query course templates from server. Let's do a fetch!
-            fetch(`/TrainingAdmin/GetCourseSessions?courseId=${selectedCourse.ID}`)
+            fetch(`${window.TRAINING_URLS.getCourseSessions}?courseId=${selectedCourse.ID}`)
                 .then(r => r.json())
                 .then(res => {
                     const templates = res.data || [];

@@ -87,6 +87,9 @@ public class BulkImportSessionRow
     public string END_TIME { get; set; } = "";
     public string? TOPIC { get; set; }
     public string? LOCATION { get; set; }
+    // NULL = buổi chung cả lớp; có giá trị = buổi riêng cho nhóm đó (§5b). HR_web resolve tên
+    // nhóm trong Excel sang ID này trước khi gửi (đã validate thuộc đúng Class ở SaveAsync).
+    public int?   GROUP_ID { get; set; }
 }
 
 public class BulkImportSessionsRequest

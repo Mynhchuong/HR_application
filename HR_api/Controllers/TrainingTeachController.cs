@@ -357,7 +357,8 @@ public class TrainingTeachController : ControllerBase
             return StatusCode(403, new { success = false, message = "Bạn không có quyền chấm bài kiểm tra này" });
         }
 
-        var data = await _attempt.GetPendingGradeAsync(id);
+        // Truyền empcd để lọc theo nhóm GV phụ trách (GV nhóm chỉ thấy bài học viên nhóm mình)
+        var data = await _attempt.GetPendingGradeAsync(id, empcd);
         return Ok(new { success = true, data });
     }
 

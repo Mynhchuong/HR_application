@@ -182,6 +182,8 @@
         testGrade:        '@Url.Action("TestGrade",        "TrainingTeach", new { id = "__ID__" })',
         testPublish:      '@Url.Action("TestPublish",      "TrainingTeach")',
         testDelete:       '@Url.Action("TestDelete",       "TrainingTeach")',
+        testPreview:      '@Url.Action("TestPreview",      "TrainingTeach", new { id = "__ID__" })',
+        setFinalTest:     '@Url.Action("SetFinalTest",     "TrainingTeach")',
     };
     const empCd   = '@empCd';
     const classId = @classId;
@@ -366,7 +368,7 @@
                 </button>` : '';
 
             const previewBtn = `
-                <a href="/TrainingTeach/TestPreview/${t.ID}" target="_blank" class="btn btn-sm btn-outline-info test-action-btn" title="Xem thử đề thi">
+                <a href="${window.TRAINING_URLS.testPreview.replace('__ID__', t.ID)}" target="_blank" class="btn btn-sm btn-outline-info test-action-btn" title="Xem thử đề thi">
                     <span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle;">visibility</span>
                 </a>`;
 
@@ -490,7 +492,7 @@
 
     function setFinalTest(testId) {
         window.showConfirm('Bạn muốn đặt bài thi này làm Bài thi cuối khóa (Final Test) của lớp học? Học viên bắt buộc phải thi đạt bài này mới được chốt hoàn thành lớp học.', () => {
-            fetch('/TrainingTeach/SetFinalTest', {
+            fetch(window.TRAINING_URLS.setFinalTest, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ CLASS_ID: classId, TEST_ID: testId })

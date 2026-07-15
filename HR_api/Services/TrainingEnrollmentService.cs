@@ -58,6 +58,25 @@ public class TrainingEnrollmentService
             new OracleParameter("P_GROUP",  (object?)groupId ?? DBNull.Value));
     }
 
+    // 1 enrollment cụ thể — student class detail dùng để biết nhóm của chính mình (GV nhóm nào dạy mình)
+    public async Task<EnrollmentModel?> GetOneAsync(int classId, string empcd)
+    {
+        return (await _db.ExecuteQueryAsync(@"
+            SELECT E.CLASS_ID, E.EMPCD, EC.CNAME AS EMP_NAME,
+                   EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                   E.SOURCE, E.STATUS, E.DROP_REASON,
+                   E.GROUP_ID, G.GROUP_NAME,
+                   E.FINAL_SCORE, E.ATTENDANCE_PERCENT, E.IS_CERTIFIED, E.COMPLETION_DATE,
+                   E.INST_ID, E.INST_DT, E.UPDT_ID, E.UPDT_DT
+              FROM HRMS.HR_TRAINING_ENROLLMENT E
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = E.EMPCD
+              LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = E.GROUP_ID
+             WHERE E.CLASS_ID = :CID AND E.EMPCD = :EMP",
+            MapEnrollment,
+            new OracleParameter("CID", classId),
+            new OracleParameter("EMP", empcd))).FirstOrDefault();
+    }
+
     // ═══════════════════════════════════════════════════════════════
     //  BULK ASSIGN (mode ASSIGNED hoặc thêm vào Class ASSIGNED đã publish)
     //  Semantic: SOURCE='ASSIGNED', STATUS='ENROLLED' luôn. MERGE để idempotent.
@@ -74,6 +93,7 @@ public class TrainingEnrollmentService
 
         var distinctIn = req.EMPCDS.Distinct().ToList();
         var newAssigned = new List<string>();
+        var classStatus = "";
 
         await using var scope = await _db.BeginTransactionAsync();
         try
@@ -91,6 +111,7 @@ public class TrainingEnrollmentService
             if (meta == null) throw new InvalidOperationException("Không tìm thấy Class");
             if (meta.ST is "CLOSED" or "CANCELLED" or "COMPLETED")
                 throw new InvalidOperationException($"Class đang {meta.ST}, không assign được");
+            classStatus = meta.ST;
 
             // Cap check (nếu Class OPEN có MAX_STUDENTS): occupied + newInput - existingInput.
             // An toàn tuyệt đối vì Class row đã bị khoá FOR UPDATE ở trên.
@@ -164,7 +185,10 @@ public class TrainingEnrollmentService
 
         // Enqueue TRAINING_ASSIGNED cho các NV mới được assign / upgrade (§13) — làm SAU khi commit
         // thành công. Không cần chung transaction với enrollment (noti queue là hệ thống riêng, retry được).
-        if (newAssigned.Count > 0)
+        // CHỈ gửi ngay khi lớp ĐÃ chốt lịch (thêm người giữa chừng). Lớp còn DRAFT/OPEN_FOR_REGISTRATION:
+        // dồn đến khi HR bấm "Lên lịch học" (FinalizeEnrollmentAsync gửi toàn bộ ENROLLED có dedup) —
+        // tránh báo nhầm cho NV khi HR còn đang thêm/xóa nháp danh sách.
+        if (newAssigned.Count > 0 && classStatus is "SCHEDULED" or "IN_PROGRESS")
         {
             var ph = await BuildClassPlaceholdersAsync(req.CLASS_ID);
             await _noti.EnqueueBulkAsync("TRAINING_ASSIGNED", newAssigned, ph, classId: req.CLASS_ID);
@@ -395,8 +419,16 @@ public class TrainingEnrollmentService
             })),
             new OracleParameter("USR", req.LOGIN_USER));
 
-        var ph = await BuildClassPlaceholdersAsync(req.CLASS_ID);
-        await _noti.EnqueueAsync("TRAINING_ASSIGNED", req.EMPCD, ph, classId: req.CLASS_ID);
+        // Cùng rule với BulkAssign: lớp chưa chốt lịch thì không báo — FinalizeEnrollment sẽ gửi.
+        var st = (await _db.ExecuteQueryAsync(
+            "SELECT STATUS FROM HRMS.HR_TRAINING_CLASS WHERE ID = :CID",
+            r => r["STATUS"]?.ToString() ?? "",
+            new OracleParameter("CID", req.CLASS_ID))).FirstOrDefault();
+        if (st is "SCHEDULED" or "IN_PROGRESS")
+        {
+            var ph = await BuildClassPlaceholdersAsync(req.CLASS_ID);
+            await _noti.EnqueueAsync("TRAINING_ASSIGNED", req.EMPCD, ph, classId: req.CLASS_ID);
+        }
     }
 
     public async Task<int> AssignGroupAsync(AssignGroupRequest req)

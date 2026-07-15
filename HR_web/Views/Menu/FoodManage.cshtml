@@ -267,6 +267,8 @@
 </div>
 
 <script>
+const GET_FOOD_IMAGE_URL = '@Url.Action("GetFoodImage", "Image")';
+
 function dlFile(url) {
     const a = document.createElement('a');
     a.href = url;
@@ -419,7 +421,7 @@ function openModal(id = 0, name = '', type = '', active = 1, isImage = 'N') {
     document.getElementById('fType').classList.remove('is-invalid');
     const preview = document.getElementById('imgPreview');
     if (id && isImage === 'Y') {
-        preview.innerHTML = `<img src="/Image/GetFoodImage?fileName=${id}.jpg&v=${Date.now()}" style="height:80px;border-radius:8px;" onerror="this.style.display='none';" />`;
+        preview.innerHTML = `<img src="${GET_FOOD_IMAGE_URL}?fileName=${id}.jpg&v=${Date.now()}" style="height:80px;border-radius:8px;" onerror="this.style.display='none';" />`;
     } else {
         preview.innerHTML = '';
     }

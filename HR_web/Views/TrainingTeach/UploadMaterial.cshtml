@@ -61,7 +61,8 @@
     <script>
         window.TRAINING_URLS = {
             saveMaterial: '@Url.Action("SaveMaterial", "TrainingTeach")',
-            classManage: '@Url.Action("ClassManage", "TrainingTeach", new { id = classId })'
+            classManage: '@Url.Action("ClassManage", "TrainingTeach", new { id = classId })',
+            uploadFile: '@Url.Action("UploadTrainingMaterial", "File")'
         };
         const empCd = '@empCd';
         const classId = @classId;
@@ -91,7 +92,7 @@
             formData.append('level', 'CLASS');
             formData.append('classId', classId);
 
-            fetch('/File/UploadTrainingMaterial', {
+            fetch(window.TRAINING_URLS.uploadFile, {
                 method: 'POST',
                 body: formData
             })

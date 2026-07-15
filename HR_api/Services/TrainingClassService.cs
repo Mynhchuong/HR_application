@@ -386,6 +386,17 @@ public class TrainingClassService
             ?? throw new InvalidOperationException("Không tìm thấy Class");
         if (current != "COMPLETED")
             throw new InvalidOperationException($"Chỉ close từ COMPLETED, hiện đang {current}");
+
+        // CLOSED = frozen — đóng khi chưa chốt kết quả sẽ làm học viên kẹt không có chứng chỉ
+        // (finalize yêu cầu COMPLETED). Còn row ENROLLED nghĩa là chưa chạy finalize.
+        var unfinalized = (await _db.ExecuteQueryAsync(
+            "SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID AND STATUS = 'ENROLLED'",
+            r => Convert.ToInt32(r["CNT"]),
+            new OracleParameter("CID", classId))).First();
+        if (unfinalized > 0)
+            throw new InvalidOperationException(
+                $"Còn {unfinalized} học viên chưa được chốt kết quả — bấm 'Chốt kết quả & cấp chứng chỉ' trước khi đóng lớp");
+
         await SetStatusAsync(classId, "CLOSED", actor);
     }
 
@@ -396,9 +407,11 @@ public class TrainingClassService
     public async Task<List<ClassTeacherModel>> GetTeachersAsync(int classId)
     {
         const string sql = @"
-            SELECT T.CLASS_ID, T.EMPCD, T.IS_PRIMARY, EC.CNAME AS EMP_NAME
+            SELECT T.CLASS_ID, T.EMPCD, T.IS_PRIMARY, EC.CNAME AS EMP_NAME,
+                   T.GROUP_ID, G.GROUP_NAME
               FROM HRMS.HR_TRAINING_CLASS_TEACHER T
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = T.EMPCD
+              LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = T.GROUP_ID
              WHERE T.CLASS_ID = :CID
              ORDER BY T.IS_PRIMARY DESC, T.EMPCD";
         return await _db.ExecuteQueryAsync(sql, r => new ClassTeacherModel
@@ -407,6 +420,8 @@ public class TrainingClassService
             EMPCD      = r["EMPCD"]?.ToString() ?? "",
             EMP_NAME   = r["EMP_NAME"] as string,
             IS_PRIMARY = Convert.ToInt32(r["IS_PRIMARY"]),
+            GROUP_ID   = r["GROUP_ID"] is DBNull ? null : Convert.ToInt32(r["GROUP_ID"]),
+            GROUP_NAME = r["GROUP_NAME"] as string,
         }, new OracleParameter("CID", classId));
     }
 
@@ -414,6 +429,17 @@ public class TrainingClassService
     {
         if (string.IsNullOrWhiteSpace(req.EMPCD))
             throw new InvalidOperationException("EMPCD không được để trống");
+
+        // Verify GROUP_ID (nếu có) thuộc Class (§16 — FK không check chéo được)
+        if (req.GROUP_ID.HasValue)
+        {
+            var ok = (await _db.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_CLASS_GROUP WHERE ID = :GID AND CLASS_ID = :CID",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("GID", req.GROUP_ID.Value),
+                new OracleParameter("CID", req.CLASS_ID))).First();
+            if (ok == 0) throw new InvalidOperationException("Group không thuộc Class này");
+        }
 
         // Nếu IS_PRIMARY=1 → clear PRIMARY hiện tại (Class chỉ 1 primary teacher)
         if (req.IS_PRIMARY == 1)
@@ -425,19 +451,20 @@ public class TrainingClassService
                 new OracleParameter("CID", req.CLASS_ID));
         }
 
-        // Upsert (Oracle 10 MERGE)
+        // Upsert (Oracle 10 MERGE) — GROUP_ID NULL = dạy cả lớp
         await _db.ExecuteNonQueryAsync(@"
             MERGE INTO HRMS.HR_TRAINING_CLASS_TEACHER T
             USING (SELECT :CID AS CID, :EMP AS EMP FROM DUAL) S
                ON (T.CLASS_ID = S.CID AND T.EMPCD = S.EMP)
             WHEN MATCHED THEN
-              UPDATE SET IS_PRIMARY = :PRI
+              UPDATE SET IS_PRIMARY = :PRI, GROUP_ID = :GID
             WHEN NOT MATCHED THEN
-              INSERT (CLASS_ID, EMPCD, IS_PRIMARY, INST_ID)
-              VALUES (S.CID, S.EMP, :PRI, :USR)",
+              INSERT (CLASS_ID, EMPCD, IS_PRIMARY, GROUP_ID, INST_ID)
+              VALUES (S.CID, S.EMP, :PRI, :GID, :USR)",
             new OracleParameter("CID", req.CLASS_ID),
             new OracleParameter("EMP", req.EMPCD),
             new OracleParameter("PRI", req.IS_PRIMARY),
+            new OracleParameter("GID", (object?)req.GROUP_ID ?? DBNull.Value),
             new OracleParameter("USR", req.LOGIN_USER));
     }
 
@@ -1157,47 +1184,107 @@ public class TrainingClassService
             new OracleParameter("ID", req.ID));
     }
 
-    // Chia đều DS ENROLLED (SOURCE-agnostic) chưa gán group vào N group input (round-robin theo EMPCD).
+    // Chia đều DS ENROLLED (SOURCE-agnostic) chưa gán group vào N group input.
+    // CÂN BẰNG theo số người ĐANG có sẵn ở mỗi group (không round-robin mù theo index) — bug cũ:
+    // nếu 1 group đã có sẵn người gán tay (VD 10/28), round-robin mù theo i%N sẽ CHIA THÊM ĐỀU
+    // cho group đó y như group rỗng, làm lệch nặng hơn thay vì cân bằng lại. Giờ luôn ưu tiên gán
+    // vào group đang có ÍT người nhất tại thời điểm gán, nên kết quả cuối luôn cân bằng nhất có thể
+    // bất kể điểm xuất phát lệch cỡ nào.
     public async Task<int> AutoSplitGroupAsync(AutoSplitGroupRequest req)
     {
-        if (req.GROUP_IDS == null || req.GROUP_IDS.Count == 0)
+        // Dedupe — UI gửi trùng ID (double-click...) sẽ làm ToDictionary bên dưới crash ArgumentException.
+        var groupIds = req.GROUP_IDS?.Distinct().ToList() ?? new();
+        if (groupIds.Count == 0)
             throw new InvalidOperationException("Cần ≥ 1 group để chia");
 
-        // Verify tất cả groups thuộc Class
-        var validGroups = await _db.ExecuteQueryAsync(
-            "SELECT ID FROM HRMS.HR_TRAINING_CLASS_GROUP WHERE CLASS_ID = :CID",
-            r => Convert.ToInt32(r["ID"]),
-            new OracleParameter("CID", req.CLASS_ID));
-        foreach (var gid in req.GROUP_IDS)
-            if (!validGroups.Contains(gid))
-                throw new InvalidOperationException($"Group ID {gid} không thuộc Class {req.CLASS_ID}");
-
-        // List học viên chưa gán group
-        var empcds = await _db.ExecuteQueryAsync(@"
-            SELECT EMPCD FROM HRMS.HR_TRAINING_ENROLLMENT
-             WHERE CLASS_ID = :CID
-               AND STATUS = 'ENROLLED'
-               AND GROUP_ID IS NULL
-             ORDER BY EMPCD",
-            r => r["EMPCD"]?.ToString() ?? "",
-            new OracleParameter("CID", req.CLASS_ID));
-
-        // Round-robin gán
-        int updated = 0;
-        for (int i = 0; i < empcds.Count; i++)
+        // Toàn bộ đọc count + loop UPDATE chạy chung 1 transaction — all-or-nothing,
+        // và count không bị lệch bởi thao tác gán tay song song giữa chừng.
+        await using var scope = await _db.BeginTransactionAsync();
+        try
         {
-            var gid = req.GROUP_IDS[i % req.GROUP_IDS.Count];
-            await _db.ExecuteNonQueryAsync(@"
-                UPDATE HRMS.HR_TRAINING_ENROLLMENT
-                   SET GROUP_ID = :GID, UPDT_ID = :USR
-                 WHERE CLASS_ID = :CID AND EMPCD = :EMP",
-                new OracleParameter("GID", gid),
-                new OracleParameter("USR", req.LOGIN_USER),
-                new OracleParameter("CID", req.CLASS_ID),
-                new OracleParameter("EMP", empcds[i]));
-            updated++;
+            // Verify tất cả groups thuộc Class + lấy cap riêng từng group (§5b.1)
+            var groupInfos = await _db.ExecuteQueryAsync(scope,
+                "SELECT ID, MAX_STUDENTS FROM HRMS.HR_TRAINING_CLASS_GROUP WHERE CLASS_ID = :CID",
+                r => new
+                {
+                    ID  = Convert.ToInt32(r["ID"]),
+                    MAX = r["MAX_STUDENTS"] is DBNull ? (int?)null : Convert.ToInt32(r["MAX_STUDENTS"]),
+                },
+                new OracleParameter("CID", req.CLASS_ID));
+            var capMap = groupInfos.ToDictionary(g => g.ID, g => g.MAX);
+            foreach (var gid in groupIds)
+                if (!capMap.ContainsKey(gid))
+                    throw new InvalidOperationException($"Group ID {gid} không thuộc Class {req.CLASS_ID}");
+
+            // Đếm số người ENROLLED hiện có của từng group được chọn (điểm xuất phát để cân bằng).
+            var idList = string.Join(",", groupIds);
+            var currentCounts = await _db.ExecuteQueryAsync(scope, $@"
+                SELECT GROUP_ID, COUNT(*) CNT FROM HRMS.HR_TRAINING_ENROLLMENT
+                 WHERE CLASS_ID = :CID AND STATUS = 'ENROLLED' AND GROUP_ID IN ({idList})
+                 GROUP BY GROUP_ID",
+                r => new { GID = Convert.ToInt32(r["GROUP_ID"]), CNT = Convert.ToInt32(r["CNT"]) },
+                new OracleParameter("CID", req.CLASS_ID));
+
+            var countMap = groupIds.ToDictionary(g => g, g => 0);
+            foreach (var c in currentCounts) countMap[c.GID] = c.CNT;
+
+            // List học viên chưa gán group
+            var empcds = await _db.ExecuteQueryAsync(scope, @"
+                SELECT EMPCD FROM HRMS.HR_TRAINING_ENROLLMENT
+                 WHERE CLASS_ID = :CID
+                   AND STATUS = 'ENROLLED'
+                   AND GROUP_ID IS NULL
+                 ORDER BY EMPCD",
+                r => r["EMPCD"]?.ToString() ?? "",
+                new OracleParameter("CID", req.CLASS_ID));
+
+            // Check tổng chỗ trống trước khi chia (group MAX null = không giới hạn) —
+            // thiếu chỗ thì chặn luôn, không chia nửa chừng (all-or-nothing).
+            if (groupIds.All(g => capMap[g].HasValue))
+            {
+                var free = groupIds.Sum(g => Math.Max(0, capMap[g]!.Value - countMap[g]));
+                if (free < empcds.Count)
+                    throw new InvalidOperationException(
+                        $"Không đủ chỗ: còn {empcds.Count} học viên chưa gán nhưng các nhóm chỉ còn {free} chỗ trống. Tăng giới hạn nhóm hoặc tạo thêm nhóm.");
+            }
+
+            int updated = 0;
+            foreach (var empcd in empcds)
+            {
+                // Chỉ xét group còn chỗ (theo MAX_STUDENTS riêng); chọn group đang ít người nhất,
+                // hòa thì ưu tiên theo thứ tự groupIds truyền vào (OrderBy stable).
+                var targetGid = groupIds
+                    .Where(g => !capMap[g].HasValue || countMap[g] < capMap[g]!.Value)
+                    .OrderBy(g => countMap[g])
+                    .First();
+
+                // Guard GROUP_ID IS NULL + STATUS: nếu 1 HR khác vừa gán tay/đổi status học viên này
+                // song song thì bỏ qua (0 row), không ghi đè lựa chọn tay của họ.
+                var affected = await _db.ExecuteNonQueryAsync(scope, @"
+                    UPDATE HRMS.HR_TRAINING_ENROLLMENT
+                       SET GROUP_ID = :GID, UPDT_ID = :USR
+                     WHERE CLASS_ID = :CID AND EMPCD = :EMP
+                       AND STATUS = 'ENROLLED' AND GROUP_ID IS NULL",
+                    new OracleParameter("GID", targetGid),
+                    new OracleParameter("USR", req.LOGIN_USER),
+                    new OracleParameter("CID", req.CLASS_ID),
+                    new OracleParameter("EMP", empcd));
+
+                if (affected > 0)
+                {
+                    countMap[targetGid]++;
+                    updated++;
+                }
+            }
+
+            await scope.CommitAsync();
+            return updated;
         }
-        return updated;
+        catch
+        {
+            await scope.RollbackAsync();
+            throw;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════

@@ -116,7 +116,7 @@
                         <h5 class="fw-bold text-dark mt-3">Tất cả bài thi đã được chấm điểm hoàn chỉnh!</h5>
                         <p class="text-muted small">Không còn bài làm tự luận nào đang chờ giảng viên chấm điểm.</p>
                         <div class="mt-2">
-                             <a href="@Url.Action("MyClasses", "TrainingTeach")" class="btn btn-outline-success rounded-3 fw-bold px-4">Quay về cổng giảng dạy</a>
+                             <a href="@(ViewBag.ClassId != null ? Url.Action("ClassManage", "TrainingTeach", new { id = (int)ViewBag.ClassId }) : Url.Action("MyClasses", "TrainingTeach"))" class="btn btn-outline-success rounded-3 fw-bold px-4">Quay về quản lý</a>
                         </div>
                     </div>
                 `;

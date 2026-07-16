@@ -137,10 +137,15 @@ public class TrainingCompletionService
         decimal? score = null;
         if (finalTestId.HasValue)
         {
+            // Học viên có thể có nhiều lần thi (HR cấp thi lại) — lấy attempt TỐT NHẤT: đậu thắng
+            // rớt, điểm cao thắng điểm thấp, mới nhất thắng khi hoà.
             var attempt = (await _db.ExecuteQueryAsync(@"
-                SELECT SCORE, IS_PASS, IS_GRADED, STATUS
-                  FROM HRMS.HR_TRAINING_TEST_ATTEMPT
-                 WHERE TEST_ID = :TID AND EMPCD = :EMP",
+                SELECT * FROM (
+                    SELECT SCORE, IS_PASS, IS_GRADED, STATUS
+                      FROM HRMS.HR_TRAINING_TEST_ATTEMPT
+                     WHERE TEST_ID = :TID AND EMPCD = :EMP
+                     ORDER BY IS_PASS DESC NULLS LAST, SCORE DESC NULLS LAST, ATTEMPT_NO DESC
+                ) WHERE ROWNUM = 1",
                 r => new
                 {
                     SC = r["SCORE"]   is DBNull ? (decimal?)null : Convert.ToDecimal(r["SCORE"]),
@@ -197,9 +202,12 @@ public class TrainingCompletionService
         if (finalTestId.HasValue)
         {
             var attempt = (await _db.ExecuteQueryAsync(@"
-                SELECT SCORE, IS_PASS, IS_GRADED
-                  FROM HRMS.HR_TRAINING_TEST_ATTEMPT
-                 WHERE TEST_ID = :TID AND EMPCD = :EMP",
+                SELECT * FROM (
+                    SELECT SCORE, IS_PASS, IS_GRADED
+                      FROM HRMS.HR_TRAINING_TEST_ATTEMPT
+                     WHERE TEST_ID = :TID AND EMPCD = :EMP
+                     ORDER BY IS_PASS DESC NULLS LAST, SCORE DESC NULLS LAST, ATTEMPT_NO DESC
+                ) WHERE ROWNUM = 1",
                 r => new
                 {
                     SC = r["SCORE"]   is DBNull ? (decimal?)null : Convert.ToDecimal(r["SCORE"]),

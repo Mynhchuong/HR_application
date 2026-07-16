@@ -899,4 +899,13 @@ public partial class TrainingAdminController
         if (data == null) return Ok(new { success = false, message = "Không tìm thấy Test" });
         return Ok(new { success = true, data });
     }
+
+    // POST /apiHR/TrainingAdmin/test/retake-grant — HR cấp thêm 1 lượt thi
+    // (bận / lỗi kỹ thuật lúc thi / thi rớt) cho cả bài thi thường lẫn bài thi cuối khóa.
+    [HttpPost("test/retake-grant")]
+    public async Task<IActionResult> GrantRetake([FromBody] GrantRetakeRequest req)
+    {
+        var (ok, err) = await _attempt.GrantRetakeAsync(req);
+        return Ok(new { success = ok, message = err });
+    }
 }

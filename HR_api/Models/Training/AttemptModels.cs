@@ -7,6 +7,7 @@ public class AttemptModel
     public int    TEST_ID { get; set; }
     public string EMPCD { get; set; } = "";
     public string? EMP_NAME { get; set; }
+    public int    ATTEMPT_NO { get; set; } = 1;
     public string STATUS { get; set; } = "IN_PROGRESS"; // IN_PROGRESS | SUBMITTED | AUTO_SUBMITTED
     public DateTime START_DT { get; set; }
     public DateTime? SUBMIT_DT { get; set; }
@@ -79,6 +80,15 @@ public class SubmitAttemptRequest
 {
     public int    ATTEMPT_ID { get; set; }
     public string EMPCD { get; set; } = "";
+}
+
+// HR cấp thêm 1 lượt thi cho học viên (bận / lỗi kỹ thuật / thi rớt)
+public class GrantRetakeRequest
+{
+    public int     TEST_ID { get; set; }
+    public string  EMPCD { get; set; } = "";
+    public string? REASON { get; set; }
+    public string  LOGIN_USER { get; set; } = "";
 }
 
 // Teacher chấm 1 câu ESSAY (§6.4)

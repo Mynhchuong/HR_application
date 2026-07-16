@@ -244,7 +244,7 @@ public class TrainingTeachController : BaseController
     public async Task<IActionResult> SaveMaterial([FromBody] SaveMaterialRequest req)
     {
         req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
-        var response = await _training.PostToApiAsync("TrainingTeach/material/upload", req);
+        var response = await _training.PostToApiAsync("TrainingTeach/material/save", req);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");

@@ -232,20 +232,24 @@ public class TrainingReportService
         if (meta == null) return null;
 
         var attempts = await _db.ExecuteQueryAsync(@"
-            SELECT A.EMPCD, EC.CNAME EMP_NAME, A.SCORE, A.MAX_SCORE, A.IS_PASS, A.STATUS, A.SUBMIT_DT
+            SELECT A.EMPCD, EC.CNAME EMP_NAME, A.ATTEMPT_NO, A.SCORE, A.MAX_SCORE, A.IS_PASS, A.STATUS, A.SUBMIT_DT,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_RETAKE_GRANT G
+                     WHERE G.TEST_ID = A.TEST_ID AND G.EMPCD = A.EMPCD AND G.STATUS = 'PENDING') AS PENDING_GRANT_CNT
               FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = A.EMPCD
              WHERE A.TEST_ID = :TID
-             ORDER BY A.SCORE DESC NULLS LAST, A.EMPCD",
+             ORDER BY A.EMPCD, A.ATTEMPT_NO",
             r => new TestScoreItem
             {
-                EMPCD     = r["EMPCD"]?.ToString() ?? "",
-                EMP_NAME  = r["EMP_NAME"] as string,
-                SCORE     = r["SCORE"]     is DBNull ? null : Convert.ToDecimal(r["SCORE"]),
-                MAX_SCORE = r["MAX_SCORE"] is DBNull ? null : Convert.ToDecimal(r["MAX_SCORE"]),
-                IS_PASS   = r["IS_PASS"]   is DBNull ? null : Convert.ToInt32(r["IS_PASS"]),
-                STATUS    = r["STATUS"]?.ToString() ?? "",
-                SUBMIT_DT = r["SUBMIT_DT"] as DateTime?,
+                EMPCD      = r["EMPCD"]?.ToString() ?? "",
+                EMP_NAME   = r["EMP_NAME"] as string,
+                ATTEMPT_NO = Convert.ToInt32(r["ATTEMPT_NO"]),
+                SCORE      = r["SCORE"]     is DBNull ? null : Convert.ToDecimal(r["SCORE"]),
+                MAX_SCORE  = r["MAX_SCORE"] is DBNull ? null : Convert.ToDecimal(r["MAX_SCORE"]),
+                IS_PASS    = r["IS_PASS"]   is DBNull ? null : Convert.ToInt32(r["IS_PASS"]),
+                STATUS     = r["STATUS"]?.ToString() ?? "",
+                SUBMIT_DT  = r["SUBMIT_DT"] as DateTime?,
+                HAS_PENDING_GRANT = Convert.ToInt32(r["PENDING_GRANT_CNT"]) > 0,
             }, new OracleParameter("TID", testId));
 
         // Top 5 câu sai nhiều nhất — chỉ tính auto-grade (SINGLE/MULTI/YESNO/DROPDOWN)
@@ -274,14 +278,17 @@ public class TrainingReportService
             }, new OracleParameter("TID", testId));
 
         var scores = attempts.Where(a => a.SCORE.HasValue).Select(a => a.SCORE!.Value).ToList();
+        // Đếm ĐẬU/RỚT theo học viên duy nhất (không đếm trùng khi có nhiều lần thi do được cấp
+        // thi lại) — đậu nếu có ÍT NHẤT 1 lần thi IS_PASS=1 (điểm cao nhất tính).
+        var byStudent = attempts.GroupBy(a => a.EMPCD).ToList();
         return new ReportTestModel
         {
             TEST_ID      = meta.ID,
             TEST_TITLE   = meta.TITLE,
             PASS_SCORE   = meta.PASS,
             ATTEMPT_COUNT= attempts.Count,
-            PASS_COUNT   = attempts.Count(a => a.IS_PASS == 1),
-            FAIL_COUNT   = attempts.Count(a => a.IS_PASS == 0),
+            PASS_COUNT   = byStudent.Count(g => g.Any(a => a.IS_PASS == 1)),
+            FAIL_COUNT   = byStudent.Count(g => g.All(a => a.IS_PASS != 1) && g.Any(a => a.IS_PASS != null)),
             AVG_SCORE    = scores.Count > 0 ? Math.Round(scores.Average(), 2) : null,
             MAX_SCORE    = scores.Count > 0 ? scores.Max() : null,
             MIN_SCORE    = scores.Count > 0 ? scores.Min() : null,

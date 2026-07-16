@@ -98,7 +98,8 @@
             expClass: '@Url.Action("ExportClass", "TrainingAdmin")',
             expTest: '@Url.Action("ExportTest", "TrainingAdmin")',
             expSat: '@Url.Action("ExportSatisfaction", "TrainingAdmin")',
-            getClassTests: '@Url.Action("GetClassTests", "Training")'
+            getClassTests: '@Url.Action("GetClassTests", "Training")',
+            grantRetake: '@Url.Action("GrantRetake", "TrainingAdmin")'
         };
 
         const CLASS_ID = @classId;
@@ -291,14 +292,34 @@
                             <h6 class="fw-bold mb-3 text-dark">Bảng điểm thi học viên</h6>
                             <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                 <table class="table table-hover align-middle mb-0">
-                                    <thead><tr><th>Mã NV</th><th>Họ và tên</th><th>Điểm số</th><th>Kết quả</th><th>Ngày nộp</th></tr></thead>
-                                    <tbody>${d.SCORES.map(s => `<tr>
-                                        <td>${esc(s.EMPCD)}</td>
-                                        <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(s.EMP_NAME||'')}</td>
-                                        <td><strong>${s.SCORE == null ? '-' : s.SCORE}${s.MAX_SCORE ? '/' + s.MAX_SCORE : ''}</strong></td>
-                                        <td>${s.IS_PASS == 1 ? '<span class="badge bg-success-subtle text-success-emphasis">Đạt</span>' : s.IS_PASS == 0 ? '<span class="badge bg-danger-subtle text-danger-emphasis">Không đạt</span>' : '-'}</td>
-                                        <td class="text-muted small">${s.SUBMIT_DT ? new Date(s.SUBMIT_DT).toLocaleString('vi-VN') : '-'}</td>
-                                    </tr>`).join('')}</tbody>
+                                    <thead><tr><th>Mã NV</th><th>Họ và tên</th><th>Lượt</th><th>Điểm số</th><th>Kết quả</th><th>Ngày nộp</th><th class="text-end">Thao tác</th></tr></thead>
+                                    <tbody>${(() => {
+                                        // Nhóm theo học viên để biết dòng nào là lần thi MỚI NHẤT — chỉ dòng đó mới
+                                        // cho cấp thi lại (tránh cấp chồng khi đang xem lịch sử các lần thi cũ).
+                                        const maxAttemptByEmp = {};
+                                        d.SCORES.forEach(s => {
+                                            maxAttemptByEmp[s.EMPCD] = Math.max(maxAttemptByEmp[s.EMPCD] || 0, s.ATTEMPT_NO || 1);
+                                        });
+                                        return d.SCORES.map(s => {
+                                            const isLatest = (s.ATTEMPT_NO || 1) === maxAttemptByEmp[s.EMPCD];
+                                            const isFinished = s.STATUS === 'SUBMITTED' || s.STATUS === 'AUTO_SUBMITTED';
+                                            let action = '';
+                                            if (isLatest && isFinished) {
+                                                action = s.HAS_PENDING_GRANT
+                                                    ? '<span class="badge bg-info-subtle text-info-emphasis">Đã cấp - chờ thi</span>'
+                                                    : `<button onclick="grantRetake(${testId}, '${s.EMPCD}')" class="btn btn-xs btn-outline-primary fw-bold rounded-2">Cấp thi lại</button>`;
+                                            }
+                                            return `<tr>
+                                                <td>${esc(s.EMPCD)}</td>
+                                                <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(s.EMP_NAME||'')}</td>
+                                                <td>${s.ATTEMPT_NO || 1}</td>
+                                                <td><strong>${s.SCORE == null ? '-' : s.SCORE}${s.MAX_SCORE ? '/' + s.MAX_SCORE : ''}</strong></td>
+                                                <td>${s.IS_PASS == 1 ? '<span class="badge bg-success-subtle text-success-emphasis">Đạt</span>' : s.IS_PASS == 0 ? '<span class="badge bg-danger-subtle text-danger-emphasis">Không đạt</span>' : '-'}</td>
+                                                <td class="text-muted small">${s.SUBMIT_DT ? new Date(s.SUBMIT_DT).toLocaleString('vi-VN') : '-'}</td>
+                                                <td class="text-end">${action}</td>
+                                            </tr>`;
+                                        }).join('');
+                                    })()}</tbody>
                                 </table>
                             </div>
                         </div>
@@ -317,6 +338,28 @@
                     </div>
                 </div>
             `;
+        }
+
+        function grantRetake(testId, empcd) {
+            const reason = prompt('Lý do cấp thi lại (không bắt buộc — bận, lỗi kỹ thuật lúc thi, thi rớt...):', '');
+            if (reason === null) return;
+            window.showConfirm(`Cấp thêm 1 lượt thi cho học viên (${empcd})?`, () => {
+                fetch(window.TRAINING_URLS.grantRetake, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ TEST_ID: testId, EMPCD: empcd, REASON: reason })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.showToast('Đã cấp thêm lượt thi cho học viên!', 'success');
+                        loadTestReport();
+                    } else {
+                        window.showToast(res.message || 'Lỗi khi cấp thi lại.', 'error');
+                    }
+                })
+                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+            }, { title: 'Cấp thi lại', okText: 'Cấp thi lại', okClass: 'btn-primary', icon: 'replay', iconColor: '#0d6efd', iconBg: '#cfe2ff' });
         }
 
         async function loadSatisfactionReport() {

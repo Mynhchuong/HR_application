@@ -386,6 +386,15 @@ public class RevokeCertificateRequest
     public string LOGIN_USER { get; set; } = "";
 }
 
+// HR cấp thêm 1 lượt thi cho học viên (bận / lỗi kỹ thuật / thi rớt)
+public class GrantRetakeRequest
+{
+    public int     TEST_ID { get; set; }
+    public string  EMPCD { get; set; } = "";
+    public string? REASON { get; set; }
+    public string  LOGIN_USER { get; set; } = "";
+}
+
 // ── Clone & Express ─────────────────────────────────────────
 public class CloneFromCourseRequest
 {

@@ -50,7 +50,6 @@ public class TrainingAttemptService
         // mà deadline/auto-submit đều so bằng SYSDATE.
         var now = await GetDbNowAsync();
         if (test.AF.HasValue && now < test.AF.Value) return (null, "Chưa đến giờ làm bài");
-        if (test.AT.HasValue && now > test.AT.Value) return (null, "Đã hết hạn làm bài");
 
         // Verify student enrolled trong class của test
         if (test.CLASS_ID.HasValue)
@@ -63,19 +62,48 @@ public class TrainingAttemptService
             if (okEnroll == 0) return (null, "Bạn không thuộc lớp này");
         }
 
-        // Đã có attempt? Trả lại (idempotent).
+        // Đã có attempt đang làm dở? Trả lại (idempotent, resume).
         var existing = await GetAttemptByTestEmpAsync(req.TEST_ID, req.EMPCD);
-        if (existing != null) return (existing, null);
+        if (existing != null && existing.STATUS == "IN_PROGRESS") return (existing, null);
+
+        // Đã có lần thi kết thúc rồi, hoặc chưa từng thi nhưng cửa sổ AVAILABLE_TO đã đóng —
+        // chỉ làm bài tiếp được nếu HR đã cấp 1 lượt thi lại (HR_TRAINING_RETAKE_GRANT PENDING).
+        bool windowClosed = test.AT.HasValue && now > test.AT.Value;
+        bool needsGrant = existing != null || windowClosed;
+        bool usedGrant = false;
+
+        if (needsGrant)
+        {
+            var grantRows = await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_TRAINING_RETAKE_GRANT
+                   SET STATUS = 'USED', USED_DT = SYSDATE
+                 WHERE ID = (SELECT MIN(ID) FROM HRMS.HR_TRAINING_RETAKE_GRANT
+                              WHERE TEST_ID = :TID AND EMPCD = :EMP AND STATUS = 'PENDING')",
+                new OracleParameter("TID", req.TEST_ID),
+                new OracleParameter("EMP", req.EMPCD));
+
+            if (grantRows == 0)
+            {
+                // Không có lượt cấp thêm — giữ hành vi cũ (idempotent trả kết quả cũ, hoặc chặn).
+                if (existing != null) return (existing, null);
+                return (null, "Đã hết hạn làm bài");
+            }
+            usedGrant = true;
+        }
+
+        var nextAttemptNo = (existing?.ATTEMPT_NO ?? 0) + 1;
 
         // START_DT = SYSDATE, EFFECTIVE_DEADLINE = MIN(START + DURATION, AVAILABLE_TO) — tính hết
         // bằng giờ DB trong SQL, không dùng giờ app (từng bị START_DT > SUBMIT_DT do clock skew).
+        // Lượt thi nhờ grant thì bỏ qua AVAILABLE_TO — mục đích của grant là vượt cửa sổ đã đóng.
         try
         {
             const string sqlIns = @"
                 INSERT INTO HRMS.HR_TRAINING_TEST_ATTEMPT
-                    (TEST_ID, EMPCD, STATUS, START_DT, EFFECTIVE_DEADLINE, IP_ADDRESS, USER_AGENT)
-                VALUES (:TID, :EMP, 'IN_PROGRESS', SYSDATE,
-                        LEAST(SYSDATE + :DUR / 1440, NVL(:AT, SYSDATE + :DUR / 1440)),
+                    (TEST_ID, EMPCD, ATTEMPT_NO, STATUS, START_DT, EFFECTIVE_DEADLINE, IP_ADDRESS, USER_AGENT)
+                VALUES (:TID, :EMP, :ANO, 'IN_PROGRESS', SYSDATE,
+                        CASE WHEN :GRANTED = 1 THEN SYSDATE + :DUR / 1440
+                             ELSE LEAST(SYSDATE + :DUR / 1440, NVL(:AT, SYSDATE + :DUR / 1440)) END,
                         :IP, :UA)
                 RETURNING ID INTO :NEW_ID";
             var idParam = new OracleParameter("NEW_ID", OracleDbType.Int32)
@@ -85,6 +113,8 @@ public class TrainingAttemptService
             await _db.ExecuteNonQueryAsync(sqlIns,
                 new OracleParameter("TID", req.TEST_ID),
                 new OracleParameter("EMP", req.EMPCD),
+                new OracleParameter("ANO", nextAttemptNo),
+                new OracleParameter("GRANTED", usedGrant ? 1 : 0),
                 new OracleParameter("DUR", test.DUR),
                 new OracleParameter("AT",  (object?)test.AT ?? DBNull.Value),
                 new OracleParameter("IP",  (object?)req.IP_ADDRESS ?? DBNull.Value),
@@ -93,12 +123,42 @@ public class TrainingAttemptService
         }
         catch (OracleException ex) when (ex.Number == 1)
         {
-            // Race: request thứ 2 lọt qua GetAttempt → PK conflict. Trả row cũ.
+            // Race: request thứ 2 lọt qua GetAttempt → unique conflict. Trả row mới nhất hiện có.
             return (await GetAttemptByTestEmpAsync(req.TEST_ID, req.EMPCD), null);
         }
 
         var created = await GetAttemptByTestEmpAsync(req.TEST_ID, req.EMPCD);
         return (created, null);
+    }
+
+    // HR cấp thêm 1 lượt thi cho học viên (bận / lỗi kỹ thuật lúc thi / thi rớt).
+    // Áp dụng chung cho bài thi thường và bài thi cuối khóa — không phân biệt trong bảng attempt.
+    public async Task<(bool ok, string? error)> GrantRetakeAsync(GrantRetakeRequest req)
+    {
+        var test = (await _db.ExecuteQueryAsync(@"
+            SELECT TITLE, CLASS_ID FROM HRMS.HR_TRAINING_TEST WHERE ID = :ID",
+            r => new
+            {
+                TITLE    = r["TITLE"]?.ToString() ?? "",
+                CLASS_ID = r["CLASS_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["CLASS_ID"]),
+            }, new OracleParameter("ID", req.TEST_ID))).FirstOrDefault();
+        if (test == null) return (false, "Không tìm thấy test");
+
+        await _db.ExecuteNonQueryAsync(@"
+            INSERT INTO HRMS.HR_TRAINING_RETAKE_GRANT (TEST_ID, EMPCD, GRANTED_BY, REASON)
+            VALUES (:TID, :EMP, :GBY, :REASON)",
+            new OracleParameter("TID", req.TEST_ID),
+            new OracleParameter("EMP", req.EMPCD),
+            new OracleParameter("GBY", req.LOGIN_USER),
+            new OracleParameter("REASON", (object?)req.REASON ?? DBNull.Value));
+
+        if (_noti != null)
+        {
+            await _noti.EnqueueAsync("TRAINING_RETAKE_GRANTED", req.EMPCD,
+                new Dictionary<string, string> { ["testTitle"] = test.TITLE },
+                classId: test.CLASS_ID, testId: req.TEST_ID);
+        }
+        return (true, null);
     }
 
     // Giờ DB (SYSDATE) — nguồn giờ duy nhất cho mọi check deadline/window của attempt,
@@ -548,7 +608,7 @@ public class TrainingAttemptService
 
         // Attempts có ESSAY chưa chấm (IS_GRADED=0 + có row TEXT chưa POINTS_AWARDED)
         var attempts = await _db.ExecuteQueryAsync($@"
-            SELECT DISTINCT A.ID, A.TEST_ID, A.EMPCD, EC.CNAME EMP_NAME,
+            SELECT DISTINCT A.ID, A.TEST_ID, A.EMPCD, EC.CNAME EMP_NAME, A.ATTEMPT_NO,
                    A.STATUS, A.START_DT, A.SUBMIT_DT, A.EFFECTIVE_DEADLINE,
                    A.SCORE, A.MAX_SCORE, A.IS_PASS, A.IS_GRADED,
                    A.INST_DT, A.UPDT_DT
@@ -604,16 +664,21 @@ public class TrainingAttemptService
     //  Helpers
     // ═══════════════════════════════════════════════════════════════
 
+    // Lấy lần thi MỚI NHẤT (ATTEMPT_NO cao nhất) của 1 (test, học viên) — có thể có nhiều dòng
+    // lịch sử nếu đã được HR cấp thi lại, chỉ dòng mới nhất mới còn "active" cho luồng làm bài.
     private async Task<AttemptModel?> GetAttemptByTestEmpAsync(int testId, string empcd)
     {
         return (await _db.ExecuteQueryAsync(@"
-            SELECT A.ID, A.TEST_ID, A.EMPCD, EC.CNAME EMP_NAME,
-                   A.STATUS, A.START_DT, A.SUBMIT_DT, A.EFFECTIVE_DEADLINE,
-                   A.SCORE, A.MAX_SCORE, A.IS_PASS, A.IS_GRADED,
-                   A.INST_DT, A.UPDT_DT
-              FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
-              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = A.EMPCD
-             WHERE A.TEST_ID = :TID AND A.EMPCD = :EMP",
+            SELECT * FROM (
+                SELECT A.ID, A.TEST_ID, A.EMPCD, EC.CNAME EMP_NAME, A.ATTEMPT_NO,
+                       A.STATUS, A.START_DT, A.SUBMIT_DT, A.EFFECTIVE_DEADLINE,
+                       A.SCORE, A.MAX_SCORE, A.IS_PASS, A.IS_GRADED,
+                       A.INST_DT, A.UPDT_DT
+                  FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
+                  LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = A.EMPCD
+                 WHERE A.TEST_ID = :TID AND A.EMPCD = :EMP
+                 ORDER BY A.ATTEMPT_NO DESC
+            ) WHERE ROWNUM = 1",
             MapAttemptWithName,
             new OracleParameter("TID", testId),
             new OracleParameter("EMP", empcd))).FirstOrDefault();
@@ -622,7 +687,7 @@ public class TrainingAttemptService
     private async Task<AttemptModel?> GetAttemptByIdAsync(int attemptId)
     {
         return (await _db.ExecuteQueryAsync(@"
-            SELECT A.ID, A.TEST_ID, A.EMPCD, EC.CNAME EMP_NAME,
+            SELECT A.ID, A.TEST_ID, A.EMPCD, EC.CNAME EMP_NAME, A.ATTEMPT_NO,
                    A.STATUS, A.START_DT, A.SUBMIT_DT, A.EFFECTIVE_DEADLINE,
                    A.SCORE, A.MAX_SCORE, A.IS_PASS, A.IS_GRADED,
                    A.INST_DT, A.UPDT_DT
@@ -639,6 +704,7 @@ public class TrainingAttemptService
         TEST_ID            = Convert.ToInt32(r["TEST_ID"]),
         EMPCD              = r["EMPCD"]?.ToString() ?? "",
         EMP_NAME           = r["EMP_NAME"] as string,
+        ATTEMPT_NO         = Convert.ToInt32(r["ATTEMPT_NO"]),
         STATUS             = r["STATUS"]?.ToString() ?? "IN_PROGRESS",
         START_DT           = Convert.ToDateTime(r["START_DT"]),
         SUBMIT_DT          = r["SUBMIT_DT"] as DateTime?,

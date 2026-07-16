@@ -89,11 +89,13 @@ public class TestScoreItem
 {
     public string EMPCD { get; set; } = "";
     public string? EMP_NAME { get; set; }
+    public int    ATTEMPT_NO { get; set; } = 1;
     public decimal? SCORE { get; set; }
     public decimal? MAX_SCORE { get; set; }
     public int?   IS_PASS { get; set; }
     public string STATUS { get; set; } = "";
     public DateTime? SUBMIT_DT { get; set; }
+    public bool   HAS_PENDING_GRANT { get; set; }
 }
 
 public class TestWrongItem

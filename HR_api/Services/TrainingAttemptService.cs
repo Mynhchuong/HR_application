@@ -501,23 +501,53 @@ public class TrainingAttemptService
 
     public async Task<List<GradingItemModel>> GetPendingGradeAsync(int testId, string? teacherEmpcd = null)
     {
-        // GV phụ trách nhóm (CLASS_TEACHER.GROUP_ID có giá trị) → chỉ thấy bài học viên nhóm mình.
-        // GV dạy cả lớp (GROUP_ID NULL) hoặc HR/Admin (không có row teacher) → thấy toàn bộ.
-        int? teacherGroupId = null;
+        // GV phụ trách nhóm → chỉ thấy bài học viên các nhóm mình phụ trách (1 GV có thể NHIỀU nhóm
+        // — nhiều rows CLASS_TEACHER, 1 row/nhóm). GV dạy cả lớp (có row GROUP_ID NULL) hoặc
+        // HR/Admin (không có row teacher) → thấy toàn bộ.
+        var teacherGroupIds = new List<int>();
+        int? classId = null;
         if (!string.IsNullOrEmpty(teacherEmpcd))
         {
-            teacherGroupId = (await _db.ExecuteQueryAsync(@"
-                SELECT CT.GROUP_ID
+            var groupRows = await _db.ExecuteQueryAsync(@"
+                SELECT CT.GROUP_ID, T.CLASS_ID
                   FROM HRMS.HR_TRAINING_CLASS_TEACHER CT
                   JOIN HRMS.HR_TRAINING_TEST T ON T.CLASS_ID = CT.CLASS_ID
                  WHERE T.ID = :TID AND CT.EMPCD = :EMP",
-                r => r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
+                r => new
+                {
+                    GROUP_ID = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
+                    CLASS_ID = Convert.ToInt32(r["CLASS_ID"]),
+                },
                 new OracleParameter("TID", testId),
-                new OracleParameter("EMP", teacherEmpcd))).FirstOrDefault();
+                new OracleParameter("EMP", teacherEmpcd));
+            if (groupRows.Count > 0 && groupRows.All(g => g.GROUP_ID.HasValue))
+            {
+                teacherGroupIds = groupRows.Select(g => g.GROUP_ID!.Value).Distinct().ToList();
+                classId = groupRows[0].CLASS_ID;
+            }
+        }
+
+        // IN clause bind động theo số nhóm của GV (BindByName=true). Correlation với outer alias A
+        // PHẢI nằm ở WHERE của subquery, KHÔNG được đặt trong ON của JOIN (Oracle ORA-00904) —
+        // nên CLASS_ID lấy sẵn ở trên thay vì JOIN lại HR_TRAINING_TEST bên trong EXISTS.
+        var groupFilter = "";
+        var pars = new List<OracleParameter> { new("TID", testId) };
+        if (teacherGroupIds.Count > 0 && classId.HasValue)
+        {
+            var binds = teacherGroupIds.Select((_, i) => $":TG{i}").ToList();
+            for (int i = 0; i < teacherGroupIds.Count; i++)
+                pars.Add(new OracleParameter($"TG{i}", teacherGroupIds[i]));
+            pars.Add(new OracleParameter("GCID", classId.Value));
+            groupFilter = $@"
+               AND EXISTS (
+                    SELECT 1 FROM HRMS.HR_TRAINING_ENROLLMENT E
+                     WHERE E.CLASS_ID = :GCID
+                       AND E.EMPCD = A.EMPCD
+                       AND E.GROUP_ID IN ({string.Join(", ", binds)}))";
         }
 
         // Attempts có ESSAY chưa chấm (IS_GRADED=0 + có row TEXT chưa POINTS_AWARDED)
-        var attempts = await _db.ExecuteQueryAsync(@"
+        var attempts = await _db.ExecuteQueryAsync($@"
             SELECT DISTINCT A.ID, A.TEST_ID, A.EMPCD, EC.CNAME EMP_NAME,
                    A.STATUS, A.START_DT, A.SUBMIT_DT, A.EFFECTIVE_DEADLINE,
                    A.SCORE, A.MAX_SCORE, A.IS_PASS, A.IS_GRADED,
@@ -530,17 +560,10 @@ public class TrainingAttemptService
                AND A.STATUS IN ('SUBMITTED','AUTO_SUBMITTED')
                AND A.IS_GRADED = 0
                AND Q.QUESTION_TYPE = 'TEXT'
-               AND AN.POINTS_AWARDED IS NULL
-               AND (:TGID IS NULL OR EXISTS (
-                    SELECT 1 FROM HRMS.HR_TRAINING_ENROLLMENT E
-                      JOIN HRMS.HR_TRAINING_TEST T2 ON T2.ID = A.TEST_ID
-                     WHERE E.CLASS_ID = T2.CLASS_ID
-                       AND E.EMPCD = A.EMPCD
-                       AND E.GROUP_ID = :TGID))
+               AND AN.POINTS_AWARDED IS NULL{groupFilter}
              ORDER BY A.SUBMIT_DT",
             r => MapAttemptWithName(r),
-            new OracleParameter("TID", testId),
-            new OracleParameter("TGID", (object?)teacherGroupId ?? DBNull.Value));
+            pars.ToArray());
 
         var result = new List<GradingItemModel>();
         foreach (var att in attempts)

@@ -5,32 +5,33 @@
     var classId = ViewBag.ClassId;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <div class="mb-3">
-        <a href="@Url.Action("ClassDetail", "Training", new { id = ViewBag.ClassId })" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
+<div class="container-fluid py-4 px-3 px-md-4" style="font-family: 'Outfit', sans-serif;">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <a href="@Url.Action("ClassDetail", "Training", new { id = ViewBag.ClassId })" class="btn btn-sm btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1 fw-bold">
             <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            Trở lại chi tiết lớp học
+            <span class="d-none d-sm-inline">Quay về chi tiết lớp học</span>
+            <span class="d-inline d-sm-none">Quay lại</span>
         </a>
+        <!-- Breadcrumbs (ẩn trên mobile để đỡ rối, đã có nút Quay lại) -->
+        <nav aria-label="breadcrumb" class="d-none d-md-block mb-0">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "Training")" class="text-decoration-none">Đào tạo của tôi</a></li>
+                <li class="breadcrumb-item"><a id="class-link" href="@Url.Action("ClassDetail", "Training", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Tài liệu học tập</li>
+            </ol>
+        </nav>
     </div>
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "Training")" class="text-decoration-none">Đào tạo của tôi</a></li>
-            <li class="breadcrumb-item"><a id="class-link" href="@Url.Action("ClassDetail", "Training", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Tài liệu học tập</li>
-        </ol>
-    </nav>
 
     <div class="row">
         <div class="col-12 col-lg-10 mx-auto">
             <!-- Header Card -->
-            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px; background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%); text-white">
+            <div class="card border-0 shadow-sm p-3 p-md-4 mb-4" style="border-radius: 16px; background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%); text-white">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="bg-white bg-opacity-20 text-white rounded-3 p-3 d-flex align-items-center justify-content-center">
-                        <span class="material-symbols-rounded" style="font-size: 2.5rem;">folder_open</span>
+                    <div class="bg-white bg-opacity-20 text-white rounded-3 p-2 p-md-3 d-flex align-items-center justify-content-center flex-shrink-0">
+                        <span class="material-symbols-rounded materials-header-icon">folder_open</span>
                     </div>
-                    <div>
-                        <h3 class="fw-bold text-white mb-1">Tài Liệu Học Tập</h3>
+                    <div class="min-w-0">
+                        <h3 class="fw-bold text-white mb-1 materials-header-title">Tài Liệu Học Tập</h3>
                         <p class="mb-0 text-white text-opacity-75 small">Xem, tải xuống và theo dõi tài liệu bài giảng được giáo viên cung cấp.</p>
                     </div>
                 </div>
@@ -47,6 +48,8 @@
 </div>
 
 <style>
+    .materials-header-icon { font-size: clamp(1.8rem, 6vw, 2.5rem); }
+    .materials-header-title { font-size: clamp(1.15rem, 4vw, 1.75rem); }
     .bg-primary-soft { background-color: #e7f1ff; }
     .bg-danger-soft { background-color: #f8d7da; color: #842029; }
     .bg-success-soft { background-color: #d1e7dd; color: #0f5132; }

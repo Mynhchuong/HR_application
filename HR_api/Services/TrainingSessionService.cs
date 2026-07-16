@@ -116,25 +116,41 @@ public class TrainingSessionService
                     new OracleParameter("USR", req.LOGIN_USER),
                     idParam);
             }
-            catch (OracleException ex) when (ex.Number == 1)   // ORA-00001 unique (CLASS_ID, SESSION_NO)
+            catch (OracleException ex) when (ex.Number == 1)   // ORA-00001 unique (CLASS_ID, GROUP_ID, SESSION_NO)
             {
-                throw new InvalidOperationException($"SESSION_NO={req.SESSION_NO} đã tồn tại trong Class");
+                // Số buổi đánh RIÊNG theo từng nhóm (15/07/2026 — UQ_TRS_CLASS_GRP_NO):
+                // buổi 1 Nhóm 1 và buổi 1 Nhóm 2 cùng tồn tại được, chỉ trùng trong cùng nhóm mới chặn.
+                throw new InvalidOperationException(req.GROUP_ID.HasValue
+                    ? $"Buổi số {req.SESSION_NO} đã tồn tại trong nhóm này"
+                    : $"Buổi số {req.SESSION_NO} đã tồn tại trong các buổi chung của lớp");
             }
             return OracleService.ConvertToInt(idParam.Value);
         }
         else
         {
-            // Chỉ update khi UPCOMING (§5 rules — không sửa khi đã ONGOING/COMPLETED)
-            var cur = (await _db.ExecuteQueryAsync(
-                "SELECT STATUS, GROUP_ID FROM HRMS.HR_TRAINING_SESSION WHERE ID = :ID",
+            // Rule sửa buổi (§5 + bổ sung 16/07/2026):
+            // - Lớp CHƯA công bố (DRAFT/OPEN_FOR_REGISTRATION): sửa thoải mái mọi buổi chưa hủy —
+            //   kể cả buổi lỡ bị batch cũ đẩy sang ONGOING/COMPLETED — và reset về UPCOMING
+            //   (lớp còn nháp thì buổi không thể "đã diễn ra").
+            // - Lớp đã công bố: chỉ sửa được buổi UPCOMING như cũ.
+            var cur = (await _db.ExecuteQueryAsync(@"
+                SELECT S.STATUS, S.GROUP_ID, C.STATUS AS CLASS_STATUS
+                  FROM HRMS.HR_TRAINING_SESSION S
+                  JOIN HRMS.HR_TRAINING_CLASS C ON C.ID = S.CLASS_ID
+                 WHERE S.ID = :ID",
                 r => new
                 {
-                    STATUS   = r["STATUS"]?.ToString() ?? "",
-                    GROUP_ID = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
+                    STATUS       = r["STATUS"]?.ToString() ?? "",
+                    GROUP_ID     = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
+                    CLASS_STATUS = r["CLASS_STATUS"]?.ToString() ?? "",
                 },
                 new OracleParameter("ID", req.ID.Value))).FirstOrDefault()
                 ?? throw new InvalidOperationException("Không tìm thấy session");
-            if (cur.STATUS != "UPCOMING")
+
+            var classDraft = cur.CLASS_STATUS is "DRAFT" or "OPEN_FOR_REGISTRATION";
+            if (cur.STATUS == "CANCELLED")
+                throw new InvalidOperationException("Buổi đã hủy — hãy tạo buổi mới thay vì sửa");
+            if (!classDraft && cur.STATUS != "UPCOMING")
                 throw new InvalidOperationException($"Session đang {cur.STATUS}, chỉ sửa được khi UPCOMING");
 
             // §5b.6 — đổi GROUP_ID khi buổi đã có điểm danh làm attendance cũ sai lệch report.
@@ -150,26 +166,38 @@ public class TrainingSessionService
                         $"Buổi này đã có {attCnt} học viên điểm danh — không đổi được nhóm áp dụng. Hãy hủy buổi này và tạo buổi mới cho nhóm cần đổi.");
             }
 
-            await _db.ExecuteNonQueryAsync(@"
-                UPDATE HRMS.HR_TRAINING_SESSION
-                   SET SESSION_NO   = :SN,
-                       SESSION_DATE = :DT,
-                       START_TIME   = :ST,
-                       END_TIME     = :ET,
-                       TOPIC        = :TP,
-                       LOCATION     = :LC,
-                       GROUP_ID     = :GID,
-                       UPDT_ID      = :USR
-                 WHERE ID = :ID",
-                new OracleParameter("SN",  req.SESSION_NO),
-                new OracleParameter("DT",  req.SESSION_DATE.Date),
-                new OracleParameter("ST",  req.START_TIME),
-                new OracleParameter("ET",  req.END_TIME),
-                new OracleParameter("TP",  (object?)req.TOPIC ?? DBNull.Value),
-                new OracleParameter("LC",  (object?)req.LOCATION ?? DBNull.Value),
-                new OracleParameter("GID", (object?)req.GROUP_ID ?? DBNull.Value),
-                new OracleParameter("USR", req.LOGIN_USER),
-                new OracleParameter("ID",  req.ID.Value));
+            try
+            {
+                // DECODE(:RS,1,...): lớp nháp → reset buổi về UPCOMING (gỡ buổi lỡ ONGOING/COMPLETED)
+                await _db.ExecuteNonQueryAsync(@"
+                    UPDATE HRMS.HR_TRAINING_SESSION
+                       SET SESSION_NO   = :SN,
+                           SESSION_DATE = :DT,
+                           START_TIME   = :ST,
+                           END_TIME     = :ET,
+                           TOPIC        = :TP,
+                           LOCATION     = :LC,
+                           GROUP_ID     = :GID,
+                           STATUS       = DECODE(:RS, 1, 'UPCOMING', STATUS),
+                           UPDT_ID      = :USR
+                     WHERE ID = :ID",
+                    new OracleParameter("SN",  req.SESSION_NO),
+                    new OracleParameter("DT",  req.SESSION_DATE.Date),
+                    new OracleParameter("ST",  req.START_TIME),
+                    new OracleParameter("ET",  req.END_TIME),
+                    new OracleParameter("TP",  (object?)req.TOPIC ?? DBNull.Value),
+                    new OracleParameter("LC",  (object?)req.LOCATION ?? DBNull.Value),
+                    new OracleParameter("GID", (object?)req.GROUP_ID ?? DBNull.Value),
+                    new OracleParameter("RS",  classDraft ? 1 : 0),
+                    new OracleParameter("USR", req.LOGIN_USER),
+                    new OracleParameter("ID",  req.ID.Value));
+            }
+            catch (OracleException ex) when (ex.Number == 1)   // đổi số buổi / nhóm va unique
+            {
+                throw new InvalidOperationException(req.GROUP_ID.HasValue
+                    ? $"Buổi số {req.SESSION_NO} đã tồn tại trong nhóm này"
+                    : $"Buổi số {req.SESSION_NO} đã tồn tại trong các buổi chung của lớp");
+            }
             return req.ID.Value;
         }
     }
@@ -241,8 +269,18 @@ public class TrainingSessionService
     {
         var session = await GetDetailAsync(req.ID)
             ?? throw new InvalidOperationException("Không tìm thấy session");
-        if (session.STATUS == "COMPLETED" || session.STATUS == "CANCELLED")
-            throw new InvalidOperationException($"Session đang {session.STATUS}, không cancel được");
+
+        // Lớp chưa công bố → cho hủy mọi buổi chưa hủy (kể cả buổi lỡ COMPLETED do batch cũ).
+        var clsStatus = (await _db.ExecuteQueryAsync(
+            "SELECT STATUS FROM HRMS.HR_TRAINING_CLASS WHERE ID = :CID",
+            r => r["STATUS"]?.ToString() ?? "",
+            new OracleParameter("CID", session.CLASS_ID))).FirstOrDefault() ?? "";
+        var classDraft = clsStatus is "DRAFT" or "OPEN_FOR_REGISTRATION";
+
+        if (session.STATUS == "CANCELLED")
+            throw new InvalidOperationException("Session đã hủy rồi");
+        if (!classDraft && session.STATUS == "COMPLETED")
+            throw new InvalidOperationException("Session đã COMPLETED, không cancel được");
 
         await _db.ExecuteNonQueryAsync(@"
             UPDATE HRMS.HR_TRAINING_SESSION
@@ -507,10 +545,11 @@ public class TrainingSessionService
                        AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)) AS COMPLETED_SESSIONS,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S
                      JOIN HRMS.HR_TRAINING_ATTENDANCE A
-                       ON A.SESSION_ID = S.ID AND A.EMPCD = E.EMPCD
+                       ON A.SESSION_ID = S.ID
                      WHERE S.CLASS_ID = E.CLASS_ID
                        AND S.STATUS = 'COMPLETED'
                        AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)
+                       AND A.EMPCD = E.EMPCD
                        AND A.STATUS = 'ABSENT') AS ABSENT_COUNT
               FROM HRMS.HR_TRAINING_ENROLLMENT E
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = E.EMPCD

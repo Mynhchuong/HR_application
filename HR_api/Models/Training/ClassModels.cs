@@ -115,7 +115,8 @@ public class AssignTeacherRequest
     public int    CLASS_ID { get; set; }
     public string EMPCD { get; set; } = "";
     public int    IS_PRIMARY { get; set; }
-    public int?   GROUP_ID { get; set; }        // NULL = dạy cả lớp; có giá trị = phụ trách nhóm đó
+    public int?   GROUP_ID { get; set; }        // legacy — 1 nhóm; được gộp vào GROUP_IDS khi xử lý
+    public List<int>? GROUP_IDS { get; set; }   // DS ĐẦY ĐỦ nhóm phụ trách (replace toàn bộ); rỗng/null = dạy cả lớp
     public string LOGIN_USER { get; set; } = "";
 }
 

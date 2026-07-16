@@ -40,7 +40,10 @@
         <!-- Sub-tabs for Class Administration -->
         <ul class="nav nav-tabs mb-4 border-bottom" id="classAdminSubtabs">
             <li class="nav-item">
-                <a class="nav-link active fw-bold border-0" id="subtab-sessions" data-bs-toggle="tab" href="#subpanel-sessions">Buổi học & Giáo viên</a>
+                <a class="nav-link active fw-bold border-0" id="subtab-sessions" data-bs-toggle="tab" href="#subpanel-sessions">Buổi học</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link fw-bold border-0" id="subtab-teachers" data-bs-toggle="tab" href="#subpanel-teachers">Giảng viên giảng dạy</a>
             </li>
             <li class="nav-item">
                 <a class="nav-link fw-bold border-0" id="subtab-students" data-bs-toggle="tab" href="#subpanel-students">Học viên & Tổ nhóm</a>
@@ -48,11 +51,11 @@
         </ul>
 
         <div class="tab-content">
-            <!-- Session & Teacher Subpanel -->
+            <!-- Sessions Subpanel -->
             <div class="tab-pane fade show active" id="subpanel-sessions">
                 <div class="row">
                     <!-- Sessions list -->
-                    <div class="col-12 col-lg-7 mb-4">
+                    <div class="col-12 mb-4">
                         <div class="card bg-light border-0 p-3" style="border-radius: 12px;">
                             <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                                 <h6 class="fw-bold text-dark mb-0">Lịch các buổi học</h6>
@@ -85,8 +88,13 @@
                         </div>
                     </div>
 
-                    <!-- Teachers list -->
-                    <div class="col-12 col-lg-5 mb-4">
+                </div>
+            </div>
+
+            <!-- Teachers Subpanel -->
+            <div class="tab-pane fade" id="subpanel-teachers">
+                <div class="row">
+                    <div class="col-12 col-lg-8 mb-4">
                         <div class="card bg-light border-0 p-3" style="border-radius: 12px;">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="fw-bold text-dark mb-0">Giảng viên giảng dạy</h6>
@@ -167,6 +175,10 @@
                                 <select id="bulk-assign-group" class="form-select form-select-sm mb-2" style="border-radius: 6px;">
                                     <option value="">-- Chọn nhóm --</option>
                                 </select>
+                                <div class="d-flex gap-2 mb-2">
+                                    <button type="button" onclick="fillBulkAssignAll(false)" class="btn btn-outline-secondary btn-sm flex-fill">Chọn tất cả HV</button>
+                                    <button type="button" onclick="fillBulkAssignAll(true)" class="btn btn-outline-secondary btn-sm flex-fill">HV chưa có nhóm</button>
+                                </div>
                                 <textarea id="bulk-assign-empcd" class="form-control form-control-sm mb-2" rows="3" placeholder="Nhập nhiều mã thẻ, cách nhau bởi dấu phẩy, khoảng trắng hoặc xuống dòng"></textarea>
                                 <button onclick="submitBulkAssignGroup()" class="btn btn-outline-primary btn-sm fw-bold w-100">Gán vào nhóm</button>
                             </div>
@@ -186,6 +198,23 @@
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Overlay chờ khi nhập Excel / gán nhóm số lượng lớn -->
+<div id="import-loading-overlay" style="display:none; position:fixed; inset:0; z-index:2000; background:rgba(255,255,255,.75); backdrop-filter:blur(2px);">
+    <div class="d-flex flex-column align-items-center justify-content-center h-100 gap-3">
+        <div class="spinner-border text-primary" style="width:3rem; height:3rem;" role="status"></div>
+        <div id="import-loading-text" class="fw-bold text-muted">Đang xử lý dữ liệu...</div>
+    </div>
+</div>
+
+<!-- Overlay loading toàn trang — các thao tác nặng (thêm/import hàng trăm học viên, chia nhóm...) -->
+<div id="page-loading-overlay" class="position-fixed top-0 start-0 w-100 h-100 align-items-center justify-content-center" style="display: none; background: rgba(255,255,255,.8); z-index: 20000; backdrop-filter: blur(2px);">
+    <div class="text-center">
+        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+        <div id="page-loading-text" class="fw-bold text-dark">Đang xử lý...</div>
+        <div class="small text-muted mt-1">Vui lòng chờ, không đóng trang</div>
     </div>
 </div>
 
@@ -336,11 +365,12 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
             <div class="modal-header border-bottom-0 p-4 pb-0">
-                <h5 class="fw-bold modal-title">Tạo Tổ/Nhóm mới</h5>
+                <h5 class="fw-bold modal-title" id="groupModalTitle">Tạo Tổ/Nhóm mới</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
                 <form id="groupForm">
+                    <input type="hidden" id="group-id" />
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-muted">Tên Tổ/Nhóm học tập</label>
                         <input type="text" id="group-name" class="form-control" placeholder="Ví dụ: Nhóm sản xuất A, Tổ 1..." required style="border-radius: 8px;" />
@@ -350,7 +380,7 @@
                         <input type="number" id="group-max" class="form-control" placeholder="Để trống nếu không giới hạn" style="border-radius: 8px;" />
                     </div>
                     <div class="d-grid mt-4">
-                        <button type="button" onclick="submitCreateGroup()" class="btn btn-primary py-2.5 rounded-3 fw-bold shadow-sm">Tạo nhóm</button>
+                        <button type="button" id="btn-submit-group" onclick="submitCreateGroup()" class="btn btn-primary py-2.5 rounded-3 fw-bold shadow-sm">Tạo nhóm</button>
                     </div>
                 </form>
             </div>
@@ -537,7 +567,30 @@
             }).catch(() => { btn.disabled = false; window.showToast('Lỗi kết nối máy chủ.', 'error'); });
         }
 
+        // Overlay loading toàn trang — dùng cho thao tác nặng để người dùng biết chờ
+        function showPageLoading(msg) {
+            document.getElementById('page-loading-text').textContent = msg || 'Đang xử lý...';
+            document.getElementById('page-loading-overlay').style.display = 'flex';
+        }
+        function updatePageLoading(msg) {
+            document.getElementById('page-loading-text').textContent = msg;
+        }
+        function hidePageLoading() {
+            document.getElementById('page-loading-overlay').style.display = 'none';
+        }
+
+        // Thay cụm nút lifecycle bằng spinner trong lúc chờ server — các action như "Lên lịch học"
+        // phải xử lý cả lớp (enqueue noti, reject pending...) nên lớp đông sẽ mất vài giây.
+        // Lỗi/timeout → renderLifecycle() trả nút về; thành công → loadClassDetailAdmin() tự vẽ lại.
+        function setLifecycleLoading(msg) {
+            document.getElementById('class-lifecycle-buttons').innerHTML = `
+                <span class="d-inline-flex align-items-center gap-2 text-muted small fw-bold py-1">
+                    <span class="spinner-border spinner-border-sm text-primary"></span> ${msg}
+                </span>`;
+        }
+
         function publishRegistration(id) {
+            setLifecycleLoading('Đang mở đăng ký tự do...');
             fetch(window.TRAINING_URLS.publishRegistration, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -547,12 +600,14 @@
                     window.showToast(res.message || 'Đã mở đăng ký tự do thành công!', 'success');
                     loadClassDetailAdmin();
                 } else {
+                    renderLifecycle();
                     window.showToast(res.message || 'Lỗi mở đăng ký.', 'error');
                 }
-            });
+            }).catch(err => { renderLifecycle(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
         }
 
         function finalizeEnrollment(id) {
+            setLifecycleLoading('Đang chốt danh sách & gửi thông báo cho học viên...');
             fetch(window.TRAINING_URLS.finalizeEnrollment, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -562,9 +617,10 @@
                     window.showToast(res.message || 'Đã chốt danh sách và lên lịch học thành công!', 'success');
                     loadClassDetailAdmin();
                 } else {
+                    renderLifecycle();
                     window.showToast(res.message || 'Lỗi lên lịch học.', 'error');
                 }
-            });
+            }).catch(err => { renderLifecycle(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
         }
 
         // Sessions list — chỉ Sửa/Xóa được khi buổi còn UPCOMING (khớp rule §5: đã ONGOING/COMPLETED
@@ -575,9 +631,12 @@
             const list = selectedClassData.sessions || [];
             tbody.innerHTML = '';
 
+            // Lớp CHƯA công bố (nháp / đang mở ĐK) → sửa/xóa được mọi buổi chưa hủy — server sẽ
+            // tự reset buổi lỡ "Đang diễn ra" về UPCOMING khi lưu (buổi của lớp nháp không thể diễn ra).
+            const clsDraft = ['DRAFT', 'OPEN_FOR_REGISTRATION'].includes(selectedClassData.cls?.STATUS);
             list.forEach(s => {
                 const dateStr = s.SESSION_DATE ? new Date(s.SESSION_DATE).toLocaleDateString('vi-VN') : '';
-                const canEdit = s.STATUS === 'UPCOMING';
+                const canEdit = s.STATUS === 'UPCOMING' || (clsDraft && s.STATUS !== 'CANCELLED');
                 let actions = `<span class="badge bg-secondary-soft text-secondary">${s.STATUS === 'CANCELLED' ? 'Đã hủy' : (s.STATUS === 'COMPLETED' ? 'Đã xong' : s.STATUS === 'ONGOING' ? 'Đang diễn ra' : '')}</span>`;
                 if (canEdit) {
                     actions = `
@@ -621,17 +680,29 @@
             sel.value = selectedGroupId ? String(selectedGroupId) : '';
         }
 
+        // Số buổi đánh RIÊNG theo từng nhóm (buổi 1 Nhóm 1 ≠ buổi 1 Nhóm 2) — gợi ý
+        // số kế tiếp = max SESSION_NO của các buổi CÙNG NHÓM đang chọn + 1.
+        function suggestNextSessionNo() {
+            const groupVal = document.getElementById('sess-group').value;
+            const gid = groupVal ? parseInt(groupVal) : null;
+            const list = (selectedClassData.sessions || []).filter(s => (s.GROUP_ID ?? null) === gid);
+            document.getElementById('sess-no').value = list.reduce((m, s) => Math.max(m, s.SESSION_NO), 0) + 1;
+        }
+
         function openCreateSessionModal() {
-            const list = selectedClassData.sessions || [];
             document.getElementById('sessionModalTitle').textContent = 'Sắp lịch buổi học mới';
             document.getElementById('sess-id').value = '';
-            document.getElementById('sess-no').value = list.length + 1;
             document.getElementById('sess-date').value = '';
             document.getElementById('sess-start').value = '08:00';
             document.getElementById('sess-end').value = '11:30';
             document.getElementById('sess-topic').value = '';
             document.getElementById('sess-loc').value = '';
             populateSessionGroupOptions(null);
+            suggestNextSessionNo();
+            // Đổi nhóm trong modal tạo mới → tính lại số buổi gợi ý theo nhóm đó
+            document.getElementById('sess-group').onchange = () => {
+                if (!document.getElementById('sess-id').value) suggestNextSessionNo();
+            };
             modalSession.show();
         }
 
@@ -725,6 +796,7 @@
             if (!file) return;
             const progress = document.getElementById('session-import-progress');
             progress.classList.remove('d-none');
+            showPageLoading('Đang nhập các buổi học từ Excel...');
 
             const formData = new FormData();
             formData.append('file', file);
@@ -733,6 +805,7 @@
             fetch(window.TRAINING_URLS.sessionImport, { method: 'POST', body: formData })
                 .then(r => r.json())
                 .then(res => {
+                    hidePageLoading();
                     progress.classList.add('d-none');
                     document.getElementById('session-import-file').value = '';
                     if (res.success) {
@@ -749,22 +822,31 @@
                     }
                 })
                 .catch(err => {
+                    hidePageLoading();
                     progress.classList.add('d-none');
                     window.showToast('Lỗi kết nối: ' + err.message, 'error');
                 });
         }
 
-        // Import DS học viên từ Excel (EMPCD + tên nhóm) — server tự tạo nhóm thiếu rồi gán
+        // Bật/tắt overlay chờ toàn trang (nhập Excel / gán nhóm số lượng lớn)
+        function setImportOverlay(show, text) {
+            if (text) document.getElementById('import-loading-text').textContent = text;
+            document.getElementById('import-loading-overlay').style.display = show ? 'block' : 'none';
+        }
+
+        // Import DS học viên từ Excel (EMPCD + tên nhóm) — server tự tạo nhóm thiếu rồi gán,
+        // enroll theo lô 50 người/lần phía server để tránh treo khi file lớn
         function submitStudentImport(file) {
             if (!file) return;
             const formData = new FormData();
             formData.append('file', file);
             formData.append('classId', selectedClassId);
 
-            window.showToast('Đang nhập danh sách học viên...', 'info');
+            setImportOverlay(true, 'Đang nhập danh sách học viên (xử lý theo lô 50 người)... Vui lòng chờ, không đóng trang.');
             fetch(window.TRAINING_URLS.studentImport, { method: 'POST', body: formData })
                 .then(r => r.json())
                 .then(res => {
+                    setImportOverlay(false);
                     document.getElementById('student-import-file').value = '';
                     if (res.success) {
                         const d = res.data || {};
@@ -782,10 +864,14 @@
                         window.showToast(res.message || 'Lỗi nhập file.', 'error');
                     }
                 })
-                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+                .catch(err => {
+                    setImportOverlay(false);
+                    window.showToast('Lỗi kết nối: ' + err.message, 'error');
+                });
         }
 
-        // Teachers list
+        // Teachers list — 1 GV có thể phụ trách NHIỀU nhóm: API trả 1 row/nhóm (GROUP_ID null =
+        // cả lớp), gom theo EMPCD rồi render badge từng nhóm (có nút × gỡ) + dropdown thêm nhóm.
         function renderSubTeachers() {
             const wrap = document.getElementById('sub-teachers-list');
             const list = selectedClassData.teachers || [];
@@ -796,11 +882,30 @@
                 return;
             }
 
-            // Bảng compact (lớp có thể ~10 GV) + dropdown gán nhóm phụ trách cho từng GV.
-            // "Cả lớp" = GROUP_ID null (behavior cũ). Đổi nhóm gọi lại AssignTeacher (MERGE upsert).
-            const rows = list.map(t => {
-                const opts = '<option value="">Cả lớp</option>' + groups.map(g =>
-                    `<option value="${g.ID}" ${g.ID === t.GROUP_ID ? 'selected' : ''}>${g.GROUP_NAME}</option>`).join('');
+            const byEmp = new Map();
+            list.forEach(t => {
+                if (!byEmp.has(t.EMPCD)) byEmp.set(t.EMPCD, { EMPCD: t.EMPCD, EMP_NAME: t.EMP_NAME, IS_PRIMARY: 0, GROUP_IDS: [] });
+                const agg = byEmp.get(t.EMPCD);
+                if (t.IS_PRIMARY === 1) agg.IS_PRIMARY = 1;
+                if (t.GROUP_ID && !agg.GROUP_IDS.includes(t.GROUP_ID)) agg.GROUP_IDS.push(t.GROUP_ID);
+            });
+
+            const gName = id => (groups.find(g => g.ID === id) || {}).GROUP_NAME || `Nhóm #${id}`;
+            const rows = [...byEmp.values()].map(t => {
+                const badges = t.GROUP_IDS.length === 0
+                    ? '<span class="badge bg-secondary-soft text-secondary">Cả lớp</span>'
+                    : t.GROUP_IDS.map(gid => `
+                        <span class="badge bg-info-soft d-inline-flex align-items-center gap-1">${gName(gid)}
+                            <a href="javascript:void(0)" onclick="removeTeacherGroup('${t.EMPCD}', ${gid})" class="text-danger text-decoration-none fw-bold" title="Bỏ nhóm này">×</a>
+                        </span>`).join(' ');
+                const remaining = groups.filter(g => !t.GROUP_IDS.includes(g.ID));
+                const addCtl = remaining.length === 0 ? '' : `
+                    <span class="d-inline-flex align-items-center gap-1">
+                        <select id="teach-addgrp-${t.EMPCD}" class="form-select form-select-sm w-auto" style="border-radius: 6px;">
+                            ${remaining.map(g => `<option value="${g.ID}">${g.GROUP_NAME}</option>`).join('')}
+                        </select>
+                        <button onclick="addTeacherGroup('${t.EMPCD}')" class="btn btn-xs btn-outline-primary fw-bold px-2" title="Thêm nhóm phụ trách">+</button>
+                    </span>`;
                 return `
                 <tr>
                     <td class="ps-3">
@@ -811,7 +916,7 @@
                         ? '<span class="badge bg-primary">GV chính</span>'
                         : '<span class="badge bg-secondary-soft text-secondary">Trợ giảng</span>'}</td>
                     <td>
-                        <select onchange="assignTeacherGroup('${t.EMPCD}', this.value, ${t.IS_PRIMARY || 0})" class="form-select form-select-sm w-auto" style="border-radius: 6px;">${opts}</select>
+                        <div class="d-flex align-items-center gap-1 flex-wrap">${badges} ${addCtl}</div>
                     </td>
                     <td class="pe-3 text-end">
                         <button onclick="removeTeacher('${t.EMPCD}')" class="btn btn-xs btn-outline-danger rounded-circle p-1 d-inline-flex align-items-center justify-content-center" title="Gỡ giáo viên">
@@ -837,16 +942,25 @@
                 </div>`;
         }
 
-        // Gán / đổi nhóm phụ trách cho GV — giữ nguyên vai trò IS_PRIMARY hiện tại
-        function assignTeacherGroup(empcd, groupVal, isPrimary) {
+        // DS nhóm hiện tại của GV (từ rows đã tải — 1 row/nhóm)
+        function currentTeacherGroupIds(empcd) {
+            return [...new Set((selectedClassData.teachers || [])
+                .filter(t => t.EMPCD === empcd && t.GROUP_ID)
+                .map(t => t.GROUP_ID))];
+        }
+
+        // Lưu DS nhóm ĐẦY ĐỦ của GV (server replace toàn bộ rows) — [] = dạy cả lớp,
+        // giữ nguyên vai trò IS_PRIMARY hiện tại
+        function saveTeacherGroups(empcd, groupIds) {
+            const isPrimary = (selectedClassData.teachers || []).some(t => t.EMPCD === empcd && t.IS_PRIMARY === 1) ? 1 : 0;
             fetch(window.TRAINING_URLS.assignTeacher, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     CLASS_ID: selectedClassId,
                     EMPCD: empcd,
-                    IS_PRIMARY: isPrimary || 0,
-                    GROUP_ID: groupVal ? parseInt(groupVal) : null
+                    IS_PRIMARY: isPrimary,
+                    GROUP_IDS: groupIds
                 })
             })
             .then(r => r.json())
@@ -859,6 +973,17 @@
                 }
             })
             .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+        }
+
+        function addTeacherGroup(empcd) {
+            const sel = document.getElementById('teach-addgrp-' + empcd);
+            if (!sel || !sel.value) return;
+            saveTeacherGroups(empcd, [...currentTeacherGroupIds(empcd), parseInt(sel.value)]);
+        }
+
+        // Gỡ 1 nhóm khỏi GV — hết nhóm thì GV quay về dạy cả lớp (muốn gỡ hẳn dùng nút xóa GV)
+        function removeTeacherGroup(empcd, gid) {
+            saveTeacherGroups(empcd, currentTeacherGroupIds(empcd).filter(x => x !== gid));
         }
 
         function openAssignTeacherModal() {
@@ -876,9 +1001,8 @@
                 return;
             }
 
-            // GV đã có trong lớp (re-add để đổi vai trò) → giữ nguyên nhóm phụ trách hiện tại,
-            // không gửi GROUP_ID = null làm MERGE reset mất nhóm.
-            const existing = (selectedClassData.teachers || []).find(t => t.EMPCD === empcd);
+            // GV đã có trong lớp (re-add để đổi vai trò) → giữ nguyên các nhóm phụ trách hiện tại
+            // (server replace toàn bộ rows theo GROUP_IDS). GV mới → [] = dạy cả lớp.
             fetch(window.TRAINING_URLS.assignTeacher, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -886,7 +1010,7 @@
                     CLASS_ID: selectedClassId,
                     EMPCD: empcd,
                     IS_PRIMARY: parseInt(role),
-                    GROUP_ID: existing ? (existing.GROUP_ID ?? null) : null
+                    GROUP_IDS: currentTeacherGroupIds(empcd)
                 })
             })
             .then(r => r.json())
@@ -1083,6 +1207,7 @@
             btn.disabled = true;
             textarea.disabled = true;
             progress.classList.remove('d-none');
+            showPageLoading(`Đang thêm ${empcds.length} học viên vào lớp...`);
 
             const chunkSize = 50;
             const chunks = [];
@@ -1100,6 +1225,7 @@
                     const startIdx = i * chunkSize + 1;
                     const endIdx = Math.min((i + 1) * chunkSize, empcds.length);
                     progressText.textContent = `Đang thêm học viên (${startIdx}-${endIdx}/${empcds.length})...`;
+                    updatePageLoading(`Đang thêm học viên ${startIdx}-${endIdx} / ${empcds.length}...`);
 
                     const res = await fetch(window.TRAINING_URLS.assignStudent, {
                         method: 'POST',
@@ -1141,6 +1267,7 @@
                 btn.disabled = false;
                 textarea.disabled = false;
                 progress.classList.add('d-none');
+                hidePageLoading();
             }
         }
 
@@ -1176,6 +1303,9 @@
                     </div>
                     <div class="d-flex align-items-center gap-2 flex-shrink-0">
                         <span class="badge bg-secondary rounded-pill px-2">${g.ENROLLMENT_COUNT || 0} HV</span>
+                        <button onclick="openEditGroupModal(${g.ID})" class="btn btn-xs btn-outline-primary rounded-circle p-1 d-flex align-items-center justify-content-center" title="Sửa tên nhóm">
+                            <span class="material-symbols-rounded" style="font-size:1rem;">edit</span>
+                        </button>
                         <button onclick="deleteGroup(${g.ID}, '${(g.GROUP_NAME || '').replace(/'/g, "\\'")}')" class="btn btn-xs btn-outline-danger rounded-circle p-1 d-flex align-items-center justify-content-center" title="Xóa nhóm">
                             <span class="material-symbols-rounded" style="font-size:1rem;">delete</span>
                         </button>
@@ -1229,12 +1359,28 @@
         }
 
         function openCreateGroupModal() {
+            document.getElementById('groupModalTitle').textContent = 'Tạo Tổ/Nhóm mới';
+            document.getElementById('btn-submit-group').textContent = 'Tạo nhóm';
+            document.getElementById('group-id').value = '';
             document.getElementById('group-name').value = '';
             document.getElementById('group-max').value = '';
             modalGroup.show();
         }
 
+        // Sửa tên / giới hạn nhóm — dùng chung modal tạo nhóm, API group/save nhận ID để UPDATE
+        function openEditGroupModal(id) {
+            const g = (selectedClassData?.groups || []).find(x => x.ID === id);
+            if (!g) return;
+            document.getElementById('groupModalTitle').textContent = `Sửa nhóm "${g.GROUP_NAME}"`;
+            document.getElementById('btn-submit-group').textContent = 'Lưu thay đổi';
+            document.getElementById('group-id').value = g.ID;
+            document.getElementById('group-name').value = g.GROUP_NAME;
+            document.getElementById('group-max').value = g.MAX_STUDENTS || '';
+            modalGroup.show();
+        }
+
         function submitCreateGroup() {
+            const id = document.getElementById('group-id').value;
             const name = document.getElementById('group-name').value.trim();
             const maxVal = document.getElementById('group-max').value;
 
@@ -1247,6 +1393,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    ID: id ? parseInt(id) : null,
                     CLASS_ID: selectedClassId,
                     GROUP_NAME: name,
                     MAX_STUDENTS: maxVal ? parseInt(maxVal) : null
@@ -1255,11 +1402,11 @@
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
-                    window.showToast('Đã tạo nhóm thành công!', 'success');
+                    window.showToast(id ? 'Đã cập nhật nhóm!' : 'Đã tạo nhóm thành công!', 'success');
                     modalGroup.hide();
                     loadClassDetailAdmin();
                 } else {
-                    window.showToast(res.message || 'Lỗi tạo nhóm.', 'error');
+                    window.showToast(res.message || 'Lỗi lưu nhóm.', 'error');
                 }
             });
         }
@@ -1274,6 +1421,7 @@
             }
             const groupIds = groups.map(g => g.ID);
             window.showConfirm(`Bạn muốn tự động chia đều học viên chưa gán nhóm vào ${groups.length} nhóm hiện có không?`, () => {
+                showPageLoading('Đang chia học viên vào các nhóm...');
                 fetch(window.TRAINING_URLS.autoSplitGroup, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1281,13 +1429,15 @@
                 })
                 .then(r => r.json())
                 .then(res => {
+                    hidePageLoading();
                     if (res.success) {
                         window.showToast(`Đã chia xong — cập nhật ${res.data?.updated ?? 0} học viên.`, 'success');
                         loadClassDetailAdmin();
                     } else {
                         window.showToast(res.message || 'Lỗi chia nhóm.', 'error');
                     }
-                });
+                })
+                .catch(err => { hidePageLoading(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
             });
         }
 
@@ -1313,8 +1463,21 @@
             });
         }
 
-        // Nhập tay nhiều mã thẻ 1 lần, gán chung vào 1 nhóm.
-        function submitBulkAssignGroup() {
+        // Nút "chọn all" — đổ nhanh mã thẻ học viên vào ô gán nhóm.
+        // onlyUnassigned = true: chỉ lấy HV chưa gán nhóm; false: toàn bộ HV đã tham gia (ENROLLED).
+        function fillBulkAssignAll(onlyUnassigned) {
+            let list = (selectedClassData?.enrollments || []).filter(s => s.STATUS === 'ENROLLED');
+            if (onlyUnassigned) list = list.filter(s => !s.GROUP_ID);
+            if (list.length === 0) {
+                window.showToast(onlyUnassigned ? 'Không còn học viên nào chưa gán nhóm.' : 'Lớp chưa có học viên đã tham gia (ENROLLED).', 'warning');
+                return;
+            }
+            document.getElementById('bulk-assign-empcd').value = list.map(s => s.EMPCD).join(', ');
+            window.showToast(`Đã chọn ${list.length} học viên.`, 'info');
+        }
+
+        // Nhập tay / chọn all nhiều mã thẻ 1 lần, gán chung vào 1 nhóm — gửi theo lô 50 tránh treo.
+        async function submitBulkAssignGroup() {
             const groupId = document.getElementById('bulk-assign-group').value;
             const raw = document.getElementById('bulk-assign-empcd').value.trim();
 
@@ -1328,30 +1491,43 @@
                 return;
             }
 
-            fetch(window.TRAINING_URLS.assignGroup, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    CLASS_ID: selectedClassId,
-                    EMPCDS: empcds,
-                    GROUP_ID: parseInt(groupId)
-                })
-            })
-            .then(r => r.json())
-            .then(res => {
-                if (res.success) {
-                    window.showToast(`Đã gán ${res.data?.updated ?? 0}/${empcds.length} học viên vào nhóm!`, 'success');
-                    document.getElementById('bulk-assign-empcd').value = '';
-                    loadClassDetailAdmin();
-                } else {
-                    window.showToast(res.message || 'Lỗi gán nhóm.', 'error');
+            const chunkSize = 50;
+            let updated = 0;
+            const chunkErrors = [];
+            try {
+                for (let i = 0; i < empcds.length; i += chunkSize) {
+                    const chunk = empcds.slice(i, i + chunkSize);
+                    setImportOverlay(true, `Đang gán nhóm (${i + 1}-${Math.min(i + chunkSize, empcds.length)}/${empcds.length})...`);
+                    const res = await fetch(window.TRAINING_URLS.assignGroup, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            CLASS_ID: selectedClassId,
+                            EMPCDS: chunk,
+                            GROUP_ID: parseInt(groupId)
+                        })
+                    }).then(r => r.json());
+                    if (res.success) updated += (res.data?.updated ?? 0);
+                    else chunkErrors.push(res.message || 'Lỗi gán nhóm.');
                 }
-            })
-            .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+
+                if (chunkErrors.length > 0) {
+                    window.showConfirm(`Đã gán ${updated}/${empcds.length} học viên vào nhóm.\n\nLỗi:\n${[...new Set(chunkErrors)].join('\n')}`, () => {});
+                } else {
+                    window.showToast(`Đã gán ${updated}/${empcds.length} học viên vào nhóm!`, 'success');
+                    document.getElementById('bulk-assign-empcd').value = '';
+                }
+                loadClassDetailAdmin();
+            } catch (err) {
+                window.showToast('Lỗi kết nối: ' + err.message, 'error');
+            } finally {
+                setImportOverlay(false);
+            }
         }
 
         function cancelClass(id) {
             window.showConfirm('Bạn chắc chắn muốn HỦY lớp học này? Hành động này sẽ gửi thông báo hủy đến tất cả học viên và không thể khôi phục.', () => {
+                setLifecycleLoading('Đang hủy lớp...');
                 fetch(window.TRAINING_URLS.cancelClass, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1363,14 +1539,17 @@
                         window.showToast('Đã hủy lớp học!', 'info');
                         loadClassDetailAdmin();
                     } else {
+                        renderLifecycle();
                         window.showToast(res.message || 'Lỗi hủy lớp học.', 'error');
                     }
-                });
+                })
+                .catch(err => { renderLifecycle(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
             });
         }
 
         function finalizeClass(id) {
             window.showConfirm('Chốt kết quả sẽ tính điểm danh, điểm thi và cấp chứng chỉ cho toàn bộ học viên của lớp. Hãy đảm bảo giáo viên đã chấm xong các bài tự luận trước khi chốt. Tiếp tục?', () => {
+                setLifecycleLoading('Đang chốt kết quả & cấp chứng chỉ cho cả lớp...');
                 fetch(window.TRAINING_URLS.finalizeClass, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1388,15 +1567,17 @@
                         window.showConfirm(msg, () => {});
                         loadClassDetailAdmin();
                     } else {
+                        renderLifecycle();
                         window.showToast(res.message || 'Lỗi chốt kết quả.', 'error');
                     }
                 })
-                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+                .catch(err => { renderLifecycle(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
             });
         }
 
         function closeClass(id) {
             window.showConfirm('Đóng lớp sẽ lưu trữ vĩnh viễn báo cáo lớp học, không chỉnh sửa được nữa. Lưu ý: lớp phải được "Chốt kết quả & cấp chứng chỉ" trước khi đóng. Bạn chắc chắn muốn đóng?', () => {
+                setLifecycleLoading('Đang đóng & lưu trữ lớp...');
                 fetch(window.TRAINING_URLS.closeClass, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1408,9 +1589,11 @@
                         window.showToast('Lớp học đã được khóa và lưu trữ hoàn thành!', 'success');
                         loadClassDetailAdmin();
                     } else {
+                        renderLifecycle();
                         window.showToast(res.message || 'Lỗi khóa lớp học.', 'error');
                     }
-                });
+                })
+                .catch(err => { renderLifecycle(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
             });
         }
     </script>

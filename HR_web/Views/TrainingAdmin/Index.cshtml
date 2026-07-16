@@ -101,7 +101,7 @@
                 <!-- Filters for Classes -->
                 <div class="row g-2 mb-3">
                     <div class="col-md-4">
-                        <input type="text" id="class-filter-search" class="form-control form-control-sm" placeholder="Tìm mã lớp/tên lớp..." oninput="loadClasses()" style="border-radius: 8px;" />
+                        <input type="text" id="class-filter-search" class="form-control form-control-sm" placeholder="Tìm theo tên lớp học..." oninput="loadClasses()" style="border-radius: 8px;" />
                     </div>
                     <div class="col-md-3">
                         <select id="class-filter-status" class="form-select form-select-sm" onchange="loadClasses()" style="border-radius: 8px;">
@@ -124,7 +124,7 @@
                     <table class="table table-hover align-middle mb-0 text-nowrap">
                         <thead class="bg-light table-head-custom">
                             <tr>
-                                <th class="ps-4">Mã Lớp</th>
+                                <th class="ps-4">Tên lớp học</th>
                                 <th>Khóa học</th>
                                 <th>Ngày học</th>
                                 <th>Chế độ</th>
@@ -137,6 +137,12 @@
                             <!-- JS loading -->
                         </tbody>
                     </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <span class="small text-muted" id="class-list-summary"></span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="class-pagination"></ul>
+                    </nav>
                 </div>
             </div>
         </div>
@@ -437,19 +443,38 @@
             .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
         }
 
+        const CLASSES_PER_PAGE = 10;
+        let classesPage = 1;
+
         function loadClasses() {
             const search = document.getElementById('class-filter-search')?.value || '';
             const status = document.getElementById('class-filter-status')?.value || '';
             const courseId = document.getElementById('class-filter-course')?.value || '';
-            
+
             const url = `${window.TRAINING_URLS.getClassList}?search=${encodeURIComponent(search)}&status=${status}&courseId=${courseId}`;
             fetch(url)
                 .then(r => r.json())
                 .then(res => {
                     classList = res.data || [];
+                    classesPage = 1;        // đổi filter → về trang đầu
+                    renderClassTable();
+                });
+        }
+
+        function goToClassPage(p) {
+            classesPage = p;
+            renderClassTable();
+        }
+
+        function renderClassTable() {
+                    const totalPages = Math.max(1, Math.ceil(classList.length / CLASSES_PER_PAGE));
+                    if (classesPage > totalPages) classesPage = totalPages;
+                    const startIdx = (classesPage - 1) * CLASSES_PER_PAGE;
+                    const pageList = classList.slice(startIdx, startIdx + CLASSES_PER_PAGE);
+
                     const tbody = document.getElementById('class-grid');
                     tbody.innerHTML = '';
-                    classList.forEach(c => {
+                    pageList.forEach(c => {
                         const start = new Date(c.START_DATE).toLocaleDateString('vi-VN');
                         const end = new Date(c.END_DATE).toLocaleDateString('vi-VN');
 
@@ -488,7 +513,40 @@
                             </tr>
                         `;
                     });
-                });
+
+                    if (classList.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-3 text-muted small">Không có lớp học nào phù hợp.</td></tr>`;
+                    }
+
+                    document.getElementById('class-list-summary').textContent = classList.length === 0
+                        ? ''
+                        : `Hiển thị ${startIdx + 1}-${Math.min(startIdx + CLASSES_PER_PAGE, classList.length)} / ${classList.length} lớp học`;
+                    renderClassPagination(totalPages);
+        }
+
+        // Phân trang cửa sổ (« 1 … cur±2 … N ») — giống bảng học viên ở ClassAssign
+        function renderClassPagination(totalPages) {
+            const wrap = document.getElementById('class-pagination');
+            wrap.innerHTML = '';
+            if (totalPages <= 1) return;
+
+            const mkItem = (label, page, disabled, active) => `
+                <li class="page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}">
+                    <a class="page-link" href="javascript:void(0)" onclick="${disabled ? '' : `goToClassPage(${page})`}">${label}</a>
+                </li>`;
+
+            wrap.innerHTML += mkItem('«', classesPage - 1, classesPage === 1, false);
+            const wanted = new Set([1, totalPages,
+                classesPage - 2, classesPage - 1, classesPage, classesPage + 1, classesPage + 2]);
+            let last = 0;
+            for (let p = 1; p <= totalPages; p++) {
+                if (!wanted.has(p)) continue;
+                if (last && p - last > 1)
+                    wrap.innerHTML += `<li class="page-item disabled"><span class="page-link">…</span></li>`;
+                wrap.innerHTML += mkItem(p, p, false, p === classesPage);
+                last = p;
+            }
+            wrap.innerHTML += mkItem('»', classesPage + 1, classesPage === totalPages, false);
         }
 
         function openCreateClassModal() {

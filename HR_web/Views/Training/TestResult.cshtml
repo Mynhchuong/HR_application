@@ -107,6 +107,8 @@
                     const submitDate = submitDtVal ? new Date(submitDtVal).toLocaleString('vi-VN') : '-';
                     const score = (att.SCORE !== null && att.SCORE !== undefined) ? att.SCORE : ((att.score !== null && att.score !== undefined) ? att.score : '-');
                     const maxScore = (att.MAX_SCORE !== null && att.MAX_SCORE !== undefined) ? att.MAX_SCORE : ((att.maxScore !== null && att.maxScore !== undefined) ? att.maxScore : '-');
+                    // Chưa chấm xong tự luận → không hiện điểm số (điểm hiện tại chưa tính phần tự luận, dễ gây hiểu lầm).
+                    const scoreDisplay = isGraded ? `${score} / ${maxScore} điểm` : 'Chưa chấm điểm';
                     const empcdVal = att.EMPCD || att.empcd || '';
 
                     // Câu tự luận của chính mình: đề + bài làm + điểm & nhận xét GV (nếu đã chấm).
@@ -162,7 +164,7 @@
                                 </div>
                                 <div class="d-flex justify-content-between align-items-center">
                                     <span class="text-muted">Điểm số:</span>
-                                    <span class="fs-4 fw-bold text-primary">${score} / ${maxScore} điểm</span>
+                                    <span class="fs-4 fw-bold ${isGraded ? 'text-primary' : 'text-warning'}">${scoreDisplay}</span>
                                 </div>
                             </div>
 

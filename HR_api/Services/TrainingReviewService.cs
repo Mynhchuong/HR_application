@@ -57,7 +57,12 @@ public class TrainingReviewService
             new OracleParameter("O",   req.ORGANIZATION_RATING),
             new OracleParameter("FB",  (object?)req.FEEDBACK_TEXT ?? DBNull.Value));
 
-        foreach (var t in req.TEACHER_RATINGS ?? new())
+        // GV có thể xuất hiện nhiều lần trong request (1 GV phụ trách nhiều nhóm) — gộp theo
+        // TEACHER_EMPCD, nếu không sẽ vi phạm PK (CLASS_ID, EMPCD, TEACHER_EMPCD) khi insert trùng.
+        var distinctTeacherRatings = (req.TEACHER_RATINGS ?? new())
+            .GroupBy(t => t.TEACHER_EMPCD)
+            .Select(g => g.First());
+        foreach (var t in distinctTeacherRatings)
         {
             await _db.ExecuteNonQueryAsync(@"
                 INSERT INTO HRMS.HR_TRAINING_REVIEW_TEACHER

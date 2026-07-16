@@ -335,27 +335,11 @@ public class TrainingClassService
     }
 
     // Enqueue TRAINING_ASSIGNED cho học viên ENROLLED của Class CHƯA có row nào trong
-    // HR_TRAINING_NOTI_QUEUE (PENDING/CLAIMED/SENT) ứng với template này — dùng để dedup
-    // "đã gửi chưa" theo đúng bảng queue hiện có, không cần thêm cột theo dõi mới.
+    // HR_TRAINING_NOTI_QUEUE (PENDING/CLAIMED/SENT) — dedup theo bảng queue hiện có.
+    // Set-based 1 câu INSERT-SELECT (EnqueueAssignedForMissingAsync) — lớp 800+ học viên
+    // trước đây loop 800+ INSERT làm nút "Lên lịch học" treo hàng chục giây.
     private async Task<int> ReEnqueueAssignedNotiAsync(int classId)
     {
-        var missing = await _db.ExecuteQueryAsync(@"
-            SELECT E.EMPCD
-              FROM HRMS.HR_TRAINING_ENROLLMENT E
-             WHERE E.CLASS_ID = :CID
-               AND E.STATUS = 'ENROLLED'
-               AND NOT EXISTS (
-                   SELECT 1 FROM HRMS.HR_TRAINING_NOTI_QUEUE Q
-                    WHERE Q.RELATED_CLASS_ID = E.CLASS_ID
-                      AND Q.TARGET_EMPCD     = E.EMPCD
-                      AND Q.TEMPLATE_KEY     = 'TRAINING_ASSIGNED'
-                      AND Q.STATUS IN ('PENDING','CLAIMED','SENT')
-               )",
-            r => r["EMPCD"]?.ToString() ?? "",
-            new OracleParameter("CID", classId));
-
-        if (missing.Count == 0) return 0;
-
         var ph = (await _db.ExecuteQueryAsync(@"
             SELECT CLASS_NAME, TO_CHAR(START_DATE,'DD/MM/YYYY') START_DATE_STR
               FROM HRMS.HR_TRAINING_CLASS WHERE ID = :ID",
@@ -365,8 +349,7 @@ public class TrainingClassService
                 ["startDate"] = r["START_DATE_STR"]?.ToString() ?? "",
             }, new OracleParameter("ID", classId))).FirstOrDefault() ?? new();
 
-        await _noti.EnqueueBulkAsync("TRAINING_ASSIGNED", missing, ph, classId: classId);
-        return missing.Count;
+        return await _noti.EnqueueAssignedForMissingAsync(classId, ph);
     }
 
     // Bất kỳ state (trừ CLOSED / CANCELLED / COMPLETED) → CANCELLED
@@ -413,7 +396,7 @@ public class TrainingClassService
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = T.EMPCD
               LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = T.GROUP_ID
              WHERE T.CLASS_ID = :CID
-             ORDER BY T.IS_PRIMARY DESC, T.EMPCD";
+             ORDER BY T.IS_PRIMARY DESC, T.EMPCD, G.GROUP_NAME";
         return await _db.ExecuteQueryAsync(sql, r => new ClassTeacherModel
         {
             CLASS_ID   = Convert.ToInt32(r["CLASS_ID"]),
@@ -430,42 +413,54 @@ public class TrainingClassService
         if (string.IsNullOrWhiteSpace(req.EMPCD))
             throw new InvalidOperationException("EMPCD không được để trống");
 
-        // Verify GROUP_ID (nếu có) thuộc Class (§16 — FK không check chéo được)
-        if (req.GROUP_ID.HasValue)
+        // 1 GV có thể phụ trách NHIỀU nhóm: GROUP_IDS là danh sách ĐẦY ĐỦ nhóm phụ trách —
+        // replace toàn bộ rows của GV (delete + insert lại, không MERGE). Rỗng = dạy cả lớp
+        // (1 row GROUP_ID NULL). GROUP_ID đơn (legacy) được gộp vào danh sách.
+        var groupIds = (req.GROUP_IDS ?? new List<int>()).Distinct().ToList();
+        if (req.GROUP_ID.HasValue && !groupIds.Contains(req.GROUP_ID.Value))
+            groupIds.Add(req.GROUP_ID.Value);
+
+        // Verify từng GROUP_ID thuộc Class (§16 — FK không check chéo được)
+        foreach (var gid in groupIds)
         {
             var ok = (await _db.ExecuteQueryAsync(
                 "SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_CLASS_GROUP WHERE ID = :GID AND CLASS_ID = :CID",
                 r => Convert.ToInt32(r["CNT"]),
-                new OracleParameter("GID", req.GROUP_ID.Value),
+                new OracleParameter("GID", gid),
                 new OracleParameter("CID", req.CLASS_ID))).First();
             if (ok == 0) throw new InvalidOperationException("Group không thuộc Class này");
         }
 
-        // Nếu IS_PRIMARY=1 → clear PRIMARY hiện tại (Class chỉ 1 primary teacher)
+        // Nếu IS_PRIMARY=1 → clear PRIMARY của GV khác (Class chỉ 1 primary teacher)
         if (req.IS_PRIMARY == 1)
         {
             await _db.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_TRAINING_CLASS_TEACHER
                    SET IS_PRIMARY = 0
-                 WHERE CLASS_ID = :CID AND IS_PRIMARY = 1",
-                new OracleParameter("CID", req.CLASS_ID));
+                 WHERE CLASS_ID = :CID AND IS_PRIMARY = 1 AND EMPCD <> :EMP",
+                new OracleParameter("CID", req.CLASS_ID),
+                new OracleParameter("EMP", req.EMPCD));
         }
 
-        // Upsert (Oracle 10 MERGE) — GROUP_ID NULL = dạy cả lớp
         await _db.ExecuteNonQueryAsync(@"
-            MERGE INTO HRMS.HR_TRAINING_CLASS_TEACHER T
-            USING (SELECT :CID AS CID, :EMP AS EMP FROM DUAL) S
-               ON (T.CLASS_ID = S.CID AND T.EMPCD = S.EMP)
-            WHEN MATCHED THEN
-              UPDATE SET IS_PRIMARY = :PRI, GROUP_ID = :GID
-            WHEN NOT MATCHED THEN
-              INSERT (CLASS_ID, EMPCD, IS_PRIMARY, GROUP_ID, INST_ID)
-              VALUES (S.CID, S.EMP, :PRI, :GID, :USR)",
+            DELETE FROM HRMS.HR_TRAINING_CLASS_TEACHER
+             WHERE CLASS_ID = :CID AND EMPCD = :EMP",
             new OracleParameter("CID", req.CLASS_ID),
-            new OracleParameter("EMP", req.EMPCD),
-            new OracleParameter("PRI", req.IS_PRIMARY),
-            new OracleParameter("GID", (object?)req.GROUP_ID ?? DBNull.Value),
-            new OracleParameter("USR", req.LOGIN_USER));
+            new OracleParameter("EMP", req.EMPCD));
+
+        // IS_PRIMARY đồng nhất trên mọi row của GV (unique: CLASS_ID + EMPCD + GROUP_ID)
+        var insertGids = groupIds.Count == 0 ? new List<int?> { null } : groupIds.Select(g => (int?)g).ToList();
+        foreach (var gid in insertGids)
+        {
+            await _db.ExecuteNonQueryAsync(@"
+                INSERT INTO HRMS.HR_TRAINING_CLASS_TEACHER (CLASS_ID, EMPCD, IS_PRIMARY, GROUP_ID, INST_ID)
+                VALUES (:CID, :EMP, :PRI, :GID, :USR)",
+                new OracleParameter("CID", req.CLASS_ID),
+                new OracleParameter("EMP", req.EMPCD),
+                new OracleParameter("PRI", req.IS_PRIMARY),
+                new OracleParameter("GID", (object?)gid ?? DBNull.Value),
+                new OracleParameter("USR", req.LOGIN_USER));
+        }
     }
 
     public async Task RemoveTeacherAsync(RemoveTeacherRequest req)
@@ -769,23 +764,30 @@ public class TrainingClassService
                     new OracleParameter("USR", req.LOGIN_USER));
             }
 
-            // Step D: Copy toàn bộ teachers
+            // Step D: Copy toàn bộ teachers — 1 GV có thể nhiều rows (1 row/nhóm), map GROUP_ID
+            // cũ → mới; group đã bị xoá ở bản gốc → NULL (cả lớp). Dedupe vì nhiều group mất map
+            // sẽ cùng về NULL → vi phạm unique (CLASS_ID, EMPCD, GROUP_ID).
             var oldTeachers = await _db.ExecuteQueryAsync(@"
-                SELECT EMPCD, IS_PRIMARY FROM HRMS.HR_TRAINING_CLASS_TEACHER WHERE CLASS_ID = :ID",
+                SELECT EMPCD, IS_PRIMARY, GROUP_ID FROM HRMS.HR_TRAINING_CLASS_TEACHER WHERE CLASS_ID = :ID",
                 r => new
                 {
                     EMPCD = r["EMPCD"]?.ToString() ?? "",
                     PRI   = Convert.ToInt32(r["IS_PRIMARY"]),
+                    GID   = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
                 }, new OracleParameter("ID", req.SOURCE_CLASS_ID));
 
+            var seenTeacherRows = new HashSet<string>();
             foreach (var t in oldTeachers)
             {
+                int? newTGid = t.GID.HasValue && groupIdMap.TryGetValue(t.GID.Value, out var mappedTGid) ? mappedTGid : (int?)null;
+                if (!seenTeacherRows.Add($"{t.EMPCD}|{newTGid}")) continue;
                 await _db.ExecuteNonQueryAsync(@"
-                    INSERT INTO HRMS.HR_TRAINING_CLASS_TEACHER (CLASS_ID, EMPCD, IS_PRIMARY, INST_ID)
-                    VALUES (:CID, :EMP, :PRI, :USR)",
+                    INSERT INTO HRMS.HR_TRAINING_CLASS_TEACHER (CLASS_ID, EMPCD, IS_PRIMARY, GROUP_ID, INST_ID)
+                    VALUES (:CID, :EMP, :PRI, :GID, :USR)",
                     new OracleParameter("CID", newClassId),
                     new OracleParameter("EMP", t.EMPCD),
                     new OracleParameter("PRI", t.PRI),
+                    new OracleParameter("GID", (object?)newTGid ?? DBNull.Value),
                     new OracleParameter("USR", req.LOGIN_USER));
             }
 
@@ -1078,10 +1080,11 @@ public class TrainingClassService
     }
 
     // List rows HR_TRAINING_CLASS_TEACHER cho 1 EMPCD (dùng TrainingTeachController.my-classes)
+    // DISTINCT vì 1 GV có thể nhiều rows/lớp (1 row/nhóm phụ trách) — chỉ cần 1 dòng/lớp.
     public async Task<List<ClassTeacherModel>> GetTeachersForEmpAsync(string empcd)
     {
         return await _db.ExecuteQueryAsync(@"
-            SELECT CLASS_ID, EMPCD, IS_PRIMARY FROM HRMS.HR_TRAINING_CLASS_TEACHER
+            SELECT DISTINCT CLASS_ID, EMPCD, IS_PRIMARY FROM HRMS.HR_TRAINING_CLASS_TEACHER
              WHERE EMPCD = :EMP",
             r => new ClassTeacherModel
             {
@@ -1151,14 +1154,21 @@ public class TrainingClassService
         }
         else
         {
-            await _db.ExecuteNonQueryAsync(@"
-                UPDATE HRMS.HR_TRAINING_CLASS_GROUP
-                   SET GROUP_NAME = :NAME, MAX_STUDENTS = :MAX, UPDT_ID = :USR
-                 WHERE ID = :ID",
-                new OracleParameter("NAME", req.GROUP_NAME),
-                new OracleParameter("MAX",  (object?)req.MAX_STUDENTS ?? DBNull.Value),
-                new OracleParameter("USR",  req.LOGIN_USER),
-                new OracleParameter("ID",   req.ID.Value));
+            try
+            {
+                await _db.ExecuteNonQueryAsync(@"
+                    UPDATE HRMS.HR_TRAINING_CLASS_GROUP
+                       SET GROUP_NAME = :NAME, MAX_STUDENTS = :MAX, UPDT_ID = :USR
+                     WHERE ID = :ID",
+                    new OracleParameter("NAME", req.GROUP_NAME),
+                    new OracleParameter("MAX",  (object?)req.MAX_STUDENTS ?? DBNull.Value),
+                    new OracleParameter("USR",  req.LOGIN_USER),
+                    new OracleParameter("ID",   req.ID.Value));
+            }
+            catch (OracleException ex) when (ex.Number == 1)   // ORA-00001 unique
+            {
+                throw new InvalidOperationException($"Nhóm '{req.GROUP_NAME}' đã tồn tại trong lớp này");
+            }
             return req.ID.Value;
         }
     }

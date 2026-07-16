@@ -42,6 +42,7 @@
                         <div class="spinner-border text-success" role="status"></div>
                     </div>
                 </div>
+                <div id="sessions-pagination" class="d-flex justify-content-center gap-2 mt-3"></div>
             </div>
 
             <!-- Tests Section -->
@@ -191,6 +192,9 @@
     let allTests   = [];
     const TESTS_PER_PAGE = 3;
     let testsPage  = 1;
+    let allSessions = [];
+    const SESSIONS_PER_PAGE = 5;
+    let sessionsPage = 1;
 
     document.addEventListener('DOMContentLoaded', function () {
         // loadTestsList() đọc classData.cls.FINAL_TEST_ID để hiện badge "Bài thi cuối khóa" —
@@ -222,7 +226,16 @@
     function renderHeader() {
         const hWrap = document.getElementById('class-header-container');
         const cls = classData.cls;
-        const teachers = classData.teachers.map(t => `<span class="vni-font">${t.EMP_NAME}</span> (${t.IS_PRIMARY ? 'Chính' : 'Trợ giảng'})`).join(', ');
+        // 1 GV có thể nhiều nhóm (1 row/nhóm) → gom theo EMPCD tránh trùng tên, kèm tên các nhóm phụ trách
+        const tMap = new Map();
+        (classData.teachers || []).forEach(t => {
+            if (!tMap.has(t.EMPCD)) tMap.set(t.EMPCD, { NAME: t.EMP_NAME, PRI: 0, GROUPS: [] });
+            const agg = tMap.get(t.EMPCD);
+            if (t.IS_PRIMARY) agg.PRI = 1;
+            if (t.GROUP_NAME && !agg.GROUPS.includes(t.GROUP_NAME)) agg.GROUPS.push(t.GROUP_NAME);
+        });
+        const teachers = [...tMap.values()].map(t =>
+            `<span class="vni-font">${t.NAME}</span> (${t.PRI ? 'Chính' : 'Trợ giảng'}${t.GROUPS.length ? ' – ' + t.GROUPS.join(', ') : ''})`).join(', ');
         hWrap.innerHTML = `
             <div class="card border-0 shadow-sm p-4" style="border-radius:16px;">
                 <div class="row align-items-center">
@@ -235,7 +248,7 @@
                         <div class="card bg-light border-0 p-3 d-inline-block text-start" style="border-radius:12px;min-width:200px;">
                             <div class="d-flex justify-content-between small text-muted mb-1">
                                 <span>Tổng số buổi:</span>
-                                <span class="fw-bold text-dark">${classData.sessions ? classData.sessions.length : 0}</span>
+                                <span class="fw-bold text-dark">${getMySessions().length}</span>
                             </div>
                             <div class="d-flex justify-content-between small text-muted">
                                 <span>Tổng học viên:</span>
@@ -247,23 +260,61 @@
             </div>`;
     }
 
-    function renderSessions() {
+    // 1 GV có thể được gán riêng cho 1/nhiều nhóm (GROUP_ID) hoặc dạy cả lớp (GROUP_ID null trên mọi row).
+    // Trả về null nếu GV dạy cả lớp (hoặc không phải là GV của lớp, VD HR/Admin xem) → không lọc buổi học.
+    function getMyGroupIds() {
+        const myRows = (classData.teachers || []).filter(t => t.EMPCD === empCd);
+        if (myRows.length === 0 || myRows.some(t => !t.GROUP_ID)) return null;
+        return myRows.map(t => t.GROUP_ID);
+    }
+
+    // Buổi học GROUP_ID = null áp dụng cho cả lớp → luôn hiện; buổi có GROUP_ID chỉ hiện nếu thuộc nhóm GV phụ trách.
+    function getMySessions() {
+        const myGroupIds = getMyGroupIds();
         const list = classData.sessions || [];
-        const wrap = document.getElementById('sessions-list');
-        if (list.length === 0) { wrap.innerHTML = '<p class="text-muted small">Chưa sắp xếp lịch học.</p>'; return; }
+        const filtered = myGroupIds ? list.filter(s => !s.GROUP_ID || myGroupIds.includes(s.GROUP_ID)) : list;
+        return [...filtered].sort((a, b) => {
+            const da = new Date(a.SESSION_DATE) - new Date(b.SESSION_DATE);
+            return da !== 0 ? da : (a.START_TIME || '').localeCompare(b.START_TIME || '');
+        });
+    }
+
+    function renderSessions() {
+        allSessions  = getMySessions();
+        sessionsPage = 1;
+        renderSessionsPage();
+    }
+
+    function renderSessionsPage() {
+        const wrap   = document.getElementById('sessions-list');
+        const pagDiv = document.getElementById('sessions-pagination');
+
+        if (allSessions.length === 0) {
+            wrap.innerHTML   = '<p class="text-muted small">Chưa sắp xếp lịch học.</p>';
+            pagDiv.innerHTML = '';
+            return;
+        }
+
+        const totalPages = Math.ceil(allSessions.length / SESSIONS_PER_PAGE);
+        const start      = (sessionsPage - 1) * SESSIONS_PER_PAGE;
+        const pageItems  = allSessions.slice(start, start + SESSIONS_PER_PAGE);
+
         wrap.innerHTML = '';
-        list.forEach(s => {
+        pageItems.forEach(s => {
             let bc = 'upcoming', sl = 'Chưa dạy';
             if (s.STATUS === 'COMPLETED') { bc = 'completed'; sl = 'Đã kết thúc'; }
             else if (s.STATUS === 'ONGOING') { bc = 'ongoing'; sl = 'Đang diễn ra'; }
             const sDate = s.SESSION_DATE ? new Date(s.SESSION_DATE).toLocaleDateString('vi-VN') : '';
+            const groupBadge = s.GROUP_NAME
+                ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-2">${s.GROUP_NAME}</span>`
+                : '';
             wrap.innerHTML += `
                 <div class="timeline-item">
                     <div class="timeline-badge ${bc}"></div>
                     <div class="card border bg-white p-3 shadow-sm rounded-3">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
-                                <h6 class="fw-bold mb-0 text-dark">Buổi ${s.SESSION_NO}: ${s.TOPIC || 'Chủ đề'}</h6>
+                                <h6 class="fw-bold mb-0 text-dark">Buổi ${s.SESSION_NO}: ${s.TOPIC || 'Chủ đề'}${groupBadge}</h6>
                                 <span class="small text-muted">${sDate} | ${s.START_TIME} - ${s.END_TIME}</span>
                             </div>
                             <span class="badge bg-light text-dark border">${sl}</span>
@@ -277,6 +328,17 @@
                     </div>
                 </div>`;
         });
+
+        pagDiv.innerHTML = '';
+        if (totalPages > 1) {
+            for (let i = 1; i <= totalPages; i++) {
+                const btn = document.createElement('button');
+                btn.className   = `btn btn-sm ${i === sessionsPage ? 'btn-success' : 'btn-outline-secondary'}`;
+                btn.textContent = i;
+                btn.onclick     = () => { sessionsPage = i; renderSessionsPage(); };
+                pagDiv.appendChild(btn);
+            }
+        }
     }
 
     function renderMaterials() {

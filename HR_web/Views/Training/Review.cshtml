@@ -5,21 +5,22 @@
     var classId = ViewBag.ClassId;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <div class="mb-3">
-        <a href="@Url.Action("ClassDetail", "Training", new { id = ViewBag.ClassId })" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
+<div class="container-fluid py-4 px-3 px-md-4" style="font-family: 'Outfit', sans-serif;">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <a href="@Url.Action("ClassDetail", "Training", new { id = ViewBag.ClassId })" class="btn btn-sm btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1 fw-bold">
             <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            Trở lại chi tiết lớp học
+            <span class="d-none d-sm-inline">Quay về chi tiết lớp học</span>
+            <span class="d-inline d-sm-none">Quay lại</span>
         </a>
+        <!-- Breadcrumbs (ẩn trên mobile để đỡ rối, đã có nút Quay lại) -->
+        <nav aria-label="breadcrumb" class="d-none d-md-block mb-0">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "Training")" class="text-decoration-none">Đào tạo của tôi</a></li>
+                <li class="breadcrumb-item"><a id="class-link" href="@Url.Action("ClassDetail", "Training", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Đánh giá & Phản hồi</li>
+            </ol>
+        </nav>
     </div>
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "Training")" class="text-decoration-none">Đào tạo của tôi</a></li>
-            <li class="breadcrumb-item"><a id="class-link" href="@Url.Action("ClassDetail", "Training", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Đánh giá & Phản hồi</li>
-        </ol>
-    </nav>
 
     <div class="row">
         <div class="col-12 col-md-8 col-lg-6 mx-auto">
@@ -36,7 +37,7 @@
 <style>
     /* Star rating */
     .star-rating {
-        font-size: 2.5rem;
+        font-size: clamp(1.8rem, 8vw, 2.5rem);
         cursor: pointer;
         color: #dee2e6;
         transition: color 0.1s;

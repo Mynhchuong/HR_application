@@ -100,16 +100,6 @@ public class TrainingController : BaseController
         return View();
     }
 
-    // GET /Training/BulletinRegister/{id}
-    public IActionResult BulletinRegister(int id)
-    {
-        var empcd = CurrentUser?.EmpCd;
-        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
-        ViewBag.EmpCd = empcd;
-        ViewBag.ClassId = id;
-        return View();
-    }
-
     // ═══════════════════════════════════════════════════════════════
     //  STUDENT AJAX PROXIES
     // ═══════════════════════════════════════════════════════════════
@@ -143,15 +133,6 @@ public class TrainingController : BaseController
         var empcd = CurrentUser?.EmpCd ?? "";
         var res = await _training.GetFromApiAsync<object>($"Training/class/{classId}/tests", $"empcd={empcd}");
         return Json(res);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> RegisterClass(int classId, [FromBody] SelfRegisterRequest req)
-    {
-        var response = await _training.PostToApiAsync($"Training/class/{classId}/register", req);
-        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
-        var json = await response.Content.ReadAsStringAsync();
-        return Content(json, "application/json");
     }
 
     [HttpGet]
@@ -250,7 +231,12 @@ public class TrainingController : BaseController
         
         // Fetch class detail to get the teachers of the class
         var detailRes = await _training.GetFromApiAsync<ClassDetailApiResponse>($"Training/class/{req.CLASS_ID}/detail", $"empcd={req.EMPCD}");
-        var teachers = detailRes?.data?.teachers ?? new List<ClassTeacherApiItem>();
+        // 1 GV có thể có nhiều row (1 row/nhóm phụ trách) — gộp theo EMPCD, nếu không PK
+        // (CLASS_ID, EMPCD, TEACHER_EMPCD) của HR_TRAINING_REVIEW_TEACHER sẽ bị vi phạm khi insert trùng.
+        var teachers = (detailRes?.data?.teachers ?? new List<ClassTeacherApiItem>())
+            .GroupBy(t => t.EMPCD)
+            .Select(g => g.First())
+            .ToList();
 
         // Map web model properties to backend API expected properties
         var apiReq = new

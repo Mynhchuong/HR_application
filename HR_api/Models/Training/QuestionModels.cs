@@ -7,6 +7,10 @@ public class QuestionModel
     public int    CLASS_ID { get; set; }
     public string ASKED_BY { get; set; } = "";
     public string? ASKED_BY_NAME { get; set; }
+    public string? ASKED_BY_DEPT_NAME { get; set; }
+    public string? ASKED_BY_LINE_NAME { get; set; }
+    public string? ASKED_BY_WORK_NAME { get; set; }
+    public string? ASKED_BY_GROUP_NAME { get; set; }
     public string QUESTION_TEXT { get; set; } = "";
     public DateTime ASKED_DT { get; set; }
     public string? ANSWERED_BY { get; set; }

@@ -55,11 +55,26 @@
         </div>
     </div>
 
-    <!-- Main Content Grid -->
-    <div class="row">
-        <!-- Left: Sessions / Timeline -->
-        <div class="col-12 col-lg-8 mb-4">
-            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+    <!-- Main Content Tabs: Buổi học / Bài kiểm tra -->
+    <ul class="nav nav-tabs mb-4" id="classDetailTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="sessions-tab-btn" data-bs-toggle="tab" data-bs-target="#sessions-pane" type="button" role="tab" aria-controls="sessions-pane" aria-selected="true">
+                <span class="material-symbols-rounded align-middle" style="font-size:1.1rem;">calendar_month</span>
+                Buổi học
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tests-tab-btn" data-bs-toggle="tab" data-bs-target="#tests-pane" type="button" role="tab" aria-controls="tests-pane" aria-selected="false">
+                <span class="material-symbols-rounded align-middle" style="font-size:1.1rem;">quiz</span>
+                Bài kiểm tra
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Pane: Sessions / Timeline -->
+        <div class="tab-pane fade show active" id="sessions-pane" role="tabpanel" aria-labelledby="sessions-tab-btn">
+            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
                 <h5 class="fw-bold mb-4 d-flex align-items-center gap-2 text-dark">
                     <span class="material-symbols-rounded text-primary">calendar_month</span>
                     Lộ trình & Điểm danh buổi học
@@ -72,13 +87,21 @@
             </div>
         </div>
 
-        <!-- Right: Tests List -->
-        <div class="col-12 col-lg-4 mb-4" id="tests-section">
-            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
-                <h5 class="fw-bold mb-4 d-flex align-items-center gap-2 text-dark">
+        <!-- Pane: Tests List -->
+        <div class="tab-pane fade" id="tests-pane" role="tabpanel" aria-labelledby="tests-tab-btn">
+            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;" id="tests-section">
+                <h5 class="fw-bold mb-3 d-flex align-items-center gap-2 text-dark">
                     <span class="material-symbols-rounded text-info">quiz</span>
                     Bài kiểm tra
                 </h5>
+                <ul class="nav nav-tabs mb-3" id="tests-tabs">
+                    <li class="nav-item">
+                        <button type="button" class="nav-link active" data-tab="ALL" onclick="switchTestsTab('ALL')">Tất cả</button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button" class="nav-link" data-tab="FINAL" onclick="switchTestsTab('FINAL')">Bài thi cuối khóa</button>
+                    </li>
+                </ul>
                 <div id="tests-list">
                     <div class="text-center py-4">
                         <div class="spinner-border text-info" role="status"></div>
@@ -156,6 +179,8 @@
         const empCd = '@empCd';
         const classId = @classId;
         let classData = null;
+        let allTests = [];
+        let testsTabFilter = 'ALL';
 
         document.addEventListener('DOMContentLoaded', function () {
             // loadTestsList() đọc classData.cls.FINAL_TEST_ID để hiện badge "Bài thi cuối khóa" —
@@ -188,18 +213,31 @@
             const hWrap = document.getElementById('class-header-container');
             const cls = classData.cls;
 
-            // GV theo nhóm: chỉ hiện GV dạy cả lớp (GROUP_ID null) + GV phụ trách nhóm của mình.
-            // Chưa được chia nhóm → hiện tất cả kèm tên nhóm để biết ai dạy nhóm nào.
+            // GV theo nhóm (1 GV có thể NHIỀU nhóm — API trả 1 row/nhóm, GROUP_ID null = cả lớp):
+            // gom theo EMPCD để không hiện trùng tên. Đã chia nhóm → chỉ hiện GV cả lớp + GV phụ
+            // trách nhóm mình; chưa chia nhóm → hiện tất cả kèm tên nhóm để biết ai dạy nhóm nào.
             const myGroupId = classData.myEnrollment ? classData.myEnrollment.GROUP_ID : null;
-            const allTeachers = classData.teachers || [];
-            const visibleTeachers = myGroupId
-                ? allTeachers.filter(t => !t.GROUP_ID || t.GROUP_ID === myGroupId)
-                : allTeachers;
-            const teachers = visibleTeachers.map(t => {
-                const role = t.IS_PRIMARY ? 'Chính' : 'Trợ giảng';
-                const grp = t.GROUP_NAME ? ` – ${t.GROUP_NAME}` : '';
-                return `<span class="vni-font">${t.EMP_NAME}</span> (${role}${grp})`;
-            }).join(', ');
+            const teacherMap = new Map();
+            (classData.teachers || []).forEach(t => {
+                if (!teacherMap.has(t.EMPCD)) teacherMap.set(t.EMPCD, { NAME: t.EMP_NAME, PRI: 0, GROUPS: [], WHOLE: false });
+                const agg = teacherMap.get(t.EMPCD);
+                if (t.IS_PRIMARY) agg.PRI = 1;
+                if (t.GROUP_ID) {
+                    if (!agg.GROUPS.some(g => g.id === t.GROUP_ID)) agg.GROUPS.push({ id: t.GROUP_ID, name: t.GROUP_NAME });
+                } else {
+                    agg.WHOLE = true;
+                }
+            });
+            const teachers = [...teacherMap.values()]
+                .filter(t => !myGroupId || t.WHOLE || t.GROUPS.some(g => g.id === myGroupId))
+                .map(t => {
+                    const role = t.PRI ? 'Chính' : 'Trợ giảng';
+                    const grpNames = myGroupId
+                        ? t.GROUPS.filter(g => g.id === myGroupId).map(g => g.name)
+                        : t.GROUPS.map(g => g.name);
+                    const grp = grpNames.length ? ` – ${grpNames.join(', ')}` : '';
+                    return `<span class="vni-font">${t.NAME}</span> (${role}${grp})`;
+                }).join(', ');
             const myGroupLabel = classData.myEnrollment && classData.myEnrollment.GROUP_NAME
                 ? `<span class="badge bg-info-soft text-dark px-3 py-2 rounded-pill">Nhóm của bạn: ${classData.myEnrollment.GROUP_NAME}</span>`
                 : '';
@@ -246,7 +284,9 @@
         }
 
         function renderSessions() {
-            const list = classData.sessions || [];
+            // Buổi GROUP_ID null = chung cả lớp → luôn hiện; buổi có GROUP_ID chỉ hiện nếu đúng nhóm học viên.
+            const myGroupId = classData.myEnrollment ? classData.myEnrollment.GROUP_ID : null;
+            const list = (classData.sessions || []).filter(s => !myGroupId || !s.GROUP_ID || s.GROUP_ID === myGroupId);
             const wrap = document.getElementById('sessions-list');
             if (list.length === 0) {
                 wrap.innerHTML = '<p class="text-muted small">Lớp học chưa có lịch học nào.</p>';
@@ -318,15 +358,39 @@
                         wrap.innerHTML = '<p class="text-danger small">Lỗi tải danh sách bài test.</p>';
                         return;
                     }
-                    const list = res.data || [];
-                    if (list.length === 0) {
-                        wrap.innerHTML = '<div class="text-center py-3 text-muted small">Không có bài kiểm tra nào cho lớp này.</div>';
-                        return;
-                    }
-                    wrap.innerHTML = '';
-                    list.forEach(t => {
+                    allTests = res.data || [];
+                    renderTestsList();
+                });
+        }
+
+        function switchTestsTab(mode) {
+            testsTabFilter = mode;
+            document.querySelectorAll('#tests-tabs .nav-link').forEach(el => {
+                el.classList.toggle('active', el.dataset.tab === mode);
+            });
+            renderTestsList();
+        }
+
+        function renderTestsList() {
+            const wrap = document.getElementById('tests-list');
+            const isFinal = t => classData && classData.cls && (t.ID == classData.cls.FINAL_TEST_ID || t.ID == classData.cls.finalTestId);
+            const list = testsTabFilter === 'FINAL' ? allTests.filter(isFinal) : allTests;
+
+            if (allTests.length === 0) {
+                wrap.innerHTML = '<div class="text-center py-3 text-muted small">Không có bài kiểm tra nào cho lớp này.</div>';
+                return;
+            }
+            if (list.length === 0) {
+                wrap.innerHTML = '<div class="text-center py-3 text-muted small">Lớp chưa đặt bài thi cuối khóa.</div>';
+                return;
+            }
+
+            wrap.innerHTML = '';
+            list.forEach(t => {
                         const isDone = t.ATTEMPT_STATUS === 'SUBMITTED' || t.ATTEMPT_STATUS === 'AUTO_SUBMITTED' || t.ATTEMPT_STATUS === 'GRADED';
-                        
+                        // Đã nộp nhưng còn câu tự luận chưa chấm (IS_GRADED != 1) → chưa hiện điểm, tránh gây hiểu lầm điểm chưa tính tự luận.
+                        const pendingGrade = isDone && t.IS_GRADED !== 1;
+
                         const isFinalTest = classData && classData.cls && (t.ID == classData.cls.FINAL_TEST_ID || t.ID == classData.cls.finalTestId);
                         const finalBadge = isFinalTest 
                             ? `<span class="badge border ms-2" style="background-color: #ffeef0; color: #dc3545; border-color: #fecdd3 !important; font-size: 0.7rem; font-weight: 700;"><i class="bi bi-award me-1"></i>Bài thi cuối khóa</span>` 
@@ -349,7 +413,13 @@
                         }
 
                         const durationText = t.DURATION_MINUTES ? `${t.DURATION_MINUTES} phút` : 'Tự do';
-                        const scoreText = isDone ? `Điểm: <strong class="text-primary">${t.SCORE ?? '-'} / ${t.MAX_SCORE ?? '-'}</strong>` : `Số câu hỏi: ${t.QUESTION_COUNT}`;
+                        const scoreText = !isDone
+                            ? `Số câu hỏi: ${t.QUESTION_COUNT}`
+                            : (pendingGrade
+                                ? `<span class="text-warning fw-bold">Chưa chấm điểm</span>`
+                                : `Điểm: <strong class="text-primary">${t.SCORE ?? '-'} / ${t.MAX_SCORE ?? '-'}</strong>`);
+                        const statusBadgeClass = !isDone ? 'bg-warning' : (pendingGrade ? 'bg-secondary' : 'bg-success');
+                        const statusBadgeLabel = !isDone ? 'Chưa làm' : (pendingGrade ? 'Chờ chấm tự luận' : 'Đã nộp');
 
                         wrap.innerHTML += `
                             <div class="card border p-3 mb-3 rounded-3 shadow-sm ${borderClass}">
@@ -357,13 +427,12 @@
                                 <p class="text-muted small mb-2">Thời gian làm bài: ${durationText}</p>
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <span class="small text-muted">${scoreText}</span>
-                                    <span class="badge ${isDone ? 'bg-success' : 'bg-warning'}">${isDone ? 'Đã nộp' : 'Chưa làm'}</span>
+                                    <span class="badge ${statusBadgeClass}">${statusBadgeLabel}</span>
                                 </div>
                                 ${actionBtn}
                             </div>
                         `;
                     });
-                });
         }
     </script>
 }

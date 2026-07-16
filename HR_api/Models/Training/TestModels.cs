@@ -29,6 +29,7 @@ public class TestModel
     public string?   ATTEMPT_STATUS { get; set; }
     public decimal?  SCORE { get; set; }
     public decimal?  MAX_SCORE { get; set; }
+    public int?      IS_GRADED { get; set; }
 }
 
 public class TestQuestionModel

@@ -6,6 +6,12 @@
 }
 
 <div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+    <div class="mb-3">
+        <a href="@Url.Action("ClassManage", "TrainingTeach", new { id = classId })" class="btn btn-sm btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1 fw-bold">
+            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
+            Quay về quản lý lớp học
+        </a>
+    </div>
     <!-- Breadcrumbs -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
@@ -108,10 +114,21 @@
                             `;
                         }
 
+                        const orgParts = [q.ASKED_BY_DEPT_NAME, q.ASKED_BY_LINE_NAME, q.ASKED_BY_WORK_NAME].filter(Boolean);
+                        const orgLine = orgParts.length
+                            ? `<div class="small text-muted"><i class="bi bi-diagram-3 me-1"></i>${orgParts.join(' / ')}</div>`
+                            : '';
+                        const groupBadge = q.ASKED_BY_GROUP_NAME
+                            ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-2">${q.ASKED_BY_GROUP_NAME}</span>`
+                            : '';
+
                         qaWrap.innerHTML += `
                             <div class="card border-0 shadow-sm p-4 mb-3" style="border-radius: 12px; background: #fff;">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Học viên: <span class="vni-font">${q.ASKED_BY_NAME || q.ASKED_BY}</span></span>
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <span class="fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Học viên: <span class="vni-font">${q.ASKED_BY_NAME || q.ASKED_BY}</span>${groupBadge}</span>
+                                        ${orgLine}
+                                    </div>
                                     <span class="text-muted small">${new Date(q.ASKED_DT).toLocaleDateString('vi-VN')}</span>
                                 </div>
                                 <p class="mb-0 text-secondary">${q.QUESTION_TEXT}</p>

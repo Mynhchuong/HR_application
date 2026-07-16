@@ -13,31 +13,42 @@ public class TrainingQAService
 
     public async Task<List<QuestionModel>> ListByClassAsync(int classId, bool includeDeleted = false)
     {
+        // Dept/Line/Work theo mẫu TrainingTeamService (ECM100 → EAM410). Nhóm lấy từ ENROLLMENT của
+        // người hỏi trong CHÍNH lớp này — GV hỏi thì không có enrollment nên GROUP_NAME sẽ null.
         var sql = @"
             SELECT Q.ID, Q.CLASS_ID, Q.ASKED_BY, EC1.CNAME AS ASKED_BY_NAME,
+                   B.DEPTNM AS ASKED_BY_DEPT_NAME, B.TEAMNM AS ASKED_BY_LINE_NAME, B.WORKNM AS ASKED_BY_WORK_NAME,
+                   G.GROUP_NAME AS ASKED_BY_GROUP_NAME,
                    Q.QUESTION_TEXT, Q.ASKED_DT,
                    Q.ANSWERED_BY, EC2.CNAME AS ANSWERED_BY_NAME,
                    Q.ANSWER_TEXT, Q.ANSWERED_DT,
                    Q.IS_DELETED
               FROM HRMS.HR_TRAINING_QUESTION Q
               LEFT JOIN HRMS.ECM100 EC1 ON EC1.EMPCD = Q.ASKED_BY
+              LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC1.DEPTCD AND B.LINECD = EC1.LINECD AND B.WORKCD = EC1.WORKCD
+              LEFT JOIN HRMS.HR_TRAINING_ENROLLMENT E ON E.CLASS_ID = Q.CLASS_ID AND E.EMPCD = Q.ASKED_BY
+              LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = E.GROUP_ID
               LEFT JOIN HRMS.ECM100 EC2 ON EC2.EMPCD = Q.ANSWERED_BY
              WHERE Q.CLASS_ID = :CID
                " + (includeDeleted ? "" : "AND Q.IS_DELETED = 0") + @"
              ORDER BY Q.ASKED_DT DESC";
         return await _db.ExecuteQueryAsync(sql, r => new QuestionModel
         {
-            ID               = Convert.ToInt32(r["ID"]),
-            CLASS_ID         = Convert.ToInt32(r["CLASS_ID"]),
-            ASKED_BY         = r["ASKED_BY"]?.ToString() ?? "",
-            ASKED_BY_NAME    = r["ASKED_BY_NAME"] as string,
-            QUESTION_TEXT    = r["QUESTION_TEXT"]?.ToString() ?? "",
-            ASKED_DT         = Convert.ToDateTime(r["ASKED_DT"]),
-            ANSWERED_BY      = r["ANSWERED_BY"] as string,
-            ANSWERED_BY_NAME = r["ANSWERED_BY_NAME"] as string,
-            ANSWER_TEXT      = r["ANSWER_TEXT"] as string,
-            ANSWERED_DT      = r["ANSWERED_DT"] as DateTime?,
-            IS_DELETED       = Convert.ToInt32(r["IS_DELETED"]),
+            ID                  = Convert.ToInt32(r["ID"]),
+            CLASS_ID            = Convert.ToInt32(r["CLASS_ID"]),
+            ASKED_BY            = r["ASKED_BY"]?.ToString() ?? "",
+            ASKED_BY_NAME       = r["ASKED_BY_NAME"] as string,
+            ASKED_BY_DEPT_NAME  = r["ASKED_BY_DEPT_NAME"] as string,
+            ASKED_BY_LINE_NAME  = r["ASKED_BY_LINE_NAME"] as string,
+            ASKED_BY_WORK_NAME  = r["ASKED_BY_WORK_NAME"] as string,
+            ASKED_BY_GROUP_NAME = r["ASKED_BY_GROUP_NAME"] as string,
+            QUESTION_TEXT       = r["QUESTION_TEXT"]?.ToString() ?? "",
+            ASKED_DT            = Convert.ToDateTime(r["ASKED_DT"]),
+            ANSWERED_BY         = r["ANSWERED_BY"] as string,
+            ANSWERED_BY_NAME    = r["ANSWERED_BY_NAME"] as string,
+            ANSWER_TEXT         = r["ANSWER_TEXT"] as string,
+            ANSWERED_DT         = r["ANSWERED_DT"] as DateTime?,
+            IS_DELETED          = Convert.ToInt32(r["IS_DELETED"]),
         }, new OracleParameter("CID", classId));
     }
 

@@ -64,12 +64,16 @@ public class TrainingLifecycleService : BackgroundService
     private async Task TransitionSessionsAsync(
         OracleService db, TrainingNotificationService noti, TrainingSessionService att, CancellationToken stop)
     {
-        // UPCOMING → ONGOING: SESSION_DATE = today AND TO_CHAR(SYSDATE,'HH24MI') >= START_TIME
+        // UPCOMING → ONGOING: SESSION_DATE = today AND TO_CHAR(SYSDATE,'HH24MI') >= START_TIME.
+        // CHỈ lớp đã công bố (SCHEDULED/IN_PROGRESS) — lớp DRAFT/OPEN_FOR_REGISTRATION còn là
+        // nháp, buổi không được tự "diễn ra" (sẽ khóa mất nút sửa/xóa của HR).
         var toOngoing = await db.ExecuteQueryAsync(@"
-            SELECT ID FROM HRMS.HR_TRAINING_SESSION
-             WHERE STATUS = 'UPCOMING'
-               AND SESSION_DATE = TRUNC(SYSDATE)
-               AND TO_CHAR(SYSDATE,'HH24MI') >= START_TIME",
+            SELECT S.ID FROM HRMS.HR_TRAINING_SESSION S
+              JOIN HRMS.HR_TRAINING_CLASS C ON C.ID = S.CLASS_ID
+             WHERE S.STATUS = 'UPCOMING'
+               AND S.SESSION_DATE = TRUNC(SYSDATE)
+               AND TO_CHAR(SYSDATE,'HH24MI') >= S.START_TIME
+               AND C.STATUS IN ('SCHEDULED','IN_PROGRESS')",
             r => Convert.ToInt32(r["ID"]));
 
         foreach (var id in toOngoing)
@@ -85,11 +89,15 @@ public class TrainingLifecycleService : BackgroundService
 
         // ONGOING → COMPLETED: SYSDATE > END_TIME + 30 min
         // END_TIME lưu HHMM string. Convert bằng TO_DATE(SESSION_DATE || END_TIME, 'YYYYMMDDHH24MI') + 30/1440.
+        // Cùng filter lớp đã công bố — buổi lỡ ONGOING trong lớp nháp sẽ được HR sửa lại
+        // (SaveAsync tự reset về UPCOMING), không complete + mark absent nhầm.
         var toCompleted = await db.ExecuteQueryAsync(@"
-            SELECT ID FROM HRMS.HR_TRAINING_SESSION
-             WHERE STATUS = 'ONGOING'
-               AND SYSDATE > TO_DATE(TO_CHAR(SESSION_DATE,'YYYYMMDD') || END_TIME, 'YYYYMMDDHH24MI')
-                             + (30/1440)",
+            SELECT S.ID FROM HRMS.HR_TRAINING_SESSION S
+              JOIN HRMS.HR_TRAINING_CLASS C ON C.ID = S.CLASS_ID
+             WHERE S.STATUS = 'ONGOING'
+               AND SYSDATE > TO_DATE(TO_CHAR(S.SESSION_DATE,'YYYYMMDD') || S.END_TIME, 'YYYYMMDDHH24MI')
+                             + (30/1440)
+               AND C.STATUS IN ('SCHEDULED','IN_PROGRESS')",
             r => Convert.ToInt32(r["ID"]));
 
         foreach (var id in toCompleted)

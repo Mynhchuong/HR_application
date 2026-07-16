@@ -64,7 +64,35 @@ public class TrainingNotificationService
             await EnqueueAsync(templateKey, emp, placeholders, classId, sessionId, testId);
     }
 
-    // Enqueue cho tất cả học viên ENROLLED của Class (filter group nếu event là session-specific §5b.3)
+    // Enqueue TRAINING_ASSIGNED cho học viên ENROLLED chưa có noti — 1 câu INSERT-SELECT set-based
+    // thay vì loop N lần INSERT (lớp 800+ học viên bấm "Lên lịch học" bị treo hàng chục giây vì
+    // mỗi INSERT 1 round-trip). Placeholders giống nhau cho cả lớp nên serialize 1 lần là đủ.
+    // Trả về số row đã enqueue.
+    public async Task<int> EnqueueAssignedForMissingAsync(int classId, Dictionary<string, string> placeholders)
+    {
+        if (!_enabled) return 0;   // kill switch
+
+        var json = JsonSerializer.Serialize(placeholders);
+        return await _db.ExecuteNonQueryAsync(@"
+            INSERT INTO HRMS.HR_TRAINING_NOTI_QUEUE
+                (TEMPLATE_KEY, TARGET_EMPCD, PLACEHOLDERS, RELATED_CLASS_ID, STATUS, NEXT_ATTEMPT_DT)
+            SELECT 'TRAINING_ASSIGNED', E.EMPCD, :PH, E.CLASS_ID, 'PENDING', SYSDATE
+              FROM HRMS.HR_TRAINING_ENROLLMENT E
+             WHERE E.CLASS_ID = :CID
+               AND E.STATUS = 'ENROLLED'
+               AND NOT EXISTS (
+                   SELECT 1 FROM HRMS.HR_TRAINING_NOTI_QUEUE Q
+                    WHERE Q.RELATED_CLASS_ID = E.CLASS_ID
+                      AND Q.TARGET_EMPCD     = E.EMPCD
+                      AND Q.TEMPLATE_KEY     = 'TRAINING_ASSIGNED'
+                      AND Q.STATUS IN ('PENDING','CLAIMED','SENT'))",
+            new OracleParameter("PH",  json),
+            new OracleParameter("CID", classId));
+    }
+
+    // Enqueue cho tất cả học viên ENROLLED của Class (filter group nếu event là session-specific §5b.3).
+    // Lớp CHƯA công bố (DRAFT/OPEN_FOR_REGISTRATION) → im lặng: HR còn soạn nháp (sửa/xóa buổi,
+    // đổi DS...), học viên chưa được báo assign thì không được nhận noti sự kiện của lớp.
     public async Task EnqueueForClassEnrollmentsAsync(
         int classId,
         string templateKey,
@@ -73,6 +101,12 @@ public class TrainingNotificationService
         int? sessionId = null,
         int? testId = null)
     {
+        var classStatus = (await _db.ExecuteQueryAsync(
+            "SELECT STATUS FROM HRMS.HR_TRAINING_CLASS WHERE ID = :CID",
+            r => r["STATUS"]?.ToString() ?? "",
+            new OracleParameter("CID", classId))).FirstOrDefault();
+        if (classStatus is "DRAFT" or "OPEN_FOR_REGISTRATION") return;
+
         var empcds = await _db.ExecuteQueryAsync(@"
             SELECT EMPCD FROM HRMS.HR_TRAINING_ENROLLMENT
              WHERE CLASS_ID = :CID

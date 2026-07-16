@@ -34,7 +34,7 @@ public class TrainingTestService
                    CL.CLASS_NAME, CO.TITLE COURSE_TITLE,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_TEST_QUESTION Q WHERE Q.TEST_ID = T.ID) QUESTION_COUNT,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_TEST_ATTEMPT A WHERE A.TEST_ID = T.ID) ATTEMPT_COUNT,
-                   ATT.STATUS AS ATTEMPT_STATUS, ATT.SCORE AS SCORE, ATT.MAX_SCORE AS MAX_SCORE
+                   ATT.STATUS AS ATTEMPT_STATUS, ATT.SCORE AS SCORE, ATT.MAX_SCORE AS MAX_SCORE, ATT.IS_GRADED AS IS_GRADED
               FROM HRMS.HR_TRAINING_TEST T
               LEFT JOIN HRMS.HR_TRAINING_CLASS  CL ON CL.ID = T.CLASS_ID
               LEFT JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = T.TEMPLATE_COURSE_ID
@@ -377,6 +377,7 @@ public class TrainingTestService
         t.ATTEMPT_STATUS = r["ATTEMPT_STATUS"] as string;
         t.SCORE          = r["SCORE"]     is DBNull ? null : Convert.ToDecimal(r["SCORE"]);
         t.MAX_SCORE      = r["MAX_SCORE"] is DBNull ? null : Convert.ToDecimal(r["MAX_SCORE"]);
+        t.IS_GRADED      = r["IS_GRADED"] is DBNull ? null : Convert.ToInt32(r["IS_GRADED"]);
         return t;
     }
 

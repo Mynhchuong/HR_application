@@ -627,14 +627,39 @@ public class TrainingAdminController : BaseController
         if (byEmp.Count == 0)
             return Json(new { success = false, message = "Không có dòng hợp lệ trong file" });
 
-        // 1. Enroll toàn bộ (all-or-nothing phía API: vượt cap / lớp đã đóng → fail nguyên file)
-        var assignRes = await _training.PostToApiAsync("TrainingAdmin/enrollment/assign",
-            new { CLASS_ID = classId, EMPCDS = byEmp.Keys.ToList(), LOGIN_USER = loginUser });
-        if (assignRes == null) return Json(new { success = false, message = "Lỗi kết nối API" });
-        var assignObj = Newtonsoft.Json.Linq.JObject.Parse(await assignRes.Content.ReadAsStringAsync());
-        if ((bool?)assignObj["success"] != true)
-            return Content(assignObj.ToString(Newtonsoft.Json.Formatting.None), "application/json");
-        var assignData = assignObj["data"];
+        // 1. Enroll theo lô 50 người/lần — file lớn gọi 1 phát dễ treo/timeout API.
+        //    Lô đầu lỗi → fail nguyên file như cũ; lô sau lỗi (vd vượt cap giữa chừng) → dừng và báo
+        //    trong ERRORS, sửa xong nhập lại file là bù được phần thiếu (các bước idempotent).
+        const int BATCH_SIZE = 50;
+        var allEmpcds = byEmp.Keys.ToList();
+        var errors = new List<string>();
+        var failedEmpcds = new List<string>();
+        int newInserted = 0, upgraded = 0, skippedExisted = 0, skippedDropped = 0;
+        for (int i = 0; i < allEmpcds.Count; i += BATCH_SIZE)
+        {
+            var batch = allEmpcds.Skip(i).Take(BATCH_SIZE).ToList();
+            var assignRes = await _training.PostToApiAsync("TrainingAdmin/enrollment/assign",
+                new { CLASS_ID = classId, EMPCDS = batch, LOGIN_USER = loginUser });
+            var assignObj = assignRes == null ? null
+                : Newtonsoft.Json.Linq.JObject.Parse(await assignRes.Content.ReadAsStringAsync());
+            if ((bool?)assignObj?["success"] != true)
+            {
+                var msg = assignObj?["message"]?.ToString() ?? "Lỗi kết nối API";
+                if (i == 0)
+                    return Json(new { success = false, message = msg });
+                errors.Add($"Dừng ở lô {i + 1}-{Math.Min(i + BATCH_SIZE, allEmpcds.Count)}/{allEmpcds.Count}: {msg}. Nhập lại file sau khi xử lý để bổ sung phần còn thiếu.");
+                break;
+            }
+            var d = assignObj["data"];
+            newInserted    += (int?)d?["NEW_INSERTED"]    ?? 0;
+            upgraded       += (int?)d?["UPGRADED"]        ?? 0;
+            skippedExisted += (int?)d?["SKIPPED_EXISTED"] ?? 0;
+            skippedDropped += (int?)d?["SKIPPED_DROPPED"] ?? 0;
+            if (d?["FAILED_EMPCDS"] is Newtonsoft.Json.Linq.JArray fails)
+                failedEmpcds.AddRange(fails.Select(t => t.ToString()));
+        }
+        if (failedEmpcds.Count > 0)
+            errors.Add($"{failedEmpcds.Count} mã không tồn tại/không thêm được: {string.Join(", ", failedEmpcds)}");
 
         // 2. Map nhóm hiện có của lớp
         var groupsRes = await _training.GetFromApiAsync<SimpleGroupListResponse>($"TrainingAdmin/class/{classId}/groups");
@@ -642,8 +667,7 @@ public class TrainingAdminController : BaseController
             .GroupBy(g => g.GROUP_NAME.Trim().ToUpperInvariant())
             .ToDictionary(g => g.Key, g => g.First().ID);
 
-        // 3. Từng nhóm trong file: chưa có → tạo mới; rồi bulk gán các EMPCD của nhóm đó
-        var errors = new List<string>();
+        // 3. Từng nhóm trong file: chưa có → tạo mới; rồi bulk gán các EMPCD của nhóm đó (theo lô 50)
         int groupsCreated = 0, groupAssigned = 0;
         var buckets = byEmp.Where(kv => !string.IsNullOrEmpty(kv.Value))
                            .GroupBy(kv => kv.Value.ToUpperInvariant());
@@ -669,14 +693,19 @@ public class TrainingAdminController : BaseController
                 }
             }
 
-            var gaRes = await _training.PostToApiAsync("TrainingAdmin/enrollment/assign-group",
-                new { CLASS_ID = classId, GROUP_ID = gid, EMPCDS = bucket.Select(kv => kv.Key).ToList(), LOGIN_USER = loginUser });
-            var gaObj = gaRes == null ? null
-                : Newtonsoft.Json.Linq.JObject.Parse(await gaRes.Content.ReadAsStringAsync());
-            if ((bool?)gaObj?["success"] == true)
-                groupAssigned += (int?)gaObj["data"]?["updated"] ?? 0;
-            else
-                errors.Add($"Gán nhóm '{displayName}' lỗi: {gaObj?["message"]?.ToString() ?? "lỗi kết nối"}");
+            var bucketEmpcds = bucket.Select(kv => kv.Key).ToList();
+            for (int i = 0; i < bucketEmpcds.Count; i += BATCH_SIZE)
+            {
+                var batch = bucketEmpcds.Skip(i).Take(BATCH_SIZE).ToList();
+                var gaRes = await _training.PostToApiAsync("TrainingAdmin/enrollment/assign-group",
+                    new { CLASS_ID = classId, GROUP_ID = gid, EMPCDS = batch, LOGIN_USER = loginUser });
+                var gaObj = gaRes == null ? null
+                    : Newtonsoft.Json.Linq.JObject.Parse(await gaRes.Content.ReadAsStringAsync());
+                if ((bool?)gaObj?["success"] == true)
+                    groupAssigned += (int?)gaObj["data"]?["updated"] ?? 0;
+                else
+                    errors.Add($"Gán nhóm '{displayName}' (lô {i + 1}-{Math.Min(i + BATCH_SIZE, bucketEmpcds.Count)}) lỗi: {gaObj?["message"]?.ToString() ?? "lỗi kết nối"}");
+            }
         }
 
         return Json(new
@@ -684,10 +713,10 @@ public class TrainingAdminController : BaseController
             success = true,
             data = new
             {
-                NEW_INSERTED    = assignData?["NEW_INSERTED"],
-                UPGRADED        = assignData?["UPGRADED"],
-                SKIPPED_EXISTED = assignData?["SKIPPED_EXISTED"],
-                SKIPPED_DROPPED = assignData?["SKIPPED_DROPPED"],
+                NEW_INSERTED    = newInserted,
+                UPGRADED        = upgraded,
+                SKIPPED_EXISTED = skippedExisted,
+                SKIPPED_DROPPED = skippedDropped,
                 GROUPS_CREATED  = groupsCreated,
                 GROUP_ASSIGNED  = groupAssigned,
                 ERRORS          = errors,

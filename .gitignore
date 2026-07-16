@@ -96,3 +96,4 @@ HR_api/Scripts/training_plan.md
 HR_api/Scripts/training_deployment.md
 HR_api/Scripts/training_qa.md
 HR_api/Scripts/alter_teacher_group.sql
+HR_api/Scripts/alter_teacher_multi_group.sql

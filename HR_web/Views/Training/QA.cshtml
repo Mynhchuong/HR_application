@@ -5,32 +5,33 @@
     var classId = ViewBag.ClassId;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <div class="mb-3">
-        <a href="@Url.Action("ClassDetail", "Training", new { id = ViewBag.ClassId })" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
+<div class="container-fluid py-4 px-3 px-md-4" style="font-family: 'Outfit', sans-serif;">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <a href="@Url.Action("ClassDetail", "Training", new { id = ViewBag.ClassId })" class="btn btn-sm btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1 fw-bold">
             <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            Trở lại chi tiết lớp học
+            <span class="d-none d-sm-inline">Quay về chi tiết lớp học</span>
+            <span class="d-inline d-sm-none">Quay lại</span>
         </a>
+        <!-- Breadcrumbs (ẩn trên mobile để đỡ rối, đã có nút Quay lại) -->
+        <nav aria-label="breadcrumb" class="d-none d-md-block mb-0">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "Training")" class="text-decoration-none">Đào tạo của tôi</a></li>
+                <li class="breadcrumb-item"><a id="class-link" href="@Url.Action("ClassDetail", "Training", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Hỏi đáp Q&A</li>
+            </ol>
+        </nav>
     </div>
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "Training")" class="text-decoration-none">Đào tạo của tôi</a></li>
-            <li class="breadcrumb-item"><a id="class-link" href="@Url.Action("ClassDetail", "Training", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Hỏi đáp Q&A</li>
-        </ol>
-    </nav>
 
     <div class="row">
         <div class="col-12 col-lg-8 mx-auto">
             <!-- Header Card -->
-            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px; background: linear-gradient(135deg, #198754 0%, #157347 100%); text-white">
+            <div class="card border-0 shadow-sm p-3 p-md-4 mb-4 qa-header-card" style="border-radius: 16px; background: linear-gradient(135deg, #198754 0%, #157347 100%); text-white">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="bg-white bg-opacity-20 text-white rounded-3 p-3 d-flex align-items-center justify-content-center">
-                        <span class="material-symbols-rounded" style="font-size: 2.5rem;">forum</span>
+                    <div class="bg-white bg-opacity-20 text-white rounded-3 p-2 p-md-3 d-flex align-items-center justify-content-center flex-shrink-0">
+                        <span class="material-symbols-rounded qa-header-icon">forum</span>
                     </div>
-                    <div>
-                        <h3 class="fw-bold text-white mb-1">Thảo Luận Q&A</h3>
+                    <div class="min-w-0">
+                        <h3 class="fw-bold text-white mb-1 qa-header-title">Thảo Luận Q&A</h3>
                         <p class="mb-0 text-white text-opacity-75 small">Nơi học viên trao đổi, đặt câu hỏi cho Giảng viên về nội dung bài học.</p>
                     </div>
                 </div>
@@ -57,6 +58,11 @@
         </div>
     </div>
 </div>
+
+<style>
+    .qa-header-icon { font-size: clamp(1.8rem, 6vw, 2.5rem); }
+    .qa-header-title { font-size: clamp(1.15rem, 4vw, 1.75rem); }
+</style>
 
 @section Scripts {
     <script>
@@ -116,10 +122,21 @@
                             `;
                         }
 
+                        const orgParts = [q.ASKED_BY_DEPT_NAME, q.ASKED_BY_LINE_NAME, q.ASKED_BY_WORK_NAME].filter(Boolean);
+                        const orgLine = orgParts.length
+                            ? `<div class="small text-muted"><i class="bi bi-diagram-3 me-1"></i>${orgParts.join(' / ')}</div>`
+                            : '';
+                        const groupBadge = q.ASKED_BY_GROUP_NAME
+                            ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-2">${q.ASKED_BY_GROUP_NAME}</span>`
+                            : '';
+
                         qaWrap.innerHTML += `
                             <div class="card border-0 shadow-sm p-4 mb-3" style="border-radius: 12px; background: #fff;">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Học viên: <span class="vni-font">${q.ASKED_BY_NAME || q.ASKED_BY}</span></span>
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <span class="fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Học viên: <span class="vni-font">${q.ASKED_BY_NAME || q.ASKED_BY}</span>${groupBadge}</span>
+                                        ${orgLine}
+                                    </div>
                                     <span class="text-muted small">${new Date(q.ASKED_DT).toLocaleDateString('vi-VN')}</span>
                                 </div>
                                 <p class="mb-0 text-secondary">${q.QUESTION_TEXT}</p>

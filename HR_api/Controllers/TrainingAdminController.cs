@@ -210,11 +210,26 @@ public partial class TrainingAdminController : ControllerBase
     {
         try
         {
-            var result = await _class.PublishRegistrationAsync(req.ID, req.LOGIN_USER);
+            var result = await _class.PublishRegistrationAsync(req.ID, req.LOGIN_USER, req.REGISTER_URL);
             var message = result.ALREADY_PUBLISHED
                 ? "Lớp đã publish trước đó."
                 : "Publish thành công.";
             return Ok(new { success = true, message, data = result });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/TrainingAdmin/class/{id}/remind-review — nhắc mềm học viên ENROLLED chưa nộp review
+    [HttpPost("class/{id}/remind-review")]
+    public async Task<IActionResult> ClassRemindReview(int id)
+    {
+        try
+        {
+            var count = await _review.RemindPendingReviewsAsync(id);
+            return Ok(new { success = true, message = count > 0 ? $"Đã nhắc {count} học viên chưa đánh giá." : "Tất cả học viên đã đánh giá rồi!", data = new { count } });
         }
         catch (InvalidOperationException ex)
         {

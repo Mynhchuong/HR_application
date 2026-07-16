@@ -68,6 +68,12 @@ public class OTController : ControllerBase
                 var confirmedHours = r["CONFIRMED_OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["CONFIRMED_OT_HOURS"]);
                 bool hoursUpdated  = confirmedHours.HasValue && erpHours.HasValue && confirmedHours != erpHours;
                 string confirmStatus = hoursUpdated ? "PENDING" : (r["CONFIRM_STATUS"]?.ToString() ?? "PENDING");
+                DateTime? startOt  = r["START_OT"] == DBNull.Value ? null : Convert.ToDateTime(r["START_OT"]);
+
+                // Khoá xác nhận/đổi ý ngay khi tới giờ bắt đầu tăng ca — tránh trường hợp
+                // nhân viên đổi ý sau khi ca tăng ca đã bắt đầu.
+                bool isEditable = workDate.Date >= DateTime.Today.Date
+                    && (!startOt.HasValue || DateTime.Now < startOt.Value);
 
                 return new OTTodayModel
                 {
@@ -80,14 +86,14 @@ public class OTController : ControllerBase
                     OT_AFTER_TIME  = r["OT_AFTER_TIME"]?.ToString(),
                     OT_REST        = r["OT_REST"]?.ToString(),
                     HAS_OT         = r["HAS_OT"]?.ToString(),
-                    START_OT       = r["START_OT"]    == DBNull.Value ? null : Convert.ToDateTime(r["START_OT"]),
+                    START_OT       = startOt,
                     END_OT         = r["END_OT"]      == DBNull.Value ? null : Convert.ToDateTime(r["END_OT"]),
                     CONFIRM_STATUS = confirmStatus,
                     CONFIRM_DATE   = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
                     SUM_WEEK       = Convert.ToDecimal(r["SUM_WEEK"]),
                     SUM_MONTH      = Convert.ToDecimal(r["SUM_MONTH"]),
                     SUM_YEAR       = Convert.ToDecimal(r["SUM_YEAR"]),
-                    IS_EDITABLE    = workDate.Date >= DateTime.Today.Date,
+                    IS_EDITABLE    = isEditable,
                     HOURS_UPDATED  = hoursUpdated,
                     PREV_OT_HOURS  = hoursUpdated ? confirmedHours : null
                 };
@@ -120,6 +126,13 @@ public class OTController : ControllerBase
 
         if (model.CONFIRM_STATUS != "CONFIRMED" && model.CONFIRM_STATUS != "REJECTED")
             return Ok(new { success = false, message = "Trạng thái không hợp lệ" });
+
+        // Khoá xác nhận/đổi ý ngay khi tới giờ bắt đầu tăng ca (kiểm tra lại ở server,
+        // phòng trường hợp client gửi request trễ sau khi form đã hết hạn chỉnh sửa).
+        // otWindow cũng được dùng để set OT_TYPE/OT_START/OT_END khi lưu HR_OT_REQUEST bên dưới.
+        var otWindow = await GetOtWindowAsync(model.EMPCD, workDate);
+        if (otWindow.Start.HasValue && DateTime.Now >= otWindow.Start.Value)
+            return Ok(new { success = false, message = "Đã tới giờ tăng ca, không thể xác nhận hoặc đổi ý nữa" });
 
         var lockKey = $"{model.EMPCD}|{workDate:yyyyMMdd}";
         var sem = _confirmLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
@@ -209,17 +222,56 @@ public class OTController : ControllerBase
             catch (OracleException ex) when (ex.Number == 1)
             {
                 // ORA-00001: race lost — request khác đã INSERT trước. Re-select rồi UPDATE.
-                return await RetryAsUpdateAsync(model, workDate);
+                return await RetryAsUpdateAsync(model, workDate, otWindow);
             }
 
             if (int.Parse(pResult.Value?.ToString() ?? "0") != 0)
             {
                 // SP_OT_CONFIRM_INSERT có thể return code lỗi nếu nó tự catch ORA-00001 bên trong
                 if ((pMessage.Value?.ToString() ?? "").Contains("ORA-00001", StringComparison.OrdinalIgnoreCase))
-                    return await RetryAsUpdateAsync(model, workDate);
+                    return await RetryAsUpdateAsync(model, workDate, otWindow);
                 return Ok(new { success = false, message = $"Lỗi hệ thống, vui lòng thử lại. ({pMessage.Value})" });
             }
 
+            // SP báo thành công không đồng nghĩa dòng chắc chắn đã persist — xác minh lại bằng
+            // SELECT độc lập trước khi đụng ERP (tránh case ERP đã ký mà MySamho không có data).
+            if (!await VerifyRequestPersistedAsync(requestId, model.CONFIRM_STATUS))
+            {
+                string retryRequestId = requestId + "R";
+                var pResult2  = new OracleParameter("P_RESULT",  OracleDbType.Int32)          { Direction = System.Data.ParameterDirection.Output };
+                var pMessage2 = new OracleParameter("P_MESSAGE", OracleDbType.Varchar2, 500)  { Direction = System.Data.ParameterDirection.Output };
+
+                try
+                {
+                    await _oracleService.ExecuteProcedureAsync("HRMS.SP_OT_CONFIRM_INSERT",
+                        new OracleParameter("P_REQUEST_ID",     retryRequestId),
+                        new OracleParameter("P_EMPCD",          model.EMPCD),
+                        new OracleParameter("P_WORK_DATE",      workDate),
+                        new OracleParameter("P_OT_HOURS",       (object?)model.OT_HOURS ?? DBNull.Value),
+                        new OracleParameter("P_CONFIRM_STATUS", model.CONFIRM_STATUS),
+                        pResult2,
+                        pMessage2);
+                }
+                catch (OracleException ex) when (ex.Number == 1)
+                {
+                    return await RetryAsUpdateAsync(model, workDate, otWindow);
+                }
+
+                if (int.Parse(pResult2.Value?.ToString() ?? "0") != 0)
+                {
+                    // Giống lần insert đầu: SP có thể tự bắt ORA-00001 nội bộ thay vì ném exception
+                    if ((pMessage2.Value?.ToString() ?? "").Contains("ORA-00001", StringComparison.OrdinalIgnoreCase))
+                        return await RetryAsUpdateAsync(model, workDate, otWindow);
+                    return Ok(new { success = false, message = $"Lỗi hệ thống, vui lòng thử lại. ({pMessage2.Value})" });
+                }
+
+                if (!await VerifyRequestPersistedAsync(retryRequestId, model.CONFIRM_STATUS))
+                    return Ok(new { success = false, message = "Lỗi hệ thống, vui lòng thử lại." });
+
+                requestId = retryRequestId;
+            }
+
+            await EnrichOtRequestAsync(requestId, otWindow);
             await UpdateErpSignedAsync(model.EMPCD, workDate, model.CONFIRM_STATUS);
 
             string msg = model.CONFIRM_STATUS == "CONFIRMED" ? "Xác nhận tăng ca thành công" : "Từ chối tăng ca thành công";
@@ -238,7 +290,7 @@ public class OTController : ControllerBase
     // Khi INSERT thua race (đã có dòng cho EMPCD+WORK_DATE), re-select và UPDATE
     // theo intent mới của user. Dùng chung cho cả 2 path: OracleException ORA-00001
     // và SP_OT_CONFIRM_INSERT trả về P_MESSAGE chứa ORA-00001.
-    private async Task<IActionResult> RetryAsUpdateAsync(OTConfirmRequest model, DateTime workDate)
+    private async Task<IActionResult> RetryAsUpdateAsync(OTConfirmRequest model, DateTime workDate, OtWindowInfo otWindow)
     {
         var existing = (await _oracleService.ExecuteQueryAsync(
             "SELECT REQUEST_ID FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND ROWNUM = 1",
@@ -249,11 +301,26 @@ public class OTController : ControllerBase
         if (string.IsNullOrEmpty(existing))
             return Ok(new { success = false, message = "Lỗi hệ thống, vui lòng thử lại." });
 
-        await _oracleService.ExecuteNonQueryAsync(
-            "UPDATE HRMS.HR_OT_REQUEST SET CONFIRM_STATUS = :CONFIRM_STATUS, OT_HOURS = :OT_HOURS, CONFIRM_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID",
+        string sqlUpdateStatus =
+            "UPDATE HRMS.HR_OT_REQUEST SET CONFIRM_STATUS = :CONFIRM_STATUS, OT_HOURS = :OT_HOURS, CONFIRM_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID";
+
+        await _oracleService.ExecuteNonQueryAsync(sqlUpdateStatus,
             new OracleParameter("CONFIRM_STATUS", model.CONFIRM_STATUS),
             new OracleParameter("OT_HOURS", (object?)model.OT_HOURS ?? DBNull.Value),
             new OracleParameter("REQUEST_ID", existing));
+
+        // Xác minh UPDATE có thực sự áp dụng — thử lại 1 lần nếu chưa khớp, tránh case
+        // ERP đã ký mà MySamho lại giữ trạng thái cũ.
+        if (!await VerifyRequestPersistedAsync(existing, model.CONFIRM_STATUS!))
+        {
+            await _oracleService.ExecuteNonQueryAsync(sqlUpdateStatus,
+                new OracleParameter("CONFIRM_STATUS", model.CONFIRM_STATUS),
+                new OracleParameter("OT_HOURS", (object?)model.OT_HOURS ?? DBNull.Value),
+                new OracleParameter("REQUEST_ID", existing));
+
+            if (!await VerifyRequestPersistedAsync(existing, model.CONFIRM_STATUS!))
+                return Ok(new { success = false, message = "Lỗi hệ thống, vui lòng thử lại." });
+        }
 
         await _oracleService.ExecuteNonQueryAsync(
             "UPDATE HRMS.HR_REQUEST SET STATUS = :STATUS, UPDATED_BY = :EMPCD, UPDATED_DATE = SYSDATE WHERE REQUEST_ID = :REQUEST_ID",
@@ -261,10 +328,71 @@ public class OTController : ControllerBase
             new OracleParameter("EMPCD", model.EMPCD),
             new OracleParameter("REQUEST_ID", existing));
 
+        await EnrichOtRequestAsync(existing, otWindow);
         await UpdateErpSignedAsync(model.EMPCD, workDate, model.CONFIRM_STATUS!);
 
         string msg = model.CONFIRM_STATUS == "CONFIRMED" ? "Xác nhận tăng ca thành công" : "Từ chối tăng ca thành công";
         return Ok(new { success = true, message = msg, request_id = existing });
+    }
+
+    // SP báo P_RESULT=0 không đảm bảo dòng thật sự nằm trong DB (transaction lệch pha,
+    // SP nuốt exception nội bộ...) — verify độc lập trước khi ghi ERP SIGNED_STATUS.
+    private async Task<bool> VerifyRequestPersistedAsync(string requestId, string confirmStatus)
+    {
+        var rows = await _oracleService.ExecuteQueryAsync(
+            "SELECT CONFIRM_STATUS FROM HRMS.HR_OT_REQUEST WHERE REQUEST_ID = :R AND ROWNUM = 1",
+            r => r["CONFIRM_STATUS"]?.ToString(),
+            new OracleParameter("R", requestId));
+
+        return rows.Count > 0 && rows[0] == confirmStatus;
+    }
+
+    // Set OT_TYPE/OT_START/OT_END (đang luôn NULL vì SP_OT_CONFIRM_INSERT không nhận các cột này)
+    // để có dữ liệu đối chiếu với ERP.
+    private async Task EnrichOtRequestAsync(string requestId, OtWindowInfo window)
+    {
+        await _oracleService.ExecuteNonQueryAsync(
+            "UPDATE HRMS.HR_OT_REQUEST SET OT_TYPE = :T, OT_START = :S, OT_END = :E WHERE REQUEST_ID = :R",
+            new OracleParameter("T", (object?)window.Type  ?? DBNull.Value),
+            new OracleParameter("S", (object?)window.Start ?? DBNull.Value),
+            new OracleParameter("E", (object?)window.End   ?? DBNull.Value),
+            new OracleParameter("R", requestId));
+    }
+
+    private record OtWindowInfo(string? Type, DateTime? Start, DateTime? End);
+
+    // Tính khung giờ tăng ca từ ERP (EBM300/EBM300_WAIT + EBM100) — cùng công thức với GetOTToday.
+    private async Task<OtWindowInfo> GetOtWindowAsync(string empcd, DateTime workDate)
+    {
+        string sql = @"
+            SELECT E.OT_BEFORE, E.OT_AFTER,
+                   CASE WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI') - E.OT_BEFORE_TIME / 24
+                        WHEN E.OT_AFTER  = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
+                   END START_OT,
+                   CASE WHEN E.OT_AFTER  = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI') + E.OT_AFTER_TIME / 24
+                        WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
+                   END END_OT
+            FROM (SELECT EMPCD, DAT, SHIFTCD, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_BEFORE_TIME) OT_BEFORE_TIME, MAX(OT_AFTER) OT_AFTER, MAX(OT_AFTER_TIME) OT_AFTER_TIME
+                  FROM (SELECT EMPCD, DAT, SHIFTCD, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME FROM HRMS.EBM300      WHERE DAT = :WORK_DATE  AND EMPCD = :EMPCD  AND OVER_TIME IS NOT NULL AND OVER_TIME > 0
+                        UNION ALL
+                        SELECT EMPCD, DAT, SHIFTCD, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2 AND EMPCD = :EMPCD1 AND OVER_TIME IS NOT NULL AND OVER_TIME > 0)
+                  GROUP BY EMPCD, DAT, SHIFTCD) E
+            JOIN HRMS.EBM100 S ON S.SHIFTCD = E.SHIFTCD
+            WHERE ROWNUM = 1";
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql, r =>
+        {
+            string? type = r["OT_BEFORE"]?.ToString() == "Y" ? "BEFORE" : (r["OT_AFTER"]?.ToString() == "Y" ? "AFTER" : null);
+            DateTime? start = r["START_OT"] == DBNull.Value ? null : Convert.ToDateTime(r["START_OT"]);
+            DateTime? end   = r["END_OT"]   == DBNull.Value ? null : Convert.ToDateTime(r["END_OT"]);
+            return new OtWindowInfo(type, start, end);
+        },
+            new OracleParameter("WORK_DATE", workDate),
+            new OracleParameter("EMPCD", empcd),
+            new OracleParameter("WORK_DATE2", workDate),
+            new OracleParameter("EMPCD1", empcd));
+
+        return rows.FirstOrDefault() ?? new OtWindowInfo(null, null, null);
     }
 
     private async Task UpdateErpSignedAsync(string empcd, DateTime workDate, string confirmStatus)
@@ -1058,6 +1186,8 @@ public class OTController : ControllerBase
         {
             if (body == null || body.ITEMS == null || body.ITEMS.Count == 0)
                 return Ok(new OTAdminBulkResponse { success = false, message = "Danh sách rỗng" });
+            if (!await IsAdminOrHRAsync(body.ACTOR_EMPCD))
+                return Ok(new OTAdminBulkResponse { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
             if (!DateTime.TryParseExact(body.WORK_DATE, "yyyy-MM-dd", null,
                 System.Globalization.DateTimeStyles.None, out var workDate))
                 return Ok(new OTAdminBulkResponse { success = false, message = "Ngày làm việc không hợp lệ" });
@@ -1158,6 +1288,8 @@ public class OTController : ControllerBase
         {
             if (body == null || body.ITEMS == null || body.ITEMS.Count == 0)
                 return Ok(new OTAdminBulkResponse { success = false, message = "Danh sách rỗng" });
+            if (!await IsAdminOrHRAsync(body.ACTOR_EMPCD))
+                return Ok(new OTAdminBulkResponse { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
             if (!DateTime.TryParseExact(body.WORK_DATE, "yyyy-MM-dd", null,
                 System.Globalization.DateTimeStyles.None, out var workDate))
                 return Ok(new OTAdminBulkResponse { success = false, message = "Ngày làm việc không hợp lệ" });
@@ -1212,7 +1344,7 @@ public class OTController : ControllerBase
 
                     await _oracleService.ExecuteNonQueryAsync(
                         @"UPDATE HRMS.HR_OT_REQUEST
-                          SET OT_HOURS = :H, OT_END = :Ed, CONFIRM_STATUS = :C, CONFIRM_DATE = SYSDATE
+                          SET OT_HOURS = :H, OT_END = NVL(:Ed, OT_END), CONFIRM_STATUS = :C, CONFIRM_DATE = SYSDATE
                           WHERE REQUEST_ID = :R",
                         new OracleParameter("H",  newHours),
                         new OracleParameter("Ed", (object?)newEnd ?? DBNull.Value),
@@ -1257,6 +1389,8 @@ public class OTController : ControllerBase
         {
             if (body == null || body.EMPCDS == null || body.EMPCDS.Count == 0)
                 return Ok(new OTAdminBulkResponse { success = false, message = "Danh sách rỗng" });
+            if (!await IsAdminOrHRAsync(body.ACTOR_EMPCD))
+                return Ok(new OTAdminBulkResponse { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
             if (!DateTime.TryParseExact(body.WORK_DATE, "yyyy-MM-dd", null,
                 System.Globalization.DateTimeStyles.None, out var workDate))
                 return Ok(new OTAdminBulkResponse { success = false, message = "Ngày làm việc không hợp lệ" });
@@ -1315,5 +1449,23 @@ public class OTController : ControllerBase
         {
             return Ok(new OTAdminBulkResponse { success = false, message = ex.Message });
         }
+    }
+
+    // Xác thực ACTOR_EMPCD thực sự có role Admin/HR trong DB — tránh việc chỉ dựa vào
+    // [Authorize(Roles=...)] phía HR_web (ai gọi thẳng apiHR/OT/admin/* sẽ bỏ qua được lớp đó).
+    private async Task<bool> IsAdminOrHRAsync(string? empCd)
+    {
+        if (string.IsNullOrEmpty(empCd)) return false;
+
+        var roleRows = await _oracleService.ExecuteQueryAsync(@"
+            SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U
+            LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID
+            WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+            r => r["ROLE_NAME"]?.ToString(),
+            new OracleParameter("EMPCD", empCd));
+
+        var role = roleRows.FirstOrDefault();
+        return string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(role, "HR", StringComparison.OrdinalIgnoreCase);
     }
 }

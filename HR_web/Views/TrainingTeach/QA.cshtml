@@ -5,10 +5,10 @@
     var classId = ViewBag.ClassId;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+<div class="container-fluid py-4">
     <div class="mb-3">
         <a href="@Url.Action("ClassManage", "TrainingTeach", new { id = classId })" class="btn btn-sm btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1 fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
+            <i class="bi bi-arrow-left" style="font-size: 1.1rem;"></i>
             Quay về quản lý lớp học
         </a>
     </div>
@@ -27,7 +27,7 @@
             <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px; background: linear-gradient(135deg, #198754 0%, #157347 100%); text-white">
                 <div class="d-flex align-items-center gap-3">
                     <div class="bg-white bg-opacity-20 text-white rounded-3 p-3 d-flex align-items-center justify-content-center">
-                        <span class="material-symbols-rounded" style="font-size: 2.5rem;">forum</span>
+                        <i class="bi bi-chat-dots" style="font-size: 2.5rem;"></i>
                     </div>
                     <div>
                         <h3 class="fw-bold text-white mb-1">Trả Lời Hỏi Đáp Q&A</h3>
@@ -74,7 +74,7 @@
                     if (list.length === 0) {
                         qaWrap.innerHTML = `
                             <div class="card border-0 shadow-sm p-5 text-center text-muted" style="border-radius: 16px;">
-                                <span class="material-symbols-rounded text-muted" style="font-size: 4rem;">forum</span>
+                                <i class="bi bi-chat-dots text-muted" style="font-size: 4rem;"></i>
                                 <h6 class="fw-bold mt-2">Chưa có câu hỏi nào từ học viên</h6>
                                 <p class="text-muted small mb-0">Các câu hỏi thảo luận trong lớp sẽ xuất hiện tại đây.</p>
                             </div>

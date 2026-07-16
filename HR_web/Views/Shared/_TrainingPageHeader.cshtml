@@ -1,0 +1,29 @@
+@model HR_web.Models.Training.TrainingPageHeaderVM
+<div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+    <div class="bg-gradient-@Model.Gradient shadow-@Model.Gradient border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            @if (Model.ShowBackButton)
+            {
+                @if (!string.IsNullOrEmpty(Model.BackUrl))
+                {
+                    <a id="training-back-btn" href="@Model.BackUrl" class="text-white d-inline-flex align-items-center me-1" style="text-decoration:none;" title="Quay lại">
+                        <i class="bi bi-arrow-left fs-5"></i>
+                    </a>
+                }
+                else
+                {
+                    <a id="training-back-btn" href="javascript:void(0)" onclick="history.back()" class="text-white d-inline-flex align-items-center me-1" style="text-decoration:none;" title="Quay lại">
+                        <i class="bi bi-arrow-left fs-5"></i>
+                    </a>
+                }
+            }
+            <h6 class="text-white mb-0"><i class="bi @Model.Icon me-1"></i>@Model.Title</h6>
+        </div>
+        @if (!string.IsNullOrEmpty(Model.ExtraActionsHtml))
+        {
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                @Html.Raw(Model.ExtraActionsHtml)
+            </div>
+        }
+    </div>
+</div>

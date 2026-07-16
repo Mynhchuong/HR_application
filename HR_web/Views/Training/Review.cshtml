@@ -5,29 +5,24 @@
     var classId = ViewBag.ClassId;
 }
 
-<div class="container-fluid py-4 px-3 px-md-4" style="font-family: 'Outfit', sans-serif;">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <a href="@Url.Action("ClassDetail", "Training", new { id = ViewBag.ClassId })" class="btn btn-sm btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1 fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            <span class="d-none d-sm-inline">Quay về chi tiết lớp học</span>
-            <span class="d-inline d-sm-none">Quay lại</span>
-        </a>
-        <!-- Breadcrumbs (ẩn trên mobile để đỡ rối, đã có nút Quay lại) -->
-        <nav aria-label="breadcrumb" class="d-none d-md-block mb-0">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "Training")" class="text-decoration-none">Đào tạo của tôi</a></li>
-                <li class="breadcrumb-item"><a id="class-link" href="@Url.Action("ClassDetail", "Training", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Đánh giá & Phản hồi</li>
-            </ol>
-        </nav>
-    </div>
-
-    <div class="row">
-        <div class="col-12 col-md-8 col-lg-6 mx-auto">
-            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;" id="review-form-card">
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="mt-2 text-muted mb-0">Đang tải biểu mẫu khảo sát...</p>
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Đánh giá & Phản hồi",
+            Icon = "bi-star",
+            Gradient = "primary",
+            BackUrl = Url.Action("ClassDetail", "Training", new { id = classId }),
+        })
+        <div class="card-body">
+            <div class="row">
+                <div class="col-12 col-md-8 col-lg-6 mx-auto">
+                    <div id="review-form-card">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-2 text-muted mb-0">Đang tải biểu mẫu khảo sát...</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -45,7 +40,6 @@
     .star-rating.active {
         color: #ffc107;
     }
-    .bg-success-soft { background-color: #d1e7dd; }
 </style>
 
 @section Scripts {
@@ -56,7 +50,7 @@
         };
         const empCd = '@empCd';
         const classId = @classId;
-        
+
         let selectedContentRating = 0;
         let selectedTeacherRating = 0;
 
@@ -66,12 +60,12 @@
 
         function loadReviewForm() {
             const card = document.getElementById('review-form-card');
-            
+
             fetch(`${window.TRAINING_URLS.getMyReview}?id=${classId}&empcd=${empCd}`)
                 .then(r => r.json())
                 .then(res => {
                     const review = res.data;
-                    
+
                     if (review) {
                         const contentRating = review.RATING_CONTENT || review.ratingContent || review.rating_content || 0;
                         const teacherRating = review.RATING_TEACHER || review.ratingTeacher || review.rating_teacher || 0;
@@ -79,10 +73,10 @@
 
                         card.innerHTML = `
                             <div class="text-center py-4">
-                                <span class="material-symbols-rounded text-success" style="font-size: 5rem;">verified</span>
+                                <i class="bi bi-check-circle-fill text-success" style="font-size: 5rem;"></i>
                                 <h4 class="fw-bold text-dark mt-3">Cảm ơn bạn đã phản hồi!</h4>
                                 <p class="text-muted">Bạn đã hoàn thành đánh giá chất lượng cho khoá học này.</p>
-                                
+
                                 <div class="bg-light p-4 mt-4 rounded-3 text-start border">
                                     <div class="mb-3 border-bottom pb-2">
                                         <span class="small text-muted d-block mb-1">Chất lượng nội dung:</span>
@@ -103,18 +97,18 @@
                         card.innerHTML = `
                             <h4 class="fw-bold text-dark text-center mb-3">Đánh giá Lớp học</h4>
                             <p class="text-muted text-center small mb-4">Ý kiến đóng góp của bạn giúp chúng tôi cải thiện chất lượng đào tạo tốt hơn.</p>
-                            
+
                             <div class="mb-4 text-center">
                                 <label class="fw-bold small text-muted d-block mb-2">Chất lượng nội dung khoá học</label>
                                 <div class="d-flex justify-content-center gap-1">
-                                    ${[1,2,3,4,5].map(num => `<span onclick="rateStar('content', ${num})" class="material-symbols-rounded star-rating rating-c-${num}">star_border</span>`).join('')}
+                                    ${[1,2,3,4,5].map(num => `<i onclick="rateStar('content', ${num})" class="bi bi-star star-rating rating-c-${num}"></i>`).join('')}
                                 </div>
                             </div>
 
                             <div class="mb-4 text-center">
                                 <label class="fw-bold small text-muted d-block mb-2">Chất lượng giảng viên giảng dạy</label>
                                 <div class="d-flex justify-content-center gap-1">
-                                    ${[1,2,3,4,5].map(num => `<span onclick="rateStar('teacher', ${num})" class="material-symbols-rounded star-rating rating-t-${num}">star_border</span>`).join('')}
+                                    ${[1,2,3,4,5].map(num => `<i onclick="rateStar('teacher', ${num})" class="bi bi-star star-rating rating-t-${num}"></i>`).join('')}
                                 </div>
                             </div>
 
@@ -132,29 +126,16 @@
         }
 
         window.rateStar = function(type, num) {
-            if (type === 'content') {
-                selectedContentRating = num;
-                for (let i = 1; i <= 5; i++) {
-                    const el = document.querySelector(`.rating-c-${i}`);
-                    if (i <= num) {
-                        el.textContent = 'star';
-                        el.classList.add('active');
-                    } else {
-                        el.textContent = 'star_border';
-                        el.classList.remove('active');
-                    }
-                }
-            } else if (type === 'teacher') {
-                selectedTeacherRating = num;
-                for (let i = 1; i <= 5; i++) {
-                    const el = document.querySelector(`.rating-t-${i}`);
-                    if (i <= num) {
-                        el.textContent = 'star';
-                        el.classList.add('active');
-                    } else {
-                        el.textContent = 'star_border';
-                        el.classList.remove('active');
-                    }
+            const prefix = type === 'content' ? 'c' : 't';
+            if (type === 'content') selectedContentRating = num; else selectedTeacherRating = num;
+            for (let i = 1; i <= 5; i++) {
+                const el = document.querySelector(`.rating-${prefix}-${i}`);
+                if (i <= num) {
+                    el.classList.remove('bi-star');
+                    el.classList.add('bi-star-fill', 'active');
+                } else {
+                    el.classList.remove('bi-star-fill', 'active');
+                    el.classList.add('bi-star');
                 }
             }
         };

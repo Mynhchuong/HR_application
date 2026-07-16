@@ -40,6 +40,26 @@ public class TrainingController : BaseController
         return View();
     }
 
+    // GET /Training/ClassRegister/{id} — trang đăng ký lớp OPEN, link từ Bulletin quảng cáo lớp
+    public IActionResult ClassRegister(int id)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+        ViewBag.EmpCd = empcd;
+        ViewBag.ClassId = id;
+        return View();
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SubmitClassRegister(int classId)
+    {
+        var empcd = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync($"Training/class/{classId}/register", new { CLASS_ID = classId, EMPCD = empcd });
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
     // GET /Training/SessionDetail/{id}
     public IActionResult SessionDetail(int id)
     {

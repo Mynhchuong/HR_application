@@ -5,39 +5,18 @@
     var classId = ViewBag.ClassId;
 }
 
-<div class="container-fluid py-4 px-3 px-md-4" style="font-family: 'Outfit', sans-serif;">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <a href="@Url.Action("ClassDetail", "Training", new { id = ViewBag.ClassId })" class="btn btn-sm btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1 fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            <span class="d-none d-sm-inline">Quay về chi tiết lớp học</span>
-            <span class="d-inline d-sm-none">Quay lại</span>
-        </a>
-        <!-- Breadcrumbs (ẩn trên mobile để đỡ rối, đã có nút Quay lại) -->
-        <nav aria-label="breadcrumb" class="d-none d-md-block mb-0">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "Training")" class="text-decoration-none">Đào tạo của tôi</a></li>
-                <li class="breadcrumb-item"><a id="class-link" href="@Url.Action("ClassDetail", "Training", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Tài liệu học tập</li>
-            </ol>
-        </nav>
-    </div>
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Tài Liệu Học Tập",
+            Icon = "bi-folder2-open",
+            Gradient = "primary",
+            BackUrl = Url.Action("ClassDetail", "Training", new { id = classId }),
+        })
+        <div class="card-body">
+            <p class="text-muted mb-4">Xem, tải xuống và theo dõi tài liệu bài giảng được giáo viên cung cấp.</p>
 
-    <div class="row">
-        <div class="col-12 col-lg-10 mx-auto">
-            <!-- Header Card -->
-            <div class="card border-0 shadow-sm p-3 p-md-4 mb-4" style="border-radius: 16px; background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%); text-white">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="bg-white bg-opacity-20 text-white rounded-3 p-2 p-md-3 d-flex align-items-center justify-content-center flex-shrink-0">
-                        <span class="material-symbols-rounded materials-header-icon">folder_open</span>
-                    </div>
-                    <div class="min-w-0">
-                        <h3 class="fw-bold text-white mb-1 materials-header-title">Tài Liệu Học Tập</h3>
-                        <p class="mb-0 text-white text-opacity-75 small">Xem, tải xuống và theo dõi tài liệu bài giảng được giáo viên cung cấp.</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Materials List Container -->
             <div class="row" id="materials-list">
                 <div class="col-12 text-center py-5">
                     <div class="spinner-border text-primary" role="status"></div>
@@ -48,12 +27,6 @@
 </div>
 
 <style>
-    .materials-header-icon { font-size: clamp(1.8rem, 6vw, 2.5rem); }
-    .materials-header-title { font-size: clamp(1.15rem, 4vw, 1.75rem); }
-    .bg-primary-soft { background-color: #e7f1ff; }
-    .bg-danger-soft { background-color: #f8d7da; color: #842029; }
-    .bg-success-soft { background-color: #d1e7dd; color: #0f5132; }
-    .bg-secondary-soft { background-color: #f8f9fa; color: #6c757d; }
     .material-card {
         border-radius: 14px;
         transition: all 0.2s ease;
@@ -103,7 +76,7 @@
                 mList.innerHTML = `
                     <div class="col-12 text-center py-5">
                         <div class="card border-0 shadow-sm p-5 text-center text-muted" style="border-radius: 16px;">
-                            <span class="material-symbols-rounded text-muted" style="font-size: 4rem;">folder_open</span>
+                            <i class="bi bi-folder2-open text-muted" style="font-size: 4rem;"></i>
                             <h6 class="fw-bold mt-2">Chưa có tài liệu nào</h6>
                             <p class="text-muted small mb-0">Giảng viên chưa tải lên tài liệu học tập cho lớp này.</p>
                         </div>
@@ -114,24 +87,24 @@
 
             mList.innerHTML = '';
             list.forEach(m => {
-                let icon = 'description';
-                if (m.FILE_TYPE === 'PDF') icon = 'picture_as_pdf';
-                else if (m.FILE_TYPE === 'XLS' || m.FILE_TYPE === 'XLSX') icon = 'table_chart';
-                else if (m.FILE_TYPE === 'DOC' || m.FILE_TYPE === 'DOCX') icon = 'article';
-                else if (m.FILE_TYPE === 'MP4') icon = 'video_library';
-                else if (m.FILE_TYPE === 'IMG') icon = 'image';
+                let icon = 'bi-file-earmark';
+                if (m.FILE_TYPE === 'PDF') icon = 'bi-file-earmark-pdf';
+                else if (m.FILE_TYPE === 'XLS' || m.FILE_TYPE === 'XLSX') icon = 'bi-file-earmark-spreadsheet';
+                else if (m.FILE_TYPE === 'DOC' || m.FILE_TYPE === 'DOCX') icon = 'bi-file-earmark-text';
+                else if (m.FILE_TYPE === 'MP4') icon = 'bi-camera-video';
+                else if (m.FILE_TYPE === 'IMG') icon = 'bi-file-earmark-image';
 
-                const reqBadge = m.IS_REQUIRED === 1 ? '<span class="badge bg-danger-soft ms-2 small">Bắt buộc</span>' : '';
-                const viewedBadge = m.HAS_VIEWED === 1 
-                    ? '<span class="badge bg-success-soft ms-1 small">Đã xem</span>' 
-                    : '<span class="badge bg-secondary-soft ms-1 small">Chưa xem</span>';
+                const reqBadge = m.IS_REQUIRED === 1 ? '<span class="badge bg-danger ms-2 small">Bắt buộc</span>' : '';
+                const viewedBadge = m.HAS_VIEWED === 1
+                    ? '<span class="badge bg-success ms-1 small">Đã xem</span>'
+                    : '<span class="badge bg-secondary ms-1 small">Chưa xem</span>';
 
                 mList.innerHTML += `
                     <div class="col-12 col-md-6 mb-3">
                         <div class="card border-0 shadow-sm p-3 h-100 material-card">
                             <div class="d-flex align-items-center gap-3">
-                                <div class="bg-primary-soft rounded-3 p-3 text-primary d-flex align-items-center justify-content-center">
-                                    <span class="material-symbols-rounded" style="font-size: 2.2rem;">${icon}</span>
+                                <div class="bg-gradient-primary rounded-3 p-3 text-white d-flex align-items-center justify-content-center">
+                                    <i class="${icon}" style="font-size: 2.2rem;"></i>
                                 </div>
                                 <div class="flex-fill min-w-0">
                                     <h6 class="fw-bold text-dark text-truncate mb-1" title="${m.TITLE}">${m.TITLE}</h6>
@@ -139,7 +112,7 @@
                                 </div>
                                 <div>
                                     <button onclick="viewMaterial(${m.ID}, '${m.FILE_URL}')" class="btn btn-sm btn-primary rounded-circle p-2.5 d-flex align-items-center justify-content-center shadow-sm">
-                                        <span class="material-symbols-rounded" style="font-size: 1.2rem;">download</span>
+                                        <i class="bi bi-download" style="font-size: 1.2rem;"></i>
                                     </button>
                                 </div>
                             </div>

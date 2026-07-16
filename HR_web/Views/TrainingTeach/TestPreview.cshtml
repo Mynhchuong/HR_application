@@ -5,14 +5,16 @@
     var testId = ViewBag.TestId;
 }
 
-<div class="container py-4" style="font-family: 'Outfit', sans-serif; max-width: 900px;">
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "TrainingTeach")" class="text-decoration-none">Giảng dạy</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Xem trước đề thi</li>
-        </ol>
-    </nav>
+<div class="container py-4" style="max-width: 900px;">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Xem trước đề thi",
+            Icon = "bi-eye",
+            Gradient = "warning",
+            BackUrl = Url.Action("MyClasses", "TrainingTeach"),
+        })
+    <div class="card-body">
 
     <!-- Header Card / Loading -->
     <div id="preview-loading" class="text-center py-5">
@@ -31,7 +33,7 @@
                     <h3 class="fw-bold text-dark mb-1" id="test-title">Tên bài thi</h3>
                     <p class="text-muted mb-0" id="test-description">Mô tả bài thi</p>
                 </div>
-                <div class="card bg-white border shadow-xs p-3" style="border-radius: 12px; min-width: 220px;">
+                <div class="card bg-white border shadow-sm p-3" style="border-radius: 12px; min-width: 220px;">
                     <div class="d-flex justify-content-between small text-muted mb-1">
                         <span>Thời gian làm bài:</span>
                         <span class="fw-bold text-dark" id="test-duration">-- phút</span>
@@ -49,12 +51,14 @@
         </div>
 
         <div class="alert alert-info border-0 shadow-sm mb-4 d-flex align-items-center gap-2" style="border-radius: 12px;">
-            <span class="material-symbols-rounded text-info">info</span>
+            <i class="bi bi-info-circle text-info"></i>
             <span class="small">Đây là chế độ xem trước dành cho giáo viên. Các đáp án đúng được làm nổi bật bằng màu <strong>xanh lá cây</strong>.</span>
         </div>
 
         <!-- Questions list container -->
         <div id="questions-list"></div>
+    </div>
+    </div>
     </div>
 </div>
 
@@ -153,7 +157,7 @@
                 if (qType === 'TEXT') {
                     optionsHtml = `
                         <div class="p-3 border rounded-3 bg-light text-muted small">
-                            <span class="material-symbols-rounded align-middle me-1" style="font-size: 1.1rem;">edit_note</span>
+                            <i class="bi bi-pencil-square align-middle me-1" style="font-size: 1.1rem;"></i>
                             Câu hỏi tự luận (giáo viên sẽ chấm điểm thủ công sau khi học viên nộp bài)
                         </div>`;
                 } else {
@@ -167,8 +171,8 @@
 
                         const optClass = isCorrect ? 'option-item correct-option' : 'option-item';
                         const icon = isCorrect 
-                            ? '<span class="material-symbols-rounded text-success" style="font-size: 1.25rem;">check_circle</span>' 
-                            : '<span class="material-symbols-rounded text-muted" style="font-size: 1.25rem;">radio_button_unchecked</span>';
+                            ? '<i class="bi bi-check-circle text-success" style="font-size: 1.25rem;"></i>' 
+                            : '<i class="bi bi-circle text-muted" style="font-size: 1.25rem;"></i>';
 
                         optionsHtml += `
                             <div class="${optClass}">

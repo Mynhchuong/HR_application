@@ -5,28 +5,27 @@
     var empCd = ViewBag.EmpCd as string;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <!-- Back button -->
-    <div class="mb-3">
-        <a href="@Url.Action("Index", "TrainingAdmin")" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            Quay lại cổng quản lý đào tạo
-        </a>
-    </div>
-
-    <!-- Class Detail & Configuration Area -->
-    <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
-        <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Quản trị Lớp học",
+            Icon = "bi-mortarboard",
+            Gradient = "primary",
+            BackUrl = Url.Action("Index", "TrainingAdmin"),
+        })
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3 flex-wrap gap-2">
             <h4 class="fw-bold mb-0 text-primary" id="detail-class-name">Chi tiết Lớp: --</h4>
             <div>
                 <a href="@Url.Action("ClassEdit", "TrainingAdmin", new { id = classId })" class="btn btn-sm btn-outline-warning fw-bold me-1">
-                    <span class="material-symbols-rounded align-middle me-1" style="font-size: 1.1rem;">settings</span>Cấu hình & Bài thi cuối khóa
+                    <i class="bi bi-gear align-middle me-1"></i>Cấu hình & Bài thi cuối khóa
                 </a>
                 <a href="@Url.Action("ClassReport", "TrainingAdmin", new { id = classId })" class="btn btn-sm btn-outline-primary fw-bold me-1">
-                    <span class="material-symbols-rounded align-middle me-1" style="font-size: 1.1rem;">assessment</span>Báo cáo lớp
+                    <i class="bi bi-bar-chart align-middle me-1"></i>Báo cáo lớp
                 </a>
                 <a href="@Url.Action("AttendanceReport", "TrainingAdmin", new { id = classId })" class="btn btn-sm btn-outline-success fw-bold">
-                    <span class="material-symbols-rounded align-middle me-1" style="font-size: 1.1rem;">checklist</span>Điểm danh tổng hợp
+                    <i class="bi bi-check2-square align-middle me-1"></i>Điểm danh tổng hợp
                 </a>
             </div>
         </div>
@@ -35,6 +34,7 @@
             <span class="small fw-bold text-muted me-2">Trạng thái: <span id="detail-class-status-badge">--</span></span>
             <span class="text-muted small me-3">|</span>
             <div id="class-lifecycle-buttons" class="d-flex gap-2"></div>
+            <div id="class-bulletin-link" class="ms-auto"></div>
         </div>
 
         <!-- Sub-tabs for Class Administration -->
@@ -199,6 +199,8 @@
             </div>
         </div>
     </div>
+    </div>
+    </div>
 </div>
 
 <!-- Overlay chờ khi nhập Excel / gán nhóm số lượng lớn -->
@@ -223,7 +225,7 @@
 <!-- CREATE SESSION MODAL -->
 <div class="modal fade" id="createSessionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+        <div class="modal-content border-0 shadow-lg training-modal-card">
             <div class="modal-header border-bottom-0 p-4 pb-0">
                 <h5 class="fw-bold modal-title" id="sessionModalTitle">Sắp lịch buổi học mới</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -275,7 +277,7 @@
 <!-- ASSIGN TEACHER MODAL -->
 <div class="modal fade" id="assignTeacherModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+        <div class="modal-content border-0 shadow-lg training-modal-card">
             <div class="modal-header border-bottom-0 p-4 pb-0">
                 <h5 class="fw-bold modal-title">Gán giảng viên phụ trách</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -305,7 +307,7 @@
 <!-- ASSIGN STUDENT MODAL -->
 <div class="modal fade" id="assignStudentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+        <div class="modal-content border-0 shadow-lg training-modal-card">
             <div class="modal-header border-bottom-0 p-4 pb-0">
                 <h5 class="fw-bold modal-title">Thêm học viên vào lớp</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -332,7 +334,7 @@
 <!-- CLONE CLASS MODAL (§15b Cách 2 — Sao chép sang đợt mới) -->
 <div class="modal fade" id="cloneClassModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+        <div class="modal-content border-0 shadow-lg training-modal-card">
             <div class="modal-header border-bottom-0 p-4 pb-0">
                 <h5 class="fw-bold modal-title">Sao chép sang đợt mới</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -363,7 +365,7 @@
 <!-- CREATE GROUP MODAL -->
 <div class="modal fade" id="createGroupModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+        <div class="modal-content border-0 shadow-lg training-modal-card">
             <div class="modal-header border-bottom-0 p-4 pb-0">
                 <h5 class="fw-bold modal-title" id="groupModalTitle">Tạo Tổ/Nhóm mới</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -389,11 +391,7 @@
 </div>
 
 <style>
-    .bg-success-soft { background-color: rgba(25, 135, 84, 0.1); color: #198754; }
-    .bg-warning-soft { background-color: rgba(255, 193, 7, 0.1); color: #ffc107; }
-    .bg-danger-soft { background-color: rgba(220, 53, 69, 0.1); color: #dc3545; }
-    .bg-secondary-soft { background-color: rgba(108, 117, 125, 0.1); color: #6c757d; }
-    .bg-info-soft { background-color: rgba(13, 202, 240, 0.12); color: #0aa2c0; }
+    .training-modal-card { border-radius: 20px; }
 </style>
 
 @section Scripts {
@@ -402,6 +400,7 @@
             getClassDetailAdmin: '@Url.Action("GetClassDetailAdmin", "TrainingAdmin")',
             publishRegistration: '@Url.Action("PublishRegistration", "TrainingAdmin")',
             finalizeEnrollment: '@Url.Action("FinalizeEnrollment", "TrainingAdmin")',
+            remindReview:      '@Url.Action("RemindReview", "TrainingAdmin", new { id = "__ID__" })',
             cancelClass: '@Url.Action("CancelClass", "TrainingAdmin")',
             closeClass: '@Url.Action("CloseClass", "TrainingAdmin")',
             finalizeClass: '@Url.Action("FinalizeClass", "TrainingAdmin")',
@@ -469,6 +468,14 @@
             document.getElementById('detail-class-name').innerText = `Quản trị Lớp: ${cls.CLASS_NAME}`;
             const badge = document.getElementById('detail-class-status-badge');
 
+            // Bản tin quảng cáo tự tạo khi bấm "Mở Đăng ký tự do" — link nhanh sang Bulletin để xem/sửa.
+            const bulletinId = cls.BULLETIN_ID || cls.bulletinId;
+            document.getElementById('class-bulletin-link').innerHTML = bulletinId
+                ? `<a href="/Bulletin/Detail/${bulletinId}" target="_blank" class="btn btn-sm btn-outline-info fw-bold">
+                        <i class="bi bi-megaphone align-middle me-1" style="font-size:1rem;"></i>Xem bản tin đăng ký
+                   </a>`
+                : '';
+
             const statusLabelsMap = {
                 'DRAFT': 'Nháp',
                 'OPEN_FOR_REGISTRATION': 'Đang mở ĐK',
@@ -513,6 +520,14 @@
                 if (cls.STATUS === 'COMPLETED') {
                     buttonsWrap.innerHTML += `<button onclick="closeClass(${cls.ID})" class="btn btn-sm btn-dark fw-bold">Đóng & Lưu trữ lớp</button>`;
                 }
+            }
+
+            // Nhắc mềm học viên nộp đánh giá — không bắt buộc, không chặn chốt lớp, chỉ giúp HR
+            // nhắc trước khi bấm "Chốt kết quả". Hiện khi lớp đã học xong/đang chốt (có enrollment thật).
+            if (['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CLOSED'].includes(cls.STATUS)) {
+                buttonsWrap.innerHTML += `<button onclick="remindReview(${cls.ID})" class="btn btn-sm btn-outline-warning fw-bold">
+                    <i class="bi bi-bell align-middle me-1" style="font-size:1rem;"></i>Nhắc đánh giá
+                </button>`;
             }
 
             // §15b Cách 2 — "Sao chép sang đợt mới": chỉ cho phép từ SCHEDULED hoặc COMPLETED
@@ -623,6 +638,17 @@
             }).catch(err => { renderLifecycle(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
         }
 
+        // Nhắc mềm học viên chưa nộp đánh giá — không bắt buộc, không chặn chốt lớp.
+        function remindReview(id) {
+            fetch(window.TRAINING_URLS.remindReview.replace('__ID__', id), { method: 'POST' })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) window.showToast(res.message, 'success');
+                    else window.showToast(res.message || 'Lỗi gửi nhắc đánh giá.', 'error');
+                })
+                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+        }
+
         // Sessions list — chỉ Sửa/Xóa được khi buổi còn UPCOMING (khớp rule §5: đã ONGOING/COMPLETED
         // thì không sửa được nữa; CANCELLED thì đã xóa rồi). "Xóa" ở đây gọi API Cancel có sẵn
         // (giữ record + tự động báo học viên buổi bị hủy) chứ không xóa hẳn khỏi DB.
@@ -637,19 +663,19 @@
             list.forEach(s => {
                 const dateStr = s.SESSION_DATE ? new Date(s.SESSION_DATE).toLocaleDateString('vi-VN') : '';
                 const canEdit = s.STATUS === 'UPCOMING' || (clsDraft && s.STATUS !== 'CANCELLED');
-                let actions = `<span class="badge bg-secondary-soft text-secondary">${s.STATUS === 'CANCELLED' ? 'Đã hủy' : (s.STATUS === 'COMPLETED' ? 'Đã xong' : s.STATUS === 'ONGOING' ? 'Đang diễn ra' : '')}</span>`;
+                let actions = `<span class="badge bg-secondary-subtle text-secondary-emphasis">${s.STATUS === 'CANCELLED' ? 'Đã hủy' : (s.STATUS === 'COMPLETED' ? 'Đã xong' : s.STATUS === 'ONGOING' ? 'Đang diễn ra' : '')}</span>`;
                 if (canEdit) {
                     actions = `
                         <button onclick="openEditSessionModal(${s.ID})" class="btn btn-xs btn-outline-primary rounded-circle p-1 d-flex align-items-center justify-content-center d-inline-flex" title="Sửa buổi học">
-                            <span class="material-symbols-rounded" style="font-size:1rem;">edit</span>
+                            <i class="bi bi-pencil" style="font-size:1rem;"></i>
                         </button>
                         <button onclick="cancelSession(${s.ID}, ${s.SESSION_NO})" class="btn btn-xs btn-outline-danger rounded-circle p-1 d-flex align-items-center justify-content-center d-inline-flex ms-1" title="Xóa buổi học">
-                            <span class="material-symbols-rounded" style="font-size:1rem;">delete</span>
+                            <i class="bi bi-trash" style="font-size:1rem;"></i>
                         </button>`;
                 }
 
                 const groupLabel = s.GROUP_NAME
-                    ? `<span class="badge bg-info-soft">${s.GROUP_NAME}</span>`
+                    ? `<span class="badge bg-info-subtle text-info-emphasis">${s.GROUP_NAME}</span>`
                     : `<span class="text-muted small">Chung cả lớp</span>`;
 
                 tbody.innerHTML += `
@@ -893,9 +919,9 @@
             const gName = id => (groups.find(g => g.ID === id) || {}).GROUP_NAME || `Nhóm #${id}`;
             const rows = [...byEmp.values()].map(t => {
                 const badges = t.GROUP_IDS.length === 0
-                    ? '<span class="badge bg-secondary-soft text-secondary">Cả lớp</span>'
+                    ? '<span class="badge bg-secondary-subtle text-secondary-emphasis">Cả lớp</span>'
                     : t.GROUP_IDS.map(gid => `
-                        <span class="badge bg-info-soft d-inline-flex align-items-center gap-1">${gName(gid)}
+                        <span class="badge bg-info-subtle text-info-emphasis d-inline-flex align-items-center gap-1">${gName(gid)}
                             <a href="javascript:void(0)" onclick="removeTeacherGroup('${t.EMPCD}', ${gid})" class="text-danger text-decoration-none fw-bold" title="Bỏ nhóm này">×</a>
                         </span>`).join(' ');
                 const remaining = groups.filter(g => !t.GROUP_IDS.includes(g.ID));
@@ -914,13 +940,13 @@
                     </td>
                     <td>${t.IS_PRIMARY === 1
                         ? '<span class="badge bg-primary">GV chính</span>'
-                        : '<span class="badge bg-secondary-soft text-secondary">Trợ giảng</span>'}</td>
+                        : '<span class="badge bg-secondary-subtle text-secondary-emphasis">Trợ giảng</span>'}</td>
                     <td>
                         <div class="d-flex align-items-center gap-1 flex-wrap">${badges} ${addCtl}</div>
                     </td>
                     <td class="pe-3 text-end">
                         <button onclick="removeTeacher('${t.EMPCD}')" class="btn btn-xs btn-outline-danger rounded-circle p-1 d-inline-flex align-items-center justify-content-center" title="Gỡ giáo viên">
-                            <span class="material-symbols-rounded" style="font-size:1rem;">delete</span>
+                            <i class="bi bi-trash" style="font-size:1rem;"></i>
                         </button>
                     </td>
                 </tr>`;
@@ -1087,11 +1113,11 @@
 
                 let stBadge = s.STATUS;
                 if (s.STATUS === 'PENDING_APPROVAL') stBadge = '<span class="badge bg-warning text-dark">Chờ duyệt</span>';
-                else if (s.STATUS === 'ENROLLED') stBadge = '<span class="badge bg-success-soft text-success">Đã tham gia</span>';
+                else if (s.STATUS === 'ENROLLED') stBadge = '<span class="badge bg-success-subtle text-success-emphasis">Đã tham gia</span>';
                 else if (s.STATUS === 'COMPLETED') stBadge = '<span class="badge bg-success">Hoàn thành</span>';
                 else if (s.STATUS === 'FAILED') stBadge = '<span class="badge bg-danger">Không đạt</span>';
-                else if (s.STATUS === 'REJECTED') stBadge = '<span class="badge bg-secondary-soft text-secondary">Từ chối</span>';
-                else if (s.STATUS === 'DROPPED') stBadge = '<span class="badge bg-danger-soft text-danger">Đã loại</span>';
+                else if (s.STATUS === 'REJECTED') stBadge = '<span class="badge bg-secondary-subtle text-secondary-emphasis">Từ chối</span>';
+                else if (s.STATUS === 'DROPPED') stBadge = '<span class="badge bg-danger-subtle text-danger-emphasis">Đã loại</span>';
 
                 let groupSelect = '';
                 const groups = selectedClassData.groups || [];
@@ -1119,7 +1145,7 @@
                         <td>${stBadge}</td>
                         <td class="pe-3 text-end">
                             ${actionBtn}
-                            ${s.STATUS !== 'COMPLETED' ? `<button onclick="removeStudent('${s.EMPCD}', '${s.EMP_NAME || s.EMPCD}')" class="btn btn-xs btn-outline-danger fw-bold ms-1" title="Xóa khỏi lớp"><span class="material-symbols-rounded" style="font-size:1rem;">person_remove</span></button>` : ''}
+                            ${s.STATUS !== 'COMPLETED' ? `<button onclick="removeStudent('${s.EMPCD}', '${s.EMP_NAME || s.EMPCD}')" class="btn btn-xs btn-outline-danger fw-bold ms-1" title="Xóa khỏi lớp"><i class="bi bi-person-dash" style="font-size:1rem;"></i></button>` : ''}
                         </td>
                     </tr>
                 `;
@@ -1304,10 +1330,10 @@
                     <div class="d-flex align-items-center gap-2 flex-shrink-0">
                         <span class="badge bg-secondary rounded-pill px-2">${g.ENROLLMENT_COUNT || 0} HV</span>
                         <button onclick="openEditGroupModal(${g.ID})" class="btn btn-xs btn-outline-primary rounded-circle p-1 d-flex align-items-center justify-content-center" title="Sửa tên nhóm">
-                            <span class="material-symbols-rounded" style="font-size:1rem;">edit</span>
+                            <i class="bi bi-pencil" style="font-size:1rem;"></i>
                         </button>
                         <button onclick="deleteGroup(${g.ID}, '${(g.GROUP_NAME || '').replace(/'/g, "\\'")}')" class="btn btn-xs btn-outline-danger rounded-circle p-1 d-flex align-items-center justify-content-center" title="Xóa nhóm">
-                            <span class="material-symbols-rounded" style="font-size:1rem;">delete</span>
+                            <i class="bi bi-trash" style="font-size:1rem;"></i>
                         </button>
                     </div>
                 </div>`).join('');

@@ -5,77 +5,79 @@
     var sessionId = ViewBag.SessionId;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <!-- Back to Class Detail -->
-    <div class="mb-4">
-        <a id="back-link" href="#" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            Trở lại chi tiết lớp học
-        </a>
-    </div>
-
-    <div class="row">
-        <div class="col-12 col-md-8 col-lg-6 mx-auto">
-            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 20px;">
-                <!-- Header Status Area -->
-                <div class="card-header border-0 bg-primary text-white p-4 text-center position-relative">
-                    <span class="material-symbols-rounded position-absolute opacity-10 end-0 bottom-0" style="font-size: 8rem; transform: translate(10%, 10%);">qr_code_scanner</span>
-                    <h3 class="fw-bold mb-1" id="session-title">Đang tải buổi học...</h3>
-                    <p class="mb-0 opacity-75" id="class-title">Đang tải tên lớp học...</p>
-                </div>
-                
-                <!-- Body Detail -->
-                <div class="card-body p-4">
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <h5 class="fw-bold mb-3 text-dark">Thông tin buổi học</h5>
-                            
-                            <div class="list-group list-group-flush">
-                                <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
-                                    <span class="text-muted d-flex align-items-center gap-2">
-                                        <span class="material-symbols-rounded text-primary">calendar_month</span>
-                                        Ngày học
-                                    </span>
-                                    <span class="fw-bold text-dark" id="session-date">-</span>
-                                </div>
-                                <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
-                                    <span class="text-muted d-flex align-items-center gap-2">
-                                        <span class="material-symbols-rounded text-primary">schedule</span>
-                                        Thời gian
-                                    </span>
-                                    <span class="fw-bold text-dark" id="session-time">-</span>
-                                </div>
-                                <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
-                                    <span class="text-muted d-flex align-items-center gap-2">
-                                        <span class="material-symbols-rounded text-primary">pin_drop</span>
-                                        Địa điểm / Phòng học
-                                    </span>
-                                    <span class="fw-bold text-dark" id="session-location">-</span>
-                                </div>
-                                <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
-                                    <span class="text-muted d-flex align-items-center gap-2">
-                                        <span class="material-symbols-rounded text-primary">info</span>
-                                        Trạng thái buổi học
-                                    </span>
-                                    <span class="badge bg-light text-dark border px-3 py-2 rounded-pill" id="session-status">-</span>
-                                </div>
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Điểm danh Buổi học",
+            Icon = "bi-qr-code-scan",
+            Gradient = "primary",
+        })
+        <div class="card-body">
+            <div class="row">
+                <div class="col-12 col-md-8 col-lg-6 mx-auto">
+                    <div class="card border overflow-hidden" style="border-radius: 16px;">
+                        <div class="card-header border-0 bg-gradient-primary text-white p-4 text-center position-relative overflow-hidden">
+                            <i class="bi bi-qr-code-scan position-absolute opacity-25 end-0 bottom-0 d-none d-sm-block" style="font-size: 6rem; transform: translate(20%, 20%); z-index: 0;"></i>
+                            <div class="position-relative" style="z-index: 1;">
+                                <h3 class="fw-bold mb-1" id="session-title">Đang tải buổi học...</h3>
+                                <p class="mb-0 opacity-75" id="class-title">Đang tải tên lớp học...</p>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Attendance Checkin Status Card -->
-                    <div class="card border p-4 mb-3 text-center" style="border-radius: 16px; background-color: #f8f9fa;">
-                        <h6 class="text-muted small fw-bold uppercase mb-2">Trạng thái điểm danh của bạn</h6>
-                        <h3 class="fw-bold mb-3" id="attendance-status">Đang tải...</h3>
-                        
-                        <div id="checkin-action-area" class="d-none">
-                            <button onclick="performCheckIn()" class="btn btn-primary w-100 py-3 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm">
-                                <span class="material-symbols-rounded">check_circle</span>
-                                Bấm điểm danh
-                            </button>
-                            <p class="small text-muted mt-2 mb-0">Hệ thống sẽ ghi nhận thời gian điểm danh của bạn.</p>
+                        <div class="card-body p-4">
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <h5 class="fw-bold mb-3 text-dark">Thông tin buổi học</h5>
+
+                                    <div class="list-group list-group-flush">
+                                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                                            <span class="text-muted d-flex align-items-center gap-2">
+                                                <i class="bi bi-calendar-event text-primary"></i>
+                                                Ngày học
+                                            </span>
+                                            <span class="fw-bold text-dark" id="session-date">-</span>
+                                        </div>
+                                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                                            <span class="text-muted d-flex align-items-center gap-2">
+                                                <i class="bi bi-clock-history text-primary"></i>
+                                                Thời gian
+                                            </span>
+                                            <span class="fw-bold text-dark" id="session-time">-</span>
+                                        </div>
+                                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                                            <span class="text-muted d-flex align-items-center gap-2">
+                                                <i class="bi bi-geo-alt text-primary"></i>
+                                                Địa điểm / Phòng học
+                                            </span>
+                                            <span class="fw-bold text-dark" id="session-location">-</span>
+                                        </div>
+                                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                                            <span class="text-muted d-flex align-items-center gap-2">
+                                                <i class="bi bi-info-circle text-primary"></i>
+                                                Trạng thái buổi học
+                                            </span>
+                                            <span class="badge bg-light text-dark border px-3 py-2 rounded-pill" id="session-status">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Attendance Checkin Status Card -->
+                            <div class="card border p-4 mb-3 text-center" style="border-radius: 16px; background-color: #f8f9fa;">
+                                <h6 class="text-muted small fw-bold uppercase mb-2">Trạng thái điểm danh của bạn</h6>
+                                <h3 class="fw-bold mb-3" id="attendance-status">Đang tải...</h3>
+
+                                <div id="checkin-action-area" class="d-none">
+                                    <button onclick="performCheckIn()" class="btn btn-primary w-100 py-3 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm">
+                                        <i class="bi bi-check-circle"></i>
+                                        Bấm điểm danh
+                                    </button>
+                                    <p class="small text-muted mt-2 mb-0">Hệ thống sẽ ghi nhận thời gian điểm danh của bạn.</p>
+                                </div>
+                                <p class="small text-warning mt-2 mb-0 fw-bold d-none" id="checkin-info-msg"></p>
+                            </div>
                         </div>
-                        <p class="small text-warning mt-2 mb-0 fw-bold d-none" id="checkin-info-msg"></p>
                     </div>
                 </div>
             </div>
@@ -112,8 +114,6 @@
                     }
 
                     sessionData = res.data;
-                    document.getElementById('back-link').href = window.TRAINING_URLS.classDetail.replace('__ID__', sessionData.CLASS_ID);
-                    
                     renderDetails();
                 })
                 .catch(err => {
@@ -127,23 +127,23 @@
             const endTimeVal = s.END_TIME || s.endTime || s.end_time;
 
             if (!sessionDateVal || !startTimeVal || !endTimeVal) return false;
-            
+
             const cleanStart = startTimeVal.replace(':', '').trim().padStart(4, '0');
             const cleanEnd = endTimeVal.replace(':', '').trim().padStart(4, '0');
-            
+
             const startH = parseInt(cleanStart.substring(0, 2), 10);
             const startM = parseInt(cleanStart.substring(2, 4), 10);
             const endH = parseInt(cleanEnd.substring(0, 2), 10);
             const endM = parseInt(cleanEnd.substring(2, 4), 10);
-            
+
             const sessionDate = new Date(sessionDateVal);
-            
+
             const startDt = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate(), startH, startM, 0);
             const endDt = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate(), endH, endM, 0);
-            
+
             const openFrom = new Date(startDt.getTime() - 15 * 60 * 1000);
             const openTo = new Date(endDt.getTime() + 15 * 60 * 1000);
-            
+
             const now = new Date();
             return now >= openFrom && now <= openTo;
         }
@@ -165,7 +165,7 @@
             document.getElementById('session-date').innerText = sessionDateVal ? new Date(sessionDateVal).toLocaleDateString('vi-VN') : '-';
             document.getElementById('session-time').innerText = `${startTimeVal} - ${endTimeVal}`;
             document.getElementById('session-location').innerText = locationVal || 'Phòng học';
-            
+
             let statusLabel = 'Chưa diễn ra';
             if (statusVal === 'COMPLETED') statusLabel = 'Đã hoàn thành';
             else if (statusVal === 'ONGOING') statusLabel = 'Đang diễn ra';
@@ -174,25 +174,25 @@
             const attWrap = document.getElementById('attendance-status');
             const actionArea = document.getElementById('checkin-action-area');
             const infoMsg = document.getElementById('checkin-info-msg');
-            
+
             infoMsg.className = 'd-none'; // reset
 
             if (attendanceStatusVal) {
                 let text = attendanceStatusVal;
                 let color = 'text-muted';
-                
+
                 if (attendanceStatusVal === 'PRESENT') { text = 'Đã Điểm Danh (Có mặt)'; color = 'text-success'; }
                 else if (attendanceStatusVal === 'LATE') { text = 'Đi Muộn'; color = 'text-warning'; }
                 else if (attendanceStatusVal === 'ABSENT') { text = 'Vắng mặt'; color = 'text-danger'; }
                 else if (attendanceStatusVal === 'EXCUSED') { text = 'Vắng có phép'; color = 'text-info'; }
-                
+
                 attWrap.className = 'fw-bold mb-3 ' + color;
                 attWrap.innerText = text;
                 actionArea.className = 'd-none';
             } else {
                 attWrap.className = 'fw-bold text-muted mb-3';
                 attWrap.innerText = 'Chưa điểm danh';
-                
+
                 if ((statusVal === 'ONGOING' || statusVal === 'UPCOMING') && isWithinCheckInWindow(s)) {
                     actionArea.className = 'd-block';
                 } else {
@@ -204,10 +204,10 @@
                         const sessionDate = new Date(sessionDateVal);
                         const startDt = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate(), startH, startM, 0);
                         const openFrom = new Date(startDt.getTime() - 15 * 60 * 1000);
-                        
+
                         const timeStr = openFrom.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
                         const dateStr = openFrom.toLocaleDateString('vi-VN');
-                        
+
                         infoMsg.innerText = `Nút điểm danh sẽ mở từ ${timeStr} ngày ${dateStr}.`;
                         infoMsg.className = 'small text-warning mt-2 mb-0 fw-bold';
                     }

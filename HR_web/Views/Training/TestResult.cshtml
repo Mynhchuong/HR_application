@@ -5,21 +5,23 @@
     var testId = ViewBag.TestId;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <!-- Back to Class Detail -->
-    <div class="mb-4">
-        <a id="back-link" href="#" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            Trở lại chi tiết lớp học
-        </a>
-    </div>
-
-    <div class="row">
-        <div class="col-12 col-md-8 col-lg-6 mx-auto">
-            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 20px;" id="result-card">
-                <div class="card-body text-center p-5">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="mt-2 text-muted mb-0">Đang tải kết quả bài thi của bạn...</p>
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Kết quả bài thi",
+            Icon = "bi-clipboard-check",
+            Gradient = "primary",
+        })
+        <div class="card-body">
+            <div class="row">
+                <div class="col-12 col-md-8 col-lg-6 mx-auto">
+                    <div id="result-card">
+                        <div class="text-center p-5">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-2 text-muted mb-0">Đang tải kết quả bài thi của bạn...</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -51,11 +53,11 @@
                 .then(r => r.json())
                 .then(res => {
                     if (res.status === 403) {
-                        wrap.innerHTML = `<div class="card-body p-4 text-center text-danger">Bạn không có quyền truy cập kết quả bài thi này!</div>`;
+                        wrap.innerHTML = `<div class="p-4 text-center text-danger">Bạn không có quyền truy cập kết quả bài thi này!</div>`;
                         return;
                     }
                     if (!res.success) {
-                        wrap.innerHTML = `<div class="card-body p-4 text-center text-warning">${res.message || 'Lỗi tải kết quả.'}</div>`;
+                        wrap.innerHTML = `<div class="p-4 text-center text-warning">${res.message || 'Lỗi tải kết quả.'}</div>`;
                         return;
                     }
 
@@ -63,43 +65,35 @@
                     const att = data.att || data.ATTEMPT || data.attempt || {}; // Handle property names
                     const passFailStr = data.pass_FAIL || data.PASS_FAIL || data.passFail || data.pass_fail || '';
                     const passFail = passFailStr.toUpperCase();
-                    
+
                     const isGradedVal = att.IS_GRADED ?? att.isGraded ?? att.is_graded;
                     const isGraded = isGradedVal === 1 || isGradedVal === true;
 
-                    // Set back link to Class Detail — CLASS_ID nằm ở data (API my-result), không phải attempt
-                    const classIdVal = data.CLASS_ID || att.CLASS_ID || att.classId || att.class_id;
-                    if (classIdVal) {
-                        document.getElementById('back-link').href = window.TRAINING_URLS.getClassDetail.replace('__ID__', classIdVal);
-                    } else {
-                        document.getElementById('back-link').href = '@Url.Action("MyClasses", "Training")';
-                    }
-
                     let statusClass = 'text-warning';
                     let statusLabel = 'Đang chờ chấm điểm tự luận';
-                    let icon = 'pending';
+                    let icon = 'bi-hourglass-split';
                     let iconColor = 'text-warning';
-                    let iconBg = 'bg-warning-soft';
+                    let iconBg = 'bg-warning-subtle';
 
                     if (isGraded) {
                         if (passFail === 'PASS') {
                             statusClass = 'text-success';
                             statusLabel = 'ĐẠT BÀI THI';
-                            icon = 'check_circle';
+                            icon = 'bi-check-circle';
                             iconColor = 'text-success';
-                            iconBg = 'bg-success-soft';
+                            iconBg = 'bg-success-subtle';
                         } else if (passFail === 'FAIL') {
                             statusClass = 'text-danger';
                             statusLabel = 'KHÔNG ĐẠT';
-                            icon = 'cancel';
+                            icon = 'bi-x-circle';
                             iconColor = 'text-danger';
-                            iconBg = 'bg-danger-soft';
+                            iconBg = 'bg-danger-subtle';
                         } else {
                             statusClass = 'text-success';
                             statusLabel = 'HOÀN THÀNH';
-                            icon = 'check_circle';
+                            icon = 'bi-check-circle';
                             iconColor = 'text-success';
-                            iconBg = 'bg-success-soft';
+                            iconBg = 'bg-success-subtle';
                         }
                     }
 
@@ -139,13 +133,13 @@
                     }
 
                     wrap.innerHTML = `
-                        <div class="card-body text-center p-5">
+                        <div class="text-center p-5">
                             <div class="mb-4">
                                 <div class="rounded-circle ${iconBg} d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
-                                    <span class="material-symbols-rounded ${iconColor}" style="font-size: 3.5rem;">${icon}</span>
+                                    <i class="bi ${icon} ${iconColor}" style="font-size: 3.5rem;"></i>
                                 </div>
                             </div>
-                            
+
                             <h4 class="fw-bold text-dark mb-1">Kết quả bài kiểm tra</h4>
                             <h3 class="fw-bold ${statusClass} mt-2 mb-4">${statusLabel}</h3>
 
@@ -175,14 +169,8 @@
                     `;
                 })
                 .catch(err => {
-                    wrap.innerHTML = `<div class="card-body p-4 text-center text-danger">Lỗi kết nối: ${err.message}</div>`;
+                    wrap.innerHTML = `<div class="p-4 text-center text-danger">Lỗi kết nối: ${err.message}</div>`;
                 });
         }
     </script>
 }
-
-<style>
-    .bg-success-soft { background-color: #d1e7dd; }
-    .bg-danger-soft { background-color: #f8d7da; }
-    .bg-warning-soft { background-color: #fff3cd; }
-</style>

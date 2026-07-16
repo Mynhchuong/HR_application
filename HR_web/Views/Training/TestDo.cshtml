@@ -5,7 +5,7 @@
     var testId = ViewBag.TestId;
 }
 
-<div class="container py-5" style="font-family: 'Outfit', sans-serif; max-width: 900px;" id="quiz-root">
+<div class="container py-5" style="max-width: 900px;" id="quiz-root">
     <!-- Loading Spinner -->
     <div class="text-center py-5" id="quiz-loading">
         <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
@@ -25,7 +25,7 @@
                 </div>
                 <div class="text-end">
                     <div class="card border-0 px-3 py-2 text-white bg-success fw-bold d-flex align-items-center gap-1 flex-row" id="timer-card" style="border-radius: 12px; font-size: 1.2rem;">
-                        <span class="material-symbols-rounded">hourglass_empty</span>
+                        <i class="bi bi-hourglass-split"></i>
                         <span id="timer-text">--:--</span>
                     </div>
                 </div>
@@ -34,7 +34,7 @@
 
         <!-- anti-cheat alert -->
         <div class="alert alert-warning border-0 shadow-sm mb-4 d-flex align-items-center gap-2" style="border-radius: 12px;" id="anticheat-alert">
-            <span class="material-symbols-rounded text-warning">warning</span>
+            <i class="bi bi-exclamation-triangle text-warning"></i>
             <span class="small"><strong>Lưu ý bảo mật:</strong> Không được chuyển tab hoặc rời khỏi trình duyệt trong khi làm bài. Số lần rời màn hình quá mức cho phép sẽ khiến bài thi tự động nộp. (Cảnh báo: <strong id="warn-count">0/3</strong>)</span>
         </div>
 
@@ -46,7 +46,7 @@
         <!-- Submit Button -->
         <div class="text-center mt-5 mb-5">
             <button onclick="submitQuizConfirm()" class="btn btn-primary btn-lg px-5 py-3 rounded-pill fw-bold shadow">
-                <span class="material-symbols-rounded align-middle me-1">publish</span>
+                <i class="bi bi-send align-middle me-1"></i>
                 Nộp bài thi ngay
             </button>
         </div>
@@ -363,8 +363,8 @@
                     document.getElementById('quiz-root').innerHTML = `
                         <div class="card border-0 shadow-lg text-center p-5 mx-auto mt-5" style="border-radius: 24px; max-width: 600px;">
                             <div class="mb-3">
-                                <div class="rounded-circle bg-success-soft d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
-                                    <span class="material-symbols-rounded text-success" style="font-size: 3.5rem;">check_circle</span>
+                                <div class="rounded-circle bg-success-subtle text-success-emphasis d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                                    <i class="bi bi-check-circle text-success" style="font-size: 3.5rem;"></i>
                                 </div>
                             </div>
                             <h4 class="fw-bold text-dark mb-1">Nộp bài thi thành công!</h4>

@@ -848,6 +848,9 @@ public class TrainingAdminController : BaseController
     public async Task<IActionResult> PublishRegistration([FromBody] ChangeClassStatusRequest req)
     {
         req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        // Build link "Đăng ký ngay" bằng Url.Action — tự động đúng PathBase/scheme/host của request
+        // hiện tại (VD /HR_Web nếu deploy dưới virtual path), không cần đoán/hardcode ở phía API.
+        req.REGISTER_URL = Url.Action("ClassRegister", "Training", new { id = req.ID }, Request.Scheme);
         var response = await _training.PostToApiAsync("TrainingAdmin/class/publish-registration", req);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
@@ -859,6 +862,15 @@ public class TrainingAdminController : BaseController
     {
         req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
         var response = await _training.PostToApiAsync("TrainingAdmin/class/finalize-enrollment", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> RemindReview(int id)
+    {
+        var response = await _training.PostToApiAsync($"TrainingAdmin/class/{id}/remind-review", new { });
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");

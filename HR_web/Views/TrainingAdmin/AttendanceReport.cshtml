@@ -5,28 +5,21 @@
     var empCd = ViewBag.EmpCd as string;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <div class="mb-3">
-        <a href="@Url.Action("ClassAssign", "TrainingAdmin", new { id = ViewBag.ClassId })" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            Trở lại quản trị lớp
-        </a>
-    </div>
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="@Url.Action("Index", "TrainingAdmin")" class="text-decoration-none">Cổng quản trị</a></li>
-            <li class="breadcrumb-item"><a href="@Url.Action("ClassAssign", "TrainingAdmin", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Báo cáo chuyên cần</li>
-        </ol>
-    </nav>
-
-    <!-- Matrix Card -->
-    <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
-        <div id="attendance-report-container">
-            <div class="text-center py-5">
-                <div class="spinner-border text-success" role="status"></div>
-                <p class="mt-2 text-muted mb-0">Đang tải dữ liệu điểm danh...</p>
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Báo cáo chuyên cần",
+            Icon = "bi-check2-square",
+            Gradient = "success",
+            BackUrl = Url.Action("ClassAssign", "TrainingAdmin", new { id = classId }),
+        })
+        <div class="card-body">
+            <div id="attendance-report-container">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-success" role="status"></div>
+                    <p class="mt-2 text-muted mb-0">Đang tải dữ liệu điểm danh...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -64,11 +57,11 @@
             const wrap = document.getElementById('attendance-report-container');
             const res = await fetch(`${window.TRAINING_URLS.getReportAttendance}?classId=${CLASS_ID}`);
             const json = await res.json();
-            
+
             if (!json.success || !json.data || !json.data.STUDENTS) {
                 wrap.innerHTML = `
                     <div class="alert alert-warning text-center border-0 py-4 shadow-sm" style="border-radius: 12px;">
-                        <span class="material-symbols-rounded text-warning mb-2" style="font-size: 2.5rem;">warning</span>
+                        <i class="bi bi-exclamation-triangle text-warning mb-2" style="font-size: 2.5rem;"></i>
                         <p class="mb-0 text-dark fw-bold">Không tìm thấy dữ liệu điểm danh của lớp học này.</p>
                     </div>
                 `;
@@ -86,16 +79,16 @@
                         <span class="text-muted small">Quy mô: ${d.STUDENTS.length} học viên × ${d.SESSIONS.length} buổi học</span>
                     </div>
                     <a href="${window.TRAINING_URLS.expAttend}?classId=${CLASS_ID}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
-                        <span class="material-symbols-rounded" style="font-size: 1.2rem;">download</span> Xuất Excel
+                        <i class="bi bi-download" style="font-size: 1.2rem;"></i> Xuất Excel
                     </a>
                 </div>
 
                 <div class="alert alert-light border p-3 mb-3" style="border-radius: 12px;">
                     <span class="small text-muted fw-bold d-block mb-1">Chú giải ký hiệu:</span>
-                    <span class="badge bg-success-soft text-success me-2">✓ Có mặt (P)</span>
-                    <span class="badge bg-warning-soft text-warning me-2">L Đi học muộn (L)</span>
-                    <span class="badge bg-danger-soft text-danger me-2">✗ Vắng mặt (A)</span>
-                    <span class="badge bg-secondary-soft text-secondary me-2">E Vắng có phép (E)</span>
+                    <span class="badge bg-success-subtle text-success-emphasis me-2">✓ Có mặt (P)</span>
+                    <span class="badge bg-warning-subtle text-warning-emphasis me-2">L Đi học muộn (L)</span>
+                    <span class="badge bg-danger-subtle text-danger-emphasis me-2">✗ Vắng mặt (A)</span>
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis me-2">E Vắng có phép (E)</span>
                     <span class="badge bg-light text-muted border">· Không xếp lịch</span>
                 </div>
 

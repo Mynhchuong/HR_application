@@ -4,26 +4,14 @@
     var empCd = ViewBag.EmpCd as string;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <!-- Header Banner -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 24px; background: linear-gradient(135deg, #1e7e34 0%, #155724 100%);">
-                <div class="card-body p-4 p-md-5 text-white position-relative">
-                    <div class="position-absolute end-0 bottom-0 opacity-10 d-none d-md-block" style="transform: translate(5%, 15%);">
-                        <span class="material-symbols-rounded" style="font-size: 18rem;">local_library</span>
-                    </div>
-                    <div class="row align-items-center">
-                        <div class="col-12 col-md-8">
-                            <span class="badge bg-white-soft text-white px-3 py-2 rounded-pill mb-3 fw-bold small uppercase" style="background: rgba(255,255,255,0.15);">CỔNG GIẢNG DẠY</span>
-                            <h1 class="fw-bold mb-2 display-6">Quản Lý Lớp Học Giảng Dạy</h1>
-                            <p class="mb-0 opacity-85 fs-5">Điểm danh học viên, quản lý và đăng tải tài liệu giảng dạy, chấm điểm tự luận các bài thi.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="container-fluid py-4">
+    @await Html.PartialAsync("_TrainingHeroBanner", new TrainingHeroBannerVM
+    {
+        Title = "Quản Lý Lớp Học Giảng Dạy",
+        Subtitle = "Điểm danh học viên, quản lý và đăng tải tài liệu giảng dạy, chấm điểm tự luận các bài thi.",
+        Gradient = "success",
+        IllustrationImg = "~/assets/img/illustrations/giaovien.png",
+    })
 
     <!-- Quick Stats Cards -->
     <div class="row g-3 mb-4">
@@ -34,7 +22,7 @@
                         <h6 class="text-muted small fw-bold text-uppercase mb-1">Tổng lớp phụ trách</h6>
                         <h3 class="fw-bold mb-0 text-dark" id="stat-total-classes">0</h3>
                     </div>
-                    <span class="material-symbols-rounded text-primary bg-primary-soft p-3 rounded-3" style="font-size: 2rem;">class</span>
+                    <i class="bi bi-easel text-primary bg-primary-subtle text-primary-emphasis p-3 rounded-3" style="font-size: 2rem;"></i>
                 </div>
             </div>
         </div>
@@ -45,7 +33,7 @@
                         <h6 class="text-muted small fw-bold text-uppercase mb-1">Lớp đang giảng dạy</h6>
                         <h3 class="fw-bold mb-0 text-success" id="stat-active-classes">0</h3>
                     </div>
-                    <span class="material-symbols-rounded text-success bg-success-soft p-3 rounded-3" style="font-size: 2rem;">history_edu</span>
+                    <i class="bi bi-journal-text text-success bg-success-subtle text-success-emphasis p-3 rounded-3" style="font-size: 2rem;"></i>
                 </div>
             </div>
         </div>
@@ -56,7 +44,7 @@
                         <h6 class="text-muted small fw-bold text-uppercase mb-1">Lớp đã kết thúc</h6>
                         <h3 class="fw-bold mb-0 text-secondary" id="stat-completed-classes">0</h3>
                     </div>
-                    <span class="material-symbols-rounded text-secondary bg-secondary-soft p-3 rounded-3" style="font-size: 2rem;">school</span>
+                    <i class="bi bi-mortarboard text-secondary bg-secondary-subtle text-secondary-emphasis p-3 rounded-3" style="font-size: 2rem;"></i>
                 </div>
             </div>
         </div>
@@ -83,11 +71,11 @@
             </div>
             <div class="col-12 col-md-4 text-end d-flex align-items-center justify-content-md-end gap-2">
                 <span class="small text-muted me-2 d-none d-lg-inline">Chế độ xem:</span>
-                <button type="button" class="btn btn-light shadow-xs py-2 px-3 fw-bold d-inline-flex align-items-center gap-1 active-view-btn" id="btn-grid-view" onclick="switchView('grid')" style="border-radius: 10px; height: 45px;">
-                    <span class="material-symbols-rounded">grid_view</span> Lưới
+                <button type="button" class="btn btn-light shadow-sm py-2 px-3 fw-bold d-inline-flex align-items-center gap-1 active-view-btn" id="btn-grid-view" onclick="switchView('grid')" style="border-radius: 10px; height: 45px;">
+                    <i class="bi bi-grid-3x3-gap"></i> Lưới
                 </button>
-                <button type="button" class="btn btn-light shadow-xs py-2 px-3 fw-bold d-inline-flex align-items-center gap-1" id="btn-table-view" onclick="switchView('table')" style="border-radius: 10px; height: 45px;">
-                    <span class="material-symbols-rounded">format_list_bulleted</span> Bảng
+                <button type="button" class="btn btn-light shadow-sm py-2 px-3 fw-bold d-inline-flex align-items-center gap-1" id="btn-table-view" onclick="switchView('table')" style="border-radius: 10px; height: 45px;">
+                    <i class="bi bi-list-ul"></i> Bảng
                 </button>
             </div>
         </div>
@@ -115,24 +103,7 @@
     .teacher-class-card:hover {
         transform: translateY(-5px);
         box-shadow: 0 16px 32px rgba(0, 0, 0, 0.08) !important;
-    }
-    .bg-success-soft {
-        background-color: rgba(25, 135, 84, 0.1) !important;
-        color: #198754 !important;
-    }
-    .bg-primary-soft {
-        background-color: rgba(13, 110, 253, 0.1) !important;
-        color: #0d6efd !important;
-    }
-    .bg-secondary-soft {
-        background-color: rgba(108, 117, 125, 0.1) !important;
-        color: #6c757d !important;
-    }
-    .bg-warning-soft {
-        background-color: rgba(255, 193, 7, 0.12) !important;
-        color: #ffc107 !important;
-    }
-    .active-view-btn {
+    }    .active-view-btn {
         background-color: #198754 !important;
         color: #fff !important;
         border: none !important;
@@ -218,7 +189,7 @@
             if (list.length === 0) {
                 container.innerHTML = `
                     <div class="card border-0 shadow-sm text-center py-5" style="border-radius: 16px;">
-                        <span class="material-symbols-rounded text-muted" style="font-size: 5rem;">search_off</span>
+                        <i class="bi bi-search text-muted" style="font-size: 5rem;"></i>
                         <h5 class="fw-bold text-dark mt-3">Không tìm thấy lớp học phù hợp</h5>
                         <p class="text-muted small">Vui lòng điều chỉnh lại bộ lọc tìm kiếm của bạn.</p>
                     </div>
@@ -273,7 +244,7 @@
 
                                 <div class="mt-auto">
                                     <a href="${window.TRAINING_URLS.classManage.replace('__ID__', classId)}" class="btn btn-success w-100 py-2.5 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-1 shadow-sm">
-                                        <span class="material-symbols-rounded" style="font-size: 1.2rem;">edit_calendar</span>
+                                        <i class="bi bi-calendar-check" style="font-size: 1.2rem;"></i>
                                         Quản lý lớp học
                                     </a>
                                 </div>
@@ -331,7 +302,7 @@
                         <td class="text-center"><span class="badge ${badge.cls} px-2.5 py-1.5 fw-bold">${badge.label}</span></td>
                         <td class="text-end pe-3">
                             <a href="${window.TRAINING_URLS.classManage.replace('__ID__', classId)}" class="btn btn-sm btn-success px-3 py-2 rounded-2 fw-bold d-inline-flex align-items-center gap-1">
-                                <span class="material-symbols-rounded" style="font-size: 1.1rem;">edit_calendar</span> Quản lý
+                                <i class="bi bi-calendar-check" style="font-size: 1.1rem;"></i> Quản lý
                             </a>
                         </td>
                     </tr>
@@ -350,15 +321,15 @@
         function getStatusBadge(status) {
             switch (status) {
                 case 'IN_PROGRESS':
-                    return { cls: 'bg-success-soft text-success', label: 'Đang giảng dạy' };
+                    return { cls: 'bg-success-subtle text-success-emphasis', label: 'Đang giảng dạy' };
                 case 'SCHEDULED':
-                    return { cls: 'bg-primary-soft text-primary', label: 'Đã lên lịch' };
+                    return { cls: 'bg-primary-subtle text-primary-emphasis', label: 'Đã lên lịch' };
                 case 'COMPLETED':
-                    return { cls: 'bg-secondary-soft text-secondary', label: 'Đã kết thúc' };
+                    return { cls: 'bg-secondary-subtle text-secondary-emphasis', label: 'Đã kết thúc' };
                 case 'DRAFT':
                     return { cls: 'bg-light text-dark border', label: 'Nháp' };
                 case 'OPEN_FOR_REGISTRATION':
-                    return { cls: 'bg-warning-soft text-warning', label: 'Mở đăng ký' };
+                    return { cls: 'bg-warning-subtle text-warning-emphasis', label: 'Mở đăng ký' };
                 default:
                     return { cls: 'bg-light text-dark', label: status };
             }

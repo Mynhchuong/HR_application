@@ -4,20 +4,21 @@
     var courseId = ViewBag.CourseId;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="@Url.Action("Index", "TrainingAdmin")" class="text-decoration-none">Cổng quản trị</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Sửa khóa học</li>
-        </ol>
-    </nav>
-
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Sửa khóa học",
+            Icon = "bi-pencil-square",
+            Gradient = "primary",
+            BackUrl = Url.Action("Index", "TrainingAdmin"),
+        })
+    <div class="card-body">
     <div class="row">
         <div class="col-12 col-md-8 col-lg-6 mx-auto">
             <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
                 <h4 class="fw-bold text-dark mb-4">Cập nhật Giáo trình Khóa học</h4>
-                
+
                 <form id="courseEditForm">
                     <input type="hidden" id="edit-course-id" value="@courseId" />
 
@@ -45,6 +46,8 @@
                 </form>
             </div>
         </div>
+    </div>
+    </div>
     </div>
 </div>
 

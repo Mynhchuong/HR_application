@@ -29,6 +29,9 @@ public class ClassModel
     public int?   CLONED_FROM_CLASS_ID { get; set; }
     public string? CLONED_FROM_TYPE { get; set; }
 
+    // Bản tin quảng cáo tự tạo khi mở đăng ký tự do (§OPEN registration bulletin) — null = chưa tạo
+    public int?   BULLETIN_ID { get; set; }
+
     public string? INST_ID { get; set; }
     public DateTime? INST_DT { get; set; }
     public string? UPDT_ID { get; set; }
@@ -108,6 +111,9 @@ public class ChangeClassStatusRequest
 {
     public int    ID { get; set; }
     public string LOGIN_USER { get; set; } = "";
+    // Link "Đăng ký ngay" cho bản tin tự tạo khi mở đăng ký (§PublishRegistrationAsync) — HR_web
+    // build bằng Url.Action (đúng PathBase/domain thật), HR_api chỉ nhúng vào content, không tự đoán.
+    public string? REGISTER_URL { get; set; }
 }
 
 public class AssignTeacherRequest

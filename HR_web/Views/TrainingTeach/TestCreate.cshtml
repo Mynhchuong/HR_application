@@ -5,21 +5,21 @@
     var classId = ViewBag.ClassId;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="@Url.Action("MyClasses", "TrainingTeach")" class="text-decoration-none">Giảng dạy</a></li>
-            <li class="breadcrumb-item"><a href="@Url.Action("ClassManage", "TrainingTeach", new { id = classId })" class="text-decoration-none">Quản lý lớp học</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Tạo đề thi</li>
-        </ol>
-    </nav>
-
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Tạo đề thi",
+            Icon = "bi-file-earmark-plus",
+            Gradient = "success",
+            BackUrl = Url.Action("ClassManage", "TrainingTeach", new { id = classId }),
+        })
+    <div class="card-body">
     <div class="row">
         <div class="col-12 col-lg-8 mx-auto">
             <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
                 <h4 class="fw-bold text-dark mb-4">Cấu hình Đề kiểm tra mới</h4>
-                
+
                 <form id="testConfigForm">
                     <div class="row g-3">
                         <div class="col-12">
@@ -67,6 +67,8 @@
                 </div>
             </div>
         </div>
+    </div>
+    </div>
     </div>
 </div>
 
@@ -186,7 +188,7 @@
                     <input type="text" class="form-control opt-text-${qId}" placeholder="Nhập đáp án..." style="border: none; border-radius: 0; padding: 10px 12px; box-shadow: none; height: auto; background-color: transparent;">
                     <!-- Delete Button -->
                     <button type="button" onclick="removeOptionRow(${qId}, ${optId})" class="btn btn-link text-danger m-0 p-2 d-flex align-items-center justify-content-center" style="border-left: 1px solid #ced4da; border-radius: 0; box-shadow: none;">
-                        <span class="material-symbols-rounded" style="font-size: 1.25rem;">delete</span>
+                        <i class="bi bi-trash" style="font-size: 1.25rem;"></i>
                     </button>
                 </div>
             `;

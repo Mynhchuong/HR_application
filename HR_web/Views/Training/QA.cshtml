@@ -5,10 +5,10 @@
     var classId = ViewBag.ClassId;
 }
 
-<div class="container-fluid py-4 px-3 px-md-4" style="font-family: 'Outfit', sans-serif;">
+<div class="container-fluid py-4 px-3 px-md-4">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <a href="@Url.Action("ClassDetail", "Training", new { id = ViewBag.ClassId })" class="btn btn-sm btn-outline-secondary rounded-3 d-inline-flex align-items-center gap-1 fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
+            <i class="bi bi-arrow-left" style="font-size: 1.1rem;"></i>
             <span class="d-none d-sm-inline">Quay về chi tiết lớp học</span>
             <span class="d-inline d-sm-none">Quay lại</span>
         </a>
@@ -28,7 +28,7 @@
             <div class="card border-0 shadow-sm p-3 p-md-4 mb-4 qa-header-card" style="border-radius: 16px; background: linear-gradient(135deg, #198754 0%, #157347 100%); text-white">
                 <div class="d-flex align-items-center gap-3">
                     <div class="bg-white bg-opacity-20 text-white rounded-3 p-2 p-md-3 d-flex align-items-center justify-content-center flex-shrink-0">
-                        <span class="material-symbols-rounded qa-header-icon">forum</span>
+                        <i class="bi bi-chat-dots qa-header-icon"></i>
                     </div>
                     <div class="min-w-0">
                         <h3 class="fw-bold text-white mb-1 qa-header-title">Thảo Luận Q&A</h3>
@@ -91,7 +91,7 @@
                     if (list.length === 0) {
                         qaWrap.innerHTML = `
                             <div class="card border-0 shadow-sm p-5 text-center text-muted" style="border-radius: 16px;">
-                                <span class="material-symbols-rounded text-muted" style="font-size: 4rem;">forum</span>
+                                <i class="bi bi-chat-dots text-muted" style="font-size: 4rem;"></i>
                                 <h6 class="fw-bold mt-2">Chưa có thảo luận nào</h6>
                                 <p class="text-muted small mb-0">Hãy đặt câu hỏi đầu tiên ở khung nhập phía trên!</p>
                             </div>

@@ -5,57 +5,53 @@
     var empCd = ViewBag.EmpCd as string;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <div class="mb-3">
-        <a href="@Url.Action("ClassAssign", "TrainingAdmin", new { id = ViewBag.ClassId })" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            Trở lại quản trị lớp
-        </a>
-    </div>
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="@Url.Action("Index", "TrainingAdmin")" class="text-decoration-none">Cổng quản trị</a></li>
-            <li class="breadcrumb-item"><a href="@Url.Action("ClassAssign", "TrainingAdmin", new { id = classId })" class="text-decoration-none">Chi tiết lớp học</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Báo cáo lớp học</li>
-        </ol>
-    </nav>
-
-    <!-- Navigation Sub-tabs for Reports -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm" style="border-radius: 12px;">
-                <div class="card-body p-2">
-                    <ul class="nav nav-tabs nav-justified border-0" id="reportTabs" role="tablist">
-                        <li class="nav-item">
-                            <button onclick="switchTab('class')" class="nav-link active py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-overview">
-                                <span class="material-symbols-rounded text-primary">analytics</span>
-                                Tổng quan Lớp học
-                            </button>
-                        </li>
-                        <li class="nav-item">
-                            <button onclick="switchTab('test')" class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-test">
-                                <span class="material-symbols-rounded text-warning">quiz</span>
-                                Báo cáo Bài thi
-                            </button>
-                        </li>
-                        <li class="nav-item">
-                            <button onclick="switchTab('satisfaction')" class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-satisfaction">
-                                <span class="material-symbols-rounded text-success">sentiment_satisfied</span>
-                                Khảo sát học viên
-                            </button>
-                        </li>
-                    </ul>
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Báo cáo lớp học",
+            Icon = "bi-graph-up",
+            Gradient = "primary",
+            BackUrl = Url.Action("ClassAssign", "TrainingAdmin", new { id = classId }),
+        })
+        <div class="card-body">
+            <!-- Navigation Sub-tabs for Reports -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm" style="border-radius: 12px;">
+                        <div class="card-body p-2">
+                            <ul class="nav nav-tabs nav-justified border-0" id="reportTabs" role="tablist">
+                                <li class="nav-item">
+                                    <button onclick="switchTab('class')" class="nav-link active py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-overview">
+                                        <i class="bi bi-graph-up text-primary"></i>
+                                        Tổng quan Lớp học
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button onclick="switchTab('test')" class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-test">
+                                        <i class="bi bi-question-circle text-warning"></i>
+                                        Báo cáo Bài thi
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button onclick="switchTab('satisfaction')" class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-satisfaction">
+                                        <i class="bi bi-emoji-smile text-success"></i>
+                                        Khảo sát học viên
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- Report Body Container -->
-    <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;" id="report-card">
-        <div id="reportContent" class="py-5 text-center">
-            <div class="spinner-border text-primary" role="status"></div>
-            <p class="mt-2 text-muted mb-0">Đang tải dữ liệu báo cáo...</p>
+            <!-- Report Body Container -->
+            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;" id="report-card">
+                <div id="reportContent" class="py-5 text-center">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted mb-0">Đang tải dữ liệu báo cáo...</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -155,7 +151,7 @@
                         <span class="text-muted small">${esc(d.COURSE_TITLE)}</span>
                     </div>
                     <a href="${window.TRAINING_URLS.expClass}?classId=${CLASS_ID}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
-                        <span class="material-symbols-rounded" style="font-size: 1.2rem;">download</span> Xuất Excel
+                        <i class="bi bi-download" style="font-size: 1.2rem;"></i> Xuất Excel
                     </a>
                 </div>
                 
@@ -227,7 +223,7 @@
             if (!listJson.success || !listJson.data || listJson.data.length === 0) {
                 document.getElementById('reportContent').innerHTML = `
                     <div class="text-center py-5 text-muted">
-                        <span class="material-symbols-rounded" style="font-size: 4rem;">quiz</span>
+                        <i class="bi bi-question-circle" style="font-size: 4rem;"></i>
                         <p class="mt-2 mb-0">Lớp học này chưa tổ chức bài kiểm tra nào.</p>
                     </div>
                 `;
@@ -238,7 +234,7 @@
             document.getElementById('reportContent').innerHTML = `
                 <div class="alert alert-info border-0 p-4 mb-4" style="border-radius: 12px;">
                     <div class="d-flex align-items-center gap-2 mb-3">
-                        <span class="material-symbols-rounded text-primary">info</span>
+                        <i class="bi bi-info-circle text-primary"></i>
                         <h6 class="fw-bold mb-0 text-dark">Chọn bài kiểm tra cần xem báo cáo</h6>
                     </div>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -278,7 +274,7 @@
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0 text-dark">${esc(d.TEST_TITLE)}</h5>
                     <a href="${window.TRAINING_URLS.expTest}?testId=${testId}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
-                        <span class="material-symbols-rounded" style="font-size: 1.2rem;">download</span> Xuất Excel
+                        <i class="bi bi-download" style="font-size: 1.2rem;"></i> Xuất Excel
                     </a>
                 </div>
 
@@ -300,7 +296,7 @@
                                         <td>${esc(s.EMPCD)}</td>
                                         <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(s.EMP_NAME||'')}</td>
                                         <td><strong>${s.SCORE == null ? '-' : s.SCORE}${s.MAX_SCORE ? '/' + s.MAX_SCORE : ''}</strong></td>
-                                        <td>${s.IS_PASS == 1 ? '<span class="badge bg-success-soft text-success">Đạt</span>' : s.IS_PASS == 0 ? '<span class="badge bg-danger-soft text-danger">Không đạt</span>' : '-'}</td>
+                                        <td>${s.IS_PASS == 1 ? '<span class="badge bg-success-subtle text-success-emphasis">Đạt</span>' : s.IS_PASS == 0 ? '<span class="badge bg-danger-subtle text-danger-emphasis">Không đạt</span>' : '-'}</td>
                                         <td class="text-muted small">${s.SUBMIT_DT ? new Date(s.SUBMIT_DT).toLocaleString('vi-VN') : '-'}</td>
                                     </tr>`).join('')}</tbody>
                                 </table>
@@ -336,7 +332,7 @@
                         <span class="text-muted small">Khảo sát chất lượng đào tạo (Tổng số phản hồi: ${d.RESPONSE_COUNT})</span>
                     </div>
                     <a href="${window.TRAINING_URLS.expSat}?classId=${CLASS_ID}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
-                        <span class="material-symbols-rounded" style="font-size: 1.2rem;">download</span> Xuất Excel
+                        <i class="bi bi-download" style="font-size: 1.2rem;"></i> Xuất Excel
                     </a>
                 </div>
 
@@ -380,7 +376,7 @@
         function renderErr(msg) {
             document.getElementById('reportContent').innerHTML = `
                 <div class="alert alert-warning text-center border-0 py-4 shadow-sm" style="border-radius: 12px;">
-                    <span class="material-symbols-rounded text-warning mb-2" style="font-size: 2.5rem;">warning</span>
+                    <i class="bi bi-exclamation-triangle text-warning mb-2" style="font-size: 2.5rem;"></i>
                     <p class="mb-0 text-dark fw-bold">${esc(msg)}</p>
                 </div>
             `;

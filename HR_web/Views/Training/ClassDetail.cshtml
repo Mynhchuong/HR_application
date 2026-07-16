@@ -5,11 +5,11 @@
     var classId = ViewBag.ClassId;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+<div class="container-fluid py-4">
     <!-- Back to Dashboard -->
     <div class="mb-4">
         <a href="@Url.Action("MyClasses", "Training")" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
+            <i class="bi bi-arrow-left" style="font-size: 1.1rem;"></i>
             Trở lại danh sách lớp học
         </a>
     </div>
@@ -31,24 +31,24 @@
     <div class="row mb-4">
         <div class="col-6 col-md-4 mb-3">
             <a href="@Url.Action("Materials", "Training", new { id = classId })" class="card border-0 shadow-sm text-decoration-none h-100 p-3 text-center nav-feature-card">
-                <div class="feature-icon-wrapper bg-primary-soft text-primary mx-auto mb-2">
-                    <span class="material-symbols-rounded">folder_open</span>
+                <div class="feature-icon-wrapper bg-primary-subtle text-primary-emphasis mx-auto mb-2">
+                    <i class="bi bi-folder2-open"></i>
                 </div>
                 <h6 class="fw-bold text-dark mb-0">Tài liệu học tập</h6>
             </a>
         </div>
         <div class="col-6 col-md-4 mb-3">
             <a href="@Url.Action("QA", "Training", new { id = classId })" class="card border-0 shadow-sm text-decoration-none h-100 p-3 text-center nav-feature-card">
-                <div class="feature-icon-wrapper bg-success-soft text-success mx-auto mb-2">
-                    <span class="material-symbols-rounded">forum</span>
+                <div class="feature-icon-wrapper bg-success-subtle text-success-emphasis mx-auto mb-2">
+                    <i class="bi bi-chat-dots"></i>
                 </div>
                 <h6 class="fw-bold text-dark mb-0">Hỏi đáp Q&A</h6>
             </a>
         </div>
         <div class="col-6 col-md-4 mb-3">
             <a href="@Url.Action("Review", "Training", new { id = classId })" class="card border-0 shadow-sm text-decoration-none h-100 p-3 text-center nav-feature-card">
-                <div class="feature-icon-wrapper bg-warning-soft text-warning mx-auto mb-2">
-                    <span class="material-symbols-rounded">rate_review</span>
+                <div class="feature-icon-wrapper bg-warning-subtle text-warning-emphasis mx-auto mb-2">
+                    <i class="bi bi-chat-square-text"></i>
                 </div>
                 <h6 class="fw-bold text-dark mb-0">Đánh giá & Khảo sát</h6>
             </a>
@@ -59,13 +59,13 @@
     <ul class="nav nav-tabs mb-4" id="classDetailTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="sessions-tab-btn" data-bs-toggle="tab" data-bs-target="#sessions-pane" type="button" role="tab" aria-controls="sessions-pane" aria-selected="true">
-                <span class="material-symbols-rounded align-middle" style="font-size:1.1rem;">calendar_month</span>
+                <i class="bi bi-calendar-event align-middle" style="font-size:1.1rem;"></i>
                 Buổi học
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tests-tab-btn" data-bs-toggle="tab" data-bs-target="#tests-pane" type="button" role="tab" aria-controls="tests-pane" aria-selected="false">
-                <span class="material-symbols-rounded align-middle" style="font-size:1.1rem;">quiz</span>
+                <i class="bi bi-question-circle align-middle" style="font-size:1.1rem;"></i>
                 Bài kiểm tra
             </button>
         </li>
@@ -76,7 +76,7 @@
         <div class="tab-pane fade show active" id="sessions-pane" role="tabpanel" aria-labelledby="sessions-tab-btn">
             <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
                 <h5 class="fw-bold mb-4 d-flex align-items-center gap-2 text-dark">
-                    <span class="material-symbols-rounded text-primary">calendar_month</span>
+                    <i class="bi bi-calendar-event text-primary"></i>
                     Lộ trình & Điểm danh buổi học
                 </h5>
                 <div class="timeline-container" id="sessions-list">
@@ -91,7 +91,7 @@
         <div class="tab-pane fade" id="tests-pane" role="tabpanel" aria-labelledby="tests-tab-btn">
             <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;" id="tests-section">
                 <h5 class="fw-bold mb-3 d-flex align-items-center gap-2 text-dark">
-                    <span class="material-symbols-rounded text-info">quiz</span>
+                    <i class="bi bi-question-circle text-info"></i>
                     Bài kiểm tra
                 </h5>
                 <ul class="nav nav-tabs mb-3" id="tests-tabs">
@@ -131,14 +131,9 @@
         align-items: center;
         justify-content: center;
     }
-    .feature-icon-wrapper span {
+    .feature-icon-wrapper i {
         font-size: 1.6rem;
     }
-    .bg-primary-soft { background-color: #e7f1ff; }
-    .bg-success-soft { background-color: #e8f5e9; }
-    .bg-warning-soft { background-color: #fff3cd; }
-    .bg-info-soft { background-color: #e0f7fa; }
-
     /* Timeline style */
     .timeline-container {
         position: relative;
@@ -239,7 +234,7 @@
                     return `<span class="vni-font">${t.NAME}</span> (${role}${grp})`;
                 }).join(', ');
             const myGroupLabel = classData.myEnrollment && classData.myEnrollment.GROUP_NAME
-                ? `<span class="badge bg-info-soft text-dark px-3 py-2 rounded-pill">Nhóm của bạn: ${classData.myEnrollment.GROUP_NAME}</span>`
+                ? `<span class="badge bg-info-subtle text-info-emphasis text-dark px-3 py-2 rounded-pill">Nhóm của bạn: ${classData.myEnrollment.GROUP_NAME}</span>`
                 : '';
             
             let badgeRegText = 'Chỉ định';
@@ -339,7 +334,7 @@
                             <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
                                 <span class="small text-muted"><i class="bi bi-geo-alt me-1"></i>Địa điểm: ${s.LOCATION || 'Phòng học'}</span>
                                 <a href="${window.TRAINING_URLS.sessionDetailTemplate.replace('__ID__', s.ID)}" class="btn btn-sm btn-primary px-3 rounded-2 fw-bold d-flex align-items-center gap-1">
-                                    <span class="material-symbols-rounded" style="font-size: 1rem;">qr_code_scanner</span>
+                                    <i class="bi bi-qr-code-scan" style="font-size: 1rem;"></i>
                                     Điểm danh & Chi tiết
                                 </a>
                             </div>

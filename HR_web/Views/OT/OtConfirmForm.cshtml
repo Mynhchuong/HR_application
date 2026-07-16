@@ -410,20 +410,28 @@
 
                 @if (Model.IS_EDITABLE)
                 {
-                    <div class="note-box">
+                    <div class="note-box" id="otNoteBox">
                         <img src="~/assets/img/illustrations/chi.png" class="note-icon" alt="Note" />
                         <div class="note-text">
                             Tôi biết được rằng làm tăng ca là do <strong>tự nguyện</strong>, nếu tôi không thích tăng ca tôi chỉ cần không ký tên xác nhận và tôi hoàn toàn tự do ra về sau khi đã hoàn tất giờ làm việc bình thường. Nếu ký tên và xác nhận dưới đây có nghĩa là tôi thừa nhận tôi tự nguyện tăng ca. Tôi hiểu rõ pháp luật Việt Nam và quy định công ty cho phép công nhân làm việc tăng ca <strong>không quá 4 giờ trong 1 ngày, không quá 12 giờ trong 1 tuần, không quá 40 giờ trong 1 tháng và không quá 300 giờ trong 1 năm</strong>. Tất cả công nhân mang thai từ tháng thứ 7 và công nhân dưới 18 tuổi không được làm tăng ca.
                         </div>
                     </div>
 
-                    <form asp-controller="OT" asp-action="OtConfirmForm" method="post" id="frmOtConfirm">
+                    <div id="otLockedBox" class="note-box d-none" style="background:#fef2f2; border-color:#fecaca;">
+                        <span class="material-symbols-rounded" style="color:#dc2626; font-size:1.75rem; flex-shrink:0;">lock_clock</span>
+                        <div class="note-text" style="color:#991b1b;">
+                            Đã tới giờ tăng ca, bạn không thể xác nhận hoặc đổi ý nữa.
+                        </div>
+                    </div>
+
+                    <form asp-controller="OT" asp-action="OtConfirmForm" method="post" id="frmOtConfirm"
+                          data-start-ot="@(Model.START_OT.HasValue ? Model.START_OT.Value.ToString("yyyy-MM-ddTHH:mm:ss") : "")">
                         <input type="hidden" name="empcd" value="@Model.EMPCD" />
                         <input type="hidden" name="work_date" value="@ViewBag.WorkDate" />
                         <input type="hidden" name="ot_hours" value="@Model.OT_HOURS" />
                         <input type="hidden" name="confirmStatus" id="confirmStatus" value="" />
 
-                        <div class="action-group">
+                        <div class="action-group" id="otActionGroup">
                             @if (Model.CONFIRM_STATUS == "CONFIRMED")
                             {
                                 <button type="button" class="btn-action btn-approve" style="pointer-events: none; cursor: default; box-shadow: none; opacity: 0.5;" disabled>
@@ -472,9 +480,33 @@
         window.location.href = '@Url.Action("OtConfirmForm", "OT")?work_date=' + date;
     }
 
+    // Khoá form ngay khi tới giờ tăng ca, không cần reload trang.
+    let _otLocked = false;
+    let _otLockTimer;
+    function checkOtLock() {
+        const form = document.getElementById('frmOtConfirm');
+        if (!form) return;
+        const startOtStr = form.dataset.startOt;
+        if (!startOtStr) return;
+        const startOt = new Date(startOtStr);
+        if (isNaN(startOt.getTime()) || new Date() < startOt) return;
+
+        _otLocked = true;
+        document.getElementById('otNoteBox')?.classList.add('d-none');
+        document.getElementById('otLockedBox')?.classList.remove('d-none');
+        document.getElementById('otActionGroup')?.querySelectorAll('button').forEach(b => {
+            b.disabled = true;
+            b.style.pointerEvents = 'none';
+            b.style.opacity = '0.5';
+        });
+        clearInterval(_otLockTimer);
+    }
+    checkOtLock();
+    _otLockTimer = setInterval(checkOtLock, 15000);
+
     let _otSubmitting = false;
     async function submitConfirm(status) {
-        if (_otSubmitting) return;
+        if (_otSubmitting || _otLocked) return;
         _otSubmitting = true;
 
         document.getElementById('confirmStatus').value = status;

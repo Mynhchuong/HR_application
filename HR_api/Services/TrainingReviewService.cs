@@ -10,8 +10,43 @@ namespace HR_api.Services;
 public class TrainingReviewService
 {
     private readonly OracleService _db;
+    private readonly TrainingNotificationService _noti;
 
-    public TrainingReviewService(OracleService db) { _db = db; }
+    public TrainingReviewService(OracleService db, TrainingNotificationService noti)
+    {
+        _db = db;
+        _noti = noti;
+    }
+
+    // Nhắc mềm — KHÔNG bắt buộc, KHÔNG đụng REQUIRE_POST_REVIEW/completion criteria. HR bấm tay ở
+    // ClassAssign trước khi chốt lớp, gửi 1 noti TRAINING_REVIEW_REMINDER cho từng học viên ENROLLED
+    // chưa nộp HR_TRAINING_REVIEW. Trả về số học viên vừa được nhắc.
+    public async Task<int> RemindPendingReviewsAsync(int classId)
+    {
+        var className = (await _db.ExecuteQueryAsync(
+            "SELECT CLASS_NAME FROM HRMS.HR_TRAINING_CLASS WHERE ID = :ID",
+            r => r["CLASS_NAME"]?.ToString() ?? "",
+            new OracleParameter("ID", classId))).FirstOrDefault();
+        if (className == null) throw new InvalidOperationException("Không tìm thấy Class");
+
+        var pendingEmpcds = await _db.ExecuteQueryAsync(@"
+            SELECT E.EMPCD
+              FROM HRMS.HR_TRAINING_ENROLLMENT E
+             WHERE E.CLASS_ID = :CID
+               AND E.STATUS = 'ENROLLED'
+               AND NOT EXISTS (
+                   SELECT 1 FROM HRMS.HR_TRAINING_REVIEW R
+                    WHERE R.CLASS_ID = E.CLASS_ID AND R.EMPCD = E.EMPCD)",
+            r => r["EMPCD"]?.ToString() ?? "",
+            new OracleParameter("CID", classId));
+
+        if (pendingEmpcds.Count == 0) return 0;
+
+        await _noti.EnqueueBulkAsync("TRAINING_REVIEW_REMINDER", pendingEmpcds,
+            new Dictionary<string, string> { ["className"] = className }, classId: classId);
+
+        return pendingEmpcds.Count;
+    }
 
     // Student submit review — atomic: xoá cũ + insert lại (v1 cho phép edit đến hết class).
     // Chỉ chấp nhận khi Class ENROLLMENT của student = 'ENROLLED' hoặc terminal (COMPLETED/FAILED).

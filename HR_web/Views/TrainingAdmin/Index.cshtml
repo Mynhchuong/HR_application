@@ -4,21 +4,13 @@
     var empCd = ViewBag.EmpCd as string;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <!-- Header Banner -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 20px; background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);">
-                <div class="card-body p-4 text-white position-relative">
-                    <div class="position-absolute end-0 bottom-0 opacity-10 d-none d-md-block" style="transform: translate(10%, 10%);">
-                        <span class="material-symbols-rounded" style="font-size: 15rem;">settings_system_daydream</span>
-                    </div>
-                    <h2 class="fw-bold mb-1">Cổng Quản Trị Đào Tạo HR</h2>
-                    <p class="mb-0 opacity-75">Quản lý danh sách khóa học, tổ chức lớp học, sắp lịch buổi học, phân công giáo viên, gán học viên và chia nhóm học tập.</p>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="container-fluid py-4">
+    @await Html.PartialAsync("_TrainingHeroBanner", new TrainingHeroBannerVM
+    {
+        Title = "Cổng Quản Trị Đào Tạo HR",
+        Subtitle = "Quản lý danh sách khóa học, tổ chức lớp học, sắp lịch buổi học, phân công giáo viên, gán học viên và chia nhóm học tập.",
+        Gradient = "info",
+    })
 
     <!-- Main Navigation Tabs -->
     <div class="row mb-4">
@@ -28,13 +20,13 @@
                     <ul class="nav nav-tabs nav-justified border-0" id="adminTabs" role="tablist">
                         <li class="nav-item">
                             <button class="nav-link active py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-courses" data-bs-toggle="tab" data-bs-target="#courses-panel">
-                                <span class="material-symbols-rounded">menu_book</span>
+                                <i class="bi bi-book"></i>
                                 Quản lý Khóa học
                             </button>
                         </li>
                         <li class="nav-item">
                             <button class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-classes" data-bs-toggle="tab" data-bs-target="#classes-panel">
-                                <span class="material-symbols-rounded">groups</span>
+                                <i class="bi bi-people"></i>
                                 Quản lý Lớp học
                             </button>
                         </li>
@@ -52,7 +44,7 @@
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0 text-dark">Danh sách Khóa học thiết lập</h5>
                     <button onclick="openCreateCourseModal()" class="btn btn-primary rounded-3 fw-bold d-flex align-items-center gap-1 shadow-sm">
-                        <span class="material-symbols-rounded">add</span>
+                        <i class="bi bi-plus-lg"></i>
                         Thêm Khóa học
                     </button>
                 </div>
@@ -94,7 +86,7 @@
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0 text-dark">Danh sách Lớp học tổ chức</h5>
                     <button onclick="openCreateClassModal()" class="btn btn-primary rounded-3 fw-bold d-flex align-items-center gap-1 shadow-sm">
-                        <span class="material-symbols-rounded">add</span>
+                        <i class="bi bi-plus-lg"></i>
                         Mở Lớp học mới
                     </button>
                 </div>
@@ -257,12 +249,7 @@
         padding-top: 16px;
         padding-bottom: 16px;
         border-bottom: 2px solid #dee2e6;
-    }
-    .bg-success-soft { background-color: #d1e7dd; color: #0f5132; }
-    .bg-warning-soft { background-color: #fff3cd; color: #664d03; }
-    .bg-info-soft { background-color: #cff4fc; color: #087990; }
-    .bg-secondary-soft { background-color: #e2e3e5; color: #41464b; }
-</style>
+    }</style>
 
 @section Scripts {
     <script>
@@ -308,8 +295,8 @@
                     tbody.innerHTML = '';
                     courseList.forEach(c => {
                         const statusBadge = c.IS_ACTIVE === 1
-                            ? '<span class="badge bg-success-soft px-2.5 py-1 fw-bold">Hoạt động</span>'
-                            : '<span class="badge bg-secondary-soft px-2.5 py-1 fw-bold">Lưu trữ</span>';
+                            ? '<span class="badge bg-success-subtle text-success-emphasis px-2.5 py-1 fw-bold">Hoạt động</span>'
+                            : '<span class="badge bg-secondary-subtle text-secondary-emphasis px-2.5 py-1 fw-bold">Lưu trữ</span>';
 
                         let actionBtn = `<button onclick="openEditCourseModal(${c.ID})" class="btn btn-xs btn-outline-primary fw-bold me-1">Sửa</button>`;
                         actionBtn += c.IS_ACTIVE === 1
@@ -479,14 +466,14 @@
                         const end = new Date(c.END_DATE).toLocaleDateString('vi-VN');
 
                         const badgeMode = (c.IS_EXPRESS === 1 || c.isExpress === 1 || c.COURSE_MODE === 'EXPRESS' || c.CLASS_MODE === 'EXPRESS') 
-                            ? '<span class="badge bg-warning-soft text-warning">Học nhanh</span>' 
-                            : '<span class="badge bg-success-soft text-success">Tiêu chuẩn</span>';
+                            ? '<span class="badge bg-warning-subtle text-warning-emphasis">Học nhanh</span>' 
+                            : '<span class="badge bg-success-subtle text-success-emphasis">Tiêu chuẩn</span>';
                         
                         let badgeReg = '';
                         if (c.REGISTRATION_MODE === 'OPEN') {
-                            badgeReg = '<span class="badge bg-info-soft text-info">Tự do</span>';
+                            badgeReg = '<span class="badge bg-info-subtle text-info-emphasis">Tự do</span>';
                         } else {
-                            badgeReg = '<span class="badge bg-secondary-soft text-secondary">Chỉ định</span>';
+                            badgeReg = '<span class="badge bg-secondary-subtle text-secondary-emphasis">Chỉ định</span>';
                         }
 
                         const statusLabels = {

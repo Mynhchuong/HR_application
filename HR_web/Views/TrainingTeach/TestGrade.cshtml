@@ -5,11 +5,11 @@
     var testId = ViewBag.TestId;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
+<div class="container-fluid py-4">
     <!-- Back to Dashboard -->
     <div class="mb-3">
         <a href="@Url.Action("MyClasses", "TrainingTeach")" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
+            <i class="bi bi-arrow-left" style="font-size: 1.1rem;"></i>
             Quay lại cổng giảng dạy
         </a>
     </div>
@@ -20,7 +20,7 @@
             <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                     <div>
-                        <span class="badge bg-warning-soft text-warning px-2.5 py-1.5 fw-bold mb-2">Chấm điểm Tự luận</span>
+                        <span class="badge bg-warning-subtle text-warning-emphasis px-2.5 py-1.5 fw-bold mb-2">Chấm điểm Tự luận</span>
                         <h3 class="fw-bold mb-1 text-dark" id="test-title">Đang tải tên bài kiểm tra...</h3>
                         <p class="text-muted mb-0">Chấm điểm các câu trả lời tự luận viết tay từ học viên để hoàn tất kết quả bài thi.</p>
                     </div>
@@ -55,9 +55,7 @@
         border-radius: 12px;
         background-color: #f8f9fa;
         border: 1px solid #e9ecef;
-    }
-    .bg-warning-soft { background-color: #fff3cd; color: #664d03; }
-</style>
+    }</style>
 
 @section Scripts {
     <script>
@@ -112,7 +110,7 @@
             if (gradingData.length === 0) {
                 container.innerHTML = `
                     <div class="card border-0 shadow-sm text-center py-5" style="border-radius: 16px;">
-                        <span class="material-symbols-rounded text-success" style="font-size: 5rem;">verified</span>
+                        <i class="bi bi-check-circle-fill text-success" style="font-size: 5rem;"></i>
                         <h5 class="fw-bold text-dark mt-3">Tất cả bài thi đã được chấm điểm hoàn chỉnh!</h5>
                         <p class="text-muted small">Không còn bài làm tự luận nào đang chờ giảng viên chấm điểm.</p>
                         <div class="mt-2">
@@ -146,7 +144,7 @@
                         <div class="essay-card p-4 mb-3 position-relative">
                             <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
                                 <h6 class="fw-bold text-primary mb-0"><i class="bi bi-question-circle-fill me-1"></i>Câu hỏi: ${qText}</h6>
-                                <span class="badge bg-secondary-soft text-secondary px-2 py-1 small">Điểm tối đa: ${qPoints}đ</span>
+                                <span class="badge bg-secondary-subtle text-secondary-emphasis px-2 py-1 small">Điểm tối đa: ${qPoints}đ</span>
                             </div>
                             
                             <div class="mb-3">
@@ -165,7 +163,7 @@
                                 </div>
                                 <div class="col-12 col-md-2 text-end pt-md-4">
                                     <button onclick="submitGrade(${ansId}, ${qPoints})" class="btn btn-warning w-100 py-2 rounded-3 fw-bold d-inline-flex align-items-center justify-content-center gap-1">
-                                        <span class="material-symbols-rounded" style="font-size: 1.1rem;">save</span>
+                                        <i class="bi bi-save" style="font-size: 1.1rem;"></i>
                                         Lưu điểm
                                     </button>
                                 </div>

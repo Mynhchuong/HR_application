@@ -1,5 +1,6 @@
 using HR_api.Data;
 using HR_api.Models.Training;
+using HR_api.Models.Bulletin;
 using Oracle.ManagedDataAccess.Client;
 
 namespace HR_api.Services;
@@ -12,11 +13,15 @@ public class TrainingClassService
 {
     private readonly OracleService _db;
     private readonly TrainingNotificationService _noti;
+    private readonly BulletinService _bulletin;
+    private readonly IConfiguration _config;
 
-    public TrainingClassService(OracleService db, TrainingNotificationService noti)
+    public TrainingClassService(OracleService db, TrainingNotificationService noti, BulletinService bulletin, IConfiguration config)
     {
         _db = db;
         _noti = noti;
+        _bulletin = bulletin;
+        _config = config;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -31,6 +36,7 @@ public class TrainingClassService
                    CL.START_DATE, CL.END_DATE,
                    CL.MIN_ATTENDANCE_PERCENT, CL.FINAL_TEST_ID, CL.REQUIRE_POST_REVIEW,
                    CL.IS_EXPRESS, CL.CLONED_FROM_CLASS_ID, CL.CLONED_FROM_TYPE,
+                   CL.BULLETIN_ID,
                    CL.INST_ID, CL.INST_DT, CL.UPDT_ID, CL.UPDT_DT,
                    CO.TITLE AS COURSE_TITLE, CO.COURSE_MODE,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ENROLLMENT E
@@ -59,6 +65,7 @@ public class TrainingClassService
                    CL.START_DATE, CL.END_DATE,
                    CL.MIN_ATTENDANCE_PERCENT, CL.FINAL_TEST_ID, CL.REQUIRE_POST_REVIEW,
                    CL.IS_EXPRESS, CL.CLONED_FROM_CLASS_ID, CL.CLONED_FROM_TYPE,
+                   CL.BULLETIN_ID,
                    CL.INST_ID, CL.INST_DT, CL.UPDT_ID, CL.UPDT_DT,
                    CO.TITLE AS COURSE_TITLE, CO.COURSE_MODE
               FROM HRMS.HR_TRAINING_CLASS CL
@@ -279,7 +286,7 @@ public class TrainingClassService
     // Idempotent (§4.2): bấm lại khi đã OPEN_FOR_REGISTRATION/SCHEDULED/IN_PROGRESS → không lỗi,
     // không đổi status lùi, chỉ báo lại đã publish rồi (không có gì để re-enqueue ở bước này vì
     // OPEN_FOR_REGISTRATION chưa có ai ENROLLED — noti "mời đăng ký" đi qua bulletin, không qua đây).
-    public async Task<PublishResult> PublishRegistrationAsync(int classId, string actor)
+    public async Task<PublishResult> PublishRegistrationAsync(int classId, string actor, string? registerUrl = null)
     {
         var current = await GetStatusAsync(classId)
             ?? throw new InvalidOperationException("Không tìm thấy Class");
@@ -296,7 +303,71 @@ public class TrainingClassService
             throw new InvalidOperationException("Chỉ Class OPEN mới publish-registration. ASSIGNED dùng finalize thẳng.");
 
         await SetStatusAsync(classId, "OPEN_FOR_REGISTRATION", actor);
+
+        // Quảng cáo lớp qua Bản tin (Bulletin) — lỗi tạo bản tin KHÔNG được rollback việc mở đăng ký
+        // đã thành công, chỉ log lại để HR biết tạo tay qua BulletinAdmin nếu cần.
+        try { await CreateRegistrationBulletinAsync(classId, actor, registerUrl); }
+        catch (Exception ex) { Console.WriteLine($"[PublishRegistrationAsync] Lỗi tạo bản tin cho Class {classId}: {ex.Message}"); }
+
         return new PublishResult { ALREADY_PUBLISHED = false, NOTIFIED_COUNT = 0 };
+    }
+
+    // Tự tạo + publish 1 Bản tin quảng cáo lớp OPEN đang mở đăng ký, lưu BULLETIN_ID vào Class để
+    // (1) không tạo trùng nếu gọi lại, (2) unpublish được khi lớp bị hủy (xem CancelAsync).
+    // registerUrl: build sẵn bằng Url.Action từ HR_web (đúng PathBase/scheme/host thật) — chỉ dùng
+    // config Training:WebBaseUrl làm fallback khi gọi thẳng API (script/Swagger, không qua web).
+    private async Task CreateRegistrationBulletinAsync(int classId, string actor, string? registerUrl)
+    {
+        var cls = await GetDetailAsync(classId);
+        if (cls == null) return;
+
+        var sessionCount = (await _db.ExecuteQueryAsync(
+            "SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_SESSION WHERE CLASS_ID = :CID",
+            r => Convert.ToInt32(r["CNT"]), new OracleParameter("CID", classId))).FirstOrDefault();
+
+        var deadlineText = cls.REGISTRATION_DEADLINE?.ToString("dd/MM/yyyy") ?? "Không giới hạn";
+        var slotText = cls.MAX_STUDENTS.HasValue ? $"{cls.MAX_STUDENTS} học viên" : "Không giới hạn";
+
+        // Ưu tiên URL do HR_web build sẵn bằng Url.Action (đúng PathBase/scheme/host thật ở production).
+        // Fallback: WebBaseUrl cấu hình trong appsettings — chỉ dùng khi gọi thẳng API, không qua web
+        // (Swagger/script) — trường hợp này không có Url.Action nên phải tự ghép, để trống nếu root.
+        var effectiveRegisterUrl = !string.IsNullOrWhiteSpace(registerUrl)
+            ? registerUrl
+            : $"{(_config["Training:WebBaseUrl"] ?? "").TrimEnd('/')}/Training/ClassRegister/{classId}";
+
+        var content = $@"
+            <p><strong>{System.Net.WebUtility.HtmlEncode(cls.COURSE_TITLE)}</strong> — Lớp {System.Net.WebUtility.HtmlEncode(cls.CLASS_NAME)} đang mở đăng ký tự do.</p>
+            <p>Số buổi học: {sessionCount} buổi<br/>
+               Hạn đăng ký: {deadlineText}<br/>
+               Số slot tối đa: {slotText}</p>
+            <p>
+                <a href=""{effectiveRegisterUrl}""
+                   style=""display:inline-block;padding:10px 20px;background-color:#198754;color:#ffffff;
+                          font-weight:bold;text-decoration:none;border-radius:8px;"">
+                    Nhấn vào đây để đăng ký ngay
+                </a>
+            </p>";
+
+        var publishTo = cls.REGISTRATION_DEADLINE ?? DateTime.Today.AddDays(30);
+
+        var (saveOk, _, bulletinId) = await _bulletin.SaveAsync(new SaveBulletinRequest
+        {
+            TITLE        = $"[Đào tạo] Mở đăng ký: {cls.COURSE_TITLE}",
+            CONTENT      = content,
+            PUBLISH_FROM = DateTime.Today,
+            PUBLISH_TO   = publishTo,
+            IS_PINNED    = 0,
+            PIN_ORDER    = 0,
+            LOGIN_USER   = actor,
+        });
+        if (!saveOk || bulletinId == 0) return;
+
+        await _bulletin.PublishAsync(bulletinId, actor);
+
+        await _db.ExecuteNonQueryAsync(
+            "UPDATE HRMS.HR_TRAINING_CLASS SET BULLETIN_ID = :BID WHERE ID = :CID",
+            new OracleParameter("BID", bulletinId),
+            new OracleParameter("CID", classId));
     }
 
     // DRAFT / OPEN_FOR_REGISTRATION → SCHEDULED (chốt DS).
@@ -360,6 +431,11 @@ public class TrainingClassService
         if (current == "CLOSED" || current == "CANCELLED" || current == "COMPLETED")
             throw new InvalidOperationException($"Class đang {current}, không cancel được");
         await SetStatusAsync(classId, "CANCELLED", actor);
+
+        // Lớp hủy rồi → gỡ quảng cáo khỏi Bulletin (nếu có), tránh nhân viên đăng ký vào lớp đã hủy.
+        // GetFieldAsync<int> trả 0 khi NULL (Convert.ChangeType không hỗ trợ Nullable<T> đích).
+        var bulletinId = await GetFieldAsync<int>(classId, "BULLETIN_ID");
+        if (bulletinId > 0) await _bulletin.UnpublishAsync(bulletinId, actor);
     }
 
     // COMPLETED → CLOSED (chốt report cuối, không sửa nữa)
@@ -1376,6 +1452,7 @@ public class TrainingClassService
         IS_EXPRESS             = Convert.ToInt32(r["IS_EXPRESS"]),
         CLONED_FROM_CLASS_ID   = r["CLONED_FROM_CLASS_ID"] is DBNull ? null : Convert.ToInt32(r["CLONED_FROM_CLASS_ID"]),
         CLONED_FROM_TYPE       = r["CLONED_FROM_TYPE"] as string,
+        BULLETIN_ID            = r["BULLETIN_ID"] is DBNull ? null : Convert.ToInt32(r["BULLETIN_ID"]),
         INST_ID                = r["INST_ID"] as string,
         INST_DT                = r["INST_DT"] as DateTime?,
         UPDT_ID                = r["UPDT_ID"] as string,

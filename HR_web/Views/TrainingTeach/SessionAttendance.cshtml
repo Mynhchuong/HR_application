@@ -5,82 +5,85 @@
     var sessionId = ViewBag.SessionId;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <!-- Back button -->
-    <div class="mb-3">
-        <a id="back-link" href="@Url.Action("MyClasses", "TrainingTeach")" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
-            <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_back</span>
-            Quay lại quản lý lớp học
-        </a>
-    </div>
-
-    <!-- Session Detail Header -->
-    <div class="row mb-4">
-        <div class="col-12" id="session-header-container">
-            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
-                <div class="placeholder-glow">
-                    <span class="placeholder col-6 mb-2"></span>
-                    <span class="placeholder col-4"></span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Filters & Batch Actions -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm p-3" style="border-radius: 16px;">
-                <div class="row align-items-center g-3">
-                    <!-- Group Filter -->
-                    <div class="col-12 col-md-4">
-                        <label class="form-label small fw-bold text-muted mb-1">Lọc theo Tổ/Nhóm</label>
-                        <select id="group-filter" class="form-select" onchange="filterStudents()" style="border-radius: 8px;">
-                            <option value="">Tất cả tổ nhóm</option>
-                        </select>
-                    </div>
-                    <!-- Search -->
-                    <div class="col-12 col-md-4">
-                        <label class="form-label small fw-bold text-muted mb-1">Tìm học viên (Mã NV)</label>
-                        <input type="text" id="search-input" class="form-control" placeholder="Nhập mã nhân viên..." oninput="filterStudents()" style="border-radius: 8px;" />
-                    </div>
-                    <!-- Batch Action Buttons -->
-                    <div class="col-12 col-md-4 text-md-end pt-md-4">
-                        <div class="btn-group w-100 w-md-auto">
-                            <button id="btn-batch-present" onclick="confirmAttendanceBatch('PRESENT')" class="btn btn-outline-success fw-bold d-flex align-items-center justify-content-center gap-1" style="border-radius: 8px 0 0 8px;">
-                                <span class="material-symbols-rounded" style="font-size: 1.1rem;">done_all</span>
-                                Có mặt tất cả
-                            </button>
-                            <button id="btn-batch-absent" onclick="confirmAttendanceBatch('ABSENT')" class="btn btn-outline-danger fw-bold d-flex align-items-center justify-content-center gap-1" style="border-radius: 0 8px 8px 0;">
-                                <span class="material-symbols-rounded" style="font-size: 1.1rem;">close</span>
-                                Vắng tất cả
-                            </button>
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Điểm danh Buổi học",
+            Icon = "bi-check2-square",
+            Gradient = "success",
+            BackUrl = Url.Action("MyClasses", "TrainingTeach"),
+        })
+        <div class="card-body">
+            <!-- Session Detail Header -->
+            <div class="row mb-4">
+                <div class="col-12" id="session-header-container">
+                    <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+                        <div class="placeholder-glow">
+                            <span class="placeholder col-6 mb-2"></span>
+                            <span class="placeholder col-4"></span>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- Student Attendance Grid -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 16px;">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 text-nowrap">
-                        <thead class="bg-light table-head-custom">
-                            <tr>
-                                <th class="ps-4">Mã NV</th>
-                                <th>Họ tên học viên</th>
-                                <th>Tổ/Nhóm</th>
-                                <th class="text-center" style="width: 320px;">Trạng thái điểm danh</th>
-                                <th>Lý do (nếu Vắng/Muộn)</th>
-                                <th class="pe-4 text-end">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody id="student-grid">
-                            <!-- JS dynamic rows -->
-                        </tbody>
-                    </table>
+            <!-- Filters & Batch Actions -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm p-3" style="border-radius: 16px;">
+                        <div class="row align-items-center g-3">
+                            <!-- Group Filter -->
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-bold text-muted mb-1">Lọc theo Tổ/Nhóm</label>
+                                <select id="group-filter" class="form-select" onchange="filterStudents()" style="border-radius: 8px;">
+                                    <option value="">Tất cả tổ nhóm</option>
+                                </select>
+                            </div>
+                            <!-- Search -->
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-bold text-muted mb-1">Tìm học viên (Mã NV)</label>
+                                <input type="text" id="search-input" class="form-control" placeholder="Nhập mã nhân viên..." oninput="filterStudents()" style="border-radius: 8px;" />
+                            </div>
+                            <!-- Batch Action Buttons -->
+                            <div class="col-12 col-md-4 text-md-end pt-md-4">
+                                <div class="btn-group w-100 w-md-auto">
+                                    <button id="btn-batch-present" onclick="confirmAttendanceBatch('PRESENT')" class="btn btn-outline-success fw-bold d-flex align-items-center justify-content-center gap-1" style="border-radius: 8px 0 0 8px;">
+                                        <i class="bi bi-check2-all" style="font-size: 1.1rem;"></i>
+                                        Có mặt tất cả
+                                    </button>
+                                    <button id="btn-batch-absent" onclick="confirmAttendanceBatch('ABSENT')" class="btn btn-outline-danger fw-bold d-flex align-items-center justify-content-center gap-1" style="border-radius: 0 8px 8px 0;">
+                                        <i class="bi bi-x-lg" style="font-size: 1.1rem;"></i>
+                                        Vắng tất cả
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Student Attendance Grid -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 16px;">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 text-nowrap">
+                                <thead class="bg-light table-head-custom">
+                                    <tr>
+                                        <th class="ps-4">Mã NV</th>
+                                        <th>Họ tên học viên</th>
+                                        <th>Tổ/Nhóm</th>
+                                        <th class="text-center" style="width: 320px;">Trạng thái điểm danh</th>
+                                        <th>Lý do (nếu Vắng/Muộn)</th>
+                                        <th class="pe-4 text-end">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="student-grid">
+                                    <!-- JS dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -130,7 +133,6 @@
         color: #fff;
         box-shadow: 0 2px 6px rgba(201,42,42,0.3);
     }
-    .bg-success-soft { background-color: #d1e7dd; color: #0f5132; }
 </style>
 
 @section Scripts {
@@ -143,7 +145,7 @@
         };
         const empCd = '@empCd';
         const sessionId = @sessionId;
-        
+
         let allStudents = [];
         let sessionInfo = null;
 
@@ -182,7 +184,8 @@
                     sessionInfo = normalizedData.SESSION;
                     allStudents = normalizedData.ATTENDANCE || [];
 
-                    document.getElementById('back-link').href = window.TRAINING_URLS.classManage.replace('__ID__', sessionInfo.CLASS_ID);
+                    const backBtn = document.getElementById('training-back-btn');
+                    if (backBtn) backBtn.href = window.TRAINING_URLS.classManage.replace('__ID__', sessionInfo.CLASS_ID);
 
                     renderHeader();
                     renderGroupFilter();
@@ -197,12 +200,12 @@
             const isFinished = s.STATUS === 'COMPLETED' || s.STATUS === 'FINISHED';
 
             const badgeHtml = isFinished
-                ? `<span class="badge bg-danger text-white px-2.5 py-1.5 fw-bold mb-2">Buổi học đã kết thúc</span>`
-                : `<span class="badge bg-success-soft text-success px-2.5 py-1.5 fw-bold mb-2">Điểm danh Buổi học</span>`;
+                ? `<span class="badge bg-danger px-2.5 py-1.5 fw-bold mb-2">Buổi học đã kết thúc</span>`
+                : `<span class="badge bg-success px-2.5 py-1.5 fw-bold mb-2">Điểm danh Buổi học</span>`;
 
             const warningHtml = isFinished
                 ? `<div class="alert alert-danger border-0 d-flex align-items-center gap-2 mb-0 mt-3 rounded-3" style="font-size: .85rem;">
-                       <span class="material-symbols-rounded text-danger" style="font-size: 1.2rem;">warning</span>
+                       <i class="bi bi-exclamation-triangle text-danger" style="font-size: 1.2rem;"></i>
                        <div>Buổi học này đã kết thúc. Bạn không thể cập nhật hoặc sửa đổi thông tin điểm danh.</div>
                    </div>`
                 : '';
@@ -235,7 +238,7 @@
         function renderGroupFilter() {
             const select = document.getElementById('group-filter');
             const groupsSet = new Set();
-            
+
             allStudents.forEach(st => {
                 if (st.GROUP_NAME) groupsSet.add(st.GROUP_NAME);
             });
@@ -276,7 +279,7 @@
             for (const key in vniMap) {
                 if (key.length === 1) text = text.replaceAll(key, vniMap[key]);
             }
-            return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return text.normalize("NFD").replace(/[̀-ͯ]/g, "");
         }
 
         function renderGrid() {
@@ -285,14 +288,14 @@
             const search = toUnsigned(document.getElementById('search-input').value);
 
             tbody.innerHTML = '';
-            
+
             let count = 0;
             const isFinished = sessionInfo && (sessionInfo.STATUS === 'COMPLETED' || sessionInfo.STATUS === 'FINISHED');
             const disabledAttr = isFinished ? 'disabled' : '';
 
             allStudents.forEach(st => {
                 if (filterGroup && st.GROUP_NAME !== filterGroup) return;
-                
+
                 const empcdUnsigned = toUnsigned(st.EMPCD);
                 const matchesSearch = empcdUnsigned.includes(search);
                 if (!matchesSearch) return;
@@ -323,7 +326,7 @@
                         </td>
                         <td class="pe-4 text-end">
                             <button onclick="confirmAttendanceSingle('${st.EMPCD}')" class="btn btn-sm btn-success rounded-3 fw-bold d-inline-flex align-items-center gap-0.5" ${disabledAttr}>
-                                <span class="material-symbols-rounded" style="font-size: 1rem;">save</span>
+                                <i class="bi bi-save" style="font-size: 1rem;"></i>
                                 Lưu
                             </button>
                         </td>
@@ -393,8 +396,8 @@
 
         window.confirmAttendanceBatch = function(status) {
             const filterGroup = document.getElementById('group-filter').value;
-            
-            const msg = filterGroup 
+
+            const msg = filterGroup
                 ? `Bạn muốn điểm danh nhanh trạng thái "${status}" cho cả Tổ/Nhóm "${filterGroup}" không?`
                 : `Bạn muốn điểm danh nhanh trạng thái "${status}" cho TOÀN BỘ lớp học không?`;
 

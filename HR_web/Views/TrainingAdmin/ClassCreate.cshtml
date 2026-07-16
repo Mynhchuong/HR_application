@@ -4,15 +4,16 @@
     var empCd = ViewBag.EmpCd as string;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <!-- Breadcrumbs -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="@Url.Action("Index", "TrainingAdmin")" class="text-decoration-none">Cổng quản trị</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Mở lớp học mới</li>
-        </ol>
-    </nav>
-
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Mở lớp học mới",
+            Icon = "bi-plus-circle",
+            Gradient = "primary",
+            BackUrl = Url.Action("Index", "TrainingAdmin"),
+        })
+    <div class="card-body">
     <div class="row">
         <div class="col-12 col-lg-8 mx-auto">
             <!-- Wizard Step Indicator -->
@@ -147,6 +148,8 @@
                 </div>
             </div>
         </div>
+    </div>
+    </div>
     </div>
 </div>
 

@@ -4,21 +4,14 @@
     var empCd = ViewBag.EmpCd as string;
 }
 
-<div class="container-fluid py-4" style="font-family: 'Outfit', sans-serif;">
-    <!-- Header Banner -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 20px; background: linear-gradient(135deg, #198754 0%, #157347 100%);">
-                <div class="card-body p-4 text-white position-relative">
-                    <div class="position-absolute end-0 bottom-0 opacity-10 d-none d-md-block" style="transform: translate(10%, 10%);">
-                        <span class="material-symbols-rounded" style="font-size: 15rem;">card_membership</span>
-                    </div>
-                    <h2 class="fw-bold mb-1">Quản lý Chứng chỉ Đào tạo</h2>
-                    <p class="mb-0 opacity-75">Xem danh sách chứng chỉ đào tạo đã cấp, tìm kiếm theo nhân viên, phòng ban và thực hiện thu hồi khi cần thiết.</p>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="container-fluid py-4">
+    @await Html.PartialAsync("_TrainingHeroBanner", new TrainingHeroBannerVM
+    {
+        Title = "Quản lý Chứng chỉ Đào tạo",
+        Subtitle = "Xem danh sách chứng chỉ đào tạo đã cấp, tìm kiếm theo nhân viên, phòng ban và thực hiện thu hồi khi cần thiết.",
+        Gradient = "warning",
+        IllustrationImg = "~/assets/img/illustrations/guarated.png",
+    })
 
     <!-- Filters Section -->
     <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
@@ -48,7 +41,7 @@
             </div>
             <div class="col-12 col-md-2 d-flex align-items-end">
                 <button onclick="loadCertificates()" class="btn btn-success w-100 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-1" style="height: 38px; border-radius: 8px;">
-                    <span class="material-symbols-rounded" style="font-size: 1.1rem;">search</span> Lọc dữ liệu
+                    <i class="bi bi-search" style="font-size: 1.1rem;"></i> Lọc dữ liệu
                 </button>
             </div>
         </div>
@@ -59,7 +52,7 @@
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <h5 class="fw-bold mb-0 text-dark">Chứng chỉ đã cấp</h5>
             <button onclick="exportCertificates()" class="btn btn-outline-success btn-sm fw-bold d-flex align-items-center gap-1">
-                <span class="material-symbols-rounded" style="font-size: 1.1rem;">download</span> Xuất Excel
+                <i class="bi bi-download" style="font-size: 1.1rem;"></i> Xuất Excel
             </button>
         </div>
 

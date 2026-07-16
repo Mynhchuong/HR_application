@@ -70,9 +70,7 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                 data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="Bộ Phận / Line">Bộ Phận / Line</th>
+                                data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên / Bộ Phận</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                 data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Loại">Loại</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
@@ -201,8 +199,10 @@ function buildRow(item, idx) {
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
-        <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
-        <td class="px-2 text-sm d-none d-md-table-cell">${escHtml(item.DEPT_NAME||'')} / ${escHtml(item.LINE_NAME||'')}</td>
+        <td class="px-2 text-sm">
+            <div class="emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</div>
+            <div class="text-xxs text-secondary mt-1">${[item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean).map(escHtml).join(' / ')}</div>
+        </td>
         <td class="px-2 text-sm"><span class="badge bg-info">${gpLabel}</span></td>
         <td class="px-2 text-sm">
             <div>${dateStr}</div>
@@ -239,13 +239,13 @@ function getParams(page) {
 
 function loadData(page = 1) {
     currentPage = page;
-    $('#gpTableBody').html(`<tr><td colspan="13" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải...</div></td></tr>`);
+    $('#gpTableBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải...</div></td></tr>`);
     MobileTableHelper.refresh('gpTableBody');
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),
         success: function(res) {
             if (!res.success) {
-                $('#gpTableBody').html(`<tr><td colspan="13" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                $('#gpTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
                 MobileTableHelper.refresh('gpTableBody');
                 return;
             }
@@ -258,7 +258,7 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#gpTableBody').html(`<tr><td colspan="13" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
+                $('#gpTableBody').html(`<tr><td colspan="12" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
             } else {
                 $('#gpTableBody').html(data.map((item,i) => buildRow(item,(page-1)*pageSize+i+1)).join(''));
             }
@@ -266,7 +266,7 @@ function loadData(page = 1) {
             MobileTableHelper.refresh('gpTableBody');
         },
         error: function(xhr) {
-            $('#gpTableBody').html(`<tr><td colspan="13" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#gpTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('gpTableBody');
         }
     });

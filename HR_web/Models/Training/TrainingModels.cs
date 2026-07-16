@@ -329,6 +329,9 @@ public class ChangeClassStatusRequest
 {
     public int ID { get; set; }
     public string LOGIN_USER { get; set; } = "";
+    // Link "Đăng ký ngay" cho bản tin tự tạo khi mở đăng ký — build bằng Url.Action ở đây (nơi có
+    // HttpContext/PathBase đúng), API chỉ nhúng chuỗi có sẵn vào content, không tự đoán URL.
+    public string? REGISTER_URL { get; set; }
 }
 
 public class ArchiveCourseRequest

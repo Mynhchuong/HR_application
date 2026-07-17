@@ -36,6 +36,22 @@
         transform: translateY(-3px);
         box-shadow: 0 8px 16px rgba(0,0,0,0.06) !important;
     }
+    .material-row { gap: 1rem; }
+    .material-icon { flex-shrink: 0; }
+    .material-actions { flex-shrink: 0; }
+    @@media (max-width: 767.98px) {
+        .material-card { padding: .65rem !important; }
+        .material-row { gap: .5rem; }
+        .material-icon { padding: .5rem !important; }
+        .material-icon i { font-size: 1.4rem !important; }
+        .material-card h6 { font-size: .82rem; }
+        .material-card p.material-meta { font-size: .65rem; }
+        .material-card p.material-meta .badge { font-size: .58rem; padding: .25rem .4rem; }
+        .material-actions .btn.rounded-circle { width: 32px; height: 32px; padding: 0 !important; }
+        .material-actions .btn.rounded-circle i { font-size: .9rem !important; }
+        .material-actions .btn.rounded-3 { padding: .3rem .5rem !important; font-size: .68rem; }
+        .material-actions .btn.rounded-3 i { font-size: .8rem !important; }
+    }
 </style>
 
 @section Scripts {
@@ -102,18 +118,25 @@
                 mList.innerHTML += `
                     <div class="col-12 col-md-6 mb-3">
                         <div class="card border-0 shadow-sm p-3 h-100 material-card">
-                            <div class="d-flex align-items-center gap-3">
-                                <div class="bg-gradient-primary rounded-3 p-3 text-white d-flex align-items-center justify-content-center">
+                            <div class="d-flex align-items-center material-row">
+                                <div class="material-icon bg-gradient-primary rounded-3 p-3 text-white d-flex align-items-center justify-content-center">
                                     <i class="${icon}" style="font-size: 2.2rem;"></i>
                                 </div>
                                 <div class="flex-fill min-w-0">
                                     <h6 class="fw-bold text-dark text-truncate mb-1" title="${m.TITLE}">${m.TITLE}</h6>
-                                    <p class="text-muted small mb-0">${m.FILE_TYPE} | ${reqBadge} ${viewedBadge}</p>
+                                    <p class="text-muted small material-meta mb-0">${m.FILE_TYPE} | ${reqBadge} ${viewedBadge}</p>
                                 </div>
-                                <div>
-                                    <button onclick="viewMaterial(${m.ID}, '${m.FILE_URL}')" class="btn btn-sm btn-primary rounded-circle p-2.5 d-flex align-items-center justify-content-center shadow-sm">
-                                        <i class="bi bi-download" style="font-size: 1.2rem;"></i>
+                                <div class="material-actions d-flex gap-1">
+                                    ${m.FILE_TYPE === 'LINK' ? `
+                                    <button onclick="previewMaterial(${m.ID}, '${m.FILE_URL}')" class="btn btn-sm btn-outline-primary rounded-3 fw-bold d-flex align-items-center gap-1">
+                                        <i class="bi bi-box-arrow-up-right"></i> Mở liên kết
+                                    </button>` : `
+                                    <button onclick="previewMaterial(${m.ID}, '${m.FILE_URL}')" title="Xem trước" class="btn btn-sm btn-outline-primary rounded-circle p-2.5 d-flex align-items-center justify-content-center">
+                                        <i class="bi bi-eye" style="font-size: 1.1rem;"></i>
                                     </button>
+                                    <button onclick="downloadMaterial(${m.ID}, '${m.FILE_URL}', '${(m.FILE_NAME || m.TITLE || 'tailieu').replace(/'/g, "\\'")}')" title="Tải về" class="btn btn-sm btn-primary rounded-circle p-2.5 d-flex align-items-center justify-content-center shadow-sm">
+                                        <i class="bi bi-download" style="font-size: 1.1rem;"></i>
+                                    </button>`}
                                 </div>
                             </div>
                         </div>
@@ -122,14 +145,32 @@
             });
         }
 
-        function viewMaterial(materialId, url) {
-            fetch(window.TRAINING_URLS.trackMaterialView, {
+        function trackView(materialId) {
+            return fetch(window.TRAINING_URLS.trackMaterialView, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ MATERIAL_ID: materialId })
-            })
-            .then(() => {
+            });
+        }
+
+        // Xem trước — mở file/link trong tab mới (PDF/ảnh/video render trực tiếp trên trình duyệt).
+        function previewMaterial(materialId, url) {
+            trackView(materialId).then(() => {
                 window.open(url, '_blank');
+                loadMaterials();
+            });
+        }
+
+        // Tải về — ép trình duyệt tải file xuống thay vì mở xem, dùng thẻ <a download>.
+        function downloadMaterial(materialId, url, fileName) {
+            trackView(materialId).then(() => {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.target = '_blank';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
                 loadMaterials();
             });
         }

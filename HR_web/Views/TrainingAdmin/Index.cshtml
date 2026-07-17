@@ -20,15 +20,15 @@
                 <div class="card-body p-2">
                     <ul class="nav nav-tabs nav-justified border-0" id="adminTabs" role="tablist">
                         <li class="nav-item">
-                            <button class="nav-link active py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-courses" data-bs-toggle="tab" data-bs-target="#courses-panel">
-                                <i class="bi bi-book"></i>
-                                Quản lý Khóa học
+                            <button class="nav-link active py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-classes" data-bs-toggle="tab" data-bs-target="#classes-panel">
+                                <i class="bi bi-people"></i>
+                                Quản lý Lớp học
                             </button>
                         </li>
                         <li class="nav-item">
-                            <button class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-classes" data-bs-toggle="tab" data-bs-target="#classes-panel">
-                                <i class="bi bi-people"></i>
-                                Quản lý Lớp học
+                            <button class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2" id="tab-courses" data-bs-toggle="tab" data-bs-target="#courses-panel">
+                                <i class="bi bi-book"></i>
+                                Quản lý Khóa học
                             </button>
                         </li>
                     </ul>
@@ -39,50 +39,8 @@
 
     <!-- Tab Content -->
     <div class="tab-content" id="adminTabsContent">
-        <!-- 1. COURSES PANEL -->
-        <div class="tab-pane fade show active" id="courses-panel">
-            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
-                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                    <h5 class="fw-bold mb-0 text-dark">Danh sách Khóa học thiết lập</h5>
-                    <button onclick="openCreateCourseModal()" class="btn btn-primary rounded-3 fw-bold d-flex align-items-center gap-1 shadow-sm">
-                        <i class="bi bi-plus-lg"></i>
-                        Thêm Khóa học
-                    </button>
-                </div>
-                <!-- Filters for Courses -->
-                <div class="filter-bar row g-2 mb-3">
-                    <div class="col-md-4">
-                        <input type="text" id="course-filter-search" class="form-control form-control-sm" placeholder="Tìm tên khóa học..." oninput="loadCourses()" style="border-radius: 8px;" />
-                    </div>
-                    <div class="col-md-3">
-                        <select id="course-filter-active" class="form-select form-select-sm" onchange="loadCourses()" style="border-radius: 8px;">
-                            <option value="">-- Tất cả trạng thái --</option>
-                            <option value="1" selected>Đang hoạt động</option>
-                            <option value="0">Đã lưu trữ</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 text-nowrap">
-                        <thead class="bg-light table-head-custom">
-                            <tr>
-                                <th class="ps-4" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã Khóa học">Mã Khóa học</th>
-                                <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Tên Khóa học">Tên Khóa học</th>
-                                <th data-mobile="detail" data-mobile-label="Mô tả tóm tắt">Mô tả tóm tắt</th>
-                                <th data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
-                                <th class="pe-4 text-end" data-mobile="detail" data-mobile-label="Thao tác">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody id="course-grid">
-                            <!-- JS loading -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- 2. CLASSES PANEL -->
-        <div class="tab-pane fade" id="classes-panel">
+        <!-- 1. CLASSES PANEL -->
+        <div class="tab-pane fade show active" id="classes-panel">
             <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0 text-dark">Danh sách Lớp học tổ chức</h5>
@@ -136,6 +94,48 @@
                     <nav>
                         <ul class="pagination pagination-sm mb-0" id="class-pagination"></ul>
                     </nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. COURSES PANEL -->
+        <div class="tab-pane fade" id="courses-panel">
+            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0 text-dark">Danh sách Khóa học thiết lập</h5>
+                    <button onclick="openCreateCourseModal()" class="btn btn-primary rounded-3 fw-bold d-flex align-items-center gap-1 shadow-sm">
+                        <i class="bi bi-plus-lg"></i>
+                        Thêm Khóa học
+                    </button>
+                </div>
+                <!-- Filters for Courses -->
+                <div class="filter-bar row g-2 mb-3">
+                    <div class="col-md-4">
+                        <input type="text" id="course-filter-search" class="form-control form-control-sm" placeholder="Tìm tên khóa học..." oninput="loadCourses()" style="border-radius: 8px;" />
+                    </div>
+                    <div class="col-md-3">
+                        <select id="course-filter-active" class="form-select form-select-sm" onchange="loadCourses()" style="border-radius: 8px;">
+                            <option value="">-- Tất cả trạng thái --</option>
+                            <option value="1" selected>Đang hoạt động</option>
+                            <option value="0">Đã lưu trữ</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-nowrap">
+                        <thead class="bg-light table-head-custom">
+                            <tr>
+                                <th class="ps-4" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã Khóa học">Mã Khóa học</th>
+                                <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Tên Khóa học">Tên Khóa học</th>
+                                <th data-mobile="detail" data-mobile-label="Mô tả tóm tắt">Mô tả tóm tắt</th>
+                                <th data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
+                                <th class="pe-4 text-end" data-mobile="detail" data-mobile-label="Thao tác">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="course-grid">
+                            <!-- JS loading -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -260,8 +260,6 @@
 
         window.TRAINING_URLS = {
             getCourses: '@Url.Action("GetCourses", "TrainingAdmin")',
-            archiveCourse: '@Url.Action("ArchiveCourse", "TrainingAdmin")',
-            unarchiveCourse: '@Url.Action("UnarchiveCourse", "TrainingAdmin")',
             deleteCourse: '@Url.Action("DeleteCourse", "TrainingAdmin")',
             saveCourse: '@Url.Action("SaveCourse", "TrainingAdmin")',
             getClassList: '@Url.Action("GetClassList", "TrainingAdmin")',
@@ -302,9 +300,6 @@
                             : '<span class="badge bg-secondary-subtle text-secondary-emphasis px-2.5 py-1 fw-bold">Lưu trữ</span>';
 
                         let actionBtn = `<button onclick="openEditCourseModal(${c.ID})" class="btn btn-xs btn-outline-primary fw-bold me-1">Sửa</button>`;
-                        actionBtn += c.IS_ACTIVE === 1
-                            ? `<button onclick="archiveCourse(${c.ID}, true)" class="btn btn-xs btn-outline-warning fw-bold me-1">Lưu trữ</button>`
-                            : `<button onclick="archiveCourse(${c.ID}, false)" class="btn btn-xs btn-outline-success fw-bold me-1">Kích hoạt</button>`;
                         actionBtn += `<button onclick="deleteCourse(${c.ID})" class="btn btn-xs btn-outline-danger fw-bold">Xóa</button>`;
 
                         tbody.innerHTML += `
@@ -337,28 +332,6 @@
                     }
                     MobileTableHelper.refresh('course-grid');
                 });
-        }
-
-        function archiveCourse(courseId, shouldArchive) {
-            const act = shouldArchive ? 'Lưu trữ' : 'Kích hoạt';
-            const url = shouldArchive ? window.TRAINING_URLS.archiveCourse : window.TRAINING_URLS.unarchiveCourse;
-            window.showConfirm(`Bạn chắc chắn muốn ${act.toLowerCase()} khóa học này không?`, () => {
-                fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ID: courseId })
-                })
-                .then(r => r.json())
-                .then(res => {
-                    if (res.success) {
-                        window.showToast(`Đã ${act.toLowerCase()} khóa học thành công!`, 'success');
-                        loadCourses();
-                    } else {
-                        window.showToast(res.message || `Lỗi ${act.toLowerCase()} khóa học.`, 'error');
-                    }
-                })
-                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
-            });
         }
 
         function deleteCourse(courseId) {

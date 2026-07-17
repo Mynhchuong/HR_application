@@ -156,6 +156,19 @@ public class NotificationService
             });
         });
 
+    // Báo cho chủ bình luận khi có người trả lời bình luận của họ.
+    // Tên người trả lời KHÔNG nhúng vào body (font VNI chỉ hiển thị đúng qua SENDER_NAME/CREATED_BY).
+    // Noti cá nhân nên TARGET_VAL phải chứa EMPCD người nhận — bulletinId nhét vào LINK_ACTION
+    // theo pattern "BULLETIN_CMT:{id}", JS trang Notification/Index parse ra URL detail.
+    public void BulletinCommentReplied(int bulletinId, string targetEmpCd, string replierEmpCd)
+        => FireAndForget(async () =>
+        {
+            if (string.IsNullOrEmpty(targetEmpCd) || targetEmpCd == replierEmpCd) return;
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("BULLETIN_REPLY");
+            await _helper.SendNotificationAsync(
+                Personal(targetEmpCd, replierEmpCd, title, body, "BULLETIN_CMT:" + bulletinId, titleEn, bodyEn));
+        });
+
     // ═══════════════════════════════════════════════════════════════
     //  SURVEY
     // ═══════════════════════════════════════════════════════════════

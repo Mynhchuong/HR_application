@@ -210,9 +210,10 @@ function renderItems(items, append = false) {
         const isUnread = n.IS_READ === 0;
         const isFromHr = n.SOURCE === 'ADMIN' || n.SOURCE === 'HR';
         const isHigh   = n.PRIORITY === 'HIGH';
+        const styleKey = (n.LINK_ACTION || '').indexOf('BULLETIN_CMT:') === 0 ? 'BULLETIN' : n.LINK_ACTION;
         const style = isFromHr
             ? { icon: '📢', bg: '#fee2e2' }
-            : (typeStyle[n.LINK_ACTION] ?? { icon: '🔔', bg: '#f1f5f9' });
+            : (typeStyle[styleKey] ?? { icon: '🔔', bg: '#f1f5f9' });
         const div = document.createElement('div');
         div.className = 'noti-item'
             + (isUnread ? ' unread' : '')
@@ -259,7 +260,11 @@ function onNotiClick(n) {
     }
     // Đặc biệt: BULLETIN + SURVEY → build URL với TARGET_VAL
     let url;
-    if (n.LINK_ACTION === 'BULLETIN' && n.TARGET_VAL) {
+    if ((n.LINK_ACTION || '').indexOf('BULLETIN_CMT:') === 0) {
+        // Noti trả lời bình luận (cá nhân): TARGET_VAL là EMPCD người nhận nên
+        // bulletinId nằm trong chính LINK_ACTION theo pattern BULLETIN_CMT:{id}
+        url = bulletinDetailBase + '/' + encodeURIComponent(n.LINK_ACTION.substring('BULLETIN_CMT:'.length));
+    } else if (n.LINK_ACTION === 'BULLETIN' && n.TARGET_VAL) {
         url = bulletinDetailBase + '/' + encodeURIComponent(n.TARGET_VAL);
     } else if (n.LINK_ACTION === 'SURVEY' && n.TARGET_VAL) {
         url = surveyDoBase + '/' + encodeURIComponent(n.TARGET_VAL);

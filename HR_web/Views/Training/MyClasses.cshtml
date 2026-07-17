@@ -64,7 +64,7 @@
                             <th class="ps-3" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Tên khóa học">Tên khóa học</th>
                             <th data-mobile="primary" data-mobile-label="Lớp học">Lớp học</th>
                             <th data-mobile="detail" data-mobile-label="Ngày cấp">Ngày cấp</th>
-                            <th data-mobile="primary" data-mobile-label="Điểm số">Điểm số</th>
+                            <th data-mobile="primary" data-mobile-label="Điểm thi cuối kỳ">Điểm thi cuối kỳ</th>
                             <th class="pe-3" data-mobile="primary" data-mobile-label="Chuyên cần">Chuyên cần</th>
                         </tr>
                     </thead>
@@ -104,6 +104,16 @@
     .badge-standard {
         background-color: #e3faf2;
         color: #0ca678;
+    }
+    /* Tên khóa học / lớp học có thể rất dài — cho phép xuống 2 hàng thay vì tràn ngang 1 hàng */
+    .cert-wrap-cell {
+        white-space: normal !important;
+        max-width: 220px;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
 </style>
 
@@ -261,8 +271,8 @@
 
                         tbody.innerHTML += `
                             <tr>
-                                <td class="ps-3 fw-bold text-dark">${c.COURSE_TITLE}</td>
-                                <td>${c.CLASS_NAME}</td>
+                                <td class="ps-3"><div class="fw-bold text-dark cert-wrap-cell" title="${c.COURSE_TITLE}">${c.COURSE_TITLE}</div></td>
+                                <td><div class="cert-wrap-cell" title="${c.CLASS_NAME}">${c.CLASS_NAME}</div></td>
                                 <td>${dateStr}</td>
                                 <td><strong class="text-success">${scoreStr}</strong></td>
                                 <td class="pe-3"><strong class="text-primary">${attendStr}</strong></td>

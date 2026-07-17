@@ -260,13 +260,14 @@ public class TrainingCompletionService
     // ═══════════════════════════════════════════════════════════════
 
     public async Task<List<CertificateItem>> ListCertificatesAsync(
-        int? classId, string? deptcd, string? linecd, string? workcd, 
+        int? classId, int? courseId, string? deptcd, string? linecd, string? workcd,
         DateTime? from, DateTime? to, string? searchEmpcd = null,
         string? scopeSql = null, List<OracleParameter>? scopeParams = null)
     {
         var ps = new List<OracleParameter>
         {
             new OracleParameter("P_CID",  (object?)classId ?? DBNull.Value),
+            new OracleParameter("P_CRS",  (object?)courseId ?? DBNull.Value),
             new OracleParameter("P_DPT",  (object?)deptcd  ?? DBNull.Value),
             new OracleParameter("P_LN",   (object?)linecd  ?? DBNull.Value),
             new OracleParameter("P_WK",   (object?)workcd  ?? DBNull.Value),
@@ -283,13 +284,16 @@ public class TrainingCompletionService
             SELECT E.CLASS_ID, CL.CLASS_NAME, CO.TITLE COURSE_TITLE,
                    E.EMPCD, EC.CNAME EMP_NAME,
                    EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                   B.DEPTNM, B.TEAMNM LINE_NAME, B.WORKNM,
                    E.COMPLETION_DATE, E.FINAL_SCORE, E.ATTENDANCE_PERCENT
               FROM HRMS.HR_TRAINING_ENROLLMENT E
               JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = E.CLASS_ID
               JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = E.EMPCD
+              LEFT JOIN HRMS.EAM410 B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
              WHERE E.IS_CERTIFIED = 1
                AND (:P_CID  IS NULL OR E.CLASS_ID = :P_CID)
+               AND (:P_CRS  IS NULL OR CL.COURSE_ID = :P_CRS)
                AND (:P_DPT  IS NULL OR EC.DEPTCD  = :P_DPT)
                AND (:P_LN   IS NULL OR EC.LINECD  = :P_LN)
                AND (:P_WK   IS NULL OR EC.WORKCD  = :P_WK)
@@ -309,6 +313,9 @@ public class TrainingCompletionService
             DEPTCD             = r["DEPTCD"] as string,
             LINECD             = r["LINECD"] as string,
             WORKCD             = r["WORKCD"] as string,
+            DEPT_NAME          = r["DEPTNM"] as string,
+            LINE_NAME          = r["LINE_NAME"] as string,
+            WORK_NAME          = r["WORKNM"] as string,
             COMPLETION_DATE    = r["COMPLETION_DATE"] as DateTime?,
             FINAL_SCORE        = r["FINAL_SCORE"]        is DBNull ? null : Convert.ToDecimal(r["FINAL_SCORE"]),
             ATTENDANCE_PERCENT = r["ATTENDANCE_PERCENT"] is DBNull ? null : Convert.ToDecimal(r["ATTENDANCE_PERCENT"]),

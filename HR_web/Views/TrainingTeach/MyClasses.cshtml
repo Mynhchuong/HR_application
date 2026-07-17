@@ -53,13 +53,13 @@
     <!-- Filter & View Controls -->
     <div class="card filter-bar border-0 shadow-sm p-3 mb-4" style="border-radius: 16px;">
         <div class="row align-items-center g-3">
-            <div class="col-12 col-md-5">
+            <div class="col-12 col-md-7">
                 <div class="input-group">
                     <span class="input-group-text bg-light border-0" style="border-radius: 10px 0 0 10px;"><i class="bi bi-search text-muted"></i></span>
                     <input type="text" id="search-input" class="form-control bg-light border-0" placeholder="Tìm kiếm tên lớp, khóa học..." style="border-radius: 0 10px 10px 0; height: 45px;" oninput="filterAndRender()" />
                 </div>
             </div>
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-5">
                 <select id="filterStatus" class="form-select bg-light border-0" style="border-radius: 10px; height: 45px;" onchange="filterAndRender()">
                     <option value="">-- Tất cả trạng thái --</option>
                     <option value="IN_PROGRESS">Đang giảng dạy</option>
@@ -68,15 +68,6 @@
                     <option value="DRAFT">Nháp</option>
                     <option value="OPEN_FOR_REGISTRATION">Đang mở đăng ký</option>
                 </select>
-            </div>
-            <div class="col-12 col-md-4 text-end d-flex align-items-center justify-content-md-end gap-2">
-                <span class="small text-muted me-2 d-none d-lg-inline">Chế độ xem:</span>
-                <button type="button" class="btn btn-light shadow-sm py-2 px-3 fw-bold d-inline-flex align-items-center gap-1 active-view-btn" id="btn-grid-view" onclick="switchView('grid')" style="border-radius: 10px; height: 45px;">
-                    <i class="bi bi-grid-3x3-gap"></i> Lưới
-                </button>
-                <button type="button" class="btn btn-light shadow-sm py-2 px-3 fw-bold d-inline-flex align-items-center gap-1" id="btn-table-view" onclick="switchView('table')" style="border-radius: 10px; height: 45px;">
-                    <i class="bi bi-list-ul"></i> Bảng
-                </button>
             </div>
         </div>
     </div>
@@ -94,20 +85,6 @@
 </div>
 
 <style>
-    .teacher-class-card {
-        border-radius: 20px;
-        border: 1px solid rgba(0,0,0,0.05);
-        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        background: #fff;
-    }
-    .teacher-class-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.08) !important;
-    }    .active-view-btn {
-        background-color: #198754 !important;
-        color: #fff !important;
-        border: none !important;
-    }
     .text-truncate-2 {
         display: -webkit-box;
         -webkit-line-clamp: 2;
@@ -125,7 +102,6 @@
         };
         const empCd = '@empCd';
         let allClasses = [];
-        let viewMode = 'grid';
 
         document.addEventListener('DOMContentLoaded', function () {
             loadTeacherClasses();
@@ -178,13 +154,6 @@
             renderClasses(filtered);
         }
 
-        function switchView(mode) {
-            viewMode = mode;
-            document.getElementById('btn-grid-view').classList.toggle('active-view-btn', mode === 'grid');
-            document.getElementById('btn-table-view').classList.toggle('active-view-btn', mode === 'table');
-            filterAndRender();
-        }
-
         function renderClasses(list) {
             const container = document.getElementById('classes-list-container');
             if (list.length === 0) {
@@ -198,64 +167,7 @@
                 return;
             }
 
-            if (viewMode === 'table') {
-                renderTableView(list, container);
-            } else {
-                renderGridView(list, container);
-            }
-        }
-
-        function renderGridView(list, container) {
-            let html = '<div class="row">';
-            list.forEach(item => {
-                const classId = item.ID || item.id;
-                const courseTitle = item.COURSE_TITLE || item.courseTitle || 'Chưa rõ khóa học';
-                const className = item.CLASS_NAME || item.className || 'Chưa rõ';
-                const start = item.START_DATE || item.startDate ? new Date(item.START_DATE || item.startDate).toLocaleDateString('vi-VN') : 'N/A';
-                const end = item.END_DATE || item.endDate ? new Date(item.END_DATE || item.endDate).toLocaleDateString('vi-VN') : 'N/A';
-                const status = item.STATUS || item.status || 'DRAFT';
-                const sessionCount = item.SESSION_COUNT || item.sessionCount || 0;
-                
-                // FIXED BUG 1: Map ENROLLMENT_COUNT/enrollmentCount correctly
-                const studentCount = item.ENROLLMENT_COUNT || item.enrollmentCount || 0;
-
-                const badge = getStatusBadge(status);
-
-                html += `
-                    <div class="col-12 col-md-6 col-lg-4 mb-4">
-                        <div class="card h-100 border-0 shadow-sm teacher-class-card">
-                            <div class="card-body p-4 d-flex flex-column">
-                                <div class="d-flex justify-content-between align-items-start mb-3 gap-1">
-                                    <span class="badge ${badge.cls} px-2.5 py-1.5 fw-bold small">${badge.label}</span>
-                                    <span class="small text-muted fw-medium">${start} - ${end}</span>
-                                </div>
-                                <h5 class="fw-bold text-dark mb-1 text-truncate-2" style="line-height: 1.4; height: 2.8rem; overflow: hidden;" title="${courseTitle}">${courseTitle}</h5>
-                                <p class="text-muted small mb-3">Mã lớp: <strong class="text-dark">${className}</strong></p>
-
-                                <div class="card bg-light border-0 p-3 mb-4" style="border-radius: 12px;">
-                                    <div class="d-flex justify-content-between small text-muted mb-2">
-                                        <span><i class="bi bi-calendar3 me-1"></i>Tổng số buổi:</span>
-                                        <span class="fw-bold text-dark">${sessionCount} buổi</span>
-                                    </div>
-                                    <div class="d-flex justify-content-between small text-muted">
-                                        <span><i class="bi bi-people-fill me-1"></i>Sĩ số học viên:</span>
-                                        <span class="fw-bold text-success">${studentCount} học viên</span>
-                                    </div>
-                                </div>
-
-                                <div class="mt-auto">
-                                    <a href="${window.TRAINING_URLS.classManage.replace('__ID__', classId)}" class="btn btn-success w-100 py-2.5 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-1 shadow-sm">
-                                        <i class="bi bi-calendar-check" style="font-size: 1.2rem;"></i>
-                                        Quản lý lớp học
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-            html += '</div>';
-            container.innerHTML = html;
+            renderTableView(list, container);
         }
 
         function renderTableView(list, container) {

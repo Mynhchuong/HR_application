@@ -18,6 +18,7 @@ public class BulletinModel
     public int       IS_ACTIVE      { get; set; }
     public int       VIEW_COUNT     { get; set; }
     public int       COMMENT_COUNT  { get; set; }              // computed
+    public int       REACTION_COUNT { get; set; }              // computed — feed Index
     public string?   INST_ID        { get; set; }
     public DateTime? INST_DT        { get; set; }
     public string?   UPDT_ID        { get; set; }

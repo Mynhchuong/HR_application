@@ -38,6 +38,9 @@ public class CertificateItem
     public string? DEPTCD { get; set; }
     public string? LINECD { get; set; }
     public string? WORKCD { get; set; }
+    public string? DEPT_NAME { get; set; }
+    public string? LINE_NAME { get; set; }
+    public string? WORK_NAME { get; set; }
     public DateTime? COMPLETION_DATE { get; set; }
     public decimal? FINAL_SCORE { get; set; }
     public decimal? ATTENDANCE_PERCENT { get; set; }

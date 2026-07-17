@@ -80,10 +80,11 @@ public class BulletinController : ControllerBase
     // 1. LIST  — nhân viên: chỉ bài đang hiển thị
     // ═════════════════════════════════════════════════════════════════════════
     [HttpGet("list")]
-    public async Task<IActionResult> GetList()
+    public async Task<IActionResult> GetList([FromQuery] string? empcd = null)
     {
         try
         {
+            // REACTION_COUNT + MY_REACTION phục vụ feed kiểu Facebook ở Bulletin/Index
             const string sql = @"
                 SELECT B.ID, B.TITLE, B.COVER_IMG,
                        B.PUBLISH_FROM, B.PUBLISH_TO,
@@ -91,7 +92,11 @@ public class BulletinController : ControllerBase
                        B.IS_ACTIVE, B.VIEW_COUNT,
                        B.INST_ID, B.INST_DT, B.UPDT_ID, B.UPDT_DT, B.UPDT_FULL_NAME,
                        (SELECT COUNT(*) FROM HRMS.HR_BULLETIN_COMMENT C
-                        WHERE C.BULLETIN_ID = B.ID AND C.IS_DELETED = 0) AS COMMENT_COUNT
+                        WHERE C.BULLETIN_ID = B.ID AND C.IS_DELETED = 0) AS COMMENT_COUNT,
+                       (SELECT COUNT(*) FROM HRMS.HR_BULLETIN_REACTION R
+                        WHERE R.BULLETIN_ID = B.ID) AS REACTION_COUNT,
+                       (SELECT MAX(R.REACTION) FROM HRMS.HR_BULLETIN_REACTION R
+                        WHERE R.BULLETIN_ID = B.ID AND R.EMPCD = :EMPCD) AS MY_REACTION
                 FROM HRMS.HR_BULLETIN B
                 WHERE B.IS_PUBLISHED = 1
                   AND B.IS_ACTIVE    = 1
@@ -99,7 +104,8 @@ public class BulletinController : ControllerBase
                 ORDER BY B.IS_PINNED DESC, B.PIN_ORDER ASC,
                          B.PUBLISH_FROM DESC, B.ID DESC";
 
-            var result = await _oracleService.ExecuteQueryAsync(sql, MapLight);
+            var result = await _oracleService.ExecuteQueryAsync(sql, MapLight,
+                new OracleParameter("EMPCD", (object?)empcd ?? DBNull.Value));
             return Ok(new { success = true, data = result });
         }
         catch (Exception ex)
@@ -569,20 +575,23 @@ public class BulletinController : ControllerBase
                 return Ok(new { success = false, message = "Bạn gửi quá nhanh, vui lòng chờ 1 phút" });
 
             int? parentId = null;
+            string? parentAuthorEmpCd = null;
             if (model.PARENT_ID.HasValue && model.PARENT_ID.Value > 0)
             {
                 var parentRows = await _oracleService.ExecuteQueryAsync(
-                    "SELECT BULLETIN_ID, NVL(PARENT_ID, 0) ROOT FROM HRMS.HR_BULLETIN_COMMENT WHERE ID = :ID AND IS_DELETED = 0",
+                    "SELECT BULLETIN_ID, NVL(PARENT_ID, 0) ROOT, EMPCD FROM HRMS.HR_BULLETIN_COMMENT WHERE ID = :ID AND IS_DELETED = 0",
                     r => new
                     {
                         BulletinId = Convert.ToInt32(r["BULLETIN_ID"]),
-                        Root       = Convert.ToInt32(r["ROOT"])
+                        Root       = Convert.ToInt32(r["ROOT"]),
+                        EmpCd      = r["EMPCD"]?.ToString() ?? ""
                     },
                     new OracleParameter("ID", model.PARENT_ID.Value));
                 if (parentRows.Count == 0 || parentRows[0].BulletinId != model.BULLETIN_ID)
                     return Ok(new { success = false, message = "Bình luận cha không tồn tại" });
                 // Flatten: nếu parent đã là reply, gán PARENT_ID = root
                 parentId = parentRows[0].Root > 0 ? parentRows[0].Root : model.PARENT_ID.Value;
+                parentAuthorEmpCd = parentRows[0].EmpCd;
             }
 
             const string sqlInsert = @"
@@ -604,6 +613,10 @@ public class BulletinController : ControllerBase
 
             int newId = outIdParam.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od && !od.IsNull
                 ? (int)od.Value : 0;
+
+            // Báo cho chủ bình luận được trả lời (fire-and-forget, tự bỏ qua nếu tự trả lời mình)
+            if (!string.IsNullOrEmpty(parentAuthorEmpCd))
+                _notificationService.BulletinCommentReplied(model.BULLETIN_ID, parentAuthorEmpCd, model.EMPCD);
 
             return Ok(new { success = true, id = newId });
         }
@@ -843,6 +856,8 @@ public class BulletinController : ControllerBase
         IS_ACTIVE      = Convert.ToInt32(r["IS_ACTIVE"]),
         VIEW_COUNT     = r["VIEW_COUNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["VIEW_COUNT"]),
         COMMENT_COUNT  = HasColumn(r, "COMMENT_COUNT") && r["COMMENT_COUNT"] != DBNull.Value ? Convert.ToInt32(r["COMMENT_COUNT"]) : 0,
+        REACTION_COUNT = HasColumn(r, "REACTION_COUNT") && r["REACTION_COUNT"] != DBNull.Value ? Convert.ToInt32(r["REACTION_COUNT"]) : 0,
+        MY_REACTION    = HasColumn(r, "MY_REACTION") && r["MY_REACTION"] != DBNull.Value ? r["MY_REACTION"].ToString() : null,
         INST_ID        = r["INST_ID"]?.ToString(),
         INST_DT        = r["INST_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["INST_DT"]),
         UPDT_ID        = r["UPDT_ID"]?.ToString(),
@@ -868,6 +883,8 @@ public class BulletinController : ControllerBase
         IS_ACTIVE      = Convert.ToInt32(r["IS_ACTIVE"]),
         VIEW_COUNT     = r["VIEW_COUNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["VIEW_COUNT"]),
         COMMENT_COUNT  = HasColumn(r, "COMMENT_COUNT") && r["COMMENT_COUNT"] != DBNull.Value ? Convert.ToInt32(r["COMMENT_COUNT"]) : 0,
+        REACTION_COUNT = HasColumn(r, "REACTION_COUNT") && r["REACTION_COUNT"] != DBNull.Value ? Convert.ToInt32(r["REACTION_COUNT"]) : 0,
+        MY_REACTION    = HasColumn(r, "MY_REACTION") && r["MY_REACTION"] != DBNull.Value ? r["MY_REACTION"].ToString() : null,
         INST_ID        = r["INST_ID"]?.ToString(),
         INST_DT        = r["INST_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["INST_DT"]),
         UPDT_ID        = r["UPDT_ID"]?.ToString(),

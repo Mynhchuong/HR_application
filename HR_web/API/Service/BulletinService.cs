@@ -30,9 +30,12 @@ public class BulletinService
 
     // ─── Bài đăng ────────────────────────────────────────────────────────────
 
-    public async Task<List<BulletinModel>> GetListAsync()
+    public async Task<List<BulletinModel>> GetListAsync(string? empcd = null)
     {
-        var r = await _api.GetAsync<R<List<BulletinModel>>>("bulletin/list");
+        var url = string.IsNullOrEmpty(empcd)
+            ? "bulletin/list"
+            : $"bulletin/list?empcd={Uri.EscapeDataString(empcd)}";
+        var r = await _api.GetAsync<R<List<BulletinModel>>>(url);
         return r?.success == true ? r.data ?? new() : new();
     }
 

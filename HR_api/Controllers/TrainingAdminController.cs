@@ -180,7 +180,8 @@ public partial class TrainingAdminController : ControllerBase
         var teachers    = await _class.GetTeachersAsync(id);
         var groups      = await _class.GetGroupsAsync(id);
         var enrollments = await _enroll.ListAsync(id, null, null);
-        return Ok(new { success = true, data = new { cls = c, sessions, teachers, groups, enrollments } });
+        var materials   = await _material.ListByClassAsync(id);
+        return Ok(new { success = true, data = new { cls = c, sessions, teachers, groups, enrollments, materials } });
     }
 
     // POST /apiHR/TrainingAdmin/class/save
@@ -732,10 +733,11 @@ public partial class TrainingAdminController : ControllerBase
         }
     }
 
-    // GET /apiHR/TrainingAdmin/certificate/list?classId=&deptcd=&linecd=&workcd=&from=&to=&empcd=&loginUser=
+    // GET /apiHR/TrainingAdmin/certificate/list?classId=&courseId=&deptcd=&linecd=&workcd=&from=&to=&empcd=&loginUser=
     [HttpGet("certificate/list")]
     public async Task<IActionResult> CertificateList(
         [FromQuery] int? classId,
+        [FromQuery] int? courseId,
         [FromQuery] string? deptcd,
         [FromQuery] string? linecd,
         [FromQuery] string? workcd,
@@ -767,7 +769,7 @@ public partial class TrainingAdminController : ControllerBase
             }
         }
 
-        var data = await _completion.ListCertificatesAsync(classId, deptcd, linecd, workcd, from, to, searchEmpcd, scopeSql, scopeParams);
+        var data = await _completion.ListCertificatesAsync(classId, courseId, deptcd, linecd, workcd, from, to, searchEmpcd, scopeSql, scopeParams);
         return Ok(new { success = true, data });
     }
 

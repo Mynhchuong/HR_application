@@ -25,7 +25,7 @@ public class BulletinController : BaseController
     // ─────────────────────────────────────────────
     public async Task<IActionResult> Index()
     {
-        var list = await _service.GetListAsync();
+        var list = await _service.GetListAsync(CurrentUser?.EmpCd);
         return View(list);
     }
 

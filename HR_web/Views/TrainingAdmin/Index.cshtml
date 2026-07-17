@@ -50,7 +50,7 @@
                     </button>
                 </div>
                 <!-- Filters for Courses -->
-                <div class="row g-2 mb-3">
+                <div class="filter-bar row g-2 mb-3">
                     <div class="col-md-4">
                         <input type="text" id="course-filter-search" class="form-control form-control-sm" placeholder="Tìm tên khóa học..." oninput="loadCourses()" style="border-radius: 8px;" />
                     </div>
@@ -66,11 +66,11 @@
                     <table class="table table-hover align-middle mb-0 text-nowrap">
                         <thead class="bg-light table-head-custom">
                             <tr>
-                                <th class="ps-4">Mã Khóa học</th>
-                                <th>Tên Khóa học</th>
-                                <th>Mô tả tóm tắt</th>
-                                <th>Trạng thái</th>
-                                <th class="pe-4 text-end">Thao tác</th>
+                                <th class="ps-4" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã Khóa học">Mã Khóa học</th>
+                                <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Tên Khóa học">Tên Khóa học</th>
+                                <th data-mobile="detail" data-mobile-label="Mô tả tóm tắt">Mô tả tóm tắt</th>
+                                <th data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
+                                <th class="pe-4 text-end" data-mobile="detail" data-mobile-label="Thao tác">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody id="course-grid">
@@ -92,7 +92,7 @@
                     </button>
                 </div>
                 <!-- Filters for Classes -->
-                <div class="row g-2 mb-3">
+                <div class="filter-bar row g-2 mb-3">
                     <div class="col-md-4">
                         <input type="text" id="class-filter-search" class="form-control form-control-sm" placeholder="Tìm theo tên lớp học..." oninput="loadClasses()" style="border-radius: 8px;" />
                     </div>
@@ -117,13 +117,13 @@
                     <table class="table table-hover align-middle mb-0 text-nowrap">
                         <thead class="bg-light table-head-custom">
                             <tr>
-                                <th class="ps-4">Tên lớp học</th>
-                                <th>Khóa học</th>
-                                <th>Ngày học</th>
-                                <th>Chế độ</th>
-                                <th>Đăng ký</th>
-                                <th>Trạng thái</th>
-                                <th class="pe-4 text-end">Thao tác</th>
+                                <th class="ps-4" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Tên lớp học">Tên lớp học</th>
+                                <th data-mobile="detail" data-mobile-label="Khóa học">Khóa học</th>
+                                <th data-mobile="detail" data-mobile-label="Ngày học">Ngày học</th>
+                                <th data-mobile="detail" data-mobile-label="Chế độ">Chế độ</th>
+                                <th data-mobile="detail" data-mobile-label="Đăng ký">Đăng ký</th>
+                                <th data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
+                                <th class="pe-4 text-end" data-mobile="primary" data-mobile-label="Thao tác">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody id="class-grid">
@@ -278,6 +278,8 @@
 
             loadCourses();
             loadClasses();
+            MobileTableHelper.init('course-grid');
+            MobileTableHelper.init('class-grid');
 
             document.getElementById('tab-classes').addEventListener('shown.bs.tab', loadClasses);
         });
@@ -333,6 +335,7 @@
                         });
                         filterSelect.value = val;
                     }
+                    MobileTableHelper.refresh('course-grid');
                 });
         }
 
@@ -510,6 +513,7 @@
                         ? ''
                         : `Hiển thị ${startIdx + 1}-${Math.min(startIdx + CLASSES_PER_PAGE, classList.length)} / ${classList.length} lớp học`;
                     renderClassPagination(totalPages);
+                    MobileTableHelper.refresh('class-grid');
         }
 
         // Phân trang cửa sổ (« 1 … cur±2 … N ») — giống bảng học viên ở ClassAssign

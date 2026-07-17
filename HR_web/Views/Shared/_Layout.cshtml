@@ -702,6 +702,32 @@
         window.addEventListener('popstate', function () {
             window.hideLoading();
         });
+
+        // Chặn "thoát" survey bắt buộc qua nút back cứng Android: khi WebView phục hồi trang
+        // TRƯỚC ĐÓ từ back-forward cache, request KHÔNG đi qua server nên SurveyBlockerFilter
+        // không chạy lại được. Ở đây re-check thủ công bằng AJAX ngay khi trang được phục hồi —
+        // nếu vẫn còn survey pending thì đẩy thẳng sang /Survey/Do, không cho dùng tiếp app.
+        (function () {
+            var checkPendingUrl = '@Url.Action("CheckPending", "Survey")';
+            var doTemplateUrl   = '@Url.Action("Do", "Survey", new { id = "__ID__" })';
+            var checking = false;
+            function recheckSurveyGate() {
+                if (checking) return;
+                if (/\/survey(\/|$)/i.test(window.location.pathname)) return; // đang ở trang survey rồi, khỏi check
+                checking = true;
+                fetch(checkPendingUrl, { credentials: 'same-origin' })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (res) {
+                        if (res && res.pendingId) {
+                            window.location.href = doTemplateUrl.replace('__ID__', res.pendingId);
+                        }
+                    })
+                    .catch(function () { /* im lặng bỏ qua — không phá luồng back bình thường */ })
+                    .finally(function () { checking = false; });
+            }
+            window.addEventListener('pageshow', function (e) { if (e.persisted) recheckSurveyGate(); });
+            window.addEventListener('popstate', recheckSurveyGate);
+        })();
     </script>
 
     <!-- Global Confirm Modal -->

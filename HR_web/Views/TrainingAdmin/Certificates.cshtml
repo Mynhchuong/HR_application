@@ -14,7 +14,7 @@
     })
 
     <!-- Filters Section -->
-    <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
+    <div class="card filter-bar border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
         <h5 class="fw-bold text-dark mb-3">Bộ lọc tìm kiếm</h5>
         <div class="row g-3">
             <div class="col-12 col-md-3">
@@ -60,15 +60,15 @@
             <table class="table table-hover align-middle mb-0 bg-white rounded shadow-sm text-nowrap">
                 <thead>
                     <tr class="text-muted small">
-                        <th class="ps-3">Mã NV</th>
-                        <th>Họ và Tên</th>
-                        <th>Bộ phận</th>
-                        <th>Khóa học</th>
-                        <th>Lớp học</th>
-                        <th>Ngày hoàn thành</th>
-                        <th>Điểm thi</th>
-                        <th>Chuyên cần</th>
-                        <th class="pe-3 text-end">Hành động</th>
+                        <th class="ps-3" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                        <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ và Tên">Họ và Tên</th>
+                        <th data-mobile="detail" data-mobile-label="Bộ phận">Bộ phận</th>
+                        <th data-mobile="primary" data-mobile-label="Khóa học">Khóa học</th>
+                        <th data-mobile="detail" data-mobile-label="Lớp học">Lớp học</th>
+                        <th data-mobile="detail" data-mobile-label="Ngày hoàn thành">Ngày hoàn thành</th>
+                        <th data-mobile="primary" data-mobile-label="Điểm thi">Điểm thi</th>
+                        <th data-mobile="detail" data-mobile-label="Chuyên cần">Chuyên cần</th>
+                        <th class="pe-3 text-end" data-mobile="detail" data-mobile-label="Hành động">Hành động</th>
                     </tr>
                 </thead>
                 <tbody id="certificates-tbody">
@@ -100,6 +100,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             loadFilterOptions();
             loadCertificates();
+            MobileTableHelper.init('certificates-tbody');
         });
 
         function loadFilterOptions() {
@@ -201,6 +202,9 @@
                 })
                 .catch(() => {
                     tbody.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối hoặc không có quyền truy cập dữ liệu.</td></tr>';
+                })
+                .finally(() => {
+                    MobileTableHelper.refresh('certificates-tbody');
                 });
         }
 

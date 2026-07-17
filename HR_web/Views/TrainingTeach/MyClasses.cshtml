@@ -16,7 +16,7 @@
     <!-- Quick Stats Cards -->
     <div class="row g-3 mb-4">
         <div class="col-12 col-sm-4">
-            <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 16px; border-left: 5px solid #0d6efd !important;">
+            <div class="card stats-card border-0 shadow-sm p-4 h-100" data-filter-status="" style="border-radius: 16px; border-left: 5px solid #0d6efd !important;">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
                         <h6 class="text-muted small fw-bold text-uppercase mb-1">Tổng lớp phụ trách</h6>
@@ -27,7 +27,7 @@
             </div>
         </div>
         <div class="col-12 col-sm-4">
-            <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 16px; border-left: 5px solid #198754 !important;">
+            <div class="card stats-card border-0 shadow-sm p-4 h-100" data-filter-status="IN_PROGRESS" style="border-radius: 16px; border-left: 5px solid #198754 !important;">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
                         <h6 class="text-muted small fw-bold text-uppercase mb-1">Lớp đang giảng dạy</h6>
@@ -38,7 +38,7 @@
             </div>
         </div>
         <div class="col-12 col-sm-4">
-            <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 16px; border-left: 5px solid #6c757d !important;">
+            <div class="card stats-card border-0 shadow-sm p-4 h-100" data-filter-status="COMPLETED" style="border-radius: 16px; border-left: 5px solid #6c757d !important;">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
                         <h6 class="text-muted small fw-bold text-uppercase mb-1">Lớp đã kết thúc</h6>
@@ -51,7 +51,7 @@
     </div>
 
     <!-- Filter & View Controls -->
-    <div class="card border-0 shadow-sm p-3 mb-4" style="border-radius: 16px;">
+    <div class="card filter-bar border-0 shadow-sm p-3 mb-4" style="border-radius: 16px;">
         <div class="row align-items-center g-3">
             <div class="col-12 col-md-5">
                 <div class="input-group">
@@ -60,7 +60,7 @@
                 </div>
             </div>
             <div class="col-12 col-md-3">
-                <select id="status-filter" class="form-select bg-light border-0" style="border-radius: 10px; height: 45px;" onchange="filterAndRender()">
+                <select id="filterStatus" class="form-select bg-light border-0" style="border-radius: 10px; height: 45px;" onchange="filterAndRender()">
                     <option value="">-- Tất cả trạng thái --</option>
                     <option value="IN_PROGRESS">Đang giảng dạy</option>
                     <option value="SCHEDULED">Đã lên lịch</option>
@@ -129,6 +129,7 @@
 
         document.addEventListener('DOMContentLoaded', function () {
             loadTeacherClasses();
+            MobileTableHelper.init('teacher-classes-tbody');
         });
 
         function loadTeacherClasses() {
@@ -161,7 +162,7 @@
 
         function filterAndRender() {
             const searchVal = document.getElementById('search-input').value.toLowerCase().trim();
-            const statusVal = document.getElementById('status-filter').value;
+            const statusVal = document.getElementById('filterStatus').value;
             
             let filtered = allClasses;
             if (searchVal) {
@@ -264,16 +265,16 @@
                         <table class="table table-hover align-middle text-nowrap">
                             <thead>
                                 <tr class="table-light">
-                                    <th class="ps-3">Khóa học</th>
-                                    <th>Mã lớp</th>
-                                    <th>Thời gian học</th>
-                                    <th class="text-center">Số buổi</th>
-                                    <th class="text-center">Sĩ số</th>
-                                    <th class="text-center">Trạng thái</th>
-                                    <th class="text-end pe-3">Hành động</th>
+                                    <th class="ps-3" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Khóa học">Khóa học</th>
+                                    <th data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã lớp">Mã lớp</th>
+                                    <th data-mobile="detail" data-mobile-label="Thời gian học">Thời gian học</th>
+                                    <th class="text-center" data-mobile="detail" data-mobile-label="Số buổi">Số buổi</th>
+                                    <th class="text-center" data-mobile="primary" data-mobile-label="Sĩ số">Sĩ số</th>
+                                    <th class="text-center" data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
+                                    <th class="text-end pe-3" data-mobile="detail" data-mobile-label="Hành động">Hành động</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="teacher-classes-tbody">
             `;
 
             list.forEach(item => {
@@ -316,6 +317,7 @@
                 </div>
             `;
             container.innerHTML = html;
+            MobileTableHelper.refresh('teacher-classes-tbody');
         }
 
         function getStatusBadge(status) {

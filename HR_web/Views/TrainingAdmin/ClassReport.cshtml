@@ -86,6 +86,11 @@
     #histoChart {
         max-height: 280px;
     }
+    @@media (max-width: 767.98px) {
+        .kpi-box { padding: .75rem; }
+        .kpi-box .val { font-size: 1.3rem; }
+        .kpi-box .lbl { font-size: .68rem; letter-spacing: 0; }
+    }
 </style>
 
 @section Scripts {
@@ -107,6 +112,9 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             switchTab('class');
+            MobileTableHelper.init('groupBreakdownTbody');
+            MobileTableHelper.init('testScoresTbody');
+            MobileTableHelper.init('teacherAggTbody');
         });
 
         function esc(s) {
@@ -181,8 +189,14 @@
                                 ? '<p class="text-muted text-center py-4 small">Lớp học này không chia Tổ/Nhóm.</p>'
                                 : `<div class="table-responsive">
                                     <table class="table table-hover align-middle mb-0">
-                                        <thead><tr><th>Tổ Nhóm</th><th>Sĩ số</th><th>Đạt</th><th>Chứng chỉ</th><th>Chuyên cần</th></tr></thead>
-                                        <tbody>${d.GROUP_BREAKDOWN.map(g => `<tr>
+                                        <thead><tr>
+                                            <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Tổ Nhóm">Tổ Nhóm</th>
+                                            <th data-mobile="primary" data-mobile-label="Sĩ số">Sĩ số</th>
+                                            <th data-mobile="primary" data-mobile-label="Đạt">Đạt</th>
+                                            <th data-mobile="detail" data-mobile-label="Chứng chỉ">Chứng chỉ</th>
+                                            <th data-mobile="primary" data-mobile-label="Chuyên cần">Chuyên cần</th>
+                                        </tr></thead>
+                                        <tbody id="groupBreakdownTbody">${d.GROUP_BREAKDOWN.map(g => `<tr>
                                             <td><strong>${esc(g.GROUP_NAME)}</strong></td>
                                             <td>${g.ENROLLED}</td>
                                             <td>${g.COMPLETED}</td>
@@ -196,6 +210,7 @@
                 </div>`;
             
             document.getElementById('reportContent').innerHTML = html;
+            MobileTableHelper.refresh('groupBreakdownTbody');
 
             if (d.SCORE_HISTOGRAM && d.SCORE_HISTOGRAM.length > 0) {
                 new Chart(document.getElementById('histoChart'), {
@@ -292,8 +307,16 @@
                             <h6 class="fw-bold mb-3 text-dark">Bảng điểm thi học viên</h6>
                             <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                 <table class="table table-hover align-middle mb-0">
-                                    <thead><tr><th>Mã NV</th><th>Họ và tên</th><th>Lượt</th><th>Điểm số</th><th>Kết quả</th><th>Ngày nộp</th><th class="text-end">Thao tác</th></tr></thead>
-                                    <tbody>${(() => {
+                                    <thead><tr>
+                                        <th data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                                        <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ và tên">Họ và tên</th>
+                                        <th data-mobile="detail" data-mobile-label="Lượt">Lượt</th>
+                                        <th data-mobile="primary" data-mobile-label="Điểm số">Điểm số</th>
+                                        <th data-mobile="primary" data-mobile-label="Kết quả">Kết quả</th>
+                                        <th data-mobile="detail" data-mobile-label="Ngày nộp">Ngày nộp</th>
+                                        <th class="text-end" data-mobile="detail" data-mobile-label="Thao tác">Thao tác</th>
+                                    </tr></thead>
+                                    <tbody id="testScoresTbody">${(() => {
                                         // Nhóm theo học viên để biết dòng nào là lần thi MỚI NHẤT — chỉ dòng đó mới
                                         // cho cấp thi lại (tránh cấp chồng khi đang xem lịch sử các lần thi cũ).
                                         const maxAttemptByEmp = {};
@@ -338,6 +361,7 @@
                     </div>
                 </div>
             `;
+            MobileTableHelper.refresh('testScoresTbody');
         }
 
         function grantRetake(testId, empcd) {
@@ -392,8 +416,12 @@
                                 ? '<p class="text-muted text-center py-4 small">Chưa có đánh giá về giáo viên.</p>' 
                                 : `<div class="table-responsive">
                                     <table class="table table-hover align-middle mb-0">
-                                        <thead><tr><th>Giảng viên</th><th>Điểm đánh giá</th><th>Lượt phản hồi</th></tr></thead>
-                                        <tbody>${d.TEACHER_AGGREGATES.map(t => `<tr>
+                                        <thead><tr>
+                                            <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Giảng viên">Giảng viên</th>
+                                            <th data-mobile="primary" data-mobile-label="Điểm đánh giá">Điểm đánh giá</th>
+                                            <th data-mobile="detail" data-mobile-label="Lượt phản hồi">Lượt phản hồi</th>
+                                        </tr></thead>
+                                        <tbody id="teacherAggTbody">${d.TEACHER_AGGREGATES.map(t => `<tr>
                                             <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(t.TEACHER_NAME||t.TEACHER_EMPCD)}</td>
                                             <td><strong class="text-warning">${t.AVG_RATING.toFixed(2)}/5.0 ★</strong></td>
                                             <td>${t.COUNT}</td>
@@ -414,6 +442,7 @@
                     </div>
                 </div>
             `;
+            MobileTableHelper.refresh('teacherAggTbody');
         }
 
         function renderErr(msg) {

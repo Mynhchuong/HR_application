@@ -108,11 +108,11 @@
                     <table class="table table-hover align-middle mb-0 text-nowrap bg-white rounded shadow-sm">
                         <thead>
                             <tr>
-                                <th class="ps-3">Buổi</th>
-                                <th>Ngày học</th>
-                                <th>Giờ học</th>
-                                <th>Phòng học</th>
-                                <th class="pe-3">Chủ đề bài học</th>
+                                <th class="ps-3" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Buổi">Buổi</th>
+                                <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Ngày học">Ngày học</th>
+                                <th data-mobile="primary" data-mobile-label="Giờ học">Giờ học</th>
+                                <th data-mobile="detail" data-mobile-label="Phòng học">Phòng học</th>
+                                <th class="pe-3" data-mobile="detail" data-mobile-label="Chủ đề bài học">Chủ đề bài học</th>
                             </tr>
                         </thead>
                         <tbody id="preview-sessions-tbody">
@@ -217,6 +217,7 @@
 
         document.addEventListener('DOMContentLoaded', function () {
             loadCourses();
+            MobileTableHelper.init('preview-sessions-tbody');
         });
 
         function loadCourses() {
@@ -247,6 +248,7 @@
             
             if (!selectedCourse || !startVal) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Vui lòng chọn khóa học và ngày bắt đầu ở Bước 1.</td></tr>';
+                MobileTableHelper.refresh('preview-sessions-tbody');
                 return;
             }
 
@@ -283,6 +285,9 @@
                 })
                 .catch(() => {
                     tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Không tải được lịch học xem trước.</td></tr>';
+                })
+                .finally(() => {
+                    MobileTableHelper.refresh('preview-sessions-tbody');
                 });
         }
 

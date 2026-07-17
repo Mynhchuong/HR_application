@@ -43,6 +43,26 @@ public class SurveyController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET /Survey/CheckPending  (AJAX) — dùng để re-check ngay khi WebView phục hồi 1 trang
+    // từ back-forward cache (nút back cứng Android) thay vì gửi request thật lên server, việc
+    // đó khiến SurveyBlockerFilter không chạy lại được → user "thoát" được survey đang chặn.
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> CheckPending()
+    {
+        var user = CurrentUser;
+        if (user == null || string.IsNullOrEmpty(user.EmpCd))
+            return Json(new { pendingId = (int?)null });
+
+        // Chỉ Admin (6) không cần làm survey — HR (5) vẫn phải làm.
+        if (user.RoleId == 6)
+            return Json(new { pendingId = (int?)null });
+
+        var pendingId = await _svc.GetOldestPendingSurveyIdAsync(user.EmpCd, user.RoleId);
+        return Json(new { pendingId });
+    }
+
+    // ─────────────────────────────────────────────
     // POST /Survey/SaveAnswer  (AJAX)
     // Body: { SURVEY_ID, QUESTION_ID, ANSWER_OPTION_IDS?, ANSWER_TEXT?, ANSWER_NUMBER? }
     // ─────────────────────────────────────────────

@@ -61,11 +61,11 @@
                 <table class="table table-hover align-middle mb-0 bg-white rounded shadow-sm text-nowrap">
                     <thead>
                         <tr class="text-muted small">
-                            <th class="ps-3">Tên khóa học</th>
-                            <th>Lớp học</th>
-                            <th>Ngày cấp</th>
-                            <th>Điểm số</th>
-                            <th class="pe-3">Chuyên cần</th>
+                            <th class="ps-3" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Tên khóa học">Tên khóa học</th>
+                            <th data-mobile="primary" data-mobile-label="Lớp học">Lớp học</th>
+                            <th data-mobile="detail" data-mobile-label="Ngày cấp">Ngày cấp</th>
+                            <th data-mobile="primary" data-mobile-label="Điểm số">Điểm số</th>
+                            <th class="pe-3" data-mobile="primary" data-mobile-label="Chuyên cần">Chuyên cần</th>
                         </tr>
                     </thead>
                     <tbody id="my-certs-tbody">
@@ -118,6 +118,7 @@
 
         document.addEventListener('DOMContentLoaded', function () {
             loadMyClasses();
+            MobileTableHelper.init('my-certs-tbody');
         });
 
         function switchTab(tab) {
@@ -271,6 +272,9 @@
                 })
                 .catch(() => {
                     tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Lỗi kết nối hệ thống. Vui lòng thử lại sau.</td></tr>';
+                })
+                .finally(() => {
+                    MobileTableHelper.refresh('my-certs-tbody');
                 });
         }
     </script>

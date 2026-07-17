@@ -18,8 +18,8 @@
     <div id="quiz-interface" class="d-none">
         <!-- Floating Header -->
         <div class="row sticky-top bg-white py-3 border-bottom mb-4 shadow-sm" style="z-index: 1000; top: 0; border-radius: 0 0 16px 16px;">
-            <div class="col-12 d-flex justify-content-between align-items-center px-4">
-                <div>
+            <div class="col-12 d-flex justify-content-between align-items-center px-4 flex-wrap gap-2 quiz-header-row">
+                <div class="min-w-0 quiz-title-wrap">
                     <h5 class="fw-bold mb-0 text-dark text-truncate" id="test-title" style="max-width: 500px;">Đang tải...</h5>
                     <span class="text-muted small">Mã nhân viên: <strong>@empCd</strong></span>
                 </div>
@@ -78,6 +78,11 @@
     .option-input:checked ~ .option-item {
         border-color: #0d6efd;
         background-color: #e7f1ff;
+    }
+    @@media (max-width: 575.98px) {
+        .quiz-header-row { padding-left: 1rem !important; padding-right: 1rem !important; }
+        .quiz-title-wrap #test-title { max-width: 100% !important; font-size: 1rem; }
+        #timer-card { font-size: 1rem !important; padding: .4rem .6rem !important; }
     }
 </style>
 

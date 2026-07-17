@@ -71,13 +71,13 @@
                                 <table class="table table-sm align-middle text-nowrap bg-white rounded-3 shadow-sm">
                                     <thead>
                                         <tr>
-                                            <th class="ps-3">Buổi</th>
-                                            <th>Ngày</th>
-                                            <th>Thời gian</th>
-                                            <th>Nhóm</th>
-                                            <th>Phòng</th>
-                                            <th>Chủ đề</th>
-                                            <th class="pe-3 text-end">Thao tác</th>
+                                            <th class="ps-3" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Buổi">Buổi</th>
+                                            <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Ngày">Ngày</th>
+                                            <th data-mobile="primary" data-mobile-label="Thời gian">Thời gian</th>
+                                            <th data-mobile="detail" data-mobile-label="Nhóm">Nhóm</th>
+                                            <th data-mobile="detail" data-mobile-label="Phòng">Phòng</th>
+                                            <th data-mobile="detail" data-mobile-label="Chủ đề">Chủ đề</th>
+                                            <th class="pe-3 text-end" data-mobile="detail" data-mobile-label="Thao tác">Thao tác</th>
                                         </tr>
                                     </thead>
                                     <tbody id="sub-sessions-list">
@@ -124,7 +124,7 @@
                                     <button onclick="openAssignStudentModal()" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm">Thêm học viên</button>
                                 </div>
                             </div>
-                            <div class="mb-2 d-flex gap-2 flex-wrap">
+                            <div class="filter-bar mb-2 d-flex gap-2 flex-wrap">
                                 <input type="text" id="student-filter-empcd" class="form-control form-control-sm" style="max-width:260px;" placeholder="Lọc theo mã nhân viên..." oninput="onStudentFilterChange()" />
                                 <select id="student-filter-group" class="form-select form-select-sm" style="max-width:200px;" onchange="onStudentFilterChange()">
                                     <option value="">-- Tất cả nhóm --</option>
@@ -134,12 +134,12 @@
                                 <table class="table table-sm align-middle text-nowrap bg-white rounded-3 shadow-sm">
                                     <thead>
                                         <tr>
-                                            <th class="ps-3">Mã NV</th>
-                                            <th>Họ và tên</th>
-                                            <th>Bộ phận/Chuyền/Line</th>
-                                            <th>Tổ/Nhóm</th>
-                                            <th>Trạng thái</th>
-                                            <th class="pe-3 text-end">Thao tác</th>
+                                            <th class="ps-3" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                                            <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ và tên">Họ và tên</th>
+                                            <th data-mobile="detail" data-mobile-label="Bộ phận/Chuyền/Line">Bộ phận/Chuyền/Line</th>
+                                            <th data-mobile="primary" data-mobile-label="Tổ/Nhóm">Tổ/Nhóm</th>
+                                            <th data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
+                                            <th class="pe-3 text-end" data-mobile="detail" data-mobile-label="Thao tác">Thao tác</th>
                                         </tr>
                                     </thead>
                                     <tbody id="sub-students-list">
@@ -162,8 +162,9 @@
                             <h6 class="fw-bold text-dark mb-3">Phân chia Tổ/Nhóm học tập</h6>
                             
                             <!-- Auto split form — chia đều học viên (ENROLLED, chưa gán nhóm) vào TẤT CẢ
-                                 nhóm đã tạo bên dưới (round-robin theo EMPCD). Cần tạo nhóm trước. -->
-                            <div class="mb-3 bg-white p-3 rounded shadow-sm border">
+                                 nhóm đã tạo bên dưới (round-robin theo EMPCD). Cần tạo nhóm trước.
+                                 Đang ẩn theo yêu cầu — chưa cần dùng, giữ lại code để bật lại sau. -->
+                            <div class="mb-3 bg-white p-3 rounded shadow-sm border d-none">
                                 <label class="form-label small fw-bold text-muted d-block">Chia đều học viên chưa gán vào các nhóm hiện có</label>
                                 <button onclick="autoSplitGroupSubmit()" class="btn btn-primary fw-bold shadow-sm w-100">Chia tự động (round-robin)</button>
                                 <div class="form-text">Cần tạo nhóm trước ở khung bên dưới — học viên chưa gán nhóm sẽ được chia đều vào toàn bộ nhóm đã tạo.</div>
@@ -443,6 +444,9 @@
             modalGroup = new bootstrap.Modal(document.getElementById('createGroupModal'));
 
             loadClassDetailAdmin();
+            MobileTableHelper.init('sub-sessions-list');
+            MobileTableHelper.init('sub-students-list');
+            MobileTableHelper.init('sub-teachers-tbody');
         });
 
         function loadClassDetailAdmin() {
@@ -694,6 +698,7 @@
             if (list.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="7" class="text-center py-3 text-muted small">Lớp học chưa được lên lịch buổi học nào.</td></tr>`;
             }
+            MobileTableHelper.refresh('sub-sessions-list');
         }
 
         // Populate dropdown chọn nhóm trong modal Sắp lịch/Sửa buổi học — dùng chung DS nhóm đã tạo
@@ -957,15 +962,16 @@
                     <table class="table table-sm align-middle text-nowrap bg-white rounded-3 shadow-sm mb-0">
                         <thead>
                             <tr>
-                                <th class="ps-3">Giáo viên</th>
-                                <th>Vai trò</th>
-                                <th>Nhóm phụ trách</th>
-                                <th class="pe-3 text-end">Thao tác</th>
+                                <th class="ps-3" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Giáo viên">Giáo viên</th>
+                                <th data-mobile="primary" data-mobile-label="Vai trò">Vai trò</th>
+                                <th data-mobile="detail" data-mobile-label="Nhóm phụ trách">Nhóm phụ trách</th>
+                                <th class="pe-3 text-end" data-mobile="detail" data-mobile-label="Thao tác">Thao tác</th>
                             </tr>
                         </thead>
-                        <tbody>${rows}</tbody>
+                        <tbody id="sub-teachers-tbody">${rows}</tbody>
                     </table>
                 </div>`;
+            MobileTableHelper.refresh('sub-teachers-tbody');
         }
 
         // DS nhóm hiện tại của GV (từ rows đã tải — 1 row/nhóm)
@@ -1158,6 +1164,7 @@
             document.getElementById('student-list-summary').textContent =
                 list.length === 0 ? '' : `Hiển thị ${startIdx + 1}-${Math.min(startIdx + STUDENTS_PER_PAGE, list.length)} / ${list.length} học viên`;
             renderStudentPagination(totalPages);
+            MobileTableHelper.refresh('sub-students-list');
         }
 
         function renderStudentPagination(totalPages) {

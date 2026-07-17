@@ -38,9 +38,47 @@
         z-index: 100;
         box-shadow: inset 0 -2px 0 #dee2e6;
     }
+    /* Ma trận rất rộng (NV x buổi học) — ghim 2 cột đầu (Mã NV/Họ Tên) để cuộn ngang
+       vẫn giữ được danh tính học viên, đặc biệt quan trọng trên mobile. */
+    .matrix-sticky-1, .matrix-sticky-2 {
+        position: sticky;
+        z-index: 5;
+        background-color: #fff;
+    }
+    .matrix-sticky-1 { left: 0; }
+    .matrix-sticky-2 { left: 100px; }
+    thead .matrix-sticky-1, thead .matrix-sticky-2 {
+        z-index: 101;
+        background-color: #f8f9fa;
+    }
+    .attn-scroll-hint {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        font-size: .72rem;
+        color: #6c757d;
+        margin-bottom: 8px;
+    }
+    .matrix-group-row td {
+        background-color: #eef2ff !important;
+        color: #3730a3;
+        font-weight: 700;
+        font-size: .78rem;
+    }
+    .matrix-group-row .matrix-group-label {
+        position: sticky;
+        left: 12px;
+        display: inline-block;
+    }
+    @@media (max-width: 767.98px) {
+        .attn-scroll-hint { display: flex; }
+        table.matrix-table { font-size: .7rem !important; }
+        table.matrix-table th, table.matrix-table td { padding: .3rem .35rem !important; }
+    }
 </style>
 
 @section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
         window.TRAINING_URLS = {
             getReportAttendance: '@Url.Action("GetReportAttendance", "TrainingAdmin")',
@@ -48,6 +86,9 @@
         };
 
         const CLASS_ID = @classId;
+        let reportData = null;
+        let groupFilter = '';
+        let chartSession = null, chartStatus = null, chartGroup = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             loadAttendanceReport();
@@ -68,19 +109,99 @@
                 return;
             }
 
-            const d = json.data;
+            reportData = json.data;
+            renderAttendanceReport();
+        }
+
+        function onGroupFilterChange() {
+            groupFilter = document.getElementById('attn-group-filter').value;
+            renderAttendanceReport();
+        }
+
+        function renderAttendanceReport() {
+            const wrap = document.getElementById('attendance-report-container');
+            const d = reportData;
             const cellCls = { PRESENT: 'matrix-cell-P', LATE: 'matrix-cell-L', ABSENT: 'matrix-cell-A', EXCUSED: 'matrix-cell-E' };
             const cellLbl = { PRESENT: '✓', LATE: 'L', ABSENT: '✗', EXCUSED: 'E' };
+
+            // Sắp học viên theo Tổ/Nhóm để dễ soi theo nhóm (nhóm null/chưa gán xếp cuối), trong nhóm sắp theo mã NV.
+            const NO_GROUP = '__NOGROUP__';
+            const groupKey = st => st.GROUP_NAME || NO_GROUP;
+            const allGroupNames = [...new Set(d.STUDENTS.map(groupKey))]
+                .sort((a, b) => a === NO_GROUP ? 1 : b === NO_GROUP ? -1 : a.localeCompare(b, 'vi'));
+
+            const groupOptionsHtml = allGroupNames.map(g =>
+                `<option value="${esc(g)}" ${groupFilter === g ? 'selected' : ''}>${g === NO_GROUP ? 'Chưa gán nhóm' : esc(g)}</option>`).join('');
+
+            const sortedStudents = [...d.STUDENTS]
+                .filter(st => !groupFilter || groupKey(st) === groupFilter)
+                .sort((a, b) => {
+                    const ga = groupKey(a), gb = groupKey(b);
+                    if (ga !== gb) return allGroupNames.indexOf(ga) - allGroupNames.indexOf(gb);
+                    return (a.EMPCD || '').localeCompare(b.EMPCD || '');
+                });
+
+            // Đang lọc theo 1 nhóm → chỉ hiện buổi chung cả lớp (không GROUP_NAME) + buổi riêng của
+            // đúng nhóm đó, ẩn buổi của nhóm khác đi cho đỡ rối cột. Nhóm "Chưa gán nhóm" (NO_GROUP)
+            // không khớp GROUP_NAME nào nên tự động chỉ còn lại buổi chung cả lớp — đúng ý.
+            const sessions = !groupFilter
+                ? d.SESSIONS
+                : d.SESSIONS.filter(s => !s.GROUP_NAME || s.GROUP_NAME === groupFilter);
+
+            const colCount = 4 + sessions.length;
+            let lastGroup = null;
+            const rowsHtml = sortedStudents.map(st => {
+                const g = groupKey(st);
+                let groupHeaderRow = '';
+                if (g !== lastGroup) {
+                    lastGroup = g;
+                    const count = sortedStudents.filter(s => groupKey(s) === g).length;
+                    const label = g === NO_GROUP ? 'Chưa gán nhóm' : `Tổ/Nhóm: ${esc(g)}`;
+                    groupHeaderRow = `<tr class="matrix-group-row"><td colspan="${colCount}"><span class="matrix-group-label">${label} — ${count} học viên</span></td></tr>`;
+                }
+                return groupHeaderRow + `<tr>
+                    <td class="ps-3 fw-bold text-dark matrix-sticky-1">${esc(st.EMPCD)}</td>
+                    <td class="fw-bold vni-font matrix-sticky-2" style="text-transform:uppercase;">${esc(st.EMP_NAME || '')}</td>
+                    <td><span class="badge bg-light text-dark border">${esc(st.GROUP_NAME || '-')}</span></td>
+                    <td><strong class="text-primary">${st.ATTENDANCE_PERCENT.toFixed(1)}%</strong></td>
+                    ${sessions.map(s => {
+                        const v = st.STATUS_PER_SESSION[s.SESSION_ID] || '';
+                        if (v === '') return `<td class="matrix-cell-em text-center text-muted">·</td>`;
+                        return `<td class="${cellCls[v] || ''} text-center"><strong>${cellLbl[v] || v}</strong></td>`;
+                    }).join('')}
+                </tr>`;
+            }).join('');
 
             const html = `
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <div>
-                        <h4 class="fw-bold mb-0 text-dark">Ma trận điểm danh chuyên cần</h4>
-                        <span class="text-muted small">Quy mô: ${d.STUDENTS.length} học viên × ${d.SESSIONS.length} buổi học</span>
+                        <h4 class="fw-bold mb-0 text-dark">Báo cáo Điểm danh chuyên cần</h4>
+                        <span class="text-muted small">Quy mô: ${sortedStudents.length} học viên × ${sessions.length} buổi học${groupFilter ? ' (đang lọc theo nhóm)' : ''}</span>
                     </div>
                     <a href="${window.TRAINING_URLS.expAttend}?classId=${CLASS_ID}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
-                        <i class="bi bi-download" style="font-size: 1.2rem;"></i> Xuất Excel
+                        <i class="bi bi-download" style="font-size: 1.2rem;"></i> Xuất Excel (toàn bộ lớp)
                     </a>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-lg-4">
+                        <div class="card border p-3 h-100" style="border-radius: 12px;">
+                            <h6 class="fw-bold small text-dark mb-2">Điểm danh theo buổi học</h6>
+                            <canvas id="chartSessionCanvas" height="200"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <div class="card border p-3 h-100" style="border-radius: 12px;">
+                            <h6 class="fw-bold small text-dark mb-2">Tỷ lệ trạng thái điểm danh</h6>
+                            <canvas id="chartStatusCanvas" height="200"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <div class="card border p-3 h-100" style="border-radius: 12px;">
+                            <h6 class="fw-bold small text-dark mb-2">Chuyên cần trung bình theo Tổ/Nhóm</h6>
+                            <canvas id="chartGroupCanvas" height="200"></canvas>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="alert alert-light border p-3 mb-3" style="border-radius: 12px;">
@@ -92,15 +213,26 @@
                     <span class="badge bg-light text-muted border">· Không xếp lịch</span>
                 </div>
 
+                <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
+                    <label class="small fw-bold text-muted mb-0">Xem theo Tổ/Nhóm:</label>
+                    <select id="attn-group-filter" class="form-select form-select-sm w-auto" onchange="onGroupFilterChange()" style="border-radius: 8px;">
+                        <option value="">-- Tất cả nhóm --</option>
+                        ${groupOptionsHtml}
+                    </select>
+                </div>
+
+                <div class="attn-scroll-hint">
+                    <i class="bi bi-arrow-left-right"></i> Vuốt ngang để xem thêm buổi học — cột Mã NV/Họ Tên luôn cố định
+                </div>
                 <div class="table-responsive" style="max-height: 70vh; border-radius: 12px; border: 1px solid #dee2e6;">
-                    <table class="table table-sm table-bordered align-middle mb-0 text-nowrap" style="font-size: .8rem;">
+                    <table class="table matrix-table table-sm table-bordered align-middle mb-0 text-nowrap" style="font-size: .8rem;">
                         <thead class="table-head-sticky bg-light">
                             <tr>
-                                <th class="ps-3" style="min-width: 100px;">Mã NV</th>
-                                <th style="min-width: 150px;">Họ và Tên</th>
+                                <th class="ps-3 matrix-sticky-1" style="min-width: 100px;">Mã NV</th>
+                                <th class="matrix-sticky-2" style="min-width: 150px;">Họ và Tên</th>
                                 <th style="min-width: 90px;">Tổ/Nhóm</th>
                                 <th style="min-width: 80px;">Điểm danh %</th>
-                                ${d.SESSIONS.map(s => `<th class="text-center" style="min-width: 90px;">
+                                ${sessions.map(s => `<th class="text-center" style="min-width: 90px;">
                                     Buổi ${s.SESSION_NO}<br>
                                     <small class="text-muted">${new Date(s.SESSION_DATE).toLocaleDateString('vi-VN')}</small>
                                     ${s.GROUP_NAME ? `<br><span class="badge bg-warning text-dark px-1.5 py-0.5" style="font-size: 0.65rem;">${esc(s.GROUP_NAME)}</span>` : ''}
@@ -108,23 +240,112 @@
                             </tr>
                         </thead>
                         <tbody>
-                            ${d.STUDENTS.map(st => `<tr>
-                                <td class="ps-3 fw-bold text-dark">${esc(st.EMPCD)}</td>
-                                <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(st.EMP_NAME || '')}</td>
-                                <td><span class="badge bg-light text-dark border">${esc(st.GROUP_NAME || '-')}</span></td>
-                                <td><strong class="text-primary">${st.ATTENDANCE_PERCENT.toFixed(1)}%</strong></td>
-                                ${d.SESSIONS.map(s => {
-                                    const v = st.STATUS_PER_SESSION[s.SESSION_ID] || '';
-                                    if (v === '') return `<td class="matrix-cell-em text-center text-muted">·</td>`;
-                                    return `<td class="${cellCls[v] || ''} text-center"><strong>${cellLbl[v] || v}</strong></td>`;
-                                }).join('')}
-                            </tr>`).join('')}
+                            ${rowsHtml}
                         </tbody>
                     </table>
                 </div>
             `;
 
             wrap.innerHTML = html;
+            renderCharts(d, sessions, sortedStudents, groupKey, NO_GROUP, allGroupNames);
+        }
+
+        function renderCharts(d, sessions, sortedStudents, groupKey, NO_GROUP, allGroupNames) {
+            const STATUS_COLORS = { PRESENT: '#198754', LATE: '#ffc107', ABSENT: '#dc3545', EXCUSED: '#6c757d' };
+            const STATUS_LABELS = { PRESENT: 'Có mặt', LATE: 'Đi muộn', ABSENT: 'Vắng', EXCUSED: 'Có phép' };
+
+            // Chart 1: đếm P/L/A/E theo BUỔI THỨ MẤY (SESSION_NO), gộp chung mọi nhóm có cùng số buổi
+            // vào 1 cột — vd 13 nhóm học song song, mỗi nhóm có "Buổi 1" riêng thì cả 13 buổi đó
+            // đều gộp vào cột "Buổi 1" duy nhất. Nhờ vậy biểu đồ luôn chỉ có tối đa = số buổi lớn nhất
+            // của 1 nhóm (vd 13 buổi), KHÔNG phình to theo số nhóm — đây mới là cái nhìn vĩ mô đúng nghĩa,
+            // dù sau này có 13 nhóm x 13 buổi hay nhiều hơn.
+            const sessionNos = [...new Set(sessions.map(s => s.SESSION_NO))].sort((a, b) => a - b);
+            const sessionLabels = sessionNos.map(no => `Buổi ${no}`);
+            const perStatusData = { PRESENT: [], LATE: [], ABSENT: [], EXCUSED: [] };
+            sessionNos.forEach(no => {
+                const counts = { PRESENT: 0, LATE: 0, ABSENT: 0, EXCUSED: 0 };
+                const sessionsForThisNo = sessions.filter(s => s.SESSION_NO === no);
+                sortedStudents.forEach(st => {
+                    sessionsForThisNo.forEach(s => {
+                        const v = st.STATUS_PER_SESSION[s.SESSION_ID];
+                        if (v && counts.hasOwnProperty(v)) counts[v]++;
+                    });
+                });
+                Object.keys(perStatusData).forEach(k => perStatusData[k].push(counts[k]));
+            });
+
+            if (chartSession) chartSession.destroy();
+            chartSession = new Chart(document.getElementById('chartSessionCanvas'), {
+                type: 'bar',
+                data: {
+                    labels: sessionLabels,
+                    datasets: Object.keys(perStatusData).map(k => ({
+                        label: STATUS_LABELS[k],
+                        data: perStatusData[k],
+                        backgroundColor: STATUS_COLORS[k]
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } }
+                }
+            });
+
+            // Chart 2: tổng tỷ lệ trạng thái (donut) trong phạm vi đang lọc
+            const totalCounts = { PRESENT: 0, LATE: 0, ABSENT: 0, EXCUSED: 0 };
+            sortedStudents.forEach(st => sessions.forEach(s => {
+                const v = st.STATUS_PER_SESSION[s.SESSION_ID];
+                if (v && totalCounts.hasOwnProperty(v)) totalCounts[v]++;
+            }));
+
+            if (chartStatus) chartStatus.destroy();
+            chartStatus = new Chart(document.getElementById('chartStatusCanvas'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(totalCounts).map(k => STATUS_LABELS[k]),
+                    datasets: [{
+                        data: Object.values(totalCounts),
+                        backgroundColor: Object.keys(totalCounts).map(k => STATUS_COLORS[k])
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
+                }
+            });
+
+            // Chart 3: chuyên cần trung bình theo Tổ/Nhóm — luôn so sánh TOÀN BỘ lớp (không theo filter
+            // đang chọn) để có cái nhìn tổng quan giữa các nhóm; tô đậm nhóm đang được chọn lọc (nếu có).
+            const groupAvg = allGroupNames.map(g => {
+                const members = d.STUDENTS.filter(st => groupKey(st) === g);
+                const avg = members.length ? members.reduce((sum, st) => sum + (st.ATTENDANCE_PERCENT || 0), 0) / members.length : 0;
+                return { name: g === NO_GROUP ? 'Chưa gán nhóm' : g, avg, isSelected: groupFilter === g };
+            });
+
+            // Số nhóm càng nhiều thì canvas càng cần cao hơn để mỗi thanh không bị bẹp dí — tăng dần theo
+            // số nhóm thay vì cố định 200px, để 13+ nhóm (hoặc nhiều hơn sau này) vẫn đọc được nhãn.
+            const groupCanvas = document.getElementById('chartGroupCanvas');
+            groupCanvas.height = Math.max(200, groupAvg.length * 26);
+
+            if (chartGroup) chartGroup.destroy();
+            chartGroup = new Chart(groupCanvas, {
+                type: 'bar',
+                data: {
+                    labels: groupAvg.map(g => g.name),
+                    datasets: [{
+                        label: 'Chuyên cần TB (%)',
+                        data: groupAvg.map(g => g.avg.toFixed(1)),
+                        backgroundColor: groupAvg.map(g => g.isSelected ? '#0d6efd' : '#94a3b8')
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, max: 100 } }
+                }
+            });
         }
 
         function esc(s) {

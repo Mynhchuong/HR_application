@@ -31,46 +31,57 @@
 
     <!-- Layout Grid -->
     <div class="row">
-        <!-- Left: Sessions & Tests -->
+        <!-- Left: Sessions & Tests (tách riêng thành 2 tab) -->
         <div class="col-12 col-lg-7 mb-4">
-            <!-- Sessions Timeline -->
-            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
-                <h5 class="fw-bold mb-4 d-flex align-items-center gap-2 text-dark">
-                    <i class="bi bi-check2-square text-success"></i>
-                    Điểm danh & Buổi học
-                </h5>
-                <div class="timeline-container" id="sessions-list">
-                    <div class="text-center py-4">
-                        <div class="spinner-border text-success" role="status"></div>
-                    </div>
-                </div>
-                <div id="sessions-pagination" class="d-flex justify-content-center gap-2 mt-3"></div>
-            </div>
-
-            <!-- Tests Section -->
             <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="fw-bold mb-0 d-flex align-items-center gap-2 text-dark">
-                        <i class="bi bi-star-fill text-warning"></i>
-                        Bài kiểm tra & Đánh giá
-                    </h5>
-                    <a href="@Url.Action("TestCreate", "TrainingTeach", new { id = classId })" class="btn btn-sm btn-outline-warning fw-bold rounded-2">
-                        + Tạo bài thi mới
-                    </a>
-                </div>
-                <!-- Chú thích trạng thái -->
-                <div class="d-flex flex-wrap gap-2 mb-3 align-items-center" style="font-size:0.78rem;">
-                    <span class="badge bg-secondary">Nháp</span><span class="text-muted">– Học viên chưa làm được</span>
-                    <span class="ms-2 badge bg-success">Đang mở</span><span class="text-muted">– Học viên đang làm được</span>
-                    <span class="ms-2 badge bg-danger">Đã khóa</span><span class="text-muted">– Đã kết thúc</span>
-                </div>
-                <div id="tests-list">
-                    <div class="text-center py-4">
-                        <div class="spinner-border text-warning" role="status"></div>
+                <ul class="nav nav-tabs mb-4" id="manageTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="sessions-tab-btn" data-bs-toggle="tab" data-bs-target="#sessions-pane" type="button" role="tab" aria-controls="sessions-pane" aria-selected="true">
+                            <i class="bi bi-check2-square text-success me-1"></i>
+                            Điểm danh & Buổi học
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tests-tab-btn" data-bs-toggle="tab" data-bs-target="#tests-pane" type="button" role="tab" aria-controls="tests-pane" aria-selected="false">
+                            <i class="bi bi-star-fill text-warning me-1"></i>
+                            Bài kiểm tra & Đánh giá
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Sessions Timeline -->
+                    <div class="tab-pane fade show active" id="sessions-pane" role="tabpanel" aria-labelledby="sessions-tab-btn">
+                        <div class="timeline-container" id="sessions-list">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-success" role="status"></div>
+                            </div>
+                        </div>
+                        <div id="sessions-pagination" class="d-flex justify-content-center gap-2 mt-3"></div>
+                    </div>
+
+                    <!-- Tests Section -->
+                    <div class="tab-pane fade" id="tests-pane" role="tabpanel" aria-labelledby="tests-tab-btn">
+                        <div class="d-flex justify-content-end align-items-center mb-3">
+                            <a href="@Url.Action("TestCreate", "TrainingTeach", new { id = classId })" class="btn btn-sm btn-outline-warning fw-bold rounded-2">
+                                + Tạo bài thi mới
+                            </a>
+                        </div>
+                        <!-- Chú thích trạng thái -->
+                        <div class="d-flex flex-wrap gap-2 mb-3 align-items-center" style="font-size:0.78rem;">
+                            <span class="badge bg-secondary">Nháp</span><span class="text-muted">– Học viên chưa làm được</span>
+                            <span class="ms-2 badge bg-success">Đang mở</span><span class="text-muted">– Học viên đang làm được</span>
+                            <span class="ms-2 badge bg-danger">Đã khóa</span><span class="text-muted">– Đã kết thúc</span>
+                        </div>
+                        <div id="tests-list">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-warning" role="status"></div>
+                            </div>
+                        </div>
+                        <!-- Phân trang -->
+                        <div id="tests-pagination" class="d-flex justify-content-center gap-2 mt-3"></div>
                     </div>
                 </div>
-                <!-- Phân trang -->
-                <div id="tests-pagination" class="d-flex justify-content-center gap-2 mt-3"></div>
             </div>
         </div>
 
@@ -174,6 +185,10 @@
     .timeline-badge.ongoing   { background-color: #0d6efd; }
     .timeline-badge.upcoming  { background-color: #adb5bd; }
     .test-action-btn { font-size: 0.75rem; padding: 3px 9px; border-radius: 6px; }
+    @@media (max-width: 767.98px) {
+        #manageTabs .nav-link { font-size: .78rem; padding: .5rem .65rem; }
+        #manageTabs .nav-link i { font-size: .85rem !important; }
+    }
 </style>
 
 @section Scripts {

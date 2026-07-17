@@ -90,6 +90,31 @@
             }, { once: true });
             modal.show();
         };
+
+        // Chặn "thoát" survey bắt buộc qua nút back cứng Android khi WebView phục hồi trang này
+        // từ back-forward cache (không đi qua server nên SurveyBlockerFilter không chạy lại được).
+        // Xem giải thích đầy đủ ở _Layout.cshtml — layout embed này cũng cần re-check tương tự.
+        (function () {
+            var checkPendingUrl = '@Url.Action("CheckPending", "Survey")';
+            var doTemplateUrl   = '@Url.Action("Do", "Survey", new { id = "__ID__" })';
+            var checking = false;
+            function recheckSurveyGate() {
+                if (checking) return;
+                if (/\/survey(\/|$)/i.test(window.location.pathname)) return;
+                checking = true;
+                fetch(checkPendingUrl, { credentials: 'same-origin' })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (res) {
+                        if (res && res.pendingId) {
+                            window.location.href = doTemplateUrl.replace('__ID__', res.pendingId);
+                        }
+                    })
+                    .catch(function () { })
+                    .finally(function () { checking = false; });
+            }
+            window.addEventListener('pageshow', function (e) { if (e.persisted) recheckSurveyGate(); });
+            window.addEventListener('popstate', recheckSurveyGate);
+        })();
     </script>
     @RenderSection("Scripts", required: false)
 </body>

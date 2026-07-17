@@ -164,6 +164,42 @@
     .timeline-badge.completed { background-color: #198754; }
     .timeline-badge.ongoing { background-color: #0d6efd; }
     .timeline-badge.upcoming { background-color: #adb5bd; }
+
+    @@media (max-width: 767.98px) {
+        /* Class header card: badges + tiêu đề + thời gian + tiến độ */
+        #class-header-container .card { padding: 1rem !important; }
+        #class-header-container .badge { font-size: .65rem !important; padding: .35rem .6rem !important; }
+        #class-header-container h3 { font-size: 1.05rem !important; }
+        #class-header-container h6 { font-size: .75rem !important; }
+        #class-header-container p.small { font-size: .7rem !important; }
+        #class-header-container .card.bg-light { padding: .65rem !important; }
+        #class-header-container .card.bg-light .small { font-size: .68rem !important; }
+        #class-header-container .card.bg-light .text-end.small { font-size: .75rem !important; }
+
+        /* Quick nav feature cards */
+        .nav-feature-card { padding: .6rem !important; }
+        .feature-icon-wrapper { width: 36px; height: 36px; margin-bottom: .4rem !important; }
+        .feature-icon-wrapper i { font-size: 1.1rem !important; }
+        .nav-feature-card h6 { font-size: .72rem !important; }
+
+        /* Main tabs: Buổi học / Bài kiểm tra */
+        #classDetailTabs .nav-link { font-size: .78rem; padding: .5rem .65rem; }
+        #classDetailTabs .nav-link i { font-size: .85rem !important; }
+
+        /* Session timeline cards */
+        .timeline-container { padding-left: 18px; }
+        .timeline-item h6 { font-size: .8rem; }
+        .timeline-item .small { font-size: .68rem; }
+        .timeline-item .badge { font-size: .6rem !important; padding: .3rem .5rem; }
+        .timeline-item .btn { font-size: .72rem; padding: .3rem .6rem; }
+
+        /* Tests list */
+        #tests-tabs .nav-link { font-size: .75rem; padding: .4rem .6rem; }
+        #tests-list .card h6 { font-size: .8rem; }
+        #tests-list .card .small { font-size: .68rem; }
+        #tests-list .badge { font-size: .6rem !important; }
+        #tests-list .btn { font-size: .78rem; }
+    }
 </style>
 
 @section Scripts {
@@ -389,6 +425,8 @@
                         const isDone = t.ATTEMPT_STATUS === 'SUBMITTED' || t.ATTEMPT_STATUS === 'AUTO_SUBMITTED' || t.ATTEMPT_STATUS === 'GRADED';
                         // Đã nộp nhưng còn câu tự luận chưa chấm (IS_GRADED != 1) → chưa hiện điểm, tránh gây hiểu lầm điểm chưa tính tự luận.
                         const pendingGrade = isDone && t.IS_GRADED !== 1;
+                        // Chưa làm nhưng đã đóng bài (STATUS=CLOSED hoặc quá hạn AVAILABLE_TO) → không cho bấm "Làm bài ngay" nữa.
+                        const isClosed = !isDone && (t.STATUS === 'CLOSED' || (t.AVAILABLE_TO && new Date(t.AVAILABLE_TO) < new Date()));
 
                         const isFinalTest = classData && classData.cls && (t.ID == classData.cls.FINAL_TEST_ID || t.ID == classData.cls.finalTestId);
                         const finalBadge = isFinalTest 
@@ -403,6 +441,12 @@
                                     Xem kết quả
                                 </a>
                             `;
+                        } else if (isClosed) {
+                            actionBtn = `
+                                <button type="button" class="btn btn-sm btn-secondary w-100 rounded-2 fw-bold" disabled>
+                                    Đã hết hạn làm bài
+                                </button>
+                            `;
                         } else {
                             actionBtn = `
                                 <a href="${window.TRAINING_URLS.testDoTemplate.replace('__ID__', t.ID)}" class="btn btn-sm btn-primary w-100 rounded-2 fw-bold">
@@ -412,18 +456,23 @@
                         }
 
                         const durationText = t.DURATION_MINUTES ? `${t.DURATION_MINUTES} phút` : 'Tự do';
+                        // Hạn nộp bài — chỉ hiện khi chưa làm và có ngày đóng, để học viên biết mà làm kịp hạn.
+                        const deadlineText = (!isDone && t.AVAILABLE_TO)
+                            ? `<p class="text-muted small mb-2"><i class="bi bi-alarm me-1"></i>Hạn nộp: <strong class="${isClosed ? 'text-danger' : 'text-dark'}">${new Date(t.AVAILABLE_TO).toLocaleString('vi-VN')}</strong></p>`
+                            : '';
                         const scoreText = !isDone
                             ? `Số câu hỏi: ${t.QUESTION_COUNT}`
                             : (pendingGrade
                                 ? `<span class="text-warning fw-bold">Chưa chấm điểm</span>`
                                 : `Điểm: <strong class="text-primary">${t.SCORE ?? '-'} / ${t.MAX_SCORE ?? '-'}</strong>`);
-                        const statusBadgeClass = !isDone ? 'bg-warning' : (pendingGrade ? 'bg-secondary' : 'bg-success');
-                        const statusBadgeLabel = !isDone ? 'Chưa làm' : (pendingGrade ? 'Chờ chấm tự luận' : 'Đã nộp');
+                        const statusBadgeClass = isDone ? (pendingGrade ? 'bg-secondary' : 'bg-success') : (isClosed ? 'bg-danger' : 'bg-warning');
+                        const statusBadgeLabel = isDone ? (pendingGrade ? 'Chờ chấm tự luận' : 'Đã nộp') : (isClosed ? 'Đã hết hạn' : 'Chưa làm');
 
                         wrap.innerHTML += `
                             <div class="card border p-3 mb-3 rounded-3 shadow-sm ${borderClass}">
                                 <h6 class="fw-bold mb-1 text-dark d-flex align-items-center flex-wrap">${t.TITLE}${finalBadge}</h6>
                                 <p class="text-muted small mb-2">Thời gian làm bài: ${durationText}</p>
+                                ${deadlineText}
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <span class="small text-muted">${scoreText}</span>
                                     <span class="badge ${statusBadgeClass}">${statusBadgeLabel}</span>

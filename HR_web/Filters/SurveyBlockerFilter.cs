@@ -50,8 +50,8 @@ public class SurveyBlockerFilter : IAsyncActionFilter
         var user = AuthHelper.GetCurrentUser(context.HttpContext.User);
         if (user == null || string.IsNullOrEmpty(user.EmpCd)) { await next(); return; }
 
-        // HR (5) và Admin (6) không cần làm survey — họ là người tạo.
-        if (user.RoleId == 5 || user.RoleId == 6) { await next(); return; }
+        // Chỉ Admin (6) không cần làm survey — HR (5) vẫn phải làm.
+        if (user.RoleId == 6) { await next(); return; }
 
         // Cache 30s để tránh spam API
         var cacheKey = CACHE_PREFIX + user.EmpCd;

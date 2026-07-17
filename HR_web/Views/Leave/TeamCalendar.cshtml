@@ -54,6 +54,16 @@
     .gp-filter-input { height:32px; font-size:.8rem; border-radius:8px; border:1.5px solid #e2e8f0; padding:0 10px; outline:none; background:#fff; transition:border-color .18s; }
     .gp-filter-input:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.12); }
     .gp-filter-input[type=date] { padding:0 6px; width:130px; }
+    @@media (max-width:767.98px) {
+        .month-nav { width:100%; justify-content:space-between; }
+        .cal-wrap .d-flex.justify-content-between { flex-wrap:wrap; row-gap:4px; }
+        #tableTabs { flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+        #tableTabs::-webkit-scrollbar { display:none; }
+        #tableTabs .nav-item { flex-shrink:0; }
+        #tableTabs .nav-link { padding:5px 9px; font-size:.7rem; white-space:nowrap; }
+        #tableTabs .nav-link i { font-size:.85rem; }
+        #tableTabs .nav-link .badge { font-size:.58rem !important; padding:.2em .45em; }
+    }
     @@media (max-width:576px) {
         .container-fluid { padding-left:8px !important; padding-right:8px !important; }
         .month-nav span { min-width:76px; font-size:.82rem; }

@@ -1,0 +1,106 @@
+/* ================================================================
+   list-page-helper.css — shared mobile layout for "list pages"
+   (stats-summary row + filter bar + gradient card-header), used by
+   Leave/GatePass/OT list pages across công nhân/clerk/quản lý/expat.
+   Pairs with wwwroot/js/list-page-helper.js.
+   ================================================================ */
+
+/* ── Stats cards: shrink on mobile + tablet (2-per-row range) ──── */
+@media (max-width: 991.98px) {
+    .stats-card .icon { width: 26px; height: 26px; }
+    .stats-card .icon .fs-4 { font-size: .85rem !important; }
+    .stats-card .card-body { padding: .5rem !important; }
+    .stats-card h5 { font-size: .85rem; }
+    /* Nhường bớt chỗ cho chữ tiêu đề, icon thu hẹp lại */
+    .stats-card .row > .col-8 { flex: 0 0 78%; max-width: 78%; min-width: 0; }
+    .stats-card .row > .col-4 { flex: 0 0 22%; max-width: 22%; }
+    .stats-card p.text-sm {
+        font-size: .5rem;
+        letter-spacing: 0;
+        white-space: nowrap;
+    }
+    .stats-card p.text-xs { font-size: .5rem; white-space: nowrap; }
+}
+
+/* Clickable stat cards (data-filter-status) */
+.stats-card[data-filter-status] {
+    cursor: pointer;
+    transition: box-shadow .15s ease, transform .1s ease;
+}
+.stats-card[data-filter-status]:active {
+    transform: scale(0.98);
+}
+.stats-card[data-filter-status].lp-active {
+    box-shadow: 0 0 0 2px #3b82f6, 0 4px 12px rgba(59,130,246,.18) !important;
+}
+
+/* ── Gradient card-header: stack on mobile ─────────────────────── */
+@media (max-width: 767.98px) {
+    .card-header [class*="bg-gradient-"] {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 8px;
+    }
+    .card-header [class*="bg-gradient-"] form {
+        width: 100%;
+    }
+
+    /* Ô lọc ngày trong header (input type=date, đơn hoặc theo khoảng from→to) */
+    .card-header [class*="bg-gradient-"] input[type="date"] {
+        width: 92px !important;
+        font-size: .8rem;
+    }
+    .card-header [class*="bg-gradient-"] .input-group,
+    .card-header [class*="bg-gradient-"] .bg-white.border-radius-md {
+        flex: 0 0 auto !important;
+        width: auto !important;
+    }
+    .card-header [class*="bg-gradient-"] .input-group label {
+        font-size: .78rem;
+        margin-right: .3rem !important;
+        white-space: nowrap;
+    }
+}
+
+/* ── Filter bar: collapsible on mobile ──────────────────────────── */
+.lp-filter-toggle {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    border: 1.5px solid #e2e8f0;
+    color: #475569;
+    font-size: .8rem;
+    font-weight: 700;
+    padding: 8px 14px;
+    border-radius: 10px;
+    margin: 10px 12px 0;
+    -webkit-tap-highlight-color: transparent;
+}
+.lp-filter-toggle:active { background: #f1f5f9; }
+.lp-filter-toggle .lp-badge {
+    background: #3b82f6; color: #fff; font-size: .68rem; font-weight: 800;
+    border-radius: 999px; padding: 1px 7px; line-height: 1.4;
+}
+
+@media (max-width: 767.98px) {
+    .lp-filter-toggle { display: inline-flex; }
+
+    .filter-bar,
+    .filter-wrap {
+        display: none !important;
+    }
+    .filter-bar.lp-open,
+    .filter-wrap.lp-open {
+        display: flex !important;
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+    .filter-bar.lp-open > div,
+    .filter-wrap.lp-open > div {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        flex: none !important;
+    }
+}

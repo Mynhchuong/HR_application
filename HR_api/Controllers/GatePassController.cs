@@ -430,8 +430,8 @@ public class GatePassController : ControllerBase
 
             string sqlData = @"
                 SELECT /*+ FIRST_ROWS(" + page_size + @") */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS,
-                                                             CASE WHEN T.REQUESTER_ROLE = 'Expat' THEN 1 WHEN T.REQUESTER_ROLE = 'Manager' THEN 2 WHEN T.REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN T.REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN T.REQUESTER_ROLE = 'HR' THEN 5 WHEN T.REQUESTER_ROLE = 'Clerk' THEN 6 WHEN T.REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY CASE WHEN T.STATUS = 'PENDING' THEN 0 ELSE 1 END,
+                                                             T.CREATED_DATE DESC,
                                                              T.EMPCD) RN
                     FROM (
                         SELECT GP.REQUEST_ID, GP.EMPCD, EC.CNAME EMP_NAME,
@@ -793,8 +793,8 @@ END;";
 
             string sqlData = @"
                 SELECT /*+ FIRST_ROWS(" + page_size + @") */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS,
-                                                             CASE WHEN T.REQUESTER_ROLE = 'Expat' THEN 1 WHEN T.REQUESTER_ROLE = 'Manager' THEN 2 WHEN T.REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN T.REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN T.REQUESTER_ROLE = 'HR' THEN 5 WHEN T.REQUESTER_ROLE = 'Clerk' THEN 6 WHEN T.REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY CASE WHEN T.STATUS = 'PENDING' THEN 0 ELSE 1 END,
+                                                             T.CREATED_DATE DESC,
                                                              T.EMPCD) RN
                     FROM (
                         SELECT GP.REQUEST_ID, GP.EMPCD, EC.CNAME EMP_NAME,
@@ -933,8 +933,8 @@ END;";
 
             string sqlData = @"
                 SELECT /*+ FIRST_ROWS(" + page_size + @") */ * FROM (
-                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.STATUS,
-                                                             CASE WHEN T.REQUESTER_ROLE = 'Expat' THEN 1 WHEN T.REQUESTER_ROLE = 'Manager' THEN 2 WHEN T.REQUESTER_ROLE = 'DeputyManager' THEN 3 WHEN T.REQUESTER_ROLE = 'Supervisor' THEN 4 WHEN T.REQUESTER_ROLE = 'HR' THEN 5 WHEN T.REQUESTER_ROLE = 'Clerk' THEN 6 WHEN T.REQUESTER_ROLE = 'Employee' THEN 7 ELSE 8 END,
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY CASE WHEN T.STATUS = 'PENDING' THEN 0 ELSE 1 END,
+                                                             T.CREATED_DATE DESC,
                                                              T.EMPCD) RN
                     FROM (
                         SELECT GP.REQUEST_ID, GP.EMPCD, EC.CNAME EMP_NAME,

@@ -29,6 +29,16 @@
     .ts-time-chip    { display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; padding:2px 8px; font-size:.78rem; white-space:nowrap; }
     .ts-time-chip b  { color:#1e3a8a; margin-left:2px; }
     .ts-time-created { font-size:.7rem; color:#94a3b8; }
+    /* Card mobile (MobileTableHelper): cột "Nhân viên" gộp mã NV + tên + dòng
+       phòng ban, nhưng .mt-name mặc định ép 1 dòng + ellipsis cho tên đơn —
+       khôi phục xuống dòng tự nhiên để dòng phòng ban không bị cắt cụt giữa chừng. */
+    #mt-list-approvalBody .mt-name {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        display: block;
+        line-height: 1.3;
+    }
     .sig-cell      { display:flex; gap:8px; justify-content:center; align-items:flex-start; }
     .sig-cell-item { text-align:center; min-width:80px; }
     .sig-cell-lbl  { font-size:.6rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
@@ -90,11 +100,12 @@
         /* Tables — reduce side padding */
         #tab-approve .table-responsive { padding-left:.35rem !important; padding-right:.35rem !important; }
         #tab-myassign .table-responsive { padding-left:.35rem !important; padding-right:.35rem !important; }
-        /* Approval filter: horizontal scroll, no wrap */
-        #apvFilterBar { overflow-x:auto; flex-wrap:nowrap !important; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding-bottom:6px; }
-        #apvFilterBar::-webkit-scrollbar { display:none; }
-        #apvFilterBar .apv-tab    { flex-shrink:0; font-size:.72rem; padding:4px 9px; }
-        #apvFilterBar .empcd-wrap { flex-shrink:0; }
+        /* Approval filter: pill hàng riêng, ô tìm mã NV xuống dòng full-width
+           (trước đây gộp 1 hàng cuộn ngang, ô tìm bị cắt khuất ở mép phải) */
+        #apvFilterBar { flex-wrap:wrap; }
+        #apvFilterBar .apv-tab { font-size:.72rem; padding:4px 9px; }
+        #apvFilterBar .empcd-wrap { flex-shrink:0; margin-left:0 !important; width:100%; order:99; }
+        #apvFilterBar .empcd-wrap .empcd-filter { width:100%; }
         /* Emp list */
         .emp-list-wrap { max-height:200px; }
         /* Pagination */

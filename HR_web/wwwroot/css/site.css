@@ -6,6 +6,21 @@ body {
 /* Flex-item helpers used across pages for text truncation inside flex rows */
 .min-w-0 { min-width: 0; }
 
+/* Compact button variant — dùng rất nhiều nơi (nút hành động trong card mobile,
+   bảng dày) nhưng trước đây chưa từng được định nghĩa nên render về size mặc
+   định .btn (to, xấu, dễ rớt dòng). */
+.btn.btn-xs {
+    padding: .2rem .5rem;
+    font-size: .72rem;
+    line-height: 1.4;
+    border-radius: .35rem;
+}
+.btn.btn-xs i,
+.btn.btn-xs .bi {
+    font-size: .8rem;
+    vertical-align: -1px;
+}
+
 .text-truncate-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;

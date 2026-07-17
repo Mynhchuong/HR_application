@@ -71,8 +71,7 @@
         .gp-filter-input[type=date] { width:110px; }
         #gpFilterRow { overflow-x:auto; flex-wrap:nowrap !important; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
         #gpFilterRow::-webkit-scrollbar { display:none; }
-    } { display:none; }
-    
+    }
 </style>
 }
 
@@ -229,14 +228,14 @@
                         <table class="table align-items-center mb-0 w-100 table-hover table-striped">
                             <thead class="bg-light">
                                 <tr>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">#</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Mã NV</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Họ &amp; Tên</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Lớp / Khoá học</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Buổi học</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ngày học</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Giờ học</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Địa điểm</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="hidden">#</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Lớp / Khoá học">Lớp / Khoá học</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Buổi học">Buổi học</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Ngày học">Ngày học</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Giờ học">Giờ học</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Địa điểm">Địa điểm</th>
                                 </tr>
                             </thead>
                             <tbody id="trainingBody"></tbody>

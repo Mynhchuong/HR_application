@@ -147,7 +147,7 @@
     @if (!catGroups.Any())
     {
         <div class="pp-empty">
-            <img src="@Url.Content("~/assets/img/illustrations/A-hoi.png")" alt="" />
+            <img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A-hoi.png") : Url.Content("~/assets/img/illustrations/GT9.png"))" alt="" />
             <p>Chưa có quy định nào được công bố</p>
         </div>
     }
@@ -162,7 +162,7 @@
         </div>
 
         <div id="ppNoResult" class="pp-empty" style="display:none;">
-            <img src="@Url.Content("~/assets/img/illustrations/A-hoi.png")" alt="" />
+            <img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A-hoi.png") : Url.Content("~/assets/img/illustrations/GT9.png"))" alt="" />
             <p>Không tìm thấy kết quả phù hợp</p>
         </div>
 

@@ -5,19 +5,7 @@
     string currentRole = ViewBag.CurrentRole ?? "";
     string todayStr    = DateTime.Today.ToString("yyyy-MM-dd");
     string gpEndpoint  = "GetSupervisorPage";
-    // Trang Training/TeamSchedule riêng đã bỏ — training schedule giờ nằm trong tab "Lịch Học"
-    // ở trang Leave/TeamCalendar (bản tiếng Việt, dùng chung data cho mọi role).
-    string trainingUrl = Url.Action("TeamCalendar", "Leave") + "?tab=training";
 }
-
-@* Quick link — Training schedule §14.5 (integrated into unified "Team calendar") *@
-<div class="container-fluid pt-3">
-    <a href="@trainingUrl" class="d-inline-flex align-items-center gap-2 text-decoration-none">
-        <span class="badge bg-gradient-info shadow-info" style="font-size:.85rem;padding:.5rem .8rem;border-radius:8px;">
-            🎓 Training schedule &nbsp;<i class="bi bi-arrow-right"></i>
-        </span>
-    </a>
-</div>
 
 @section Styles {
 <style>
@@ -46,11 +34,13 @@
     .cal-cell.cal-selected .cal-daynum   { color:#fff !important; }
     .cal-cell.cal-selected .cal-count    { background:#fff !important; color:#1d4ed8 !important; }
     .cal-cell.cal-selected .cal-gp-count { background:#fff !important; color:#0369a1 !important; }
+    .cal-cell.cal-selected .cal-tr-count { background:#fff !important; color:#065f46 !important; }
     .cal-daynum { font-size:.73rem; font-weight:600; color:#374151; line-height:1; }
     .cal-cell.cal-past  .cal-daynum { color:#9ca3af; }
     .cal-cell.cal-today .cal-daynum { color:#1d4ed8; font-weight:800; }
     .cal-count    { font-size:.55rem; padding:1px 5px; border-radius:8px; font-weight:700; color:#fff; line-height:1.3; }
     .cal-gp-count { font-size:.55rem; padding:1px 5px; border-radius:8px; font-weight:700; color:#fff; line-height:1.3; background:#0ea5e9; }
+    .cal-tr-count { font-size:.55rem; padding:1px 5px; border-radius:8px; font-weight:700; color:#fff; line-height:1.3; background:#10b981; }
     .cal-empty { opacity:0; pointer-events:none; }
     tr.sch-past   td { color:#9ca3af !important; }
     tr.sch-past   .badge { opacity:.5; }
@@ -72,7 +62,7 @@
         .cal-grid { gap:2px; }
         .cal-cell { min-height:44px; padding:3px 1px 2px; border-radius:4px; }
         .cal-daynum { font-size:.6rem; }
-        .cal-count,.cal-gp-count { font-size:.48rem; padding:1px 3px; border-radius:4px; }
+        .cal-count,.cal-gp-count,.cal-tr-count { font-size:.48rem; padding:1px 3px; border-radius:4px; }
         .cal-hdr { font-size:.52rem; padding:1px 0; }
         #calLegend { font-size:.68rem !important; gap:6px !important; flex-wrap:wrap; }
         .table-responsive { padding-left:.25rem !important; padding-right:.25rem !important; }
@@ -124,6 +114,7 @@
                         <span><span class="cal-count" style="background:#d97706;">4-7</span> moderate</span>
                         <span><span class="cal-count" style="background:#dc2626;">8+</span> many</span>
                         <span><span class="cal-gp-count">N</span> gate pass</span>
+                        <span><span class="cal-tr-count">N</span> training</span>
                     </div>
                 </div>
             </div>
@@ -144,15 +135,21 @@
             <!-- Tab Nav -->
             <ul class="nav mb-0 px-3" id="tableTabs">
                 <li class="nav-item">
-                    <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tabLeave">
+                    <button class="nav-link active" id="pillLeave" data-bs-toggle="pill" data-bs-target="#tabLeave">
                         <i class="bi bi-calendar3-range me-1"></i>Leave
                         <span class="badge bg-primary ms-1" id="leaveCountBadge" style="font-size:.65rem;display:none;"></span>
                     </button>
                 </li>
                 <li class="nav-item">
-                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabGp">
+                    <button class="nav-link" id="pillGp" data-bs-toggle="pill" data-bs-target="#tabGp">
                         <i class="bi bi-door-open me-1"></i>Gate Pass
                         <span class="badge ms-1" id="gpCountBadge" style="font-size:.65rem;background:#0ea5e9;display:none;"></span>
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="pillTraining" data-bs-toggle="pill" data-bs-target="#tabTraining">
+                        <i class="bi bi-mortarboard me-1"></i>Training
+                        <span class="badge bg-success ms-1" id="trainingCountBadge" style="font-size:.65rem;display:none;"></span>
                     </button>
                 </li>
             </ul>
@@ -223,6 +220,37 @@
                     </div>
                 </div>
 
+                <!-- Tab 3: Training -->
+                <div class="tab-pane fade" id="tabTraining">
+                    <div class="px-4 pt-2 pb-2 d-flex align-items-center gap-2 flex-wrap">
+                        <div class="empcd-wrap">
+                            <i class="bi bi-search"></i>
+                            <input type="text" id="trainingEmpFilter" class="empcd-filter" placeholder="Emp ID..."
+                                   oninput="renderTraining()">
+                        </div>
+                    </div>
+                    <div class="table-responsive px-3">
+                        <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="hidden">#</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Emp Code">Emp Code</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Full Name">Full Name</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Class / Course">Class / Course</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Session">Session</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Date">Date</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Time">Time</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Location">Location</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trainingBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center px-4 mt-2 mb-2">
+                        <div id="trainingCount" class="text-sm text-secondary"></div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -244,6 +272,7 @@ function emptyRow(msg, cols) {
 
 const SCHEDULE_URL = '@Url.Action("GetTeamSchedulePage","Leave")';
 const GP_URL       = '@Url.Action(gpEndpoint,"GatePass")';
+const TRAINING_URL = '@Url.Action("GetTeamTrainingSchedule","Leave")';
 const MONTHS_EN    = ['January','February','March','April','May','June',
                       'July','August','September','October','November','December'];
 const LEAVE_LABEL  = { AL:'Annual', CL:'Social Ins.', SL:'Sick', NPL:'Unpaid', OTH:'Other' };
@@ -252,7 +281,7 @@ const GP_TYPE_LABEL = { OUT:'Early Leave', IN:'Late Arrival', MID:'Out & In' };
 const GP_TYPE_COLOR = { OUT:'warning', IN:'info', MID:'primary' };
 
 let curMonth = @curMonth, curYear = @curYear;
-let scheduleData = [], gpCalData = [];
+let scheduleData = [], gpCalData = [], trainingCalData = [];
 let schPage = 1, schPageSize = 20;
 let calVisible = true, selectedCalDay = null, calDayNames = {};
 const GP_PAGE_SZ = 20;
@@ -271,6 +300,7 @@ function changeMonth(delta) {
     updateMonthLabel();
     loadSchedule();
     loadGpForCalendar();
+    loadTrainingForCalendar();
 }
 
 // ─── Calendar ─────────────────────────────────────────────────
@@ -280,7 +310,7 @@ function dayKey(d) {
 
 function buildCalendar(data) {
     const today = new Date(); today.setHours(0,0,0,0);
-    const dayMap = {}, gpDayMap = {};
+    const dayMap = {}, gpDayMap = {}, trainingDayMap = {};
     calDayNames = {};
 
     data.forEach(item => {
@@ -292,7 +322,7 @@ function buildCalendar(data) {
             if (d.getDay() !== 0 && d.getMonth()+1 === curMonth && d.getFullYear() === curYear) {
                 const key = dayKey(d);
                 dayMap[key] = (dayMap[key]||0) + 1;
-                if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[] };
+                if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[], training:[] };
                 calDayNames[key].leave.push(item.EMP_NAME||item.EMPCD||'');
             }
             d.setDate(d.getDate()+1);
@@ -306,8 +336,20 @@ function buildCalendar(data) {
         if (d.getMonth()+1 === curMonth && d.getFullYear() === curYear) {
             const key = dayKey(d);
             gpDayMap[key] = (gpDayMap[key]||0) + 1;
-            if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[] };
+            if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[], training:[] };
             calDayNames[key].gp.push(item.EMP_NAME||item.EMPCD||'');
+        }
+    });
+
+    trainingCalData.forEach(item => {
+        if (!item.SESSION_DATE) return;
+        const d = new Date(item.SESSION_DATE); d.setHours(0,0,0,0);
+        if (d.getMonth()+1 === curMonth && d.getFullYear() === curYear) {
+            const key = dayKey(d);
+            trainingDayMap[key] = (trainingDayMap[key]||0) + 1;
+            if (!calDayNames[key]) calDayNames[key] = { leave:[], gp:[], training:[] };
+            if (!calDayNames[key].training) calDayNames[key].training = [];
+            calDayNames[key].training.push(`${item.EMP_NAME || item.EMPCD || ''} (${item.COURSE_TITLE || ''})`);
         }
     });
 
@@ -321,11 +363,12 @@ function buildCalendar(data) {
         const key     = curYear+'-'+String(curMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');
         const count   = dayMap[key]   || 0;
         const gpCount = gpDayMap[key] || 0;
+        const trCount = trainingDayMap[key] || 0;
         const d       = new Date(curYear, curMonth-1, day); d.setHours(0,0,0,0);
         const isToday    = d.getTime() === today.getTime();
         const isPast     = d < today && !isToday;
         const isSelected = selectedCalDay === key;
-        const hasData    = count > 0 || gpCount > 0;
+        const hasData    = count > 0 || gpCount > 0 || trCount > 0;
 
         let badges = '';
         if (count > 0) {
@@ -334,6 +377,9 @@ function buildCalendar(data) {
         }
         if (gpCount > 0) {
             badges += `<span class="cal-gp-count">${gpCount}</span>`;
+        }
+        if (trCount > 0) {
+            badges += `<span class="cal-tr-count">${trCount}</span>`;
         }
 
         const cls = ['cal-cell', isToday?'cal-today':'', isPast?'cal-past':'',
@@ -361,6 +407,7 @@ function selectCalDay(key) {
     updateDayBadge();
     renderSchedule();
     loadGatePass();
+    renderTraining();
     if (selectedCalDay && window.matchMedia('(hover:none)').matches) {
         const sel = document.querySelector('#calGrid .cal-cell.cal-selected');
         if (sel) { showCalHover(sel, selectedCalDay); setTimeout(hideCalHover, 2800); }
@@ -374,6 +421,7 @@ function clearCalDay() {
     updateDayBadge();
     renderSchedule();
     loadGatePass();
+    renderTraining();
 }
 
 function updateDayBadge() {
@@ -391,8 +439,8 @@ function updateDayBadge() {
 function showCalHover(el, key) {
     const info = calDayNames[key];
     if (!info) return;
-    const leaveList = info.leave || [], gpList = info.gp || [];
-    if (!leaveList.length && !gpList.length) return;
+    const leaveList = info.leave || [], gpList = info.gp || [], trList = info.training || [];
+    if (!leaveList.length && !gpList.length && !trList.length) return;
     let html = '';
     if (leaveList.length) {
         html += `<div style="font-weight:700;margin-bottom:3px;border-bottom:1px solid rgba(255,255,255,.2);padding-bottom:3px;"><i class="bi bi-calendar3 me-1"></i>${leaveList.length} on leave</div>`;
@@ -402,6 +450,11 @@ function showCalHover(el, key) {
         if (html) html += '<hr style="border-color:rgba(255,255,255,.2);margin:5px 0 4px;">';
         html += `<div style="font-weight:700;margin-bottom:3px;"><i class="bi bi-door-open me-1"></i>${gpList.length} gate pass</div>`;
         html += gpList.map(n => `<span class="vni-font">${escHtml(n)}</span>`).join('<br>');
+    }
+    if (trList.length) {
+        if (html) html += '<hr style="border-color:rgba(255,255,255,.2);margin:5px 0 4px;">';
+        html += `<div style="font-weight:700;margin-bottom:3px;"><i class="bi bi-mortarboard me-1"></i>${trList.length} training</div>`;
+        html += trList.map(n => `<span class="vni-font" style="font-size:0.75rem;">${escHtml(n)}</span>`).join('<br>');
     }
     const box = document.getElementById('calHoverBox');
     document.getElementById('calHoverContent').innerHTML = html;
@@ -644,6 +697,83 @@ function loadGatePass() {
     });
 }
 
+function loadTrainingForCalendar() {
+    document.getElementById('trainingBody').innerHTML =
+        `<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-success" role="status"></div></td></tr>`;
+    MobileTableHelper.refresh('trainingBody');
+    document.getElementById('trainingCount').textContent = '';
+
+    $.ajax({
+        url: TRAINING_URL, type: 'GET', data: { month: curMonth, year: curYear },
+        success: function(res) {
+            trainingCalData = (res.success && res.data) ? res.data : [];
+            buildCalendar(scheduleData);
+            renderTraining();
+        },
+        error: function() {
+            document.getElementById('trainingBody').innerHTML =
+                `<tr><td colspan="8" class="text-center text-danger py-4">Error loading training schedule</td></tr>`;
+            MobileTableHelper.refresh('trainingBody');
+        }
+    });
+}
+
+function renderTraining() {
+    const q = (document.getElementById('trainingEmpFilter').value || '').trim().toUpperCase();
+    let filtered = q
+        ? trainingCalData.filter(d => (d.EMPCD||'').toUpperCase().includes(q) || (d.EMP_NAME||'').toUpperCase().includes(q))
+        : [...trainingCalData];
+
+    if (selectedCalDay) {
+        const selDate = new Date(selectedCalDay); selDate.setHours(0,0,0,0);
+        filtered = filtered.filter(item => {
+            if (!item.SESSION_DATE) return false;
+            const d = new Date(item.SESSION_DATE); d.setHours(0,0,0,0);
+            return d.getTime() === selDate.getTime();
+        });
+    }
+
+    const tbody = document.getElementById('trainingBody');
+    tbody.innerHTML = '';
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = emptyRow('No training sessions found', 8);
+        MobileTableHelper.refresh('trainingBody');
+        document.getElementById('trainingCount').textContent = '';
+        document.getElementById('trainingCountBadge').style.display = 'none';
+        return;
+    }
+
+    // Sort by date -> time -> emp code
+    filtered.sort((a, b) => {
+        const da = new Date(a.SESSION_DATE), db = new Date(b.SESSION_DATE);
+        if (da.getTime() !== db.getTime()) return da - db;
+        return a.START_TIME.localeCompare(b.START_TIME);
+    });
+
+    filtered.forEach((item, idx) => {
+        tbody.innerHTML += `
+            <tr>
+                <td class="px-2 text-xs text-secondary">${idx + 1}</td>
+                <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+                <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
+                <td class="px-2"><div class="text-sm">${escHtml(item.COURSE_TITLE||'')}</div><div class="text-xs text-secondary">${escHtml(item.CLASS_NAME||'')}</div></td>
+                <td class="px-2 text-sm">Session ${item.SESSION_NO}</td>
+                <td class="px-2 text-sm text-nowrap">${formatDate(item.SESSION_DATE)}</td>
+                <td class="px-2 text-sm text-nowrap">${escHtml(item.START_TIME)} - ${escHtml(item.END_TIME)}</td>
+                <td class="px-2 text-sm">${escHtml(item.LOCATION || 'N/A')}</td>
+            </tr>
+        `;
+    });
+
+    MobileTableHelper.refresh('trainingBody');
+    document.getElementById('trainingCount').innerHTML = `Showing <strong>${filtered.length}</strong> training sessions`;
+
+    const badge = document.getElementById('trainingCountBadge');
+    badge.textContent = filtered.length;
+    badge.style.display = '';
+}
+
 function renderGpPagination() {
     const $bar = $('#gpPagination').empty();
     if (gpTotalPages <= 1) return;
@@ -666,12 +796,22 @@ function escHtml(str)  { return String(str).replace(/&/g,'&amp;').replace(/</g,'
 $(document).ready(function() {
     MobileTableHelper.init('scheduleBody');
     MobileTableHelper.init('gpBody');
+    MobileTableHelper.init('trainingBody');
     updateMonthLabel();
     loadSchedule();
     loadGpForCalendar();
+    loadTrainingForCalendar();
     loadGatePass();
     window.addEventListener('scroll', hideCalHover, { passive:true });
     document.addEventListener('touchmove', hideCalHover, { passive:true });
+
+    // Deep-link ?tab=training|gp|leave — used by "In training today" tile on Home dashboard
+    const tabParam = new URLSearchParams(window.location.search).get('tab');
+    const pillMap = { training: 'pillTraining', gp: 'pillGp', leave: 'pillLeave' };
+    if (tabParam && pillMap[tabParam]) {
+        const btn = document.getElementById(pillMap[tabParam]);
+        if (btn) new bootstrap.Tab(btn).show();
+    }
 });
 </script>
 }

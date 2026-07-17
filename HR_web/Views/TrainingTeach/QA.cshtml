@@ -23,18 +23,11 @@
 
     <div class="row">
         <div class="col-12 col-lg-8 mx-auto">
-            <!-- Header Card -->
-            <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px; background: linear-gradient(135deg, #198754 0%, #157347 100%); text-white">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="bg-white bg-opacity-20 text-white rounded-3 p-3 d-flex align-items-center justify-content-center">
-                        <i class="bi bi-chat-dots" style="font-size: 2.5rem;"></i>
-                    </div>
-                    <div>
-                        <h3 class="fw-bold text-white mb-1">Trả Lời Hỏi Đáp Q&A</h3>
-                        <p class="mb-0 text-white text-opacity-75 small">Xem danh sách các câu hỏi từ học viên lớp học và phản hồi trực tiếp cho họ.</p>
-                    </div>
-                </div>
-            </div>
+            @await Html.PartialAsync("_QaHeroCard", new QaHeroCardVM
+            {
+                Title = "Trả Lời Hỏi Đáp Q&A",
+                Subtitle = "Xem danh sách các câu hỏi từ học viên lớp học và phản hồi trực tiếp cho họ.",
+            })
 
             <!-- Q&A List Container -->
             <div id="qa-list">

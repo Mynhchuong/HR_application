@@ -6,13 +6,15 @@
 }
 
 <div class="container-fluid py-4">
-    <!-- Back to Dashboard -->
-    <div class="mb-4">
-        <a href="@Url.Action("MyClasses", "Training")" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
-            <i class="bi bi-arrow-left" style="font-size: 1.1rem;"></i>
-            Trở lại danh sách lớp học
-        </a>
-    </div>
+    <div class="card my-4">
+    @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+    {
+        Title = "Chi tiết Lớp học",
+        Icon = "bi-mortarboard",
+        Gradient = "primary",
+        BackUrl = Url.Action("MyClasses", "Training"),
+    })
+    <div class="card-body">
 
     <!-- Class Header Card -->
     <div class="row mb-4">
@@ -109,6 +111,8 @@
                 </div>
             </div>
         </div>
+    </div>
+    </div>
     </div>
 </div>
 

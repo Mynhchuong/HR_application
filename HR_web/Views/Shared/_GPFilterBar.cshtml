@@ -20,7 +20,8 @@
         </select>
     </div>
 
-    <div style="min-width:120px;flex:1 1 120px;max-width:160px;">
+    @* Ẩn tạm: gp_type chưa được backend (GatePassService/API) hỗ trợ filter, chọn không có tác dụng *@
+    <div class="d-none" style="min-width:120px;flex:1 1 120px;max-width:160px;">
         <label class="form-label small fw-bold mb-1 text-primary">@(en ? "GP Type" : "Loại GP")</label>
         <select id="filterGpType" class="form-select form-select-sm">
             <option value="">@(en ? "All" : "Tất cả")</option>

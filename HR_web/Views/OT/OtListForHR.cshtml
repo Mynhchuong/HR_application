@@ -152,7 +152,7 @@
                 totalPages   = res.total_pages || 0;
                 const data = res.data || [];
                 if (!data.length) {
-                    $('#otTableBody').html(`<tr><td colspan="9" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
+                    $('#otTableBody').html(`<tr><td colspan="9" class="text-center text-muted py-4"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu</td></tr>`);
                 } else {
                     $('#otTableBody').html(data.map((item,i) => buildRow(item,(page-1)*pageSize+i+1)).join(''));
                 }

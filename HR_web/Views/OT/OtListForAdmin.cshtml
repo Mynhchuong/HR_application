@@ -211,7 +211,7 @@
                 totalPages   = res.total_pages || 0;
                 const data = res.data || [];
                 if (!data.length) {
-                    $('#otTableBody').html(`<tr><td colspan="10" class="text-center text-muted py-4">Không có dữ liệu</td></tr>`);
+                    $('#otTableBody').html(`<tr><td colspan="10" class="text-center text-muted py-4"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu</td></tr>`);
                 } else {
                     // Cache item info into selected map if row already selected (update giờ mới nhất)
                     data.forEach(it => { if (selected.has(it.EMPCD)) selected.set(it.EMPCD, it); });

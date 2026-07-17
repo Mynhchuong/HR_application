@@ -169,7 +169,7 @@ function loadData(page = 1) {
             const msg    = res.message || res.Message || '';
             if (!data.length) {
                 const hint = msg ? `<div class="text-xs text-warning mt-1"><i class="bi bi-exclamation-triangle me-1"></i>${msg}</div>` : '';
-                $('#otTableBody').html(`<tr><td colspan="7" class="text-center text-muted py-4">Không có dữ liệu${hint}</td></tr>`);
+                $('#otTableBody').html(`<tr><td colspan="7" class="text-center text-muted py-4"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu${hint}</td></tr>`);
             } else {
                 $('#otTableBody').html(data.map((item, i) => buildRow(item, (page-1)*pageSize+i+1)).join(''));
             }

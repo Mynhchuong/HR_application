@@ -5,16 +5,6 @@
 <style>
 .inqhr-page { max-width: 1100px; margin: 0 auto; padding-bottom: 3rem; }
 
-/* Hero */
-.inqhr-hero {
-    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%);
-    border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
-    color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    flex-wrap: wrap;
-}
-.inqhr-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
-.inqhr-hero small { font-size: .75rem; opacity: .85; }
-
 .rpt-export-btn {
     background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35);
     color: #fff; border-radius: 10px; padding: .45rem .75rem;
@@ -134,19 +124,13 @@
 
 <div class="inqhr-page px-2 py-2">
 
-    <div class="inqhr-hero">
-        <div>
-            <h5>
-                <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle">bar_chart</span>
-                Báo cáo hội thoại
-            </h5>
-            <small id="heroPeriod">Đang tải...</small>
-        </div>
-        <button class="rpt-export-btn" id="btnExport" onclick="exportExcel()" title="Xuất Excel">
-            <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle">download</span>
-            Excel
-        </button>
-    </div>
+    @await Html.PartialAsync("_AdminHeroBar", new AdminHeroBarVM
+    {
+        Icon = "bar_chart",
+        Title = "Báo cáo hội thoại",
+        SubtitleHtml = "<span id=\"heroPeriod\">Đang tải...</span>",
+        ActionHtml = "<button class=\"rpt-export-btn\" id=\"btnExport\" onclick=\"exportExcel()\" title=\"Xuất Excel\"><span class=\"material-symbols-rounded\" style=\"font-size:1.1rem;vertical-align:middle\">download</span> Excel</button>"
+    })
 
     <!-- Filter -->
     <div class="rpt-ctrl">

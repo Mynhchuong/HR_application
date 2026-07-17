@@ -6,14 +6,6 @@
 <style>
     .tp-page { max-width: 1100px; margin: 0 auto; padding-bottom: 3rem; }
 
-    .tp-hero {
-        background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%);
-        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
-        color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    }
-    .tp-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
-    .tp-hero small { font-size: .75rem; opacity: .85; }
-
     .tp-btn-new {
         background: white; color: #dc2626; border: none; border-radius: 10px;
         padding: .5rem .9rem; font-weight: 800; font-size: .85rem; cursor: pointer;
@@ -119,19 +111,13 @@
 
 <div class="tp-page px-2 py-2">
 
-    <div class="tp-hero">
-        <div>
-            <h5>
-                <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle">topic</span>
-                Quản lý chủ đề hội thoại
-            </h5>
-            <small>Ẩn chủ đề sẽ không ảnh hưởng đến hội thoại đang dùng — chỉ ngăn người dùng tạo mới.</small>
-        </div>
-        <button class="tp-btn-new" onclick="openCreate()">
-            <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle">add</span>
-            Thêm chủ đề
-        </button>
-    </div>
+    @await Html.PartialAsync("_AdminHeroBar", new AdminHeroBarVM
+    {
+        Icon = "topic",
+        Title = "Quản lý chủ đề hội thoại",
+        SubtitleHtml = "Ẩn chủ đề sẽ không ảnh hưởng đến hội thoại đang dùng — chỉ ngăn người dùng tạo mới.",
+        ActionHtml = "<button class=\"tp-btn-new\" onclick=\"openCreate()\"><span class=\"material-symbols-rounded\" style=\"font-size:1.1rem;vertical-align:middle\">add</span> Thêm chủ đề</button>"
+    })
 
     <div class="tp-table-wrap">
         <table class="tp-table">
@@ -252,7 +238,7 @@ async function loadTopics() {
 function renderTable() {
     if (!topics.length) {
         document.getElementById('tpBody').innerHTML =
-            '<tr><td colspan="6"><div class="tp-empty"><span class="material-symbols-rounded" style="font-size:2.5rem;color:#fca5a5;display:block">topic</span>Chưa có chủ đề nào</div></td></tr>';
+            '<tr><td colspan="6"><div class="tp-empty"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Chưa có chủ đề nào</div></td></tr>';
         return;
     }
     const rows = topics.map(t => {

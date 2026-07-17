@@ -93,7 +93,7 @@
 @if (!Model.Any())
 {
     <div class="blt-empty">
-        <i class="bi bi-megaphone"></i>
+        <img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:150px;display:block;margin:0 auto 12px;opacity:.9;" />
         <p>Chưa có bản tin nào.</p>
     </div>
 }

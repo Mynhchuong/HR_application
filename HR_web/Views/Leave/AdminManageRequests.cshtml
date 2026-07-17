@@ -24,6 +24,15 @@
 </style>
 }
 
+<div class="container-fluid py-4">
+<div class="card my-4">
+    <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+        <div class="bg-gradient-dark shadow-dark border-radius-lg pt-3 pb-2 px-3">
+            <h6 class="text-white mb-0"><i class="bi bi-clipboard-check me-1"></i>Theo Dõi Yêu Cầu</h6>
+        </div>
+    </div>
+    <div class="card-body">
+
 <div class="warn-banner">
     <span class="material-symbols-rounded" style="font-size:1.1rem;color:#f59e0b;flex-shrink:0;">warning</span>
     <div>
@@ -226,6 +235,9 @@
         </div>
     </div>
 </div>
+    </div>
+</div>
+</div>
 
 <!-- Confirm delete modal -->
 <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
@@ -408,7 +420,7 @@ function renderLeaves() {
     });
 
     if (filtered.length === 0) {
-        document.getElementById('lv_tbody').innerHTML = '<tr><td colspan="10" class="empty-msg">Không có dữ liệu</td></tr>';
+        document.getElementById('lv_tbody').innerHTML = '<tr><td colspan="10" class="empty-msg"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu</td></tr>';
         lvUpdateCounts(0);
         return;
     }
@@ -550,7 +562,7 @@ function renderGp() {
     });
 
     if (filtered.length === 0) {
-        document.getElementById('gp_tbody').innerHTML = '<tr><td colspan="8" class="empty-msg">Không có dữ liệu</td></tr>';
+        document.getElementById('gp_tbody').innerHTML = '<tr><td colspan="8" class="empty-msg"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu</td></tr>';
         gpUpdateCounts(0);
         return;
     }

@@ -32,6 +32,8 @@
 
     <!-- Select2 CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />
+    <!-- Site-wide utility classes (site.css) -->
+    <link href="~/css/site.css" rel="stylesheet" asp-append-version="true" />
     <!-- Mobile Table Helper CSS -->
     <link href="~/css/mobile-table.css" rel="stylesheet" asp-append-version="true" />
     <!-- Video Fullscreen Helper CSS -->
@@ -217,6 +219,11 @@
             background: rgba(0,0,0,0.05);
             color: var(--header-title);
             transform: translateY(-1px);
+        }
+
+        .header-title-wrap {
+            min-width: 0;
+            flex: 1;
         }
 
         .header-title {

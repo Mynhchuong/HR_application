@@ -1,0 +1,14 @@
+@model HR_web.Models.Shared.AdminHeroBarVM
+<div class="adm-hero">
+    <div>
+        <h5><span class="material-symbols-rounded me-1" style="font-size:1.1rem;vertical-align:middle">@Model.Icon</span>@Model.Title</h5>
+        @if (!string.IsNullOrEmpty(Model.SubtitleHtml))
+        {
+            <small>@Html.Raw(Model.SubtitleHtml)</small>
+        }
+    </div>
+    @if (!string.IsNullOrEmpty(Model.ActionHtml))
+    {
+        @Html.Raw(Model.ActionHtml)
+    }
+</div>

@@ -211,6 +211,14 @@
                 @(string.IsNullOrWhiteSpace(Model.Seniority) ? "-" : Model.Seniority)
             </div>
         </div>
+        <div class="setting-item">
+            <div class="item-icon"><span class="material-symbols-rounded">work_history</span></div>
+            <div class="item-content">
+                <div class="item-label">Date of Joining</div>
+                <div class="item-description">First working day</div>
+            </div>
+            <div class="item-value">@(Model.HireDate?.ToString("dd/MM/yyyy") ?? "-")</div>
+        </div>
     </div>
 
     <!-- Security & Signature -->

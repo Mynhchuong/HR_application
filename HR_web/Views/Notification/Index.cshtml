@@ -5,6 +5,15 @@
 <style>
     .noti-page { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
 
+    .noti-hero {
+        background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
+        color: #fff; display: flex; align-items: center; justify-content: space-between;
+    }
+    .noti-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
+    .noti-hero small { font-size: .75rem; opacity: .8; color: #fff !important; }
+    .noti-hero-icon  { font-size: 2.2rem; line-height: 1; }
+
     /* Mark all btn */
     .noti-mark-all { display: flex; align-items: center; justify-content: flex-end; margin-bottom: .6rem; }
     .btn-mark-all {
@@ -113,6 +122,14 @@
 </style>
 
 <div class="noti-page px-2 py-2">
+
+    <div class="noti-hero">
+        <div>
+            <h5>Thông báo</h5>
+            <small id="unreadLabel">Đang tải...</small>
+        </div>
+        <span class="noti-hero-icon">🔔</span>
+    </div>
 
     <div class="noti-mark-all">
         <button class="btn-mark-all" id="btnMarkAll" onclick="markAllRead()">✓ Đánh dấu tất cả đã xem</button>

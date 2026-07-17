@@ -5,19 +5,6 @@
 @section Styles {
 <style>
     .ml-page { max-width: 1100px; margin: 0 auto; padding-bottom: 3rem; }
-    .ml-hero {
-        background: linear-gradient(135deg,#7c2d12 0%, #c2410c 50%, #f97316 100%);
-        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: 1rem;
-        color: #fff; display: flex; align-items: center; justify-content: space-between;
-    }
-    .ml-hero h5 { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
-    .ml-hero small { font-size: .75rem; opacity: .85; }
-    .ml-btn-new {
-        background: white; color: #c2410c; border: none; border-radius: 10px;
-        padding: .5rem .9rem; font-weight: 800; font-size: .85rem; cursor: pointer;
-        display: inline-flex; align-items: center; gap: .25rem;
-    }
-    .ml-btn-new:hover { background: #fff7ed; }
 
     .ml-card { background: white; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
     .ml-table { width: 100%; border-collapse: collapse; }
@@ -76,15 +63,19 @@
 }
 
 <div class="ml-page px-2 py-2">
-    <div class="ml-hero">
-        <div>
-            <h5><span class="material-symbols-rounded me-1" style="vertical-align:middle">lock</span>Khoá đổi món ăn</h5>
-            <small>Cấu hình ngày & giờ chốt, không cho NV đổi món sau thời điểm chốt</small>
+<div class="card">
+    <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+        <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h6 class="text-white mb-0"><i class="bi bi-lock me-1"></i>Khoá đổi món ăn</h6>
+                <p class="text-white text-xs mb-0 opacity-8">Cấu hình ngày &amp; giờ chốt, không cho NV đổi món sau thời điểm chốt</p>
+            </div>
+            <button class="btn btn-sm btn-white mb-0" onclick="openEdit(0)">
+                <i class="bi bi-plus-lg me-1"></i>Tạo rule
+            </button>
         </div>
-        <button class="ml-btn-new" onclick="openEdit(0)">
-            <span class="material-symbols-rounded">add</span>Tạo rule
-        </button>
     </div>
+    <div class="card-body p-0 pt-4">
 
     <div class="ml-card">
         <table class="ml-table">
@@ -105,6 +96,8 @@
             </tbody>
         </table>
     </div>
+    </div>
+</div>
 </div>
 
 @Html.AntiForgeryToken()

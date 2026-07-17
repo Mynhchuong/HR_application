@@ -1,0 +1,16 @@
+@model HR_web.Models.Shared.QaHeroCardVM
+<div class="card border-0 shadow-sm p-3 p-md-4 mb-4 qa-header-card" style="border-radius: 16px; background: linear-gradient(135deg, #198754 0%, #157347 100%); text-white">
+    <div class="d-flex align-items-center gap-3">
+        <div class="bg-white bg-opacity-20 text-white rounded-3 p-2 p-md-3 d-flex align-items-center justify-content-center flex-shrink-0">
+            <i class="bi bi-chat-dots qa-header-icon"></i>
+        </div>
+        <div class="min-w-0">
+            <h3 class="fw-bold text-white mb-1 qa-header-title">@Model.Title</h3>
+            <p class="mb-0 text-white text-opacity-75 small">@Model.Subtitle</p>
+        </div>
+    </div>
+</div>
+<style>
+    .qa-header-icon { font-size: clamp(1.8rem, 6vw, 2.5rem); }
+    .qa-header-title { font-size: clamp(1.15rem, 4vw, 1.75rem); }
+</style>

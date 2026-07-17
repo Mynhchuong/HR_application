@@ -114,7 +114,7 @@
 <script>
 const DATA_URL   = '@Url.Action("GetMyTeamData","Employee")';
 const EXPORT_URL = '@Url.Action("ExportExcel","Employee")';
-const NO_DATA_IMG = '@Url.Content("~/assets/img/illustrations/Chi_nodata.png")';
+const NO_DATA_IMG = '@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))';
 
 let allData = [], filtered = [], page = 1;
 const PAGE_SIZE = 25;

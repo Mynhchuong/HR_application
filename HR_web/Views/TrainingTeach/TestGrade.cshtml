@@ -6,13 +6,15 @@
 }
 
 <div class="container-fluid py-4">
-    <!-- Back to Dashboard -->
-    <div class="mb-3">
-        <a href="@Url.Action("MyClasses", "TrainingTeach")" class="text-decoration-none text-muted d-inline-flex align-items-center gap-1 small fw-bold">
-            <i class="bi bi-arrow-left" style="font-size: 1.1rem;"></i>
-            Quay lại cổng giảng dạy
-        </a>
-    </div>
+    <div class="card my-4">
+    @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+    {
+        Title = "Chấm điểm Tự luận",
+        Icon = "bi-clipboard-check",
+        Gradient = "warning",
+        BackUrl = Url.Action("MyClasses", "TrainingTeach"),
+    })
+    <div class="card-body">
 
     <!-- Header -->
     <div class="row mb-4">
@@ -20,7 +22,6 @@
             <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                     <div>
-                        <span class="badge bg-warning-subtle text-warning-emphasis px-2.5 py-1.5 fw-bold mb-2">Chấm điểm Tự luận</span>
                         <h3 class="fw-bold mb-1 text-dark" id="test-title">Đang tải tên bài kiểm tra...</h3>
                         <p class="text-muted mb-0">Chấm điểm các câu trả lời tự luận viết tay từ học viên để hoàn tất kết quả bài thi.</p>
                     </div>
@@ -41,6 +42,8 @@
                 <p class="mt-2 text-muted">Đang tải danh sách bài thi cần chấm tự luận...</p>
             </div>
         </div>
+    </div>
+    </div>
     </div>
 </div>
 

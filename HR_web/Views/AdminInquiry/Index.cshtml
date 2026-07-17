@@ -254,7 +254,7 @@ async function loadData(page = 1, silent = false) {
         const items = data.data || [];
         const tbody = document.getElementById('inqTableBody');
         if (!items.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5"><span class="material-symbols-rounded" style="font-size:2.5rem;color:#fca5a5;display:block">forum</span>Không có hội thoại nào</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có hội thoại nào</td></tr>';
         } else {
             tbody.innerHTML = items.map(i => {
                 const statusCls = i.status === 'OPEN' ? 'open' : 'closed';

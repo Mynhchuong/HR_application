@@ -209,7 +209,6 @@
                         <label class="form-label small fw-bold text-muted">Hình thức đào tạo</label>
                         <select id="class-mode" class="form-select" style="border-radius: 8px;">
                             <option value="STANDARD">STANDARD (Tiêu chuẩn)</option>
-                            <option value="EXPRESS">EXPRESS (Học nhanh)</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -548,11 +547,6 @@
 
             if (!courseId || !className || !start || !end) {
                 window.showToast('Vui lòng điền đầy đủ các thông tin!', 'warning');
-                return;
-            }
-
-            if (mode === 'EXPRESS') {
-                window.showToast('Lớp học nhanh (EXPRESS) phải được mở thông qua quy trình tạo lớp nhanh chuyên biệt (Express Create) của API để thiết lập tự động buổi học và giáo viên!', 'warning');
                 return;
             }
 

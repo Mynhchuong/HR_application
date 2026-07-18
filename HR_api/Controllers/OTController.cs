@@ -34,26 +34,38 @@ public class OTController : ControllerBase
 
             DateTime workDate = (!string.IsNullOrEmpty(work_date) && DateTime.TryParse(work_date, out var _wd)) ? _wd : DateTime.Today;
 
+            // statusExpr: xem giải thích ở GetOTHRDetail — CONFIRMED/REJECTED của app ưu tiên,
+            // fallback qua EBM300.SIGNED_STATUS (ERP) khi app chưa có bản ghi (chỉ đọc, không ghi).
+            // Quan trọng ở màn hình tự ký: tránh hiện nút "Xác nhận" cho ca đã được ký ở ERP.
+            const string statusExpr = "CASE WHEN R.CONFIRM_STATUS IN ('CONFIRMED','REJECTED') THEN R.CONFIRM_STATUS " +
+                                       "WHEN E.SIGNED_STATUS = 'Y' THEN 'CONFIRMED' ELSE 'PENDING' END";
+
             string sql = @"
                 SELECT E.EMPCD, E.DAT WORK_DATE, E.OVER_TIME OT_HOURS, E.OT_BEFORE, E.OT_BEFORE_TIME, E.OT_AFTER, E.OT_AFTER_TIME, E.OT_REST,
                        CASE WHEN E.OT_BEFORE = 'Y' OR E.OT_AFTER = 'Y' THEN 'Y' ELSE 'N' END HAS_OT,
+                       -- Ca đêm (STIME > ETIME, vd 22:00→06:00): buổi tăng ca SAU giờ diễn ra ở
+                       -- NGÀY HÔM SAU ngày E.DAT (E.DAT lưu theo ngày ca bắt đầu) — phải +1 ngày,
+                       -- nếu không giờ mở khoá xác nhận sẽ tính sai sớm hơn thực tế 24 tiếng.
                        CASE WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI') - E.OT_BEFORE_TIME / 24
                             WHEN E.OT_AFTER = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
+                                 + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END
                        END START_OT,
-                       CASE WHEN E.OT_AFTER = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI') + E.OT_AFTER_TIME / 24
+                       CASE WHEN E.OT_AFTER = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
+                                 + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END
+                                 + E.OT_AFTER_TIME / 24
                             WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
                        END END_OT,
-                       NVL(R.CONFIRM_STATUS, 'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE, R.OT_HOURS CONFIRMED_OT_HOURS,
+                       (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE, R.OT_HOURS CONFIRMED_OT_HOURS,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND TO_CHAR(DAT,'YYYYIW') = TO_CHAR(SYSDATE,'YYYYIW') AND DAT <= SYSDATE), 0) SUM_WEEK,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TRUNC(SYSDATE,'MM') AND SYSDATE), 0) SUM_MONTH,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0101','YYYYMMDD') AND SYSDATE), 0) SUM_YEAR
                 FROM (SELECT EMPCD,DAT,SHIFTCD,MAX(OVER_TIME)OVER_TIME,MAX(OT_BEFORE)OT_BEFORE,
-                MAX(OT_BEFORE_TIME)OT_BEFORE_TIME, MAX(OT_AFTER)OT_AFTER, MAX(OT_AFTER_TIME)OT_AFTER_TIME, MAX(OT_REST)OT_REST
+                MAX(OT_BEFORE_TIME)OT_BEFORE_TIME, MAX(OT_AFTER)OT_AFTER, MAX(OT_AFTER_TIME)OT_AFTER_TIME, MAX(OT_REST)OT_REST, MAX(SIGNED_STATUS)SIGNED_STATUS
                       FROM (
-                      SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, OT_REST
+                      SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, OT_REST, SIGNED_STATUS
                       FROM HRMS.EBM300 WHERE DAT = :WORK_DATE AND EMPCD = :EMPCD1
                       UNION ALL
-                      SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, OT_REST
+                      SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, OT_REST, SIGNED_STATUS
                       FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2 AND EMPCD = :EMPCD2)
                       WHERE OVER_TIME IS NOT NULL
                       GROUP BY EMPCD,DAT,SHIFTCD) E
@@ -366,10 +378,14 @@ public class OTController : ControllerBase
     {
         string sql = @"
             SELECT E.OT_BEFORE, E.OT_AFTER,
+                   -- Ca đêm (STIME > ETIME): tăng ca SAU giờ rơi vào ngày hôm sau E.DAT — +1 ngày.
                    CASE WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI') - E.OT_BEFORE_TIME / 24
                         WHEN E.OT_AFTER  = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
+                             + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END
                    END START_OT,
-                   CASE WHEN E.OT_AFTER  = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI') + E.OT_AFTER_TIME / 24
+                   CASE WHEN E.OT_AFTER  = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
+                             + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END
+                             + E.OT_AFTER_TIME / 24
                         WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
                    END END_OT
             FROM (SELECT EMPCD, DAT, SHIFTCD, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_BEFORE_TIME) OT_BEFORE_TIME, MAX(OT_AFTER) OT_AFTER, MAX(OT_AFTER_TIME) OT_AFTER_TIME
@@ -444,16 +460,22 @@ public class OTController : ControllerBase
                            MAX(OT_BEFORE)      OT_BEFORE,
                            MAX(OT_BEFORE_TIME) OT_BEFORE_TIME,
                            MAX(OT_AFTER)       OT_AFTER,
-                           MAX(OT_AFTER_TIME)  OT_AFTER_TIME
+                           MAX(OT_AFTER_TIME)  OT_AFTER_TIME,
+                           MAX(SIGNED_STATUS)  SIGNED_STATUS
                     FROM (
-                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, SIGNED_STATUS
                         FROM HRMS.EBM300      WHERE DAT = :WORK_DATE
                         UNION ALL
-                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, SIGNED_STATUS
                         FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2
                     )
                     GROUP BY EMPCD, DAT, SHIFTCD
                 )";
+
+            // statusExpr: xem giải thích ở GetOTHRDetail — CONFIRMED/REJECTED của app ưu tiên,
+            // fallback qua EBM300.SIGNED_STATUS (ERP) khi app chưa có bản ghi (chỉ đọc, không ghi).
+            const string statusExpr = "CASE WHEN R.CONFIRM_STATUS IN ('CONFIRMED','REJECTED') THEN R.CONFIRM_STATUS " +
+                                       "WHEN OT.SIGNED_STATUS = 'Y' THEN 'CONFIRMED' ELSE 'PENDING' END";
 
             string fromSql = @"
                 FROM OT_BASE OT
@@ -470,7 +492,7 @@ public class OTController : ControllerBase
                   AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
                   AND NVL(OT.OT_HOURS, 0) > 0
                   " + clerkFilter.SqlClause + @"
-                  AND (:ST_FLAG IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
+                  AND (:ST_FLAG IS NULL OR (" + statusExpr + @") = :ST_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(EC.EMPCD) LIKE :SRCH_VAL1)
                   AND (:DPT_FLAG IS NULL OR EC.DEPTCD = :DPT_VAL)
                   AND (:LN_FLAG IS NULL OR EC.LINECD = :LN_VAL)
@@ -497,9 +519,9 @@ public class OTController : ControllerBase
             // 1. Summary COUNT
             string sqlSummary = withSql + @"
                 SELECT COUNT(*) TOTAL,
-                       SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING'   THEN 1 ELSE 0 END) PENDING,
-                       SUM(CASE WHEN R.CONFIRM_STATUS = 'CONFIRMED' THEN 1 ELSE 0 END) CONFIRMED,
-                       SUM(CASE WHEN R.CONFIRM_STATUS = 'REJECTED'  THEN 1 ELSE 0 END) REJECTED
+                       SUM(CASE WHEN (" + statusExpr + @") = 'PENDING'   THEN 1 ELSE 0 END) PENDING,
+                       SUM(CASE WHEN (" + statusExpr + @") = 'CONFIRMED' THEN 1 ELSE 0 END) CONFIRMED,
+                       SUM(CASE WHEN (" + statusExpr + @") = 'REJECTED'  THEN 1 ELSE 0 END) REJECTED
                 " + fromSql + whereSql;
 
             var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new OTClerkSummary
@@ -526,7 +548,7 @@ public class OTController : ControllerBase
                         SELECT OT.EMPCD, EC.CNAME EMP_NAME, EC.DEPTCD DEPT_ID, B.DEPTNM DEPT_NAME,
                                EC.LINECD LINE_ID, B.TEAMNM LINE_NAME, EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
                                OT.OT_HOURS, OT.OT_BEFORE, OT.OT_BEFORE_TIME, OT.OT_AFTER, OT.OT_AFTER_TIME,
-                               S.STIME, S.ETIME, NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE,
+                               S.STIME, S.ETIME, (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE,
                                RR.ROLE_NAME REQUESTER_ROLE
                         " + fromSql + whereSql + @"
                     ) T
@@ -561,9 +583,12 @@ public class OTController : ControllerBase
                     DateTime baseDate = workDate;
                     string sTime = (r["STIME"]?.ToString() ?? "0000").PadLeft(4, '0');
                     string eTime = (r["ETIME"]?.ToString() ?? "0000").PadLeft(4, '0');
+                    // Ca đêm (STIME > ETIME): tăng ca SAU giờ rơi vào ngày hôm sau workDate.
+                    bool isNightShift = int.Parse(sTime) > int.Parse(eTime);
                     if (model.OT_AFTER == "Y")
                     {
-                        model.START_OT = DateTime.ParseExact(baseDate.ToString("yyyyMMdd") + eTime, "yyyyMMddHHmm", null);
+                        var otAfterDate = isNightShift ? baseDate.AddDays(1) : baseDate;
+                        model.START_OT = DateTime.ParseExact(otAfterDate.ToString("yyyyMMdd") + eTime, "yyyyMMddHHmm", null);
                         model.END_OT   = model.START_OT.Value.AddHours((double)(model.OT_HOURS ?? 0));
                     }
                     else if (model.OT_BEFORE == "Y")
@@ -593,25 +618,30 @@ public class OTController : ControllerBase
         {
             DateTime workDate = (!string.IsNullOrEmpty(work_date) && DateTime.TryParse(work_date, out var _wd)) ? _wd : DateTime.Today;
 
+            // statusExpr: xem giải thích ở GetOTHRDetail — CONFIRMED/REJECTED của app ưu tiên,
+            // fallback qua EBM300.SIGNED_STATUS (ERP) khi app chưa có bản ghi (chỉ đọc, không ghi).
+            const string statusExpr = "CASE WHEN R.CONFIRM_STATUS IN ('CONFIRMED','REJECTED') THEN R.CONFIRM_STATUS " +
+                                       "WHEN OT.SIGNED_STATUS = 'Y' THEN 'CONFIRMED' ELSE 'PENDING' END";
+
             string sql = @"
                 WITH OT AS (
-                    SELECT EMPCD, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_AFTER) OT_AFTER
+                    SELECT EMPCD, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_AFTER) OT_AFTER, MAX(SIGNED_STATUS) SIGNED_STATUS
                     FROM (
-                        SELECT EMPCD, OT_BEFORE, OT_AFTER FROM HRMS.EBM300      WHERE DAT = :WORK_DATE
+                        SELECT EMPCD, OT_BEFORE, OT_AFTER, SIGNED_STATUS FROM HRMS.EBM300      WHERE DAT = :WORK_DATE
                         UNION ALL
-                        SELECT EMPCD, OT_BEFORE, OT_AFTER FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2
+                        SELECT EMPCD, OT_BEFORE, OT_AFTER, SIGNED_STATUS FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2
                     )
                     GROUP BY EMPCD
                 )
                 SELECT
-                    EC.DEPTCD                                                                               DEPT_ID,
-                    MAX(B.DEPTNM)                                                                           DEPT_NAME,
-                    COUNT(*)                                                                                TOTAL,
-                    SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'CONFIRMED' THEN 1 ELSE 0 END)         CONFIRMED,
-                    SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'REJECTED'  THEN 1 ELSE 0 END)         REJECTED,
-                    SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING'   THEN 1 ELSE 0 END)         PENDING,
-                    CASE WHEN SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING' THEN 1 ELSE 0 END) = 0
-                         THEN 'DONE' ELSE 'IN_PROGRESS' END                                                STATUS
+                    EC.DEPTCD                                                                 DEPT_ID,
+                    MAX(B.DEPTNM)                                                              DEPT_NAME,
+                    COUNT(*)                                                                    TOTAL,
+                    SUM(CASE WHEN (" + statusExpr + @") = 'CONFIRMED' THEN 1 ELSE 0 END)         CONFIRMED,
+                    SUM(CASE WHEN (" + statusExpr + @") = 'REJECTED'  THEN 1 ELSE 0 END)         REJECTED,
+                    SUM(CASE WHEN (" + statusExpr + @") = 'PENDING'   THEN 1 ELSE 0 END)         PENDING,
+                    CASE WHEN SUM(CASE WHEN (" + statusExpr + @") = 'PENDING' THEN 1 ELSE 0 END) = 0
+                         THEN 'DONE' ELSE 'IN_PROGRESS' END                                     STATUS
                 FROM OT
                 JOIN      HRMS.ECM100        EC ON EC.EMPCD = OT.EMPCD
                 LEFT JOIN HRMS.EAM410         B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
@@ -672,6 +702,9 @@ public class OTController : ControllerBase
             string searchPattern = string.IsNullOrEmpty(search) ? "%" : "%" + search.ToUpper() + "%";
 
             // Optimized WITH clause with MATERIALIZE hint for Oracle 10
+            // SIGNED_STATUS: cờ "đã ký" thuộc ERP (EBM300/EBM300_WAIT) — dùng làm tín hiệu
+            // dự phòng khi HR_OT_REQUEST (bảng riêng của app) chưa có bản ghi, vì việc ký có
+            // thể được ghi nhận ở ERP qua đường khác ngoài app này (xem statusExpr bên dưới).
             string withSql = @"
                 WITH OT_BASE AS (
                     SELECT /*+ MATERIALIZE */ EMPCD, DAT, SHIFTCD,
@@ -679,16 +712,22 @@ public class OTController : ControllerBase
                            MAX(OT_BEFORE)      OT_BEFORE,
                            MAX(OT_BEFORE_TIME) OT_BEFORE_TIME,
                            MAX(OT_AFTER)       OT_AFTER,
-                           MAX(OT_AFTER_TIME)  OT_AFTER_TIME
+                           MAX(OT_AFTER_TIME)  OT_AFTER_TIME,
+                           MAX(SIGNED_STATUS)  SIGNED_STATUS
                     FROM (
-                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, SIGNED_STATUS
                         FROM HRMS.EBM300      WHERE DAT = :W_DATE1
                         UNION ALL
-                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, SIGNED_STATUS
                         FROM HRMS.EBM300_WAIT WHERE DAT = :W_DATE2
                     )
                     GROUP BY EMPCD, DAT, SHIFTCD
                 )";
+
+            // Trạng thái thực tế: ưu tiên quyết định của app (CONFIRMED/REJECTED) nếu đã có;
+            // nếu app chưa có gì thì fallback qua cờ SIGNED_STATUS bên ERP (chỉ ĐỌC, không ghi).
+            const string statusExpr = "CASE WHEN R.CONFIRM_STATUS IN ('CONFIRMED','REJECTED') THEN R.CONFIRM_STATUS " +
+                                       "WHEN OT.SIGNED_STATUS = 'Y' THEN 'CONFIRMED' ELSE 'PENDING' END";
 
             // Admin mode: bỏ match OT_HOURS trong JOIN → luôn hiện trạng thái thực tế của HR_OT_REQUEST
             string joinHRRequest = admin == 1
@@ -709,7 +748,7 @@ public class OTController : ControllerBase
                   AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
                   AND NVL(OT.OT_HOURS, 0) > 0
                   AND (:S_FLAG  IS NULL OR UPPER(OT.EMPCD) LIKE :S_VAL1)
-                  AND (:ST_FLAG IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
+                  AND (:ST_FLAG IS NULL OR (" + statusExpr + @") = :ST_VAL)
                   AND (:DF_FLAG IS NULL OR UPPER(B.DEPTNM) LIKE '%' || UPPER(:DF_VAL) || '%')
                   AND (:LF_FLAG IS NULL OR UPPER(B.TEAMNM) LIKE '%' || UPPER(:LF_VAL) || '%')
                   AND (:DID_FLAG IS NULL OR EC.DEPTCD = :DID_VAL)
@@ -740,11 +779,11 @@ public class OTController : ControllerBase
             // 1. GET GLOBAL SUMMARY (Counts by Status)
             // Note: We use simpler joins for the summary if possible, but here we keep it consistent.
             string sqlSummary = withSql + @"
-                SELECT 
+                SELECT
                     COUNT(*) TOTAL,
-                    SUM(CASE WHEN NVL(R.CONFIRM_STATUS, 'PENDING') = 'PENDING' THEN 1 ELSE 0 END) PENDING,
-                    SUM(CASE WHEN R.CONFIRM_STATUS = 'CONFIRMED' THEN 1 ELSE 0 END) CONFIRMED,
-                    SUM(CASE WHEN R.CONFIRM_STATUS = 'REJECTED' THEN 1 ELSE 0 END) REJECTED
+                    SUM(CASE WHEN (" + statusExpr + @") = 'PENDING' THEN 1 ELSE 0 END) PENDING,
+                    SUM(CASE WHEN (" + statusExpr + @") = 'CONFIRMED' THEN 1 ELSE 0 END) CONFIRMED,
+                    SUM(CASE WHEN (" + statusExpr + @") = 'REJECTED' THEN 1 ELSE 0 END) REJECTED
                 " + fromSql + whereSql;
 
             var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new
@@ -774,7 +813,7 @@ public class OTController : ControllerBase
                             EC.CNAME EMP_NAME, EC.DEPTCD DEPT_ID, EC.LINECD LINE_ID, EC.WORKCD WORK_ID,
                             B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                             S.STIME, S.ETIME,
-                            NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE,
+                            (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE,
                             RR.ROLE_NAME REQUESTER_ROLE
                         " + fromSql + whereSql + @"
                     ) T
@@ -811,10 +850,13 @@ public class OTController : ControllerBase
                     DateTime baseDate = Convert.ToDateTime(r["DAT"]);
                     string sTime = (r["STIME"]?.ToString() ?? "0000").PadLeft(4, '0');
                     string eTime = (r["ETIME"]?.ToString() ?? "0000").PadLeft(4, '0');
+                    // Ca đêm (STIME > ETIME): tăng ca SAU giờ rơi vào ngày hôm sau baseDate.
+                    bool isNightShift = int.Parse(sTime) > int.Parse(eTime);
 
                     if (model.OT_AFTER == "Y")
                     {
-                        model.START_OT = DateTime.ParseExact(baseDate.ToString("yyyyMMdd") + eTime, "yyyyMMddHHmm", null);
+                        var otAfterDate = isNightShift ? baseDate.AddDays(1) : baseDate;
+                        model.START_OT = DateTime.ParseExact(otAfterDate.ToString("yyyyMMdd") + eTime, "yyyyMMddHHmm", null);
                         model.END_OT   = model.START_OT.Value.AddHours((double)(model.OT_HOURS ?? 0));
                     }
                     else if (model.OT_BEFORE == "Y")
@@ -893,16 +935,22 @@ public class OTController : ControllerBase
                            MAX(OT_BEFORE)      OT_BEFORE,
                            MAX(OT_BEFORE_TIME) OT_BEFORE_TIME,
                            MAX(OT_AFTER)       OT_AFTER,
-                           MAX(OT_AFTER_TIME)  OT_AFTER_TIME
+                           MAX(OT_AFTER_TIME)  OT_AFTER_TIME,
+                           MAX(SIGNED_STATUS)  SIGNED_STATUS
                     FROM (
-                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, SIGNED_STATUS
                         FROM HRMS.EBM300      WHERE DAT = :W_DATE1
                         UNION ALL
-                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME
+                        SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, SIGNED_STATUS
                         FROM HRMS.EBM300_WAIT WHERE DAT = :W_DATE2
                     )
                     GROUP BY EMPCD, DAT, SHIFTCD
                 )";
+
+            // statusExpr: xem giải thích ở GetOTHRDetail — CONFIRMED/REJECTED của app ưu tiên,
+            // fallback qua EBM300.SIGNED_STATUS (ERP) khi app chưa có bản ghi (chỉ đọc, không ghi).
+            const string statusExpr = "CASE WHEN R.CONFIRM_STATUS IN ('CONFIRMED','REJECTED') THEN R.CONFIRM_STATUS " +
+                                       "WHEN OT.SIGNED_STATUS = 'Y' THEN 'CONFIRMED' ELSE 'PENDING' END";
 
             string fromSql = @"
                 FROM OT_BASE OT
@@ -919,7 +967,7 @@ public class OTController : ControllerBase
                   AND (OT.OT_BEFORE = 'Y' OR OT.OT_AFTER = 'Y')
                   AND NVL(OT.OT_HOURS, 0) > 0
                   AND (:S_FLAG   IS NULL OR UPPER(OT.EMPCD) LIKE :S_VAL1)
-                  AND (:ST_FLAG  IS NULL OR NVL(R.CONFIRM_STATUS,'PENDING') = :ST_VAL)
+                  AND (:ST_FLAG  IS NULL OR (" + statusExpr + @") = :ST_VAL)
                   AND (:DID_FLAG IS NULL OR EC.DEPTCD = :DID_VAL)
                   AND (:LID_FLAG IS NULL OR EC.LINECD = :LID_VAL)
                   AND (:WID_FLAG IS NULL OR EC.WORKCD = :WID_VAL)
@@ -946,9 +994,9 @@ public class OTController : ControllerBase
             // 4. Summary
             string sqlSummary = withSql + @"
                 SELECT COUNT(*) TOTAL,
-                       SUM(CASE WHEN NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING'  THEN 1 ELSE 0 END) PENDING,
-                       SUM(CASE WHEN R.CONFIRM_STATUS = 'CONFIRMED' THEN 1 ELSE 0 END) CONFIRMED,
-                       SUM(CASE WHEN R.CONFIRM_STATUS = 'REJECTED'  THEN 1 ELSE 0 END) REJECTED
+                       SUM(CASE WHEN (" + statusExpr + @") = 'PENDING'  THEN 1 ELSE 0 END) PENDING,
+                       SUM(CASE WHEN (" + statusExpr + @") = 'CONFIRMED' THEN 1 ELSE 0 END) CONFIRMED,
+                       SUM(CASE WHEN (" + statusExpr + @") = 'REJECTED'  THEN 1 ELSE 0 END) REJECTED
                 " + fromSql + whereSql;
 
             var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new
@@ -975,7 +1023,7 @@ public class OTController : ControllerBase
                                EC.CNAME EMP_NAME, EC.DEPTCD DEPT_ID, EC.LINECD LINE_ID, EC.WORKCD WORK_ID,
                                B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                                S.STIME, S.ETIME,
-                               NVL(R.CONFIRM_STATUS,'PENDING') CONFIRM_STATUS, R.CONFIRM_DATE,
+                               (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE,
                                RR.ROLE_NAME REQUESTER_ROLE
                         " + fromSql + whereSql + @"
                     ) T
@@ -1011,9 +1059,12 @@ public class OTController : ControllerBase
                     DateTime baseDate = Convert.ToDateTime(r["DAT"]);
                     string sTime = (r["STIME"]?.ToString() ?? "0000").PadLeft(4, '0');
                     string eTime = (r["ETIME"]?.ToString() ?? "0000").PadLeft(4, '0');
+                    // Ca đêm (STIME > ETIME): tăng ca SAU giờ rơi vào ngày hôm sau baseDate.
+                    bool isNightShift = int.Parse(sTime) > int.Parse(eTime);
                     if (model.OT_AFTER == "Y")
                     {
-                        model.START_OT = DateTime.ParseExact(baseDate.ToString("yyyyMMdd") + eTime, "yyyyMMddHHmm", null);
+                        var otAfterDate = isNightShift ? baseDate.AddDays(1) : baseDate;
+                        model.START_OT = DateTime.ParseExact(otAfterDate.ToString("yyyyMMdd") + eTime, "yyyyMMddHHmm", null);
                         model.END_OT   = model.START_OT.Value.AddHours((double)(model.OT_HOURS ?? 0));
                     }
                     else if (model.OT_BEFORE == "Y")

@@ -76,6 +76,12 @@ public class GatePassController : ControllerBase
             var outTime = ParseDateTime(regDate, model.OUT_TIME);
             var inTime  = ParseDateTime(regDate, model.IN_TIME);
 
+            // Ca đêm qua nửa đêm (vd ra cổng 23:30, vào lại 00:30 hôm sau): OUT_TIME/IN_TIME cùng
+            // anchor 1 regDate nên IN_TIME parse ra SỚM hơn OUT_TIME — cộng thêm 1 ngày cho IN_TIME
+            // khi phát hiện bị "lùi" ngày so với OUT_TIME (giống lỗi ca đêm đã fix bên OT).
+            if (outTime.HasValue && inTime.HasValue && inTime.Value < outTime.Value)
+                inTime = inTime.Value.AddDays(1);
+
             // Validate time fields theo GP_TYPE
             if (model.GP_TYPE == "IN" && inTime == null)
                 return Ok(new { success = false, message = "Vui lòng nhập giờ đến thực tế" });
@@ -264,6 +270,12 @@ public class GatePassController : ControllerBase
             DateTime regDate = dateRows.FirstOrDefault()?.Date ?? DateTime.Today;
             var outTime = ParseDateTime(regDate, model.OUT_TIME);
             var inTime  = ParseDateTime(regDate, model.IN_TIME);
+
+            // Ca đêm qua nửa đêm (vd ra cổng 23:30, vào lại 00:30 hôm sau): OUT_TIME/IN_TIME cùng
+            // anchor 1 regDate nên IN_TIME parse ra SỚM hơn OUT_TIME — cộng thêm 1 ngày cho IN_TIME
+            // khi phát hiện bị "lùi" ngày so với OUT_TIME (giống lỗi ca đêm đã fix bên OT).
+            if (outTime.HasValue && inTime.HasValue && inTime.Value < outTime.Value)
+                inTime = inTime.Value.AddDays(1);
 
             await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_GATEPASS_REQUEST

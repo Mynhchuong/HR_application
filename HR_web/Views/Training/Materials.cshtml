@@ -58,7 +58,8 @@
     <script>
         window.TRAINING_URLS = {
             getClassDetail: '@Url.Action("GetClassDetail", "Training")',
-            trackMaterialView: '@Url.Action("TrackMaterialView", "Training")'
+            trackMaterialView: '@Url.Action("TrackMaterialView", "Training")',
+            materialPreviewTemplate: '@Url.Action("MaterialPreview", "Training")'
         };
         const empCd = '@empCd';
         const classId = @classId;
@@ -131,9 +132,9 @@
                                     <button onclick="previewMaterial(${m.ID}, '${m.FILE_URL}')" class="btn btn-sm btn-outline-primary rounded-3 fw-bold d-flex align-items-center gap-1">
                                         <i class="bi bi-box-arrow-up-right"></i> Mở liên kết
                                     </button>` : `
-                                    <button onclick="previewMaterial(${m.ID}, '${m.FILE_URL}')" title="Xem trước" class="btn btn-sm btn-outline-primary rounded-circle p-2.5 d-flex align-items-center justify-content-center">
+                                    <a href="${buildPreviewUrl(m)}" title="Xem trước" class="btn btn-sm btn-outline-primary rounded-circle p-2.5 d-flex align-items-center justify-content-center">
                                         <i class="bi bi-eye" style="font-size: 1.1rem;"></i>
-                                    </button>
+                                    </a>
                                     <button onclick="downloadMaterial(${m.ID}, '${m.FILE_URL}', '${(m.FILE_NAME || m.TITLE || 'tailieu').replace(/'/g, "\\'")}')" title="Tải về" class="btn btn-sm btn-primary rounded-circle p-2.5 d-flex align-items-center justify-content-center shadow-sm">
                                         <i class="bi bi-download" style="font-size: 1.1rem;"></i>
                                     </button>`}
@@ -143,6 +144,19 @@
                     </div>
                 `;
             });
+        }
+
+        // Link sang trang xem trước trong app (có header + nút quay lại), tránh window.open() ra
+        // file thô — vừa không có UI quay lại, vừa gây lỗi rớt session trên 1 số WebView.
+        function buildPreviewUrl(m) {
+            const params = new URLSearchParams({
+                id: m.ID,
+                classId: classId,
+                title: m.TITLE || '',
+                fileType: m.FILE_TYPE || '',
+                fileUrl: m.FILE_URL || ''
+            });
+            return `${window.TRAINING_URLS.materialPreviewTemplate}?${params.toString()}`;
         }
 
         function trackView(materialId) {
@@ -167,7 +181,8 @@
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = fileName;
-                a.target = '_blank';
+                // KHÔNG set target=_blank — thuộc tính download đã đủ để trình duyệt tải file
+                // mà không cần mở tab/cửa sổ mới (tránh bug rớt session trên WebView mobile).
                 document.body.appendChild(a);
                 a.click();
                 a.remove();

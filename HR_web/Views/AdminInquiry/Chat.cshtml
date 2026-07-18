@@ -110,7 +110,7 @@
                                             {
                                                 if (a.FileType == "IMAGE")
                                                 {
-                                                    <a href="@Url.Action("GetFile","AdminInquiry")?path=@Uri.EscapeDataString(a.FilePath)" target="_blank">
+                                                    <a href="@Url.Action("GetFile","AdminInquiry")?path=@Uri.EscapeDataString(a.FilePath)">
                                                         <img class="attach-img" src="@Url.Action("GetFile","AdminInquiry")?path=@Uri.EscapeDataString(a.ThumbPath ?? a.FilePath)" alt="@a.FileName">
                                                     </a>
                                                 }
@@ -120,7 +120,7 @@
                                                 }
                                                 else
                                                 {
-                                                    <a class="attach-file" href="@Url.Action("GetFile","AdminInquiry")?path=@Uri.EscapeDataString(a.FilePath)" target="_blank" download="@a.FileName">
+                                                    <a class="attach-file" href="@Url.Action("GetFile","AdminInquiry")?path=@Uri.EscapeDataString(a.FilePath)" download="@a.FileName">
                                                         <span class="material-symbols-rounded" style="font-size:1.1rem">description</span>@a.FileName
                                                     </a>
                                                 }
@@ -137,7 +137,7 @@
                                                     : Url.Action("Detail", "Guide",  new { id  = r.RefId })!;
                                                 string refIcon  = r.RefType == "POLICY" ? "gavel" : "play_circle";
                                                 string refLabel = r.RefType == "POLICY" ? "Quy định" : "Hướng dẫn";
-                                                <a class="msg-ref-card" href="@refUrl" target="_blank">
+                                                <a class="msg-ref-card" href="@refUrl">
                                                     <div class="mrc-icon"><span class="material-symbols-rounded" style="font-size:1.1rem">@refIcon</span></div>
                                                     <div class="mrc-info">
                                                         <div class="mrc-label">@refLabel</div>

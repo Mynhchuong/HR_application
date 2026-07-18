@@ -119,7 +119,7 @@
                         <label class="gp-label" id="outTimeLabel">Giờ Ra</label>
                         <div class="time-picker">
                             <div>
-                                <select id="outHour" onchange="syncTime('out')"></select>
+                                <select id="outHour" onchange="onHourChange('out')"></select>
                                 <div class="time-label-hint">Giờ</div>
                             </div>
                             <span class="time-colon">:</span>
@@ -136,7 +136,7 @@
                         <label class="gp-label" id="inTimeLabel">Giờ Vào</label>
                         <div class="time-picker">
                             <div>
-                                <select id="inHour" onchange="syncTime('in')"></select>
+                                <select id="inHour" onchange="onHourChange('in')"></select>
                                 <div class="time-label-hint">Giờ</div>
                             </div>
                             <span class="time-colon">:</span>
@@ -200,6 +200,88 @@ function updateShiftBadge() {
     } else {
         el.style.display = 'none';
     }
+}
+
+// Khoảng giờ hợp lệ theo ca hiện tại (null nếu chưa xác định được ca)
+function getShiftRange() {
+    if (!shiftStart || !shiftEnd) return null;
+    const [sh, sm] = shiftStart.split(':').map(Number);
+    const [eh, em] = shiftEnd.split(':').map(Number);
+    return { sh, sm, eh, em, wrap: isNightShift() };
+}
+
+function hourInRange(h, range) {
+    if (!range) return true;
+    return range.wrap ? (h >= range.sh || h <= range.eh) : (h >= range.sh && h <= range.eh);
+}
+
+function rangeLabel(range) {
+    if (!range) return '';
+    const s = String(range.sh).padStart(2, '0') + ':' + String(range.sm).padStart(2, '0');
+    const e = String(range.eh).padStart(2, '0') + ':' + String(range.em).padStart(2, '0');
+    return `Chỉ chọn trong ca: ${s} – ${e}${range.wrap ? ' (qua đêm)' : ''}`;
+}
+
+function showRangeHint(prefix, range) {
+    $('#' + prefix + 'TimeHint').text(rangeLabel(range));
+}
+
+// Lọc dropdown giờ chỉ còn các giờ nằm trong ca — tránh công nhân chọn giờ ngoài ca
+function populateHourOptions(prefix, range) {
+    const sel = document.getElementById(prefix + 'Hour');
+    const prevVal = sel.value;
+    sel.innerHTML = '';
+    for (let h = 0; h < 24; h++) {
+        if (!hourInRange(h, range)) continue;
+        const o = document.createElement('option');
+        o.value = String(h).padStart(2, '0');
+        o.text  = String(h).padStart(2, '0');
+        sel.appendChild(o);
+    }
+    if (!sel.options.length) { // an toàn: ca lỗi dữ liệu thì không khoá chết dropdown
+        for (let h = 0; h < 24; h++) {
+            const o = document.createElement('option');
+            o.value = String(h).padStart(2, '0');
+            o.text  = String(h).padStart(2, '0');
+            sel.appendChild(o);
+        }
+    }
+    sel.value = [...sel.options].some(o => o.value === prevVal) ? prevVal : sel.options[0].value;
+}
+
+// Lọc dropdown phút theo giờ biên đầu/cuối ca (giờ giữa ca thì đủ 12 mốc như cũ)
+function populateMinuteOptions(prefix, range) {
+    const hourSel = document.getElementById(prefix + 'Hour');
+    const minSel  = document.getElementById(prefix + 'Min');
+    const h = parseInt(hourSel.value, 10);
+    const prevVal = minSel.value;
+    let minM = 0, maxM = 55;
+    if (range) {
+        if (h === range.sh) minM = Math.ceil(range.sm / 5) * 5;
+        if (h === range.eh) maxM = Math.floor(range.em / 5) * 5;
+    }
+    minSel.innerHTML = '';
+    for (let m = 0; m < 60; m += 5) {
+        if (m < minM || m > maxM) continue;
+        const o = document.createElement('option');
+        o.value = String(m).padStart(2, '0');
+        o.text  = String(m).padStart(2, '0');
+        minSel.appendChild(o);
+    }
+    if (!minSel.options.length) {
+        for (let m = 0; m < 60; m += 5) {
+            const o = document.createElement('option');
+            o.value = String(m).padStart(2, '0');
+            o.text  = String(m).padStart(2, '0');
+            minSel.appendChild(o);
+        }
+    }
+    minSel.value = [...minSel.options].some(o => o.value === prevVal) ? prevVal : minSel.options[0].value;
+}
+
+function onHourChange(prefix) {
+    populateMinuteOptions(prefix, getShiftRange());
+    syncTime(prefix);
 }
 
 function fmtDate(isoStr) {
@@ -346,20 +428,39 @@ function onTypeChange(type) {
     resetTimePicker('out'); resetTimePicker('in');
     $('#outTimeHint').text(''); $('#inTimeHint').text('');
 
+    const range = getShiftRange();
+
     if (type === 'IN') {
         $('#inTimeWrap').show();
         $('#inTimeLabel').text('Giờ Đến Thực Tế ✱');
+        populateHourOptions('in', range);
+        showRangeHint('in', range);
+
         const now = new Date();
-        setTimePicker('in', String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0'), false);
+        let nowH = now.getHours();
+        let nowM = Math.floor(now.getMinutes() / 5) * 5;
+        if (range && !hourInRange(nowH, range)) { // chưa tới ca -> mặc định về đầu ca
+            nowH = range.sh; nowM = Math.ceil(range.sm / 5) * 5;
+        }
+        // Set giờ trước rồi mới build lại dropdown phút theo đúng giờ đó (tránh lệch biên ca)
+        document.getElementById('inHour').value = String(nowH).padStart(2, '0');
+        populateMinuteOptions('in', range);
+        setTimePicker('in', String(nowH).padStart(2,'0') + ':' + String(nowM).padStart(2,'0'), false);
 
     } else if (type === 'OUT') {
         $('#outTimeWrap').show();
         $('#outTimeLabel').text('Giờ Về Sớm ✱');
+        populateHourOptions('out', range);
+        populateMinuteOptions('out', range);
+        showRangeHint('out', range);
 
     } else if (type === 'MID') {
         $('#outTimeWrap').show(); $('#inTimeWrap').show();
         $('#outTimeLabel').text('Giờ Ra Ngoài ✱');
         $('#inTimeLabel').text('Giờ Vào Lại ✱');
+        populateHourOptions('out', range); populateMinuteOptions('out', range);
+        populateHourOptions('in', range);  populateMinuteOptions('in', range);
+        showRangeHint('out', range); showRangeHint('in', range);
     }
 }
 

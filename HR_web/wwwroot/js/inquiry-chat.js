@@ -172,12 +172,12 @@ window.InquiryChat = (function () {
                 const fullUrl  = `${cfg.urls.getFile}?path=${encodeURIComponent(a.filePath)}`;
                 if (a.fileType === 'IMAGE') {
                     const thumbUrl = `${cfg.urls.getFile}?path=${encodeURIComponent(a.thumbPath || a.filePath)}`;
-                    return `<a href="${fullUrl}" target="_blank"><img class="attach-img" src="${thumbUrl}" alt="${esc(a.fileName)}"></a>`;
+                    return `<a href="${fullUrl}"><img class="attach-img" src="${thumbUrl}" alt="${esc(a.fileName)}"></a>`;
                 }
                 if (a.fileType === 'VIDEO') {
                     return `<video class="attach-video" controls preload="metadata" playsinline controlsList="nodownload" src="${fullUrl}"></video>`;
                 }
-                return `<a class="attach-file" href="${fullUrl}" target="_blank" download="${esc(a.fileName)}"><span class="material-symbols-rounded" style="font-size:1.1rem">description</span>${esc(a.fileName)}</a>`;
+                return `<a class="attach-file" href="${fullUrl}" download="${esc(a.fileName)}"><span class="material-symbols-rounded" style="font-size:1.1rem">description</span>${esc(a.fileName)}</a>`;
             }).join('') + '</div>';
         }
 
@@ -187,7 +187,7 @@ window.InquiryChat = (function () {
                 const icon  = REF_ICONS[r.refType] || 'link';
                 const label = REF_LABELS[r.refType] || r.refType;
                 const url   = refUrlFor(r.refType, r.refId);
-                return `<a class="msg-ref-card" href="${url}" target="_blank">
+                return `<a class="msg-ref-card" href="${url}">
                     <div class="mrc-icon"><span class="material-symbols-rounded" style="font-size:1.1rem">${icon}</span></div>
                     <div class="mrc-info">
                         <div class="mrc-label">${label}</div>
@@ -747,7 +747,9 @@ window.InquiryChat = (function () {
         document.getElementById('rvClose').addEventListener('click', closeRefViewer);
         document.getElementById('rvOpenNew').addEventListener('click', () => {
             const u = document.getElementById('rvFrame').src;
-            if (u && u !== 'about:blank') window.open(u, '_blank');
+            // Điều hướng cùng tab thay vì window.open — tránh bug rớt session trên WebView mobile
+            // (đây là link nội bộ cần cookie đăng nhập, không phải trang ngoài).
+            if (u && u !== 'about:blank') window.location.href = u;
         });
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && modal.classList.contains('show')) closeRefViewer();

@@ -421,7 +421,8 @@
             assignGroup: '@Url.Action("AssignGroup", "TrainingAdmin")',
             removeStudent: '@Url.Action("RemoveStudent", "TrainingAdmin")',
             cloneFromClass: '@Url.Action("CloneFromClass", "TrainingAdmin")',
-            classAssignTemplate: '@Url.Action("ClassAssign", "TrainingAdmin", new { id = "__ID__" })'
+            classAssignTemplate: '@Url.Action("ClassAssign", "TrainingAdmin", new { id = "__ID__" })',
+            bulletinDetailTemplate: '@Url.Action("Detail", "Bulletin", new { id = "__ID__" })'
         };
 
         const selectedClassId = @classId;
@@ -475,7 +476,7 @@
             // Bản tin quảng cáo tự tạo khi bấm "Mở Đăng ký tự do" — link nhanh sang Bulletin để xem/sửa.
             const bulletinId = cls.BULLETIN_ID || cls.bulletinId;
             document.getElementById('class-bulletin-link').innerHTML = bulletinId
-                ? `<a href="/Bulletin/Detail/${bulletinId}" target="_blank" class="btn btn-sm btn-outline-info fw-bold">
+                ? `<a href="${window.TRAINING_URLS.bulletinDetailTemplate.replace('__ID__', bulletinId)}" class="btn btn-sm btn-outline-info fw-bold">
                         <i class="bi bi-megaphone align-middle me-1" style="font-size:1rem;"></i>Xem bản tin đăng ký
                    </a>`
                 : '';

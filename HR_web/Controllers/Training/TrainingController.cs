@@ -90,6 +90,25 @@ public class TrainingController : BaseController
         return View();
     }
 
+    // GET /Training/MaterialPreview/{id} — trang xem trước tài liệu có header + nút "Quay lại"
+    // trong app, thay vì window.open() thẳng ra file thô (không có UI quay lại, và trên iOS
+    // WKWebView việc mở "cửa sổ mới" qua window.open còn khiến session cookie rớt → bị đá về
+    // trang đăng nhập). Track lượt xem luôn ở server cho chắc (JS fetch tracking trước đây bị
+    // sai route nên chưa từng ghi nhận được).
+    public async Task<IActionResult> MaterialPreview(int id, int classId, string? title, string? fileType, string? fileUrl)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+
+        await _training.PostToApiAsync("Training/material/view", new MaterialViewRequest { MATERIAL_ID = id, EMPCD = empcd });
+
+        ViewBag.ClassId = classId;
+        ViewBag.MaterialTitle = string.IsNullOrEmpty(title) ? "Tài liệu học tập" : title;
+        ViewBag.FileType = fileType ?? "";
+        ViewBag.FileUrl = fileUrl ?? "";
+        return View();
+    }
+
     // GET /Training/TestDo/{id}
     public IActionResult TestDo(int id)
     {
@@ -176,7 +195,8 @@ public class TrainingController : BaseController
     [HttpPost]
     public async Task<IActionResult> TrackMaterialView([FromBody] MaterialViewRequest req)
     {
-        var response = await _training.PostToApiAsync($"Training/material/{req.MATERIAL_ID}/view", req);
+        req.EMPCD = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("Training/material/view", req);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");

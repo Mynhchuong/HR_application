@@ -743,8 +743,9 @@
             document.body.removeChild(a);
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (e) {
-            // Fallback: mở ảnh tab mới để user long-press lưu
-            window.open(src, '_blank');
+            // Fallback: điều hướng cùng tab tới ảnh để user long-press lưu — KHÔNG mở tab mới
+            // (ảnh này cần cookie đăng nhập, mở "cửa sổ mới" dễ rớt session trên WebView mobile).
+            window.location.href = src;
         }
     }
 

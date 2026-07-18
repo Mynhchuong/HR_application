@@ -834,9 +834,12 @@ public partial class TrainingAdminController
         {
             return Ok(new { success = false, message = ex.Message });
         }
-        catch (OracleException)
+        catch (OracleException ex)
         {
-            return StatusCode(400, new { success = false, message = "Không sao chép được lớp học (vi phạm ràng buộc dữ liệu)." });
+            // Trước đây catch (OracleException) không bind biến — message ORA-xxxxx thật (tên
+            // constraint bị vi phạm) bị nuốt mất hoàn toàn, không cách nào debug được nguyên nhân
+            // thật. Giờ trả kèm ex.Message (an toàn vì đây là API nội bộ cho Admin/HR).
+            return StatusCode(400, new { success = false, message = $"Không sao chép được lớp học (vi phạm ràng buộc dữ liệu): {ex.Message}" });
         }
     }
 

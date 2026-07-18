@@ -1,0 +1,51 @@
+@{
+    ViewData["Title"] = ViewBag.MaterialTitle;
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    int classId = ViewBag.ClassId;
+    string title = ViewBag.MaterialTitle;
+    string fileType = ViewBag.FileType;
+    string fileUrl = ViewBag.FileUrl;
+}
+
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = title,
+            Icon = "bi-file-earmark",
+            Gradient = "primary",
+            BackUrl = Url.Action("Materials", "Training", new { id = classId }),
+        })
+        <div class="card-body">
+            @if (fileType == "PDF")
+            {
+                <iframe src="@fileUrl" style="width:100%;height:75vh;border:0;border-radius:12px;background:#f8f9fa;"></iframe>
+            }
+            else if (fileType == "IMG")
+            {
+                <div class="text-center">
+                    <img src="@fileUrl" alt="@title" style="max-width:100%;border-radius:12px;" />
+                </div>
+            }
+            else if (fileType == "MP4")
+            {
+                <video controls style="width:100%;border-radius:12px;background:#000;">
+                    <source src="@fileUrl" />
+                </video>
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-file-earmark-text text-muted" style="font-size:4rem;"></i>
+                    <p class="text-muted mt-3 mb-0">Định dạng này không xem trước trực tiếp được. Vui lòng tải về máy để xem.</p>
+                </div>
+            }
+
+            <div class="d-grid mt-4">
+                <a href="@fileUrl" download class="btn btn-primary py-2 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-1">
+                    <i class="bi bi-download"></i> Tải về máy
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

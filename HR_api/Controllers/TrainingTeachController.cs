@@ -20,6 +20,7 @@ public class TrainingTeachController : ControllerBase
     private readonly TrainingAttemptService _attempt;
     private readonly TrainingAuthHelper _auth;
     private readonly OracleService _db;
+    private readonly TrainingReportService _report;
 
     public TrainingTeachController(
         TrainingSessionService session,
@@ -29,7 +30,8 @@ public class TrainingTeachController : ControllerBase
         TrainingTestService test,
         TrainingAttemptService attempt,
         TrainingAuthHelper auth,
-        OracleService db)
+        OracleService db,
+        TrainingReportService report)
     {
         _session  = session;
         _material = material;
@@ -39,6 +41,7 @@ public class TrainingTeachController : ControllerBase
         _attempt  = attempt;
         _auth     = auth;
         _db       = db;
+        _report   = report;
     }
 
     // GET /apiHR/TrainingTeach/my-classes?empcd=
@@ -343,6 +346,46 @@ public class TrainingTeachController : ControllerBase
         {
             return Ok(new { success = false, message = ex.Message });
         }
+    }
+
+    // POST /apiHR/TrainingTeach/test/update-schedule — sửa AVAILABLE_FROM/TO cho bài đã publish
+    [HttpPost("test/update-schedule")]
+    public async Task<IActionResult> TestUpdateSchedule([FromBody] ChangeTestStatusRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherOfTestAsync(req.LOGIN_USER, req.ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền sửa lịch bài kiểm tra này" });
+        }
+
+        try
+        {
+            await _test.UpdateScheduleAsync(req.ID, req.LOGIN_USER, req.AVAILABLE_FROM, req.AVAILABLE_TO);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // GET /apiHR/TrainingTeach/test/{id}/report?empcd= — điểm + chi tiết câu sai cho giáo viên đứng lớp
+    [HttpGet("test/{id}/report")]
+    public async Task<IActionResult> TestReport(int id, [FromQuery] string empcd)
+    {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+
+        if (!await _auth.IsTeacherOfTestAsync(empcd, id) && !await _auth.IsHrOrAdminAsync(empcd))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền xem báo cáo bài kiểm tra này" });
+        }
+
+        var data = await _report.GetTestReportAsync(id);
+        if (data == null) return Ok(new { success = false, message = "Không tìm thấy bài kiểm tra" });
+        return Ok(new { success = true, data });
     }
 
     // GET /apiHR/TrainingTeach/test/{id}/pending-grade?empcd= — attempts có ESSAY chưa chấm

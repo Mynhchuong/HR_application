@@ -91,6 +91,9 @@ public class AttendanceMatrixStudent
     public decimal ATTENDANCE_PERCENT { get; set; }
     public Dictionary<int, string> STATUS_PER_SESSION { get; set; } = new();
     // key = SESSION_ID, value = PRESENT|LATE|ABSENT|EXCUSED|"" (không thuộc group session này)
+    public Dictionary<int, bool> SELF_CHECKIN_PER_SESSION { get; set; } = new();
+    // key = SESSION_ID, value = true nếu học viên TỰ bấm điểm danh qua app (CHECKIN_TIME NOT NULL) —
+    // để phân biệt với dòng do giáo viên tự chọn giùm, phục vụ minh bạch/công bằng khi tra soát.
 }
 
 // §14.3 Report Test — điểm từng học viên + trung bình + top 5 câu sai
@@ -107,7 +110,7 @@ public class ReportTestModel
     public decimal? MIN_SCORE { get; set; }
 
     public List<TestScoreItem>  SCORES { get; set; } = new();
-    public List<TestWrongItem>  TOP_WRONG_QUESTIONS { get; set; } = new();  // Top 5 câu sai nhiều nhất
+    public List<TestWrongItem>  TOP_WRONG_QUESTIONS { get; set; } = new();  // Mọi câu có người sai, sắp theo sai nhiều nhất trước
 }
 
 public class TestScoreItem
@@ -131,4 +134,12 @@ public class TestWrongItem
     public int    ATTEMPT_COUNT { get; set; }
     public int    WRONG_COUNT { get; set; }
     public decimal WRONG_PERCENT { get; set; }
+    public List<WrongStudentItem> WRONG_STUDENTS { get; set; } = new();  // Ai sai câu này, cụ thể
+}
+
+public class WrongStudentItem
+{
+    public string EMPCD { get; set; } = "";
+    public string? EMP_NAME { get; set; }
+    public int    ATTEMPT_NO { get; set; }
 }

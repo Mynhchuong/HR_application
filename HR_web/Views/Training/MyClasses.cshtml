@@ -65,12 +65,13 @@
                             <th data-mobile="primary" data-mobile-label="Lớp học">Lớp học</th>
                             <th data-mobile="detail" data-mobile-label="Ngày cấp">Ngày cấp</th>
                             <th data-mobile="primary" data-mobile-label="Điểm thi cuối kỳ">Điểm thi cuối kỳ</th>
-                            <th class="pe-3" data-mobile="primary" data-mobile-label="Chuyên cần">Chuyên cần</th>
+                            <th data-mobile="primary" data-mobile-label="Chuyên cần">Chuyên cần</th>
+                            <th class="pe-3 text-end" data-mobile="primary" data-mobile-label="Thao tác">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody id="my-certs-tbody">
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-5">
+                            <td colspan="6" class="text-center text-muted py-5">
                                 <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
                                 <span class="ms-2">Đang tải...</span>
                             </td>
@@ -122,7 +123,8 @@
         window.TRAINING_URLS = {
             getMyClasses: '@Url.Action("GetMyClasses", "Training")',
             classDetailTemplate: '@Url.Action("ClassDetail", "Training", new { id = "__ID__" })',
-            getCertificateList: '@Url.Action("GetMyCertificates", "Training")'
+            getCertificateList: '@Url.Action("GetMyCertificates", "Training")',
+            certificateViewTemplate: '@Url.Action("CertificateView", "Training", new { classId = "__ID__" })'
         };
         const empCd = '@empCd';
 
@@ -253,21 +255,22 @@
                 .then(r => r.json())
                 .then(res => {
                     if (!res.success || !res.data) {
-                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Bạn chưa có chứng chỉ nào.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Bạn chưa có chứng chỉ nào.</td></tr>';
                         return;
                     }
 
                     const list = res.data;
                     if (list.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Bạn chưa có chứng chỉ nào.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Bạn chưa có chứng chỉ nào.</td></tr>';
                         return;
                     }
 
                     tbody.innerHTML = '';
                     list.forEach(c => {
                         const dateStr = c.COMPLETION_DATE ? new Date(c.COMPLETION_DATE).toLocaleDateString('vi-VN') : '-';
-                        const scoreStr = c.FINAL_SCORE !== null ? `${c.FINAL_SCORE} / 100` : '-';
+                        const scoreStr = c.FINAL_SCORE !== null ? `${c.FINAL_SCORE}${c.MAX_SCORE != null ? ' / ' + c.MAX_SCORE : ''}` : '-';
                         const attendStr = c.ATTENDANCE_PERCENT !== null ? `${c.ATTENDANCE_PERCENT.toFixed(1)}%` : '-';
+                        const viewUrl = window.TRAINING_URLS.certificateViewTemplate.replace('__ID__', c.CLASS_ID);
 
                         tbody.innerHTML += `
                             <tr>
@@ -275,13 +278,18 @@
                                 <td><div class="cert-wrap-cell" title="${c.CLASS_NAME}">${c.CLASS_NAME}</div></td>
                                 <td>${dateStr}</td>
                                 <td><strong class="text-success">${scoreStr}</strong></td>
-                                <td class="pe-3"><strong class="text-primary">${attendStr}</strong></td>
+                                <td><strong class="text-primary">${attendStr}</strong></td>
+                                <td class="pe-3 text-end">
+                                    <a href="${viewUrl}" class="btn btn-sm btn-primary fw-bold rounded-3">
+                                        <i class="bi bi-patch-check me-1"></i>Xem chứng chỉ
+                                    </a>
+                                </td>
                             </tr>
                         `;
                     });
                 })
                 .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Lỗi kết nối hệ thống. Vui lòng thử lại sau.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Lỗi kết nối hệ thống. Vui lòng thử lại sau.</td></tr>';
                 })
                 .finally(() => {
                     MobileTableHelper.refresh('my-certs-tbody');

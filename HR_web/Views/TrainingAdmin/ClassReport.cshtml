@@ -110,6 +110,15 @@
         const CLASS_ID = @classId;
         let currentTab = 'class';
 
+        // Lớp đông (vd 1k người) render hết 1 lần vào DOM sẽ giật/lag — phân trang bảng điểm +
+        // giới hạn danh sách "học viên sai" hiện 20 người đầu, còn lại tải khi bấm "Xem thêm".
+        let testReportData = null;
+        let currentTestId = null;
+        let scoresPage = 1;
+        let scoresFilterText = '';
+        const SCORES_PER_PAGE = 50;
+        const WRONG_STUDENTS_CAP = 20;
+
         document.addEventListener('DOMContentLoaded', () => {
             switchTab('class');
             MobileTableHelper.init('groupBreakdownTbody');
@@ -270,6 +279,7 @@
         async function loadTestReport() {
             const testId = document.getElementById('selectedTestId')?.value;
             if (!testId) return;
+            currentTestId = testId;
 
             const wrap = document.getElementById('testReportBody');
             wrap.innerHTML = `
@@ -286,6 +296,9 @@
             }
 
             const d = json.data;
+            testReportData = d;
+            scoresPage = 1;
+            scoresFilterText = '';
             wrap.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0 text-dark">${esc(d.TEST_TITLE)}</h5>
@@ -301,10 +314,45 @@
                     <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-primary">${num(d.AVG_SCORE?.toFixed?.(1))}</div><div class="lbl">Điểm số trung bình</div></div></div>
                 </div>
 
+                ${(() => {
+                    // HR cần biết ai thi lại nhiều lần (≥3 lượt) trên 1 bài — thường là dấu hiệu cần lưu ý
+                    // (học viên gặp khó khăn hoặc bị cấp thi lại quá dễ dãi).
+                    const attemptCountByEmp = {};
+                    d.SCORES.forEach(s => { attemptCountByEmp[s.EMPCD] = (attemptCountByEmp[s.EMPCD] || 0) + 1; });
+                    const heavyRetake = Object.entries(attemptCountByEmp).filter(([, c]) => c >= 3);
+                    if (heavyRetake.length === 0) return '';
+                    const nameByEmp = {};
+                    d.SCORES.forEach(s => { nameByEmp[s.EMPCD] = s.EMP_NAME || s.EMPCD; });
+                    return `
+                        <div class="alert alert-warning border-0 p-3 mb-4 rounded-3">
+                            <div class="fw-bold text-dark mb-2"><i class="bi bi-exclamation-triangle me-1"></i>${heavyRetake.length} học viên thi lại từ 3 lần trở lên</div>
+                            <div class="d-flex flex-wrap gap-2">
+                                ${heavyRetake.map(([empcd, c]) => `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><span class="vni-font">${esc(nameByEmp[empcd])}</span> (#${esc(empcd)}) — ${c} lượt</span>`).join('')}
+                            </div>
+                        </div>`;
+                })()}
+
+                ${(() => {
+                    // Top 5 nộp bài nhanh nhất (theo giờ nộp sớm nhất) — để sau này xét giải/thưởng.
+                    const submitted = d.SCORES.filter(s => s.SUBMIT_DT).slice().sort((a, b) => new Date(a.SUBMIT_DT) - new Date(b.SUBMIT_DT));
+                    if (submitted.length === 0) return '';
+                    const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+                    return `
+                        <div class="alert alert-success border-0 p-3 mb-4 rounded-3">
+                            <div class="fw-bold text-dark mb-2"><i class="bi bi-stopwatch me-1"></i>Top 5 nộp bài nhanh nhất</div>
+                            <div class="d-flex flex-wrap gap-2">
+                                ${submitted.slice(0, 5).map((s, i) => `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">${medals[i]} <span class="vni-font">${esc(s.EMP_NAME || s.EMPCD)}</span> (#${esc(s.EMPCD)}) — ${new Date(s.SUBMIT_DT).toLocaleString('vi-VN')}</span>`).join('')}
+                            </div>
+                        </div>`;
+                })()}
+
                 <div class="row g-4">
                     <div class="col-12 col-lg-8">
                         <div class="card border p-3 shadow-sm rounded-3">
-                            <h6 class="fw-bold mb-3 text-dark">Bảng điểm thi học viên</h6>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                                <h6 class="fw-bold mb-0 text-dark">Bảng điểm thi học viên</h6>
+                                <input type="text" id="scoresFilterInput" class="form-control form-control-sm" style="max-width: 220px;" placeholder="Tìm theo mã NV..." oninput="onScoresFilterChange(this.value)" />
+                            </div>
                             <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                 <table class="table table-hover align-middle mb-0">
                                     <thead><tr>
@@ -316,53 +364,119 @@
                                         <th data-mobile="detail" data-mobile-label="Ngày nộp">Ngày nộp</th>
                                         <th class="text-end" data-mobile="detail" data-mobile-label="Thao tác">Thao tác</th>
                                     </tr></thead>
-                                    <tbody id="testScoresTbody">${(() => {
-                                        // Nhóm theo học viên để biết dòng nào là lần thi MỚI NHẤT — chỉ dòng đó mới
-                                        // cho cấp thi lại (tránh cấp chồng khi đang xem lịch sử các lần thi cũ).
-                                        const maxAttemptByEmp = {};
-                                        d.SCORES.forEach(s => {
-                                            maxAttemptByEmp[s.EMPCD] = Math.max(maxAttemptByEmp[s.EMPCD] || 0, s.ATTEMPT_NO || 1);
-                                        });
-                                        return d.SCORES.map(s => {
-                                            const isLatest = (s.ATTEMPT_NO || 1) === maxAttemptByEmp[s.EMPCD];
-                                            const isFinished = s.STATUS === 'SUBMITTED' || s.STATUS === 'AUTO_SUBMITTED';
-                                            let action = '';
-                                            if (isLatest && isFinished) {
-                                                action = s.HAS_PENDING_GRANT
-                                                    ? '<span class="badge bg-info-subtle text-info-emphasis">Đã cấp - chờ thi</span>'
-                                                    : `<button onclick="grantRetake(${testId}, '${s.EMPCD}')" class="btn btn-xs btn-outline-primary fw-bold rounded-2">Cấp thi lại</button>`;
-                                            }
-                                            return `<tr>
-                                                <td>${esc(s.EMPCD)}</td>
-                                                <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(s.EMP_NAME||'')}</td>
-                                                <td>${s.ATTEMPT_NO || 1}</td>
-                                                <td><strong>${s.SCORE == null ? '-' : s.SCORE}${s.MAX_SCORE ? '/' + s.MAX_SCORE : ''}</strong></td>
-                                                <td>${s.IS_PASS == 1 ? '<span class="badge bg-success-subtle text-success-emphasis">Đạt</span>' : s.IS_PASS == 0 ? '<span class="badge bg-danger-subtle text-danger-emphasis">Không đạt</span>' : '-'}</td>
-                                                <td class="text-muted small">${s.SUBMIT_DT ? new Date(s.SUBMIT_DT).toLocaleString('vi-VN') : '-'}</td>
-                                                <td class="text-end">${action}</td>
-                                            </tr>`;
-                                        }).join('');
-                                    })()}</tbody>
+                                    <tbody id="testScoresTbody"></tbody>
                                 </table>
                             </div>
+                            <div id="testScoresPagination"></div>
                         </div>
                     </div>
                     <div class="col-12 col-lg-4">
                         <div class="card border p-3 shadow-sm rounded-3">
-                            <h6 class="fw-bold mb-3 text-dark">Top 5 câu sai nhiều nhất</h6>
-                            ${d.TOP_WRONG_QUESTIONS.length === 0 
-                                ? '<p class="text-muted text-center py-4 small">Chưa ghi nhận câu trả lời sai.</p>' 
-                                : d.TOP_WRONG_QUESTIONS.map(q => `<div class="top-wrong-item">
-                                    <div class="small text-muted mb-1">${q.QUESTION_TYPE}</div>
-                                    <div class="small text-dark fw-bold mb-1">${esc(q.QUESTION_TEXT)}</div>
-                                    <div class="small text-danger fw-bold">${q.WRONG_COUNT}/${q.ATTEMPT_COUNT} học viên trả lời sai (${q.WRONG_PERCENT}%)</div>
-                                  </div>`).join('')}
+                            <h6 class="fw-bold mb-3 text-dark">Chi tiết câu hỏi sai</h6>
+                            <div style="max-height: 480px; overflow-y: auto;" class="pe-1">
+                                ${d.TOP_WRONG_QUESTIONS.length === 0
+                                    ? '<p class="text-muted text-center py-4 small">Chưa ghi nhận câu trả lời sai.</p>'
+                                    : d.TOP_WRONG_QUESTIONS.map(q => `<div class="top-wrong-item">
+                                        <div class="small text-muted mb-1">${esc(q.QUESTION_TYPE)}</div>
+                                        <div class="small text-dark fw-bold mb-1">${esc(q.QUESTION_TEXT)}</div>
+                                        <div class="small text-danger fw-bold mb-1">${q.WRONG_COUNT}/${q.ATTEMPT_COUNT} học viên trả lời sai (${q.WRONG_PERCENT}%)</div>
+                                        <details>
+                                            <summary class="small text-primary" style="cursor:pointer;">Xem danh sách học viên sai</summary>
+                                            <ul class="small mb-0 mt-1 ps-3" id="wrongStudentsList_${q.QUESTION_ID}">
+                                                ${q.WRONG_STUDENTS.slice(0, WRONG_STUDENTS_CAP).map(s => wrongStudentLi(s)).join('')}
+                                            </ul>
+                                            ${q.WRONG_STUDENTS.length > WRONG_STUDENTS_CAP
+                                                ? `<button type="button" class="btn btn-sm btn-link p-0 small" onclick="showMoreWrongStudents(${q.QUESTION_ID}, this)">+ ${q.WRONG_STUDENTS.length - WRONG_STUDENTS_CAP} người khác</button>`
+                                                : ''}
+                                        </details>
+                                      </div>`).join('')}
+                            </div>
                         </div>
                     </div>
                 </div>
             `;
+            renderScoresTable();
+        }
+
+        function wrongStudentLi(s) {
+            return `<li><span class="vni-font">${esc(s.EMP_NAME || s.EMPCD)}</span> <span class="text-muted">(#${esc(s.EMPCD)}${s.ATTEMPT_NO > 1 ? `, lượt ${s.ATTEMPT_NO}` : ''})</span></li>`;
+        }
+
+        // Danh sách "học viên sai" chỉ render sẵn 20 người đầu trong DOM — bấm mới thêm phần còn lại,
+        // tránh tạo hàng nghìn thẻ <li> ẩn cùng lúc khi lớp đông (vd 1k người, câu khó nhiều người sai).
+        window.showMoreWrongStudents = function(questionId, btn) {
+            const q = testReportData.TOP_WRONG_QUESTIONS.find(x => x.QUESTION_ID === questionId);
+            if (!q) return;
+            const ul = document.getElementById(`wrongStudentsList_${questionId}`);
+            ul.insertAdjacentHTML('beforeend', q.WRONG_STUDENTS.slice(WRONG_STUDENTS_CAP).map(s => wrongStudentLi(s)).join(''));
+            btn.remove();
+        };
+
+        // Bảng điểm phân trang (50 dòng/trang) — lớp đông render hết 1 lần vào DOM sẽ giật/lag.
+        window.onScoresFilterChange = function(val) {
+            scoresFilterText = (val || '').trim().toLowerCase();
+            scoresPage = 1;
+            renderScoresTable();
+        };
+
+        function renderScoresTable() {
+            const d = testReportData;
+            // maxAttemptByEmp tính trên TOÀN BỘ danh sách (không phải sau khi lọc) để biết đúng lượt
+            // nào là mới nhất của học viên, kể cả khi đang lọc chỉ hiện 1 người.
+            const maxAttemptByEmp = {};
+            d.SCORES.forEach(s => {
+                maxAttemptByEmp[s.EMPCD] = Math.max(maxAttemptByEmp[s.EMPCD] || 0, s.ATTEMPT_NO || 1);
+            });
+
+            const filtered = scoresFilterText
+                ? d.SCORES.filter(s => (s.EMPCD || '').toLowerCase().includes(scoresFilterText))
+                : d.SCORES;
+
+            const totalPages = Math.max(1, Math.ceil(filtered.length / SCORES_PER_PAGE));
+            scoresPage = Math.min(Math.max(1, scoresPage), totalPages);
+            const start = (scoresPage - 1) * SCORES_PER_PAGE;
+            const pageItems = filtered.slice(start, start + SCORES_PER_PAGE);
+
+            document.getElementById('testScoresTbody').innerHTML = pageItems.map(s => {
+                const isLatest = (s.ATTEMPT_NO || 1) === maxAttemptByEmp[s.EMPCD];
+                const isFinished = s.STATUS === 'SUBMITTED' || s.STATUS === 'AUTO_SUBMITTED';
+                let action = '';
+                if (isLatest && isFinished) {
+                    action = s.HAS_PENDING_GRANT
+                        ? '<span class="badge bg-info-subtle text-info-emphasis">Đã cấp - chờ thi</span>'
+                        : `<button onclick="grantRetake(${currentTestId}, '${s.EMPCD}')" class="btn btn-xs btn-outline-primary fw-bold rounded-2">Cấp thi lại</button>`;
+                }
+                return `<tr>
+                    <td>${esc(s.EMPCD)}</td>
+                    <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(s.EMP_NAME||'')}</td>
+                    <td>${s.ATTEMPT_NO || 1}</td>
+                    <td><strong>${s.SCORE == null ? '-' : s.SCORE}${s.MAX_SCORE ? '/' + s.MAX_SCORE : ''}</strong></td>
+                    <td>${s.IS_PASS == 1 ? '<span class="badge bg-success-subtle text-success-emphasis">Đạt</span>' : s.IS_PASS == 0 ? '<span class="badge bg-danger-subtle text-danger-emphasis">Không đạt</span>' : '-'}</td>
+                    <td class="text-muted small">${s.SUBMIT_DT ? new Date(s.SUBMIT_DT).toLocaleString('vi-VN') : '-'}</td>
+                    <td class="text-end">${action}</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="7" class="text-center text-muted py-4">Không tìm thấy học viên phù hợp.</td></tr>';
+
+            const pagDiv = document.getElementById('testScoresPagination');
+            if (totalPages > 1) {
+                pagDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mt-2 px-1">
+                        <span class="small text-muted">Trang ${scoresPage}/${totalPages} (${filtered.length} lượt thi)</span>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary" ${scoresPage <= 1 ? 'disabled' : ''} onclick="changeScoresPage(${scoresPage - 1})">‹ Trước</button>
+                            <button type="button" class="btn btn-outline-secondary" ${scoresPage >= totalPages ? 'disabled' : ''} onclick="changeScoresPage(${scoresPage + 1})">Sau ›</button>
+                        </div>
+                    </div>`;
+            } else {
+                pagDiv.innerHTML = '';
+            }
             MobileTableHelper.refresh('testScoresTbody');
         }
+
+        window.changeScoresPage = function(p) {
+            scoresPage = p;
+            renderScoresTable();
+        };
 
         function grantRetake(testId, empcd) {
             const reason = prompt('Lý do cấp thi lại (không bắt buộc — bận, lỗi kỹ thuật lúc thi, thi rớt...):', '');

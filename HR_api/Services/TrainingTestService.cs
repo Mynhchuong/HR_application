@@ -335,6 +335,30 @@ public class TrainingTestService
         }
     }
 
+    // Sửa lại thời gian mở/đóng bài SAU KHI đã publish (vd chọn nhầm ngày, hoặc cần gia hạn cho học
+    // viên nộp trễ) — không đổi STATUS, chỉ update AVAILABLE_FROM/TO. Trước đây không có đường nào
+    // sửa lại vì PublishAsync bắt buộc STATUS phải đang DRAFT.
+    public async Task UpdateScheduleAsync(int testId, string actor, DateTime? availableFrom, DateTime? availableTo)
+    {
+        var status = await GetStatusAsync(testId)
+            ?? throw new InvalidOperationException("Không tìm thấy test");
+        if (status != "PUBLISHED" && status != "OPEN")
+            throw new InvalidOperationException($"Test đang {status}, chỉ sửa được lịch khi đang PUBLISHED/OPEN");
+        if (availableFrom == null || availableTo == null)
+            throw new InvalidOperationException("Vui lòng chọn thời gian mở và đóng bài");
+        if (availableTo <= availableFrom)
+            throw new InvalidOperationException("Thời gian đóng bài phải sau thời gian mở bài");
+
+        await _db.ExecuteNonQueryAsync(@"
+            UPDATE HRMS.HR_TRAINING_TEST
+               SET AVAILABLE_FROM = :AF, AVAILABLE_TO = :AT, UPDT_ID = :USR, UPDT_DT = SYSDATE
+             WHERE ID = :TID",
+            new OracleParameter("AF",  availableFrom),
+            new OracleParameter("AT",  availableTo),
+            new OracleParameter("USR", actor),
+            new OracleParameter("TID", testId));
+    }
+
     // PUBLISHED / OPEN → CLOSED
     public async Task CloseAsync(int testId, string actor)
     {

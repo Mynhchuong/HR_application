@@ -92,6 +92,35 @@ public class TrainingTeachController : BaseController
         return View();
     }
 
+    // GET /TrainingTeach/TestReport/{id} — điểm học viên + chi tiết câu sai cho giáo viên đứng lớp
+    public async Task<IActionResult> TestReport(int id)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+
+        bool isHrOrAdmin = CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        if (!isHrOrAdmin && !await _training.CheckTestAccessAsync(id, empcd)) return Forbid();
+
+        ViewBag.EmpCd = empcd;
+        ViewBag.TestId = id;
+
+        var testRes = await _training.GetFromApiAsync<object>("TrainingAdmin/test/detail", $"id={id}");
+        var classIdStr = ((testRes as Newtonsoft.Json.Linq.JObject)?["data"]?["test"]?["CLASS_ID"])?.ToString();
+        ViewBag.ClassId = int.TryParse(classIdStr, out var cid) ? cid : (int?)null;
+
+        return View();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetTestReport(int id)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return Json(new { success = false, message = "Chưa đăng nhập" });
+
+        var res = await _training.GetFromApiAsync<object>($"TrainingTeach/test/{id}/report", $"empcd={empcd}");
+        return Json(res);
+    }
+
     // GET /TrainingTeach/UploadMaterial/{id}
     public async Task<IActionResult> UploadMaterial(int id)
     {
@@ -329,6 +358,17 @@ public class TrainingTeachController : BaseController
     {
         req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
         var response = await _training.PostToApiAsync("TrainingTeach/test/publish", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    // Sửa lại ngày mở/đóng cho bài đã publish (không đổi từ nháp — dùng TestPublish cho việc đó)
+    [HttpPost]
+    public async Task<IActionResult> TestUpdateSchedule([FromBody] ChangeTestStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/test/update-schedule", req);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");

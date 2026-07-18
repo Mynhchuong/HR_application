@@ -251,7 +251,11 @@ public class TrainingAdminController : BaseController
             foreach (var s in m.SESSIONS)
             {
                 var key = s.SESSION_ID.ToString();
-                ws.Cell(i + 2, col++).Value = st.STATUS_PER_SESSION.TryGetValue(key, out var v) ? v : "";
+                var v = st.STATUS_PER_SESSION.TryGetValue(key, out var vv) ? vv : "";
+                // Đánh dấu (tự ĐD) khi học viên tự bấm điểm danh qua app — giữ lại trong file Excel
+                // để có hồ sơ tra soát/minh bạch, không chỉ xem được lúc mở báo cáo trên web.
+                var selfCi = st.SELF_CHECKIN_PER_SESSION.TryGetValue(key, out var ci) && ci;
+                ws.Cell(i + 2, col++).Value = selfCi && v != "" ? $"{v} (tự ĐD)" : v;
             }
         }
 
@@ -267,17 +271,23 @@ public class TrainingAdminController : BaseController
 
         using var wb = new XLWorkbook();
         var wsS = wb.Worksheets.Add("Scores");
-        WriteHeader(wsS, 1, new[] { "EMPCD", "Name", "Score", "Max score", "Pass", "Status", "Submit" });
+        WriteHeader(wsS, 1, new[] { "EMPCD", "Name", "Attempt No", "Score", "Max score", "Pass", "Status", "Submit" });
+        // Đếm số lượt/học viên — HR cần biết ai thi lại từ 3 lần trở lên (dấu hiệu cần lưu ý).
+        var attemptCountByEmp = r.SCORES.GroupBy(s => s.EMPCD).ToDictionary(g => g.Key, g => g.Count());
         for (int i = 0; i < r.SCORES.Count; i++)
         {
             var s = r.SCORES[i];
             wsS.Cell(i + 2, 1).Value = s.EMPCD;
             wsS.Cell(i + 2, 2).Value = s.EMP_NAME ?? "";
-            wsS.Cell(i + 2, 3).Value = s.SCORE ?? 0;
-            wsS.Cell(i + 2, 4).Value = s.MAX_SCORE ?? 0;
-            wsS.Cell(i + 2, 5).Value = s.IS_PASS == 1 ? "PASS" : (s.IS_PASS == 0 ? "FAIL" : "-");
-            wsS.Cell(i + 2, 6).Value = s.STATUS;
-            wsS.Cell(i + 2, 7).Value = s.SUBMIT_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
+            wsS.Cell(i + 2, 2).Style.Font.FontName = "Vnitbi__";
+            wsS.Cell(i + 2, 3).Value = s.ATTEMPT_NO;
+            if (attemptCountByEmp.TryGetValue(s.EMPCD, out var cnt) && cnt >= 3)
+                wsS.Cell(i + 2, 3).Style.Fill.BackgroundColor = XLColor.FromHtml("#fff3cd");
+            wsS.Cell(i + 2, 4).Value = s.SCORE ?? 0;
+            wsS.Cell(i + 2, 5).Value = s.MAX_SCORE ?? 0;
+            wsS.Cell(i + 2, 6).Value = s.IS_PASS == 1 ? "PASS" : (s.IS_PASS == 0 ? "FAIL" : "-");
+            wsS.Cell(i + 2, 7).Value = s.STATUS;
+            wsS.Cell(i + 2, 8).Value = s.SUBMIT_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
         }
         wsS.Columns().AdjustToContents();
 
@@ -301,7 +311,7 @@ public class TrainingAdminController : BaseController
         }
         wsSum.Columns().AdjustToContents();
 
-        var wsW = wb.Worksheets.Add("Top wrong questions");
+        var wsW = wb.Worksheets.Add("Wrong questions");
         WriteHeader(wsW, 1, new[] { "Question", "Type", "Attempts", "Wrong", "Wrong %" });
         for (int i = 0; i < r.TOP_WRONG_QUESTIONS.Count; i++)
         {
@@ -313,6 +323,25 @@ public class TrainingAdminController : BaseController
             wsW.Cell(i + 2, 5).Value = q.WRONG_PERCENT;
         }
         wsW.Columns().AdjustToContents();
+
+        // Chi tiết ai sai câu nào — 1 dòng / (câu hỏi, học viên sai) để HR lọc/sort thoải mái trong Excel.
+        var wsWD = wb.Worksheets.Add("Wrong answer detail");
+        WriteHeader(wsWD, 1, new[] { "Question", "Type", "EMPCD", "Name", "Attempt No" });
+        int rowWD = 2;
+        foreach (var q in r.TOP_WRONG_QUESTIONS)
+        {
+            foreach (var s in q.WRONG_STUDENTS)
+            {
+                wsWD.Cell(rowWD, 1).Value = q.QUESTION_TEXT;
+                wsWD.Cell(rowWD, 2).Value = q.QUESTION_TYPE;
+                wsWD.Cell(rowWD, 3).Value = s.EMPCD;
+                wsWD.Cell(rowWD, 4).Value = s.EMP_NAME ?? "";
+                wsWD.Cell(rowWD, 4).Style.Font.FontName = "Vnitbi__";
+                wsWD.Cell(rowWD, 5).Value = s.ATTEMPT_NO;
+                rowWD++;
+            }
+        }
+        wsWD.Columns().AdjustToContents();
 
         return BuildXlsx(wb, $"report_test_{testId}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
     }

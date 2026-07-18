@@ -1,0 +1,233 @@
+@{
+    ViewData["Title"] = "Chứng chỉ đào tạo";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var classId = ViewBag.ClassId;
+}
+
+<div class="container-fluid py-4 no-print">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Chứng chỉ đào tạo",
+            Icon = "bi-patch-check",
+            Gradient = "primary",
+            BackUrl = Url.Action("MyClasses", "Training"),
+        })
+    </div>
+</div>
+
+<div class="container-fluid pb-5" id="certWrap">
+    <div id="certLoading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Đang tải chứng chỉ...</p>
+    </div>
+    <div id="certError" class="alert alert-warning text-center d-none" style="max-width: 720px; margin: 0 auto;">
+        Không tìm thấy chứng chỉ cho lớp học này (có thể bạn chưa hoàn thành hoặc chưa được cấp chứng chỉ).
+    </div>
+
+    <div id="certCard" class="d-none">
+        <div class="cert-actions no-print mb-3 text-center">
+            <button onclick="window.print()" class="btn btn-primary fw-bold px-4 shadow-sm">
+                <i class="bi bi-printer me-1"></i> In / Lưu PDF
+            </button>
+        </div>
+
+        <div class="cert-frame">
+            <div class="cert-corner cert-corner-tl"></div>
+            <div class="cert-corner cert-corner-tr"></div>
+            <div class="cert-corner cert-corner-bl"></div>
+            <div class="cert-corner cert-corner-br"></div>
+
+            <div class="cert-inner">
+                <img src="@Url.Content("~/assets/img/samho-logo.png")" class="cert-logo" alt="SAMHO" />
+                <div class="cert-title">Chứng nhận hoàn thành khóa học</div>
+                <div class="cert-subtitle">Certificate of Completion</div>
+
+                <div class="cert-course" id="certCourse"></div>
+
+                <div class="cert-label mt-4">Cấp cho học viên</div>
+                <div class="cert-name vni-font" id="certName"></div>
+                <div class="cert-empcd" id="certEmpcd"></div>
+                <div class="cert-dept" id="certDept"></div>
+
+                <div class="cert-meta" id="certMeta"></div>
+
+                <div class="cert-result-row">
+                    <div class="cert-result-box">
+                        <div class="cert-result-val" id="certScore">-</div>
+                        <div class="cert-result-lbl">Điểm thi cuối kỳ</div>
+                    </div>
+                    <div class="cert-result-box">
+                        <div class="cert-result-val" id="certAttend">-</div>
+                        <div class="cert-result-lbl">Chuyên cần</div>
+                    </div>
+                </div>
+
+                <div class="cert-sign-row">
+                    <div class="cert-sign-block">
+                        <div class="cert-sign-line"></div>
+                        <div class="cert-sign-name">PHÒNG ĐÀO TẠO - NHÂN SỰ</div>
+                        <div class="cert-sign-title">Công ty TNHH SAMHO Việt Nam</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    @@media print {
+        .no-print { display: none !important; }
+        body { background: #fff !important; }
+        .cert-frame { box-shadow: none !important; }
+    }
+
+    .cert-frame {
+        max-width: 860px;
+        margin: 0 auto;
+        background: #fffdf8;
+        border: 2px solid #c9a961;
+        border-radius: 8px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        position: relative;
+        padding: 14px;
+    }
+    .cert-corner {
+        position: absolute;
+        width: 54px;
+        height: 54px;
+        border: 3px solid #7a1f3d;
+        pointer-events: none;
+    }
+    .cert-corner-tl { top: 8px; left: 8px; border-right: none; border-bottom: none; }
+    .cert-corner-tr { top: 8px; right: 8px; border-left: none; border-bottom: none; }
+    .cert-corner-bl { bottom: 8px; left: 8px; border-right: none; border-top: none; }
+    .cert-corner-br { bottom: 8px; right: 8px; border-left: none; border-top: none; }
+
+    .cert-inner {
+        border: 1px solid #e5d8b8;
+        border-radius: 6px;
+        padding: 3rem 2.5rem;
+        text-align: center;
+    }
+    .cert-logo { height: 48px; margin-bottom: 1rem; }
+    .cert-title {
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: #7a1f3d;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .cert-subtitle {
+        font-size: .85rem;
+        color: #9c8b5e;
+        font-style: italic;
+        margin-bottom: 1.5rem;
+    }
+    .cert-course {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #1e293b;
+        padding: 0 1rem;
+    }
+    .cert-label {
+        font-size: .85rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+    }
+    .cert-name {
+        font-size: 2.1rem;
+        font-weight: 800;
+        color: #0d3b66;
+        text-transform: uppercase;
+        margin: .3rem 0 1rem;
+        font-family: Georgia, 'Times New Roman', serif;
+    }
+    .cert-empcd {
+        font-size: .9rem;
+        color: #6c757d;
+        margin-bottom: .5rem;
+    }
+    .cert-dept {
+        font-size: .85rem;
+        color: #8a7856;
+        margin-bottom: 1rem;
+    }
+    .cert-meta {
+        font-size: 1rem;
+        color: #495057;
+        margin-bottom: 1.5rem;
+    }
+    .cert-result-row {
+        display: flex;
+        justify-content: center;
+        gap: 2.5rem;
+        margin: 1.5rem 0 2.5rem;
+    }
+    .cert-result-box { text-align: center; }
+    .cert-result-val { font-size: 1.6rem; font-weight: 800; color: #7a1f3d; }
+    .cert-result-lbl { font-size: .78rem; color: #6c757d; text-transform: uppercase; letter-spacing: .5px; }
+
+    .cert-sign-row { display: flex; justify-content: flex-end; margin-top: 2rem; }
+    .cert-sign-block { text-align: center; min-width: 220px; }
+    .cert-sign-line { border-top: 1px solid #adb5bd; margin-bottom: .4rem; }
+    .cert-sign-name { font-weight: 700; color: #1e293b; font-size: .9rem; }
+    .cert-sign-title { font-size: .78rem; color: #6c757d; }
+
+    @@media (max-width: 767.98px) {
+        .cert-inner { padding: 2rem 1.2rem; }
+        .cert-title { font-size: 1.25rem; }
+        .cert-name { font-size: 1.5rem; }
+        .cert-result-row { gap: 1.2rem; }
+    }
+</style>
+
+@section Scripts {
+    <script>
+        const CLASS_ID = @classId;
+        const getCertUrl = '@Url.Action("GetCertificateDetail", "Training")';
+
+        document.addEventListener('DOMContentLoaded', loadCertificate);
+
+        function esc(s) {
+            if (s == null) return '';
+            return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        async function loadCertificate() {
+            try {
+                const res = await fetch(`${getCertUrl}?classId=${CLASS_ID}`);
+                const json = await res.json();
+                const item = json && json.success && Array.isArray(json.data) ? json.data[0] : null;
+
+                document.getElementById('certLoading').classList.add('d-none');
+                if (!item) {
+                    document.getElementById('certError').classList.remove('d-none');
+                    return;
+                }
+
+                document.getElementById('certCourse').textContent = item.COURSE_TITLE || '';
+                document.getElementById('certName').textContent = item.EMP_NAME || item.EMPCD || '';
+                document.getElementById('certEmpcd').textContent = item.EMPCD ? `Mã NV: ${item.EMPCD}` : '';
+
+                const deptParts = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean);
+                document.getElementById('certDept').textContent = deptParts.length ? deptParts.join(' · ') : '';
+
+                const dateStr = item.COMPLETION_DATE
+                    ? new Date(item.COMPLETION_DATE).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    : '-';
+                document.getElementById('certMeta').innerHTML =
+                    `Đã hoàn thành lớp <strong>${esc(item.CLASS_NAME || '')}</strong> vào ngày <strong>${dateStr}</strong>`;
+
+                document.getElementById('certScore').textContent = item.FINAL_SCORE != null ? `${item.FINAL_SCORE}${item.MAX_SCORE != null ? ' / ' + item.MAX_SCORE : ''}` : '-';
+                document.getElementById('certAttend').textContent = item.ATTENDANCE_PERCENT != null ? `${item.ATTENDANCE_PERCENT.toFixed(1)}%` : '-';
+
+                document.getElementById('certCard').classList.remove('d-none');
+            } catch (err) {
+                document.getElementById('certLoading').classList.add('d-none');
+                document.getElementById('certError').classList.remove('d-none');
+            }
+        }
+    </script>
+}

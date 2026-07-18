@@ -236,7 +236,7 @@
                     tbody.innerHTML = '';
                     list.forEach(c => {
                         const dateStr = c.COMPLETION_DATE ? new Date(c.COMPLETION_DATE).toLocaleDateString('vi-VN') : '-';
-                        const scoreStr = c.FINAL_SCORE !== null ? `${c.FINAL_SCORE} / 100` : '-';
+                        const scoreStr = c.FINAL_SCORE !== null ? `${c.FINAL_SCORE}${c.MAX_SCORE != null ? ' / ' + c.MAX_SCORE : ''}` : '-';
                         const attendStr = c.ATTENDANCE_PERCENT !== null ? `${c.ATTENDANCE_PERCENT.toFixed(1)}%` : '-';
                         const orgLine = [c.DEPT_NAME, c.LINE_NAME, c.WORK_NAME].filter(Boolean).join(' / ') || '-';
 
@@ -295,7 +295,7 @@
             let csvContent = "\uFEFFMã NV,Họ và Tên,Bộ phận/Chuyền/Line,Khóa học,Lớp học,Ngày hoàn thành,Điểm thi cuối kỳ,Chuyên cần\n";
             certList.forEach(c => {
                 const dateStr = c.COMPLETION_DATE ? new Date(c.COMPLETION_DATE).toLocaleDateString('vi-VN') : '-';
-                const scoreStr = c.FINAL_SCORE !== null ? `${c.FINAL_SCORE} / 100` : '-';
+                const scoreStr = c.FINAL_SCORE !== null ? `${c.FINAL_SCORE}${c.MAX_SCORE != null ? ' / ' + c.MAX_SCORE : ''}` : '-';
                 const attendStr = c.ATTENDANCE_PERCENT !== null ? `${c.ATTENDANCE_PERCENT.toFixed(1)}%` : '-';
                 const orgLine = [c.DEPT_NAME, c.LINE_NAME, c.WORK_NAME].filter(Boolean).join(' / ') || '-';
                 csvContent += [

@@ -428,6 +428,13 @@
         const selectedClassId = @classId;
         const empCd = '@empCd';
         let selectedClassData = null;
+
+        // Giờ lưu dạng "HHmm" thô (vd "1243") — format lại thành "HH:mm" cho dễ đọc.
+        function fmtTime(t) {
+            if (!t) return '';
+            const s = String(t).replace(':', '').padStart(4, '0');
+            return s.slice(0, 2) + ':' + s.slice(2, 4);
+        }
         let studentFilterText = '';
         let studentsPage = 1;
         const STUDENTS_PER_PAGE = 20;
@@ -687,7 +694,7 @@
                     <tr>
                         <td class="ps-3 fw-bold text-dark">Buổi ${s.SESSION_NO}</td>
                         <td>${dateStr}</td>
-                        <td>${s.START_TIME} - ${s.END_TIME}</td>
+                        <td>${fmtTime(s.START_TIME)} - ${fmtTime(s.END_TIME)}</td>
                         <td>${groupLabel}</td>
                         <td>${s.LOCATION || 'N/A'}</td>
                         <td class="text-truncate" style="max-width: 180px;" title="${s.TOPIC || ''}">${s.TOPIC || '-'}</td>
@@ -845,7 +852,10 @@
                         let msg = `Đã nhập ${d.INSERTED ?? 0} buổi học.`;
                         loadClassDetailAdmin();
                         if (d.ERRORS && d.ERRORS.length > 0) {
-                            window.showConfirm(`${msg}\n\nCó ${d.ERRORS.length} dòng lỗi:\n${d.ERRORS.join('\n')}`, () => {});
+                            window.showConfirm(`${msg}\n\nCó ${d.ERRORS.length} dòng lỗi:\n${d.ERRORS.join('\n')}`, () => {}, {
+                                title: 'Nhập buổi học — có lỗi', okText: 'Đã hiểu', okClass: 'btn-warning',
+                                icon: 'warning', iconColor: '#d97706', iconBg: '#fef3c7'
+                            });
                         } else {
                             window.showToast(msg, 'success');
                         }
@@ -888,7 +898,10 @@
                         if (d.SKIPPED_DROPPED > 0) msg += `\n${d.SKIPPED_DROPPED} người đang bị loại (DROPPED) — cần khôi phục trước.`;
                         loadClassDetailAdmin();
                         if (d.ERRORS && d.ERRORS.length > 0) {
-                            window.showConfirm(`${msg}\n\nLỗi:\n${d.ERRORS.join('\n')}`, () => {});
+                            window.showConfirm(`${msg}\n\nLỗi:\n${d.ERRORS.join('\n')}`, () => {}, {
+                                title: 'Nhập học viên — có lỗi', okText: 'Đã hiểu', okClass: 'btn-warning',
+                                icon: 'warning', iconColor: '#d97706', iconBg: '#fef3c7'
+                            });
                         } else {
                             window.showToast(msg, 'success');
                         }
@@ -1546,7 +1559,10 @@
                 }
 
                 if (chunkErrors.length > 0) {
-                    window.showConfirm(`Đã gán ${updated}/${empcds.length} học viên vào nhóm.\n\nLỗi:\n${[...new Set(chunkErrors)].join('\n')}`, () => {});
+                    window.showConfirm(`Đã gán ${updated}/${empcds.length} học viên vào nhóm.\n\nLỗi:\n${[...new Set(chunkErrors)].join('\n')}`, () => {}, {
+                        title: 'Gán nhóm — có lỗi', okText: 'Đã hiểu', okClass: 'btn-warning',
+                        icon: 'warning', iconColor: '#d97706', iconBg: '#fef3c7'
+                    });
                 } else {
                     window.showToast(`Đã gán ${updated}/${empcds.length} học viên vào nhóm!`, 'success');
                     document.getElementById('bulk-assign-empcd').value = '';
@@ -1598,7 +1614,17 @@
                         if (fails.length > 0) {
                             msg += '\n\nKhông đạt:\n' + fails.map(f => `${f.EMPCD}${f.FAIL_REASON ? ' — ' + f.FAIL_REASON : ''}`).join('\n');
                         }
-                        window.showConfirm(msg, () => {});
+                        // Đây chỉ là popup THÔNG BÁO kết quả (callback rỗng, không xóa gì) — phải truyền
+                        // options riêng, không thì showConfirm tự rớt về mặc định "Xóa" màu đỏ khiến
+                        // HR tưởng nhầm là hành động xóa.
+                        window.showConfirm(msg, () => {}, {
+                            title: 'Kết quả chốt lớp',
+                            okText: 'Đã hiểu',
+                            okClass: 'btn-success',
+                            icon: 'task_alt',
+                            iconColor: '#16a34a',
+                            iconBg: '#dcfce7'
+                        });
                         loadClassDetailAdmin();
                     } else {
                         renderLifecycle();

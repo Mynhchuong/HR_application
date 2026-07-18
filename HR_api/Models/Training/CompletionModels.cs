@@ -43,5 +43,6 @@ public class CertificateItem
     public string? WORK_NAME { get; set; }
     public DateTime? COMPLETION_DATE { get; set; }
     public decimal? FINAL_SCORE { get; set; }
+    public decimal? MAX_SCORE { get; set; }
     public decimal? ATTENDANCE_PERCENT { get; set; }
 }

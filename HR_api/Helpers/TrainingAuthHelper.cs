@@ -15,15 +15,18 @@ public class TrainingAuthHelper
         _cache = cache;
     }
 
-    // Check user là student của class không
+    // Check user là student của class không. Lớp còn DRAFT (HR chưa cấu hình/mở lớp xong) thì
+    // KHÔNG cho học viên vào — kể cả đã có dòng enrollment (vd assign trước lúc HR chưa publish xong).
     public async Task<bool> IsStudentAsync(string empcd, int classId)
     {
         if (string.IsNullOrWhiteSpace(empcd)) return false;
         var rows = await _db.ExecuteQueryAsync(@"
-            SELECT 1 FROM HRMS.HR_TRAINING_ENROLLMENT
-             WHERE CLASS_ID = :CLASS_ID
-               AND EMPCD = :EMPCD
-               AND STATUS IN ('ENROLLED', 'COMPLETED', 'FAILED')
+            SELECT 1 FROM HRMS.HR_TRAINING_ENROLLMENT E
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = E.CLASS_ID
+             WHERE E.CLASS_ID = :CLASS_ID
+               AND E.EMPCD = :EMPCD
+               AND E.STATUS IN ('ENROLLED', 'COMPLETED', 'FAILED')
+               AND CL.STATUS <> 'DRAFT'
                AND ROWNUM = 1",
             r => 1,
             new OracleParameter("CLASS_ID", classId),
@@ -38,9 +41,11 @@ public class TrainingAuthHelper
         var rows = await _db.ExecuteQueryAsync(@"
             SELECT 1 FROM HRMS.HR_TRAINING_ENROLLMENT E
               JOIN HRMS.HR_TRAINING_TEST T ON T.CLASS_ID = E.CLASS_ID
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = T.CLASS_ID
              WHERE T.ID = :TEST_ID
                AND E.EMPCD = :EMPCD
                AND E.STATUS IN ('ENROLLED', 'COMPLETED', 'FAILED')
+               AND CL.STATUS <> 'DRAFT'
                AND ROWNUM = 1",
             r => 1,
             new OracleParameter("TEST_ID", testId),
@@ -63,14 +68,17 @@ public class TrainingAuthHelper
         return rows.Any();
     }
 
-    // Check user là teacher của class cụ thể (per-class)
+    // Check user là teacher của class cụ thể (per-class). Lớp còn DRAFT (HR chưa cấu hình/mở lớp
+    // xong) thì KHÔNG cho giáo viên vào dù đã được gán — tránh thao tác/vào lớp trước khi HR publish.
     public async Task<bool> IsTeacherAsync(string empcd, int classId)
     {
         if (string.IsNullOrWhiteSpace(empcd)) return false;
         var rows = await _db.ExecuteQueryAsync(@"
-            SELECT 1 FROM HRMS.HR_TRAINING_CLASS_TEACHER
-             WHERE CLASS_ID = :CLASS_ID
-               AND EMPCD = :EMPCD
+            SELECT 1 FROM HRMS.HR_TRAINING_CLASS_TEACHER CT
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = CT.CLASS_ID
+             WHERE CT.CLASS_ID = :CLASS_ID
+               AND CT.EMPCD = :EMPCD
+               AND CL.STATUS <> 'DRAFT'
                AND ROWNUM = 1",
             r => 1,
             new OracleParameter("CLASS_ID", classId),
@@ -84,7 +92,9 @@ public class TrainingAuthHelper
         if (string.IsNullOrWhiteSpace(empcd)) return false;
         var rows = await _db.ExecuteQueryAsync(@"
             SELECT 1 FROM HRMS.HR_TRAINING_TEST T
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = T.CLASS_ID
              WHERE T.ID = :TEST_ID
+               AND CL.STATUS <> 'DRAFT'
                AND (
                      T.CREATED_BY = :EMPCD1
                      OR EXISTS (
@@ -108,8 +118,10 @@ public class TrainingAuthHelper
         var rows = await _db.ExecuteQueryAsync(@"
             SELECT 1 FROM HRMS.HR_TRAINING_CLASS_TEACHER CT
               JOIN HRMS.HR_TRAINING_SESSION S ON S.CLASS_ID = CT.CLASS_ID
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = CT.CLASS_ID
              WHERE S.ID = :SESSION_ID
                AND CT.EMPCD = :EMPCD
+               AND CL.STATUS <> 'DRAFT'
                AND ROWNUM = 1",
             r => 1,
             new OracleParameter("SESSION_ID", sessionId),
@@ -124,8 +136,10 @@ public class TrainingAuthHelper
         var rows = await _db.ExecuteQueryAsync(@"
             SELECT 1 FROM HRMS.HR_TRAINING_CLASS_TEACHER CT
               JOIN HRMS.HR_TRAINING_QUESTION Q ON Q.CLASS_ID = CT.CLASS_ID
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = CT.CLASS_ID
              WHERE Q.ID = :QUESTION_ID
                AND CT.EMPCD = :EMPCD
+               AND CL.STATUS <> 'DRAFT'
                AND ROWNUM = 1",
             r => 1,
             new OracleParameter("QUESTION_ID", questionId),
@@ -140,8 +154,10 @@ public class TrainingAuthHelper
         var rows = await _db.ExecuteQueryAsync(@"
             SELECT 1 FROM HRMS.HR_TRAINING_CLASS_TEACHER CT
               JOIN HRMS.HR_TRAINING_MATERIAL M ON M.CLASS_ID = CT.CLASS_ID
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = CT.CLASS_ID
              WHERE M.ID = :MATERIAL_ID
                AND CT.EMPCD = :EMPCD
+               AND CL.STATUS <> 'DRAFT'
                AND ROWNUM = 1",
             r => 1,
             new OracleParameter("MATERIAL_ID", materialId),
@@ -157,8 +173,10 @@ public class TrainingAuthHelper
             SELECT 1 FROM HRMS.HR_TRAINING_CLASS_TEACHER CT
               JOIN HRMS.HR_TRAINING_TEST T ON T.CLASS_ID = CT.CLASS_ID
               JOIN HRMS.HR_TRAINING_TEST_ATTEMPT A ON A.TEST_ID = T.ID
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = CT.CLASS_ID
              WHERE A.ID = :ATTEMPT_ID
                AND CT.EMPCD = :EMPCD
+               AND CL.STATUS <> 'DRAFT'
                AND ROWNUM = 1",
             r => 1,
             new OracleParameter("ATTEMPT_ID", attemptId),
@@ -175,8 +193,10 @@ public class TrainingAuthHelper
               JOIN HRMS.HR_TRAINING_TEST_ANSWER A ON A.ID = :ANSWER_ID
               JOIN HRMS.HR_TRAINING_TEST_ATTEMPT AT ON AT.ID = A.ATTEMPT_ID
               JOIN HRMS.HR_TRAINING_TEST T ON T.ID = AT.TEST_ID
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = CT.CLASS_ID
              WHERE T.CLASS_ID = CT.CLASS_ID
                AND CT.EMPCD = :EMPCD
+               AND CL.STATUS <> 'DRAFT'
                AND ROWNUM = 1",
             r => 1,
             new OracleParameter("ANSWER_ID", answerId),

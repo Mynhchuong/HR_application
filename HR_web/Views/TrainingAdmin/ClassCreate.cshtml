@@ -215,6 +215,13 @@
         let currentStep = 1;
         let selectedCourse = null;
 
+        // Giờ lưu dạng "HHmm" thô (vd "1243") — format lại thành "HH:mm" cho dễ đọc.
+        function fmtTime(t) {
+            if (!t) return '';
+            const s = String(t).replace(':', '').padStart(4, '0');
+            return s.slice(0, 2) + ':' + s.slice(2, 4);
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             loadCourses();
             MobileTableHelper.init('preview-sessions-tbody');
@@ -276,7 +283,7 @@
                             <tr>
                                 <td class="ps-3 fw-bold text-dark">Buổi ${t.SESSION_NO}</td>
                                 <td>${dateStr} (Offset +${t.DAY_OFFSET})</td>
-                                <td>${t.START_TIME} - ${t.END_TIME}</td>
+                                <td>${fmtTime(t.START_TIME)} - ${fmtTime(t.END_TIME)}</td>
                                 <td>${t.LOCATION || 'Phòng học'}</td>
                                 <td class="pe-3">${t.TOPIC || 'Chủ đề'}</td>
                             </tr>

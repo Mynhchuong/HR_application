@@ -167,7 +167,9 @@
                     ${sessions.map(s => {
                         const v = st.STATUS_PER_SESSION[s.SESSION_ID] || '';
                         if (v === '') return `<td class="matrix-cell-em text-center text-muted">·</td>`;
-                        return `<td class="${cellCls[v] || ''} text-center"><strong>${cellLbl[v] || v}</strong></td>`;
+                        const selfCi = st.SELF_CHECKIN_PER_SESSION && st.SELF_CHECKIN_PER_SESSION[s.SESSION_ID];
+                        const ciMark = selfCi ? '<span title="Học viên tự điểm danh qua app" style="font-size:.6em; vertical-align:top;">📱</span>' : '';
+                        return `<td class="${cellCls[v] || ''} text-center"><strong>${cellLbl[v] || v}</strong>${ciMark}</td>`;
                     }).join('')}
                 </tr>`;
             }).join('');
@@ -210,7 +212,8 @@
                     <span class="badge bg-warning-subtle text-warning-emphasis me-2">L Đi học muộn (L)</span>
                     <span class="badge bg-danger-subtle text-danger-emphasis me-2">✗ Vắng mặt (A)</span>
                     <span class="badge bg-secondary-subtle text-secondary-emphasis me-2">E Vắng có phép (E)</span>
-                    <span class="badge bg-light text-muted border">· Không xếp lịch</span>
+                    <span class="badge bg-light text-muted border me-2">· Không xếp lịch</span>
+                    <span class="badge bg-light text-dark border">📱 = học viên tự bấm điểm danh qua app (không có 📱 nghĩa là giáo viên chọn giùm)</span>
                 </div>
 
                 <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">

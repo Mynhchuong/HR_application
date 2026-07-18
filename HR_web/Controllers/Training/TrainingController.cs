@@ -30,6 +30,25 @@ public class TrainingController : BaseController
         return View();
     }
 
+    // GET /Training/CertificateView/{classId} — xem/in chứng chỉ của chính mình cho 1 lớp đã hoàn thành
+    public IActionResult CertificateView(int classId)
+    {
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
+        ViewBag.EmpCd = empcd;
+        ViewBag.ClassId = classId;
+        return View();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetCertificateDetail(int classId)
+    {
+        var loginUser = CurrentUser?.EmpCd ?? "";
+        if (string.IsNullOrEmpty(loginUser)) return Json(new { success = false, message = "Chưa đăng nhập" });
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/certificate/list", $"classId={classId}&empcd={loginUser}&loginUser={loginUser}");
+        return Json(res);
+    }
+
     // GET /Training/ClassDetail/{id}
     public IActionResult ClassDetail(int id)
     {

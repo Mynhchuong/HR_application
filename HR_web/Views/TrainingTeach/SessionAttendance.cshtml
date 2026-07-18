@@ -73,6 +73,7 @@
                                         <th class="ps-4">Mã NV</th>
                                         <th>Họ tên học viên</th>
                                         <th>Tổ/Nhóm</th>
+                                        <th class="text-center">Học viên tự điểm danh</th>
                                         <th class="text-center" style="width: 320px;">Trạng thái điểm danh</th>
                                         <th>Lý do (nếu Vắng/Muộn)</th>
                                         <th class="pe-4 text-end">Thao tác</th>
@@ -226,6 +227,13 @@
         let allStudents = [];
         let sessionInfo = null;
 
+        // Giờ lưu dạng "HHmm" thô (vd "1243") — format lại thành "HH:mm" cho dễ đọc.
+        function fmtTime(t) {
+            if (!t) return '';
+            const s = String(t).replace(':', '').padStart(4, '0');
+            return s.slice(0, 2) + ':' + s.slice(2, 4);
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             loadAttendanceData();
         });
@@ -293,7 +301,7 @@
                         <div>
                             ${badgeHtml}
                             <h3 class="fw-bold mb-1 text-dark">${s.TOPIC || 'Không có chủ đề'}</h3>
-                            <p class="text-muted mb-0">Lớp: <strong>${s.CLASS_NAME}</strong> | Thời gian: <strong>${s.START_TIME} - ${s.END_TIME} (${dateStr})</strong> | Phòng: <strong>${s.LOCATION || 'N/A'}</strong></p>
+                            <p class="text-muted mb-0">Lớp: <strong>${s.CLASS_NAME}</strong> | Thời gian: <strong>${fmtTime(s.START_TIME)} - ${fmtTime(s.END_TIME)} (${dateStr})</strong> | Phòng: <strong>${s.LOCATION || 'N/A'}</strong></p>
                         </div>
                         <div class="text-end">
                             <span class="small text-muted d-block">Sĩ số lớp</span>
@@ -397,11 +405,18 @@
                     <button onclick="setStatus('${st.EMPCD}', 'ABSENT')" class="status-btn absent ${actAbsent}" data-empcd="${empAttr}" data-status-btn="ABSENT" ${disabledAttr}>A${shortLabel ? '' : ' (Vắng)'}</button>
                 `;
 
+                // Học viên tự bấm điểm danh qua app (CHECKIN_TIME) — khác với giáo viên tự chọn P/L/A ở trên.
+                // Không có CHECKIN_TIME nghĩa là học viên chưa tự điểm danh, giáo viên đang chọn giùm.
+                const checkinBadge = st.CHECKIN_TIME
+                    ? `<span class="badge bg-success-subtle text-success-emphasis border" title="Tự điểm danh lúc ${new Date(st.CHECKIN_TIME).toLocaleString('vi-VN')}"><i class="bi bi-phone-vibrate me-1"></i>${new Date(st.CHECKIN_TIME).toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}</span>`
+                    : `<span class="badge bg-secondary-subtle text-secondary-emphasis border">Chưa tự điểm danh</span>`;
+
                 tbody.innerHTML += `
                     <tr id="row_${st.EMPCD}">
                         <td class="ps-4 fw-bold text-dark">${st.EMPCD}</td>
                         <td class="fw-bold vni-font" style="text-transform: uppercase;">${st.EMP_NAME || 'N/A'}</td>
                         <td><span class="badge bg-light text-dark border">${st.GROUP_NAME || '-'}</span></td>
+                        <td class="text-center">${checkinBadge}</td>
                         <td class="text-center">
                             <div class="status-btn-group">${statusBtns('')}</div>
                         </td>
@@ -424,6 +439,7 @@
                             <span class="att-name vni-font">${st.EMP_NAME || 'N/A'}</span>
                             ${st.GROUP_NAME ? `<span class="badge bg-light text-dark border ms-auto">${st.GROUP_NAME}</span>` : ''}
                         </div>
+                        <div class="mb-2">${checkinBadge}</div>
                         <div class="status-btn-group">${statusBtns(true)}</div>
                         <div class="att-card-actions">
                             <input type="text" data-reason-empcd="${empAttr}" class="form-control form-control-sm" placeholder="Ghi chú lý do..." value="${reasonVal}" onchange="saveReason('${st.EMPCD}', this.value)" ${disabledAttr} />
@@ -437,7 +453,7 @@
             });
 
             if (count === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Không tìm thấy học viên nào phù hợp bộ lọc.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">Không tìm thấy học viên nào phù hợp bộ lọc.</td></tr>`;
                 mobileList.innerHTML = `<div class="text-center py-4 text-muted">Không tìm thấy học viên nào phù hợp bộ lọc.</div>`;
             }
         }

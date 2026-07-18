@@ -318,6 +318,25 @@
             `;
         }
 
+        // Buổi ONGOING nhưng SYSDATE đã qua END_TIME (còn trong buffer 30' chờ job tự chuyển COMPLETED)
+        function sessionEndDateTime(s) {
+            if (!s.SESSION_DATE || !s.END_TIME) return null;
+            const et = String(s.END_TIME).replace(':', '').padStart(4, '0');
+            const endDt = new Date(s.SESSION_DATE);
+            endDt.setHours(parseInt(et.slice(0, 2), 10), parseInt(et.slice(2, 4), 10), 0, 0);
+            return endDt;
+        }
+        function isPastSessionEndTime(s) {
+            const endDt = sessionEndDateTime(s);
+            return !!endDt && new Date() > endDt;
+        }
+        // Job nền tự chuyển ONGOING -> COMPLETED lúc END_TIME + 30 phút (xem TrainingLifecycleService.cs)
+        function getAutoLockTime(s) {
+            const endDt = sessionEndDateTime(s);
+            if (!endDt) return null;
+            return new Date(endDt.getTime() + 30 * 60000);
+        }
+
         function renderSessions() {
             // Buổi GROUP_ID null = chung cả lớp → luôn hiện; buổi có GROUP_ID chỉ hiện nếu đúng nhóm học viên.
             const myGroupId = classData.myEnrollment ? classData.myEnrollment.GROUP_ID : null;
@@ -332,13 +351,23 @@
             list.forEach(s => {
                 let badgeClass = 'upcoming';
                 let statusLabel = 'Chưa diễn ra';
-                
+                let lockNote = '';
+
                 if (s.STATUS === 'COMPLETED') {
                     badgeClass = 'completed';
                     statusLabel = 'Đã hoàn thành';
                 } else if (s.STATUS === 'ONGOING') {
                     badgeClass = 'ongoing';
-                    statusLabel = 'Đang diễn ra';
+                    // Hệ thống chỉ tự chuyển ONGOING -> COMPLETED sau khi hết giờ 30 phút (tránh chốt
+                    // vắng nhầm khi lớp trễ giờ) — trong lúc chờ mốc đó, ghi rõ "chờ chốt" + GIỜ KHOÁ
+                    // CỤ THỂ thay vì "Đang diễn ra" gây hiểu lầm là buổi học vẫn còn đang học thật.
+                    if (isPastSessionEndTime(s)) {
+                        statusLabel = 'Chờ chốt điểm danh';
+                        const lockDt = getAutoLockTime(s);
+                        if (lockDt) lockNote = `<div class="small text-warning fw-bold mt-1"><i class="bi bi-lock-clock me-1"></i>Hệ thống sẽ tự khóa điểm danh lúc ${lockDt.toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'})}</div>`;
+                    } else {
+                        statusLabel = 'Đang diễn ra';
+                    }
                 }
 
                 // Điểm danh
@@ -355,7 +384,12 @@
                 }
 
                 const sDate = s.SESSION_DATE ? new Date(s.SESSION_DATE).toLocaleDateString('vi-VN') : '';
-                const timeText = `${s.START_TIME || ''} - ${s.END_TIME || ''}`;
+                const fmtTime = t => {
+                    if (!t) return '';
+                    const s2 = String(t).replace(':', '').padStart(4, '0');
+                    return s2.slice(0, 2) + ':' + s2.slice(2, 4);
+                };
+                const timeText = `${fmtTime(s.START_TIME)} - ${fmtTime(s.END_TIME)}`;
 
                 wrap.innerHTML += `
                     <div class="timeline-item">
@@ -365,6 +399,7 @@
                                 <div>
                                     <h6 class="fw-bold mb-0 text-dark">Buổi ${s.SESSION_NO}: ${s.TOPIC || 'Chủ đề buổi học'}</h6>
                                     <span class="small text-muted"><i class="bi bi-clock me-1"></i>${sDate} | ${timeText}</span>
+                                    ${lockNote}
                                 </div>
                                 <div class="text-end">
                                     <span class="badge bg-light text-dark border me-1">${statusLabel}</span>

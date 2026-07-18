@@ -82,6 +82,7 @@ public class AttendanceMatrixStudent
     public decimal ATTENDANCE_PERCENT { get; set; }
     public Dictionary<string, string> STATUS_PER_SESSION { get; set; } = new();
     // JSON deserialize sẽ decode int keys → string. Convert khi query.
+    public Dictionary<string, bool> SELF_CHECKIN_PER_SESSION { get; set; } = new();
 }
 
 public class ReportTestModel
@@ -102,6 +103,7 @@ public class TestScoreItem
 {
     public string EMPCD { get; set; } = "";
     public string? EMP_NAME { get; set; }
+    public int    ATTEMPT_NO { get; set; } = 1;
     public decimal? SCORE { get; set; }
     public decimal? MAX_SCORE { get; set; }
     public int?   IS_PASS { get; set; }
@@ -116,6 +118,13 @@ public class TestWrongItem
     public int    ATTEMPT_COUNT { get; set; }
     public int    WRONG_COUNT { get; set; }
     public decimal WRONG_PERCENT { get; set; }
+    public List<WrongStudentItem> WRONG_STUDENTS { get; set; } = new();
+}
+public class WrongStudentItem
+{
+    public string EMPCD { get; set; } = "";
+    public string? EMP_NAME { get; set; }
+    public int    ATTEMPT_NO { get; set; }
 }
 
 // §14.4 Satisfaction

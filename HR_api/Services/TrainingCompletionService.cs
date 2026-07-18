@@ -285,7 +285,9 @@ public class TrainingCompletionService
                    E.EMPCD, EC.CNAME EMP_NAME,
                    EC.DEPTCD, EC.LINECD, EC.WORKCD,
                    B.DEPTNM, B.TEAMNM LINE_NAME, B.WORKNM,
-                   E.COMPLETION_DATE, E.FINAL_SCORE, E.ATTENDANCE_PERCENT
+                   E.COMPLETION_DATE, E.FINAL_SCORE, E.ATTENDANCE_PERCENT,
+                   (SELECT MAX(TA.MAX_SCORE) FROM HRMS.HR_TRAINING_TEST_ATTEMPT TA
+                     WHERE TA.TEST_ID = CL.FINAL_TEST_ID AND TA.EMPCD = E.EMPCD) MAX_SCORE
               FROM HRMS.HR_TRAINING_ENROLLMENT E
               JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = E.CLASS_ID
               JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID
@@ -318,6 +320,7 @@ public class TrainingCompletionService
             WORK_NAME          = r["WORKNM"] as string,
             COMPLETION_DATE    = r["COMPLETION_DATE"] as DateTime?,
             FINAL_SCORE        = r["FINAL_SCORE"]        is DBNull ? null : Convert.ToDecimal(r["FINAL_SCORE"]),
+            MAX_SCORE          = r["MAX_SCORE"]           is DBNull ? null : Convert.ToDecimal(r["MAX_SCORE"]),
             ATTENDANCE_PERCENT = r["ATTENDANCE_PERCENT"] is DBNull ? null : Convert.ToDecimal(r["ATTENDANCE_PERCENT"]),
         }, ps.ToArray());
     }

@@ -1,0 +1,247 @@
+@{
+    ViewData["Title"] = "Điểm & Chi tiết câu sai";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var testId = ViewBag.TestId;
+    var classId = ViewBag.ClassId;
+}
+
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Điểm & Chi tiết câu sai",
+            Icon = "bi-clipboard-data",
+            Gradient = "primary",
+            BackUrl = classId != null ? Url.Action("ClassManage", "TrainingTeach", new { id = classId }) : Url.Action("MyClasses", "TrainingTeach"),
+        })
+        <div class="card-body">
+            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;" id="report-card">
+                <div id="reportContent" class="py-5 text-center">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted mb-0">Đang tải báo cáo...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .kpi-box {
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 12px;
+        padding: 1.25rem;
+        background: #f8fafc;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+    .kpi-box .val { font-size: 1.8rem; font-weight: 700; color: #0d6efd; }
+    .kpi-box .lbl { font-size: .8rem; color: #6c757d; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+    .top-wrong-item {
+        border-left: 3px solid #dc3545;
+        padding: .5rem .8rem;
+        background: #fff5f5;
+        border-radius: 4px;
+        margin-bottom: .6rem;
+    }
+    @@media (max-width: 767.98px) {
+        .kpi-box { padding: .75rem; }
+        .kpi-box .val { font-size: 1.3rem; }
+        .kpi-box .lbl { font-size: .68rem; letter-spacing: 0; }
+    }
+</style>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            getTestReport: '@Url.Action("GetTestReport", "TrainingTeach")'
+        };
+        const TEST_ID = @testId;
+
+        // Lớp đông (vd 1k người) render hết 1 lần vào DOM sẽ giật/lag — phân trang bảng điểm +
+        // giới hạn danh sách "học viên sai" hiện 20 người đầu, còn lại tải khi bấm "Xem thêm".
+        let testReportData = null;
+        let scoresPage = 1;
+        let scoresFilterText = '';
+        const SCORES_PER_PAGE = 50;
+        const WRONG_STUDENTS_CAP = 20;
+
+        document.addEventListener('DOMContentLoaded', loadTestReport);
+
+        function esc(s) {
+            if (s == null) return '';
+            return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+        function num(v) { return v == null ? '-' : v; }
+
+        async function loadTestReport() {
+            const res = await fetch(`${window.TRAINING_URLS.getTestReport}?id=${TEST_ID}`);
+            const json = await res.json();
+            if (!json || json.status === 403 || json.statusCode === 403) {
+                return renderErr('Bạn không có quyền xem báo cáo bài kiểm tra này.');
+            }
+            if (!json.success || !json.data) {
+                return renderErr(json.message || 'Không có dữ liệu báo cáo.');
+            }
+
+            const d = json.data;
+            testReportData = d;
+            scoresPage = 1;
+            scoresFilterText = '';
+            const html = `
+                <div class="mb-4">
+                    <h4 class="fw-bold mb-0 text-dark">${esc(d.TEST_TITLE)}</h4>
+                    <span class="text-muted small">Điểm sàn: ${num(d.PASS_SCORE)}</span>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val">${d.ATTEMPT_COUNT}</div><div class="lbl">Lượt làm bài</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${d.PASS_COUNT}</div><div class="lbl">Học viên Đạt</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-danger">${d.FAIL_COUNT}</div><div class="lbl">Học viên Rớt</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-primary">${num(d.AVG_SCORE?.toFixed?.(1))}</div><div class="lbl">Điểm TB</div></div></div>
+                </div>
+
+                ${(() => {
+                    // HR/giáo viên cần biết ai thi lại nhiều lần (≥3 lượt) — dấu hiệu học viên gặp khó khăn.
+                    const attemptCountByEmp = {};
+                    d.SCORES.forEach(s => { attemptCountByEmp[s.EMPCD] = (attemptCountByEmp[s.EMPCD] || 0) + 1; });
+                    const heavyRetake = Object.entries(attemptCountByEmp).filter(([, c]) => c >= 3);
+                    if (heavyRetake.length === 0) return '';
+                    const nameByEmp = {};
+                    d.SCORES.forEach(s => { nameByEmp[s.EMPCD] = s.EMP_NAME || s.EMPCD; });
+                    return `
+                        <div class="alert alert-warning border-0 p-3 mb-4 rounded-3">
+                            <div class="fw-bold text-dark mb-2"><i class="bi bi-exclamation-triangle me-1"></i>${heavyRetake.length} học viên thi lại từ 3 lần trở lên</div>
+                            <div class="d-flex flex-wrap gap-2">
+                                ${heavyRetake.map(([empcd, c]) => `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><span class="vni-font">${esc(nameByEmp[empcd])}</span> (#${esc(empcd)}) — ${c} lượt</span>`).join('')}
+                            </div>
+                        </div>`;
+                })()}
+
+                ${(() => {
+                    // Top 5 nộp bài nhanh nhất (theo giờ nộp sớm nhất) — để sau này xét giải/thưởng.
+                    const submitted = d.SCORES.filter(s => s.SUBMIT_DT).slice().sort((a, b) => new Date(a.SUBMIT_DT) - new Date(b.SUBMIT_DT));
+                    if (submitted.length === 0) return '';
+                    const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+                    return `
+                        <div class="alert alert-success border-0 p-3 mb-4 rounded-3">
+                            <div class="fw-bold text-dark mb-2"><i class="bi bi-stopwatch me-1"></i>Top 5 nộp bài nhanh nhất</div>
+                            <div class="d-flex flex-wrap gap-2">
+                                ${submitted.slice(0, 5).map((s, i) => `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">${medals[i]} <span class="vni-font">${esc(s.EMP_NAME || s.EMPCD)}</span> (#${esc(s.EMPCD)}) — ${new Date(s.SUBMIT_DT).toLocaleString('vi-VN')}</span>`).join('')}
+                            </div>
+                        </div>`;
+                })()}
+
+                <div class="row g-4">
+                    <div class="col-12 col-lg-7">
+                        <div class="card border p-3 shadow-sm rounded-3">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                                <h6 class="fw-bold mb-0 text-dark">Bảng điểm học viên</h6>
+                                <input type="text" id="scoresFilterInput" class="form-control form-control-sm" style="max-width: 220px;" placeholder="Tìm theo mã NV..." oninput="onScoresFilterChange(this.value)" />
+                            </div>
+                            <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead><tr>
+                                        <th>Mã NV</th><th>Họ và tên</th><th>Lượt</th><th>Điểm</th><th>Kết quả</th><th>Nộp bài</th>
+                                    </tr></thead>
+                                    <tbody id="testScoresTbody"></tbody>
+                                </table>
+                            </div>
+                            <div id="testScoresPagination"></div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-5">
+                        <div class="card border p-3 shadow-sm rounded-3">
+                            <h6 class="fw-bold mb-3 text-dark">Chi tiết câu hỏi sai</h6>
+                            <div style="max-height: 480px; overflow-y: auto;" class="pe-1">
+                                ${d.TOP_WRONG_QUESTIONS.length === 0
+                                    ? '<p class="text-muted text-center py-4 small">Chưa ghi nhận câu trả lời sai.</p>'
+                                    : d.TOP_WRONG_QUESTIONS.map(q => `<div class="top-wrong-item">
+                                        <div class="small text-muted mb-1">${esc(q.QUESTION_TYPE)}</div>
+                                        <div class="small text-dark fw-bold mb-1">${esc(q.QUESTION_TEXT)}</div>
+                                        <div class="small text-danger fw-bold mb-1">${q.WRONG_COUNT}/${q.ATTEMPT_COUNT} học viên trả lời sai (${q.WRONG_PERCENT}%)</div>
+                                        <details>
+                                            <summary class="small text-primary" style="cursor:pointer;">Xem danh sách học viên sai</summary>
+                                            <ul class="small mb-0 mt-1 ps-3" id="wrongStudentsList_${q.QUESTION_ID}">
+                                                ${q.WRONG_STUDENTS.slice(0, WRONG_STUDENTS_CAP).map(st => wrongStudentLi(st)).join('')}
+                                            </ul>
+                                            ${q.WRONG_STUDENTS.length > WRONG_STUDENTS_CAP
+                                                ? `<button type="button" class="btn btn-sm btn-link p-0 small" onclick="showMoreWrongStudents(${q.QUESTION_ID}, this)">+ ${q.WRONG_STUDENTS.length - WRONG_STUDENTS_CAP} người khác</button>`
+                                                : ''}
+                                        </details>
+                                      </div>`).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+
+            document.getElementById('reportContent').innerHTML = html;
+            renderScoresTable();
+        }
+
+        function wrongStudentLi(s) {
+            return `<li><span class="vni-font">${esc(s.EMP_NAME || s.EMPCD)}</span> <span class="text-muted">(#${esc(s.EMPCD)}${s.ATTEMPT_NO > 1 ? `, lượt ${s.ATTEMPT_NO}` : ''})</span></li>`;
+        }
+
+        window.showMoreWrongStudents = function(questionId, btn) {
+            const q = testReportData.TOP_WRONG_QUESTIONS.find(x => x.QUESTION_ID === questionId);
+            if (!q) return;
+            const ul = document.getElementById(`wrongStudentsList_${questionId}`);
+            ul.insertAdjacentHTML('beforeend', q.WRONG_STUDENTS.slice(WRONG_STUDENTS_CAP).map(st => wrongStudentLi(st)).join(''));
+            btn.remove();
+        };
+
+        window.onScoresFilterChange = function(val) {
+            scoresFilterText = (val || '').trim().toLowerCase();
+            scoresPage = 1;
+            renderScoresTable();
+        };
+
+        function renderScoresTable() {
+            const d = testReportData;
+            const filtered = scoresFilterText
+                ? d.SCORES.filter(s => (s.EMPCD || '').toLowerCase().includes(scoresFilterText))
+                : d.SCORES;
+
+            const totalPages = Math.max(1, Math.ceil(filtered.length / SCORES_PER_PAGE));
+            scoresPage = Math.min(Math.max(1, scoresPage), totalPages);
+            const start = (scoresPage - 1) * SCORES_PER_PAGE;
+            const pageItems = filtered.slice(start, start + SCORES_PER_PAGE);
+
+            document.getElementById('testScoresTbody').innerHTML = pageItems.map(s => `<tr>
+                <td>${esc(s.EMPCD)}</td>
+                <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(s.EMP_NAME||'')}</td>
+                <td>${s.ATTEMPT_NO || 1}</td>
+                <td><strong>${s.SCORE == null ? '-' : s.SCORE}${s.MAX_SCORE ? '/' + s.MAX_SCORE : ''}</strong></td>
+                <td>${s.IS_PASS == 1 ? '<span class="badge bg-success-subtle text-success-emphasis">Đạt</span>' : s.IS_PASS == 0 ? '<span class="badge bg-danger-subtle text-danger-emphasis">Không đạt</span>' : '-'}</td>
+                <td class="text-muted small">${s.SUBMIT_DT ? new Date(s.SUBMIT_DT).toLocaleString('vi-VN') : '-'}</td>
+            </tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Không tìm thấy học viên phù hợp.</td></tr>';
+
+            const pagDiv = document.getElementById('testScoresPagination');
+            if (totalPages > 1) {
+                pagDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mt-2 px-1">
+                        <span class="small text-muted">Trang ${scoresPage}/${totalPages} (${filtered.length} lượt thi)</span>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary" ${scoresPage <= 1 ? 'disabled' : ''} onclick="changeScoresPage(${scoresPage - 1})">‹ Trước</button>
+                            <button type="button" class="btn btn-outline-secondary" ${scoresPage >= totalPages ? 'disabled' : ''} onclick="changeScoresPage(${scoresPage + 1})">Sau ›</button>
+                        </div>
+                    </div>`;
+            } else {
+                pagDiv.innerHTML = '';
+            }
+        }
+
+        window.changeScoresPage = function(p) {
+            scoresPage = p;
+            renderScoresTable();
+        };
+
+        function renderErr(msg) {
+            document.getElementById('reportContent').innerHTML = `
+                <div class="alert alert-warning text-center border-0 py-4 shadow-sm" style="border-radius: 12px;">
+                    <i class="bi bi-exclamation-triangle text-warning mb-2" style="font-size: 2.5rem;"></i>
+                    <p class="mb-0 text-dark fw-bold">${esc(msg)}</p>
+                </div>
+            `;
+        }
+    </script>
+}

@@ -261,19 +261,22 @@ public class TrainingReportService
                 ATT_PCT = r["ATTENDANCE_PERCENT"] is DBNull ? 0m : Convert.ToDecimal(r["ATTENDANCE_PERCENT"]),
             }, new OracleParameter("CID", classId));
 
-        // Fetch all attendance rows once (avoid N+1)
+        // Fetch all attendance rows once (avoid N+1) — kèm CHECKIN_TIME để biết dòng nào do học viên
+        // TỰ bấm điểm danh qua app (khác với giáo viên chọn giùm), phục vụ minh bạch/công bằng khi tra soát.
         var attendances = await _db.ExecuteQueryAsync(@"
-            SELECT A.SESSION_ID, A.EMPCD, A.STATUS
+            SELECT A.SESSION_ID, A.EMPCD, A.STATUS, A.CHECKIN_TIME
               FROM HRMS.HR_TRAINING_ATTENDANCE A
               JOIN HRMS.HR_TRAINING_SESSION S ON S.ID = A.SESSION_ID
              WHERE S.CLASS_ID = :CID",
             r => new
             {
-                SID   = Convert.ToInt32(r["SESSION_ID"]),
-                EMPCD = r["EMPCD"]?.ToString() ?? "",
-                ST    = r["STATUS"]?.ToString() ?? "",
+                SID     = Convert.ToInt32(r["SESSION_ID"]),
+                EMPCD   = r["EMPCD"]?.ToString() ?? "",
+                ST      = r["STATUS"]?.ToString() ?? "",
+                SELF_CI = r["CHECKIN_TIME"] != DBNull.Value,
             }, new OracleParameter("CID", classId));
         var byKey = attendances.ToDictionary(a => (a.SID, a.EMPCD), a => a.ST);
+        var selfCheckinByKey = attendances.ToDictionary(a => (a.SID, a.EMPCD), a => a.SELF_CI);
 
         var students = studentRows.Select(s => {
             var m = new AttendanceMatrixStudent
@@ -290,10 +293,13 @@ public class TrainingReportService
                 if (sess.GROUP_ID.HasValue && sess.GROUP_ID != s.GID)
                 {
                     m.STATUS_PER_SESSION[sess.SESSION_ID] = "";
+                    m.SELF_CHECKIN_PER_SESSION[sess.SESSION_ID] = false;
                     continue;
                 }
                 m.STATUS_PER_SESSION[sess.SESSION_ID] =
                     byKey.TryGetValue((sess.SESSION_ID, s.EMPCD), out var st) ? st : "";
+                m.SELF_CHECKIN_PER_SESSION[sess.SESSION_ID] =
+                    selfCheckinByKey.TryGetValue((sess.SESSION_ID, s.EMPCD), out var ci) && ci;
             }
             return m;
         }).ToList();
@@ -338,30 +344,48 @@ public class TrainingReportService
                 HAS_PENDING_GRANT = Convert.ToInt32(r["PENDING_GRANT_CNT"]) > 0,
             }, new OracleParameter("TID", testId));
 
-        // Top 5 câu sai nhiều nhất — chỉ tính auto-grade (SINGLE/MULTI/YESNO/DROPDOWN)
+        // Mọi câu có người làm (chỉ tính auto-grade SINGLE/MULTI/YESNO/DROPDOWN), kèm chi tiết TỪNG
+        // học viên sai câu nào — query 1 lần lấy hết rồi group ở C# (tránh N+1 theo từng câu hỏi).
         // Sai = POINTS_AWARDED = 0 (chấm auto set 0 nếu wrong).
-        var topWrong = await _db.ExecuteQueryAsync(@"
-            SELECT * FROM (
-                SELECT Q.ID, Q.QUESTION_TEXT, Q.QUESTION_TYPE,
-                       COUNT(*) ATT_CNT,
-                       SUM(CASE WHEN NVL(AN.POINTS_AWARDED,0) = 0 THEN 1 ELSE 0 END) WRONG_CNT
-                  FROM HRMS.HR_TRAINING_TEST_QUESTION Q
-                  JOIN HRMS.HR_TRAINING_TEST_ANSWER AN ON AN.QUESTION_ID = Q.ID
-                 WHERE Q.TEST_ID = :TID
-                   AND Q.QUESTION_TYPE <> 'TEXT'
-                 GROUP BY Q.ID, Q.QUESTION_TEXT, Q.QUESTION_TYPE
-                HAVING COUNT(*) > 0
-                 ORDER BY WRONG_CNT DESC, ATT_CNT DESC
-            ) WHERE ROWNUM <= 5",
-            r => new TestWrongItem
+        var wrongDetailRows = await _db.ExecuteQueryAsync(@"
+            SELECT Q.ID QID, Q.QUESTION_TEXT, Q.QUESTION_TYPE, AT.EMPCD, EC.CNAME EMP_NAME, AT.ATTEMPT_NO,
+                   CASE WHEN NVL(AN.POINTS_AWARDED,0) = 0 THEN 1 ELSE 0 END IS_WRONG
+              FROM HRMS.HR_TRAINING_TEST_QUESTION Q
+              JOIN HRMS.HR_TRAINING_TEST_ANSWER AN ON AN.QUESTION_ID = Q.ID
+              JOIN HRMS.HR_TRAINING_TEST_ATTEMPT AT ON AT.ID = AN.ATTEMPT_ID
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = AT.EMPCD
+             WHERE Q.TEST_ID = :TID
+               AND Q.QUESTION_TYPE <> 'TEXT'",
+            r => new
             {
-                QUESTION_ID   = Convert.ToInt32(r["ID"]),
-                QUESTION_TEXT = r["QUESTION_TEXT"]?.ToString() ?? "",
-                QUESTION_TYPE = r["QUESTION_TYPE"]?.ToString() ?? "",
-                ATTEMPT_COUNT = Convert.ToInt32(r["ATT_CNT"]),
-                WRONG_COUNT   = Convert.ToInt32(r["WRONG_CNT"]),
-                WRONG_PERCENT = Math.Round(100m * Convert.ToInt32(r["WRONG_CNT"]) / Convert.ToDecimal(r["ATT_CNT"]), 2),
+                QID        = Convert.ToInt32(r["QID"]),
+                QTEXT      = r["QUESTION_TEXT"]?.ToString() ?? "",
+                QTYPE      = r["QUESTION_TYPE"]?.ToString() ?? "",
+                EMPCD      = r["EMPCD"]?.ToString() ?? "",
+                EMP_NAME   = r["EMP_NAME"] as string,
+                ATTEMPT_NO = Convert.ToInt32(r["ATTEMPT_NO"]),
+                IS_WRONG   = Convert.ToInt32(r["IS_WRONG"]) == 1,
             }, new OracleParameter("TID", testId));
+
+        var topWrong = wrongDetailRows
+            .GroupBy(x => new { x.QID, x.QTEXT, x.QTYPE })
+            .Select(g => new TestWrongItem
+            {
+                QUESTION_ID   = g.Key.QID,
+                QUESTION_TEXT = g.Key.QTEXT,
+                QUESTION_TYPE = g.Key.QTYPE,
+                ATTEMPT_COUNT = g.Count(),
+                WRONG_COUNT   = g.Count(x => x.IS_WRONG),
+                WRONG_PERCENT = g.Count() > 0 ? Math.Round(100m * g.Count(x => x.IS_WRONG) / g.Count(), 2) : 0,
+                WRONG_STUDENTS = g.Where(x => x.IS_WRONG)
+                                  .Select(x => new WrongStudentItem { EMPCD = x.EMPCD, EMP_NAME = x.EMP_NAME, ATTEMPT_NO = x.ATTEMPT_NO })
+                                  .OrderBy(x => x.EMPCD)
+                                  .ToList(),
+            })
+            .Where(x => x.WRONG_COUNT > 0)
+            .OrderByDescending(x => x.WRONG_COUNT)
+            .ThenByDescending(x => x.ATTEMPT_COUNT)
+            .ToList();
 
         var scores = attempts.Where(a => a.SCORE.HasValue).Select(a => a.SCORE!.Value).ToList();
         // Đếm ĐẬU/RỚT theo học viên duy nhất (không đếm trùng khi có nhiều lần thi do được cấp

@@ -134,13 +134,13 @@
         <div class="modal-content rounded-4 border-0 shadow">
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title fw-bold" id="publishModalLabel">
-                    <i class="bi bi-send text-warning" style="vertical-align:middle;"></i>
-                    Xuất bản bài kiểm tra
+                    <i class="bi bi-send text-warning" id="publishModalIcon" style="vertical-align:middle;"></i>
+                    <span id="publishModalTitle">Xuất bản bài kiểm tra</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted small mb-3">Sau khi xuất bản, học viên sẽ có thể làm bài trong khoảng thời gian bạn chọn.</p>
+                <p class="text-muted small mb-3" id="publishModalDesc">Sau khi xuất bản, học viên sẽ có thể làm bài trong khoảng thời gian bạn chọn.</p>
                 <div class="mb-3">
                     <label class="form-label fw-semibold small" for="pub-from">Thời gian mở bài <span class="text-danger">*</span></label>
                     <input type="datetime-local" id="pub-from" class="form-control rounded-3" required>
@@ -200,7 +200,9 @@
         getQAList:        '@Url.Action("GetQAList",        "Training")',
         sessionAttendance:'@Url.Action("SessionAttendance","TrainingTeach", new { id = "__ID__" })',
         testGrade:        '@Url.Action("TestGrade",        "TrainingTeach", new { id = "__ID__" })',
+        testReport:       '@Url.Action("TestReport",       "TrainingTeach", new { id = "__ID__" })',
         testPublish:      '@Url.Action("TestPublish",      "TrainingTeach")',
+        testUpdateSchedule: '@Url.Action("TestUpdateSchedule", "TrainingTeach")',
         testDelete:       '@Url.Action("TestDelete",       "TrainingTeach")',
         testPreview:      '@Url.Action("TestPreview",      "TrainingTeach", new { id = "__ID__" })',
         setFinalTest:     '@Url.Action("SetFinalTest",     "TrainingTeach")',
@@ -304,6 +306,25 @@
         renderSessionsPage();
     }
 
+    // Buổi ONGOING nhưng SYSDATE đã qua END_TIME (còn trong buffer 30' chờ job tự chuyển COMPLETED)
+    function sessionEndDateTime(s) {
+        if (!s.SESSION_DATE || !s.END_TIME) return null;
+        const et = String(s.END_TIME).replace(':', '').padStart(4, '0');
+        const endDt = new Date(s.SESSION_DATE);
+        endDt.setHours(parseInt(et.slice(0, 2), 10), parseInt(et.slice(2, 4), 10), 0, 0);
+        return endDt;
+    }
+    function isPastSessionEndTime(s) {
+        const endDt = sessionEndDateTime(s);
+        return !!endDt && new Date() > endDt;
+    }
+    // Job nền tự chuyển ONGOING -> COMPLETED lúc END_TIME + 30 phút (xem TrainingLifecycleService.cs)
+    function getAutoLockTime(s) {
+        const endDt = sessionEndDateTime(s);
+        if (!endDt) return null;
+        return new Date(endDt.getTime() + 30 * 60000);
+    }
+
     function renderSessionsPage() {
         const wrap   = document.getElementById('sessions-list');
         const pagDiv = document.getElementById('sessions-pagination');
@@ -321,9 +342,26 @@
         wrap.innerHTML = '';
         pageItems.forEach(s => {
             let bc = 'upcoming', sl = 'Chưa dạy';
+            let lockNote = '';
             if (s.STATUS === 'COMPLETED') { bc = 'completed'; sl = 'Đã kết thúc'; }
-            else if (s.STATUS === 'ONGOING') { bc = 'ongoing'; sl = 'Đang diễn ra'; }
+            else if (s.STATUS === 'ONGOING') {
+                bc = 'ongoing';
+                // Hệ thống chỉ tự chuyển ONGOING -> COMPLETED sau khi hết giờ 30 phút (tránh chốt vắng
+                // nhầm khi lớp trễ giờ) — ghi rõ "chờ chốt" + GIỜ KHOÁ CỤ THỂ thay vì im im không ai biết.
+                if (isPastSessionEndTime(s)) {
+                    sl = 'Chờ chốt điểm danh';
+                    const lockDt = getAutoLockTime(s);
+                    if (lockDt) lockNote = `<div class="small text-warning fw-bold mt-1"><i class="bi bi-lock-clock me-1"></i>Hệ thống sẽ tự khóa điểm danh lúc ${lockDt.toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'})}</div>`;
+                } else {
+                    sl = 'Đang diễn ra';
+                }
+            }
             const sDate = s.SESSION_DATE ? new Date(s.SESSION_DATE).toLocaleDateString('vi-VN') : '';
+            const fmtTime = t => {
+                if (!t) return '';
+                const s2 = String(t).replace(':', '').padStart(4, '0');
+                return s2.slice(0, 2) + ':' + s2.slice(2, 4);
+            };
             const groupBadge = s.GROUP_NAME
                 ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-2">${s.GROUP_NAME}</span>`
                 : '';
@@ -334,7 +372,8 @@
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
                                 <h6 class="fw-bold mb-0 text-dark">Buổi ${s.SESSION_NO}: ${s.TOPIC || 'Chủ đề'}${groupBadge}</h6>
-                                <span class="small text-muted">${sDate} | ${s.START_TIME} - ${s.END_TIME}</span>
+                                <span class="small text-muted">${sDate} | ${fmtTime(s.START_TIME)} - ${fmtTime(s.END_TIME)}</span>
+                                ${lockNote}
                             </div>
                             <span class="badge bg-light text-dark border">${sl}</span>
                         </div>
@@ -443,6 +482,12 @@
                     <i class="bi bi-send" style="font-size:.85rem;vertical-align:middle;"></i> Xuất bản
                 </button>` : '';
 
+            // Bài đã xuất bản (PUBLISHED/OPEN) — cho sửa lại ngày mở/đóng nếu chọn nhầm hoặc cần gia hạn.
+            const editScheduleBtn = (t.STATUS === 'PUBLISHED' || t.STATUS === 'OPEN') ? `
+                <button onclick="editTestSchedule(${t.ID}, '${t.AVAILABLE_FROM || ''}', '${t.AVAILABLE_TO || ''}')" class="btn btn-sm btn-outline-warning test-action-btn fw-bold" title="Sửa ngày mở/đóng bài">
+                    <i class="bi bi-calendar-event" style="font-size:.85rem;vertical-align:middle;"></i> Sửa thời gian
+                </button>` : '';
+
             const deleteBtn  = isDraft ? `
                 <button onclick="deleteTest(${t.ID})" class="btn btn-sm btn-outline-danger test-action-btn" title="Xóa bài nháp">
                     <i class="bi bi-trash" style="font-size:.85rem;vertical-align:middle;"></i>
@@ -455,7 +500,14 @@
 
             const gradeBtn   = canGrade ? `
                 <a href="${window.TRAINING_URLS.testGrade.replace('__ID__', t.ID)}" class="btn btn-sm btn-outline-warning test-action-btn fw-bold">
-                    <i class="bi bi-clipboard-check" style="font-size:.85rem;vertical-align:middle;"></i> Chấm &amp; Xem điểm
+                    <i class="bi bi-clipboard-check" style="font-size:.85rem;vertical-align:middle;"></i> Chấm tự luận
+                </a>` : '';
+
+            // Xem điểm tất cả học viên + chi tiết ai sai câu nào (khác gradeBtn ở trên vốn chỉ để
+            // chấm tay các câu tự luận) — hiện khi bài đã publish trở đi, đã có người làm.
+            const reportBtn  = canGrade ? `
+                <a href="${window.TRAINING_URLS.testReport.replace('__ID__', t.ID)}" class="btn btn-sm btn-outline-primary test-action-btn fw-bold">
+                    <i class="bi bi-clipboard-data" style="font-size:.85rem;vertical-align:middle;"></i> Xem điểm &amp; câu sai
                 </a>` : '';
 
             const draftNote  = isDraft ? `
@@ -487,7 +539,7 @@
                     ${draftNote}
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">
                         <div class="d-flex flex-wrap gap-1">
-                            ${publishBtn}${gradeBtn}${previewBtn}${deleteBtn}
+                            ${publishBtn}${editScheduleBtn}${reportBtn}${gradeBtn}${previewBtn}${deleteBtn}
                         </div>
                         ${setFinalBtn}
                     </div>
@@ -508,15 +560,39 @@
     }
 
     let _publishTestId = null;
+    let _publishMode = 'publish'; // 'publish' (DRAFT -> PUBLISHED) | 'reschedule' (sửa ngày bài đã publish)
 
     function publishTest(id) {
         _publishTestId = id;
+        _publishMode = 'publish';
         // Đặt giá trị mặc định: từ bây giờ đến 7 ngày sau
         const now = new Date();
         const toDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
         const toLocal = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
         document.getElementById('pub-from').value = toLocal(now);
         document.getElementById('pub-to').value   = toLocal(toDate);
+        document.getElementById('confirmPublishBtn').innerHTML = '<i class="bi bi-send" style="font-size:.9rem;vertical-align:middle;"></i> Xuất bản';
+        document.getElementById('publishModalTitle').textContent = 'Xuất bản bài kiểm tra';
+        document.getElementById('publishModalDesc').textContent = 'Sau khi xuất bản, học viên sẽ có thể làm bài trong khoảng thời gian bạn chọn.';
+        document.getElementById('publishModalIcon').className = 'bi bi-send text-warning';
+        new bootstrap.Modal(document.getElementById('publishModal')).show();
+    }
+
+    // Sửa ngày mở/đóng cho bài ĐÃ xuất bản — cùng modal với publishTest, chỉ đổi mode + endpoint gọi.
+    function editTestSchedule(id, currentFrom, currentTo) {
+        _publishTestId = id;
+        _publishMode = 'reschedule';
+        const toLocal = iso => {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        };
+        document.getElementById('pub-from').value = toLocal(currentFrom);
+        document.getElementById('pub-to').value   = toLocal(currentTo);
+        document.getElementById('confirmPublishBtn').innerHTML = '<i class="bi bi-calendar-event" style="font-size:.9rem;vertical-align:middle;"></i> Lưu thời gian';
+        document.getElementById('publishModalTitle').textContent = 'Sửa thời gian bài kiểm tra';
+        document.getElementById('publishModalDesc').textContent = 'Bài đã xuất bản — cập nhật lại khoảng thời gian học viên được làm bài.';
+        document.getElementById('publishModalIcon').className = 'bi bi-calendar-event text-warning';
         new bootstrap.Modal(document.getElementById('publishModal')).show();
     }
 
@@ -526,19 +602,28 @@
         if (!from || !to) { window.showToast('Vui lòng nhập đầy đủ thời gian mở và đóng bài.', 'error'); return; }
         if (new Date(to) <= new Date(from)) { window.showToast('Thời gian đóng bài phải sau thời gian mở bài.', 'error'); return; }
 
+        const isReschedule = _publishMode === 'reschedule';
+        const url = isReschedule ? window.TRAINING_URLS.testUpdateSchedule : window.TRAINING_URLS.testPublish;
+
         const btn = document.getElementById('confirmPublishBtn');
         btn.disabled = true;
-        btn.textContent = 'Đang xuất bản...';
+        btn.textContent = isReschedule ? 'Đang lưu...' : 'Đang xuất bản...';
 
-        fetch(window.TRAINING_URLS.testPublish, {
+        fetch(url, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ID: _publishTestId, AVAILABLE_FROM: from, AVAILABLE_TO: to })
         }).then(r => r.json()).then(res => {
             bootstrap.Modal.getInstance(document.getElementById('publishModal')).hide();
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-send" style="font-size:.9rem;vertical-align:middle;"></i> Xuất bản';
-            if (res.success) { window.showToast('Xuất bản thành công!', 'success'); loadTestsList(); }
-            else window.showToast(res.message || 'Lỗi xuất bản.', 'error');
+            btn.innerHTML = isReschedule
+                ? '<i class="bi bi-calendar-event" style="font-size:.9rem;vertical-align:middle;"></i> Lưu thời gian'
+                : '<i class="bi bi-send" style="font-size:.9rem;vertical-align:middle;"></i> Xuất bản';
+            if (res.success) {
+                window.showToast(isReschedule ? 'Đã cập nhật thời gian!' : 'Xuất bản thành công!', 'success');
+                loadTestsList();
+            } else {
+                window.showToast(res.message || (isReschedule ? 'Lỗi cập nhật thời gian.' : 'Lỗi xuất bản.'), 'error');
+            }
         });
     }
 

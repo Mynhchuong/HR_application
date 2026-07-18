@@ -124,6 +124,21 @@ public class PayslipController : BaseController
         }
     }
 
+    // Gọi sau khi toàn bộ batch upload đã thành công — dọn nhân viên vắng mặt trong file mới
+    [HttpPost]
+    public async Task<IActionResult> FinalizeUpload([FromBody] FinalizeUploadRequest model)
+    {
+        if (CurrentUser == null ||
+            (CurrentUser.RoleName != "HR" && CurrentUser.RoleName != "Admin"))
+            return Json(new { success = false, message = "Từ chối truy cập" });
+
+        if (model == null || model.EmpCds == null)
+            return Json(new { success = false, message = "Dữ liệu trống" });
+
+        var result = await _payslipService.FinalizeUploadAsync(model.PeriodId, model.EmpCds);
+        return Json(result);
+    }
+
     // ─────────────────────────────────────────────
     // POST: /Payslip/CreatePeriod (AJAX)
     // ─────────────────────────────────────────────

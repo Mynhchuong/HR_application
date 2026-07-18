@@ -267,6 +267,13 @@ public class PayslipController : ControllerBase
         }
     }
 
+    // Trước đây: batch đầu tiên xoá sạch HR_PAYROLL_DATA của cả kỳ lương rồi ghi đè dần từng batch
+    // (không transaction, không rollback) — nếu batch giữa chừng lỗi (mất mạng, timeout...) thì dữ
+    // liệu cũ đã mất mà dữ liệu mới chưa upload đủ, không cách nào khôi phục.
+    // Giờ đổi sang MERGE (upsert) cho từng batch, dọn dữ liệu cũ CHỈ trong phạm vi từng nhân viên có
+    // trong batch đó (cột nào bị bỏ khỏi file mới thì bị xoá cho đúng nhân viên đó), gói trong 1
+    // transaction cho mỗi request — batch nào lỗi thì tự rollback, không đụng gì tới nhân viên đã
+    // xử lý ở batch trước hoặc chưa tới lượt ở batch sau.
     [HttpPost("upload")]
     public async Task<IActionResult> UploadPayslip([FromBody] dynamic model)
     {
@@ -274,16 +281,9 @@ public class PayslipController : ControllerBase
         {
             decimal periodId = model.PERIOD_ID;
             var data = ((Newtonsoft.Json.Linq.JArray)model.Data).ToObject<List<PayslipUploadRow>>();
-            bool isFirstBatch = model.IsFirstBatch;
 
             if (data == null || data.Count == 0)
                 return Ok(new { success = false, message = "Không có dữ liệu upload" });
-
-            if (isFirstBatch)
-            {
-                string sqlClear = "DELETE FROM HRMS.HR_PAYROLL_DATA WHERE PERIOD_ID = :PERIOD_ID";
-                await _oracleService.ExecuteNonQueryAsync(sqlClear, new OracleParameter("PERIOD_ID", periodId));
-            }
 
             string sqlItems = "SELECT ID, ITEM_CODE FROM HRMS.HR_PAYROLL_ITEMS";
             var items = await _oracleService.ExecuteQueryAsync(sqlItems, r => new { ID = Convert.ToDecimal(r["ID"]), CODE = r["ITEM_CODE"]?.ToString() ?? "" });
@@ -296,12 +296,14 @@ public class PayslipController : ControllerBase
             var iIds = new List<decimal>();
             var amts = new List<object>();
             var tVals = new List<object>();
+            var empItemIds = new Dictionary<string, List<decimal>>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var row in data)
             {
                 if (string.IsNullOrEmpty(row.EmpCd)) continue;
 
                 bool hasDataForRow = false;
+                var thisEmpItemIds = new List<decimal>();
                 foreach (var uploadItem in row.Items)
                 {
                     if (string.IsNullOrEmpty(uploadItem.Code)) continue;
@@ -316,27 +318,100 @@ public class PayslipController : ControllerBase
                     iIds.Add(itemId);
                     amts.Add((object?)val ?? DBNull.Value);
                     tVals.Add((object?)textVal ?? DBNull.Value);
+                    thisEmpItemIds.Add(itemId);
                     hasDataForRow = true;
                 }
-                if (hasDataForRow) successCount++;
+                if (hasDataForRow)
+                {
+                    successCount++;
+                    empItemIds[row.EmpCd] = thisEmpItemIds;
+                }
             }
 
             if (pIds.Count > 0)
             {
-                string sqlInsert = @"
-                    INSERT INTO HRMS.HR_PAYROLL_DATA (PERIOD_ID, EMPCD, ITEM_ID, AMOUNT, TEXT_VALUE)
-                    VALUES (:PERIOD_ID, :EMPCD, :ITEM_ID, :AMOUNT, :TEXT_VAL)";
+                await using var scope = await _oracleService.BeginTransactionAsync();
+                try
+                {
+                    string sqlMerge = @"
+                        MERGE INTO HRMS.HR_PAYROLL_DATA T
+                        USING (SELECT :PERIOD_ID PID, :EMPCD ECD, :ITEM_ID IID FROM DUAL) S
+                        ON (T.PERIOD_ID = S.PID AND T.EMPCD = S.ECD AND T.ITEM_ID = S.IID)
+                        WHEN MATCHED THEN UPDATE SET T.AMOUNT = :AMOUNT, T.TEXT_VALUE = :TEXT_VAL
+                        WHEN NOT MATCHED THEN INSERT (PERIOD_ID, EMPCD, ITEM_ID, AMOUNT, TEXT_VALUE)
+                                              VALUES (:PERIOD_ID, :EMPCD, :ITEM_ID, :AMOUNT, :TEXT_VAL)";
 
-                await _oracleService.ExecuteBulkInsertAsync(sqlInsert, pIds.Count,
-                    new OracleParameter("PERIOD_ID", OracleDbType.Decimal) { Value = pIds.ToArray() },
-                    new OracleParameter("EMPCD", OracleDbType.Varchar2) { Value = eCodes.ToArray() },
-                    new OracleParameter("ITEM_ID", OracleDbType.Decimal) { Value = iIds.ToArray() },
-                    new OracleParameter("AMOUNT", OracleDbType.Decimal) { Value = amts.ToArray() },
-                    new OracleParameter("TEXT_VAL", OracleDbType.Varchar2) { Value = tVals.ToArray() }
-                );
+                    await _oracleService.ExecuteBulkInsertAsync(scope, sqlMerge, pIds.Count,
+                        new OracleParameter("PERIOD_ID", OracleDbType.Decimal) { Value = pIds.ToArray() },
+                        new OracleParameter("EMPCD", OracleDbType.Varchar2) { Value = eCodes.ToArray() },
+                        new OracleParameter("ITEM_ID", OracleDbType.Decimal) { Value = iIds.ToArray() },
+                        new OracleParameter("AMOUNT", OracleDbType.Decimal) { Value = amts.ToArray() },
+                        new OracleParameter("TEXT_VAL", OracleDbType.Varchar2) { Value = tVals.ToArray() }
+                    );
+
+                    foreach (var kv in empItemIds)
+                    {
+                        var idList = string.Join(",", kv.Value.Select(x => x.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                        string sqlCleanupEmp = $@"
+                            DELETE FROM HRMS.HR_PAYROLL_DATA
+                            WHERE PERIOD_ID = :PERIOD_ID AND EMPCD = :EMPCD AND ITEM_ID NOT IN ({idList})";
+                        await _oracleService.ExecuteNonQueryAsync(scope, sqlCleanupEmp,
+                            new OracleParameter("PERIOD_ID", periodId),
+                            new OracleParameter("EMPCD", kv.Key));
+                    }
+
+                    await scope.CommitAsync();
+                }
+                catch
+                {
+                    await scope.RollbackAsync();
+                    throw;
+                }
             }
 
             return Ok(new { success = true, message = $"Đã upload thành công {successCount}/{data.Count} nhân viên" });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // Gọi sau khi CLIENT đã upload xong TOÀN BỘ batch thành công — dọn nhân viên hoàn toàn vắng mặt
+    // trong lần upload mới (vd nghỉ việc, hoặc vô tình bị bỏ sót khỏi file) khỏi kỳ lương này.
+    // Chỉ xoá sau khi chắc chắn upload thành công toàn bộ, không chạy giữa chừng — tránh mất data
+    // nếu upload bị lỗi/đứt giữa chừng.
+    [HttpPost("finalize-upload")]
+    public async Task<IActionResult> FinalizeUpload([FromBody] dynamic model)
+    {
+        try
+        {
+            decimal periodId = model.PERIOD_ID;
+            var empCds = ((Newtonsoft.Json.Linq.JArray)model.EmpCds).ToObject<List<string>>() ?? new List<string>();
+            empCds = empCds.Where(e => !string.IsNullOrEmpty(e)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+            if (empCds.Count == 0)
+                return Ok(new { success = false, message = "Danh sách nhân viên trống, không dọn dữ liệu để tránh xoá nhầm" });
+
+            const int chunkSize = 900; // Oracle giới hạn ~1000 phần tử literal trong 1 IN-list
+            var notInClauses = new List<string>();
+            var parameters = new List<OracleParameter>{ new OracleParameter("PERIOD_ID", periodId) };
+            int chunkIdx = 0;
+            foreach (var chunk in empCds.Select((e, i) => new { e, i })
+                                         .GroupBy(x => x.i / chunkSize)
+                                         .Select(g => g.Select(x => x.e).ToList()))
+            {
+                var pNames = chunk.Select((_, j) => $"E{chunkIdx}_{j}").ToList();
+                notInClauses.Add($"EMPCD NOT IN ({string.Join(",", pNames.Select(p => ":" + p))})");
+                for (int j = 0; j < chunk.Count; j++)
+                    parameters.Add(new OracleParameter(pNames[j], chunk[j]));
+                chunkIdx++;
+            }
+
+            string sql = $"DELETE FROM HRMS.HR_PAYROLL_DATA WHERE PERIOD_ID = :PERIOD_ID AND {string.Join(" AND ", notInClauses)}";
+            int deleted = await _oracleService.ExecuteNonQueryAsync(sql, parameters.ToArray());
+
+            return Ok(new { success = true, message = $"Đã dọn {deleted} dòng dữ liệu cũ của nhân viên không còn trong file upload" });
         }
         catch (Exception ex)
         {

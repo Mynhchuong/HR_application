@@ -201,6 +201,25 @@ public class OracleService
 
         return list;
     }
+
+    // Bulk (array-bind) trong cùng 1 transaction chia sẻ — dùng cho MERGE/INSERT nhiều dòng
+    // cần atomic chung với các lệnh khác trong cùng scope (vd merge + cleanup rồi mới commit).
+    public async Task<int> ExecuteBulkInsertAsync(OracleTxScope scope, string sql, int arrayBindCount, params OracleParameter[] parameters)
+    {
+        using var cmd = new OracleCommand(sql, scope.Connection);
+        cmd.Transaction = scope.Transaction;
+        cmd.BindByName = true;
+        cmd.ArrayBindCount = arrayBindCount;
+        if (parameters != null)
+        {
+            foreach (var p in parameters)
+            {
+                cmd.Parameters.Add(p);
+            }
+        }
+
+        return await cmd.ExecuteNonQueryAsync();
+    }
 }
 
 // Scope nhỏ gọn cho 1 connection + 1 transaction dùng chung nhiều lệnh.

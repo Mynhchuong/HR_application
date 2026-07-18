@@ -87,3 +87,9 @@ public class UploadDataRequest
     public List<PayslipUploadRow> Data { get; set; } = new();
     public bool IsFirstBatch { get; set; }
 }
+
+public class FinalizeUploadRequest
+{
+    public decimal PeriodId { get; set; }
+    public List<string> EmpCds { get; set; } = new();
+}

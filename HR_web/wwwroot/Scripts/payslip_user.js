@@ -4,6 +4,18 @@
  */
 
 $(document).ready(function () {
+    // Escape HTML — TEXT_VALUE/ITEM_NAME có thể do HR nhập tự do (vd cột Dự phòng),
+    // không escape thì nội dung độc hại trong ô Excel sẽ chạy thẳng trên trình duyệt nhân viên
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     $('#btnViewPayslip').on('click', function () {
         const periodId = $('#selectPeriod').val();
         if (!periodId) {
@@ -89,8 +101,8 @@ $(document).ready(function () {
 
             const html = `
                 <div class="payslip-row">
-                    <span class="payslip-label ${labelClass}">${item.ITEM_NAME}</span>
-                    <span class="payslip-value ${valueClass}">${valStr}</span>
+                    <span class="payslip-label ${labelClass}">${escapeHtml(item.ITEM_NAME)}</span>
+                    <span class="payslip-value ${valueClass}">${escapeHtml(valStr)}</span>
                 </div>
             `;
 

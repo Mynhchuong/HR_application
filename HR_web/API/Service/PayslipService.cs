@@ -65,6 +65,13 @@ public class PayslipService
                ?? new PayslipApiResponse<object> { success = false, message = "Lỗi từ API Backend" };
     }
 
+    public async Task<PayslipApiResponse<object>> FinalizeUploadAsync(decimal periodId, List<string> empCds)
+    {
+        var response = await _api.PostAsync("payslip/finalize-upload", new { PERIOD_ID = periodId, EmpCds = empCds });
+        return await ParseResponse<PayslipApiResponse<object>>(response)
+               ?? new PayslipApiResponse<object> { success = false, message = "Lỗi từ API Backend" };
+    }
+
     public async Task<List<PayrollDataModel>> GetMyPayslipAsync(string empcd, decimal periodId)
     {
         var result = await _api.GetAsync<PayslipResponse<List<PayrollDataModel>>>("payslip/my-payslip",

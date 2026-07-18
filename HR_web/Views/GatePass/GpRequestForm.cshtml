@@ -29,6 +29,7 @@
     .time-hint { font-size: 0.82rem; color: #6b7280; margin-top: 4px; }
     .time-picker { display: flex; align-items: center; gap: 8px; }
     .time-picker select { width: 90px; font-size: 1.3rem; font-weight: 700; text-align: center; padding: 0.55rem 0.4rem; border-radius: 10px; border: 1.5px solid #d1d5db; cursor: pointer; }
+    .time-picker select.hour-select { width: 158px; font-size: 1.05rem; text-align: left; padding-left: 0.6rem; }
     .time-picker select:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); outline: none; }
     .time-picker select.auto-time { background: #f0f4ff; color: #3a5fcf; border-color: #93c5fd; }
     .time-colon { font-size: 1.8rem; font-weight: 900; color: #374151; line-height: 1; }
@@ -119,7 +120,7 @@
                         <label class="gp-label" id="outTimeLabel">Giờ Ra</label>
                         <div class="time-picker">
                             <div>
-                                <select id="outHour" onchange="onHourChange('out')"></select>
+                                <select id="outHour" class="hour-select" onchange="onHourChange('out')"></select>
                                 <div class="time-label-hint">Giờ</div>
                             </div>
                             <span class="time-colon">:</span>
@@ -136,7 +137,7 @@
                         <label class="gp-label" id="inTimeLabel">Giờ Vào</label>
                         <div class="time-picker">
                             <div>
-                                <select id="inHour" onchange="onHourChange('in')"></select>
+                                <select id="inHour" class="hour-select" onchange="onHourChange('in')"></select>
                                 <div class="time-label-hint">Giờ</div>
                             </div>
                             <span class="time-colon">:</span>
@@ -226,6 +227,24 @@ function showRangeHint(prefix, range) {
     $('#' + prefix + 'TimeHint').text(rangeLabel(range));
 }
 
+// Icon + chữ + màu theo buổi trong ngày — giúp công nhân nhìn phát hiểu ngay, đỡ lúng túng
+function hourBand(h) {
+    if (h <= 4)  return { icon: '🌙', label: 'Đêm',   color: '#4c1d95' }; // 00-04
+    if (h <= 10) return { icon: '🌅', label: 'Sáng',  color: '#c2410c' }; // 05-10
+    if (h <= 12) return { icon: '☀️', label: 'Trưa',  color: '#b45309' }; // 11-12
+    if (h <= 17) return { icon: '🌤️', label: 'Chiều', color: '#0369a1' }; // 13-17
+    return             { icon: '🌆', label: 'Tối',   color: '#1e293b' }; // 18-23
+}
+
+function makeHourOption(h) {
+    const band = hourBand(h);
+    const o = document.createElement('option');
+    o.value = String(h).padStart(2, '0');
+    o.text  = `${band.icon} ${String(h).padStart(2, '0')}h ${band.label}`;
+    o.style.color = band.color;
+    return o;
+}
+
 // Lọc dropdown giờ chỉ còn các giờ nằm trong ca — tránh công nhân chọn giờ ngoài ca
 function populateHourOptions(prefix, range) {
     const sel = document.getElementById(prefix + 'Hour');
@@ -233,18 +252,10 @@ function populateHourOptions(prefix, range) {
     sel.innerHTML = '';
     for (let h = 0; h < 24; h++) {
         if (!hourInRange(h, range)) continue;
-        const o = document.createElement('option');
-        o.value = String(h).padStart(2, '0');
-        o.text  = String(h).padStart(2, '0');
-        sel.appendChild(o);
+        sel.appendChild(makeHourOption(h));
     }
     if (!sel.options.length) { // an toàn: ca lỗi dữ liệu thì không khoá chết dropdown
-        for (let h = 0; h < 24; h++) {
-            const o = document.createElement('option');
-            o.value = String(h).padStart(2, '0');
-            o.text  = String(h).padStart(2, '0');
-            sel.appendChild(o);
-        }
+        for (let h = 0; h < 24; h++) sel.appendChild(makeHourOption(h));
     }
     sel.value = [...sel.options].some(o => o.value === prevVal) ? prevVal : sel.options[0].value;
 }
@@ -319,12 +330,7 @@ function selectDateCard(val) {
 function initTimePickers() {
     ['outHour', 'inHour'].forEach(id => {
         const sel = document.getElementById(id);
-        for (let h = 0; h < 24; h++) {
-            const o = document.createElement('option');
-            o.value = String(h).padStart(2, '0');
-            o.text  = String(h).padStart(2, '0');
-            sel.appendChild(o);
-        }
+        for (let h = 0; h < 24; h++) sel.appendChild(makeHourOption(h));
     });
     ['outMin', 'inMin'].forEach(id => {
         const sel = document.getElementById(id);

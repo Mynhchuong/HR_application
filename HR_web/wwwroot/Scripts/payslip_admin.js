@@ -11,12 +11,25 @@ const PAYSLIP_ITEMS = [
     'THUONG_ABC', 'THUONG_MOLD', 'PC_WD', 'THUONG_CNM', 'TRUY_LANH', 'KSK_HS_VEXE', 'THUONG_GT_CNM',
     'MUNG_CUOI_PD', 'KHAC_TIEN_BH', 'KHAC', 'HOAN_THUE_2025', 'TONG_CONG', 'KT_BHXH', 'KT_BHYT', 'KT_BHTN',
     'KT_TNCN', 'KT_DOAN_PHI', 'KT_THUE_2025', 'TONG_KHAU_TRU', 'SO_NGUOI_PT', 'INFO_NGUOI_PT', 'THUC_LANH',
-    'TONG_PN_2026', 'PN_2026_THANG', 'PN_DA_DUNG', 'PN_2026_CON_LAI', 'PN_2025_DA_DUNG', 'PN_2025_CON_LAI'
+    'TONG_PN_2026', 'PN_2026_THANG', 'PN_DA_DUNG', 'PN_2026_CON_LAI', 'PN_2025_DA_DUNG', 'PN_2025_CON_LAI',
+    'RESERVE_1', 'RESERVE_2', 'RESERVE_3', 'RESERVE_4', 'RESERVE_5'
 ];
 
 $(document).ready(function () {
     let currentPeriodId = null;
     let excelData = [];
+
+    // Escape HTML — ITEM_NAME/TEXT_VALUE/tên nhân viên có thể chứa ký tự đặc biệt,
+    // không escape thì render thẳng vào HTML sẽ mở đường cho XSS
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
 
     function parseExcelNumber(val) {
         if (val === undefined || val === null || val === "" || val === "-" || val === " - ") return null;
@@ -109,17 +122,17 @@ $(document).ready(function () {
             if (res.success) {
                 let html = '';
                 res.data.forEach(item => {
-                    const unitHtml = item.UNIT ? `<span class="badge bg-light text-secondary ms-1">${item.UNIT}</span>` : '';
+                    const unitHtml = item.UNIT ? `<span class="badge bg-light text-secondary ms-1">${escapeHtml(item.UNIT)}</span>` : '';
                     html += `
                         <tr>
                             <td class="ps-4">${item.DISPLAY_ORDER}</td>
                             <td>
                                 <div class="d-flex flex-column gap-1">
                                     <div class="d-flex align-items-center">
-                                        <input type="text" class="form-control form-control-sm border ps-2 w-75 item-name-input" data-id="${item.ID}" value="${item.ITEM_NAME}">
+                                        <input type="text" class="form-control form-control-sm border ps-2 w-75 item-name-input" data-id="${item.ID}" value="${escapeHtml(item.ITEM_NAME)}">
                                         ${unitHtml}
                                     </div>
-                                    <p class="text-xs text-secondary mb-0">${item.ITEM_CODE}</p>
+                                    <p class="text-xs text-secondary mb-0">${escapeHtml(item.ITEM_CODE)}</p>
                                 </div>
                             </td>
                             <td><span class="badge badge-sm bg-light text-dark border">${item.ITEM_TYPE}</span></td>
@@ -235,10 +248,18 @@ $(document).ready(function () {
             }
 
             // Build ITEM_NAME (trimmed, lowercase) → ITEM_CODE lookup
+            // Nếu 2 cột trùng tên (không phân biệt hoa/thường) thì cột sau sẽ đè cột trước khi khớp
+            // Excel — cảnh báo rõ cho admin biết để đổi tên 1 trong 2 trước khi upload nhầm dữ liệu.
             const nameToCode = {};
+            const dupNames = [];
             res.data.forEach(item => {
-                nameToCode[item.ITEM_NAME.trim().toLowerCase()] = item.ITEM_CODE;
+                const key = item.ITEM_NAME.trim().toLowerCase();
+                if (nameToCode[key]) dupNames.push(item.ITEM_NAME);
+                nameToCode[key] = item.ITEM_CODE;
             });
+            if (dupNames.length > 0) {
+                AlertHelper.warn('⚠ Có cột trùng tên trong cấu hình: ' + dupNames.join(', ') + ' — dữ liệu Excel có thể bị khớp nhầm cột. Nên đổi tên cho khác nhau trong "Cấu hình cột" trước khi upload.');
+            }
 
             const reader = new FileReader();
             reader.onerror = function () {
@@ -269,7 +290,7 @@ $(document).ready(function () {
                 let headHtml = '<tr><th class="ps-2">EMPCD</th>';
                 for (let i = 1; i < headers.length; i++) {
                     const cls = colCodes[i] ? '' : ' class="text-danger"';
-                    headHtml += `<th${cls}>${headers[i] || 'N/A'}</th>`;
+                    headHtml += `<th${cls}>${escapeHtml(headers[i]) || 'N/A'}</th>`;
                 }
                 headHtml += '</tr>';
                 $('#theadExcelPreview').html(headHtml);
@@ -283,7 +304,7 @@ $(document).ready(function () {
                     const empCd = String(row[0]).trim();
                     const items = [];
 
-                    bodyHtml += `<tr><td class="ps-2 fw-bold text-primary">${empCd}</td>`;
+                    bodyHtml += `<tr><td class="ps-2 fw-bold text-primary">${escapeHtml(empCd)}</td>`;
 
                     for (let j = 1; j < colCodes.length; j++) {
                         const code = colCodes[j];
@@ -293,7 +314,7 @@ $(document).ready(function () {
                             ? numVal.toLocaleString()
                             : (cellVal !== undefined && cellVal !== null ? String(cellVal).trim() : '-');
 
-                        if (i <= 50) bodyHtml += `<td>${displayVal}</td>`;
+                        if (i <= 50) bodyHtml += `<td>${escapeHtml(displayVal)}</td>`;
 
                         if (!code) continue;
                         if (numVal !== null) {
@@ -327,7 +348,7 @@ $(document).ready(function () {
 
     $('#btnStartUpload').on('click', function () {
         const btn = $(this);
-        showConfirm('Hệ thống sẽ xóa dữ liệu cũ của kỳ này và ghi đè dữ liệu mới. Bạn chắc chứ?', () => {
+        showConfirm('Hệ thống sẽ cập nhật dữ liệu mới cho từng nhân viên trong file (giữ nguyên dữ liệu nhân viên không có trong file). Bạn chắc chứ?', () => {
         btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Đang xử lý...');
 
         const batchSize = 50;
@@ -336,6 +357,22 @@ $(document).ready(function () {
         async function uploadNextBatch() {
             const batch = excelData.slice(processedCount, processedCount + batchSize);
             if (batch.length === 0) {
+                // Toàn bộ batch đã upload thành công — giờ mới dọn nhân viên vắng mặt trong file mới
+                // (chỉ chạy sau khi chắc chắn không còn batch nào lỗi, tránh mất data giữa chừng)
+                try {
+                    const allEmpCds = excelData.map(r => r.EmpCd);
+                    const finRes = await $.ajax({
+                        url: 'FinalizeUpload',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ periodId: currentPeriodId, empCds: allEmpCds })
+                    });
+                    if (!finRes.success) {
+                        AlertHelper.warn('Import xong nhưng dọn dữ liệu cũ thất bại: ' + finRes.message);
+                    }
+                } catch (e) {
+                    AlertHelper.warn('Import xong nhưng không dọn được dữ liệu cũ, không ảnh hưởng dữ liệu vừa upload.');
+                }
                 AlertHelper.success('Hoàn tất Import dữ liệu cho ' + processedCount + ' nhân viên!');
                 setTimeout(() => location.reload(), 2000);
                 return;
@@ -349,7 +386,7 @@ $(document).ready(function () {
                     data: JSON.stringify({
                         periodId: currentPeriodId,
                         data: batch,
-                        isFirstBatch: processedCount === 0 
+                        isFirstBatch: processedCount === 0
                     })
                 });
 
@@ -358,7 +395,7 @@ $(document).ready(function () {
                     $('#excelStatus').text(`Đang Import: ${processedCount}/${excelData.length}...`);
                     uploadNextBatch();
                 } else {
-                    AlertHelper.error('Lỗi: ' + res.message);
+                    AlertHelper.error('Lỗi: ' + res.message + ' — Dữ liệu đã import trước đó vẫn còn nguyên, có thể bấm Import Lại an toàn.');
                     btn.prop('disabled', false).html('<i class="fas fa-check me-1"></i> Import Lại');
                 }
             } catch (err) {
@@ -375,6 +412,7 @@ $(document).ready(function () {
     let curPage = 1;
     let maxPage = 1;
     const pageSize = 100;
+    let adminDataByEmpCd = {}; // EMPCD -> Details (đủ mọi cột, không lọc theo visibility) từ GetAdminList
 
     function loadAdminData(page) {
         curPage = page;
@@ -382,15 +420,18 @@ $(document).ready(function () {
 
         $('#tbodyAdminData').html('<tr><td colspan="3" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> Đang tải...</td></tr>');
 
-        $.get('GetAdminList', { 
-            periodId: currentPeriodId, 
+        $.get('GetAdminList', {
+            periodId: currentPeriodId,
             search: search,
-            page: page, 
-            pageSize: pageSize 
+            page: page,
+            pageSize: pageSize
         }, function (res) {
             if (res.success) {
                 $('#spanTotalRecords').text(res.total);
                 maxPage = Math.max(1, Math.ceil(res.total / pageSize));
+
+                adminDataByEmpCd = {};
+                res.data.forEach(row => { adminDataByEmpCd[row.EMPCD] = row.Details; });
 
                 let html = '';
                 if (res.data.length === 0) {
@@ -401,13 +442,13 @@ $(document).ready(function () {
                             <tr>
                                 <td class="ps-4">
                                     <div class="d-flex flex-column">
-                                        <h6 class="mb-0 text-sm user-name vni-font" style="text-transform: uppercase;">${row.EMP_NAME || 'Unknown'}</h6>
-                                        <p class="text-xs text-secondary mb-0">${row.EMPCD}</p>
+                                        <h6 class="mb-0 text-sm user-name vni-font" style="text-transform: uppercase;">${escapeHtml(row.EMP_NAME) || 'Unknown'}</h6>
+                                        <p class="text-xs text-secondary mb-0">${escapeHtml(row.EMPCD)}</p>
                                     </div>
                                 </td>
                                 <td class="text-center">
-                                    <button class="btn btn-link text-info text-gradient px-3 mb-0 btn-view-detail" 
-                                            data-empcd="${row.EMPCD}" data-name="${row.EMP_NAME}">
+                                    <button class="btn btn-link text-info text-gradient px-3 mb-0 btn-view-detail"
+                                            data-empcd="${escapeHtml(row.EMPCD)}" data-name="${escapeHtml(row.EMP_NAME)}">
                                         <i class="fas fa-eye me-2"></i> Chi tiết
                                     </button>
                                 </td>
@@ -496,39 +537,37 @@ $(document).ready(function () {
         }, { title: 'Xác nhận công bố', okText: 'Công bố', okClass: 'btn-success', icon: 'publish', iconColor: '#16a34a', iconBg: '#dcfce7' });
     });
 
-    // 8. Xem chi tiết
+    // 8. Xem chi tiết — dùng Details đã có sẵn từ GetAdminList (KHÔNG lọc theo visibility),
+    // để HR thấy đủ mọi cột đã upload kể cả cột đang ẩn với nhân viên (vd cột Dự phòng) khi QA dữ liệu.
+    // Trước đây gọi lại API GetMyPayslip (API dành cho nhân viên xem) nên chỉ thấy cột đang hiển thị,
+    // dễ tưởng nhầm upload lỗi khi thật ra cột đó chỉ đang bị ẩn.
     $(document).on('click', '.btn-view-detail', function() {
         const empcd = $(this).data('empcd');
         const name = $(this).data('name');
-        
+
         $('#modalDetailName').text(name).addClass('user-name vni-font').css('text-transform', 'uppercase');
         $('#modalDetailEmpCd').text('Mã thẻ: ' + empcd);
-        $('#tbodyDetailItems').html('<tr><td colspan="2" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> Đang tải...</td></tr>');
         $('#modalViewDetail').modal('show');
 
-        $.get('GetMyPayslip', { empcd: empcd, periodId: currentPeriodId }, function(res) {
-            if (res.success && res.data) {
-                let html = '';
-                res.data.forEach(item => {
-                    let valStr = item.AMOUNT !== null ? item.AMOUNT.toLocaleString() : (item.TEXT_VALUE || '-');
-                    if (item.UNIT && valStr !== '-') valStr += ' ' + item.UNIT;
-                    
-                    html += `
-                        <tr>
-                            <td class="ps-4">
-                                <span class="text-xs font-weight-bold">${item.ITEM_NAME}</span>
-                            </td>
-                            <td class="text-end pe-4">
-                                <span class="text-xs font-weight-bold text-dark">${valStr}</span>
-                            </td>
-                        </tr>
-                    `;
-                });
-                $('#tbodyDetailItems').html(html || '<tr><td colspan="2" class="text-center text-muted py-4">Không có dữ liệu chi tiết</td></tr>');
-            } else {
-                $('#tbodyDetailItems').html('<tr><td colspan="2" class="text-center text-danger py-4">Không thể tải dữ liệu</td></tr>');
-            }
+        const details = (adminDataByEmpCd[empcd] || []).filter(item => item.AMOUNT !== null || (item.TEXT_VALUE && item.TEXT_VALUE !== ''));
+
+        let html = '';
+        details.forEach(item => {
+            let valStr = item.AMOUNT !== null ? item.AMOUNT.toLocaleString() : (item.TEXT_VALUE || '-');
+            if (item.UNIT && valStr !== '-') valStr += ' ' + item.UNIT;
+
+            html += `
+                <tr>
+                    <td class="ps-4">
+                        <span class="text-xs font-weight-bold">${escapeHtml(item.ITEM_NAME)}</span>
+                    </td>
+                    <td class="text-end pe-4">
+                        <span class="text-xs font-weight-bold text-dark">${escapeHtml(valStr)}</span>
+                    </td>
+                </tr>
+            `;
         });
+        $('#tbodyDetailItems').html(html || '<tr><td colspan="2" class="text-center text-muted py-4">Không có dữ liệu chi tiết</td></tr>');
     });
 
     function debounce(fn, d) { let t; return function(){ clearTimeout(t); t=setTimeout(fn,d); }; }

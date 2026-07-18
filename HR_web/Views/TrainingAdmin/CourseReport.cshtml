@@ -1,0 +1,150 @@
+@{
+    ViewData["Title"] = "Báo cáo Khóa học";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var courseId = ViewBag.CourseId;
+}
+
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
+        {
+            Title = "Báo cáo Khóa học",
+            Icon = "bi-collection",
+            Gradient = "primary",
+            BackUrl = Url.Action("Index", "TrainingAdmin"),
+        })
+        <div class="card-body">
+            <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;" id="report-card">
+                <div id="reportContent" class="py-5 text-center">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted mb-0">Đang tải dữ liệu báo cáo...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .kpi-box {
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 12px;
+        padding: 1.25rem;
+        background: #f8fafc;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+    .kpi-box .val { font-size: 1.8rem; font-weight: 700; color: #0d6efd; }
+    .kpi-box .lbl { font-size: .8rem; color: #6c757d; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+    .course-report-total-row { background: #f1f5f9; }
+    @@media (max-width: 767.98px) {
+        .kpi-box { padding: .75rem; }
+        .kpi-box .val { font-size: 1.3rem; }
+        .kpi-box .lbl { font-size: .68rem; letter-spacing: 0; }
+    }
+</style>
+
+@section Scripts {
+    <script>
+        window.TRAINING_URLS = {
+            course: '@Url.Action("GetReportCourse", "TrainingAdmin")',
+            expCourse: '@Url.Action("ExportCourse", "TrainingAdmin")',
+            classReport: '@Url.Action("ClassReport", "TrainingAdmin", new { id = "__ID__" })'
+        };
+
+        const COURSE_ID = @courseId;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCourseReport();
+            MobileTableHelper.init('courseClassesTbody');
+        });
+
+        function esc(s) {
+            if (s == null) return '';
+            return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        function pct(v) { return v == null ? '-' : Number(v).toFixed(1) + '%'; }
+        function scoreFmt(v) { return v == null ? '-' : Number(v).toFixed(1); }
+
+        function classRowHtml(row, isTotal) {
+            const nameCell = isTotal
+                ? `<strong>${esc(row.CLASS_NAME)}</strong>`
+                : `<a href="${window.TRAINING_URLS.classReport.replace('__ID__', row.CLASS_ID)}" class="fw-bold">${esc(row.CLASS_NAME)}</a>`;
+            const rowClass = isTotal ? 'course-report-total-row' : '';
+            return `
+                <tr class="${rowClass}">
+                    <td data-mobile="primary" data-mobile-slot="name" data-mobile-label="Lớp">${nameCell}</td>
+                    <td data-mobile="detail" data-mobile-label="Trạng thái">${esc(row.CLASS_STATUS || '')}</td>
+                    <td data-mobile="primary" data-mobile-label="Sĩ số">${row.ENROLLED_COUNT}</td>
+                    <td data-mobile="detail" data-mobile-label="Chỉ định">${row.ASSIGNED_COUNT}</td>
+                    <td data-mobile="detail" data-mobile-label="Tự đăng ký">${row.SELF_REGISTER_COUNT}</td>
+                    <td data-mobile="detail" data-mobile-label="Bị gỡ">${row.DROPPED_COUNT}</td>
+                    <td data-mobile="primary" data-mobile-label="Hoàn thành">${row.COMPLETED_COUNT}</td>
+                    <td data-mobile="detail" data-mobile-label="Không đạt">${row.FAILED_COUNT}</td>
+                    <td data-mobile="primary" data-mobile-label="Chứng chỉ">${row.CERTIFIED_COUNT}</td>
+                    <td data-mobile="primary" data-mobile-label="Chuyên cần TB">${pct(row.AVG_ATTENDANCE_PERCENT)}</td>
+                    <td data-mobile="detail" data-mobile-label="Điểm TB">${scoreFmt(row.AVG_FINAL_SCORE)}</td>
+                </tr>`;
+        }
+
+        async function loadCourseReport() {
+            const res = await fetch(`${window.TRAINING_URLS.course}?courseId=${COURSE_ID}`);
+            const json = await res.json();
+            if (!json.success || !json.data) return renderErr('Không tìm thấy dữ liệu khóa học.');
+
+            const d = json.data;
+            const t = d.TOTAL;
+
+            const html = `
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div>
+                        <h4 class="fw-bold mb-0 text-dark">${esc(d.COURSE_TITLE)}</h4>
+                        <span class="text-muted small">Tổng hợp ${d.CLASSES.length} lớp trong khóa</span>
+                    </div>
+                    <a href="${window.TRAINING_URLS.expCourse}?courseId=${COURSE_ID}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
+                        <i class="bi bi-download" style="font-size: 1.2rem;"></i> Xuất Excel
+                    </a>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val">${t.ENROLLED_COUNT}</div><div class="lbl">Học viên</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${t.COMPLETED_COUNT}</div><div class="lbl">Hoàn thành</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-danger">${t.FAILED_COUNT}</div><div class="lbl">Không đạt</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-info">${t.CERTIFIED_COUNT}</div><div class="lbl">Cấp chứng chỉ</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-primary">${t.ASSIGNED_COUNT}</div><div class="lbl">Chỉ định</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-info">${t.SELF_REGISTER_COUNT}</div><div class="lbl">Tự đăng ký</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-warning">${t.DROPPED_COUNT}</div><div class="lbl">Bị gỡ lớp</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${pct(t.AVG_ATTENDANCE_PERCENT)}</div><div class="lbl">Chuyên cần TB</div></div></div>
+                </div>
+
+                <div class="card border p-3 shadow-sm rounded-3">
+                    <h6 class="fw-bold mb-3 text-dark">Chi tiết từng lớp</h6>
+                    ${d.CLASSES.length === 0
+                        ? '<p class="text-muted text-center py-4 small">Khóa học này chưa có lớp nào.</p>'
+                        : `<div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead><tr>
+                                    <th>Lớp</th><th>Trạng thái</th><th>Sĩ số</th><th>Chỉ định</th><th>Tự đăng ký</th>
+                                    <th>Bị gỡ</th><th>Hoàn thành</th><th>Không đạt</th><th>Chứng chỉ</th><th>Chuyên cần TB</th><th>Điểm TB</th>
+                                </tr></thead>
+                                <tbody id="courseClassesTbody">
+                                    ${d.CLASSES.map(row => classRowHtml(row, false)).join('')}
+                                    ${classRowHtml(t, true)}
+                                </tbody>
+                            </table>
+                          </div>`}
+                </div>`;
+
+            document.getElementById('reportContent').innerHTML = html;
+            MobileTableHelper.refresh('courseClassesTbody');
+        }
+
+        function renderErr(msg) {
+            document.getElementById('reportContent').innerHTML = `
+                <div class="alert alert-warning text-center border-0 py-4 shadow-sm" style="border-radius: 12px;">
+                    <i class="bi bi-exclamation-triangle text-warning mb-2" style="font-size: 2.5rem;"></i>
+                    <p class="mb-0 text-dark fw-bold">${esc(msg)}</p>
+                </div>
+            `;
+        }
+    </script>
+}

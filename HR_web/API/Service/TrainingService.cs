@@ -62,6 +62,16 @@ public class TrainingService
         catch (Exception ex) { Console.WriteLine($"[TrainingService] GetClassReport error: {ex.Message}"); return null; }
     }
 
+    public async Task<ReportCourseModel?> GetCourseReportAsync(int courseId)
+    {
+        try
+        {
+            var res = await _api.GetAsync<ReportCourseResponse>($"TrainingAdmin/report/course/{courseId}", "");
+            return res?.data;
+        }
+        catch (Exception ex) { Console.WriteLine($"[TrainingService] GetCourseReport error: {ex.Message}"); return null; }
+    }
+
     public async Task<ReportAttendanceMatrix?> GetAttendanceMatrixAsync(int classId)
     {
         try

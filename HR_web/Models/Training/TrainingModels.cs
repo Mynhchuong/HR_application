@@ -73,6 +73,21 @@ public class ConfirmAttendanceBatchRequest
     public string LOGIN_USER { get; set; } = "";
 }
 
+// "Lưu tất cả" — mỗi học viên giữ đúng trạng thái/lý do giáo viên đã chọn riêng (khác với
+// ConfirmAttendanceBatchRequest ở trên vốn áp 1 trạng thái đồng loạt cho cả nhóm).
+public class ConfirmAttendanceBulkRequest
+{
+    public int SESSION_ID { get; set; }
+    public List<ConfirmAttendanceBulkItem> ITEMS { get; set; } = new();
+}
+
+public class ConfirmAttendanceBulkItem
+{
+    public string EMPCD { get; set; } = "";
+    public string STATUS { get; set; } = "";
+    public string? NOTE { get; set; }
+}
+
 public class DropStudentRequest
 {
     public int CLASS_ID { get; set; }

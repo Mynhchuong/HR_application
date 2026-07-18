@@ -217,6 +217,26 @@ public class TrainingTeachController : BaseController
         return Content(json, "application/json");
     }
 
+    // "Lưu tất cả" — nhận đúng danh sách trạng thái/lý do đã chọn từng học viên từ client
+    // (không re-fetch/áp đồng loạt như ConfirmAttendanceBatch ở trên), forward thẳng qua API
+    // session/confirm-batch (API đã hỗ trợ ITEMS với STATUS/NOTE riêng từng dòng sẵn từ trước).
+    [HttpPost]
+    public async Task<IActionResult> ConfirmAttendanceBulk([FromBody] ConfirmAttendanceBulkRequest req)
+    {
+        var loginUser = CurrentUser?.EmpCd ?? "";
+        var apiReq = new
+        {
+            SESSION_ID = req.SESSION_ID,
+            LOGIN_USER = loginUser,
+            ITEMS = req.ITEMS.Select(i => new { EMPCD = i.EMPCD, STATUS = i.STATUS, NOTE = i.NOTE }).ToList()
+        };
+
+        var response = await _training.PostToApiAsync($"TrainingTeach/session/confirm-batch", apiReq);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAbsentStats(int classId, string empcd)
     {

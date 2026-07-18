@@ -93,7 +93,29 @@
     </div>
 </div>
 
+<!-- Thanh Lưu tất cả — dính đáy màn hình, luôn thấy dù cuộn danh sách dài, không cần lưu từng dòng -->
+<div id="save-all-bar" class="save-all-bar">
+    <button id="btn-save-all" onclick="saveAllAttendance()" class="btn btn-primary btn-lg fw-bold d-flex align-items-center justify-content-center gap-2 w-100">
+        <i class="bi bi-save2-fill" style="font-size: 1.2rem;"></i>
+        Lưu tất cả điểm danh
+    </button>
+</div>
+
 <style>
+    /* Chừa chỗ đáy trang cho thanh Lưu tất cả dính cố định, tránh che nội dung cuối bảng */
+    .container-fluid.py-4 { padding-bottom: 90px !important; }
+
+    .save-all-bar {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        z-index: 1030;
+        background: #fff;
+        border-top: 1px solid rgba(0,0,0,0.08);
+        box-shadow: 0 -4px 14px rgba(0,0,0,0.08);
+        padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+    .save-all-bar .btn { max-width: 720px; margin: 0 auto; border-radius: 10px; }
+
     .table-head-custom th {
         font-weight: 700;
         color: #495057;
@@ -195,6 +217,7 @@
             getTeacherAttendanceView: '@Url.Action("GetTeacherAttendanceView", "TrainingTeach")',
             confirmAttendance: '@Url.Action("ConfirmAttendance", "TrainingTeach")',
             confirmAttendanceBatch: '@Url.Action("ConfirmAttendanceBatch", "TrainingTeach")',
+            confirmAttendanceBulk: '@Url.Action("ConfirmAttendanceBulk", "TrainingTeach")',
             classManage: '@Url.Action("ClassManage", "TrainingTeach", new { id = "__ID__" })'
         };
         const empCd = '@empCd';
@@ -286,6 +309,8 @@
                 const btnAbs = document.getElementById('btn-batch-absent');
                 if (btnPres) btnPres.disabled = true;
                 if (btnAbs) btnAbs.disabled = true;
+                const bar = document.getElementById('save-all-bar');
+                if (bar) bar.style.display = 'none';
             }
         }
 
@@ -468,6 +493,42 @@
                 }
             })
             .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+        };
+
+        // "Lưu tất cả" — gửi 1 lần trạng thái/lý do đang chọn cho TỪNG học viên (khác batch trên
+        // vốn áp 1 trạng thái đồng loạt), thay vì phải bấm Lưu từng dòng khi chỉ có ít phút điểm danh.
+        window.saveAllAttendance = function() {
+            if (!allStudents.length) return;
+
+            const btn = document.getElementById('btn-save-all');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang lưu...';
+
+            const items = allStudents.map(st => ({
+                EMPCD: st.EMPCD,
+                STATUS: st.ATTENDANCE_STATUS || st.STATUS || 'PRESENT',
+                NOTE: st.REASON || null
+            }));
+
+            fetch(window.TRAINING_URLS.confirmAttendanceBulk, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ SESSION_ID: sessionId, ITEMS: items })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast(`Đã lưu điểm danh cho ${items.length} học viên!`, 'success');
+                } else {
+                    window.showToast(res.message || 'Lỗi lưu điểm danh.', 'error');
+                }
+            })
+            .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'))
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            });
         };
 
         window.confirmAttendanceBatch = function(status) {

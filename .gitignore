@@ -100,3 +100,8 @@ HR_api/Scripts/alter_teacher_multi_group.sql
 HR_api/Scripts/alter_training_class_bulletin.sql
 HR_api/Scripts/alter_training_review_reminder.sql
 HR_api/Scripts/alter_training_retake.sql
+HR_api/Scripts/create_faceid.sql
+.gitignore
+HR_api/Scripts/faceid_plan.md
+.gitignore
+HR_api/Scripts/faceid_rules.md

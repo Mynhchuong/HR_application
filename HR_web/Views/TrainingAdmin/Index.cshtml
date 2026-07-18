@@ -263,7 +263,8 @@
             saveCourse: '@Url.Action("SaveCourse", "TrainingAdmin")',
             getClassList: '@Url.Action("GetClassList", "TrainingAdmin")',
             saveClass: '@Url.Action("SaveClass", "TrainingAdmin")',
-            classAssign: '@Url.Action("ClassAssign", "TrainingAdmin", new { id = "__ID__" })'
+            classAssign: '@Url.Action("ClassAssign", "TrainingAdmin", new { id = "__ID__" })',
+            courseReport: '@Url.Action("CourseReport", "TrainingAdmin", new { id = "__ID__" })'
         };
 
         let modalCourse = null;
@@ -298,7 +299,8 @@
                             ? '<span class="badge bg-success-subtle text-success-emphasis px-2.5 py-1 fw-bold">Hoạt động</span>'
                             : '<span class="badge bg-secondary-subtle text-secondary-emphasis px-2.5 py-1 fw-bold">Lưu trữ</span>';
 
-                        let actionBtn = `<button onclick="openEditCourseModal(${c.ID})" class="btn btn-xs btn-outline-primary fw-bold me-1">Sửa</button>`;
+                        let actionBtn = `<a href="${window.TRAINING_URLS.courseReport.replace('__ID__', c.ID)}" class="btn btn-xs btn-outline-success fw-bold me-1">Báo cáo</a>`;
+                        actionBtn += `<button onclick="openEditCourseModal(${c.ID})" class="btn btn-xs btn-outline-primary fw-bold me-1">Sửa</button>`;
                         actionBtn += `<button onclick="deleteCourse(${c.ID})" class="btn btn-xs btn-outline-danger fw-bold">Xóa</button>`;
 
                         tbody.innerHTML += `

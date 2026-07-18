@@ -29,6 +29,31 @@ public class ScoreBucket
     public int    COUNT { get; set; }
 }
 
+// Report cấp Khóa học — bảng liệt kê từng lớp thuộc khóa + 1 dòng tổng cộng cộng dồn cả khóa.
+public class ReportCourseModel
+{
+    public int    COURSE_ID { get; set; }
+    public string COURSE_TITLE { get; set; } = "";
+    public List<ReportCourseClassRow> CLASSES { get; set; } = new();
+    public ReportCourseClassRow TOTAL { get; set; } = new();
+}
+
+public class ReportCourseClassRow
+{
+    public int?    CLASS_ID { get; set; }        // null cho dòng TOTAL
+    public string  CLASS_NAME { get; set; } = "";
+    public string? CLASS_STATUS { get; set; }
+    public int     ENROLLED_COUNT { get; set; }
+    public int     ASSIGNED_COUNT { get; set; }
+    public int     SELF_REGISTER_COUNT { get; set; }
+    public int     DROPPED_COUNT { get; set; }
+    public int     COMPLETED_COUNT { get; set; }
+    public int     FAILED_COUNT { get; set; }
+    public int     CERTIFIED_COUNT { get; set; }
+    public decimal? AVG_ATTENDANCE_PERCENT { get; set; }
+    public decimal? AVG_FINAL_SCORE { get; set; }
+}
+
 public class GroupBreakdown
 {
     public int?   GROUP_ID { get; set; }

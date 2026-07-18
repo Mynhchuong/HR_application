@@ -888,6 +888,15 @@ public partial class TrainingAdminController
         return Ok(new { success = true, data });
     }
 
+    // GET /apiHR/TrainingAdmin/report/course/{id} — bảng từng lớp thuộc khóa + tổng cộng
+    [HttpGet("report/course/{id}")]
+    public async Task<IActionResult> ReportCourse(int id)
+    {
+        var data = await _report.GetCourseReportAsync(id);
+        if (data == null) return Ok(new { success = false, message = "Không tìm thấy Khóa học" });
+        return Ok(new { success = true, data });
+    }
+
     // GET /apiHR/TrainingAdmin/report/attendance/{classId} — §14.2
     [HttpGet("report/attendance/{classId}")]
     public async Task<IActionResult> ReportAttendance(int classId)

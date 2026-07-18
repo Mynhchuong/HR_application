@@ -102,6 +102,92 @@ public class TrainingReportService
         };
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  REPORT COURSE — bảng từng lớp thuộc khóa + 1 dòng tổng cộng cả khóa
+    // ═══════════════════════════════════════════════════════════════
+
+    public async Task<ReportCourseModel?> GetCourseReportAsync(int courseId)
+    {
+        var meta = (await _db.ExecuteQueryAsync(@"
+            SELECT ID, TITLE FROM HRMS.HR_TRAINING_COURSE WHERE ID = :ID",
+            r => new { ID = Convert.ToInt32(r["ID"]), TITLE = r["TITLE"]?.ToString() ?? "" },
+            new OracleParameter("ID", courseId))).FirstOrDefault();
+        if (meta == null) return null;
+
+        // Từng lớp trong khóa — LEFT JOIN để lớp chưa có ai enroll vẫn hiện dòng (số 0), không bị mất khỏi báo cáo.
+        var classes = await _db.ExecuteQueryAsync(@"
+            SELECT CL.ID CLASS_ID, CL.CLASS_NAME, CL.STATUS,
+                   SUM(CASE WHEN E.STATUS = 'ENROLLED'  THEN 1 ELSE 0 END) ENROLLED_CNT,
+                   SUM(CASE WHEN E.SOURCE = 'ASSIGNED'  AND E.STATUS <> 'REJECTED' THEN 1 ELSE 0 END) ASSIGNED_CNT,
+                   SUM(CASE WHEN E.SOURCE = 'SELF_REGISTER' AND E.STATUS <> 'REJECTED' THEN 1 ELSE 0 END) SELF_CNT,
+                   SUM(CASE WHEN E.STATUS = 'DROPPED'   THEN 1 ELSE 0 END) DROPPED_CNT,
+                   SUM(CASE WHEN E.STATUS = 'COMPLETED' THEN 1 ELSE 0 END) COMPLETED_CNT,
+                   SUM(CASE WHEN E.STATUS = 'FAILED'    THEN 1 ELSE 0 END) FAILED_CNT,
+                   SUM(CASE WHEN E.IS_CERTIFIED = 1     THEN 1 ELSE 0 END) CERT_CNT,
+                   AVG(E.ATTENDANCE_PERCENT) AVG_ATT,
+                   AVG(E.FINAL_SCORE) AVG_SC
+              FROM HRMS.HR_TRAINING_CLASS CL
+              LEFT JOIN HRMS.HR_TRAINING_ENROLLMENT E ON E.CLASS_ID = CL.ID
+             WHERE CL.COURSE_ID = :CID
+             GROUP BY CL.ID, CL.CLASS_NAME, CL.STATUS
+             ORDER BY CL.CLASS_NAME",
+            r => new ReportCourseClassRow
+            {
+                CLASS_ID              = Convert.ToInt32(r["CLASS_ID"]),
+                CLASS_NAME            = r["CLASS_NAME"]?.ToString() ?? "",
+                CLASS_STATUS          = r["STATUS"]?.ToString(),
+                ENROLLED_COUNT        = r["ENROLLED_CNT"]  is DBNull ? 0 : Convert.ToInt32(r["ENROLLED_CNT"]),
+                ASSIGNED_COUNT        = r["ASSIGNED_CNT"]  is DBNull ? 0 : Convert.ToInt32(r["ASSIGNED_CNT"]),
+                SELF_REGISTER_COUNT   = r["SELF_CNT"]      is DBNull ? 0 : Convert.ToInt32(r["SELF_CNT"]),
+                DROPPED_COUNT         = r["DROPPED_CNT"]   is DBNull ? 0 : Convert.ToInt32(r["DROPPED_CNT"]),
+                COMPLETED_COUNT       = r["COMPLETED_CNT"] is DBNull ? 0 : Convert.ToInt32(r["COMPLETED_CNT"]),
+                FAILED_COUNT          = r["FAILED_CNT"]    is DBNull ? 0 : Convert.ToInt32(r["FAILED_CNT"]),
+                CERTIFIED_COUNT       = r["CERT_CNT"]      is DBNull ? 0 : Convert.ToInt32(r["CERT_CNT"]),
+                AVG_ATTENDANCE_PERCENT= r["AVG_ATT"] is DBNull ? (decimal?)null : Convert.ToDecimal(r["AVG_ATT"]),
+                AVG_FINAL_SCORE       = r["AVG_SC"]  is DBNull ? (decimal?)null : Convert.ToDecimal(r["AVG_SC"]),
+            }, new OracleParameter("CID", courseId));
+
+        // Tổng cộng cả khóa — tính lại AVG trên TOÀN BỘ enrollment của khóa (không phải trung bình
+        // cộng các AVG từng lớp, vì các lớp có thể lệch sĩ số nên trung bình-của-trung-bình sẽ sai).
+        var total = (await _db.ExecuteQueryAsync(@"
+            SELECT
+                SUM(CASE WHEN E.STATUS = 'ENROLLED'  THEN 1 ELSE 0 END) ENROLLED_CNT,
+                SUM(CASE WHEN E.SOURCE = 'ASSIGNED'  AND E.STATUS <> 'REJECTED' THEN 1 ELSE 0 END) ASSIGNED_CNT,
+                SUM(CASE WHEN E.SOURCE = 'SELF_REGISTER' AND E.STATUS <> 'REJECTED' THEN 1 ELSE 0 END) SELF_CNT,
+                SUM(CASE WHEN E.STATUS = 'DROPPED'   THEN 1 ELSE 0 END) DROPPED_CNT,
+                SUM(CASE WHEN E.STATUS = 'COMPLETED' THEN 1 ELSE 0 END) COMPLETED_CNT,
+                SUM(CASE WHEN E.STATUS = 'FAILED'    THEN 1 ELSE 0 END) FAILED_CNT,
+                SUM(CASE WHEN E.IS_CERTIFIED = 1     THEN 1 ELSE 0 END) CERT_CNT,
+                AVG(E.ATTENDANCE_PERCENT) AVG_ATT,
+                AVG(E.FINAL_SCORE) AVG_SC
+              FROM HRMS.HR_TRAINING_ENROLLMENT E
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = E.CLASS_ID
+             WHERE CL.COURSE_ID = :CID",
+            r => new ReportCourseClassRow
+            {
+                CLASS_ID              = null,
+                CLASS_NAME            = "TỔNG CỘNG",
+                CLASS_STATUS          = null,
+                ENROLLED_COUNT        = r["ENROLLED_CNT"]  is DBNull ? 0 : Convert.ToInt32(r["ENROLLED_CNT"]),
+                ASSIGNED_COUNT        = r["ASSIGNED_CNT"]  is DBNull ? 0 : Convert.ToInt32(r["ASSIGNED_CNT"]),
+                SELF_REGISTER_COUNT   = r["SELF_CNT"]      is DBNull ? 0 : Convert.ToInt32(r["SELF_CNT"]),
+                DROPPED_COUNT         = r["DROPPED_CNT"]   is DBNull ? 0 : Convert.ToInt32(r["DROPPED_CNT"]),
+                COMPLETED_COUNT       = r["COMPLETED_CNT"] is DBNull ? 0 : Convert.ToInt32(r["COMPLETED_CNT"]),
+                FAILED_COUNT          = r["FAILED_CNT"]    is DBNull ? 0 : Convert.ToInt32(r["FAILED_CNT"]),
+                CERTIFIED_COUNT       = r["CERT_CNT"]      is DBNull ? 0 : Convert.ToInt32(r["CERT_CNT"]),
+                AVG_ATTENDANCE_PERCENT= r["AVG_ATT"] is DBNull ? (decimal?)null : Convert.ToDecimal(r["AVG_ATT"]),
+                AVG_FINAL_SCORE       = r["AVG_SC"]  is DBNull ? (decimal?)null : Convert.ToDecimal(r["AVG_SC"]),
+            }, new OracleParameter("CID", courseId))).First();
+
+        return new ReportCourseModel
+        {
+            COURSE_ID    = meta.ID,
+            COURSE_TITLE = meta.TITLE,
+            CLASSES      = classes,
+            TOTAL        = total,
+        };
+    }
+
     // Histogram điểm final test (§14.1). Chia theo % của MAX_SCORE — 5 buckets 20% mỗi bucket.
     private async Task<List<ScoreBucket>> GetHistogramAsync(int classId)
     {

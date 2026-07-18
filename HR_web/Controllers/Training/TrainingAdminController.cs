@@ -78,6 +78,13 @@ public class TrainingAdminController : BaseController
         return View();
     }
 
+    // GET /TrainingAdmin/CourseReport/{id}
+    public IActionResult CourseReport(int id)
+    {
+        ViewBag.CourseId = id;
+        return View();
+    }
+
     // GET /TrainingAdmin/AttendanceReport/{id}
     public IActionResult AttendanceReport(int id)
     {
@@ -93,6 +100,13 @@ public class TrainingAdminController : BaseController
     public async Task<IActionResult> GetReportClass(int classId)
     {
         var data = await _training.GetClassReportAsync(classId);
+        return Json(new { success = data != null, data });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetReportCourse(int courseId)
+    {
+        var data = await _training.GetCourseReportAsync(courseId);
         return Json(new { success = data != null, data });
     }
 
@@ -167,6 +181,45 @@ public class TrainingAdminController : BaseController
 
         ws.Columns().AdjustToContents();
         return BuildXlsx(wb, $"report_class_{classId}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExportCourse(int courseId)
+    {
+        var report = await _training.GetCourseReportAsync(courseId);
+        if (report == null) return NotFound();
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Course report");
+        ws.Cell(1, 1).Value = "Course";
+        ws.Cell(1, 2).Value = report.COURSE_TITLE;
+        WriteHeader(ws, 3, new[] { "Class", "Status", "Enrolled", "Assigned", "Self-registered", "Dropped", "Completed", "Failed", "Certified", "Avg attendance %", "Avg final score" });
+
+        int r = 4;
+        void WriteRow(ReportCourseClassRow row)
+        {
+            int c = 1;
+            ws.Cell(r, c++).Value = row.CLASS_NAME;
+            ws.Cell(r, c++).Value = row.CLASS_STATUS ?? "";
+            ws.Cell(r, c++).Value = row.ENROLLED_COUNT;
+            ws.Cell(r, c++).Value = row.ASSIGNED_COUNT;
+            ws.Cell(r, c++).Value = row.SELF_REGISTER_COUNT;
+            ws.Cell(r, c++).Value = row.DROPPED_COUNT;
+            ws.Cell(r, c++).Value = row.COMPLETED_COUNT;
+            ws.Cell(r, c++).Value = row.FAILED_COUNT;
+            ws.Cell(r, c++).Value = row.CERTIFIED_COUNT;
+            ws.Cell(r, c++).Value = row.AVG_ATTENDANCE_PERCENT ?? 0;
+            ws.Cell(r, c++).Value = row.AVG_FINAL_SCORE ?? 0;
+            r++;
+        }
+
+        foreach (var row in report.CLASSES) WriteRow(row);
+        var totalRow = ws.Row(r);
+        WriteRow(report.TOTAL);
+        totalRow.Style.Font.SetBold();
+
+        ws.Columns().AdjustToContents();
+        return BuildXlsx(wb, $"report_course_{courseId}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
     }
 
     [HttpGet]

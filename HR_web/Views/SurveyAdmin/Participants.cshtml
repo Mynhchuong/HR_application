@@ -261,7 +261,7 @@ const SURVEY_ID   = @Model.SURVEY_ID;
 const IS_QUIZ     = @(isQuiz ? "true" : "false");
 const ANSWERS_URL = '@Url.Action("ParticipantAnswers", "SurveyAdmin")';
 const LINE_URL    = '@Url.Action("GetLineByDept", "Dropdown")';
-const WORK_URL    = '@Url.Action("GetWorkByLine", "Dropdown")';
+const WORK_URL    = '@Url.Action("GetWork", "Dropdown")';
 
 // ── Row click → modal ────────────────────────────────────────────────────────
 document.querySelectorAll('.emp-row').forEach(tr => {
@@ -368,7 +368,8 @@ async function loadLines(deptCd, selLine) {
 }
 async function loadWorks(lineCd, selWork) {
     if (!lineCd) { $work.innerHTML = '<option value="">-- Tất cả --</option>'; return; }
-    const items = await fetch(WORK_URL + '?lineCd=' + encodeURIComponent(lineCd)).then(r => r.json());
+    // Truyền kèm deptCd vì LINECD trùng mã giữa các dept (PK EAM410: DEPTCD+LINECD+WORKCD)
+    const items = await fetch(WORK_URL + '?lineCd=' + encodeURIComponent(lineCd) + '&deptCd=' + encodeURIComponent($dept.value || '')).then(r => r.json());
     $work.innerHTML = '<option value="">-- Tất cả --</option>' + items.map(i => `<option value="${esc(i.id)}"${i.id==selWork?' selected':''}>${esc(i.text)}</option>`).join('');
 }
 

@@ -415,6 +415,8 @@
         $work.dataset.url         = URLS.getWork;
         $work.dataset.parent      = '#dlw-line-' + n;
         $work.dataset.parentKey   = 'lineCd';
+        $work.dataset.parent2     = '#dlw-dept-' + n;
+        $work.dataset.parent2Key  = 'deptCd';
         $work.dataset.placeholder = 'Tất cả Work';
         $work.dataset.prependAll  = 'Tất cả';
 
@@ -465,7 +467,7 @@
                     // Line có giá trị → enable Work
                     $s('dlw-work-' + n).prop('disabled', false);
                     if (prefill.WORKCD) {
-                        const works = await fetchDropdown(URLS.getWork, { lineCd: prefill.LINECD });
+                        const works = await fetchDropdown(URLS.getWork, { lineCd: prefill.LINECD, deptCd: prefill.DEPTCD });
                         const wk    = works.find(w => w.id === prefill.WORKCD);
                         if (wk) $s('dlw-work-' + n).append(new Option(wk.text, wk.id, true, true)).trigger('change');
                     }

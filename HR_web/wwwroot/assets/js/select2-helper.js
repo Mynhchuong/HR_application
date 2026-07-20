@@ -73,6 +73,9 @@ var Select2Helper = (function () {
                     data: function (params) {
                         let query = { term: params.term };
                         if (parent) { const key = $el.data('parent-key') || 'deptCd'; query[key] = $(parent).val(); }
+                        // parent thứ 2 (vd Work phụ thuộc cả Line lẫn Dept vì LINECD trùng mã giữa các dept)
+                        const parent2 = $el.data('parent2');
+                        if (parent2) { const key2 = $el.data('parent2-key') || 'deptCd'; query[key2] = $(parent2).val(); }
                         // nếu params.term rỗng và có selectedId, gửi id để load text
                         if (!params.term && selectedId) query.id = selectedId;
                         return query;

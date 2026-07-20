@@ -635,14 +635,19 @@ public class AccountController : ControllerBase
     }
 
     [HttpGet("dropdown/work-by-line")]
-    public async Task<IActionResult> GetWorkByLine(string? lineCd)
+    public async Task<IActionResult> GetWorkByLine(string? lineCd, string? deptCd = null)
     {
-        if (string.IsNullOrEmpty(lineCd)) return Ok(new List<object>());
+        if (string.IsNullOrEmpty(lineCd) && string.IsNullOrEmpty(deptCd)) return Ok(new List<object>());
+        // LINECD chỉ unique trong từng DEPTCD (PK EAM410: COMPYCD+DEPTCD+LINECD+WORKCD)
+        // — thiếu lọc DEPTCD sẽ lộ work của bộ phận khác trùng mã line.
+        var conds = new List<string> { "WORKCD IS NOT NULL", "USEYN = 'Y'" };
+        var ps    = new List<OracleParameter>();
+        if (!string.IsNullOrEmpty(lineCd)) { conds.Add("LINECD = :LINECD"); ps.Add(new OracleParameter("LINECD", lineCd)); }
+        if (!string.IsNullOrEmpty(deptCd)) { conds.Add("DEPTCD = :DEPTCD"); ps.Add(new OracleParameter("DEPTCD", deptCd)); }
         var result = await _oracleService.ExecuteQueryAsync(
-            @"SELECT DISTINCT WORKCD, WORKNM FROM HRMS.EAM410
-              WHERE LINECD = :LINECD AND WORKCD IS NOT NULL AND USEYN = 'Y' ORDER BY WORKNM",
+            $"SELECT DISTINCT WORKCD, WORKNM FROM HRMS.EAM410 WHERE {string.Join(" AND ", conds)} ORDER BY WORKNM",
             r => new { id = r["WORKCD"]?.ToString(), text = r["WORKNM"]?.ToString() },
-            new OracleParameter("LINECD", lineCd));
+            ps.ToArray());
         return Ok(result);
     }
 
@@ -697,23 +702,20 @@ public class AccountController : ControllerBase
     }
 
     [HttpGet("dropdown/work-by-scope")]
-    public async Task<IActionResult> GetWorkByScope(string empcd, string? lineCd = null)
+    public async Task<IActionResult> GetWorkByScope(string empcd, string? lineCd = null, string? deptCd = null)
     {
         if (string.IsNullOrEmpty(empcd)) return Ok(new List<object>());
-        string sql = string.IsNullOrEmpty(lineCd)
-            ? @"SELECT DISTINCT WORKCD, WORKNM FROM HRMS.EAM410
-                WHERE (DEPTCD, LINECD, WORKCD) IN (
-                    SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
-                ) ORDER BY WORKNM"
-            : @"SELECT DISTINCT WORKCD, WORKNM FROM HRMS.EAM410
-                WHERE LINECD = :LINECD AND (DEPTCD, LINECD, WORKCD) IN (
-                    SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
-                ) ORDER BY WORKNM";
-        var ps = string.IsNullOrEmpty(lineCd)
-            ? new[] { new OracleParameter("EMPCD", empcd) }
-            : new[] { new OracleParameter("EMPCD", empcd), new OracleParameter("LINECD", lineCd) };
-        var result = await _oracleService.ExecuteQueryAsync(sql,
-            r => new { id = r["WORKCD"]?.ToString(), text = r["WORKNM"]?.ToString() }, ps);
+        // Cùng lý do work-by-line: LINECD trùng mã giữa các dept nên phải lọc kèm DEPTCD.
+        var conds = new List<string> {
+            @"(DEPTCD, LINECD, WORKCD) IN (
+                SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :EMPCD
+            )" };
+        var ps = new List<OracleParameter> { new OracleParameter("EMPCD", empcd) };
+        if (!string.IsNullOrEmpty(lineCd)) { conds.Add("LINECD = :LINECD"); ps.Add(new OracleParameter("LINECD", lineCd)); }
+        if (!string.IsNullOrEmpty(deptCd)) { conds.Add("DEPTCD = :DEPTCD"); ps.Add(new OracleParameter("DEPTCD", deptCd)); }
+        var result = await _oracleService.ExecuteQueryAsync(
+            $"SELECT DISTINCT WORKCD, WORKNM FROM HRMS.EAM410 WHERE {string.Join(" AND ", conds)} ORDER BY WORKNM",
+            r => new { id = r["WORKCD"]?.ToString(), text = r["WORKNM"]?.ToString() }, ps.ToArray());
         return Ok(result);
     }
 

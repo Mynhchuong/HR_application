@@ -104,7 +104,8 @@
             expTest: '@Url.Action("ExportTest", "TrainingAdmin")',
             expSat: '@Url.Action("ExportSatisfaction", "TrainingAdmin")',
             getClassTests: '@Url.Action("GetClassTests", "Training")',
-            grantRetake: '@Url.Action("GrantRetake", "TrainingAdmin")'
+            grantRetake: '@Url.Action("GrantRetake", "TrainingAdmin")',
+            grantRetakeAllFailed: '@Url.Action("GrantRetakeAllFailed", "TrainingAdmin")'
         };
 
         const CLASS_ID = @classId;
@@ -302,9 +303,16 @@
             wrap.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0 text-dark">${esc(d.TEST_TITLE)}</h5>
-                    <a href="${window.TRAINING_URLS.expTest}?testId=${testId}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
-                        <i class="bi bi-download" style="font-size: 1.2rem;"></i> Xuất Excel
-                    </a>
+                    <div class="d-flex flex-wrap gap-2">
+                        ${d.FAIL_COUNT > 0
+                            ? `<button onclick="grantRetakeAllFailed(${testId})" class="btn btn-outline-primary fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
+                                    <i class="bi bi-arrow-repeat" style="font-size: 1.2rem;"></i> Cấp thi lại tất cả (${d.FAIL_COUNT} rớt)
+                               </button>`
+                            : ''}
+                        <a href="${window.TRAINING_URLS.expTest}?testId=${testId}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
+                            <i class="bi bi-download" style="font-size: 1.2rem;"></i> Xuất Excel
+                        </a>
+                    </div>
                 </div>
 
                 <div class="row g-3 mb-4">
@@ -498,6 +506,30 @@
                 })
                 .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
             }, { title: 'Cấp thi lại', okText: 'Cấp thi lại', okClass: 'btn-primary', icon: 'replay', iconColor: '#0d6efd', iconBg: '#cfe2ff' });
+        }
+
+        // Cấp thi lại 1 lượt cho TẤT CẢ học viên đang rớt bài thi này (lượt gần nhất đã nộp,
+        // rớt, chưa có sẵn lượt cấp PENDING) — server tự xác định danh sách, không truyền EMPCD.
+        function grantRetakeAllFailed(testId) {
+            const reason = prompt('Lý do cấp thi lại hàng loạt (không bắt buộc):', '');
+            if (reason === null) return;
+            window.showConfirm('Cấp thêm 1 lượt thi cho TẤT CẢ học viên đang rớt bài thi này?', () => {
+                fetch(window.TRAINING_URLS.grantRetakeAllFailed, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ TEST_ID: testId, REASON: reason })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.showToast(`Đã cấp thi lại cho ${res.granted} học viên!`, 'success');
+                        loadTestReport();
+                    } else {
+                        window.showToast(res.message || 'Lỗi khi cấp thi lại hàng loạt.', 'error');
+                    }
+                })
+                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+            }, { title: 'Cấp thi lại hàng loạt', okText: 'Cấp cho tất cả', okClass: 'btn-primary', icon: 'replay', iconColor: '#0d6efd', iconBg: '#cfe2ff' });
         }
 
         async function loadSatisfactionReport() {

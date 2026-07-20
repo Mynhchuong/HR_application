@@ -115,7 +115,9 @@ const FILTER_LINE_CODES = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(fi
 let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false, pageSize = 100;
 
 function buildRow(item, idx) {
-    const otType = item.OT_AFTER === 'Y' ? 'After' : (item.OT_BEFORE === 'Y' ? 'Before' : '');
+    // ERP might have OT hours entered without the before/after shift flag set — show a
+    // neutral "OT" label instead of blank (avoids a badge reading ": 1h").
+    const otType = item.OT_AFTER === 'Y' ? 'After' : (item.OT_BEFORE === 'Y' ? 'Before' : 'OT');
 
     let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Pending</span>`;
     if (item.CONFIRM_STATUS === 'CONFIRMED')
@@ -229,7 +231,7 @@ $('#exportExcelBtn').on('click', async function() {
         html+='<table border="1"><thead><tr>'+headers.map(h=>`<th style="background:#d9ead3;font-weight:bold">${h}</th>`).join('')+'</tr></thead><tbody>';
         exportRows.forEach((r,i)=>{
             const s=r.CONFIRM_STATUS==='CONFIRMED'?'Confirmed':(r.CONFIRM_STATUS==='REJECTED'?'Rejected':'Pending');
-            const otType=r.OT_AFTER==='Y'?'After':(r.OT_BEFORE==='Y'?'Before':'');
+            const otType=r.OT_AFTER==='Y'?'After':(r.OT_BEFORE==='Y'?'Before':'OT');
             html+=`<tr><td>${i+1}</td><td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${escHtml(r.WORK_NAME||'')}</td><td>${otType}</td><td>${r.OT_HOURS||0}</td><td>${r.START_OT?formatTime(r.START_OT):''}</td><td>${r.END_OT?formatTime(r.END_OT):''}</td><td>${s}</td><td>${r.CONFIRM_DATE?formatDateTime(r.CONFIRM_DATE):''}</td></tr>`;
         });
         html+='</tbody></table></body></html>';

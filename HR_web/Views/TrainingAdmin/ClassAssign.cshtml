@@ -518,14 +518,11 @@
                     buttonsWrap.innerHTML += `<button onclick="finalizeEnrollment(${cls.ID})" class="btn btn-sm btn-primary fw-bold">Lên lịch học</button>`;
                 }
                 buttonsWrap.innerHTML += `<button onclick="cancelClass(${cls.ID})" class="btn btn-sm btn-outline-danger fw-bold me-1">Hủy Lớp</button>`;
-                buttonsWrap.innerHTML += `<button onclick="deleteClass(${cls.ID})" class="btn btn-sm btn-danger fw-bold"><i class="bi bi-trash me-1"></i>Xóa vĩnh viễn Lớp</button>`;
             } else if (cls.STATUS === 'OPEN_FOR_REGISTRATION') {
                 buttonsWrap.innerHTML += `<button onclick="finalizeEnrollment(${cls.ID})" class="btn btn-sm btn-primary fw-bold">Chốt DS & Lên lịch học</button>`;
                 buttonsWrap.innerHTML += `<button onclick="cancelClass(${cls.ID})" class="btn btn-sm btn-outline-danger fw-bold me-1">Hủy Lớp</button>`;
-                buttonsWrap.innerHTML += `<button onclick="deleteClass(${cls.ID})" class="btn btn-sm btn-danger fw-bold"><i class="bi bi-trash me-1"></i>Xóa vĩnh viễn Lớp</button>`;
             } else if (cls.STATUS === 'SCHEDULED' || cls.STATUS === 'IN_PROGRESS') {
                 buttonsWrap.innerHTML += `<button onclick="cancelClass(${cls.ID})" class="btn btn-sm btn-outline-danger fw-bold me-1">Hủy Lớp</button>`;
-                buttonsWrap.innerHTML += `<button onclick="deleteClass(${cls.ID})" class="btn btn-sm btn-danger fw-bold"><i class="bi bi-trash me-1"></i>Xóa vĩnh viễn Lớp</button>`;
             } else if (cls.STATUS === 'CANCELLED') {
                 buttonsWrap.innerHTML += `<button onclick="deleteClass(${cls.ID})" class="btn btn-sm btn-danger fw-bold"><i class="bi bi-trash me-1"></i>Xóa vĩnh viễn Lớp</button>`;
             } else if (cls.STATUS === 'COMPLETED' || cls.STATUS === 'CLOSED') {

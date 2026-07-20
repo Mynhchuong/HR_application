@@ -937,4 +937,13 @@ public partial class TrainingAdminController
         var (ok, err) = await _attempt.GrantRetakeAsync(req);
         return Ok(new { success = ok, message = err });
     }
+
+    // POST /apiHR/TrainingAdmin/test/retake-grant-all-failed — cấp thi lại 1 lượt cho
+    // TẤT CẢ học viên đang rớt bài thi này (lượt gần nhất đã nộp, IS_PASS=0, chưa có PENDING grant).
+    [HttpPost("test/retake-grant-all-failed")]
+    public async Task<IActionResult> GrantRetakeAllFailed([FromBody] GrantRetakeAllRequest req)
+    {
+        var (ok, err, granted) = await _attempt.GrantRetakeAllFailedAsync(req);
+        return Ok(new { success = ok, message = err, granted });
+    }
 }

@@ -41,19 +41,28 @@ public class OTController : ControllerBase
                                        "WHEN E.SIGNED_STATUS = 'Y' THEN 'CONFIRMED' ELSE 'PENDING' END";
 
             string sql = @"
-                SELECT E.EMPCD, E.DAT WORK_DATE, E.OVER_TIME OT_HOURS, E.OT_BEFORE, E.OT_BEFORE_TIME, E.OT_AFTER, E.OT_AFTER_TIME, E.OT_REST,
-                       CASE WHEN E.OT_BEFORE = 'Y' OR E.OT_AFTER = 'Y' THEN 'Y' ELSE 'N' END HAS_OT,
+                SELECT E.EMPCD, E.DAT WORK_DATE, E.OVER_TIME OT_HOURS,
+                       -- ERP đôi khi chỉ set OT_xxx_TIME (giờ) mà quên bật cờ OT_xxx='Y' (thấy qua
+                       -- thực tế: OT_AFTER_TIME=1 nhưng OT_AFTER='N') — suy ra cờ hiệu quả từ chính
+                       -- số giờ để không mất buổi trước/sau tăng ca. E ở đây là cột thường (đã
+                       -- GROUP BY xong) nên CASE so sánh trực tiếp, không đụng aggregate function.
+                       CASE WHEN E.OT_BEFORE = 'Y' OR NVL(E.OT_BEFORE_TIME,0) > 0 THEN 'Y' ELSE 'N' END OT_BEFORE,
+                       E.OT_BEFORE_TIME,
+                       CASE WHEN E.OT_AFTER  = 'Y' OR NVL(E.OT_AFTER_TIME,0)  > 0 THEN 'Y' ELSE 'N' END OT_AFTER,
+                       E.OT_AFTER_TIME, E.OT_REST,
+                       CASE WHEN E.OT_BEFORE = 'Y' OR E.OT_AFTER = 'Y'
+                              OR NVL(E.OT_BEFORE_TIME,0) > 0 OR NVL(E.OT_AFTER_TIME,0) > 0 THEN 'Y' ELSE 'N' END HAS_OT,
                        -- Ca đêm (STIME > ETIME, vd 22:00→06:00): buổi tăng ca SAU giờ diễn ra ở
                        -- NGÀY HÔM SAU ngày E.DAT (E.DAT lưu theo ngày ca bắt đầu) — phải +1 ngày,
                        -- nếu không giờ mở khoá xác nhận sẽ tính sai sớm hơn thực tế 24 tiếng.
-                       CASE WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI') - E.OT_BEFORE_TIME / 24
-                            WHEN E.OT_AFTER = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
+                       CASE WHEN E.OT_BEFORE = 'Y' OR NVL(E.OT_BEFORE_TIME,0) > 0 THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI') - E.OT_BEFORE_TIME / 24
+                            WHEN E.OT_AFTER = 'Y' OR NVL(E.OT_AFTER_TIME,0) > 0 THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
                                  + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END
                        END START_OT,
-                       CASE WHEN E.OT_AFTER = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
+                       CASE WHEN E.OT_AFTER = 'Y' OR NVL(E.OT_AFTER_TIME,0) > 0 THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
                                  + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END
                                  + E.OT_AFTER_TIME / 24
-                            WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
+                            WHEN E.OT_BEFORE = 'Y' OR NVL(E.OT_BEFORE_TIME,0) > 0 THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
                        END END_OT,
                        (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE, R.OT_HOURS CONFIRMED_OT_HOURS,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND TO_CHAR(DAT,'YYYYIW') = TO_CHAR(SYSDATE,'YYYYIW') AND DAT <= SYSDATE), 0) SUM_WEEK,
@@ -61,7 +70,11 @@ public class OTController : ControllerBase
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0101','YYYYMMDD') AND SYSDATE), 0) SUM_YEAR
                 FROM (SELECT * FROM (
                       SELECT EMPCD,DAT,SHIFTCD,MAX(OVER_TIME)OVER_TIME,MAX(OT_BEFORE)OT_BEFORE,
-                             MAX(OT_BEFORE_TIME)OT_BEFORE_TIME, MAX(OT_AFTER)OT_AFTER, MAX(OT_AFTER_TIME)OT_AFTER_TIME, MAX(OT_REST)OT_REST, MAX(SIGNED_STATUS)SIGNED_STATUS
+                             MAX(OT_BEFORE_TIME)OT_BEFORE_TIME, MAX(OT_AFTER)OT_AFTER, MAX(OT_AFTER_TIME)OT_AFTER_TIME, MAX(OT_REST)OT_REST, MAX(SIGNED_STATUS)SIGNED_STATUS,
+                             -- ORA-00935 (group function nested too deeply): ORDER BY lặp lại MAX(...)
+                             -- khi bị SELECT * FROM(...) WHERE ROWNUM=1 bọc ngoài sẽ báo lỗi này —
+                             -- phải tách ra thành 1 cột alias rồi ORDER BY theo alias, không lặp MAX().
+                             CASE WHEN MAX(OT_BEFORE) = 'Y' OR MAX(OT_AFTER) = 'Y' THEN 0 ELSE 1 END PICK_PRI
                       FROM (
                       SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, OT_REST, SIGNED_STATUS
                       FROM HRMS.EBM300 WHERE DAT = :WORK_DATE AND EMPCD = :EMPCD1
@@ -75,7 +88,7 @@ public class OTController : ControllerBase
                       GROUP BY EMPCD,DAT,SHIFTCD
                       -- NV có 2 ca/ngày: chọn deterministic ca có cờ OT trước, rồi theo SHIFTCD
                       -- (ROWNUM=1 không ORDER BY sẽ lấy ca ngẫu nhiên)
-                      ORDER BY CASE WHEN MAX(OT_BEFORE) = 'Y' OR MAX(OT_AFTER) = 'Y' THEN 0 ELSE 1 END, SHIFTCD)
+                      ORDER BY PICK_PRI, SHIFTCD)
                       WHERE ROWNUM = 1) E
                 JOIN HRMS.EBM100 S ON S.SHIFTCD = E.SHIFTCD
                 LEFT JOIN (SELECT EMPCD, CONFIRM_STATUS, CONFIRM_DATE, OT_HOURS FROM HRMS.HR_OT_REQUEST WHERE WORK_DATE = :WORK_DATE3) R ON R.EMPCD = E.EMPCD
@@ -378,26 +391,35 @@ public class OTController : ControllerBase
     private async Task<OtWindowInfo> GetOtWindowAsync(string empcd, DateTime workDate)
     {
         string sql = @"
-            SELECT E.OT_BEFORE, E.OT_AFTER,
+            SELECT (CASE WHEN E.OT_BEFORE = 'Y' OR NVL(E.OT_BEFORE_TIME,0) > 0 THEN 'Y' ELSE 'N' END) OT_BEFORE,
+                   (CASE WHEN E.OT_AFTER  = 'Y' OR NVL(E.OT_AFTER_TIME,0)  > 0 THEN 'Y' ELSE 'N' END) OT_AFTER,
                    -- Ca đêm (STIME > ETIME): tăng ca SAU giờ rơi vào ngày hôm sau E.DAT — +1 ngày.
-                   CASE WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI') - E.OT_BEFORE_TIME / 24
-                        WHEN E.OT_AFTER  = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
+                   -- Suy ra cờ hiệu quả từ OT_xxx_TIME khi ERP quên bật cờ OT_xxx='Y' (xem GetOTToday).
+                   CASE WHEN E.OT_BEFORE = 'Y' OR NVL(E.OT_BEFORE_TIME,0) > 0 THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI') - E.OT_BEFORE_TIME / 24
+                        WHEN E.OT_AFTER  = 'Y' OR NVL(E.OT_AFTER_TIME,0)  > 0 THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
                              + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END
                    END START_OT,
-                   CASE WHEN E.OT_AFTER  = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
+                   CASE WHEN E.OT_AFTER  = 'Y' OR NVL(E.OT_AFTER_TIME,0)  > 0 THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
                              + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END
                              + E.OT_AFTER_TIME / 24
-                        WHEN E.OT_BEFORE = 'Y' THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
+                        WHEN E.OT_BEFORE = 'Y' OR NVL(E.OT_BEFORE_TIME,0) > 0 THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
                    END END_OT
             FROM (SELECT * FROM (
-                  SELECT EMPCD, DAT, SHIFTCD, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_BEFORE_TIME) OT_BEFORE_TIME, MAX(OT_AFTER) OT_AFTER, MAX(OT_AFTER_TIME) OT_AFTER_TIME
+                  SELECT EMPCD, DAT, SHIFTCD,
+                         MAX(OT_BEFORE) OT_BEFORE, MAX(OT_BEFORE_TIME) OT_BEFORE_TIME,
+                         MAX(OT_AFTER) OT_AFTER, MAX(OT_AFTER_TIME) OT_AFTER_TIME,
+                         -- ORA-00935: ORDER BY không được lặp lại MAX(...) khi bị SELECT * FROM(...)
+                         -- WHERE ROWNUM=1 bọc ngoài — tách ra alias rồi ORDER BY theo alias (xem GetOTToday).
+                         CASE WHEN MAX(OT_BEFORE) = 'Y' OR MAX(OT_AFTER) = 'Y'
+                                OR NVL(MAX(OT_BEFORE_TIME),0) > 0 OR NVL(MAX(OT_AFTER_TIME),0) > 0
+                              THEN 0 ELSE 1 END PICK_PRI
                   FROM (SELECT EMPCD, DAT, SHIFTCD, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME FROM HRMS.EBM300      WHERE DAT = :WORK_DATE  AND EMPCD = :EMPCD  AND OVER_TIME IS NOT NULL AND OVER_TIME > 0
                         UNION ALL
                         SELECT EMPCD, DAT, SHIFTCD, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2 AND EMPCD = :EMPCD1 AND OVER_TIME IS NOT NULL AND OVER_TIME > 0)
                   WHERE SHIFTCD IN (SELECT SHIFTCD FROM HRMS.EBM100)
                   GROUP BY EMPCD, DAT, SHIFTCD
                   -- Cùng thứ tự ưu tiên với GetOTToday để khung giờ khoá khớp đúng ca đang hiển thị
-                  ORDER BY CASE WHEN MAX(OT_BEFORE) = 'Y' OR MAX(OT_AFTER) = 'Y' THEN 0 ELSE 1 END, SHIFTCD)
+                  ORDER BY PICK_PRI, SHIFTCD)
                   WHERE ROWNUM = 1) E
             JOIN HRMS.EBM100 S ON S.SHIFTCD = E.SHIFTCD";
 
@@ -462,9 +484,11 @@ public class OTController : ControllerBase
                 WITH OT_BASE AS (
                     SELECT /*+ MATERIALIZE */ EMPCD, DAT, SHIFTCD,
                            MAX(OVER_TIME)      OT_HOURS,
-                           MAX(OT_BEFORE)      OT_BEFORE,
+                           -- ERP đôi khi chỉ set OT_xxx_TIME mà quên bật cờ OT_xxx='Y' — suy ra
+                           -- cờ hiệu quả từ số giờ để không mất buổi trước/sau tăng ca (xem GetOTToday).
+                           CASE WHEN MAX(OT_BEFORE)='Y' OR NVL(MAX(OT_BEFORE_TIME),0)>0 THEN 'Y' ELSE 'N' END OT_BEFORE,
                            MAX(OT_BEFORE_TIME) OT_BEFORE_TIME,
-                           MAX(OT_AFTER)       OT_AFTER,
+                           CASE WHEN MAX(OT_AFTER)='Y'  OR NVL(MAX(OT_AFTER_TIME),0)>0  THEN 'Y' ELSE 'N' END OT_AFTER,
                            MAX(OT_AFTER_TIME)  OT_AFTER_TIME,
                            MAX(SIGNED_STATUS)  SIGNED_STATUS
                     FROM (
@@ -727,9 +751,11 @@ public class OTController : ControllerBase
                 WITH OT_BASE AS (
                     SELECT /*+ MATERIALIZE */ EMPCD, DAT, SHIFTCD,
                            MAX(OVER_TIME)      OT_HOURS,
-                           MAX(OT_BEFORE)      OT_BEFORE,
+                           -- ERP đôi khi chỉ set OT_xxx_TIME mà quên bật cờ OT_xxx='Y' — suy ra
+                           -- cờ hiệu quả từ số giờ để không mất buổi trước/sau tăng ca (xem GetOTToday).
+                           CASE WHEN MAX(OT_BEFORE)='Y' OR NVL(MAX(OT_BEFORE_TIME),0)>0 THEN 'Y' ELSE 'N' END OT_BEFORE,
                            MAX(OT_BEFORE_TIME) OT_BEFORE_TIME,
-                           MAX(OT_AFTER)       OT_AFTER,
+                           CASE WHEN MAX(OT_AFTER)='Y'  OR NVL(MAX(OT_AFTER_TIME),0)>0  THEN 'Y' ELSE 'N' END OT_AFTER,
                            MAX(OT_AFTER_TIME)  OT_AFTER_TIME,
                            MAX(SIGNED_STATUS)  SIGNED_STATUS
                     FROM (
@@ -949,9 +975,11 @@ public class OTController : ControllerBase
                 WITH OT_BASE AS (
                     SELECT /*+ MATERIALIZE */ EMPCD, DAT, SHIFTCD,
                            MAX(OVER_TIME)      OT_HOURS,
-                           MAX(OT_BEFORE)      OT_BEFORE,
+                           -- ERP đôi khi chỉ set OT_xxx_TIME mà quên bật cờ OT_xxx='Y' — suy ra
+                           -- cờ hiệu quả từ số giờ để không mất buổi trước/sau tăng ca (xem GetOTToday).
+                           CASE WHEN MAX(OT_BEFORE)='Y' OR NVL(MAX(OT_BEFORE_TIME),0)>0 THEN 'Y' ELSE 'N' END OT_BEFORE,
                            MAX(OT_BEFORE_TIME) OT_BEFORE_TIME,
-                           MAX(OT_AFTER)       OT_AFTER,
+                           CASE WHEN MAX(OT_AFTER)='Y'  OR NVL(MAX(OT_AFTER_TIME),0)>0  THEN 'Y' ELSE 'N' END OT_AFTER,
                            MAX(OT_AFTER_TIME)  OT_AFTER_TIME,
                            MAX(SIGNED_STATUS)  SIGNED_STATUS
                     FROM (

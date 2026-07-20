@@ -97,7 +97,9 @@
     let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false, pageSize = 100;
 
     function buildRow(item, idx) {
-        const otType = item.OT_AFTER === 'Y' ? 'Sau' : (item.OT_BEFORE === 'Y' ? 'Trước' : '');
+        // ERP có thể nhập OT có giờ nhưng không set cờ buổi (trước/sau ca) — không suy đoán,
+        // hiện nhãn trung lập "OT" thay vì để trống (tránh badge hiện ": 1h" nhìn như lỗi).
+        const otType = item.OT_AFTER === 'Y' ? 'Sau' : (item.OT_BEFORE === 'Y' ? 'Trước' : 'OT');
         let timeHtml = '<span class="text-muted text-xs">-</span>';
         if (item.START_OT && item.END_OT)
             timeHtml = `<span class="badge border border-secondary text-secondary fw-normal"><i class="bi bi-clock me-1"></i>${formatTime(item.START_OT)} - ${formatTime(item.END_OT)}</span>`;
@@ -241,7 +243,7 @@
             html+='<table border="1"><thead><tr>'+headers.map(h=>`<th style="background:#d9ead3;font-weight:bold">${h}</th>`).join('')+'</tr></thead><tbody>';
             exportRows.forEach((r,i)=>{
                 const s=r.CONFIRM_STATUS==='CONFIRMED'?'Chấp nhận':(r.CONFIRM_STATUS==='REJECTED'?'Từ chối':'Chờ ký');
-                const otType=r.OT_AFTER==='Y'?'Sau giờ':(r.OT_BEFORE==='Y'?'Trước giờ':'');
+                const otType=r.OT_AFTER==='Y'?'Sau giờ':(r.OT_BEFORE==='Y'?'Trước giờ':'OT');
                 html+=`<tr><td style="text-align:center">${i+1}</td><td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td><td style="mso-number-format:'@@'">${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${escHtml(r.WORK_NAME||'')}</td><td>${otType}</td><td style="text-align:center">${r.OT_HOURS||0}</td><td style="text-align:center">${r.START_OT?formatTime(r.START_OT):''}</td><td style="text-align:center">${r.END_OT?formatTime(r.END_OT):''}</td><td>${s}</td><td>${r.CONFIRM_DATE?formatDateTime(r.CONFIRM_DATE):''}</td></tr>`;
             });
             html+='</tbody></table></body></html>';

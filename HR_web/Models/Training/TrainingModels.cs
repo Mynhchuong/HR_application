@@ -410,6 +410,14 @@ public class GrantRetakeRequest
     public string  LOGIN_USER { get; set; } = "";
 }
 
+// HR cấp thi lại hàng loạt cho TẤT CẢ học viên đang rớt bài thi này
+public class GrantRetakeAllRequest
+{
+    public int     TEST_ID { get; set; }
+    public string? REASON { get; set; }
+    public string  LOGIN_USER { get; set; } = "";
+}
+
 // ── Clone & Express ─────────────────────────────────────────
 public class CloneFromCourseRequest
 {

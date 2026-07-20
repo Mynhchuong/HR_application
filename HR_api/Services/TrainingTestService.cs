@@ -34,11 +34,23 @@ public class TrainingTestService
                    CL.CLASS_NAME, CO.TITLE COURSE_TITLE,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_TEST_QUESTION Q WHERE Q.TEST_ID = T.ID) QUESTION_COUNT,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_TEST_ATTEMPT A WHERE A.TEST_ID = T.ID) ATTEMPT_COUNT,
-                   ATT.STATUS AS ATTEMPT_STATUS, ATT.SCORE AS SCORE, ATT.MAX_SCORE AS MAX_SCORE, ATT.IS_GRADED AS IS_GRADED
+                   ATT.STATUS AS ATTEMPT_STATUS, ATT.SCORE AS SCORE, ATT.MAX_SCORE AS MAX_SCORE, ATT.IS_GRADED AS IS_GRADED,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_RETAKE_GRANT G
+                     WHERE G.TEST_ID = T.ID AND G.EMPCD = :P_EMP AND G.STATUS = 'PENDING') AS PENDING_GRANT_CNT
               FROM HRMS.HR_TRAINING_TEST T
               LEFT JOIN HRMS.HR_TRAINING_CLASS  CL ON CL.ID = T.CLASS_ID
               LEFT JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = T.TEMPLATE_COURSE_ID
-              LEFT JOIN HRMS.HR_TRAINING_TEST_ATTEMPT ATT ON ATT.TEST_ID = T.ID AND ATT.EMPCD = :P_EMP
+              -- Chỉ join LƯỢT GẦN NHẤT của học viên — nếu không, học viên có ≥2 attempt (được
+              -- cấp thi lại rồi thi tiếp) sẽ bị nhân dòng, hiện trùng lặp bài test trong danh sách.
+              -- Lọc lượt gần nhất trong inline view TRƯỚC khi join (ORA-01799: Oracle không cho
+              -- outer join khi ON clause chứa subquery so sánh trực tiếp).
+              LEFT JOIN (
+                  SELECT A.TEST_ID, A.EMPCD, A.STATUS, A.SCORE, A.MAX_SCORE, A.IS_GRADED
+                    FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
+                   WHERE A.EMPCD = :P_EMP
+                     AND A.ATTEMPT_NO = (SELECT MAX(A2.ATTEMPT_NO) FROM HRMS.HR_TRAINING_TEST_ATTEMPT A2
+                                           WHERE A2.TEST_ID = A.TEST_ID AND A2.EMPCD = A.EMPCD)
+              ) ATT ON ATT.TEST_ID = T.ID
              WHERE (:P_CID  IS NULL OR T.CLASS_ID          = :P_CID)
                AND (:P_TCID IS NULL OR T.TEMPLATE_COURSE_ID = :P_TCID)
                AND (:P_TPL  IS NULL OR T.IS_TEMPLATE       = :P_TPL)
@@ -402,6 +414,7 @@ public class TrainingTestService
         t.SCORE          = r["SCORE"]     is DBNull ? null : Convert.ToDecimal(r["SCORE"]);
         t.MAX_SCORE      = r["MAX_SCORE"] is DBNull ? null : Convert.ToDecimal(r["MAX_SCORE"]);
         t.IS_GRADED      = r["IS_GRADED"] is DBNull ? null : Convert.ToInt32(r["IS_GRADED"]);
+        t.HAS_PENDING_GRANT = !(r["PENDING_GRANT_CNT"] is DBNull) && Convert.ToInt32(r["PENDING_GRANT_CNT"]) > 0;
         return t;
     }
 

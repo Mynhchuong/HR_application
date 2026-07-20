@@ -466,6 +466,12 @@ public class TrainingClassService
         if (current == null)
             throw new InvalidOperationException("Không tìm thấy Lớp học");
 
+        // Bắt buộc phải Hủy Lớp trước khi xóa vĩnh viễn — Cancel mới gửi thông báo hủy
+        // cho học viên và gỡ Bulletin; xóa thẳng từ SCHEDULED/IN_PROGRESS sẽ xóa mất
+        // dữ liệu học viên đang học mà không ai được báo trước.
+        if (current != "CANCELLED")
+            throw new InvalidOperationException($"Chỉ xóa vĩnh viễn được khi Lớp đã Hủy — hiện đang {current}. Bấm 'Hủy Lớp' trước.");
+
         // Gỡ BULLETIN liên kết nếu có
         var bulletinId = await GetFieldAsync<int>(classId, "BULLETIN_ID");
         if (bulletinId > 0)

@@ -457,20 +457,32 @@
 
             wrap.innerHTML = '';
             list.forEach(t => {
-                        const isDone = t.ATTEMPT_STATUS === 'SUBMITTED' || t.ATTEMPT_STATUS === 'AUTO_SUBMITTED' || t.ATTEMPT_STATUS === 'GRADED';
+                        // HR đã cấp thi lại còn PENDING → ưu tiên cho làm lại, dù lượt trước đã nộp.
+                        const isDone = !t.HAS_PENDING_GRANT &&
+                            (t.ATTEMPT_STATUS === 'SUBMITTED' || t.ATTEMPT_STATUS === 'AUTO_SUBMITTED' || t.ATTEMPT_STATUS === 'GRADED');
                         // Đã nộp nhưng còn câu tự luận chưa chấm (IS_GRADED != 1) → chưa hiện điểm, tránh gây hiểu lầm điểm chưa tính tự luận.
                         const pendingGrade = isDone && t.IS_GRADED !== 1;
                         // Chưa làm nhưng đã đóng bài (STATUS=CLOSED hoặc quá hạn AVAILABLE_TO) → không cho bấm "Làm bài ngay" nữa.
                         const isClosed = !isDone && (t.STATUS === 'CLOSED' || (t.AVAILABLE_TO && new Date(t.AVAILABLE_TO) < new Date()));
 
                         const isFinalTest = classData && classData.cls && (t.ID == classData.cls.FINAL_TEST_ID || t.ID == classData.cls.finalTestId);
-                        const finalBadge = isFinalTest 
-                            ? `<span class="badge border ms-2" style="background-color: #ffeef0; color: #dc3545; border-color: #fecdd3 !important; font-size: 0.7rem; font-weight: 700;"><i class="bi bi-award me-1"></i>Bài thi cuối khóa</span>` 
+                        const finalBadge = isFinalTest
+                            ? `<span class="badge border ms-2" style="background-color: #ffeef0; color: #dc3545; border-color: #fecdd3 !important; font-size: 0.7rem; font-weight: 700;"><i class="bi bi-award me-1"></i>Bài thi cuối khóa</span>`
                             : '';
                         const borderClass = isFinalTest ? 'border-start border-danger border-3' : '';
-                        
+
                         let actionBtn = '';
-                        if (isDone) {
+                        // Chỉ cho làm lại nếu test còn PUBLISHED/OPEN — Test bị CLOSED hẳn thì
+                        // backend StartAttemptAsync vẫn chặn dù có grant (khớp check server).
+                        if (t.HAS_PENDING_GRANT && (t.STATUS === 'PUBLISHED' || t.STATUS === 'OPEN')) {
+                            // Cấp thi lại = mục đích chính là vượt qua hạn nộp đã đóng — backend
+                            // StartAttemptAsync cũng bỏ qua AVAILABLE_TO khi có grant PENDING.
+                            actionBtn = `
+                                <a href="${window.TRAINING_URLS.testDoTemplate.replace('__ID__', t.ID)}" class="btn btn-sm btn-primary w-100 rounded-2 fw-bold">
+                                    <i class="bi bi-arrow-repeat me-1"></i>Làm bài lại
+                                </a>
+                            `;
+                        } else if (isDone) {
                             actionBtn = `
                                 <a href="${window.TRAINING_URLS.testResultTemplate.replace('__ID__', t.ID)}" class="btn btn-sm btn-outline-info w-100 rounded-2 fw-bold">
                                     Xem kết quả
@@ -491,8 +503,10 @@
                         }
 
                         const durationText = t.DURATION_MINUTES ? `${t.DURATION_MINUTES} phút` : 'Tự do';
-                        // Hạn nộp bài — chỉ hiện khi chưa làm và có ngày đóng, để học viên biết mà làm kịp hạn.
-                        const deadlineText = (!isDone && t.AVAILABLE_TO)
+                        // Hạn nộp bài cũ không còn ý nghĩa khi đã được cấp thi lại (deadline mới
+                        // chỉ tính từ lúc bấm "Làm bài lại" — xem StartAttemptAsync) — ẩn đi tránh
+                        // hiểu lầm "đã hết hạn" trong khi nút làm lại vẫn bấm được.
+                        const deadlineText = (!isDone && !t.HAS_PENDING_GRANT && t.AVAILABLE_TO)
                             ? `<p class="text-muted small mb-2"><i class="bi bi-alarm me-1"></i>Hạn nộp: <strong class="${isClosed ? 'text-danger' : 'text-dark'}">${new Date(t.AVAILABLE_TO).toLocaleString('vi-VN')}</strong></p>`
                             : '';
                         const scoreText = !isDone
@@ -500,8 +514,8 @@
                             : (pendingGrade
                                 ? `<span class="text-warning fw-bold">Chưa chấm điểm</span>`
                                 : `Điểm: <strong class="text-primary">${t.SCORE ?? '-'} / ${t.MAX_SCORE ?? '-'}</strong>`);
-                        const statusBadgeClass = isDone ? (pendingGrade ? 'bg-secondary' : 'bg-success') : (isClosed ? 'bg-danger' : 'bg-warning');
-                        const statusBadgeLabel = isDone ? (pendingGrade ? 'Chờ chấm tự luận' : 'Đã nộp') : (isClosed ? 'Đã hết hạn' : 'Chưa làm');
+                        const statusBadgeClass = t.HAS_PENDING_GRANT ? 'bg-info' : (isDone ? (pendingGrade ? 'bg-secondary' : 'bg-success') : (isClosed ? 'bg-danger' : 'bg-warning'));
+                        const statusBadgeLabel = t.HAS_PENDING_GRANT ? 'Được cấp thi lại' : (isDone ? (pendingGrade ? 'Chờ chấm tự luận' : 'Đã nộp') : (isClosed ? 'Đã hết hạn' : 'Chưa làm'));
 
                         wrap.innerHTML += `
                             <div class="card border p-3 mb-3 rounded-3 shadow-sm ${borderClass}">

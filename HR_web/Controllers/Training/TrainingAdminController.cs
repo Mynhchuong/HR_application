@@ -1137,6 +1137,16 @@ public class TrainingAdminController : BaseController
         return Content(json, "application/json");
     }
 
+    [HttpPost]
+    public async Task<IActionResult> GrantRetakeAllFailed([FromBody] GrantRetakeAllRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/test/retake-grant-all-failed", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetCourseSessions(int courseId)
     {

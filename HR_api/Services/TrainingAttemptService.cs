@@ -144,21 +144,62 @@ public class TrainingAttemptService
             }, new OracleParameter("ID", req.TEST_ID))).FirstOrDefault();
         if (test == null) return (false, "Không tìm thấy test");
 
+        await GrantOneRetakeAsync(req.TEST_ID, req.EMPCD, req.LOGIN_USER, req.REASON, test.TITLE, test.CLASS_ID);
+        return (true, null);
+    }
+
+    // Cấp thi lại hàng loạt cho TẤT CẢ học viên đang rớt bài thi này — mỗi người chỉ cần
+    // lượt thi GẦN NHẤT đã nộp (SUBMITTED/AUTO_SUBMITTED) và IS_PASS=0 (rớt), và chưa có
+    // sẵn 1 lượt PENDING (tránh cấp chồng — HAS_PENDING_GRANT phía FE cũng dựa trên rule này).
+    public async Task<(bool ok, string? error, int granted)> GrantRetakeAllFailedAsync(GrantRetakeAllRequest req)
+    {
+        var test = (await _db.ExecuteQueryAsync(@"
+            SELECT TITLE, CLASS_ID FROM HRMS.HR_TRAINING_TEST WHERE ID = :ID",
+            r => new
+            {
+                TITLE    = r["TITLE"]?.ToString() ?? "",
+                CLASS_ID = r["CLASS_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["CLASS_ID"]),
+            }, new OracleParameter("ID", req.TEST_ID))).FirstOrDefault();
+        if (test == null) return (false, "Không tìm thấy test", 0);
+
+        var failedEmpcds = await _db.ExecuteQueryAsync(@"
+            SELECT A.EMPCD
+              FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
+             WHERE A.TEST_ID = :TID
+               AND A.STATUS IN ('SUBMITTED','AUTO_SUBMITTED')
+               AND A.IS_PASS = 0
+               AND A.ATTEMPT_NO = (SELECT MAX(A2.ATTEMPT_NO) FROM HRMS.HR_TRAINING_TEST_ATTEMPT A2
+                                     WHERE A2.TEST_ID = A.TEST_ID AND A2.EMPCD = A.EMPCD)
+               AND NOT EXISTS (SELECT 1 FROM HRMS.HR_TRAINING_RETAKE_GRANT G
+                                WHERE G.TEST_ID = A.TEST_ID AND G.EMPCD = A.EMPCD AND G.STATUS = 'PENDING')",
+            r => r["EMPCD"]?.ToString() ?? "",
+            new OracleParameter("TID", req.TEST_ID));
+
+        foreach (var empcd in failedEmpcds)
+        {
+            if (string.IsNullOrEmpty(empcd)) continue;
+            await GrantOneRetakeAsync(req.TEST_ID, empcd, req.LOGIN_USER, req.REASON, test.TITLE, test.CLASS_ID);
+        }
+
+        return (true, null, failedEmpcds.Count);
+    }
+
+    private async Task GrantOneRetakeAsync(int testId, string empcd, string actor, string? reason, string testTitle, int? classId)
+    {
         await _db.ExecuteNonQueryAsync(@"
             INSERT INTO HRMS.HR_TRAINING_RETAKE_GRANT (TEST_ID, EMPCD, GRANTED_BY, REASON)
             VALUES (:TID, :EMP, :GBY, :REASON)",
-            new OracleParameter("TID", req.TEST_ID),
-            new OracleParameter("EMP", req.EMPCD),
-            new OracleParameter("GBY", req.LOGIN_USER),
-            new OracleParameter("REASON", (object?)req.REASON ?? DBNull.Value));
+            new OracleParameter("TID", testId),
+            new OracleParameter("EMP", empcd),
+            new OracleParameter("GBY", actor),
+            new OracleParameter("REASON", (object?)reason ?? DBNull.Value));
 
         if (_noti != null)
         {
-            await _noti.EnqueueAsync("TRAINING_RETAKE_GRANTED", req.EMPCD,
-                new Dictionary<string, string> { ["testTitle"] = test.TITLE },
-                classId: test.CLASS_ID, testId: req.TEST_ID);
+            await _noti.EnqueueAsync("TRAINING_RETAKE_GRANTED", empcd,
+                new Dictionary<string, string> { ["testTitle"] = testTitle },
+                classId: classId, testId: testId);
         }
-        return (true, null);
     }
 
     // Giờ DB (SYSDATE) — nguồn giờ duy nhất cho mọi check deadline/window của attempt,

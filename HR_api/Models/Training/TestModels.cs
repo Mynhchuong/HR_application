@@ -25,11 +25,14 @@ public class TestModel
     public int?      QUESTION_COUNT { get; set; }
     public int?      ATTEMPT_COUNT { get; set; }
 
-    // Student attempt info (§6)
+    // Student attempt info (§6) — ATTEMPT_STATUS/SCORE/... luôn là LƯỢT GẦN NHẤT của học viên.
     public string?   ATTEMPT_STATUS { get; set; }
     public decimal?  SCORE { get; set; }
     public decimal?  MAX_SCORE { get; set; }
     public int?      IS_GRADED { get; set; }
+    // HR đã cấp 1 lượt thi lại còn PENDING (chưa dùng) — FE dùng để hiện nút "Làm bài lại"
+    // dù ATTEMPT_STATUS của lượt trước vẫn là SUBMITTED.
+    public bool      HAS_PENDING_GRANT { get; set; }
 }
 
 public class TestQuestionModel

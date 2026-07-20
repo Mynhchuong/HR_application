@@ -745,10 +745,26 @@ public class MenuController : BaseController
     [AllowAnonymous]
     public async Task<IActionResult> ThisWeek()
     {
-        var data         = await _svc.GetThisWeekMenuAsync();
         var nextWeekData = await _svc.GetNextWeekMenuAsync();
-        ViewBag.HasNextWeek  = nextWeekData.Any();
-        ViewBag.WeekMonday   = DateTime.Today.AddDays(-(((int)DateTime.Today.DayOfWeek + 6) % 7));
+        ViewBag.HasNextWeek = nextWeekData.Any();
+
+        // Chủ nhật: tuần T2–T7 đã kết thúc → tự động hiển thị thực đơn tuần sau nếu căn tin đã đăng
+        if (DateTime.Today.DayOfWeek == DayOfWeek.Sunday)
+        {
+            if (nextWeekData.Any())
+            {
+                ViewBag.IsNextWeek   = true;
+                ViewBag.AutoNextWeek = true;
+                ViewBag.WeekMonday   = DateTime.Today.AddDays(1);
+                if (CurrentUser != null)
+                    ViewBag.UserWeekMeals = await _svc.GetUserWeekMealAsync(CurrentUser.EmpCd);
+                return View(nextWeekData);
+            }
+            ViewBag.NoNextWeekMsg = true;
+        }
+
+        var data = await _svc.GetThisWeekMenuAsync();
+        ViewBag.WeekMonday = DateTime.Today.AddDays(-(((int)DateTime.Today.DayOfWeek + 6) % 7));
         if (CurrentUser != null)
             ViewBag.UserWeekMeals = await _svc.GetUserWeekMealAsync(CurrentUser.EmpCd);
         return View(data);

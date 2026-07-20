@@ -5,6 +5,8 @@
     var today      = DateTime.Today;
     bool isNextWeek = ViewBag.IsNextWeek == true;
     bool hasNextWeek = ViewBag.HasNextWeek == true;
+    bool autoNextWeek = ViewBag.AutoNextWeek == true;
+    bool noNextWeekMsg = ViewBag.NoNextWeekMsg == true;
     int todayNo    = isNextWeek ? -1 : ((int)today.DayOfWeek == 0 ? 0 : (int)today.DayOfWeek + 1);
 
     var dayConfig = new[]
@@ -179,6 +181,29 @@
         display: flex; align-items: center; justify-content: center;
         color: white; font-size: 1rem; cursor: pointer; z-index: 1;
     }
+
+    /* ── Banner "xem thực đơn tuần sau" ── */
+    .next-week-cta {
+        display: flex; flex-direction: column; align-items: center; gap: 2px;
+        background: #fff7ed; border: 2px dashed #fb923c; border-radius: 14px;
+        padding: .7rem 1rem; margin-bottom: .75rem;
+        text-decoration: none !important; text-align: center;
+        -webkit-tap-highlight-color: transparent;
+        animation: ctaPulse 1.8s ease-in-out infinite;
+    }
+    .next-week-cta:active { opacity: .8; }
+    .next-week-cta .cta-title { font-size: .9rem; font-weight: 800; color: #c2410c; }
+    .next-week-cta .cta-tap   { font-size: .78rem; font-weight: 700; color: #ea580c; }
+    @@keyframes ctaPulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(251,146,60,.45); }
+        50%      { box-shadow: 0 0 0 7px rgba(251,146,60,0); }
+    }
+
+    .auto-nextweek-note {
+        background: #eff6ff; border: 1.5px solid #bfdbfe; color: #1d4ed8;
+        border-radius: 12px; padding: .55rem .8rem; margin-bottom: .75rem;
+        font-size: .8rem; font-weight: 700; line-height: 1.5; text-align: center;
+    }
 </style>
 
 <div class="food-modal-backdrop" id="foodModal" onclick="closeFoodModal(event)">
@@ -208,7 +233,7 @@
         </div>
         <div class="d-flex flex-column align-items-end gap-1">
             <span class="food-hero-icon">📅</span>
-            @if (isNextWeek)
+            @if (isNextWeek && !autoNextWeek)
             {
                 <a href="@Url.Action("ThisWeek","Menu")" class="btn btn-sm"
                    style="background:rgba(255,255,255,.2);color:#fff;font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:8px;text-decoration:none;">
@@ -224,6 +249,20 @@
             }
         </div>
     </div>
+
+    @if (autoNextWeek)
+    {
+        <div class="auto-nextweek-note">
+            🗓️ Hôm nay Chủ nhật — thực đơn <b>tuần sau</b> đã được hiển thị sẵn cho bạn xem trước.
+        </div>
+    }
+    else if (!isNextWeek && hasNextWeek)
+    {
+        <a href="@Url.Action("NextWeek","Menu")" class="next-week-cta">
+            <span class="cta-title">📢 Căn tin đã đăng thực đơn tuần sau!</span>
+            <span class="cta-tap">👉 Nhấn vào đây để xem thực đơn tuần sau</span>
+        </a>
+    }
 
     <div class="food-tabs">
         <a href="@Url.Action("Today")" class="food-tab">Hôm nay</a>
@@ -244,7 +283,14 @@
     {
         <div class="holiday-msg">
             <div style="font-size:2.8rem;margin-bottom:.5rem;">🍽️</div>
-            <p>Chưa có thực đơn tuần này.</p>
+            @if (noNextWeekMsg)
+            {
+                <p>Hôm nay Chủ nhật — căn tin <b>chưa cập nhật</b> thực đơn tuần sau.<br />Bạn vui lòng quay lại xem sau nhé!</p>
+            }
+            else
+            {
+                <p>Chưa có thực đơn tuần này.</p>
+            }
         </div>
     }
     else

@@ -8,6 +8,8 @@
     var leaveUrl = Url.Action("LeaveMyRequests", "Leave") + "?openCreate=1";
 }
 
+<div class="home-feature-heading">🚀 Chức năng xem lại tăng ca, nghỉ phép, ra cổng trong tháng</div>
+
 <div id="homeMyCalendar" class="home-mycal" data-empcd="@Model.EmpCd" data-init-month="@monthKey">
     <div class="home-mycal-header">
         <button type="button" class="mycal-nav" data-nav="prev" aria-label="Tháng trước">‹</button>
@@ -36,7 +38,7 @@
     </div>
 
     <div class="home-mycal-note">
-        ℹ️ Đây là thông tin từ <strong>My Samho</strong> — không phải ERP. Đơn nộp giấy hoặc chưa hoàn tất trên app sẽ không hiển thị ở đây.
+        ℹ️ Lịch chỉ hiện các đơn bạn đã làm trên app này. <strong>Đơn viết giấy sẽ không hiện ở đây.</strong>
     </div>
 
     <div class="home-mycal-actions">

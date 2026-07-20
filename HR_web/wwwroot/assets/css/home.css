@@ -628,6 +628,15 @@ body.home-hero-popup-open { overflow: hidden; }
     overflow: hidden;
     position: relative;
 }
+/* Desktop: giới hạn bề rộng để lịch không phình theo container 1200px */
+@media (min-width: 640px) {
+    .home-mycal {
+        max-width: 480px;
+        margin-left: auto;
+        margin-right: auto;
+        width: 100%;
+    }
+}
 
 /* ─── Header với gradient ─── */
 .home-mycal-header {
@@ -755,7 +764,7 @@ body.home-hero-popup-open { overflow: hidden; }
 
 /* Note + CTA */
 .home-mycal-note {
-    margin: 0 12px 10px;
+    margin: 10px 12px;
     padding: 10px 12px;
     background: linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%);
     border-radius: 12px;

@@ -356,6 +356,8 @@ public class MenuWeekController : ControllerBase
     {
         try
         {
+            // Tuần lưu T2–T7 nên phải anchor về Thứ 2 tuần kế bằng TRUNC(..,'IW');
+            // nếu dùng SYSDATE+7 thì Chủ nhật sẽ rơi ra ngoài khoảng FROM–TO.
             const string sql = @"
                 SELECT D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER,
                        F.FOOD_NAME, F.IS_IMAGE,
@@ -363,7 +365,7 @@ public class MenuWeekController : ControllerBase
                 FROM HRMS.HR_MENU_WEEK W
                 JOIN HRMS.HR_MENU_DETAIL D ON D.WEEK_ID = W.ID
                 JOIN HRMS.HR_MENU_FOOD F ON F.ID = D.FOOD_ID
-                WHERE TRUNC(SYSDATE + 7) BETWEEN TRUNC(W.FROM_DATE) AND TRUNC(W.TO_DATE)
+                WHERE TRUNC(SYSDATE + 7, 'IW') BETWEEN TRUNC(W.FROM_DATE) AND TRUNC(W.TO_DATE)
                   AND W.STATUS = 'PUBLISHED'
                 ORDER BY D.DAY_NO, D.SHIFT, D.MEAL_TYPE, D.DISPLAY_ORDER";
 
@@ -372,7 +374,7 @@ public class MenuWeekController : ControllerBase
             var weekInfo = await _db.ExecuteQueryAsync(
                 @"SELECT WEEK_NAME, FROM_DATE, TO_DATE
                   FROM HRMS.HR_MENU_WEEK
-                  WHERE TRUNC(SYSDATE + 7) BETWEEN TRUNC(FROM_DATE) AND TRUNC(TO_DATE)
+                  WHERE TRUNC(SYSDATE + 7, 'IW') BETWEEN TRUNC(FROM_DATE) AND TRUNC(TO_DATE)
                     AND STATUS = 'PUBLISHED'",
                 r => new
                 {

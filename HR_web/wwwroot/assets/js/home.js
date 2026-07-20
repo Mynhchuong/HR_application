@@ -387,7 +387,7 @@
             `).join('') + `
                 <div class="mc-footer-note">
                     <i class="bi bi-info-circle"></i>
-                    Thông tin từ My Samho — không phải ERP
+                    Chỉ hiện đơn đã làm trên app — đơn viết giấy không hiện ở đây
                 </div>`;
 
             if (window.bootstrap && modalEl) {

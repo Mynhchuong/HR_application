@@ -459,6 +459,106 @@ public class TrainingClassService
         await SetStatusAsync(classId, "CLOSED", actor);
     }
 
+    // Xóa vĩnh viễn Lớp học và toàn bộ dữ liệu liên quan (Cascade Delete)
+    public async Task DeleteAsync(int classId, string actor)
+    {
+        var current = await GetStatusAsync(classId);
+        if (current == null)
+            throw new InvalidOperationException("Không tìm thấy Lớp học");
+
+        // Gỡ BULLETIN liên kết nếu có
+        var bulletinId = await GetFieldAsync<int>(classId, "BULLETIN_ID");
+        if (bulletinId > 0)
+        {
+            try { await _bulletin.UnpublishAsync(bulletinId, actor); } catch {}
+        }
+
+        // Xóa dữ liệu liên quan theo thứ tự ngược lại (tránh dính FK constraint)
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_TEST_ANSWER 
+            WHERE ATTEMPT_ID IN (
+                SELECT TA.ID FROM HRMS.HR_TRAINING_TEST_ATTEMPT TA
+                JOIN HRMS.HR_TRAINING_TEST TT ON TA.TEST_ID = TT.ID
+                WHERE TT.CLASS_ID = :CID
+            )", new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_TEST_ATTEMPT 
+            WHERE TEST_ID IN (
+                SELECT ID FROM HRMS.HR_TRAINING_TEST WHERE CLASS_ID = :CID
+            )", new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_TEST_OPTION 
+            WHERE QUESTION_ID IN (
+                SELECT TQ.ID FROM HRMS.HR_TRAINING_TEST_QUESTION TQ
+                JOIN HRMS.HR_TRAINING_TEST TT ON TQ.TEST_ID = TT.ID
+                WHERE TT.CLASS_ID = :CID
+            )", new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_TEST_QUESTION 
+            WHERE TEST_ID IN (
+                SELECT ID FROM HRMS.HR_TRAINING_TEST WHERE CLASS_ID = :CID
+            )", new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_TEST WHERE CLASS_ID = :CID",
+            new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_ATTENDANCE 
+            WHERE SESSION_ID IN (
+                SELECT ID FROM HRMS.HR_TRAINING_SESSION WHERE CLASS_ID = :CID
+            )", new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_SESSION WHERE CLASS_ID = :CID",
+            new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_CLASS_TEACHER WHERE CLASS_ID = :CID",
+            new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID",
+            new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_CLASS_GROUP WHERE CLASS_ID = :CID",
+            new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_MATERIAL_VIEW 
+            WHERE MATERIAL_ID IN (
+                SELECT ID FROM HRMS.HR_TRAINING_MATERIAL WHERE CLASS_ID = :CID
+            )", new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_MATERIAL WHERE CLASS_ID = :CID",
+            new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_REVIEW_TEACHER WHERE CLASS_ID = :CID",
+            new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_REVIEW WHERE CLASS_ID = :CID",
+            new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_NOTI_QUEUE WHERE RELATED_CLASS_ID = :CID",
+            new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_AUDIT WHERE CLASS_ID = :CID",
+            new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_CLASS WHERE ID = :CID",
+            new OracleParameter("CID", classId));
+    }
+
     // ═══════════════════════════════════════════════════════════════
     //  TEACHER
     // ═══════════════════════════════════════════════════════════════

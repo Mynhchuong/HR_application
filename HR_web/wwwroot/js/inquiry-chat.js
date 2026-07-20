@@ -117,13 +117,22 @@ window.InquiryChat = (function () {
 
     // ─── Image lightbox ──────────────────────────────────────
     function onChatClick(e) {
-        const img = e.target.closest('img.attach-img');
+        const imgTarget = e.target.closest('img');
+        const anchorTarget = e.target.closest('a');
+
+        const img = imgTarget || anchorTarget?.querySelector('img');
         if (!img) return;
+
+        if (!img.closest('#chatMsgs, .msg-attachments, .msg-bubble, .msg-content')) return;
+
         e.preventDefault();
-        // try to find the full-size URL from parent <a>
-        const anchor = img.closest('a');
+        e.stopPropagation();
+
+        const anchor = anchorTarget || img.closest('a');
         const fullUrl = anchor?.getAttribute('href') || img.src;
-        openLightbox(fullUrl);
+        if (fullUrl) {
+            openLightbox(fullUrl);
+        }
     }
 
     function openLightbox(url) {
@@ -172,7 +181,7 @@ window.InquiryChat = (function () {
                 const fullUrl  = `${cfg.urls.getFile}?path=${encodeURIComponent(a.filePath)}`;
                 if (a.fileType === 'IMAGE') {
                     const thumbUrl = `${cfg.urls.getFile}?path=${encodeURIComponent(a.thumbPath || a.filePath)}`;
-                    return `<a href="${fullUrl}"><img class="attach-img" src="${thumbUrl}" alt="${esc(a.fileName)}"></a>`;
+                    return `<a class="no-loading" href="${fullUrl}"><img class="attach-img" src="${thumbUrl}" alt="${esc(a.fileName)}"></a>`;
                 }
                 if (a.fileType === 'VIDEO') {
                     return `<video class="attach-video" controls preload="metadata" playsinline controlsList="nodownload" src="${fullUrl}"></video>`;

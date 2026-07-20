@@ -74,4 +74,10 @@ public class SurveyReportService
             $"surveyId={surveyId}&empcd={Uri.EscapeDataString(empcd)}");
         return r?.success == true ? r.data : null;
     }
+
+    public async Task<List<SurveyFullAnswerRecordModel>> GetAllAnswersAsync(int surveyId)
+    {
+        var r = await _api.GetAsync<R<List<SurveyFullAnswerRecordModel>>>("SurveyAdmin/report/all-answers", $"id={surveyId}");
+        return r?.success == true ? r.data ?? new() : new();
+    }
 }

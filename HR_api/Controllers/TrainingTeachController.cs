@@ -54,7 +54,7 @@ public class TrainingTeachController : ControllerBase
         var all = await _class.ListAsync(null, null, null);
         var teach = await _class.GetTeachersForEmpAsync(empcd);   // helper (thêm dưới đây)
         var classIds = teach.Select(t => t.CLASS_ID).ToHashSet();
-        var mine = all.Where(c => classIds.Contains(c.ID)).ToList();
+        var mine = all.Where(c => classIds.Contains(c.ID) && c.STATUS != "CANCELLED").ToList();
         return Ok(new { success = true, data = mine });
     }
 

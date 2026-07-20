@@ -1,0 +1,111 @@
+@model HR_web.ViewModels.Home.HomeIndexViewModel
+
+<div id="homeMealLockBanner" class="home-meallock-banner" style="display: none;">
+    <div class="home-meallock-header">
+        <div class="home-meallock-title">
+            <span class="home-meallock-icon-badge">⏰</span>
+            <span>Lịch chốt suất ăn tuần này</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="@Url.Action("Today", "Menu")" class="home-meallock-btn">
+                <span>Đổi món ngay</span>
+                <i class="bi bi-arrow-right-short ms-1"></i>
+            </a>
+            <button type="button" class="home-meallock-close" onclick="dismissHomeMealLock()" aria-label="Đóng">×</button>
+        </div>
+    </div>
+
+    <div id="homeMealLockContent" class="home-meallock-content"></div>
+</div>
+
+<script>
+(function loadHomeMealLocks() {
+    if (sessionStorage.getItem('home_meallock_dismissed') === '1') return;
+
+    function getWeekRangeIso() {
+        const d = new Date();
+        const day = d.getDay(); // 0=Sun, 1=Mon...
+        const diffToMon = (day === 0 ? -6 : 1 - day);
+        const mon = new Date(d); mon.setDate(d.getDate() + diffToMon);
+        const sat = new Date(mon); sat.setDate(mon.getDate() + 6);
+        return {
+            mon: mon.toISOString().slice(0, 10),
+            sat: sat.toISOString().slice(0, 10)
+        };
+    }
+
+    const w = getWeekRangeIso();
+    const listUrl = '@Url.Action("List", "MealLock")';
+
+    fetch(`${listUrl}?from=${w.mon}&to=${w.sat}`)
+        .then(r => r.json())
+        .then(d => {
+            if (!d || !d.success || !Array.isArray(d.data)) return;
+
+            const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+            const upcoming = d.data
+                .filter(r => r.isActive && (r.lockLunch || r.lockOt))
+                .filter(r => new Date(r.lockDate) >= today0)
+                .sort((a, b) => new Date(a.lockDate) - new Date(b.lockDate));
+
+            if (upcoming.length === 0) return;
+
+            const dayFullNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+            const fmtShortDate = (dStr) => {
+                const dt = new Date(dStr);
+                const dd = String(dt.getDate()).padStart(2, '0');
+                const mo = String(dt.getMonth() + 1).padStart(2, '0');
+                return `${dd}/${mo}`;
+            };
+
+            const escTxt = (str) => {
+                if (!str) return '';
+                return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            };
+
+            const itemsHtml = upcoming.map(r => {
+                const dMeal = new Date(r.lockDate);
+                const mealDayStr = `${dayFullNames[dMeal.getDay()]} (${fmtShortDate(r.lockDate)})`;
+
+                let mealType = '';
+                if (r.lockLunch && r.lockOt) mealType = 'Ăn Trưa & Tăng Ca';
+                else if (r.lockLunch) mealType = 'Ăn Trưa';
+                else if (r.lockOt) mealType = 'Suất Tăng Ca';
+                else mealType = 'Suất Ăn';
+
+                let cutLine = '';
+                if (r.cutoffDt) {
+                    const dCut = new Date(r.cutoffDt);
+                    const cutDow = dayFullNames[dCut.getDay()];
+                    const hh = String(dCut.getHours()).padStart(2, '0');
+                    const mm = String(dCut.getMinutes()).padStart(2, '0');
+                    const cutDateStr = fmtShortDate(r.cutoffDt);
+                    cutLine = `Khóa đổi món lúc <strong style="color:#c2410c;">${hh}:${mm} ${cutDow} (${cutDateStr})</strong>`;
+                } else {
+                    cutLine = `<strong style="color:#dc2626;">Khoá đổi món cả ngày</strong>`;
+                }
+
+                const noteLine = r.note ? `<div style="font-size:0.76rem;color:#9a3412;margin-top:2px;font-style:italic;">📝 ${escTxt(r.note)}</div>` : '';
+
+                return `<div class="home-meallock-item">
+                    <div><strong>${mealType} ${mealDayStr}</strong>: ${cutLine}</div>
+                    ${noteLine}
+                </div>`;
+            }).join('');
+
+            const banner = document.getElementById('homeMealLockBanner');
+            const contentEl = document.getElementById('homeMealLockContent');
+            if (banner && contentEl) {
+                contentEl.innerHTML = itemsHtml;
+                banner.style.display = 'flex';
+            }
+        })
+        .catch(() => {});
+})();
+
+function dismissHomeMealLock() {
+    sessionStorage.setItem('home_meallock_dismissed', '1');
+    const banner = document.getElementById('homeMealLockBanner');
+    if (banner) banner.style.display = 'none';
+}
+</script>

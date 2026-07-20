@@ -504,6 +504,7 @@ public class TrainingEnrollmentService
               LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = E.GROUP_ID
              WHERE E.EMPCD = :EMP
                AND E.STATUS IN ('ENROLLED','PENDING_APPROVAL','COMPLETED','FAILED')
+               AND CL.STATUS != 'CANCELLED'
              ORDER BY E.INST_DT DESC";
         return await _db.ExecuteQueryAsync(sql, MapEnrollmentWithClass, new OracleParameter("EMP", empcd));
     }

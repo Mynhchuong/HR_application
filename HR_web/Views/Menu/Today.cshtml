@@ -14,7 +14,33 @@
         { DayOfWeek.Sunday,    "Chủ Nhật" },
     };
     var todayLabel = dayNames.GetValueOrDefault(today.DayOfWeek, "Hôm nay");
-    var shifts     = new[] { ("CA1","Ca 1 — Sáng","#1F4E79"), ("CA2","Ca 2 — Tăng ca","#375623"), ("CA3","Ca 3 — Tối","#7B3F00") };
+    var shifts = new[]
+    {
+        (
+            Key: "CA1",
+            Title: "Ca 1 — Sáng & Trưa",
+            Icon: "🌅",
+            BgGradient: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
+            TimeBadge: "☀️ Bữa Trưa Ca 1",
+            Desc: "Phục vụ ca hành chính & ca sáng"
+        ),
+        (
+            Key: "CA2",
+            Title: "Ca 2 — Tăng Ca",
+            Icon: "🌆",
+            BgGradient: "linear-gradient(135deg, #15803d 0%, #16a34a 100%)",
+            TimeBadge: "🌇 Bữa Tăng Ca",
+            Desc: "Phục vụ nhân viên tăng ca"
+        ),
+        (
+            Key: "CA3",
+            Title: "Ca 3 — Tối & Đêm",
+            Icon: "🌙",
+            BgGradient: "linear-gradient(135deg, #b45309 0%, #d97706 100%)",
+            TimeBadge: "🌃 Bữa Đêm Ca 3",
+            Desc: "Phục vụ nhân viên ca 3 / ca đêm"
+        )
+    };
     var mealColors = new Dictionary<string,(string bg, string fg)>
     {
         { "MAN",     ("#FEF3C7","#92400E") },
@@ -24,118 +50,266 @@
     };
     var mealLabels = new Dictionary<string,string>
     {
-        { "MAN","Món mặn" }, { "DU_KIEN","Dự kiến" }, { "NHE","Món nhẹ" }, { "CHAY","Món chay" }
+        { "MAN","🍖 Món mặn" }, { "DU_KIEN","📋 Dự kiến" }, { "NHE","🥗 Món nhẹ" }, { "CHAY","🥦 Món chay" }
     };
     bool isEmpty = !Model.Any();
 }
 
 <style>
-    :root { --red: #c00000; --red-d: #8b0000; }
-
-    .tp { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
-
-    /* Hero */
-    .tp-hero {
-        background: linear-gradient(135deg, var(--red-d), var(--red));
-        border-radius: 20px; padding: 1.1rem 1.25rem 1rem;
-        color: #fff; margin-bottom: .75rem;
-        display: flex; align-items: center; justify-content: space-between;
+    :root { 
+        --primary-red: #dc2626; 
+        --primary-red-dark: #991b1b;
+        --card-radius: 18px;
     }
-    .tp-hero-date { font-size: .78rem; opacity: .8; margin-bottom: .2rem; }
-    .tp-hero-day  { font-size: 1.25rem; font-weight: 900; letter-spacing: -.3px; }
-    .tp-hero-full { font-size: .75rem; opacity: .75; }
-    .tp-hero-icon { font-size: 3rem; line-height: 1; }
+
+    .tp { max-width: 680px; margin: 0 auto; padding-bottom: 4rem; }
+
+    /* Hero Header */
+    .tp-hero {
+        background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%);
+        border-radius: var(--card-radius); 
+        padding: 1.25rem 1.4rem;
+        color: #fff; 
+        margin-bottom: 0.85rem;
+        box-shadow: 0 10px 25px rgba(220, 38, 38, 0.18);
+        position: relative;
+        overflow: hidden;
+    }
+    .tp-hero::after {
+        content: '🍱';
+        position: absolute;
+        right: -10px;
+        bottom: -15px;
+        font-size: 5.5rem;
+        opacity: 0.18;
+        pointer-events: none;
+        transform: rotate(-10deg);
+    }
+    .tp-hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        background: rgba(255,255,255,0.2);
+        padding: 3px 10px;
+        border-radius: 20px;
+        margin-bottom: 0.4rem;
+        backdrop-filter: blur(4px);
+    }
+    .tp-hero-day { font-size: 1.4rem; font-weight: 900; letter-spacing: -0.3px; line-height: 1.2; }
+    .tp-hero-full { font-size: 0.78rem; opacity: 0.88; font-weight: 500; margin-top: 2px; }
 
     /* Tabs */
     .tp-tabs {
-        display: flex; background: #f1f5f9; border-radius: 14px;
-        padding: 4px; margin-bottom: .75rem; gap: 3px;
+        display: flex; 
+        background: #f1f5f9; 
+        border-radius: 14px;
+        padding: 4px; 
+        margin-bottom: 0.85rem; 
+        gap: 4px;
     }
     .tp-tab {
         flex: 1; text-align: center; min-height: 42px;
         display: flex; align-items: center; justify-content: center;
-        border-radius: 11px; font-size: .875rem; font-weight: 700;
+        border-radius: 11px; font-size: 0.875rem; font-weight: 700;
         text-decoration: none !important; color: #64748b;
-        transition: background .15s, color .15s, box-shadow .15s;
+        transition: all 0.2s ease;
         -webkit-tap-highlight-color: transparent;
     }
-    .tp-tab.active { background: white; color: var(--red); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
-
-    /* Tagline */
-    .tp-tagline {
-        font-size: .78rem; font-weight: 700; font-style: italic;
-        color: var(--red); text-align: center;
-        margin-bottom: .75rem; letter-spacing: .01em;
+    .tp-tab.active { 
+        background: white; 
+        color: #dc2626; 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
     }
 
-    /* Change meal */
-    .tp-change {
-        display: flex; align-items: center; justify-content: center; gap: .4rem;
-        width: 100%; padding: .6rem 1rem; border-radius: 12px; margin-bottom: .75rem;
-        background: #fff; border: 2px solid var(--red); color: var(--red);
-        font-size: .875rem; font-weight: 700; text-decoration: none;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .tp-change:active { background: #fff0f0; }
-
-    /* My meal */
+    /* Registered My Meal Card */
     .tp-mymeal {
-        background: linear-gradient(135deg,#fff8f8,#fde8e8);
-        border: 1.5px solid #fca5a5; border-radius: 18px;
-        padding: .85rem 1rem .85rem 1.1rem;
-        margin-bottom: .75rem;
-        display: flex; align-items: center; justify-content: space-between; gap: .75rem;
-        overflow: hidden;
+        background: #ffffff;
+        border: 1.5px solid #fecaca;
+        border-radius: var(--card-radius);
+        padding: 1rem 1.15rem;
+        margin-bottom: 0.85rem;
+        box-shadow: 0 4px 15px rgba(220, 38, 38, 0.06);
+        position: relative;
+    }
+    .tp-mymeal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.65rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px dashed #fee2e2;
+    }
+    .tp-mymeal-ttl { 
+        font-size: 0.72rem; 
+        font-weight: 800; 
+        color: #991b1b;
+        text-transform: uppercase; 
+        letter-spacing: 0.05em; 
+    }
+    .tp-mymeal-status {
+        font-size: 0.68rem;
+        font-weight: 800;
+        color: #166534;
+        background: #dcfce7;
+        padding: 2px 8px;
+        border-radius: 12px;
+    }
+    .tp-mymeal-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.85rem;
     }
     .tp-mymeal-left { flex: 1; min-width: 0; }
-    .tp-mymeal-ttl { font-size: .68rem; font-weight: 700; color: #94a3b8;
-        text-transform: uppercase; letter-spacing: .06em; margin-bottom: .3rem; }
-    .tp-mymeal-name { font-size: 1.5rem; font-weight: 900; color: var(--red); line-height: 1.2; }
-    .tp-mymeal-img  { height: 90px; width: auto; object-fit: contain;
-        flex-shrink: 0; margin-right: -.25rem; }
-
-    /* Empty */
-    .tp-empty { text-align: center; padding: 3.5rem 1rem; color: #94a3b8; }
-    .tp-empty-icon { font-size: 3.5rem; display: block; margin-bottom: .6rem; }
+    .tp-mymeal-item {
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: #1e293b;
+        line-height: 1.4;
+        margin-bottom: 0.25rem;
+    }
+    .tp-mymeal-item:last-child { margin-bottom: 0; }
+    .tp-mymeal-label { color: #64748b; font-weight: 600; font-size: 0.85rem; }
+    .tp-mymeal-val { color: #dc2626; font-weight: 900; }
+    .tp-mymeal-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #dc2626;
+        color: white !important;
+        font-size: 0.8rem;
+        font-weight: 700;
+        padding: 7px 14px;
+        border-radius: 20px;
+        text-decoration: none !important;
+        box-shadow: 0 3px 10px rgba(220, 38, 38, 0.22);
+        white-space: nowrap;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+    }
+    .tp-mymeal-btn:hover { background: #b91c1c; transform: translateY(-1px); }
 
     /* Feedback CTA */
     .tp-feedback {
-        display: flex; align-items: center; gap: .75rem;
-        background: linear-gradient(135deg,#fff7ed 0%,#ffedd5 100%);
-        border: 1px solid #fed7aa; border-radius: 16px;
-        padding: .85rem 1rem; margin-bottom: .75rem;
+        display: flex; align-items: center; gap: 0.75rem;
+        background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+        border: 1px solid #fed7aa; 
+        border-radius: var(--card-radius);
+        padding: 0.85rem 1.1rem; 
+        margin-bottom: 1rem;
         text-decoration: none !important; color: inherit;
-        transition: transform .15s ease, box-shadow .15s ease;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
     .tp-feedback:hover, .tp-feedback:active {
         transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(234,88,12,.18);
+        box-shadow: 0 6px 16px rgba(234,88,12,0.15);
     }
-    .tp-feedback-icon  { font-size: 1.8rem; line-height: 1; flex-shrink: 0; }
+    .tp-feedback-icon  { font-size: 1.6rem; line-height: 1; flex-shrink: 0; }
     .tp-feedback-body  { flex: 1; min-width: 0; }
-    .tp-feedback-title { font-weight: 800; color: #9a3412; font-size: .92rem; line-height: 1.3; }
-    .tp-feedback-desc  { font-size: .72rem; color: #7c2d12; line-height: 1.4; margin-top: .2rem; opacity: .85; }
-    .tp-feedback-arrow { font-size: 1.4rem; color: #c2410c; font-weight: 900; line-height: 1; flex-shrink: 0; }
+    .tp-feedback-title { font-weight: 800; color: #9a3412; font-size: 0.88rem; line-height: 1.3; }
+    .tp-feedback-desc  { font-size: 0.72rem; color: #7c2d12; line-height: 1.4; margin-top: 1px; opacity: 0.85; }
+    .tp-feedback-arrow { font-size: 1.3rem; color: #c2410c; font-weight: 900; line-height: 1; flex-shrink: 0; }
 
-    /* Shift */
-    .tp-shift { border-radius: 16px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.08); margin-bottom: .75rem; }
-    .tp-shift-hd { padding: .65rem 1rem; color: white; font-weight: 800; font-size: .85rem; letter-spacing: .1px; }
+    /* Shift header decoration */
+    .tp-shift {
+        border-radius: var(--card-radius);
+        overflow: hidden;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+        margin-bottom: 1rem;
+        border: 1px solid #e2e8f0;
+        background: white;
+    }
+    .tp-shift-hd {
+        padding: 0.75rem 1rem;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        position: relative;
+        overflow: hidden;
+    }
+    .tp-shift-hd::after {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 120px;
+        height: 120px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+    .tp-shift-hd-left {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        min-width: 0;
+    }
+    .tp-shift-icon {
+        font-size: 1.4rem;
+        line-height: 1;
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.22);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .tp-shift-title {
+        font-weight: 900;
+        font-size: 0.95rem;
+        letter-spacing: 0.01em;
+        line-height: 1.25;
+        color: #fff;
+    }
+    .tp-shift-desc {
+        font-size: 0.68rem;
+        opacity: 0.9;
+        font-weight: 500;
+        margin-top: 1px;
+        color: #fff;
+    }
+    .tp-shift-pill {
+        font-size: 0.7rem;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.22);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: white;
+        white-space: nowrap;
+        backdrop-filter: blur(4px);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        flex-shrink: 0;
+    }
 
     /* Meal row */
     .tp-meal {
-        display: flex; align-items: center; gap: .75rem;
-        padding: .75rem 1rem; background: white;
-        border-bottom: 1px solid #f8fafc; min-height: 56px;
+        display: flex; align-items: center; gap: 0.85rem;
+        padding: 0.8rem 1rem; background: white;
+        border-bottom: 1px solid #f1f5f9; min-height: 58px;
+        transition: background 0.15s ease;
+        cursor: pointer;
     }
     .tp-meal:last-child { border-bottom: none; }
-    .tp-meal:active { background: #fafafa; }
+    .tp-meal:hover, .tp-meal:active { background: #f8fafc; }
 
     .tp-meal-img {
-        width: 54px; height: 54px; border-radius: 12px;
+        width: 56px; height: 56px; border-radius: 12px;
         object-fit: cover; flex-shrink: 0; background: #f1f5f9;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
     }
     .tp-meal-ph {
-        width: 54px; height: 54px; border-radius: 12px;
+        width: 56px; height: 56px; border-radius: 12px;
         background: #f1f5f9; flex-shrink: 0;
         display: flex; align-items: center; justify-content: center;
         font-size: 1.4rem; color: #cbd5e1;
@@ -143,14 +317,20 @@
 
     .tp-meal-body  { flex: 1; min-width: 0; }
     .tp-meal-badge {
-        display: inline-block; font-size: .62rem; font-weight: 800;
+        display: inline-block; font-size: 0.65rem; font-weight: 800;
         padding: 2px 8px; border-radius: 20px; margin-bottom: 3px;
-        letter-spacing: .04em; text-transform: uppercase;
+        letter-spacing: 0.03em;
     }
-    .tp-meal-name  { font-size: .92rem; font-weight: 700; color: #1e293b; line-height: 1.35; }
-    .tp-meal-extra { font-size: .78rem; color: #64748b; margin-top: 1px; }
-    .tp-meal-clickable { cursor: pointer; }
-    .tp-meal-clickable:active { background: #fff0f0 !important; }
+    .tp-meal-name  { font-size: 0.92rem; font-weight: 700; color: #0f172a; line-height: 1.35; }
+    .tp-meal-action {
+        font-size: 0.75rem; color: #94a3b8; font-weight: 600;
+        display: flex; align-items: center; gap: 2px;
+        flex-shrink: 0;
+    }
+
+    /* Empty */
+    .tp-empty { text-align: center; padding: 3.5rem 1rem; color: #94a3b8; }
+    .tp-empty-icon { font-size: 3.5rem; display: block; margin-bottom: 0.6rem; }
 
     /* Food modal bottom-sheet */
     .food-modal-backdrop {
@@ -187,7 +367,7 @@
     }
     .food-modal-wow {
         font-size: .95rem; font-weight: 700; font-style: italic;
-        color: var(--red); display: flex; align-items: center; gap: .35rem;
+        color: var(--primary-red); display: flex; align-items: center; gap: .35rem;
     }
     .food-modal-close {
         position: absolute; top: .75rem; right: .75rem;
@@ -219,72 +399,92 @@
 
 <div class="tp px-2 py-2">
 
+    <!-- 1. Hero Header -->
     <div class="tp-hero">
-        <div>
-            <div class="tp-hero-date">Thực đơn hôm nay</div>
-            <div class="tp-hero-day">@todayLabel</div>
-            <div class="tp-hero-full">@today.ToString("dd/MM/yyyy")</div>
-        </div>
-        <span class="tp-hero-icon">🍱</span>
+        <div class="tp-hero-badge">🍱 THỰC ĐƠN HÔM NAY</div>
+        <div class="tp-hero-day">@todayLabel</div>
+        <div class="tp-hero-full">@today.ToString("dd/MM/yyyy")</div>
     </div>
 
+    <!-- 2. Tabs Switch -->
     <div class="tp-tabs">
         <div class="tp-tab active">Hôm nay</div>
         <a href="@Url.Action("ThisWeek")" class="tp-tab">Cả tuần</a>
     </div>
 
+    <!-- Lock Banners -->
+    <div id="todayLockBanner" style="display:none;margin-bottom:.75rem;"></div>
+    <div id="upcomingLockBanner" style="display:none;margin-bottom:.75rem;"></div>
+
+    <!-- 3. Registered Meal Card (Tích hợp nút Đổi món) -->
     @{
-        var lunchImg = new Random().Next(2) == 0
-            ? "~/assets/img/illustrations/A_LUNCH.png"
-            : "~/assets/img/illustrations/C_LUNCH.png";
         var userMeals = ViewBag.UserMeals as List<HR_web.Models.Menu.UserTodayMealModel>;
         var mealEmoji = new Dictionary<string,string>
         { { "MAN","🍖" }, { "NHE","🥗" }, { "CHAY","🥦" } };
     }
 
-    <div id="todayLockBanner" style="display:none;margin-bottom:.6rem;"></div>
-    <div id="upcomingLockBanner" style="display:none;margin-bottom:.6rem;"></div>
-
     @if (userMeals != null && userMeals.Any())
     {
         var lunch = userMeals.FirstOrDefault(m => m.SHIFT == "LUNCH") ?? userMeals.First();
         var otMeal = userMeals.FirstOrDefault(m => m.SHIFT == "OT");
-        var emojiL = lunch.FOOD_TYPE  != null && mealEmoji.TryGetValue(lunch.FOOD_TYPE,  out var emL) ? emL : "🍽️";
+        var emojiL = lunch.FOOD_TYPE != null && mealEmoji.TryGetValue(lunch.FOOD_TYPE, out var emL) ? emL : "🍽️";
         var emojiO = otMeal?.FOOD_TYPE != null && mealEmoji.TryGetValue(otMeal.FOOD_TYPE, out var emO) ? emO : "🍽️";
+
         <div class="tp-mymeal">
-            <div class="tp-mymeal-left">
-                <div class="tp-mymeal-ttl">Hôm nay bạn đăng ký</div>
-                <div style="font-size:.95rem;font-weight:700;color:#1e293b;line-height:1.5;margin-bottom:.15rem;">
-                    <span style="color:#64748b;">Trưa: </span>
-                    <span style="color:var(--red);font-weight:900;">@emojiL @lunch.FOOD_NAME</span>
-                </div>
-                @if (otMeal != null)
-                {
-                    <div style="font-size:.95rem;font-weight:700;color:#1e293b;line-height:1.5;">
-                        <span style="color:#64748b;">Tăng ca: </span>
-                        <span style="color:var(--red);font-weight:900;">@emojiO @otMeal.FOOD_NAME</span>
+            <div class="tp-mymeal-header">
+                <div class="tp-mymeal-ttl">📌 Suất ăn bạn đã đăng ký</div>
+                <span class="tp-mymeal-status">✓ Đã ghi nhận</span>
+            </div>
+            <div class="tp-mymeal-content">
+                <div class="tp-mymeal-left">
+                    <div class="tp-mymeal-item">
+                        <span class="tp-mymeal-label">Trưa: </span>
+                        <span class="tp-mymeal-val">@emojiL @lunch.FOOD_NAME</span>
                     </div>
+                    @if (otMeal != null)
+                    {
+                        <div class="tp-mymeal-item">
+                            <span class="tp-mymeal-label">Tăng ca: </span>
+                            <span class="tp-mymeal-val">@emojiO @otMeal.FOOD_NAME</span>
+                        </div>
+                    }
+                </div>
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <a href="@Url.Action("ChangeMeal")" class="tp-mymeal-btn">
+                        <span>🔄 Đổi món</span>
+                    </a>
                 }
             </div>
-            <img class="tp-mymeal-img" src="@Url.Content(lunchImg)" alt="" />
+        </div>
+    }
+    else if (User.Identity?.IsAuthenticated == true)
+    {
+        <div class="tp-mymeal" style="border-style: dashed; background: #fafafa;">
+            <div class="tp-mymeal-content">
+                <div class="tp-mymeal-left">
+                    <div class="tp-mymeal-item" style="font-size:0.85rem; color:#64748b;">
+                        Bạn chưa đăng ký suất ăn nào cho hôm nay.
+                    </div>
+                </div>
+                <a href="@Url.Action("ChangeMeal")" class="tp-mymeal-btn">
+                    <span>➕ Chọn món</span>
+                </a>
+            </div>
         </div>
     }
 
+    <!-- 4. Feedback CTA -->
     <a href="@Url.Action("Create","EmployeeInquiry", new { topicCd = "CANTEEN", chatType = "DIRECT" })" class="tp-feedback">
         <div class="tp-feedback-icon">💬</div>
         <div class="tp-feedback-body">
             <div class="tp-feedback-title">Món ăn hôm nay chưa vừa ý?</div>
-            <div class="tp-feedback-desc">Nguội, có vị lạ, chưa ngon… Hãy phản ánh để chúng tôi xử lý và cải thiện lần sau.</div>
+            <div class="tp-feedback-desc">Nguội, có vị lạ, chưa ngon… Hãy phản ánh để chúng tôi cải thiện.</div>
         </div>
         <span class="tp-feedback-arrow">›</span>
     </a>
 
-    @if (userMeals != null || User.Identity?.IsAuthenticated == true)
-    {
-        <a href="@Url.Action("ChangeMeal")" class="tp-change">🔄 Đổi món ăn</a>
-        <p class="tp-tagline">✨ Hãy tận hưởng mỹ vị từ bữa cơm trưa của công ty chúng ta!</p>
-    }
-
+    <!-- 5. Shifts Food Menu -->
     @if (isEmpty)
     {
         <div class="tp-empty">
@@ -294,12 +494,14 @@
     }
     else
     {
-        <p style="text-align:center;font-size:.73rem;color:#94a3b8;margin-bottom:.6rem;">
-            👆 Nhấn vào món ăn để xem hình
-        </p>
-        @foreach (var (shiftKey, shiftLabel, shiftColor) in shifts)
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;padding:0 4px;">
+            <span style="font-size:.8rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.04em;">Thực đơn các ca</span>
+            <span style="font-size:.72rem;color:#94a3b8;">👆 Nhấn vào món ăn để xem hình</span>
+        </div>
+
+        @foreach (var shift in shifts)
         {
-            var shiftItems = Model.Where(m => m.SHIFT == shiftKey).ToList();
+            var shiftItems = Model.Where(m => m.SHIFT == shift.Key).ToList();
             if (!shiftItems.Any()) continue;
 
             var byMeal = shiftItems
@@ -308,7 +510,16 @@
                 .ToList();
 
             <div class="tp-shift">
-                <div class="tp-shift-hd" style="background:@shiftColor;">@shiftLabel</div>
+                <div class="tp-shift-hd" style="background:@shift.BgGradient;">
+                    <div class="tp-shift-hd-left">
+                        <span class="tp-shift-icon">@shift.Icon</span>
+                        <div>
+                            <div class="tp-shift-title">@shift.Title</div>
+                            <div class="tp-shift-desc">@shift.Desc</div>
+                        </div>
+                    </div>
+                    <span class="tp-shift-pill">@shift.TimeBadge</span>
+                </div>
                 @foreach (var grp in byMeal)
                 {
                     var label  = mealLabels.GetValueOrDefault(grp.Key, grp.Key);
@@ -321,7 +532,7 @@
                         var imgUrl   = food.IS_IMAGE == "Y" && food.FOOD_ID.HasValue
                             ? Url.Action("GetFoodImage","Image", new { fileName = food.FOOD_ID + ".jpg" }) + "&v=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                             : null;
-                        <div class="tp-meal tp-meal-clickable"
+                        <div class="tp-meal"
                              data-food-img="@imgUrl"
                              data-food-name="@foodName"
                              onclick="openFoodModal(this)">
@@ -346,12 +557,18 @@
                                       style="background:@colors.bg; color:@colors.fg;">@label</span>
                                 <div class="tp-meal-name">@foodName</div>
                             </div>
+                            <div class="tp-meal-action">
+                                <span>Xem</span>
+                                <i class="bi bi-chevron-right" style="font-size:.7rem;"></i>
+                            </div>
                         </div>
                     }
                 }
             </div>
         }
     }
+
+    <p class="tp-tagline">✨ Chúc quý cán bộ công nhân viên một bữa ăn ngon miệng!</p>
 
 </div>
 
@@ -392,12 +609,12 @@ function getWeekRangeIso() {
         if (lockedScopes.length > 0) {
             const note = (resL?.note || resO?.note);
             const noteLine = note
-                ? `<div style="font-weight:500;font-size:.72rem;color:#7f1d1d;margin-top:.2rem;font-style:italic;">📝 ${escTxt(note)}</div>`
+                ? `<div style="font-weight:500;font-size:.76rem;color:#991b1b;margin-top:.2rem;font-style:italic;">📝 ${escTxt(note)}</div>`
                 : '';
-            banner.style.display = '';
+            banner.style.display = 'block';
             banner.innerHTML = `
-                <div style="background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;border-radius:12px;padding:.65rem .85rem;font-size:.82rem;font-weight:700;line-height:1.5;">
-                    🔒 Hôm nay (<b>${dLabel}</b>) đã chốt số lượng món <span style="color:#7f1d1d">[${lockedScopes.join(' + ')}]</span> — không thể đổi món nữa.
+                <div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:14px;padding:.75rem .95rem;font-size:.82rem;font-weight:700;line-height:1.5;box-shadow:0 2px 8px rgba(220,38,38,0.08);">
+                    🔒 Hôm nay (<b>${dLabel}</b>) đã khóa đổi món <span style="color:#7f1d1d">[${lockedScopes.join(' + ')}]</span> — không thể thay đổi món ăn nữa.
                     ${noteLine}
                 </div>`;
         } else if (warnScopes.length > 0) {
@@ -405,10 +622,10 @@ function getWeekRangeIso() {
             const note = warnScopes[0].d.note;
             const noteLine = note
                 ? `<br><span style="font-style:italic;">📝 ${escTxt(note)}</span>` : '';
-            banner.style.display = '';
+            banner.style.display = 'block';
             banner.innerHTML = `
-                <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:.6rem .8rem;font-size:.78rem;line-height:1.5;">
-                    ⏰ Hôm nay (<b>${dLabel}</b>) sẽ chốt số lượng:<br>${lines}${noteLine}
+                <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:14px;padding:.75rem .95rem;font-size:.82rem;line-height:1.5;box-shadow:0 2px 8px rgba(217,119,6,0.08);">
+                    ⏰ Hôm nay (<b>${dLabel}</b>) sẽ chốt số lượng món:<br>${lines}${noteLine}
                 </div>`;
         }
     } catch {}
@@ -426,81 +643,88 @@ function getWeekRangeIso() {
         const upcoming = d.data
             .filter(r => r.isActive && (r.lockLunch || r.lockOt))
             .filter(r => new Date(r.lockDate) >= today0
-                       && new Date(r.lockDate).toDateString() !== today0.toDateString())  // bỏ qua hôm nay (đã có banner riêng)
+                       && new Date(r.lockDate).toDateString() !== today0.toDateString())
             .sort((a,b) => new Date(a.lockDate) - new Date(b.lockDate));
 
         if (upcoming.length === 0) return;
 
-        const dayName = (d) => ['CN','T2','T3','T4','T5','T6','T7'][new Date(d).getDay()];
-        const fmtDate  = (d) => new Date(d).toLocaleDateString('vi-VN');
-        const fmtCutoff = (d) => d ? new Date(d).toLocaleString('vi-VN', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' }) : null;
+        const dayFullNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+        const fmtShortDate = (dStr) => {
+            const dt = new Date(dStr);
+            const dd = String(dt.getDate()).padStart(2, '0');
+            const mo = String(dt.getMonth() + 1).padStart(2, '0');
+            return `${dd}/${mo}`;
+        };
 
         const items = upcoming.map(r => {
-            const scope = [r.lockLunch?'TRƯA':null, r.lockOt?'TĂNG CA':null].filter(Boolean).join(' + ');
-            const cut = fmtCutoff(r.cutoffDt);
-            const cutLine = cut
-                ? `<span style="color:#92400e">chốt lúc <b>${cut}</b></span>`
-                : `<span style="color:#b91c1c">khoá cả ngày</span>`;
-            const noteLine = r.note ? ` — <i>${escTxt(r.note)}</i>` : '';
-            return `<li style="margin-bottom:.25rem;">
-                <b>${dayName(r.lockDate)} ${fmtDate(r.lockDate)}</b>
-                <span style="color:#64748b;font-size:.72rem;">(${scope})</span>:
-                ${cutLine}${noteLine}
-            </li>`;
+            const dMeal = new Date(r.lockDate);
+            const mealDayStr = `${dayFullNames[dMeal.getDay()]} (${fmtShortDate(r.lockDate)})`;
+
+            let mealType = '';
+            if (r.lockLunch && r.lockOt) mealType = 'Ăn Trưa & Tăng Ca';
+            else if (r.lockLunch) mealType = 'Ăn Trưa';
+            else if (r.lockOt) mealType = 'Suất Tăng Ca';
+            else mealType = 'Suất Ăn';
+
+            let cutLine = '';
+            if (r.cutoffDt) {
+                const dCut = new Date(r.cutoffDt);
+                const cutDow = dayFullNames[dCut.getDay()];
+                const hh = String(dCut.getHours()).padStart(2, '0');
+                const mm = String(dCut.getMinutes()).padStart(2, '0');
+                const cutDateStr = fmtShortDate(r.cutoffDt);
+                cutLine = `Khóa đổi món lúc <strong style="color:#c2410c;">${hh}:${mm} ${cutDow} (${cutDateStr})</strong>`;
+            } else {
+                cutLine = `<strong style="color:#dc2626;">Khoá đổi món cả ngày</strong>`;
+            }
+
+            const noteLine = r.note ? `<div style="font-size:0.75rem;color:#9a3412;margin-top:2px;font-style:italic;">📝 ${escTxt(r.note)}</div>` : '';
+
+            return `<div style="background:rgba(255,255,255,0.85);border:1px solid rgba(254,215,170,0.7);border-radius:10px;padding:8px 12px;margin-bottom:5px;">
+                <div><strong>${mealType} ${mealDayStr}</strong>: ${cutLine}</div>
+                ${noteLine}
+            </div>`;
         }).join('');
 
         const banner = document.getElementById('upcomingLockBanner');
-        banner.style.display = '';
+        banner.style.display = 'block';
         banner.innerHTML = `
-            <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:.7rem .9rem;color:#7c2d12;font-size:.78rem;line-height:1.5;">
-                <div style="font-weight:800;margin-bottom:.3rem;">📅 Sắp tới trong tuần này:</div>
-                <ul style="margin:0;padding-left:1.2rem;">${items}</ul>
+            <div style="background:linear-gradient(135deg, #fffdfa 0%, #fff7ed 100%);border:1px solid #fed7aa;border-radius:14px;padding:.75rem .95rem;color:#7c2d12;font-size:.82rem;line-height:1.5;box-shadow:0 4px 14px rgba(234,88,12,0.08);">
+                <div style="font-weight:800;color:#9a3412;margin-bottom:.4rem;display:flex;align-items:center;gap:6px;">
+                    <span>⏰</span>
+                    <span>Lịch chốt suất ăn tuần này</span>
+                </div>
+                ${items}
             </div>`;
     } catch {}
 })();
 
 function openFoodModal(el) {
-    const imgUrl  = el.dataset.foodImg;
-    const name    = el.dataset.foodName || '';
-    const modal   = document.getElementById('foodModal');
-    const modalImg= document.getElementById('foodModalImg');
-    const modalPh = document.getElementById('foodModalPh');
+    const imgUrl   = el.getAttribute('data-food-img');
+    const foodName = el.getAttribute('data-food-name');
+    const modal    = document.getElementById('foodModal');
+    const imgEl    = document.getElementById('foodModalImg');
+    const phEl     = document.getElementById('foodModalPh');
+    const nameEl   = document.getElementById('foodModalName');
 
-    document.getElementById('foodModalName').textContent = name;
-
+    nameEl.textContent = foodName || '';
     if (imgUrl) {
-        modalImg.style.display = 'block';
-        modalPh.style.display  = 'none';
-        modalImg.src = imgUrl;
+        imgEl.src = imgUrl;
+        imgEl.style.display = 'block';
+        phEl.style.display  = 'none';
     } else {
-        modalImg.style.display = 'none';
-        modalPh.style.display  = 'block';
+        imgEl.style.display = 'none';
+        phEl.style.display  = 'block';
     }
-
     modal.classList.add('open');
     document.body.style.overflow = 'hidden';
 }
 
 function closeFoodModal(e) {
-    if (e && e.target !== document.getElementById('foodModal') &&
-        !e.target.classList.contains('food-modal-close')) return;
-    const modal = document.getElementById('foodModal');
-    const sheet = document.getElementById('foodModalSheet');
-    sheet.style.transform = 'translateY(100%)';
-    setTimeout(() => {
+    if (!e || e.target.id === 'foodModal' || e.target.classList.contains('food-modal-close')) {
+        const modal = document.getElementById('foodModal');
         modal.classList.remove('open');
-        sheet.style.transform = '';
         document.body.style.overflow = '';
-    }, 280);
+    }
 }
-
-(function(){
-    const sheet = document.getElementById('foodModalSheet');
-    let startY = 0;
-    sheet.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive: true });
-    sheet.addEventListener('touchend', e => {
-        if (e.changedTouches[0].clientY - startY > 80)
-            closeFoodModal({ target: document.getElementById('foodModal') });
-    }, { passive: true });
-})();
 </script>

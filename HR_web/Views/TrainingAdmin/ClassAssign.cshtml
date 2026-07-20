@@ -403,6 +403,7 @@
             finalizeEnrollment: '@Url.Action("FinalizeEnrollment", "TrainingAdmin")',
             remindReview:      '@Url.Action("RemindReview", "TrainingAdmin", new { id = "__ID__" })',
             cancelClass: '@Url.Action("CancelClass", "TrainingAdmin")',
+            deleteClass: '@Url.Action("DeleteClass", "TrainingAdmin")',
             closeClass: '@Url.Action("CloseClass", "TrainingAdmin")',
             finalizeClass: '@Url.Action("FinalizeClass", "TrainingAdmin")',
             saveSession: '@Url.Action("SaveSession", "TrainingAdmin")',
@@ -516,12 +517,17 @@
                 } else {
                     buttonsWrap.innerHTML += `<button onclick="finalizeEnrollment(${cls.ID})" class="btn btn-sm btn-primary fw-bold">Lên lịch học</button>`;
                 }
-                buttonsWrap.innerHTML += `<button onclick="cancelClass(${cls.ID})" class="btn btn-sm btn-outline-danger fw-bold">Hủy Lớp</button>`;
+                buttonsWrap.innerHTML += `<button onclick="cancelClass(${cls.ID})" class="btn btn-sm btn-outline-danger fw-bold me-1">Hủy Lớp</button>`;
+                buttonsWrap.innerHTML += `<button onclick="deleteClass(${cls.ID})" class="btn btn-sm btn-danger fw-bold"><i class="bi bi-trash me-1"></i>Xóa vĩnh viễn Lớp</button>`;
             } else if (cls.STATUS === 'OPEN_FOR_REGISTRATION') {
                 buttonsWrap.innerHTML += `<button onclick="finalizeEnrollment(${cls.ID})" class="btn btn-sm btn-primary fw-bold">Chốt DS & Lên lịch học</button>`;
-                buttonsWrap.innerHTML += `<button onclick="cancelClass(${cls.ID})" class="btn btn-sm btn-outline-danger fw-bold">Hủy Lớp</button>`;
+                buttonsWrap.innerHTML += `<button onclick="cancelClass(${cls.ID})" class="btn btn-sm btn-outline-danger fw-bold me-1">Hủy Lớp</button>`;
+                buttonsWrap.innerHTML += `<button onclick="deleteClass(${cls.ID})" class="btn btn-sm btn-danger fw-bold"><i class="bi bi-trash me-1"></i>Xóa vĩnh viễn Lớp</button>`;
             } else if (cls.STATUS === 'SCHEDULED' || cls.STATUS === 'IN_PROGRESS') {
-                buttonsWrap.innerHTML += `<button onclick="cancelClass(${cls.ID})" class="btn btn-sm btn-outline-danger fw-bold">Hủy Lớp</button>`;
+                buttonsWrap.innerHTML += `<button onclick="cancelClass(${cls.ID})" class="btn btn-sm btn-outline-danger fw-bold me-1">Hủy Lớp</button>`;
+                buttonsWrap.innerHTML += `<button onclick="deleteClass(${cls.ID})" class="btn btn-sm btn-danger fw-bold"><i class="bi bi-trash me-1"></i>Xóa vĩnh viễn Lớp</button>`;
+            } else if (cls.STATUS === 'CANCELLED') {
+                buttonsWrap.innerHTML += `<button onclick="deleteClass(${cls.ID})" class="btn btn-sm btn-danger fw-bold"><i class="bi bi-trash me-1"></i>Xóa vĩnh viễn Lớp</button>`;
             } else if (cls.STATUS === 'COMPLETED' || cls.STATUS === 'CLOSED') {
                 // Còn học viên ENROLLED = chưa chạy finalize (chốt xong ai cũng thành COMPLETED/FAILED).
                 // Hiện cả khi CLOSED — recovery cho lớp lỡ bị đóng trước khi chốt kết quả.
@@ -1591,6 +1597,30 @@
                     } else {
                         renderLifecycle();
                         window.showToast(res.message || 'Lỗi hủy lớp học.', 'error');
+                    }
+                })
+                .catch(err => { renderLifecycle(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
+            });
+        }
+
+        function deleteClass(id) {
+            window.showConfirm('⚠️ CẢNH BÁO: Bạn chắc chắn muốn XÓA VĨNH VIỄN lớp học này?\n\nToàn bộ dữ liệu liên quan (buổi học, giảng viên, học viên, bài kiểm tra, điểm số) sẽ bị XÓA HẲN khỏi hệ thống và KHÔNG THỂ KHÔI PHỤC.', () => {
+                setLifecycleLoading('Đang xóa lớp học...');
+                fetch(window.TRAINING_URLS.deleteClass, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ID: id })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.showToast('Đã xóa vĩnh viễn lớp học!', 'success');
+                        setTimeout(() => {
+                            window.location.href = '@Url.Action("Index", "TrainingAdmin")';
+                        }, 1000);
+                    } else {
+                        renderLifecycle();
+                        window.showToast(res.message || 'Lỗi xóa lớp học.', 'error');
                     }
                 })
                 .catch(err => { renderLifecycle(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });

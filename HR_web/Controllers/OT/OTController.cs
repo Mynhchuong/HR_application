@@ -68,6 +68,7 @@ public class OTController : BaseController
     // ─────────────────────────────────────────────
     // GET: /OT/OtListForHR
     // ─────────────────────────────────────────────
+    [Authorize(Roles = "Admin,HR")]
     public IActionResult OtListForHR(string? work_date = null, string? dept_id = null)
     {
         ViewBag.Summary  = new List<OTHRSummaryModel>();
@@ -80,6 +81,7 @@ public class OTController : BaseController
     // GET: /OT/GetOTHRDetailPage (AJAX / JSON)
     // ─────────────────────────────────────────────
     [HttpGet]
+    [Authorize(Roles = "Admin,HR")]
     public async Task<IActionResult> GetOTHRDetailPage(
         string? work_date = null, string? dept_id = null,
         string? search = null, string? status = null,
@@ -90,7 +92,8 @@ public class OTController : BaseController
         try
         {
             var result = await _otService.GetOTHRDetailAsync(
-                work_date, dept_id, search, status, dept_name, line_name, line_id, work_id, page, page_size, admin);
+                work_date, dept_id, search, status, dept_name, line_name, line_id, work_id, page, page_size, admin,
+                CurrentUser?.EmpCd);
             return Json(result);
         }
         catch (Exception ex)
@@ -205,6 +208,7 @@ public class OTController : BaseController
     // POST: /OT/NotifyPending — HR broadcast nhắc kí OT
     // ─────────────────────────────────────────────
     [HttpPost]
+    [Authorize(Roles = "Admin,HR")]
     public async Task<IActionResult> NotifyPending([FromBody] NotifyPendingBody body)
     {
         if (body == null || string.IsNullOrEmpty(body.work_date))

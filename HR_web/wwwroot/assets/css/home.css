@@ -1001,3 +1001,98 @@ body.home-hero-popup-open { overflow: hidden; }
     .hr-dashboard-cards { grid-template-columns: 1fr; }
     .hr-dash-value { font-size: 1.4rem; }
 }
+
+/* ─── MEAL LOCK BANNER — thiết kế hiện đại, tinh gọn trên Mobile ─── */
+.home-meallock-banner {
+    position: relative;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #fffdfa 0%, #fff7ed 100%);
+    border: 1px solid #fed7aa;
+    color: #9a3412;
+    box-shadow: 0 4px 14px rgba(234, 88, 12, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    animation: home-bd-enter .4s cubic-bezier(.4, 0, .2, 1) both;
+}
+.home-meallock-banner.dismissed { display: none !important; }
+
+.home-meallock-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.home-meallock-title {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #9a3412;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.home-meallock-icon-badge {
+    font-size: 1.05rem;
+    line-height: 1;
+}
+
+.home-meallock-btn {
+    display: inline-flex;
+    align-items: center;
+    background: #ea580c;
+    color: #fff !important;
+    font-size: 0.76rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    text-decoration: none !important;
+    box-shadow: 0 2px 6px rgba(234, 88, 12, 0.2);
+    transition: all .2s ease;
+    white-space: nowrap;
+}
+.home-meallock-btn:hover {
+    background: #c2410c;
+    transform: translateY(-1px);
+}
+
+.home-meallock-close {
+    background: rgba(154, 52, 18, 0.08);
+    border: 0;
+    color: #9a3412;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    transition: background .15s ease;
+    flex-shrink: 0;
+}
+.home-meallock-close:hover {
+    background: rgba(154, 52, 18, 0.18);
+}
+
+.home-meallock-content {
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: #7c2d12;
+}
+
+.home-meallock-item {
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(254, 215, 170, 0.7);
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin-bottom: 4px;
+}
+.home-meallock-item:last-child {
+    margin-bottom: 0;
+}
+

@@ -70,7 +70,8 @@ public class SurveyAdminController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        if (pageSize < 1 || pageSize > 200) pageSize = 20;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 50000) pageSize = 50000;
         if (page < 1) page = 1;
         var data = await _report.GetTextAnswersAsync(qid, page, pageSize);
         return Ok(new { success = true, data });
@@ -81,6 +82,14 @@ public class SurveyAdminController : ControllerBase
     public async Task<IActionResult> OptionRespondents([FromQuery] int optId)
     {
         var data = await _report.GetOptionRespondentsAsync(optId);
+        return Ok(new { success = true, data });
+    }
+
+    // GET /apiHR/SurveyAdmin/report/all-answers?id=
+    [HttpGet("report/all-answers")]
+    public async Task<IActionResult> ReportAllAnswers([FromQuery] int id)
+    {
+        var data = await _report.GetAllAnswersAsync(id);
         return Ok(new { success = true, data });
     }
 

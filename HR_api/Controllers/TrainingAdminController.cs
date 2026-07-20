@@ -288,6 +288,21 @@ public partial class TrainingAdminController : ControllerBase
         }
     }
 
+    // POST /apiHR/TrainingAdmin/class/delete — xóa vĩnh viễn Lớp học
+    [HttpPost("class/delete")]
+    public async Task<IActionResult> ClassDelete([FromBody] ChangeClassStatusRequest req)
+    {
+        try
+        {
+            await _class.DeleteAsync(req.ID, req.LOGIN_USER);
+            return Ok(new { success = true, message = "Đã xóa vĩnh viễn lớp học!" });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     // ─── Teacher ──────────────────────────────────────────────────
 
     // POST /apiHR/TrainingAdmin/class/assign-teacher

@@ -577,4 +577,75 @@ public class SurveyReportService
             INST_DT        = r["INST_DT"] as DateTime?,
         }, pars.ToArray());
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  ALL ANSWERS for Excel export: returns per-respondent, per-question answers
+    // ═══════════════════════════════════════════════════════════════
+    public async Task<List<SurveyFullAnswerRecordModel>> GetAllAnswersAsync(int surveyId)
+    {
+        const string sqlOpt = @"
+            SELECT O.ID, O.OPTION_TEXT
+              FROM HRMS.HR_SURVEY_OPTION O
+              JOIN HRMS.HR_SURVEY_QUESTION Q ON Q.ID = O.QUESTION_ID
+             WHERE Q.SURVEY_ID = :SID";
+        var optRows = await _db.ExecuteQueryAsync(sqlOpt, r => new
+        {
+            Id   = Convert.ToInt32(r["ID"]),
+            Text = r["OPTION_TEXT"]?.ToString() ?? "",
+        }, new OracleParameter("SID", surveyId));
+        var optDict = optRows.ToDictionary(o => o.Id, o => o.Text);
+
+        const string sql = @"
+            SELECT R.EMPCD, EC.CNAME AS FULL_NAME, EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                   (SELECT MIN(EA1.DEPTNM) FROM HRMS.EAM410 EA1 WHERE EA1.DEPTCD = EC.DEPTCD AND EA1.USEYN = 'Y') AS DEPT_NAME,
+                   (SELECT MIN(EA2.TEAMNM) FROM HRMS.EAM410 EA2 WHERE EA2.DEPTCD = EC.DEPTCD AND EA2.LINECD = EC.LINECD AND EA2.USEYN = 'Y') AS LINE_NAME,
+                   (SELECT MIN(EA3.WORKNM) FROM HRMS.EAM410 EA3 WHERE EA3.DEPTCD = EC.DEPTCD AND EA3.LINECD = EC.LINECD AND EA3.WORKCD = EC.WORKCD AND EA3.USEYN = 'Y') AS WORK_NAME,
+                   R.SUBMIT_DT, A.QUESTION_ID, A.ANSWER_OPTION_IDS,
+                   DBMS_LOB.SUBSTR(A.ANSWER_TEXT, 4000, 1) AS TEXT_VAL, A.ANSWER_NUMBER
+              FROM HRMS.HR_SURVEY_RESPONSE R
+              JOIN HRMS.HR_SURVEY_ANSWER A ON A.RESPONSE_ID = R.ID
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = R.EMPCD
+             WHERE R.SURVEY_ID = :SID
+               AND R.STATUS IN ('SUBMITTED','AUTO_SUBMITTED')
+             ORDER BY R.SUBMIT_DT DESC NULLS LAST, EC.EMPCD, A.QUESTION_ID";
+
+        return await _db.ExecuteQueryAsync(sql, r =>
+        {
+            int qid = Convert.ToInt32(r["QUESTION_ID"]);
+            string? optIdsStr = r["ANSWER_OPTION_IDS"] as string;
+            string? textVal   = r["TEXT_VAL"] is DBNull ? null : r["TEXT_VAL"].ToString();
+            decimal? numVal   = r["ANSWER_NUMBER"] is DBNull ? null : (decimal?)Convert.ToDecimal(r["ANSWER_NUMBER"]);
+
+            string displayAns = "";
+            if (!string.IsNullOrEmpty(optIdsStr))
+            {
+                var parts = optIdsStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var texts = parts.Select(p => int.TryParse(p, out var oid) && optDict.TryGetValue(oid, out var txt) ? txt : p);
+                displayAns = string.Join(", ", texts);
+            }
+            else if (!string.IsNullOrEmpty(textVal))
+            {
+                displayAns = textVal;
+            }
+            else if (numVal.HasValue)
+            {
+                displayAns = numVal.Value + " ⭐";
+            }
+
+            return new SurveyFullAnswerRecordModel
+            {
+                EMPCD       = r["EMPCD"]?.ToString() ?? "",
+                FULL_NAME   = r["FULL_NAME"] as string,
+                DEPTCD      = r["DEPTCD"] as string,
+                DEPT_NAME   = r["DEPT_NAME"] as string,
+                LINECD      = r["LINECD"] as string,
+                LINE_NAME   = r["LINE_NAME"] as string,
+                WORKCD      = r["WORKCD"] as string,
+                WORK_NAME   = r["WORK_NAME"] as string,
+                SUBMIT_DT   = r["SUBMIT_DT"] as DateTime?,
+                QUESTION_ID = qid,
+                ANSWER_TEXT = displayAns
+            };
+        }, new OracleParameter("SID", surveyId));
+    }
 }

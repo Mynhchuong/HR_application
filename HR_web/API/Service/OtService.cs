@@ -131,11 +131,12 @@ public class OtService
         }
     }
 
-    public async Task<List<OTHRSummaryModel>> GetOTHRSummaryAsync(string? workDate = null, string? deptId = null)
+    public async Task<List<OTHRSummaryModel>> GetOTHRSummaryAsync(string? workDate = null, string? deptId = null, string? actorEmpCd = null)
     {
         try
         {
             var queryParams = new List<string>();
+            if (!string.IsNullOrEmpty(actorEmpCd)) queryParams.Add($"actor_empcd={Uri.EscapeDataString(actorEmpCd)}");
             if (!string.IsNullOrEmpty(workDate)) queryParams.Add($"work_date={workDate}");
             if (!string.IsNullOrEmpty(deptId)) queryParams.Add($"dept_id={deptId}");
             var result = await _api.GetAsync<OTResponse<List<OTHRSummaryModel>>>("ot/hr/summary", string.Join("&", queryParams));
@@ -149,11 +150,12 @@ public class OtService
         string? search = null, string? status = null,
         string? deptName = null, string? lineName = null,
         string? lineId = null, string? workId = null,
-        int page = 1, int pageSize = 50, int admin = 0)
+        int page = 1, int pageSize = 50, int admin = 0, string? actorEmpCd = null)
     {
         try
         {
             var queryParams = new List<string>();
+            if (!string.IsNullOrEmpty(actorEmpCd)) queryParams.Add($"actor_empcd={Uri.EscapeDataString(actorEmpCd)}");
             if (!string.IsNullOrEmpty(workDate)) queryParams.Add($"work_date={Uri.EscapeDataString(workDate)}");
             if (!string.IsNullOrEmpty(deptId)) queryParams.Add($"dept_id={Uri.EscapeDataString(deptId)}");
             if (!string.IsNullOrEmpty(search)) queryParams.Add($"search={Uri.EscapeDataString(search)}");

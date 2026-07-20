@@ -94,7 +94,7 @@
                                             {
                                                 if (a.FileType == "IMAGE")
                                                 {
-                                                    <a href="@Url.Action("GetFile","EmployeeInquiry")?path=@Uri.EscapeDataString(a.FilePath)">
+                                                    <a class="no-loading" href="@Url.Action("GetFile","EmployeeInquiry")?path=@Uri.EscapeDataString(a.FilePath)">
                                                         <img class="attach-img" src="@Url.Action("GetFile","EmployeeInquiry")?path=@Uri.EscapeDataString(a.ThumbPath ?? a.FilePath)" alt="@a.FileName">
                                                     </a>
                                                 }

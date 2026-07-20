@@ -370,6 +370,7 @@ public class SurveyAdminController : BaseController
     }
 
     // GET /SurveyAdmin/ReportExport?id=  → 1 file Excel gồm Overview + Quiz sheet (nếu quiz)
+    // GET /SurveyAdmin/ReportExport?id=  → 1 file Excel gồm Overview + All Answers + Per-question sheets + Quiz sheet (nếu quiz)
     [HttpGet]
     public async Task<IActionResult> ReportExport(int id)
     {
@@ -380,13 +381,12 @@ public class SurveyAdminController : BaseController
             return RedirectToAction("Index");
         }
 
-        // Pre-fetch all TEXT answers for Excel
-        var textAnswers = new Dictionary<int, List<SurveyReportTextAnswerModel>>();
-        foreach (var q in overview.QUESTIONS.Where(q => q.QUESTION_TYPE == "TEXT"))
-            textAnswers[q.QUESTION_ID] = await _report.GetTextAnswersAsync(q.QUESTION_ID, 1, 9999);
+        var allAnswers = await _report.GetAllAnswersAsync(id);
 
         using var wb = new XLWorkbook();
-        BuildOverviewSheet(wb, overview, textAnswers);
+        BuildOverviewSheet(wb, overview, allAnswers);
+        BuildAllAnswersSheet(wb, overview, allAnswers);
+
         if (overview.SURVEY_TYPE == "QUIZ")
         {
             var quiz = await _report.GetQuizAsync(id);
@@ -401,7 +401,7 @@ public class SurveyAdminController : BaseController
     }
 
     private static void BuildOverviewSheet(XLWorkbook wb, SurveyReportOverviewModel o,
-        Dictionary<int, List<SurveyReportTextAnswerModel>>? textAnswers = null)
+        List<SurveyFullAnswerRecordModel> allAnswers)
     {
         var ws = wb.Worksheets.Add("Overview");
         ws.Cell(1, 1).Value = "Survey #" + o.SURVEY_ID + " — " + o.TITLE;
@@ -433,84 +433,193 @@ public class SurveyAdminController : BaseController
         ws.Column(1).Width = 22;
         ws.Column(2).Width = 40;
 
+        // Group answers by question ID
+        var qAnswersDict = allAnswers
+            .GroupBy(a => a.QUESTION_ID)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         // Per-question aggregation sheet — dùng index để tránh duplicate sheet name
         for (int qi = 0; qi < o.QUESTIONS.Count; qi++)
         {
             var q = o.QUESTIONS[qi];
             var name = $"Q{qi + 1}";
             var qs = wb.Worksheets.Add(name);
-            qs.Cell(1, 1).Value = q.QUESTION_TEXT;
+            qs.Cell(1, 1).Value = $"Câu {qi + 1}: {q.QUESTION_TEXT}";
             qs.Cell(1, 1).Style.Font.Bold = true;
+            qs.Cell(1, 1).Style.Font.FontSize = 12;
+
+            int detailStartRow = 4;
 
             if (q.OPTIONS.Any())
             {
-                qs.Cell(3, 1).Value = "Đáp án";
-                qs.Cell(3, 2).Value = "Số chọn";
+                qs.Cell(3, 1).Value = "THỐNG KÊ PHƯƠNG ÁN CHỌN";
                 qs.Cell(3, 1).Style.Font.Bold = true;
-                qs.Cell(3, 2).Style.Font.Bold = true;
-                int r2 = 4;
+
+                qs.Cell(4, 1).Value = "Đáp án";
+                qs.Cell(4, 2).Value = "Số người chọn";
+                qs.Cell(4, 3).Value = "Tỷ lệ (%)";
+                qs.Cell(4, 1).Style.Font.Bold = true;
+                qs.Cell(4, 2).Style.Font.Bold = true;
+                qs.Cell(4, 3).Style.Font.Bold = true;
+                qs.Cell(4, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#e2e8f0");
+                qs.Cell(4, 2).Style.Fill.BackgroundColor = XLColor.FromHtml("#e2e8f0");
+                qs.Cell(4, 3).Style.Fill.BackgroundColor = XLColor.FromHtml("#e2e8f0");
+
+                int totalOptHits = Math.Max(1, q.OPTIONS.Sum(x => x.COUNT));
+                int r2 = 5;
                 foreach (var opt in q.OPTIONS)
                 {
+                    double optPct = Math.Round(opt.COUNT * 100.0 / totalOptHits, 1);
                     qs.Cell(r2, 1).Value = opt.OPTION_TEXT;
                     qs.Cell(r2, 2).Value = opt.COUNT;
+                    qs.Cell(r2, 3).Value = optPct + "%";
                     r2++;
                 }
-                qs.Column(1).Width = 40;
-                qs.Column(2).Width = 12;
+                detailStartRow = r2 + 2;
             }
             else if (q.RATING_DIST != null)
             {
-                qs.Cell(3, 1).Value = "Sao";
-                qs.Cell(3, 2).Value = "Số lượt";
+                qs.Cell(3, 1).Value = "THỐNG KÊ ĐÁNH GIÁ SAO";
                 qs.Cell(3, 1).Style.Font.Bold = true;
-                qs.Cell(3, 2).Style.Font.Bold = true;
+
+                qs.Cell(4, 1).Value = "Sao";
+                qs.Cell(4, 2).Value = "Số lượt đánh giá";
+                qs.Cell(4, 3).Value = "Tỷ lệ (%)";
+                qs.Cell(4, 1).Style.Font.Bold = true;
+                qs.Cell(4, 2).Style.Font.Bold = true;
+                qs.Cell(4, 3).Style.Font.Bold = true;
+                qs.Cell(4, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#e2e8f0");
+                qs.Cell(4, 2).Style.Fill.BackgroundColor = XLColor.FromHtml("#e2e8f0");
+                qs.Cell(4, 3).Style.Fill.BackgroundColor = XLColor.FromHtml("#e2e8f0");
+
+                int totalRatingHits = Math.Max(1, q.RATING_DIST.Sum());
                 for (int i = 0; i < 5; i++)
                 {
-                    qs.Cell(4 + i, 1).Value = (i + 1) + " sao";
-                    qs.Cell(4 + i, 2).Value = q.RATING_DIST[i];
+                    double starPct = Math.Round(q.RATING_DIST[i] * 100.0 / totalRatingHits, 1);
+                    qs.Cell(5 + i, 1).Value = (i + 1) + " sao";
+                    qs.Cell(5 + i, 2).Value = q.RATING_DIST[i];
+                    qs.Cell(5 + i, 3).Value = starPct + "%";
                 }
-                qs.Column(1).Width = 40;
-                qs.Column(2).Width = 12;
+                detailStartRow = 12;
             }
-            else if (q.QUESTION_TYPE == "TEXT")
+
+            // Danh sách chi tiết ai chọn đáp án nào
+            qs.Cell(detailStartRow, 1).Value = "DANH SÁCH CHI TIẾT CÂU TRẢ LỜI CỦA TỪNG NHÂN VIÊN";
+            qs.Cell(detailStartRow, 1).Style.Font.Bold = true;
+
+            string[] hdr = { "STT", "Số thẻ (Mã NV)", "Họ tên", "Phòng ban", "Dây chuyền", "Công đoạn", "Đáp án / Nội dung trả lời", "Thời gian nộp" };
+            int hRow = detailStartRow + 1;
+            for (int i = 0; i < hdr.Length; i++)
             {
-                if (textAnswers != null && textAnswers.TryGetValue(q.QUESTION_ID, out var ans) && ans.Count > 0)
+                var c = qs.Cell(hRow, i + 1);
+                c.Value = hdr[i];
+                c.Style.Font.Bold = true;
+                c.Style.Fill.BackgroundColor = XLColor.FromHtml("#334155");
+                c.Style.Font.FontColor = XLColor.White;
+            }
+
+            int dataRow = hRow + 1;
+            int stt = 1;
+
+            if (qAnswersDict.TryGetValue(q.QUESTION_ID, out var ansList) && ansList.Count > 0)
+            {
+                foreach (var a in ansList)
                 {
-                    string[] hdr = { "Mã NV", "Họ tên", "Câu trả lời", "Thời gian" };
-                    for (int i = 0; i < hdr.Length; i++)
-                    {
-                        var c = qs.Cell(3, i + 1);
-                        c.Value = hdr[i];
-                        c.Style.Font.Bold = true;
-                    }
-                    int r2 = 4;
-                    foreach (var a in ans)
-                    {
-                        qs.Cell(r2, 1).Value = a.EMPCD;
-                        qs.Cell(r2, 2).Value = a.FULL_NAME ?? "";
-                        qs.Cell(r2, 3).Value = a.ANSWER_TEXT ?? "";
-                        qs.Cell(r2, 4).Value = a.INST_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
-                        r2++;
-                    }
-                    qs.Column(1).Width = 14;
-                    qs.Column(2).Width = 26;
-                    qs.Column(3).Width = 50;
-                    qs.Column(4).Width = 18;
-                }
-                else
-                {
-                    qs.Cell(3, 1).Value = $"Số câu trả lời: {q.TEXT_COUNT}";
-                    qs.Cell(4, 1).Value = "(Chưa có câu trả lời)";
-                    qs.Column(1).Width = 40;
-                    qs.Column(2).Width = 12;
+                    qs.Cell(dataRow, 1).Value = stt++;
+                    qs.Cell(dataRow, 2).Value = a.EMPCD;
+                    qs.Cell(dataRow, 3).Value = a.FULL_NAME ?? "";
+                    qs.Cell(dataRow, 4).Value = a.DEPT_NAME ?? a.DEPTCD ?? "";
+                    qs.Cell(dataRow, 5).Value = a.LINE_NAME ?? a.LINECD ?? "";
+                    qs.Cell(dataRow, 6).Value = a.WORK_NAME ?? a.WORKCD ?? "";
+                    qs.Cell(dataRow, 7).Value = a.ANSWER_TEXT ?? "";
+                    qs.Cell(dataRow, 8).Value = a.SUBMIT_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
+                    dataRow++;
                 }
             }
             else
             {
-                qs.Column(1).Width = 40;
-                qs.Column(2).Width = 12;
+                qs.Cell(dataRow, 1).Value = "Chưa có dữ liệu trả lời";
             }
+
+            qs.Column(1).Width = 8;
+            qs.Column(2).Width = 14;
+            qs.Column(3).Width = 26;
+            qs.Column(4).Width = 22;
+            qs.Column(5).Width = 18;
+            qs.Column(6).Width = 18;
+            qs.Column(7).Width = 45;
+            qs.Column(8).Width = 18;
         }
+    }
+
+    private static void BuildAllAnswersSheet(XLWorkbook wb, SurveyReportOverviewModel o,
+        List<SurveyFullAnswerRecordModel> allAnswers)
+    {
+        var ws = wb.Worksheets.Add("Tat_Ca_Cau_Tra_Loi");
+        ws.Cell(1, 1).Value = "BẢNG TỔNG HỢP CÂU TRẢ LỜI TẤT CẢ CÂU HỎI — SURVEY #" + o.SURVEY_ID;
+        ws.Cell(1, 1).Style.Font.Bold = true;
+        ws.Cell(1, 1).Style.Font.FontSize = 13;
+
+        var questions = o.QUESTIONS.OrderBy(q => q.DISPLAY_ORDER).ThenBy(q => q.QUESTION_ID).ToList();
+
+        // Build header row
+        int headerRow = 3;
+        string[] baseHdrs = { "STT", "Số thẻ (Mã NV)", "Họ tên", "Phòng ban", "Dây chuyền", "Công đoạn" };
+        for (int i = 0; i < baseHdrs.Length; i++)
+        {
+            var c = ws.Cell(headerRow, i + 1);
+            c.Value = baseHdrs[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#1e3a5f");
+            c.Style.Font.FontColor = XLColor.White;
+        }
+
+        for (int i = 0; i < questions.Count; i++)
+        {
+            var c = ws.Cell(headerRow, baseHdrs.Length + i + 1);
+            c.Value = $"Q{i + 1}: {questions[i].QUESTION_TEXT}";
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#1e3a5f");
+            c.Style.Font.FontColor = XLColor.White;
+        }
+
+        var timeCell = ws.Cell(headerRow, baseHdrs.Length + questions.Count + 1);
+        timeCell.Value = "Thời gian nộp";
+        timeCell.Style.Font.Bold = true;
+        timeCell.Style.Fill.BackgroundColor = XLColor.FromHtml("#1e3a5f");
+        timeCell.Style.Font.FontColor = XLColor.White;
+
+        // Group by user
+        var userGrouped = allAnswers
+            .GroupBy(a => a.EMPCD)
+            .OrderByDescending(g => g.First().SUBMIT_DT)
+            .ThenBy(g => g.Key);
+
+        int row = headerRow + 1;
+        int stt = 1;
+        foreach (var grp in userGrouped)
+        {
+            var first = grp.First();
+            var qAns = grp.ToDictionary(a => a.QUESTION_ID, a => a.ANSWER_TEXT);
+
+            ws.Cell(row, 1).Value = stt++;
+            ws.Cell(row, 2).Value = first.EMPCD;
+            ws.Cell(row, 3).Value = first.FULL_NAME ?? "";
+            ws.Cell(row, 4).Value = first.DEPT_NAME ?? first.DEPTCD ?? "";
+            ws.Cell(row, 5).Value = first.LINE_NAME ?? first.LINECD ?? "";
+            ws.Cell(row, 6).Value = first.WORK_NAME ?? first.WORKCD ?? "";
+
+            for (int i = 0; i < questions.Count; i++)
+            {
+                var qid = questions[i].QUESTION_ID;
+                ws.Cell(row, baseHdrs.Length + i + 1).Value = qAns.GetValueOrDefault(qid) ?? "";
+            }
+
+            ws.Cell(row, baseHdrs.Length + questions.Count + 1).Value = first.SUBMIT_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
+            row++;
+        }
+
+        ws.Columns().AdjustToContents(1, 100);
     }
 
     private static void BuildQuizSheet(XLWorkbook wb, SurveyReportOverviewModel o, SurveyReportQuizModel q)

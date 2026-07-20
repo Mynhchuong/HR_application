@@ -124,11 +124,7 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                 data-mobile="hidden">#</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="code" data-mobile-label="Emp Code">Emp Code</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="name" data-mobile-label="Full Name">Full Name</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="Dept / Line">Dept / Line</th>
+                                data-mobile="primary" data-mobile-slot="name" data-mobile-label="Employee Info">Employee Info</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                 data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Leave Type">Leave Type</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
@@ -272,12 +268,19 @@ function buildRow(item, idx) {
                ${item.APPROVER_NAME ? `<div class="sig-cell-name vni-font">${escHtml(item.APPROVER_NAME)}</div>` : ''}
            </div>` : '';
     const sigCell = `<div class="sig-cell">${reqSig}${apSig}</div>`;
+    const deptLineWork = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean).map(escHtml).join(' / ') || '-';
 
     return `<tr class="${isStale ? 'row-stale-pending' : ''}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
-        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
-        <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
-        <td class="px-2 text-sm d-none d-md-table-cell">${escHtml(item.DEPT_NAME||'')} / ${escHtml(item.LINE_NAME||'')}</td>
+        <td class="px-2 text-sm">
+            <div class="d-flex align-items-center flex-wrap gap-1">
+                <span class="badge bg-light text-dark border px-2 py-1">${escHtml(item.EMPCD||'')}</span>
+                <span class="emp-name vni-font fw-bold" style="text-transform:uppercase;font-size:.85rem;">${escHtml(item.EMP_NAME||'')}</span>
+            </div>
+            <div class="text-xxs text-secondary mt-1">
+                <i class="bi bi-diagram-3 text-primary me-1"></i>${deptLineWork}
+            </div>
+        </td>
         <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
@@ -308,13 +311,13 @@ function getParams(page) {
 
 function loadData(page = 1) {
     currentPage = page;
-    $('#lvTableBody').html(`<tr><td colspan="14" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Loading...</div></td></tr>`);
+    $('#lvTableBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Loading...</div></td></tr>`);
     MobileTableHelper.refresh('lvTableBody');
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),
         success: function(res) {
             if (!res.success) {
-                $('#lvTableBody').html(`<tr><td colspan="14" class="text-center text-danger py-4">Error: ${res.message||''}</td></tr>`);
+                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Error: ${res.message||''}</td></tr>`);
                 MobileTableHelper.refresh('lvTableBody');
                 return;
             }
@@ -327,7 +330,7 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#lvTableBody').html(`<tr><td colspan="14" class="text-center text-muted py-4">No records found</td></tr>`);
+                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-muted py-4">No records found</td></tr>`);
             } else {
                 $('#lvTableBody').html(data.map((item,i) => buildRow(item,(page-1)*pageSize+i+1)).join(''));
             }
@@ -335,7 +338,7 @@ function loadData(page = 1) {
             MobileTableHelper.refresh('lvTableBody');
         },
         error: function(xhr) {
-            $('#lvTableBody').html(`<tr><td colspan="14" class="text-center text-danger py-4">Connection error (${xhr.status})</td></tr>`);
+            $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Connection error (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('lvTableBody');
         }
     });

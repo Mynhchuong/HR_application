@@ -182,17 +182,19 @@
 
                         @if (q.OPTIONS != null && q.OPTIONS.Any())
                         {
-                            var maxCnt = q.OPTIONS.Max(o => o.COUNT);
+                            var maxCnt = q.OPTIONS.Max(op => op.COUNT);
+                            var totalCnt = Math.Max(1, q.OPTIONS.Sum(op => op.COUNT));
                             <div class="sa-answer-bars">
                                 @foreach (var op in q.OPTIONS)
                                 {
-                                    var pct = maxCnt > 0 ? (op.COUNT * 100 / Math.Max(maxCnt, 1)) : 0;
+                                    var widthPct = maxCnt > 0 ? (op.COUNT * 100 / Math.Max(maxCnt, 1)) : 0;
+                                    var realPct = Math.Round(op.COUNT * 100.0 / totalCnt, 1);
                                     <div class="sa-answer-bar-row">
                                         <div class="sa-answer-bar-label">@op.OPTION_TEXT</div>
                                         <div class="sa-answer-bar-wrap">
-                                            <div class="sa-answer-bar" style="width: @(pct)%"></div>
+                                            <div class="sa-answer-bar" style="width: @(widthPct)%"></div>
                                         </div>
-                                        <div class="sa-answer-bar-value">@op.COUNT</div>
+                                        <div class="sa-answer-bar-value">@op.COUNT lượt (@(realPct)%)</div>
                                         @if (op.COUNT > 0)
                                         {
                                             <button type="button" class="btn btn-sm btn-outline-secondary sa-opt-detail py-0 px-2 ms-2"
@@ -209,16 +211,18 @@
                         else if (q.RATING_DIST != null)
                         {
                             var maxDist = q.RATING_DIST.Max();
+                            var totalRating = Math.Max(1, q.RATING_DIST.Sum());
                             <div class="sa-answer-bars">
                                 @for (int i = 0; i < 5; i++)
                                 {
-                                    var pct = maxDist > 0 ? (q.RATING_DIST[i] * 100 / Math.Max(maxDist, 1)) : 0;
+                                    var widthPct = maxDist > 0 ? (q.RATING_DIST[i] * 100 / Math.Max(maxDist, 1)) : 0;
+                                    var realPct = Math.Round(q.RATING_DIST[i] * 100.0 / totalRating, 1);
                                     <div class="sa-answer-bar-row">
                                         <div class="sa-answer-bar-label">@(i + 1) ⭐</div>
                                         <div class="sa-answer-bar-wrap">
-                                            <div class="sa-answer-bar sa-answer-bar-star" style="width: @(pct)%"></div>
+                                            <div class="sa-answer-bar sa-answer-bar-star" style="width: @(widthPct)%"></div>
                                         </div>
-                                        <div class="sa-answer-bar-value">@q.RATING_DIST[i]</div>
+                                        <div class="sa-answer-bar-value">@q.RATING_DIST[i] lượt (@(realPct)%)</div>
                                     </div>
                                 }
                             </div>

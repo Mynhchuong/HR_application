@@ -681,7 +681,8 @@
                 }
             });
 
-            $('a').not('[target="_blank"]').not('[href^="#"]').not('[data-bs-toggle]').not('[download]').on('click', function() {
+            $('a').not('[target="_blank"]').not('[href^="#"]').not('[data-bs-toggle]').not('[download]').not('.no-loading, [data-no-loading]').on('click', function(e) {
+                if (e.isDefaultPrevented()) return;
                 if (!$(this).hasClass('dropdown-toggle')) {
                     window.showLoading();
                 }

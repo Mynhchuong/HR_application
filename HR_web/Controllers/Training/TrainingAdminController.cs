@@ -978,6 +978,16 @@ public class TrainingAdminController : BaseController
         return Content(json, "application/json");
     }
 
+    [HttpPost]
+    public async Task<IActionResult> DeleteClass([FromBody] ChangeClassStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingAdmin/class/delete", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
     // POST /TrainingAdmin/FinalizeClass — chốt kết quả lớp: compute attendance/điểm + cấp chứng chỉ (§7)
     [HttpPost]
     public async Task<IActionResult> FinalizeClass([FromBody] ChangeClassStatusRequest req)

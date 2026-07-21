@@ -731,8 +731,9 @@
         })();
     </script>
 
-    <!-- Global Confirm Modal -->
-    <div class="modal fade" id="globalConfirmModal" tabindex="-1" aria-hidden="true">
+    <!-- Global Confirm Modal — z-index cao hơn Bootstrap modal mặc định (1055) để luôn hiện
+         TRÊN mọi modal khác đang mở (vd bấm "Sao chép" bên trong modal "Chọn đề thi"). -->
+    <div class="modal fade" id="globalConfirmModal" tabindex="-1" aria-hidden="true" style="z-index: 1080;">
         <div class="modal-dialog modal-sm modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg" style="border-radius: 28px;">
                 <div class="modal-body p-4 text-center">
@@ -785,6 +786,11 @@
                 okBtn.removeEventListener('click', handler);
             }, { once: true });
             modal.show();
+            // Backdrop mới nhất (của confirm modal này) cũng cần z-index cao hơn backdrop của
+            // modal bên dưới (nếu có), không thì confirm bị che khuất khi mở lồng trong modal khác.
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            const lastBackdrop = backdrops[backdrops.length - 1];
+            if (lastBackdrop) lastBackdrop.style.zIndex = '1079';
         };
     </script>
 

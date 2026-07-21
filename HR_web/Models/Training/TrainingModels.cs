@@ -177,6 +177,28 @@ public class ChangeTestStatusRequest
     public DateTime? AVAILABLE_TO { get; set; }
 }
 
+public class CopyTestRequest
+{
+    public int SOURCE_TEST_ID { get; set; }
+    public int? TARGET_CLASS_ID { get; set; }
+    public bool COPY_TO_ALL_CLASSES_IN_COURSE { get; set; }
+    public string LOGIN_USER { get; set; } = "";
+}
+
+// DS đề thi trong cùng khóa học (modal "Chọn / Copy đề thi từ lớp khác")
+public class CourseTestItem
+{
+    public int    ID { get; set; }
+    public int?   CLASS_ID { get; set; }
+    public string TITLE { get; set; } = "";
+    public string? DESCRIPTION { get; set; }
+    public int    DURATION_MINUTES { get; set; }
+    public string? CLASS_NAME { get; set; }
+    public string? COURSE_TITLE { get; set; }
+    public int?   QUESTION_COUNT { get; set; }
+}
+public class CourseTestsResponse { public bool success { get; set; } public string? message { get; set; } public List<CourseTestItem>? data { get; set; } }
+
 public class GradeAnswerRequest
 {
     public int ANSWER_ID { get; set; }

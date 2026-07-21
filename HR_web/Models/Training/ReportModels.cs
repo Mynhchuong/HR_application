@@ -8,6 +8,13 @@ public class ReportClassModel
     public string CLASS_NAME { get; set; } = "";
     public string COURSE_TITLE { get; set; } = "";
     public string? CLASS_STATUS { get; set; }
+    public DateTime? START_DATE { get; set; }
+    public DateTime? END_DATE { get; set; }
+    public string? PRIMARY_TEACHER_NAME { get; set; }
+    public int    TOTAL_SESSIONS { get; set; }
+    public int    COMPLETED_SESSIONS { get; set; }
+    public int    TOTAL_TESTS { get; set; }
+
     public int    ENROLLED_COUNT { get; set; }
     public int    ASSIGNED_COUNT { get; set; }
     public int    SELF_REGISTER_COUNT { get; set; }
@@ -15,8 +22,14 @@ public class ReportClassModel
     public int    COMPLETED_COUNT { get; set; }
     public int    FAILED_COUNT { get; set; }
     public int    CERTIFIED_COUNT { get; set; }
+    public int    RETAKE_1_COUNT { get; set; }
+    public int    RETAKE_2_COUNT { get; set; }
+    public int    RETAKE_3_COUNT { get; set; }
+
     public decimal? AVG_ATTENDANCE_PERCENT { get; set; }
     public decimal? AVG_FINAL_SCORE { get; set; }
+    public int    EXCELLENT_ATTENDANCE_COUNT { get; set; }
+    public int    AT_RISK_ATTENDANCE_COUNT { get; set; }
     public List<ScoreBucket> SCORE_HISTOGRAM { get; set; } = new();
     public List<GroupBreakdown> GROUP_BREAKDOWN { get; set; } = new();
 }
@@ -93,6 +106,9 @@ public class ReportTestModel
     public int    ATTEMPT_COUNT { get; set; }
     public int    PASS_COUNT { get; set; }
     public int    FAIL_COUNT { get; set; }
+    public int    RETAKE_1_COUNT { get; set; }
+    public int    RETAKE_2_COUNT { get; set; }
+    public int    RETAKE_3_COUNT { get; set; }
     public decimal? AVG_SCORE { get; set; }
     public decimal? MAX_SCORE { get; set; }
     public decimal? MIN_SCORE { get; set; }
@@ -150,6 +166,18 @@ public class ReportClassResponse   { public bool success { get; set; } public st
 public class AttendanceResponse    { public bool success { get; set; } public string? message { get; set; } public ReportAttendanceMatrix? data { get; set; } }
 public class ReportTestResponse    { public bool success { get; set; } public string? message { get; set; } public ReportTestModel? data { get; set; } }
 public class ReviewReportResponse  { public bool success { get; set; } public string? message { get; set; } public ReviewReportModel? data { get; set; } }
+
+// Danh sách học viên FAILED + lý do rớt cụ thể (tab Tổng quan Lớp học)
+public class FailedStudentModel
+{
+    public string  EMPCD { get; set; } = "";
+    public string? EMP_NAME { get; set; }
+    public decimal? ATTENDANCE_PERCENT { get; set; }
+    public decimal? FINAL_SCORE { get; set; }
+    public int     PASSED { get; set; }
+    public string? FAIL_REASON { get; set; }
+}
+public class FailedStudentsResponse { public bool success { get; set; } public string? message { get; set; } public List<FailedStudentModel>? data { get; set; } }
 
 // Class list dropdown (reuse)
 public class ClassListItem

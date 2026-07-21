@@ -458,4 +458,150 @@ public class TrainingTestService
             "DELETE FROM HRMS.HR_TRAINING_TEST WHERE ID = :TID",
             new OracleParameter("TID", id));
     }
+
+
+    // ═══════════════════════════════════════════════════════════════
+    //  SAO CHÉP ĐỀ THI GIỮA CÁC LỚP CÙNG KHÓA (COPY / CLONE TEST)
+    // ═══════════════════════════════════════════════════════════════
+
+    // Lấy danh sách tất cả các bài test thuộc Khóa học (từ tất cả các lớp khác + template)
+    public async Task<List<TestModel>> GetCourseTestsAsync(int classId)
+    {
+        var courseId = (await _db.ExecuteQueryAsync(
+            "SELECT COURSE_ID FROM HRMS.HR_TRAINING_CLASS WHERE ID = :ID",
+            r => r["COURSE_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["COURSE_ID"]),
+            new OracleParameter("ID", classId))).FirstOrDefault();
+
+        if (courseId == null) return new();
+
+        const string sql = @"
+            SELECT T.ID, T.CLASS_ID, T.IS_TEMPLATE, T.TEMPLATE_COURSE_ID,
+                   T.TITLE, T.DESCRIPTION, T.STATUS,
+                   T.DURATION_MINUTES, T.PASS_SCORE, T.MAX_ATTEMPTS,
+                   CL.CLASS_NAME, CO.TITLE COURSE_TITLE,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_TEST_QUESTION Q WHERE Q.TEST_ID = T.ID) QUESTION_COUNT
+              FROM HRMS.HR_TRAINING_TEST T
+              LEFT JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = T.CLASS_ID
+              LEFT JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID OR CO.ID = T.TEMPLATE_COURSE_ID
+             WHERE (CL.COURSE_ID = :CID OR T.TEMPLATE_COURSE_ID = :CID)
+             ORDER BY T.ID DESC";
+        return await _db.ExecuteQueryAsync(sql, r => new TestModel
+        {
+            ID                 = Convert.ToInt32(r["ID"]),
+            CLASS_ID           = r["CLASS_ID"] is DBNull ? null : Convert.ToInt32(r["CLASS_ID"]),
+            IS_TEMPLATE        = Convert.ToInt32(r["IS_TEMPLATE"]),
+            TEMPLATE_COURSE_ID = r["TEMPLATE_COURSE_ID"] is DBNull ? null : Convert.ToInt32(r["TEMPLATE_COURSE_ID"]),
+            TITLE              = r["TITLE"]?.ToString() ?? "",
+            DESCRIPTION        = r["DESCRIPTION"] as string,
+            STATUS             = r["STATUS"]?.ToString() ?? "DRAFT",
+            DURATION_MINUTES   = Convert.ToInt32(r["DURATION_MINUTES"]),
+            PASS_SCORE         = r["PASS_SCORE"] is DBNull ? null : Convert.ToDecimal(r["PASS_SCORE"]),
+            CLASS_NAME         = r["CLASS_NAME"] as string,
+            COURSE_TITLE       = r["COURSE_TITLE"] as string,
+            QUESTION_COUNT     = r["QUESTION_COUNT"] is DBNull ? 0 : Convert.ToInt32(r["QUESTION_COUNT"]),
+        }, new OracleParameter("CID", courseId.Value));
+    }
+
+    // Copy đề thi từ sourceTestId sang targetClassIds (hoặc tất cả các lớp cùng khóa)
+    public async Task<List<int>> CopyTestAsync(int sourceTestId, List<int> targetClassIds, string actor)
+    {
+        var sourceTest = await GetDetailAsync(sourceTestId)
+            ?? throw new InvalidOperationException("Không tìm thấy bài kiểm tra nguồn");
+        var questions = await GetQuestionsAsync(sourceTestId, forStudent: false);
+        if (questions.Count == 0)
+            throw new InvalidOperationException("Đề thi nguồn chưa có câu hỏi nào để sao chép");
+
+        var createdIds = new List<int>();
+        foreach (var targetClassId in targetClassIds)
+        {
+            // Tránh copy đè lại chính lớp nguồn nếu truyền nhầm
+            if (sourceTest.CLASS_ID.HasValue && sourceTest.CLASS_ID.Value == targetClassId)
+                continue;
+
+            const string sqlIns = @"
+                INSERT INTO HRMS.HR_TRAINING_TEST
+                    (CLASS_ID, IS_TEMPLATE, TEMPLATE_COURSE_ID,
+                     TITLE, DESCRIPTION, STATUS,
+                     DURATION_MINUTES, AVAILABLE_FROM, AVAILABLE_TO,
+                     PASS_SCORE, MAX_ATTEMPTS, CREATED_BY, INST_ID)
+                VALUES
+                    (:CID, 0, NULL,
+                     :TT, :DS, 'DRAFT',
+                     :DUR, :AF, :AT,
+                     :PS, :MA, :USR, :USR)
+                RETURNING ID INTO :NEW_ID";
+            var idParam = new OracleParameter("NEW_ID", OracleDbType.Int32)
+            {
+                Direction = System.Data.ParameterDirection.Output
+            };
+            await _db.ExecuteNonQueryAsync(sqlIns,
+                new OracleParameter("CID",  targetClassId),
+                new OracleParameter("TT",   sourceTest.TITLE),
+                new OracleParameter("DS",   (object?)sourceTest.DESCRIPTION ?? DBNull.Value),
+                new OracleParameter("DUR",  sourceTest.DURATION_MINUTES),
+                new OracleParameter("AF",   (object?)sourceTest.AVAILABLE_FROM ?? DBNull.Value),
+                new OracleParameter("AT",   (object?)sourceTest.AVAILABLE_TO   ?? DBNull.Value),
+                new OracleParameter("PS",   (object?)sourceTest.PASS_SCORE     ?? DBNull.Value),
+                new OracleParameter("MA",   sourceTest.MAX_ATTEMPTS),
+                new OracleParameter("USR",  actor),
+                idParam);
+            var newTestId = OracleService.ConvertToInt(idParam.Value);
+            createdIds.Add(newTestId);
+
+            // Copy từng câu hỏi + đáp án
+            int qOrder = 0;
+            foreach (var q in questions)
+            {
+                var qidParam = new OracleParameter("NEW_QID", OracleDbType.Int32)
+                {
+                    Direction = System.Data.ParameterDirection.Output
+                };
+                await _db.ExecuteNonQueryAsync(@"
+                    INSERT INTO HRMS.HR_TRAINING_TEST_QUESTION
+                        (TEST_ID, QUESTION_TEXT, QUESTION_TYPE, IS_REQUIRED, DISPLAY_ORDER, POINTS, INST_ID)
+                    VALUES (:TID, :TX, :TP, :RQ, :ORD, :PT, :USR)
+                    RETURNING ID INTO :NEW_QID",
+                    new OracleParameter("TID", newTestId),
+                    new OracleParameter("TX",  q.QUESTION_TEXT),
+                    new OracleParameter("TP",  q.QUESTION_TYPE),
+                    new OracleParameter("RQ",  q.IS_REQUIRED),
+                    new OracleParameter("ORD", qOrder++),
+                    new OracleParameter("PT",  q.POINTS),
+                    new OracleParameter("USR", actor),
+                    qidParam);
+                var newQid = OracleService.ConvertToInt(qidParam.Value);
+
+                int oOrder = 0;
+                foreach (var o in q.OPTIONS)
+                {
+                    await _db.ExecuteNonQueryAsync(@"
+                        INSERT INTO HRMS.HR_TRAINING_TEST_OPTION
+                            (QUESTION_ID, OPTION_TEXT, DISPLAY_ORDER, IS_CORRECT)
+                        VALUES (:QID, :TX, :ORD, :OK)",
+                        new OracleParameter("QID", newQid),
+                        new OracleParameter("TX",  o.OPTION_TEXT),
+                        new OracleParameter("ORD", oOrder++),
+                        new OracleParameter("OK",  o.IS_CORRECT));
+                }
+            }
+        }
+        return createdIds;
+    }
+
+    // Lấy tất cả CLASS_ID của khóa học trừ classId hiện tại
+    public async Task<List<int>> GetOtherClassIdsInCourseAsync(int classId)
+    {
+        var courseId = (await _db.ExecuteQueryAsync(
+            "SELECT COURSE_ID FROM HRMS.HR_TRAINING_CLASS WHERE ID = :ID",
+            r => r["COURSE_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["COURSE_ID"]),
+            new OracleParameter("ID", classId))).FirstOrDefault();
+
+        if (courseId == null) return new List<int>();
+
+        return await _db.ExecuteQueryAsync(
+            "SELECT ID FROM HRMS.HR_TRAINING_CLASS WHERE COURSE_ID = :CID AND ID <> :ID AND STATUS != 'CANCELLED'",
+            r => Convert.ToInt32(r["ID"]),
+            new OracleParameter("CID", courseId.Value),
+            new OracleParameter("ID", classId));
+    }
 }

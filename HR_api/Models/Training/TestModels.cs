@@ -90,3 +90,11 @@ public class ChangeTestStatusRequest
     public DateTime? AVAILABLE_FROM { get; set; }
     public DateTime? AVAILABLE_TO   { get; set; }
 }
+
+public class CopyTestRequest
+{
+    public int   SOURCE_TEST_ID { get; set; }
+    public int?  TARGET_CLASS_ID { get; set; }
+    public bool  COPY_TO_ALL_CLASSES_IN_COURSE { get; set; }
+    public string LOGIN_USER { get; set; } = "";
+}

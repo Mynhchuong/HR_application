@@ -62,6 +62,16 @@ public class TrainingService
         catch (Exception ex) { Console.WriteLine($"[TrainingService] GetClassReport error: {ex.Message}"); return null; }
     }
 
+    public async Task<List<FailedStudentModel>?> GetFailedStudentsAsync(int classId)
+    {
+        try
+        {
+            var res = await _api.GetAsync<FailedStudentsResponse>($"TrainingAdmin/class/{classId}/failed-students", "");
+            return res?.data;
+        }
+        catch (Exception ex) { Console.WriteLine($"[TrainingService] GetFailedStudents error: {ex.Message}"); return null; }
+    }
+
     public async Task<ReportCourseModel?> GetCourseReportAsync(int courseId)
     {
         try
@@ -100,6 +110,16 @@ public class TrainingService
             return res?.data;
         }
         catch (Exception ex) { Console.WriteLine($"[TrainingService] GetSatisfaction error: {ex.Message}"); return null; }
+    }
+
+    public async Task<List<CourseTestItem>?> GetCourseTestsAsync(int classId)
+    {
+        try
+        {
+            var res = await _api.GetAsync<CourseTestsResponse>("TrainingTeach/course-tests", $"classId={classId}");
+            return res?.data;
+        }
+        catch (Exception ex) { Console.WriteLine($"[TrainingService] GetCourseTests error: {ex.Message}"); return null; }
     }
 
     public async Task<bool> IsActiveTeacherAsync(string empcd)

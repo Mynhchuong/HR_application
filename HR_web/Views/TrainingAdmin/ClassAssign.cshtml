@@ -1090,6 +1090,13 @@
                         window.showToast(res.message || 'Lỗi gỡ giáo viên.', 'error');
                     }
                 });
+            }, {
+                title: 'Gỡ giáo viên',
+                okText: 'Gỡ',
+                okClass: 'btn-danger',
+                icon: 'person_remove',
+                iconColor: '#dc2626',
+                iconBg: '#fee2e2'
             });
         }
 
@@ -1304,8 +1311,16 @@
 
                 if (failedEmpcds.length > 0) {
                     window.showConfirm(
-                        `${reportMsg}\n\nCẢNH BÁO: Có ${failedEmpcds.length} mã nhân viên không tồn tại hoặc lỗi không thêm được:\n${failedEmpcds.join(', ')}\n\nBạn có muốn đóng thông báo này không?`,
-                        () => {}
+                        `${reportMsg}\n\nCẢNH BÁO: Có ${failedEmpcds.length} mã nhân viên không tồn tại hoặc lỗi không thêm được:\n${failedEmpcds.join(', ')}`,
+                        () => {},
+                        {
+                            title: 'Kết quả thêm học viên',
+                            okText: 'Đã hiểu',
+                            okClass: 'btn-warning',
+                            icon: 'warning',
+                            iconColor: '#f59e0b',
+                            iconBg: '#fef3c7'
+                        }
                     );
                 } else {
                     window.showToast(reportMsg, 'success');
@@ -1488,6 +1503,13 @@
                     }
                 })
                 .catch(err => { hidePageLoading(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
+            }, {
+                title: 'Tự động chia nhóm',
+                okText: 'Chia nhóm',
+                okClass: 'btn-primary',
+                icon: 'groups',
+                iconColor: '#0d6efd',
+                iconBg: '#e7f1ff'
             });
         }
 
@@ -1597,6 +1619,13 @@
                     }
                 })
                 .catch(err => { renderLifecycle(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
+            }, {
+                title: 'Hủy lớp học',
+                okText: 'Hủy lớp',
+                okClass: 'btn-danger',
+                icon: 'event_busy',
+                iconColor: '#dc2626',
+                iconBg: '#fee2e2'
             });
         }
 
@@ -1659,6 +1688,13 @@
                     }
                 })
                 .catch(err => { renderLifecycle(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
+            }, {
+                title: 'Chốt kết quả lớp học',
+                okText: 'Chốt kết quả',
+                okClass: 'btn-success',
+                icon: 'fact_check',
+                iconColor: '#16a34a',
+                iconBg: '#dcfce7'
             });
         }
 
@@ -1681,6 +1717,13 @@
                     }
                 })
                 .catch(err => { renderLifecycle(); window.showToast('Lỗi kết nối: ' + err.message, 'error'); });
+            }, {
+                title: 'Đóng & lưu trữ lớp',
+                okText: 'Đóng lớp',
+                okClass: 'btn-warning',
+                icon: 'archive',
+                iconColor: '#f59e0b',
+                iconBg: '#fef3c7'
             });
         }
     </script>

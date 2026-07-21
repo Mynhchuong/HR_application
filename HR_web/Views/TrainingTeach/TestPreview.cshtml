@@ -117,7 +117,7 @@
                     const title = test.TITLE || test.title || '';
                     const desc = test.DESCRIPTION || test.description || '';
                     const dur = test.DURATION_MINUTES || test.durationMinutes || 0;
-                    const passScore = test.PASS_SCORE || test.passScore ?? '—';
+                    const passScore = (test.PASS_SCORE || test.passScore) ?? '—';
 
                     document.getElementById('test-title').textContent = title;
                     document.getElementById('test-description').textContent = desc || 'Không có mô tả.';

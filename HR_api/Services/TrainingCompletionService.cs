@@ -45,25 +45,29 @@ public class TrainingCompletionService
             }, new OracleParameter("ID", req.CLASS_ID))).FirstOrDefault();
         if (meta == null) throw new InvalidOperationException("Không tìm thấy Class");
         // COMPLETED là trạng thái chuẩn để chốt. CLOSED vẫn cho chạy — recovery cho lớp lỡ bị đóng
-        // trước khi chốt (query học viên chỉ lấy STATUS='ENROLLED' nên lớp đã chốt xong mà chạy lại
-        // chỉ là no-op, không đè kết quả cũ).
+        // trước khi chốt.
         if (meta.ST != "COMPLETED" && meta.ST != "CLOSED")
             throw new InvalidOperationException($"Class đang {meta.ST}, chỉ chốt được khi COMPLETED");
 
-        // List học viên ENROLLED của Class
+        // List học viên ENROLLED hoặc đã FAILED của Class — FAILED cũng phải re-check vì học viên
+        // có thể được cấp thi lại (GrantRetake) SAU khi lớp đã chốt lần trước và đậu ở lượt sau;
+        // best-attempt (ComputeStandardAsync/ComputeExpressAsync) sẽ tự chọn lại đúng kết quả.
+        // KHÔNG lấy STATUS='COMPLETED' — tránh đè lại COMPLETION_DATE của người đã chốt đúng.
         var students = await _db.ExecuteQueryAsync(@"
-            SELECT E.EMPCD, EC.CNAME EMP_NAME, E.GROUP_ID
+            SELECT E.EMPCD, EC.CNAME EMP_NAME, E.GROUP_ID, E.STATUS OLD_STATUS
               FROM HRMS.HR_TRAINING_ENROLLMENT E
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = E.EMPCD
-             WHERE E.CLASS_ID = :CID AND E.STATUS = 'ENROLLED'",
+             WHERE E.CLASS_ID = :CID AND E.STATUS IN ('ENROLLED', 'FAILED')",
             r => new
             {
-                EMPCD    = r["EMPCD"]?.ToString() ?? "",
-                EMP_NAME = r["EMP_NAME"] as string,
-                GROUP_ID = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
+                EMPCD      = r["EMPCD"]?.ToString() ?? "",
+                EMP_NAME   = r["EMP_NAME"] as string,
+                GROUP_ID   = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
+                OLD_STATUS = r["OLD_STATUS"]?.ToString() ?? "",
             }, new OracleParameter("CID", req.CLASS_ID));
 
         var res = new FinalizeClassResult { CLASS_ID = req.CLASS_ID, TOTAL_ENROLLED = students.Count };
+        var changedEmpcds = new HashSet<string>();
 
         foreach (var s in students)
         {
@@ -71,6 +75,9 @@ public class TrainingCompletionService
                 ? await ComputeExpressAsync(req.CLASS_ID, s.EMPCD, s.GROUP_ID, meta.FINAL_TEST)
                 : await ComputeStandardAsync(req.CLASS_ID, s.EMPCD, s.GROUP_ID,
                     meta.MIN_ATT, meta.FINAL_TEST, meta.REQ_REVIEW == 1);
+
+            var newStatus = passed ? "COMPLETED" : "FAILED";
+            if (newStatus != s.OLD_STATUS) changedEmpcds.Add(s.EMPCD);
 
             // Update enrollment
             await _db.ExecuteNonQueryAsync(@"
@@ -82,7 +89,7 @@ public class TrainingCompletionService
                        COMPLETION_DATE    = CASE WHEN :ST = 'COMPLETED' THEN SYSDATE ELSE NULL END,
                        UPDT_ID            = :USR
                  WHERE CLASS_ID = :CID AND EMPCD = :EMP",
-                new OracleParameter("ST",   passed ? "COMPLETED" : "FAILED"),
+                new OracleParameter("ST",   newStatus),
                 new OracleParameter("ATT",  (object?)att ?? DBNull.Value),
                 new OracleParameter("SC",   (object?)score ?? DBNull.Value),
                 new OracleParameter("CERT", passed ? 1 : 0),
@@ -103,7 +110,8 @@ public class TrainingCompletionService
             else res.FAILED_COUNT++;
         }
 
-        // Enqueue TRAINING_CLASS_COMPLETED cho từng học viên (§13)
+        // Enqueue TRAINING_CLASS_COMPLETED — chỉ cho ai có KẾT QUẢ THAY ĐỔI so với trước đó,
+        // tránh spam lại thông báo "Không đạt" cho người vẫn rớt y như cũ khi HR chạy lại finalize.
         var className = (await _db.ExecuteQueryAsync(
             "SELECT CLASS_NAME FROM HRMS.HR_TRAINING_CLASS WHERE ID = :ID",
             r => r["CLASS_NAME"]?.ToString() ?? "",
@@ -111,6 +119,7 @@ public class TrainingCompletionService
 
         foreach (var d in res.DETAILS)
         {
+            if (!changedEmpcds.Contains(d.EMPCD)) continue;
             await _noti.EnqueueAsync("TRAINING_CLASS_COMPLETED", d.EMPCD,
                 new Dictionary<string, string>
                 {
@@ -119,6 +128,63 @@ public class TrainingCompletionService
                 }, classId: req.CLASS_ID);
         }
         return res;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  DANH SÁCH HỌC VIÊN FAILED + LÝ DO — chỉ đọc, HR xem trong Báo cáo Lớp học,
+    //  không ghi DB (khác FinalizeClassAsync). Recompute lại theo dữ liệu mới nhất nên
+    //  nếu học viên vừa được cấp thi lại và đậu, HR sẽ thấy ngay dòng "Đã đạt (cần chốt lại)".
+    // ═══════════════════════════════════════════════════════════════
+
+    public async Task<List<CompletionResultModel>> GetFailedStudentsAsync(int classId)
+    {
+        var meta = (await _db.ExecuteQueryAsync(@"
+            SELECT CL.MIN_ATTENDANCE_PERCENT, CL.FINAL_TEST_ID, CL.REQUIRE_POST_REVIEW,
+                   CL.IS_EXPRESS, CO.COURSE_MODE
+              FROM HRMS.HR_TRAINING_CLASS CL
+              JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID
+             WHERE CL.ID = :ID",
+            r => new
+            {
+                MIN_ATT     = Convert.ToDecimal(r["MIN_ATTENDANCE_PERCENT"]),
+                FINAL_TEST  = r["FINAL_TEST_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["FINAL_TEST_ID"]),
+                REQ_REVIEW  = Convert.ToInt32(r["REQUIRE_POST_REVIEW"]),
+                COURSE_MODE = r["COURSE_MODE"]?.ToString() ?? "STANDARD",
+            }, new OracleParameter("ID", classId))).FirstOrDefault();
+        if (meta == null) return new();
+
+        var students = await _db.ExecuteQueryAsync(@"
+            SELECT E.EMPCD, EC.CNAME EMP_NAME, E.GROUP_ID
+              FROM HRMS.HR_TRAINING_ENROLLMENT E
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = E.EMPCD
+             WHERE E.CLASS_ID = :CID AND E.STATUS = 'FAILED'
+             ORDER BY EC.CNAME",
+            r => new
+            {
+                EMPCD    = r["EMPCD"]?.ToString() ?? "",
+                EMP_NAME = r["EMP_NAME"] as string,
+                GROUP_ID = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
+            }, new OracleParameter("CID", classId));
+
+        var result = new List<CompletionResultModel>();
+        foreach (var s in students)
+        {
+            var (att, score, passed, reason) = meta.COURSE_MODE == "EXPRESS"
+                ? await ComputeExpressAsync(classId, s.EMPCD, s.GROUP_ID, meta.FINAL_TEST)
+                : await ComputeStandardAsync(classId, s.EMPCD, s.GROUP_ID,
+                    meta.MIN_ATT, meta.FINAL_TEST, meta.REQ_REVIEW == 1);
+
+            result.Add(new CompletionResultModel
+            {
+                EMPCD              = s.EMPCD,
+                EMP_NAME           = s.EMP_NAME,
+                ATTENDANCE_PERCENT = att,
+                FINAL_SCORE        = score,
+                PASSED             = passed ? 1 : 0,
+                FAIL_REASON        = passed ? "Đã đạt — cần bấm Chốt lớp lại để cập nhật" : reason,
+            });
+        }
+        return result;
     }
 
     // ═══════════════════════════════════════════════════════════════

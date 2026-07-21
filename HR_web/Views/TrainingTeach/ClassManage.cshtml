@@ -62,7 +62,10 @@
 
                     <!-- Tests Section -->
                     <div class="tab-pane fade" id="tests-pane" role="tabpanel" aria-labelledby="tests-tab-btn">
-                        <div class="d-flex justify-content-end align-items-center mb-3">
+                        <div class="d-flex justify-content-end align-items-center mb-3 gap-2 flex-wrap">
+                            <button type="button" onclick="openCopyTestModal()" class="btn btn-sm btn-outline-info fw-bold rounded-2">
+                                <i class="bi bi-files me-1"></i>Chọn / Copy đề thi từ lớp khác cùng khóa
+                            </button>
                             <a href="@Url.Action("TestCreate", "TrainingTeach", new { id = classId })" class="btn btn-sm btn-outline-warning fw-bold rounded-2">
                                 + Tạo bài thi mới
                             </a>
@@ -212,6 +215,11 @@
     let classData  = null;
     let allTests   = [];
     const TESTS_PER_PAGE = 3;
+
+    function esc(s) {
+        if (s == null) return '';
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
     let testsPage  = 1;
     let allSessions = [];
     const SESSIONS_PER_PAGE = 5;
@@ -684,7 +692,129 @@
             iconBg: '#f8d7da'
         });
     }
+
+    window.openCopyTestModal = async function() {
+        const modalEl = document.getElementById('copyTestModal');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+        
+        const loading = document.getElementById('copy-tests-loading');
+        const container = document.getElementById('copy-tests-container');
+        loading.classList.remove('d-none');
+        container.classList.add('d-none');
+
+        try {
+            const res = await fetch(`@Url.Action("GetCourseTests", "TrainingTeach")?classId=${classId}`);
+            const json = await res.json();
+            
+            if (!json.success || !json.data || json.data.length === 0) {
+                container.innerHTML = `<div class="alert alert-warning mb-0 text-center">Chưa có bài kiểm tra nào được tạo trong khóa học này.</div>`;
+            } else {
+                const tests = json.data;
+                container.innerHTML = `
+                    <div class="list-group">
+                        ${tests.map(t => `
+                            <div class="list-group-item p-3 d-flex justify-content-between align-items-center flex-wrap gap-2 rounded-3 mb-2 border shadow-sm">
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                        <h6 class="fw-bold mb-0 text-dark">${esc(t.TITLE)}</h6>
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis">${t.QUESTION_COUNT} câu hỏi</span>
+                                        <span class="badge bg-info-subtle text-info-emphasis">${t.DURATION_MINUTES} phút</span>
+                                        ${t.CLASS_ID === classId ? '<span class="badge bg-success">Đang thuộc Lớp này</span>' : `<span class="badge bg-light text-dark border">Lớp: ${esc(t.CLASS_NAME || 'Đề mẫu khóa')}</span>`}
+                                    </div>
+                                    <div class="small text-muted">${esc(t.DESCRIPTION || 'Không có mô tả')}</div>
+                                </div>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    ${t.CLASS_ID !== classId ? `
+                                        <button type="button" onclick="doCopyTest(${t.ID}, false)" class="btn btn-sm btn-primary fw-bold rounded-2 shadow-sm">
+                                            <i class="bi bi-copy me-1"></i>Sao chép sang Lớp này
+                                        </button>
+                                        <button type="button" onclick="doCopyTest(${t.ID}, true)" class="btn btn-sm btn-outline-primary fw-bold rounded-2">
+                                            <i class="bi bi-intersect me-1"></i>Áp dụng cho ALL Lớp cùng Khóa
+                                        </button>
+                                    ` : '<span class="small text-success fw-bold"><i class="bi bi-check-circle me-1"></i>Đã có sẵn trong Lớp</span>'}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+        } catch (err) {
+            container.innerHTML = `<div class="alert alert-danger mb-0">Lỗi kết nối máy chủ.</div>`;
+        } finally {
+            loading.classList.add('d-none');
+            container.classList.remove('d-none');
+        }
+    };
+
+    window.doCopyTest = async function(sourceTestId, copyToAll) {
+        const msg = copyToAll 
+            ? 'Bạn có chắc chắn muốn sao chép đề thi này sang TẤT CẢ các lớp học khác trong cùng khóa?' 
+            : 'Bạn có chắc chắn muốn sao chép đề thi này sang lớp học hiện tại?';
+        
+        window.showConfirm(msg, async () => {
+            try {
+                const res = await fetch('@Url.Action("CopyTest", "TrainingTeach")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        source_test_id: sourceTestId,
+                        target_class_id: classId,
+                        copy_to_all_classes_in_course: copyToAll
+                    })
+                });
+                const json = await res.json();
+                if (json.success) {
+                    window.showToast(json.message || 'Đã sao chép đề thi thành công!', 'success');
+                    const modalEl = document.getElementById('copyTestModal');
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) modalInstance.hide();
+                    if (typeof loadTestsList === 'function') loadTestsList();
+                } else {
+                    window.showToast(json.message || 'Lỗi sao chép đề thi', 'error');
+                }
+            } catch (err) {
+                window.showToast('Lỗi kết nối máy chủ', 'error');
+            }
+        }, {
+            title: 'Sao chép Đề thi',
+            icon: 'content_copy',
+            iconColor: '#0d6efd',
+            iconBg: '#e7f1ff',
+            okText: 'Sao chép',
+            okClass: 'btn-primary',
+        });
+    };
 </script>
+
+<!-- Modal Copy Đề Thi -->
+<div class="modal fade" id="copyTestModal" tabindex="-1" aria-labelledby="copyTestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="copyTestModalLabel">
+                    <i class="bi bi-files text-info me-2"></i>Chọn Đề thi từ Lớp khác cùng Khóa học
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-3">
+                <div class="alert alert-info border-0 p-3 mb-3 rounded-3 small">
+                    <i class="bi bi-info-circle me-1"></i> Các đề thi đã tạo ở các lớp khác thuộc cùng khóa học sẽ được liệt kê bên dưới. Giảng viên chỉ cần bấm <strong>"Sao chép sang Lớp này"</strong> hoặc <strong>"Áp dụng cho ALL Lớp"</strong> mà không cần tạo lại đề thi!
+                </div>
+                <div id="copy-tests-loading" class="text-center py-4">
+                    <div class="spinner-border text-info" role="status"></div>
+                    <p class="mt-2 text-muted small mb-0">Đang tìm danh sách đề thi trong khóa...</p>
+                </div>
+                <div id="copy-tests-container" class="d-none">
+                    <!-- List of available tests -->
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light fw-bold rounded-3" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <style>
     .bg-danger-faint {

@@ -748,6 +748,14 @@ public partial class TrainingAdminController : ControllerBase
         }
     }
 
+    // GET /apiHR/TrainingAdmin/class/{id}/failed-students — DS học viên FAILED + lý do rớt cụ thể (§14.1 HR yêu cầu)
+    [HttpGet("class/{id}/failed-students")]
+    public async Task<IActionResult> ClassFailedStudents(int id)
+    {
+        var data = await _completion.GetFailedStudentsAsync(id);
+        return Ok(new { success = true, data });
+    }
+
     // GET /apiHR/TrainingAdmin/certificate/list?classId=&courseId=&deptcd=&linecd=&workcd=&from=&to=&empcd=&loginUser=
     [HttpGet("certificate/list")]
     public async Task<IActionResult> CertificateList(

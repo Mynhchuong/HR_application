@@ -508,6 +508,51 @@ public class TrainingTeachController : ControllerBase
         var hasAccess = await _auth.IsTeacherOfTestAsync(empcd, id) || await _auth.IsHrOrAdminAsync(empcd);
         return Ok(new { success = true, data = hasAccess });
     }
+
+    // GET /apiHR/TrainingTeach/course-tests?classId=15
+    [HttpGet("course-tests")]
+    public async Task<IActionResult> GetCourseTests(int classId)
+    {
+        var list = await _test.GetCourseTestsAsync(classId);
+        return Ok(new { success = true, data = list });
+    }
+
+    // POST /apiHR/TrainingTeach/test/copy
+    [HttpPost("test/copy")]
+    public async Task<IActionResult> TestCopy([FromBody] CopyTestRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+        if (req.SOURCE_TEST_ID <= 0)
+            return Ok(new { success = false, message = "SOURCE_TEST_ID invalid" });
+
+        var targetClassIds = new List<int>();
+        if (req.COPY_TO_ALL_CLASSES_IN_COURSE && req.TARGET_CLASS_ID.HasValue)
+        {
+            var otherIds = await _test.GetOtherClassIdsInCourseAsync(req.TARGET_CLASS_ID.Value);
+            targetClassIds.AddRange(otherIds);
+            if (!targetClassIds.Contains(req.TARGET_CLASS_ID.Value))
+                targetClassIds.Add(req.TARGET_CLASS_ID.Value);
+        }
+        else if (req.TARGET_CLASS_ID.HasValue)
+        {
+            targetClassIds.Add(req.TARGET_CLASS_ID.Value);
+        }
+        else
+        {
+            return Ok(new { success = false, message = "Vui lòng chọn lớp học cần sao chép đề thi" });
+        }
+
+        try
+        {
+            var createdIds = await _test.CopyTestAsync(req.SOURCE_TEST_ID, targetClassIds, req.LOGIN_USER);
+            return Ok(new { success = true, message = $"Đã sao chép đề thi thành công sang {createdIds.Count} lớp học!", data = createdIds });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
 }
 
 public class SetFinalTestRequest

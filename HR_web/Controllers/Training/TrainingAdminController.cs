@@ -104,6 +104,13 @@ public class TrainingAdminController : BaseController
     }
 
     [HttpGet]
+    public async Task<IActionResult> GetFailedStudents(int classId)
+    {
+        var data = await _training.GetFailedStudentsAsync(classId);
+        return Json(new { success = data != null, data });
+    }
+
+    [HttpGet]
     public async Task<IActionResult> GetReportCourse(int courseId)
     {
         var data = await _training.GetCourseReportAsync(courseId);
@@ -151,6 +158,9 @@ public class TrainingAdminController : BaseController
         ws.Cell(r++, 1).Value = "Completed";                     ws.Cell(r-1, 2).Value = report.COMPLETED_COUNT;
         ws.Cell(r++, 1).Value = "Failed";                        ws.Cell(r-1, 2).Value = report.FAILED_COUNT;
         ws.Cell(r++, 1).Value = "Certified";                     ws.Cell(r-1, 2).Value = report.CERTIFIED_COUNT;
+        ws.Cell(r++, 1).Value = "Thi lại lần 1";                  ws.Cell(r-1, 2).Value = report.RETAKE_1_COUNT;
+        ws.Cell(r++, 1).Value = "Thi lại lần 2";                  ws.Cell(r-1, 2).Value = report.RETAKE_2_COUNT;
+        ws.Cell(r++, 1).Value = "Thi lại lần 3+";                 ws.Cell(r-1, 2).Value = report.RETAKE_3_COUNT;
         ws.Cell(r++, 1).Value = "Avg attendance %";              ws.Cell(r-1, 2).Value = report.AVG_ATTENDANCE_PERCENT ?? 0;
         ws.Cell(r++, 1).Value = "Avg final score";               ws.Cell(r-1, 2).Value = report.AVG_FINAL_SCORE ?? 0;
 
@@ -271,23 +281,27 @@ public class TrainingAdminController : BaseController
 
         using var wb = new XLWorkbook();
         var wsS = wb.Worksheets.Add("Scores");
-        WriteHeader(wsS, 1, new[] { "EMPCD", "Name", "Attempt No", "Score", "Max score", "Pass", "Status", "Submit" });
+        WriteHeader(wsS, 1, new[] { "EMPCD", "Name", "Attempt No", "Lượt thi / Thi lại", "Score", "Max score", "Pass", "Status", "Submit" });
         // Đếm số lượt/học viên — HR cần biết ai thi lại từ 3 lần trở lên (dấu hiệu cần lưu ý).
         var attemptCountByEmp = r.SCORES.GroupBy(s => s.EMPCD).ToDictionary(g => g.Key, g => g.Count());
         for (int i = 0; i < r.SCORES.Count; i++)
         {
             var s = r.SCORES[i];
+            var attNo = s.ATTEMPT_NO;
+            var attLabel = attNo == 1 ? "Lần 1 (Chính thức)" : (attNo == 2 ? "Thi lại lần 1" : (attNo == 3 ? "Thi lại lần 2" : $"Thi lại lần {attNo - 1}"));
+
             wsS.Cell(i + 2, 1).Value = s.EMPCD;
             wsS.Cell(i + 2, 2).Value = s.EMP_NAME ?? "";
             wsS.Cell(i + 2, 2).Style.Font.FontName = "Vnitbi__";
             wsS.Cell(i + 2, 3).Value = s.ATTEMPT_NO;
+            wsS.Cell(i + 2, 4).Value = attLabel;
             if (attemptCountByEmp.TryGetValue(s.EMPCD, out var cnt) && cnt >= 3)
                 wsS.Cell(i + 2, 3).Style.Fill.BackgroundColor = XLColor.FromHtml("#fff3cd");
-            wsS.Cell(i + 2, 4).Value = s.SCORE ?? 0;
-            wsS.Cell(i + 2, 5).Value = s.MAX_SCORE ?? 0;
-            wsS.Cell(i + 2, 6).Value = s.IS_PASS == 1 ? "PASS" : (s.IS_PASS == 0 ? "FAIL" : "-");
-            wsS.Cell(i + 2, 7).Value = s.STATUS;
-            wsS.Cell(i + 2, 8).Value = s.SUBMIT_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
+            wsS.Cell(i + 2, 5).Value = s.SCORE ?? 0;
+            wsS.Cell(i + 2, 6).Value = s.MAX_SCORE ?? 0;
+            wsS.Cell(i + 2, 7).Value = s.IS_PASS == 1 ? "PASS" : (s.IS_PASS == 0 ? "FAIL" : "-");
+            wsS.Cell(i + 2, 8).Value = s.STATUS;
+            wsS.Cell(i + 2, 9).Value = s.SUBMIT_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
         }
         wsS.Columns().AdjustToContents();
 
@@ -300,6 +314,9 @@ public class TrainingAdminController : BaseController
             ("Attempt count",  r.ATTEMPT_COUNT),
             ("Pass count",     r.PASS_COUNT),
             ("Fail count",     r.FAIL_COUNT),
+            ("Thi lại lần 1",  r.RETAKE_1_COUNT),
+            ("Thi lại lần 2",  r.RETAKE_2_COUNT),
+            ("Thi lại lần 3+", r.RETAKE_3_COUNT),
             ("Avg score",      r.AVG_SCORE ?? 0),
             ("Max score",      r.MAX_SCORE ?? 0),
             ("Min score",      r.MIN_SCORE ?? 0),

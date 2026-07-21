@@ -7,6 +7,13 @@ public class ReportClassModel
     public string CLASS_NAME { get; set; } = "";
     public string COURSE_TITLE { get; set; } = "";
     public string? CLASS_STATUS { get; set; }
+    public DateTime? START_DATE { get; set; }
+    public DateTime? END_DATE { get; set; }
+    public string? PRIMARY_TEACHER_NAME { get; set; }
+    public int    TOTAL_SESSIONS { get; set; }
+    public int    COMPLETED_SESSIONS { get; set; }
+    public int    TOTAL_TESTS { get; set; }
+
     public int    ENROLLED_COUNT { get; set; }
     public int    ASSIGNED_COUNT { get; set; }         // SOURCE='ASSIGNED' (§3.3 mandatory)
     public int    SELF_REGISTER_COUNT { get; set; }
@@ -14,8 +21,13 @@ public class ReportClassModel
     public int    COMPLETED_COUNT { get; set; }
     public int    FAILED_COUNT { get; set; }
     public int    CERTIFIED_COUNT { get; set; }
+    public int    RETAKE_1_COUNT { get; set; }        // Thi lại lần 1 (Lượt 2)
+    public int    RETAKE_2_COUNT { get; set; }        // Thi lại lần 2 (Lượt 3)
+    public int    RETAKE_3_COUNT { get; set; }        // Thi lại lần 3+ (Lượt 4+)
     public decimal? AVG_ATTENDANCE_PERCENT { get; set; }
     public decimal? AVG_FINAL_SCORE { get; set; }
+    public int    EXCELLENT_ATTENDANCE_COUNT { get; set; }
+    public int    AT_RISK_ATTENDANCE_COUNT { get; set; }
 
     // Histogram điểm final test (§14.1)
     public List<ScoreBucket> SCORE_HISTOGRAM { get; set; } = new();
@@ -105,6 +117,9 @@ public class ReportTestModel
     public int    ATTEMPT_COUNT { get; set; }
     public int    PASS_COUNT { get; set; }
     public int    FAIL_COUNT { get; set; }
+    public int    RETAKE_1_COUNT { get; set; }        // Thi lại lần 1 (Lượt 2)
+    public int    RETAKE_2_COUNT { get; set; }        // Thi lại lần 2 (Lượt 3)
+    public int    RETAKE_3_COUNT { get; set; }        // Thi lại lần 3+ (Lượt 4+)
     public decimal? AVG_SCORE { get; set; }
     public decimal? MAX_SCORE { get; set; }
     public decimal? MIN_SCORE { get; set; }

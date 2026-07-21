@@ -159,11 +159,13 @@
                     const label = g === NO_GROUP ? 'Chưa gán nhóm' : `Tổ/Nhóm: ${esc(g)}`;
                     groupHeaderRow = `<tr class="matrix-group-row"><td colspan="${colCount}"><span class="matrix-group-label">${label} — ${count} học viên</span></td></tr>`;
                 }
+                const attPct = st.ATTENDANCE_PERCENT || 0;
+                const attBadgeCls = attPct >= 80 ? 'bg-success-subtle text-success-emphasis border border-success-subtle' : attPct >= 50 ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' : 'bg-danger-subtle text-danger-emphasis border border-danger-subtle';
                 return groupHeaderRow + `<tr>
                     <td class="ps-3 fw-bold text-dark matrix-sticky-1">${esc(st.EMPCD)}</td>
                     <td class="fw-bold vni-font matrix-sticky-2" style="text-transform:uppercase;">${esc(st.EMP_NAME || '')}</td>
                     <td><span class="badge bg-light text-dark border">${esc(st.GROUP_NAME || '-')}</span></td>
-                    <td><strong class="text-primary">${st.ATTENDANCE_PERCENT.toFixed(1)}%</strong></td>
+                    <td><span class="badge ${attBadgeCls} fw-bold" style="font-size:0.85rem;">${attPct.toFixed(1)}%</span></td>
                     ${sessions.map(s => {
                         const v = st.STATUS_PER_SESSION[s.SESSION_ID] || '';
                         if (v === '') return `<td class="matrix-cell-em text-center text-muted">·</td>`;

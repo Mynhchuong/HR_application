@@ -77,11 +77,42 @@
         font-weight: 600;
     }
     .top-wrong-item {
-        border-left: 3px solid #dc3545;
-        padding: .5rem .8rem;
-        background: #fff5f5;
-        border-radius: 4px;
-        margin-bottom: .6rem;
+        border: 1px solid #f1dade;
+        border-left: 4px solid #dc3545;
+        background: #fff;
+        border-radius: 10px;
+        padding: 1rem 1.1rem;
+        margin-bottom: .75rem;
+        transition: box-shadow .15s ease;
+    }
+    .top-wrong-item:hover {
+        box-shadow: 0 2px 10px rgba(220, 53, 69, .08);
+    }
+    .top-wrong-item .wrong-index {
+        width: 24px;
+        height: 24px;
+        font-size: .72rem;
+        flex: 0 0 auto;
+    }
+    .wrong-percent-bar {
+        height: 6px;
+        border-radius: 3px;
+        background: #f1f3f5;
+        overflow: hidden;
+    }
+    .wrong-percent-bar > div {
+        height: 100%;
+        background: linear-gradient(90deg, #dc3545, #e35d6a);
+    }
+    .wrong-student-chip {
+        display: inline-flex;
+        align-items: center;
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 20px;
+        padding: .2rem .7rem;
+        font-size: .78rem;
+        white-space: nowrap;
     }
     #histoChart {
         max-height: 280px;
@@ -104,6 +135,7 @@
             expTest: '@Url.Action("ExportTest", "TrainingAdmin")',
             expSat: '@Url.Action("ExportSatisfaction", "TrainingAdmin")',
             getClassTests: '@Url.Action("GetClassTests", "Training")',
+            failedStudents: '@Url.Action("GetFailedStudents", "TrainingAdmin")',
             grantRetake: '@Url.Action("GrantRetake", "TrainingAdmin")',
             grantRetakeAllFailed: '@Url.Action("GrantRetakeAllFailed", "TrainingAdmin")'
         };
@@ -117,6 +149,7 @@
         let currentTestId = null;
         let scoresPage = 1;
         let scoresFilterText = '';
+        let scoresFilterAttempt = 'ALL';
         const SCORES_PER_PAGE = 50;
         const WRONG_STUDENTS_CAP = 20;
 
@@ -163,40 +196,144 @@
             if (!json.success || !json.data) return renderErr('Không có dữ liệu tổng quan.');
             
             const d = json.data;
+            const compPct = d.ENROLLED_COUNT > 0 ? Math.round((d.COMPLETED_COUNT / d.ENROLLED_COUNT) * 100) : 0;
+            const certPct = d.ENROLLED_COUNT > 0 ? Math.round((d.CERTIFIED_COUNT / d.ENROLLED_COUNT) * 100) : 0;
+            const sessPct = d.TOTAL_SESSIONS > 0 ? Math.round((d.COMPLETED_SESSIONS / d.TOTAL_SESSIONS) * 100) : 0;
+            
+            const startDateStr = d.START_DATE ? new Date(d.START_DATE).toLocaleDateString('vi-VN') : 'Chưa xếp';
+            const endDateStr = d.END_DATE ? new Date(d.END_DATE).toLocaleDateString('vi-VN') : 'Chưa xếp';
+
             const html = `
-                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                    <div>
-                        <h4 class="fw-bold mb-0 text-dark">${esc(d.CLASS_NAME)}</h4>
-                        <span class="text-muted small">${esc(d.COURSE_TITLE)}</span>
+                <!-- 1. Header Card with Metadata & Action -->
+                <div class="card border-0 bg-light p-4 mb-4" style="border-radius: 16px;">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-lg-8">
+                            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                <span class="badge bg-primary px-3 py-2 rounded-pill">${esc(d.CLASS_STATUS || 'OPEN')}</span>
+                                <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="bi bi-book me-1"></i>Khóa: ${esc(d.COURSE_TITLE)}</span>
+                            </div>
+                            <h3 class="fw-bold text-dark mb-2">${esc(d.CLASS_NAME)}</h3>
+                            <div class="d-flex flex-wrap gap-x-4 gap-y-2 text-muted small">
+                                <div><i class="bi bi-person-badge text-primary me-1"></i>Giảng viên chính: <strong class="text-dark vni-font">${esc(d.PRIMARY_TEACHER_NAME || 'Chưa phân công')}</strong></div>
+                                <div><i class="bi bi-calendar-range text-primary me-1"></i>Thời gian: <strong class="text-dark">${startDateStr} — ${endDateStr}</strong></div>
+                                <div><i class="bi bi-file-earmark-text text-primary me-1"></i>Bài kiểm tra: <strong class="text-dark">${d.TOTAL_TESTS || 0} bài</strong></div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-4 text-lg-end">
+                            <a href="${window.TRAINING_URLS.expClass}?classId=${CLASS_ID}" class="btn btn-success btn-lg fw-bold shadow-sm d-inline-flex align-items-center gap-2 px-4" style="border-radius: 12px;">
+                                <i class="bi bi-file-earmark-excel" style="font-size: 1.3rem;"></i> Xuất Excel Báo Cáo
+                            </a>
+                        </div>
                     </div>
-                    <a href="${window.TRAINING_URLS.expClass}?classId=${CLASS_ID}" class="btn btn-success fw-bold shadow-sm d-flex align-items-center gap-1 px-3">
-                        <i class="bi bi-download" style="font-size: 1.2rem;"></i> Xuất Excel
-                    </a>
-                </div>
-                
-                <div class="row g-3 mb-4">
-                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val">${d.ENROLLED_COUNT}</div><div class="lbl">Học viên</div></div></div>
-                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${d.COMPLETED_COUNT}</div><div class="lbl">Hoàn thành</div></div></div>
-                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-danger">${d.FAILED_COUNT}</div><div class="lbl">Không đạt</div></div></div>
-                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-info">${d.CERTIFIED_COUNT}</div><div class="lbl">Cấp chứng chỉ</div></div></div>
-                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-primary">${d.ASSIGNED_COUNT}</div><div class="lbl">Chỉ định</div></div></div>
-                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-info">${d.SELF_REGISTER_COUNT}</div><div class="lbl">Tự đăng ký</div></div></div>
-                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-warning">${d.DROPPED_COUNT}</div><div class="lbl">Bị gỡ lớp</div></div></div>
-                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${num(d.AVG_ATTENDANCE_PERCENT?.toFixed?.(1))}%</div><div class="lbl">Chuyên cần TB</div></div></div>
                 </div>
 
+                <!-- 2. High-level Summary Progress Gauges -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-4">
+                        <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 14px; background: linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%);">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold text-primary small text-uppercase"><i class="bi bi-flag me-1"></i>Tiến độ lớp học</span>
+                                <span class="badge bg-primary">${sessPct}%</span>
+                            </div>
+                            <h4 class="fw-bold text-dark mb-1">${d.COMPLETED_SESSIONS}/${d.TOTAL_SESSIONS} buổi</h4>
+                            <p class="text-muted small mb-2">Số buổi học đã hoàn thành</p>
+                            <div class="progress" style="height: 8px; border-radius: 4px;">
+                                <div class="progress-bar bg-primary" role="progressbar" style="width: ${sessPct}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 14px; background: linear-gradient(135deg, #f2fbf7 0%, #e6f7f0 100%);">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold text-success small text-uppercase"><i class="bi bi-check-circle me-1"></i>Tỷ lệ Hoàn Thành</span>
+                                <span class="badge bg-success">${compPct}%</span>
+                            </div>
+                            <h4 class="fw-bold text-dark mb-1">${d.COMPLETED_COUNT}/${d.ENROLLED_COUNT} học viên</h4>
+                            <p class="text-muted small mb-2">Đạt yêu cầu tốt nghiệp khóa</p>
+                            <div class="progress" style="height: 8px; border-radius: 4px;">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: ${compPct}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 14px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold text-info small text-uppercase"><i class="bi bi-patch-check me-1"></i>Được Cấp Chứng Chỉ</span>
+                                <span class="badge bg-info">${certPct}%</span>
+                            </div>
+                            <h4 class="fw-bold text-dark mb-1">${d.CERTIFIED_COUNT}/${d.ENROLLED_COUNT} học viên</h4>
+                            <p class="text-muted small mb-2">Đã nhận chứng nhận hoàn thành</p>
+                            <div class="progress" style="height: 8px; border-radius: 4px;">
+                                <div class="progress-bar bg-info" role="progressbar" style="width: ${certPct}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Key Metrics Dashboard Grid -->
+                <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
+                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-grid-3x3-gap-fill text-primary me-2"></i>Chỉ số Sĩ số & Kết quả Đào tạo</h6>
+                    <div class="row g-3">
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val">${d.ENROLLED_COUNT}</div><div class="lbl">Tổng Sĩ số</div></div></div>
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${d.COMPLETED_COUNT}</div><div class="lbl">Hoàn thành</div></div></div>
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-danger">${d.FAILED_COUNT}</div><div class="lbl">Không đạt</div></div></div>
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-info">${d.CERTIFIED_COUNT}</div><div class="lbl">Cấp chứng chỉ</div></div></div>
+                        
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-warning">${d.RETAKE_1_COUNT || 0}</div><div class="lbl">Thi lại lần 1</div></div></div>
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-danger">${d.RETAKE_2_COUNT || 0}</div><div class="lbl">Thi lại lần 2</div></div></div>
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-danger">${d.RETAKE_3_COUNT || 0}</div><div class="lbl">Thi lại lần 3+</div></div></div>
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-primary">${d.ASSIGNED_COUNT}</div><div class="lbl">Bắt buộc / Chỉ định</div></div></div>
+                        
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-info">${d.SELF_REGISTER_COUNT}</div><div class="lbl">Tự đăng ký</div></div></div>
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-warning">${d.DROPPED_COUNT}</div><div class="lbl">Bị gỡ khỏi lớp</div></div></div>
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${num(d.AVG_ATTENDANCE_PERCENT?.toFixed?.(1))}%</div><div class="lbl">Chuyên cần TB</div></div></div>
+                        <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-primary">${num(d.AVG_FINAL_SCORE?.toFixed?.(1))}</div><div class="lbl">Điểm tổng kết TB</div></div></div>
+                    </div>
+                </div>
+
+                <!-- 4. Quality & Risk Highlights Card -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6">
+                        <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 14px; border-left: 4px solid #198754 !important;">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="rounded-circle bg-success-subtle p-3 text-success">
+                                    <i class="bi bi-award fs-3"></i>
+                                </div>
+                                <div>
+                                    <h5 class="fw-bold mb-0 text-dark">${d.EXCELLENT_ATTENDANCE_COUNT || 0} Học viên</h5>
+                                    <p class="text-muted small mb-0">Đạt <strong>100% Chuyên cần</strong> toàn khóa học</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 14px; border-left: 4px solid #ffc107 !important;">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="rounded-circle bg-warning-subtle p-3 text-warning">
+                                    <i class="bi bi-exclamation-triangle fs-3"></i>
+                                </div>
+                                <div>
+                                    <h5 class="fw-bold mb-0 text-dark">${d.AT_RISK_ATTENDANCE_COUNT || 0} Học viên</h5>
+                                    <p class="text-muted small mb-0">Chuyên cần <strong>&lt; 80%</strong> (Cần nhắc nhở / lưu ý)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Chart & Group Breakdown -->
                 <div class="row g-4">
                     <div class="col-12 col-lg-6">
-                        <div class="card border p-3" style="border-radius: 12px;">
-                            <h6 class="fw-bold mb-3 text-dark">Phân phối điểm bài thi cuối khoá</h6>
+                        <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 16px;">
+                            <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-bar-chart-line text-primary me-2"></i>Phân phối điểm bài thi cuối khoá</h6>
                             <canvas id="histoChart"></canvas>
                         </div>
                     </div>
                     <div class="col-12 col-lg-6">
-                        <div class="card border p-3" style="border-radius: 12px;">
-                            <h6 class="fw-bold mb-3 text-dark">Breakdown theo Tổ/Nhóm</h6>
+                        <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 16px;">
+                            <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-people text-primary me-2"></i>Breakdown theo Tổ/Nhóm</h6>
                             ${d.GROUP_BREAKDOWN.length === 0
-                                ? '<p class="text-muted text-center py-4 small">Lớp học này không chia Tổ/Nhóm.</p>'
+                                ? '<p class="text-muted text-center py-5 small mb-0">Lớp học này không chia Tổ/Nhóm.</p>'
                                 : `<div class="table-responsive">
                                     <table class="table table-hover align-middle mb-0">
                                         <thead><tr>
@@ -209,18 +346,27 @@
                                         <tbody id="groupBreakdownTbody">${d.GROUP_BREAKDOWN.map(g => `<tr>
                                             <td><strong>${esc(g.GROUP_NAME)}</strong></td>
                                             <td>${g.ENROLLED}</td>
-                                            <td>${g.COMPLETED}</td>
-                                            <td>${g.CERTIFIED}</td>
+                                            <td><span class="badge bg-success-subtle text-success-emphasis">${g.COMPLETED}</span></td>
+                                            <td><span class="badge bg-info-subtle text-info-emphasis">${g.CERTIFIED}</span></td>
                                             <td><strong>${g.AVG_ATTENDANCE == null ? '-' : g.AVG_ATTENDANCE.toFixed(1) + '%'}</strong></td>
                                         </tr>`).join('')}</tbody>
                                     </table>
                                   </div>`}
                         </div>
                     </div>
+                </div>
+
+                <!-- 6. Danh sách học viên rớt + lý do cụ thể -->
+                <div class="card border-0 shadow-sm p-4 mt-4" style="border-radius: 16px;">
+                    <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-clipboard-x text-danger me-2"></i>Danh sách học viên rớt (${d.FAILED_COUNT || 0})</h6>
+                    <div id="failedStudentsContainer">
+                        <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-danger" role="status"></div></div>
+                    </div>
                 </div>`;
-            
+
             document.getElementById('reportContent').innerHTML = html;
             MobileTableHelper.refresh('groupBreakdownTbody');
+            loadFailedStudents();
 
             if (d.SCORE_HISTOGRAM && d.SCORE_HISTOGRAM.length > 0) {
                 new Chart(document.getElementById('histoChart'), {
@@ -238,6 +384,62 @@
                         scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } 
                     }
                 });
+            }
+        }
+
+        async function loadFailedStudents() {
+            const container = document.getElementById('failedStudentsContainer');
+            if (!container) return;
+            try {
+                const res = await fetch(`${window.TRAINING_URLS.failedStudents}?classId=${CLASS_ID}`);
+                const json = await res.json();
+                const list = (json.success && json.data) ? json.data : [];
+
+                if (list.length === 0) {
+                    container.innerHTML = '<p class="text-muted text-center py-3 small mb-0">Không có học viên nào rớt lớp này.</p>';
+                    return;
+                }
+
+                // Phân loại lý do rớt để tô màu badge — chuyên cần thấp (vàng), điểm thấp (đỏ), chưa thi (xám), khác.
+                const reasonBadgeCls = (reason, passed) => {
+                    if (passed) return 'bg-info-subtle text-info-emphasis';
+                    if (!reason) return 'bg-secondary-subtle text-secondary-emphasis';
+                    if (reason.startsWith('Attendance')) return 'bg-warning-subtle text-warning-emphasis';
+                    if (reason.startsWith('Không pass') || reason.startsWith('Điểm')) return 'bg-danger-subtle text-danger-emphasis';
+                    return 'bg-secondary-subtle text-secondary-emphasis';
+                };
+                const reasonLabel = (reason) => {
+                    if (!reason) return '-';
+                    if (reason.startsWith('Attendance')) {
+                        const m = reason.match(/Attendance ([\d.]+)% < required ([\d.]+)%/);
+                        return m ? `Vắng nhiều (chuyên cần ${m[1]}% < yêu cầu ${m[2]}%)` : reason;
+                    }
+                    return reason;
+                };
+
+                container.innerHTML = `
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead><tr>
+                                <th data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                                <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ và tên">Họ và tên</th>
+                                <th data-mobile="detail" data-mobile-label="Chuyên cần">Chuyên cần</th>
+                                <th data-mobile="detail" data-mobile-label="Điểm final">Điểm final</th>
+                                <th data-mobile="primary" data-mobile-label="Lý do rớt">Lý do rớt</th>
+                            </tr></thead>
+                            <tbody>
+                                ${list.map(s => `<tr>
+                                    <td>${esc(s.EMPCD)}</td>
+                                    <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(s.EMP_NAME || '')}</td>
+                                    <td>${s.ATTENDANCE_PERCENT == null ? '-' : s.ATTENDANCE_PERCENT.toFixed(1) + '%'}</td>
+                                    <td>${s.FINAL_SCORE == null ? '-' : s.FINAL_SCORE}</td>
+                                    <td><span class="badge ${reasonBadgeCls(s.FAIL_REASON, s.PASSED)}">${esc(reasonLabel(s.FAIL_REASON))}</span></td>
+                                </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>`;
+            } catch (err) {
+                container.innerHTML = '<div class="alert alert-danger mb-0 small">Lỗi tải danh sách học viên rớt.</div>';
             }
         }
 
@@ -300,6 +502,7 @@
             testReportData = d;
             scoresPage = 1;
             scoresFilterText = '';
+            scoresFilterAttempt = 'ALL';
             wrap.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0 text-dark">${esc(d.TEST_TITLE)}</h5>
@@ -316,10 +519,13 @@
                 </div>
 
                 <div class="row g-3 mb-4">
-                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val">${d.ATTEMPT_COUNT}</div><div class="lbl">Lượt làm bài</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val">${d.ATTEMPT_COUNT}</div><div class="lbl">Tổng lượt làm bài</div></div></div>
                     <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${d.PASS_COUNT}</div><div class="lbl">Học viên Đạt</div></div></div>
                     <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-danger">${d.FAIL_COUNT}</div><div class="lbl">Học viên Rớt</div></div></div>
                     <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-primary">${num(d.AVG_SCORE?.toFixed?.(1))}</div><div class="lbl">Điểm số trung bình</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-warning">${d.RETAKE_1_COUNT || 0}</div><div class="lbl">Thi lại lần 1</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-danger">${d.RETAKE_2_COUNT || 0}</div><div class="lbl">Thi lại lần 2</div></div></div>
+                    <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-danger">${d.RETAKE_3_COUNT || 0}</div><div class="lbl">Thi lại lần 3+</div></div></div>
                 </div>
 
                 ${(() => {
@@ -333,7 +539,7 @@
                     d.SCORES.forEach(s => { nameByEmp[s.EMPCD] = s.EMP_NAME || s.EMPCD; });
                     return `
                         <div class="alert alert-warning border-0 p-3 mb-4 rounded-3">
-                            <div class="fw-bold text-dark mb-2"><i class="bi bi-exclamation-triangle me-1"></i>${heavyRetake.length} học viên thi lại từ 3 lần trở lên</div>
+                            <div class="fw-bold text-dark mb-2"><i class="bi bi-exclamation-triangle me-1"></i>${heavyRetake.length} học viên đã thi từ 3 lượt trở lên (thi lại ≥ 2 lần)</div>
                             <div class="d-flex flex-wrap gap-2">
                                 ${heavyRetake.map(([empcd, c]) => `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><span class="vni-font">${esc(nameByEmp[empcd])}</span> (#${esc(empcd)}) — ${c} lượt</span>`).join('')}
                             </div>
@@ -355,13 +561,18 @@
                 })()}
 
                 <div class="row g-4">
-                    <div class="col-12 col-lg-8">
+                    <div class="col-12">
                         <div class="card border p-3 shadow-sm rounded-3">
                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                                 <h6 class="fw-bold mb-0 text-dark">Bảng điểm thi học viên</h6>
-                                <input type="text" id="scoresFilterInput" class="form-control form-control-sm" style="max-width: 220px;" placeholder="Tìm theo mã NV..." oninput="onScoresFilterChange(this.value)" />
+                                <div class="d-flex flex-wrap gap-2">
+                                    <select id="scoresAttemptFilter" class="form-select form-select-sm" style="max-width: 200px;" onchange="onScoresAttemptFilterChange(this.value)">
+                                        <option value="ALL">Tất cả lượt thi</option>
+                                    </select>
+                                    <input type="text" id="scoresFilterInput" class="form-control form-control-sm" style="max-width: 220px;" placeholder="Tìm theo mã NV..." oninput="onScoresFilterChange(this.value)" />
+                                </div>
                             </div>
-                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
                                 <table class="table table-hover align-middle mb-0">
                                     <thead><tr>
                                         <th data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
@@ -378,23 +589,36 @@
                             <div id="testScoresPagination"></div>
                         </div>
                     </div>
-                    <div class="col-12 col-lg-4">
+
+                    <div class="col-12">
                         <div class="card border p-3 shadow-sm rounded-3">
-                            <h6 class="fw-bold mb-3 text-dark">Chi tiết câu hỏi sai</h6>
-                            <div style="max-height: 480px; overflow-y: auto;" class="pe-1">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0 text-dark">Chi tiết câu hỏi sai</h6>
+                                <span class="badge bg-danger-subtle text-danger-emphasis">${d.TOP_WRONG_QUESTIONS.length} câu hỏi có câu trả lời sai</span>
+                            </div>
+                            <div style="max-height: 550px; overflow-y: auto;" class="pe-1">
                                 ${d.TOP_WRONG_QUESTIONS.length === 0
                                     ? '<p class="text-muted text-center py-4 small">Chưa ghi nhận câu trả lời sai.</p>'
-                                    : d.TOP_WRONG_QUESTIONS.map(q => `<div class="top-wrong-item">
-                                        <div class="small text-muted mb-1">${esc(q.QUESTION_TYPE)}</div>
-                                        <div class="small text-dark fw-bold mb-1">${esc(q.QUESTION_TEXT)}</div>
-                                        <div class="small text-danger fw-bold mb-1">${q.WRONG_COUNT}/${q.ATTEMPT_COUNT} học viên trả lời sai (${q.WRONG_PERCENT}%)</div>
+                                    : d.TOP_WRONG_QUESTIONS.map((q, idx) => `<div class="top-wrong-item">
+                                        <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+                                            <div class="d-flex align-items-start gap-2">
+                                                <span class="badge bg-danger rounded-circle d-flex align-items-center justify-content-center wrong-index">${idx + 1}</span>
+                                                <div>
+                                                    <span class="badge bg-secondary-subtle text-secondary-emphasis mb-1">${esc(q.QUESTION_TYPE)}</span>
+                                                    <div class="fw-bold text-dark">${esc(q.QUESTION_TEXT)}</div>
+                                                </div>
+                                            </div>
+                                            <span class="badge bg-danger fw-bold" style="white-space:nowrap;">${q.WRONG_PERCENT}%</span>
+                                        </div>
+                                        <div class="wrong-percent-bar mb-2"><div style="width:${q.WRONG_PERCENT}%"></div></div>
+                                        <div class="small text-muted mb-2">${q.WRONG_COUNT}/${q.ATTEMPT_COUNT} học viên trả lời sai</div>
                                         <details>
-                                            <summary class="small text-primary" style="cursor:pointer;">Xem danh sách học viên sai</summary>
-                                            <ul class="small mb-0 mt-1 ps-3" id="wrongStudentsList_${q.QUESTION_ID}">
+                                            <summary class="small text-primary fw-bold" style="cursor:pointer;">Xem danh sách học viên sai (${q.WRONG_STUDENTS.length})</summary>
+                                            <div class="d-flex flex-wrap gap-2 mt-2" id="wrongStudentsList_${q.QUESTION_ID}">
                                                 ${q.WRONG_STUDENTS.slice(0, WRONG_STUDENTS_CAP).map(s => wrongStudentLi(s)).join('')}
-                                            </ul>
+                                            </div>
                                             ${q.WRONG_STUDENTS.length > WRONG_STUDENTS_CAP
-                                                ? `<button type="button" class="btn btn-sm btn-link p-0 small" onclick="showMoreWrongStudents(${q.QUESTION_ID}, this)">+ ${q.WRONG_STUDENTS.length - WRONG_STUDENTS_CAP} người khác</button>`
+                                                ? `<button type="button" class="btn btn-sm btn-link p-0 small mt-2 text-decoration-none" onclick="showMoreWrongStudents(${q.QUESTION_ID}, this)">+ ${q.WRONG_STUDENTS.length - WRONG_STUDENTS_CAP} người khác</button>`
                                                 : ''}
                                         </details>
                                       </div>`).join('')}
@@ -403,20 +627,21 @@
                     </div>
                 </div>
             `;
+            populateAttemptFilterOptions(d.SCORES);
             renderScoresTable();
         }
 
         function wrongStudentLi(s) {
-            return `<li><span class="vni-font">${esc(s.EMP_NAME || s.EMPCD)}</span> <span class="text-muted">(#${esc(s.EMPCD)}${s.ATTEMPT_NO > 1 ? `, lượt ${s.ATTEMPT_NO}` : ''})</span></li>`;
+            return `<span class="wrong-student-chip"><span class="vni-font">${esc(s.EMP_NAME || s.EMPCD)}</span><span class="text-muted ms-1">#${esc(s.EMPCD)}${s.ATTEMPT_NO > 1 ? `, lượt ${s.ATTEMPT_NO}` : ''}</span></span>`;
         }
 
         // Danh sách "học viên sai" chỉ render sẵn 20 người đầu trong DOM — bấm mới thêm phần còn lại,
-        // tránh tạo hàng nghìn thẻ <li> ẩn cùng lúc khi lớp đông (vd 1k người, câu khó nhiều người sai).
+        // tránh tạo hàng nghìn thẻ ẩn cùng lúc khi lớp đông (vd 1k người, câu khó nhiều người sai).
         window.showMoreWrongStudents = function(questionId, btn) {
             const q = testReportData.TOP_WRONG_QUESTIONS.find(x => x.QUESTION_ID === questionId);
             if (!q) return;
-            const ul = document.getElementById(`wrongStudentsList_${questionId}`);
-            ul.insertAdjacentHTML('beforeend', q.WRONG_STUDENTS.slice(WRONG_STUDENTS_CAP).map(s => wrongStudentLi(s)).join(''));
+            const container = document.getElementById(`wrongStudentsList_${questionId}`);
+            container.insertAdjacentHTML('beforeend', q.WRONG_STUDENTS.slice(WRONG_STUDENTS_CAP).map(s => wrongStudentLi(s)).join(''));
             btn.remove();
         };
 
@@ -427,6 +652,30 @@
             renderScoresTable();
         };
 
+        window.onScoresAttemptFilterChange = function(val) {
+            scoresFilterAttempt = val || 'ALL';
+            scoresPage = 1;
+            renderScoresTable();
+        };
+
+        // Nhãn hiển thị cho từng lượt thi — ATTEMPT_NO=1 là lần chính thức, còn lại là "Thi lại lần N" (N = ATTEMPT_NO - 1)
+        function attemptLabel(attemptNo) {
+            return attemptNo <= 1 ? 'Lần 1 (Chính thức)' : `Thi lại lần ${attemptNo - 1}`;
+        }
+
+        // Sinh danh sách lượt thi trong dropdown filter theo đúng số lượt lớn nhất thực tế có trong dữ liệu
+        // (không giới hạn cứng — GV cho thi 4, 5 lần thì vẫn liệt kê đủ Thi lại lần 4, lần 5...).
+        function populateAttemptFilterOptions(scores) {
+            const maxAttempt = scores.reduce((m, s) => Math.max(m, s.ATTEMPT_NO || 1), 1);
+            const sel = document.getElementById('scoresAttemptFilter');
+            let opts = '<option value="ALL">Tất cả lượt thi</option>';
+            for (let n = 1; n <= maxAttempt; n++) {
+                opts += `<option value="${n}">${attemptLabel(n)}</option>`;
+            }
+            sel.innerHTML = opts;
+            sel.value = 'ALL';
+        }
+
         function renderScoresTable() {
             const d = testReportData;
             // maxAttemptByEmp tính trên TOÀN BỘ danh sách (không phải sau khi lọc) để biết đúng lượt
@@ -436,9 +685,11 @@
                 maxAttemptByEmp[s.EMPCD] = Math.max(maxAttemptByEmp[s.EMPCD] || 0, s.ATTEMPT_NO || 1);
             });
 
-            const filtered = scoresFilterText
-                ? d.SCORES.filter(s => (s.EMPCD || '').toLowerCase().includes(scoresFilterText))
-                : d.SCORES;
+            const filtered = d.SCORES.filter(s => {
+                if (scoresFilterText && !(s.EMPCD || '').toLowerCase().includes(scoresFilterText)) return false;
+                if (scoresFilterAttempt !== 'ALL' && String(s.ATTEMPT_NO || 1) !== scoresFilterAttempt) return false;
+                return true;
+            });
 
             const totalPages = Math.max(1, Math.ceil(filtered.length / SCORES_PER_PAGE));
             scoresPage = Math.min(Math.max(1, scoresPage), totalPages);
@@ -446,7 +697,14 @@
             const pageItems = filtered.slice(start, start + SCORES_PER_PAGE);
 
             document.getElementById('testScoresTbody').innerHTML = pageItems.map(s => {
-                const isLatest = (s.ATTEMPT_NO || 1) === maxAttemptByEmp[s.EMPCD];
+                const attemptNo = s.ATTEMPT_NO || 1;
+                const attemptBadgeCls = attemptNo === 1 ? 'bg-secondary-subtle text-secondary-emphasis'
+                    : attemptNo === 2 ? 'bg-warning-subtle text-warning-emphasis fw-bold'
+                    : attemptNo === 3 ? 'bg-danger-subtle text-danger-emphasis fw-bold'
+                    : 'bg-danger text-white fw-bold';
+                const attemptBadge = `<span class="badge ${attemptBadgeCls}">${attemptLabel(attemptNo)}</span>`;
+
+                const isLatest = attemptNo === maxAttemptByEmp[s.EMPCD];
                 const isFinished = s.STATUS === 'SUBMITTED' || s.STATUS === 'AUTO_SUBMITTED';
                 let action = '';
                 if (isLatest && isFinished) {
@@ -454,10 +712,11 @@
                         ? '<span class="badge bg-info-subtle text-info-emphasis">Đã cấp - chờ thi</span>'
                         : `<button onclick="grantRetake(${currentTestId}, '${s.EMPCD}')" class="btn btn-xs btn-outline-primary fw-bold rounded-2">Cấp thi lại</button>`;
                 }
+
                 return `<tr>
                     <td>${esc(s.EMPCD)}</td>
                     <td class="fw-bold vni-font" style="text-transform:uppercase;">${esc(s.EMP_NAME||'')}</td>
-                    <td>${s.ATTEMPT_NO || 1}</td>
+                    <td>${attemptBadge}</td>
                     <td><strong>${s.SCORE == null ? '-' : s.SCORE}${s.MAX_SCORE ? '/' + s.MAX_SCORE : ''}</strong></td>
                     <td>${s.IS_PASS == 1 ? '<span class="badge bg-success-subtle text-success-emphasis">Đạt</span>' : s.IS_PASS == 0 ? '<span class="badge bg-danger-subtle text-danger-emphasis">Không đạt</span>' : '-'}</td>
                     <td class="text-muted small">${s.SUBMIT_DT ? new Date(s.SUBMIT_DT).toLocaleString('vi-VN') : '-'}</td>

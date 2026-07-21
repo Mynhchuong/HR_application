@@ -18,16 +18,27 @@ public class TrainingReportService
     public async Task<ReportClassModel?> GetClassReportAsync(int classId)
     {
         var meta = (await _db.ExecuteQueryAsync(@"
-            SELECT CL.ID, CL.CLASS_NAME, CL.STATUS, CO.TITLE COURSE_TITLE
+            SELECT CL.ID, CL.CLASS_NAME, CL.STATUS, CL.START_DATE, CL.END_DATE,
+                   CO.TITLE COURSE_TITLE,
+                   (SELECT EC.CNAME FROM HRMS.HR_TRAINING_CLASS_TEACHER T JOIN HRMS.ECM100 EC ON EC.EMPCD = T.EMPCD WHERE T.CLASS_ID = CL.ID AND T.IS_PRIMARY = 1 AND ROWNUM = 1) AS PRIMARY_TEACHER,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S WHERE S.CLASS_ID = CL.ID) AS TOTAL_SESSIONS,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S WHERE S.CLASS_ID = CL.ID AND S.STATUS = 'COMPLETED') AS COMPLETED_SESSIONS,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_TEST TT WHERE TT.CLASS_ID = CL.ID) AS TOTAL_TESTS
               FROM HRMS.HR_TRAINING_CLASS CL
               JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID
              WHERE CL.ID = :ID",
             r => new
             {
-                ID     = Convert.ToInt32(r["ID"]),
-                NAME   = r["CLASS_NAME"]?.ToString() ?? "",
-                ST     = r["STATUS"]?.ToString() ?? "",
-                COURSE = r["COURSE_TITLE"]?.ToString() ?? "",
+                ID           = Convert.ToInt32(r["ID"]),
+                NAME         = r["CLASS_NAME"]?.ToString() ?? "",
+                ST           = r["STATUS"]?.ToString() ?? "",
+                COURSE       = r["COURSE_TITLE"]?.ToString() ?? "",
+                START_DT     = r["START_DATE"] as DateTime?,
+                END_DT       = r["END_DATE"] as DateTime?,
+                TEACHER      = r["PRIMARY_TEACHER"]?.ToString(),
+                TOT_SESS     = Convert.ToInt32(r["TOTAL_SESSIONS"]),
+                COMP_SESS    = Convert.ToInt32(r["COMPLETED_SESSIONS"]),
+                TOT_TESTS    = Convert.ToInt32(r["TOTAL_TESTS"])
             }, new OracleParameter("ID", classId))).FirstOrDefault();
         if (meta == null) return null;
 
@@ -40,8 +51,10 @@ public class TrainingReportService
                 SUM(CASE WHEN STATUS = 'COMPLETED' THEN 1 ELSE 0 END) COMPLETED_CNT,
                 SUM(CASE WHEN STATUS = 'FAILED'    THEN 1 ELSE 0 END) FAILED_CNT,
                 SUM(CASE WHEN IS_CERTIFIED = 1     THEN 1 ELSE 0 END) CERT_CNT,
-                AVG(ATTENDANCE_PERCENT) AVG_ATT,
-                AVG(FINAL_SCORE) AVG_SC
+                CAST(SUM(CASE WHEN ATTENDANCE_PERCENT >= 100 THEN 1 ELSE 0 END) AS NUMBER(10)) EXC_ATT_CNT,
+                CAST(SUM(CASE WHEN ATTENDANCE_PERCENT < 80 THEN 1 ELSE 0 END) AS NUMBER(10)) RISK_ATT_CNT,
+                ROUND(AVG(ATTENDANCE_PERCENT), 2) AVG_ATT,
+                ROUND(AVG(FINAL_SCORE), 2) AVG_SC
               FROM HRMS.HR_TRAINING_ENROLLMENT
              WHERE CLASS_ID = :CID",
             r => new
@@ -53,6 +66,8 @@ public class TrainingReportService
                 C = r["COMPLETED_CNT"] is DBNull ? 0 : Convert.ToInt32(r["COMPLETED_CNT"]),
                 F = r["FAILED_CNT"]    is DBNull ? 0 : Convert.ToInt32(r["FAILED_CNT"]),
                 CE= r["CERT_CNT"]      is DBNull ? 0 : Convert.ToInt32(r["CERT_CNT"]),
+                EA= r["EXC_ATT_CNT"]   is DBNull ? 0 : Convert.ToInt32(r["EXC_ATT_CNT"]),
+                RA= r["RISK_ATT_CNT"]  is DBNull ? 0 : Convert.ToInt32(r["RISK_ATT_CNT"]),
                 AA= r["AVG_ATT"]       is DBNull ? (decimal?)null : Convert.ToDecimal(r["AVG_ATT"]),
                 AS_ = r["AVG_SC"]      is DBNull ? (decimal?)null : Convert.ToDecimal(r["AVG_SC"]),
             }, new OracleParameter("CID", classId))).First();
@@ -60,13 +75,29 @@ public class TrainingReportService
         // Score histogram (5 buckets 0-2, 2-4, 4-6, 6-8, 8-10)
         var hist = await GetHistogramAsync(classId);
 
+        // Retakes (Thi lại lần 1, 2, 3+)
+        var retakes = (await _db.ExecuteQueryAsync(@"
+            SELECT 
+                SUM(CASE WHEN A.ATTEMPT_NO = 2 THEN 1 ELSE 0 END) R1,
+                SUM(CASE WHEN A.ATTEMPT_NO = 3 THEN 1 ELSE 0 END) R2,
+                SUM(CASE WHEN A.ATTEMPT_NO >= 4 THEN 1 ELSE 0 END) R3
+              FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
+              JOIN HRMS.HR_TRAINING_TEST T ON T.ID = A.TEST_ID
+             WHERE T.CLASS_ID = :CID",
+            r => new
+            {
+                R1 = r["R1"] is DBNull ? 0 : Convert.ToInt32(r["R1"]),
+                R2 = r["R2"] is DBNull ? 0 : Convert.ToInt32(r["R2"]),
+                R3 = r["R3"] is DBNull ? 0 : Convert.ToInt32(r["R3"]),
+            }, new OracleParameter("CID", classId))).First();
+
         // Per-group breakdown (nếu Class có group)
         var groups = await _db.ExecuteQueryAsync(@"
             SELECT G.ID GROUP_ID, G.GROUP_NAME,
                    COUNT(CASE WHEN E.STATUS IN ('ENROLLED','COMPLETED','FAILED') THEN 1 END) ENROLLED_CNT,
                    COUNT(CASE WHEN E.STATUS = 'COMPLETED' THEN 1 END) COMPLETED_CNT,
                    COUNT(CASE WHEN E.IS_CERTIFIED = 1     THEN 1 END) CERT_CNT,
-                   AVG(E.ATTENDANCE_PERCENT) AVG_ATT
+                   ROUND(AVG(E.ATTENDANCE_PERCENT), 2) AVG_ATT
               FROM HRMS.HR_TRAINING_CLASS_GROUP G
               LEFT JOIN HRMS.HR_TRAINING_ENROLLMENT E ON E.GROUP_ID = G.ID
              WHERE G.CLASS_ID = :CID
@@ -88,6 +119,12 @@ public class TrainingReportService
             CLASS_NAME            = meta.NAME,
             COURSE_TITLE          = meta.COURSE,
             CLASS_STATUS          = meta.ST,
+            START_DATE            = meta.START_DT,
+            END_DATE              = meta.END_DT,
+            PRIMARY_TEACHER_NAME  = meta.TEACHER,
+            TOTAL_SESSIONS        = meta.TOT_SESS,
+            COMPLETED_SESSIONS   = meta.COMP_SESS,
+            TOTAL_TESTS           = meta.TOT_TESTS,
             ENROLLED_COUNT        = counts.E,
             ASSIGNED_COUNT        = counts.A,
             SELF_REGISTER_COUNT   = counts.S,
@@ -95,8 +132,13 @@ public class TrainingReportService
             COMPLETED_COUNT       = counts.C,
             FAILED_COUNT          = counts.F,
             CERTIFIED_COUNT       = counts.CE,
+            RETAKE_1_COUNT        = retakes.R1,
+            RETAKE_2_COUNT        = retakes.R2,
+            RETAKE_3_COUNT        = retakes.R3,
             AVG_ATTENDANCE_PERCENT= counts.AA,
             AVG_FINAL_SCORE       = counts.AS_,
+            EXCELLENT_ATTENDANCE_COUNT = counts.EA,
+            AT_RISK_ATTENDANCE_COUNT   = counts.RA,
             SCORE_HISTOGRAM       = hist,
             GROUP_BREAKDOWN       = groups,
         };
@@ -124,7 +166,7 @@ public class TrainingReportService
                    SUM(CASE WHEN E.STATUS = 'COMPLETED' THEN 1 ELSE 0 END) COMPLETED_CNT,
                    SUM(CASE WHEN E.STATUS = 'FAILED'    THEN 1 ELSE 0 END) FAILED_CNT,
                    SUM(CASE WHEN E.IS_CERTIFIED = 1     THEN 1 ELSE 0 END) CERT_CNT,
-                   AVG(E.ATTENDANCE_PERCENT) AVG_ATT,
+                   ROUND(AVG(E.ATTENDANCE_PERCENT), 2) AVG_ATT,
                    AVG(E.FINAL_SCORE) AVG_SC
               FROM HRMS.HR_TRAINING_CLASS CL
               LEFT JOIN HRMS.HR_TRAINING_ENROLLMENT E ON E.CLASS_ID = CL.ID
@@ -258,7 +300,7 @@ public class TrainingReportService
                 NAME    = r["EMP_NAME"] as string,
                 GID     = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
                 GNAME   = r["GROUP_NAME"] as string,
-                ATT_PCT = r["ATTENDANCE_PERCENT"] is DBNull ? 0m : Convert.ToDecimal(r["ATTENDANCE_PERCENT"]),
+                ATT_PCT = r["ATTENDANCE_PERCENT"] is DBNull ? (decimal?)null : Convert.ToDecimal(r["ATTENDANCE_PERCENT"]),
             }, new OracleParameter("CID", classId));
 
         // Fetch all attendance rows once (avoid N+1) — kèm CHECKIN_TIME để biết dòng nào do học viên
@@ -278,15 +320,20 @@ public class TrainingReportService
         var byKey = attendances.ToDictionary(a => (a.SID, a.EMPCD), a => a.ST);
         var selfCheckinByKey = attendances.ToDictionary(a => (a.SID, a.EMPCD), a => a.SELF_CI);
 
-        var students = studentRows.Select(s => {
+        var students = new List<AttendanceMatrixStudent>();
+        foreach (var s in studentRows)
+        {
             var m = new AttendanceMatrixStudent
             {
-                EMPCD              = s.EMPCD,
-                EMP_NAME           = s.NAME,
-                GROUP_ID           = s.GID,
-                GROUP_NAME         = s.GNAME,
-                ATTENDANCE_PERCENT = s.ATT_PCT,
+                EMPCD      = s.EMPCD,
+                EMP_NAME   = s.NAME,
+                GROUP_ID   = s.GID,
+                GROUP_NAME = s.GNAME,
             };
+
+            int totalHeldSessions = 0;
+            int presentSessions = 0;
+
             foreach (var sess in sessions)
             {
                 // Session không thuộc scope học viên (khác group + session không phải global) → ""
@@ -296,13 +343,53 @@ public class TrainingReportService
                     m.SELF_CHECKIN_PER_SESSION[sess.SESSION_ID] = false;
                     continue;
                 }
-                m.STATUS_PER_SESSION[sess.SESSION_ID] =
-                    byKey.TryGetValue((sess.SESSION_ID, s.EMPCD), out var st) ? st : "";
+
+                var status = byKey.TryGetValue((sess.SESSION_ID, s.EMPCD), out var stVal) ? stVal : "";
+                m.STATUS_PER_SESSION[sess.SESSION_ID] = status;
                 m.SELF_CHECKIN_PER_SESSION[sess.SESSION_ID] =
                     selfCheckinByKey.TryGetValue((sess.SESSION_ID, s.EMPCD), out var ci) && ci;
+
+                // Đếm số buổi đã diễn ra hoặc đã có điểm danh cho học viên này
+                if (!string.IsNullOrEmpty(status) || sess.SESSION_STATUS == "COMPLETED")
+                {
+                    totalHeldSessions++;
+                    if (status == "PRESENT" || status == "LATE" || status == "EXCUSED")
+                    {
+                        presentSessions++;
+                    }
+                }
             }
-            return m;
-        }).ToList();
+
+            // Tính tỷ lệ % điểm danh thời gian thực:
+            // 1. Nếu đã có buổi học diễn ra (totalHeldSessions > 0), tính % = (số buổi có mặt / tổng số buổi đã học) * 100%.
+            // 2. Nếu chưa có buổi nào diễn ra nhưng DB đã có lưu ATTENDANCE_PERCENT, dùng DB value.
+            if (totalHeldSessions > 0)
+            {
+                m.ATTENDANCE_PERCENT = Math.Round((decimal)presentSessions * 100m / totalHeldSessions, 1);
+            }
+            else if (s.ATT_PCT.HasValue)
+            {
+                m.ATTENDANCE_PERCENT = s.ATT_PCT.Value;
+            }
+            else
+            {
+                m.ATTENDANCE_PERCENT = 0m;
+            }
+
+            // Đồng bộ lại ATTENDANCE_PERCENT vào DB HR_TRAINING_ENROLLMENT nếu có thay đổi hoặc đang NULL
+            if (!s.ATT_PCT.HasValue || s.ATT_PCT.Value != m.ATTENDANCE_PERCENT)
+            {
+                await _db.ExecuteNonQueryAsync(@"
+                    UPDATE HRMS.HR_TRAINING_ENROLLMENT
+                       SET ATTENDANCE_PERCENT = :ATT
+                     WHERE CLASS_ID = :CID AND EMPCD = :EMP",
+                    new OracleParameter("ATT", m.ATTENDANCE_PERCENT),
+                    new OracleParameter("CID", classId),
+                    new OracleParameter("EMP", m.EMPCD));
+            }
+
+            students.Add(m);
+        }
 
         return new ReportAttendanceMatrix { SESSIONS = sessions, STUDENTS = students };
     }
@@ -399,6 +486,9 @@ public class TrainingReportService
             ATTEMPT_COUNT= attempts.Count,
             PASS_COUNT   = byStudent.Count(g => g.Any(a => a.IS_PASS == 1)),
             FAIL_COUNT   = byStudent.Count(g => g.All(a => a.IS_PASS != 1) && g.Any(a => a.IS_PASS != null)),
+            RETAKE_1_COUNT = attempts.Count(a => a.ATTEMPT_NO == 2),
+            RETAKE_2_COUNT = attempts.Count(a => a.ATTEMPT_NO == 3),
+            RETAKE_3_COUNT = attempts.Count(a => a.ATTEMPT_NO >= 4),
             AVG_SCORE    = scores.Count > 0 ? Math.Round(scores.Average(), 2) : null,
             MAX_SCORE    = scores.Count > 0 ? scores.Max() : null,
             MIN_SCORE    = scores.Count > 0 ? scores.Min() : null,

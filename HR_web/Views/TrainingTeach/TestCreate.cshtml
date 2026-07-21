@@ -42,6 +42,14 @@
                             <label class="form-label small fw-bold text-muted">Số lượt thi tối đa</label>
                             <input type="number" id="test-max-attempts" class="form-control py-2.5" value="1" min="1" style="border-radius: 8px;" />
                         </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch p-3 bg-light rounded-3 border">
+                                <input class="form-check-input ms-0 me-2" type="checkbox" id="copy-to-all-classes">
+                                <label class="form-check-label fw-bold text-primary" for="copy-to-all-classes">
+                                    <i class="bi bi-intersect me-1"></i> Tự động áp dụng đề thi này cho TẤT CẢ các Lớp học trong cùng Khóa học
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -223,6 +231,11 @@
                 return;
             }
 
+            if (!passScore || passScore <= 0) {
+                window.showToast('Vui lòng nhập Điểm sàn đạt (Pass score) lớn hơn 0!', 'warning');
+                return;
+            }
+
             // Validation for questions & options
             const cards = document.querySelectorAll('.builder-question-card');
             if (cards.length === 0) {
@@ -347,9 +360,26 @@
                         throw new Error(errorMsg);
                     }
                     return resQ;
-                }).then(resQ => {
+                }).then(async resQ => {
+                    const copyToAll = document.getElementById('copy-to-all-classes').checked;
+                    if (copyToAll) {
+                        try {
+                            await fetch('@Url.Action("CopyTest", "TrainingTeach")', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    source_test_id: savedTestId,
+                                    target_class_id: classId,
+                                    copy_to_all_classes_in_course: true
+                                })
+                            });
+                        } catch (e) {
+                            console.error('Error auto-copying test to all classes:', e);
+                        }
+                    }
+
                     spinner.classList.add('d-none');
-                    window.showToast('Tạo đề thi nháp thành công!', 'success');
+                    window.showToast(copyToAll ? 'Tạo đề thi và đồng bộ thành công cho tất cả các lớp trong khóa!' : 'Tạo đề thi nháp thành công!', 'success');
                     setTimeout(() => {
                         window.location.href = window.TRAINING_URLS.classManage;
                     }, 1500);

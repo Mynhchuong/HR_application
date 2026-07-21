@@ -363,6 +363,23 @@ public class TrainingTeachController : BaseController
         return Content(json, "application/json");
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetCourseTests(int classId)
+    {
+        var data = await _training.GetCourseTestsAsync(classId);
+        return Json(new { success = data != null, data });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CopyTest([FromBody] CopyTestRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/test/copy", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
     // Sửa lại ngày mở/đóng cho bài đã publish (không đổi từ nháp — dùng TestPublish cho việc đó)
     [HttpPost]
     public async Task<IActionResult> TestUpdateSchedule([FromBody] ChangeTestStatusRequest req)

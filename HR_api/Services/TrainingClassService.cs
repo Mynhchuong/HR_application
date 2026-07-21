@@ -479,9 +479,14 @@ public class TrainingClassService
             try { await _bulletin.UnpublishAsync(bulletinId, actor); } catch {}
         }
 
+        // Gỡ FK FINAL_TEST_ID trước khi xóa TEST — nếu không sẽ dính ORA-02292 (FK_TRCL_FINAL_TEST)
+        // bất cứ khi nào Class có gán bài thi cuối khóa.
+        await _db.ExecuteNonQueryAsync("UPDATE HRMS.HR_TRAINING_CLASS SET FINAL_TEST_ID = NULL WHERE ID = :ID",
+            new OracleParameter("ID", classId));
+
         // Xóa dữ liệu liên quan theo thứ tự ngược lại (tránh dính FK constraint)
         await _db.ExecuteNonQueryAsync(@"
-            DELETE FROM HRMS.HR_TRAINING_TEST_ANSWER 
+            DELETE FROM HRMS.HR_TRAINING_TEST_ANSWER
             WHERE ATTEMPT_ID IN (
                 SELECT TA.ID FROM HRMS.HR_TRAINING_TEST_ATTEMPT TA
                 JOIN HRMS.HR_TRAINING_TEST TT ON TA.TEST_ID = TT.ID
@@ -713,7 +718,7 @@ public class TrainingClassService
                  MIN_ATTENDANCE_PERCENT,
                  CLONED_FROM_TYPE, IS_EXPRESS,
                  INST_ID)
-            VALUES (:COID, :NAME, :DESC,
+            VALUES (:COID, :NAME, :DESCX,
                     'DRAFT', 'ASSIGNED',
                     :SD, :ED,
                     :MIN,
@@ -722,7 +727,7 @@ public class TrainingClassService
             RETURNING ID INTO :NEW_ID",
             new OracleParameter("COID", req.COURSE_ID),
             new OracleParameter("NAME", req.CLASS_NAME),
-            new OracleParameter("DESC", (object?)(req.DESCRIPTION ?? course.DESC) ?? DBNull.Value),
+            new OracleParameter("DESCX", (object?)(req.DESCRIPTION ?? course.DESC) ?? DBNull.Value),
             new OracleParameter("SD",   req.START_DATE.Date),
             new OracleParameter("ED",   endDate),
             new OracleParameter("MIN",  course.MIN_ATT),
@@ -856,7 +861,7 @@ public class TrainingClassService
                  MIN_ATTENDANCE_PERCENT, REQUIRE_POST_REVIEW,
                  CLONED_FROM_CLASS_ID, CLONED_FROM_TYPE, IS_EXPRESS,
                  INST_ID)
-            VALUES (:COID, :NAME, :DESC,
+            VALUES (:COID, :NAME, :DESCX,
                     'DRAFT', :REG_MODE, :MAX_STUDENTS, :REG_DEADLINE,
                     :SD, :ED,
                     :MIN_ATT, :REQ_REVIEW,
@@ -865,7 +870,7 @@ public class TrainingClassService
             RETURNING ID INTO :NEW_ID",
             new OracleParameter("COID",        old.COURSE_ID),
             new OracleParameter("NAME",        req.CLASS_NAME),
-            new OracleParameter("DESC",        (object?)old.DESCRIPTION ?? DBNull.Value),
+            new OracleParameter("DESCX",       (object?)old.DESCRIPTION ?? DBNull.Value),
             new OracleParameter("REG_MODE",    old.REG_MODE),
             new OracleParameter("MAX_STUDENTS",(object?)old.MAX_STUDENTS ?? DBNull.Value),
             new OracleParameter("REG_DEADLINE",(object?)newDeadline ?? DBNull.Value),

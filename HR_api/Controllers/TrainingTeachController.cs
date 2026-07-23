@@ -421,6 +421,29 @@ public class TrainingTeachController : ControllerBase
         return Ok(new { success = ok, message = err });
     }
 
+    // POST /apiHR/TrainingTeach/test/close — dừng bài thi đang PUBLISHED/OPEN (lỡ publish nhầm hoặc
+    // đề bị lỗi) — không xóa/sửa được nữa (đã publish, bảo vệ dữ liệu học viên đã làm) nhưng ít
+    // nhất chặn không cho học viên làm/nộp bài thêm.
+    [HttpPost("test/close")]
+    public async Task<IActionResult> TestClose([FromBody] ChangeTestStatusRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.LOGIN_USER))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
+        if (!await _auth.IsTeacherOfTestAsync(req.LOGIN_USER, req.ID) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+            return StatusCode(403, new { success = false, message = "Không có quyền dừng bài kiểm tra này" });
+
+        try
+        {
+            await _test.CloseAsync(req.ID, req.LOGIN_USER);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     // POST /apiHR/TrainingTeach/test/delete — chỉ xóa DRAFT
     [HttpPost("test/delete")]
     public async Task<IActionResult> TestDelete([FromBody] ChangeTestStatusRequest req)

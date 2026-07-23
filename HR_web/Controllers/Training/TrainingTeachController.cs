@@ -57,8 +57,9 @@ public class TrainingTeachController : BaseController
         return View();
     }
 
-    // GET /TrainingTeach/TestCreate/{id}
-    public async Task<IActionResult> TestCreate(int id)
+    // GET /TrainingTeach/TestCreate/{id}?testId= — testId có giá trị → mở form ở chế độ Sửa
+    // (chỉ cho sửa khi bài thi còn DRAFT — khớp ràng buộc TrainingTestService.SaveAsync).
+    public async Task<IActionResult> TestCreate(int id, int? testId = null)
     {
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
@@ -68,6 +69,25 @@ public class TrainingTeachController : BaseController
 
         ViewBag.EmpCd = empcd;
         ViewBag.ClassId = id;
+
+        if (testId.HasValue)
+        {
+            var detail = await _training.GetTestDetailAsync(testId.Value);
+            if (detail?.test == null || detail.test.CLASS_ID != id || detail.test.STATUS != "DRAFT")
+                return RedirectToAction("ClassManage", new { id });
+
+            ViewBag.EditTestId = testId.Value;
+            ViewBag.EditData = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                title = detail.test.TITLE,
+                description = detail.test.DESCRIPTION,
+                durationMinutes = detail.test.DURATION_MINUTES,
+                passScore = detail.test.PASS_SCORE,
+                maxAttempts = detail.test.MAX_ATTEMPTS,
+                questions = detail.questions ?? new List<TestQuestionInputModel>(),
+            });
+        }
+
         return View();
     }
 
@@ -419,6 +439,16 @@ public class TrainingTeachController : BaseController
     {
         req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
         var response = await _training.PostToApiAsync("TrainingTeach/test/delete", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> TestClose([FromBody] ChangeTestStatusRequest req)
+    {
+        req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("TrainingTeach/test/close", req);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");

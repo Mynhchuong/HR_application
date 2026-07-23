@@ -1,5 +1,7 @@
 @{
-    ViewData["Title"] = "Tạo đề thi mới";
+    var editTestId = ViewBag.EditTestId as int?;
+    var editDataJson = ViewBag.EditData as string;
+    ViewData["Title"] = editTestId.HasValue ? "Sửa đề thi" : "Tạo đề thi mới";
     Layout = "~/Views/Shared/_Layout.cshtml";
     var empCd = ViewBag.EmpCd as string;
     var classId = ViewBag.ClassId;
@@ -9,7 +11,7 @@
     <div class="card my-4">
         @await Html.PartialAsync("_TrainingPageHeader", new TrainingPageHeaderVM
         {
-            Title = "Tạo đề thi",
+            Title = editTestId.HasValue ? "Sửa đề thi" : "Tạo đề thi",
             Icon = "bi-file-earmark-plus",
             Gradient = "success",
             BackUrl = Url.Action("ClassManage", "TrainingTeach", new { id = classId }),
@@ -18,7 +20,7 @@
     <div class="row">
         <div class="col-12 col-lg-8 mx-auto">
             <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
-                <h4 class="fw-bold text-dark mb-4">Cấu hình Đề kiểm tra mới</h4>
+                <h4 class="fw-bold text-dark mb-4">@(editTestId.HasValue ? "Cấu hình Đề kiểm tra" : "Cấu hình Đề kiểm tra mới")</h4>
 
                 <form id="testConfigForm">
                     <div class="row g-3">
@@ -42,14 +44,17 @@
                             <label class="form-label small fw-bold text-muted">Số lượt thi tối đa</label>
                             <input type="number" id="test-max-attempts" class="form-control py-2.5" value="1" min="1" style="border-radius: 8px;" />
                         </div>
-                        <div class="col-12">
-                            <div class="form-check form-switch p-3 bg-light rounded-3 border">
-                                <input class="form-check-input ms-0 me-2" type="checkbox" id="copy-to-all-classes">
-                                <label class="form-check-label fw-bold text-primary" for="copy-to-all-classes">
-                                    <i class="bi bi-intersect me-1"></i> Tự động áp dụng đề thi này cho TẤT CẢ các Lớp học trong cùng Khóa học
-                                </label>
+                        @if (!editTestId.HasValue)
+                        {
+                            <div class="col-12">
+                                <div class="form-check form-switch p-3 bg-light rounded-3 border">
+                                    <input class="form-check-input ms-0 me-2" type="checkbox" id="copy-to-all-classes">
+                                    <label class="form-check-label fw-bold text-primary" for="copy-to-all-classes">
+                                        <i class="bi bi-intersect me-1"></i> Tự động áp dụng đề thi này cho TẤT CẢ các Lớp học trong cùng Khóa học
+                                    </label>
+                                </div>
                             </div>
-                        </div>
+                        }
                     </div>
                 </form>
             </div>
@@ -73,7 +78,7 @@
                 <div class="d-grid mt-3">
                     <button type="button" onclick="saveTestWithQuestions()" class="btn btn-primary py-3 rounded-3 fw-bold shadow-sm">
                         <span id="save-spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
-                        Lưu đề thi (Nháp)
+                        @(editTestId.HasValue ? "Lưu thay đổi" : "Lưu đề thi (Nháp)")
                     </button>
                 </div>
             </div>
@@ -101,15 +106,30 @@
         };
         const empCd = '@empCd';
         const classId = @classId;
+        const EDIT_TEST_ID = @(editTestId.HasValue ? editTestId.Value.ToString() : "null");
+        const EDIT_DATA = @Html.Raw(string.IsNullOrEmpty(editDataJson) ? "null" : editDataJson);
 
         let questionCount = 0;
 
         document.addEventListener('DOMContentLoaded', function () {
-            // Add initial question card
-            addQuestionCard();
+            if (EDIT_DATA) {
+                document.getElementById('test-title').value = EDIT_DATA.title || '';
+                document.getElementById('test-desc').value = EDIT_DATA.description || '';
+                document.getElementById('test-duration').value = EDIT_DATA.durationMinutes || 45;
+                document.getElementById('test-pass-score').value = EDIT_DATA.passScore ?? 5.0;
+                document.getElementById('test-max-attempts').value = EDIT_DATA.maxAttempts || 1;
+                if ((EDIT_DATA.questions || []).length === 0) {
+                    addQuestionCard();
+                } else {
+                    EDIT_DATA.questions.forEach(q => addQuestionCard(q));
+                }
+            } else {
+                // Add initial question card
+                addQuestionCard();
+            }
         });
 
-        function addQuestionCard() {
+        function addQuestionCard(initial) {
             questionCount++;
             const container = document.getElementById('questions-builder-container');
             const qId = questionCount;
@@ -119,7 +139,7 @@
             card.id = `q_card_${qId}`;
             card.innerHTML = `
                 <button type="button" onclick="removeQuestionCard(${qId})" class="btn-close position-absolute end-0 top-0 m-3" aria-label="Close"></button>
-                
+
                 <div class="row g-3">
                     <div class="col-12 col-md-3">
                         <label class="form-label small fw-bold text-muted">Loại câu hỏi</label>
@@ -137,14 +157,12 @@
                         <label class="form-label small fw-bold text-muted">Điểm số</label>
                         <input type="number" id="q_points_${qId}" class="form-control" value="1.0" min="0.5" step="0.5" style="border-radius: 8px;" />
                     </div>
-                    
+
                     <!-- Options area (hidden for text/essay question) -->
                     <div class="col-12" id="q_options_area_${qId}">
                         <label class="form-label small fw-bold text-muted d-block mb-2">Các đáp án lựa chọn (Đánh dấu tick/radio vào câu đúng)</label>
                         <div id="options_container_${qId}">
-                            <!-- Initial options -->
-                            ${renderOptionRow(qId, 1)}
-                            ${renderOptionRow(qId, 2)}
+                            <!-- Options added below -->
                         </div>
                         <button type="button" onclick="addOptionRow(${qId})" class="btn btn-xs btn-outline-success mt-2">
                             + Thêm đáp án
@@ -153,6 +171,25 @@
                 </div>
             `;
             container.appendChild(card);
+
+            if (initial) {
+                document.getElementById(`q_type_${qId}`).value = initial.QUESTION_TYPE || 'SINGLE';
+                document.getElementById(`q_text_${qId}`).value = initial.QUESTION_TEXT || '';
+                document.getElementById(`q_points_${qId}`).value = initial.POINTS ?? 1.0;
+                toggleOptionsArea(qId);
+                (initial.OPTIONS || []).forEach(() => addOptionRow(qId));
+                const optInputs   = document.querySelectorAll(`#options_container_${qId} .opt-text-${qId}`);
+                const indicators  = document.querySelectorAll(`#options_container_${qId} .correct-indicator-${qId}`);
+                (initial.OPTIONS || []).forEach((o, idx) => {
+                    if (optInputs[idx])  optInputs[idx].value = o.OPTION_TEXT || '';
+                    if (indicators[idx]) indicators[idx].checked = o.IS_CORRECT === 1;
+                });
+                return;
+            }
+
+            // Câu hỏi mới (không có initial) — mặc định 2 đáp án trống.
+            addOptionRow(qId);
+            addOptionRow(qId);
         }
 
         function removeQuestionCard(qId) {
@@ -292,6 +329,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    ID: EDIT_TEST_ID,
                     CLASS_ID: classId,
                     IS_TEMPLATE: 0,
                     TITLE: title,
@@ -361,7 +399,8 @@
                     }
                     return resQ;
                 }).then(async resQ => {
-                    const copyToAll = document.getElementById('copy-to-all-classes').checked;
+                    const copyToAllEl = document.getElementById('copy-to-all-classes');
+                    const copyToAll = copyToAllEl ? copyToAllEl.checked : false;
                     if (copyToAll) {
                         try {
                             await fetch('@Url.Action("CopyTest", "TrainingTeach")', {
@@ -379,7 +418,10 @@
                     }
 
                     spinner.classList.add('d-none');
-                    window.showToast(copyToAll ? 'Tạo đề thi và đồng bộ thành công cho tất cả các lớp trong khóa!' : 'Tạo đề thi nháp thành công!', 'success');
+                    const successMsg = EDIT_TEST_ID
+                        ? 'Đã lưu thay đổi đề thi!'
+                        : (copyToAll ? 'Tạo đề thi và đồng bộ thành công cho tất cả các lớp trong khóa!' : 'Tạo đề thi nháp thành công!');
+                    window.showToast(successMsg, 'success');
                     setTimeout(() => {
                         window.location.href = window.TRAINING_URLS.classManage;
                     }, 1500);

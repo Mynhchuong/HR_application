@@ -207,7 +207,9 @@
         testPublish:      '@Url.Action("TestPublish",      "TrainingTeach")',
         testUpdateSchedule: '@Url.Action("TestUpdateSchedule", "TrainingTeach")',
         testDelete:       '@Url.Action("TestDelete",       "TrainingTeach")',
+        testClose:        '@Url.Action("TestClose",        "TrainingTeach")',
         testPreview:      '@Url.Action("TestPreview",      "TrainingTeach", new { id = "__ID__" })',
+        testEdit:         '@Url.Action("TestCreate",       "TrainingTeach", new { id = classId, testId = "__ID__" })',
         setFinalTest:     '@Url.Action("SetFinalTest",     "TrainingTeach")',
     };
     const empCd   = '@empCd';
@@ -496,6 +498,18 @@
                     <i class="bi bi-calendar-event" style="font-size:.85rem;vertical-align:middle;"></i> Sửa thời gian
                 </button>` : '';
 
+            const editBtn    = isDraft ? `
+                <a href="${window.TRAINING_URLS.testEdit.replace('__ID__', t.ID)}" class="btn btn-sm btn-outline-secondary test-action-btn fw-bold" title="Sửa đề thi (điểm sàn, lượt thi, câu hỏi, đáp án...)">
+                    <i class="bi bi-pencil-square" style="font-size:.85rem;vertical-align:middle;"></i> Sửa
+                </a>` : '';
+
+            // Lỡ xuất bản nhầm bài hoặc đề bị lỗi — dừng ngay để học viên không làm/nộp thêm được
+            // nữa (không sửa/xóa được vì đã publish, nhưng ít nhất chặn thiệt hại thêm).
+            const closeTestBtn = (t.STATUS === 'PUBLISHED' || t.STATUS === 'OPEN') ? `
+                <button onclick="closeTest(${t.ID})" class="btn btn-sm btn-outline-danger test-action-btn fw-bold" title="Dừng bài thi (lỡ publish nhầm hoặc đề bị lỗi)">
+                    <i class="bi bi-stop-circle" style="font-size:.85rem;vertical-align:middle;"></i> Dừng bài
+                </button>` : '';
+
             const deleteBtn  = isDraft ? `
                 <button onclick="deleteTest(${t.ID})" class="btn btn-sm btn-outline-danger test-action-btn" title="Xóa bài nháp">
                     <i class="bi bi-trash" style="font-size:.85rem;vertical-align:middle;"></i>
@@ -547,7 +561,7 @@
                     ${draftNote}
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">
                         <div class="d-flex flex-wrap gap-1">
-                            ${publishBtn}${editScheduleBtn}${reportBtn}${gradeBtn}${previewBtn}${deleteBtn}
+                            ${publishBtn}${editScheduleBtn}${editBtn}${closeTestBtn}${reportBtn}${gradeBtn}${previewBtn}${deleteBtn}
                         </div>
                         ${setFinalBtn}
                     </div>
@@ -645,6 +659,32 @@
                 else window.showToast(res.message || 'Lỗi xóa.', 'error');
             });
         });
+    }
+
+    // Dừng bài thi lỡ xuất bản nhầm / phát hiện đề bị lỗi — chặn học viên làm/nộp bài thêm.
+    // Không sửa/xóa được sau khi đã publish (bảo vệ dữ liệu học viên đã làm), Dừng là cách duy nhất
+    // để chặn thiệt hại thêm ngay lập tức.
+    function closeTest(id) {
+        window.showConfirm(
+            'Dừng bài thi này? Học viên sẽ KHÔNG làm/nộp bài được nữa. Dùng khi lỡ xuất bản nhầm hoặc phát hiện đề bị lỗi.',
+            () => {
+                fetch(window.TRAINING_URLS.testClose, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ID: id })
+                }).then(r => r.json()).then(res => {
+                    if (res.success) { window.showToast('Đã dừng bài thi!', 'success'); loadTestsList(); }
+                    else window.showToast(res.message || 'Lỗi dừng bài thi.', 'error');
+                });
+            },
+            {
+                title: 'Dừng bài thi',
+                okText: 'Dừng bài',
+                okClass: 'btn-danger',
+                icon: 'stop_circle',
+                iconColor: '#dc2626',
+                iconBg: '#fee2e2'
+            }
+        );
     }
 
     /* ── Q&A ── */

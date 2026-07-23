@@ -162,6 +162,25 @@ public class TestOptionInputModel
     public int DISPLAY_ORDER { get; set; }
 }
 
+// DS chi tiết 1 test để nạp lại vào form khi Sửa đề thi Nháp
+public class TestConfigModel
+{
+    public int     ID { get; set; }
+    public int?    CLASS_ID { get; set; }
+    public string  TITLE { get; set; } = "";
+    public string? DESCRIPTION { get; set; }
+    public int     DURATION_MINUTES { get; set; }
+    public decimal? PASS_SCORE { get; set; }
+    public int     MAX_ATTEMPTS { get; set; }
+    public string  STATUS { get; set; } = "";
+}
+public class TestDetailData
+{
+    public TestConfigModel? test { get; set; }
+    public List<TestQuestionInputModel>? questions { get; set; }
+}
+public class TestDetailResponse { public bool success { get; set; } public string? message { get; set; } public TestDetailData? data { get; set; } }
+
 public class SaveTestQuestionsRequest
 {
     public int TEST_ID { get; set; }

@@ -40,6 +40,7 @@ public class TrainingAttemptService
                 AF       = r["AVAILABLE_FROM"] as DateTime?,
                 AT       = r["AVAILABLE_TO"]   as DateTime?,
                 PS       = r["PASS_SCORE"] is DBNull ? (decimal?)null : Convert.ToDecimal(r["PASS_SCORE"]),
+                MAX_ATT  = r["MAX_ATTEMPTS"] is DBNull ? 1 : Convert.ToInt32(r["MAX_ATTEMPTS"]),
             }, new OracleParameter("ID", req.TEST_ID))).FirstOrDefault();
 
         if (test == null) return (null, "Không tìm thấy test");
@@ -66,10 +67,16 @@ public class TrainingAttemptService
         var existing = await GetAttemptByTestEmpAsync(req.TEST_ID, req.EMPCD);
         if (existing != null && existing.STATUS == "IN_PROGRESS") return (existing, null);
 
-        // Đã có lần thi kết thúc rồi, hoặc chưa từng thi nhưng cửa sổ AVAILABLE_TO đã đóng —
-        // chỉ làm bài tiếp được nếu HR đã cấp 1 lượt thi lại (HR_TRAINING_RETAKE_GRANT PENDING).
+        var nextAttemptNo = (existing?.ATTEMPT_NO ?? 0) + 1;
+
+        // Đã có lần thi kết thúc rồi, hoặc chưa từng thi nhưng cửa sổ AVAILABLE_TO đã đóng.
+        // Học viên TỰ thi lại được (không cần HR duyệt) miễn còn trong cửa sổ AVAILABLE_TO VÀ
+        // chưa vượt quá "Số lượt thi tối đa" (MAX_ATTEMPTS) đã cấu hình cho bài — đúng như tên gọi
+        // field. Chỉ cần HR cấp thêm (HR_TRAINING_RETAKE_GRANT PENDING) khi: cửa sổ đã đóng, hoặc
+        // đã dùng hết số lượt cấu hình mà vẫn muốn cho thêm 1 lượt ngoại lệ.
         bool windowClosed = test.AT.HasValue && now > test.AT.Value;
-        bool needsGrant = existing != null || windowClosed;
+        bool withinConfiguredAttempts = nextAttemptNo <= test.MAX_ATT;
+        bool needsGrant = windowClosed || (existing != null && !withinConfiguredAttempts);
         bool usedGrant = false;
 
         if (needsGrant)
@@ -90,8 +97,6 @@ public class TrainingAttemptService
             }
             usedGrant = true;
         }
-
-        var nextAttemptNo = (existing?.ATTEMPT_NO ?? 0) + 1;
 
         // START_DT = SYSDATE, EFFECTIVE_DEADLINE = MIN(START + DURATION, AVAILABLE_TO) — tính hết
         // bằng giờ DB trong SQL, không dùng giờ app (từng bị START_DT > SUBMIT_DT do clock skew).

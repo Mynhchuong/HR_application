@@ -72,6 +72,7 @@ public class SaveTestRequest
     public DateTime? AVAILABLE_FROM { get; set; }
     public DateTime? AVAILABLE_TO { get; set; }
     public decimal? PASS_SCORE { get; set; }
+    public int?   MAX_ATTEMPTS { get; set; }
     public string LOGIN_USER { get; set; } = "";
 }
 

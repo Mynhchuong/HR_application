@@ -152,6 +152,8 @@ public class TrainingTestService
         if (req.AVAILABLE_FROM.HasValue && req.AVAILABLE_TO.HasValue && req.AVAILABLE_TO < req.AVAILABLE_FROM)
             throw new InvalidOperationException("AVAILABLE_TO phải sau AVAILABLE_FROM");
 
+        var maxAttempts = (req.MAX_ATTEMPTS is int ma && ma > 0) ? ma : 1;
+
         if (req.ID == null)
         {
             const string sqlIns = @"
@@ -164,7 +166,7 @@ public class TrainingTestService
                     (:CID, :TPL, :TCID,
                      :TT, :DS, 'DRAFT',
                      :DUR, :AF, :AT,
-                     :PS, 1, :USR, :USR)
+                     :PS, :MA, :USR, :USR)
                 RETURNING ID INTO :NEW_ID";
             var idParam = new OracleParameter("NEW_ID", OracleDbType.Int32)
             {
@@ -180,6 +182,7 @@ public class TrainingTestService
                 new OracleParameter("AF",   (object?)req.AVAILABLE_FROM ?? DBNull.Value),
                 new OracleParameter("AT",   (object?)req.AVAILABLE_TO   ?? DBNull.Value),
                 new OracleParameter("PS",   (object?)req.PASS_SCORE     ?? DBNull.Value),
+                new OracleParameter("MA",   maxAttempts),
                 new OracleParameter("USR",  req.LOGIN_USER),
                 idParam);
             return OracleService.ConvertToInt(idParam.Value);
@@ -200,6 +203,7 @@ public class TrainingTestService
                        AVAILABLE_FROM   = :AF,
                        AVAILABLE_TO     = :AT,
                        PASS_SCORE       = :PS,
+                       MAX_ATTEMPTS     = :MA,
                        UPDT_ID          = :USR
                  WHERE ID = :ID",
                 new OracleParameter("TT",  req.TITLE),
@@ -208,6 +212,7 @@ public class TrainingTestService
                 new OracleParameter("AF",  (object?)req.AVAILABLE_FROM ?? DBNull.Value),
                 new OracleParameter("AT",  (object?)req.AVAILABLE_TO   ?? DBNull.Value),
                 new OracleParameter("PS",  (object?)req.PASS_SCORE     ?? DBNull.Value),
+                new OracleParameter("MA",  maxAttempts),
                 new OracleParameter("USR", req.LOGIN_USER),
                 new OracleParameter("ID",  req.ID.Value));
             return req.ID.Value;
@@ -458,7 +463,6 @@ public class TrainingTestService
             "DELETE FROM HRMS.HR_TRAINING_TEST WHERE ID = :TID",
             new OracleParameter("TID", id));
     }
-
 
     // ═══════════════════════════════════════════════════════════════
     //  SAO CHÉP ĐỀ THI GIỮA CÁC LỚP CÙNG KHÓA (COPY / CLONE TEST)

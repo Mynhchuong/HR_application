@@ -70,8 +70,7 @@
                             <table class="table table-hover align-middle mb-0 text-nowrap">
                                 <thead class="bg-light table-head-custom">
                                     <tr>
-                                        <th class="ps-4">Mã NV</th>
-                                        <th>Họ tên học viên</th>
+                                        <th class="ps-4">Mã NV / Họ tên học viên</th>
                                         <th>Tổ/Nhóm</th>
                                         <th class="text-center">Học viên tự điểm danh</th>
                                         <th class="text-center" style="width: 320px;">Trạng thái điểm danh</th>
@@ -158,6 +157,24 @@
         background-color: #c92a2a;
         color: #fff;
         box-shadow: 0 2px 6px rgba(201,42,42,0.3);
+    }
+
+    /* Dòng đã lưu (giáo viên xác nhận điểm danh) — nổi bật để biết ai đã lưu, ai chưa. */
+    tr.row-confirmed {
+        background-color: #e9f7ef !important;
+        transition: background-color .3s ease;
+    }
+    tr.row-confirmed td { border-color: #c3e6cb; }
+    .att-card.card-confirmed {
+        background-color: #e9f7ef;
+        border: 1px solid #badbcc;
+    }
+    .confirmed-badge {
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 3px 9px;
+        vertical-align: middle;
+        letter-spacing: .2px;
     }
 
     /* ── Mobile card layout ── */
@@ -411,10 +428,27 @@
                     ? `<span class="badge bg-success-subtle text-success-emphasis border" title="Tự điểm danh lúc ${new Date(st.CHECKIN_TIME).toLocaleString('vi-VN')}"><i class="bi bi-phone-vibrate me-1"></i>${new Date(st.CHECKIN_TIME).toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}</span>`
                     : `<span class="badge bg-secondary-subtle text-secondary-emphasis border">Chưa tự điểm danh</span>`;
 
+                // Giáo viên đã bấm Lưu cho học viên này chưa (TEACHER_CONFIRMED) — tô nổi bật dòng +
+                // đổi nút Lưu để biết ngay ai đã lưu, ai chưa, khỏi phải dò cả danh sách dài.
+                const isConfirmed = st.TEACHER_CONFIRMED === 1;
+                const rowConfirmedCls  = isConfirmed ? 'row-confirmed' : '';
+                const cardConfirmedCls = isConfirmed ? 'card-confirmed' : '';
+                const confirmedBadge  = isConfirmed
+                    ? `<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle rounded-pill confirmed-badge ms-2"><i class="bi bi-check-lg"></i> Đã lưu</span>`
+                    : '';
+                const saveBtnHtml = (extraCls) => `
+                    <button onclick="confirmAttendanceSingle('${st.EMPCD}')" data-save-empcd="${empAttr}" class="btn btn-sm ${isConfirmed ? 'btn-outline-success' : 'btn-success'} rounded-3 fw-bold d-inline-flex align-items-center gap-0.5 ${extraCls || ''}" ${disabledAttr}>
+                        <i class="bi ${isConfirmed ? 'bi-check-circle-fill' : 'bi-save'}" style="font-size: 1rem;"></i>
+                        ${isConfirmed ? 'Đã lưu' : 'Lưu'}
+                    </button>
+                `;
+
                 tbody.innerHTML += `
-                    <tr id="row_${st.EMPCD}">
-                        <td class="ps-4 fw-bold text-dark">${st.EMPCD}</td>
-                        <td class="fw-bold vni-font" style="text-transform: uppercase;">${st.EMP_NAME || 'N/A'}</td>
+                    <tr id="row_${st.EMPCD}" class="${rowConfirmedCls}">
+                        <td class="ps-4">
+                            <div class="fw-bold text-dark small">${st.EMPCD}</div>
+                            <div class="fw-bold vni-font" style="text-transform: uppercase;">${st.EMP_NAME || 'N/A'}${confirmedBadge}</div>
+                        </td>
                         <td><span class="badge bg-light text-dark border">${st.GROUP_NAME || '-'}</span></td>
                         <td class="text-center">${checkinBadge}</td>
                         <td class="text-center">
@@ -424,36 +458,31 @@
                             <input type="text" data-reason-empcd="${empAttr}" class="form-control form-control-sm" placeholder="Ghi chú lý do..." value="${reasonVal}" style="border-radius: 6px; max-width: 250px;" onchange="saveReason('${st.EMPCD}', this.value)" ${disabledAttr} />
                         </td>
                         <td class="pe-4 text-end">
-                            <button onclick="confirmAttendanceSingle('${st.EMPCD}')" class="btn btn-sm btn-success rounded-3 fw-bold d-inline-flex align-items-center gap-0.5" ${disabledAttr}>
-                                <i class="bi bi-save" style="font-size: 1rem;"></i>
-                                Lưu
-                            </button>
+                            ${saveBtnHtml('')}
                         </td>
                     </tr>
                 `;
 
                 mobileList.innerHTML += `
-                    <div class="att-card">
+                    <div class="att-card ${cardConfirmedCls}" id="card_${st.EMPCD}">
                         <div class="att-card-head">
                             <span class="att-chip">${st.EMPCD}</span>
                             <span class="att-name vni-font">${st.EMP_NAME || 'N/A'}</span>
+                            ${confirmedBadge}
                             ${st.GROUP_NAME ? `<span class="badge bg-light text-dark border ms-auto">${st.GROUP_NAME}</span>` : ''}
                         </div>
                         <div class="mb-2">${checkinBadge}</div>
                         <div class="status-btn-group">${statusBtns(true)}</div>
                         <div class="att-card-actions">
                             <input type="text" data-reason-empcd="${empAttr}" class="form-control form-control-sm" placeholder="Ghi chú lý do..." value="${reasonVal}" onchange="saveReason('${st.EMPCD}', this.value)" ${disabledAttr} />
-                            <button onclick="confirmAttendanceSingle('${st.EMPCD}')" class="btn btn-sm btn-success rounded-3 fw-bold d-flex align-items-center gap-1" ${disabledAttr}>
-                                <i class="bi bi-save" style="font-size: 1rem;"></i>
-                                Lưu
-                            </button>
+                            ${saveBtnHtml('d-flex')}
                         </div>
                     </div>
                 `;
             });
 
             if (count === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">Không tìm thấy học viên nào phù hợp bộ lọc.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Không tìm thấy học viên nào phù hợp bộ lọc.</td></tr>`;
                 mobileList.innerHTML = `<div class="text-center py-4 text-muted">Không tìm thấy học viên nào phù hợp bộ lọc.</div>`;
             }
         }
@@ -473,6 +502,9 @@
             document.querySelectorAll(`[data-empcd="${CSS.escape(empcd)}"][data-status-btn]`).forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.statusBtn === status);
             });
+
+            // Bấm P/L/A là lưu luôn — khỏi phải bấm thêm nút "Lưu" riêng cho từng người.
+            window.confirmAttendanceSingle(empcd);
         };
 
         window.saveReason = function(empcd, val) {
@@ -484,6 +516,9 @@
             document.querySelectorAll(`[data-reason-empcd="${CSS.escape(empcd)}"]`).forEach(el => {
                 if (el.value !== val) el.value = val;
             });
+
+            // Sửa ghi chú lý do xong cũng tự lưu luôn, đồng bộ với hành vi bấm P/L/A.
+            window.confirmAttendanceSingle(empcd);
         };
 
         window.confirmAttendanceSingle = function(studentEmpcd) {
@@ -503,13 +538,43 @@
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
-                    window.showToast(`Đã lưu điểm danh học viên ${student.EMP_NAME || student.EMPCD}`, 'success');
+                    window.showToast('Đã lưu điểm danh!', 'success');
+                    student.TEACHER_CONFIRMED = 1;
+                    markRowConfirmed(studentEmpcd);
                 } else {
                     window.showToast(res.message || 'Lỗi lưu điểm danh.', 'error');
                 }
             })
             .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
         };
+
+        // Tô nổi bật dòng/card vừa lưu + đổi nút "Lưu" → "Đã lưu" ngay tại chỗ (không load lại cả
+        // danh sách) để giáo viên biết ngay ai đã điểm danh xong, ai chưa, khi lớp đông.
+        function markRowConfirmed(empcd) {
+            const row = document.getElementById(`row_${empcd}`);
+            if (row && !row.classList.contains('row-confirmed')) {
+                row.classList.add('row-confirmed');
+                // Dùng selector theo class (.vni-font = dòng tên), không dựa vào vị trí cột —
+                // tránh vỡ khi thứ tự/số lượng cột trong bảng thay đổi sau này.
+                const nameCell = row.querySelector('.vni-font');
+                if (nameCell && !nameCell.querySelector('.confirmed-badge')) {
+                    nameCell.insertAdjacentHTML('beforeend', '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle rounded-pill confirmed-badge ms-2"><i class="bi bi-check-lg"></i> Đã lưu</span>');
+                }
+            }
+            const card = document.getElementById(`card_${empcd}`);
+            if (card && !card.classList.contains('card-confirmed')) {
+                card.classList.add('card-confirmed');
+                const head = card.querySelector('.att-card-head');
+                if (head && !head.querySelector('.confirmed-badge')) {
+                    head.insertAdjacentHTML('beforeend', '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle rounded-pill confirmed-badge ms-2"><i class="bi bi-check-lg"></i> Đã lưu</span>');
+                }
+            }
+            document.querySelectorAll(`[data-save-empcd="${CSS.escape(empcd)}"]`).forEach(btn => {
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
+                btn.innerHTML = '<i class="bi bi-check-circle-fill" style="font-size: 1rem;"></i> Đã lưu';
+            });
+        }
 
         // "Lưu tất cả" — gửi 1 lần trạng thái/lý do đang chọn cho TỪNG học viên (khác batch trên
         // vốn áp 1 trạng thái đồng loạt), thay vì phải bấm Lưu từng dòng khi chỉ có ít phút điểm danh.
@@ -536,6 +601,7 @@
             .then(res => {
                 if (res.success) {
                     window.showToast(`Đã lưu điểm danh cho ${items.length} học viên!`, 'success');
+                    allStudents.forEach(st => { st.TEACHER_CONFIRMED = 1; markRowConfirmed(st.EMPCD); });
                 } else {
                     window.showToast(res.message || 'Lỗi lưu điểm danh.', 'error');
                 }

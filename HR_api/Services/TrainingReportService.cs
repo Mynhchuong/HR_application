@@ -306,19 +306,21 @@ public class TrainingReportService
         // Fetch all attendance rows once (avoid N+1) — kèm CHECKIN_TIME để biết dòng nào do học viên
         // TỰ bấm điểm danh qua app (khác với giáo viên chọn giùm), phục vụ minh bạch/công bằng khi tra soát.
         var attendances = await _db.ExecuteQueryAsync(@"
-            SELECT A.SESSION_ID, A.EMPCD, A.STATUS, A.CHECKIN_TIME
+            SELECT A.SESSION_ID, A.EMPCD, A.STATUS, A.CHECKIN_TIME, A.TEACHER_CONFIRMED
               FROM HRMS.HR_TRAINING_ATTENDANCE A
               JOIN HRMS.HR_TRAINING_SESSION S ON S.ID = A.SESSION_ID
              WHERE S.CLASS_ID = :CID",
             r => new
             {
-                SID     = Convert.ToInt32(r["SESSION_ID"]),
-                EMPCD   = r["EMPCD"]?.ToString() ?? "",
-                ST      = r["STATUS"]?.ToString() ?? "",
-                SELF_CI = r["CHECKIN_TIME"] != DBNull.Value,
+                SID       = Convert.ToInt32(r["SESSION_ID"]),
+                EMPCD     = r["EMPCD"]?.ToString() ?? "",
+                ST        = r["STATUS"]?.ToString() ?? "",
+                SELF_CI   = r["CHECKIN_TIME"] != DBNull.Value,
+                CONFIRMED = r["TEACHER_CONFIRMED"] is DBNull ? 0 : Convert.ToInt32(r["TEACHER_CONFIRMED"]),
             }, new OracleParameter("CID", classId));
         var byKey = attendances.ToDictionary(a => (a.SID, a.EMPCD), a => a.ST);
         var selfCheckinByKey = attendances.ToDictionary(a => (a.SID, a.EMPCD), a => a.SELF_CI);
+        var confirmedByKey = attendances.ToDictionary(a => (a.SID, a.EMPCD), a => a.CONFIRMED == 1);
 
         var students = new List<AttendanceMatrixStudent>();
         foreach (var s in studentRows)
@@ -353,7 +355,11 @@ public class TrainingReportService
                 if (!string.IsNullOrEmpty(status) || sess.SESSION_STATUS == "COMPLETED")
                 {
                     totalHeldSessions++;
-                    if (status == "PRESENT" || status == "LATE" || status == "EXCUSED")
+                    // Chỉ tính "có mặt" khi GV đã xác nhận (TEACHER_CONFIRMED=1) — khớp đúng công thức
+                    // ComputeAttendancePercentAsync dùng lúc chốt lớp. Tự điểm danh qua app chưa được
+                    // GV xác nhận KHÔNG được tính là có mặt, tránh HR thấy % chuyên cần ảo cao hơn thật.
+                    bool isConfirmed = confirmedByKey.TryGetValue((sess.SESSION_ID, s.EMPCD), out var cf) && cf;
+                    if (isConfirmed && (status == "PRESENT" || status == "LATE" || status == "EXCUSED"))
                     {
                         presentSessions++;
                     }

@@ -41,7 +41,7 @@ public class TrainingClassService
                    CO.TITLE AS COURSE_TITLE, CO.COURSE_MODE,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ENROLLMENT E
                      WHERE E.CLASS_ID = CL.ID
-                       AND E.STATUS IN ('ENROLLED','PENDING_APPROVAL')) AS ENROLLMENT_COUNT,
+                       AND E.STATUS IN ('ENROLLED','PENDING_APPROVAL','COMPLETED','FAILED')) AS ENROLLMENT_COUNT,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S
                      WHERE S.CLASS_ID = CL.ID) AS SESSION_COUNT
               FROM HRMS.HR_TRAINING_CLASS CL
@@ -87,6 +87,7 @@ public class TrainingClassService
                     (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ATTENDANCE A
                       WHERE A.EMPCD = E.EMPCD
                         AND A.STATUS IN ('PRESENT', 'LATE')
+                        AND A.TEACHER_CONFIRMED = 1
                         AND A.SESSION_ID IN (
                             SELECT S.ID FROM HRMS.HR_TRAINING_SESSION S
                              WHERE S.CLASS_ID = E.CLASS_ID

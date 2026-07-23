@@ -488,6 +488,7 @@ public class TrainingEnrollmentService
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ATTENDANCE A
                      WHERE A.EMPCD = E.EMPCD
                        AND A.STATUS IN ('PRESENT', 'LATE')
+                       AND A.TEACHER_CONFIRMED = 1
                        AND A.SESSION_ID IN (
                            SELECT S.ID FROM HRMS.HR_TRAINING_SESSION S
                             WHERE S.CLASS_ID = E.CLASS_ID

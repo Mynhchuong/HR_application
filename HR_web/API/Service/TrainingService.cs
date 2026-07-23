@@ -112,6 +112,16 @@ public class TrainingService
         catch (Exception ex) { Console.WriteLine($"[TrainingService] GetSatisfaction error: {ex.Message}"); return null; }
     }
 
+    public async Task<TestDetailData?> GetTestDetailAsync(int testId)
+    {
+        try
+        {
+            var res = await _api.GetAsync<TestDetailResponse>("TrainingAdmin/test/detail", $"id={testId}");
+            return res?.success == true ? res.data : null;
+        }
+        catch (Exception ex) { Console.WriteLine($"[TrainingService] GetTestDetail error: {ex.Message}"); return null; }
+    }
+
     public async Task<List<CourseTestItem>?> GetCourseTestsAsync(int classId)
     {
         try

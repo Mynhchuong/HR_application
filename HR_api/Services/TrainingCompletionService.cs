@@ -244,7 +244,9 @@ public class TrainingCompletionService
     private async Task<(decimal? att, decimal? score, bool passed, string? reason)>
         ComputeExpressAsync(int classId, string empcd, int? groupId, int? finalTestId)
     {
-        // Session không CANCELLED + có row PRESENT/LATE/EXCUSED
+        // Session không CANCELLED + có row PRESENT/LATE/EXCUSED ĐÃ ĐƯỢC GV XÁC NHẬN (TEACHER_CONFIRMED=1)
+        // — khớp với ComputeStandardAsync/ComputeAttendancePercentAsync, tự điểm danh qua app chưa
+        // được GV xác nhận không được tính.
         var att = (await _db.ExecuteQueryAsync(@"
             SELECT COUNT(*) CNT
               FROM HRMS.HR_TRAINING_SESSION S
@@ -252,13 +254,14 @@ public class TrainingCompletionService
              WHERE S.CLASS_ID = :CID
                AND S.STATUS != 'CANCELLED'
                AND A.EMPCD = :EMP
-               AND A.STATUS IN ('PRESENT','LATE','EXCUSED')",
+               AND A.STATUS IN ('PRESENT','LATE','EXCUSED')
+               AND A.TEACHER_CONFIRMED = 1",
             r => Convert.ToInt32(r["CNT"]),
             new OracleParameter("CID", classId),
             new OracleParameter("EMP", empcd))).First();
 
         if (att == 0)
-            return (0m, null, false, "Không có buổi PRESENT/LATE/EXCUSED");
+            return (0m, null, false, "Không có buổi PRESENT/LATE/EXCUSED đã được GV xác nhận");
 
         // Attendance % cho EXPRESS: đơn giản 100 nếu có, 0 nếu không (§7 không dùng %)
         decimal attPct = 100m;

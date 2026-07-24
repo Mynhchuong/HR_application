@@ -89,6 +89,8 @@
 </div>
 
 @section Scripts {
+<script src="~/js/vendor/xlsx.full.min.js" asp-append-version="true"></script>
+<script src="~/js/xlsx-export-helper.js" asp-append-version="true"></script>
 <script>
 const PAGE_URL = '@Url.Action("GetHRPage", "GatePass")';
 const SIG_URL  = '@Url.Action("GetSignature", "Image")';
@@ -231,12 +233,10 @@ $('#exportExcelBtn').on('click', async function() {
             const approver = escHtml(r.APPROVER_NAME || r.FINAL_APPROVER || '');
             const signTime = r.FINAL_DATE ? formatDateTime(r.FINAL_DATE) : '';
             const remark   = escHtml(r.REMARK || '');
-            html += `<tr><td>${i+1}</td><td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${gp}</td><td>${formatDate(r.OUT_TIME||r.IN_TIME)}</td><td>${r.OUT_TIME?formatTime(r.OUT_TIME):''}</td><td>${r.IN_TIME?formatTime(r.IN_TIME):''}</td><td>${escHtml(r.REASON||'')}</td><td>${s}</td><td>${approver}</td><td>${signTime}</td><td>${remark}</td></tr>`;
+            html += `<tr><td>${i+1}</td><td data-t="s">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${gp}</td><td>${formatDate(r.OUT_TIME||r.IN_TIME)}</td><td>${r.OUT_TIME?formatTime(r.OUT_TIME):''}</td><td>${r.IN_TIME?formatTime(r.IN_TIME):''}</td><td>${escHtml(r.REASON||'')}</td><td>${s}</td><td>${approver}</td><td>${signTime}</td><td>${remark}</td></tr>`;
         });
         html += '</tbody></table></body></html>';
-        const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
-        const link=document.createElement('a'); link.href=URL.createObjectURL(blob);
-        link.download=`GatePass_HR_${$('#filterDate').val()}.xls`; link.click();
+        exportHtmlTableToXlsx(html, `GatePass_HR_${$('#filterDate').val()}.xlsx`);
     } catch(err) { showToast('Lỗi xuất file: '+err.message, 'error'); }
     finally { $btn.prop('disabled',false).html(originalHtml); }
 });

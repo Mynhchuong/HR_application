@@ -33,19 +33,36 @@
                     <div class="card border-0 shadow-sm p-3" style="border-radius: 16px;">
                         <div class="row align-items-center g-3">
                             <!-- Group Filter -->
-                            <div class="col-12 col-md-4">
+                            <div class="col-6 col-lg-3">
                                 <label class="form-label small fw-bold text-muted mb-1">Lọc theo Tổ/Nhóm</label>
                                 <select id="group-filter" class="form-select" onchange="filterStudents()" style="border-radius: 8px;">
                                     <option value="">Tất cả tổ nhóm</option>
                                 </select>
                             </div>
+                            <!-- Dept/Line/Work Filter -->
+                            <div class="col-6 col-lg-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Lọc theo Bộ phận/Chuyền/Line</label>
+                                <select id="dlw-filter" class="form-select" onchange="filterStudents()" style="border-radius: 8px;">
+                                    <option value="">Tất cả bộ phận</option>
+                                </select>
+                            </div>
+                            <!-- Status Filter -->
+                            <div class="col-6 col-lg-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Lọc theo Trạng thái</label>
+                                <select id="status-filter" class="form-select" onchange="filterStudents()" style="border-radius: 8px;">
+                                    <option value="">Tất cả trạng thái</option>
+                                    <option value="PRESENT">Có mặt</option>
+                                    <option value="LATE">Muộn</option>
+                                    <option value="ABSENT">Vắng</option>
+                                </select>
+                            </div>
                             <!-- Search -->
-                            <div class="col-12 col-md-4">
+                            <div class="col-6 col-lg-3">
                                 <label class="form-label small fw-bold text-muted mb-1">Tìm học viên (Mã NV)</label>
                                 <input type="text" id="search-input" class="form-control" placeholder="Nhập mã nhân viên..." oninput="filterStudents()" style="border-radius: 8px;" />
                             </div>
                             <!-- Batch Action Buttons -->
-                            <div class="col-12 col-md-4 text-md-end pt-md-4">
+                            <div class="col-12 text-md-end">
                                 <div class="btn-group w-100 w-md-auto">
                                     <button id="btn-batch-present" onclick="confirmAttendanceBatch('PRESENT')" class="btn btn-outline-success fw-bold d-flex align-items-center justify-content-center gap-1" style="border-radius: 8px 0 0 8px;">
                                         <i class="bi bi-check2-all" style="font-size: 1.1rem;"></i>
@@ -71,6 +88,7 @@
                                 <thead class="bg-light table-head-custom">
                                     <tr>
                                         <th class="ps-4">Mã NV / Họ tên học viên</th>
+                                        <th>Bộ phận/Chuyền/Line</th>
                                         <th>Tổ/Nhóm</th>
                                         <th class="text-center">Học viên tự điểm danh</th>
                                         <th class="text-center" style="width: 320px;">Trạng thái điểm danh</th>
@@ -291,6 +309,7 @@
 
                     renderHeader();
                     renderGroupFilter();
+                    renderDeptLineWorkFilter();
                     renderGrid();
                 });
         }
@@ -353,6 +372,25 @@
             });
         }
 
+        function getDeptLineWork(st) {
+            return [st.DEPT_NAME, st.LINE_NAME, st.WORK_NAME].filter(Boolean).join(' / ') || '-';
+        }
+
+        function renderDeptLineWorkFilter() {
+            const select = document.getElementById('dlw-filter');
+            const dlwSet = new Set();
+
+            allStudents.forEach(st => {
+                const dlw = getDeptLineWork(st);
+                if (dlw !== '-') dlwSet.add(dlw);
+            });
+
+            select.innerHTML = '<option value="">Tất cả bộ phận</option>';
+            dlwSet.forEach(d => {
+                select.innerHTML += `<option value="${d}">${d}</option>`;
+            });
+        }
+
         function toUnsigned(str) {
             if (!str) return '';
             let text = str.toLowerCase().trim();
@@ -389,7 +427,9 @@
         function renderGrid() {
             const tbody      = document.getElementById('student-grid');
             const mobileList = document.getElementById('student-grid-mobile');
-            const filterGroup = document.getElementById('group-filter').value;
+            const filterGroup  = document.getElementById('group-filter').value;
+            const filterDlw    = document.getElementById('dlw-filter').value;
+            const filterStatus = document.getElementById('status-filter').value;
             const search = toUnsigned(document.getElementById('search-input').value);
 
             tbody.innerHTML = '';
@@ -401,6 +441,10 @@
 
             allStudents.forEach(st => {
                 if (filterGroup && st.GROUP_NAME !== filterGroup) return;
+                if (filterDlw && getDeptLineWork(st) !== filterDlw) return;
+
+                const status = st.ATTENDANCE_STATUS || st.STATUS || 'PRESENT';
+                if (filterStatus && status !== filterStatus) return;
 
                 const empcdUnsigned = toUnsigned(st.EMPCD);
                 const matchesSearch = empcdUnsigned.includes(search);
@@ -408,7 +452,6 @@
 
                 count++;
 
-                const status = st.ATTENDANCE_STATUS || st.STATUS || 'PRESENT';
                 const actPresent = status === 'PRESENT' ? 'active' : '';
                 const actLate    = status === 'LATE'    ? 'active' : '';
                 const actAbsent  = status === 'ABSENT'  ? 'active' : '';
@@ -427,6 +470,8 @@
                 const checkinBadge = st.CHECKIN_TIME
                     ? `<span class="badge bg-success-subtle text-success-emphasis border" title="Tự điểm danh lúc ${new Date(st.CHECKIN_TIME).toLocaleString('vi-VN')}"><i class="bi bi-phone-vibrate me-1"></i>${new Date(st.CHECKIN_TIME).toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}</span>`
                     : `<span class="badge bg-secondary-subtle text-secondary-emphasis border">Chưa tự điểm danh</span>`;
+
+                const deptLineWork = getDeptLineWork(st);
 
                 // Giáo viên đã bấm Lưu cho học viên này chưa (TEACHER_CONFIRMED) — tô nổi bật dòng +
                 // đổi nút Lưu để biết ngay ai đã lưu, ai chưa, khỏi phải dò cả danh sách dài.
@@ -449,6 +494,7 @@
                             <div class="fw-bold text-dark small">${st.EMPCD}</div>
                             <div class="fw-bold vni-font" style="text-transform: uppercase;">${st.EMP_NAME || 'N/A'}${confirmedBadge}</div>
                         </td>
+                        <td class="small text-muted">${deptLineWork}</td>
                         <td><span class="badge bg-light text-dark border">${st.GROUP_NAME || '-'}</span></td>
                         <td class="text-center">${checkinBadge}</td>
                         <td class="text-center">
@@ -471,6 +517,7 @@
                             ${confirmedBadge}
                             ${st.GROUP_NAME ? `<span class="badge bg-light text-dark border ms-auto">${st.GROUP_NAME}</span>` : ''}
                         </div>
+                        <div class="small text-muted mb-2">${deptLineWork}</div>
                         <div class="mb-2">${checkinBadge}</div>
                         <div class="status-btn-group">${statusBtns(true)}</div>
                         <div class="att-card-actions">
@@ -482,7 +529,7 @@
             });
 
             if (count === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Không tìm thấy học viên nào phù hợp bộ lọc.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">Không tìm thấy học viên nào phù hợp bộ lọc.</td></tr>`;
                 mobileList.innerHTML = `<div class="text-center py-4 text-muted">Không tìm thấy học viên nào phù hợp bộ lọc.</div>`;
             }
         }

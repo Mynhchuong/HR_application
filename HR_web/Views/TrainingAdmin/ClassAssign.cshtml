@@ -134,8 +134,7 @@
                                 <table class="table table-sm align-middle text-nowrap bg-white rounded-3 shadow-sm">
                                     <thead>
                                         <tr>
-                                            <th class="ps-3" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
-                                            <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ và tên">Họ và tên</th>
+                                            <th class="ps-3" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Mã NV / Họ và tên">Mã NV / Họ và tên</th>
                                             <th data-mobile="detail" data-mobile-label="Bộ phận/Chuyền/Line">Bộ phận/Chuyền/Line</th>
                                             <th data-mobile="primary" data-mobile-label="Tổ/Nhóm">Tổ/Nhóm</th>
                                             <th data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
@@ -526,9 +525,10 @@
             } else if (cls.STATUS === 'CANCELLED') {
                 buttonsWrap.innerHTML += `<button onclick="deleteClass(${cls.ID})" class="btn btn-sm btn-danger fw-bold"><i class="bi bi-trash me-1"></i>Xóa vĩnh viễn Lớp</button>`;
             } else if (cls.STATUS === 'COMPLETED' || cls.STATUS === 'CLOSED') {
-                // Còn học viên ENROLLED = chưa chạy finalize (chốt xong ai cũng thành COMPLETED/FAILED).
-                // Hiện cả khi CLOSED — recovery cho lớp lỡ bị đóng trước khi chốt kết quả.
-                const hasUnfinalized = (selectedClassData.enrollments || []).some(e => e.STATUS === 'ENROLLED');
+                // Còn học viên ENROLLED hoặc FAILED = có thể chốt/chốt lại (backend FinalizeClassAsync
+                // re-check cả FAILED, VD sau khi sửa điểm danh hoặc cấp thi lại). Hiện cả khi CLOSED —
+                // recovery cho lớp lỡ bị đóng trước khi chốt kết quả.
+                const hasUnfinalized = (selectedClassData.enrollments || []).some(e => e.STATUS === 'ENROLLED' || e.STATUS === 'FAILED');
                 if (hasUnfinalized) {
                     buttonsWrap.innerHTML += `<button onclick="finalizeClass(${cls.ID})" class="btn btn-sm btn-success fw-bold">Chốt kết quả & cấp chứng chỉ</button>`;
                 }
@@ -1101,7 +1101,7 @@
         }
 
         // Students list — filter theo mã NV + tổ/nhóm (client-side, toàn bộ enrollments đã tải sẵn 1 lần) +
-        // phân trang + cột Bộ phận/Chuyền/Line (DEPTCD/LINECD/WORKCD — API đã JOIN ECM100 sẵn).
+        // phân trang + cột Bộ phận/Chuyền/Line (DEPT_NAME/LINE_NAME/WORK_NAME — API đã JOIN ECM100 + EAM410 sẵn).
         let studentGroupFilter = '';
 
         function onStudentFilterChange() {
@@ -1139,7 +1139,7 @@
 
             pageList.forEach(s => {
                 const groupName = s.GROUP_NAME || '<span class="text-muted italic small">Chưa gán</span>';
-                const deptLineWork = [s.DEPTCD, s.LINECD, s.WORKCD].filter(Boolean).join(' / ') || '<span class="text-muted small">-</span>';
+                const deptLineWork = [s.DEPT_NAME, s.LINE_NAME, s.WORK_NAME].filter(Boolean).join(' / ') || '<span class="text-muted small">-</span>';
 
                 let stBadge = s.STATUS;
                 if (s.STATUS === 'PENDING_APPROVAL') stBadge = '<span class="badge bg-warning text-dark">Chờ duyệt</span>';
@@ -1168,8 +1168,10 @@
 
                 tbody.innerHTML += `
                     <tr>
-                        <td class="ps-3 fw-bold text-dark">${s.EMPCD}</td>
-                        <td class="fw-bold vni-font" style="text-transform:uppercase;">${s.EMP_NAME || 'Nhân viên mới'}</td>
+                        <td class="ps-3">
+                            <div class="fw-bold text-dark small">${s.EMPCD}</div>
+                            <div class="fw-bold vni-font" style="text-transform:uppercase;">${s.EMP_NAME || 'Nhân viên mới'}</div>
+                        </td>
                         <td class="small text-muted">${deptLineWork}</td>
                         <td>${groupName}</td>
                         <td>${stBadge}</td>
@@ -1182,7 +1184,7 @@
             });
 
             if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-muted small">${studentFilterText ? 'Không tìm thấy mã NV phù hợp.' : 'Chưa có học viên nào tham gia.'}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted small">${studentFilterText ? 'Không tìm thấy mã NV phù hợp.' : 'Chưa có học viên nào tham gia.'}</td></tr>`;
             }
 
             document.getElementById('student-list-summary').textContent =

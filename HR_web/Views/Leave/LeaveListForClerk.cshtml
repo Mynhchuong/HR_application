@@ -164,6 +164,8 @@
 </div>
 
 @section Scripts {
+<script src="~/js/vendor/xlsx.full.min.js" asp-append-version="true"></script>
+<script src="~/js/xlsx-export-helper.js" asp-append-version="true"></script>
 <script>
 const PAGE_URL = '@Url.Action("GetClerkListPage", "Leave")';
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
@@ -311,12 +313,10 @@ $('#exportBtn').on('click', async function() {
                 else if (st==='APPROVED') st='Đã duyệt';
                 else if (st==='REJECTED') st='Từ chối';
             }
-            html += `<tr><td>${i+1}</td><td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${lt}</td><td>${src}</td><td>${formatDate(r.FROM_DATE)}</td><td>${formatDate(r.TO_DATE)}</td><td>${r.TOTAL_DAYS??''}</td><td>${escHtml(r.REASON||'')}</td><td>${st}</td><td>${escHtml(r.APPROVER_NAME||r.FINAL_APPROVER||'')}</td><td>${escHtml(r.REMARK||'')}</td></tr>`;
+            html += `<tr><td>${i+1}</td><td data-t="s">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${lt}</td><td>${src}</td><td>${formatDate(r.FROM_DATE)}</td><td>${formatDate(r.TO_DATE)}</td><td>${r.TOTAL_DAYS??''}</td><td>${escHtml(r.REASON||'')}</td><td>${st}</td><td>${escHtml(r.APPROVER_NAME||r.FINAL_APPROVER||'')}</td><td>${escHtml(r.REMARK||'')}</td></tr>`;
         });
         html += '</tbody></table></body></html>';
-        const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
-        const link=document.createElement('a'); link.href=URL.createObjectURL(blob);
-        link.download=`NghiPhep_BoPhan_${$('#filterDateFrom').val()}_${$('#filterDateTo').val()}.xls`; link.click();
+        exportHtmlTableToXlsx(html, `NghiPhep_BoPhan_${$('#filterDateFrom').val()}_${$('#filterDateTo').val()}.xlsx`);
     } catch(err) { showToast('Lỗi xuất file: '+err.message, 'error'); }
     finally { $btn.prop('disabled',false).html(orig); }
 });

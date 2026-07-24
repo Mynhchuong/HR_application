@@ -28,6 +28,9 @@ public class AttendanceModel
     public int    SESSION_ID { get; set; }
     public string EMPCD { get; set; } = "";
     public string? EMP_NAME { get; set; }
+    public string? DEPT_NAME { get; set; }        // JOIN ECM100 + EAM410
+    public string? LINE_NAME { get; set; }
+    public string? WORK_NAME { get; set; }
     public DateTime? CHECKIN_TIME { get; set; }
     public string STATUS { get; set; } = "ABSENT";
     public int    TEACHER_CONFIRMED { get; set; }

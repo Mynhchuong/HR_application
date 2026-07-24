@@ -347,11 +347,13 @@ public class TrainingSessionService
         // Bind session.GROUP_ID trực tiếp — tránh subquery redundant (§5b.3).
         const string sql = @"
             SELECT E.EMPCD, EC.CNAME AS EMP_NAME,
+                   B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                    E.GROUP_ID, G.GROUP_NAME,
                    A.SESSION_ID, A.CHECKIN_TIME, A.STATUS, A.TEACHER_CONFIRMED,
                    A.CONFIRMED_BY, A.CONFIRMED_DT, A.NOTE
               FROM HRMS.HR_TRAINING_ENROLLMENT E
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = E.EMPCD
+              LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
               LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = E.GROUP_ID
               LEFT JOIN HRMS.HR_TRAINING_ATTENDANCE A
                      ON A.SESSION_ID = :SID AND A.EMPCD = E.EMPCD
@@ -365,6 +367,9 @@ public class TrainingSessionService
             SESSION_ID        = sessionId,
             EMPCD             = r["EMPCD"]?.ToString() ?? "",
             EMP_NAME          = r["EMP_NAME"] as string,
+            DEPT_NAME         = r["DEPT_NAME"] as string,
+            LINE_NAME         = r["LINE_NAME"] as string,
+            WORK_NAME         = r["WORK_NAME"] as string,
             CHECKIN_TIME      = r["CHECKIN_TIME"] as DateTime?,
             STATUS            = r["STATUS"]?.ToString() ?? "ABSENT",
             TEACHER_CONFIRMED = r["TEACHER_CONFIRMED"] is DBNull ? 0 : Convert.ToInt32(r["TEACHER_CONFIRMED"]),

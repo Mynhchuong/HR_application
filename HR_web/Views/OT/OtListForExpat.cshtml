@@ -105,6 +105,8 @@
 </div>
 
 @section Scripts {
+<script src="~/js/vendor/xlsx.full.min.js" asp-append-version="true"></script>
+<script src="~/js/xlsx-export-helper.js" asp-append-version="true"></script>
 <script>
 const WORK_DATE         = '@workDate';
 const PAGE_URL          = '@Url.Action("GetOTSupervisorDetailPage", "OT")';
@@ -232,11 +234,10 @@ $('#exportExcelBtn').on('click', async function() {
         exportRows.forEach((r,i)=>{
             const s=r.CONFIRM_STATUS==='CONFIRMED'?'Confirmed':(r.CONFIRM_STATUS==='REJECTED'?'Rejected':'Pending');
             const otType=r.OT_AFTER==='Y'?'After':(r.OT_BEFORE==='Y'?'Before':'OT');
-            html+=`<tr><td>${i+1}</td><td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${escHtml(r.WORK_NAME||'')}</td><td>${otType}</td><td>${r.OT_HOURS||0}</td><td>${r.START_OT?formatTime(r.START_OT):''}</td><td>${r.END_OT?formatTime(r.END_OT):''}</td><td>${s}</td><td>${r.CONFIRM_DATE?formatDateTime(r.CONFIRM_DATE):''}</td></tr>`;
+            html+=`<tr><td>${i+1}</td><td data-t="s">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${escHtml(r.WORK_NAME||'')}</td><td>${otType}</td><td>${r.OT_HOURS||0}</td><td>${r.START_OT?formatTime(r.START_OT):''}</td><td>${r.END_OT?formatTime(r.END_OT):''}</td><td>${s}</td><td>${r.CONFIRM_DATE?formatDateTime(r.CONFIRM_DATE):''}</td></tr>`;
         });
         html+='</tbody></table></body></html>';
-        const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
-        const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download=`OT_Export_${WORK_DATE}.xls`; link.click();
+        exportHtmlTableToXlsx(html, `OT_Export_${WORK_DATE}.xlsx`);
     } catch(err){showToast('Export error: '+err.message, 'error');}
     finally{$btn.prop('disabled',false).html(originalHtml);}
 });

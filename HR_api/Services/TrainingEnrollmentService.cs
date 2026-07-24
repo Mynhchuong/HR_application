@@ -40,12 +40,14 @@ public class TrainingEnrollmentService
         const string sql = @"
             SELECT E.CLASS_ID, E.EMPCD, EC.CNAME AS EMP_NAME,
                    EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                   B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                    E.SOURCE, E.STATUS, E.DROP_REASON,
                    E.GROUP_ID, G.GROUP_NAME,
                    E.FINAL_SCORE, E.ATTENDANCE_PERCENT, E.IS_CERTIFIED, E.COMPLETION_DATE,
                    E.INST_ID, E.INST_DT, E.UPDT_ID, E.UPDT_DT
               FROM HRMS.HR_TRAINING_ENROLLMENT E
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = E.EMPCD
+              LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
               LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = E.GROUP_ID
              WHERE E.CLASS_ID = :CID
                AND (:P_STATUS IS NULL OR E.STATUS   = :P_STATUS)
@@ -64,12 +66,14 @@ public class TrainingEnrollmentService
         return (await _db.ExecuteQueryAsync(@"
             SELECT E.CLASS_ID, E.EMPCD, EC.CNAME AS EMP_NAME,
                    EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                   B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                    E.SOURCE, E.STATUS, E.DROP_REASON,
                    E.GROUP_ID, G.GROUP_NAME,
                    E.FINAL_SCORE, E.ATTENDANCE_PERCENT, E.IS_CERTIFIED, E.COMPLETION_DATE,
                    E.INST_ID, E.INST_DT, E.UPDT_ID, E.UPDT_DT
               FROM HRMS.HR_TRAINING_ENROLLMENT E
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = E.EMPCD
+              LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
               LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = E.GROUP_ID
              WHERE E.CLASS_ID = :CID AND E.EMPCD = :EMP",
             MapEnrollment,
@@ -475,6 +479,7 @@ public class TrainingEnrollmentService
         const string sql = @"
             SELECT E.CLASS_ID, E.EMPCD, EC.CNAME AS EMP_NAME,
                    EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                   B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                    E.SOURCE, E.STATUS, E.DROP_REASON,
                    E.GROUP_ID, G.GROUP_NAME,
                    E.FINAL_SCORE, E.ATTENDANCE_PERCENT, E.IS_CERTIFIED, E.COMPLETION_DATE,
@@ -502,6 +507,7 @@ public class TrainingEnrollmentService
               JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = E.CLASS_ID
               JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = E.EMPCD
+              LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
               LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = E.GROUP_ID
              WHERE E.EMPCD = :EMP
                AND E.STATUS IN ('ENROLLED','PENDING_APPROVAL','COMPLETED','FAILED')
@@ -596,6 +602,9 @@ public class TrainingEnrollmentService
         DEPTCD             = r["DEPTCD"] as string,
         LINECD             = r["LINECD"] as string,
         WORKCD             = r["WORKCD"] as string,
+        DEPT_NAME          = r["DEPT_NAME"] as string,
+        LINE_NAME          = r["LINE_NAME"] as string,
+        WORK_NAME          = r["WORK_NAME"] as string,
         SOURCE             = r["SOURCE"]?.ToString() ?? "",
         STATUS             = r["STATUS"]?.ToString() ?? "",
         DROP_REASON        = r["DROP_REASON"] as string,

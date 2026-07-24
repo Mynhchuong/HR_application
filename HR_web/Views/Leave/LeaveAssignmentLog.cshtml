@@ -129,6 +129,8 @@
 </div>
 
 @section Scripts {
+<script src="~/js/vendor/xlsx.full.min.js" asp-append-version="true"></script>
+<script src="~/js/xlsx-export-helper.js" asp-append-version="true"></script>
 <script>
 const PAGE_URL = '@Url.Action("GetAssignmentLogPage", "Leave")';
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
@@ -272,7 +274,7 @@ $('#exportBtn').on('click', async function() {
             else if (st==='WORKER_REJECTED') st='Không đồng ý';
             html += `<tr>
                 <td>${i+1}</td>
-                <td style="mso-number-format:'@@'">${escHtml(r.EMPCD||'')}</td>
+                <td data-t="s">${escHtml(r.EMPCD||'')}</td>
                 <td>${escHtml(r.EMP_NAME||'')}</td>
                 <td>${escHtml(r.DEPT_NAME||'')}</td>
                 <td>${escHtml(r.LINE_NAME||'')}</td>
@@ -282,7 +284,7 @@ $('#exportBtn').on('click', async function() {
                 <td>${formatDate(r.TO_DATE)}</td>
                 <td>${r.TOTAL_DAYS??''}</td>
                 <td>${escHtml(r.ASSIGNER_NAME||'')}</td>
-                <td style="mso-number-format:'@@'">${escHtml(r.ASSIGNED_BY||'')}</td>
+                <td data-t="s">${escHtml(r.ASSIGNED_BY||'')}</td>
                 <td>${formatDate(r.ASSIGN_DATE)}</td>
                 <td>${st}</td>
                 <td>${r.CONFIRM_DATE ? formatDate(r.CONFIRM_DATE) : ''}</td>
@@ -290,10 +292,7 @@ $('#exportBtn').on('click', async function() {
             </tr>`;
         });
         html += '</tbody></table></body></html>';
-        const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8;'});
-        const link=document.createElement('a'); link.href=URL.createObjectURL(blob);
-        link.download=`LogSapLich_${$('#filterDateFrom').val()}_${$('#filterDateTo').val()}.xls`;
-        link.click();
+        exportHtmlTableToXlsx(html, `LogSapLich_${$('#filterDateFrom').val()}_${$('#filterDateTo').val()}.xlsx`);
     } catch(err) { showToast('Lỗi xuất file: '+err.message, 'error'); }
     finally { $btn.prop('disabled',false).html(orig); }
 });

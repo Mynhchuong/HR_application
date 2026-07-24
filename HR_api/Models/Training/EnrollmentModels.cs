@@ -10,6 +10,9 @@ public class EnrollmentModel
     public string? DEPTCD { get; set; }
     public string? LINECD { get; set; }
     public string? WORKCD { get; set; }
+    public string? DEPT_NAME { get; set; }        // JOIN EAM410
+    public string? LINE_NAME { get; set; }
+    public string? WORK_NAME { get; set; }
 
     // ASSIGNED | SELF_REGISTER
     public string SOURCE { get; set; } = "ASSIGNED";

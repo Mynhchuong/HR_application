@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.samho.mysamho"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.samho.mysamho"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 7
         versionName = "7.0"
 

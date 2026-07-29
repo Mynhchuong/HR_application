@@ -10,9 +10,10 @@ namespace HR_web.Helpers;
 public static class AuthHelper
 {
     private const string UserInfoClaimType = "UserInfo";
+    public const string LastActiveCheckClaimType = "LastActiveCheck";
 
-    
-    public static async Task SignInAsync(HttpContext httpContext, UserInfoModel user, bool rememberMe = false)
+
+    public static async Task SignInAsync(HttpContext httpContext, UserInfoModel user)
     {
         if (user == null) return;
 
@@ -23,7 +24,8 @@ public static class AuthHelper
             new Claim(ClaimTypes.Name, user.EmpCd),
             new Claim(ClaimTypes.GivenName, user.FullName ?? string.Empty),
             new Claim(ClaimTypes.Role, user.RoleName ?? string.Empty),
-            new Claim(UserInfoClaimType, userJson)
+            new Claim(UserInfoClaimType, userJson),
+            new Claim(LastActiveCheckClaimType, DateTimeOffset.UtcNow.ToString("o"))
         };
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
@@ -31,11 +33,9 @@ public static class AuthHelper
 
         var authProperties = new AuthenticationProperties
         {
-            IsPersistent = true, // Luôn duy trì đăng nhập để ko bị logout khi nghỉ trưa
-            ExpiresUtc = rememberMe
-                ? DateTimeOffset.UtcNow.AddDays(30)
-                : DateTimeOffset.UtcNow.AddHours(24),
-            AllowRefresh = true
+            IsPersistent = true, // Cookie sống qua khi đóng trình duyệt/app, nhưng vẫn hết hạn tuyệt đối sau 24h (không sliding)
+            ExpiresUtc = DateTimeOffset.UtcNow.AddHours(24),
+            AllowRefresh = false
         };
 
         await httpContext.SignInAsync(
@@ -72,9 +72,9 @@ public static class AuthHelper
     }
 
     
-    public static async Task UpdateUserSessionAsync(HttpContext httpContext, UserInfoModel updatedUser, bool rememberMe = false)
+    public static async Task UpdateUserSessionAsync(HttpContext httpContext, UserInfoModel updatedUser)
     {
         await SignOutAsync(httpContext);
-        await SignInAsync(httpContext, updatedUser, rememberMe);
+        await SignInAsync(httpContext, updatedUser);
     }
 }

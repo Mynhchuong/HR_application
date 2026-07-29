@@ -167,7 +167,7 @@ public class TrainingReportService
                    SUM(CASE WHEN E.STATUS = 'FAILED'    THEN 1 ELSE 0 END) FAILED_CNT,
                    SUM(CASE WHEN E.IS_CERTIFIED = 1     THEN 1 ELSE 0 END) CERT_CNT,
                    ROUND(AVG(E.ATTENDANCE_PERCENT), 2) AVG_ATT,
-                   AVG(E.FINAL_SCORE) AVG_SC
+                   ROUND(AVG(E.FINAL_SCORE), 2) AVG_SC
               FROM HRMS.HR_TRAINING_CLASS CL
               LEFT JOIN HRMS.HR_TRAINING_ENROLLMENT E ON E.CLASS_ID = CL.ID
              WHERE CL.COURSE_ID = :CID
@@ -200,8 +200,8 @@ public class TrainingReportService
                 SUM(CASE WHEN E.STATUS = 'COMPLETED' THEN 1 ELSE 0 END) COMPLETED_CNT,
                 SUM(CASE WHEN E.STATUS = 'FAILED'    THEN 1 ELSE 0 END) FAILED_CNT,
                 SUM(CASE WHEN E.IS_CERTIFIED = 1     THEN 1 ELSE 0 END) CERT_CNT,
-                AVG(E.ATTENDANCE_PERCENT) AVG_ATT,
-                AVG(E.FINAL_SCORE) AVG_SC
+                ROUND(AVG(E.ATTENDANCE_PERCENT), 2) AVG_ATT,
+                ROUND(AVG(E.FINAL_SCORE), 2) AVG_SC
               FROM HRMS.HR_TRAINING_ENROLLMENT E
               JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = E.CLASS_ID
              WHERE CL.COURSE_ID = :CID",

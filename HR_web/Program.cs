@@ -1,4 +1,5 @@
 using HR_web.Filters;
+using HR_web.Helpers;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.DataProtection;
@@ -31,11 +32,12 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.Name = builder.Configuration["Auth:CookieName"] ?? ".HR.Auth";
         options.LoginPath = builder.Configuration["Auth:LoginPath"] ?? "/Account/Login";
         options.LogoutPath = builder.Configuration["Auth:LogoutPath"] ?? "/Account/Logout";
-        options.ExpireTimeSpan = TimeSpan.FromDays(
-            int.TryParse(builder.Configuration["Auth:ExpireDays"], out var days) ? days : 1
-        );
-        options.SlidingExpiration = true;
+        // Hết hạn tuyệt đối 24h, KHÔNG sliding — bảo đảm mọi phiên đều bị ép logout
+        // ít nhất 1 lần/ngày (AuthHelper.SignInAsync set ExpiresUtc = +24h mỗi lần đăng nhập).
+        options.ExpireTimeSpan = TimeSpan.FromHours(24);
+        options.SlidingExpiration = false;
         options.Cookie.HttpOnly = true;
+        options.Events.OnValidatePrincipal = SessionValidator.ValidateAsync;
     });
 
 builder.Services.AddHttpContextAccessor();

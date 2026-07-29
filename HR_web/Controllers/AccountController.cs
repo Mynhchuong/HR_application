@@ -74,7 +74,7 @@ public class AccountController : Controller
             Response.Cookies.Delete("EMP_CD");
         }
 
-        await AuthHelper.SignInAsync(HttpContext, user, model.RememberMe);
+        await AuthHelper.SignInAsync(HttpContext, user);
 
         if (user.RequirePasswordChange)
         {

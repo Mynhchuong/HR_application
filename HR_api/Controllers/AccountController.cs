@@ -922,6 +922,37 @@ public class AccountController : ControllerBase
     }
 
     // ─────────────────────────────────────────────
+    // GET: account/check-active?empcd=xxx
+    // Kiểm tra giữa phiên: tài khoản còn active + còn đi làm không.
+    // Dùng bởi HR_web (CookieAuthenticationEvents.OnValidatePrincipal) để tự
+    // logout ngay khi HR cho nghỉ việc, không cần chờ tới hạn hết cookie.
+    // ─────────────────────────────────────────────
+    [HttpGet("check-active")]
+    public async Task<IActionResult> CheckActive(string empcd)
+    {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = true, active = false });
+
+        var rows = await _oracleService.ExecuteQueryAsync(@"
+            SELECT U.IS_ACTIVE, E.JEAJIKGB
+            FROM HRMS.HR_USERS U
+            LEFT JOIN HRMS.ECM100 E ON E.EMPCD = U.EMPCD
+            WHERE U.EMPCD = :EMPCD",
+            r => new
+            {
+                IsActive = r["IS_ACTIVE"] == DBNull.Value ? 1 : Convert.ToInt32(r["IS_ACTIVE"]),
+                Jeajikgb = r["JEAJIKGB"]?.ToString()
+            },
+            new OracleParameter("EMPCD", empcd));
+
+        var u = rows.FirstOrDefault();
+        // Không có trong HR_USERS nữa (bị xoá) -> coi như không active
+        // Có JEAJIKGB (là nhân viên ECM100) nhưng khác 'Y' -> đã nghỉ việc
+        bool active = u != null && u.IsActive == 1 && (u.Jeajikgb == null || u.Jeajikgb == "Y");
+        return Ok(new { success = true, active });
+    }
+
+    // ─────────────────────────────────────────────
     // POST: account/sync-resigned
     // Tự động disable HR_USERS cho nhân viên đã nghỉ (JEAJIKGB != "Y" trong ECM100)
     // ─────────────────────────────────────────────

@@ -1066,7 +1066,7 @@ END;";
             var rows = await _oracleService.ExecuteQueryAsync($@"
                 SELECT * FROM (
                     SELECT A.*, ROWNUM RN
-                    FROM ({baseSql} ORDER BY R.FINAL_DATE DESC NULLS LAST, R.CREATED_DATE DESC) A
+                    FROM ({baseSql} ORDER BY NVL(R.FINAL_DATE, R.CREATED_DATE) DESC) A
                     WHERE ROWNUM <= :P_END
                 ) WHERE RN > :P_START",
                 r => new

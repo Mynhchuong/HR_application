@@ -148,7 +148,7 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Số ngày</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Lý do</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Tình Trạng</th>
-                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Người duyệt</th>
+                            <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Người duyệt / Người sắp</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ghi chú</th>
                         </tr>
                     </thead>
@@ -189,8 +189,14 @@ function statusBadge(item) {
 function buildRow(item, idx) {
     const ltLabel   = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
     const ltColor   = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
-    const approver  = escHtml(item.APPROVER_NAME || item.FINAL_APPROVER || '-');
-    const signTime  = item.FINAL_DATE ? `<div class="text-xxs text-secondary">${formatDate(item.FINAL_DATE)}</div>` : '';
+    const isAssigned = item.SOURCE === 'ASSIGNED';
+    const approver  = isAssigned
+        ? escHtml(item.ASSIGNER_NAME || item.ASSIGNED_BY || '-')
+        : escHtml(item.APPROVER_NAME || item.FINAL_APPROVER || '-');
+    const approverLbl = isAssigned ? 'Người sắp: ' : '';
+    const signDate  = isAssigned ? item.CREATED_DATE : item.FINAL_DATE;
+    const signLbl   = isAssigned ? 'Ngày sắp: ' : '';
+    const signTime  = signDate ? `<div class="text-xxs text-secondary">${signLbl}${formatDate(signDate)}</div>` : '';
     const srcBadge  = item.SOURCE === 'ASSIGNED'
         ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;">Sắp lịch</span>`
         : `<span class="badge bg-light text-dark border">Tự nộp</span>`;
@@ -209,7 +215,7 @@ function buildRow(item, idx) {
         <td class="px-2 text-sm"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
         <td class="text-center">${statusBadge(item)}</td>
         <td class="px-2">
-            <div class="emp-name vni-font" style="text-transform:uppercase;font-size:.9rem;">${approver}</div>
+            <div class="emp-name vni-font" style="text-transform:uppercase;font-size:.9rem;">${approverLbl ? `<span class="text-xxs text-secondary text-lowercase vni-font" style="text-transform:none;">${approverLbl}</span>` : ''}${approver}</div>
             ${signTime}
         </td>
         <td class="px-2 text-sm"><div class="txt-clamp" title="${escHtml(item.REMARK||'')}">${escHtml(item.REMARK||'-')}</div></td>
@@ -295,7 +301,7 @@ $('#exportBtn').on('click', async function() {
             pg++;
         } while (pg <= pgTotal);
         if (!rows.length) { showToast('Không có dữ liệu để xuất', 'warning'); return; }
-        const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Loại','Nguồn','Từ ngày','Đến ngày','Số ngày','Lý do','Tình trạng','Người duyệt','Ghi chú'];
+        const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Loại','Nguồn','Từ ngày','Đến ngày','Số ngày','Lý do','Tình trạng','Người duyệt / Người sắp','Ngày duyệt / Ngày sắp','Ghi chú'];
         let html = '<html><head><meta charset="utf-8"/></head><body><table border="1"><thead><tr>';
         html += headers.map(h=>`<th style="background:#bbf7d0;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
         rows.forEach((r,i) => {
@@ -311,7 +317,9 @@ $('#exportBtn').on('click', async function() {
                 else if (st==='APPROVED') st='Đã duyệt';
                 else if (st==='REJECTED') st='Từ chối';
             }
-            html += `<tr><td>${i+1}</td><td data-t="s">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${lt}</td><td>${src}</td><td>${formatDate(r.FROM_DATE)}</td><td>${formatDate(r.TO_DATE)}</td><td>${r.TOTAL_DAYS??''}</td><td>${escHtml(r.REASON||'')}</td><td>${st}</td><td>${escHtml(r.APPROVER_NAME||r.FINAL_APPROVER||'')}</td><td>${escHtml(r.REMARK||'')}</td></tr>`;
+            const signerName = r.SOURCE==='ASSIGNED' ? (r.ASSIGNER_NAME||r.ASSIGNED_BY||'') : (r.APPROVER_NAME||r.FINAL_APPROVER||'');
+            const signerDate = r.SOURCE==='ASSIGNED' ? r.CREATED_DATE : r.FINAL_DATE;
+            html += `<tr><td>${i+1}</td><td data-t="s">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${lt}</td><td>${src}</td><td>${formatDate(r.FROM_DATE)}</td><td>${formatDate(r.TO_DATE)}</td><td>${r.TOTAL_DAYS??''}</td><td>${escHtml(r.REASON||'')}</td><td>${st}</td><td>${escHtml(signerName)}</td><td>${formatDate(signerDate)}</td><td>${escHtml(r.REMARK||'')}</td></tr>`;
         });
         html += '</tbody></table></body></html>';
         exportHtmlTableToXlsx(html, `NghiPhep_${$('#filterDateFrom').val()}_${$('#filterDateTo').val()}.xlsx`);

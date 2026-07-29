@@ -98,6 +98,8 @@ public class LeaveListModel
     public DateTime? FINAL_DATE     { get; set; }
     public string?   REMARK         { get; set; }
     public string?   REQUESTER_ROLE { get; set; }
+    public string?   ASSIGNED_BY    { get; set; }
+    public string?   ASSIGNER_NAME  { get; set; }
 }
 
 public class LeaveSummary

@@ -45,6 +45,21 @@ public class AccountService
         var result = await ParseResponse<UserInfoModel>(response);
         return (result != null && result.success) ? result.data : null;
     }
+
+    private class CheckActiveResponse
+    {
+        public bool success { get; set; }
+        public bool active { get; set; }
+    }
+
+    // Kiểm tra giữa phiên: tài khoản còn active + còn đi làm không (JEAJIKGB/IS_ACTIVE).
+    // Lỗi kết nối -> coi như còn active (fail-open), tránh văng logout hàng loạt khi API tạm gián đoạn.
+    public async Task<bool> CheckActiveAsync(string empCd)
+    {
+        if (string.IsNullOrWhiteSpace(empCd)) return false;
+        var result = await _api.GetAsync<CheckActiveResponse>("Account/check-active", $"empcd={Uri.EscapeDataString(empCd)}");
+        return result?.success != true || result.active;
+    }
     #endregion
 
     #region USER LIST

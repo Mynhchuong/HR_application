@@ -1450,6 +1450,7 @@ public class LeaveController : ControllerBase
                 JOIN HRMS.ECM100      EC ON EC.EMPCD     = L.EMPCD
                 LEFT JOIN HRMS.EAM410    B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
                 LEFT JOIN HRMS.ECM100    AP ON AP.EMPCD  = R.FINAL_APPROVER
+                LEFT JOIN HRMS.ECM100    ASN ON ASN.EMPCD = R.CREATED_BY
                 LEFT JOIN HRMS.HR_USERS  UR ON UR.EMPCD  = L.EMPCD
                 LEFT JOIN HRMS.HR_ROLES  RR ON RR.ID     = UR.ROLE_ID";
 
@@ -1519,7 +1520,8 @@ public class LeaveController : ControllerBase
                                L.LEAVE_TYPE, L.SOURCE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS, L.REASON,
                                R.STATUS, L.CONFIRM_STATUS, L.CREATED_DATE,
                                R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK,
-                               RR.ROLE_NAME REQUESTER_ROLE
+                               RR.ROLE_NAME REQUESTER_ROLE,
+                               R.CREATED_BY ASSIGNED_BY, ASN.CNAME ASSIGNER_NAME
                         {fromSql}{whereSql}
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -1552,7 +1554,9 @@ public class LeaveController : ControllerBase
                 APPROVER_NAME  = r["APPROVER_NAME"]?.ToString(),
                 FINAL_DATE     = r["FINAL_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
                 REMARK         = r["REMARK"]?.ToString(),
-                REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString()
+                REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString(),
+                ASSIGNED_BY    = r["ASSIGNED_BY"]?.ToString(),
+                ASSIGNER_NAME  = r["ASSIGNER_NAME"]?.ToString()
             }, dataParams.ToArray());
 
             return Ok(new
@@ -2149,7 +2153,7 @@ public class LeaveController : ControllerBase
             var rows = await _oracleService.ExecuteQueryAsync($@"
                 SELECT * FROM (
                     SELECT A.*, ROWNUM RN
-                    FROM ({baseSql} ORDER BY R.FINAL_DATE DESC NULLS LAST, R.CREATED_DATE DESC) A
+                    FROM ({baseSql} ORDER BY NVL(R.FINAL_DATE, R.CREATED_DATE) DESC) A
                     WHERE ROWNUM <= :P_END
                 ) WHERE RN > :P_START",
                 r => new

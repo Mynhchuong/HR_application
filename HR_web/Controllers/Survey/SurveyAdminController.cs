@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace HR_web.Controllers.Survey;
 
 // HR/Admin: quản lý survey (list, create, edit, preview, test, publish, pause…) + report
-[Authorize(Roles = "Admin,HR")]
+[Authorize(Roles = "Admin,HR,CSR")]
 public class SurveyAdminController : BaseController
 {
     private readonly SurveyAdminService _admin;

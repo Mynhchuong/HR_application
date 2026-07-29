@@ -17,6 +17,7 @@ public static class SideMenuBuilder
         bool isManager       = user.RoleName == "Manager";
         bool isExpat         = user.RoleName == "Expat";
         bool isCanteen       = !isMobileApp && user.RoleName == "Canteen";
+        bool isCSR           = user.RoleName == "CSR";
 
         return new List<SideMenuItem>
         {
@@ -148,6 +149,23 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Chứng chỉ Đào tạo",    Url = "~/TrainingAdmin/Certificates",        Icon = "card_membership"        },
                     new SideMenuItem { Title = "Quản lý Đào tạo",      Url = "~/TrainingAdmin/Index",             Icon = "school"                 },
                 //    new SideMenuItem { Title = "DS miễn làm Survey",    Url = "~/SurveyExempt/Index",          Icon = "person_off"             },
+                }
+            },
+
+            new SideMenuItem
+            {
+                Id = "CSR",
+                Title = "CSR",
+                Icon = "support_agent",
+                VisibleWhen = () => isCSR || isAdmin,
+                Children = new List<SideMenuItem>
+                {
+                    new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign"        },
+                    new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy"          },
+                    new SideMenuItem { Title = "Chứng chỉ Đào tạo",     Url = "~/TrainingAdmin/Certificates", Icon = "card_membership" },
+                    new SideMenuItem { Title = "Quản lý Đào tạo",       Url = "~/TrainingAdmin/Index",        Icon = "school"          },
+                    new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",          Icon = "poll"            },
+                    new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",            Icon = "forum"           },
                 }
             },
 

@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers.Training;
 
-[Authorize(Roles = "Admin,HR")]
+[Authorize(Roles = "Admin,HR,CSR")]
 public class TrainingAdminController : BaseController
 {
     private readonly TrainingService _training;

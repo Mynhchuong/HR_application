@@ -6,7 +6,7 @@ using Newtonsoft.Json.Linq;
 
 namespace HR_web.Controllers.UserDept;
 
-[Authorize]
+[Authorize(Roles = "Admin,HR")]
 public class UserDeptController : BaseController
 {
     private readonly UserDeptService _service;

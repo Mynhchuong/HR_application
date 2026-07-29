@@ -8,7 +8,7 @@ using X.PagedList;
 
 namespace HR_web.Controllers.HR;
 
-[Authorize]
+[Authorize(Roles = "Admin,HR")]
 public class UserController : BaseController
 {
     private readonly AccountService _service;

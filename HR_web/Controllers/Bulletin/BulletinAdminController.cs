@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers.Bulletin;
 
-[Authorize(Roles = "Admin,HR")]
+[Authorize(Roles = "Admin,HR,CSR")]
 public class BulletinAdminController : BaseController
 {
     private readonly BulletinService     _service;

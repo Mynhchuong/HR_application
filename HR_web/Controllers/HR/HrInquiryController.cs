@@ -13,7 +13,7 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
 {
     public HrInquiryController(InquiryService inquiry) : base(inquiry) { }
 
-    private bool IsHr => CurrentUser?.RoleName == "HR";
+    private bool IsHr => CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "CSR";
 
     // ─────────────────────────────────────────────────────────────────────────
     // PAGE: Danh sách tất cả inquiry

@@ -318,18 +318,29 @@
             const wrap = document.getElementById('session-header-container');
             const s = sessionInfo;
             const dateStr = new Date(s.SESSION_DATE).toLocaleDateString('vi-VN');
-            const isFinished = s.STATUS === 'COMPLETED' || s.STATUS === 'FINISHED';
+            // COMPLETED chỉ là mốc batch job tự set sau END_TIME+30' — giáo viên vẫn được sửa điểm danh
+            // sau khi hết giờ (VD chưa kịp lưu, hoặc đổi ABSENT ↔ EXCUSED khi có leave nộp trễ).
+            // Chỉ thật sự khoá khi buổi học bị CANCELLED (không diễn ra, không có gì để điểm danh).
+            const isFinished  = s.STATUS === 'COMPLETED';
+            const isCancelled = s.STATUS === 'CANCELLED';
 
-            const badgeHtml = isFinished
-                ? `<span class="badge bg-danger px-2.5 py-1.5 fw-bold mb-2">Buổi học đã kết thúc</span>`
-                : `<span class="badge bg-success px-2.5 py-1.5 fw-bold mb-2">Điểm danh Buổi học</span>`;
+            const badgeHtml = isCancelled
+                ? `<span class="badge bg-secondary px-2.5 py-1.5 fw-bold mb-2">Buổi học đã huỷ</span>`
+                : isFinished
+                    ? `<span class="badge bg-info px-2.5 py-1.5 fw-bold mb-2">Buổi học đã kết thúc</span>`
+                    : `<span class="badge bg-success px-2.5 py-1.5 fw-bold mb-2">Điểm danh Buổi học</span>`;
 
-            const warningHtml = isFinished
+            const warningHtml = isCancelled
                 ? `<div class="alert alert-danger border-0 d-flex align-items-center gap-2 mb-0 mt-3 rounded-3" style="font-size: .85rem;">
                        <i class="bi bi-exclamation-triangle text-danger" style="font-size: 1.2rem;"></i>
-                       <div>Buổi học này đã kết thúc. Bạn không thể cập nhật hoặc sửa đổi thông tin điểm danh.</div>
+                       <div>Buổi học đã bị huỷ — không thể điểm danh.</div>
                    </div>`
-                : '';
+                : isFinished
+                    ? `<div class="alert alert-info border-0 d-flex align-items-center gap-2 mb-0 mt-3 rounded-3" style="font-size: .85rem;">
+                           <i class="bi bi-info-circle text-info" style="font-size: 1.2rem;"></i>
+                           <div>Buổi học này đã kết thúc. Bạn vẫn có thể cập nhật/sửa điểm danh nếu cần.</div>
+                       </div>`
+                    : '';
 
             wrap.innerHTML = `
                 <div class="card border-0 shadow-sm p-4" style="border-radius: 16px; background: #fff;">
@@ -348,7 +359,7 @@
                 </div>
             `;
 
-            if (isFinished) {
+            if (isCancelled) {
                 const btnPres = document.getElementById('btn-batch-present');
                 const btnAbs = document.getElementById('btn-batch-absent');
                 if (btnPres) btnPres.disabled = true;
@@ -436,8 +447,9 @@
             mobileList.innerHTML = '';
 
             let count = 0;
-            const isFinished = sessionInfo && (sessionInfo.STATUS === 'COMPLETED' || sessionInfo.STATUS === 'FINISHED');
-            const disabledAttr = isFinished ? 'disabled' : '';
+            // Chỉ khoá khi buổi học bị CANCELLED — COMPLETED (hết giờ) vẫn cho sửa điểm danh.
+            const isCancelled = sessionInfo && sessionInfo.STATUS === 'CANCELLED';
+            const disabledAttr = isCancelled ? 'disabled' : '';
 
             allStudents.forEach(st => {
                 if (filterGroup && st.GROUP_NAME !== filterGroup) return;

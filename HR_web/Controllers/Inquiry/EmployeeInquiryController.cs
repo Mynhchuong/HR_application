@@ -1,5 +1,6 @@
 using HR_web.API.Service;
 using HR_web.Models.Inquiry;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers.Inquiry;
@@ -8,6 +9,7 @@ namespace HR_web.Controllers.Inquiry;
 /// Dành cho nhân viên: tạo + chat inquiry (DIRECT và ANON).
 /// Truy cập bởi tất cả user đã đăng nhập.
 /// </summary>
+[Authorize]
 public class EmployeeInquiryController : InquiryBaseController
 {
     public EmployeeInquiryController(InquiryService inquiry) : base(inquiry) { }

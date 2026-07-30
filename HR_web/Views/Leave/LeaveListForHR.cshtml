@@ -191,8 +191,8 @@ function buildRow(item, idx) {
     const ltColor   = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
     const isAssigned = item.SOURCE === 'ASSIGNED';
     const approver  = isAssigned
-        ? escHtml(item.ASSIGNER_NAME || item.ASSIGNED_BY || '-')
-        : escHtml(item.APPROVER_NAME || item.FINAL_APPROVER || '-');
+        ? escHtml(item.ASSIGNED_BY || '-')
+        : escHtml(item.FINAL_APPROVER || '-');
     const approverLbl = isAssigned ? 'Người sắp: ' : '';
     const signDate  = isAssigned ? item.CREATED_DATE : item.FINAL_DATE;
     const signLbl   = isAssigned ? 'Ngày sắp: ' : '';
@@ -317,7 +317,7 @@ $('#exportBtn').on('click', async function() {
                 else if (st==='APPROVED') st='Đã duyệt';
                 else if (st==='REJECTED') st='Từ chối';
             }
-            const signerName = r.SOURCE==='ASSIGNED' ? (r.ASSIGNER_NAME||r.ASSIGNED_BY||'') : (r.APPROVER_NAME||r.FINAL_APPROVER||'');
+            const signerName = r.SOURCE==='ASSIGNED' ? (r.ASSIGNED_BY||'') : (r.FINAL_APPROVER||'');
             const signerDate = r.SOURCE==='ASSIGNED' ? r.CREATED_DATE : r.FINAL_DATE;
             html += `<tr><td>${i+1}</td><td data-t="s">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${lt}</td><td>${src}</td><td>${formatDate(r.FROM_DATE)}</td><td>${formatDate(r.TO_DATE)}</td><td>${r.TOTAL_DAYS??''}</td><td>${escHtml(r.REASON||'')}</td><td>${st}</td><td>${escHtml(signerName)}</td><td>${formatDate(signerDate)}</td><td>${escHtml(r.REMARK||'')}</td></tr>`;
         });

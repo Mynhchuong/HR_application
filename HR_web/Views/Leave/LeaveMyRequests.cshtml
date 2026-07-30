@@ -398,9 +398,8 @@ function actionBtns(item) {
     const s = item.STATUS;
     if (item.SOURCE === 'ASSIGNED' && s === 'ASSIGNED') {
         if (item.CONFIRM_STATUS === 'CONFIRMED') return '<span class="text-muted text-xs">-</span>';
-        if (isPastDate(item.FROM_DATE)) {
-            return `<span class="text-muted text-xs"><i class="bi bi-clock-history me-1"></i>Đã quá hạn</span>`;
-        }
+        // Sắp lịch là bắt buộc nghỉ (HR rule) — "Xác nhận" chỉ là đã xem thông báo,
+        // không phải phê duyệt/từ chối, nên KHÔNG giới hạn theo thời gian FROM_DATE.
         return `<button class="btn btn-xs btn-success" title="Tiếp nhận thông tin" onclick="confirmLeave('${item.REQUEST_ID}')"><i class="bi bi-check-lg me-1"></i>Đã nhận lịch nghỉ sắp xếp</button>`;
     }
     if (item.IS_EDITABLE && !isExpiredPending(item)) {

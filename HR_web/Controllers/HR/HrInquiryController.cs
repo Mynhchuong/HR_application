@@ -1,5 +1,6 @@
 using HR_web.API.Service;
 using HR_web.Models.Inquiry;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers.HR;
@@ -9,6 +10,7 @@ namespace HR_web.Controllers.HR;
 /// Chỉ đóng được conversation mà mình đang phụ trách (ASSIGNED_TO = empCd).
 /// Không có quyền Unlock.
 /// </summary>
+[Authorize(Roles = "HR,CSR")]
 public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseController
 {
     public HrInquiryController(InquiryService inquiry) : base(inquiry) { }

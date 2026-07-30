@@ -204,7 +204,7 @@ public class TrainingAuthHelper
         return rows.Any();
     }
 
-    // Check user là HR/Admin (truy vấn từ database)
+    // Check user là HR/Admin/CSR (truy vấn từ database) — CSR có quyền ngang HR cho module Đào tạo.
     public async Task<bool> IsHrOrAdminAsync(string empcd)
     {
         if (string.IsNullOrWhiteSpace(empcd)) return false;
@@ -212,7 +212,7 @@ public class TrainingAuthHelper
             SELECT 1 FROM HRMS.HR_USERS U
               JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID
              WHERE U.EMPCD = :EMPCD
-               AND RR.ROLE_NAME IN ('HR', 'Admin')
+               AND RR.ROLE_NAME IN ('HR', 'Admin', 'CSR')
                AND ROWNUM = 1",
             r => 1,
             new OracleParameter("EMPCD", empcd));

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers.NotiTemplate;
 
-[Authorize]
+[Authorize(Roles = "Admin")]
 public class NotiTemplateController : BaseController
 {
     private readonly NotiTemplateService _svc;

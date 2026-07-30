@@ -1117,10 +1117,11 @@ public class TrainingAdminController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetCertificateList(
         int? classId = null, int? courseId = null, string? empcd = null, string? deptcd = null,
-        string? linecd = null, string? workcd = null, DateTime? from = null, DateTime? to = null)
+        string? linecd = null, string? workcd = null, DateTime? from = null, DateTime? to = null,
+        int page = 1, int page_size = 50)
     {
         var loginUser = CurrentUser?.EmpCd ?? "";
-        var qs = $"loginUser={loginUser}";
+        var qs = $"loginUser={loginUser}&page={page}&page_size={page_size}";
         if (classId.HasValue)             qs += $"&classId={classId.Value}";
         if (courseId.HasValue)            qs += $"&courseId={courseId.Value}";
         if (!string.IsNullOrEmpty(empcd))  qs += $"&empcd={empcd}";

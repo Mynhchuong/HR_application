@@ -756,7 +756,7 @@ public partial class TrainingAdminController : ControllerBase
         return Ok(new { success = true, data });
     }
 
-    // GET /apiHR/TrainingAdmin/certificate/list?classId=&courseId=&deptcd=&linecd=&workcd=&from=&to=&empcd=&loginUser=
+    // GET /apiHR/TrainingAdmin/certificate/list?classId=&courseId=&deptcd=&linecd=&workcd=&from=&to=&empcd=&loginUser=&page=&page_size=
     [HttpGet("certificate/list")]
     public async Task<IActionResult> CertificateList(
         [FromQuery] int? classId,
@@ -767,7 +767,9 @@ public partial class TrainingAdminController : ControllerBase
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
         [FromQuery] string? empcd,
-        [FromQuery] string? loginUser)
+        [FromQuery] string? loginUser,
+        [FromQuery] int page = 1,
+        [FromQuery] int page_size = 50)
     {
         string? scopeSql = null;
         List<OracleParameter>? scopeParams = null;
@@ -792,8 +794,18 @@ public partial class TrainingAdminController : ControllerBase
             }
         }
 
-        var data = await _completion.ListCertificatesAsync(classId, courseId, deptcd, linecd, workcd, from, to, searchEmpcd, scopeSql, scopeParams);
-        return Ok(new { success = true, data });
+        var (total, data) = await _completion.ListCertificatesAsync(
+            classId, courseId, deptcd, linecd, workcd, from, to, searchEmpcd, scopeSql, scopeParams, page, page_size);
+
+        return Ok(new
+        {
+            success = true,
+            total,
+            page,
+            page_size,
+            total_pages = page_size > 0 ? (int)Math.Ceiling((double)total / page_size) : 0,
+            data
+        });
     }
 
     // POST /apiHR/TrainingAdmin/certificate/revoke — HR recall certificate

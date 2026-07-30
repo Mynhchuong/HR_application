@@ -1,3 +1,4 @@
+using HR_web.API.Service;
 using HR_web.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +11,13 @@ namespace HR_web.Controllers;
 [Authorize]
 public class FileController : BaseController
 {
+    private readonly TrainingService _training;
+
+    public FileController(TrainingService training)
+    {
+        _training = training;
+    }
+
     // Reuse cùng share credential với ImageController
     internal const string ShareRoot = @"\\192.168.1.5\vserp_picture";
     internal static readonly System.Net.NetworkCredential ShareCred =
@@ -44,6 +52,22 @@ public class FileController : BaseController
             return Json(new { success = false, message = "CLASS level cần classId" });
         if (file.Length > MaxBytes)
             return Json(new { success = false, message = "File quá 500 MB" });
+
+        var empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd))
+            return Json(new { success = false, message = "Chưa đăng nhập" });
+
+        bool isHrOrAdminOrCsr = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        if (!isHrOrAdminOrCsr)
+        {
+            // Level COURSE chỉ HR/Admin/CSR (quản lý khóa học) — level CLASS thì giáo viên
+            // đứng lớp đó cũng được upload, dùng cùng check-access với UploadMaterial page.
+            if (level == "COURSE")
+                return Json(new { success = false, message = "Bạn không có quyền upload tài liệu cấp khóa học" });
+
+            if (!await _training.CheckClassAccessAsync(classId!.Value, empcd))
+                return Json(new { success = false, message = "Bạn không phải giáo viên của lớp này" });
+        }
 
         var ext = Path.GetExtension(file.FileName).ToLower();
         string fileType;

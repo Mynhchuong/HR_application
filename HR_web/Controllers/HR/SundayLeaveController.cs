@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers.HR;
 
-[Authorize]
+[Authorize(Roles = "Admin,HR")]
 public class SundayLeaveController : BaseController
 {
     private readonly LeaveService _leave;

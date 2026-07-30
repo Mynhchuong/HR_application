@@ -163,8 +163,9 @@ public class TrainingController : BaseController
     // ═══════════════════════════════════════════════════════════════
 
     [HttpGet]
-    public async Task<IActionResult> GetMyClasses(string empcd)
+    public async Task<IActionResult> GetMyClasses()
     {
+        var empcd = CurrentUser?.EmpCd ?? "";
         var res = await _training.GetFromApiAsync<object>("Training/my-classes", $"empcd={empcd}");
         return Json(res);
     }
@@ -179,8 +180,9 @@ public class TrainingController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetClassDetail(int classId, string empcd)
+    public async Task<IActionResult> GetClassDetail(int classId)
     {
+        var empcd = CurrentUser?.EmpCd ?? "";
         var res = await _training.GetFromApiAsync<object>($"Training/class/{classId}/detail", $"empcd={empcd}");
         return Json(res);
     }
@@ -194,8 +196,9 @@ public class TrainingController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetSessionDetail(int sessionId, string empcd)
+    public async Task<IActionResult> GetSessionDetail(int sessionId)
     {
+        var empcd = CurrentUser?.EmpCd ?? "";
         var res = await _training.GetFromApiAsync<object>($"Training/session/{sessionId}/detail", $"empcd={empcd}");
         return Json(res);
     }
@@ -222,8 +225,9 @@ public class TrainingController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetQAList(int classId, string empcd)
+    public async Task<IActionResult> GetQAList(int classId)
     {
+        var empcd = CurrentUser?.EmpCd ?? "";
         var res = await _training.GetFromApiAsync<object>($"Training/class/{classId}/qa", $"empcd={empcd}");
         return Json(res);
     }
@@ -239,8 +243,9 @@ public class TrainingController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetTestForStudent(int id, string empcd)
+    public async Task<IActionResult> GetTestForStudent(int id)
     {
+        var empcd = CurrentUser?.EmpCd ?? "";
         var res = await _training.GetFromApiAsync<object>($"Training/test/{id}", $"empcd={empcd}");
         return Json(res);
     }

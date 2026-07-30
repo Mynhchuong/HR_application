@@ -328,10 +328,11 @@ public class TrainingCompletionService
     //  CERTIFICATE LIST (§12)
     // ═══════════════════════════════════════════════════════════════
 
-    public async Task<List<CertificateItem>> ListCertificatesAsync(
+    public async Task<(int Total, List<CertificateItem> Data)> ListCertificatesAsync(
         int? classId, int? courseId, string? deptcd, string? linecd, string? workcd,
         DateTime? from, DateTime? to, string? searchEmpcd = null,
-        string? scopeSql = null, List<OracleParameter>? scopeParams = null)
+        string? scopeSql = null, List<OracleParameter>? scopeParams = null,
+        int page = 1, int pageSize = 50)
     {
         var ps = new List<OracleParameter>
         {
@@ -349,14 +350,7 @@ public class TrainingCompletionService
             ps.AddRange(scopeParams);
         }
 
-        string sql = $@"
-            SELECT E.CLASS_ID, CL.CLASS_NAME, CO.TITLE COURSE_TITLE,
-                   E.EMPCD, EC.CNAME EMP_NAME,
-                   EC.DEPTCD, EC.LINECD, EC.WORKCD,
-                   B.DEPTNM, B.TEAMNM LINE_NAME, B.WORKNM,
-                   E.COMPLETION_DATE, E.FINAL_SCORE, E.ATTENDANCE_PERCENT,
-                   (SELECT MAX(TA.MAX_SCORE) FROM HRMS.HR_TRAINING_TEST_ATTEMPT TA
-                     WHERE TA.TEST_ID = CL.FINAL_TEST_ID AND TA.EMPCD = E.EMPCD) MAX_SCORE
+        string baseSql = $@"
               FROM HRMS.HR_TRAINING_ENROLLMENT E
               JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = E.CLASS_ID
               JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID
@@ -371,10 +365,41 @@ public class TrainingCompletionService
                AND (:P_FROM IS NULL OR E.COMPLETION_DATE >= :P_FROM)
                AND (:P_TO   IS NULL OR E.COMPLETION_DATE <= :P_TO)
                AND (:P_SEMP IS NULL OR E.EMPCD = :P_SEMP)
-               {scopeSql}
-             ORDER BY E.COMPLETION_DATE DESC, E.EMPCD";
+               {scopeSql}";
 
-        return await _db.ExecuteQueryAsync(sql, r => new CertificateItem
+        var totalRows = await _db.ExecuteQueryAsync(
+            $"SELECT COUNT(*) CNT {baseSql}",
+            r => Convert.ToInt32(r["CNT"]),
+            ps.Select(p => (OracleParameter)p.Clone()).ToArray());
+        int total = totalRows.FirstOrDefault();
+
+        if (total == 0) return (0, new List<CertificateItem>());
+
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 50;
+        int offset = (page - 1) * pageSize;
+        int maxRn  = offset + pageSize;
+
+        string dataSql = $@"
+            SELECT * FROM (
+                SELECT A.*, ROWNUM RN FROM (
+                    SELECT E.CLASS_ID, CL.CLASS_NAME, CO.TITLE COURSE_TITLE,
+                           E.EMPCD, EC.CNAME EMP_NAME,
+                           EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                           B.DEPTNM, B.TEAMNM LINE_NAME, B.WORKNM,
+                           E.COMPLETION_DATE, E.FINAL_SCORE, E.ATTENDANCE_PERCENT,
+                           (SELECT MAX(TA.MAX_SCORE) FROM HRMS.HR_TRAINING_TEST_ATTEMPT TA
+                             WHERE TA.TEST_ID = CL.FINAL_TEST_ID AND TA.EMPCD = E.EMPCD) MAX_SCORE
+                    {baseSql}
+                    ORDER BY E.COMPLETION_DATE DESC, E.EMPCD
+                ) A WHERE ROWNUM <= :P_END
+            ) WHERE RN > :P_START";
+
+        var dataPs = ps.Select(p => (OracleParameter)p.Clone()).ToList();
+        dataPs.Add(new OracleParameter("P_END",   maxRn));
+        dataPs.Add(new OracleParameter("P_START", offset));
+
+        var data = await _db.ExecuteQueryAsync(dataSql, r => new CertificateItem
         {
             CLASS_ID           = Convert.ToInt32(r["CLASS_ID"]),
             CLASS_NAME         = r["CLASS_NAME"]?.ToString()   ?? "",
@@ -391,7 +416,9 @@ public class TrainingCompletionService
             FINAL_SCORE        = r["FINAL_SCORE"]        is DBNull ? null : Convert.ToDecimal(r["FINAL_SCORE"]),
             MAX_SCORE          = r["MAX_SCORE"]           is DBNull ? null : Convert.ToDecimal(r["MAX_SCORE"]),
             ATTENDANCE_PERCENT = r["ATTENDANCE_PERCENT"] is DBNull ? null : Convert.ToDecimal(r["ATTENDANCE_PERCENT"]),
-        }, ps.ToArray());
+        }, dataPs.ToArray());
+
+        return (total, data);
     }
 
     // HR revoke certificate — set IS_CERTIFIED=0 với audit

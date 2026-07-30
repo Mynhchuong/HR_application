@@ -2,6 +2,7 @@ using System.Globalization;
 using ClosedXML.Excel;
 using HR_web.API.Service;
 using HR_web.Models.Inquiry;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers.HR;
@@ -12,6 +13,7 @@ namespace HR_web.Controllers.HR;
 ///   - Close: đóng bất kỳ conversation nào
 ///   - Unlock: mở khóa conversation bị HR giữ
 /// </summary>
+[Authorize(Roles = "Admin")]
 public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseController
 {
     public AdminInquiryController(InquiryService inquiry) : base(inquiry) { }

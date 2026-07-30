@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace HR_web.Controllers;
 
 
+[Authorize]
 public class DropdownController : BaseController
 {
     private readonly DropdownService _dropdownService;

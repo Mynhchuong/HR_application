@@ -66,7 +66,7 @@
                 <input type="text" id="filter-empcd" class="form-control" placeholder="Mã nhân viên..." style="border-radius: 8px;" />
             </div>
             <div class="col-6 col-lg-2 d-flex align-items-end">
-                <button onclick="loadCertificates()" class="btn btn-success w-100 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-1" style="height: 38px; border-radius: 8px;">
+                <button onclick="loadCertificates(1)" class="btn btn-success w-100 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-1" style="height: 38px; border-radius: 8px;">
                     <i class="bi bi-search" style="font-size: 1.1rem;"></i> Lọc dữ liệu
                 </button>
             </div>
@@ -105,6 +105,10 @@
                 </tbody>
             </table>
         </div>
+        <div class="d-flex justify-content-between align-items-center px-1 pt-3">
+            <div id="cert-pagination-count" class="text-sm text-secondary"></div>
+            <nav><ul class="pagination pagination-sm mb-0" id="cert-pagination-bar"></ul></nav>
+        </div>
     </div>
 </div>
 
@@ -122,10 +126,11 @@
         const currentLoginUser = '@empCd';
         let deptList = [];
         let certList = [];
+        let certPage = 1, certPageSize = 50, certTotal = 0, certTotalPages = 0;
 
         document.addEventListener('DOMContentLoaded', () => {
             loadFilterOptions();
-            loadCertificates();
+            loadCertificates(1);
             MobileTableHelper.init('certificates-tbody');
         });
 
@@ -194,17 +199,7 @@
                 });
         }
 
-        function loadCertificates() {
-            const tbody = document.getElementById('certificates-tbody');
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="7" class="text-center text-muted py-5">
-                        <div class="spinner-border text-success spinner-border-sm" role="status"></div>
-                        <span class="ms-2">Đang tải...</span>
-                    </td>
-                </tr>
-            `;
-
+        function certFilterParams() {
             const courseId = document.getElementById('filter-course').value;
             const classId = document.getElementById('filter-class').value;
             const deptcd = document.getElementById('filter-dept').value;
@@ -217,19 +212,40 @@
             if (deptcd) qs += `&deptcd=${encodeURIComponent(deptcd)}`;
             if (linecd) qs += `&linecd=${encodeURIComponent(linecd)}`;
             if (empcd) qs += `&empcd=${encodeURIComponent(empcd)}`;
+            return qs;
+        }
+
+        function loadCertificates(page = 1) {
+            certPage = page;
+            const tbody = document.getElementById('certificates-tbody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                        <div class="spinner-border text-success spinner-border-sm" role="status"></div>
+                        <span class="ms-2">Đang tải...</span>
+                    </td>
+                </tr>
+            `;
+
+            const qs = certFilterParams() + `&page=${page}&page_size=${certPageSize}`;
 
             fetch(`${window.TRAINING_URLS.getCertificateList}?${qs}`)
                 .then(r => r.json())
                 .then(res => {
                     if (!res.success || !res.data) {
                         tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Không tìm thấy chứng chỉ nào.</td></tr>';
+                        certTotal = 0; certTotalPages = 0;
+                        renderCertPagination();
                         return;
                     }
 
                     const list = res.data;
                     certList = list;
+                    certTotal = res.total || 0;
+                    certTotalPages = res.total_pages || 0;
                     if (list.length === 0) {
                         tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Không tìm thấy chứng chỉ nào.</td></tr>';
+                        renderCertPagination();
                         return;
                     }
 
@@ -257,6 +273,7 @@
                             </tr>
                         `;
                     });
+                    renderCertPagination();
                 })
                 .catch(() => {
                     tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">Lỗi kết nối hoặc không có quyền truy cập dữ liệu.</td></tr>';
@@ -264,6 +281,32 @@
                 .finally(() => {
                     MobileTableHelper.refresh('certificates-tbody');
                 });
+        }
+
+        function renderCertPagination() {
+            const countEl = document.getElementById('cert-pagination-count');
+            const barEl = document.getElementById('cert-pagination-bar');
+            if (!certTotal) { countEl.textContent = ''; barEl.innerHTML = ''; return; }
+            const s = (certPage - 1) * certPageSize + 1, e = Math.min(certPage * certPageSize, certTotal);
+            countEl.innerHTML = `<span class="text-xs">${s}-${e} / <strong>${certTotal}</strong> chứng chỉ</span>`;
+
+            const mk = (label, p, disabled, active) => {
+                const li = document.createElement('li');
+                li.className = 'page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '');
+                const a = document.createElement('a');
+                a.className = 'page-link';
+                a.style.cursor = 'pointer';
+                a.innerHTML = label;
+                if (!disabled && !active) a.onclick = () => loadCertificates(p);
+                li.appendChild(a);
+                return li;
+            };
+
+            barEl.innerHTML = '';
+            barEl.appendChild(mk('&lsaquo;', certPage - 1, certPage <= 1, false));
+            const from = Math.max(1, certPage - 2), to = Math.min(certTotalPages, certPage + 2);
+            for (let p = from; p <= to; p++) barEl.appendChild(mk(p, p, false, p === certPage));
+            barEl.appendChild(mk('&rsaquo;', certPage + 1, certPage >= certTotalPages, false));
         }
 
         function revokeCert(classId, empcd) {
@@ -277,7 +320,7 @@
                 .then(res => {
                     if (res.success) {
                         window.showToast('Đã thu hồi chứng chỉ thành công!', 'success');
-                        loadCertificates();
+                        loadCertificates(certPage);
                     } else {
                         window.showToast(res.message || 'Lỗi khi thu hồi.', 'error');
                     }
@@ -292,15 +335,26 @@
             });
         }
 
-        function exportCertificates() {
-            if (certList.length === 0) {
+        async function exportCertificates() {
+            window.showToast('Đang tải toàn bộ dữ liệu để xuất...', 'info');
+
+            let certExportList = [], pg = 1, pgTotal = 1;
+            do {
+                const qs = certFilterParams() + `&page=${pg}&page_size=500`;
+                const res = await fetch(`${window.TRAINING_URLS.getCertificateList}?${qs}`).then(r => r.json());
+                if (!res || !res.success) break;
+                pgTotal = res.total_pages || 1;
+                certExportList = certExportList.concat(res.data || []);
+                pg++;
+            } while (pg <= pgTotal);
+
+            if (certExportList.length === 0) {
                 window.showToast('Không có dữ liệu để xuất.', 'warning');
                 return;
             }
-            window.showToast('Đang tạo tệp Excel chứng chỉ...', 'info');
             const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
             let csvContent = "\uFEFFMã NV,Họ và Tên,Bộ phận/Chuyền/Line,Khóa học,Lớp học,Ngày hoàn thành,Điểm thi cuối kỳ,Chuyên cần\n";
-            certList.forEach(c => {
+            certExportList.forEach(c => {
                 const dateStr = c.COMPLETION_DATE ? new Date(c.COMPLETION_DATE).toLocaleDateString('vi-VN') : '-';
                 const scoreStr = c.FINAL_SCORE !== null ? `${c.FINAL_SCORE}${c.MAX_SCORE != null ? ' / ' + c.MAX_SCORE : ''}` : '-';
                 const attendStr = c.ATTENDANCE_PERCENT !== null ? `${c.ATTENDANCE_PERCENT.toFixed(1)}%` : '-';

@@ -221,12 +221,46 @@ public class TrainingReportService
                 AVG_FINAL_SCORE       = r["AVG_SC"]  is DBNull ? (decimal?)null : Convert.ToDecimal(r["AVG_SC"]),
             }, new OracleParameter("CID", courseId))).First();
 
+        // Danh sách học viên đậu (COMPLETED) / rớt (FAILED) cộng dồn cả khóa — kèm dept/line/work + lớp đã học.
+        async Task<List<ReportCourseStudentRow>> GetStudentsByStatusAsync(string status) => await _db.ExecuteQueryAsync(@"
+            SELECT E.EMPCD, CL.CLASS_NAME,
+                   (SELECT CNAME FROM HRMS.ECM100 WHERE EMPCD = E.EMPCD AND ROWNUM = 1) AS EMP_NAME,
+                   (SELECT B.DEPTNM FROM HRMS.ECM100 EX JOIN HRMS.EAM410 B
+                      ON B.DEPTCD = EX.DEPTCD AND B.LINECD = EX.LINECD AND B.WORKCD = EX.WORKCD
+                    WHERE EX.EMPCD = E.EMPCD AND ROWNUM = 1) AS DEPT_NAME,
+                   (SELECT B.TEAMNM FROM HRMS.ECM100 EX JOIN HRMS.EAM410 B
+                      ON B.DEPTCD = EX.DEPTCD AND B.LINECD = EX.LINECD AND B.WORKCD = EX.WORKCD
+                    WHERE EX.EMPCD = E.EMPCD AND ROWNUM = 1) AS LINE_NAME,
+                   (SELECT B.WORKNM FROM HRMS.ECM100 EX JOIN HRMS.EAM410 B
+                      ON B.DEPTCD = EX.DEPTCD AND B.LINECD = EX.LINECD AND B.WORKCD = EX.WORKCD
+                    WHERE EX.EMPCD = E.EMPCD AND ROWNUM = 1) AS WORK_NAME
+              FROM HRMS.HR_TRAINING_ENROLLMENT E
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = E.CLASS_ID
+             WHERE CL.COURSE_ID = :CID AND E.STATUS = :STATUS
+             ORDER BY CL.CLASS_NAME, E.EMPCD",
+            r => new ReportCourseStudentRow
+            {
+                EMPCD      = r["EMPCD"]?.ToString() ?? "",
+                EMP_NAME   = r["EMP_NAME"] as string,
+                CLASS_NAME = r["CLASS_NAME"]?.ToString() ?? "",
+                DEPT_NAME  = r["DEPT_NAME"] as string,
+                LINE_NAME  = r["LINE_NAME"] as string,
+                WORK_NAME  = r["WORK_NAME"] as string,
+            },
+            new OracleParameter("CID", courseId),
+            new OracleParameter("STATUS", status));
+
+        var passed = await GetStudentsByStatusAsync("COMPLETED");
+        var failed = await GetStudentsByStatusAsync("FAILED");
+
         return new ReportCourseModel
         {
-            COURSE_ID    = meta.ID,
-            COURSE_TITLE = meta.TITLE,
-            CLASSES      = classes,
-            TOTAL        = total,
+            COURSE_ID       = meta.ID,
+            COURSE_TITLE    = meta.TITLE,
+            CLASSES         = classes,
+            TOTAL           = total,
+            PASSED_STUDENTS = passed,
+            FAILED_STUDENTS = failed,
         };
     }
 

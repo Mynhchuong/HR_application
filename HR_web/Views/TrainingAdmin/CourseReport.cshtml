@@ -116,7 +116,7 @@
                     <div class="col-6 col-md-3"><div class="kpi-box"><div class="val text-success">${pct(t.AVG_ATTENDANCE_PERCENT)}</div><div class="lbl">Chuyên cần TB</div></div></div>
                 </div>
 
-                <div class="card border p-3 shadow-sm rounded-3">
+                <div class="card border p-3 shadow-sm rounded-3 mb-3">
                     <h6 class="fw-bold mb-3 text-dark">Chi tiết từng lớp</h6>
                     ${d.CLASSES.length === 0
                         ? '<p class="text-muted text-center py-4 small">Khóa học này chưa có lớp nào.</p>'
@@ -132,10 +132,52 @@
                                 </tbody>
                             </table>
                           </div>`}
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-12 col-lg-6">
+                        <div class="card border p-3 shadow-sm rounded-3 h-100">
+                            <h6 class="fw-bold mb-3 text-success">
+                                <i class="bi bi-check-circle-fill"></i> Danh sách đậu (${d.PASSED_STUDENTS.length})
+                            </h6>
+                            ${studentListHtml(d.PASSED_STUDENTS, 'coursePassedTbody')}
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="card border p-3 shadow-sm rounded-3 h-100">
+                            <h6 class="fw-bold mb-3 text-danger">
+                                <i class="bi bi-x-circle-fill"></i> Danh sách rớt (${d.FAILED_STUDENTS.length})
+                            </h6>
+                            ${studentListHtml(d.FAILED_STUDENTS, 'courseFailedTbody')}
+                        </div>
+                    </div>
                 </div>`;
 
             document.getElementById('reportContent').innerHTML = html;
             MobileTableHelper.refresh('courseClassesTbody');
+            MobileTableHelper.init('coursePassedTbody');
+            MobileTableHelper.init('courseFailedTbody');
+            MobileTableHelper.refresh('coursePassedTbody');
+            MobileTableHelper.refresh('courseFailedTbody');
+        }
+
+        function studentListHtml(students, tbodyId) {
+            if (!students || students.length === 0)
+                return '<p class="text-muted text-center py-3 small mb-0">Không có học viên.</p>';
+            return `<div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead><tr><th>Mã NV</th><th>Họ và tên</th><th>Phòng ban / Line / Work</th><th>Lớp</th></tr></thead>
+                    <tbody id="${tbodyId}">
+                        ${students.map(s => `
+                            <tr>
+                                <td data-mobile="primary" data-mobile-label="Mã NV">${esc(s.EMPCD)}</td>
+                                <td data-mobile="primary" data-mobile-label="Họ và tên" class="vni-font">${esc(s.EMP_NAME)}</td>
+                                <td data-mobile="detail" data-mobile-label="Dept/Line/Work" class="vni-font">${esc([s.DEPT_NAME, s.LINE_NAME, s.WORK_NAME].filter(Boolean).join(' / '))}</td>
+                                <td data-mobile="detail" data-mobile-label="Lớp">${esc(s.CLASS_NAME)}</td>
+                            </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>`;
         }
 
         function renderErr(msg) {

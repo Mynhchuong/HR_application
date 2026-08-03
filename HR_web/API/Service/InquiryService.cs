@@ -234,6 +234,23 @@ public class InquiryService
         catch (Exception ex) { return new InquiryReportResponse { success = false, message = ex.Message }; }
     }
 
+    // GET /apiHR/Inquiry/report-raw?from=YYYY-MM-DD&to=YYYY-MM-DD
+    public async Task<InquiryReportRawResponse> GetReportRawAsync(string? from, string? to)
+    {
+        try
+        {
+            var q = new List<string>();
+            if (!string.IsNullOrEmpty(from)) q.Add($"from={Uri.EscapeDataString(from)}");
+            if (!string.IsNullOrEmpty(to))   q.Add($"to={Uri.EscapeDataString(to)}");
+            var res = await _api.GetAsync_Raw("Inquiry/report-raw", string.Join("&", q));
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<InquiryReportRawResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new InquiryReportRawResponse { success = false };
+            return new InquiryReportRawResponse { success = false, message = "Lỗi kết nối API" };
+        }
+        catch (Exception ex) { return new InquiryReportRawResponse { success = false, message = ex.Message }; }
+    }
+
     // POST /apiHR/Inquiry/rate
     public async Task<InquiryActionResponse> RateAsync(
         long    inquiryId, string? empCd, string? anonToken,

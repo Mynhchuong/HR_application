@@ -941,7 +941,7 @@ public class AccountController : ControllerBase
             r => new
             {
                 IsActive = r["IS_ACTIVE"] == DBNull.Value ? 1 : Convert.ToInt32(r["IS_ACTIVE"]),
-                Jeajikgb = r["JEAJIKGB"]?.ToString()
+                Jeajikgb = r["JEAJIKGB"] == DBNull.Value ? null : r["JEAJIKGB"].ToString()
             },
             new OracleParameter("EMPCD", empcd));
 

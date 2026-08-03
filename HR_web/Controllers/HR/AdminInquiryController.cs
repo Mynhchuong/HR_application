@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using HR_web.API.Service;
 using HR_web.Models.Inquiry;
@@ -13,12 +14,25 @@ namespace HR_web.Controllers.HR;
 ///   - Close: đóng bất kỳ conversation nào
 ///   - Unlock: mở khóa conversation bị HR giữ
 /// </summary>
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,CSR")]
 public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseController
 {
     public AdminInquiryController(InquiryService inquiry) : base(inquiry) { }
 
     private bool IsAdmin => CurrentUser?.RoleName == "Admin";
+
+    // Report/GetReport/ExportReport (thống kê, read-only) mở thêm cho CSR xem — các action khác vẫn Admin-only
+    private bool CanViewReport => IsAdmin || CurrentUser?.RoleName == "CSR";
+
+    // Tin nhắn phía HR/Admin gõ qua rich-text editor nên CONTENT lưu kèm thẻ HTML (<p>..</p>) —
+    // bỏ thẻ cho dễ đọc khi xuất raw data ra Excel.
+    private static string StripHtml(string? html)
+    {
+        if (string.IsNullOrEmpty(html)) return "";
+        string text = Regex.Replace(html, "<[^>]+>", " ");
+        text = text.Replace("&nbsp;", " ").Replace("&amp;", "&").Replace("&lt;", "<").Replace("&gt;", ">").Replace("&quot;", "\"");
+        return Regex.Replace(text, @"\s+", " ").Trim();
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // PAGE: Danh sách tất cả inquiry
@@ -219,7 +233,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     // ─────────────────────────────────────────────────────────────────────────
     public IActionResult Report()
     {
-        if (!IsAdmin) return Forbid();
+        if (!CanViewReport) return Forbid();
         return View();
     }
 
@@ -230,7 +244,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     [HttpGet]
     public async Task<IActionResult> GetReport(string? from = null, string? to = null)
     {
-        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (!CanViewReport) return Json(new { success = false, message = "Không có quyền" });
 
         var result = await _inquiry.GetReportAsync(from, to);
         return Json(result);
@@ -243,11 +257,13 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     [HttpGet]
     public async Task<IActionResult> ExportReport(string? from = null, string? to = null)
     {
-        if (!IsAdmin) return Forbid();
+        if (!CanViewReport) return Forbid();
 
         var result = await _inquiry.GetReportAsync(from, to);
         if (!result.success)
             return BadRequest(result.message ?? "Không tải được dữ liệu báo cáo");
+
+        var rawResult = await _inquiry.GetReportRawAsync(from, to);
 
         string periodLabel = $"{result.from ?? "—"} → {result.to ?? "—"}";
 
@@ -319,7 +335,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         var bottomRated = rated.Count > 1 ? rated.Last() : null;
 
         r++;
-        wsSum.Cell(r, 1).Value = "── ĐÁNH GIÁ HR ──";
+        wsSum.Cell(r, 1).Value = "── TOP ĐÁNH GIÁ ──";
         wsSum.Cell(r, 1).Style.Font.Bold = true;
         wsSum.Cell(r, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#1e293b");
         wsSum.Cell(r, 1).Style.Font.FontColor = XLColor.White;
@@ -387,8 +403,8 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             wsTopic.Range(1, 1, 1, topicHeaders.Length).SetAutoFilter();
         wsTopic.Columns().AdjustToContents();
 
-        // ─── Sheet 3: Workload HR ────────────────────────────────────────────
-        var wsHr = wb.Worksheets.Add("Workload HR");
+        // ─── Sheet 3: Workload ────────────────────────────────────────────
+        var wsHr = wb.Worksheets.Add("Workload");
         string[] hrHeaders = { "STT", "Mã NS", "Họ và tên", "Tiếp nhận", "Đã đóng", "Đánh giá TB", "TG xử lý TB (phút)" };
         for (int i = 0; i < hrHeaders.Length; i++)
         {
@@ -419,6 +435,91 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         if (result.byHr.Count > 0)
             wsHr.Range(1, 1, 1, hrHeaders.Length).SetAutoFilter();
         wsHr.Columns().AdjustToContents();
+
+        // ─── Sheet 4: Raw Data (chi tiết từng hội thoại) ─────────────────────
+        var wsRaw = wb.Worksheets.Add("Raw Data");
+        string[] rawHeaders =
+        {
+            "STT", "ID chat", "Chủ đề", "Loại hội thoại", "Trạng thái", "Thời gian tạo", "Ngày đóng",
+            "Người đóng", "Ghi chú đóng",
+            "Mã NV", "Họ và tên", "Phòng ban", "Line", "Work",
+            "Tin nhắn đầu tiên", "Tổng số tin nhắn", "Người xử lý", "Tin nhắn cuối (người xử lý)",
+            "TG phản hồi (phút)", "Đánh giá", "Ghi chú đánh giá"
+        };
+        for (int i = 0; i < rawHeaders.Length; i++)
+        {
+            var c = wsRaw.Cell(1, i + 1);
+            c.Value = rawHeaders[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#dc2626");
+            c.Style.Font.FontColor = XLColor.White;
+            c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        row = 2;
+        foreach (var rw in rawResult.data)
+        {
+            wsRaw.Cell(row, 1).Value = row - 1;
+            wsRaw.Cell(row, 2).Value = rw.inquiryNo;
+            wsRaw.Cell(row, 3).Value = rw.topicName ?? "";
+            wsRaw.Cell(row, 4).Value = rw.chatType == "ANON" ? "Ẩn danh" : "Trực tiếp";
+            wsRaw.Cell(row, 5).Value = rw.status == "OPEN" ? "Đang mở" : rw.status == "CLOSED" ? "Đã đóng" : rw.status;
+            if (rw.instDt.HasValue) wsRaw.Cell(row, 6).Value = rw.instDt.Value; else wsRaw.Cell(row, 6).Value = "—";
+            if (rw.closedDt.HasValue) wsRaw.Cell(row, 7).Value = rw.closedDt.Value; else wsRaw.Cell(row, 7).Value = "—";
+            wsRaw.Cell(row, 6).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+            wsRaw.Cell(row, 7).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+
+            string closedByLabel = rw.closedByType switch
+            {
+                "HR"    => "HR",
+                "EMP"   => "NV tự đóng",
+                "ADMIN" => "Admin",
+                _       => ""
+            };
+            var closedByCell = wsRaw.Cell(row, 8);
+            closedByCell.Value = string.IsNullOrEmpty(rw.closedByName) ? closedByLabel : $"{rw.closedByName} ({closedByLabel})";
+            closedByCell.Style.Font.FontName = "Vnitbi__";
+            wsRaw.Cell(row, 9).Value = StripHtml(rw.closeNote);
+
+            wsRaw.Cell(row, 10).Value = rw.empCd ?? "";
+
+            var nameCell = wsRaw.Cell(row, 11);
+            nameCell.Value = rw.empDisplay ?? "";
+            nameCell.Style.Font.FontName = "Vnitbi__";
+
+            wsRaw.Cell(row, 12).Value = rw.deptName ?? "";
+            wsRaw.Cell(row, 13).Value = rw.lineName ?? "";
+            wsRaw.Cell(row, 14).Value = rw.workName ?? "";
+            wsRaw.Range(row, 12, row, 14).Style.Font.FontName = "Vnitbi__";
+
+            // Nội dung tin nhắn (chat content) là UTF-8 chuẩn — KHÔNG dùng font Vnitbi__ (chỉ áp cho tên/dept nguồn từ ECM100)
+            wsRaw.Cell(row, 15).Value = StripHtml(rw.firstMsg);
+
+            wsRaw.Cell(row, 16).Value = rw.msgCount;
+
+            var handlerCell = wsRaw.Cell(row, 17);
+            handlerCell.Value = (rw.assignedName ?? rw.assignedTo ?? "");
+            handlerCell.Style.Font.FontName = "Vnitbi__";
+
+            wsRaw.Cell(row, 18).Value = StripHtml(rw.lastHandlerMsg);
+
+            if (rw.responseMin.HasValue) wsRaw.Cell(row, 19).Value = Math.Round(rw.responseMin.Value, 1);
+            else                          wsRaw.Cell(row, 19).Value = "—";
+
+            wsRaw.Cell(row, 20).Value = rw.rating.HasValue ? $"{rw.rating.Value} sao" : "Chưa đánh giá";
+            wsRaw.Cell(row, 21).Value = StripHtml(rw.ratingNote);
+
+            row++;
+        }
+        if (rawResult.data.Count > 0)
+            wsRaw.Range(1, 1, 1, rawHeaders.Length).SetAutoFilter();
+        wsRaw.SheetView.FreezeRows(1);
+        wsRaw.Columns().AdjustToContents();
+        // Giới hạn độ rộng cột nội dung dài để tránh sheet quá khổ khi mở
+        wsRaw.Column(9).Width  = 40;
+        wsRaw.Column(15).Width = 60;
+        wsRaw.Column(18).Width = 60;
+        wsRaw.Column(21).Width = 40;
 
         using var ms = new MemoryStream();
         wb.SaveAs(ms);

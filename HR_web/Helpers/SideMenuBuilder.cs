@@ -144,6 +144,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy"             },
                     new SideMenuItem { Title = "DS làm Chủ Nhật",       Url = "~/SundayLeave/Index",           Icon = "wb_sunny"               },
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum"                  },
+                    new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart"       },
                     new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",             Icon = "home_app_logo"          },
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",           Icon = "poll"                   },
                     new SideMenuItem { Title = "Chứng chỉ Đào tạo",    Url = "~/TrainingAdmin/Certificates",        Icon = "card_membership"        },
@@ -166,6 +167,8 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý Đào tạo",       Url = "~/TrainingAdmin/Index",        Icon = "school"          },
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",          Icon = "poll"            },
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",            Icon = "forum"           },
+                    new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart"       },
+                    new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",            Icon = "home_app_logo"   },
                 }
             },
 

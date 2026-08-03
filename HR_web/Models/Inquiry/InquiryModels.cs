@@ -221,3 +221,40 @@ public class InquiryReportResponse
     public List<InquiryReportTopicRow> byTopic  { get; set; } = new();
     public List<InquiryReportHrRow>    byHr     { get; set; } = new();
 }
+
+[JsonObject(NamingStrategyType = typeof(CamelCaseNamingStrategy))]
+public class InquiryReportRawRow
+{
+    public long      id             { get; set; }
+    public string    inquiryNo      { get; set; } = "";
+    public string?   topicName      { get; set; }
+    public string    chatType       { get; set; } = "";
+    public string    status         { get; set; } = "";
+    public DateTime? instDt         { get; set; }
+    public DateTime? closedDt       { get; set; }
+    public string?   closedByName   { get; set; }
+    public string?   closedByType   { get; set; }
+    public string?   closeNote      { get; set; }
+    public string?   empCd          { get; set; }
+    public string?   empDisplay     { get; set; }
+    public string?   deptName       { get; set; }
+    public string?   lineName       { get; set; }
+    public string?   workName       { get; set; }
+    public string?   firstMsg       { get; set; }
+    public int       msgCount       { get; set; }
+    public string?   assignedName   { get; set; }
+    public string?   assignedTo     { get; set; }
+    public string?   lastHandlerMsg { get; set; }
+    public double?   responseMin    { get; set; }
+    public int?      rating         { get; set; }
+    public string?   ratingNote     { get; set; }
+}
+
+public class InquiryReportRawResponse
+{
+    public bool                       success { get; set; }
+    public string?                    message { get; set; }
+    public string?                    from    { get; set; }
+    public string?                    to      { get; set; }
+    public List<InquiryReportRawRow>  data    { get; set; } = new();
+}

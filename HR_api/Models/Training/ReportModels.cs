@@ -48,6 +48,19 @@ public class ReportCourseModel
     public string COURSE_TITLE { get; set; } = "";
     public List<ReportCourseClassRow> CLASSES { get; set; } = new();
     public ReportCourseClassRow TOTAL { get; set; } = new();
+    public List<ReportCourseStudentRow> PASSED_STUDENTS { get; set; } = new();
+    public List<ReportCourseStudentRow> FAILED_STUDENTS { get; set; } = new();
+}
+
+// Danh sách học viên đậu/rớt cả khóa (cộng dồn nhiều lớp) — EMPCD, tên, dept/line/work, học lớp nào
+public class ReportCourseStudentRow
+{
+    public string  EMPCD      { get; set; } = "";
+    public string? EMP_NAME   { get; set; }
+    public string? DEPT_NAME  { get; set; }
+    public string? LINE_NAME  { get; set; }
+    public string? WORK_NAME  { get; set; }
+    public string  CLASS_NAME { get; set; } = "";
 }
 
 public class ReportCourseClassRow

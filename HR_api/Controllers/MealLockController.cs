@@ -38,7 +38,7 @@ public class MealLockController : ControllerBase
                     lockChay   = (r["LOCK_CHAY"]?.ToString()  ?? "N") == "Y",
                     cutoffDt   = r["CUTOFF_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CUTOFF_DT"]),
                     note       = r["NOTE"]?.ToString(),
-                    isActive   = (r["IS_ACTIVE"]?.ToString() ?? "Y") == "Y",
+                    isActive   = (r["IS_ACTIVE"] == DBNull.Value ? "Y" : r["IS_ACTIVE"].ToString()) == "Y",
                     instId     = r["INST_ID"]?.ToString(),
                     instDt     = r["INST_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["INST_DT"]),
                     updtId     = r["UPDT_ID"]?.ToString(),

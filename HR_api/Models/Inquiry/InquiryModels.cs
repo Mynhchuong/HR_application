@@ -213,3 +213,30 @@ public class InquiryReportHrRowDto
     public double? AvgRating    { get; set; }
     public double? AvgHandleMin { get; set; }
 }
+
+public class InquiryReportRawRowDto
+{
+    public long      Id             { get; set; }
+    public string    InquiryNo      { get; set; } = "";
+    public string?   TopicName      { get; set; }
+    public string    ChatType       { get; set; } = "";   // DIRECT | ANON
+    public string    Status         { get; set; } = "";
+    public DateTime? InstDt         { get; set; }
+    public DateTime? ClosedDt       { get; set; }
+    public string?   ClosedByName   { get; set; }
+    public string?   ClosedByType   { get; set; }         // HR | EMP | ADMIN
+    public string?   CloseNote      { get; set; }
+    public string?   EmpCd          { get; set; }          // rỗng nếu ẩn danh
+    public string?   EmpDisplay     { get; set; }   // "Ẩn danh" nếu CHAT_TYPE = ANON
+    public string?   DeptName       { get; set; }
+    public string?   LineName       { get; set; }
+    public string?   WorkName       { get; set; }
+    public string?   FirstMsg       { get; set; }
+    public int       MsgCount       { get; set; }
+    public string?   AssignedName   { get; set; }
+    public string?   AssignedTo     { get; set; }
+    public string?   LastHandlerMsg { get; set; }
+    public double?   ResponseMin    { get; set; }   // LOCKED_DT - INST_DT
+    public int?      Rating         { get; set; }
+    public string?   RatingNote     { get; set; }
+}

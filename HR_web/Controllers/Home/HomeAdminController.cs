@@ -5,8 +5,8 @@ using Newtonsoft.Json;
 
 namespace HR_web.Controllers.Home;
 
-// Admin panel /HomeAdmin — HR + Admin có quyền vào.
-// HR chỉ thấy Banner + Greeting (bị giới hạn field), Admin thêm Rule + Audit.
+// Admin panel /HomeAdmin — HR + CSR + Admin có quyền vào.
+// HR/CSR chỉ thấy Banner + Greeting (bị giới hạn field), Admin thêm Rule + Audit.
 [Authorize]
 public class HomeAdminController : BaseController
 {
@@ -14,7 +14,7 @@ public class HomeAdminController : BaseController
 
     public HomeAdminController(HomeAdminApiService api) { _api = api; }
 
-    private bool IsHrOrAdmin() => CurrentUser?.RoleName is "HR" or "Admin";
+    private bool IsHrOrAdmin() => CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
     private bool IsAdmin()     => CurrentUser?.RoleName == "Admin";
 
     private IActionResult Forbid403() =>

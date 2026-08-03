@@ -1615,6 +1615,117 @@ public class InquiryController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Inquiry/report-raw?from=YYYY-MM-DD&to=YYYY-MM-DD
+    // Raw data từng hội thoại — dùng cho sheet "Raw Data" khi xuất Excel báo cáo
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("report-raw")]
+    public async Task<IActionResult> ReportRaw(string? from = null, string? to = null)
+    {
+        try
+        {
+            DateTime startDt, endDt;
+            if (DateTime.TryParse(from, out var fDt) && DateTime.TryParse(to, out var tDt))
+            {
+                startDt = fDt.Date;
+                endDt   = tDt.Date.AddDays(1);
+            }
+            else
+            {
+                var today = DateTime.Today;
+                int dow   = (int)today.DayOfWeek;
+                int diff  = dow == 0 ? -6 : 1 - dow;
+                startDt = today.AddDays(diff);
+                endDt   = startDt.AddDays(7);
+            }
+
+            var rows = await _db.ExecuteQueryAsync(@"
+                SELECT i.ID, i.INQUIRY_NO, t.TOPIC_NAME, i.STATUS, i.INST_DT, i.CLOSED_DT,
+                       i.CHAT_TYPE, i.EMPCD, i.EMP_NAME,
+                       i.CLOSED_BY_NAME, i.CLOSED_BY_TYPE, i.CLOSE_NOTE,
+                       i.MSG_COUNT, i.ASSIGNED_TO, i.ASSIGNED_NAME, i.RATING, i.RATING_NOTE,
+                       CASE WHEN i.LOCKED_DT IS NOT NULL
+                            THEN ROUND((i.LOCKED_DT - i.INST_DT) * 24 * 60, 1)
+                       END AS RESPONSE_MIN,
+                       (SELECT B.DEPTNM FROM HRMS.ECM100 EC JOIN HRMS.EAM410 B
+                          ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                        WHERE EC.EMPCD = i.EMPCD AND ROWNUM = 1) AS DEPT_NAME,
+                       (SELECT B.TEAMNM FROM HRMS.ECM100 EC JOIN HRMS.EAM410 B
+                          ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                        WHERE EC.EMPCD = i.EMPCD AND ROWNUM = 1) AS LINE_NAME,
+                       (SELECT B.WORKNM FROM HRMS.ECM100 EC JOIN HRMS.EAM410 B
+                          ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+                        WHERE EC.EMPCD = i.EMPCD AND ROWNUM = 1) AS WORK_NAME,
+                       fm.CONTENT AS FIRST_MSG,
+                       lm.CONTENT AS LAST_HANDLER_MSG
+                FROM HRMS.HR_INQUIRY i
+                LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = i.TOPIC_CD
+                LEFT JOIN (
+                    SELECT INQUIRY_ID, CONTENT FROM (
+                        SELECT INQUIRY_ID, CONTENT,
+                               ROW_NUMBER() OVER (PARTITION BY INQUIRY_ID ORDER BY SENT_DT ASC) RN
+                        FROM HRMS.HR_INQUIRY_MSG WHERE SENDER_TYPE = 'EMP'
+                    ) WHERE RN = 1
+                ) fm ON fm.INQUIRY_ID = i.ID
+                LEFT JOIN (
+                    SELECT INQUIRY_ID, CONTENT FROM (
+                        SELECT INQUIRY_ID, CONTENT,
+                               ROW_NUMBER() OVER (PARTITION BY INQUIRY_ID ORDER BY SENT_DT DESC) RN
+                        FROM HRMS.HR_INQUIRY_MSG WHERE SENDER_TYPE IN ('HR','ADMIN')
+                    ) WHERE RN = 1
+                ) lm ON lm.INQUIRY_ID = i.ID
+                WHERE TRUNC(i.INST_DT) >= :START_DT AND TRUNC(i.INST_DT) < :END_DT
+                ORDER BY i.INST_DT DESC",
+                r =>
+                {
+                    static string? S(object v) => v == DBNull.Value ? null : v.ToString();
+                    static DateTime? Dt(object v) => v == DBNull.Value ? null : Convert.ToDateTime(v);
+                    static double? D(object v) => v == DBNull.Value ? null : (double?)Math.Round(Convert.ToDouble(v), 1);
+                    static int? N(object v) => v == DBNull.Value ? null : Convert.ToInt32(v);
+                    return new InquiryReportRawRowDto
+                    {
+                        Id             = Convert.ToInt64(r["ID"]),
+                        InquiryNo      = r["INQUIRY_NO"]?.ToString() ?? "",
+                        TopicName      = S(r["TOPIC_NAME"]),
+                        ChatType       = r["CHAT_TYPE"]?.ToString() ?? "",
+                        Status         = r["STATUS"]?.ToString() ?? "",
+                        InstDt         = Dt(r["INST_DT"]),
+                        ClosedDt       = Dt(r["CLOSED_DT"]),
+                        ClosedByName   = S(r["CLOSED_BY_NAME"]),
+                        ClosedByType   = S(r["CLOSED_BY_TYPE"]),
+                        CloseNote      = S(r["CLOSE_NOTE"]),
+                        EmpCd          = r["CHAT_TYPE"]?.ToString() == "ANON" ? null : S(r["EMPCD"]),
+                        EmpDisplay     = r["CHAT_TYPE"]?.ToString() == "ANON" ? "Ẩn danh" : S(r["EMP_NAME"]),
+                        DeptName       = S(r["DEPT_NAME"]),
+                        LineName       = S(r["LINE_NAME"]),
+                        WorkName       = S(r["WORK_NAME"]),
+                        FirstMsg       = S(r["FIRST_MSG"]),
+                        MsgCount       = N(r["MSG_COUNT"]) ?? 0,
+                        AssignedName   = S(r["ASSIGNED_NAME"]),
+                        AssignedTo     = S(r["ASSIGNED_TO"]),
+                        LastHandlerMsg = S(r["LAST_HANDLER_MSG"]),
+                        ResponseMin    = D(r["RESPONSE_MIN"]),
+                        Rating         = N(r["RATING"]),
+                        RatingNote     = S(r["RATING_NOTE"])
+                    };
+                },
+                new OracleParameter("START_DT", startDt.Date),
+                new OracleParameter("END_DT",   endDt.Date));
+
+            return Ok(new
+            {
+                success = true,
+                from    = startDt.ToString("yyyy-MM-dd"),
+                to      = endDt.AddDays(-1).ToString("yyyy-MM-dd"),
+                data    = rows
+            });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // POST /apiHR/Inquiry/rate
     // Đánh giá sau khi CLOSED (chỉ Employee, chỉ 1 lần)
     // ─────────────────────────────────────────────────────────────────────────

@@ -229,6 +229,34 @@ public class TrainingAdminController : BaseController
         totalRow.Style.Font.SetBold();
 
         ws.Columns().AdjustToContents();
+
+        void WriteStudentSheet(string sheetName, List<ReportCourseStudentRow> students)
+        {
+            var wsS = wb.Worksheets.Add(sheetName);
+            WriteHeader(wsS, 1, new[] { "Mã NV", "Họ và tên", "Phòng ban", "Line", "Work", "Lớp" });
+            for (int i = 0; i < students.Count; i++)
+            {
+                var s = students[i];
+                int rr = i + 2;
+                wsS.Cell(rr, 1).Value = s.EMPCD;
+                var nameCell = wsS.Cell(rr, 2);
+                nameCell.Value = s.EMP_NAME ?? "";
+                nameCell.Style.Font.FontName = "Vnitbi__";
+                wsS.Cell(rr, 3).Value = s.DEPT_NAME ?? "";
+                wsS.Cell(rr, 4).Value = s.LINE_NAME ?? "";
+                wsS.Cell(rr, 5).Value = s.WORK_NAME ?? "";
+                wsS.Range(rr, 3, rr, 5).Style.Font.FontName = "Vnitbi__";
+                wsS.Cell(rr, 6).Value = s.CLASS_NAME;
+            }
+            if (students.Count > 0)
+                wsS.Range(1, 1, 1, 6).SetAutoFilter();
+            wsS.SheetView.FreezeRows(1);
+            wsS.Columns().AdjustToContents();
+        }
+
+        WriteStudentSheet("Danh sách đậu", report.PASSED_STUDENTS);
+        WriteStudentSheet("Danh sách rớt", report.FAILED_STUDENTS);
+
         return BuildXlsx(wb, $"report_course_{courseId}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
     }
 

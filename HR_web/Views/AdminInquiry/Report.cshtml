@@ -12,7 +12,9 @@
     display: inline-flex; align-items: center; gap: .25rem;
 }
 .rpt-export-btn:hover { background: rgba(255,255,255,.28); }
-.rpt-export-btn:disabled { opacity: .5; cursor: not-allowed; }
+.rpt-export-btn:disabled { opacity: .8; cursor: not-allowed; }
+.rpt-spin { animation: rpt-spin-anim 1s linear infinite; }
+@@keyframes rpt-spin-anim { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* Filter */
 .rpt-ctrl { background: white; border-radius: 14px; padding: .75rem 1rem;
@@ -211,10 +213,42 @@ function quickRange(kind) {
 
 function onApply() { loadReport(); }
 
-function exportExcel() {
+async function exportExcel() {
     const f = document.getElementById('fldFrom').value;
     const t = document.getElementById('fldTo').value;
-    window.location.href = `${URL_EXPORT}?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}`;
+    const btn = document.getElementById('btnExport');
+    const originalHtml = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = `<span class="material-symbols-rounded rpt-spin" style="font-size:1.1rem;vertical-align:middle">progress_activity</span> Đang xuất...`;
+
+    try {
+        const url = `${URL_EXPORT}?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(text || `Lỗi xuất báo cáo (HTTP ${res.status})`);
+        }
+
+        const blob = await res.blob();
+        const disp = res.headers.get('content-disposition') || '';
+        const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disp);
+        const fileName = match ? decodeURIComponent(match[1]) : `BaoCaoHoiThoai_${f}_${t}.xlsx`;
+
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+        alert('Xuất Excel thất bại: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
 }
 
 // Init = current week

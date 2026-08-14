@@ -16,7 +16,7 @@
     var shifts     = new[] { ("CA1","CA 1 — Ca sáng","#1F4E79"), ("CA2","CA 2 / Tăng ca","#375623"), ("CA3","CA 3 — Ca tối","#7B3F00") };
     var mealLabels = new Dictionary<string,string>
     {
-        { "MAN","Món mặn" }, { "DU_KIEN","Dự kiến" }, { "NHE","Món nhẹ" }, { "CHAY","Món chay" }
+        { "MAN","Món mặn" }, { "DU_KIEN","Dự kiến" }, { "NHE","Món nhẹ" }, { "CHAY","Món chay" }, { "BANH","Suất 2 món Bánh" }
     };
     var activeDays = Model.Select(m => m.DAY_NO).Distinct().OrderBy(d => d).ToHashSet();
     bool isEmpty   = !Model.Any();
@@ -37,6 +37,7 @@
         { "M", ("Mặn",  "#fee2e2", "#dc2626") },
         { "C", ("Chay", "#dcfce7", "#16a34a") },
         { "N", ("Nhẹ",  "#dbeafe", "#2563eb") },
+        { "B", ("Bánh", "#fefce8", "#d97706") },
     };
 }
 

@@ -139,6 +139,7 @@ public class ReportTestModel
 
     public List<TestScoreItem>  SCORES { get; set; } = new();
     public List<TestWrongItem>  TOP_WRONG_QUESTIONS { get; set; } = new();  // Mọi câu có người sai, sắp theo sai nhiều nhất trước
+    public List<TestAllAnswerItem> ALL_ANSWERS { get; set; } = new();       // Mọi câu trả lời của mọi học viên — cho giảng viên xem toàn bộ, không chỉ câu sai
 }
 
 public class TestScoreItem
@@ -170,4 +171,18 @@ public class WrongStudentItem
     public string EMPCD { get; set; } = "";
     public string? EMP_NAME { get; set; }
     public int    ATTEMPT_NO { get; set; }
+}
+
+public class TestAllAnswerItem
+{
+    public int    QUESTION_ID { get; set; }
+    public string QUESTION_TEXT { get; set; } = "";
+    public string QUESTION_TYPE { get; set; } = "";
+    public int    DISPLAY_ORDER { get; set; }
+    public string EMPCD { get; set; } = "";
+    public string? EMP_NAME { get; set; }
+    public int    ATTEMPT_NO { get; set; }
+    public string ANSWER_DISPLAY { get; set; } = "";   // Text đáp án đã chọn (option text nối bằng " + ") hoặc bài tự luận
+    public bool   IS_WRONG { get; set; }                // true nếu auto-grade và sai (TEXT luôn false — chấm tay)
+    public List<string> SELECTED_OPTION_TEXTS { get; set; } = new(); // Từng option text riêng lẻ — dùng tally thống kê theo đáp án
 }

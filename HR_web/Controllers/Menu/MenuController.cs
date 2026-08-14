@@ -29,13 +29,13 @@ public class MenuController : BaseController
     // Cột → MEAL_TYPE (1-based index trong ClosedXML)
     private static readonly Dictionary<int, string> MealCols = new()
     {
-        { 3, "MAN" }, { 4, "DU_KIEN" }, { 5, "NHE" }, { 6, "CHAY" }
+        { 3, "MAN" }, { 4, "DU_KIEN" }, { 5, "NHE" }, { 6, "CHAY" }, { 7, "BANH" }
     };
 
     private static readonly Dictionary<string, string> MealLabel = new()
     {
         { "MAN", "Món mặn" }, { "DU_KIEN", "Món dự kiến" },
-        { "NHE", "Món nhẹ" }, { "CHAY", "Món chay" }
+        { "NHE", "Món nhẹ" }, { "CHAY", "Món chay" }, { "BANH", "Món bánh (2 món)" }
     };
 
     private static readonly string[] DayLabels = { "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7" };
@@ -139,6 +139,7 @@ public class MenuController : BaseController
         ws.Column(4).Width = 30;
         ws.Column(5).Width = 30;
         ws.Column(6).Width = 32;
+        ws.Column(7).Width = 32;
 
         // Màu
         var colorTitle   = XLColor.FromHtml("#C00000");
@@ -151,8 +152,8 @@ public class MenuController : BaseController
         var colorNote    = XLColor.FromHtml("#FFF2CC");
 
         // Row 1: tiêu đề
-        ws.Range("A1:F1").Merge().Value = "THỰC ĐƠN TUẦN — CÔNG TY TNHH VIỆT NAM SAMHO";
-        StyleHeader(ws.Range("A1:F1"), colorTitle, 14, true);
+        ws.Range("A1:G1").Merge().Value = "THỰC ĐƠN TUẦN — CÔNG TY TNHH VIỆT NAM SAMHO";
+        StyleHeader(ws.Range("A1:G1"), colorTitle, 14, true);
         ws.Row(1).Height = 28;
 
         // Row 2: ngày
@@ -164,14 +165,15 @@ public class MenuController : BaseController
 
         ws.Cell("E2").Value = "Đến ngày:";
         StyleCell(ws.Cell("E2"), colorDay, 11, true);
+        ws.Range("F2:G2").Merge();
         StyleCell(ws.Cell("F2"), colorInput, 11);
         ws.Cell("F2").Style.DateFormat.Format = "DD/MM/YYYY";
         ws.Row(2).Height = 22;
 
         // Row 3: hướng dẫn
-        ws.Range("A3:F3").Merge().Value =
+        ws.Range("A3:G3").Merge().Value =
             "👉  Ô món: nhập ID số (tra sheet DANH MỤC MÓN) hoặc tên tự do.  " +
-            "Nhiều món trong 1 ô: Alt+Enter.  Ngày nghỉ hoặc không có loại món nào: để trống ô đó.";
+            "Nhiều món trong 1 ô (ví dụ 2 món bánh): Alt+Enter hoặc phân cách bởi +, /.  Ngày nghỉ: để trống ô đó.";
         StyleCell(ws.Cell("A3"), colorNote, 9);
         ws.Cell("A3").Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Left);
         ws.Row(3).Height = 15;
@@ -217,6 +219,7 @@ public class MenuController : BaseController
             ("MÓN DỰ KIẾN",      "Món thay thế"),
             ("MÓN NHẸ",          "Bún / phở / mì..."),
             ("MÓN CHAY",         "Món chay"),
+            ("MÓN BÁNH (2 MÓN)", "Suất bánh gồm 2 món — nhập cả 2 vào cùng 1 ô, cách nhau bằng Alt+Enter hoặc dấu +"),
         };
         for (int i = 0; i < guide.Length; i++)
         {
@@ -293,46 +296,63 @@ public class MenuController : BaseController
                             var cellVal = ws.Cell(row, col).GetString().Trim();
                             if (string.IsNullOrWhiteSpace(cellVal)) continue;
 
-                            // Mỗi ô chỉ lấy 1 món (dòng đầu tiên)
-                            var line = cellVal
-                                .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
-                                .Select(l => l.Trim())
-                                .FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
-
-                            if (line == null) continue;
-
-                            if (int.TryParse(line, out int foodId))
+                            // BANH: hỗ trợ đọc nhiều món trong 1 ô (Alt+Enter, +, /). Các loại khác
+                            // (MAN/NHE/CHAY/DU_KIEN) vẫn 1 món/ô như cũ — không tách theo +, /, dấu
+                            // phẩy vì tên món tiếng Việt hay chứa các ký tự này (VD "Cơm, canh, mặn").
+                            List<string> lines;
+                            if (mealType == "BANH")
                             {
-                                items.Add(new SaveDetailItem
-                                {
-                                    DAY_NO        = dayNo,
-                                    SHIFT         = shift,
-                                    MEAL_TYPE     = mealType,
-                                    FOOD_ID       = foodId,
-                                    DISPLAY_ORDER = 1
-                                });
+                                lines = cellVal
+                                    .Split(new[] { '\n', '\r', '+', '/' }, StringSplitOptions.RemoveEmptyEntries)
+                                    .Select(l => l.Trim())
+                                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                                    .ToList();
                             }
                             else
                             {
-                                var matched = foods.FirstOrDefault(f =>
-                                    f.FOOD_NAME.Equals(line, StringComparison.OrdinalIgnoreCase));
-                                if (matched == null)
+                                var first = cellVal
+                                    .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                                    .Select(l => l.Trim())
+                                    .FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
+                                lines = first != null ? new List<string> { first } : new List<string>();
+                            }
+
+                            int displayOrder = 1;
+                            foreach (var line in lines)
+                            {
+                                if (int.TryParse(line, out int foodId))
                                 {
-                                    errors.Add(new()
+                                    items.Add(new SaveDetailItem
                                     {
-                                        Location = $"{shift} — {day} — {MealLabel[mealType]}",
-                                        Message  = $"Không tìm thấy \"{line}\" trong danh mục. Nhập ID số hoặc thêm món vào danh mục trước."
+                                        DAY_NO        = dayNo,
+                                        SHIFT         = shift,
+                                        MEAL_TYPE     = mealType,
+                                        FOOD_ID       = foodId,
+                                        DISPLAY_ORDER = displayOrder++
                                     });
-                                    continue;
                                 }
-                                items.Add(new SaveDetailItem
+                                else
                                 {
-                                    DAY_NO        = dayNo,
-                                    SHIFT         = shift,
-                                    MEAL_TYPE     = mealType,
-                                    FOOD_ID       = matched.ID,
-                                    DISPLAY_ORDER = 1
-                                });
+                                    var matched = foods.FirstOrDefault(f =>
+                                        f.FOOD_NAME.Equals(line, StringComparison.OrdinalIgnoreCase));
+                                    if (matched == null)
+                                    {
+                                        errors.Add(new()
+                                        {
+                                            Location = $"{shift} — {day} — {MealLabel[mealType]}",
+                                            Message  = $"Không tìm thấy \"{line}\" trong danh mục. Nhập ID số hoặc thêm món vào danh mục trước."
+                                        });
+                                        continue;
+                                    }
+                                    items.Add(new SaveDetailItem
+                                    {
+                                        DAY_NO        = dayNo,
+                                        SHIFT         = shift,
+                                        MEAL_TYPE     = mealType,
+                                        FOOD_ID       = matched.ID,
+                                        DISPLAY_ORDER = displayOrder++
+                                    });
+                                }
                             }
                         }
                     }
@@ -540,6 +560,7 @@ public class MenuController : BaseController
                 "MAN"     => "Mặn",
                 "NHE"     => "Nhẹ",
                 "CHAY"    => "Chay",
+                "BANH"    => "Bánh",
                 "DU_KIEN" => "Dự kiến",
                 _         => f.FOOD_TYPE ?? "—"
             };
@@ -579,7 +600,7 @@ public class MenuController : BaseController
         }
 
         // Ghi chú hướng dẫn
-        ws.Cell(1, 5).Value = "Loại món: MAN = Mặn | NHE = Nhẹ | CHAY = Chay";
+        ws.Cell(1, 5).Value = "Loại món: MAN = Mặn | NHE = Nhẹ | CHAY = Chay | BANH = Bánh";
         ws.Cell(1, 5).Style.Font.Italic = true;
         ws.Cell(1, 5).Style.Font.FontColor = XLColor.Gray;
 
@@ -594,7 +615,7 @@ public class MenuController : BaseController
 
         // Dropdown validation cho cột Loại món (B2:B500)
         var typeRange = ws.Range("B2:B500");
-        typeRange.CreateDataValidation().List("\"MAN,NHE,CHAY\"", true);
+        typeRange.CreateDataValidation().List("\"MAN,NHE,CHAY,BANH\"", true);
 
         ws.Columns(1, 4).AdjustToContents();
         ws.Column(5).Width = 45;
@@ -649,10 +670,10 @@ public class MenuController : BaseController
                 continue;
             }
 
-            var validTypes = new[] { "MAN", "NHE", "CHAY" };
+            var validTypes = new[] { "MAN", "NHE", "CHAY", "BANH" };
             if (string.IsNullOrWhiteSpace(rawType) || !validTypes.Contains(rawType))
             {
-                errors.Add($"Dòng {row} ({name}): Loại món không hợp lệ — dùng MAN / NHE / CHAY.");
+                errors.Add($"Dòng {row} ({name}): Loại món không hợp lệ — dùng MAN / NHE / CHAY / BANH.");
                 continue;
             }
 
@@ -807,8 +828,8 @@ public class MenuController : BaseController
         XLColor caColor, XLColor headerColor, XLColor dayColor, XLColor inputColor)
     {
         // Ca header
-        ws.Range(startRow, 1, startRow, 6).Merge().Value = label;
-        StyleHeader(ws.Range(startRow, 1, startRow, 6), caColor, 12, true);
+        ws.Range(startRow, 1, startRow, 7).Merge().Value = label;
+        StyleHeader(ws.Range(startRow, 1, startRow, 7), caColor, 12, true);
         ws.Row(startRow).Height = 22;
 
         // Column headers
@@ -819,7 +840,8 @@ public class MenuController : BaseController
         ws.Cell(hr, 4).Value = "MÓN DỰ KIẾN";
         ws.Cell(hr, 5).Value = "MÓN NHẸ";
         ws.Cell(hr, 6).Value = "MÓN CHAY";
-        ws.Range(hr, 1, hr, 6).Style
+        ws.Cell(hr, 7).Value = "MÓN BÁNH (2 MÓN)";
+        ws.Range(hr, 1, hr, 7).Style
             .Fill.SetBackgroundColor(headerColor)
             .Font.SetBold(true);
         ws.Row(hr).Height = 26;
@@ -834,7 +856,7 @@ public class MenuController : BaseController
             ws.Cell(r, 2).Style.Fill.SetBackgroundColor(dayColor).Font.SetBold(true);
             ws.Cell(r, 2).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center)
                                          .Alignment.SetVertical(XLAlignmentVerticalValues.Center);
-            for (int c = 3; c <= 6; c++)
+            for (int c = 3; c <= 7; c++)
             {
                 ws.Cell(r, c).Style
                     .Fill.SetBackgroundColor(inputColor)

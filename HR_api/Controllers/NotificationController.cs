@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Oracle.ManagedDataAccess.Client;
 using Oracle.ManagedDataAccess.Types;
 using HR_api.Data;
@@ -13,11 +14,15 @@ public class NotificationController : ControllerBase
 {
     private readonly OracleService _oracleService;
     private readonly NotificationHelper _notiHelper;
+    private readonly IMemoryCache _cache;
+    private static readonly TimeSpan UnreadCountCacheTtl = TimeSpan.FromSeconds(45);
+    private static string UnreadCountCacheKey(string empcd) => $"noti-unread-count:{empcd}";
 
-    public NotificationController(OracleService oracleService, NotificationHelper notiHelper)
+    public NotificationController(OracleService oracleService, NotificationHelper notiHelper, IMemoryCache cache)
     {
         _oracleService = oracleService;
         _notiHelper = notiHelper;
+        _cache = cache;
     }
 
     // ============================================================
@@ -208,6 +213,7 @@ public class NotificationController : ControllerBase
                 new OracleParameter("NOTI_ID", notiId),
                 new OracleParameter("EMPCD", empcd));
 
+            _cache.Remove(UnreadCountCacheKey(empcd));
             return Ok(new { success = true });
         }
         catch (Exception ex)
@@ -266,6 +272,7 @@ public class NotificationController : ControllerBase
                 new OracleParameter("EMPCD5", empcd),
                 new OracleParameter("EMPCD6", empcd));
 
+            _cache.Remove(UnreadCountCacheKey(empcd));
             return Ok(new { success = true });
         }
         catch (Exception ex)
@@ -284,6 +291,9 @@ public class NotificationController : ControllerBase
         {
             if (string.IsNullOrEmpty(empcd))
                 return Ok(new { success = false, count = 0 });
+
+            if (_cache.TryGetValue(UnreadCountCacheKey(empcd), out int cachedCount))
+                return Ok(new { success = true, count = cachedCount });
 
             string sql = @"
                 WITH ME AS (
@@ -322,7 +332,9 @@ public class NotificationController : ControllerBase
                 new OracleParameter("EMPCD4", empcd),
                 new OracleParameter("EMPCD5", empcd));
 
-            return Ok(new { success = true, count = rows.FirstOrDefault() });
+            var count = rows.FirstOrDefault();
+            _cache.Set(UnreadCountCacheKey(empcd), count, UnreadCountCacheTtl);
+            return Ok(new { success = true, count });
         }
         catch (Exception ex)
         {

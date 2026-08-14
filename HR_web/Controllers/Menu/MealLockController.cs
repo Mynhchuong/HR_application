@@ -41,6 +41,7 @@ public class MealLockController : BaseController
         public bool    LockMan   { get; set; }
         public bool    LockNhe   { get; set; }
         public bool    LockChay  { get; set; }
+        public bool    LockBanh  { get; set; }   // Bánh
         public string? CutoffDt  { get; set; }
         public string? Note      { get; set; }
         public bool    IsActive  { get; set; } = true;
@@ -60,6 +61,7 @@ public class MealLockController : BaseController
             lockMan   = body.LockMan,
             lockNhe   = body.LockNhe,
             lockChay  = body.LockChay,
+            lockBanh  = body.LockBanh,
             cutoffDt  = body.CutoffDt,
             note      = body.Note,
             isActive  = body.IsActive,

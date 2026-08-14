@@ -47,10 +47,11 @@
         { "DU_KIEN", ("#DBEAFE","#1E40AF") },
         { "NHE",     ("#D1FAE5","#065F46") },
         { "CHAY",    ("#F0FDF4","#166534") },
+        { "BANH",    ("#FEF9C3","#78350F") },
     };
     var mealLabels = new Dictionary<string,string>
     {
-        { "MAN","🍖 Món mặn" }, { "DU_KIEN","📋 Dự kiến" }, { "NHE","🥗 Món nhẹ" }, { "CHAY","🥦 Món chay" }
+        { "MAN","🍖 Món mặn" }, { "DU_KIEN","📋 Dự kiến" }, { "NHE","🥗 Món nhẹ" }, { "CHAY","🥦 Món chay" }, { "BANH","🥐 Suất 2 món Bánh" }
     };
     bool isEmpty = !Model.Any();
 }
@@ -420,7 +421,7 @@
     @{
         var userMeals = ViewBag.UserMeals as List<HR_web.Models.Menu.UserTodayMealModel>;
         var mealEmoji = new Dictionary<string,string>
-        { { "MAN","🍖" }, { "NHE","🥗" }, { "CHAY","🥦" } };
+        { { "MAN","🍖" }, { "NHE","🥗" }, { "CHAY","🥦" }, { "BANH","🥐" } };
     }
 
     @if (userMeals != null && userMeals.Any())
@@ -506,7 +507,7 @@
 
             var byMeal = shiftItems
                 .GroupBy(m => m.MEAL_TYPE)
-                .OrderBy(g => g.Key == "MAN" ? 0 : g.Key == "DU_KIEN" ? 1 : g.Key == "NHE" ? 2 : 3)
+                .OrderBy(g => g.Key == "MAN" ? 0 : g.Key == "DU_KIEN" ? 1 : g.Key == "NHE" ? 2 : g.Key == "CHAY" ? 3 : 4)
                 .ToList();
 
             <div class="tp-shift">

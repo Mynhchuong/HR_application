@@ -54,10 +54,11 @@
     .cm-meal-btn.man  { border-color: #f97316; color: #f97316; }
     .cm-meal-btn.nhe  { border-color: #0ea5e9; color: #0ea5e9; }
     .cm-meal-btn.chay { border-color: #22c55e; color: #22c55e; }
+    .cm-meal-btn.banh { border-color: #f59e0b; color: #d97706; }
     .cm-meal-btn.man:hover  { background: #fff7ed; }
     .cm-meal-btn.nhe:hover  { background: #f0f9ff; }
-
-    /* Date picker for meal change */
+    .cm-meal-btn.chay:hover { background: #f0fdf4; }
+    .cm-meal-btn.banh:hover { background: #fefce8; }
     .cm-pick-date {
         display: flex; align-items: center; gap: .5rem;
         margin-bottom: .75rem;
@@ -156,6 +157,16 @@
             <span style="font-weight:400;opacity:.85;margin-left:auto;font-size:.7rem;">— <span id="mealDateLabel">ngày mai</span></span>
         </div>
         <div class="cm-section-body">
+            <!-- Banner quy định bánh -->
+            <div id="breadPolicyBanner" style="background:linear-gradient(135deg,#fef9c3,#fde68a);border:1px solid #f59e0b;border-radius:.6rem;padding:.7rem .9rem;margin-bottom:.8rem;font-size:.78rem;color:#78350f;">
+                <div style="font-weight:700;margin-bottom:.3rem;">🥐 Quy định Phiếu Bánh</div>
+                <ul style="margin:0;padding-left:1.2rem;line-height:1.6;">
+                    <li>Tối đa <strong>3 ngày/tuần</strong> có suất Bánh</li>
+                    <li>Số phiếu <strong>giới hạn theo phòng ban</strong> mỗi ngày</li>
+                    <li>Bánh chỉ áp dụng <strong>Bữa ăn giữa ca</strong> — không áp dụng tăng ca</li>
+                </ul>
+                <div id="breadStatusBadge" style="margin-top:.45rem;padding:.3rem .5rem;background:rgba(255,255,255,.55);border-radius:.35rem;font-size:.77rem;color:#92400e;">🔄 Đang tải...</div>
+            </div>
             <div class="cm-pick-date">
                 <label>📅 Ngày đổi</label>
                 <input type="date" id="mealDate" onchange="onMealDateChange()" />
@@ -165,6 +176,7 @@
                 <button class="cm-meal-btn man"  id="btnMAN"  onclick="submitMeal('MAN','Mặn','LUNCH')">🍖 Mặn</button>
                 <button class="cm-meal-btn nhe"  id="btnNHE"  onclick="submitMeal('NHE','Nhẹ','LUNCH')">🥗 Nhẹ</button>
                 <button class="cm-meal-btn chay" id="btnCHAY" onclick="submitMeal('CHAY','Chay','LUNCH')">🥦 Chay</button>
+                <button class="cm-meal-btn banh" id="btnBANH" onclick="submitMeal('BANH','Bánh','LUNCH')">🥐 Bánh</button>
             </div>
             <p id="currentMealHint" style="font-size:.75rem;color:#94a3b8;margin:.6rem 0 0;text-align:center;display:none;">
                 Nút món hiện tại đã ẩn — chọn để đổi sang loại khác
@@ -231,17 +243,27 @@
 <script>
 const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 const MEAL_URL = '@Url.Action("GetMealForDate", "Menu")';
+const BREAD_STATUS_URL = '@Url.Action("GetBreadStatus", "CanteenBread")';
 let selectedSpecial = '';
 
 const MEAL_INFO = {
     MAN:  { label: '🍖 Đang ăn Mặn',  color: '#f97316' },
     NHE:  { label: '🥗 Đang ăn Nhẹ',  color: '#0ea5e9' },
     CHAY: { label: '🥦 Đang ăn Chay', color: '#22c55e' },
+    BANH: { label: '🥐 Đang ăn Bánh', color: '#d97706' },
 };
 
+let currentLunchType = null;
+// Đổi ngày liên tục (đổi lần 2 trước khi fetch của lần 1 xong) có thể khiến response về
+// không đúng thứ tự, đè badge/nút bằng data của ngày cũ. Token tăng dần mỗi lần đổi ngày,
+// chỉ áp kết quả nếu vẫn là request mới nhất khi resolve.
+let mealDateReqToken = 0;
+
 function updateMealButtons(currentType) {
-    ['MAN', 'NHE', 'CHAY'].forEach(t => {
-        document.getElementById('btn' + t).style.display = t === currentType ? 'none' : '';
+    currentLunchType = currentType;
+    ['MAN', 'NHE', 'CHAY', 'BANH'].forEach(t => {
+        const btn = document.getElementById('btn' + t);
+        if (btn) btn.style.display = t === currentType ? 'none' : '';
     });
     const badge = document.getElementById('currentMealBadge');
     const info  = MEAL_INFO[currentType];
@@ -318,14 +340,16 @@ function applyLockUI(typeMeal, lockInfo, targetDate){
     const badgeId = typeMeal === 'OT' ? 'currentOtBadge' : 'currentMealBadge';
 
     // Xác định những loại bị khoá. Nếu rule không restrict type → khoá hết.
-    const typeRestricted = !!(lockInfo.lockMan || lockInfo.lockNhe || lockInfo.lockChay);
+    const typeRestricted = !!(lockInfo.lockMan || lockInfo.lockNhe || lockInfo.lockChay || lockInfo.lockBanh);
+    const allTypes = ['MAN','NHE','CHAY','BANH'];
     const blockedTypes = lockInfo.locked
         ? (typeRestricted
-            ? ['MAN','NHE','CHAY'].filter(t =>
-                (t==='MAN' && lockInfo.lockMan) ||
-                (t==='NHE' && lockInfo.lockNhe) ||
-                (t==='CHAY' && lockInfo.lockChay))
-            : ['MAN','NHE','CHAY'])
+            ? allTypes.filter(t =>
+                (t==='MAN'  && lockInfo.lockMan)  ||
+                (t==='NHE'  && lockInfo.lockNhe)  ||
+                (t==='CHAY' && lockInfo.lockChay) ||
+                (t==='BANH' && lockInfo.lockBanh))
+            : allTypes)
         : [];
 
     lockState[typeMeal] = {
@@ -338,7 +362,7 @@ function applyLockUI(typeMeal, lockInfo, targetDate){
     const sameWeek = isSameWeek(targetDate);
 
     // Disable từng nút theo loại bị khoá thay vì disable hết
-    ['MAN','NHE','CHAY'].forEach(t => {
+    allTypes.forEach(t => {
         const b = document.getElementById(prefix + t);
         if (!b) return;
         const isBlocked = blockedTypes.includes(t);
@@ -352,7 +376,7 @@ function applyLockUI(typeMeal, lockInfo, targetDate){
     const dLabel  = (y && m && d) ? `${d}/${m}/${y}` : 'ngày này';
 
     if (lockInfo.locked) {
-        const typeLabels = { MAN:'🍖 Mặn', NHE:'🥗 Nhẹ', CHAY:'🥦 Chay' };
+        const typeLabels = { MAN:'🍖 Mặn', NHE:'🥗 Nhẹ', CHAY:'🥦 Chay', BANH:'🥐 Bánh' };
         const typesText = typeRestricted
             ? blockedTypes.map(t => typeLabels[t]).join(', ')
             : 'mọi loại';
@@ -378,10 +402,10 @@ function applyLockUI(typeMeal, lockInfo, targetDate){
 function esc(s){ return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 async function onMealDateChange() {
+    const myToken = ++mealDateReqToken;
     const inp   = document.getElementById('mealDate');
     const label = document.getElementById('mealDateLabel');
     const tStr  = getTomorrowStr();
-    // iOS Safari bỏ qua min attribute → validate thủ công
     const todayStr = new Date().toISOString().split('T')[0];
     if (inp.value <= todayStr) {
         inp.value = tStr;
@@ -394,9 +418,46 @@ async function onMealDateChange() {
     try {
         const res  = await fetch(MEAL_URL + '?date=' + inp.value + '&typeMeal=LUNCH');
         const data = await res.json();
+        if (myToken !== mealDateReqToken) return; // đã có lần đổi ngày mới hơn, bỏ kết quả cũ
         updateMealButtons(data.success ? data.foodType : 'MAN');
-    } catch { updateMealButtons('MAN'); }
+    } catch { if (myToken === mealDateReqToken) updateMealButtons('MAN'); }
+    if (myToken !== mealDateReqToken) return;
     applyLockUI('LUNCH', await checkLock(inp.value, 'LUNCH'), inp.value);
+    if (myToken !== mealDateReqToken) return;
+
+    // Load bread status cho ngày được chọn
+    const datKey = inp.value.replace(/-/g, '');
+    const badge  = document.getElementById('breadStatusBadge');
+    const btnBanh = document.getElementById('btnBANH');
+    if (badge) {
+        try {
+            const bs = await fetch(`${BREAD_STATUS_URL}?dat=${datKey}`);
+            const sd = await bs.json();
+            if (myToken !== mealDateReqToken) return; // đã có lần đổi ngày mới hơn, bỏ kết quả cũ
+            if (sd.success) {
+                window.currentBreadStatus = sd;
+                if (sd.isRoster) {
+                    // Danh sách cố định: miễn quota dept + cap tuần — không hiện số liệu
+                    // quota cho họ (không áp dụng), tránh hiểu lầm.
+                    badge.textContent = '🥐 Bạn thuộc danh sách nhận Bánh cố định — không giới hạn.';
+                    const lockedOut = lockState.LUNCH?.blockedTypes?.includes('BANH');
+                    if (btnBanh && currentLunchType !== 'BANH' && !lockedOut) {
+                        btnBanh.disabled = false; btnBanh.title = ''; btnBanh.style.opacity = '';
+                    }
+                } else if (!sd.allowed) {
+                    badge.textContent = '🚫 Phòng ban của bạn chưa được cấp phiếu bánh.';
+                    if (btnBanh) { btnBanh.disabled = true; btnBanh.title = 'Phòng ban chưa được cấp phiếu bánh'; btnBanh.style.opacity = '.4'; }
+                } else {
+                    const remainText = sd.unlimited ? 'Không giới hạn' : `${sd.remaining} phiếu`;
+                    badge.textContent = `🔄 Tuần này: ${sd.weekCount}/3 ngày  |  Còn lại hôm nay: ${remainText}`;
+                    const lockedOut = lockState.LUNCH?.blockedTypes?.includes('BANH');
+                    if (btnBanh && currentLunchType !== 'BANH' && !lockedOut) {
+                        btnBanh.disabled = false; btnBanh.title = ''; btnBanh.style.opacity = '';
+                    }
+                }
+            }
+        } catch { /* ignore */ }
+    }
 }
 
 async function onOtDateChange() {
@@ -451,6 +512,54 @@ function submitMeal(type, label, typeMeal) {
     const [y, m, d] = dateStr.split('-');
     const dateLabel = `${d}/${m}/${y}`;
     const title = typeMeal === 'OT' ? 'Đổi món tăng ca' : 'Đổi món ăn ca';
+
+    // ── Đang ăn Bánh mà đổi sang món khác: báo trả lại 1 lượt tuần ─────────
+    if (typeMeal === 'LUNCH' && currentLunchType === 'BANH' && type !== 'BANH') {
+        window.showConfirm(
+            `Xác nhận đổi từ Bánh sang ${label} (bữa ca) ngày ${dateLabel}? (sẽ trả lại 1 lượt tuần)`,
+            () => _doFetch({ mealType: type, typeMeal: typeMeal, fromDate: dateStr, toDate: dateStr }),
+            { title: title, okText: 'Xác nhận', okClass: 'btn-danger',
+              icon: 'restaurant', iconColor: '#c00000', iconBg: '#ffe4e4' }
+        );
+        return;
+    }
+
+    // ── Bánh: check quota + tuần trước khi confirm ─────────
+    if (type === 'BANH') {
+        const datKey = dateStr.replace(/-/g, '');
+        fetch(`${BREAD_STATUS_URL}?dat=${datKey}`)
+            .then(r => r.json())
+            .then(s => {
+                if (!s.success) { window.showToast(s.message || 'Lỗi kiểm tra quota', 'error'); return; }
+                if (s.isRoster) {
+                    // Danh sách cố định: miễn quota dept + cap tuần, không check số liệu.
+                    window.showConfirm(`Xác nhận đổi sang Bánh (bữa ca) ngày ${dateLabel}?`,
+                        () => _doFetch({ mealType: type, typeMeal: typeMeal, fromDate: dateStr, toDate: dateStr }),
+                        { title: '🥐 Phiếu Bánh', okText: 'Xác nhận', okClass: 'btn-warning',
+                          icon: 'bakery_dining', iconColor: '#d97706', iconBg: '#fef9c3' });
+                    return;
+                }
+                if (!s.allowed) {
+                    window.showToast('Phòng ban của bạn chưa được cấp phiếu bánh.', 'warning'); return;
+                }
+                if (s.weekCount + 1 > 3) {
+                    window.showToast('Bạn đã chọn Bánh 3 ngày tuần này, không thể thêm.', 'warning'); return;
+                }
+                if (!s.unlimited && s.remaining <= 0) {
+                    window.showToast('Phòng ban đã hết phiếu bánh hôm nay.', 'warning'); return;
+                }
+                const remainText = s.unlimited ? 'không giới hạn' : `${s.remaining} phiếu`;
+                const confirmMsg = `Xác nhận đổi sang Bánh (bữa ca) ngày ${dateLabel}? Còn lại hôm nay: ${remainText}`;
+                window.showConfirm(confirmMsg,
+                    () => _doFetch({ mealType: type, typeMeal: typeMeal, fromDate: dateStr, toDate: dateStr }),
+                    { title: '🥐 Phiếu Bánh', okText: 'Xác nhận', okClass: 'btn-warning',
+                      icon: 'bakery_dining', iconColor: '#d97706', iconBg: '#fef9c3' });
+            })
+            .catch(() => window.showToast('Lỗi kết nối, vui lòng thử lại', 'error'));
+        return;
+    }
+    // ── END BANH ──────────────────────────────────────────
+
     window.showConfirm(
         `Xác nhận đổi sang món ${label} (${typeMeal === 'OT' ? 'tăng ca' : 'bữa ca'}) ngày ${dateLabel}?`,
         () => _doFetch({ mealType: type, typeMeal: typeMeal, fromDate: dateStr, toDate: dateStr }),

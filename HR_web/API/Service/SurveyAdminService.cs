@@ -59,6 +59,13 @@ public class SurveyAdminService
         return (r?.success ?? false, r?.message);
     }
 
+    public async Task<(bool ok, string? message)> DeleteResponseAsync(int surveyId, string empcd)
+    {
+        var payload = new { SURVEY_ID = surveyId, EMPCD = empcd };
+        var r = await PostAsync<R<object>>("SurveyAdmin/delete-response", payload);
+        return (r?.success ?? false, r?.message);
+    }
+
     // ─── TestMode ──────────────────────────────────────
 
     public async Task<SurveySubmitResultModel?> TestSubmitAsync(object payload)

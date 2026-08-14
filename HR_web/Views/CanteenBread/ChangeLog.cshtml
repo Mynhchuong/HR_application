@@ -1,0 +1,202 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Log Đổi Món";
+}
+
+@section Styles {
+<style>
+    .cl-page { max-width: 1100px; margin: 0 auto; }
+    .food-badge { display:inline-block; padding:.2rem .55rem; border-radius:99px; font-size:.75rem; font-weight:700; }
+    .food-M { background:#fff7ed; color:#c2410c; }
+    .food-N { background:#f0f9ff; color:#0369a1; }
+    .food-C { background:#f0fdf4; color:#15803d; }
+    .food-B { background:#fefce8; color:#b45309; }
+    .source-badge { font-size:.7rem; color:#64748b; }
+    .cl-loading { padding: 3rem 1rem; text-align: center; color: #94a3b8; }
+    .cl-pagination { display:flex; gap:.4rem; justify-content:center; padding:.8rem; }
+    .page-btn { border: 1.5px solid #e2e8f0; border-radius:6px; padding:.3rem .65rem; font-size:.82rem; cursor:pointer; background:#fff; }
+    .page-btn.active { background:#0f172a; border-color:#0f172a; color:#fff; font-weight:700; }
+    .page-btn:hover:not(.active) { background:#f1f5f9; }
+</style>
+}
+
+<div class="cl-page px-2 py-2">
+<div class="card">
+    <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+        <div class="bg-gradient-dark shadow-dark border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h6 class="text-white mb-0"><i class="bi bi-clock-history me-1"></i>Log Đổi Món</h6>
+                <p class="text-white text-xs mb-0 opacity-8">Lịch sử đổi món ăn của nhân viên, lấy trực tiếp từ CANTEEN_ORDER</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body p-0 pt-4">
+        <div class="px-3 py-2 d-flex flex-wrap gap-2 align-items-center border-bottom">
+            <input type="date" id="fFrom" class="form-control form-control-sm" style="max-width:150px;" />
+            <input type="date" id="fTo"   class="form-control form-control-sm" style="max-width:150px;" />
+            <input type="text" id="fEmp"  class="form-control form-control-sm" style="max-width:120px;" placeholder="🔍 Mã NV" />
+            <select id="fDept" class="form-select form-select-sm" style="max-width:220px;">
+                <option value="">-- Tất cả phòng ban --</option>
+            </select>
+            <select id="fFood" class="form-select form-select-sm" style="max-width:150px;">
+                <option value="">-- Tất cả loại món --</option>
+                <option value="M">🍖 Mặn (M)</option>
+                <option value="N">🥗 Nhẹ (N)</option>
+                <option value="C">🥦 Chay (C)</option>
+                <option value="B">🥐 Bánh (B)</option>
+            </select>
+            <button class="btn btn-sm btn-dark mb-0" onclick="doSearch()"><i class="bi bi-search me-1"></i>Tìm</button>
+            <button class="btn btn-sm btn-outline-secondary mb-0" onclick="resetFilter()"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+        </div>
+
+        <div class="px-3 py-2 text-xs text-secondary" id="resultInfo">Đang tải dữ liệu...</div>
+
+        <div class="table-responsive px-3 pb-2">
+            <table class="table align-items-center">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ngày</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Mã NV</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Tên NV</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Phòng ban</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ca</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Món hiện tại</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Đổi bởi</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Nguồn</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Lần cuối</th>
+                    </tr>
+                </thead>
+                <tbody id="logBody">
+                    <tr><td colspan="9" class="cl-loading"><div class="spinner-border text-dark" role="status"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="cl-pagination" id="pagination"></div>
+    </div>
+</div>
+</div>
+
+@section Scripts {
+<script>
+let currentPage = 1;
+const PAGE_SIZE = 50;
+
+const foodLabel = { M:'🍖 Mặn', N:'🥗 Nhẹ', C:'🥦 Chay', B:'🥐 Bánh' };
+const shiftLabel = { LUNCH:'Bữa ca', OT:'Tăng ca' };
+
+function esc(s) { return (s ?? '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadDeptList() {
+    try {
+        const res  = await fetch('GetDeptList');
+        const data = await res.json();
+        if (!data.success) return;
+        const sel = document.getElementById('fDept');
+        sel.innerHTML = '<option value="">-- Tất cả phòng ban --</option>' +
+            (data.data || []).map(d => `<option value="${esc(d.deptcd)}">${esc(d.deptName || d.deptcd)}</option>`).join('');
+    } catch { /* ignore */ }
+}
+
+async function doSearch(page = 1) {
+    currentPage = page;
+    const from     = document.getElementById('fFrom').value;
+    const to       = document.getElementById('fTo').value;
+    const empcd    = document.getElementById('fEmp').value.trim();
+    const deptcd   = document.getElementById('fDept').value;
+    const foodType = document.getElementById('fFood').value;
+
+    const qs = new URLSearchParams();
+    if (from)     qs.set('from',     from);
+    if (to)       qs.set('to',       to);
+    if (empcd)    qs.set('empcd',    empcd);
+    if (deptcd)   qs.set('deptcd',   deptcd);
+    if (foodType) qs.set('foodType', foodType);
+    qs.set('page', page);
+    qs.set('pageSize', PAGE_SIZE);
+
+    document.getElementById('logBody').innerHTML =
+        '<tr><td colspan="9" class="cl-loading"><div class="spinner-border text-dark" role="status"></div></td></tr>';
+
+    const res  = await fetch('GetChangeLog?' + qs.toString());
+    const data = await res.json();
+
+    if (!data.success) {
+        document.getElementById('logBody').innerHTML =
+            `<tr><td colspan="9" class="text-center text-danger py-4">${esc(data.message)}</td></tr>`;
+        return;
+    }
+
+    document.getElementById('resultInfo').textContent =
+        `Tổng: ${data.total} bản ghi | Trang ${data.page}/${Math.max(1, Math.ceil(data.total/PAGE_SIZE))}`;
+
+    const rows = data.data;
+    if (!rows.length) {
+        document.getElementById('logBody').innerHTML =
+            '<tr><td colspan="9" class="text-center text-secondary py-5">Không có dữ liệu</td></tr>';
+        renderPagination(0);
+        return;
+    }
+
+    document.getElementById('logBody').innerHTML = rows.map(r => {
+        const dat = r.dat ? `${r.dat.slice(6,8)}/${r.dat.slice(4,6)}/${r.dat.slice(0,4)}` : '—';
+        const food = r.typeOfFood || '—';
+        const badge = `<span class="food-badge food-${esc(food)}">${foodLabel[food] || esc(food)}</span>`;
+        const shift = shiftLabel[r.typeMeal] || esc(r.typeMeal);
+        const updtDt = r.updtDt ? new Date(r.updtDt).toLocaleString('vi-VN', {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
+        const source = r.isMysamho
+            ? '<span class="source-badge">📱 App</span>'
+            : `<span class="source-badge">🖥️ ${esc(r.changeFrom || 'HT')}</span>`;
+
+        return `<tr>
+            <td class="px-2 text-sm">${dat}</td>
+            <td class="px-2 text-sm font-weight-bold">${esc(r.empcd) || '—'}</td>
+            <td class="px-2 text-sm vni-font">${esc(r.empName) || '—'}</td>
+            <td class="px-2 text-xs">${esc(r.deptName || r.deptcd) || '—'}</td>
+            <td class="px-2 text-xs">${shift}</td>
+            <td class="px-2">${badge}</td>
+            <td class="px-2 text-xs">${esc(r.changeFrom) || '—'}</td>
+            <td class="px-2">${source}</td>
+            <td class="px-2 text-xs text-secondary">${updtDt}</td>
+        </tr>`;
+    }).join('');
+
+    renderPagination(data.total);
+}
+
+function renderPagination(total) {
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+    const pg = document.getElementById('pagination');
+    if (totalPages <= 1) { pg.innerHTML = ''; return; }
+
+    let html = '';
+    const start = Math.max(1, currentPage - 2);
+    const end   = Math.min(totalPages, currentPage + 2);
+
+    if (currentPage > 1)  html += `<button class="page-btn" onclick="doSearch(${currentPage-1})">‹</button>`;
+    for (let p = start; p <= end; p++) {
+        html += `<button class="page-btn ${p===currentPage?'active':''}" onclick="doSearch(${p})">${p}</button>`;
+    }
+    if (currentPage < totalPages) html += `<button class="page-btn" onclick="doSearch(${currentPage+1})">›</button>`;
+    pg.innerHTML = html;
+}
+
+function resetFilter() {
+    const todayStr = new Date().toISOString().split('T')[0];
+    document.getElementById('fFrom').value = todayStr;
+    document.getElementById('fTo').value   = todayStr;
+    document.getElementById('fEmp').value  = '';
+    document.getElementById('fDept').value = '';
+    document.getElementById('fFood').value = '';
+    doSearch(1);
+}
+
+// Init: set default date range (TODAY)
+const todayStr = new Date().toISOString().split('T')[0];
+document.getElementById('fFrom').value = todayStr;
+document.getElementById('fTo').value   = todayStr;
+
+loadDeptList();
+doSearch(1);
+</script>
+}

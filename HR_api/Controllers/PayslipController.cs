@@ -235,29 +235,39 @@ public class PayslipController : ControllerBase
         {
             decimal periodId = model.PERIOD_ID;
             var items = ((Newtonsoft.Json.Linq.JArray)model.Items).ToObject<List<PayrollItemModel>>();
-            
-            foreach (var item in items!)
+
+            await using var scope = await _oracleService.BeginTransactionAsync();
+            try
             {
-                string sql = @"
-                    MERGE INTO HRMS.HR_PAYROLL_PERIOD_ITEMS T
-                    USING (SELECT :PERIOD_ID PI, :ITEM_ID II FROM DUAL) S
-                    ON (T.PERIOD_ID = S.PI AND T.ITEM_ID = S.II)
-                    WHEN MATCHED THEN UPDATE SET IS_VISIBLE = :IS_VISIBLE
-                    WHEN NOT MATCHED THEN INSERT (PERIOD_ID, ITEM_ID, IS_VISIBLE) 
-                                          VALUES (:PERIOD_ID, :ITEM_ID, :IS_VISIBLE)";
-
-                await _oracleService.ExecuteNonQueryAsync(sql,
-                    new OracleParameter("PERIOD_ID", periodId),
-                    new OracleParameter("ITEM_ID", item.ID),
-                    new OracleParameter("IS_VISIBLE", item.IS_VISIBLE));
-
-                if (!string.IsNullOrEmpty(item.ITEM_NAME))
+                foreach (var item in items!)
                 {
-                    string sqlUpdateName = "UPDATE HRMS.HR_PAYROLL_ITEMS SET ITEM_NAME = :ITEM_NAME WHERE ID = :ITEM_ID";
-                    await _oracleService.ExecuteNonQueryAsync(sqlUpdateName,
-                        new OracleParameter("ITEM_NAME", item.ITEM_NAME),
-                        new OracleParameter("ITEM_ID", item.ID));
+                    string sql = @"
+                        MERGE INTO HRMS.HR_PAYROLL_PERIOD_ITEMS T
+                        USING (SELECT :PERIOD_ID PI, :ITEM_ID II FROM DUAL) S
+                        ON (T.PERIOD_ID = S.PI AND T.ITEM_ID = S.II)
+                        WHEN MATCHED THEN UPDATE SET IS_VISIBLE = :IS_VISIBLE
+                        WHEN NOT MATCHED THEN INSERT (PERIOD_ID, ITEM_ID, IS_VISIBLE)
+                                              VALUES (:PERIOD_ID, :ITEM_ID, :IS_VISIBLE)";
+
+                    await _oracleService.ExecuteNonQueryAsync(scope, sql,
+                        new OracleParameter("PERIOD_ID", periodId),
+                        new OracleParameter("ITEM_ID", item.ID),
+                        new OracleParameter("IS_VISIBLE", item.IS_VISIBLE));
+
+                    if (!string.IsNullOrEmpty(item.ITEM_NAME))
+                    {
+                        string sqlUpdateName = "UPDATE HRMS.HR_PAYROLL_ITEMS SET ITEM_NAME = :ITEM_NAME WHERE ID = :ITEM_ID";
+                        await _oracleService.ExecuteNonQueryAsync(scope, sqlUpdateName,
+                            new OracleParameter("ITEM_NAME", item.ITEM_NAME),
+                            new OracleParameter("ITEM_ID", item.ID));
+                    }
                 }
+                await scope.CommitAsync();
+            }
+            catch
+            {
+                await scope.RollbackAsync();
+                throw;
             }
             return Ok(new { success = true, message = "Cập nhật hiển thị thành công" });
         }
@@ -349,15 +359,32 @@ public class PayslipController : ControllerBase
                         new OracleParameter("TEXT_VAL", OracleDbType.Varchar2) { Value = tVals.ToArray() }
                     );
 
+                    var allItemIds = items.Select(x => x.ID).ToList();
+                    var delPids = new List<decimal>();
+                    var delECodes = new List<string>();
+                    var delIIds = new List<decimal>();
                     foreach (var kv in empItemIds)
                     {
-                        var idList = string.Join(",", kv.Value.Select(x => x.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-                        string sqlCleanupEmp = $@"
+                        var uploadedSet = new HashSet<decimal>(kv.Value);
+                        foreach (var itemId in allItemIds)
+                        {
+                            if (uploadedSet.Contains(itemId)) continue;
+                            delPids.Add(periodId);
+                            delECodes.Add(kv.Key);
+                            delIIds.Add(itemId);
+                        }
+                    }
+
+                    if (delPids.Count > 0)
+                    {
+                        string sqlCleanup = @"
                             DELETE FROM HRMS.HR_PAYROLL_DATA
-                            WHERE PERIOD_ID = :PERIOD_ID AND EMPCD = :EMPCD AND ITEM_ID NOT IN ({idList})";
-                        await _oracleService.ExecuteNonQueryAsync(scope, sqlCleanupEmp,
-                            new OracleParameter("PERIOD_ID", periodId),
-                            new OracleParameter("EMPCD", kv.Key));
+                            WHERE PERIOD_ID = :PERIOD_ID AND EMPCD = :EMPCD AND ITEM_ID = :ITEM_ID";
+                        await _oracleService.ExecuteBulkInsertAsync(scope, sqlCleanup, delPids.Count,
+                            new OracleParameter("PERIOD_ID", OracleDbType.Decimal) { Value = delPids.ToArray() },
+                            new OracleParameter("EMPCD", OracleDbType.Varchar2) { Value = delECodes.ToArray() },
+                            new OracleParameter("ITEM_ID", OracleDbType.Decimal) { Value = delIIds.ToArray() }
+                        );
                     }
 
                     await scope.CommitAsync();

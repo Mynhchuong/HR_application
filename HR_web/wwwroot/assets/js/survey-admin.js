@@ -75,7 +75,8 @@
         $btnPrev.disabled = n === 1;
         const isLast = n === totalSteps;
         $btnNext.classList.toggle('d-none', isLast);
-        $btnPub.classList.toggle('d-none', !isLast);
+        // Limited edit (survey ACTIVE/PAUSED): không có nút Publish, chỉ "Lưu thay đổi"
+        $btnPub.classList.toggle('d-none', !isLast || E.isLimitedEdit);
 
         // Re-render step-specific
         if (n === 2) renderQuestions();
@@ -335,7 +336,9 @@
         });
     });
 
+    let scopeRendered = false;
     function renderScope() {
+        scopeRendered = true;
         const $dlw   = document.getElementById('scopeDLW');
         const $empcd = document.getElementById('scopeEMPCD');
         const mode   = state.RECIPIENT_MODE;
@@ -549,23 +552,30 @@
 
     // ── Build payload ─────────────────
     function buildPayload() {
-        // Scopes
-        const scopes = [];
-        if (state.RECIPIENT_MODE === 'DEPT_LINE_WORK' || state.RECIPIENT_MODE === 'MIXED') {
-            document.querySelectorAll('#scopeDLWList .sa-dlw-row').forEach(r => {
-                const dept = r.querySelector('.dlw-dept').value;
-                if (!dept) return;
-                scopes.push({
-                    SCOPE_TYPE: 'DEPT_LINE_WORK',
-                    DEPTCD:     dept,
-                    LINECD:     r.querySelector('.dlw-line').value || null,
-                    WORKCD:     r.querySelector('.dlw-work').value || null,
+        // Scopes — nếu step 3 chưa render trong phiên này (VD chỉ sửa ngày ở step 1 rồi lưu
+        // luôn) thì #scopeDLWList/#fEmpcdList vẫn trống, đọc DOM sẽ cho ra [] và XOÁ MẤT scope
+        // gốc. Giữ nguyên state.SCOPES (dữ liệu load ban đầu) trong trường hợp đó.
+        let scopes;
+        if (scopeRendered) {
+            scopes = [];
+            if (state.RECIPIENT_MODE === 'DEPT_LINE_WORK' || state.RECIPIENT_MODE === 'MIXED') {
+                document.querySelectorAll('#scopeDLWList .sa-dlw-row').forEach(r => {
+                    const dept = r.querySelector('.dlw-dept').value;
+                    if (!dept) return;
+                    scopes.push({
+                        SCOPE_TYPE: 'DEPT_LINE_WORK',
+                        DEPTCD:     dept,
+                        LINECD:     r.querySelector('.dlw-line').value || null,
+                        WORKCD:     r.querySelector('.dlw-work').value || null,
+                    });
                 });
-            });
-        }
-        if (state.RECIPIENT_MODE === 'EMPCD_LIST' || state.RECIPIENT_MODE === 'MIXED') {
-            parseEmpcdList().forEach(emp =>
-                scopes.push({ SCOPE_TYPE: 'EMPCD', EMPCD: emp }));
+            }
+            if (state.RECIPIENT_MODE === 'EMPCD_LIST' || state.RECIPIENT_MODE === 'MIXED') {
+                parseEmpcdList().forEach(emp =>
+                    scopes.push({ SCOPE_TYPE: 'EMPCD', EMPCD: emp }));
+            }
+        } else {
+            scopes = state.SCOPES.map(s => ({ ...s }));
         }
 
         // Questions order fix
@@ -591,7 +601,48 @@
         };
     }
 
-    // ── Save Draft ─────────────────
+    // Gọi publish-stream để (re)snapshot HR_SURVEY_RECIPIENT theo SCOPES hiện tại.
+    // Với survey đã ACTIVE, API chỉ re-snapshot chứ không đổi status (xem publish-stream).
+    async function resyncRecipients(id) {
+        showPubModal();
+        try {
+            const res = await fetch(URLS.publishStream, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+                body: JSON.stringify({ Id: id, NewStatus: 'SCHEDULED' }),
+            });
+            if (!res.ok || !res.body) { hidePubModal(); return { ok: false, message: 'Không kết nối được server' }; }
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buf = '';
+            let finalOk = false, finalMsg = '';
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, { stream: true });
+                let idx;
+                while ((idx = buf.indexOf('\n')) >= 0) {
+                    const line = buf.slice(0, idx).trim();
+                    buf = buf.slice(idx + 1);
+                    if (!line) continue;
+                    try {
+                        const ev = JSON.parse(line);
+                        handlePubEvent(ev);
+                        if (ev.phase === 'done') { finalOk = ev.success !== false; }
+                        if (ev.phase === 'error') { finalOk = false; finalMsg = ev.message || ''; }
+                    } catch {}
+                }
+            }
+            hidePubModal();
+            return { ok: finalOk, message: finalMsg };
+        } catch (err) {
+            hidePubModal();
+            return { ok: false, message: 'Lỗi kết nối' };
+        }
+    }
+
+    // ── Save Draft / Lưu thay đổi (limited edit) ─────────────────
     $btnDraft.addEventListener('click', async () => {
         for (let s = 1; s <= currentStep; s++) {
             if (isStepSkipped(s)) continue;
@@ -599,12 +650,22 @@
             if (err) { toast('Bước ' + s + ': ' + err, 'warning'); showStep(s); return; }
         }
         const r = await save();
-        if (r?.success) {
-            toast('Đã lưu nháp', 'success');
-            setTimeout(() => { location.href = URLS.editBase + '?id=' + (r.id || E.id); }, 600);
-        } else {
-            toast(r?.message || 'Lưu thất bại', 'error');
+        if (!r?.success) { toast(r?.message || 'Lưu thất bại', 'error'); return; }
+
+        if (E.isLimitedEdit) {
+            // Đối tượng nhận có thể đã đổi → resync HR_SURVEY_RECIPIENT ngay.
+            const rs = await resyncRecipients(r.id || E.id);
+            if (rs.ok) {
+                toast('Đã lưu thay đổi và cập nhật danh sách người nhận', 'success');
+                setTimeout(() => { location.href = URLS.index; }, 600);
+            } else {
+                toast(rs.message || 'Đã lưu nhưng cập nhật danh sách người nhận thất bại', 'error');
+            }
+            return;
         }
+
+        toast('Đã lưu nháp', 'success');
+        setTimeout(() => { location.href = URLS.editBase + '?id=' + (r.id || E.id); }, 600);
     });
 
     // ── Publish (stream progress) ─────────────────
@@ -622,50 +683,12 @@
             if (!r?.success) { toast(r?.message || 'Lưu thất bại', 'error'); return; }
             const id = r.id || E.id;
 
-            showPubModal();
-            try {
-                const res = await fetch(URLS.publishStream, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
-                    body: JSON.stringify({ Id: id, NewStatus: 'SCHEDULED' }),
-                });
-                if (!res.ok || !res.body) {
-                    hidePubModal();
-                    toast('Publish thất bại — data đã lưu nháp', 'error');
-                    return;
-                }
-
-                const reader = res.body.getReader();
-                const decoder = new TextDecoder();
-                let buf = '';
-                let finalOk = false, finalMsg = '';
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    buf += decoder.decode(value, { stream: true });
-                    let idx;
-                    while ((idx = buf.indexOf('\n')) >= 0) {
-                        const line = buf.slice(0, idx).trim();
-                        buf = buf.slice(idx + 1);
-                        if (!line) continue;
-                        try {
-                            const ev = JSON.parse(line);
-                            handlePubEvent(ev);
-                            if (ev.phase === 'done') { finalOk = ev.success !== false; }
-                            if (ev.phase === 'error') { finalOk = false; finalMsg = ev.message || ''; }
-                        } catch {}
-                    }
-                }
-                hidePubModal();
-                if (finalOk) {
-                    toast('Đã publish thành công', 'success');
-                    setTimeout(() => { location.href = URLS.index; }, 600);
-                } else {
-                    toast(finalMsg || 'Publish thất bại — data đã lưu nháp', 'error');
-                }
-            } catch (err) {
-                hidePubModal();
-                toast('Lỗi kết nối khi publish', 'error');
+            const rs = await resyncRecipients(id);
+            if (rs.ok) {
+                toast('Đã publish thành công', 'success');
+                setTimeout(() => { location.href = URLS.index; }, 600);
+            } else {
+                toast(rs.message || 'Publish thất bại — data đã lưu nháp', 'error');
             }
         });
     });

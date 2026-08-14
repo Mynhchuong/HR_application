@@ -6,6 +6,7 @@
         { "MAN",     ("Mặn",     "bg-gradient-danger") },
         { "NHE",     ("Nhẹ",     "bg-gradient-info") },
         { "CHAY",    ("Chay",    "bg-gradient-success") },
+        { "BANH",    ("Bánh",    "bg-gradient-warning") },
         { "DU_KIEN", ("Dự kiến", "bg-gradient-secondary") },
     };
     var importSuccess = TempData["ImportFoodSuccess"] as string;
@@ -78,6 +79,7 @@
                     <option value="MAN">Mặn</option>
                     <option value="NHE">Nhẹ</option>
                     <option value="CHAY">Chay</option>
+                    <option value="BANH">Bánh</option>
                 </select>
                 <button type="button" id="btnThisWeek" class="btn btn-sm btn-outline-secondary mb-0"
                         onclick="toggleThisWeek()">
@@ -206,6 +208,7 @@
                         <option value="MAN">Món mặn</option>
                         <option value="NHE">Món nhẹ</option>
                         <option value="CHAY">Món chay</option>
+                        <option value="BANH">Món bánh</option>
                     </select>
                     <div class="invalid-feedback">Vui lòng chọn loại món</div>
                 </div>

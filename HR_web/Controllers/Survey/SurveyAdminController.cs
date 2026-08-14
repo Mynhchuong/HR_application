@@ -65,13 +65,16 @@ public class SurveyAdminController : BaseController
             return RedirectToAction("Index");
         }
 
-        if (item.STATUS != "DRAFT" && item.STATUS != "SCHEDULED")
+        var editableStatuses = new[] { "DRAFT", "SCHEDULED", "ACTIVE", "PAUSED" };
+        if (!editableStatuses.Contains(item.STATUS))
         {
             TempData["ErrorMessage"] = $"Không sửa được survey ở trạng thái {item.STATUS}";
             return RedirectToAction("Index");
         }
 
         ViewBag.IsNew = false;
+        // ACTIVE/PAUSED: chỉ sửa được tiêu đề/mô tả/ngày kết thúc/đối tượng nhận — xem SaveAsync (API).
+        ViewBag.IsLimitedEdit = item.STATUS == "ACTIVE" || item.STATUS == "PAUSED";
         return View(item);
     }
 
@@ -264,6 +267,16 @@ public class SurveyAdminController : BaseController
             Depts        = depts,
         };
         return View(vm);
+    }
+
+    // POST /SurveyAdmin/DeleteResponse  (AJAX) — xoá response bị ghi nhầm EMPCD
+    // (vd quên logout tài khoản dùng chung, người sau làm survey bị gán nhầm mã NV)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteResponse([FromBody] DeleteResponseVm req)
+    {
+        var (ok, msg) = await _admin.DeleteResponseAsync(req.SurveyId, req.Empcd);
+        return Json(new { success = ok, message = msg });
     }
 
     // GET /SurveyAdmin/ScopeCount?deptcd=X&linecd=Y&workcd=Z  (AJAX preview)
@@ -714,5 +727,10 @@ public class SurveyAdminController : BaseController
     {
         public int    Id        { get; set; }
         public string NewStatus { get; set; } = "";
+    }
+    public class DeleteResponseVm
+    {
+        public int    SurveyId { get; set; }
+        public string Empcd    { get; set; } = "";
     }
 }

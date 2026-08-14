@@ -104,7 +104,7 @@
                         {
                             foreach (var s in Model)
                             {
-                                var canEdit    = s.STATUS is "DRAFT" or "SCHEDULED";
+                                var canEdit    = s.STATUS is "DRAFT" or "SCHEDULED" or "ACTIVE" or "PAUSED";
                                 var canPublish = s.STATUS == "DRAFT";
                                 var canPause   = s.STATUS == "ACTIVE";
                                 var canResume  = s.STATUS == "PAUSED";

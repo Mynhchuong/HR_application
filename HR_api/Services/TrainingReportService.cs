@@ -514,6 +514,78 @@ public class TrainingReportService
             .ThenByDescending(x => x.ATTEMPT_COUNT)
             .ToList();
 
+        // Toàn bộ đáp án của mọi học viên (kể cả câu đúng, kể cả TEXT tự luận) — cho giảng viên
+        // xuất Excel xem hết chứ không chỉ câu sai như TOP_WRONG_QUESTIONS.
+        var optionRows = await _db.ExecuteQueryAsync(@"
+            SELECT O.ID OID, O.OPTION_TEXT
+              FROM HRMS.HR_TRAINING_TEST_OPTION O
+              JOIN HRMS.HR_TRAINING_TEST_QUESTION Q ON Q.ID = O.QUESTION_ID
+             WHERE Q.TEST_ID = :TID",
+            r => new { OID = Convert.ToInt32(r["OID"]), TEXT = r["OPTION_TEXT"]?.ToString() ?? "" },
+            new OracleParameter("TID", testId));
+        var optionTextById = optionRows.ToDictionary(o => o.OID, o => o.TEXT);
+
+        var allAnswerRows = await _db.ExecuteQueryAsync(@"
+            SELECT Q.ID QID, Q.QUESTION_TEXT, Q.QUESTION_TYPE, Q.DISPLAY_ORDER,
+                   AT.EMPCD, EC.CNAME EMP_NAME, AT.ATTEMPT_NO,
+                   AN.ANSWER_OPTION_IDS, AN.ANSWER_TEXT,
+                   CASE WHEN Q.QUESTION_TYPE <> 'TEXT' AND NVL(AN.POINTS_AWARDED,0) = 0 THEN 1 ELSE 0 END IS_WRONG
+              FROM HRMS.HR_TRAINING_TEST_QUESTION Q
+              JOIN HRMS.HR_TRAINING_TEST_ANSWER AN ON AN.QUESTION_ID = Q.ID
+              JOIN HRMS.HR_TRAINING_TEST_ATTEMPT AT ON AT.ID = AN.ATTEMPT_ID
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = AT.EMPCD
+             WHERE Q.TEST_ID = :TID",
+            r => new
+            {
+                QID        = Convert.ToInt32(r["QID"]),
+                QTEXT      = r["QUESTION_TEXT"]?.ToString() ?? "",
+                QTYPE      = r["QUESTION_TYPE"]?.ToString() ?? "",
+                ORD        = Convert.ToInt32(r["DISPLAY_ORDER"]),
+                EMPCD      = r["EMPCD"]?.ToString() ?? "",
+                EMP_NAME   = r["EMP_NAME"] as string,
+                ATTEMPT_NO = Convert.ToInt32(r["ATTEMPT_NO"]),
+                OPT_IDS    = r["ANSWER_OPTION_IDS"] as string,
+                TEXT_VAL   = r["ANSWER_TEXT"] as string,
+                IS_WRONG   = Convert.ToInt32(r["IS_WRONG"]) == 1,
+            }, new OracleParameter("TID", testId));
+
+        var allAnswers = allAnswerRows
+            .Select(x =>
+            {
+                string display;
+                List<string> selectedTexts = new();
+                if (x.QTYPE == "TEXT")
+                {
+                    display = x.TEXT_VAL ?? "";
+                }
+                else
+                {
+                    var ids = (x.OPT_IDS ?? "")
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    selectedTexts = ids
+                        .Select(s => int.TryParse(s, out var oid) && optionTextById.TryGetValue(oid, out var t) ? t : null)
+                        .Where(t => t != null)
+                        .Select(t => t!)
+                        .ToList();
+                    display = string.Join(" + ", selectedTexts);
+                }
+                return new TestAllAnswerItem
+                {
+                    QUESTION_ID    = x.QID,
+                    QUESTION_TEXT  = x.QTEXT,
+                    QUESTION_TYPE  = x.QTYPE,
+                    DISPLAY_ORDER  = x.ORD,
+                    EMPCD          = x.EMPCD,
+                    EMP_NAME       = x.EMP_NAME,
+                    SELECTED_OPTION_TEXTS = selectedTexts,
+                    ATTEMPT_NO     = x.ATTEMPT_NO,
+                    ANSWER_DISPLAY = display,
+                    IS_WRONG       = x.IS_WRONG,
+                };
+            })
+            .OrderBy(x => x.DISPLAY_ORDER).ThenBy(x => x.EMPCD).ThenBy(x => x.ATTEMPT_NO)
+            .ToList();
+
         var scores = attempts.Where(a => a.SCORE.HasValue).Select(a => a.SCORE!.Value).ToList();
         // Đếm ĐẬU/RỚT theo học viên duy nhất (không đếm trùng khi có nhiều lần thi do được cấp
         // thi lại) — đậu nếu có ÍT NHẤT 1 lần thi IS_PASS=1 (điểm cao nhất tính).
@@ -534,6 +606,7 @@ public class TrainingReportService
             MIN_SCORE    = scores.Count > 0 ? scores.Min() : null,
             SCORES       = attempts,
             TOP_WRONG_QUESTIONS = topWrong,
+            ALL_ANSWERS  = allAnswers,
         };
     }
 }

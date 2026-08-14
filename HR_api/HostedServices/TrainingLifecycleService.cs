@@ -15,6 +15,7 @@ namespace HR_api.HostedServices;
 //   • Test attempt IN_PROGRESS → AUTO_SUBMITTED (SYSDATE > EFFECTIVE_DEADLINE)
 //   • Auto-open recurring (mùng N mỗi tháng)
 //   • Session reminders: 8h sáng + T-1h enqueue noti
+//   • Teacher confirm reminder: 18h nhắc GV còn điểm danh chưa confirm trong ngày
 public class TrainingLifecycleService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
@@ -54,6 +55,7 @@ public class TrainingLifecycleService : BackgroundService
         await TransitionTestsAsync(db, stop);
         await test.AutoSubmitExpiredAsync();
         await SessionRemindersAsync(db, noti, stop);
+        await TeacherConfirmRemindersAsync(db, noti, stop);
         await AutoOpenRecurringAsync(db, noti, stop);
     }
 
@@ -322,6 +324,77 @@ public class TrainingLifecycleService : BackgroundService
                     ["sessionTopic"] = s.TOPIC,
                     ["startTime"]    = s.START_HHMM,
                 }, sessionGroupId: s.GROUP_ID, sessionId: s.ID);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TEACHER CONFIRM REMINDER
+    //  Buổi học COMPLETED trong ngày mà còn điểm danh TEACHER_CONFIRMED=0 sẽ bị
+    //  TrainingCompletionService tính attendance = 0% cho những dòng đó → học viên rớt oan
+    //  dù có đi học, chỉ vì GV quên bấm xác nhận (xem vụ Class 32/Session 60).
+    //  Chạy từ 18h — dedup theo TEMPLATE_KEY + SESSION_ID (giống SessionRemindersAsync),
+    //  nên mỗi session chỉ nhắc 1 lần/ngày dù tick chạy mỗi phút.
+    // ═══════════════════════════════════════════════════════════════
+
+    private async Task TeacherConfirmRemindersAsync(
+        OracleService db, TrainingNotificationService noti, CancellationToken stop)
+    {
+        var now = DateTime.Now;
+        if (now.Hour < 18) return;
+
+        var pendingSessions = await db.ExecuteQueryAsync(@"
+            SELECT S.ID, S.CLASS_ID, S.GROUP_ID, S.TOPIC,
+                   TO_CHAR(S.SESSION_DATE,'DD/MM/YYYY') SD,
+                   CL.CLASS_NAME,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ATTENDANCE A
+                     WHERE A.SESSION_ID = S.ID AND A.TEACHER_CONFIRMED = 0) PENDING_CNT
+              FROM HRMS.HR_TRAINING_SESSION S
+              JOIN HRMS.HR_TRAINING_CLASS   CL ON CL.ID = S.CLASS_ID
+             WHERE S.SESSION_DATE = TRUNC(SYSDATE)
+               AND S.STATUS = 'COMPLETED'
+               AND EXISTS (
+                   SELECT 1 FROM HRMS.HR_TRAINING_ATTENDANCE A
+                    WHERE A.SESSION_ID = S.ID AND A.TEACHER_CONFIRMED = 0)",
+            r => new
+            {
+                ID          = Convert.ToInt32(r["ID"]),
+                CLASS_ID    = Convert.ToInt32(r["CLASS_ID"]),
+                GROUP_ID    = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]),
+                TOPIC       = r["TOPIC"]?.ToString() ?? "",
+                SD          = r["SD"]?.ToString() ?? "",
+                CLASS_NAME  = r["CLASS_NAME"]?.ToString() ?? "",
+                PENDING_CNT = Convert.ToInt32(r["PENDING_CNT"]),
+            });
+
+        foreach (var s in pendingSessions)
+        {
+            if (stop.IsCancellationRequested) return;
+            if (await AlreadyEnqueuedAsync(db, "TRAINING_TEACHER_CONFIRM_REMINDER", s.ID)) continue;
+
+            // GV phụ trách session: GROUP_ID IS NULL trên HR_TRAINING_CLASS_TEACHER = dạy cả lớp
+            // (luôn nhắc); nếu session có GROUP_ID thì thêm GV được gán đúng group đó. Nếu session
+            // không có GROUP_ID (áp dụng cả lớp) thì nhắc luôn mọi GV của lớp.
+            var teacherEmpcds = await db.ExecuteQueryAsync(@"
+                SELECT DISTINCT EMPCD FROM HRMS.HR_TRAINING_CLASS_TEACHER
+                 WHERE CLASS_ID = :CID
+                   AND (:GID IS NULL OR GROUP_ID IS NULL OR GROUP_ID = :GID)",
+                r => r["EMPCD"]?.ToString() ?? "",
+                new OracleParameter("CID", s.CLASS_ID),
+                new OracleParameter("GID", (object?)s.GROUP_ID ?? DBNull.Value));
+
+            if (teacherEmpcds.Count == 0) continue;
+
+            await noti.EnqueueBulkAsync("TRAINING_TEACHER_CONFIRM_REMINDER", teacherEmpcds,
+                new Dictionary<string, string>
+                {
+                    ["className"]    = s.CLASS_NAME,
+                    ["sessionTopic"] = s.TOPIC,
+                    ["sessionDate"]  = s.SD,
+                    ["pendingCount"] = s.PENDING_CNT.ToString(),
+                }, classId: s.CLASS_ID, sessionId: s.ID);
+
+            _log.LogInformation("Nhắc {N} GV xác nhận điểm danh Session {Id} (còn {P} chưa confirm)",
+                teacherEmpcds.Count, s.ID, s.PENDING_CNT);
         }
     }
 

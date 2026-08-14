@@ -179,6 +179,7 @@ public class TrainingNotificationWorker : BackgroundService
         "TRAINING_TEST_GRADED"        => "TRAINING_MY_CLASSES",
         "TRAINING_CLASS_COMPLETED"    => classId.HasValue ? $"TRAINING_CLASS/{classId}" : "TRAINING_MY_CLASSES",
         "TRAINING_DROPPED"            => "TRAINING_MY_CLASSES",
+        "TRAINING_TEACHER_CONFIRM_REMINDER" => classId.HasValue ? $"TRAINING_CLASS/{classId}" : "TRAINING_MY_CLASSES",
         _                             => "TRAINING_MY_CLASSES",
     };
 

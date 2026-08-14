@@ -157,7 +157,9 @@ public class SurveyAdminController : ControllerBase
         {
             var detail = await _admin.GetDetailAsync(req.ID);
             var current = detail?.STATUS ?? "";
-            // Chỉ đổi status nếu đang DRAFT. Nếu đã SCHEDULED / ACTIVE → skip, chỉ re-snapshot.
+            // Chỉ đổi status nếu đang DRAFT. Nếu đã SCHEDULED / ACTIVE / PAUSED → skip, chỉ
+            // re-snapshot (PAUSED cần re-snapshot khi HR sửa đối tượng nhận lúc survey đang tạm dừng —
+            // xem SaveAsync nhánh isLimitedEdit).
             if (current == "DRAFT")
             {
                 var (ok, err) = await _admin.ChangeStatusAsync(req.ID, "SCHEDULED", req.LOGIN_USER);
@@ -167,7 +169,7 @@ public class SurveyAdminController : ControllerBase
                     return;
                 }
             }
-            else if (current != "SCHEDULED" && current != "ACTIVE")
+            else if (current != "SCHEDULED" && current != "ACTIVE" && current != "PAUSED")
             {
                 await Emit(new { phase = "error", message = $"Không publish được từ trạng thái {current}" });
                 return;
@@ -262,6 +264,20 @@ public class SurveyAdminController : ControllerBase
     {
         var data = await _report.GetParticipantsAsync(id, deptcd, linecd, workcd, empcd, status, page, pageSize);
         return Ok(new { success = true, data });
+    }
+
+    // POST /apiHR/SurveyAdmin/delete-response  — xoá response bị ghi nhầm EMPCD (vd quên logout tài khoản dùng chung)
+    [HttpPost("delete-response")]
+    public async Task<IActionResult> DeleteResponse([FromBody] DeleteResponseRequest req)
+    {
+        var (ok, err) = await _admin.DeleteResponseAsync(req.SURVEY_ID, req.EMPCD);
+        return Ok(new { success = ok, message = err });
+    }
+
+    public class DeleteResponseRequest
+    {
+        public int    SURVEY_ID { get; set; }
+        public string EMPCD     { get; set; } = "";
     }
 
     // GET /apiHR/SurveyAdmin/participant-answers?surveyId=&empcd=

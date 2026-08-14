@@ -141,14 +141,56 @@ public class SurveyAdminService
 
         if (req.ID.HasValue && req.ID.Value > 0)
         {
-            // UPDATE existing — phải là DRAFT hoặc SCHEDULED. LANG bị khoá sau lần tạo đầu (rules §10).
+            // UPDATE existing. DRAFT/SCHEDULED: sửa toàn bộ như cũ.
+            // ACTIVE/PAUSED: cho sửa GIỚI HẠN (tiêu đề/mô tả/ngày kết thúc/đối tượng nhận) để HR
+            // tự fix lỗi nhập liệu mà không cần đụng DB tay — KHÔNG đụng câu hỏi (HR_SURVEY_ANSWER
+            // có FK vào HR_SURVEY_QUESTION, xoá câu hỏi cũ sẽ vỡ FK nếu đã có người trả lời) và
+            // không đổi SURVEY_TYPE/START_DATE/PASS_SCORE (đã có response chấm theo cấu hình cũ).
             var existing = await GetStatusAndLangAsync(req.ID.Value);
             if (existing == null)
                 throw new InvalidOperationException("Không tìm thấy survey");
-            if (existing.Status != "DRAFT" && existing.Status != "SCHEDULED")
+
+            bool isLimitedEdit = existing.Status == "ACTIVE" || existing.Status == "PAUSED";
+            if (existing.Status != "DRAFT" && existing.Status != "SCHEDULED" && !isLimitedEdit)
                 throw new InvalidOperationException($"Không sửa được survey ở trạng thái {existing.Status}");
             if (!string.Equals(existing.Lang, req.LANG, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Không được đổi LANG sau khi tạo survey");
+
+            if (isLimitedEdit)
+            {
+                // UPDATE + replace scope chạy chung 1 transaction — tránh trường hợp UPDATE
+                // HR_SURVEY thành công nhưng ReplaceScopesAsync lỗi giữa chừng (đã DELETE scope
+                // cũ, chưa INSERT hết scope mới), để lại survey ACTIVE với scope dở dang.
+                await using var scope = await _db.BeginTransactionAsync();
+                try
+                {
+                    const string sqlUpdLimited = @"
+                        UPDATE HRMS.HR_SURVEY
+                           SET TITLE          = :TITLE,
+                               DESCRIPTION    = :DESCRIPTION,
+                               END_DATE       = :END_DATE,
+                               RECIPIENT_MODE = :RECIPIENT_MODE,
+                               UPDT_ID        = :UPDT_ID
+                         WHERE ID = :ID";
+
+                    await _db.ExecuteNonQueryAsync(scope, sqlUpdLimited,
+                        new OracleParameter("TITLE",          req.TITLE),
+                        new OracleParameter("DESCRIPTION",    (object?)req.DESCRIPTION ?? DBNull.Value),
+                        new OracleParameter("END_DATE",       (object?)req.END_DATE   ?? DBNull.Value),
+                        new OracleParameter("RECIPIENT_MODE", req.RECIPIENT_MODE),
+                        new OracleParameter("UPDT_ID",        (object?)req.LOGIN_USER ?? DBNull.Value),
+                        new OracleParameter("ID",             req.ID.Value));
+
+                    await ReplaceScopesAsync(scope, req.ID.Value, req.SCOPES);
+                    await scope.CommitAsync();
+                    return req.ID.Value; // KHÔNG đụng câu hỏi
+                }
+                catch
+                {
+                    await scope.RollbackAsync();
+                    throw;
+                }
+            }
 
             const string sqlUpd = @"
                 UPDATE HRMS.HR_SURVEY
@@ -291,6 +333,31 @@ public class SurveyAdminService
         }
     }
 
+    // Bản dùng chung transaction (scope) — cho nhánh isLimitedEdit cần UPDATE + replace scope
+    // atomic với nhau. Logic giống hệt overload trên, chỉ khác route DB call qua scope.
+    private async Task ReplaceScopesAsync(OracleTxScope scope, int surveyId, List<SaveScopeRequest> scopes)
+    {
+        await _db.ExecuteNonQueryAsync(scope,
+            "DELETE FROM HRMS.HR_SURVEY_SCOPE WHERE SURVEY_ID = :SID",
+            new OracleParameter("SID", surveyId));
+
+        foreach (var sc in scopes)
+        {
+            const string sqlSc = @"
+                INSERT INTO HRMS.HR_SURVEY_SCOPE
+                    (SURVEY_ID, SCOPE_TYPE, DEPTCD, LINECD, WORKCD, EMPCD, INST_DT)
+                VALUES
+                    (:SID, :STYPE, :DEPT, :LINE, :WORK, :EMP, SYSDATE)";
+            await _db.ExecuteNonQueryAsync(scope, sqlSc,
+                new OracleParameter("SID",   surveyId),
+                new OracleParameter("STYPE", sc.SCOPE_TYPE),
+                new OracleParameter("DEPT",  (object?)sc.DEPTCD ?? DBNull.Value),
+                new OracleParameter("LINE",  (object?)sc.LINECD ?? DBNull.Value),
+                new OracleParameter("WORK",  (object?)sc.WORKCD ?? DBNull.Value),
+                new OracleParameter("EMP",   (object?)sc.EMPCD  ?? DBNull.Value));
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════
     //  STATE MACHINE
     // ═══════════════════════════════════════════════════════════════
@@ -376,6 +443,34 @@ public class SurveyAdminService
                 return "QUIZ không cho phép câu hỏi loại TEXT (tự luận) hoặc RATING — vì không chấm điểm được";
         }
         return null;
+    }
+
+    // Xoá 1 response (kèm answer) của 1 EMPCD trong 1 survey — dùng khi HR ghi nhận
+    // response bị nhập nhầm (vd quên logout tài khoản dùng chung → người sau làm survey
+    // bị gán nhầm EMPCD). Không đổi HR_SURVEY_RECIPIENT nên nhân viên có thể làm lại.
+    public async Task<(bool ok, string? error)> DeleteResponseAsync(int surveyId, string empcd)
+    {
+        if (string.IsNullOrWhiteSpace(empcd)) return (false, "Thiếu EMPCD");
+
+        await using var scope = await _db.BeginTransactionAsync();
+
+        var respIds = await _db.ExecuteQueryAsync(scope,
+            "SELECT ID FROM HRMS.HR_SURVEY_RESPONSE WHERE SURVEY_ID = :SID AND EMPCD = :EMPCD",
+            r => Convert.ToInt32(r["ID"]),
+            new OracleParameter("SID", surveyId), new OracleParameter("EMPCD", empcd));
+
+        if (respIds.Count == 0) return (false, "Không tìm thấy response của nhân viên này trong survey");
+
+        await _db.ExecuteNonQueryAsync(scope,
+            "DELETE FROM HRMS.HR_SURVEY_ANSWER WHERE RESPONSE_ID = :RID",
+            new OracleParameter("RID", respIds[0]));
+
+        await _db.ExecuteNonQueryAsync(scope,
+            "DELETE FROM HRMS.HR_SURVEY_RESPONSE WHERE ID = :RID",
+            new OracleParameter("RID", respIds[0]));
+
+        await scope.CommitAsync();
+        return (true, null);
     }
 
     private async Task<string?> GetStatusAsync(int id)

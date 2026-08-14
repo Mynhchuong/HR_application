@@ -4,7 +4,7 @@
     ViewData["Title"] = "Nhập thực đơn tuần";
     var shifts    = new[] { ("CA1","CA 1"), ("CA2","CA 2 / TĂNG CA"), ("CA3","CA 3") };
     var days      = new[] { (2,"Thứ 2"), (3,"Thứ 3"), (4,"Thứ 4"), (5,"Thứ 5"), (6,"Thứ 6"), (7,"Thứ 7") };
-    var mealTypes = new[] { ("MAN","Món mặn"), ("DU_KIEN","Món dự kiến"), ("NHE","Món nhẹ"), ("CHAY","Món chay") };
+    var mealTypes = new[] { ("MAN","Món mặn"), ("DU_KIEN","Món dự kiến"), ("NHE","Món nhẹ"), ("CHAY","Món chay"), ("BANH","Món bánh") };
 
     // Build detail items map preserving FOOD_ID per cell
     var detailItemsMap = Model.Details
@@ -140,15 +140,17 @@
                                     {
                                         var key   = $"{shiftKey}|{dayNo}|{mealKey}";
                                         var items = detailItemsMap.GetValueOrDefault(key);
-                                        var first = items?.FirstOrDefault();
                                         <td class="p-0">
                                             <div class="food-cell@(isPublished ? " readonly" : "")"
                                                  data-shift="@shiftKey" data-day="@dayNo" data-meal="@mealKey">
                                                 <div class="food-tags">
-                                                    @if (first != null)
-                                                    {
-                                                        <span class="ftag has-id" data-fid="@first.foodId">@first.name@if (!isPublished){<button type="button" class="ftag-rm">×</button>}</span>
-                                                    }
+                                                     @if (items != null && items.Any())
+                                                     {
+                                                         @foreach (var item in items)
+                                                         {
+                                                             <span class="ftag has-id" data-fid="@item.foodId">@item.name@if (!isPublished){<button type="button" class="ftag-rm">×</button>}</span>
+                                                         }
+                                                     }
                                                 </div>
                                                 @if (!isPublished)
                                                 {
@@ -178,7 +180,7 @@ const antiForgery = '@Html.AntiForgeryToken()'.match(/value="([^"]+)"/)?.[1] ?? 
 const FOODS       = @Html.Raw(foodsJson);
 
 // DU_KIEN dùng chung danh sách với MAN
-const FOOD_TYPE_MAP = { MAN: 'MAN', DU_KIEN: 'MAN', NHE: 'NHE', CHAY: 'CHAY' };
+const FOOD_TYPE_MAP = { MAN: 'MAN', DU_KIEN: 'MAN', NHE: 'NHE', CHAY: 'CHAY', BANH: 'BANH' };
 
 // ── Remove tag ────────────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
@@ -223,7 +225,9 @@ document.querySelectorAll('.food-cell:not(.readonly)').forEach(cell => {
     });
 
     $(sel).on('select2:select', function (e) {
-        tags.innerHTML = '';
+        // BANH = suất 2 món, cho phép nhiều tag/ô. Các loại khác (MAN/NHE/CHAY/DU_KIEN) vẫn
+        // chỉ 1 món/ô như cũ — món mới chọn thay thế món cũ.
+        if (cell.dataset.meal !== 'BANH') tags.innerHTML = '';
         addTag(tags, parseInt(e.params.data.id), e.params.data.text);
         $(sel).val(null).trigger('change');
     });

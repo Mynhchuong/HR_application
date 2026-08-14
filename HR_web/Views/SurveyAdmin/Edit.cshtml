@@ -1,6 +1,7 @@
 @model HR_web.Models.Survey.SurveyModel
 @{
-    var isNew = (bool)(ViewBag.IsNew ?? true);
+    var isNew         = (bool)(ViewBag.IsNew ?? true);
+    var isLimitedEdit = (bool)(ViewBag.IsLimitedEdit ?? false);
     ViewData["Title"] = isNew ? "Tạo Survey" : "Sửa Survey";
 }
 
@@ -21,6 +22,14 @@
         </div>
 
         <div class="card-body p-0">
+            @if (isLimitedEdit)
+            {
+                <div class="alert alert-warning m-3 mb-0 py-2 small">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    Survey đang chạy (<b>@Model.STATUS</b>) — chỉ sửa được <b>Tiêu đề, Mô tả, Ngày kết thúc, Đối tượng nhận</b>.
+                    Câu hỏi, Loại survey, Ngày bắt đầu, Điểm đậu đã khoá để không ảnh hưởng các câu trả lời đã có.
+                </div>
+            }
             <!-- Wizard step indicator -->
             <div class="sa-wizard-steps">
                 <div class="sa-step active" data-step="1">
@@ -52,17 +61,21 @@
                         <div class="col-12 col-md-6">
                             <label class="sa-label">Loại</label>
                             <div class="d-flex gap-2 mt-1">
-                                <label class="sa-radio-card @(Model.SURVEY_TYPE == "POLL" ? "active" : "")">
-                                    <input type="radio" name="SURVEY_TYPE" value="POLL" @(Model.SURVEY_TYPE == "POLL" ? "checked" : "") />
+                                <label class="sa-radio-card @(Model.SURVEY_TYPE == "POLL" ? "active" : "") @(isLimitedEdit ? "disabled" : "")">
+                                    <input type="radio" name="SURVEY_TYPE" value="POLL" @(Model.SURVEY_TYPE == "POLL" ? "checked" : "") @(isLimitedEdit ? "disabled" : "") />
                                     <div class="sa-radio-title">📋 POLL</div>
                                     <div class="sa-radio-desc">Khảo sát, không chấm điểm</div>
                                 </label>
-                                <label class="sa-radio-card @(Model.SURVEY_TYPE == "QUIZ" ? "active" : "")">
-                                    <input type="radio" name="SURVEY_TYPE" value="QUIZ" @(Model.SURVEY_TYPE == "QUIZ" ? "checked" : "") />
+                                <label class="sa-radio-card @(Model.SURVEY_TYPE == "QUIZ" ? "active" : "") @(isLimitedEdit ? "disabled" : "")">
+                                    <input type="radio" name="SURVEY_TYPE" value="QUIZ" @(Model.SURVEY_TYPE == "QUIZ" ? "checked" : "") @(isLimitedEdit ? "disabled" : "") />
                                     <div class="sa-radio-title">🎯 QUIZ</div>
                                     <div class="sa-radio-desc">Trắc nghiệm có điểm</div>
                                 </label>
                             </div>
+                            @if (isLimitedEdit)
+                            {
+                                <div class="form-text text-warning">Không đổi được Loại khi survey đang chạy.</div>
+                            }
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="sa-label">Ngôn ngữ <span class="text-danger">*</span>
@@ -118,8 +131,14 @@
                         </div>
                     </div>
 
-                    <div id="questionList"></div>
-                    <button type="button" class="btn btn-outline-primary btn-sm w-100 mt-2" id="btnAddQuestion">
+                    @if (isLimitedEdit)
+                    {
+                        <div class="alert alert-secondary py-2 small mb-2">
+                            <i class="bi bi-lock-fill me-1"></i>Câu hỏi đã khoá, chỉ xem — không thể sửa khi survey đang chạy.
+                        </div>
+                    }
+                    <div id="questionList" style="@(isLimitedEdit ? "pointer-events:none;opacity:.65;" : "")"></div>
+                    <button type="button" class="btn btn-outline-primary btn-sm w-100 mt-2 @(isLimitedEdit ? "d-none" : "")" id="btnAddQuestion">
                         <i class="bi bi-plus-lg"></i> Thêm câu hỏi
                     </button>
                 </div>
@@ -177,8 +196,10 @@
                         <div class="col-12 col-md-6">
                             <label class="sa-label">Ngày bắt đầu <span class="text-danger">*</span></label>
                             <input type="date" id="fStartDate" class="form-control"
-                                   value="@Model.START_DATE?.ToString("yyyy-MM-dd")" />
-                            <div class="form-text">Active từ 00:00 ngày bắt đầu.</div>
+                                   value="@Model.START_DATE?.ToString("yyyy-MM-dd")" @(isLimitedEdit ? "disabled" : "") />
+                            <div class="form-text">
+                                @(isLimitedEdit ? "Không đổi được ngày bắt đầu khi survey đang chạy." : "Active từ 00:00 ngày bắt đầu.")
+                            </div>
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="sa-label">Ngày kết thúc <span class="text-danger">*</span></label>
@@ -192,9 +213,16 @@
                                 Điểm đậu — số điểm tối thiểu để user PASS <span class="text-danger">*</span>
                             </label>
                             <input type="number" id="fPassScore" class="form-control" min="0" step="0.5"
-                                   value="@Model.PASS_SCORE" placeholder="Nhập số điểm để đậu, VD: 70" />
+                                   value="@Model.PASS_SCORE" placeholder="Nhập số điểm để đậu, VD: 70" @(isLimitedEdit ? "disabled" : "") />
                             <div class="form-text">
-                                So sánh với tổng điểm các câu hỏi. Tổng hiện tại: <b><span id="passScoreHintTotal">0</span></b> điểm.
+                                @if (isLimitedEdit)
+                                {
+                                    <text>Không đổi được điểm đậu khi survey đang chạy.</text>
+                                }
+                                else
+                                {
+                                    <text>So sánh với tổng điểm các câu hỏi. Tổng hiện tại: <b><span id="passScoreHintTotal">0</span></b> điểm.</text>
+                                }
                             </div>
                         </div>
                     </div>
@@ -207,7 +235,7 @@
                     </button>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-outline-primary" id="btnSaveDraft">
-                            <i class="bi bi-save"></i> Lưu nháp
+                            <i class="bi bi-save"></i> @(isLimitedEdit ? "Lưu thay đổi" : "Lưu nháp")
                         </button>
                         <button type="button" class="btn btn-primary d-none" id="btnPublish">
                             <i class="bi bi-upload"></i> Publish
@@ -253,8 +281,9 @@
 @section Scripts {
     <script>
         window.SURVEY_EDIT = {
-            id:      @(Model.ID),
-            isNew:   @(isNew.ToString().ToLower()),
+            id:            @(Model.ID),
+            isNew:         @(isNew.ToString().ToLower()),
+            isLimitedEdit: @(isLimitedEdit.ToString().ToLower()),
             initial: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model)),
             urls: {
                 getDept:       '@Url.Action("GetDept",   "Dropdown")',

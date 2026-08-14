@@ -44,6 +44,11 @@ public class EnrollmentModel
     public int? TOTAL_SESSIONS { get; set; }
     public int? COMPLETED_SESSIONS { get; set; }
     public string? PRIMARY_TEACHER_NAME { get; set; }
+
+    // Nhắc đánh giá lớp học (§ MyClasses) — chỉ hiện khi lớp bắt buộc đánh giá,
+    // đang IN_PROGRESS, và học viên chưa nộp HR_TRAINING_REVIEW.
+    public bool REQUIRE_POST_REVIEW { get; set; }
+    public bool HAS_REVIEWED { get; set; }
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -21,7 +21,7 @@ public class MealLockController : ControllerBase
             DateTime dto   = (!string.IsNullOrEmpty(to)   && DateTime.TryParse(to,   out var t)) ? t : DateTime.Today.AddMonths(2);
 
             var rows = await _db.ExecuteQueryAsync(@"
-                SELECT ID, LOCK_DATE, LOCK_LUNCH, LOCK_OT, LOCK_MAN, LOCK_NHE, LOCK_CHAY,
+                SELECT ID, LOCK_DATE, LOCK_LUNCH, LOCK_OT, LOCK_MAN, LOCK_NHE, LOCK_CHAY, LOCK_BANH,
                        CUTOFF_DT, NOTE, IS_ACTIVE,
                        INST_ID, INST_DT, UPDT_ID, UPDT_DT
                 FROM HRMS.HR_MEAL_LOCK
@@ -36,6 +36,7 @@ public class MealLockController : ControllerBase
                     lockMan    = (r["LOCK_MAN"]?.ToString()   ?? "N") == "Y",
                     lockNhe    = (r["LOCK_NHE"]?.ToString()   ?? "N") == "Y",
                     lockChay   = (r["LOCK_CHAY"]?.ToString()  ?? "N") == "Y",
+                    lockBanh   = (r["LOCK_BANH"]?.ToString()  ?? "N") == "Y",
                     cutoffDt   = r["CUTOFF_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CUTOFF_DT"]),
                     note       = r["NOTE"]?.ToString(),
                     isActive   = (r["IS_ACTIVE"] == DBNull.Value ? "Y" : r["IS_ACTIVE"].ToString()) == "Y",
@@ -84,6 +85,7 @@ public class MealLockController : ControllerBase
                         LOCK_MAN   = :LM,
                         LOCK_NHE   = :LN,
                         LOCK_CHAY  = :LC,
+                        LOCK_BANH  = :LB,
                         CUTOFF_DT  = :CT,
                         NOTE       = :NT,
                         IS_ACTIVE  = :AC,
@@ -96,6 +98,7 @@ public class MealLockController : ControllerBase
                     new OracleParameter("LM", body.LockMan   ? "Y" : "N"),
                     new OracleParameter("LN", body.LockNhe   ? "Y" : "N"),
                     new OracleParameter("LC", body.LockChay  ? "Y" : "N"),
+                    new OracleParameter("LB", body.LockBanh  ? "Y" : "N"),
                     new OracleParameter("CT", cutoff),
                     new OracleParameter("NT", body.Note),
                     new OracleParameter("AC", body.IsActive ? "Y" : "N"),
@@ -108,10 +111,10 @@ public class MealLockController : ControllerBase
             {
                 await _db.ExecuteNonQueryAsync(@"
                     INSERT INTO HRMS.HR_MEAL_LOCK
-                        (LOCK_DATE, LOCK_LUNCH, LOCK_OT, LOCK_MAN, LOCK_NHE, LOCK_CHAY,
+                        (LOCK_DATE, LOCK_LUNCH, LOCK_OT, LOCK_MAN, LOCK_NHE, LOCK_CHAY, LOCK_BANH,
                          CUTOFF_DT, NOTE, IS_ACTIVE, INST_ID, INST_DT, UPDT_ID, UPDT_DT)
                     VALUES
-                        (:LD, :LL, :LO, :LM, :LN, :LC,
+                        (:LD, :LL, :LO, :LM, :LN, :LC, :LB,
                          :CT, :NT, :AC, :ACTOR, SYSDATE, :ACTOR, SYSDATE)",
                     new OracleParameter("LD", lockDate),
                     new OracleParameter("LL", body.LockLunch ? "Y" : "N"),
@@ -119,6 +122,7 @@ public class MealLockController : ControllerBase
                     new OracleParameter("LM", body.LockMan   ? "Y" : "N"),
                     new OracleParameter("LN", body.LockNhe   ? "Y" : "N"),
                     new OracleParameter("LC", body.LockChay  ? "Y" : "N"),
+                    new OracleParameter("LB", body.LockBanh  ? "Y" : "N"),
                     new OracleParameter("CT", cutoff),
                     new OracleParameter("NT", body.Note),
                     new OracleParameter("AC", body.IsActive ? "Y" : "N"),
@@ -164,8 +168,8 @@ public class MealLockController : ControllerBase
             // - CUTOFF_DT NULL (khoá cả ngày) có ưu tiên cao nhất
             // - Sau đó là CUTOFF_DT sớm nhất (chốt sớm hơn)
             var rows = await _db.ExecuteQueryAsync(
-                $@"SELECT CUTOFF_DT, NOTE, LOCK_MAN, LOCK_NHE, LOCK_CHAY FROM (
-                       SELECT CUTOFF_DT, NOTE, LOCK_MAN, LOCK_NHE, LOCK_CHAY
+                $@"SELECT CUTOFF_DT, NOTE, LOCK_MAN, LOCK_NHE, LOCK_CHAY, LOCK_BANH FROM (
+                       SELECT CUTOFF_DT, NOTE, LOCK_MAN, LOCK_NHE, LOCK_CHAY, LOCK_BANH
                        FROM HRMS.HR_MEAL_LOCK
                        WHERE TRUNC(LOCK_DATE) = TRUNC(:D)
                          AND IS_ACTIVE = 'Y'
@@ -179,7 +183,8 @@ public class MealLockController : ControllerBase
                     note     = r["NOTE"]?.ToString(),
                     lockMan  = (r["LOCK_MAN"]?.ToString()  ?? "N") == "Y",
                     lockNhe  = (r["LOCK_NHE"]?.ToString()  ?? "N") == "Y",
-                    lockChay = (r["LOCK_CHAY"]?.ToString() ?? "N") == "Y"
+                    lockChay = (r["LOCK_CHAY"]?.ToString() ?? "N") == "Y",
+                    lockBanh = (r["LOCK_BANH"]?.ToString() ?? "N") == "Y"
                 },
                 new OracleParameter("D", target));
 
@@ -187,12 +192,13 @@ public class MealLockController : ControllerBase
             if (row == null) return Ok(new { success = true, locked = false });
 
             // Nếu rule có specify type và targetFood được truyền → chỉ chặn nếu khớp
-            bool typeRestricted = row.lockMan || row.lockNhe || row.lockChay;
-            bool typeMatches = !typeRestricted    // không restrict = áp cho mọi loại
-                || string.IsNullOrEmpty(targetFood)  // không có target = check generic
+            bool typeRestricted = row.lockMan || row.lockNhe || row.lockChay || row.lockBanh;
+            bool typeMatches = !typeRestricted
+                || string.IsNullOrEmpty(targetFood)
                 || (targetFood == "M" && row.lockMan)
                 || (targetFood == "N" && row.lockNhe)
-                || (targetFood == "C" && row.lockChay);
+                || (targetFood == "C" && row.lockChay)
+                || (targetFood == "B" && row.lockBanh);
 
             bool locked;
             string reason;
@@ -226,7 +232,8 @@ public class MealLockController : ControllerBase
                 note     = row.note,
                 lockMan  = row.lockMan,
                 lockNhe  = row.lockNhe,
-                lockChay = row.lockChay
+                lockChay = row.lockChay,
+                lockBanh = row.lockBanh
             });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
@@ -241,6 +248,7 @@ public class MealLockController : ControllerBase
         public bool    LockMan   { get; set; }
         public bool    LockNhe   { get; set; }
         public bool    LockChay  { get; set; }
+        public bool    LockBanh  { get; set; }   // Bánh
         public string? CutoffDt  { get; set; }   // ISO datetime
         public string? Note      { get; set; }
         public bool    IsActive  { get; set; } = true;

@@ -388,6 +388,96 @@ public class TrainingAdminController : BaseController
         }
         wsWD.Columns().AdjustToContents();
 
+        // 1 sheet / câu hỏi (Q1, Q2, ...) — giống pattern report Survey (BuildOverviewSheet ở
+        // SurveyAdminController): thống kê số người chọn từng đáp án, kèm danh sách chi tiết
+        // từng học viên trả lời gì cho CÂU ĐÓ — không chỉ câu sai như 2 sheet trên.
+        var questionGroups = r.ALL_ANSWERS
+            .GroupBy(a => new { a.QUESTION_ID, a.QUESTION_TEXT, a.QUESTION_TYPE })
+            .OrderBy(g => g.First().DISPLAY_ORDER)
+            .ToList();
+
+        for (int qi = 0; qi < questionGroups.Count; qi++)
+        {
+            var g = questionGroups[qi];
+            var qs = wb.Worksheets.Add($"Q{qi + 1}");
+            qs.Cell(1, 1).Value = $"Câu {qi + 1}: {g.Key.QUESTION_TEXT}";
+            qs.Cell(1, 1).Style.Font.Bold = true;
+            qs.Cell(1, 1).Style.Font.FontSize = 12;
+
+            int detailStartRow = 4;
+            bool isChoice = g.Key.QUESTION_TYPE != "TEXT";
+
+            if (isChoice)
+            {
+                var tally = g.SelectMany(a => a.SELECTED_OPTION_TEXTS)
+                    .GroupBy(t => t)
+                    .Select(x => new { Text = x.Key, Count = x.Count() })
+                    .OrderByDescending(x => x.Count)
+                    .ToList();
+                int totalHits = Math.Max(1, tally.Sum(x => x.Count));
+
+                qs.Cell(3, 1).Value = "THỐNG KÊ PHƯƠNG ÁN CHỌN";
+                qs.Cell(3, 1).Style.Font.Bold = true;
+
+                string[] statHdr = { "Đáp án", "Số người chọn", "Tỷ lệ (%)" };
+                for (int i = 0; i < statHdr.Length; i++)
+                {
+                    var c = qs.Cell(4, i + 1);
+                    c.Value = statHdr[i];
+                    c.Style.Font.Bold = true;
+                    c.Style.Fill.BackgroundColor = XLColor.FromHtml("#e2e8f0");
+                }
+
+                int r2 = 5;
+                foreach (var t in tally)
+                {
+                    qs.Cell(r2, 1).Value = t.Text;
+                    qs.Cell(r2, 1).Style.Font.FontName = "Vnitbi__";
+                    qs.Cell(r2, 2).Value = t.Count;
+                    qs.Cell(r2, 3).Value = Math.Round(t.Count * 100.0 / totalHits, 1) + "%";
+                    r2++;
+                }
+                detailStartRow = r2 + 2;
+            }
+
+            qs.Cell(detailStartRow, 1).Value = "DANH SÁCH CHI TIẾT CÂU TRẢ LỜI CỦA TỪNG HỌC VIÊN";
+            qs.Cell(detailStartRow, 1).Style.Font.Bold = true;
+
+            string[] hdr = { "STT", "EMPCD", "Họ tên", "Attempt No", "Đáp án / Nội dung trả lời", "Đúng/Sai" };
+            int hRow = detailStartRow + 1;
+            for (int i = 0; i < hdr.Length; i++)
+            {
+                var c = qs.Cell(hRow, i + 1);
+                c.Value = hdr[i];
+                c.Style.Font.Bold = true;
+                c.Style.Fill.BackgroundColor = XLColor.FromHtml("#334155");
+                c.Style.Font.FontColor = XLColor.White;
+            }
+
+            int dataRow = hRow + 1;
+            int stt = 1;
+            foreach (var a in g.OrderBy(x => x.EMPCD).ThenBy(x => x.ATTEMPT_NO))
+            {
+                qs.Cell(dataRow, 1).Value = stt++;
+                qs.Cell(dataRow, 2).Value = a.EMPCD;
+                qs.Cell(dataRow, 3).Value = a.EMP_NAME ?? "";
+                qs.Cell(dataRow, 3).Style.Font.FontName = "Vnitbi__";
+                qs.Cell(dataRow, 4).Value = a.ATTEMPT_NO;
+                qs.Cell(dataRow, 5).Value = a.ANSWER_DISPLAY;
+                qs.Cell(dataRow, 5).Style.Font.FontName = "Vnitbi__";
+                qs.Cell(dataRow, 6).Value = isChoice ? (a.IS_WRONG ? "Sai" : "Đúng") : "";
+                if (a.IS_WRONG) qs.Cell(dataRow, 6).Style.Fill.BackgroundColor = XLColor.FromHtml("#fff3cd");
+                dataRow++;
+            }
+
+            qs.Column(1).Width = 6;
+            qs.Column(2).Width = 14;
+            qs.Column(3).Width = 26;
+            qs.Column(4).Width = 12;
+            qs.Column(5).Width = 45;
+            qs.Column(6).Width = 12;
+        }
+
         return BuildXlsx(wb, $"report_test_{testId}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
     }
 

@@ -123,13 +123,14 @@
                 </div>
             </div>
             <div class="ml-form-row">
-                <label>Khoá đổi sang loại món (để trống = khoá mọi loại)</label>
+                <label>Khoá đổi sang loại món (làm trống = khoá mọi loại)</label>
                 <div class="ml-checkbox-row">
                     <label><input type="checkbox" id="fMan"  /> 🍖 Mặn</label>
                     <label><input type="checkbox" id="fNhe"  /> 🥗 Nhẹ</label>
                     <label><input type="checkbox" id="fChay" /> 🥦 Chay</label>
+                    <label><input type="checkbox" id="fBanh" /> 🥐 Bánh</label>
                 </div>
-                <small class="text-secondary" style="font-size:.72rem">Tick để chặn NV đổi sang loại đó. Bỏ trống cả 3 = khoá mọi loại.</small>
+                <small class="text-secondary" style="font-size:.72rem">Tick để chặn NV đổi sang loại đó. Bỏ trống cả 4 = khoá mọi loại.</small>
             </div>
             <div class="ml-form-row">
                 <label>Thời điểm chốt (cutoff) *</label>
@@ -210,6 +211,7 @@ async function load(){
             if (r.lockMan)  typeChips.push('<span class="pill pill-on" style="background:#fee2e2;color:#b91c1c">🍖 MẶN</span>');
             if (r.lockNhe)  typeChips.push('<span class="pill pill-on" style="background:#dbeafe;color:#1d4ed8">🥗 NHẸ</span>');
             if (r.lockChay) typeChips.push('<span class="pill pill-on" style="background:#dcfce7;color:#166534">🥦 CHAY</span>');
+            if (r.lockBanh) typeChips.push('<span class="pill pill-on" style="background:#fef9c3;color:#92400e">🥐 BÁNH</span>');
             const typesHtml = typeChips.length ? typeChips.join(' ')
                 : '<span class="text-muted small">Mọi loại</span>';
             return `
@@ -238,9 +240,10 @@ function openEdit(id){
     document.getElementById('fLockDate').value    = r ? toLocalDateInput(r.lockDate) : '';
     document.getElementById('fLunch').checked     = r ? !!r.lockLunch : true;
     document.getElementById('fOt').checked        = r ? !!r.lockOt    : true;
-    document.getElementById('fMan').checked       = r ? !!r.lockMan   : false;
-    document.getElementById('fNhe').checked       = r ? !!r.lockNhe   : false;
-    document.getElementById('fChay').checked      = r ? !!r.lockChay  : false;
+    document.getElementById('fMan').checked        = r ? !!r.lockMan   : false;
+    document.getElementById('fNhe').checked        = r ? !!r.lockNhe   : false;
+    document.getElementById('fChay').checked       = r ? !!r.lockChay  : false;
+    document.getElementById('fBanh').checked       = r ? !!r.lockBanh  : false;
     document.getElementById('fCutoff').value      = r ? toLocalDtInput(r.cutoffDt) : '';
     document.getElementById('fNote').value        = r?.note ?? '';
     document.getElementById('fActive').checked    = r ? !!r.isActive : true;
@@ -270,6 +273,7 @@ async function saveRule(){
         lockMan:   document.getElementById('fMan').checked,
         lockNhe:   document.getElementById('fNhe').checked,
         lockChay:  document.getElementById('fChay').checked,
+        lockBanh:  document.getElementById('fBanh').checked,
         cutoffDt:  cutoffVal,
         note:      noteVal,
         isActive:  document.getElementById('fActive').checked

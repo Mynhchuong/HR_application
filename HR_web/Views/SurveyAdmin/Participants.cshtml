@@ -176,6 +176,7 @@
                             <th>Trạng thái</th>
                             @if (isQuiz) { <th class="text-center">Điểm</th><th class="text-center">KQ</th> }
                             <th>Nộp lúc</th>
+                            <th class="text-center">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -198,11 +199,19 @@
                                     </td>
                                 }
                                 <td style="font-size:.75rem;color:#64748b;white-space:nowrap;">@p.SUBMIT_DT?.ToString("dd/MM HH:mm")</td>
+                                <td class="text-center">
+                                    @if (p.STATUS != "NOT_STARTED")
+                                    {
+                                        <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 del-response-btn" data-empcd="@p.EMPCD" title="Xoá kết quả khảo sát của nhân viên này (dùng khi bị ghi nhầm mã NV)">
+                                            <span class="material-symbols-rounded align-middle" style="font-size:.9rem;">delete</span>
+                                        </button>
+                                    }
+                                </td>
                             </tr>
                         }
                         @if (!pg.ITEMS.Any())
                         {
-                            <tr><td colspan="@(isQuiz ? 8 : 6)" class="text-center text-muted py-5">
+                            <tr><td colspan="@(isQuiz ? 9 : 7)" class="text-center text-muted py-5">
                                 <span class="material-symbols-rounded d-block mb-2" style="font-size:2rem;color:#cbd5e1;">person_off</span>
                                 Không có dữ liệu
                             </td></tr>
@@ -256,16 +265,52 @@
 </div>
 
 @section Scripts {
+<form id="antiForgeryForm">@Html.AntiForgeryToken()</form>
 <script>
 const SURVEY_ID   = @Model.SURVEY_ID;
 const IS_QUIZ     = @(isQuiz ? "true" : "false");
 const ANSWERS_URL = '@Url.Action("ParticipantAnswers", "SurveyAdmin")';
+const DELETE_URL  = '@Url.Action("DeleteResponse", "SurveyAdmin")';
 const LINE_URL    = '@Url.Action("GetLineByDept", "Dropdown")';
 const WORK_URL    = '@Url.Action("GetWork", "Dropdown")';
+const TOKEN       = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]')?.value ?? '';
 
 // ── Row click → modal ────────────────────────────────────────────────────────
 document.querySelectorAll('.emp-row').forEach(tr => {
     tr.addEventListener('click', () => openDetail(tr.dataset.empcd));
+});
+
+// ── Xoá response bị ghi nhầm EMPCD (vd quên logout tài khoản dùng chung) ─────
+document.querySelectorAll('.del-response-btn').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const empcd = btn.dataset.empcd;
+        const doIt = async () => {
+            btn.disabled = true;
+            try {
+                const res = await fetch(DELETE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+                    body: JSON.stringify({ SurveyId: SURVEY_ID, Empcd: empcd }),
+                });
+                const r = await res.json();
+                if (r.success) {
+                    (window.showToast || alert)('Đã xoá kết quả khảo sát', 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    (window.showToast || alert)(r.message || 'Không xoá được', 'error');
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                (window.showToast || alert)('Lỗi kết nối', 'error');
+                btn.disabled = false;
+            }
+        };
+        const msg = 'Xoá kết quả khảo sát của mã NV ' + empcd + '? Nhân viên sẽ làm lại được từ đầu. Không thể hoàn tác.';
+        if (window.showConfirm) {
+            window.showConfirm(msg, doIt, { title: 'Xoá kết quả khảo sát', okText: 'Xoá', okClass: 'btn-danger', icon: 'delete', iconColor: '#dc2626', iconBg: '#fee2e2' });
+        } else if (confirm(msg)) { doIt(); }
+    });
 });
 
 async function openDetail(empcd) {

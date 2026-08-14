@@ -486,7 +486,10 @@ public class TrainingEnrollmentService
                    E.INST_ID, E.INST_DT, E.UPDT_ID, E.UPDT_DT,
                    CL.CLASS_NAME, CL.STATUS AS CLASS_STATUS,
                    CL.START_DATE AS CLASS_START_DATE, CL.END_DATE AS CLASS_END_DATE,
+                   CL.REQUIRE_POST_REVIEW,
                    CO.TITLE AS COURSE_TITLE, CO.COURSE_MODE AS CLASS_MODE,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_REVIEW RV
+                     WHERE RV.CLASS_ID = E.CLASS_ID AND RV.EMPCD = E.EMPCD) AS REVIEW_CNT,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S
                      WHERE S.CLASS_ID = E.CLASS_ID
                        AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)) AS TOTAL_SESSIONS,
@@ -591,6 +594,8 @@ public class TrainingEnrollmentService
         e.TOTAL_SESSIONS       = r["TOTAL_SESSIONS"] is DBNull ? 0 : Convert.ToInt32(r["TOTAL_SESSIONS"]);
         e.COMPLETED_SESSIONS   = r["COMPLETED_SESSIONS"] is DBNull ? 0 : Convert.ToInt32(r["COMPLETED_SESSIONS"]);
         e.PRIMARY_TEACHER_NAME = r["PRIMARY_TEACHER_NAME"] as string;
+        e.REQUIRE_POST_REVIEW  = (r["REQUIRE_POST_REVIEW"]?.ToString() ?? "0") == "1";
+        e.HAS_REVIEWED         = (r["REVIEW_CNT"] is DBNull ? 0 : Convert.ToInt32(r["REVIEW_CNT"])) > 0;
         return e;
     }
 

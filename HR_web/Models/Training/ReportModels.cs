@@ -126,6 +126,7 @@ public class ReportTestModel
     public decimal? MIN_SCORE { get; set; }
     public List<TestScoreItem>  SCORES { get; set; } = new();
     public List<TestWrongItem>  TOP_WRONG_QUESTIONS { get; set; } = new();
+    public List<TestAllAnswerItem> ALL_ANSWERS { get; set; } = new();
 }
 public class TestScoreItem
 {
@@ -153,6 +154,20 @@ public class WrongStudentItem
     public string EMPCD { get; set; } = "";
     public string? EMP_NAME { get; set; }
     public int    ATTEMPT_NO { get; set; }
+}
+
+public class TestAllAnswerItem
+{
+    public int    QUESTION_ID { get; set; }
+    public string QUESTION_TEXT { get; set; } = "";
+    public string QUESTION_TYPE { get; set; } = "";
+    public int    DISPLAY_ORDER { get; set; }
+    public string EMPCD { get; set; } = "";
+    public string? EMP_NAME { get; set; }
+    public int    ATTEMPT_NO { get; set; }
+    public string ANSWER_DISPLAY { get; set; } = "";
+    public bool   IS_WRONG { get; set; }
+    public List<string> SELECTED_OPTION_TEXTS { get; set; } = new();
 }
 
 // §14.4 Satisfaction

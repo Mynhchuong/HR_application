@@ -124,7 +124,8 @@
             getMyClasses: '@Url.Action("GetMyClasses", "Training")',
             classDetailTemplate: '@Url.Action("ClassDetail", "Training", new { id = "__ID__" })',
             getCertificateList: '@Url.Action("GetMyCertificates", "Training")',
-            certificateViewTemplate: '@Url.Action("CertificateView", "Training", new { classId = "__ID__" })'
+            certificateViewTemplate: '@Url.Action("CertificateView", "Training", new { classId = "__ID__" })',
+            reviewTemplate: '@Url.Action("Review", "Training", new { id = "__ID__" })'
         };
         const empCd = '@empCd';
 
@@ -189,9 +190,20 @@
                         
                         let groupText = item.GROUP_NAME ? `<span class="badge bg-secondary ms-1">${item.GROUP_NAME}</span>` : '';
 
-                        const modeBadge = item.CLASS_MODE === 'EXPRESS' 
+                        const modeBadge = item.CLASS_MODE === 'EXPRESS'
                              ? `<span class="badge badge-express px-2 py-1 small">Học nhanh</span>`
                              : `<span class="badge badge-standard px-2 py-1 small">Tiêu chuẩn</span>`;
+
+                        // Nhắc đánh giá lớp — chỉ khi lớp đang dạy (IN_PROGRESS), lớp bắt buộc
+                        // đánh giá, và học viên chưa nộp.
+                        const needsReview = item.CLASS_STATUS === 'IN_PROGRESS' && item.REQUIRE_POST_REVIEW && !item.HAS_REVIEWED;
+                        const reviewBanner = needsReview ? `
+                            <a href="${window.TRAINING_URLS.reviewTemplate.replace('__ID__', item.CLASS_ID)}"
+                               class="d-flex align-items-center gap-2 mb-3 p-2 rounded-3 text-decoration-none"
+                               style="background:#fff7ed;border:1px solid #fdba74;">
+                                <i class="bi bi-star-fill" style="color:#ea580c;"></i>
+                                <span class="small fw-bold" style="color:#9a3412;">Đừng quên đánh giá lớp học này nhé!</span>
+                            </a>` : '';
 
                         container.innerHTML += `
                             <div class="col-12 col-md-6 col-lg-4 mb-4">
@@ -203,7 +215,7 @@
                                         </div>
                                         <h5 class="fw-bold mb-1 text-dark text-truncate-2">${item.COURSE_TITLE}</h5>
                                         <p class="text-muted small mb-3">Lớp: ${item.CLASS_NAME} ${groupText}</p>
-                                        
+                                        ${reviewBanner}
                                         <div class="mt-auto">
                                             <!-- Giáo viên -->
                                             <div class="d-flex align-items-center gap-2 mb-3">

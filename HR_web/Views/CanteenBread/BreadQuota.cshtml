@@ -1,0 +1,406 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Phiếu Bánh - Quản lý Quota";
+    var isAdmin = (ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel)?.RoleName == "Admin";
+}
+
+@section Styles {
+<style>
+    .bq-page { max-width: 900px; margin: 0 auto; }
+    .bq-table th, .bq-table td { padding: .65rem .9rem; vertical-align: middle; }
+    .bq-table td input[type=number] {
+        width: 90px; border: 1.5px solid #e2e8f0; border-radius: 6px;
+        padding: .3rem .5rem; font-size: .88rem; text-align: right;
+        transition: border-color .15s;
+    }
+    .bq-table td input[type=number]:focus { outline: none; border-color: #f59e0b; }
+    .bq-table td input[type=number].unlimited-hint { border-color: #fbbf24; background: #fffbeb; }
+    .bq-unlimited-tag { font-size: .68rem; color: #b45309; font-weight: 700; margin-left: .35rem; }
+    .bq-loading { padding: 3rem 1rem; text-align: center; color: #94a3b8; }
+</style>
+}
+
+<div class="bq-page px-2 py-2">
+<div class="card">
+    <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+        <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h6 class="text-white mb-0"><i class="bi bi-basket2-fill me-1"></i>Phiếu Bánh — Quản lý Quota</h6>
+                <p class="text-white text-xs mb-0 opacity-8">Số phiếu bánh tối đa mỗi phòng ban được chọn mỗi ngày</p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-sm btn-outline-white mb-0" data-bs-toggle="modal" data-bs-target="#modalAddDept">
+                    <i class="bi bi-plus-lg me-1"></i>Thêm dept
+                </button>
+                <button class="btn btn-sm btn-white mb-0" id="btnSaveAll" onclick="saveAll()">
+                    <i class="bi bi-save me-1"></i>Lưu tất cả
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body p-0 pt-4">
+        <div class="alert alert-warning mx-3 py-2" style="font-size:.82rem;">
+            <i class="bi bi-info-circle me-1"></i>
+            Công nhân chỉ đổi được sang Bánh nếu dept còn phiếu và chưa đủ 3 lần/tuần.
+            Nhập <code>0</code> = phòng ban không giới hạn số phiếu. Dept <strong>chưa có trong bảng</strong> = không được phát bánh.
+            <span id="saveMsg" class="ms-2 text-secondary"></span>
+        </div>
+
+        <div class="table-responsive px-3 pb-2">
+            <table class="table align-items-center bq-table" id="quotaTable">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Phòng ban</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 text-end">Phiếu / ngày</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 text-center">Trạng thái</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Cập nhật lần cuối</th>
+                    </tr>
+                </thead>
+                <tbody id="quotaBody">
+                    <tr><td colspan="4" class="bq-loading"><div class="spinner-border text-warning" role="status"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@if (isAdmin)
+{
+<div class="card mt-4">
+    <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+        <div class="bg-gradient-dark shadow-dark border-radius-lg pt-3 pb-2 px-3">
+            <h6 class="text-white mb-0"><i class="bi bi-people-fill me-1"></i>Danh sách cố định (dây chuyền) — cấp Bánh cả tuần</h6>
+            <p class="text-white text-xs mb-0 opacity-8">Nhân viên trong danh sách này không tính vào quota phòng ban, không giới hạn 3 ngày/tuần. Lưu 1 lần, mỗi tuần chỉ cần bấm "Áp dụng".</p>
+        </div>
+    </div>
+    <div class="card-body pt-4">
+        <div class="row g-3 mb-3">
+            <div class="col-md-8">
+                <label class="form-label text-xs font-weight-bolder">Thêm mã NV vào danh sách (mỗi dòng 1 mã, hoặc cách nhau bởi dấu phẩy)</label>
+                <textarea id="rosterAddInput" class="form-control" rows="3" placeholder="24092522&#10;18042301&#10;..."></textarea>
+            </div>
+            <div class="col-md-4 d-flex flex-column justify-content-end">
+                <button class="btn btn-sm btn-outline-dark mb-0" id="btnRosterAdd" onclick="rosterAdd()">
+                    <i class="bi bi-plus-lg me-1"></i>Thêm vào danh sách
+                </button>
+            </div>
+        </div>
+
+        <div class="table-responsive mb-3">
+            <table class="table align-items-center bq-table" id="rosterTable">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Mã NV</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Họ tên</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Phòng ban</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 text-center">Xoá</th>
+                    </tr>
+                </thead>
+                <tbody id="rosterBody">
+                    <tr><td colspan="4" class="bq-loading"><div class="spinner-border text-dark" role="status"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <hr class="my-3" />
+
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label text-xs font-weight-bolder">Từ ngày</label>
+                <input type="date" id="applyFrom" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-xs font-weight-bolder">Đến ngày</label>
+                <input type="date" id="applyTo" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-sm btn-dark mb-0" id="btnApplyRoster" onclick="applyRoster()">
+                    <i class="bi bi-send-fill me-1"></i>Áp dụng cho danh sách trên
+                </button>
+            </div>
+            <div class="col-md-3">
+                <div id="applyResult" class="text-xs"></div>
+            </div>
+        </div>
+    </div>
+</div>
+}
+</div>
+
+@Html.AntiForgeryToken()
+
+<!-- Modal Thêm dept -->
+<div class="modal fade" id="modalAddDept" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-plus-lg me-1"></i>Thêm phòng ban vào danh sách quota</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label text-xs font-weight-bolder">Phòng ban</label>
+                <select id="addDeptSelect" class="form-select mb-3">
+                    <option value="">— Chọn phòng ban —</option>
+                </select>
+                <label class="form-label text-xs font-weight-bolder">Quota phiếu / ngày</label>
+                <input type="number" id="addDeptQuota" class="form-control" value="0" min="0" max="9999" />
+                <div class="form-text">Nhập 0 nếu muốn phòng ban này không giới hạn số phiếu.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Huỷ</button>
+                <button type="button" class="btn btn-sm btn-warning" id="btnConfirmAddDept" onclick="confirmAddDept()">Thêm vào danh sách</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+let quotaData = [];
+let allDepts  = [];
+
+async function loadQuota() {
+    const res  = await fetch('GetQuotaList');
+    const data = await res.json();
+    if (!data.success) { window.showToast(data.message, 'error'); return; }
+    quotaData = data.data;
+    renderTable();
+}
+
+async function loadDeptOptions() {
+    try {
+        const res  = await fetch('GetDeptList');
+        const data = await res.json();
+        if (data.success) allDepts = data.data || [];
+    } catch { /* ignore */ }
+}
+
+function esc(s) { return (s ?? '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderTable() {
+    const tbody = document.getElementById('quotaBody');
+    if (!quotaData.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-5 text-secondary">Chưa có dữ liệu — bấm "Thêm dept" để bắt đầu.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = quotaData.map((q, i) => `
+        <tr>
+            <td class="px-2">
+                <div class="text-sm font-weight-bold">${esc(q.deptName || q.deptcd)}</div>
+                <div class="text-xs text-secondary">${esc(q.deptcd)}</div>
+            </td>
+            <td class="px-2 text-end">
+                <input type="number" id="max_${i}" value="${q.maxBread}" min="0" max="9999"
+                    class="${q.maxBread == 0 ? 'unlimited-hint' : ''}"
+                    oninput="onQuotaInput(${i}, this)" />
+                ${q.maxBread == 0 ? '<span class="bq-unlimited-tag">KHÔNG GIỚI HẠN</span>' : ''}
+            </td>
+            <td class="px-2 text-center">
+                <div class="form-check form-switch d-flex justify-content-center">
+                    <input class="form-check-input" type="checkbox" id="active_${i}"
+                        ${q.isActive ? 'checked' : ''} onchange="toggleActive(${i}, this)" style="cursor:pointer;">
+                </div>
+            </td>
+            <td class="px-2 text-xs text-secondary">
+                ${q.updtId ? esc(q.updtId) + '<br>' : ''}${q.updtDt ? new Date(q.updtDt).toLocaleDateString('vi-VN') : '—'}
+            </td>
+        </tr>
+    `).join('');
+}
+
+function onQuotaInput(i, el) {
+    const tag = el.parentElement.querySelector('.bq-unlimited-tag');
+    const isZero = (parseInt(el.value || '0') === 0);
+    el.classList.toggle('unlimited-hint', isZero);
+    if (isZero && !tag) {
+        el.insertAdjacentHTML('afterend', '<span class="bq-unlimited-tag">KHÔNG GIỚI HẠN</span>');
+    } else if (!isZero && tag) {
+        tag.remove();
+    }
+}
+
+function toggleActive(i, el) {
+    quotaData[i].isActive = el.checked;
+}
+
+function confirmAddDept() {
+    const sel   = document.getElementById('addDeptSelect');
+    const quota = parseInt(document.getElementById('addDeptQuota').value || '0');
+    const deptcd = sel.value;
+    if (!deptcd) { window.showToast('Vui lòng chọn phòng ban', 'warning'); return; }
+    if (quotaData.some(q => q.deptcd === deptcd)) { window.showToast('Phòng ban đã có trong danh sách', 'warning'); return; }
+
+    const opt = allDepts.find(d => d.deptcd === deptcd);
+    quotaData.push({
+        deptcd, deptName: opt?.deptName || deptcd, maxBread: quota, isActive: true,
+        updtId: null, updtDt: null
+    });
+    renderTable();
+    bootstrap.Modal.getInstance(document.getElementById('modalAddDept'))?.hide();
+    window.showToast('Đã thêm vào danh sách — nhấn "Lưu tất cả" để ghi vào hệ thống', 'success');
+}
+
+document.getElementById('modalAddDept').addEventListener('show.bs.modal', () => {
+    const sel = document.getElementById('addDeptSelect');
+    const existing = new Set(quotaData.map(q => q.deptcd));
+    const options = allDepts.filter(d => !existing.has(d.deptcd));
+    sel.innerHTML = '<option value="">— Chọn phòng ban —</option>' +
+        options.map(d => `<option value="${esc(d.deptcd)}">${esc(d.deptName || d.deptcd)} (${esc(d.deptcd)})</option>`).join('');
+    document.getElementById('addDeptQuota').value = 0;
+});
+
+async function saveAll() {
+    const btn = document.getElementById('btnSaveAll');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...';
+
+    const payload = quotaData.map((q, i) => ({
+        deptcd:   q.deptcd,
+        deptName: q.deptName,
+        maxBread: parseInt(document.getElementById(`max_${i}`)?.value || '0'),
+        isActive: q.isActive
+    }));
+
+    try {
+        const token = document.querySelector('input[name=__RequestVerificationToken]')?.value;
+        const res   = await fetch('SaveQuotaAll', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        window.showToast(data.message, data.success ? 'success' : 'error');
+        if (data.success) await loadQuota();
+    } catch { window.showToast('Lỗi kết nối', 'error'); }
+    finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-save me-1"></i>Lưu tất cả';
+    }
+}
+
+let rosterData = [];
+
+async function loadRoster() {
+    const tbody = document.getElementById('rosterBody');
+    try {
+        const res  = await fetch('GetRosterList');
+        const data = await res.json();
+        if (!data.success) { window.showToast(data.message, 'error'); return; }
+        rosterData = data.data || [];
+        renderRoster();
+    } catch { window.showToast('Lỗi tải danh sách', 'error'); }
+}
+
+function renderRoster() {
+    const tbody = document.getElementById('rosterBody');
+    if (!rosterData.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-secondary">Chưa có nhân viên nào — thêm mã NV ở trên.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = rosterData.map(r => `
+        <tr>
+            <td class="px-2 text-sm font-weight-bold">${esc(r.empcd)}</td>
+            <td class="px-2 text-sm vni-font">${esc(r.empName) || '—'}</td>
+            <td class="px-2 text-xs text-secondary">${esc(r.deptName || r.deptcd) || '—'}</td>
+            <td class="px-2 text-center">
+                <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" onclick="rosterRemove('${esc(r.empcd)}')">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function rosterAdd() {
+    const raw = document.getElementById('rosterAddInput').value;
+    const empCds = raw.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+    if (!empCds.length) { window.showToast('Vui lòng nhập ít nhất 1 mã NV', 'warning'); return; }
+
+    const btn = document.getElementById('btnRosterAdd');
+    btn.disabled = true;
+    try {
+        const token = document.querySelector('input[name=__RequestVerificationToken]')?.value;
+        const res   = await fetch('RosterAdd', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify({ empCds })
+        });
+        const data = await res.json();
+        window.showToast(data.message, data.success ? 'success' : 'error');
+        if (data.success) {
+            document.getElementById('rosterAddInput').value = '';
+            await loadRoster();
+        }
+    } catch { window.showToast('Lỗi kết nối', 'error'); }
+    finally { btn.disabled = false; }
+}
+
+async function rosterRemove(empcd) {
+    const doIt = async () => {
+        try {
+            const token = document.querySelector('input[name=__RequestVerificationToken]')?.value;
+            const res   = await fetch('RosterRemove', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                body: JSON.stringify({ empCd: empcd })
+            });
+            const data = await res.json();
+            window.showToast(data.message, data.success ? 'success' : 'error');
+            if (data.success) await loadRoster();
+        } catch { window.showToast('Lỗi kết nối', 'error'); }
+    };
+    const msg = `Xoá mã NV ${empcd} khỏi danh sách cố định?`;
+    if (window.showConfirm) {
+        window.showConfirm(msg, doIt, { title: 'Xoá khỏi danh sách', okText: 'Xoá', okClass: 'btn-danger', icon: 'delete', iconColor: '#dc2626', iconBg: '#fee2e2' });
+    } else if (confirm(msg)) { doIt(); }
+}
+
+async function applyRoster() {
+    const from = document.getElementById('applyFrom').value;
+    const to   = document.getElementById('applyTo').value;
+    const resultEl = document.getElementById('applyResult');
+
+    if (!from || !to) { window.showToast('Vui lòng chọn khoảng ngày', 'warning'); return; }
+    if (from > to)     { window.showToast('Ngày bắt đầu không được sau ngày kết thúc', 'warning'); return; }
+    if (!rosterData.length) { window.showToast('Danh sách cố định đang trống', 'warning'); return; }
+
+    const btn = document.getElementById('btnApplyRoster');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang gán...';
+    resultEl.textContent = '';
+
+    try {
+        const token = document.querySelector('input[name=__RequestVerificationToken]')?.value;
+        const res   = await fetch('ApplyRosterBread', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify({ fromDate: from, toDate: to })
+        });
+        const data = await res.json();
+        window.showToast(data.message, data.success ? 'success' : 'error');
+        resultEl.textContent = data.message || '';
+    } catch { window.showToast('Lỗi kết nối', 'error'); }
+    finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Áp dụng cho danh sách trên';
+    }
+}
+
+loadDeptOptions();
+loadQuota();
+@if (isAdmin)
+{
+    <text>
+    loadRoster();
+    (function setDefaultApplyDates() {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tStr = tomorrow.toISOString().split('T')[0];
+        document.getElementById('applyFrom').value = tStr;
+        document.getElementById('applyTo').value   = tStr;
+    })();
+    </text>
+}
+</script>
+}

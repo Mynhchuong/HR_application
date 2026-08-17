@@ -234,6 +234,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     public IActionResult Report()
     {
         if (!CanViewReport) return Forbid();
+        ViewBag.IsAdmin = IsAdmin;
         return View();
     }
 
@@ -248,6 +249,39 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
 
         var result = await _inquiry.GetReportAsync(from, to);
         return Json(result);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Chi tiết đánh giá (sao + nội dung complain) — chỉ các hội thoại đã có đánh giá
+    // GET /AdminInquiry/GetRatingDetail?from=YYYY-MM-DD&to=YYYY-MM-DD
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetRatingDetail(string? from = null, string? to = null)
+    {
+        if (!CanViewReport) return Json(new { success = false, message = "Không có quyền" });
+
+        var rawResult = await _inquiry.GetReportRawAsync(from, to);
+        if (!rawResult.success)
+            return Json(new { success = false, message = rawResult.message ?? "Không tải được dữ liệu" });
+
+        var data = rawResult.data
+            .Where(d => d.rating.HasValue)
+            .OrderByDescending(d => d.closedDt)
+            .Select(d => new
+            {
+                id           = d.id,
+                inquiryNo    = d.inquiryNo,
+                topicName    = d.topicName,
+                empCd        = d.empCd,
+                empDisplay   = d.empDisplay,
+                deptName     = d.deptName,
+                assignedName = d.assignedName ?? d.assignedTo,
+                closedDt     = d.closedDt,
+                rating       = d.rating,
+                ratingNote   = StripHtml(d.ratingNote)
+            });
+
+        return Json(new { success = true, data });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -520,6 +554,57 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         wsRaw.Column(15).Width = 60;
         wsRaw.Column(18).Width = 60;
         wsRaw.Column(21).Width = 40;
+
+        // ─── Sheet 5: Chi tiết đánh giá (chỉ hội thoại đã được NV đánh giá) ──
+        var wsRating = wb.Worksheets.Add("Chi tiết đánh giá");
+        string[] ratingHeaders =
+        {
+            "STT", "ID chat", "Ngày đóng", "Chủ đề",
+            "Mã NV", "Họ và tên", "Phòng ban", "Người xử lý",
+            "Số sao", "Nội dung đánh giá"
+        };
+        for (int i = 0; i < ratingHeaders.Length; i++)
+        {
+            var c = wsRating.Cell(1, i + 1);
+            c.Value = ratingHeaders[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#dc2626");
+            c.Style.Font.FontColor = XLColor.White;
+            c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        row = 2;
+        foreach (var rw in rawResult.data.Where(d => d.rating.HasValue).OrderByDescending(d => d.closedDt))
+        {
+            wsRating.Cell(row, 1).Value = row - 1;
+            wsRating.Cell(row, 2).Value = rw.inquiryNo;
+            if (rw.closedDt.HasValue) wsRating.Cell(row, 3).Value = rw.closedDt.Value; else wsRating.Cell(row, 3).Value = "—";
+            wsRating.Cell(row, 3).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+            wsRating.Cell(row, 4).Value = rw.topicName ?? "";
+            wsRating.Cell(row, 5).Value = rw.empCd ?? "";
+
+            var ratingNameCell = wsRating.Cell(row, 6);
+            ratingNameCell.Value = rw.empDisplay ?? "";
+            ratingNameCell.Style.Font.FontName = "Vnitbi__";
+
+            wsRating.Cell(row, 7).Value = rw.deptName ?? "";
+            wsRating.Cell(row, 7).Style.Font.FontName = "Vnitbi__";
+
+            var handlerCell = wsRating.Cell(row, 8);
+            handlerCell.Value = rw.assignedName ?? rw.assignedTo ?? "";
+            handlerCell.Style.Font.FontName = "Vnitbi__";
+
+            wsRating.Cell(row, 9).Value = rw.rating!.Value;
+            wsRating.Cell(row, 9).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            wsRating.Cell(row, 10).Value = StripHtml(rw.ratingNote);
+
+            row++;
+        }
+        if (rawResult.data.Any(d => d.rating.HasValue))
+            wsRating.Range(1, 1, 1, ratingHeaders.Length).SetAutoFilter();
+        wsRating.SheetView.FreezeRows(1);
+        wsRating.Columns().AdjustToContents();
+        wsRating.Column(10).Width = 60;
 
         using var ms = new MemoryStream();
         wb.SaveAs(ms);

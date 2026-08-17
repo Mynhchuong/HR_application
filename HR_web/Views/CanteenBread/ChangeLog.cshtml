@@ -1,11 +1,11 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Log Đổi Món";
+    var isClerk = (ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel)?.RoleName == "Clerk";
 }
 
 @section Styles {
 <style>
-    .cl-page { max-width: 1100px; margin: 0 auto; }
     .food-badge { display:inline-block; padding:.2rem .55rem; border-radius:99px; font-size:.75rem; font-weight:700; }
     .food-M { background:#fff7ed; color:#c2410c; }
     .food-N { background:#f0f9ff; color:#0369a1; }
@@ -13,47 +13,71 @@
     .food-B { background:#fefce8; color:#b45309; }
     .source-badge { font-size:.7rem; color:#64748b; }
     .cl-loading { padding: 3rem 1rem; text-align: center; color: #94a3b8; }
-    .cl-pagination { display:flex; gap:.4rem; justify-content:center; padding:.8rem; }
-    .page-btn { border: 1.5px solid #e2e8f0; border-radius:6px; padding:.3rem .65rem; font-size:.82rem; cursor:pointer; background:#fff; }
-    .page-btn.active { background:#0f172a; border-color:#0f172a; color:#fff; font-weight:700; }
-    .page-btn:hover:not(.active) { background:#f1f5f9; }
+    .pagination .page-link { cursor: pointer; }
+    .pagination .page-item.disabled .page-link { cursor: default; }
+
+    /* Đồng bộ style filter/badge với Danh sách nhân viên (Employee/MyTeam) */
+    .filter-select { height:34px; font-size:.8rem; border-radius:8px; border:1.5px solid #e2e8f0; padding:0 8px; outline:none; background:#fff; transition:border-color .18s; }
+    .filter-select:focus { border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.12); }
+    .search-input { height:34px; font-size:.8rem; border-radius:8px; border:1.5px solid #e2e8f0; padding:0 10px 0 30px; outline:none; background:#fff; transition:border-color .18s; width:140px; }
+    .search-input:focus { border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.12); }
+    .search-wrap { position:relative; display:inline-flex; align-items:center; }
+    .search-wrap i { position:absolute; left:8px; font-size:.75rem; color:#94a3b8; pointer-events:none; }
+    .total-badge { background:#eff6ff; color:#1d4ed8; font-size:.75rem; font-weight:700; padding:3px 10px; border-radius:20px; }
+
+    @@media (max-width:576px) {
+        .filter-bar { flex-wrap:wrap !important; }
+        .filter-select { min-width:0 !important; flex:1 1 45%; }
+        .search-wrap { flex:1 1 100%; }
+        .search-input { width:100%; }
+    }
 </style>
 }
 
-<div class="cl-page px-2 py-2">
+<div class="container-fluid py-4">
 <div class="card">
     <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
-        <div class="bg-gradient-dark shadow-dark border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div>
-                <h6 class="text-white mb-0"><i class="bi bi-clock-history me-1"></i>Log Đổi Món</h6>
-                <p class="text-white text-xs mb-0 opacity-8">Lịch sử đổi món ăn của nhân viên, lấy trực tiếp từ CANTEEN_ORDER</p>
-            </div>
+        <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="text-white mb-0"><i class="bi bi-clock-history me-1"></i>Log Đổi Món</h6>
         </div>
     </div>
 
-    <div class="card-body p-0 pt-4">
-        <div class="px-3 py-2 d-flex flex-wrap gap-2 align-items-center border-bottom">
-            <input type="date" id="fFrom" class="form-control form-control-sm" style="max-width:150px;" />
-            <input type="date" id="fTo"   class="form-control form-control-sm" style="max-width:150px;" />
-            <input type="text" id="fEmp"  class="form-control form-control-sm" style="max-width:120px;" placeholder="🔍 Mã NV" />
-            <select id="fDept" class="form-select form-select-sm" style="max-width:220px;">
+    <div class="card-body px-0 pt-0 pb-2 mt-3">
+        <div class="px-4 pb-2 d-flex align-items-center gap-2 flex-wrap filter-bar">
+            <input type="date" id="fFrom" class="filter-select" style="min-width:130px;" />
+            <input type="date" id="fTo"   class="filter-select" style="min-width:130px;" />
+            <div class="search-wrap">
+                <i class="bi bi-search"></i>
+                <input type="text" id="fEmp" class="search-input" placeholder="Mã NV">
+            </div>
+            <select id="fDept" class="filter-select" style="min-width:150px;">
                 <option value="">-- Tất cả phòng ban --</option>
             </select>
-            <select id="fFood" class="form-select form-select-sm" style="max-width:150px;">
+            <select id="fLine" class="filter-select" style="min-width:130px;" disabled>
+                <option value="">-- Tất cả chuyền --</option>
+            </select>
+            <select id="fWork" class="filter-select" style="min-width:140px;" disabled>
+                <option value="">-- Tất cả công đoạn --</option>
+            </select>
+            <select id="fFood" class="filter-select" style="min-width:130px;">
                 <option value="">-- Tất cả loại món --</option>
                 <option value="M">🍖 Mặn (M)</option>
                 <option value="N">🥗 Nhẹ (N)</option>
                 <option value="C">🥦 Chay (C)</option>
                 <option value="B">🥐 Bánh (B)</option>
             </select>
+            <select id="fShift" class="filter-select" style="min-width:130px;">
+                <option value="">-- Tất cả ca --</option>
+                <option value="LUNCH">🍱 Bữa ca</option>
+                <option value="OT">🌙 Tăng ca</option>
+            </select>
             <button class="btn btn-sm btn-dark mb-0" onclick="doSearch()"><i class="bi bi-search me-1"></i>Tìm</button>
-            <button class="btn btn-sm btn-outline-secondary mb-0" onclick="resetFilter()"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+            <button class="btn btn-sm btn-outline-secondary mb-0" onclick="resetFilter()" title="Xóa filter"><i class="bi bi-x-lg"></i></button>
+            <span id="totalBadge" class="total-badge ms-1" style="display:none;"></span>
         </div>
 
-        <div class="px-3 py-2 text-xs text-secondary" id="resultInfo">Đang tải dữ liệu...</div>
-
-        <div class="table-responsive px-3 pb-2">
-            <table class="table align-items-center">
+        <div class="table-responsive px-4">
+            <table class="table align-items-center mb-0 w-100 table-hover table-striped">
                 <thead class="bg-light">
                     <tr>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ngày</th>
@@ -68,11 +92,14 @@
                     </tr>
                 </thead>
                 <tbody id="logBody">
-                    <tr><td colspan="9" class="cl-loading"><div class="spinner-border text-dark" role="status"></div></td></tr>
+                    <tr><td colspan="9" class="cl-loading"><div class="spinner-border text-primary" role="status"></div></td></tr>
                 </tbody>
             </table>
         </div>
-        <div class="cl-pagination" id="pagination"></div>
+        <div class="d-flex justify-content-between align-items-center px-4 mt-2 mb-2">
+            <div id="paginationCount" class="text-sm text-secondary"></div>
+            <nav><ul class="pagination pagination-sm mb-0" id="paginationBar"></ul></nav>
+        </div>
     </div>
 </div>
 </div>
@@ -80,21 +107,72 @@
 @section Scripts {
 <script>
 let currentPage = 1;
+let totalRecords = 0;
 const PAGE_SIZE = 50;
 
 const foodLabel = { M:'🍖 Mặn', N:'🥗 Nhẹ', C:'🥦 Chay', B:'🥐 Bánh' };
-const shiftLabel = { LUNCH:'Bữa ca', OT:'Tăng ca' };
+const shiftLabel = { LUNCH:'🍱 Bữa ca', OT:'🌙 Tăng ca' };
+
+const IS_CLERK = @(isClerk.ToString().ToLower());
+// Clerk: lấy dept/line/work theo đúng phạm vi HR_USERS_DEPT của mình (GetXByScope tự dùng
+// user đang đăng nhập). Admin/HR/Canteen/CSR: lấy toàn bộ công ty như cũ.
+const DEPT_URL = IS_CLERK ? '@Url.Action("GetDeptByScope", "Dropdown")' : null;
+const LINE_URL = IS_CLERK ? '@Url.Action("GetLineByScope", "Dropdown")' : '@Url.Action("GetLine", "Dropdown")';
+const WORK_URL = IS_CLERK ? '@Url.Action("GetWorkByScope", "Dropdown")' : '@Url.Action("GetWork", "Dropdown")';
 
 function esc(s) { return (s ?? '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 async function loadDeptList() {
     try {
-        const res  = await fetch('GetDeptList');
-        const data = await res.json();
-        if (!data.success) return;
         const sel = document.getElementById('fDept');
-        sel.innerHTML = '<option value="">-- Tất cả phòng ban --</option>' +
-            (data.data || []).map(d => `<option value="${esc(d.deptcd)}">${esc(d.deptName || d.deptcd)}</option>`).join('');
+        if (IS_CLERK) {
+            const res  = await fetch(DEPT_URL);
+            const list = await res.json();
+            sel.innerHTML = '<option value="">-- Tất cả phòng ban --</option>' +
+                (list || []).map(d => `<option value="${esc(d.id)}">${esc(d.text)}</option>`).join('');
+        } else {
+            const res  = await fetch('GetDeptList');
+            const data = await res.json();
+            if (!data.success) return;
+            sel.innerHTML = '<option value="">-- Tất cả phòng ban --</option>' +
+                (data.data || []).map(d => `<option value="${esc(d.deptcd)}">${esc(d.deptName || d.deptcd)}</option>`).join('');
+        }
+    } catch { /* ignore */ }
+}
+
+// Dept → Line → Work cascading. Đổi dept/line ở trên sẽ reset + khoá lại select con.
+document.getElementById('fDept').addEventListener('change', () => onDeptChange());
+document.getElementById('fLine').addEventListener('change', () => onLineChange());
+
+async function onDeptChange() {
+    const deptcd = document.getElementById('fDept').value;
+    const fLine  = document.getElementById('fLine');
+    const fWork  = document.getElementById('fWork');
+    fLine.innerHTML = '<option value="">-- Tất cả chuyền --</option>';
+    fWork.innerHTML = '<option value="">-- Tất cả công đoạn --</option>';
+    fWork.disabled = true;
+
+    if (!deptcd) { fLine.disabled = true; return; }
+    fLine.disabled = false;
+    try {
+        const res  = await fetch(`${LINE_URL}?deptCd=${encodeURIComponent(deptcd)}`);
+        const list = await res.json();
+        fLine.innerHTML += (list || []).map(l => `<option value="${esc(l.id)}">${esc(l.text)}</option>`).join('');
+    } catch { /* ignore */ }
+}
+
+async function onLineChange() {
+    const deptcd = document.getElementById('fDept').value;
+    const linecd = document.getElementById('fLine').value;
+    const fWork  = document.getElementById('fWork');
+    fWork.innerHTML = '<option value="">-- Tất cả công đoạn --</option>';
+
+    if (!linecd) { fWork.disabled = true; return; }
+    fWork.disabled = false;
+    try {
+        const res  = await fetch(`${WORK_URL}?lineCd=${encodeURIComponent(linecd)}&deptCd=${encodeURIComponent(deptcd)}`);
+        const list = await res.json();
+        fWork.innerHTML += (list || []).map(w => `<option value="${esc(w.id)}">${esc(w.text)}</option>`).join('');
     } catch { /* ignore */ }
 }
 
@@ -104,44 +182,56 @@ async function doSearch(page = 1) {
     const to       = document.getElementById('fTo').value;
     const empcd    = document.getElementById('fEmp').value.trim();
     const deptcd   = document.getElementById('fDept').value;
+    const linecd   = document.getElementById('fLine').value;
+    const workcd   = document.getElementById('fWork').value;
     const foodType = document.getElementById('fFood').value;
+    const typeMeal = document.getElementById('fShift').value;
 
     const qs = new URLSearchParams();
     if (from)     qs.set('from',     from);
     if (to)       qs.set('to',       to);
     if (empcd)    qs.set('empcd',    empcd);
     if (deptcd)   qs.set('deptcd',   deptcd);
+    if (linecd)   qs.set('linecd',   linecd);
+    if (workcd)   qs.set('workcd',   workcd);
     if (foodType) qs.set('foodType', foodType);
+    if (typeMeal) qs.set('typeMeal', typeMeal);
     qs.set('page', page);
     qs.set('pageSize', PAGE_SIZE);
 
     document.getElementById('logBody').innerHTML =
-        '<tr><td colspan="9" class="cl-loading"><div class="spinner-border text-dark" role="status"></div></td></tr>';
+        '<tr><td colspan="9" class="cl-loading"><div class="spinner-border text-primary" role="status"></div></td></tr>';
 
     const res  = await fetch('GetChangeLog?' + qs.toString());
     const data = await res.json();
 
+    const badge = document.getElementById('totalBadge');
+
     if (!data.success) {
         document.getElementById('logBody').innerHTML =
             `<tr><td colspan="9" class="text-center text-danger py-4">${esc(data.message)}</td></tr>`;
+        totalRecords = 0;
+        badge.style.display = 'none';
+        renderPagination();
         return;
     }
 
-    document.getElementById('resultInfo').textContent =
-        `Tổng: ${data.total} bản ghi | Trang ${data.page}/${Math.max(1, Math.ceil(data.total/PAGE_SIZE))}`;
+    totalRecords = data.total;
+    badge.textContent = `${totalRecords} bản ghi`;
+    badge.style.display = totalRecords ? '' : 'none';
 
     const rows = data.data;
     if (!rows.length) {
         document.getElementById('logBody').innerHTML =
             '<tr><td colspan="9" class="text-center text-secondary py-5">Không có dữ liệu</td></tr>';
-        renderPagination(0);
+        renderPagination();
         return;
     }
 
     document.getElementById('logBody').innerHTML = rows.map(r => {
         const dat = r.dat ? `${r.dat.slice(6,8)}/${r.dat.slice(4,6)}/${r.dat.slice(0,4)}` : '—';
         const food = r.typeOfFood || '—';
-        const badge = `<span class="food-badge food-${esc(food)}">${foodLabel[food] || esc(food)}</span>`;
+        const badgeHtml = `<span class="food-badge food-${esc(food)}">${foodLabel[food] || esc(food)}</span>`;
         const shift = shiftLabel[r.typeMeal] || esc(r.typeMeal);
         const updtDt = r.updtDt ? new Date(r.updtDt).toLocaleString('vi-VN', {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
         const source = r.isMysamho
@@ -154,31 +244,42 @@ async function doSearch(page = 1) {
             <td class="px-2 text-sm vni-font">${esc(r.empName) || '—'}</td>
             <td class="px-2 text-xs">${esc(r.deptName || r.deptcd) || '—'}</td>
             <td class="px-2 text-xs">${shift}</td>
-            <td class="px-2">${badge}</td>
+            <td class="px-2">${badgeHtml}</td>
             <td class="px-2 text-xs">${esc(r.changeFrom) || '—'}</td>
             <td class="px-2">${source}</td>
             <td class="px-2 text-xs text-secondary">${updtDt}</td>
         </tr>`;
     }).join('');
 
-    renderPagination(data.total);
+    renderPagination();
 }
 
-function renderPagination(total) {
-    const totalPages = Math.ceil(total / PAGE_SIZE);
-    const pg = document.getElementById('pagination');
-    if (totalPages <= 1) { pg.innerHTML = ''; return; }
+function renderPagination() {
+    const $count = document.getElementById('paginationCount');
+    const $bar   = document.getElementById('paginationBar');
+    if (!totalRecords) { $count.textContent = ''; $bar.innerHTML = ''; return; }
 
-    let html = '';
-    const start = Math.max(1, currentPage - 2);
-    const end   = Math.min(totalPages, currentPage + 2);
+    const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
+    const start = (currentPage - 1) * PAGE_SIZE + 1;
+    const end   = Math.min(currentPage * PAGE_SIZE, totalRecords);
+    $count.innerHTML = `${start}–${end} / <strong>${totalRecords}</strong> bản ghi`;
 
-    if (currentPage > 1)  html += `<button class="page-btn" onclick="doSearch(${currentPage-1})">‹</button>`;
-    for (let p = start; p <= end; p++) {
-        html += `<button class="page-btn ${p===currentPage?'active':''}" onclick="doSearch(${p})">${p}</button>`;
-    }
-    if (currentPage < totalPages) html += `<button class="page-btn" onclick="doSearch(${currentPage+1})">›</button>`;
-    pg.innerHTML = html;
+    const mk = (label, p, disabled, active) => {
+        const li = document.createElement('li');
+        li.className = 'page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '');
+        const a = document.createElement('a');
+        a.className = 'page-link';
+        a.innerHTML = label;
+        if (!disabled && !active) a.addEventListener('click', () => doSearch(p));
+        li.appendChild(a);
+        return li;
+    };
+
+    $bar.innerHTML = '';
+    $bar.appendChild(mk('&lsaquo;', currentPage - 1, currentPage <= 1, false));
+    const from = Math.max(1, currentPage - 2), to = Math.min(totalPages, currentPage + 2);
+    for (let p = from; p <= to; p++) $bar.appendChild(mk(p, p, false, p === currentPage));
+    $bar.appendChild(mk('&rsaquo;', currentPage + 1, currentPage >= totalPages, false));
 }
 
 function resetFilter() {
@@ -187,7 +288,12 @@ function resetFilter() {
     document.getElementById('fTo').value   = todayStr;
     document.getElementById('fEmp').value  = '';
     document.getElementById('fDept').value = '';
+    document.getElementById('fLine').innerHTML = '<option value="">-- Tất cả chuyền --</option>';
+    document.getElementById('fLine').disabled  = true;
+    document.getElementById('fWork').innerHTML = '<option value="">-- Tất cả công đoạn --</option>';
+    document.getElementById('fWork').disabled  = true;
     document.getElementById('fFood').value = '';
+    document.getElementById('fShift').value = '';
     doSearch(1);
 }
 

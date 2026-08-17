@@ -185,11 +185,14 @@ public class CanteenBreadController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetChangeLog(
         string? from, string? to, string? empcd,
-        string? deptcd, string? foodType,
+        string? deptcd, string? linecd, string? workcd, string? foodType, string? typeMeal,
         int page = 1, int pageSize = 50)
     {
         if (!CanViewLog) return ForbidJson();
-        var raw = await _svc.OrderViewRawAsync(from, to, empcd, deptcd, foodType, page, pageSize);
+        // Clerk chỉ xem log của dept/line/work mình quản lý (HR_USERS_DEPT); Admin/HR/Canteen/CSR
+        // xem toàn bộ như cũ.
+        var clerkEmpcd = CurrentUser?.RoleName == "Clerk" ? CurrentUser?.EmpCd : null;
+        var raw = await _svc.OrderViewRawAsync(from, to, empcd, deptcd, foodType, page, pageSize, clerkEmpcd, linecd, workcd, typeMeal);
         return Content(raw, "application/json");
     }
 

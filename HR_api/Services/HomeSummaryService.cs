@@ -158,6 +158,9 @@ public class HomeSummaryService
         return rows.FirstOrDefault();
     }
 
+    // Đếm khớp với mặc định của trang duyệt GpListForSupervisor (date_from=date_to=hôm nay)
+    // để số trên Home KPI luôn bằng số NV thấy khi bấm vào duyệt — trước đây dùng khoảng
+    // ±7 ngày nên số bị lệch (VD Home báo 9 nhưng trang duyệt hôm nay chỉ có 2).
     private async Task<int> CountGpPendingAsync(string empcd)
     {
         var scope = OTScopeFilterHelper.ForScopeByTuple(empcd, empAlias: "EC", prefix: "ME");
@@ -168,7 +171,7 @@ public class HomeSummaryService
             JOIN HRMS.ECM100    EC ON EC.EMPCD     = GP.EMPCD
             WHERE R.STATUS = 'PENDING'
               AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
-              AND TRUNC(NVL(GP.OUT_TIME, GP.IN_TIME)) BETWEEN TRUNC(SYSDATE)-7 AND TRUNC(SYSDATE)+7
+              AND TRUNC(NVL(GP.OUT_TIME, GP.IN_TIME)) = TRUNC(SYSDATE)
               {scope.SqlClause}";
 
         var rows = await _oracleService.ExecuteQueryAsync(sql,

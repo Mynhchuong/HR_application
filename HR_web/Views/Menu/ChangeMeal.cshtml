@@ -161,6 +161,7 @@
             <div id="breadPolicyBanner" style="background:linear-gradient(135deg,#fef9c3,#fde68a);border:1px solid #f59e0b;border-radius:.6rem;padding:.7rem .9rem;margin-bottom:.8rem;font-size:.78rem;color:#78350f;">
                 <div style="font-weight:700;margin-bottom:.3rem;">🥐 Quy định Phiếu Bánh</div>
                 <ul style="margin:0;padding-left:1.2rem;line-height:1.6;">
+                    <li>Có thể <strong>đặt trước nhiều ngày</strong></li>
                     <li>Tối đa <strong>3 ngày/tuần</strong> có suất Bánh</li>
                     <li>Số phiếu <strong>giới hạn theo phòng ban</strong> mỗi ngày</li>
                     <li>Bánh chỉ áp dụng <strong>Bữa ăn giữa ca</strong> — không áp dụng tăng ca</li>
@@ -178,9 +179,7 @@
                 <button class="cm-meal-btn chay" id="btnCHAY" onclick="submitMeal('CHAY','Chay','LUNCH')">🥦 Chay</button>
                 <button class="cm-meal-btn banh" id="btnBANH" onclick="submitMeal('BANH','Bánh','LUNCH')">🥐 Bánh</button>
             </div>
-            <p id="currentMealHint" style="font-size:.75rem;color:#94a3b8;margin:.6rem 0 0;text-align:center;display:none;">
-                Nút món hiện tại đã ẩn — chọn để đổi sang loại khác
-            </p>
+            
         </div>
     </div>
 
@@ -192,7 +191,6 @@
             <span style="font-weight:400;opacity:.85;margin-left:auto;font-size:.7rem;">— <span id="otDateLabel">ngày mai</span></span>
         </div>
         <div class="cm-section-body">
-            <div style="font-size:.72rem;color:#94a3b8;margin-bottom:.5rem;">Mục này chỉ áp dụng nếu bạn có đăng ký tăng ca ngày này — không liên quan đến ca làm việc chính.</div>
             <div class="cm-pick-date">
                 <label>📅 Ngày đổi</label>
                 <input type="date" id="otDate" onchange="onOtDateChange()" />
@@ -203,9 +201,7 @@
                 <button class="cm-meal-btn nhe"  id="otBtnNHE"  onclick="submitMeal('NHE','Nhẹ','OT')">🥗 Nhẹ</button>
                 <button class="cm-meal-btn chay" id="otBtnCHAY" onclick="submitMeal('CHAY','Chay','OT')">🥦 Chay</button>
             </div>
-            <p id="otMealHint" style="font-size:.75rem;color:#94a3b8;margin:.6rem 0 0;text-align:center;display:none;">
-                Nút món hiện tại đã ẩn — chọn để đổi sang loại khác
-            </p>
+          
         </div>
     </div>
 
@@ -270,7 +266,6 @@ function updateMealButtons(currentType) {
     badge.innerHTML = info
         ? `<span style="background:${info.color}18;color:${info.color};padding:.25rem .75rem;border-radius:50px;font-weight:700;">${info.label}</span>`
         : '';
-    document.getElementById('currentMealHint').style.display = info ? '' : 'none';
 }
 
 function updateOtButtons(currentType) {
@@ -282,7 +277,6 @@ function updateOtButtons(currentType) {
     badge.innerHTML = info
         ? `<span style="background:${info.color}18;color:${info.color};padding:.25rem .75rem;border-radius:50px;font-weight:700;">${info.label}</span>`
         : '';
-    document.getElementById('otMealHint').style.display = info ? '' : 'none';
 }
 
 // ── Init meal date pickers ───────────────────────────────────────────────────
@@ -525,6 +519,8 @@ function submitMeal(type, label, typeMeal) {
     }
 
     // ── Bánh: check quota + tuần trước khi confirm ─────────
+    // HR cho phép đặt trước nhiều ngày — công bằng do quota dept/ngày + cap 3 ngày/tuần
+    // (server validate) đảm bảo, không chặn cứng theo ngày ở đây nữa.
     if (type === 'BANH') {
         const datKey = dateStr.replace(/-/g, '');
         fetch(`${BREAD_STATUS_URL}?dat=${datKey}`)

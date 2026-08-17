@@ -101,14 +101,20 @@ public class CanteenBreadService
 
     public async Task<string> OrderViewRawAsync(
         string? from, string? to, string? empcd,
-        string? deptcd, string? foodType, int page, int pageSize)
+        string? deptcd, string? foodType, int page, int pageSize,
+        string? clerkEmpcd = null, string? linecd = null, string? workcd = null,
+        string? typeMeal = null)
     {
         var q = new List<string>();
-        if (!string.IsNullOrEmpty(from))     q.Add($"from={Uri.EscapeDataString(from)}");
-        if (!string.IsNullOrEmpty(to))       q.Add($"to={Uri.EscapeDataString(to)}");
-        if (!string.IsNullOrEmpty(empcd))    q.Add($"empcd={Uri.EscapeDataString(empcd)}");
-        if (!string.IsNullOrEmpty(deptcd))   q.Add($"deptcd={Uri.EscapeDataString(deptcd)}");
-        if (!string.IsNullOrEmpty(foodType)) q.Add($"foodType={Uri.EscapeDataString(foodType)}");
+        if (!string.IsNullOrEmpty(from))       q.Add($"from={Uri.EscapeDataString(from)}");
+        if (!string.IsNullOrEmpty(to))         q.Add($"to={Uri.EscapeDataString(to)}");
+        if (!string.IsNullOrEmpty(empcd))      q.Add($"empcd={Uri.EscapeDataString(empcd)}");
+        if (!string.IsNullOrEmpty(deptcd))     q.Add($"deptcd={Uri.EscapeDataString(deptcd)}");
+        if (!string.IsNullOrEmpty(linecd))     q.Add($"linecd={Uri.EscapeDataString(linecd)}");
+        if (!string.IsNullOrEmpty(workcd))     q.Add($"workcd={Uri.EscapeDataString(workcd)}");
+        if (!string.IsNullOrEmpty(foodType))   q.Add($"foodType={Uri.EscapeDataString(foodType)}");
+        if (!string.IsNullOrEmpty(typeMeal))   q.Add($"typeMeal={Uri.EscapeDataString(typeMeal)}");
+        if (!string.IsNullOrEmpty(clerkEmpcd)) q.Add($"clerkEmpcd={Uri.EscapeDataString(clerkEmpcd)}");
         q.Add($"page={page}");
         q.Add($"pageSize={pageSize}");
         var res = await _api.GetAsync_Raw("CanteenBread/order-view", string.Join("&", q));

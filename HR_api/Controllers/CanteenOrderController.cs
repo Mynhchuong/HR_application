@@ -135,6 +135,10 @@ public class CanteenOrderController : ControllerBase
                 return Ok(new { success = false, message = "Phiếu bánh chỉ áp dụng cho bữa ăn giữa ca, không áp dụng cho tăng ca." });
             }
 
+            // HR cho phép đặt trước Bánh nhiều ngày (không giới hạn chỉ ngày kế tiếp) — công bằng
+            // được đảm bảo bởi chính validate quota dept/ngày + cap 3 ngày/tuần bên dưới (đã khoá
+            // FOR UPDATE theo dept để tránh race), không cần chặn cứng theo ngày nữa.
+
             // NV thuộc danh sách cố định (roster) chỉ được ăn Bánh — không cho tự đổi sang
             // Mặn/Nhẹ/Chay (kể cả đăng ký dài hạn) cho bữa giữa ca, tránh vừa được admin gán
             // Bánh cả tuần vừa tự đổi món khác (sài 2 lần).

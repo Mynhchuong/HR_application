@@ -91,8 +91,10 @@ public class AccountController : Controller
     }
 
     // ─────────────────────────────────────────────
-    // GET/POST: /Account/Logout
+    // POST: /Account/Logout
     // ─────────────────────────────────────────────
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {
         // 1. Xoá cookie auth (SignOutAsync biết đúng path/name từ cấu hình)

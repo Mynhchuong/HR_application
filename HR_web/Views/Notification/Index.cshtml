@@ -164,6 +164,7 @@ const linkMap = {
 };
 const bulletinDetailBase = '@Url.Action("Detail", "Bulletin")';
 const surveyDoBase       = '@Url.Action("Do", "Survey")';
+const inquiryChatBase    = '@Url.Action("Chat", "EmployeeInquiry")';
 
 let page = 1;
 const PAGE_SIZE = 20;
@@ -195,6 +196,7 @@ const typeStyle = {
     'GP_MANAGE':        { icon: '🔑', bg: '#f3e8ff', },
     'BULLETIN':         { icon: '📰', bg: '#fef3c7', },
     'SURVEY':           { icon: '📋', bg: '#eef2ff', },
+    'INQUIRY_CLOSED':   { icon: '💬', bg: '#fef2f2', },
 };
 
 function renderItems(items, append = false) {
@@ -210,7 +212,9 @@ function renderItems(items, append = false) {
         const isUnread = n.IS_READ === 0;
         const isFromHr = n.SOURCE === 'ADMIN' || n.SOURCE === 'HR';
         const isHigh   = n.PRIORITY === 'HIGH';
-        const styleKey = (n.LINK_ACTION || '').indexOf('BULLETIN_CMT:') === 0 ? 'BULLETIN' : n.LINK_ACTION;
+        const styleKey = (n.LINK_ACTION || '').indexOf('BULLETIN_CMT:') === 0 ? 'BULLETIN'
+                        : (n.LINK_ACTION || '').indexOf('inquiry/') === 0 ? 'INQUIRY_CLOSED'
+                        : n.LINK_ACTION;
         const style = isFromHr
             ? { icon: '📢', bg: '#fee2e2' }
             : (typeStyle[styleKey] ?? { icon: '🔔', bg: '#f1f5f9' });
@@ -268,6 +272,10 @@ function onNotiClick(n) {
         url = bulletinDetailBase + '/' + encodeURIComponent(n.TARGET_VAL);
     } else if (n.LINK_ACTION === 'SURVEY' && n.TARGET_VAL) {
         url = surveyDoBase + '/' + encodeURIComponent(n.TARGET_VAL);
+    } else if ((n.LINK_ACTION || '').indexOf('inquiry/') === 0) {
+        // Hội thoại đóng → mở trang Chat, modal đánh giá tự bật nếu chưa rate
+        // (xem EmployeeInquiry/Chat.cshtml: setTimeout(openRatingModal, 800))
+        url = inquiryChatBase + '?id=' + encodeURIComponent(n.LINK_ACTION.substring('inquiry/'.length));
     } else if (n.LINK_ACTION && /^https?:\/\//i.test(n.LINK_ACTION)) {
         // Link ngoài (bài báo, gov, v.v.) — mở tab mới
         window.open(n.LINK_ACTION, '_blank', 'noopener,noreferrer');

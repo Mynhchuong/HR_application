@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
+using HR_api.Helpers;
 
 namespace HR_api.Controllers;
 
@@ -315,11 +316,29 @@ public class CanteenBreadController : ControllerBase
     public async Task<IActionResult> OrderView(
         [FromQuery] string? from, [FromQuery] string? to,
         [FromQuery] string? empcd, [FromQuery] string? deptcd,
-        [FromQuery] string? foodType,
+        [FromQuery] string? linecd, [FromQuery] string? workcd,
+        [FromQuery] string? foodType, [FromQuery] string? typeMeal,
+        [FromQuery] string? clerkEmpcd,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
         try
         {
+            // Clerk chỉ xem log của dept/line/work mình quản lý (HR_USERS_DEPT) — Admin/HR/
+            // Canteen/CSR không truyền clerkEmpcd nên xem toàn bộ như cũ.
+            OTScopeFilterHelper.FilterResult? clerkScope = null;
+            if (!string.IsNullOrEmpty(clerkEmpcd))
+            {
+                var hasScope = await _db.ExecuteQueryAsync(
+                    "SELECT COUNT(*) CNT FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :CE AND ROWNUM = 1",
+                    r => Convert.ToInt32(r["CNT"]),
+                    new OracleParameter("CE", clerkEmpcd));
+                if (hasScope.Count == 0 || hasScope[0] == 0)
+                    return Ok(new { success = true, total = 0, page, pageSize, data = new List<object>(),
+                        message = "Bạn chưa được phân bộ phận quản lý" });
+
+                clerkScope = OTScopeFilterHelper.ForScopeByTuple(clerkEmpcd, empAlias: "ec", prefix: "CK");
+            }
+
             var dateFrom = (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var df))
                 ? df.ToString("yyyyMMdd") : DateTime.Today.ToString("yyyyMMdd");
             var dateTo = (!string.IsNullOrEmpty(to) && DateTime.TryParse(to, out var dt))
@@ -345,13 +364,29 @@ public class CanteenBreadController : ControllerBase
                 whereParts.Add("ec.DEPTCD = :DEPTCD");
                 oraParams.Add(new OracleParameter("DEPTCD", deptcd));
             }
+            if (!string.IsNullOrEmpty(linecd))
+            {
+                whereParts.Add("ec.LINECD = :LINECD");
+                oraParams.Add(new OracleParameter("LINECD", linecd));
+            }
+            if (!string.IsNullOrEmpty(workcd))
+            {
+                whereParts.Add("ec.WORKCD = :WORKCD");
+                oraParams.Add(new OracleParameter("WORKCD", workcd));
+            }
             if (!string.IsNullOrEmpty(foodType))
             {
                 whereParts.Add("co.TYPE_OF_FOOD = :FOOD");
                 oraParams.Add(new OracleParameter("FOOD", foodType.ToUpper()));
             }
+            if (!string.IsNullOrEmpty(typeMeal))
+            {
+                whereParts.Add("co.TYPE_MEAL = :TYPEMEAL");
+                oraParams.Add(new OracleParameter("TYPEMEAL", typeMeal.ToUpper()));
+            }
 
             var where = string.Join(" AND ", whereParts);
+            if (clerkScope != null) where += " " + clerkScope.SqlClause;
             int offset = (page - 1) * pageSize;
 
             Func<List<OracleParameter>> buildParams = () =>
@@ -365,8 +400,16 @@ public class CanteenBreadController : ControllerBase
                     list.Add(new OracleParameter("EMPCD", empcd));
                 if (!string.IsNullOrEmpty(deptcd))
                     list.Add(new OracleParameter("DEPTCD", deptcd));
+                if (!string.IsNullOrEmpty(linecd))
+                    list.Add(new OracleParameter("LINECD", linecd));
+                if (!string.IsNullOrEmpty(workcd))
+                    list.Add(new OracleParameter("WORKCD", workcd));
                 if (!string.IsNullOrEmpty(foodType))
                     list.Add(new OracleParameter("FOOD", foodType.ToUpper()));
+                if (!string.IsNullOrEmpty(typeMeal))
+                    list.Add(new OracleParameter("TYPEMEAL", typeMeal.ToUpper()));
+                if (!string.IsNullOrEmpty(clerkEmpcd))
+                    list.AddRange(OTScopeFilterHelper.ForScopeByTuple(clerkEmpcd, empAlias: "ec", prefix: "CK").Params);
                 return list;
             };
 

@@ -111,6 +111,21 @@
 .topic-dot  { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
               margin-right: 6px; vertical-align: middle; }
 .star-val   { color: #d97706; font-weight: 800; }
+.star-row   { color: #d97706; letter-spacing: 1px; white-space: nowrap; }
+.star-row .off { color: #e2e8f0; }
+
+/* Rating detail table */
+.rpt-rating-wrap { max-height: 480px; overflow-y: auto; }
+.rpt-rating-wrap table { width: 100%; }
+.rpt-rating-wrap thead th { position: sticky; top: 0; z-index: 1; }
+.rpt-note-cell { max-width: 320px; white-space: normal; color: #475569; }
+.rpt-note-empty { color: #cbd5e1; font-style: italic; }
+.rpt-chat-link {
+    display: inline-flex; align-items: center; gap: .2rem;
+    color: #dc2626; font-weight: 700; font-size: .78rem; text-decoration: none;
+    cursor: pointer;
+}
+.rpt-chat-link:hover { text-decoration: underline; }
 
 .rpt-empty   { text-align: center; padding: 2rem; color: #94a3b8; font-size: .85rem; }
 .rpt-loading { text-align: center; padding: 2.5rem; color: #94a3b8; }
@@ -166,8 +181,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <script>
-const URL_REPORT = '@Url.Action("GetReport","AdminInquiry")';
-const URL_EXPORT = '@Url.Action("ExportReport","AdminInquiry")';
+const URL_REPORT        = '@Url.Action("GetReport","AdminInquiry")';
+const URL_EXPORT        = '@Url.Action("ExportReport","AdminInquiry")';
+const URL_RATING_DETAIL = '@Url.Action("GetRatingDetail","AdminInquiry")';
+const URL_CHAT          = '@Url.Action("Chat","AdminInquiry")';
+const IS_ADMIN = @(((bool?)ViewBag.IsAdmin ?? false) ? "true" : "false");
 
 let chartTopic = null;
 let chartHr    = null;
@@ -279,10 +297,79 @@ async function loadReport() {
             return;
         }
         renderReport(data);
+        loadRatingDetail(f, t);
     } catch (e) {
         document.getElementById('rptContent').innerHTML =
             `<div class="rpt-err">Lỗi kết nối: ${esc(e.message)}</div>`;
     }
+}
+
+function renderStars(n) {
+    n = Number(n) || 0;
+    let html = '<span class="star-row">';
+    for (let i = 1; i <= 5; i++) html += `<span class="${i <= n ? '' : 'off'}">&#9733;</span>`;
+    html += `</span>`;
+    return html;
+}
+
+function fmtDateTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d)) return '—';
+    const p = x => String(x).padStart(2,'0');
+    return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+async function loadRatingDetail(f, t) {
+    const box = document.getElementById('rptRatingBox');
+    if (!box) return;
+    try {
+        const url  = `${URL_RATING_DETAIL}?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}`;
+        const res  = await fetch(url);
+        const data = await res.json();
+        if (!data.success) {
+            box.innerHTML = `<div class="rpt-empty">Lỗi: ${esc(data.message ?? 'Không tải được dữ liệu')}</div>`;
+            return;
+        }
+        renderRatingDetail(data.data ?? []);
+    } catch (e) {
+        box.innerHTML = `<div class="rpt-empty">Lỗi kết nối: ${esc(e.message)}</div>`;
+    }
+}
+
+function renderRatingDetail(rows) {
+    const box = document.getElementById('rptRatingBox');
+    if (!box) return;
+    if (!rows.length) {
+        box.innerHTML = `<div class="rpt-empty">Chưa có đánh giá nào trong khoảng thời gian này</div>`;
+        return;
+    }
+    let html = `<div class="rpt-rating-wrap"><table class="rpt-table">
+        <thead><tr>
+            <th>Ngày đóng</th><th>Nhân viên</th><th>Phòng ban</th><th>Chủ đề</th>
+            <th>Người xử lý</th><th>Đánh giá</th><th>Nội dung</th><th></th>
+        </tr></thead><tbody>`;
+    for (const r of rows) {
+        const note = (r.ratingNote ?? '').trim();
+        const noteHtml = note ? esc(note) : `<span class="rpt-note-empty">Không có ghi chú</span>`;
+        const chatBtn = IS_ADMIN
+            ? `<a class="rpt-chat-link" href="${URL_CHAT}?id=${r.id}" target="_blank" rel="noopener">
+                 <span class="material-symbols-rounded" style="font-size:1rem">chat</span> Xem chat
+               </a>`
+            : '';
+        html += `<tr>
+            <td style="white-space:nowrap;color:#64748b;font-size:.8rem">${fmtDateTime(r.closedDt)}</td>
+            <td><span class="vni-font" style="font-weight:700;color:#1e293b">${esc(r.empDisplay ?? '—')}</span><br><span style="font-size:.72rem;color:#94a3b8">${esc(r.empCd ?? '')}</span></td>
+            <td class="vni-font" style="font-size:.8rem">${esc(r.deptName ?? '—')}</td>
+            <td style="font-size:.8rem">${esc(r.topicName ?? '—')}</td>
+            <td class="vni-font" style="font-size:.8rem">${esc(r.assignedName ?? '—')}</td>
+            <td>${renderStars(r.rating)}</td>
+            <td class="rpt-note-cell">${noteHtml}</td>
+            <td>${chatBtn}</td>
+        </tr>`;
+    }
+    html += `</tbody></table></div>`;
+    box.innerHTML = html;
 }
 
 function renderReport(data) {
@@ -399,6 +486,10 @@ function renderReport(data) {
         }
         html += `</tbody></table></div>`;
     }
+
+    // ─── Rating detail (sao + nội dung) — placeholder, load riêng sau khi có box
+    html += `<div class="rpt-section-title"><span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">reviews</span> Chi tiết đánh giá</div>`;
+    html += `<div class="rpt-table-wrap" id="rptRatingBox"><div class="rpt-loading" style="padding:1.2rem"><span class="material-symbols-rounded" style="font-size:1.4rem;color:#dc2626">hourglass_top</span></div></div>`;
 
     document.getElementById('rptContent').innerHTML = html;
     renderCharts(data);

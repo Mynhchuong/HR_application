@@ -279,6 +279,25 @@ public class SurveyAdminController : BaseController
         return Json(new { success = ok, message = msg });
     }
 
+    // POST /SurveyAdmin/BulkDeleteResponse  (AJAX) — HR dán danh sách EMPCD để reset làm lại hàng loạt
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BulkDeleteResponse([FromBody] BulkDeleteResponseVm req)
+    {
+        var empcds = (req.Empcds ?? "")
+            .Split(new[] { '\r', '\n', ',', ';', ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(e => e.Trim())
+            .Where(e => e.Length > 0)
+            .Distinct()
+            .ToList();
+
+        if (empcds.Count == 0)
+            return Json(new { success = false, message = "Chưa nhập mã NV nào" });
+
+        var (ok, deletedCount, notFound, msg) = await _admin.BulkDeleteResponseAsync(req.SurveyId, empcds);
+        return Json(new { success = ok, deletedCount, notFoundCount = notFound.Count, notFound, message = msg });
+    }
+
     // GET /SurveyAdmin/ScopeCount?deptcd=X&linecd=Y&workcd=Z  (AJAX preview)
     [HttpGet]
     public async Task<IActionResult> ScopeCount(string deptcd, string? linecd, string? workcd)
@@ -732,5 +751,10 @@ public class SurveyAdminController : BaseController
     {
         public int    SurveyId { get; set; }
         public string Empcd    { get; set; } = "";
+    }
+    public class BulkDeleteResponseVm
+    {
+        public int     SurveyId { get; set; }
+        public string? Empcds   { get; set; }
     }
 }

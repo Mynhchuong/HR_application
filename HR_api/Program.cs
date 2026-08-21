@@ -41,6 +41,7 @@ builder.Services.AddScoped<OracleService>();
 builder.Services.AddScoped<HR_api.Helpers.NotificationHelper>();
 builder.Services.AddScoped<HR_api.Services.NotificationService>();
 builder.Services.AddScoped<HR_api.Services.BulletinService>();
+builder.Services.AddHostedService<HR_api.HostedServices.BulletinLifecycleService>();
 
 // ============================================================
 // Home page — trang chủ tuỳ biến theo role

@@ -280,6 +280,20 @@ public class SurveyAdminController : ControllerBase
         public string EMPCD     { get; set; } = "";
     }
 
+    // POST /apiHR/SurveyAdmin/bulk-delete-response — HR dán danh sách EMPCD để reset làm lại hàng loạt
+    [HttpPost("bulk-delete-response")]
+    public async Task<IActionResult> BulkDeleteResponse([FromBody] BulkDeleteResponseRequest req)
+    {
+        var (deletedCount, notFound) = await _admin.BulkDeleteResponseAsync(req.SURVEY_ID, req.EMPCDS ?? new());
+        return Ok(new { success = true, data = new { deletedCount, notFound } });
+    }
+
+    public class BulkDeleteResponseRequest
+    {
+        public int          SURVEY_ID { get; set; }
+        public List<string> EMPCDS    { get; set; } = new();
+    }
+
     // GET /apiHR/SurveyAdmin/participant-answers?surveyId=&empcd=
     [HttpGet("participant-answers")]
     public async Task<IActionResult> ParticipantAnswers([FromQuery] int surveyId, [FromQuery] string empcd)

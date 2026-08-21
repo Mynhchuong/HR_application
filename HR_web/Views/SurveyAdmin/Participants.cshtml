@@ -151,6 +151,9 @@
                 <span class="count-badge">@pg.TOTAL</span>
                 <span style="font-size:.78rem;color:#64748b;">người · trang @pg.PAGE/@totalPages</span>
                 <div class="ms-auto d-flex gap-2">
+                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-3" data-bs-toggle="modal" data-bs-target="#bulkResetModal">
+                        <span class="material-symbols-rounded align-middle me-1" style="font-size:.9rem;">restart_alt</span>Reset hàng loạt
+                    </button>
                     <a href="@Url.Action("ParticipantExport", new { id = Model.SURVEY_ID, deptcd = Model.FilterDept, linecd = Model.FilterLine, workcd = Model.FilterWork, empcd = Model.FilterEmpcd, status = Model.FilterStatus })"
                        class="btn btn-success btn-sm py-0 px-3" download>
                         <span class="material-symbols-rounded align-middle me-1" style="font-size:.9rem;">download</span>Xuất Excel
@@ -264,6 +267,33 @@
     </div>
 </div>
 
+<!-- Bulk Reset Modal -->
+<div class="modal fade" id="bulkResetModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2" style="background:#b91c1c;">
+                <h6 class="modal-title text-white mb-0"><span class="material-symbols-rounded align-middle me-1" style="font-size:1rem;">restart_alt</span>Reset hàng loạt để làm lại</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2" style="font-size:.83rem;color:#475569;">
+                    Dán danh sách <strong>Mã NV</strong> (mỗi dòng 1 mã, hoặc cách nhau bằng dấu phẩy/khoảng trắng).
+                    Kết quả khảo sát hiện tại của những mã NV này sẽ bị <strong>xoá vĩnh viễn</strong> để họ làm lại từ đầu.
+                </p>
+                <textarea id="bulkEmpcdInput" class="form-control" rows="10" style="font-family:monospace;font-size:.8rem;" placeholder="25022418&#10;25122205&#10;12042012&#10;..."></textarea>
+                <div id="bulkResetCount" class="mt-2" style="font-size:.78rem;color:#64748b;"></div>
+                <div id="bulkResetResult" class="mt-2" style="font-size:.8rem;"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" id="bulkResetSubmitBtn" class="btn btn-danger btn-sm">
+                    <span class="material-symbols-rounded align-middle me-1" style="font-size:.9rem;">restart_alt</span>Reset ngay
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <form id="antiForgeryForm">@Html.AntiForgeryToken()</form>
 <script>
@@ -271,6 +301,7 @@ const SURVEY_ID   = @Model.SURVEY_ID;
 const IS_QUIZ     = @(isQuiz ? "true" : "false");
 const ANSWERS_URL = '@Url.Action("ParticipantAnswers", "SurveyAdmin")';
 const DELETE_URL  = '@Url.Action("DeleteResponse", "SurveyAdmin")';
+const BULK_DELETE_URL = '@Url.Action("BulkDeleteResponse", "SurveyAdmin")';
 const LINE_URL    = '@Url.Action("GetLineByDept", "Dropdown")';
 const WORK_URL    = '@Url.Action("GetWork", "Dropdown")';
 const TOKEN       = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]')?.value ?? '';
@@ -311,6 +342,63 @@ document.querySelectorAll('.del-response-btn').forEach(btn => {
             window.showConfirm(msg, doIt, { title: 'Xoá kết quả khảo sát', okText: 'Xoá', okClass: 'btn-danger', icon: 'delete', iconColor: '#dc2626', iconBg: '#fee2e2' });
         } else if (confirm(msg)) { doIt(); }
     });
+});
+
+// ── Reset hàng loạt ──────────────────────────────────────────────────────────
+const $bulkInput  = document.getElementById('bulkEmpcdInput');
+const $bulkCount   = document.getElementById('bulkResetCount');
+const $bulkResult  = document.getElementById('bulkResetResult');
+const $bulkBtn     = document.getElementById('bulkResetSubmitBtn');
+
+function parseEmpcds(text) {
+    return [...new Set((text || '').split(/[\s,;]+/).map(s => s.trim()).filter(Boolean))];
+}
+
+$bulkInput.addEventListener('input', () => {
+    const n = parseEmpcds($bulkInput.value).length;
+    $bulkCount.textContent = n > 0 ? `Đã nhập ${n} mã NV (không trùng lặp)` : '';
+    $bulkResult.innerHTML = '';
+});
+
+$bulkBtn.addEventListener('click', () => {
+    const empcds = parseEmpcds($bulkInput.value);
+    if (empcds.length === 0) {
+        (window.showToast || alert)('Chưa nhập mã NV nào', 'error');
+        return;
+    }
+    const msg = `Xoá kết quả khảo sát của ${empcds.length} mã NV để họ làm lại từ đầu? Không thể hoàn tác.`;
+    const doIt = async () => {
+        $bulkBtn.disabled = true;
+        $bulkResult.innerHTML = '<div class="text-muted"><div class="spinner-border spinner-border-sm me-1"></div>Đang xử lý...</div>';
+        try {
+            const res = await fetch(BULK_DELETE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+                body: JSON.stringify({ SurveyId: SURVEY_ID, Empcds: empcds.join('\n') }),
+            });
+            const r = await res.json();
+            if (r.success) {
+                let html = `<div class="text-success fw-semibold">Đã reset ${r.deletedCount} mã NV.</div>`;
+                if (r.notFoundCount > 0) {
+                    html += `<div class="text-warning mt-1">${r.notFoundCount} mã NV không có kết quả trong survey này (bỏ qua): <span style="font-family:monospace;">${esc(r.notFound.join(', '))}</span></div>`;
+                }
+                $bulkResult.innerHTML = html;
+                (window.showToast || alert)('Đã reset xong', 'success');
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                $bulkResult.innerHTML = '';
+                (window.showToast || alert)(r.message || 'Không reset được', 'error');
+                $bulkBtn.disabled = false;
+            }
+        } catch (e) {
+            $bulkResult.innerHTML = '';
+            (window.showToast || alert)('Lỗi kết nối', 'error');
+            $bulkBtn.disabled = false;
+        }
+    };
+    if (window.showConfirm) {
+        window.showConfirm(msg, doIt, { title: 'Reset hàng loạt', okText: 'Reset', okClass: 'btn-danger', icon: 'restart_alt', iconColor: '#dc2626', iconBg: '#fee2e2' });
+    } else if (confirm(msg)) { doIt(); }
 });
 
 async function openDetail(empcd) {

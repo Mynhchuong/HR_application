@@ -66,6 +66,19 @@ public class SurveyAdminService
         return (r?.success ?? false, r?.message);
     }
 
+    public async Task<(bool ok, int deletedCount, List<string> notFound, string? message)> BulkDeleteResponseAsync(int surveyId, List<string> empcds)
+    {
+        var payload = new { SURVEY_ID = surveyId, EMPCDS = empcds };
+        var r = await PostAsync<R<BulkDeleteResponseResult>>("SurveyAdmin/bulk-delete-response", payload);
+        if (r == null || !r.success) return (false, 0, new List<string>(), r?.message ?? "Không kết nối được server");
+        return (true, r.data?.deletedCount ?? 0, r.data?.notFound ?? new List<string>(), null);
+    }
+    private class BulkDeleteResponseResult
+    {
+        public int          deletedCount { get; set; }
+        public List<string> notFound     { get; set; } = new();
+    }
+
     // ─── TestMode ──────────────────────────────────────
 
     public async Task<SurveySubmitResultModel?> TestSubmitAsync(object payload)

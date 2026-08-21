@@ -473,6 +473,49 @@ public class SurveyAdminService
         return (true, null);
     }
 
+    // Reset hàng loạt: HR dán danh sách EMPCD, xoá response để những người đó làm lại survey từ đầu.
+    public async Task<(int deletedCount, List<string> notFound)> BulkDeleteResponseAsync(int surveyId, List<string> empcds)
+    {
+        var distinctEmpcds = empcds.Where(e => !string.IsNullOrWhiteSpace(e))
+                                    .Select(e => e.Trim())
+                                    .Distinct()
+                                    .ToList();
+        if (distinctEmpcds.Count == 0) return (0, new List<string>());
+
+        await using var scope = await _db.BeginTransactionAsync();
+
+        const int chunkSize = 500;
+        var found = new List<(string Empcd, int RespId)>();
+        foreach (var chunk in distinctEmpcds.Chunk(chunkSize))
+        {
+            var inClause = string.Join(",", chunk.Select((_, idx) => $":E{idx}"));
+            var pars = new List<OracleParameter> { new OracleParameter("SID", surveyId) };
+            pars.AddRange(chunk.Select((e, idx) => new OracleParameter($"E{idx}", e)));
+
+            var rows = await _db.ExecuteQueryAsync(scope,
+                $"SELECT EMPCD, ID FROM HRMS.HR_SURVEY_RESPONSE WHERE SURVEY_ID = :SID AND EMPCD IN ({inClause})",
+                r => (Convert.ToString(r["EMPCD"]) ?? "", Convert.ToInt32(r["ID"])),
+                pars.ToArray());
+            found.AddRange(rows);
+        }
+
+        foreach (var chunk in found.Select(f => f.RespId).Chunk(chunkSize))
+        {
+            var inClause = string.Join(",", chunk.Select((_, idx) => $":R{idx}"));
+            // OracleParameter không dùng lại được giữa 2 OracleCommand khác nhau (kể cả command trước đã Dispose)
+            // → phải tạo mảng param riêng cho mỗi lệnh DELETE.
+            OracleParameter[] MakeParams() => chunk.Select((id, idx) => new OracleParameter($"R{idx}", id)).ToArray();
+            await _db.ExecuteNonQueryAsync(scope, $"DELETE FROM HRMS.HR_SURVEY_ANSWER WHERE RESPONSE_ID IN ({inClause})", MakeParams());
+            await _db.ExecuteNonQueryAsync(scope, $"DELETE FROM HRMS.HR_SURVEY_RESPONSE WHERE ID IN ({inClause})", MakeParams());
+        }
+
+        await scope.CommitAsync();
+
+        var foundEmpcds = found.Select(f => f.Empcd).ToHashSet();
+        var notFound = distinctEmpcds.Where(e => !foundEmpcds.Contains(e)).ToList();
+        return (found.Count, notFound);
+    }
+
     private async Task<string?> GetStatusAsync(int id)
     {
         var rows = await _db.ExecuteQueryAsync(

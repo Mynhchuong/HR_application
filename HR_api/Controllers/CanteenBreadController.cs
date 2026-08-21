@@ -196,15 +196,27 @@ public class CanteenBreadController : ControllerBase
                 return Ok(new { success = false, message = "Thiếu mã NV" });
 
             var actor = string.IsNullOrEmpty(body.LoginUser) ? "HR" : body.LoginUser;
+            var empcd = body.EmpCd.Trim();
 
             await _db.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_CANTEEN_BREAD_ROSTER
                 SET IS_ACTIVE = 'N', UPDT_ID = :ACTOR, UPDT_DT = SYSDATE
                 WHERE EMPCD = :EMPCD",
                 new OracleParameter("ACTOR", actor),
-                new OracleParameter("EMPCD", body.EmpCd.Trim()));
+                new OracleParameter("EMPCD", empcd));
 
-            return Ok(new { success = true, message = "Đã xoá khỏi danh sách" });
+            // Huỷ Bánh đã gán từ hôm nay trở đi (roster-apply gán trước cho cả tuần) —
+            // giữ nguyên lịch sử các ngày đã qua, chỉ NV không còn nhận bánh kể từ lúc bị xoá.
+            var today = DateTime.Today.ToString("yyyyMMdd");
+            int cancelled = await _db.ExecuteNonQueryAsync(@"
+                DELETE FROM HRMS.CANTEEN_ORDER
+                WHERE EMPCD = :EMPCD AND TYPE_MEAL = 'LUNCH' AND TYPE_OF_FOOD = 'B'
+                  AND DAT >= :TODAY",
+                new OracleParameter("EMPCD", empcd),
+                new OracleParameter("TODAY", today));
+
+            var msg = cancelled > 0 ? $"Đã xoá khỏi danh sách và huỷ {cancelled} suất bánh từ hôm nay" : "Đã xoá khỏi danh sách";
+            return Ok(new { success = true, message = msg });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }

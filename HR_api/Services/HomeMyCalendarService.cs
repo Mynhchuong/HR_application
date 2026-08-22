@@ -188,14 +188,44 @@ public class HomeMyCalendarService
     }
 
     // ─── Tăng ca CONFIRMED 🔵 ────────────────────────────────────
+    // Ưu tiên HR_OT_REQUEST (app), fallback qua EBM300/EBM300_WAIT.SIGNED_STATUS (ERP, chỉ đọc)
+    // khi app thiếu bản ghi — tránh lặp lại case ERP đã ký mà app mất data (vd bị admin xoá
+    // nhưng không reset lại ERP) khiến lịch cá nhân "mất" ngày tăng ca nhân viên đã ký.
     private async Task<List<HomeMyCalendarItem>> LoadOtConfirmedAsync(string empcd, DateTime from, DateTime to)
     {
         const string sql = @"
             SELECT WORK_DATE, OT_HOURS, CONFIRM_DATE
-            FROM HRMS.HR_OT_REQUEST
-            WHERE EMPCD = :EMPCD
-              AND CONFIRM_STATUS = 'CONFIRMED'
-              AND TRUNC(WORK_DATE) BETWEEN :D_FROM AND :D_TO";
+              FROM HRMS.HR_OT_REQUEST
+             WHERE EMPCD = :EMPCD
+               AND CONFIRM_STATUS = 'CONFIRMED'
+               AND TRUNC(WORK_DATE) BETWEEN :D_FROM AND :D_TO
+
+            UNION ALL
+
+            SELECT TRUNC(E.DAT) WORK_DATE, E.OVER_TIME OT_HOURS, E.SIGNED_LOG CONFIRM_DATE
+              FROM HRMS.EBM300 E
+             WHERE E.EMPCD = :EMPCD2
+               AND E.SIGNED_STATUS = 'Y'
+               AND NVL(E.OVER_TIME, 0) > 0
+               AND TRUNC(E.DAT) BETWEEN :D_FROM2 AND :D_TO2
+               AND NOT EXISTS (
+                       SELECT 1 FROM HRMS.HR_OT_REQUEST R
+                        WHERE R.EMPCD = E.EMPCD AND R.WORK_DATE = TRUNC(E.DAT))
+
+            UNION ALL
+
+            SELECT TRUNC(W.DAT) WORK_DATE, W.OVER_TIME OT_HOURS, W.SIGNED_LOG CONFIRM_DATE
+              FROM HRMS.EBM300_WAIT W
+             WHERE W.EMPCD = :EMPCD3
+               AND W.SIGNED_STATUS = 'Y'
+               AND NVL(W.OVER_TIME, 0) > 0
+               AND TRUNC(W.DAT) BETWEEN :D_FROM3 AND :D_TO3
+               AND NOT EXISTS (
+                       SELECT 1 FROM HRMS.HR_OT_REQUEST R2
+                        WHERE R2.EMPCD = W.EMPCD AND R2.WORK_DATE = TRUNC(W.DAT))
+               AND NOT EXISTS (
+                       SELECT 1 FROM HRMS.EBM300 E2
+                        WHERE E2.EMPCD = W.EMPCD AND TRUNC(E2.DAT) = TRUNC(W.DAT))";
 
         var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
         {
@@ -205,7 +235,13 @@ public class HomeMyCalendarService
         },
         new OracleParameter("EMPCD",  empcd),
         new OracleParameter("D_FROM", from.Date),
-        new OracleParameter("D_TO",   to.Date));
+        new OracleParameter("D_TO",   to.Date),
+        new OracleParameter("EMPCD2",  empcd),
+        new OracleParameter("D_FROM2", from.Date),
+        new OracleParameter("D_TO2",   to.Date),
+        new OracleParameter("EMPCD3",  empcd),
+        new OracleParameter("D_FROM3", from.Date),
+        new OracleParameter("D_TO3",   to.Date));
 
         var items = new List<HomeMyCalendarItem>();
         foreach (var row in rows)

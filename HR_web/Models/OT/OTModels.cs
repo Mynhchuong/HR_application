@@ -55,6 +55,7 @@ public class OTClerkModel
     public DateTime? CONFIRM_DATE { get; set; }
     public DateTime? START_OT { get; set; }
     public DateTime? END_OT { get; set; }
+    public int CHANGE_COUNT { get; set; }
 }
 
 public class OTClerkSummary
@@ -120,6 +121,25 @@ public class OTHRDetailModel
     public DateTime? CONFIRM_DATE { get; set; }
     public DateTime? START_OT { get; set; }
     public DateTime? END_OT { get; set; }
+    public int CHANGE_COUNT { get; set; }
+}
+
+public class OtLogEntry
+{
+    public string? ACTION { get; set; }
+    public string? OLD_STATUS { get; set; }
+    public string? NEW_STATUS { get; set; }
+    public decimal? OLD_HOURS { get; set; }
+    public decimal? NEW_HOURS { get; set; }
+    public string? ACTOR_EMPCD { get; set; }
+    public DateTime INST_DT { get; set; }
+}
+
+public class OtLogResponse
+{
+    public bool success { get; set; }
+    public string? message { get; set; }
+    public List<OtLogEntry>? data { get; set; }
 }
 
 public class OTHRGlobalSummary

@@ -226,6 +226,24 @@ public class OtService
         }
     }
 
+    public async Task<OtLogResponse> GetOtLogAsync(string empcd, string workDate, string? actorEmpCd = null)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd) || string.IsNullOrEmpty(workDate))
+                return new OtLogResponse { success = false, message = "Thiếu empcd hoặc work_date" };
+
+            var q = $"empcd={Uri.EscapeDataString(empcd)}&work_date={Uri.EscapeDataString(workDate)}";
+            if (!string.IsNullOrEmpty(actorEmpCd)) q += $"&actor_empcd={Uri.EscapeDataString(actorEmpCd)}";
+            var result = await _api.GetAsync<OtLogResponse>("ot/log", q);
+            return result ?? new OtLogResponse { success = false, message = "Lỗi kết nối API" };
+        }
+        catch (Exception ex)
+        {
+            return new OtLogResponse { success = false, message = ex.Message };
+        }
+    }
+
     public async Task<(bool success, string message, int sent)> RemindPendingOTSignAsync(
         string clerkEmpCd, string workDate,
         string? deptId = null, string? lineId = null, string? workId = null)

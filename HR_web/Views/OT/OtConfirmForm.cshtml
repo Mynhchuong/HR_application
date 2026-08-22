@@ -505,16 +505,41 @@
     _otLockTimer = setInterval(checkOtLock, 15000);
 
     let _otSubmitting = false;
-    async function submitConfirm(status) {
+    function submitConfirm(status) {
         if (_otSubmitting || _otLocked) return;
+
+        // Khoá nút NGAY lúc click (trước khi popup mở) — chặn double-click/bấm cả 2 nút
+        // trước khi modal kịp chặn input, tránh race gọi doSubmitConfirm() 2 lần chồng nhau.
+        const form = document.getElementById('frmOtConfirm');
+        const btns = form.querySelectorAll('button, .btn-action');
+        btns.forEach(b => b.disabled = true);
+
+        let confirmed = false;
+        const isConfirm = status === 'CONFIRMED';
+        showConfirm(
+            isConfirm ? 'Bạn xác nhận ĐỒNG Ý tăng ca ngày này?' : 'Bạn xác nhận TỪ CHỐI tăng ca ngày này?',
+            () => { confirmed = true; doSubmitConfirm(status); },
+            {
+                title: 'Xác nhận',
+                okText: isConfirm ? 'Đồng ý tăng ca' : 'Từ chối tăng ca',
+                okClass: isConfirm ? 'btn-success' : 'btn-danger',
+                icon: isConfirm ? 'check_circle' : 'cancel',
+                iconColor: isConfirm ? '#16a34a' : '#dc2626',
+                iconBg: isConfirm ? '#f0fdf4' : '#fee2e2'
+            }
+        );
+        document.getElementById('globalConfirmModal').addEventListener('hidden.bs.modal', function onHide() {
+            if (!confirmed) btns.forEach(b => b.disabled = false);
+        }, { once: true });
+    }
+
+    async function doSubmitConfirm(status) {
         _otSubmitting = true;
 
         document.getElementById('confirmStatus').value = status;
         const form = document.getElementById('frmOtConfirm');
         const formData = new FormData(form);
-
         const btns = form.querySelectorAll('button, .btn-action');
-        btns.forEach(b => b.disabled = true);
 
         try {
             const response = await fetch(form.action, {

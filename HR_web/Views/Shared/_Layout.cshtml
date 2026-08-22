@@ -752,6 +752,63 @@
             </div>
         </div>
     </div>
+    <!-- OT change-history popup — dùng chung OtListForAdmin/OtListForHR/OtListForClerk -->
+    <div class="modal fade" id="otLogModal" tabindex="-1" aria-hidden="true" style="z-index: 1080;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+                <div class="modal-header border-0 pb-0">
+                    <h6 class="fw-bold mb-0"><span class="material-symbols-rounded align-middle me-1" style="font-size:1.1rem;">history</span>Lịch sử đổi ý tăng ca</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body pt-2" id="otLogModalBody">
+                    <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        window.showOtLogPopup = async function(empcd, workDate, empName) {
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const fmtDt = s => { if (!s) return ''; const d = new Date(s); return isNaN(d) ? '' : d.toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); };
+            const statusLabel = s => s === 'CONFIRMED' ? 'Đồng ý' : (s === 'REJECTED' ? 'Từ chối' : (s || '—'));
+            const actionLabel = a => a === 'INS' ? 'Ký lần đầu' : (a === 'UPD' ? 'Đổi ý' : (a === 'DEL' ? 'Xoá' : (a || '')));
+
+            const modalEl = document.getElementById('otLogModal');
+            const modal   = new bootstrap.Modal(modalEl);
+            const body    = document.getElementById('otLogModalBody');
+            body.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+            modal.show();
+
+            try {
+                const url = `${window.OT_LOG_URL || '/OT/GetOtLog'}?empcd=${encodeURIComponent(empcd)}&work_date=${encodeURIComponent(workDate)}`;
+                const res  = await fetch(url);
+                const json = await res.json();
+                if (!json.success) {
+                    body.innerHTML = `<div class="text-center text-danger py-3">${esc(json.message || 'Lỗi tải lịch sử')}</div>`;
+                    return;
+                }
+                const rows = json.data || [];
+                if (!rows.length) {
+                    body.innerHTML = '<div class="text-center text-muted py-3">Không có lịch sử đổi ý</div>';
+                    return;
+                }
+                body.innerHTML =
+                    `<div class="small text-muted mb-2">${empName ? `<span class="vni-font" style="text-transform:uppercase;">${esc(empName)}</span> — ` : ''}${esc(empcd)}</div>` +
+                    '<ul class="list-unstyled mb-0">' +
+                    rows.map(e => `<li class="d-flex justify-content-between align-items-start border-bottom py-2">
+                        <div>
+                            <span class="badge bg-light text-dark border me-1">${actionLabel(e.ACTION)}</span>
+                            ${statusLabel(e.OLD_STATUS)} &rarr; <strong>${statusLabel(e.NEW_STATUS)}</strong>
+                            ${e.ACTOR_EMPCD ? `<div class="text-xs text-muted">bởi ${esc(e.ACTOR_EMPCD)}</div>` : ''}
+                        </div>
+                        <div class="text-xs text-muted text-end" style="white-space:nowrap;">${fmtDt(e.INST_DT)}</div>
+                    </li>`).join('') +
+                    '</ul>';
+            } catch (err) {
+                body.innerHTML = '<div class="text-center text-danger py-3">Lỗi kết nối</div>';
+            }
+        };
+    </script>
     <script>
         window.showToast = function(message, type) {
             const colors = { success: 'text-bg-success', error: 'text-bg-danger', warning: 'text-bg-warning', info: 'text-bg-info' };

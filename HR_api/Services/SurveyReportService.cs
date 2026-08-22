@@ -209,7 +209,10 @@ public class SurveyReportService
     public async Task<List<SurveyOptionRespondentModel>> GetOptionRespondentsAsync(int optionId)
     {
         const string sql = @"
-            SELECT R.EMPCD, EC.CNAME AS FULL_NAME, EC.DEPTCD, EC.LINECD, EC.WORKCD, R.SUBMIT_DT
+            SELECT R.EMPCD, EC.CNAME AS FULL_NAME, EC.DEPTCD, EC.LINECD, EC.WORKCD, R.SUBMIT_DT,
+                   (SELECT MIN(EA1.DEPTNM) FROM HRMS.EAM410 EA1 WHERE EA1.DEPTCD = EC.DEPTCD AND EA1.USEYN = 'Y') AS DEPT_NAME,
+                   (SELECT MIN(EA2.TEAMNM) FROM HRMS.EAM410 EA2 WHERE EA2.DEPTCD = EC.DEPTCD AND EA2.LINECD = EC.LINECD AND EA2.USEYN = 'Y') AS LINE_NAME,
+                   (SELECT MIN(EA3.WORKNM) FROM HRMS.EAM410 EA3 WHERE EA3.DEPTCD = EC.DEPTCD AND EA3.LINECD = EC.LINECD AND EA3.WORKCD = EC.WORKCD AND EA3.USEYN = 'Y') AS WORK_NAME
               FROM HRMS.HR_SURVEY_ANSWER A
               JOIN HRMS.HR_SURVEY_RESPONSE R ON R.ID = A.RESPONSE_ID
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = R.EMPCD
@@ -222,6 +225,9 @@ public class SurveyReportService
             DEPTCD    = r["DEPTCD"]   as string,
             LINECD    = r["LINECD"]   as string,
             WORKCD    = r["WORKCD"]   as string,
+            DEPT_NAME = r["DEPT_NAME"] as string,
+            LINE_NAME = r["LINE_NAME"] as string,
+            WORK_NAME = r["WORK_NAME"] as string,
             SUBMIT_DT = r["SUBMIT_DT"] as DateTime?,
         }, new OracleParameter("OPT_ID", optionId));
     }
@@ -241,6 +247,9 @@ public class SurveyReportService
         // Load per-user
         const string sqlU = @"
             SELECT R.EMPCD, EC.CNAME AS FULL_NAME, EC.DEPTCD, EC.LINECD, EC.WORKCD,
+                   (SELECT MIN(EA1.DEPTNM) FROM HRMS.EAM410 EA1 WHERE EA1.DEPTCD = EC.DEPTCD AND EA1.USEYN = 'Y') AS DEPT_NAME,
+                   (SELECT MIN(EA2.TEAMNM) FROM HRMS.EAM410 EA2 WHERE EA2.DEPTCD = EC.DEPTCD AND EA2.LINECD = EC.LINECD AND EA2.USEYN = 'Y') AS LINE_NAME,
+                   (SELECT MIN(EA3.WORKNM) FROM HRMS.EAM410 EA3 WHERE EA3.DEPTCD = EC.DEPTCD AND EA3.LINECD = EC.LINECD AND EA3.WORKCD = EC.WORKCD AND EA3.USEYN = 'Y') AS WORK_NAME,
                    R.STATUS, R.SCORE, R.MAX_SCORE, R.IS_PASS, R.SUBMIT_DT
               FROM HRMS.HR_SURVEY_RESPONSE R
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = R.EMPCD
@@ -254,6 +263,9 @@ public class SurveyReportService
             DEPTCD    = r["DEPTCD"] as string,
             LINECD    = r["LINECD"] as string,
             WORKCD    = r["WORKCD"] as string,
+            DEPT_NAME = r["DEPT_NAME"] as string,
+            LINE_NAME = r["LINE_NAME"] as string,
+            WORK_NAME = r["WORK_NAME"] as string,
             STATUS    = r["STATUS"]?.ToString() ?? "",
             SCORE     = r["SCORE"]     is DBNull ? null : (decimal?)Convert.ToDecimal(r["SCORE"]),
             MAX_SCORE = r["MAX_SCORE"] is DBNull ? null : (decimal?)Convert.ToDecimal(r["MAX_SCORE"]),

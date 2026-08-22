@@ -225,9 +225,9 @@ public class SurveyAdminController : BaseController
             ws.Cell(row, 1).Value = stt++;
             ws.Cell(row, 2).Value = p.EMPCD;
             ws.Cell(row, 3).Value = p.FULL_NAME ?? "";
-            ws.Cell(row, 4).Value = p.DEPTCD ?? "";
-            ws.Cell(row, 5).Value = p.LINECD ?? "";
-            ws.Cell(row, 6).Value = p.WORKCD ?? "";
+            ws.Cell(row, 4).Value = p.DEPT_NAME ?? p.DEPTCD ?? "";
+            ws.Cell(row, 5).Value = p.LINE_NAME ?? p.LINECD ?? "";
+            ws.Cell(row, 6).Value = p.WORK_NAME ?? p.WORKCD ?? "";
             ws.Cell(row, 7).Value = p.SUBMIT_DT?.ToString("dd/MM/yyyy HH:mm") ?? "";
             row++;
         }
@@ -373,9 +373,9 @@ public class SurveyAdminController : BaseController
             ws.Cell(row, col++).Value = stt++;
             ws.Cell(row, col++).Value = p.EMPCD;
             ws.Cell(row, col++).Value = p.FULL_NAME ?? "";
-            ws.Cell(row, col++).Value = p.DEPTCD ?? "";
-            ws.Cell(row, col++).Value = p.LINECD ?? "";
-            ws.Cell(row, col++).Value = p.WORKCD ?? "";
+            ws.Cell(row, col++).Value = p.DEPT_NAME ?? p.DEPTCD ?? "";
+            ws.Cell(row, col++).Value = p.LINE_NAME ?? p.LINECD ?? "";
+            ws.Cell(row, col++).Value = p.WORK_NAME ?? p.WORKCD ?? "";
             ws.Cell(row, col++).Value = statusMap.GetValueOrDefault(p.STATUS, p.STATUS);
             if (isQuiz)
             {
@@ -684,9 +684,9 @@ public class SurveyAdminController : BaseController
             ws.Cell(row, 1).Value = stt++;
             ws.Cell(row, 2).Value = u.EMPCD;
             ws.Cell(row, 3).Value = u.FULL_NAME ?? "";
-            ws.Cell(row, 4).Value = u.DEPTCD ?? "";
-            ws.Cell(row, 5).Value = u.LINECD ?? "";
-            ws.Cell(row, 6).Value = u.WORKCD ?? "";
+            ws.Cell(row, 4).Value = u.DEPT_NAME ?? u.DEPTCD ?? "";
+            ws.Cell(row, 5).Value = u.LINE_NAME ?? u.LINECD ?? "";
+            ws.Cell(row, 6).Value = u.WORK_NAME ?? u.WORKCD ?? "";
             ws.Cell(row, 7).Value = u.SCORE ?? 0;
             ws.Cell(row, 8).Value = u.MAX_SCORE ?? 0;
             ws.Cell(row, 9).Value = u.IS_PASS == 1 ? "PASS" : (u.IS_PASS == 0 ? "FAIL" : "");

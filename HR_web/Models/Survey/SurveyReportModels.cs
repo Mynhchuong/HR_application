@@ -57,6 +57,9 @@ public class SurveyOptionRespondentModel
     public string?   DEPTCD    { get; set; }
     public string?   LINECD    { get; set; }
     public string?   WORKCD    { get; set; }
+    public string?   DEPT_NAME { get; set; }
+    public string?   LINE_NAME { get; set; }
+    public string?   WORK_NAME { get; set; }
     public DateTime? SUBMIT_DT { get; set; }
 }
 
@@ -76,6 +79,9 @@ public class SurveyReportQuizUserModel
     public string?   DEPTCD    { get; set; }
     public string?   LINECD    { get; set; }
     public string?   WORKCD    { get; set; }
+    public string?   DEPT_NAME { get; set; }
+    public string?   LINE_NAME { get; set; }
+    public string?   WORK_NAME { get; set; }
     public string    STATUS    { get; set; } = "";
     public decimal?  SCORE     { get; set; }
     public decimal?  MAX_SCORE { get; set; }

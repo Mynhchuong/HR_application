@@ -249,6 +249,7 @@
         const toEl   = document.getElementById('toDate');
         fromEl.min = todayStr; fromEl.value = todayStr;
         toEl.min   = todayStr; toEl.value   = todayStr;
+        autoCalcDays();
         loadEmps();
     });
 

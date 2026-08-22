@@ -205,6 +205,26 @@ public class OTController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET: /OT/GetOtLog — lịch sử đổi ý OT (popup) dùng chung Admin/HR/Clerk
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetOtLog(string empcd, string work_date)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+                return Json(new { success = false, message = "Chưa đăng nhập" });
+
+            var result = await _otService.GetOtLogAsync(empcd, work_date, CurrentUser.EmpCd);
+            return Json(result);
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────
     // POST: /OT/NotifyPending — HR broadcast nhắc kí OT
     // ─────────────────────────────────────────────
     [HttpPost]

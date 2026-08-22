@@ -130,6 +130,10 @@
 @section Scripts {
     <script>
     const PAGE_URL         = '@Url.Action("GetOTHRDetailPage", "OT")';
+    window.OT_LOG_URL      = '@Url.Action("GetOtLog", "OT")';
+    $(document).on('click', '.ot-log-btn', function () {
+        showOtLogPopup(this.dataset.empcd, this.dataset.workdate, this.dataset.empname);
+    });
     const URL_BULK_SIGN    = '@Url.Action("AdminBulkSignFor",  "OT")';
     const URL_BULK_DELETE  = '@Url.Action("AdminBulkDelete",   "OT")';
     const BATCH_SIZE       = 50;
@@ -160,6 +164,9 @@
         let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ ký</span>`;
         if (item.CONFIRM_STATUS === 'CONFIRMED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã ký</span>`;
         else if (item.CONFIRM_STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger">Từ chối</span>`;
+        if (item.CHANGE_COUNT > 0) {
+            statusHtml += `<div class="mt-1"><a href="javascript:void(0)" class="badge bg-light text-dark border ot-log-btn" data-empcd="${escHtml(item.EMPCD||'')}" data-workdate="${escHtml($('#filterDate').val())}" data-empname="${escHtml(item.EMP_NAME||'')}"><i class="bi bi-clock-history me-1"></i>Đổi ý ${item.CHANGE_COUNT}x</a></div>`;
+        }
 
         const isSel = selected.has(item.EMPCD);
         return `<tr data-empcd="${escHtml(item.EMPCD)}" class="${isSel?'row-selected':''}">

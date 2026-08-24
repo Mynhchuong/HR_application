@@ -19,6 +19,7 @@
     var otSubSigned  = isEn ? "signed"            : "đã ký";
     var otSubTotal   = isEn ? "total"             : "tổng";
     var bdLabel      = isEn ? "Team birthdays"    : "SN đồng nghiệp";
+    var docMissingLabel = isEn ? "Docs not submitted" : "Chưa nộp giấy tờ";
     var refreshLabel = isEn ? "Refresh"           : "Làm mới";
     var loadingLabel = isEn ? "Loading…"          : "Đang tải…";
     var emptyLabel   = isEn ? "No birthdays today" : "Không có SN nào hôm nay";
@@ -104,6 +105,13 @@
                 <div class="home-kpi-number" data-kpi="bd">0</div>
                 <div class="home-kpi-label">🎂 @bdLabel</div>
             </button>
+            @if (!isExpat)
+            {
+                <button type="button" data-open="leave-doc-missing" class="home-kpi home-kpi-docmissing">
+                    <div class="home-kpi-number" data-kpi="leave-doc-missing">0</div>
+                    <div class="home-kpi-label">📋 @docMissingLabel</div>
+                </button>
+            }
         </div>
         <div class="home-summary-asof" data-summary-asof></div>
     </template>
@@ -115,6 +123,19 @@
         <div class="home-modal-header">
             <div class="home-modal-title">🎂 @bdLabel</div>
             <button type="button" class="home-modal-close" data-close="team-birthday" aria-label="@(isEn ? "Close" : "Đóng")">×</button>
+        </div>
+        <div class="home-modal-body" data-modal-body>
+            <div class="home-modal-loading">@loadingLabel</div>
+        </div>
+    </div>
+</div>
+
+<div id="homeLeaveDocMissingModal" class="home-modal" hidden>
+    <div class="home-modal-backdrop" data-close="leave-doc-missing"></div>
+    <div class="home-modal-panel">
+        <div class="home-modal-header">
+            <div class="home-modal-title">📋 @docMissingLabel</div>
+            <button type="button" class="home-modal-close" data-close="leave-doc-missing" aria-label="@(isEn ? "Close" : "Đóng")">×</button>
         </div>
         <div class="home-modal-body" data-modal-body>
             <div class="home-modal-loading">@loadingLabel</div>

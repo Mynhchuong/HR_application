@@ -20,6 +20,7 @@ public class LeaveMyRequestModel
     public DateTime? FINAL_DATE     { get; set; }
     public string?   ASSIGNED_BY    { get; set; }
     public string?   ASSIGNER_NAME  { get; set; }
+    public string?   DOC_STATUS     { get; set; }
 }
 
 public class LeaveMyRequestsPagedResponse
@@ -60,6 +61,10 @@ public class LeaveListModel
     public string?   REQUESTER_ROLE { get; set; }
     public string?   ASSIGNED_BY    { get; set; }
     public string?   ASSIGNER_NAME  { get; set; }
+    public string?   DOC_STATUS         { get; set; }
+    public DateTime? DOC_SUBMITTED_DATE { get; set; }
+    public string?   DOC_SUBMITTED_BY   { get; set; }
+    public string?   DOC_REMARK         { get; set; }
 }
 
 public class LeaveSummary

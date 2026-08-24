@@ -118,10 +118,11 @@
                     <label class="form-label">Loại phép</label>
                     <select id="leaveType" class="form-select form-select-sm">
                         <option value="AL">Phép năm (AL)</option>
-                        <option value="CL">BHXH (CL)</option>
-                        <option value="SL">Nghỉ bệnh (SL)</option>
-                        <option value="NPL">Không lương (NPL)</option>
-                        <option value="OTH">Khác (OTH)</option>
+                        <option value="DT">Đám tang (DT)</option>
+                        <option value="DC">Đám cưới (DC)</option>
+                        <option value="CT">Công tác (CT)</option>
+                        <option value="VS">Vợ sanh (VS)</option>
+                        <option value="KT">Khám thai (KT)</option>
                     </select>
                 </div>
                 <div class="row g-2 mb-3">
@@ -140,7 +141,8 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Lý do</label>
-                    <textarea id="reason" class="form-control form-control-sm" rows="3" placeholder="Nghỉ lễ toàn công ty..."></textarea>
+                    <textarea id="reason" class="form-control form-control-sm" rows="3" placeholder="Bắt buộc nhập nếu không phải Phép năm..."></textarea>
+                    <div id="reasonCounter" class="text-xs text-muted mt-1 d-none"></div>
                 </div>
 
                 <button id="btnSubmit" class="btn btn-primary w-100" disabled onclick="submitAssign()">
@@ -242,6 +244,36 @@
             .replace(/đ/g, 'd').replace(/Đ/g, 'd');
     }
 
+    // ─── ERP remark tối đa 30 byte ("XX " + lý do) — chỉ 5 loại DT/DC/CT/VS/KT ghi lý do vào remark ───
+    const ERP_REMARK_TYPES = ['DT', 'DC', 'CT', 'VS', 'KT'];
+    const ERP_REASON_MAX_BYTES = 27;
+    function utf8ByteLength(s) { return new Blob([s || '']).size; }
+    function truncateUtf8(s, maxBytes) {
+        s = s || '';
+        while (utf8ByteLength(s) > maxBytes) s = s.slice(0, -1);
+        return s;
+    }
+    function reasonShowCounter() {
+        const typeEl = document.getElementById('leaveType');
+        const counterEl = document.getElementById('reasonCounter');
+        const reasonEl = document.getElementById('reason');
+        if (!ERP_REMARK_TYPES.includes(typeEl.value)) { counterEl.classList.add('d-none'); return; }
+        const used = utf8ByteLength(reasonEl.value);
+        counterEl.textContent = `${used}/${ERP_REASON_MAX_BYTES} byte (do lý do được ghi thẳng vào hệ ERP, có dấu tiếng Việt sẽ chiếm nhiều byte hơn số ký tự)`;
+        counterEl.classList.remove('d-none');
+        counterEl.classList.toggle('text-danger', used >= ERP_REASON_MAX_BYTES);
+    }
+    function reasonEnforceLimit() {
+        const typeEl = document.getElementById('leaveType');
+        const reasonEl = document.getElementById('reason');
+        if (ERP_REMARK_TYPES.includes(typeEl.value) && utf8ByteLength(reasonEl.value) > ERP_REASON_MAX_BYTES) {
+            reasonEl.value = truncateUtf8(reasonEl.value, ERP_REASON_MAX_BYTES);
+        }
+        reasonShowCounter();
+    }
+    document.getElementById('leaveType')?.addEventListener('change', reasonShowCounter);
+    document.getElementById('reason')?.addEventListener('input', reasonEnforceLimit);
+
     // ─── Load all employees on page load ─────────────────────────
     window.addEventListener('DOMContentLoaded', () => {
         const todayStr = new Date().toISOString().slice(0, 10);
@@ -251,6 +283,7 @@
         toEl.min   = todayStr; toEl.value   = todayStr;
         autoCalcDays();
         loadEmps();
+        reasonShowCounter();
     });
 
     async function loadEmps() {
@@ -419,6 +452,7 @@
         const todayStr = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
         if (fromDate < todayStr) { showToast('Không được sắp lịch ngày quá khứ.', 'warning'); return; }
         if (isNaN(totalDays) || totalDays <= 0) { showToast('Số ngày nghỉ không hợp lệ.', 'warning'); return; }
+        if (leaveType !== 'AL' && !reason)    { showToast('Vui lòng nhập lý do nghỉ.', 'warning'); return; }
         if (selectedSet.size === 0)           { showToast('Chưa chọn nhân viên.', 'warning'); return; }
 
         const btn = document.getElementById('btnSubmit');

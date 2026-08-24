@@ -140,6 +140,33 @@ public class HomeController : ControllerBase
     }
 
     // ============================================================
+    // GET /apiHR/Home/leave-doc-missing?empcd=X&role_name=Y
+    // Danh sách đơn nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai tháng này chưa nộp giấy tờ
+    // ============================================================
+    [HttpGet("leave-doc-missing")]
+    public async Task<IActionResult> LeaveDocMissing(string empcd, string? role_name = null)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd))
+                return Ok(new { success = false, message = "Thiếu mã nhân viên" });
+
+            var user = new HomeUserContext
+            {
+                EMPCD    = empcd,
+                ROLENAME = string.IsNullOrEmpty(role_name) ? "Employee" : role_name
+            };
+
+            var data = await _summarySvc.GetLeaveDocMissingListAsync(user);
+            return Ok(new { success = true, data });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ============================================================
     // GET /apiHR/Home/my-calendar?empcd=X&year=&month=
     // Lịch cá nhân — chỉ trạng thái ĐÃ HOÀN TẤT (approved/confirmed).
     // Nguồn: My Samho — không phải ERP.

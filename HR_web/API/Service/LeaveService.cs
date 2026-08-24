@@ -114,12 +114,13 @@ public class LeaveService
         string? status = null, string? search = null,
         string? deptId = null, string? lineId = null, string? workId = null,
         string? dateFrom = null, string? dateTo = null,
-        int page = 1, int pageSize = 50)
+        int page = 1, int pageSize = 50, string? leaveType = null)
     {
         try
         {
             var q = new List<string> { $"approver_empcd={Uri.EscapeDataString(approverEmpcd)}" };
-            if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
+            if (!string.IsNullOrEmpty(status))    q.Add($"status={Uri.EscapeDataString(status)}");
+            if (!string.IsNullOrEmpty(leaveType)) q.Add($"leave_type={Uri.EscapeDataString(leaveType)}");
             if (!string.IsNullOrEmpty(search))   q.Add($"search={Uri.EscapeDataString(search)}");
             if (!string.IsNullOrEmpty(deptId))   q.Add($"dept_id={Uri.EscapeDataString(deptId)}");
             if (!string.IsNullOrEmpty(lineId))   q.Add($"line_id={Uri.EscapeDataString(lineId)}");
@@ -271,13 +272,14 @@ public class LeaveService
         string? status = null, string? source = null, string? search = null,
         string? deptId = null, string? lineId = null, string? workId = null,
         string? dateFrom = null, string? dateTo = null,
-        int page = 1, int pageSize = 50)
+        int page = 1, int pageSize = 50, string? leaveType = null)
     {
         try
         {
             var q = new List<string>();
-            if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
-            if (!string.IsNullOrEmpty(source))   q.Add($"source={Uri.EscapeDataString(source)}");
+            if (!string.IsNullOrEmpty(status))    q.Add($"status={Uri.EscapeDataString(status)}");
+            if (!string.IsNullOrEmpty(source))    q.Add($"source={Uri.EscapeDataString(source)}");
+            if (!string.IsNullOrEmpty(leaveType)) q.Add($"leave_type={Uri.EscapeDataString(leaveType)}");
             if (!string.IsNullOrEmpty(search))   q.Add($"search={Uri.EscapeDataString(search)}");
             if (!string.IsNullOrEmpty(deptId))   q.Add($"dept_id={Uri.EscapeDataString(deptId)}");
             if (!string.IsNullOrEmpty(lineId))   q.Add($"line_id={Uri.EscapeDataString(lineId)}");
@@ -303,14 +305,15 @@ public class LeaveService
         string? status   = null, string? source  = null, string? search  = null,
         string? deptId   = null, string? lineId   = null, string? workId  = null,
         string? dateFrom = null, string? dateTo   = null,
-        int page = 1, int pageSize = 50)
+        int page = 1, int pageSize = 50, string? leaveType = null)
     {
         try
         {
             var q = new List<string>();
             q.Add($"clerk_empcd={Uri.EscapeDataString(clerkEmpCd)}");
-            if (!string.IsNullOrEmpty(status))   q.Add($"status={Uri.EscapeDataString(status)}");
-            if (!string.IsNullOrEmpty(source))   q.Add($"source={Uri.EscapeDataString(source)}");
+            if (!string.IsNullOrEmpty(status))    q.Add($"status={Uri.EscapeDataString(status)}");
+            if (!string.IsNullOrEmpty(source))    q.Add($"source={Uri.EscapeDataString(source)}");
+            if (!string.IsNullOrEmpty(leaveType)) q.Add($"leave_type={Uri.EscapeDataString(leaveType)}");
             if (!string.IsNullOrEmpty(search))   q.Add($"search={Uri.EscapeDataString(search)}");
             if (!string.IsNullOrEmpty(deptId))   q.Add($"dept_id={Uri.EscapeDataString(deptId)}");
             if (!string.IsNullOrEmpty(lineId))   q.Add($"line_id={Uri.EscapeDataString(lineId)}");
@@ -438,6 +441,40 @@ public class LeaveService
             return new AdminBulkDeleteResponse { success = false, message = "Lỗi kết nối server" };
         }
         catch (Exception ex) { return new AdminBulkDeleteResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<LeaveActionResponse> MarkDocSubmittedAsync(string requestId, string actorEmpcd)
+    {
+        try
+        {
+            var payload  = new { REQUEST_ID = requestId, ACTOR_EMPCD = actorEmpcd };
+            var response = await _api.PostAsync("leave/doc-submitted", payload);
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<LeaveActionResponse>(json)
+                       ?? new LeaveActionResponse { success = false, message = "Lỗi parse response" };
+            }
+            return new LeaveActionResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new LeaveActionResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<LeaveActionResponse> RequestDocResubmitAsync(string requestId, string actorEmpcd, string? remark)
+    {
+        try
+        {
+            var payload  = new { REQUEST_ID = requestId, ACTOR_EMPCD = actorEmpcd, REMARK = remark };
+            var response = await _api.PostAsync("leave/doc-resubmit-request", payload);
+            if (response != null && response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<LeaveActionResponse>(json)
+                       ?? new LeaveActionResponse { success = false, message = "Lỗi parse response" };
+            }
+            return new LeaveActionResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new LeaveActionResponse { success = false, message = ex.Message }; }
     }
 
     public async Task<bool> CheckSundayAllowedAsync(string empCd)

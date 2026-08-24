@@ -75,6 +75,18 @@ public class HomeController : BaseController
     }
 
     // ============================================================
+    // GET /Home/LeaveDocMissing — modal list khi click KPI "chưa nộp giấy tờ"
+    // ============================================================
+    [HttpGet]
+    public async Task<IActionResult> LeaveDocMissing()
+    {
+        if (CurrentUser?.EmpCd == null) return Json(new { success = false });
+
+        var data = await _homeApi.GetLeaveDocMissingAsync(CurrentUser.EmpCd, CurrentUser.RoleName);
+        return Json(new { success = data != null, data });
+    }
+
+    // ============================================================
     // GET /Home/MyCalendar?year=&month= — AJAX cho mini calendar cá nhân
     // ============================================================
     [HttpGet]

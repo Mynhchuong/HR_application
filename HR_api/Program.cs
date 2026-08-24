@@ -89,6 +89,9 @@ builder.Services.AddScoped<HR_api.Helpers.TrainingAuthHelper>();
 builder.Services.AddHostedService<HR_api.HostedServices.TrainingLifecycleService>();
 builder.Services.AddHostedService<HR_api.HostedServices.TrainingNotificationWorker>();
 
+// Leave — nhắc nộp giấy tờ (Đám tang/Đám cưới/Vợ sanh/Khám thai)
+builder.Services.AddHostedService<HR_api.HostedServices.LeaveDocReminderService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>

@@ -160,7 +160,7 @@ public class LeaveController : BaseController
     // ─────────────────────────────────────────────
     [HttpGet]
     public async Task<IActionResult> GetApprovalListPage(
-        string? status = null, string? search = null,
+        string? status = null, string? leave_type = null, string? search = null,
         string? dept_id = null, string? line_id = null, string? work_id = null,
         string? date_from = null, string? date_to = null,
         int page = 1, int page_size = 50)
@@ -174,13 +174,13 @@ public class LeaveController : BaseController
             {
                 var adminRes = await _leaveService.GetHRListAsync(
                     status, null, search, dept_id, line_id, work_id,
-                    date_from, date_to, page, page_size);
+                    date_from, date_to, page, page_size, leave_type);
                 return Json(adminRes);
             }
 
             var result = await _leaveService.GetApprovalListAsync(
                 CurrentUser.EmpCd, status, search, dept_id, line_id, work_id,
-                date_from, date_to, page, page_size);
+                date_from, date_to, page, page_size, leave_type);
             return Json(result);
         }
         catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
@@ -467,7 +467,7 @@ public class LeaveController : BaseController
     // ─────────────────────────────────────────────
     [HttpGet]
     public async Task<IActionResult> GetClerkListPage(
-        string? status = null, string? source = null, string? search = null,
+        string? status = null, string? source = null, string? leave_type = null, string? search = null,
         string? dept_id = null, string? line_id = null, string? work_id = null,
         string? date_from = null, string? date_to = null,
         int page = 1, int page_size = 50)
@@ -478,7 +478,7 @@ public class LeaveController : BaseController
                 return Json(new { success = false, message = "Chưa đăng nhập" });
             var result = await _leaveService.GetClerkListAsync(
                 CurrentUser.EmpCd, status, source, search, dept_id, line_id, work_id,
-                date_from, date_to, page, page_size);
+                date_from, date_to, page, page_size, leave_type);
             return Json(result);
         }
         catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
@@ -489,7 +489,7 @@ public class LeaveController : BaseController
     // ─────────────────────────────────────────────
     [HttpGet]
     public async Task<IActionResult> GetHRListPage(
-        string? status = null, string? source = null, string? search = null,
+        string? status = null, string? source = null, string? leave_type = null, string? search = null,
         string? dept_id = null, string? line_id = null, string? work_id = null,
         string? date_from = null, string? date_to = null,
         int page = 1, int page_size = 50)
@@ -500,7 +500,7 @@ public class LeaveController : BaseController
                 return Json(new { success = false, message = "Chưa đăng nhập" });
             var result = await _leaveService.GetHRListAsync(
                 status, source, search, dept_id, line_id, work_id,
-                date_from, date_to, page, page_size);
+                date_from, date_to, page, page_size, leave_type);
             return Json(result);
         }
         catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
@@ -534,6 +534,30 @@ public class LeaveController : BaseController
         if (CurrentUser?.RoleName != "Admin") return Forbid();
         model.ACTOR_EMPCD = CurrentUser.EmpCd ?? "";
         var result = await _leaveService.AdminDeleteLeavesAsync(model);
+        return Json(result);
+    }
+
+    // ─────────────────────────────────────────────
+    // POST: /Leave/MarkDocSubmitted (AJAX) — HR/Clerk/Admin đánh dấu đã nhận giấy tờ
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> MarkDocSubmitted(string requestId)
+    {
+        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Clerk" && CurrentUser?.RoleName != "Admin")
+            return Json(new { success = false, message = "Không có quyền" });
+        var result = await _leaveService.MarkDocSubmittedAsync(requestId, CurrentUser.EmpCd ?? "");
+        return Json(result);
+    }
+
+    // ─────────────────────────────────────────────
+    // POST: /Leave/RequestDocResubmit (AJAX) — HR/Clerk/Admin yêu cầu nộp lại
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> RequestDocResubmit(string requestId, string? remark)
+    {
+        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Clerk" && CurrentUser?.RoleName != "Admin")
+            return Json(new { success = false, message = "Không có quyền" });
+        var result = await _leaveService.RequestDocResubmitAsync(requestId, CurrentUser.EmpCd ?? "", remark);
         return Json(result);
     }
 

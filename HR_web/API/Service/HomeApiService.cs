@@ -109,6 +109,26 @@ public class HomeApiService
             return null;
         }
     }
+
+    // ============================================================
+    // GET /apiHR/Home/leave-doc-missing
+    // ============================================================
+    public async Task<List<LeaveDocMissingItem>?> GetLeaveDocMissingAsync(string empcd, string? roleName)
+    {
+        try
+        {
+            var q = $"empcd={Uri.EscapeDataString(empcd)}" +
+                    (string.IsNullOrEmpty(roleName) ? "" : $"&role_name={Uri.EscapeDataString(roleName)}");
+
+            var resp = await _api.GetAsync<LeaveDocMissingResponse>("home/leave-doc-missing", q);
+            return resp?.success == true ? resp.data : null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[HomeApiService] GetLeaveDocMissingAsync error: {ex.Message}");
+            return null;
+        }
+    }
 }
 
 // ─── Response DTO (match /apiHR/Home/* JSON structure) ───────────────
@@ -208,7 +228,29 @@ public class HomeSummaryData
     public int      TEAM_BIRTHDAY_COUNT { get; set; }
     public int      LEAVE_TODAY_TOTAL   { get; set; }
     public int      GP_TODAY_TOTAL      { get; set; }
+    public int      LEAVE_DOC_MISSING_COUNT { get; set; }
     public DateTime AS_OF               { get; set; }
+}
+
+// ─── Leave doc missing (Đám tang/Đám cưới/Vợ sanh/Khám thai chưa nộp giấy tờ)
+public class LeaveDocMissingResponse
+{
+    public bool                       success { get; set; }
+    public string?                    message { get; set; }
+    public List<LeaveDocMissingItem>? data    { get; set; }
+}
+
+public class LeaveDocMissingItem
+{
+    public string    EMPCD      { get; set; } = "";
+    public string?   CNAME      { get; set; }
+    public string?   DEPT_NAME  { get; set; }
+    public string?   LINE_NAME  { get; set; }
+    public string?   WORK_NAME  { get; set; }
+    public string?   LEAVE_TYPE { get; set; }
+    public DateTime? FROM_DATE  { get; set; }
+    public DateTime? TO_DATE    { get; set; }
+    public string?   DOC_STATUS { get; set; }
 }
 
 // ─── Team birthday

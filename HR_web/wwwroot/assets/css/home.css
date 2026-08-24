@@ -607,6 +607,17 @@ body.home-hero-popup-open { overflow: hidden; }
 }
 .home-bd-name { font-weight: 600; color: #1f2937; }
 .home-bd-meta { font-size: 0.8rem; color: #6b7280; }
+.home-bd-docstatus {
+    display: inline-block; margin-left: 6px; padding: 1px 8px;
+    border-radius: 999px; font-size: 0.68rem; font-weight: 700;
+    background: #f1f5f9; color: #64748b; vertical-align: middle;
+}
+/* Không dùng font Vnitbi__ kế thừa từ .vni-font (thiếu glyph "ê") — selector 2 class
+   để chắc chắn thắng độ ưu tiên so với ".vni-font *" dù cả hai đều !important */
+.home-bd-item .home-bd-docstatus {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+.home-bd-docstatus.is-resubmit { background: #fef3c7; color: #92400e; }
 
 /* ══════════════════════════════════════════════════════════════
    My Calendar — Modern personal mini-calendar

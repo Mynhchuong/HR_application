@@ -54,8 +54,12 @@ public class HomeSummaryService
     {
         var result = new HomeSummaryModel { AS_OF = DateTime.Now };
 
-        // Check user có được set scope không — nếu không có → COUNT = 0
-        var hasScope = await HasScopeAsync(user.EMPCD);
+        // Check user có được set scope không — nếu không có → COUNT = 0.
+        // Admin không có dòng nào trong HR_USERS_DEPT (không gắn phòng ban cụ thể) nhưng vẫn cần
+        // thấy KPI toàn công ty — coi Admin như luôn "có scope", các query bên dưới sẽ tự bỏ điều
+        // kiện lọc phòng ban khi role là Admin (xem CountLeaveDocMissingAsync/GetLeaveDocMissingListAsync).
+        bool isAdmin  = string.Equals(user.ROLENAME, "Admin", StringComparison.OrdinalIgnoreCase);
+        var hasScope = isAdmin || await HasScopeAsync(user.EMPCD);
         if (!hasScope)
         {
             // Vẫn count team birthday (không cần scope)
@@ -72,8 +76,9 @@ public class HomeSummaryService
         var leaveTodayTask  = CountLeaveTodayAsync(user.EMPCD);
         var gpTodayTask     = CountGpTodayAsync(user.EMPCD);
         var trainingTodayTask = _trainingTeam.CountTodayInScopeAsync(user.EMPCD);
+        var docMissingTask  = CountLeaveDocMissingAsync(user);
 
-        await Task.WhenAll(leaveTask, gpTask, otTask, bdTask, leaveTodayTask, gpTodayTask, trainingTodayTask);
+        await Task.WhenAll(leaveTask, gpTask, otTask, bdTask, leaveTodayTask, gpTodayTask, trainingTodayTask, docMissingTask);
 
         result.LEAVE_PENDING        = leaveTask.Result;
         result.GP_PENDING           = gpTask.Result;
@@ -84,8 +89,77 @@ public class HomeSummaryService
         result.LEAVE_TODAY_TOTAL    = leaveTodayTask.Result;
         result.GP_TODAY_TOTAL       = gpTodayTask.Result;
         result.TRAINING_TODAY_TOTAL = trainingTodayTask.Result;
+        result.LEAVE_DOC_MISSING_COUNT = docMissingTask.Result;
 
         return result;
+    }
+
+    // Đếm số đơn nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai (tháng hiện tại) đã duyệt mà chưa nộp giấy tờ
+    private async Task<int> CountLeaveDocMissingAsync(HomeUserContext user)
+    {
+        // Admin không có dòng trong HR_USERS_DEPT → bỏ điều kiện lọc phòng ban, xem toàn công ty
+        bool isAdmin = string.Equals(user.ROLENAME, "Admin", StringComparison.OrdinalIgnoreCase);
+        var scope = isAdmin
+            ? new OTScopeFilterHelper.FilterResult("", new List<OracleParameter>())
+            : OTScopeFilterHelper.ForScopeByTuple(user.EMPCD, empAlias: "EC", prefix: "DM");
+        string sql = $@"
+            SELECT COUNT(*) AS CNT
+            FROM HRMS.HR_LEAVE_REQUEST L
+            JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID = L.REQUEST_ID
+            JOIN HRMS.ECM100    EC ON EC.EMPCD     = L.EMPCD
+            WHERE R.REQUEST_TYPE = 'LEAVE'
+              AND L.LEAVE_TYPE IN ('DT','DC','VS','KT')
+              AND R.STATUS IN ('APPROVED','ASSIGNED')
+              AND (L.SOURCE = 'SELF' OR NVL(L.CONFIRM_STATUS,'X') != 'WORKER_REJECTED')
+              AND TRUNC(L.TO_DATE,'MM') = TRUNC(SYSDATE,'MM')
+              AND NVL(L.DOC_STATUS,'X') != 'SUBMITTED'
+              AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+              {scope.SqlClause}";
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql,
+            r => Convert.ToInt32(r["CNT"]),
+            scope.Params.ToArray());
+        return rows.FirstOrDefault();
+    }
+
+    // Danh sách chi tiết cho popup khi user click KPI "chưa nộp giấy tờ"
+    public async Task<List<LeaveDocMissingItem>> GetLeaveDocMissingListAsync(HomeUserContext user)
+    {
+        bool isAdmin = string.Equals(user.ROLENAME, "Admin", StringComparison.OrdinalIgnoreCase);
+        if (!isAdmin && !await HasScopeAsync(user.EMPCD)) return new List<LeaveDocMissingItem>();
+
+        var scope = isAdmin
+            ? new OTScopeFilterHelper.FilterResult("", new List<OracleParameter>())
+            : OTScopeFilterHelper.ForScopeByTuple(user.EMPCD, empAlias: "EC", prefix: "DL");
+        string sql = $@"
+            SELECT L.EMPCD, EC.CNAME, B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
+                   L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE, L.DOC_STATUS
+            FROM HRMS.HR_LEAVE_REQUEST L
+            JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID = L.REQUEST_ID
+            JOIN HRMS.ECM100    EC ON EC.EMPCD     = L.EMPCD
+            LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+            WHERE R.REQUEST_TYPE = 'LEAVE'
+              AND L.LEAVE_TYPE IN ('DT','DC','VS','KT')
+              AND R.STATUS IN ('APPROVED','ASSIGNED')
+              AND (L.SOURCE = 'SELF' OR NVL(L.CONFIRM_STATUS,'X') != 'WORKER_REJECTED')
+              AND TRUNC(L.TO_DATE,'MM') = TRUNC(SYSDATE,'MM')
+              AND NVL(L.DOC_STATUS,'X') != 'SUBMITTED'
+              AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+              {scope.SqlClause}
+            ORDER BY L.TO_DATE DESC";
+
+        return await _oracleService.ExecuteQueryAsync(sql, r => new LeaveDocMissingItem
+        {
+            EMPCD      = r["EMPCD"]?.ToString() ?? "",
+            CNAME      = r["CNAME"]?.ToString(),
+            DEPT_NAME  = r["DEPT_NAME"]?.ToString(),
+            LINE_NAME  = r["LINE_NAME"]?.ToString(),
+            WORK_NAME  = r["WORK_NAME"]?.ToString(),
+            LEAVE_TYPE = r["LEAVE_TYPE"]?.ToString(),
+            FROM_DATE  = r["FROM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["FROM_DATE"]),
+            TO_DATE    = r["TO_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["TO_DATE"]),
+            DOC_STATUS = r["DOC_STATUS"] == DBNull.Value ? null : r["DOC_STATUS"].ToString()
+        }, scope.Params.ToArray());
     }
 
     // Tổng số NV nghỉ phép hôm nay trong scope (approved, không tính pending/rejected)

@@ -173,6 +173,7 @@
             setNum('ot-signed',    data.OT_SIGNED);
             setNum('ot-total',     data.OT_TOTAL);
             setNum('bd',           data.TEAM_BIRTHDAY_COUNT);
+            setNum('leave-doc-missing', data.LEAVE_DOC_MISSING_COUNT);
             // Training today — chỉ show card khi > 0 (tránh clutter khi không có session)
             setNum('training-today', data.TRAINING_TODAY_TOTAL);
             const trainingCard = body.querySelector('[data-kpi-card="training-today"]');
@@ -286,6 +287,90 @@
         });
 
         // ESC to close
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !modal.hidden) closeModal();
+        });
+    })();
+
+    // ─── 6. LEAVE DOC MISSING MODAL ─────────────────────────────
+    (function initLeaveDocMissingModal() {
+        const modal = $('#homeLeaveDocMissingModal');
+        if (!modal) return;
+
+        const modalBody = $('[data-modal-body]', modal);
+        const card      = $('#homeSummaryCard');
+        const lang      = card ? (card.dataset.lang || 'vi') : 'vi';
+        const isEn      = lang === 'en';
+        const emptyLbl  = isEn ? 'No pending documents' : 'Không có đơn nào chưa nộp giấy tờ';
+        const errorLbl  = card ? (card.dataset.labelError || 'Không tải được danh sách') : 'Không tải được danh sách';
+        const leaveTypeNames = isEn
+            ? { DT: 'Funeral', DC: 'Wedding', VS: 'Childbirth', KT: 'Prenatal checkup' }
+            : { DT: 'Đám tang', DC: 'Đám cưới', VS: 'Vợ sanh', KT: 'Khám thai' };
+        const docStatusLabel = isEn
+            ? { RESUBMIT_REQUESTED: 'Resubmit requested' }
+            : { RESUBMIT_REQUESTED: 'Yêu cầu nộp lại' };
+        const docStatusDefault = isEn ? 'Not submitted' : 'Chưa nộp';
+
+        function openModal() {
+            modal.hidden = false;
+            loadList();
+        }
+        function closeModal() { modal.hidden = true; }
+
+        async function loadList() {
+            try {
+                const res = await fetch(ROOT + 'Home/LeaveDocMissing', {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const json = await res.json();
+                if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+                    modalBody.innerHTML = json.data.map(renderItem).join('');
+                } else {
+                    modalBody.innerHTML = '<div class="home-modal-loading">' + escapeHtml(emptyLbl) + '</div>';
+                }
+            } catch (e) {
+                modalBody.innerHTML = '<div class="home-modal-loading">' + escapeHtml(errorLbl) + '</div>';
+                console.warn('[home] leave doc missing fetch error:', e);
+            }
+        }
+
+        function formatDate(s) {
+            if (!s) return '-';
+            const d = new Date(s);
+            if (isNaN(d)) return '-';
+            return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear();
+        }
+
+        function renderItem(item) {
+            const initial = (item.CNAME || '?').charAt(0).toUpperCase();
+            const orgParts = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(x => x).join(' · ');
+            const ltName = leaveTypeNames[item.LEAVE_TYPE] || item.LEAVE_TYPE || '';
+            const isResubmit = item.DOC_STATUS === 'RESUBMIT_REQUESTED';
+            const statusText = isResubmit ? docStatusLabel.RESUBMIT_REQUESTED : docStatusDefault;
+            const statusBadge = `<span class="home-bd-docstatus${isResubmit ? ' is-resubmit' : ''}">${escapeHtml(statusText)}</span>`;
+            return `<div class="home-bd-item">
+                <div class="home-bd-avatar">${initial}</div>
+                <div>
+                    <div class="home-bd-name vni-font">${escapeHtml(item.CNAME || '')} ${statusBadge}</div>
+                    <div class="home-bd-meta"><strong>${escapeHtml(item.EMPCD || '')}</strong>${orgParts ? ' · ' + escapeHtml(orgParts) : ''}</div>
+                    <div class="home-bd-meta">${escapeHtml(ltName)} · ${formatDate(item.FROM_DATE)} – ${formatDate(item.TO_DATE)}</div>
+                </div>
+            </div>`;
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        }
+
+        document.addEventListener('click', (e) => {
+            const opener = e.target.closest('[data-open="leave-doc-missing"]');
+            if (opener) { e.preventDefault(); openModal(); return; }
+            const closer = e.target.closest('[data-close="leave-doc-missing"]');
+            if (closer) { e.preventDefault(); closeModal(); return; }
+        });
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && !modal.hidden) closeModal();
         });

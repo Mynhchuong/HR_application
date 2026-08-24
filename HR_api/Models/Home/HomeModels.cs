@@ -73,7 +73,24 @@ public class HomeSummaryModel
     public int      GP_TODAY_TOTAL       { get; set; }
     public int      TRAINING_TODAY_TOTAL { get; set; }   // §14.5 — số NV có session hôm nay
 
+    // Số đơn nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai (tháng này) chưa nộp giấy tờ cho HR
+    public int      LEAVE_DOC_MISSING_COUNT { get; set; }
+
     public DateTime AS_OF         { get; set; } = DateTime.Now;
+}
+
+// Cho popup "chưa nộp giấy tờ" (khi user click KPI tile)
+public class LeaveDocMissingItem
+{
+    public string    EMPCD      { get; set; } = "";
+    public string?   CNAME      { get; set; }
+    public string?   DEPT_NAME  { get; set; }
+    public string?   LINE_NAME  { get; set; }
+    public string?   WORK_NAME  { get; set; }
+    public string?   LEAVE_TYPE { get; set; }
+    public DateTime? FROM_DATE  { get; set; }
+    public DateTime? TO_DATE    { get; set; }
+    public string?   DOC_STATUS { get; set; }   // NULL=chưa nộp | RESUBMIT_REQUESTED
 }
 
 // Cho team birthday list (khi user click chip)

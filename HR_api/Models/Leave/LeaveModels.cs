@@ -3,7 +3,7 @@ namespace HR_api.Models.Leave;
 public class LeaveSubmitRequest
 {
     public string  EMPCD      { get; set; } = string.Empty;
-    public string  LEAVE_TYPE { get; set; } = string.Empty; // AL|CL|SL|NPL|OTH
+    public string  LEAVE_TYPE { get; set; } = string.Empty; // AL|DT|DC|CT|VS|KT (form tạo mới); CL/SL/NPL/OTH chỉ còn trong dữ liệu lịch sử
     public string  FROM_DATE  { get; set; } = string.Empty; // yyyy-MM-dd
     public string  TO_DATE    { get; set; } = string.Empty; // yyyy-MM-dd
     public decimal TOTAL_DAYS { get; set; }
@@ -51,6 +51,13 @@ public class AdminBulkDeleteRequest
     public List<string> REQUEST_IDS  { get; set; } = new();
 }
 
+public class LeaveDocStatusRequest
+{
+    public string  REQUEST_ID  { get; set; } = string.Empty;
+    public string  ACTOR_EMPCD { get; set; } = string.Empty;
+    public string? REMARK      { get; set; }   // dùng khi yêu cầu nộp lại
+}
+
 public class LeaveMyRequestModel
 {
     public string    REQUEST_ID     { get; set; } = string.Empty;
@@ -71,6 +78,7 @@ public class LeaveMyRequestModel
     public DateTime? FINAL_DATE     { get; set; }
     public string?   ASSIGNED_BY    { get; set; }
     public string?   ASSIGNER_NAME  { get; set; }
+    public string?   DOC_STATUS     { get; set; }
 }
 
 public class LeaveListModel
@@ -100,6 +108,10 @@ public class LeaveListModel
     public string?   REQUESTER_ROLE { get; set; }
     public string?   ASSIGNED_BY    { get; set; }
     public string?   ASSIGNER_NAME  { get; set; }
+    public string?   DOC_STATUS         { get; set; }
+    public DateTime? DOC_SUBMITTED_DATE { get; set; }
+    public string?   DOC_SUBMITTED_BY   { get; set; }
+    public string?   DOC_REMARK         { get; set; }
 }
 
 public class LeaveSummary

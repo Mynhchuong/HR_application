@@ -86,16 +86,16 @@
                     <option value="ASSIGNED">Sắp lịch</option>
                 </select>
             </div>
-            <!-- Ẩn tạm: leave_type chưa được backend (LeaveService/API) hỗ trợ filter, chọn không có tác dụng -->
-            <div class="d-none" style="min-width:120px;flex:1 1 120px;max-width:160px;">
+            <div style="min-width:130px;flex:1 1 130px;max-width:170px;">
                 <label class="form-label small fw-bold mb-1 text-primary">Loại nghỉ</label>
                 <select id="filterLeaveType" class="form-select form-select-sm">
                     <option value="">Tất cả</option>
                     <option value="AL">Phép năm (AL)</option>
-                    <option value="CL">BHXH (CL)</option>
-                    <option value="SL">Bệnh (SL)</option>
-                    <option value="NPL">Không lương (NPL)</option>
-                    <option value="OTH">Khác (OTH)</option>
+                    <option value="DT">Đám tang (DT)</option>
+                    <option value="DC">Đám cưới (DC)</option>
+                    <option value="CT">Công tác (CT)</option>
+                    <option value="VS">Vợ sanh (VS)</option>
+                    <option value="KT">Khám thai (KT)</option>
                 </select>
             </div>
             <div style="min-width:150px;flex:2 1 150px;max-width:220px;">
@@ -150,6 +150,7 @@
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Tình Trạng</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Người duyệt / Người sắp</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ghi chú</th>
+                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Giấy tờ</th>
                         </tr>
                     </thead>
                     <tbody id="lvTableBody"></tbody>
@@ -163,6 +164,45 @@
     </div>
 </div>
 
+<!-- Xác nhận đã nộp giấy tờ -->
+<div class="modal fade" id="docConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0"><i class="bi bi-check-circle text-success me-1"></i> Xác nhận đã nộp giấy tờ</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0" style="font-size:.85rem;">Xác nhận đã nhận giấy tờ của nhân viên này?</p>
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+                <button class="btn btn-success btn-sm" id="docConfirmOkBtn">Xác nhận</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Yêu cầu nộp lại giấy tờ -->
+<div class="modal fade" id="docResubmitModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0"><i class="bi bi-arrow-repeat text-warning me-1"></i> Yêu cầu nộp lại giấy tờ</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label small fw-bold mb-1">Lý do</label>
+                <textarea id="docResubmitRemark" class="form-control form-control-sm" rows="3" maxlength="200" placeholder="Nhập lý do yêu cầu nộp lại..."></textarea>
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
+                <button class="btn btn-warning btn-sm" id="docResubmitOkBtn">Gửi yêu cầu</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script src="~/js/vendor/xlsx.full.min.js" asp-append-version="true"></script>
 <script src="~/js/xlsx-export-helper.js" asp-append-version="true"></script>
@@ -170,8 +210,49 @@
 const PAGE_URL = '@Url.Action("GetHRListPage", "Leave")';
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 
-const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác' };
-const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
+const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', KT:'Khám thai' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', DT:'dark', DC:'danger', CT:'info', VS:'primary', KT:'warning' };
+const DOC_REQUIRED_TYPES = ['DT', 'DC', 'VS', 'KT'];
+const DOC_STATUS_LABEL   = { SUBMITTED: 'Đã nộp', RESUBMIT_REQUESTED: 'Yêu cầu nộp lại' };
+const DOC_STATUS_COLOR   = { SUBMITTED: 'success', RESUBMIT_REQUESTED: 'warning' };
+
+function docCell(item) {
+    if (!DOC_REQUIRED_TYPES.includes(item.LEAVE_TYPE)) return '<span class="text-muted">-</span>';
+    const st    = item.DOC_STATUS || null;
+    const badge = `<span class="badge bg-${DOC_STATUS_COLOR[st] || 'secondary'}">${DOC_STATUS_LABEL[st] || 'Chưa nộp'}</span>`;
+    const btns  = st === 'SUBMITTED'
+        ? `<button class="btn btn-outline-warning btn-sm py-0 px-1 mt-1" style="font-size:.68rem;" onclick="requestDocResubmit('${item.REQUEST_ID}')">Yêu cầu nộp lại</button>`
+        : `<button class="btn btn-outline-success btn-sm py-0 px-1 mt-1" style="font-size:.68rem;" onclick="markDocSubmitted('${item.REQUEST_ID}')">Cập nhật đã nộp</button>`;
+    return `<div class="d-flex flex-column align-items-center gap-1">${badge}${btns}</div>`;
+}
+
+let _docPendingRequestId = null;
+const docConfirmModal  = new bootstrap.Modal(document.getElementById('docConfirmModal'));
+const docResubmitModal = new bootstrap.Modal(document.getElementById('docResubmitModal'));
+
+function markDocSubmitted(requestId) {
+    _docPendingRequestId = requestId;
+    docConfirmModal.show();
+}
+document.getElementById('docConfirmOkBtn').addEventListener('click', async () => {
+    docConfirmModal.hide();
+    const res = await $.post('@Url.Action("MarkDocSubmitted", "Leave")', { requestId: _docPendingRequestId });
+    showToast(res.message || (res.success ? 'Đã cập nhật' : 'Có lỗi'), res.success ? 'success' : 'error');
+    if (res.success) loadData(currentPage);
+});
+
+function requestDocResubmit(requestId) {
+    _docPendingRequestId = requestId;
+    document.getElementById('docResubmitRemark').value = '';
+    docResubmitModal.show();
+}
+document.getElementById('docResubmitOkBtn').addEventListener('click', async () => {
+    const remark = document.getElementById('docResubmitRemark').value.trim();
+    docResubmitModal.hide();
+    const res = await $.post('@Url.Action("RequestDocResubmit", "Leave")', { requestId: _docPendingRequestId, remark });
+    showToast(res.message || (res.success ? 'Đã gửi yêu cầu' : 'Có lỗi'), res.success ? 'success' : 'error');
+    if (res.success) loadData(currentPage);
+});
 
 function statusBadge(item) {
     const s = item.STATUS, src = item.SOURCE, cs = item.CONFIRM_STATUS;
@@ -219,13 +300,15 @@ function buildRow(item, idx) {
             ${signTime}
         </td>
         <td class="px-2 text-sm"><div class="txt-clamp" title="${escHtml(item.REMARK||'')}">${escHtml(item.REMARK||'-')}</div></td>
+        <td class="text-center px-2">${docCell(item)}</td>
     </tr>`;
 }
 
 function getParams(page) {
     return {
-        status:    $('#filterStatus').val(),
-        source:    $('#filterSource').val(),
+        status:     $('#filterStatus').val(),
+        source:     $('#filterSource').val(),
+        leave_type: $('#filterLeaveType').val(),
         search:    $('#searchInput').val(),
         dept_id:   $('#filterDept').val(),
         line_id:   $('#filterLine').val(),
@@ -239,12 +322,12 @@ function getParams(page) {
 
 function loadData(page = 1) {
     currentPage = page;
-    $('#lvTableBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-success" role="status"></div></td></tr>`);
+    $('#lvTableBody').html(`<tr><td colspan="13" class="text-center py-5"><div class="spinner-border text-success" role="status"></div></td></tr>`);
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),
         success: function(res) {
             if (!res.success) {
-                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                $('#lvTableBody').html(`<tr><td colspan="13" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
                 return;
             }
             const s = res.summary || {};
@@ -258,14 +341,14 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-muted py-4"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu</td></tr>`);
+                $('#lvTableBody').html(`<tr><td colspan="13" class="text-center text-muted py-4"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu</td></tr>`);
             } else {
                 $('#lvTableBody').html(data.map((item,i) => buildRow(item,(page-1)*pageSize+i+1)).join(''));
             }
             renderPagination();
         },
         error: function(xhr) {
-            $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#lvTableBody').html(`<tr><td colspan="13" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
         }
     });
 }
@@ -301,7 +384,7 @@ $('#exportBtn').on('click', async function() {
             pg++;
         } while (pg <= pgTotal);
         if (!rows.length) { showToast('Không có dữ liệu để xuất', 'warning'); return; }
-        const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Loại','Nguồn','Từ ngày','Đến ngày','Số ngày','Lý do','Tình trạng','Người duyệt / Người sắp','Ngày duyệt / Ngày sắp','Ghi chú'];
+        const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Loại','Nguồn','Từ ngày','Đến ngày','Số ngày','Lý do','Tình trạng','Người duyệt / Người sắp','Ngày duyệt / Ngày sắp','Ghi chú','Giấy tờ'];
         let html = '<html><head><meta charset="utf-8"/></head><body><table border="1"><thead><tr>';
         html += headers.map(h=>`<th style="background:#bbf7d0;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
         rows.forEach((r,i) => {
@@ -319,7 +402,8 @@ $('#exportBtn').on('click', async function() {
             }
             const signerName = r.SOURCE==='ASSIGNED' ? (r.ASSIGNED_BY||'') : (r.FINAL_APPROVER||'');
             const signerDate = r.SOURCE==='ASSIGNED' ? r.CREATED_DATE : r.FINAL_DATE;
-            html += `<tr><td>${i+1}</td><td data-t="s">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${lt}</td><td>${src}</td><td>${formatDate(r.FROM_DATE)}</td><td>${formatDate(r.TO_DATE)}</td><td>${r.TOTAL_DAYS??''}</td><td>${escHtml(r.REASON||'')}</td><td>${st}</td><td>${escHtml(signerName)}</td><td>${formatDate(signerDate)}</td><td>${escHtml(r.REMARK||'')}</td></tr>`;
+            const docTxt = DOC_REQUIRED_TYPES.includes(r.LEAVE_TYPE) ? (DOC_STATUS_LABEL[r.DOC_STATUS] || 'Chưa nộp') : '-';
+            html += `<tr><td>${i+1}</td><td data-t="s">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${lt}</td><td>${src}</td><td>${formatDate(r.FROM_DATE)}</td><td>${formatDate(r.TO_DATE)}</td><td>${r.TOTAL_DAYS??''}</td><td>${escHtml(r.REASON||'')}</td><td>${st}</td><td>${escHtml(signerName)}</td><td>${formatDate(signerDate)}</td><td>${escHtml(r.REMARK||'')}</td><td>${docTxt}</td></tr>`;
         });
         html += '</tbody></table></body></html>';
         exportHtmlTableToXlsx(html, `NghiPhep_${$('#filterDateFrom').val()}_${$('#filterDateTo').val()}.xlsx`);

@@ -26,19 +26,7 @@
     .source-tab:not(.active) { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
     .source-tab:not(.active):hover { background: #e2e8f0; }
 
-    /* Leave type card picker */
-    .lt-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-    .lt-card { position:relative; }
-    .lt-card input[type=radio] { position:absolute; opacity:0; width:0; height:0; }
-    .lt-card label { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:10px 6px; min-height:76px; border:2px solid #e2e8f0; border-radius:12px; cursor:pointer; background:#f8fafc; transition:all .18s; text-align:center; }
-    .lt-emoji { font-size:1.9rem; font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif; font-style:normal; line-height:1.1; display:block; transition:transform .18s; }
-    .lt-card label .lt-name { font-size:.75rem; font-weight:700; color:#374151; line-height:1.2; }
-    .lt-card label .lt-code { font-size:.65rem; color:#9ca3af; font-family:monospace; }
-    .lt-card label:hover { border-color:#94a3b8; background:#f1f5f9; }
-    .lt-card input:checked + label { border-color:var(--lc); background:var(--lb); box-shadow:0 0 0 3px color-mix(in srgb,var(--lc) 18%,transparent); }
-    .lt-card input:checked + label .lt-emoji { transform:scale(1.18); }
-    .lt-card input:checked + label .lt-name { color:var(--lc); }
-    @@media (max-width:400px) { .lt-cards { grid-template-columns:repeat(2,1fr); } }
+    .lt-note { margin-top:8px; padding:8px 10px; border-radius:8px; background:#f0f9ff; border-left:3px solid #0ea5e9; font-size:.78rem; color:#0c4a6e; line-height:1.45; }
 
     .month-nav { display:flex; align-items:center; gap:6px; }
     .month-nav button { border:none; background:rgba(255,255,255,.22); color:#fff; border-radius:6px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:.95rem; cursor:pointer; }
@@ -154,28 +142,15 @@
             <div class="modal-body">
                 <div class="mb-3">
                     <label class="form-label fw-bold mb-2">Loại nghỉ <span class="text-danger">*</span></label>
-                    <div class="lt-cards">
-                        <div class="lt-card" style="--lc:#3b82f6;--lb:#eff6ff;">
-                            <input type="radio" name="createLT" id="clt-AL" value="AL" checked>
-                            <label for="clt-AL"><img src="~/assets/img/icons/@(new Random().Next(2) == 0 ? "A_AL" : "C_AL").png" style="width:64px;height:64px;object-fit:contain;" alt="AL" /><span class="lt-name">Phép năm</span></label>
-                        </div>
-                        <div class="lt-card d-none" style="--lc:#0891b2;--lb:#ecfeff;">
-                            <input type="radio" name="createLT" id="clt-CL" value="CL">
-                            <label for="clt-CL"><span class="lt-emoji">🏥</span><span class="lt-name">Nghỉ chế độ BHXH</span><span class="lt-code">CL</span></label>
-                        </div>
-                        <div class="lt-card d-none" style="--lc:#ef4444;--lb:#fff0f0;">
-                            <input type="radio" name="createLT" id="clt-SL" value="SL">
-                            <label for="clt-SL"><span class="lt-emoji">🤒</span><span class="lt-name">Nghỉ bệnh</span><span class="lt-code">SL</span></label>
-                        </div>
-                        <div class="lt-card d-none" style="--lc:#64748b;--lb:#f1f5f9;">
-                            <input type="radio" name="createLT" id="clt-NPL" value="NPL">
-                            <label for="clt-NPL"><span class="lt-emoji">💼</span><span class="lt-name">Không lương</span><span class="lt-code">NPL</span></label>
-                        </div>
-                        <div class="lt-card d-none" style="--lc:#d97706;--lb:#fffbeb;">
-                            <input type="radio" name="createLT" id="clt-OTH" value="OTH">
-                            <label for="clt-OTH"><span class="lt-emoji">📋</span><span class="lt-name">Khác</span><span class="lt-code">OTH</span></label>
-                        </div>
-                    </div>
+                    <select id="createLeaveType" class="form-select">
+                        <option value="AL" selected>Phép năm (AL)</option>
+                        <option value="DT">Đám tang (DT)</option>
+                        <option value="DC">Đám cưới (DC)</option>
+                        <option value="CT">Công tác (CT)</option>
+                        <option value="VS">Vợ sanh (VS)</option>
+                        <option value="KT">Khám thai (KT)</option>
+                    </select>
+                    <div id="createLTNote" class="lt-note d-none"></div>
                 </div>
                 <div class="row">
                     <div class="col-6 mb-3">
@@ -194,6 +169,7 @@
                 <div class="mb-3">
                     <label class="form-label fw-bold">Lý do <span class="text-danger">*</span></label>
                     <textarea id="createReason" class="form-control" rows="2" maxlength="500" placeholder="Nhập lý do nghỉ phép..."></textarea>
+                    <div id="createReasonCounter" class="text-xs text-muted mt-1 d-none"></div>
                 </div>
                 <div id="createError" class="alert alert-danger d-none py-2"></div>
             </div>
@@ -219,28 +195,15 @@
                 <input type="hidden" id="editRequestId" />
                 <div class="mb-3">
                     <label class="form-label fw-bold mb-2">Loại nghỉ <span class="text-danger">*</span></label>
-                    <div class="lt-cards">
-                        <div class="lt-card" style="--lc:#3b82f6;--lb:#eff6ff;">
-                            <input type="radio" name="editLT" id="elt-AL" value="AL">
-                            <label for="elt-AL"><img src="~/assets/img/icons/@(new Random().Next(2) == 0 ? "A_AL" : "C_AL").png" style="width:64px;height:64px;object-fit:contain;" alt="AL" /><span class="lt-name">Phép năm</span></label>
-                        </div>
-                        <div class="lt-card d-none" style="--lc:#0891b2;--lb:#ecfeff;">
-                            <input type="radio" name="editLT" id="elt-CL" value="CL">
-                            <label for="elt-CL"><span class="lt-emoji">🏥</span><span class="lt-name">Nghỉ chế độ BHXH</span><span class="lt-code">CL</span></label>
-                        </div>
-                        <div class="lt-card d-none" style="--lc:#ef4444;--lb:#fff0f0;">
-                            <input type="radio" name="editLT" id="elt-SL" value="SL">
-                            <label for="elt-SL"><span class="lt-emoji">🤒</span><span class="lt-name">Nghỉ bệnh</span><span class="lt-code">SL</span></label>
-                        </div>
-                        <div class="lt-card d-none" style="--lc:#64748b;--lb:#f1f5f9;">
-                            <input type="radio" name="editLT" id="elt-NPL" value="NPL">
-                            <label for="elt-NPL"><span class="lt-emoji">💼</span><span class="lt-name">Không lương</span><span class="lt-code">NPL</span></label>
-                        </div>
-                        <div class="lt-card d-none" style="--lc:#d97706;--lb:#fffbeb;">
-                            <input type="radio" name="editLT" id="elt-OTH" value="OTH">
-                            <label for="elt-OTH"><span class="lt-emoji">📋</span><span class="lt-name">Khác</span><span class="lt-code">OTH</span></label>
-                        </div>
-                    </div>
+                    <select id="editLeaveType" class="form-select">
+                        <option value="AL">Phép năm (AL)</option>
+                        <option value="DT">Đám tang (DT)</option>
+                        <option value="DC">Đám cưới (DC)</option>
+                        <option value="CT">Công tác (CT)</option>
+                        <option value="VS">Vợ sanh (VS)</option>
+                        <option value="KT">Khám thai (KT)</option>
+                    </select>
+                    <div id="editLTNote" class="lt-note d-none"></div>
                 </div>
                 <div class="row">
                     <div class="col-6 mb-3">
@@ -259,6 +222,7 @@
                 <div class="mb-3">
                     <label class="form-label fw-bold">Lý do</label>
                     <textarea id="editReason" class="form-control" rows="2" maxlength="500"></textarea>
+                    <div id="editReasonCounter" class="text-xs text-muted mt-1 d-none"></div>
                 </div>
                 <div id="editError" class="alert alert-danger d-none py-2"></div>
             </div>
@@ -342,11 +306,94 @@ function getMonthRange() {
     return { from: fmt(firstDay), to: fmt(lastDay) };
 }
 
-const LEAVE_LABEL = { AL:'Phép năm', CL:'Chế độ BHXH', SL:'Nghỉ bệnh', NPL:'Không lương', OTH:'Khác' };
-const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
+const LEAVE_LABEL = { AL:'Phép năm', CL:'Chế độ BHXH', SL:'Nghỉ bệnh', NPL:'Không lương', OTH:'Khác', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', KT:'Khám thai' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', DT:'dark', DC:'danger', CT:'info', VS:'primary', KT:'warning' };
 
 function leaveBadge(t) {
     return `<span class="badge bg-${LEAVE_COLOR[t]||'secondary'}">${LEAVE_LABEL[t]||t||'-'}</span>`;
+}
+
+const DOC_REQUIRED_TYPES = ['DT', 'DC', 'VS', 'KT'];
+
+// Ghi chú tham khảo cho NV tự chọn số ngày đúng theo quan hệ — CHỈ hiển thị, không ràng buộc logic/validate.
+const LT_POLICY_NOTE = {
+    DC: 'ℹ️ Tham khảo:<br>' +
+        '• <b>3 ngày</b> nếu là đám cưới của bản thân (báo trước 5 ngày).<br>' +
+        '• <b>1 ngày</b> nếu là cha/mẹ tái hôn, con ruột/nuôi kết hôn, hoặc anh/chị/em ruột kết hôn (báo trước 2 ngày).',
+    DT: 'ℹ️ Tham khảo:<br>' +
+        '• <b>4 ngày</b> nếu là bố mẹ ruột/nuôi (hai bên), vợ/chồng, hoặc con ruột/nuôi mất.<br>' +
+        '• <b>1 ngày</b> nếu là ông bà (nội/ngoại) hoặc anh/chị/em ruột/nuôi mất.'
+};
+// Trừ Phép năm (AL) và Công tác (CT), các loại còn lại (DT/DC/VS/KT) bắt buộc nộp giấy tờ chứng minh
+// trong tháng, nếu không sẽ bị tính nghỉ không lương + mất chuyên cần.
+const DOC_WARNING_NOTE = '⚠️ <b>Lưu ý:</b> Phải nộp giấy tờ chứng minh cho phòng Nhân sự trong tháng này. ' +
+    'Nếu không nộp sẽ bị tính là <b>nghỉ không lương</b> và <b>mất chuyên cần</b>.';
+function updateLTNote(prefix) {
+    const val   = document.getElementById(prefix + 'LeaveType')?.value;
+    const noteEl = document.getElementById(prefix + 'LTNote');
+    if (!noteEl) return;
+    let html = LT_POLICY_NOTE[val] || '';
+    if (DOC_REQUIRED_TYPES.includes(val)) html += (html ? '<br>' : '') + DOC_WARNING_NOTE;
+    if (html) { noteEl.innerHTML = html; noteEl.classList.remove('d-none'); }
+    else { noteEl.innerHTML = ''; noteEl.classList.add('d-none'); }
+}
+document.getElementById('createLeaveType')?.addEventListener('change', () => updateLTNote('create'));
+document.getElementById('editLeaveType')?.addEventListener('change', () => updateLTNote('edit'));
+
+// ERP remark tối đa 30 byte, gồm tiền tố "XX " (mã loại + dấu cách = 3 byte) + lý do NV gõ.
+// Chỉ áp dụng cho 5 loại ghi thẳng lý do vào remark ERP (AL không dùng lý do trong remark).
+const ERP_REMARK_TYPES = ['DT', 'DC', 'CT', 'VS', 'KT'];
+const ERP_REASON_MAX_BYTES = 27;
+
+function utf8ByteLength(s) {
+    return new Blob([s || '']).size;
+}
+function truncateUtf8(s, maxBytes) {
+    s = s || '';
+    while (utf8ByteLength(s) > maxBytes) s = s.slice(0, -1);
+    return s;
+}
+function setupReasonByteLimit(prefix) {
+    const typeEl = document.getElementById(prefix + 'LeaveType');
+    const reasonEl = document.getElementById(prefix + 'Reason');
+    const counterEl = document.getElementById(prefix + 'ReasonCounter');
+    if (!typeEl || !reasonEl || !counterEl) return;
+
+    // showCounter: chỉ hiện số byte đã dùng, KHÔNG cắt (dùng khi mở modal edit — reason cũ có thể dài hơn
+    // giới hạn hiện tại vì nó là do lịch sử, không nên tự ý cắt mất dữ liệu người dùng chưa đụng tới).
+    function showCounter() {
+        const limited = ERP_REMARK_TYPES.includes(typeEl.value);
+        if (!limited) { counterEl.classList.add('d-none'); return; }
+        const used = utf8ByteLength(reasonEl.value);
+        counterEl.textContent = `${used}/${ERP_REASON_MAX_BYTES} byte (do lý do được ghi thẳng vào hệ ERP, có dấu tiếng Việt sẽ chiếm nhiều byte hơn số ký tự)`;
+        counterEl.classList.remove('d-none');
+        counterEl.classList.toggle('text-danger', used >= ERP_REASON_MAX_BYTES);
+    }
+    // enforceLimit: cắt bớt nếu vượt giới hạn — chỉ áp dụng khi NGƯỜI DÙNG đang gõ.
+    function enforceLimit() {
+        if (ERP_REMARK_TYPES.includes(typeEl.value) && utf8ByteLength(reasonEl.value) > ERP_REASON_MAX_BYTES) {
+            reasonEl.value = truncateUtf8(reasonEl.value, ERP_REASON_MAX_BYTES);
+        }
+        showCounter();
+    }
+    typeEl.addEventListener('change', showCounter);
+    reasonEl.addEventListener('input', enforceLimit);
+    showCounter();
+}
+setupReasonByteLimit('create');
+setupReasonByteLimit('edit');
+function needsDocWarning(item) {
+    return DOC_REQUIRED_TYPES.includes(item.LEAVE_TYPE)
+        && (item.STATUS === 'APPROVED' || item.STATUS === 'ASSIGNED')
+        && item.CONFIRM_STATUS !== 'WORKER_REJECTED'
+        && item.DOC_STATUS !== 'SUBMITTED';
+}
+function docWarningHtml(item) {
+    if (!needsDocWarning(item)) return '';
+    return `<div class="d-flex align-items-center gap-1 mb-2 px-2 py-1 rounded" style="background:#fde8e8;border-left:3px solid #ef4444;">
+        <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size:.8rem;"></i>
+        <span class="text-xs fw-bold" style="color:#7f1d1d;">Chưa nộp giấy tờ cho phòng Nhân sự</span>
+    </div>`;
 }
 
 function statusBadge(item) {
@@ -460,7 +507,7 @@ function buildRow(item, idx) {
            </div>` : '';
     const sigCell = `<div class="sig-cell">${reqSig}${asSig}${apSig}</div>`;
 
-    return `<tr class="${needsAction ? 'tr-pending-confirm' : expired ? 'tr-expired-pending' : ''}">
+    return `<tr class="${needsDocWarning(item) ? 'tr-expired-pending' : needsAction ? 'tr-pending-confirm' : expired ? 'tr-expired-pending' : ''}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2">${sourceBadge(item.SOURCE)}</td>
         <td class="px-2">${leaveBadge(item.LEAVE_TYPE)}</td>
@@ -468,7 +515,7 @@ function buildRow(item, idx) {
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
         <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS ?? '-'}</td>
         <td class="px-2 text-sm d-none d-md-table-cell"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
-        <td class="text-center">${statusBadge(item)}${remarkHtml(item)}</td>
+        <td class="text-center">${statusBadge(item)}${remarkHtml(item)}${needsDocWarning(item) ? '<div class="badge bg-danger mt-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>Chưa nộp giấy tờ</div>' : ''}</td>
         <td class="text-center">${sigCell}</td>
         <td class="text-center">${actionBtns(item)}</td>
     </tr>`;
@@ -493,6 +540,7 @@ function buildCard(item, idx) {
     const expiredStyle = expired ? ' style="background:#f1f5f9;opacity:.75;"' : '';
     return `<div class="lv-card${isAssigned ? ' lv-pending-confirm' : ''}"${expiredStyle}>
         ${alertBanner}
+        ${docWarningHtml(item)}
         <div class="lv-row">
             <div class="d-flex gap-1">${sourceBadge(item.SOURCE)} ${leaveBadge(item.LEAVE_TYPE)}</div>
             <div class="flex-shrink-0">${statusBadge(item)}</div>
@@ -578,12 +626,12 @@ function addDaysStr(dateStr, n) {
 
 async function openCreateModal() {
     const today = localDateStr();
-    $('#clt-AL').prop('checked', true);
+    $('#createLeaveType').val('AL').trigger('change');
     // Tạm set min = today, sẽ check AL deadline dưới để dời lên ngày mai nếu ca hôm nay đã quá hạn
     $('#createFromDate').attr('min', today).val(today);
     $('#createToDate').attr('min', today).val(today);
     $('#createTotalDays').val(1);
-    $('#createReason').val('');
+    $('#createReason').val('').trigger('input');
     $('#createError').addClass('d-none').text('');
     new bootstrap.Modal('#createModal').show();
 
@@ -661,7 +709,7 @@ async function saveCreate() {
     if (!days || days <= 0) { $('#createError').removeClass('d-none').text('Số ngày nghỉ không hợp lệ'); return; }
     if (!reason)            { $('#createError').removeClass('d-none').text('Vui lòng nhập lý do nghỉ phép'); $('#createReason').focus(); return; }
 
-    const createLT = $('input[name=createLT]:checked').val() || 'AL';
+    const createLT = $('#createLeaveType').val() || 'AL';
     // AL deadline: STIME ca ngày FROM_DATE - 7.5h (fair cho ca đêm).
     // Server sẽ check lại — client chỉ để UX sớm.
     if (createLT === 'AL') {
@@ -678,6 +726,13 @@ async function saveCreate() {
                 $('#createError').removeClass('d-none').text('Phép năm phải đăng ký trước ít nhất 1 ngày');
                 $('#createFromDate').focus(); return;
             }
+        }
+    } else if (createLT === 'DC') {
+        const d = new Date(); d.setDate(d.getDate() + 3);
+        const minDcStr = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+        if (from < minDcStr) {
+            $('#createError').removeClass('d-none').text('Đám cưới phải đăng ký trước ít nhất 3 ngày');
+            $('#createFromDate').focus(); return;
         }
     }
     if (createLT === 'AL' && myBalance != null) {
@@ -764,13 +819,15 @@ function openEditBtn(btn) {
     const $b    = $(btn);
     const today = localDateStr();
     $('#editRequestId').val($b.data('id'));
-    $('input[name=editLT][value="' + ($b.data('type') || 'AL') + '"]').prop('checked', true);
+    $('#editLeaveType').val($b.data('type') || 'AL');
+    updateLTNote('edit');
     const fromStr = $b.data('from') ? localDateStr($b.data('from')) : '';
     const toStr   = $b.data('to')   ? localDateStr($b.data('to'))   : '';
     $('#editFromDate').attr('min', today).val(fromStr);
     $('#editToDate').attr('min', fromStr || today).val(toStr);
     $('#editTotalDays').val($b.data('days'));
     $('#editReason').val($b.data('reason') || '');
+    $('#editLeaveType').trigger('change');
     $('#editError').addClass('d-none').text('');
     new bootstrap.Modal('#editModal').show();
 }
@@ -784,8 +841,19 @@ async function saveEdit() {
     if (!canTakeSundayLeave && isSunday(to))   { $('#editError').removeClass('d-none').text('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)'); $('#editToDate').focus(); return; }
     if (to < from)      { $('#editError').removeClass('d-none').text('Đến ngày phải lớn hơn hoặc bằng Từ ngày'); $('#editToDate').focus(); return; }
 
-    const editLT   = $('input[name=editLT]:checked').val() || 'AL';
+    const editLT   = $('#editLeaveType').val() || 'AL';
     const editDays = parseFloat($('#editTotalDays').val()) || 1;
+    if (editLT !== 'AL' && !$('#editReason').val().trim()) {
+        $('#editError').removeClass('d-none').text('Vui lòng nhập lý do nghỉ'); $('#editReason').focus(); return;
+    }
+    if (editLT === 'DC') {
+        const d = new Date(); d.setDate(d.getDate() + 3);
+        const minDcStr = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+        if (from < minDcStr) {
+            $('#editError').removeClass('d-none').text('Đám cưới phải đăng ký trước ít nhất 3 ngày');
+            $('#editFromDate').focus(); return;
+        }
+    }
     if (editLT === 'AL' && myBalance != null) {
         const left = myBalance.LEFT_NUM ?? 0;
         if (editDays > left) {
@@ -802,7 +870,7 @@ async function saveEdit() {
         const payload = {
             REQUEST_ID: $('#editRequestId').val(),
             EMPCD: '',
-            LEAVE_TYPE: $('input[name=editLT]:checked').val() || 'AL',
+            LEAVE_TYPE: editLT,
             FROM_DATE:  from,
             TO_DATE:    to,
             TOTAL_DAYS: parseFloat($('#editTotalDays').val()) || 1,

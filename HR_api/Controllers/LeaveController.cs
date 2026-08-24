@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
@@ -23,6 +24,58 @@ public class LeaveController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // 6 loại nghỉ mới (thay thế hoàn toàn AL/CL/SL/NPL/OTH cho đơn TẠO MỚI).
+    // Dữ liệu CL/SL/NPL/OTH cũ vẫn đọc/hiển thị bình thường, chỉ không cho chọn khi tạo đơn mới.
+    // ─────────────────────────────────────────────────────────────────────────
+    private static readonly HashSet<string> NewLeaveTypeCodes = new() { "AL", "DT", "DC", "CT", "VS", "KT" };
+    // Supervisor/Manager (Assign, sắp lịch cho team) HIỆN TẠI chỉ được sắp Phép năm — 5 loại còn lại
+    // (DT/DC/CT/VS/KT) chỉ Admin (AdminAssign) mới được sắp toàn công ty. Nếu sau này HR yêu cầu
+    // cho phép supervisor/manager sắp thêm các loại khác, chỉ cần thêm mã vào set này.
+    private static readonly HashSet<string> SupervisorAssignTypes = new() { "AL" };
+    private static readonly HashSet<string> NewRemarkTypes    = new() { "DT", "DC", "CT", "VS", "KT" }; // remark ERP kiểu mới "<CODE> <lý do>"
+    private static readonly Dictionary<string, string> NewLeaveTypeNames = new()
+    {
+        ["AL"] = "Phép năm", ["DT"] = "Đám tang", ["DC"] = "Đám cưới",
+        ["CT"] = "Công tác", ["VS"] = "Vợ sanh",  ["KT"] = "Khám thai"
+    };
+
+    // Remark ghi vào ERP. HRMS.EFM410.REMAR giới hạn 50 byte, NHƯNG SP_015_NEW insert qua bảng trung gian
+    // HRMS.EFM410_WAIT trước — cột REMAR của bảng NÀY chỉ 30 byte (đã verify thật: ORA-12899 actual=33 max=30
+    // khi thử remark 33 byte cho CT dù dưới 50). Lấy 30 byte làm giới hạn chung cho an toàn (áp dụng luôn
+    // cho AS_REMAR gửi vào SP, không riêng insert thẳng EFM410 trong nhánh AdminAssign hết phép năm).
+    // Lý do tiếng Việt có dấu tốn 2-3 byte/ký tự nên PHẢI cắt theo byte (không phải theo ký tự) — tránh
+    // ORA-12899 khi Approve/Assign. 5 loại mới: "<CODE> <lý do NV gõ>" (mã 2 ký tự ASCII, không dấu —
+    // xem note trong alter_leave_doctrack.sql). AL/CL/SL/NPL/OTH (loại cũ): giữ nguyên "VR"/"ASSIGNED".
+    private const int ErpRemarkMaxBytes = 30;
+
+    private static string BuildErpRemark(string leaveType, string? reason, bool isAssignFlow)
+    {
+        if (NewRemarkTypes.Contains(leaveType))
+        {
+            string prefix = leaveType + " ";
+            int maxReasonBytes = ErpRemarkMaxBytes - Encoding.UTF8.GetByteCount(prefix);
+            string r = TruncateUtf8Bytes((reason ?? "").Trim(), maxReasonBytes);
+            return prefix + r;
+        }
+        string erpCdLocal = leaveType switch { "AL" => "PN", "CL" => "BH", "CT" => "CT", _ => "CP" };
+        if (erpCdLocal != "CP") return isAssignFlow ? "ASSIGNED" : "VR";
+        string legacyName = leaveType switch { "SL" => "Nghỉ bệnh", "NPL" => "Không lương", "OTH" => "Khác", _ => leaveType };
+        return (isAssignFlow ? "ASSIGNED " : "VR ") + legacyName;
+    }
+
+    // Cắt chuỗi về tối đa maxBytes khi encode UTF-8, không cắt giữa 1 ký tự multi-byte (tránh chuỗi hỏng).
+    private static string TruncateUtf8Bytes(string input, int maxBytes)
+    {
+        if (maxBytes <= 0) return "";
+        var bytes = Encoding.UTF8.GetBytes(input);
+        if (bytes.Length <= maxBytes) return input;
+
+        int len = maxBytes;
+        while (len > 0 && (bytes[len] & 0xC0) == 0x80) len--; // lùi về đầu ký tự nếu đang đứng giữa byte tiếp diễn
+        return Encoding.UTF8.GetString(bytes, 0, len);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // POST /apiHR/Leave/submit  — worker submits SELF leave
     // ─────────────────────────────────────────────────────────────────────────
     [HttpPost("submit")]
@@ -36,6 +89,12 @@ public class LeaveController : ControllerBase
             if (string.IsNullOrEmpty(model.LEAVE_TYPE))
                 return Ok(new { success = false, message = "Thiếu loại nghỉ phép" });
 
+            if (!NewLeaveTypeCodes.Contains(model.LEAVE_TYPE))
+                return Ok(new { success = false, message = "Loại nghỉ phép không hợp lệ" });
+
+            if (model.LEAVE_TYPE != "AL" && string.IsNullOrWhiteSpace(model.REASON))
+                return Ok(new { success = false, message = "Vui lòng nhập lý do nghỉ" });
+
             if (!DateTime.TryParse(model.FROM_DATE, out DateTime fromDate))
                 return Ok(new { success = false, message = "Ngày bắt đầu không hợp lệ" });
 
@@ -48,12 +107,22 @@ public class LeaveController : ControllerBase
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
 
-            // AL deadline: STIME ca của FROM_DATE - 6h (fair cho ca đêm)
+            // Báo trước theo loại: AL = theo giờ ca làm (-6h), DC = trước 3 ngày lịch, DT/CT/VS/KT = trong ngày cũng được
             if (model.LEAVE_TYPE == "AL")
             {
                 var chk = await CheckAlDeadlineAsync(model.EMPCD, fromDate);
                 if (!chk.Allowed)
                     return Ok(new { success = false, message = chk.Message });
+            }
+            else if (model.LEAVE_TYPE == "DC")
+            {
+                if (fromDate.Date < DateTime.Today.AddDays(3))
+                    return Ok(new { success = false, message = "Đám cưới phải đăng ký trước ít nhất 3 ngày" });
+            }
+            else
+            {
+                if (fromDate.Date < DateTime.Today)
+                    return Ok(new { success = false, message = "Không được chọn ngày trong quá khứ" });
             }
 
             var empRows = await _oracleService.ExecuteQueryAsync(
@@ -97,9 +166,8 @@ public class LeaveController : ControllerBase
                 new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
                 new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
 
-            string leaveTypeName = model.LEAVE_TYPE switch
+            string leaveTypeName = NewLeaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE) ?? model.LEAVE_TYPE switch
             {
-                "AL"  => "Phép năm",
                 "CL"  => "BHXH",
                 "SL"  => "Nghỉ bệnh",
                 "NPL" => "Không lương",
@@ -173,7 +241,7 @@ public class LeaveController : ControllerBase
                                L.REASON, L.SOURCE, L.CONFIRM_STATUS, L.CONFIRM_DATE,
                                R.STATUS, R.REMARK, L.CREATED_DATE,
                                R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE,
-                               R.CREATED_BY ASSIGNED_BY, ASN.CNAME ASSIGNER_NAME
+                               R.CREATED_BY ASSIGNED_BY, ASN.CNAME ASSIGNER_NAME, L.DOC_STATUS
                         FROM HRMS.HR_LEAVE_REQUEST L
                         JOIN HRMS.HR_REQUEST R    ON R.REQUEST_ID = L.REQUEST_ID
                         LEFT JOIN HRMS.ECM100 AP  ON AP.EMPCD     = R.FINAL_APPROVER
@@ -204,7 +272,8 @@ public class LeaveController : ControllerBase
                 APPROVER_NAME  = r["APPROVER_NAME"]?.ToString(),
                 FINAL_DATE     = r["FINAL_DATE"]     == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
                 ASSIGNED_BY    = r["ASSIGNED_BY"]?.ToString(),
-                ASSIGNER_NAME  = r["ASSIGNER_NAME"]?.ToString()
+                ASSIGNER_NAME  = r["ASSIGNER_NAME"]?.ToString(),
+                DOC_STATUS     = r["DOC_STATUS"]?.ToString()
             },
             new OracleParameter("EMPCD1",    empcd),
             new OracleParameter("D_FROM1",   dfrom.Date),
@@ -391,15 +460,16 @@ public class LeaveController : ControllerBase
     [HttpGet("approval-list")]
     public async Task<IActionResult> GetApprovalList(
         string  approver_empcd,
-        string? status    = null,
-        string? search    = null,
-        string? dept_id   = null,
-        string? line_id   = null,
-        string? work_id   = null,
-        string? date_from = null,
-        string? date_to   = null,
-        int     page      = 1,
-        int     page_size = 50)
+        string? status     = null,
+        string? leave_type = null,
+        string? search     = null,
+        string? dept_id    = null,
+        string? line_id    = null,
+        string? work_id    = null,
+        string? date_from  = null,
+        string? date_to    = null,
+        int     page       = 1,
+        int     page_size  = 50)
     {
         try
         {
@@ -445,6 +515,7 @@ public class LeaveController : ControllerBase
                   )
                   " + scopeFilter.SqlClause + @"
                   AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
+                  AND (:LT_FLAG   IS NULL OR L.LEAVE_TYPE    = :LT_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
                   AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
                   AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
@@ -456,6 +527,8 @@ public class LeaveController : ControllerBase
                 new OracleParameter("D_TO",      OracleDbType.Date)     { Value = dto },
                 new OracleParameter("ST_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(status)  ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("ST_VAL",    OracleDbType.Varchar2) { Value = (object?)status  ?? DBNull.Value },
+                new OracleParameter("LT_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(leave_type) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("LT_VAL",    OracleDbType.Varchar2) { Value = (object?)leave_type ?? DBNull.Value },
                 new OracleParameter("SRCH_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)  ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("SRCH_VAL",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)  ? null : "%" + search.ToUpper() + "%") ?? DBNull.Value },
                 new OracleParameter("DPT_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(dept_id) ? null : "Y") ?? DBNull.Value },
@@ -609,28 +682,21 @@ public class LeaveController : ControllerBase
 
             // ERP: call SP_015_NEW after approval
             var ldRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT FROM_DATE, TO_DATE, LEAVE_TYPE FROM HRMS.HR_LEAVE_REQUEST
+                SELECT FROM_DATE, TO_DATE, LEAVE_TYPE, REASON FROM HRMS.HR_LEAVE_REQUEST
                 WHERE REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
                 r => new {
                     FromDate  = Convert.ToDateTime(r["FROM_DATE"]),
                     ToDate    = Convert.ToDateTime(r["TO_DATE"]),
-                    LeaveType = r["LEAVE_TYPE"]?.ToString()
+                    LeaveType = r["LEAVE_TYPE"]?.ToString(),
+                    Reason    = r["REASON"]?.ToString()
                 },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
             var ld = ldRows.FirstOrDefault();
             if (ld != null && !string.IsNullOrEmpty(requestInfo.Empcd))
             {
-                static string leaveTypeName(string? code) => code switch
-                {
-                    "SL"  => "Nghỉ bệnh",
-                    "NPL" => "Không lương",
-                    "OTH" => "Khác",
-                    _     => code ?? ""
-                };
-
-                string erpCd     = ld.LeaveType switch { "AL" => "PN", "CL" => "BH", _ => "CP" };
-                string erpRemark = erpCd == "CP" ? "VR " + leaveTypeName(ld.LeaveType) : "VR";
+                string erpCd     = ld.LeaveType switch { "AL" => "PN", "CL" => "BH", "CT" => "CT", _ => "CP" };
+                string erpRemark = BuildErpRemark(ld.LeaveType ?? "", ld.Reason, isAssignFlow: false);
 
                 var erpHolidays = (await _oracleService.ExecuteQueryAsync(
                     @"SELECT TRUNC(HUILDAY) AS HUILDAY FROM HRMS.EAM800
@@ -807,9 +873,11 @@ public class LeaveController : ControllerBase
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
 
-            var validLeaveTypes = new[] { "AL", "CL", "SL", "NPL", "OTH" };
-            if (string.IsNullOrEmpty(model.LEAVE_TYPE) || !validLeaveTypes.Contains(model.LEAVE_TYPE))
+            if (string.IsNullOrEmpty(model.LEAVE_TYPE) || !SupervisorAssignTypes.Contains(model.LEAVE_TYPE))
                 model.LEAVE_TYPE = "AL";
+
+            if (model.LEAVE_TYPE != "AL" && string.IsNullOrWhiteSpace(model.REASON))
+                return Ok(new { success = false, message = "Vui lòng nhập lý do nghỉ" });
 
             var assignerRoleRows = await _oracleService.ExecuteQueryAsync(@"
                 SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U
@@ -877,14 +945,8 @@ public class LeaveController : ControllerBase
                         new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
 
                     // ERP: call SP_015_NEW immediately after assign (no worker confirm needed)
-                    var erpLeaveNames = new Dictionary<string,string>
-                    {
-                        ["SL"] = "Nghỉ bệnh", ["NPL"] = "Không lương", ["OTH"] = "Khác"
-                    };
-                    string erpCd     = model.LEAVE_TYPE switch { "AL" => "PN", "CL" => "BH", _ => "CP" };
-                    string erpRemark = erpCd == "CP"
-                        ? "ASSIGNED " + erpLeaveNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE)
-                        : "ASSIGNED";
+                    string erpCd     = model.LEAVE_TYPE switch { "AL" => "PN", "CL" => "BH", "CT" => "CT", _ => "CP" };
+                    string erpRemark = BuildErpRemark(model.LEAVE_TYPE, model.REASON, isAssignFlow: true);
                     var erpHolidays = (await _oracleService.ExecuteQueryAsync(
                         @"SELECT TRUNC(HUILDAY) AS HUILDAY FROM HRMS.EAM800
                           WHERE TRUNC(HUILDAY) BETWEEN TRUNC(:FROM_DATE) AND TRUNC(:TO_DATE)",
@@ -929,12 +991,7 @@ public class LeaveController : ControllerBase
                     }
                     catch { /* ERP failure không block assign */ }
 
-                    var leaveTypeNames = new Dictionary<string,string>
-                    {
-                        ["AL"] = "Phép năm", ["CL"] = "BHXH", ["SL"] = "Nghỉ bệnh",
-                        ["NPL"] = "Không lương", ["OTH"] = "Khác"
-                    };
-                    string leaveTypeName = leaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE);
+                    string leaveTypeName = NewLeaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE);
                     _notiSvc.LeaveAssigned(targetEmpcd, model.ASSIGNER_EMPCD, leaveTypeName, fromDate, toDate);
 
                     results.Add(new { empcd = targetEmpcd, success = true, request_id = requestId });
@@ -1425,16 +1482,17 @@ public class LeaveController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet("hr-list")]
     public async Task<IActionResult> GetHRList(
-        string? status    = null,
-        string? source    = null,
-        string? search    = null,
-        string? dept_id   = null,
-        string? line_id   = null,
-        string? work_id   = null,
-        string? date_from = null,
-        string? date_to   = null,
-        int     page      = 1,
-        int     page_size = 50)
+        string? status     = null,
+        string? source     = null,
+        string? leave_type = null,
+        string? search     = null,
+        string? dept_id    = null,
+        string? line_id    = null,
+        string? work_id    = null,
+        string? date_from  = null,
+        string? date_to    = null,
+        int     page       = 1,
+        int     page_size  = 50)
     {
         try
         {
@@ -1460,6 +1518,7 @@ public class LeaveController : ControllerBase
                   AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1
                   AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
                   AND (:SRC_FLAG  IS NULL OR L.SOURCE       = :SRC_VAL)
+                  AND (:LT_FLAG   IS NULL OR L.LEAVE_TYPE    = :LT_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
                   AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
                   AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
@@ -1473,6 +1532,8 @@ public class LeaveController : ControllerBase
                 new OracleParameter("ST_VAL",    OracleDbType.Varchar2) { Value = (object?)status  ?? DBNull.Value },
                 new OracleParameter("SRC_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(source)  ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("SRC_VAL",   OracleDbType.Varchar2) { Value = (object?)source  ?? DBNull.Value },
+                new OracleParameter("LT_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(leave_type) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("LT_VAL",    OracleDbType.Varchar2) { Value = (object?)leave_type ?? DBNull.Value },
                 new OracleParameter("SRCH_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)  ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("SRCH_VAL",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)  ? null : "%" + search.ToUpper() + "%") ?? DBNull.Value },
                 new OracleParameter("DPT_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(dept_id) ? null : "Y") ?? DBNull.Value },
@@ -1521,7 +1582,8 @@ public class LeaveController : ControllerBase
                                R.STATUS, L.CONFIRM_STATUS, L.CREATED_DATE,
                                R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK,
                                RR.ROLE_NAME REQUESTER_ROLE,
-                               R.CREATED_BY ASSIGNED_BY, ASN.CNAME ASSIGNER_NAME
+                               R.CREATED_BY ASSIGNED_BY, ASN.CNAME ASSIGNER_NAME,
+                               L.DOC_STATUS, L.DOC_SUBMITTED_DATE, L.DOC_SUBMITTED_BY, L.DOC_REMARK
                         {fromSql}{whereSql}
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -1556,7 +1618,11 @@ public class LeaveController : ControllerBase
                 REMARK         = r["REMARK"]?.ToString(),
                 REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString(),
                 ASSIGNED_BY    = r["ASSIGNED_BY"]?.ToString(),
-                ASSIGNER_NAME  = r["ASSIGNER_NAME"]?.ToString()
+                ASSIGNER_NAME  = r["ASSIGNER_NAME"]?.ToString(),
+                DOC_STATUS         = r["DOC_STATUS"]?.ToString(),
+                DOC_SUBMITTED_DATE = r["DOC_SUBMITTED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["DOC_SUBMITTED_DATE"]),
+                DOC_SUBMITTED_BY   = r["DOC_SUBMITTED_BY"]?.ToString(),
+                DOC_REMARK         = r["DOC_REMARK"]?.ToString()
             }, dataParams.ToArray());
 
             return Ok(new
@@ -1582,16 +1648,17 @@ public class LeaveController : ControllerBase
     [HttpGet("clerk")]
     public async Task<IActionResult> GetClerkList(
         string  clerk_empcd,
-        string? status    = null,
-        string? source    = null,
-        string? search    = null,
-        string? dept_id   = null,
-        string? line_id   = null,
-        string? work_id   = null,
-        string? date_from = null,
-        string? date_to   = null,
-        int     page      = 1,
-        int     page_size = 50)
+        string? status     = null,
+        string? source     = null,
+        string? leave_type = null,
+        string? search     = null,
+        string? dept_id    = null,
+        string? line_id    = null,
+        string? work_id    = null,
+        string? date_from  = null,
+        string? date_to    = null,
+        int     page       = 1,
+        int     page_size  = 50)
     {
         try
         {
@@ -1629,6 +1696,7 @@ public class LeaveController : ControllerBase
                   AND L.FROM_DATE BETWEEN :D_FROM AND :D_TO
                   AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
                   AND (:SRC_FLAG  IS NULL OR L.SOURCE       = :SRC_VAL)
+                  AND (:LT_FLAG   IS NULL OR L.LEAVE_TYPE    = :LT_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
                   AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
                   AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
@@ -1643,6 +1711,8 @@ public class LeaveController : ControllerBase
                 new OracleParameter("ST_VAL",    OracleDbType.Varchar2) { Value = (object?)status  ?? DBNull.Value },
                 new OracleParameter("SRC_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(source)  ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("SRC_VAL",   OracleDbType.Varchar2) { Value = (object?)source  ?? DBNull.Value },
+                new OracleParameter("LT_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(leave_type) ? null : "Y") ?? DBNull.Value },
+                new OracleParameter("LT_VAL",    OracleDbType.Varchar2) { Value = (object?)leave_type ?? DBNull.Value },
                 new OracleParameter("SRCH_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)  ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("SRCH_VAL",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)  ? null : "%" + search.ToUpper() + "%") ?? DBNull.Value },
                 new OracleParameter("DPT_FLAG",  OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(dept_id) ? null : "Y") ?? DBNull.Value },
@@ -1691,7 +1761,8 @@ public class LeaveController : ControllerBase
                                L.LEAVE_TYPE, L.SOURCE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS, L.REASON,
                                R.STATUS, L.CONFIRM_STATUS, L.CREATED_DATE,
                                R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK,
-                               RR.ROLE_NAME REQUESTER_ROLE
+                               RR.ROLE_NAME REQUESTER_ROLE,
+                               L.DOC_STATUS, L.DOC_SUBMITTED_DATE, L.DOC_SUBMITTED_BY, L.DOC_REMARK
                         {fromSql}{whereSql}
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -1724,7 +1795,11 @@ public class LeaveController : ControllerBase
                 APPROVER_NAME  = r["APPROVER_NAME"]?.ToString(),
                 FINAL_DATE     = r["FINAL_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
                 REMARK         = r["REMARK"]?.ToString(),
-                REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString()
+                REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString(),
+                DOC_STATUS         = r["DOC_STATUS"]?.ToString(),
+                DOC_SUBMITTED_DATE = r["DOC_SUBMITTED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["DOC_SUBMITTED_DATE"]),
+                DOC_SUBMITTED_BY   = r["DOC_SUBMITTED_BY"]?.ToString(),
+                DOC_REMARK         = r["DOC_REMARK"]?.ToString()
             }, dataParams.ToArray());
 
             return Ok(new
@@ -1737,6 +1812,102 @@ public class LeaveController : ControllerBase
                 total_pages = page_size > 0 ? (int)Math.Ceiling((double)summary.TOTAL / page_size) : 0,
                 data        = list
             });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Leave/doc-submitted — HR/Clerk/Admin đánh dấu đã nhận giấy tờ
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("doc-submitted")]
+    public async Task<IActionResult> DocSubmitted([FromBody] LeaveDocStatusRequest model)
+    {
+        try
+        {
+            if (model == null || string.IsNullOrEmpty(model.REQUEST_ID) || string.IsNullOrEmpty(model.ACTOR_EMPCD))
+                return Ok(new { success = false, message = "Thiếu thông tin" });
+
+            var roleRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => r["ROLE_NAME"]?.ToString(),
+                new OracleParameter("EMPCD", model.ACTOR_EMPCD));
+            string? role = roleRows.FirstOrDefault();
+            if (role != "HR" && role != "Clerk" && role != "Admin")
+                return Ok(new { success = false, message = "Bạn không có quyền cập nhật giấy tờ" });
+
+            int rows = await _oracleService.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_LEAVE_REQUEST
+                SET DOC_STATUS = 'SUBMITTED', DOC_SUBMITTED_DATE = SYSDATE, DOC_SUBMITTED_BY = :ACTOR,
+                    UPDATED_BY = :ACTOR1, UPDATED_DATE = SYSDATE
+                WHERE REQUEST_ID = :REQUEST_ID",
+                new OracleParameter("ACTOR",      model.ACTOR_EMPCD),
+                new OracleParameter("ACTOR1",     model.ACTOR_EMPCD),
+                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
+
+            if (rows == 0)
+                return Ok(new { success = false, message = "Không tìm thấy đơn nghỉ phép" });
+
+            return Ok(new { success = true, message = "Đã cập nhật: đã nộp giấy tờ" });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Leave/doc-resubmit-request — HR/Clerk/Admin yêu cầu NV nộp lại giấy tờ
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("doc-resubmit-request")]
+    public async Task<IActionResult> DocResubmitRequest([FromBody] LeaveDocStatusRequest model)
+    {
+        try
+        {
+            if (model == null || string.IsNullOrEmpty(model.REQUEST_ID) || string.IsNullOrEmpty(model.ACTOR_EMPCD))
+                return Ok(new { success = false, message = "Thiếu thông tin" });
+
+            var roleRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => r["ROLE_NAME"]?.ToString(),
+                new OracleParameter("EMPCD", model.ACTOR_EMPCD));
+            string? role = roleRows.FirstOrDefault();
+            if (role != "HR" && role != "Clerk" && role != "Admin")
+                return Ok(new { success = false, message = "Bạn không có quyền yêu cầu nộp lại" });
+
+            var infoRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT L.EMPCD, L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE FROM HRMS.HR_LEAVE_REQUEST L
+                WHERE L.REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
+                r => new {
+                    Empcd     = r["EMPCD"]?.ToString(),
+                    LeaveType = r["LEAVE_TYPE"]?.ToString(),
+                    FromDate  = Convert.ToDateTime(r["FROM_DATE"]),
+                    ToDate    = Convert.ToDateTime(r["TO_DATE"])
+                },
+                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
+
+            var info = infoRows.FirstOrDefault();
+            if (info == null)
+                return Ok(new { success = false, message = "Không tìm thấy đơn nghỉ phép" });
+
+            int rows = await _oracleService.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_LEAVE_REQUEST
+                SET DOC_STATUS = 'RESUBMIT_REQUESTED', DOC_REMARK = :REMARK,
+                    UPDATED_BY = :ACTOR, UPDATED_DATE = SYSDATE
+                WHERE REQUEST_ID = :REQUEST_ID",
+                new OracleParameter("REMARK",     (object?)model.REMARK ?? DBNull.Value),
+                new OracleParameter("ACTOR",      model.ACTOR_EMPCD),
+                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
+
+            if (rows == 0)
+                return Ok(new { success = false, message = "Không tìm thấy đơn nghỉ phép" });
+
+            if (!string.IsNullOrEmpty(info.Empcd))
+                _notiSvc.LeaveDocResubmitRequested(info.Empcd, model.ACTOR_EMPCD, info.LeaveType ?? "", info.FromDate, info.ToDate, model.REMARK);
+
+            return Ok(new { success = true, message = "Đã gửi yêu cầu nộp lại giấy tờ" });
         }
         catch (Exception ex)
         {
@@ -1870,9 +2041,11 @@ public class LeaveController : ControllerBase
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
 
-            var validLeaveTypes = new[] { "AL", "CL", "SL", "NPL", "OTH" };
-            if (string.IsNullOrEmpty(model.LEAVE_TYPE) || !validLeaveTypes.Contains(model.LEAVE_TYPE))
+            if (string.IsNullOrEmpty(model.LEAVE_TYPE) || !NewLeaveTypeCodes.Contains(model.LEAVE_TYPE))
                 model.LEAVE_TYPE = "AL";
+
+            if (model.LEAVE_TYPE != "AL" && string.IsNullOrWhiteSpace(model.REASON))
+                return Ok(new { success = false, message = "Vui lòng nhập lý do nghỉ" });
 
             var assignerRoleRows = await _oracleService.ExecuteQueryAsync(@"
                 SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U
@@ -1885,20 +2058,9 @@ public class LeaveController : ControllerBase
             if (!string.Equals(assignerRole, "Admin", StringComparison.OrdinalIgnoreCase))
                 return Ok(new { success = false, message = "Chỉ Admin mới có quyền sắp lịch toàn công ty" });
 
-            var leaveTypeNames = new Dictionary<string, string>
-            {
-                ["AL"] = "Phép năm", ["CL"] = "BHXH", ["SL"] = "Nghỉ bệnh",
-                ["NPL"] = "Không lương", ["OTH"] = "Khác"
-            };
-            var erpLeaveNames = new Dictionary<string, string>
-            {
-                ["SL"] = "Nghỉ bệnh", ["NPL"] = "Không lương", ["OTH"] = "Khác"
-            };
-            string erpCd         = model.LEAVE_TYPE switch { "AL" => "PN", "CL" => "BH", _ => "CP" };
-            string erpRemark     = erpCd == "CP"
-                ? "ASSIGNED " + erpLeaveNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE)
-                : "ASSIGNED";
-            string leaveTypeName = leaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE);
+            string erpCd         = model.LEAVE_TYPE switch { "AL" => "PN", "CL" => "BH", "CT" => "CT", _ => "CP" };
+            string erpRemark     = BuildErpRemark(model.LEAVE_TYPE, model.REASON, isAssignFlow: true);
+            string leaveTypeName = NewLeaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE);
 
             var results   = new List<object>();
             var warnings  = new List<object>();

@@ -95,6 +95,38 @@ public class NotificationService
             await _helper.SendNotificationAsync(Personal(assignerEmpCd, workerEmpCd, title, body, "LEAVE_TEAM", titleEn, bodyEn));
         });
 
+    private static readonly Dictionary<string, string> DocLeaveTypeNames = new()
+    {
+        ["DT"] = "Đám tang", ["DC"] = "Đám cưới", ["CT"] = "Công tác", ["VS"] = "Vợ sanh", ["KT"] = "Khám thai"
+    };
+
+    public void LeaveDocReminder(string empCd, string leaveTypeCode, DateTime from, DateTime to)
+        => FireAndForget(async () =>
+        {
+            var ph = new Dictionary<string, string>
+            {
+                ["leaveType"] = DocLeaveTypeNames.GetValueOrDefault(leaveTypeCode, leaveTypeCode),
+                ["fromDate"]  = from.ToString("dd/MM/yyyy"),
+                ["toDate"]    = to.ToString("dd/MM/yyyy"),
+            };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("LEAVE_DOC_REMINDER", ph);
+            await _helper.SendNotificationAsync(Personal(empCd, "SYSTEM", title, body, "LEAVE_MY", titleEn, bodyEn));
+        });
+
+    public void LeaveDocResubmitRequested(string empCd, string actorEmpCd, string leaveTypeCode, DateTime from, DateTime to, string? remark)
+        => FireAndForget(async () =>
+        {
+            var ph = new Dictionary<string, string>
+            {
+                ["leaveType"] = DocLeaveTypeNames.GetValueOrDefault(leaveTypeCode, leaveTypeCode),
+                ["fromDate"]  = from.ToString("dd/MM/yyyy"),
+                ["toDate"]    = to.ToString("dd/MM/yyyy"),
+                ["remark"]    = remark ?? "",
+            };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("LEAVE_DOC_RESUBMIT", ph);
+            await _helper.SendNotificationAsync(Personal(empCd, actorEmpCd, title, body, "LEAVE_MY", titleEn, bodyEn));
+        });
+
     // ═══════════════════════════════════════════════════════════════
     //  OT
     // ═══════════════════════════════════════════════════════════════

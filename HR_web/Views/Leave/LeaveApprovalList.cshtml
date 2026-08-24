@@ -86,16 +86,16 @@
                     <option value="REJECTED">Từ chối</option>
                 </select>
             </div>
-            <!-- Ẩn tạm: leave_type chưa được backend (LeaveService/API) hỗ trợ filter, chọn không có tác dụng -->
-            <div class="d-none" style="min-width:120px;flex:1 1 120px;max-width:160px;">
+            <div style="min-width:130px;flex:1 1 130px;max-width:170px;">
                 <label class="form-label small fw-bold mb-1 text-primary">Loại nghỉ</label>
                 <select id="filterLeaveType" class="form-select form-select-sm">
                     <option value="">Tất cả</option>
-                    <option value="AL">Phép năm</option>
-                    <option value="CL">BHXH</option>
-                    <option value="SL">Bệnh</option>
-                    <option value="NPL">Không lương</option>
-                    <option value="OTH">Khác</option>
+                    <option value="AL">Phép năm (AL)</option>
+                    <option value="DT">Đám tang (DT)</option>
+                    <option value="DC">Đám cưới (DC)</option>
+                    <option value="CT">Công tác (CT)</option>
+                    <option value="VS">Vợ sanh (VS)</option>
+                    <option value="KT">Khám thai (KT)</option>
                 </select>
             </div>
             <div class="filter-full" style="min-width:150px;flex:2 1 150px;max-width:220px;">
@@ -240,8 +240,8 @@ function getMonthRange() {
     return { from: fmt(firstDay), to: fmt(lastDay) };
 }
 
-const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác' };
-const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
+const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', KT:'Khám thai' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', DT:'dark', DC:'danger', CT:'info', VS:'primary', KT:'warning' };
 
 function buildRow(item, idx) {
     const ltLabel = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';

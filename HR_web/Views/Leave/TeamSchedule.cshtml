@@ -201,11 +201,16 @@
                                 <label class="form-label small fw-bold mb-1">Loại nghỉ <span class="text-danger">*</span></label>
                                 <select id="assignLeaveType" class="form-select form-select-sm">
                                     <option value="AL" selected>Phép năm (AL)</option>
-                                    @* Tạm ẩn các loại còn lại — sẽ mở lại sau
-                                    <option value="CL">Bảo hiểm xã hội (CL)</option>
-                                    <option value="SL">Nghỉ bệnh (SL)</option>
-                                    <option value="NPL">Không lương (NPL)</option>
-                                    <option value="OTH">Khác (OTH)</option>
+                                    @* Supervisor/Manager hiện tại chỉ được sắp lịch Phép năm (AL) — 5 loại còn lại
+                                       (Đám tang/Đám cưới/Công tác/Vợ sanh/Khám thai) chỉ Admin mới sắp được (trang
+                                       AdminAssignLeave). Backend (LeaveController.Assign, SupervisorAssignTypes)
+                                       cũng đang khoá cứng chỉ AL. Nếu sau này HR yêu cầu mở thêm cho supervisor/manager,
+                                       thêm option ở đây + thêm mã tương ứng vào SupervisorAssignTypes phía backend.
+                                    <option value="DT">Đám tang (DT)</option>
+                                    <option value="DC">Đám cưới (DC)</option>
+                                    <option value="CT">Công tác (CT)</option>
+                                    <option value="VS">Vợ sanh (VS)</option>
+                                    <option value="KT">Khám thai (KT)</option>
                                     *@
                                 </select>
                             </div>
@@ -436,8 +441,8 @@ let apvEmpTimeout, maEmpTimeout;
 
 const MONTHS_VI  = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
                     'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
-const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác' };
-const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
+const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', KT:'Khám thai' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', DT:'dark', DC:'success', CT:'primary', VS:'info', KT:'info' };
 
 function getMonthRange() {
     const firstDay = new Date(curYear, curMonth - 1, 1);
@@ -604,6 +609,7 @@ async function submitAssign() {
     if (isSunday(from))     { showToast('Từ ngày không được là Chủ Nhật (công ty làm T2–T7)', 'warning'); return; }
     if (isSunday(to))       { showToast('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)', 'warning'); return; }
     if (!days || days <= 0) { showToast('Số ngày nghỉ không hợp lệ', 'warning'); return; }
+    if (leaveType !== 'AL' && !reason) { showToast('Vui lòng nhập lý do nghỉ', 'warning'); return; }
 
     // Cảnh báo nhân viên không đủ phép năm nếu chọn loại AL
     if (leaveType === 'AL') {

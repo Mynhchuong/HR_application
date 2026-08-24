@@ -81,6 +81,18 @@
                     <option value="REJECTED">Rejected</option>
                 </select>
             </div>
+            <div style="min-width:150px;flex:1 1 150px;max-width:200px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Leave Type</label>
+                <select id="filterLeaveType" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="AL">Annual (AL)</option>
+                    <option value="DT">Funeral (DT)</option>
+                    <option value="DC">Wedding (DC)</option>
+                    <option value="CT">Business trip (CT)</option>
+                    <option value="VS">Childbirth (VS)</option>
+                    <option value="KT">Prenatal checkup (KT)</option>
+                </select>
+            </div>
             <div style="min-width:150px;flex:2 1 150px;max-width:220px;">
                 <label class="form-label small fw-bold mb-1 text-primary">Department</label>
                 <select id="filterDept" class="select2 form-control"
@@ -202,8 +214,8 @@ function canApproveRole(requesterRole) {
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 
-const LEAVE_LABEL = { AL:'Annual', CL:'Social Ins.', SL:'Sick', NPL:'Unpaid', OTH:'Other' };
-const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning' };
+const LEAVE_LABEL = { AL:'Annual', CL:'Social Ins.', SL:'Sick', NPL:'Unpaid', OTH:'Other', DT:'Funeral', DC:'Wedding', CT:'Business trip', VS:'Childbirth', KT:'Prenatal checkup' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', DT:'dark', DC:'danger', CT:'info', VS:'primary', KT:'warning' };
 
 function getMonthRange(ym) {
     if (!ym) { const d = new Date(); ym = d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
@@ -297,7 +309,8 @@ function buildRow(item, idx) {
 function getParams(page) {
     const { from, to } = getMonthRange($('#filterMonth').val());
     return {
-        status:    $('#filterStatus').val(),
+        status:     $('#filterStatus').val(),
+        leave_type: $('#filterLeaveType').val(),
         search:    $('#searchInput').val(),
         dept_id:   $('#filterDept').val(),
         line_id:   $('#filterLine').val(),
@@ -388,7 +401,7 @@ async function submitAction() {
 
 $('#filterDept').on('change', function() { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });
 $('#filterLine').on('change', function() { $('#filterWork').val(null).trigger('change.select2'); loadData(1); });
-$('#filterMonth, #filterStatus, #filterWork').on('change', () => loadData(1));
+$('#filterMonth, #filterStatus, #filterLeaveType, #filterWork').on('change', () => loadData(1));
 $('#searchInput').on('input', debounce(() => loadData(1), 400));
 $('#pageSizeSelect').on('change', function() { pageSize = parseInt($(this).val()); loadData(1); });
 

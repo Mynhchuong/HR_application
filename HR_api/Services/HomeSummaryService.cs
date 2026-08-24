@@ -108,7 +108,7 @@ public class HomeSummaryService
             JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID = L.REQUEST_ID
             JOIN HRMS.ECM100    EC ON EC.EMPCD     = L.EMPCD
             WHERE R.REQUEST_TYPE = 'LEAVE'
-              AND L.LEAVE_TYPE IN ('DT','DC','VS','KT')
+              AND L.LEAVE_TYPE IN ('DT','DC','VS','KT','SI','DS')
               AND R.STATUS IN ('APPROVED','ASSIGNED')
               AND (L.SOURCE = 'SELF' OR NVL(L.CONFIRM_STATUS,'X') != 'WORKER_REJECTED')
               AND TRUNC(L.TO_DATE,'MM') = TRUNC(SYSDATE,'MM')
@@ -139,7 +139,7 @@ public class HomeSummaryService
             JOIN HRMS.ECM100    EC ON EC.EMPCD     = L.EMPCD
             LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
             WHERE R.REQUEST_TYPE = 'LEAVE'
-              AND L.LEAVE_TYPE IN ('DT','DC','VS','KT')
+              AND L.LEAVE_TYPE IN ('DT','DC','VS','KT','SI','DS')
               AND R.STATUS IN ('APPROVED','ASSIGNED')
               AND (L.SOURCE = 'SELF' OR NVL(L.CONFIRM_STATUS,'X') != 'WORKER_REJECTED')
               AND TRUNC(L.TO_DATE,'MM') = TRUNC(SYSDATE,'MM')

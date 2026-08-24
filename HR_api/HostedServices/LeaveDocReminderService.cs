@@ -4,8 +4,8 @@ using Oracle.ManagedDataAccess.Client;
 
 namespace HR_api.HostedServices;
 
-// Cron 1 phút — nhắc nhở nhân viên nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai (DT/DC/VS/KT)
-// đã qua TO_DATE + 3 ngày mà chưa nộp giấy tờ cho phòng Nhân sự. Chỉ quét sau 9h sáng
+// Cron 1 phút — nhắc nhở nhân viên nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai/Bệnh có giấy/Dưỡng sức
+// (DT/DC/VS/KT/SI/DS) đã qua TO_DATE + 3 ngày mà chưa nộp giấy tờ cho phòng Nhân sự. Chỉ quét sau 9h sáng
 // (gate theo giờ, tránh chạy nhiều lần vô ích khi tick mỗi phút). Nhắc lặp lại mỗi 3 ngày
 // (dedupe qua DOC_REMINDED_DATE) cho tới khi HR cập nhật DOC_STATUS='SUBMITTED'.
 public class LeaveDocReminderService : BackgroundService
@@ -44,7 +44,7 @@ public class LeaveDocReminderService : BackgroundService
             SELECT L.REQUEST_ID, L.EMPCD, L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE
             FROM HRMS.HR_LEAVE_REQUEST L
             JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
-            WHERE L.LEAVE_TYPE IN ('DT','DC','VS','KT')
+            WHERE L.LEAVE_TYPE IN ('DT','DC','VS','KT','SI','DS')
               AND R.STATUS IN ('APPROVED','ASSIGNED')
               AND (L.SOURCE = 'SELF' OR NVL(L.CONFIRM_STATUS,'X') != 'WORKER_REJECTED')
               AND L.TO_DATE < TRUNC(SYSDATE) - 3

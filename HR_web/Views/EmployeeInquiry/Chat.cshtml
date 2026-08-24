@@ -38,14 +38,13 @@
             <div class="chat-header-meta">
                 <span class="status-pill @(isClosed ? "closed" : "open")">@(isClosed ? "Đã đóng" : "Đang mở")</span>
                 @if (isAnon) { <span class="anon-pill"><span class="material-symbols-rounded" style="font-size:.7rem;vertical-align:middle">visibility_off</span> Ẩn danh</span> }
-                @if (!string.IsNullOrEmpty(inq.AssignedName)) { <span style="font-size:.72rem;color:#64748b">Phụ trách: <span class="vni-font">@inq.AssignedName</span></span> }
             </div>
         </div>
         @if (!isClosed)
         {
             <div class="chat-header-actions">
                 <button class="btn btn-sm btn-outline-danger" style="border-radius:10px;font-size:.78rem;font-weight:700" onclick="InquiryChat.confirmClose()">
-                    <span class="material-symbols-rounded me-1" style="font-size:.85rem;vertical-align:middle">close</span>Đóng hội thoại
+                    <span class="material-symbols-rounded me-1" style="font-size:.85rem;vertical-align:middle">close</span>Kết thúc hội thoại
                 </button>
             </div>
         }

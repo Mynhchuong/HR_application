@@ -229,8 +229,8 @@ function renderList(items, containerId, isAnon) {
         const bg  = i.topicColor  ? `background:${i.topicColor}22;` : 'background:#e0e7ff;';
         const ico = i.topicIcon   ? i.topicIcon : 'chat';
         const closeBtn = i.status === 'OPEN'
-            ? `<button class="inq-card-close" onclick="event.preventDefault();event.stopPropagation();closeConv(${i.id}, ${isAnon ? 1 : 0})" title="Đóng hội thoại">
-                   <span class="material-symbols-rounded" style="font-size:.85rem">close</span>Đóng
+            ? `<button class="inq-card-close" onclick="event.preventDefault();event.stopPropagation();closeConv(${i.id}, ${isAnon ? 1 : 0})" title="Kết thúc hội thoại">
+                   <span class="material-symbols-rounded" style="font-size:.85rem">close</span>Kết thúc
                </button>`
             : '';
         return `
@@ -258,9 +258,9 @@ function renderList(items, containerId, isAnon) {
 // ─── Close conversation (Employee) ───────────────────────────────
 async function closeConv(inqId, isAnon) {
     const confirmed = window.showConfirm
-        ? await new Promise(r => showConfirm('Đóng hội thoại này? Sau khi đóng bạn sẽ không thể gửi tin nữa.',
-            () => r(true), { title: 'Đóng hội thoại', okText: 'Đóng', okClass: 'btn-warning', icon: 'close', iconColor: '#d97706', iconBg: '#fef3c7' }))
-        : confirm('Đóng hội thoại này?');
+        ? await new Promise(r => showConfirm('Kết thúc hội thoại này? Sau khi kết thúc bạn sẽ không thể gửi tin nữa.',
+            () => r(true), { title: 'Kết thúc hội thoại', okText: 'Kết thúc', okClass: 'btn-warning', icon: 'close', iconColor: '#d97706', iconBg: '#fef3c7' }))
+        : confirm('Kết thúc hội thoại này?');
     if (!confirmed) return;
     try {
         const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
@@ -276,7 +276,7 @@ async function closeConv(inqId, isAnon) {
             if (window.showToast) showToast(data.message || 'Không thể đóng', 'error');
             return;
         }
-        if (window.showToast) showToast('Đã đóng hội thoại', 'success');
+        if (window.showToast) showToast('Hội thoại đã kết thúc', 'success');
         // Reload list
         if (isAnon) loadAnon(); else loadDirect();
     } catch {
@@ -365,8 +365,7 @@ function renderRateBanners(items) {
     if (todo.length === 0) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
     wrap.style.display = '';
     wrap.innerHTML = todo.map(i => {
-        const closer = (i.closedByName && i.closedByName !== 'Ẩn danh') ? i.closedByName : null;
-        const who    = i.assignedName || closer || 'HR';
+        const who    = 'HR';
         const topic  = i.topicName || i.subject || 'cuộc hội thoại';
         const inqNo  = i.inquiryNo || '';
         const isAnon = i.chatType === 'ANON';

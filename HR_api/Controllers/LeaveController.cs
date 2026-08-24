@@ -24,19 +24,41 @@ public class LeaveController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 6 loại nghỉ mới (thay thế hoàn toàn AL/CL/SL/NPL/OTH cho đơn TẠO MỚI).
+    // 6 loại nghỉ (thay thế hoàn toàn AL/CL/SL/NPL/OTH) dùng cho SẮP LỊCH (Assign/AdminAssign) —
+    // theo yêu cầu "quản lý sắp lịch như cũ", KHÔNG mở rộng thêm 3 loại mới ở đây.
     // Dữ liệu CL/SL/NPL/OTH cũ vẫn đọc/hiển thị bình thường, chỉ không cho chọn khi tạo đơn mới.
     // ─────────────────────────────────────────────────────────────────────────
     private static readonly HashSet<string> NewLeaveTypeCodes = new() { "AL", "DT", "DC", "CT", "VS", "KT" };
+    // Nhân viên TỰ TẠO ĐƠN (Submit) — bảng quy ước HR cập nhật thêm NL (Không lương)/SI (Bệnh có giấy)/
+    // DS (Dưỡng sức), CHỈ áp dụng cho luồng tự nộp, không áp dụng cho Assign/AdminAssign.
+    private static readonly HashSet<string> SelfSubmitLeaveTypeCodes = new() { "AL", "NL", "SI", "DT", "DC", "CT", "VS", "DS", "KT" };
     // Supervisor/Manager (Assign, sắp lịch cho team) HIỆN TẠI chỉ được sắp Phép năm — 5 loại còn lại
     // (DT/DC/CT/VS/KT) chỉ Admin (AdminAssign) mới được sắp toàn công ty. Nếu sau này HR yêu cầu
     // cho phép supervisor/manager sắp thêm các loại khác, chỉ cần thêm mã vào set này.
     private static readonly HashSet<string> SupervisorAssignTypes = new() { "AL" };
-    private static readonly HashSet<string> NewRemarkTypes    = new() { "DT", "DC", "CT", "VS", "KT" }; // remark ERP kiểu mới "<CODE> <lý do>"
+    // remark ERP kiểu mới "<prefix> <lý do>" — mọi loại trừ AL (AL dùng "VR"/"ASSIGNED" cố định, không kèm lý do)
+    private static readonly HashSet<string> NewRemarkTypes = new() { "NL", "SI", "DT", "DC", "CT", "VS", "DS", "KT" };
+    // Phần lớn prefix remark = chính LEAVE_TYPE, trừ 2 ngoại lệ HR yêu cầu: ĐT/ĐC có dấu (khác mã lưu DB "DT"/"DC",
+    // giữ mã DB ASCII cho an toàn — chỉ đổi phần chữ ghi vào ERP), và NL (Không lương) dùng chữ "VR" thay vì mã loại.
+    private static readonly Dictionary<string, string> RemarkPrefix = new()
+    {
+        ["DT"] = "ĐT", ["DC"] = "ĐC", ["NL"] = "VR"
+    };
+    // Loại nghỉ bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — CT theo yêu cầu vẫn KHÔNG cần nộp giấy tờ.
+    private static readonly HashSet<string> DocRequiredTypes = new() { "SI", "DT", "DC", "VS", "DS", "KT" };
     private static readonly Dictionary<string, string> NewLeaveTypeNames = new()
     {
-        ["AL"] = "Phép năm", ["DT"] = "Đám tang", ["DC"] = "Đám cưới",
-        ["CT"] = "Công tác", ["VS"] = "Vợ sanh",  ["KT"] = "Khám thai"
+        ["AL"] = "Phép năm", ["NL"] = "Không lương", ["SI"] = "Bệnh có giấy",
+        ["DT"] = "Đám tang", ["DC"] = "Đám cưới", ["CT"] = "Công tác",
+        ["VS"] = "Vợ sanh",  ["DS"] = "Dưỡng sức", ["KT"] = "Khám thai"
+    };
+
+    // Công tác (CT) chỉ Manager/Expat/Admin được duyệt/từ chối — dùng chung cho GetApprovalList
+    // (lọc danh sách) VÀ Approve/Reject (chặn hành động thật, không chỉ ẩn ở UI).
+    private static bool CanApproveCT(string? approverRole) => approverRole switch
+    {
+        "Manager" or "Expat" or "Admin" => true,
+        _ => false
     };
 
     // Remark ghi vào ERP. HRMS.EFM410.REMAR giới hạn 50 byte, NHƯNG SP_015_NEW insert qua bảng trung gian
@@ -52,7 +74,7 @@ public class LeaveController : ControllerBase
     {
         if (NewRemarkTypes.Contains(leaveType))
         {
-            string prefix = leaveType + " ";
+            string prefix = RemarkPrefix.GetValueOrDefault(leaveType, leaveType) + " ";
             int maxReasonBytes = ErpRemarkMaxBytes - Encoding.UTF8.GetByteCount(prefix);
             string r = TruncateUtf8Bytes((reason ?? "").Trim(), maxReasonBytes);
             return prefix + r;
@@ -89,7 +111,7 @@ public class LeaveController : ControllerBase
             if (string.IsNullOrEmpty(model.LEAVE_TYPE))
                 return Ok(new { success = false, message = "Thiếu loại nghỉ phép" });
 
-            if (!NewLeaveTypeCodes.Contains(model.LEAVE_TYPE))
+            if (!SelfSubmitLeaveTypeCodes.Contains(model.LEAVE_TYPE))
                 return Ok(new { success = false, message = "Loại nghỉ phép không hợp lệ" });
 
             if (model.LEAVE_TYPE != "AL" && string.IsNullOrWhiteSpace(model.REASON))
@@ -107,17 +129,18 @@ public class LeaveController : ControllerBase
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
 
-            // Báo trước theo loại: AL = theo giờ ca làm (-6h), DC = trước 3 ngày lịch, DT/CT/VS/KT = trong ngày cũng được
+            // Báo trước theo loại: AL = theo giờ ca làm (-6h), DC/DS = trước 3 ngày lịch,
+            // NL/SI/DT/CT/VS/KT = trong ngày cũng được
             if (model.LEAVE_TYPE == "AL")
             {
                 var chk = await CheckAlDeadlineAsync(model.EMPCD, fromDate);
                 if (!chk.Allowed)
                     return Ok(new { success = false, message = chk.Message });
             }
-            else if (model.LEAVE_TYPE == "DC")
+            else if (model.LEAVE_TYPE == "DC" || model.LEAVE_TYPE == "DS")
             {
                 if (fromDate.Date < DateTime.Today.AddDays(3))
-                    return Ok(new { success = false, message = "Đám cưới phải đăng ký trước ít nhất 3 ngày" });
+                    return Ok(new { success = false, message = "Loại nghỉ này phải đăng ký trước ít nhất 3 ngày" });
             }
             else
             {
@@ -165,6 +188,59 @@ public class LeaveController : ControllerBase
                 new OracleParameter("TO_DATE",    toDate),
                 new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
                 new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
+
+            // CT (công tác): tự động tạo kèm 1 Gate Pass PENDING, giờ ra/vào CỐ ĐỊNH 07:30-16:30
+            // (yêu cầu của sếp) — nhân viên KHÔNG cần nhập giờ, áp dụng chung mọi ca làm việc.
+            // GP_TYPE='MID' (có cả OUT_TIME lẫn IN_TIME) vì SP_INSERT_GATE_PASS ở nhánh 'OUT' bỏ qua
+            // giờ vào do mình truyền và tự lấy giờ tan ca theo lịch ca thật của NV — không đúng ý
+            // "cố định 16:30" khi NV không phải ca hành chính. GP này chỉ thật sự APPROVED + đồng bộ
+            // ERP (SP_INSERT_GATE_PASS) khi đơn CT được Manager/Expat/Admin duyệt (xem Approve()),
+            // KHÔNG tự approve ngay lúc Submit (tránh cấp quyền ra cổng trước khi đơn được duyệt).
+            if (model.LEAVE_TYPE == "CT")
+            {
+                DateTime outTime = fromDate.Date.AddHours(7).AddMinutes(30);
+                DateTime inTime  = fromDate.Date.AddHours(16).AddMinutes(30);
+
+                // Tạo HR_REQUEST cho GP (PENDING — chờ duyệt cùng lúc với đơn CT).
+                // Tự sinh REQUEST_ID với hậu tố 'G' thay vì để trigger HR_REQUEST_TRG tự sinh
+                // (TO_CHAR(SYSDATE,'YYYYMMDDHH24MISS') || EMPCD) — nếu để trigger tự sinh, insert
+                // này và insert đơn CT phía trên (cùng EMPCD, cách nhau vài chục ms) có thể rơi vào
+                // CÙNG 1 GIÂY → trùng REQUEST_ID → ORA-00001, đã tái hiện thật khi test. Hậu tố 'G'
+                // đảm bảo không bao giờ trùng với ID của đơn Leave (EMPCD luôn thuần số).
+                using var gpIdCmd = new OracleParameter("OUT_REQUEST_ID", OracleDbType.Varchar2, 40)
+                    { Direction = System.Data.ParameterDirection.Output };
+                await _oracleService.ExecuteNonQueryAsync(@"
+                    INSERT INTO HRMS.HR_REQUEST (REQUEST_ID, REQUEST_TYPE, EMPCD, EMP_NAME, REQUEST_DATE, STATUS, REMARK, CREATED_BY, CREATED_DATE)
+                    VALUES (TO_CHAR(SYSDATE,'YYYYMMDDHH24MISS') || :EMPCD || 'G', 'GATEPASS', :EMPCD1, :EMP_NAME, SYSDATE, 'PENDING', :REMARK, :EMPCD2, SYSDATE)
+                    RETURNING REQUEST_ID INTO :OUT_REQUEST_ID",
+                    new OracleParameter("EMPCD",    model.EMPCD),
+                    new OracleParameter("EMPCD1",   model.EMPCD),
+                    new OracleParameter("EMP_NAME", empName),
+                    new OracleParameter("REMARK",   "công tác"),
+                    new OracleParameter("EMPCD2",   model.EMPCD),
+                    gpIdCmd);
+
+                string? gpRequestIdRaw = gpIdCmd.Value is Oracle.ManagedDataAccess.Types.OracleString os && !os.IsNull ? os.Value : null;
+
+                if (!string.IsNullOrEmpty(gpRequestIdRaw))
+                {
+                    string gpRequestId = gpRequestIdRaw;
+                    // Tạo HR_GATEPASS_REQUEST với GP_TYPE='MID' (OUT_TIME=07:30, IN_TIME=16:30 cố định)
+                    await _oracleService.ExecuteNonQueryAsync(@"
+                        INSERT INTO HRMS.HR_GATEPASS_REQUEST (REQUEST_ID, EMPCD, GP_TYPE, OUT_TIME, IN_TIME, CREATED_DATE)
+                        VALUES (:REQUEST_ID, :EMPCD, 'MID', :OUT_TIME, :IN_TIME, SYSDATE)",
+                        new OracleParameter("REQUEST_ID", gpRequestId),
+                        new OracleParameter("EMPCD",      model.EMPCD),
+                        new OracleParameter("OUT_TIME",   outTime),
+                        new OracleParameter("IN_TIME",    inTime));
+
+                    // Liên kết ngược lại đơn CT để Approve/Reject/Update/Delete xử lý cascade
+                    await _oracleService.ExecuteNonQueryAsync(@"
+                        UPDATE HRMS.HR_LEAVE_REQUEST SET GP_REQUEST_ID = :GP_REQUEST_ID WHERE REQUEST_ID = :REQUEST_ID",
+                        new OracleParameter("GP_REQUEST_ID", gpRequestId),
+                        new OracleParameter("REQUEST_ID",    requestId));
+                }
+            }
 
             string leaveTypeName = NewLeaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE) ?? model.LEAVE_TYPE switch
             {
@@ -318,17 +394,22 @@ public class LeaveController : ControllerBase
                 return Ok(new { success = false, message = "Ngày kết thúc phải sau ngày bắt đầu" });
 
             var statusRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT R.STATUS FROM HRMS.HR_REQUEST R
+                SELECT R.STATUS, L.LEAVE_TYPE, L.GP_REQUEST_ID FROM HRMS.HR_REQUEST R
                 JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
                 WHERE R.REQUEST_ID = :REQUEST_ID AND L.EMPCD = :EMPCD AND L.SOURCE = 'SELF' AND ROWNUM = 1",
-                r => r["STATUS"]?.ToString(),
+                r => new {
+                    Status      = r["STATUS"]?.ToString(),
+                    LeaveType   = r["LEAVE_TYPE"]?.ToString(),
+                    GpRequestId = r["GP_REQUEST_ID"]?.ToString()
+                },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID),
                 new OracleParameter("EMPCD",      model.EMPCD));
 
             if (statusRows.Count == 0)
                 return Ok(new { success = false, message = "Không tìm thấy yêu cầu" });
 
-            if (statusRows[0] != "PENDING")
+            var current = statusRows[0];
+            if (current.Status != "PENDING")
                 return Ok(new { success = false, message = "Chỉ có thể sửa yêu cầu đang chờ duyệt" });
 
             await _oracleService.ExecuteNonQueryAsync(@"
@@ -352,6 +433,21 @@ public class LeaveController : ControllerBase
                 new OracleParameter("EMPCD",      model.EMPCD),
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
+            // CT: đổi FROM_DATE thì OUT_TIME/IN_TIME của Gate Pass liên kết (còn PENDING) phải dời
+            // theo ngày mới, giờ vẫn cố định 07:30-16:30 — tránh Gate Pass trỏ về ngày cũ.
+            if (current.LeaveType == "CT" && !string.IsNullOrEmpty(current.GpRequestId))
+            {
+                DateTime newOutTime = fromDate.Date.AddHours(7).AddMinutes(30);
+                DateTime newInTime  = fromDate.Date.AddHours(16).AddMinutes(30);
+                await _oracleService.ExecuteNonQueryAsync(@"
+                    UPDATE HRMS.HR_GATEPASS_REQUEST SET OUT_TIME = :OUT_TIME, IN_TIME = :IN_TIME, UPDATED_BY = :EMPCD, UPDATED_DATE = SYSDATE
+                    WHERE REQUEST_ID = :REQUEST_ID",
+                    new OracleParameter("OUT_TIME", newOutTime),
+                    new OracleParameter("IN_TIME",  newInTime),
+                    new OracleParameter("EMPCD",    model.EMPCD),
+                    new OracleParameter("REQUEST_ID", current.GpRequestId));
+            }
+
             return Ok(new { success = true, message = "Cập nhật đơn nghỉ phép thành công" });
         }
         catch (Exception ex)
@@ -372,17 +468,18 @@ public class LeaveController : ControllerBase
                 return Ok(new { success = false, message = "Thiếu thông tin xoá" });
 
             var statusRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT R.STATUS FROM HRMS.HR_REQUEST R
+                SELECT R.STATUS, L.GP_REQUEST_ID FROM HRMS.HR_REQUEST R
                 JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
                 WHERE R.REQUEST_ID = :REQUEST_ID AND L.EMPCD = :EMPCD AND L.SOURCE = 'SELF' AND ROWNUM = 1",
-                r => r["STATUS"]?.ToString(),
+                r => new { Status = r["STATUS"]?.ToString(), GpRequestId = r["GP_REQUEST_ID"]?.ToString() },
                 new OracleParameter("REQUEST_ID", request_id),
                 new OracleParameter("EMPCD",      empcd));
 
             if (statusRows.Count == 0)
                 return Ok(new { success = false, message = "Không tìm thấy yêu cầu" });
 
-            if (statusRows[0] != "PENDING")
+            var current = statusRows[0];
+            if (current.Status != "PENDING")
                 return Ok(new { success = false, message = "Chỉ có thể xoá yêu cầu đang chờ duyệt" });
 
             await _oracleService.ExecuteNonQueryAsync(@"
@@ -394,6 +491,18 @@ public class LeaveController : ControllerBase
                 DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :REQUEST_ID AND EMPCD = :EMPCD",
                 new OracleParameter("REQUEST_ID", request_id),
                 new OracleParameter("EMPCD",      empcd));
+
+            // CT: xoá đơn thì Gate Pass 'OUT' liên kết (còn PENDING, chưa từng đồng bộ ERP) cũng
+            // phải xoá theo — tránh để lại rác không ai duyệt/từ chối được nữa.
+            if (!string.IsNullOrEmpty(current.GpRequestId))
+            {
+                await _oracleService.ExecuteNonQueryAsync(
+                    "DELETE FROM HRMS.HR_GATEPASS_REQUEST WHERE REQUEST_ID = :REQUEST_ID",
+                    new OracleParameter("REQUEST_ID", current.GpRequestId));
+                await _oracleService.ExecuteNonQueryAsync(
+                    "DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :REQUEST_ID",
+                    new OracleParameter("REQUEST_ID", current.GpRequestId));
+            }
 
             return Ok(new { success = true, message = "Đã xoá đơn nghỉ phép" });
         }
@@ -484,6 +593,16 @@ public class LeaveController : ControllerBase
             if (hasSvScope.FirstOrDefault() == 0)
                 return Ok(new { success = false, message = "Chưa được phân quyền bộ phận" });
 
+            // Công tác (CT) chỉ Manager/Expat/Admin được duyệt — lấy role của approver để filter
+            var approverRoles = await _oracleService.ExecuteQueryAsync(
+                "SELECT NVL(RR.ROLE_NAME, '') ROLE_NAME FROM HRMS.HR_USERS UR LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = UR.ROLE_ID WHERE UR.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => r["ROLE_NAME"]?.ToString() ?? "",
+                new OracleParameter("EMPCD", approver_empcd));
+            string approverRole = approverRoles.FirstOrDefault() ?? "";
+            // Nếu không phải Manager/Expat/Admin mà request filter CT, return empty ngay
+            if (leave_type == "CT" && !CanApproveCT(approverRole))
+                return Ok(new { success = false, message = "Chỉ Manager, Expat hoặc Admin mới được duyệt công tác" });
+
             var scopeFilter = Helpers.OTScopeFilterHelper.ForScopeByTuple(approver_empcd, empAlias: "EC", prefix: "SV");
 
             int offset = (page - 1) * page_size;
@@ -521,6 +640,22 @@ public class LeaveController : ControllerBase
                   AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
                   AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)";
 
+            // Summary (4 thẻ tổng hợp) phải luôn tính trên toàn bộ status, không bị bó hẹp theo status đang filter
+            string whereSqlNoStatus = @"
+                WHERE R.REQUEST_TYPE = 'LEAVE'
+                  AND L.SOURCE = 'SELF'
+                  AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND (
+                        (R.STATUS <> 'PENDING' AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1)
+                     OR (R.STATUS  = 'PENDING' AND L.FROM_DATE    >= TRUNC(SYSDATE))
+                  )
+                  " + scopeFilter.SqlClause + @"
+                  AND (:LT_FLAG   IS NULL OR L.LEAVE_TYPE    = :LT_VAL)
+                  AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
+                  AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
+                  AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
+                  AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)";
+
             var baseParams = new List<OracleParameter>
             {
                 new OracleParameter("D_FROM",    OracleDbType.Date)     { Value = dfrom },
@@ -545,7 +680,11 @@ public class LeaveController : ControllerBase
                        SUM(CASE WHEN R.STATUS = 'PENDING'  THEN 1 ELSE 0 END) PENDING,
                        SUM(CASE WHEN R.STATUS = 'APPROVED' THEN 1 ELSE 0 END) APPROVED,
                        SUM(CASE WHEN R.STATUS = 'REJECTED' THEN 1 ELSE 0 END) REJECTED
-                {fromSql}{whereSql}";
+                {fromSql}{whereSqlNoStatus}";
+
+            var summaryParams = baseParams
+                .Where(p => p.ParameterName != "ST_FLAG" && p.ParameterName != "ST_VAL")
+                .Select(p => (OracleParameter)p.Clone()).ToArray();
 
             var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new LeaveSummary
             {
@@ -553,7 +692,7 @@ public class LeaveController : ControllerBase
                 PENDING  = r["PENDING"]  == DBNull.Value ? 0 : Convert.ToInt32(r["PENDING"]),
                 APPROVED = r["APPROVED"] == DBNull.Value ? 0 : Convert.ToInt32(r["APPROVED"]),
                 REJECTED = r["REJECTED"] == DBNull.Value ? 0 : Convert.ToInt32(r["REJECTED"])
-            }, baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
+            }, summaryParams);
 
             var summary = summaryRows.FirstOrDefault() ?? new LeaveSummary();
 
@@ -649,12 +788,12 @@ public class LeaveController : ControllerBase
                 return Ok(new { success = false, message = "Bạn không có quyền phê duyệt nghỉ phép" });
 
             var requestInfoRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT L.EMPCD, RR.ROLE_NAME REQ_ROLE
+                SELECT L.EMPCD, RR.ROLE_NAME REQ_ROLE, L.LEAVE_TYPE
                 FROM HRMS.HR_LEAVE_REQUEST L
                 LEFT JOIN HRMS.HR_USERS UR ON UR.EMPCD = L.EMPCD
                 LEFT JOIN HRMS.HR_ROLES RR ON RR.ID    = UR.ROLE_ID
                 WHERE L.REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
-                r => new { Empcd = r["EMPCD"]?.ToString(), Role = r["REQ_ROLE"]?.ToString() },
+                r => new { Empcd = r["EMPCD"]?.ToString(), Role = r["REQ_ROLE"]?.ToString(), LeaveType = r["LEAVE_TYPE"]?.ToString() },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
             var requestInfo = requestInfoRows.FirstOrDefault();
@@ -666,6 +805,10 @@ public class LeaveController : ControllerBase
 
             if (!Helpers.RoleHierarchyHelper.CanApprove(approverRole, requestInfo.Role))
                 return Ok(new { success = false, message = $"Phiếu này cần {Helpers.RoleHierarchyHelper.RequiredApproverName(requestInfo.Role)} phê duyệt." });
+
+            // Công tác (CT) chỉ Manager/Expat/Admin được duyệt — chặn hành động thật, không chỉ ẩn ở UI/list.
+            if (requestInfo.LeaveType == "CT" && !CanApproveCT(approverRole))
+                return Ok(new { success = false, message = "Đơn Công tác chỉ Manager, Expat hoặc Admin mới được duyệt" });
 
             int rows = await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_REQUEST
@@ -682,13 +825,14 @@ public class LeaveController : ControllerBase
 
             // ERP: call SP_015_NEW after approval
             var ldRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT FROM_DATE, TO_DATE, LEAVE_TYPE, REASON FROM HRMS.HR_LEAVE_REQUEST
+                SELECT FROM_DATE, TO_DATE, LEAVE_TYPE, REASON, GP_REQUEST_ID FROM HRMS.HR_LEAVE_REQUEST
                 WHERE REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
                 r => new {
-                    FromDate  = Convert.ToDateTime(r["FROM_DATE"]),
-                    ToDate    = Convert.ToDateTime(r["TO_DATE"]),
-                    LeaveType = r["LEAVE_TYPE"]?.ToString(),
-                    Reason    = r["REASON"]?.ToString()
+                    FromDate    = Convert.ToDateTime(r["FROM_DATE"]),
+                    ToDate      = Convert.ToDateTime(r["TO_DATE"]),
+                    LeaveType   = r["LEAVE_TYPE"]?.ToString(),
+                    Reason      = r["REASON"]?.ToString(),
+                    GpRequestId = r["GP_REQUEST_ID"]?.ToString()
                 },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
@@ -757,6 +901,78 @@ public class LeaveController : ControllerBase
                         new OracleParameter("REQUEST_ID", model.REQUEST_ID));
                     return Ok(new { success = false, message = "Insert ERP thất bại, phiếu đã trả về PENDING. Chi tiết: " + erpError });
                 }
+
+                // CT: duyệt luôn Gate Pass 'OUT' liên kết (được tạo PENDING lúc Submit) + đồng bộ ERP.
+                // Dùng đúng 1 PL/SQL block UPDATE + SP_INSERT_GATE_PASS như GatePassController.Approve()
+                // (KHÔNG gọi SP rời qua ExecuteProcedureAsync như bản đầu — đã verify thật: SP tự
+                // TO_DATE(P_DAT,'YYYYMMDD') rồi ghi ngược vào cột DAT (VARCHAR2) theo NLS_DATE_FORMAT
+                // hiện tại của session; thiếu ALTER SESSION ép 'YYYYMMDD' → DAT bị lưu sai định dạng
+                // kiểu '27-AUG-26' thay vì '20260827', phá hỏng mọi query/báo cáo dựa vào DAT).
+                // Không rollback đơn CT nếu bước này lỗi — đơn nghỉ đã ghi ERP thành công ở trên,
+                // Gate Pass chỉ là phụ trợ; lỗi sẽ được báo qua message để HR retry duyệt GP riêng.
+                if (ld.LeaveType == "CT" && !string.IsNullOrEmpty(ld.GpRequestId))
+                {
+                    try
+                    {
+                        string gpPlsql = @"
+DECLARE
+    v_rows    NUMBER;
+    v_nls_fmt VARCHAR2(100);
+    v_empcd   HRMS.HR_REQUEST.EMPCD%TYPE;
+    v_gp_type HRMS.HR_GATEPASS_REQUEST.GP_TYPE%TYPE;
+    v_out_dt  HRMS.HR_GATEPASS_REQUEST.OUT_TIME%TYPE;
+    v_in_dt   HRMS.HR_GATEPASS_REQUEST.IN_TIME%TYPE;
+    v_dat     VARCHAR2(8);
+    v_timeout VARCHAR2(4);
+    v_timein  VARCHAR2(4);
+BEGIN
+    SELECT VALUE INTO v_nls_fmt FROM NLS_SESSION_PARAMETERS WHERE PARAMETER = 'NLS_DATE_FORMAT';
+    EXECUTE IMMEDIATE 'ALTER SESSION SET NLS_DATE_FORMAT = ''YYYYMMDD''';
+
+    UPDATE HRMS.HR_REQUEST
+    SET STATUS = 'APPROVED', FINAL_APPROVER = :APPROVER, FINAL_DATE = SYSDATE,
+        UPDATED_BY = :APPROVER, UPDATED_DATE = SYSDATE
+    WHERE REQUEST_ID = :GP_REQUEST_ID AND STATUS = 'PENDING';
+
+    v_rows := SQL%ROWCOUNT;
+    :ROW_COUNT := v_rows;
+
+    IF v_rows > 0 THEN
+        SELECT R.EMPCD, G.GP_TYPE, G.OUT_TIME, G.IN_TIME
+        INTO v_empcd, v_gp_type, v_out_dt, v_in_dt
+        FROM HRMS.HR_REQUEST R
+        JOIN HRMS.HR_GATEPASS_REQUEST G ON G.REQUEST_ID = R.REQUEST_ID
+        WHERE R.REQUEST_ID = :GP_REQUEST_ID;
+
+        v_dat     := COALESCE(TO_CHAR(v_out_dt, 'YYYYMMDD'), TO_CHAR(v_in_dt, 'YYYYMMDD'));
+        v_timeout := CASE WHEN v_out_dt IS NOT NULL THEN TO_CHAR(v_out_dt, 'HH24MI') ELSE NULL END;
+        v_timein  := CASE WHEN v_in_dt  IS NOT NULL THEN TO_CHAR(v_in_dt,  'HH24MI') ELSE NULL END;
+
+        HRMS.SP_INSERT_GATE_PASS(
+            P_EMPCD       => v_empcd,
+            P_DAT         => v_dat,
+            P_TYPE        => v_gp_type,
+            P_TIMEIN      => v_timein,
+            P_TIMEOUT     => v_timeout,
+            P_INID        => :APPROVER,
+            P_APPROVED_ID => :APPROVER
+        );
+    END IF;
+
+    EXECUTE IMMEDIATE 'ALTER SESSION SET NLS_DATE_FORMAT = ''' || v_nls_fmt || '''';
+EXCEPTION WHEN OTHERS THEN
+    EXECUTE IMMEDIATE 'ALTER SESSION SET NLS_DATE_FORMAT = ''' || v_nls_fmt || '''';
+    RAISE;
+END;";
+
+                        var gpApprover  = new OracleParameter("APPROVER",      model.APPROVER_EMPCD);
+                        var gpReqId     = new OracleParameter("GP_REQUEST_ID", ld.GpRequestId);
+                        var gpRowCount  = new OracleParameter("ROW_COUNT", OracleDbType.Int32) { Direction = System.Data.ParameterDirection.Output };
+
+                        await _oracleService.ExecuteNonQueryAsync(gpPlsql, gpApprover, gpReqId, gpRowCount);
+                    }
+                    catch { /* Gate Pass phụ trợ — lỗi ở đây không rollback đơn CT đã duyệt thành công */ }
+                }
             }
 
             if (!string.IsNullOrEmpty(requestInfo.Empcd))
@@ -799,12 +1015,17 @@ public class LeaveController : ControllerBase
                 return Ok(new { success = false, message = "Bạn không có quyền từ chối nghỉ phép" });
 
             var rejectInfoRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT L.EMPCD, RR.ROLE_NAME REQ_ROLE
+                SELECT L.EMPCD, RR.ROLE_NAME REQ_ROLE, L.LEAVE_TYPE, L.GP_REQUEST_ID
                 FROM HRMS.HR_LEAVE_REQUEST L
                 LEFT JOIN HRMS.HR_USERS UR ON UR.EMPCD = L.EMPCD
                 LEFT JOIN HRMS.HR_ROLES RR ON RR.ID    = UR.ROLE_ID
                 WHERE L.REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
-                r => new { Empcd = r["EMPCD"]?.ToString(), Role = r["REQ_ROLE"]?.ToString() },
+                r => new {
+                    Empcd       = r["EMPCD"]?.ToString(),
+                    Role        = r["REQ_ROLE"]?.ToString(),
+                    LeaveType   = r["LEAVE_TYPE"]?.ToString(),
+                    GpRequestId = r["GP_REQUEST_ID"]?.ToString()
+                },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
             var rejectInfo = rejectInfoRows.FirstOrDefault();
@@ -816,6 +1037,10 @@ public class LeaveController : ControllerBase
 
             if (!Helpers.RoleHierarchyHelper.CanApprove(rejectRole, rejectInfo.Role))
                 return Ok(new { success = false, message = $"Phiếu này cần {Helpers.RoleHierarchyHelper.RequiredApproverName(rejectInfo.Role)} xử lý." });
+
+            // Công tác (CT) chỉ Manager/Expat/Admin được từ chối — chặn hành động thật.
+            if (rejectInfo.LeaveType == "CT" && !CanApproveCT(rejectRole))
+                return Ok(new { success = false, message = "Đơn Công tác chỉ Manager, Expat hoặc Admin mới được xử lý" });
 
             int rows = await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_REQUEST
@@ -829,6 +1054,24 @@ public class LeaveController : ControllerBase
 
             if (rows == 0)
                 return Ok(new { success = false, message = "Không tìm thấy hoặc đã được xử lý rồi" });
+
+            // CT: từ chối luôn Gate Pass 'OUT' liên kết (đang PENDING) — NV không còn được cấp
+            // quyền ra cổng cho chuyến công tác đã bị từ chối.
+            if (rejectInfo.LeaveType == "CT" && !string.IsNullOrEmpty(rejectInfo.GpRequestId))
+            {
+                try
+                {
+                    await _oracleService.ExecuteNonQueryAsync(@"
+                        UPDATE HRMS.HR_REQUEST
+                        SET STATUS = 'REJECTED', FINAL_APPROVER = :APPROVER, FINAL_DATE = SYSDATE,
+                            UPDATED_BY = :APPROVER1, UPDATED_DATE = SYSDATE
+                        WHERE REQUEST_ID = :REQUEST_ID AND STATUS = 'PENDING'",
+                        new OracleParameter("APPROVER",   model.APPROVER_EMPCD),
+                        new OracleParameter("APPROVER1",  model.APPROVER_EMPCD),
+                        new OracleParameter("REQUEST_ID", rejectInfo.GpRequestId));
+                }
+                catch { /* best-effort — đơn CT đã từ chối thành công dù bước này lỗi */ }
+            }
 
             if (!string.IsNullOrEmpty(rejectInfo.Empcd))
             {
@@ -1140,6 +1383,14 @@ public class LeaveController : ControllerBase
                   AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)";
 
+            // Summary (3 thẻ tổng hợp) phải luôn tính trên toàn bộ status, không bị bó hẹp theo status đang filter
+            string whereSqlNoStatus = @"
+                WHERE R.REQUEST_TYPE = 'LEAVE'
+                  AND L.SOURCE       = 'ASSIGNED'
+                  AND R.CREATED_BY   = :ASSIGNER
+                  AND L.FROM_DATE BETWEEN :D_FROM AND :D_TO
+                  AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)";
+
             var baseParams = new List<OracleParameter>
             {
                 new OracleParameter("ASSIGNER",  OracleDbType.Varchar2) { Value = assigner_empcd },
@@ -1155,14 +1406,18 @@ public class LeaveController : ControllerBase
                 SELECT COUNT(*) TOTAL,
                        SUM(CASE WHEN L.CONFIRM_STATUS IS NULL       THEN 1 ELSE 0 END) PENDING_CONFIRM,
                        SUM(CASE WHEN L.CONFIRM_STATUS = 'CONFIRMED' THEN 1 ELSE 0 END) CONFIRMED
-                {fromSql}{whereSql}";
+                {fromSql}{whereSqlNoStatus}";
+
+            var summaryParams = baseParams
+                .Where(p => p.ParameterName != "ST_FLAG" && p.ParameterName != "ST_VAL")
+                .Select(p => (OracleParameter)p.Clone()).ToArray();
 
             var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new LeaveAssignSummary
             {
                 TOTAL           = r["TOTAL"]           == DBNull.Value ? 0 : Convert.ToInt32(r["TOTAL"]),
                 PENDING_CONFIRM = r["PENDING_CONFIRM"] == DBNull.Value ? 0 : Convert.ToInt32(r["PENDING_CONFIRM"]),
                 CONFIRMED       = r["CONFIRMED"]       == DBNull.Value ? 0 : Convert.ToInt32(r["CONFIRMED"])
-            }, baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
+            }, summaryParams);
 
             var summary = summaryRows.FirstOrDefault() ?? new LeaveAssignSummary();
 
@@ -1524,6 +1779,18 @@ public class LeaveController : ControllerBase
                   AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
                   AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)";
 
+            // Summary (4 thẻ tổng hợp) phải luôn tính trên toàn bộ status, không bị bó hẹp theo status đang filter
+            string whereSqlNoStatus = @"
+                WHERE R.REQUEST_TYPE = 'LEAVE'
+                  AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1
+                  AND (:SRC_FLAG  IS NULL OR L.SOURCE       = :SRC_VAL)
+                  AND (:LT_FLAG   IS NULL OR L.LEAVE_TYPE    = :LT_VAL)
+                  AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
+                  AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
+                  AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
+                  AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)";
+
             var baseParams = new List<OracleParameter>
             {
                 new OracleParameter("D_FROM",    OracleDbType.Date)     { Value = dfrom },
@@ -1551,7 +1818,11 @@ public class LeaveController : ControllerBase
                        SUM(CASE WHEN R.STATUS = 'REJECTED' THEN 1 ELSE 0 END) REJECTED,
                        SUM(CASE WHEN R.STATUS = 'ASSIGNED' AND NVL(L.CONFIRM_STATUS,'ASSIGNED') NOT IN ('CONFIRMED','WORKER_REJECTED') THEN 1 ELSE 0 END) ASSIGNED_PENDING,
                        SUM(CASE WHEN L.CONFIRM_STATUS = 'CONFIRMED' THEN 1 ELSE 0 END) ASSIGNED_CONFIRMED
-                {fromSql}{whereSql}";
+                {fromSql}{whereSqlNoStatus}";
+
+            var summaryParams = baseParams
+                .Where(p => p.ParameterName != "ST_FLAG" && p.ParameterName != "ST_VAL")
+                .Select(p => (OracleParameter)p.Clone()).ToArray();
 
             var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new LeaveSummary
             {
@@ -1561,7 +1832,7 @@ public class LeaveController : ControllerBase
                 REJECTED           = r["REJECTED"]           == DBNull.Value ? 0 : Convert.ToInt32(r["REJECTED"]),
                 ASSIGNED_PENDING   = r["ASSIGNED_PENDING"]   == DBNull.Value ? 0 : Convert.ToInt32(r["ASSIGNED_PENDING"]),
                 ASSIGNED_CONFIRMED = r["ASSIGNED_CONFIRMED"] == DBNull.Value ? 0 : Convert.ToInt32(r["ASSIGNED_CONFIRMED"]),
-            }, baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
+            }, summaryParams);
 
             var summary = summaryRows.FirstOrDefault() ?? new LeaveSummary();
 
@@ -1703,6 +1974,19 @@ public class LeaveController : ControllerBase
                   AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)
                   {scopeFilter.SqlClause}";
 
+            // Summary (4 thẻ tổng hợp) phải luôn tính trên toàn bộ status, không bị bó hẹp theo status đang filter
+            string whereSqlNoStatus = $@"
+                WHERE R.REQUEST_TYPE = 'LEAVE'
+                  AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND L.FROM_DATE BETWEEN :D_FROM AND :D_TO
+                  AND (:SRC_FLAG  IS NULL OR L.SOURCE       = :SRC_VAL)
+                  AND (:LT_FLAG   IS NULL OR L.LEAVE_TYPE    = :LT_VAL)
+                  AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
+                  AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
+                  AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
+                  AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)
+                  {scopeFilter.SqlClause}";
+
             var baseParams = new List<OracleParameter>
             {
                 new OracleParameter("D_FROM",    OracleDbType.Date)     { Value = dfrom },
@@ -1731,7 +2015,11 @@ public class LeaveController : ControllerBase
                        SUM(CASE WHEN R.STATUS = 'REJECTED' THEN 1 ELSE 0 END) REJECTED,
                        SUM(CASE WHEN R.STATUS = 'ASSIGNED' AND NVL(L.CONFIRM_STATUS,'ASSIGNED') NOT IN ('CONFIRMED','WORKER_REJECTED') THEN 1 ELSE 0 END) ASSIGNED_PENDING,
                        SUM(CASE WHEN L.CONFIRM_STATUS = 'CONFIRMED' THEN 1 ELSE 0 END) ASSIGNED_CONFIRMED
-                {fromSql}{whereSql}";
+                {fromSql}{whereSqlNoStatus}";
+
+            var summaryParams = baseParams
+                .Where(p => p.ParameterName != "ST_FLAG" && p.ParameterName != "ST_VAL")
+                .Select(p => (OracleParameter)p.Clone()).ToArray();
 
             var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new LeaveSummary
             {
@@ -1741,7 +2029,7 @@ public class LeaveController : ControllerBase
                 REJECTED           = r["REJECTED"]           == DBNull.Value ? 0 : Convert.ToInt32(r["REJECTED"]),
                 ASSIGNED_PENDING   = r["ASSIGNED_PENDING"]   == DBNull.Value ? 0 : Convert.ToInt32(r["ASSIGNED_PENDING"]),
                 ASSIGNED_CONFIRMED = r["ASSIGNED_CONFIRMED"] == DBNull.Value ? 0 : Convert.ToInt32(r["ASSIGNED_CONFIRMED"]),
-            }, baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
+            }, summaryParams);
 
             var summary = summaryRows.FirstOrDefault() ?? new LeaveSummary();
 

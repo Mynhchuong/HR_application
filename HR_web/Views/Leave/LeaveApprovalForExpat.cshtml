@@ -86,10 +86,13 @@
                 <select id="filterLeaveType" class="form-select form-select-sm">
                     <option value="">All</option>
                     <option value="AL">Annual (AL)</option>
+                    <option value="NL">Unpaid leave (NL)</option>
+                    <option value="SI">Sick - certified (SI)</option>
                     <option value="DT">Funeral (DT)</option>
                     <option value="DC">Wedding (DC)</option>
                     <option value="CT">Business trip (CT)</option>
                     <option value="VS">Childbirth (VS)</option>
+                    <option value="DS">Recovery leave (DS)</option>
                     <option value="KT">Prenatal checkup (KT)</option>
                 </select>
             </div>
@@ -214,8 +217,8 @@ function canApproveRole(requesterRole) {
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 
-const LEAVE_LABEL = { AL:'Annual', CL:'Social Ins.', SL:'Sick', NPL:'Unpaid', OTH:'Other', DT:'Funeral', DC:'Wedding', CT:'Business trip', VS:'Childbirth', KT:'Prenatal checkup' };
-const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', DT:'dark', DC:'danger', CT:'info', VS:'primary', KT:'warning' };
+const LEAVE_LABEL = { AL:'Annual', CL:'Social Ins.', SL:'Sick', NPL:'Unpaid', OTH:'Other', NL:'Unpaid leave', SI:'Sick (certified)', DT:'Funeral', DC:'Wedding', CT:'Business trip', VS:'Childbirth', DS:'Recovery leave', KT:'Prenatal checkup' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', NL:'secondary', SI:'danger', DT:'dark', DC:'danger', CT:'info', VS:'primary', DS:'warning', KT:'warning' };
 
 function getMonthRange(ym) {
     if (!ym) { const d = new Date(); ym = d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }

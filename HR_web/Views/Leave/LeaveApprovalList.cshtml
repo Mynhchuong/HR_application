@@ -91,10 +91,13 @@
                 <select id="filterLeaveType" class="form-select form-select-sm">
                     <option value="">Tất cả</option>
                     <option value="AL">Phép năm (AL)</option>
+                    <option value="NL">Không lương (NL)</option>
+                    <option value="SI">Bệnh có giấy (SI)</option>
                     <option value="DT">Đám tang (DT)</option>
                     <option value="DC">Đám cưới (DC)</option>
                     <option value="CT">Công tác (CT)</option>
                     <option value="VS">Vợ sanh (VS)</option>
+                    <option value="DS">Dưỡng sức (DS)</option>
                     <option value="KT">Khám thai (KT)</option>
                 </select>
             </div>
@@ -240,8 +243,8 @@ function getMonthRange() {
     return { from: fmt(firstDay), to: fmt(lastDay) };
 }
 
-const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', KT:'Khám thai' };
-const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', DT:'dark', DC:'danger', CT:'info', VS:'primary', KT:'warning' };
+const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', NL:'Không lương', SI:'Bệnh có giấy', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', DS:'Dưỡng sức', KT:'Khám thai' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', NL:'secondary', SI:'danger', DT:'dark', DC:'danger', CT:'info', VS:'primary', DS:'warning', KT:'warning' };
 
 function buildRow(item, idx) {
     const ltLabel = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';

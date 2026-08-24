@@ -119,9 +119,10 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
             inquiryId:  req.InquiryId,
             empCd:      CurrentUser!.EmpCd,
             anonToken:  null,
-            senderType: "HR",
-            senderName: CurrentUser.FullName,
-            content:    req.Content,
+            senderType:   "HR",
+            senderName:   CurrentUser.RoleName,
+            assignedName: CurrentUser.FullName,
+            content:      req.Content,
             files:      finalFiles.Count > 0 ? finalFiles : null,
             refs:       req.Refs?.Count > 0 ? req.Refs : null);
 

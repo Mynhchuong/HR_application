@@ -90,14 +90,15 @@ public class InquiryService
         long    inquiryId,  string? empCd,      string? anonToken,
         string  senderType, string? senderName,  string? content,
         List<InquiryFileInfo>? files = null,
-        List<InquiryRefInfo>?  refs  = null)
+        List<InquiryRefInfo>?  refs  = null,
+        string? assignedName = null)
     {
         try
         {
             var payload = new
             {
                 inquiryId, empCd, anonToken,
-                senderType, senderName, content,
+                senderType, senderName, assignedName, content,
                 files = files ?? new List<InquiryFileInfo>(),
                 refs  = refs  ?? new List<InquiryRefInfo>()
             };

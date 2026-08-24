@@ -134,9 +134,10 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             inquiryId:  req.InquiryId,
             empCd:      CurrentUser!.EmpCd,
             anonToken:  null,
-            senderType: "ADMIN",          // bypass lock check ở API
-            senderName: CurrentUser.FullName,
-            content:    req.Content,
+            senderType:   "ADMIN",          // bypass lock check ở API
+            senderName:   CurrentUser.RoleName,
+            assignedName: CurrentUser.FullName,
+            content:      req.Content,
             files:      finalFiles.Count > 0 ? finalFiles : null,
             refs:       req.Refs?.Count > 0 ? req.Refs : null);
 

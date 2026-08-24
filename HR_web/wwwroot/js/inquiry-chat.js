@@ -501,7 +501,7 @@ window.InquiryChat = (function () {
 
     function confirmClose() {
         const msg = cfg.mySide === 'EMP'
-            ? 'Đóng hội thoại này? Bạn sẽ không thể gửi thêm tin nhắn.'
+            ? 'Kết thúc hội thoại này? Bạn sẽ không thể gửi thêm tin nhắn.'
             : 'Đóng hội thoại này?';
         showConfirm(msg, async () => {
             const body = { inquiryId: cfg.inquiryId, closeNote: null };
@@ -513,9 +513,11 @@ window.InquiryChat = (function () {
             });
             const data = await res.json();
             if (!data.success) { showToast(data.message || 'Không thể đóng', 'error'); return; }
-            showToast(cfg.mySide === 'EMP' ? 'Hội thoại đã đóng' : 'Đã đóng hội thoại', 'success');
+            showToast(cfg.mySide === 'EMP' ? 'Hội thoại đã kết thúc' : 'Đã đóng hội thoại', 'success');
             setTimeout(() => location.reload(), 800);
-        }, { title: 'Đóng hội thoại', okText: 'Đóng', okClass: 'btn-warning', icon: 'close', iconColor: '#d97706', iconBg: '#fef3c7' });
+        }, cfg.mySide === 'EMP'
+            ? { title: 'Kết thúc hội thoại', okText: 'Kết thúc', okClass: 'btn-warning', icon: 'close', iconColor: '#d97706', iconBg: '#fef3c7' }
+            : { title: 'Đóng hội thoại', okText: 'Đóng', okClass: 'btn-warning', icon: 'close', iconColor: '#d97706', iconBg: '#fef3c7' });
     }
 
     function confirmUnlock() {

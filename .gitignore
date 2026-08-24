@@ -114,3 +114,6 @@ HR_web///192.168.1.5/vserp_picture/TRAINING/CLASS_31/3501271464654119a0196147a72
 HR_web///192.168.1.5/vserp_picture/TRAINING/COURSE_9/89c70c0ac6134ace8a279176f5b8e6db.pdf
 HR_api/Scripts/index_notification_perf.sql
 HR_api/Scripts/alter_leave_doctrack.sql
+HR_web/Views/Home/DemoEnterprise.cshtml
+HR_api/Scripts/alter_leave_ct_gatepass_link.sql
+UI_REDESIGN_PLAN.md

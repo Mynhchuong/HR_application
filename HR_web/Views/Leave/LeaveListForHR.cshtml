@@ -91,10 +91,13 @@
                 <select id="filterLeaveType" class="form-select form-select-sm">
                     <option value="">Tất cả</option>
                     <option value="AL">Phép năm (AL)</option>
+                    <option value="NL">Không lương (NL)</option>
+                    <option value="SI">Bệnh có giấy (SI)</option>
                     <option value="DT">Đám tang (DT)</option>
                     <option value="DC">Đám cưới (DC)</option>
                     <option value="CT">Công tác (CT)</option>
                     <option value="VS">Vợ sanh (VS)</option>
+                    <option value="DS">Dưỡng sức (DS)</option>
                     <option value="KT">Khám thai (KT)</option>
                 </select>
             </div>
@@ -210,9 +213,9 @@
 const PAGE_URL = '@Url.Action("GetHRListPage", "Leave")';
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 
-const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', KT:'Khám thai' };
-const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', DT:'dark', DC:'danger', CT:'info', VS:'primary', KT:'warning' };
-const DOC_REQUIRED_TYPES = ['DT', 'DC', 'VS', 'KT'];
+const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', NL:'Không lương', SI:'Bệnh có giấy', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', DS:'Dưỡng sức', KT:'Khám thai' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', NL:'secondary', SI:'danger', DT:'dark', DC:'danger', CT:'info', VS:'primary', DS:'warning', KT:'warning' };
+const DOC_REQUIRED_TYPES = ['SI', 'DT', 'DC', 'VS', 'DS', 'KT'];
 const DOC_STATUS_LABEL   = { SUBMITTED: 'Đã nộp', RESUBMIT_REQUESTED: 'Yêu cầu nộp lại' };
 const DOC_STATUS_COLOR   = { SUBMITTED: 'success', RESUBMIT_REQUESTED: 'warning' };
 

@@ -17,9 +17,10 @@ public class InquirySendRequest
     public long    InquiryId  { get; set; }
     public string? EmpCd      { get; set; }
     public string? AnonToken  { get; set; }
-    public string  SenderType { get; set; } = "EMP";   // EMP | HR
-    public string? SenderName { get; set; }             // HR_web tự điền từ session
-    public string? Content    { get; set; }
+    public string  SenderType   { get; set; } = "EMP";   // EMP | HR
+    public string? SenderName   { get; set; }             // hiển thị trong chat (role khi là HR/Admin/CSR)
+    public string? AssignedName { get; set; }             // họ tên đầy đủ, dùng để lock/report (ASSIGNED_NAME)
+    public string? Content      { get; set; }
     public List<InquiryFileInfo> Files { get; set; } = new();
     public List<InquiryRefInfo>  Refs  { get; set; } = new();   // trích dẫn Policy/Guide (HR/Admin only)
 }

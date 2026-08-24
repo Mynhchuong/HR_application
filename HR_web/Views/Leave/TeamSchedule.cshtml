@@ -441,8 +441,8 @@ let apvEmpTimeout, maEmpTimeout;
 
 const MONTHS_VI  = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
                     'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
-const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', KT:'Khám thai' };
-const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', DT:'dark', DC:'success', CT:'primary', VS:'info', KT:'info' };
+const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', NL:'Không lương', SI:'Bệnh có giấy', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', DS:'Dưỡng sức', KT:'Khám thai' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', NL:'secondary', SI:'danger', DT:'dark', DC:'success', CT:'primary', VS:'info', DS:'warning', KT:'info' };
 
 function getMonthRange() {
     const firstDay = new Date(curYear, curMonth - 1, 1);

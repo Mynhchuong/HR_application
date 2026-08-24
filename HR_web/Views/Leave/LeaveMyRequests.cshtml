@@ -144,10 +144,13 @@
                     <label class="form-label fw-bold mb-2">Loại nghỉ <span class="text-danger">*</span></label>
                     <select id="createLeaveType" class="form-select">
                         <option value="AL" selected>Phép năm (AL)</option>
+                        <option value="NL">Không lương (NL)</option>
+                        <option value="SI">Bệnh có giấy (SI)</option>
                         <option value="DT">Đám tang (DT)</option>
                         <option value="DC">Đám cưới (DC)</option>
                         <option value="CT">Công tác (CT)</option>
                         <option value="VS">Vợ sanh (VS)</option>
+                        <option value="DS">Dưỡng sức (DS)</option>
                         <option value="KT">Khám thai (KT)</option>
                     </select>
                     <div id="createLTNote" class="lt-note d-none"></div>
@@ -197,10 +200,13 @@
                     <label class="form-label fw-bold mb-2">Loại nghỉ <span class="text-danger">*</span></label>
                     <select id="editLeaveType" class="form-select">
                         <option value="AL">Phép năm (AL)</option>
+                        <option value="NL">Không lương (NL)</option>
+                        <option value="SI">Bệnh có giấy (SI)</option>
                         <option value="DT">Đám tang (DT)</option>
                         <option value="DC">Đám cưới (DC)</option>
                         <option value="CT">Công tác (CT)</option>
                         <option value="VS">Vợ sanh (VS)</option>
+                        <option value="DS">Dưỡng sức (DS)</option>
                         <option value="KT">Khám thai (KT)</option>
                     </select>
                     <div id="editLTNote" class="lt-note d-none"></div>
@@ -306,14 +312,20 @@ function getMonthRange() {
     return { from: fmt(firstDay), to: fmt(lastDay) };
 }
 
-const LEAVE_LABEL = { AL:'Phép năm', CL:'Chế độ BHXH', SL:'Nghỉ bệnh', NPL:'Không lương', OTH:'Khác', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', KT:'Khám thai' };
-const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', DT:'dark', DC:'danger', CT:'info', VS:'primary', KT:'warning' };
+const LEAVE_LABEL = { AL:'Phép năm', CL:'Chế độ BHXH', SL:'Nghỉ bệnh', NPL:'Không lương', OTH:'Khác', NL:'Không lương', SI:'Bệnh có giấy', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', DS:'Dưỡng sức', KT:'Khám thai' };
+const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', NL:'secondary', SI:'danger', DT:'dark', DC:'danger', CT:'info', VS:'primary', DS:'warning', KT:'warning' };
 
 function leaveBadge(t) {
     return `<span class="badge bg-${LEAVE_COLOR[t]||'secondary'}">${LEAVE_LABEL[t]||t||'-'}</span>`;
 }
 
-const DOC_REQUIRED_TYPES = ['DT', 'DC', 'VS', 'KT'];
+// Loại bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — khớp DocRequiredTypes phía API. CT KHÔNG cần nộp giấy tờ.
+const DOC_REQUIRED_TYPES = ['SI', 'DT', 'DC', 'VS', 'DS', 'KT'];
+// NL/SI/DS: cảnh báo mất chuyên cần + ngày công LUÔN LUÔN (không phụ thuộc có nộp giấy hay không — NL không có
+// cơ chế nộp giấy, SI/DS có nộp giấy nhưng vẫn mất ngày công theo bảng HR).
+const ALWAYS_LOSE_TYPES = ['NL', 'SI', 'DS'];
+// DT/DC/VS/KT: chỉ mất chuyên cần NẾU không bổ sung giấy tờ đúng hạn (không mất ngày công).
+const COND_LOSE_TYPES = ['DT', 'DC', 'VS', 'KT'];
 
 // Ghi chú tham khảo cho NV tự chọn số ngày đúng theo quan hệ — CHỈ hiển thị, không ràng buộc logic/validate.
 const LT_POLICY_NOTE = {
@@ -324,16 +336,16 @@ const LT_POLICY_NOTE = {
         '• <b>4 ngày</b> nếu là bố mẹ ruột/nuôi (hai bên), vợ/chồng, hoặc con ruột/nuôi mất.<br>' +
         '• <b>1 ngày</b> nếu là ông bà (nội/ngoại) hoặc anh/chị/em ruột/nuôi mất.'
 };
-// Trừ Phép năm (AL) và Công tác (CT), các loại còn lại (DT/DC/VS/KT) bắt buộc nộp giấy tờ chứng minh
-// trong tháng, nếu không sẽ bị tính nghỉ không lương + mất chuyên cần.
-const DOC_WARNING_NOTE = '⚠️ <b>Lưu ý:</b> Phải nộp giấy tờ chứng minh cho phòng Nhân sự trong tháng này. ' +
-    'Nếu không nộp sẽ bị tính là <b>nghỉ không lương</b> và <b>mất chuyên cần</b>.';
+const DOC_WARNING_NOTE_ALWAYS = '⚠️ <b>Lưu ý:</b> Nghỉ loại này sẽ bị tính <b>mất chuyên cần</b> và <b>mất ngày công</b>.';
+const DOC_WARNING_NOTE_COND = '⚠️ <b>Lưu ý:</b> Phải nộp giấy tờ chứng minh cho phòng Nhân sự trong tháng này. ' +
+    'Nếu không nộp sẽ bị <b>mất chuyên cần</b>.';
 function updateLTNote(prefix) {
     const val   = document.getElementById(prefix + 'LeaveType')?.value;
     const noteEl = document.getElementById(prefix + 'LTNote');
     if (!noteEl) return;
     let html = LT_POLICY_NOTE[val] || '';
-    if (DOC_REQUIRED_TYPES.includes(val)) html += (html ? '<br>' : '') + DOC_WARNING_NOTE;
+    if (ALWAYS_LOSE_TYPES.includes(val)) html += (html ? '<br>' : '') + DOC_WARNING_NOTE_ALWAYS;
+    else if (COND_LOSE_TYPES.includes(val)) html += (html ? '<br>' : '') + DOC_WARNING_NOTE_COND;
     if (html) { noteEl.innerHTML = html; noteEl.classList.remove('d-none'); }
     else { noteEl.innerHTML = ''; noteEl.classList.add('d-none'); }
 }
@@ -342,7 +354,7 @@ document.getElementById('editLeaveType')?.addEventListener('change', () => updat
 
 // ERP remark tối đa 30 byte, gồm tiền tố "XX " (mã loại + dấu cách = 3 byte) + lý do NV gõ.
 // Chỉ áp dụng cho 5 loại ghi thẳng lý do vào remark ERP (AL không dùng lý do trong remark).
-const ERP_REMARK_TYPES = ['DT', 'DC', 'CT', 'VS', 'KT'];
+const ERP_REMARK_TYPES = ['NL', 'SI', 'DT', 'DC', 'CT', 'VS', 'DS', 'KT'];
 const ERP_REASON_MAX_BYTES = 27;
 
 function utf8ByteLength(s) {
@@ -382,6 +394,7 @@ function setupReasonByteLimit(prefix) {
 }
 setupReasonByteLimit('create');
 setupReasonByteLimit('edit');
+
 function needsDocWarning(item) {
     return DOC_REQUIRED_TYPES.includes(item.LEAVE_TYPE)
         && (item.STATUS === 'APPROVED' || item.STATUS === 'ASSIGNED')
@@ -707,9 +720,10 @@ async function saveCreate() {
     if (!canTakeSundayLeave && isSunday(to))   { $('#createError').removeClass('d-none').text('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)'); $('#createToDate').focus(); return; }
     if (to < from)          { $('#createError').removeClass('d-none').text('Đến ngày phải lớn hơn hoặc bằng Từ ngày'); $('#createToDate').focus(); return; }
     if (!days || days <= 0) { $('#createError').removeClass('d-none').text('Số ngày nghỉ không hợp lệ'); return; }
-    if (!reason)            { $('#createError').removeClass('d-none').text('Vui lòng nhập lý do nghỉ phép'); $('#createReason').focus(); return; }
 
     const createLT = $('#createLeaveType').val() || 'AL';
+    if (createLT !== 'AL' && !reason) { $('#createError').removeClass('d-none').text('Vui lòng nhập lý do nghỉ phép'); $('#createReason').focus(); return; }
+
     // AL deadline: STIME ca ngày FROM_DATE - 7.5h (fair cho ca đêm).
     // Server sẽ check lại — client chỉ để UX sớm.
     if (createLT === 'AL') {
@@ -727,11 +741,11 @@ async function saveCreate() {
                 $('#createFromDate').focus(); return;
             }
         }
-    } else if (createLT === 'DC') {
+    } else if (createLT === 'DC' || createLT === 'DS') {
         const d = new Date(); d.setDate(d.getDate() + 3);
         const minDcStr = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
         if (from < minDcStr) {
-            $('#createError').removeClass('d-none').text('Đám cưới phải đăng ký trước ít nhất 3 ngày');
+            $('#createError').removeClass('d-none').text('Loại nghỉ này phải đăng ký trước ít nhất 3 ngày');
             $('#createFromDate').focus(); return;
         }
     }
@@ -846,11 +860,11 @@ async function saveEdit() {
     if (editLT !== 'AL' && !$('#editReason').val().trim()) {
         $('#editError').removeClass('d-none').text('Vui lòng nhập lý do nghỉ'); $('#editReason').focus(); return;
     }
-    if (editLT === 'DC') {
+    if (editLT === 'DC' || editLT === 'DS') {
         const d = new Date(); d.setDate(d.getDate() + 3);
         const minDcStr = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
         if (from < minDcStr) {
-            $('#editError').removeClass('d-none').text('Đám cưới phải đăng ký trước ít nhất 3 ngày');
+            $('#editError').removeClass('d-none').text('Loại nghỉ này phải đăng ký trước ít nhất 3 ngày');
             $('#editFromDate').focus(); return;
         }
     }

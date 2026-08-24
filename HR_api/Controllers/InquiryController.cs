@@ -784,7 +784,7 @@ public class InquiryController : ControllerBase
             if ((isHr || isAdmin) && string.IsNullOrEmpty(conv.AssignedTo))
             {
                 string lockEmpCd   = req.EmpCd   ?? "";
-                string lockName    = req.SenderName ?? "";
+                string lockName    = req.AssignedName ?? req.SenderName ?? "";
                 int lockRows = await _db.ExecuteNonQueryAsync(@"
                     UPDATE HRMS.HR_INQUIRY
                     SET ASSIGNED_TO = :HR_CD, ASSIGNED_NAME = :HR_NAME, LOCKED_DT = SYSDATE
@@ -817,7 +817,7 @@ public class InquiryController : ControllerBase
                     SET ASSIGNED_TO = :HR_CD, ASSIGNED_NAME = :HR_NAME, LOCKED_DT = SYSDATE
                     WHERE ID = :ID AND STATUS = 'OPEN'",
                     new OracleParameter("HR_CD",   req.EmpCd   ?? ""),
-                    new OracleParameter("HR_NAME", req.SenderName ?? ""),
+                    new OracleParameter("HR_NAME", req.AssignedName ?? req.SenderName ?? ""),
                     new OracleParameter("ID",      req.InquiryId));
             }
 

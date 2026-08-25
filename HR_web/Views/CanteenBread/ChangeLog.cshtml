@@ -73,6 +73,7 @@
             </select>
             <button class="btn btn-sm btn-dark mb-0" onclick="doSearch()"><i class="bi bi-search me-1"></i>Tìm</button>
             <button class="btn btn-sm btn-outline-secondary mb-0" onclick="resetFilter()" title="Xóa filter"><i class="bi bi-x-lg"></i></button>
+            <button class="btn btn-sm btn-success mb-0" onclick="exportExcel()" title="Xuất Excel theo filter đang chọn"><i class="bi bi-file-earmark-excel me-1"></i>Xuất Excel</button>
             <span id="totalBadge" class="total-badge ms-1" style="display:none;"></span>
         </div>
 
@@ -252,6 +253,29 @@ async function doSearch(page = 1) {
     }).join('');
 
     renderPagination();
+}
+
+function exportExcel() {
+    const from     = document.getElementById('fFrom').value;
+    const to       = document.getElementById('fTo').value;
+    const empcd    = document.getElementById('fEmp').value.trim();
+    const deptcd   = document.getElementById('fDept').value;
+    const linecd   = document.getElementById('fLine').value;
+    const workcd   = document.getElementById('fWork').value;
+    const foodType = document.getElementById('fFood').value;
+    const typeMeal = document.getElementById('fShift').value;
+
+    const qs = new URLSearchParams();
+    if (from)     qs.set('from',     from);
+    if (to)       qs.set('to',       to);
+    if (empcd)    qs.set('empcd',    empcd);
+    if (deptcd)   qs.set('deptcd',   deptcd);
+    if (linecd)   qs.set('linecd',   linecd);
+    if (workcd)   qs.set('workcd',   workcd);
+    if (foodType) qs.set('foodType', foodType);
+    if (typeMeal) qs.set('typeMeal', typeMeal);
+
+    window.location.href = 'ExportExcel?' + qs.toString();
 }
 
 function renderPagination() {

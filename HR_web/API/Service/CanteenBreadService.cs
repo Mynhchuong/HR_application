@@ -122,4 +122,49 @@ public class CanteenBreadService
             ? await res.Content.ReadAsStringAsync()
             : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
     }
+
+    // Lấy TOÀN BỘ log (không phân trang) — dùng cho Xuất Excel, cùng bộ filter với GetChangeLog.
+    // pageSize lớn để lấy 1 lần thay vì loop nhiều trang.
+    public async Task<List<ChangeLogRow>> OrderViewAllAsync(
+        string? from, string? to, string? empcd,
+        string? deptcd, string? foodType,
+        string? clerkEmpcd = null, string? linecd = null, string? workcd = null,
+        string? typeMeal = null)
+    {
+        var q = new List<string>();
+        if (!string.IsNullOrEmpty(from))       q.Add($"from={Uri.EscapeDataString(from)}");
+        if (!string.IsNullOrEmpty(to))         q.Add($"to={Uri.EscapeDataString(to)}");
+        if (!string.IsNullOrEmpty(empcd))      q.Add($"empcd={Uri.EscapeDataString(empcd)}");
+        if (!string.IsNullOrEmpty(deptcd))     q.Add($"deptcd={Uri.EscapeDataString(deptcd)}");
+        if (!string.IsNullOrEmpty(linecd))     q.Add($"linecd={Uri.EscapeDataString(linecd)}");
+        if (!string.IsNullOrEmpty(workcd))     q.Add($"workcd={Uri.EscapeDataString(workcd)}");
+        if (!string.IsNullOrEmpty(foodType))   q.Add($"foodType={Uri.EscapeDataString(foodType)}");
+        if (!string.IsNullOrEmpty(typeMeal))   q.Add($"typeMeal={Uri.EscapeDataString(typeMeal)}");
+        if (!string.IsNullOrEmpty(clerkEmpcd)) q.Add($"clerkEmpcd={Uri.EscapeDataString(clerkEmpcd)}");
+        q.Add("page=1");
+        q.Add("pageSize=100000");
+
+        var r = await _api.GetAsync<ChangeLogListResp>("CanteenBread/order-view", string.Join("&", q));
+        return (r?.success == true ? r.data : null) ?? new List<ChangeLogRow>();
+    }
+
+    private class ChangeLogListResp
+    {
+        public bool               success { get; set; }
+        public List<ChangeLogRow>? data   { get; set; }
+    }
+}
+
+public class ChangeLogRow
+{
+    public string?   empcd      { get; set; }
+    public string?   dat        { get; set; }
+    public string?   typeMeal   { get; set; }
+    public string?   typeOfFood { get; set; }
+    public string?   changeFrom { get; set; }
+    public DateTime? updtDt     { get; set; }
+    public bool      isMysamho  { get; set; }
+    public string?   empName    { get; set; }
+    public string?   deptcd     { get; set; }
+    public string?   deptName   { get; set; }
 }

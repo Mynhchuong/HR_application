@@ -54,6 +54,23 @@ public class LeaveService
         }
     }
 
+    // Deadline check cho NL (trước giờ vào ca) và DT/VS/KT (trước giờ hết ca) khi FROM_DATE = hôm nay.
+    public async Task<string> GetSameDayDeadlineRawAsync(string empcd, string leaveType, string fromDate)
+    {
+        try
+        {
+            var q = $"empcd={Uri.EscapeDataString(empcd)}&leave_type={Uri.EscapeDataString(leaveType)}&from_date={Uri.EscapeDataString(fromDate)}";
+            var response = await _api.GetAsync_Raw("leave/same-day-deadline", q);
+            if (response != null && response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối API\"}";
+        }
+        catch (Exception ex)
+        {
+            return "{\"success\":false,\"message\":" + JsonConvert.SerializeObject(ex.Message) + "}";
+        }
+    }
+
     public async Task<LeaveActionResponse> CreateAsync(LeaveCreateRequest request)
     {
         try

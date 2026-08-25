@@ -478,20 +478,40 @@ public class TrainingAttemptService
                 new OracleParameter("PS",  (object?)isPass ?? DBNull.Value),
                 new OracleParameter("AID", attemptId));
 
+            var info = (await _db.ExecuteQueryAsync(@"
+                SELECT A.EMPCD, A.TEST_ID, T.TITLE, T.CLASS_ID, CL.FINAL_TEST_ID
+                  FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
+                  JOIN HRMS.HR_TRAINING_TEST T ON T.ID = A.TEST_ID
+                  LEFT JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = T.CLASS_ID
+                 WHERE A.ID = :AID",
+                r => new
+                {
+                    EMP           = r["EMPCD"]?.ToString() ?? "",
+                    TITLE         = r["TITLE"]?.ToString() ?? "",
+                    CID           = r["CLASS_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["CLASS_ID"]),
+                    TEST_ID       = Convert.ToInt32(r["TEST_ID"]),
+                    FINAL_TEST_ID = r["FINAL_TEST_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["FINAL_TEST_ID"]),
+                }, new OracleParameter("AID", attemptId))).First();
+
+            // Essay của bài thi CUỐI KHÓA được chấm xong SAU KHI lớp đã chốt (HR bấm "Chốt kết quả"
+            // trước khi GV chấm hết essay) → học viên đã COMPLETED nhưng FINAL_SCORE còn trống.
+            // Tự backfill ngay lúc chấm nếu đậu, để không phải chờ HR nhớ bấm chốt lại lần 2
+            // (§ fix 2026-08-25, xem thêm backfill tương tự trong TrainingCompletionService).
+            if (isPass == 1 && info.CID.HasValue && info.FINAL_TEST_ID == info.TEST_ID)
+            {
+                await _db.ExecuteNonQueryAsync(@"
+                    UPDATE HRMS.HR_TRAINING_ENROLLMENT
+                       SET FINAL_SCORE = :SC
+                     WHERE CLASS_ID = :CID AND EMPCD = :EMP
+                       AND IS_CERTIFIED = 1 AND FINAL_SCORE IS NULL",
+                    new OracleParameter("SC",  total),
+                    new OracleParameter("CID", info.CID.Value),
+                    new OracleParameter("EMP", info.EMP));
+            }
+
             // Enqueue TRAINING_TEST_GRADED cho student (§13)
             if (_noti != null)
             {
-                var info = (await _db.ExecuteQueryAsync(@"
-                    SELECT A.EMPCD, T.TITLE, T.CLASS_ID
-                      FROM HRMS.HR_TRAINING_TEST_ATTEMPT A
-                      JOIN HRMS.HR_TRAINING_TEST T ON T.ID = A.TEST_ID
-                     WHERE A.ID = :AID",
-                    r => new
-                    {
-                        EMP   = r["EMPCD"]?.ToString() ?? "",
-                        TITLE = r["TITLE"]?.ToString() ?? "",
-                        CID   = r["CLASS_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["CLASS_ID"]),
-                    }, new OracleParameter("AID", attemptId))).First();
                 await _noti.EnqueueAsync("TRAINING_TEST_GRADED", info.EMP,
                     new Dictionary<string, string>
                     {

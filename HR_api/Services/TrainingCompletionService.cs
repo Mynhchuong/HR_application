@@ -53,11 +53,17 @@ public class TrainingCompletionService
         // có thể được cấp thi lại (GrantRetake) SAU khi lớp đã chốt lần trước và đậu ở lượt sau;
         // best-attempt (ComputeStandardAsync/ComputeExpressAsync) sẽ tự chọn lại đúng kết quả.
         // KHÔNG lấy STATUS='COMPLETED' — tránh đè lại COMPLETION_DATE của người đã chốt đúng.
+        // Học viên ENROLLED/FAILED được xử lý đầy đủ (đổi status/completion date) như trước.
+        // Học viên đã COMPLETED nhưng FINAL_SCORE còn trống (VD: essay được chấm SAU khi đã chốt
+        // lần đầu, hoặc final test được gán vào lớp sau) được gộp thêm vào để backfill lại điểm —
+        // nhưng KHÔNG đổi status/COMPLETION_DATE/IS_CERTIFIED của họ (xem nhánh riêng bên dưới).
         var students = await _db.ExecuteQueryAsync(@"
             SELECT E.EMPCD, EC.CNAME EMP_NAME, E.GROUP_ID, E.STATUS OLD_STATUS
               FROM HRMS.HR_TRAINING_ENROLLMENT E
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = E.EMPCD
-             WHERE E.CLASS_ID = :CID AND E.STATUS IN ('ENROLLED', 'FAILED')",
+             WHERE E.CLASS_ID = :CID
+               AND (E.STATUS IN ('ENROLLED', 'FAILED')
+                    OR (E.STATUS = 'COMPLETED' AND E.FINAL_SCORE IS NULL))",
             r => new
             {
                 EMPCD      = r["EMPCD"]?.ToString() ?? "",
@@ -66,7 +72,10 @@ public class TrainingCompletionService
                 OLD_STATUS = r["OLD_STATUS"]?.ToString() ?? "",
             }, new OracleParameter("CID", req.CLASS_ID));
 
-        var res = new FinalizeClassResult { CLASS_ID = req.CLASS_ID, TOTAL_ENROLLED = students.Count };
+        // TOTAL_ENROLLED chỉ đếm ENROLLED/FAILED thật sự được chốt lần này — không tính học viên
+        // COMPLETED chỉ ghé qua để backfill điểm, tránh lệch số trong thông báo "Đã chốt X học viên".
+        int totalToFinalize = students.Count(s => s.OLD_STATUS != "COMPLETED");
+        var res = new FinalizeClassResult { CLASS_ID = req.CLASS_ID, TOTAL_ENROLLED = totalToFinalize };
         var changedEmpcds = new HashSet<string>();
 
         foreach (var s in students)
@@ -75,6 +84,35 @@ public class TrainingCompletionService
                 ? await ComputeExpressAsync(req.CLASS_ID, s.EMPCD, s.GROUP_ID, meta.FINAL_TEST)
                 : await ComputeStandardAsync(req.CLASS_ID, s.EMPCD, s.GROUP_ID,
                     meta.MIN_ATT, meta.FINAL_TEST, meta.REQ_REVIEW == 1);
+
+            // Học viên đã COMPLETED từ trước: chỉ backfill FINAL_SCORE khi tính lại ra điểm hợp lệ
+            // (đậu final test). KHÔNG đổi STATUS/COMPLETION_DATE/IS_CERTIFIED — họ đã chốt đậu đúng
+            // rồi, việc này chỉ điền lại điểm đang thiếu, không phải chốt lại từ đầu.
+            if (s.OLD_STATUS == "COMPLETED")
+            {
+                if (score.HasValue && passed)
+                {
+                    await _db.ExecuteNonQueryAsync(@"
+                        UPDATE HRMS.HR_TRAINING_ENROLLMENT
+                           SET FINAL_SCORE = :SC, UPDT_ID = :USR
+                         WHERE CLASS_ID = :CID AND EMPCD = :EMP",
+                        new OracleParameter("SC",  score.Value),
+                        new OracleParameter("USR", req.LOGIN_USER),
+                        new OracleParameter("CID", req.CLASS_ID),
+                        new OracleParameter("EMP", s.EMPCD));
+
+                    res.DETAILS.Add(new CompletionResultModel
+                    {
+                        EMPCD              = s.EMPCD,
+                        EMP_NAME           = s.EMP_NAME,
+                        ATTENDANCE_PERCENT = att,
+                        FINAL_SCORE        = score,
+                        PASSED             = 1,
+                        FAIL_REASON        = "Đã đạt từ trước — vừa backfill điểm cuối kỳ còn thiếu",
+                    });
+                }
+                continue;
+            }
 
             var newStatus = passed ? "COMPLETED" : "FAILED";
             if (newStatus != s.OLD_STATUS) changedEmpcds.Add(s.EMPCD);

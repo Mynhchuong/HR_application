@@ -66,6 +66,21 @@ public class LeaveController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET: /Leave/SameDayDeadline?leave_type=&from_date=YYYY-MM-DD (AJAX)
+    // Deadline xin NL (trước giờ vào ca) / DT,VS,KT (trước giờ hết ca) khi FROM_DATE = hôm nay.
+    // Frontend gọi khi user đổi loại nghỉ, để tự dời min date sang ngày mai nếu đã quá hạn.
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> SameDayDeadline(string leave_type, string from_date)
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+            return Json(new { success = false, message = "Chưa đăng nhập" });
+
+        var raw = await _leaveService.GetSameDayDeadlineRawAsync(CurrentUser.EmpCd, leave_type ?? "", from_date ?? "");
+        return Content(raw, "application/json");
+    }
+
+    // ─────────────────────────────────────────────
     // POST: /Leave/CreateRequest (AJAX)
     // ─────────────────────────────────────────────
     [HttpPost]

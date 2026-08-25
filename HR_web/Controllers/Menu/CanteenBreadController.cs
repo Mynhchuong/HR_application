@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using HR_web.API.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -194,6 +195,64 @@ public class CanteenBreadController : BaseController
         var clerkEmpcd = CurrentUser?.RoleName == "Clerk" ? CurrentUser?.EmpCd : null;
         var raw = await _svc.OrderViewRawAsync(from, to, empcd, deptcd, foodType, page, pageSize, clerkEmpcd, linecd, workcd, typeMeal);
         return Content(raw, "application/json");
+    }
+
+    private static readonly Dictionary<string, string> FoodLabel  = new() { ["M"] = "Mặn", ["N"] = "Nhẹ", ["C"] = "Chay", ["B"] = "Bánh" };
+    private static readonly Dictionary<string, string> ShiftLabel = new() { ["LUNCH"] = "Bữa ca", ["OT"] = "Tăng ca" };
+
+    [HttpGet]
+    public async Task<IActionResult> ExportExcel(
+        string? from, string? to, string? empcd,
+        string? deptcd, string? linecd, string? workcd, string? foodType, string? typeMeal)
+    {
+        if (!CanViewLog) return ForbidJson();
+
+        var clerkEmpcd = CurrentUser?.RoleName == "Clerk" ? CurrentUser?.EmpCd : null;
+        var rows = await _svc.OrderViewAllAsync(from, to, empcd, deptcd, foodType, clerkEmpcd, linecd, workcd, typeMeal);
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Log Đổi Món");
+
+        string[] headers = { "STT", "Ngày", "Mã NV", "Họ & Tên", "Phòng ban", "Ca", "Món hiện tại", "Đổi bởi", "Nguồn", "Lần cuối" };
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var c = ws.Cell(1, i + 1);
+            c.Value = headers[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#1e3a5f");
+            c.Style.Font.FontColor = XLColor.White;
+            c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        int row = 2;
+        foreach (var r in rows)
+        {
+            var dat = (r.dat?.Length == 8) ? $"{r.dat.Substring(6, 2)}/{r.dat.Substring(4, 2)}/{r.dat.Substring(0, 4)}" : (r.dat ?? "");
+            var food  = r.typeOfFood != null && FoodLabel.TryGetValue(r.typeOfFood, out var fl) ? fl : (r.typeOfFood ?? "");
+            var shift = r.typeMeal  != null && ShiftLabel.TryGetValue(r.typeMeal, out var sl) ? sl : (r.typeMeal ?? "");
+            var source = r.isMysamho ? "App" : (string.IsNullOrEmpty(r.changeFrom) ? "HT" : r.changeFrom);
+
+            ws.Cell(row, 1).Value = row - 1;
+            ws.Cell(row, 2).Value = dat;
+            ws.Cell(row, 3).Value = r.empcd ?? "";
+            ws.Cell(row, 4).Value = r.empName ?? "";
+            ws.Cell(row, 5).Value = r.deptName ?? r.deptcd ?? "";
+            ws.Cell(row, 6).Value = shift;
+            ws.Cell(row, 7).Value = food;
+            ws.Cell(row, 8).Value = r.changeFrom ?? "";
+            ws.Cell(row, 9).Value = source;
+            ws.Cell(row, 10).Value = r.updtDt.HasValue ? r.updtDt.Value.ToString("dd/MM/yyyy HH:mm") : "";
+            row++;
+        }
+
+        ws.Range(1, 1, 1, headers.Length).SetAutoFilter();
+        ws.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"LogDoiMon_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
     }
 
     public class QuotaItem

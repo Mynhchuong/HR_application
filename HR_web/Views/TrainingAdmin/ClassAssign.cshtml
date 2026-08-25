@@ -530,7 +530,8 @@
                 // recovery cho lớp lỡ bị đóng trước khi chốt kết quả.
                 const hasUnfinalized = (selectedClassData.enrollments || []).some(e => e.STATUS === 'ENROLLED' || e.STATUS === 'FAILED');
                 if (hasUnfinalized) {
-                    buttonsWrap.innerHTML += `<button onclick="finalizeClass(${cls.ID})" class="btn btn-sm btn-success fw-bold">Chốt kết quả & cấp chứng chỉ</button>`;
+                    const noFinalTest = cls.COURSE_MODE !== 'EXPRESS' && !cls.FINAL_TEST_ID;
+                    buttonsWrap.innerHTML += `<button onclick="finalizeClass(${cls.ID}, ${noFinalTest})" class="btn btn-sm btn-success fw-bold">Chốt kết quả & cấp chứng chỉ</button>`;
                 }
                 if (cls.STATUS === 'COMPLETED') {
                     buttonsWrap.innerHTML += `<button onclick="closeClass(${cls.ID})" class="btn btn-sm btn-dark fw-bold">Đóng & Lưu trữ lớp</button>`;
@@ -1655,8 +1656,13 @@
             });
         }
 
-        function finalizeClass(id) {
-            window.showConfirm('Chốt kết quả sẽ tính điểm danh, điểm thi và cấp chứng chỉ cho toàn bộ học viên của lớp. Hãy đảm bảo giáo viên đã chấm xong các bài tự luận trước khi chốt. Tiếp tục?', () => {
+        function finalizeClass(id, noFinalTest) {
+            // Lớp STANDARD chưa gán bài thi cuối khóa (FINAL_TEST_ID) → chốt xong chứng chỉ sẽ
+            // KHÔNG có điểm cuối kỳ và không thể bổ sung sau (trừ khi quay lại gán rồi chốt lại).
+            // Cảnh báo rõ để HR gán bài thi trước nếu lớp thật ra có thi (§ fix 2026-08-25).
+            const baseMsg = 'Chốt kết quả sẽ tính điểm danh, điểm thi và cấp chứng chỉ cho toàn bộ học viên của lớp. Hãy đảm bảo giáo viên đã chấm xong các bài tự luận trước khi chốt. Tiếp tục?';
+            const warnMsg = '⚠️ Lớp này CHƯA gán bài thi cuối khóa (Final Test). Nếu lớp có thi, hãy vào Sửa lớp gán bài thi TRƯỚC khi chốt — nếu không, chứng chỉ sẽ không có điểm cuối kỳ.\n\n' + baseMsg;
+            window.showConfirm(noFinalTest ? warnMsg : baseMsg, () => {
                 setLifecycleLoading('Đang chốt kết quả & cấp chứng chỉ cho cả lớp...');
                 fetch(window.TRAINING_URLS.finalizeClass, {
                     method: 'POST',

@@ -15,12 +15,62 @@ public class LeaveController : ControllerBase
     private readonly OracleService _oracleService;
     private readonly NotificationService _notiSvc;
     private readonly HomeSummaryService _homeSummarySvc;
+    private readonly ShiftLookupService _shiftLookup;
 
-    public LeaveController(OracleService oracleService, NotificationService notiSvc, HomeSummaryService homeSummarySvc)
+    public LeaveController(OracleService oracleService, NotificationService notiSvc, HomeSummaryService homeSummarySvc, ShiftLookupService shiftLookup)
     {
         _oracleService  = oracleService;
         _notiSvc        = notiSvc;
         _homeSummarySvc = homeSummarySvc;
+        _shiftLookup    = shiftLookup;
+    }
+
+    // DT/VS/KT (đám tang/vợ sanh/khám thai): thường phát sinh đột xuất nên vẫn cho đăng ký ngay
+    // trong ngày, NHƯNG không cho đăng ký sau khi ca làm việc hôm nay đã kết thúc (tránh xin nghỉ
+    // "hồi tố" cho 1 ngày đã qua). Không áp dụng cho ngày tương lai — chỉ chặn khi FROM_DATE = hôm nay.
+    private static readonly HashSet<string> SameDaySuddenLeaveTypes = new() { "DT", "VS", "KT" };
+
+    private async Task<string?> CheckSameDayShiftEndAsync(string empcd, DateTime fromDate, string leaveTypeName)
+    {
+        if (fromDate.Date != DateTime.Today) return null;
+
+        var shift = await _shiftLookup.GetShiftForDateAsync(empcd, fromDate);
+        if (shift?.STIME?.Length != 4 || shift.ETIME?.Length != 4) return null; // không có lịch ca -> không chặn
+
+        if (!int.TryParse(shift.STIME.Substring(0, 2), out var sh) || !int.TryParse(shift.STIME.Substring(2, 2), out var sm) ||
+            !int.TryParse(shift.ETIME.Substring(0, 2), out var eh) || !int.TryParse(shift.ETIME.Substring(2, 2), out var em))
+            return null;
+
+        var shiftStart = fromDate.Date.AddHours(sh).AddMinutes(sm);
+        var shiftEnd   = fromDate.Date.AddHours(eh).AddMinutes(em);
+        if (shiftEnd <= shiftStart) shiftEnd = shiftEnd.AddDays(1); // ca đêm qua nửa đêm
+
+        if (DateTime.Now > shiftEnd)
+            return $"Đã qua giờ làm việc hôm nay (ca {shift.SHIFTCD} kết thúc {eh:D2}:{em:D2}), " +
+                   $"không thể đăng ký {leaveTypeName} cho hôm nay. Vui lòng chọn ngày khác.";
+
+        return null;
+    }
+
+    // NL (không lương): khác DT/VS/KT (việc đột xuất, cho phép trong lúc đang làm ca) — NL là
+    // nghỉ chủ động nên phải đăng ký TRƯỚC KHI ca hôm nay bắt đầu. Ca đã bắt đầu thì không cho
+    // đăng ký NL cho hôm nay nữa (tránh vừa đi làm vừa xin nghỉ không lương ngay trong ca).
+    private async Task<string?> CheckSameDayShiftStartAsync(string empcd, DateTime fromDate, string leaveTypeName)
+    {
+        if (fromDate.Date != DateTime.Today) return null;
+
+        var shift = await _shiftLookup.GetShiftForDateAsync(empcd, fromDate);
+        if (shift?.STIME?.Length != 4) return null; // không có lịch ca -> không chặn
+
+        if (!int.TryParse(shift.STIME.Substring(0, 2), out var sh) || !int.TryParse(shift.STIME.Substring(2, 2), out var sm))
+            return null;
+
+        var shiftStart = fromDate.Date.AddHours(sh).AddMinutes(sm);
+
+        if (DateTime.Now > shiftStart)
+            return $"Ca {shift.SHIFTCD} hôm nay đã bắt đầu lúc {sh:D2}:{sm:D2}, không thể đăng ký {leaveTypeName} cho hôm nay. Vui lòng chọn ngày khác.";
+
+        return null;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -36,13 +86,14 @@ public class LeaveController : ControllerBase
     // (DT/DC/CT/VS/KT) chỉ Admin (AdminAssign) mới được sắp toàn công ty. Nếu sau này HR yêu cầu
     // cho phép supervisor/manager sắp thêm các loại khác, chỉ cần thêm mã vào set này.
     private static readonly HashSet<string> SupervisorAssignTypes = new() { "AL" };
-    // remark ERP kiểu mới "<prefix> <lý do>" — mọi loại trừ AL (AL dùng "VR"/"ASSIGNED" cố định, không kèm lý do)
-    private static readonly HashSet<string> NewRemarkTypes = new() { "NL", "SI", "DT", "DC", "CT", "VS", "DS", "KT" };
-    // Phần lớn prefix remark = chính LEAVE_TYPE, trừ 2 ngoại lệ HR yêu cầu: ĐT/ĐC có dấu (khác mã lưu DB "DT"/"DC",
-    // giữ mã DB ASCII cho an toàn — chỉ đổi phần chữ ghi vào ERP), và NL (Không lương) dùng chữ "VR" thay vì mã loại.
+    // remark ERP kiểu mới "<prefix> <lý do>" — mọi loại trừ AL và NL (2 loại này dùng "VR"/"ASSIGNED"
+    // cố định, không kèm lý do — theo yêu cầu HR: NL không lương chỉ cần ghi VR, không ghi lý do).
+    private static readonly HashSet<string> NewRemarkTypes = new() { "SI", "DT", "DC", "CT", "VS", "DS", "KT" };
+    // Phần lớn prefix remark = chính LEAVE_TYPE, trừ ngoại lệ HR yêu cầu: ĐT/ĐC có dấu (khác mã lưu DB "DT"/"DC",
+    // giữ mã DB ASCII cho an toàn — chỉ đổi phần chữ ghi vào ERP).
     private static readonly Dictionary<string, string> RemarkPrefix = new()
     {
-        ["DT"] = "ĐT", ["DC"] = "ĐC", ["NL"] = "VR"
+        ["DT"] = "ĐT", ["DC"] = "ĐC"
     };
     // Loại nghỉ bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — CT theo yêu cầu vẫn KHÔNG cần nộp giấy tờ.
     private static readonly HashSet<string> DocRequiredTypes = new() { "SI", "DT", "DC", "VS", "DS", "KT" };
@@ -72,6 +123,9 @@ public class LeaveController : ControllerBase
 
     private static string BuildErpRemark(string leaveType, string? reason, bool isAssignFlow)
     {
+        // NL (Không lương): remark cố định "VR"/"ASSIGNED" như AL, KHÔNG kèm lý do (yêu cầu HR).
+        if (leaveType == "NL") return isAssignFlow ? "ASSIGNED" : "VR";
+
         if (NewRemarkTypes.Contains(leaveType))
         {
             string prefix = RemarkPrefix.GetValueOrDefault(leaveType, leaveType) + " ";
@@ -130,7 +184,9 @@ public class LeaveController : ControllerBase
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
 
             // Báo trước theo loại: AL = theo giờ ca làm (-6h), DC/DS = trước 3 ngày lịch,
-            // NL/SI/DT/CT/VS/KT = trong ngày cũng được
+            // DT/VS/KT = trong ngày được nhưng phải trước khi hết ca hôm nay (việc đột xuất),
+            // NL = trong ngày được nhưng phải trước khi ca hôm nay BẮT ĐẦU (nghỉ chủ động),
+            // SI/CT = trong ngày cũng được, không giới hạn giờ
             if (model.LEAVE_TYPE == "AL")
             {
                 var chk = await CheckAlDeadlineAsync(model.EMPCD, fromDate);
@@ -141,6 +197,24 @@ public class LeaveController : ControllerBase
             {
                 if (fromDate.Date < DateTime.Today.AddDays(3))
                     return Ok(new { success = false, message = "Loại nghỉ này phải đăng ký trước ít nhất 3 ngày" });
+            }
+            else if (SameDaySuddenLeaveTypes.Contains(model.LEAVE_TYPE))
+            {
+                if (fromDate.Date < DateTime.Today)
+                    return Ok(new { success = false, message = "Không được chọn ngày trong quá khứ" });
+
+                string? shiftEndError = await CheckSameDayShiftEndAsync(model.EMPCD, fromDate, NewLeaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE));
+                if (shiftEndError != null)
+                    return Ok(new { success = false, message = shiftEndError });
+            }
+            else if (model.LEAVE_TYPE == "NL")
+            {
+                if (fromDate.Date < DateTime.Today)
+                    return Ok(new { success = false, message = "Không được chọn ngày trong quá khứ" });
+
+                string? shiftStartError = await CheckSameDayShiftStartAsync(model.EMPCD, fromDate, NewLeaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE));
+                if (shiftStartError != null)
+                    return Ok(new { success = false, message = shiftStartError });
             }
             else
             {
@@ -2904,6 +2978,35 @@ END;";
                 shift_cd    = chk.ShiftCd,
                 shift_start = chk.ShiftStart
             });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // GET /apiHR/Leave/same-day-deadline?empcd=&leave_type=&from_date=YYYY-MM-DD
+    // Frontend gọi khi NV chọn loại NL hoặc DT/VS/KT với FROM_DATE = hôm nay, để tự động dời
+    // min date sang ngày mai nếu đã quá hạn (giống hệt cơ chế al-deadline) — tránh bug UI vẫn
+    // cho chọn hôm nay dù ca đã bắt đầu (NL) / đã hết ca (DT/VS/KT), Submit() sẽ chặn ở server.
+    [HttpGet("same-day-deadline")]
+    public async Task<IActionResult> GetSameDayDeadline(string empcd, string leave_type, string from_date)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd))
+                return Ok(new { success = false, message = "Thiếu mã nhân viên" });
+            if (!DateTime.TryParse(from_date, out var fromDate))
+                return Ok(new { success = false, message = "Ngày không hợp lệ" });
+
+            string leaveTypeName = NewLeaveTypeNames.GetValueOrDefault(leave_type, leave_type);
+            string? error = leave_type == "NL"
+                ? await CheckSameDayShiftStartAsync(empcd, fromDate, leaveTypeName)
+                : SameDaySuddenLeaveTypes.Contains(leave_type)
+                    ? await CheckSameDayShiftEndAsync(empcd, fromDate, leaveTypeName)
+                    : null;
+
+            return Ok(new { success = true, allowed = error == null, message = error });
         }
         catch (Exception ex)
         {

@@ -186,6 +186,24 @@
     </div>
 </div>
 
+<!-- Leave Warning Confirm Modal (mọi loại trừ AL/CT) -->
+<div class="modal fade" id="leaveWarnModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h6 class="modal-title mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i> Lưu ý trước khi gửi đơn</h6>
+            </div>
+            <div class="modal-body">
+                <p id="leaveWarnText" class="mb-0" style="font-size:.95rem; line-height:1.6;"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" id="leaveWarnCancelBtn">Huỷ</button>
+                <button class="btn btn-warning btn-sm fw-bold" id="leaveWarnOkBtn">OK, tôi hiểu</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Edit Modal -->
 <div class="modal fade" id="editModal" tabindex="-1">
     <div class="modal-dialog">
@@ -334,9 +352,13 @@ const LT_POLICY_NOTE = {
         '• <b>1 ngày</b> nếu là cha/mẹ tái hôn, con ruột/nuôi kết hôn, hoặc anh/chị/em ruột kết hôn (báo trước 2 ngày).',
     DT: 'ℹ️ Tham khảo:<br>' +
         '• <b>4 ngày</b> nếu là bố mẹ ruột/nuôi (hai bên), vợ/chồng, hoặc con ruột/nuôi mất.<br>' +
-        '• <b>1 ngày</b> nếu là ông bà (nội/ngoại) hoặc anh/chị/em ruột/nuôi mất.'
+        '• <b>1 ngày</b> nếu là ông bà (nội/ngoại) hoặc anh/chị/em ruột/nuôi mất.',
+    VS: 'ℹ️ Tham khảo:<br>' +
+        '• <b>7 ngày</b> nếu vợ sanh thường.<br>' +
+        '• <b>9 ngày</b> nếu vợ sanh mổ.<br>' +
+        '• <b>12 ngày</b> nếu vợ sanh đôi hoặc sanh con thứ 2 trở đi.'
 };
-const DOC_WARNING_NOTE_ALWAYS = '⚠️ <b>Lưu ý:</b> Nghỉ loại này sẽ bị tính <b>mất chuyên cần</b> và <b>mất ngày công</b>.';
+const DOC_WARNING_NOTE_ALWAYS = '⚠️ <b>Lưu ý:</b> Nghỉ loại này sẽ bị tính <b>mất chuyên cần</b> và <b>mất ngày công</b>, dù có nộp giấy tờ chứng minh hay không.';
 const DOC_WARNING_NOTE_COND = '⚠️ <b>Lưu ý:</b> Phải nộp giấy tờ chứng minh cho phòng Nhân sự trong tháng này. ' +
     'Nếu không nộp sẽ bị <b>mất chuyên cần</b>.';
 function updateLTNote(prefix) {
@@ -353,8 +375,9 @@ document.getElementById('createLeaveType')?.addEventListener('change', () => upd
 document.getElementById('editLeaveType')?.addEventListener('change', () => updateLTNote('edit'));
 
 // ERP remark tối đa 30 byte, gồm tiền tố "XX " (mã loại + dấu cách = 3 byte) + lý do NV gõ.
-// Chỉ áp dụng cho 5 loại ghi thẳng lý do vào remark ERP (AL không dùng lý do trong remark).
-const ERP_REMARK_TYPES = ['NL', 'SI', 'DT', 'DC', 'CT', 'VS', 'DS', 'KT'];
+// Chỉ áp dụng cho các loại ghi thẳng lý do vào remark ERP (AL và NL dùng "VR"/"ASSIGNED" cố định,
+// không kèm lý do trong remark — lý do NV gõ vẫn lưu đầy đủ trong app, chỉ không giới hạn byte).
+const ERP_REMARK_TYPES = ['SI', 'DT', 'DC', 'CT', 'VS', 'DS', 'KT'];
 const ERP_REASON_MAX_BYTES = 27;
 
 function utf8ByteLength(s) {
@@ -637,28 +660,56 @@ function addDaysStr(dateStr, n) {
     return d.toISOString().slice(0, 10);
 }
 
+// Min ngày được chọn PHỤ THUỘC loại nghỉ đang chọn — gọi lại mỗi khi đổi loại nghỉ, KHÔNG áp
+// dụng cứng deadline của AL cho mọi loại (bug cũ: chọn NL/SI/DT... sau khi mở modal vẫn bị khoá
+// min = ngày mai do lần check AL lúc mở modal, dù các loại này được phép chọn hôm nay).
+//   - AL: theo giờ ca làm hôm nay (deadline -6h), có thể bị đẩy sang ngày mai.
+//   - DC/DS: tối thiểu hôm nay + 3 ngày.
+//   - NL: trước giờ vào ca hôm nay — ca đã bắt đầu thì dời sang ngày mai (bug thật đã báo:
+//     UI vẫn cho chọn hôm nay dù ca đã bắt đầu lúc 7h30, server chặn nhưng UI không báo trước).
+//   - DT/VS/KT: trước giờ hết ca hôm nay — hết ca thì dời sang ngày mai.
+//   - SI/CT: cho chọn ngay hôm nay, không giới hạn giờ.
+const SAME_DAY_DEADLINE_TYPES = ['NL', 'DT', 'VS', 'KT'];
+async function updateCreateDateMin() {
+    const createLT = $('#createLeaveType').val() || 'AL';
+    const today = localDateStr();
+    let minDate = today;
+
+    if (createLT === 'AL') {
+        try {
+            const dl = await $.ajax({ url: '@Url.Action("AlDeadline", "Leave")', type: 'GET', data: { from_date: today } });
+            // NV đổi loại nghỉ trong lúc đang chờ AJAX (đổi sang NL/SI...) → bỏ qua kết quả trễ
+            // này, tránh nó ghi đè nhầm lại min=ngày mai lên loại vừa đổi.
+            if ($('#createLeaveType').val() !== createLT) return;
+            if (dl && dl.success !== false && dl.allowed === false) minDate = addDaysStr(today, 1);
+        } catch (e) { /* silent — server-side sẽ chặn lại nếu client miss */ }
+    } else if (createLT === 'DC' || createLT === 'DS') {
+        minDate = addDaysStr(today, 3);
+    } else if (SAME_DAY_DEADLINE_TYPES.includes(createLT)) {
+        try {
+            const dl = await $.ajax({ url: '@Url.Action("SameDayDeadline", "Leave")', type: 'GET', data: { leave_type: createLT, from_date: today } });
+            if ($('#createLeaveType').val() !== createLT) return; // đổi loại trong lúc chờ AJAX
+            if (dl && dl.success !== false && dl.allowed === false) minDate = addDaysStr(today, 1);
+        } catch (e) { /* silent — server-side sẽ chặn lại nếu client miss */ }
+    }
+
+    $('#createFromDate').attr('min', minDate);
+    if ($('#createFromDate').val() < minDate) $('#createFromDate').val(minDate);
+    $('#createToDate').attr('min', minDate);
+    if ($('#createToDate').val() < minDate) $('#createToDate').val(minDate);
+    calcCreateDays();
+}
+document.getElementById('createLeaveType')?.addEventListener('change', updateCreateDateMin);
+
 async function openCreateModal() {
     const today = localDateStr();
-    $('#createLeaveType').val('AL').trigger('change');
-    // Tạm set min = today, sẽ check AL deadline dưới để dời lên ngày mai nếu ca hôm nay đã quá hạn
-    $('#createFromDate').attr('min', today).val(today);
-    $('#createToDate').attr('min', today).val(today);
+    $('#createFromDate').val(today);
+    $('#createToDate').val(today);
     $('#createTotalDays').val(1);
     $('#createReason').val('').trigger('input');
     $('#createError').addClass('d-none').text('');
+    $('#createLeaveType').val('AL').trigger('change'); // trigger 'change' tự gọi updateCreateDateMin
     new bootstrap.Modal('#createModal').show();
-
-    // Auto-adjust min date theo ca của hôm nay:
-    //   Nếu deadline hôm nay đã qua (ca hành chính 7:30 → deadline 00:00 nửa đêm trước)
-    //   → min = ngày mai. Ca chiều/đêm còn xin được hôm nay thì min = today.
-    try {
-        const dl = await $.ajax({ url: '@Url.Action("AlDeadline", "Leave")', type: 'GET', data: { from_date: today } });
-        if (dl && dl.success !== false && dl.allowed === false) {
-            const tomorrow = addDaysStr(today, 1);
-            $('#createFromDate').attr('min', tomorrow).val(tomorrow);
-            $('#createToDate').attr('min', tomorrow).val(tomorrow);
-        }
-    } catch (e) { /* silent — server-side sẽ chặn lại nếu client miss */ }
 }
 
 function datesOverlap(f1, t1, f2, t2) { return f1 <= t2 && t1 >= f2; }
@@ -706,6 +757,34 @@ function calcCreateDays() {
         const diff = countDaysNoSunday(f, tFinal);
         if (diff > 0) $('#createTotalDays').val(diff);
     }
+}
+
+// Popup xác nhận trước khi gửi đơn cho mọi loại nghỉ TRỪ AL và CT — mục đích tránh công nhân
+// chọn nhầm loại nghỉ mà không biết hậu quả. Dùng LẠI đúng phân loại ALWAYS_LOSE_TYPES/
+// COND_LOSE_TYPES (đã dùng cho note bên dưới dropdown) để 2 chỗ luôn khớp nhau:
+//   - NL: mất chuyên cần + 1 ngày lương.
+//   - SI/DS (ALWAYS_LOSE_TYPES trừ NL): mất chuyên cần + mất ngày công, KHÔNG PHỤ THUỘC có
+//     nộp giấy tờ hay không (SI có giấy bệnh vẫn mất, DS luôn mất).
+//   - DT/DC/VS/KT (COND_LOSE_TYPES): chỉ mất chuyên cần NẾU không nộp giấy tờ đúng hạn.
+function confirmLeaveWarning(leaveType) {
+    return new Promise(resolve => {
+        const $text = $('#leaveWarnText');
+        const askLine = 'Bạn chắc chắn nộp phép loại phép này (<strong>KHÔNG PHẢI PHÉP NĂM</strong>) chứ?';
+        if (leaveType === 'NL') {
+            $text.html(askLine + '<br>Loại nghỉ này sẽ <strong class="text-danger">mất chuyên cần và 1 ngày lương</strong>.');
+        } else if (ALWAYS_LOSE_TYPES.includes(leaveType)) {
+            $text.html(askLine + '<br>Loại nghỉ này sẽ <strong class="text-danger">mất chuyên cần và mất ngày công</strong>, dù bạn có nộp giấy tờ chứng minh hay không.');
+        } else {
+            $text.html(askLine + '<br>Nghỉ phép này sẽ <strong class="text-danger">mất chuyên cần</strong> nếu bạn không nộp giấy tờ chứng minh cho phòng Nhân sự.');
+        }
+        const modalEl = document.getElementById('leaveWarnModal');
+        const modal = new bootstrap.Modal(modalEl);
+        const $ok = $('#leaveWarnOkBtn'), $cancel = $('#leaveWarnCancelBtn');
+        const cleanup = () => { $ok.off('click'); $cancel.off('click'); };
+        $ok.one('click', () => { cleanup(); modal.hide(); resolve(true); });
+        $cancel.one('click', () => { cleanup(); modal.hide(); resolve(false); });
+        modal.show();
+    });
 }
 
 async function saveCreate() {
@@ -758,6 +837,12 @@ async function saveCreate() {
             );
             return;
         }
+    }
+
+    // Xác nhận hậu quả trước khi gửi — mọi loại trừ AL và CT (CT không mất chuyên cần/lương).
+    if (createLT !== 'AL' && createLT !== 'CT') {
+        const ok = await confirmLeaveWarning(createLT);
+        if (!ok) return;
     }
 
     const $btn = $('#saveCreateBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang kiểm tra...');

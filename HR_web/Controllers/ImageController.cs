@@ -26,6 +26,7 @@ public class ImageController : BaseController
     private const string PolicyFolder   = ShareRoot + @"\POLICY";
     private const string BulletinFolder = ShareRoot + @"\BULLETIN\IMG";
     private const string HomeBannerFolder = ShareRoot + @"\MY_SAMHO_HOME";
+    internal const string WorkCdFolder = ShareRoot + @"\workcd";
 
     private static readonly string[] ImageExts    = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
     private const long               ImageMaxBytes = 10L * 1024 * 1024; // 10 MB
@@ -59,7 +60,8 @@ public class ImageController : BaseController
     }
 
     // ── Ảnh nhân viên ───────────────────────────────────────────────────────
-    [HttpGet]
+    // AllowAnonymous: trang Directory (xem thông tin đồng nghiệp) không cần login vẫn phải load được avatar.
+    [HttpGet, AllowAnonymous]
     public IActionResult GetEmployeeImage(string empCd)
     {
         if (string.IsNullOrWhiteSpace(empCd)) return BadRequest();
@@ -324,6 +326,96 @@ public class ImageController : BaseController
         {
             return Json(new { success = false, message = $"Lỗi upload: {ex.Message}" });
         }
+    }
+
+    // ── Hình minh hoạ theo work cd (Dept+Line+Work) ─────────────────────────
+    // Tên file chuẩn: {DEPTCD}_{LINECD}_{WORKCD}.jpg — xem GetWorkCdKey().
+    internal static string GetWorkCdKey(string deptCd, string lineCd, string workCd)
+        => $"{deptCd}_{lineCd}_{workCd}.jpg";
+
+    // Check hàng loạt xem file đã tồn tại chưa - mở 1 phiên network share dùng chung cho cả danh sách.
+    internal static HashSet<string> CheckWorkCdImagesExist(IEnumerable<string> fileNames)
+    {
+        var found = new HashSet<string>();
+        try
+        {
+            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            {
+                foreach (var fileName in fileNames)
+                {
+                    if (System.IO.File.Exists(Path.Combine(WorkCdFolder, fileName)))
+                        found.Add(fileName);
+                }
+            }
+        }
+        catch { /* network share tạm thời không truy cập được -> coi như chưa có ảnh */ }
+        return found;
+    }
+
+    [HttpGet, AllowAnonymous]
+    public IActionResult GetWorkCdImage(string deptCd, string lineCd, string workCd)
+    {
+        if (string.IsNullOrWhiteSpace(deptCd) || string.IsNullOrWhiteSpace(lineCd) || string.IsNullOrWhiteSpace(workCd))
+            return BadRequest();
+        var fileName = GetWorkCdKey(deptCd, lineCd, workCd);
+        return ServeNetworkImage(Path.Combine(WorkCdFolder, fileName), fileName);
+    }
+
+    // Lưu nhiều ảnh cùng lúc. Mỗi file phải đặt tên đúng {DEPTCD}_{LINECD}_{WORKCD}.<ext>
+    // (phần mở rộng không quan trọng, sẽ được convert về JPEG khi lưu).
+    // Helper thuần (không phải action) - dùng chung cho WorkCdImageController.
+    internal static async Task<(int savedCount, List<string> matched, List<object> skipped)> SaveWorkCdImagesAsync(List<IFormFile> files)
+    {
+        var matched = new List<string>();
+        var skipped = new List<object>();
+
+        if (files == null || files.Count == 0)
+            return (0, matched, skipped);
+
+        using (new NetworkShareHelper(ShareRoot, ShareCred))
+        {
+            Directory.CreateDirectory(WorkCdFolder);
+
+            foreach (var file in files)
+            {
+                var baseName = Path.GetFileNameWithoutExtension(file.FileName);
+                var ext = Path.GetExtension(file.FileName).ToLower();
+
+                if (!ImageExts.Contains(ext))
+                {
+                    skipped.Add(new { file = file.FileName, reason = "Định dạng không hỗ trợ" });
+                    continue;
+                }
+                if (file.Length > ImageMaxBytes)
+                {
+                    skipped.Add(new { file = file.FileName, reason = "File vượt quá 10 MB" });
+                    continue;
+                }
+
+                var parts = baseName.Split('_');
+                if (parts.Length != 3 || parts.Any(string.IsNullOrWhiteSpace))
+                {
+                    skipped.Add(new { file = file.FileName, reason = "Tên file không đúng mẫu DEPTCD_LINECD_WORKCD" });
+                    continue;
+                }
+
+                try
+                {
+                    var savePath = Path.Combine(WorkCdFolder, GetWorkCdKey(parts[0], parts[1], parts[2]));
+                    using var stream = file.OpenReadStream();
+                    using var image = await SixLabors.ImageSharp.Image.LoadAsync(stream);
+                    await using var fs = new FileStream(savePath, FileMode.Create);
+                    await image.SaveAsJpegAsync(fs, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 90 });
+                    matched.Add(file.FileName);
+                }
+                catch (Exception ex)
+                {
+                    skipped.Add(new { file = file.FileName, reason = $"Lỗi lưu: {ex.Message}" });
+                }
+            }
+        }
+
+        return (matched.Count, matched, skipped);
     }
 
     // ── Chữ ký ──────────────────────────────────────────────────────────────

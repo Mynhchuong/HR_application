@@ -102,6 +102,7 @@ builder.Services.AddScoped<HR_web.API.Service.EmployeeService>();
 builder.Services.AddScoped<HR_web.API.Service.NotificationService>();
 builder.Services.AddScoped<HR_web.API.Service.NotiTemplateService>();
 builder.Services.AddScoped<HR_web.API.Service.InquiryService>();
+builder.Services.AddScoped<HR_web.API.Service.DirectoryService>();
 builder.Services.AddScoped<HR_web.API.Service.HomeApiService>();
 builder.Services.AddScoped<HR_web.API.Service.HomeAdminApiService>();
 builder.Services.AddScoped<HR_web.API.Service.SurveyService>();

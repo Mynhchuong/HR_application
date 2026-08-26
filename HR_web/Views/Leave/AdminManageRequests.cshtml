@@ -78,6 +78,21 @@
                         </select>
                     </div>
                     <div class="col-sm-2">
+                        <label class="filter-label">Loại nghỉ</label>
+                        <select id="lv_leave_type" class="form-select form-select-sm" onchange="lvFilterChanged()">
+                            <option value="">-- Tất cả --</option>
+                            <option value="AL">Phép năm (AL)</option>
+                            <option value="NL">Không lương (NL)</option>
+                            <option value="SI">Bệnh có giấy (SI)</option>
+                            <option value="DT">Đám tang (DT)</option>
+                            <option value="DC">Đám cưới (DC)</option>
+                            <option value="CT">Công tác (CT)</option>
+                            <option value="VS">Vợ sanh (VS)</option>
+                            <option value="DS">Dưỡng sức (DS)</option>
+                            <option value="KT">Khám thai (KT)</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-2">
                         <label class="filter-label">Phòng ban</label>
                         <select id="lv_dept" class="form-select form-select-sm" onchange="onLvDeptChange()"><option value="">-- Tất cả --</option></select>
                     </div>
@@ -87,7 +102,7 @@
                     </div>
                     <div class="col-sm-1">
                         <label class="filter-label">Tổ</label>
-                        <select id="lv_work" class="form-select form-select-sm" onchange="renderLeaves()"><option value="">-- Tất cả --</option></select>
+                        <select id="lv_work" class="form-select form-select-sm" onchange="lvFilterChanged()"><option value="">-- Tất cả --</option></select>
                     </div>
                     <div class="col-sm-1">
                         <label class="filter-label">Từ ngày</label>
@@ -140,9 +155,25 @@
                             </tr>
                         </thead>
                         <tbody id="lv_tbody">
-                            <tr><td colspan="10" class="empty-msg"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>
+                            <tr><td colspan="11" class="empty-msg"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>
                         </tbody>
                     </table>
+                </div>
+                <div class="d-flex align-items-center justify-content-between px-3 py-2 flex-wrap gap-2" style="border-top:1px solid #f1f5f9;">
+                    <div class="d-flex align-items-center gap-2">
+                        <span style="font-size:.78rem;color:#64748b;">Hiển thị</span>
+                        <select id="lv_pageSize" class="form-select form-select-sm" style="width:auto;" onchange="lvChangePageSize()">
+                            <option value="10">10</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                        </select>
+                        <span style="font-size:.78rem;color:#64748b;">dòng / trang</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="lv_pageInfo" style="font-size:.78rem;color:#64748b;"></span>
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="lvPrevPage()"><i class="bi bi-chevron-left"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="lvNextPage()"><i class="bi bi-chevron-right"></i></button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -156,11 +187,11 @@
                 <div class="row g-2">
                     <div class="col-sm-3">
                         <label class="filter-label">Tìm Mã NV</label>
-                        <input type="text" id="gp_search" class="form-control form-control-sm" placeholder="🔍 Nhập để tìm..." oninput="renderGp()">
+                        <input type="text" id="gp_search" class="form-control form-control-sm" placeholder="🔍 Nhập để tìm..." oninput="gpFilterChanged()">
                     </div>
                     <div class="col-sm-2">
                         <label class="filter-label">Trạng thái ERP</label>
-                        <select id="gp_status" class="form-select form-select-sm" onchange="renderGp()">
+                        <select id="gp_status" class="form-select form-select-sm" onchange="gpFilterChanged()">
                             <option value="">-- Tất cả --</option>
                             <option value="confirmed">Đã XN (đã insert ERP)</option>
                             <option value="pending">Chưa XN (chưa insert ERP)</option>
@@ -176,7 +207,7 @@
                     </div>
                     <div class="col-sm-1">
                         <label class="filter-label">Tổ</label>
-                        <select id="gp_work" class="form-select form-select-sm" onchange="renderGp()"><option value="">-- Tất cả --</option></select>
+                        <select id="gp_work" class="form-select form-select-sm" onchange="gpFilterChanged()"><option value="">-- Tất cả --</option></select>
                     </div>
                     <div class="col-sm-1">
                         <label class="filter-label">Từ ngày</label>
@@ -230,6 +261,22 @@
                             <tr><td colspan="8" class="empty-msg">Chuyển sang tab Ra vào cổng để tải dữ liệu</td></tr>
                         </tbody>
                     </table>
+                </div>
+                <div class="d-flex align-items-center justify-content-between px-3 py-2 flex-wrap gap-2" style="border-top:1px solid #f1f5f9;">
+                    <div class="d-flex align-items-center gap-2">
+                        <span style="font-size:.78rem;color:#64748b;">Hiển thị</span>
+                        <select id="gp_pageSize" class="form-select form-select-sm" style="width:auto;" onchange="gpChangePageSize()">
+                            <option value="10">10</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                        </select>
+                        <span style="font-size:.78rem;color:#64748b;">dòng / trang</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="gp_pageInfo" style="font-size:.78rem;color:#64748b;"></span>
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="gpPrevPage()"><i class="bi bi-chevron-left"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="gpNextPage()"><i class="bi bi-chevron-right"></i></button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -304,6 +351,8 @@ function statusBadge(s) {
 // ── Data stores ──────────────────────────────────────────────────────────────
 let lvData = [], lvSelected = new Set(), lvLoaded = false;
 let gpData = [], gpSelected = new Set(), gpLoaded = false;
+let lvPage = 1, lvPageSize = 50;
+let gpPage = 1, gpPageSize = 50;
 
 // ── Scope: shared giữa 2 tab ─────────────────────────────────────────────────
 // Mỗi phần tử: { DEPTCD, DEPT_NAME, LINECD, LINE_NAME, WORKCD, WORK_NAME }
@@ -365,10 +414,10 @@ function onTabChange(tab) {
 // ── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
     const today = new Date().toISOString().slice(0, 10);
-    const y = today.slice(0, 4);
-    document.getElementById('lv_from').value = `${y}-01-01`;
+    const monthStart = today.slice(0, 8) + '01';
+    document.getElementById('lv_from').value = monthStart;
     document.getElementById('lv_to').value   = today;
-    document.getElementById('gp_from').value = `${y}-01-01`;
+    document.getElementById('gp_from').value = monthStart;
     document.getElementById('gp_to').value   = today;
     await loadScope();
     loadLeaves();
@@ -383,23 +432,38 @@ function lvSearchDebounced() {
     _lvSearchTimer = setTimeout(loadLeaves, 350);
 }
 
+// Tải hết tất cả các trang (không dừng ở page 1) — tránh ẩn mất dữ liệu khi tổng số bản ghi
+// vượt page_size, nhất là khi Admin dùng "Chọn tất cả" + xóa hàng loạt. Đây là dữ liệu đầy đủ
+// dùng để lọc/chọn/xuất Excel — khác với phân trang HIỂN THỊ (10/50/100 dòng) chỉ cắt ở renderLeaves()/renderGp().
+async function fetchAllPages(url, params) {
+    let all = [], page = 1, totalPages = 1;
+    do {
+        const res = await fetch(`${url}?${params}&page=${page}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.success) return { success: false, message: data.message };
+        all = all.concat(data.data || []);
+        totalPages = data.total_pages || 1;
+        page++;
+    } while (page <= totalPages);
+    return { success: true, data: all };
+}
+
 async function loadLeaves() {
-    lvData = []; lvSelected.clear(); lvLoaded = false;
-    document.getElementById('lv_tbody').innerHTML = '<tr><td colspan="10" class="empty-msg"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>';
+    lvData = []; lvSelected.clear(); lvLoaded = false; lvPage = 1;
+    document.getElementById('lv_tbody').innerHTML = '<tr><td colspan="11" class="empty-msg"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>';
     const params = buildParams('lv');
     try {
-        const res  = await fetch(URL_GET_CONFIRMED_LEAVES + '?' + params);
-        if (!res.ok) { lvSetError(`Lỗi server: HTTP ${res.status}`); return; }
-        const data = await res.json();
+        const data = await fetchAllPages(URL_GET_CONFIRMED_LEAVES, params);
         if (!data.success) { lvSetError(data.message || 'Lỗi tải dữ liệu'); return; }
-        lvData = data.data || [];
+        lvData = data.data;
         lvLoaded = true;
         renderLeaves();
     } catch(e) { lvSetError('Lỗi kết nối: ' + e.message); }
 }
 
 function lvSetError(msg) {
-    document.getElementById('lv_tbody').innerHTML = `<tr><td colspan="10" class="empty-msg text-danger">${msg}</td></tr>`;
+    document.getElementById('lv_tbody').innerHTML = `<tr><td colspan="11" class="empty-msg text-danger">${msg}</td></tr>`;
     lvUpdateCounts();
 }
 
@@ -407,13 +471,14 @@ function onLvDeptChange() { document.getElementById('lv_line').value = ''; docum
 function onLvLineChange() { document.getElementById('lv_work').value = ''; refreshWorks('lv'); loadLeaves(); }
 
 function renderLeaves() {
-    const stFilter = document.getElementById('lv_status').value;
+    const leaveType = document.getElementById('lv_leave_type').value;
     const dept     = document.getElementById('lv_dept').value;
     const line     = document.getElementById('lv_line').value;
     const work     = document.getElementById('lv_work').value;
     const kw       = document.getElementById('lv_search').value.trim().toUpperCase();
 
     const filtered = lvData.filter(r => {
+        if (leaveType && r.LEAVE_TYPE !== leaveType) return false;
         if (dept && r.DEPT_ID !== dept) return false;
         if (line && r.LINE_ID !== line) return false;
         if (work && r.WORK_ID !== work) return false;
@@ -422,13 +487,20 @@ function renderLeaves() {
     });
 
     if (filtered.length === 0) {
-        document.getElementById('lv_tbody').innerHTML = '<tr><td colspan="10" class="empty-msg"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu</td></tr>';
+        document.getElementById('lv_tbody').innerHTML = '<tr><td colspan="11" class="empty-msg"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu</td></tr>';
         lvUpdateCounts(0);
+        document.getElementById('lv_pageInfo').textContent = '';
         return;
     }
 
+    const totalPages = Math.max(1, Math.ceil(filtered.length / lvPageSize));
+    if (lvPage > totalPages) lvPage = totalPages;
+    if (lvPage < 1) lvPage = 1;
+    const pageItems = filtered.slice((lvPage - 1) * lvPageSize, lvPage * lvPageSize);
+    document.getElementById('lv_pageInfo').textContent = `Trang ${lvPage}/${totalPages}`;
+
     let html = '';
-    filtered.forEach(r => {
+    pageItems.forEach(r => {
         const chk     = lvSelected.has(r.REQUEST_ID) ? 'checked' : '';
         const selCls  = lvSelected.has(r.REQUEST_ID) ? 'table-primary' : '';
         const srcBadge = r.SOURCE === 'ASSIGNED'
@@ -455,17 +527,24 @@ function renderLeaves() {
     syncLvChkAll(filtered);
 }
 
+function lvFilterChanged() { lvPage = 1; renderLeaves(); }
+function lvChangePageSize() { lvPageSize = parseInt(document.getElementById('lv_pageSize').value); lvPage = 1; renderLeaves(); }
+function lvPrevPage() { if (lvPage > 1) { lvPage--; renderLeaves(); } }
+function lvNextPage() { lvPage++; renderLeaves(); }
+
 function lvToggle(id) {
     if (lvSelected.has(id)) lvSelected.delete(id); else lvSelected.add(id);
     renderLeaves();
 }
 
 function lvToggleAll(chk) {
+    const leaveType = document.getElementById('lv_leave_type').value;
     const dept = document.getElementById('lv_dept').value;
     const line = document.getElementById('lv_line').value;
     const work = document.getElementById('lv_work').value;
     const kw   = document.getElementById('lv_search').value.trim().toUpperCase();
     const filtered = lvData.filter(r =>
+        (!leaveType || r.LEAVE_TYPE === leaveType) &&
         (!dept || r.DEPT_ID === dept) &&
         (!line || r.LINE_ID === line) &&
         (!work || r.WORK_ID === work) &&
@@ -525,14 +604,13 @@ async function lvDelete() {
 // GATE PASS
 // ════════════════════════════════════════════════════════════════════════════
 async function loadGp() {
-    gpData = []; gpSelected.clear(); gpLoaded = false;
+    gpData = []; gpSelected.clear(); gpLoaded = false; gpPage = 1;
     document.getElementById('gp_tbody').innerHTML = '<tr><td colspan="8" class="empty-msg"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>';
     const params = buildParams('gp');
     try {
-        const res  = await fetch(URL_GET_CONFIRMED_GP + '?' + params);
-        const data = await res.json();
+        const data = await fetchAllPages(URL_GET_CONFIRMED_GP, params);
         if (!data.success) { gpSetError(data.message || 'Lỗi tải dữ liệu'); return; }
-        gpData = data.data || [];
+        gpData = data.data;
         gpLoaded = true;
         renderGp();
     } catch(e) { gpSetError('Lỗi kết nối: ' + e.message); }
@@ -543,8 +621,8 @@ function gpSetError(msg) {
     gpUpdateCounts();
 }
 
-function onGpDeptChange() { document.getElementById('gp_line').value = ''; document.getElementById('gp_work').value = ''; refreshLines('gp'); renderGp(); }
-function onGpLineChange() { document.getElementById('gp_work').value = ''; refreshWorks('gp'); renderGp(); }
+function onGpDeptChange() { document.getElementById('gp_line').value = ''; document.getElementById('gp_work').value = ''; refreshLines('gp'); gpFilterChanged(); }
+function onGpLineChange() { document.getElementById('gp_work').value = ''; refreshWorks('gp'); gpFilterChanged(); }
 
 function renderGp() {
     const stFilter = document.getElementById('gp_status').value;
@@ -566,14 +644,21 @@ function renderGp() {
     if (filtered.length === 0) {
         document.getElementById('gp_tbody').innerHTML = '<tr><td colspan="8" class="empty-msg"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu</td></tr>';
         gpUpdateCounts(0);
+        document.getElementById('gp_pageInfo').textContent = '';
         return;
     }
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / gpPageSize));
+    if (gpPage > totalPages) gpPage = totalPages;
+    if (gpPage < 1) gpPage = 1;
+    const pageItems = filtered.slice((gpPage - 1) * gpPageSize, gpPage * gpPageSize);
+    document.getElementById('gp_pageInfo').textContent = `Trang ${gpPage}/${totalPages}`;
 
     const fmtDt = d => d ? new Date(d).toLocaleString('vi-VN', { dateStyle:'short', timeStyle:'short' }) : '—';
     const fmtDate = d => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
 
     let html = '';
-    filtered.forEach(r => {
+    pageItems.forEach(r => {
         const chk    = gpSelected.has(r.REQUEST_ID) ? 'checked' : '';
         const selCls = gpSelected.has(r.REQUEST_ID) ? 'table-primary' : '';
         const dept   = [r.DEPT_NAME, r.LINE_NAME, r.WORK_NAME].filter(Boolean).join(' / ');
@@ -593,6 +678,11 @@ function renderGp() {
     gpUpdateCounts(filtered.length);
     syncGpChkAll(filtered);
 }
+
+function gpFilterChanged() { gpPage = 1; renderGp(); }
+function gpChangePageSize() { gpPageSize = parseInt(document.getElementById('gp_pageSize').value); gpPage = 1; renderGp(); }
+function gpPrevPage() { if (gpPage > 1) { gpPage--; renderGp(); } }
+function gpNextPage() { gpPage++; renderGp(); }
 
 function gpToggle(id) {
     if (gpSelected.has(id)) gpSelected.delete(id); else gpSelected.add(id);
@@ -664,11 +754,13 @@ async function gpDelete() {
 
 // ── Export Excel ─────────────────────────────────────────────────────────────
 function exportLeaves() {
+    const leaveType = document.getElementById('lv_leave_type').value;
     const dept = document.getElementById('lv_dept').value;
     const line = document.getElementById('lv_line').value;
     const work = document.getElementById('lv_work').value;
     const kw   = document.getElementById('lv_search').value.trim().toUpperCase();
     const filtered = lvData.filter(r =>
+        (!leaveType || r.LEAVE_TYPE === leaveType) &&
         (!dept || r.DEPT_ID === dept) &&
         (!line || r.LINE_ID === line) &&
         (!work || r.WORK_ID === work) &&
@@ -760,7 +852,10 @@ function buildParams(prefix) {
     if (to)     q.push(`date_to=${encodeURIComponent(to)}`);
     if (status) q.push(`status=${encodeURIComponent(status)}`);
     if (search) q.push(`search=${encodeURIComponent(search)}`);
-    q.push('page_size=500');
+    // page_size lớn để hầu hết trường hợp chỉ cần 1 lượt gọi API — tránh fetchAllPages() phải
+    // lặp nhiều trang, vì mỗi trang sau đều phải quét lại từ đầu (ROWNUM offset), càng nhiều trang
+    // càng chậm dần (gần như bình phương số trang).
+    q.push('page_size=5000');
     return q.join('&');
 }
 

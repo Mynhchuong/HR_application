@@ -1110,16 +1110,20 @@ END;";
             if (roleRows.FirstOrDefault() != "Admin")
                 return Ok(new { success = false, message = "Chỉ Admin mới có quyền xóa" });
 
-            var ids = string.Join(",", model.REQUEST_IDS.Select(id =>
-                $"'{System.Text.RegularExpressions.Regex.Replace(id, "[^A-Za-z0-9_-]", "")}'"));
+            var idParams     = model.REQUEST_IDS.Select((id, i) => new OracleParameter($"ID{i}", id)).ToArray();
+            var placeholders = string.Join(",", idParams.Select(p => $":{p.ParameterName}"));
+            var deletedCount = new OracleParameter("DELETED_COUNT", OracleDbType.Int32) { Direction = System.Data.ParameterDirection.Output };
+
             await _oracleService.ExecuteNonQueryAsync($@"
                 BEGIN
-                    DELETE FROM HRMS.HR_GATEPASS_REQUEST WHERE REQUEST_ID IN ({ids});
-                    DELETE FROM HRMS.HR_REQUEST            WHERE REQUEST_ID IN ({ids}) AND REQUEST_TYPE = 'GATEPASS';
+                    DELETE FROM HRMS.HR_GATEPASS_REQUEST WHERE REQUEST_ID IN ({placeholders});
+                    DELETE FROM HRMS.HR_REQUEST            WHERE REQUEST_ID IN ({placeholders}) AND REQUEST_TYPE = 'GATEPASS';
+                    :DELETED_COUNT := SQL%ROWCOUNT;
                     COMMIT;
-                END;");
+                END;", idParams.Append(deletedCount).ToArray());
 
-            return Ok(new { success = true, message = $"Đã xóa {model.REQUEST_IDS.Count} phiếu ra/vào cổng khỏi hệ thống", total_deleted = model.REQUEST_IDS.Count });
+            int total = deletedCount.Value == null || deletedCount.Value == DBNull.Value ? 0 : Convert.ToInt32(deletedCount.Value);
+            return Ok(new { success = true, message = $"Đã xóa {total} phiếu ra/vào cổng khỏi hệ thống", total_deleted = total });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }

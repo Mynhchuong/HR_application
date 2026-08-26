@@ -139,6 +139,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Phiếu Bánh",          Url = "~/CanteenBread/BreadQuota",           Icon = "bakery_dining"          },
                     new SideMenuItem { Title = "Log Đổi Món",         Url = "~/CanteenBread/ChangeLog",            Icon = "history"                },
                     new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",            Icon = "manage_accounts"        },
+                    new SideMenuItem { Title = "Hình minh hoạ Work Cd", Url = "~/WorkCdImage/Index",         Icon = "image"                  },
                     new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",              Icon = "account_balance_wallet" },
                     new SideMenuItem { Title = "Phân Quyền Phạm Vi",   Url = "~/UserDept/Index",              Icon = "shield"                 },
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",             Icon = "view_list"              },
@@ -223,6 +224,7 @@ public static class SideMenuBuilder
                     new() { Title = "Chủ đề hội thoại",      Url = "~/AdminInquiry/Topics",       Icon = "topic"           },
                     new() { Title = "Báo cáo hội thoại",    Url = "~/AdminInquiry/Report",       Icon = "bar_chart"       },
                     new() { Title = "Danh sách cấp Bánh cố định", Url = "~/CanteenBread/BreadQuota", Icon = "bakery_dining" },
+                    new() { Title = "Tra cứu Danh bạ NV",    Url = "~/Directory/Index",           Icon = "contact_page"    },
                 ]
             },
         };

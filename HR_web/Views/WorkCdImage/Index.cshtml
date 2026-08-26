@@ -1,0 +1,230 @@
+@model HR_web.Models.Directory.WorkCdListResult
+@using HR_web.Models.Directory
+@{
+    ViewData["Title"] = "Work Position Images";
+    var depts = (List<DeptOptionModel>)(ViewBag.Depts ?? new List<DeptOptionModel>());
+    var lines = (List<LineOptionModel>)(ViewBag.Lines ?? new List<LineOptionModel>());
+    string deptCd = ViewBag.DeptCd ?? "";
+    string lineCd = ViewBag.LineCd ?? "";
+    bool missingOnly = ViewBag.MissingOnly ?? false;
+    int totalPages = ViewBag.TotalPages ?? 1;
+}
+
+@section Styles {
+    <style>
+        .wcd-pagination {
+            display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+            margin-top: 1.5rem; flex-wrap: wrap;
+        }
+        .wcd-page-btn {
+            display: inline-block; padding: 0.45rem 1rem; border-radius: 10px;
+            border: 1px solid #dee2e6; color: #4f46e5; font-weight: 600; font-size: 0.9rem;
+            text-decoration: none; background: #fff;
+        }
+        .wcd-page-btn:hover { background: #f1f5f9; color: #4338ca; }
+        .wcd-page-btn.is-disabled { color: #adb5bd; background: #f8f9fa; pointer-events: none; }
+        .wcd-page-current { font-size: 0.85rem; font-weight: 700; color: #475569; }
+
+        .wcd-thumb {
+            width: 56px; height: 56px; border-radius: 10px; background: #f8fafc; overflow: hidden;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .wcd-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .wcd-thumb .bi { color: #cbd5e1; font-size: 1.3rem; }
+
+        .wcd-status { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.8rem; padding: 3px 10px; border-radius: 999px; }
+        .wcd-status.has  { background: #dcfce7; color: #16a34a; }
+        .wcd-status.miss { background: #fee2e2; color: #dc2626; }
+        tr.wcd-row-missing { background: #fff7f7; }
+    </style>
+}
+
+<div class="container-fluid py-2">
+    <div class="card my-4 mb-5">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-success shadow-success border-radius-lg pt-3 pb-2 px-3">
+                <h6 class="text-white mb-0"><i class="bi bi-image me-1"></i> Work Position Images (Dept / Line / Work)</h6>
+            </div>
+        </div>
+        <div class="card-body px-4 pb-3 pt-4">
+
+            @if (TempData["UploadSavedCount"] != null)
+            {
+                var skippedJson = TempData["UploadSkipped"] as string ?? "[]";
+                var skippedList = System.Text.Json.JsonSerializer.Deserialize<List<System.Text.Json.JsonElement>>(skippedJson) ?? new();
+                <div class="alert alert-success">
+                    <b>Đã lưu @TempData["UploadSavedCount"] ảnh thành công.</b>
+                </div>
+                if (skippedList.Count > 0)
+                {
+                    <div class="alert alert-warning">
+                        <b>@skippedList.Count file bị bỏ qua:</b>
+                        <ul class="mb-0 mt-1 small">
+                            @foreach (var s in skippedList)
+                            {
+                                <li>@s.GetProperty("file").GetString() — @s.GetProperty("reason").GetString()</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            }
+
+            <!-- FILTER -->
+            <form id="filterForm" method="get" class="row g-2 align-items-end mb-3">
+                <input type="hidden" name="page" id="hiddenPage" value="1" />
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold mb-0 text-primary">Phòng ban</label>
+                    <select name="deptCd" id="deptCd" class="form-control"
+                            onchange="document.getElementById('lineCd').value='';document.getElementById('hiddenPage').value=1;document.getElementById('filterForm').submit();">
+                        <option value="">Tất cả</option>
+                        @foreach (var d in depts)
+                        {
+                            <option value="@d.DeptCd" selected="@(d.DeptCd == deptCd)">@d.DeptName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold mb-0 text-primary">Chuyền (Line)</label>
+                    <select name="lineCd" id="lineCd" class="form-control"
+                            onchange="document.getElementById('hiddenPage').value=1;document.getElementById('filterForm').submit();">
+                        <option value="">Tất cả</option>
+                        @foreach (var l in lines)
+                        {
+                            <option value="@l.LineCd" selected="@(l.LineCd == lineCd)">@l.LineName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-center">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" name="missingOnly" value="true" id="missingOnly"
+                               @(missingOnly ? "checked" : "")
+                               onchange="document.getElementById('hiddenPage').value=1;document.getElementById('filterForm').submit();" />
+                        <label class="form-check-label small fw-bold text-danger" for="missingOnly">Chỉ hiện chưa có hình</label>
+                    </div>
+                </div>
+            </form>
+
+            <!-- BULK UPLOAD -->
+            <div class="alert alert-info small mb-2">
+                <i class="bi bi-info-circle me-1"></i>
+                <b>Thêm hàng loạt:</b> đặt tên từng file ảnh đúng theo cột <b>Tên file cần đặt</b> trong bảng bên dưới
+                (mẫu <code>DEPTCD_LINECD_WORKCD.jpg</code>), bấm nút <i class="bi bi-clipboard"></i> để copy tên,
+                rồi chọn tất cả file cùng lúc và bấm <b>Tải lên</b> — hệ thống tự khớp theo tên file, không cần thêm từng cái.
+            </div>
+            <form method="post" asp-action="UploadBulk" enctype="multipart/form-data" class="d-flex gap-2 align-items-center mb-4 flex-wrap">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="deptCd" value="@deptCd" />
+                <input type="hidden" name="lineCd" value="@lineCd" />
+                <input type="hidden" name="missingOnly" value="@missingOnly" />
+                <input type="hidden" name="page" value="@Model.Page" />
+                <input type="file" name="files" multiple accept="image/jpeg,image/png,image/webp" class="form-control" style="max-width:420px;" required />
+                <button type="submit" class="btn btn-success mb-0"><i class="bi bi-upload me-1"></i>Tải lên hàng loạt</button>
+            </form>
+
+            <div class="small text-muted mb-2">
+                Tổng <b>@Model.Total</b> vị trí — trang @Model.Page/@totalPages
+            </div>
+
+            <!-- TABLE -->
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr class="text-xs text-secondary text-uppercase">
+                            <th style="width:64px;">Ảnh</th>
+                            <th>Phòng ban</th>
+                            <th>Chuyền</th>
+                            <th>Vị trí</th>
+                            <th>Tên file cần đặt</th>
+                            <th style="width:130px;">Trạng thái</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr class="@(item.HasImage ? "" : "wcd-row-missing")">
+                                <td>
+                                    <div class="wcd-thumb">
+                                        @if (item.HasImage)
+                                        {
+                                            <img src="@Url.Action("GetWorkCdImage", "Image", new { deptCd = item.DeptCd, lineCd = item.LineCd, workCd = item.WorkCd })" />
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-image"></i>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="small fw-bold vni-font">@item.DeptName</td>
+                                <td class="small vni-font">@item.LineName</td>
+                                <td class="small vni-font">@item.WorkName</td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <code class="small" style="font-size:.72rem;">@item.ImageFileName</code>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 flex-shrink-0"
+                                                onclick="copyFileName(this,'@item.ImageFileName')" title="Copy tên file">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (item.HasImage)
+                                    {
+                                        <span class="wcd-status has"><i class="bi bi-check-circle-fill"></i> Đã có</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="wcd-status miss"><i class="bi bi-x-circle-fill"></i> Chưa có</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (Model.Items.Count == 0)
+            {
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-inboxes" style="font-size:2rem;"></i>
+                    <div class="mt-2">Không có kết quả</div>
+                </div>
+            }
+
+            <!-- PAGINATION -->
+            @if (totalPages > 1)
+            {
+                bool atFirst = Model.Page <= 1;
+                bool atLast  = Model.Page >= totalPages;
+                <div class="wcd-pagination">
+                    @if (atFirst)
+                    {
+                        <span class="wcd-page-btn is-disabled">‹ Trước</span>
+                    }
+                    else
+                    {
+                        <a class="wcd-page-btn" href="@Url.Action("Index", new { deptCd, lineCd, missingOnly, page = Model.Page - 1 })">‹ Trước</a>
+                    }
+                    <span class="wcd-page-current">Trang @Model.Page / @totalPages</span>
+                    @if (atLast)
+                    {
+                        <span class="wcd-page-btn is-disabled">Sau ›</span>
+                    }
+                    else
+                    {
+                        <a class="wcd-page-btn" href="@Url.Action("Index", new { deptCd, lineCd, missingOnly, page = Model.Page + 1 })">Sau ›</a>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<script>
+    function copyFileName(btn, name) {
+        navigator.clipboard.writeText(name).then(function () {
+            var icon = btn.querySelector('i');
+            icon.className = 'bi bi-check2 text-success';
+            setTimeout(function () { icon.className = 'bi bi-clipboard'; }, 1200);
+        });
+    }
+</script>

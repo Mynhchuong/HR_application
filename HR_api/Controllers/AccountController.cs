@@ -772,7 +772,8 @@ public class AccountController : ControllerBase
             if (string.IsNullOrWhiteSpace(empCd)) return BadRequest(new { error = "empCd is required" });
 
             string sql = @"
-                SELECT B.DEPTNM, B.TEAMNM, B.WORKNM, A.CNAME, A.BIRTHDAT, A.SEXGB, A.MARRGB,
+                SELECT A.DEPTCD, A.LINECD, A.WORKCD,
+                       B.DEPTNM, B.TEAMNM, B.WORKNM, A.CNAME, A.BIRTHDAT, A.SEXGB, A.MARRGB,
                        A.HOMETEL AS PHONE, A.JUMINNO_PLACE AS HOMETOWN,
                        A.CONTRACT_TYPE, A.CONTRACT_DATE,
                        A.JUMINNO, A.JUMINNO_DATE, A.IGENTDAT,
@@ -792,6 +793,9 @@ public class AccountController : ControllerBase
 
             var results = await _oracleService.ExecuteQueryAsync(sql, reader => new UserDetailModel
             {
+                DeptCd = reader["DEPTCD"]?.ToString(),
+                LineCd = reader["LINECD"]?.ToString(),
+                WorkCd = reader["WORKCD"]?.ToString(),
                 DeptName = reader["DEPTNM"]?.ToString(),
                 LineName = reader["TEAMNM"]?.ToString(),
                 WorkName = reader["WORKNM"]?.ToString(),

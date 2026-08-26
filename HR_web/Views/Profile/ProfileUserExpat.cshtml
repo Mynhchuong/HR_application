@@ -169,6 +169,16 @@
         </div>
     </div>
 
+    @if (!string.IsNullOrWhiteSpace(Model.DeptCd) && !string.IsNullOrWhiteSpace(Model.LineCd) && !string.IsNullOrWhiteSpace(Model.WorkCd))
+    {
+        <div id="workcd-image-wrap" style="border-radius:20px;overflow:hidden;margin-bottom:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.04);">
+            <img id="workcd-image"
+                 src="@Url.Action("GetWorkCdImage", "Image", new { deptCd = Model.DeptCd, lineCd = Model.LineCd, workCd = Model.WorkCd })"
+                 alt="" style="display:block;width:100%;max-height:220px;object-fit:cover;"
+                 onerror="document.getElementById('workcd-image-wrap').style.display='none';" />
+        </div>
+    }
+
     <!-- Employee Information -->
     <div class="group-title">Employee Information</div>
     <div class="settings-group">

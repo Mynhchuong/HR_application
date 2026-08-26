@@ -1,0 +1,271 @@
+@model HR_web.Models.Directory.DirectoryPageModel
+@{
+    Layout = null;
+    ViewData["Title"] = "Employee Lookup";
+    var emp = Model.Employee;
+    bool hasResult = !string.IsNullOrWhiteSpace(emp.CName);
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
+    <title>@ViewData["Title"] | My SAMHO</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded" rel="stylesheet" />
+
+    <style>
+        @@font-face {
+            font-family: 'Vnitbi__';
+            src: url('@Url.Content("~/fonts/Vnitbi__.ttf")') format('truetype');
+            font-display: block;
+        }
+        .vni-font, .vni-font * {
+            font-family: 'Vnitbi__', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body {
+            margin: 0; padding: 0;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #f8fafc;
+            overflow-x: hidden;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        .dir-container {
+            max-width: 600px; margin: 0 auto;
+            padding: max(1.25rem, env(safe-area-inset-top)) 1rem calc(2.5rem + env(safe-area-inset-bottom));
+        }
+
+        .dir-search {
+            display: flex;
+            gap: 0.5rem;
+            padding: 1rem;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+            border: 1px solid rgba(0,0,0,0.04);
+            margin-bottom: 1.5rem;
+        }
+        .dir-search input {
+            flex: 1;
+            min-width: 0;
+            min-height: 46px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 0.65rem 1rem;
+            background: #f8fafc;
+            font-size: 16px;
+        }
+        .dir-search input:focus { border-color: #4f46e5; outline: none; background: #fff; }
+        .dir-search button {
+            background: #4f46e5;
+            color: #fff;
+            border: none;
+            border-radius: 14px;
+            padding: 0.65rem 1.25rem;
+            min-height: 46px;
+            font-weight: 700;
+            font-size: 1rem;
+            touch-action: manipulation;
+        }
+
+        .dir-hero { text-align: center; padding: 1.5rem 1rem; }
+        .dir-avatar {
+            width: 110px; height: 110px; border-radius: 36px; object-fit: cover;
+            border: 4px solid #fff; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .dir-name { font-size: 1.4rem; font-weight: 800; color: #1e293b; margin: 0.75rem 0 0.25rem; text-transform: uppercase; }
+        .dir-role { font-size: 0.9rem; color: #64748b; font-weight: 600; }
+
+        .dept-badges { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+        .dept-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #f1f5f9; color: #64748b; font-size: 0.75rem; font-weight: 600;
+            padding: 0.3rem 0.7rem; border-radius: 999px;
+        }
+        .dept-badge .material-symbols-rounded { font-size: 0.9rem; }
+
+        .workcd-image-wrap {
+            border-radius: 20px; overflow: hidden; margin-bottom: 1rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.04);
+        }
+        .workcd-image-wrap img { display: block; width: 100%; max-height: 220px; object-fit: cover; }
+
+        .group-title { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #64748b; padding: 1rem 1.25rem 0.5rem; letter-spacing: 0.05em; }
+
+        .settings-group {
+            background: #fff; border-radius: 24px; overflow: hidden;
+            margin-bottom: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+        .setting-item { display: flex; align-items: flex-start; gap: 0.9rem; padding: 0.9rem 1.25rem; border-bottom: 1px solid #f8fafc; }
+        .setting-item:last-child { border-bottom: none; }
+        .item-icon {
+            width: 34px; height: 34px; border-radius: 10px; background: #f1f5f9;
+            display: flex; align-items: center; justify-content: center; color: #4f46e5;
+            flex-shrink: 0;
+        }
+        .item-body { flex: 1; min-width: 0; }
+        .item-label { font-size: 0.8rem; font-weight: 600; color: #64748b; }
+        .item-value { font-size: 0.95rem; font-weight: 700; color: #4f46e5; margin-top: 2px; word-break: break-word; }
+
+        .history-item { padding: 0.9rem 1.25rem; border-bottom: 1px solid #f8fafc; }
+        .history-item:last-child { border-bottom: none; }
+        .history-date { font-size: 0.75rem; font-weight: 700; color: #94a3b8; margin-bottom: 0.5rem; }
+        .history-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+        .history-side { flex: 1; min-width: 0; word-break: break-word; }
+        .history-side.is-from { color: #94a3b8; }
+        .history-side.is-to { color: #334155; }
+        .history-side b { display: block; font-weight: 700; margin-bottom: 2px; }
+        .history-side.is-from b { color: #94a3b8; }
+        .history-side.is-to b { color: #16a34a; }
+        .history-tag {
+            display: block; width: fit-content; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.05em;
+            padding: 2px 8px; border-radius: 999px; margin-bottom: 6px;
+        }
+        .history-tag.is-from { background: #f1f5f9; color: #64748b; }
+        .history-tag.is-to { background: #dcfce7; color: #16a34a; }
+        .history-arrow { color: #4f46e5; font-size: 1.1rem; flex-shrink: 0; }
+
+        .dir-empty { text-align: center; color: #94a3b8; padding: 3rem 1rem; }
+
+        .dir-footer {
+            font-size: 10.5px; padding: 15px 0 calc(15px + env(safe-area-inset-bottom));
+            color: #9aa0a6; text-align: center; opacity: 0.85; background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="dir-container">
+        <form class="dir-search" method="get" asp-action="Index">
+            <input type="text" name="empCd" value="@emp.EmpCd" placeholder="Enter employee ID (e.g. 24092522)" autocomplete="off" />
+            <button type="submit">Search</button>
+        </form>
+
+        @if (hasResult)
+        {
+            <div class="dir-hero">
+                <img src="@Url.Action("GetEmployeeImage", "Image", new { empCd = emp.EmpCd })" class="dir-avatar" />
+                <div class="dir-name vni-font">@emp.CName</div>
+                <div class="dir-role vni-font">@emp.DeptName</div>
+                <div class="dept-badges">
+                    @if (!string.IsNullOrWhiteSpace(emp.LineName))
+                    {
+                        <span class="dept-badge">
+                            <span class="material-symbols-rounded">view_column</span>
+                            <span class="vni-font">@emp.LineName</span>
+                        </span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(emp.WorkName))
+                    {
+                        <span class="dept-badge">
+                            <span class="material-symbols-rounded">work</span>
+                            <span class="vni-font">@emp.WorkName</span>
+                        </span>
+                    }
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(emp.DeptCd) && !string.IsNullOrWhiteSpace(emp.LineCd) && !string.IsNullOrWhiteSpace(emp.WorkCd))
+            {
+                <div id="workcd-image-wrap" class="workcd-image-wrap">
+                    <img id="workcd-image"
+                         src="@Url.Action("GetWorkCdImage", "Image", new { deptCd = emp.DeptCd, lineCd = emp.LineCd, workCd = emp.WorkCd })"
+                         alt=""
+                         onerror="document.getElementById('workcd-image-wrap').style.display='none';" />
+                </div>
+            }
+
+            <div class="settings-group">
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">badge</span></div>
+                    <div class="item-body">
+                        <div class="item-label">Employee ID</div>
+                        <div class="item-value">@emp.EmpCd</div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">category</span></div>
+                    <div class="item-body">
+                        <div class="item-label">Department / Line / Work</div>
+                        <div class="item-value"><span class="vni-font">@emp.LineName</span> · <span class="vni-font">@emp.WorkName</span></div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">engineering</span></div>
+                    <div class="item-body">
+                        <div class="item-label">Work Nature</div>
+                        <div class="item-value">@(emp.DirectYn == "Y" ? "Direct" : emp.DirectYn == "N" ? "Indirect" : "-")</div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">work_history</span></div>
+                    <div class="item-body">
+                        <div class="item-label">Hire Date</div>
+                        <div class="item-value">@(emp.HireDate?.ToString("dd/MM/yyyy") ?? "-")</div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">calendar_today</span></div>
+                    <div class="item-body">
+                        <div class="item-label">Date of Birth</div>
+                        <div class="item-value">@(emp.BirthDate?.ToString("dd/MM/yyyy") ?? "-")</div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">wc</span></div>
+                    <div class="item-body">
+                        <div class="item-label">Gender</div>
+                        <div class="item-value">@(emp.SexGb == "M" ? "Male" : emp.SexGb == "F" ? "Female" : "-")</div>
+                    </div>
+                </div>
+            </div>
+
+            @if (Model.ChangeHistory.Any())
+            {
+                <div class="group-title">Department / Line / Work Change History</div>
+                <div class="settings-group">
+                    @foreach (var h in Model.ChangeHistory)
+                    {
+                        <div class="history-item">
+                            <div class="history-date">@(h.Dat?.ToString("dd/MM/yyyy") ?? "-")</div>
+                            <div class="history-row">
+                                <div class="history-side is-from">
+                                    <span class="history-tag is-from">FROM</span>
+                                    <b class="vni-font">@(string.IsNullOrWhiteSpace(h.OldDeptName) ? "-" : h.OldDeptName)</b>
+                                    <span class="vni-font">@h.OldLineName</span> · <span class="vni-font">@h.OldWorkName</span>
+                                </div>
+                                <span class="material-symbols-rounded history-arrow">arrow_forward</span>
+                                <div class="history-side is-to">
+                                    <span class="history-tag is-to">TO</span>
+                                    <b class="vni-font">@(string.IsNullOrWhiteSpace(h.NewDeptName) ? "-" : h.NewDeptName)</b>
+                                    <span class="vni-font">@h.NewLineName</span> · <span class="vni-font">@h.NewWorkName</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(emp.EmpCd))
+        {
+            <div class="dir-empty">
+                <span class="material-symbols-rounded" style="font-size:2.5rem;">person_search</span>
+                <div class="mt-2">Employee "@emp.EmpCd" not found</div>
+            </div>
+        }
+        else
+        {
+            <div class="dir-empty">
+                <span class="material-symbols-rounded" style="font-size:2.5rem;">badge</span>
+                <div class="mt-2">Enter an employee ID to look up employee information</div>
+            </div>
+        }
+    </div>
+
+    <footer class="dir-footer">© 2026 VietNam Samho Co., LTD · Powered by IT Team</footer>
+</body>
+</html>

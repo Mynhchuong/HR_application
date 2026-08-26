@@ -86,14 +86,16 @@ public class LeaveController : ControllerBase
     // (DT/DC/CT/VS/KT) chỉ Admin (AdminAssign) mới được sắp toàn công ty. Nếu sau này HR yêu cầu
     // cho phép supervisor/manager sắp thêm các loại khác, chỉ cần thêm mã vào set này.
     private static readonly HashSet<string> SupervisorAssignTypes = new() { "AL" };
-    // remark ERP kiểu mới "<prefix> <lý do>" — mọi loại trừ AL và NL (2 loại này dùng "VR"/"ASSIGNED"
-    // cố định, không kèm lý do — theo yêu cầu HR: NL không lương chỉ cần ghi VR, không ghi lý do).
-    private static readonly HashSet<string> NewRemarkTypes = new() { "SI", "DT", "DC", "CT", "VS", "DS", "KT" };
-    // Phần lớn prefix remark = chính LEAVE_TYPE, trừ ngoại lệ HR yêu cầu: ĐT/ĐC có dấu (khác mã lưu DB "DT"/"DC",
-    // giữ mã DB ASCII cho an toàn — chỉ đổi phần chữ ghi vào ERP).
+    // remark ERP kiểu mới "<prefix> <lý do>" — mọi loại trừ AL (AL dùng "VR"/"ASSIGNED" cố định,
+    // không kèm lý do). NL (Không lương) dùng prefix "VR" + lý do NV gõ (yêu cầu HR 2026-08-25,
+    // xác nhận lại — trước đó có lúc để NL = "VR" trần không kèm lý do, ĐÃ SỬA LẠI theo yêu cầu này).
+    private static readonly HashSet<string> NewRemarkTypes = new() { "NL", "SI", "DT", "DC", "CT", "VS", "DS", "KT" };
+    // Phần lớn prefix remark = chính LEAVE_TYPE. Ngoại lệ HR yêu cầu: ĐC có dấu (khác mã lưu DB "DC",
+    // giữ mã DB ASCII cho an toàn — chỉ đổi phần chữ ghi vào ERP), NL dùng chữ "VR" thay vì mã loại.
+    // Đám tang (DT) ghi ASCII "DT" thẳng, không dùng "ĐT" có dấu (yêu cầu HR 2026-08-25).
     private static readonly Dictionary<string, string> RemarkPrefix = new()
     {
-        ["DT"] = "ĐT", ["DC"] = "ĐC"
+        ["DC"] = "ĐC", ["NL"] = "VR"
     };
     // Loại nghỉ bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — CT theo yêu cầu vẫn KHÔNG cần nộp giấy tờ.
     private static readonly HashSet<string> DocRequiredTypes = new() { "SI", "DT", "DC", "VS", "DS", "KT" };
@@ -121,11 +123,34 @@ public class LeaveController : ControllerBase
     // xem note trong alter_leave_doctrack.sql). AL/CL/SL/NPL/OTH (loại cũ): giữ nguyên "VR"/"ASSIGNED".
     private const int ErpRemarkMaxBytes = 30;
 
+    // Lý do NV gõ có dấu Unicode thường (VD "Đám tang bà nội") — ERP cũ đọc REMAR theo font
+    // VNI-Windows (giống CNAME/họ tên), KHÔNG hiểu Unicode thường nên chèn thẳng sẽ hiển thị lỗi/
+    // ký tự rác bên ERP. Bỏ dấu tiếng Việt trước khi ghi remark cho AN TOÀN (dùng lại đúng function
+    // HRMS.FN_CONVERT_TO_VN đã có sẵn trong DB — theo yêu cầu HR 2026-08-25).
+    private async Task<string?> StripDiacriticsForErpAsync(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        var rows = await _oracleService.ExecuteQueryAsync(
+            "SELECT HRMS.FN_CONVERT_TO_VN(:TXT) AS RESULT FROM DUAL",
+            // reader["X"]?.ToString() KHÔNG bắt được DBNull (ToString() trên DBNull.Value trả về "",
+            // không phải null) — phải so sánh tường minh, nếu không "?? text" fallback bên dưới sẽ
+            // không bao giờ kích hoạt và có thể âm thầm trả về chuỗi rỗng thay vì text gốc.
+            r => r["RESULT"] == DBNull.Value ? null : r["RESULT"].ToString(),
+            new OracleParameter("TXT", text));
+        return rows.FirstOrDefault() ?? text;
+    }
+
+    // Gộp bỏ-dấu + build remark làm 1 bước — CHỈ gọi FN_CONVERT_TO_VN (round-trip DB) khi
+    // BuildErpRemark thực sự nhúng lý do vào remark (NewRemarkTypes); AL/NL/legacy bỏ qua lý do
+    // nên tránh round-trip thừa.
+    private async Task<string> BuildErpRemarkAsync(string leaveType, string? reason, bool isAssignFlow)
+    {
+        string? cleanReason = NewRemarkTypes.Contains(leaveType) ? await StripDiacriticsForErpAsync(reason) : reason;
+        return BuildErpRemark(leaveType, cleanReason, isAssignFlow);
+    }
+
     private static string BuildErpRemark(string leaveType, string? reason, bool isAssignFlow)
     {
-        // NL (Không lương): remark cố định "VR"/"ASSIGNED" như AL, KHÔNG kèm lý do (yêu cầu HR).
-        if (leaveType == "NL") return isAssignFlow ? "ASSIGNED" : "VR";
-
         if (NewRemarkTypes.Contains(leaveType))
         {
             string prefix = RemarkPrefix.GetValueOrDefault(leaveType, leaveType) + " ";
@@ -913,8 +938,7 @@ public class LeaveController : ControllerBase
             var ld = ldRows.FirstOrDefault();
             if (ld != null && !string.IsNullOrEmpty(requestInfo.Empcd))
             {
-                string erpCd     = ld.LeaveType switch { "AL" => "PN", "CL" => "BH", "CT" => "CT", _ => "CP" };
-                string erpRemark = BuildErpRemark(ld.LeaveType ?? "", ld.Reason, isAssignFlow: false);
+                string erpCd = ld.LeaveType switch { "AL" => "PN", "CL" => "BH", "CT" => "CT", _ => "CP" };
 
                 var erpHolidays = (await _oracleService.ExecuteQueryAsync(
                     @"SELECT TRUNC(HUILDAY) AS HUILDAY FROM HRMS.EAM800
@@ -934,6 +958,11 @@ public class LeaveController : ControllerBase
                 string? erpError = null;
                 try
                 {
+                    // Tính remark BÊN TRONG try — nếu bước bỏ dấu (round-trip DB) lỗi, phải rơi vào
+                    // đúng nhánh erpError rollback STATUS về PENDING bên dưới, không để đơn kẹt ở
+                    // APPROVED mà chưa ghi ERP (STATUS đã UPDATE ở trên trước khi tới đây).
+                    string erpRemark = await BuildErpRemarkAsync(ld.LeaveType ?? "", ld.Reason, isAssignFlow: false);
+
                     for (var day = ld.FromDate.Date; day <= ld.ToDate.Date; day = day.AddDays(1))
                     {
                         if (erpHolidays.Contains(day)
@@ -1263,7 +1292,7 @@ END;";
 
                     // ERP: call SP_015_NEW immediately after assign (no worker confirm needed)
                     string erpCd     = model.LEAVE_TYPE switch { "AL" => "PN", "CL" => "BH", "CT" => "CT", _ => "CP" };
-                    string erpRemark = BuildErpRemark(model.LEAVE_TYPE, model.REASON, isAssignFlow: true);
+                    string erpRemark = await BuildErpRemarkAsync(model.LEAVE_TYPE, model.REASON, isAssignFlow: true);
                     var erpHolidays = (await _oracleService.ExecuteQueryAsync(
                         @"SELECT TRUNC(HUILDAY) AS HUILDAY FROM HRMS.EAM800
                           WHERE TRUNC(HUILDAY) BETWEEN TRUNC(:FROM_DATE) AND TRUNC(:TO_DATE)",
@@ -2421,7 +2450,7 @@ END;";
                 return Ok(new { success = false, message = "Chỉ Admin mới có quyền sắp lịch toàn công ty" });
 
             string erpCd         = model.LEAVE_TYPE switch { "AL" => "PN", "CL" => "BH", "CT" => "CT", _ => "CP" };
-            string erpRemark     = BuildErpRemark(model.LEAVE_TYPE, model.REASON, isAssignFlow: true);
+            string erpRemark     = await BuildErpRemarkAsync(model.LEAVE_TYPE, model.REASON, isAssignFlow: true);
             string leaveTypeName = NewLeaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE);
 
             var results   = new List<object>();

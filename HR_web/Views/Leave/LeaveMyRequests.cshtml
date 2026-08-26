@@ -375,9 +375,9 @@ document.getElementById('createLeaveType')?.addEventListener('change', () => upd
 document.getElementById('editLeaveType')?.addEventListener('change', () => updateLTNote('edit'));
 
 // ERP remark tối đa 30 byte, gồm tiền tố "XX " (mã loại + dấu cách = 3 byte) + lý do NV gõ.
-// Chỉ áp dụng cho các loại ghi thẳng lý do vào remark ERP (AL và NL dùng "VR"/"ASSIGNED" cố định,
-// không kèm lý do trong remark — lý do NV gõ vẫn lưu đầy đủ trong app, chỉ không giới hạn byte).
-const ERP_REMARK_TYPES = ['SI', 'DT', 'DC', 'CT', 'VS', 'DS', 'KT'];
+// Chỉ áp dụng cho các loại ghi thẳng lý do vào remark ERP (AL dùng "VR"/"ASSIGNED" cố định,
+// không kèm lý do). NL dùng prefix "VR" + lý do — cũng bị giới hạn byte như các loại khác.
+const ERP_REMARK_TYPES = ['NL', 'SI', 'DT', 'DC', 'CT', 'VS', 'DS', 'KT'];
 const ERP_REASON_MAX_BYTES = 27;
 
 function utf8ByteLength(s) {

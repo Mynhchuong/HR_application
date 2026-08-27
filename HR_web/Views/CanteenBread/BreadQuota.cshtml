@@ -53,12 +53,13 @@
                     <tr>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Phòng ban</th>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 text-end">Phiếu / ngày</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 text-end">Còn lại hôm nay</th>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 text-center">Trạng thái</th>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Cập nhật lần cuối</th>
                     </tr>
                 </thead>
                 <tbody id="quotaBody">
-                    <tr><td colspan="4" class="bq-loading"><div class="spinner-border text-warning" role="status"></div></td></tr>
+                    <tr><td colspan="5" class="bq-loading"><div class="spinner-border text-warning" role="status"></div></td></tr>
                 </tbody>
             </table>
         </div>
@@ -181,7 +182,7 @@ function esc(s) { return (s ?? '').toString().replace(/&/g,'&amp;').replace(/</g
 function renderTable() {
     const tbody = document.getElementById('quotaBody');
     if (!quotaData.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-5 text-secondary">Chưa có dữ liệu — bấm "Thêm dept" để bắt đầu.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-secondary">Chưa có dữ liệu — bấm "Thêm dept" để bắt đầu.</td></tr>';
         return;
     }
     tbody.innerHTML = quotaData.map((q, i) => `
@@ -195,6 +196,12 @@ function renderTable() {
                     class="${q.maxBread == 0 ? 'unlimited-hint' : ''}"
                     oninput="onQuotaInput(${i}, this)" />
                 ${q.maxBread == 0 ? '<span class="bq-unlimited-tag">KHÔNG GIỚI HẠN</span>' : ''}
+            </td>
+            <td class="px-2 text-end">
+                ${q.remaining === -1
+                    ? '<span class="text-xs text-secondary">—</span>'
+                    : `<div class="text-sm font-weight-bold" style="color:${q.remaining === 0 ? '#dc2626' : (q.remaining <= 3 ? '#b45309' : '#166534')};">${q.remaining}</div>
+                       <div class="text-xs text-secondary">đã dùng ${q.usedToday}/${q.maxBread}</div>`}
             </td>
             <td class="px-2 text-center">
                 <div class="form-check form-switch d-flex justify-content-center">
@@ -234,6 +241,7 @@ function confirmAddDept() {
     const opt = allDepts.find(d => d.deptcd === deptcd);
     quotaData.push({
         deptcd, deptName: opt?.deptName || deptcd, maxBread: quota, isActive: true,
+        usedToday: 0, remaining: quota === 0 ? -1 : quota,
         updtId: null, updtDt: null
     });
     renderTable();

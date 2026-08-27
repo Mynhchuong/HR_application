@@ -75,6 +75,11 @@
                             <option value="">-- Tất cả --</option>
                         </select>
                     </div>
+                    <div class="col-12 text-end mt-1">
+                        <button type="button" class="btn btn-sm btn-outline-secondary mb-0" title="Xóa bộ lọc" onclick="clearAssignFilters()">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -333,6 +338,12 @@
         selWork.innerHTML = '<option value="">-- Tất cả --</option>';
         works.forEach(w => selWork.innerHTML += `<option value="${w.id}">${w.name}</option>`);
         applyFilter();
+    }
+
+    function clearAssignFilters() {
+        document.getElementById('filterSearch').value = '';
+        document.getElementById('filterDept').value   = '';
+        onDeptChange(); // rebuilds line/work "-- Tất cả --" then applyFilter()
     }
 
     // ─── Filter (search both code + name, Vietnamese-aware) ──────

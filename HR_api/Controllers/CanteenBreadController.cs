@@ -18,27 +18,48 @@ public class CanteenBreadController : ControllerBase
     {
         try
         {
+            // usedToday: đếm giống hệt điều kiện dùng để chặn quota thật ở endpoint /status,
+            // để số "còn lại" hiển thị ở đây khớp đúng với cái NV thực sự bị chặn/cho phép.
+            var today = DateTime.Today.ToString("yyyyMMdd");
             var rows = await _db.ExecuteQueryAsync(@"
                 SELECT q.ID, q.DEPTCD,
                        NVL(q.DEPT_NAME, e.DEPTNM) DEPT_NAME,
                        q.MAX_BREAD, q.IS_ACTIVE,
-                       q.INST_ID, q.INST_DT, q.UPDT_ID, q.UPDT_DT
+                       q.INST_ID, q.INST_DT, q.UPDT_ID, q.UPDT_DT,
+                       NVL(u.USED_CNT, 0) USED_TODAY
                 FROM HRMS.HR_CANTEEN_BREAD_QUOTA q
                 LEFT JOIN (SELECT DEPTCD, MAX(DEPTNM) DEPTNM FROM HRMS.EAM410 GROUP BY DEPTCD) e
                        ON e.DEPTCD = q.DEPTCD
+                LEFT JOIN (
+                    SELECT EC.DEPTCD, COUNT(*) USED_CNT
+                    FROM HRMS.CANTEEN_ORDER CO
+                    JOIN HRMS.ECM100 EC ON EC.EMPCD = CO.EMPCD AND EC.JEAJIKGB = 'Y'
+                    WHERE CO.DAT = :TODAY AND CO.TYPE_MEAL = 'LUNCH' AND CO.TYPE_OF_FOOD = 'B'
+                      AND CO.CHANGE_FROM = CO.EMPCD
+                    GROUP BY EC.DEPTCD
+                ) u ON u.DEPTCD = q.DEPTCD
                 ORDER BY DEPT_NAME",
-                r => new
+                r =>
                 {
-                    id        = Convert.ToInt64(r["ID"]),
-                    deptcd    = r["DEPTCD"]?.ToString(),
-                    deptName  = r["DEPT_NAME"]?.ToString(),
-                    maxBread  = Convert.ToInt32(r["MAX_BREAD"]),
-                    isActive  = (r["IS_ACTIVE"]?.ToString() ?? "Y") == "Y",
-                    instId    = r["INST_ID"]?.ToString(),
-                    instDt    = r["INST_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["INST_DT"]),
-                    updtId    = r["UPDT_ID"]?.ToString(),
-                    updtDt    = r["UPDT_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["UPDT_DT"]),
-                });
+                    var maxBread   = Convert.ToInt32(r["MAX_BREAD"]);
+                    var usedToday  = Convert.ToInt32(r["USED_TODAY"]);
+                    return new
+                    {
+                        id        = Convert.ToInt64(r["ID"]),
+                        deptcd    = r["DEPTCD"]?.ToString(),
+                        deptName  = r["DEPT_NAME"]?.ToString(),
+                        maxBread,
+                        isActive  = (r["IS_ACTIVE"]?.ToString() ?? "Y") == "Y",
+                        instId    = r["INST_ID"]?.ToString(),
+                        instDt    = r["INST_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["INST_DT"]),
+                        updtId    = r["UPDT_ID"]?.ToString(),
+                        updtDt    = r["UPDT_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["UPDT_DT"]),
+                        usedToday,
+                        // -1 = không giới hạn (maxBread = 0), khớp quy ước ở endpoint /status
+                        remaining = maxBread == 0 ? -1 : Math.Max(0, maxBread - usedToday),
+                    };
+                },
+                new OracleParameter("TODAY", today));
 
             return Ok(new { success = true, data = rows });
         }

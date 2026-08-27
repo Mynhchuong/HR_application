@@ -101,15 +101,6 @@
                     <option value="KT">Khám thai (KT)</option>
                 </select>
             </div>
-            <div style="min-width:190px;flex:1 1 190px;max-width:230px;">
-                <label class="form-label small fw-bold mb-1 text-danger">⚠️ Cảnh báo</label>
-                <div class="form-check mt-1">
-                    <input class="form-check-input" type="checkbox" id="filterNlStreak">
-                    <label class="form-check-label small" for="filterNlStreak" style="font-size:.78rem;">
-                        NV nghỉ KL ≥5 ngày liên tục
-                    </label>
-                </div>
-            </div>
             <div style="min-width:150px;flex:2 1 150px;max-width:220px;">
                 <label class="form-label small fw-bold mb-1 text-primary">Bộ Phận</label>
                 <select id="filterDept" class="select2 form-control"
@@ -142,6 +133,17 @@
                         <option value="500">500</option>
                     </select>
                 </div>
+            </div>
+        </div>
+
+        <!-- Cảnh báo NL streak: tách riêng khỏi lưới filter để không phá layout -->
+        <div class="px-3 py-2 d-flex align-items-center" style="background:#fff7ed;border-bottom:1px solid #fed7aa;">
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="filterNlStreak" role="switch">
+                <label class="form-check-label fw-bold small" for="filterNlStreak" style="color:#9a3412;font-size:.82rem;">
+                    ⚠️ Chỉ hiện NV nghỉ Không lương (NL) ≥5 ngày liên tục (được ngắt quãng tối đa 1 ngày đi làm)
+                    <span id="nlStreakCount" class="badge bg-secondary ms-1">0</span>
+                </label>
             </div>
         </div>
 
@@ -333,8 +335,25 @@ function getParams(page) {
     };
 }
 
+// Đếm số NV bị cảnh báo NL streak trong phạm vi ngày/bộ phận đang chọn — hiển thị ngay trên
+// badge cạnh label, để HR biết có cần bật filter lên xem không mà không phải tự bật thử.
+async function updateNlStreakBadge() {
+    const p = getParams(1);
+    p.status = ''; p.leave_type = ''; // cảnh báo này không phụ thuộc Tình Trạng/Loại nghỉ đang lọc
+    p.nl_streak_only = true;
+    p.page_size = 2000;
+    try {
+        const res = await $.getJSON(PAGE_URL, p);
+        const count = (res && res.success) ? new Set((res.data || []).map(r => r.EMPCD)).size : 0;
+        $('#nlStreakCount').text(count)
+            .toggleClass('bg-danger', count > 0)
+            .toggleClass('bg-secondary', count === 0);
+    } catch (e) { /* giữ badge cũ nếu lỗi mạng, không chặn danh sách chính */ }
+}
+
 function loadData(page = 1) {
     currentPage = page;
+    updateNlStreakBadge();
     $('#lvTableBody').html(`<tr><td colspan="13" class="text-center py-5"><div class="spinner-border text-success" role="status"></div></td></tr>`);
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),

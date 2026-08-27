@@ -260,6 +260,21 @@
             </div>
             <div class="item-value">@(Model.HireDate?.ToString("dd/MM/yyyy") ?? "-")</div>
         </div>
+        <div class="setting-item">
+            <div class="item-icon"><span class="material-symbols-rounded">military_tech</span></div>
+            <div class="item-content">
+                <div class="item-label">Công việc nặng nhọc</div>
+                @if (Model.Hardwork == "Y" && !string.IsNullOrWhiteSpace(Model.HardworkTen))
+                {
+                    <div class="item-description vni-font">@Model.HardworkTen</div>
+                }
+                else
+                {
+                    <div class="item-description">Đánh giá của phòng Nhân sự</div>
+                }
+            </div>
+            <div class="item-value">@(Model.Hardwork == "Y" ? "Có" : "Không")</div>
+        </div>
     </div>
 
     <!-- Bảo mật & Chữ ký -->

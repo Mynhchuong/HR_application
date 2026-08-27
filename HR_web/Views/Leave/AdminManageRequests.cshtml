@@ -332,7 +332,7 @@ function escHtml(s) {
 
 const gpLabel       = { OUT:'Ra cổng', IN:'Vào cổng', MID:'Ra+Vào' };
 const gpBadge       = { OUT:'badge-gp-out', IN:'badge-gp-in', MID:'badge-gp-mid' };
-const leaveTypeLabel = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'KL', OTH:'Khác', NL:'KL', SI:'Bệnh có giấy', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', DS:'Dưỡng sức', KT:'Khám thai' };
+const leaveTypeLabel = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', NL:'Không lương', SI:'Bệnh có giấy', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', DS:'Dưỡng sức', KT:'Khám thai' };
 
 const ADMIN_EMPCD = '@adminEmpCd';
 const FILTER_SCOPE_URL          = '@Url.Action("GetFilterScope",          "UserDept")';
@@ -413,12 +413,17 @@ function onTabChange(tab) {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
-    const today = new Date().toISOString().slice(0, 10);
-    const monthStart = today.slice(0, 8) + '01';
+    // Dùng thành phần ngày local (không qua toISOString) để tránh lệch 1 ngày do quy đổi UTC.
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const y = now.getFullYear(), m = now.getMonth();
+    const lastDay = new Date(y, m + 1, 0).getDate();
+    const monthStart = `${y}-${pad(m + 1)}-01`;
+    const monthEnd   = `${y}-${pad(m + 1)}-${pad(lastDay)}`;
     document.getElementById('lv_from').value = monthStart;
-    document.getElementById('lv_to').value   = today;
+    document.getElementById('lv_to').value   = monthEnd;
     document.getElementById('gp_from').value = monthStart;
-    document.getElementById('gp_to').value   = today;
+    document.getElementById('gp_to').value   = monthEnd;
     await loadScope();
     loadLeaves();
 });

@@ -62,7 +62,10 @@
                                 <input type="text" id="search-input" class="form-control" placeholder="Nhập mã nhân viên..." oninput="filterStudents()" style="border-radius: 8px;" />
                             </div>
                             <!-- Batch Action Buttons -->
-                            <div class="col-12 text-md-end">
+                            <div class="col-12 d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                                <button type="button" id="btn-clear-filter" title="Xóa bộ lọc" onclick="clearAttFilters()" class="btn btn-outline-secondary fw-bold d-flex align-items-center gap-1" style="border-radius: 8px;">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
                                 <div class="btn-group w-100 w-md-auto">
                                     <button id="btn-batch-present" onclick="confirmAttendanceBatch('PRESENT')" class="btn btn-outline-success fw-bold d-flex align-items-center justify-content-center gap-1" style="border-radius: 8px 0 0 8px;">
                                         <i class="bi bi-check2-all" style="font-size: 1.1rem;"></i>
@@ -547,6 +550,14 @@
         }
 
         window.filterStudents = function() {
+            renderGrid();
+        };
+
+        window.clearAttFilters = function() {
+            document.getElementById('group-filter').value  = '';
+            document.getElementById('dlw-filter').value    = '';
+            document.getElementById('status-filter').value = '';
+            document.getElementById('search-input').value  = '';
             renderGrid();
         };
 

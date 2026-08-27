@@ -2333,6 +2333,34 @@ END;";
         }
     }
 
+    // TẠM THỜI — debug xem có trigger/job nào ở tầng DB gây xóa dây chuyền EFM410 -> HR_LEAVE_REQUEST
+    // không, sẽ xóa ngay sau khi kiểm tra xong.
+    [HttpGet("debug-check-triggers")]
+    public async Task<IActionResult> DebugCheckTriggers()
+    {
+        var triggers = await _oracleService.ExecuteQueryAsync(@"
+            SELECT OWNER, TRIGGER_NAME, TABLE_OWNER, TABLE_NAME, TRIGGERING_EVENT, STATUS
+            FROM ALL_TRIGGERS
+            WHERE TABLE_NAME IN ('EFM410', 'HR_LEAVE_REQUEST', 'HR_REQUEST')
+            ORDER BY TABLE_NAME",
+            r => new {
+                owner = r["OWNER"]?.ToString(), triggerName = r["TRIGGER_NAME"]?.ToString(),
+                tableOwner = r["TABLE_OWNER"]?.ToString(), tableName = r["TABLE_NAME"]?.ToString(),
+                triggeringEvent = r["TRIGGERING_EVENT"]?.ToString(), status = r["STATUS"]?.ToString()
+            });
+
+        var jobs = await _oracleService.ExecuteQueryAsync(@"
+            SELECT JOB_NAME, OWNER, ENABLED, STATE
+            FROM ALL_SCHEDULER_JOBS
+            WHERE UPPER(JOB_NAME) LIKE '%EFM%' OR UPPER(JOB_NAME) LIKE '%LEAVE%' OR UPPER(JOB_NAME) LIKE '%SYNC%'",
+            r => new {
+                jobName = r["JOB_NAME"]?.ToString(), owner = r["OWNER"]?.ToString(),
+                enabled = r["ENABLED"]?.ToString(), state = r["STATE"]?.ToString()
+            });
+
+        return Ok(new { success = true, triggers, jobs });
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // GET /apiHR/Leave/admin-emp-list — Toàn bộ NV + phép năm còn lại (Admin)
     // ─────────────────────────────────────────────────────────────────────────
@@ -2493,6 +2521,27 @@ END;";
                         r => r["CNAME"]?.ToString(),
                         new OracleParameter("EMPCD", targetEmpcd));
                     string empName = empRows.FirstOrDefault() ?? "";
+
+                    // Chặn sắp lịch trùng: NV đã có đơn nghỉ (bất kỳ nguồn nào, chưa bị từ chối)
+                    // đè lên khoảng ngày này rồi thì báo lỗi thay vì tạo thêm 1 đơn ASSIGNED nữa —
+                    // tránh trường hợp double-click/chạy sắp lịch 2 lần ra 2 đơn y hệt cho cùng 1 ngày.
+                    var dupRows = await _oracleService.ExecuteQueryAsync(@"
+                        SELECT R.STATUS FROM HRMS.HR_REQUEST R
+                        JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
+                        WHERE L.EMPCD = :EMPCD AND R.REQUEST_TYPE = 'LEAVE' AND R.STATUS != 'REJECTED'
+                          AND L.FROM_DATE <= :TO_DATE AND L.TO_DATE >= :FROM_DATE
+                          AND ROWNUM = 1",
+                        r => r["STATUS"]?.ToString(),
+                        new OracleParameter("EMPCD", targetEmpcd),
+                        new OracleParameter("FROM_DATE", OracleDbType.Date) { Value = fromDate },
+                        new OracleParameter("TO_DATE",   OracleDbType.Date) { Value = toDate });
+
+                    if (dupRows.Count > 0)
+                    {
+                        results.Add(new { empcd = targetEmpcd, emp_name = empName, success = false,
+                            message = $"NV đã có đơn nghỉ trùng khoảng ngày này (trạng thái: {dupRows[0]}) — bỏ qua, không tạo thêm" });
+                        continue;
+                    }
 
                     int leftNum = 999;
                     if (model.LEAVE_TYPE == "AL")

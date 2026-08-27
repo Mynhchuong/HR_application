@@ -778,6 +778,7 @@ public class AccountController : ControllerBase
                        A.CONTRACT_TYPE, A.CONTRACT_DATE,
                        A.JUMINNO, A.JUMINNO_DATE, A.IGENTDAT,
                        A.ADDRESS_ETC, C.CODE_NAME1_N, C.CODE_NAME3_N,
+                       A.INTEREST AS HARDWORK_STT, E.TEN AS HARDWORK_TEN,
                        FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(
                            CASE WHEN TO_NUMBER(SUBSTR(A.EMPCD,1,2)) > TO_NUMBER(TO_CHAR(SYSDATE,'YY'))
                                 THEN '19' ELSE '20' END || SUBSTR(A.EMPCD,1,4) || '01', 'YYYYMMDD'
@@ -789,9 +790,25 @@ public class AccountController : ControllerBase
                 FROM HRMS.ECM100 A
                 JOIN HRMS.EAM410 B ON A.DEPTCD = B.DEPTCD AND A.LINECD = B.LINECD AND A.WORKCD = B.WORKCD AND B.USEYN = 'Y'
                 LEFT JOIN HRMS.EAM510 C ON A.BONADDR3 = C.CODE1 AND A.BONADDR1 = C.CODE3
+                LEFT JOIN (
+                    -- Bảng danh mục: mỗi mã STT (= ECM100.INTEREST, VD Y80) có 1 dòng gốc chứa TEN
+                    -- (tên công việc nặng nhọc, VD QUÉT KEO) -> join theo STT, KHÔNG theo EMPCD.
+                    SELECT STT, TEN,
+                           ROW_NUMBER() OVER (PARTITION BY STT ORDER BY MONTHID DESC) RN
+                    FROM HRMS.EAM420
+                    WHERE TEN IS NOT NULL
+                ) E ON E.STT = A.INTEREST AND E.RN = 1
                 WHERE A.EMPCD = :EMPCD";
 
-            var results = await _oracleService.ExecuteQueryAsync(sql, reader => new UserDetailModel
+            var results = await _oracleService.ExecuteQueryAsync(sql, reader =>
+            {
+                // INTEREST lưu chung 1 chuỗi VD "Y80" = cờ Y/N (ký tự đầu) + mã STT (join sang EAM420 lấy TEN)
+                var hardworkStt = reader["HARDWORK_STT"]?.ToString();
+                var hardworkFlag = !string.IsNullOrEmpty(hardworkStt) && (hardworkStt[0] == 'Y' || hardworkStt[0] == 'N')
+                    ? hardworkStt[0].ToString()
+                    : null;
+
+                return new UserDetailModel
             {
                 DeptCd = reader["DEPTCD"]?.ToString(),
                 LineCd = reader["LINECD"]?.ToString(),
@@ -811,12 +828,16 @@ public class AccountController : ControllerBase
                 Juminno      = reader["JUMINNO"]?.ToString(),
                 JuminnoDate  = reader["JUMINNO_DATE"]?.ToString(),
                 HireDate     = SafeToDate(reader["IGENTDAT"]),
+                Hardwork     = hardworkFlag,
+                HardworkStt  = hardworkStt,
+                HardworkTen  = reader["HARDWORK_TEN"]?.ToString(),
                 Address = string.Join(", ",
                     new[] {
                         reader["ADDRESS_ETC"]?.ToString()?.Trim(),
                         reader["CODE_NAME3_N"]?.ToString()?.Trim(),
                         reader["CODE_NAME1_N"]?.ToString()?.Trim()
                     }.Where(s => !string.IsNullOrEmpty(s)))
+                };
             }, new OracleParameter("EMPCD", empCd.Trim()));
 
             var r = results.FirstOrDefault();

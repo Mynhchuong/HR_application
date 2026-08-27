@@ -1122,7 +1122,7 @@ END;";
                     COMMIT;
                 END;", idParams.Append(deletedCount).ToArray());
 
-            int total = deletedCount.Value == null || deletedCount.Value == DBNull.Value ? 0 : Convert.ToInt32(deletedCount.Value);
+            int total = int.Parse(deletedCount.Value?.ToString() ?? "0");
             return Ok(new { success = true, message = $"Đã xóa {total} phiếu ra/vào cổng khỏi hệ thống", total_deleted = total });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }

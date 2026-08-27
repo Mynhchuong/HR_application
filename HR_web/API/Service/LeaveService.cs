@@ -289,7 +289,7 @@ public class LeaveService
         string? status = null, string? source = null, string? search = null,
         string? deptId = null, string? lineId = null, string? workId = null,
         string? dateFrom = null, string? dateTo = null,
-        int page = 1, int pageSize = 50, string? leaveType = null)
+        int page = 1, int pageSize = 50, string? leaveType = null, bool nlStreakOnly = false)
     {
         try
         {
@@ -303,6 +303,7 @@ public class LeaveService
             if (!string.IsNullOrEmpty(workId))   q.Add($"work_id={Uri.EscapeDataString(workId)}");
             if (!string.IsNullOrEmpty(dateFrom)) q.Add($"date_from={Uri.EscapeDataString(dateFrom)}");
             if (!string.IsNullOrEmpty(dateTo))   q.Add($"date_to={Uri.EscapeDataString(dateTo)}");
+            if (nlStreakOnly) q.Add("nl_streak_only=true");
             q.Add($"page={page}");
             q.Add($"page_size={pageSize}");
             var response = await _api.GetAsync_Raw("leave/hr-list", string.Join("&", q));

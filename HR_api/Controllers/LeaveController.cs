@@ -1849,6 +1849,7 @@ END;";
         string? work_id    = null,
         string? date_from  = null,
         string? date_to    = null,
+        bool    nl_streak_only = false,
         int     page       = 1,
         int     page_size  = 50)
     {
@@ -1859,6 +1860,31 @@ END;";
 
             DateTime dfrom = (!string.IsNullOrEmpty(date_from) && DateTime.TryParse(date_from, out var _df)) ? _df : DateTime.Today.AddMonths(-1);
             DateTime dto   = (!string.IsNullOrEmpty(date_to)   && DateTime.TryParse(date_to,   out var _dt)) ? _dt : DateTime.Today.AddMonths(2);
+
+            // NV có chuỗi nghỉ Không lương (NL) tổng >= 5 ngày, cho phép ngắt quãng tối đa 1 ngày đi làm
+            // giữa 2 đợt nghỉ NL (gap = số ngày trống giữa TO_DATE đợt trước và FROM_DATE đợt sau).
+            // Gộp nhóm theo kiểu "gaps and islands": mỗi khi gap > 1 thì bắt đầu nhóm (GRP_ID) mới.
+            string nlStreakSql = @"
+                AND (:NLQ_FLAG IS NULL OR L.EMPCD IN (
+                    SELECT EMPCD FROM (
+                        SELECT EMPCD, GRP_ID, SUM(TOTAL_DAYS) AS STREAK_DAYS
+                        FROM (
+                            SELECT N.EMPCD, N.TOTAL_DAYS, N.FROM_DATE,
+                                   SUM(CASE WHEN N.GAP_DAYS IS NULL OR N.GAP_DAYS > 1 THEN 1 ELSE 0 END)
+                                       OVER (PARTITION BY N.EMPCD ORDER BY N.FROM_DATE) AS GRP_ID
+                            FROM (
+                                SELECT L2.EMPCD, L2.TOTAL_DAYS, L2.FROM_DATE,
+                                       L2.FROM_DATE - LAG(L2.TO_DATE) OVER (PARTITION BY L2.EMPCD ORDER BY L2.FROM_DATE) - 1 AS GAP_DAYS
+                                FROM HRMS.HR_LEAVE_REQUEST L2
+                                JOIN HRMS.HR_REQUEST R2 ON R2.REQUEST_ID = L2.REQUEST_ID
+                                WHERE L2.LEAVE_TYPE = 'NL' AND R2.STATUS != 'REJECTED'
+                                  AND L2.TO_DATE >= :D_FROM AND L2.FROM_DATE <= :D_TO
+                            ) N
+                        ) X
+                        GROUP BY EMPCD, GRP_ID
+                        HAVING SUM(TOTAL_DAYS) >= 5
+                    )
+                ))";
 
             string fromSql = @"
                 FROM HRMS.HR_LEAVE_REQUEST L
@@ -1880,7 +1906,7 @@ END;";
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
                   AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
                   AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
-                  AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)";
+                  AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)" + nlStreakSql;
 
             // Summary (4 thẻ tổng hợp) phải luôn tính trên toàn bộ status, không bị bó hẹp theo status đang filter
             string whereSqlNoStatus = @"
@@ -1892,7 +1918,7 @@ END;";
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
                   AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
                   AND (:LN_FLAG   IS NULL OR EC.LINECD       = :LN_VAL)
-                  AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)";
+                  AND (:WK_FLAG   IS NULL OR EC.WORKCD       = :WK_VAL)" + nlStreakSql;
 
             var baseParams = new List<OracleParameter>
             {
@@ -1912,6 +1938,7 @@ END;";
                 new OracleParameter("LN_VAL",    OracleDbType.Varchar2) { Value = (object?)line_id ?? DBNull.Value },
                 new OracleParameter("WK_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(work_id) ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("WK_VAL",    OracleDbType.Varchar2) { Value = (object?)work_id ?? DBNull.Value },
+                new OracleParameter("NLQ_FLAG",  OracleDbType.Varchar2) { Value = (object?)(nl_streak_only ? "Y" : null) ?? DBNull.Value },
             };
 
             string sqlSummary = $@"
@@ -2765,7 +2792,7 @@ END;";
                     COMMIT;
                 END;", idParams.Append(deletedCount).ToArray());
 
-            int total = deletedCount.Value == null || deletedCount.Value == DBNull.Value ? 0 : Convert.ToInt32(deletedCount.Value);
+            int total = int.Parse(deletedCount.Value?.ToString() ?? "0");
             return Ok(new { success = true, message = $"Đã xóa {total} đơn nghỉ phép khỏi hệ thống", total_deleted = total });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }

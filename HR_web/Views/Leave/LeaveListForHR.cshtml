@@ -101,6 +101,15 @@
                     <option value="KT">Khám thai (KT)</option>
                 </select>
             </div>
+            <div style="min-width:190px;flex:1 1 190px;max-width:230px;">
+                <label class="form-label small fw-bold mb-1 text-danger">⚠️ Cảnh báo</label>
+                <div class="form-check mt-1">
+                    <input class="form-check-input" type="checkbox" id="filterNlStreak">
+                    <label class="form-check-label small" for="filterNlStreak" style="font-size:.78rem;">
+                        NV nghỉ KL ≥5 ngày liên tục
+                    </label>
+                </div>
+            </div>
             <div style="min-width:150px;flex:2 1 150px;max-width:220px;">
                 <label class="form-label small fw-bold mb-1 text-primary">Bộ Phận</label>
                 <select id="filterDept" class="select2 form-control"
@@ -318,6 +327,7 @@ function getParams(page) {
         work_id:   $('#filterWork').val(),
         date_from: $('#filterDateFrom').val(),
         date_to:   $('#filterDateTo').val(),
+        nl_streak_only: $('#filterNlStreak').is(':checked'),
         page,
         page_size: pageSize
     };
@@ -370,7 +380,7 @@ function renderPagination() {
 
 $('#filterDept').on('change', function() { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });
 $('#filterLine').on('change', function() { $('#filterWork').val(null).trigger('change.select2'); loadData(1); });
-$('#filterStatus, #filterSource, #filterLeaveType, #filterWork').on('change', () => loadData(1));
+$('#filterStatus, #filterSource, #filterLeaveType, #filterWork, #filterNlStreak').on('change', () => loadData(1));
 $('#searchInput').on('input', debounce(() => loadData(1), 400));
 $('#pageSizeSelect').on('change', function() { pageSize = parseInt($(this).val()); loadData(1); });
 

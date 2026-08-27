@@ -506,7 +506,7 @@ public class LeaveController : BaseController
     public async Task<IActionResult> GetHRListPage(
         string? status = null, string? source = null, string? leave_type = null, string? search = null,
         string? dept_id = null, string? line_id = null, string? work_id = null,
-        string? date_from = null, string? date_to = null,
+        string? date_from = null, string? date_to = null, bool nl_streak_only = false,
         int page = 1, int page_size = 50)
     {
         try
@@ -515,7 +515,7 @@ public class LeaveController : BaseController
                 return Json(new { success = false, message = "Chưa đăng nhập" });
             var result = await _leaveService.GetHRListAsync(
                 status, source, search, dept_id, line_id, work_id,
-                date_from, date_to, page, page_size, leave_type);
+                date_from, date_to, page, page_size, leave_type, nl_streak_only);
             return Json(result);
         }
         catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }

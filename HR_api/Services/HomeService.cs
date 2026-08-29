@@ -37,7 +37,7 @@ public class HomeService
         var greetingTask = SafeAsync(() => GetGreetingAsync(user.LANG),                       "greeting");
         var birthdayTask = SafeAsync(() => _birthdayService.CheckSelfBirthdayAsync(user),      "birthday");
         var shiftTask    = SafeAsync(() => GetShiftIfApplicableAsync(user),                    "shift");
-        var bannerTask   = SafeAsync(() => GetActiveBannerAsync(user.ROLENAME, user.LANG),     "banner");
+        var bannerTask   = SafeAsync(() => GetActiveBannerAsync(user.EMPCD, user.ROLENAME, user.LANG), "banner");
         var pinnedTask   = SafeAsync(() => GetPinnedBulletinsAsync(),                          "pinned");
         var paydayTask   = SafeAsync(() => BuildPaydayIfTodayAsync(user),                      "payday");
 
@@ -206,21 +206,26 @@ public class HomeService
     }
 
     // ============================================================
-    // 4. BANNER — 1 banner active tại 1 thời điểm (validate ở admin)
+    // 4. BANNER — banner MỘT LẦN (khoảng ngày) + banner LẶP theo lịch (tháng/năm/sinh nhật).
+    //    Banner lặp ĐÈ banner thường: ưu tiên BIRTHDAY > YEARLY > MONTHLY > MỘT LẦN.
+    //    Cache key gồm EMPCD vì banner sinh nhật là per-user.
     // ============================================================
-    private async Task<HomeBannerModel?> GetActiveBannerAsync(string roleName, string lang)
+    private async Task<HomeBannerModel?> GetActiveBannerAsync(string empCd, string roleName, string lang)
     {
         string safeRole = string.IsNullOrEmpty(roleName) ? "Employee" : roleName;
-        string cacheKey = $"home:banner:active:{safeRole}:{lang}";
+        string safeEmp  = string.IsNullOrEmpty(empCd) ? "-" : empCd;
+        long epoch = _cache.TryGetValue(HomeAdminService.BannerEpochKey, out long v) ? v : 0L;
+        string cacheKey = $"home:banner:active:{epoch}:{safeRole}:{safeEmp}:{lang}";
         return await _cache.GetOrCreateAsync(cacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
-            return await LoadActiveBannerAsync(safeRole, lang);
+            return await LoadActiveBannerAsync(safeEmp, safeRole, lang);
         });
     }
 
-    private async Task<HomeBannerModel?> LoadActiveBannerAsync(string roleName, string lang)
+    private async Task<HomeBannerModel?> LoadActiveBannerAsync(string empCd, string roleName, string lang)
     {
+        // MMDD hôm nay so ngày sinh ECM100.BIRTHDAT ('YYYYMMDD'); 29/2 -> 28/2 ở năm thường.
         const string sql = @"
             SELECT * FROM (
                 SELECT B.ID, B.IMAGE_FILE,
@@ -228,10 +233,40 @@ public class HomeService
                        B.LINK_URL, B.LINK_TARGET, B.IS_DISMISSIBLE
                 FROM HRMS.HR_HOME_BANNER B
                 WHERE B.IS_ACTIVE = 1
-                  AND SYSDATE BETWEEN B.PUBLISH_FROM AND B.PUBLISH_TO
+                  AND B.PUBLISH_FROM <= SYSDATE
                   AND (B.TARGET_ROLES IS NULL
                        OR INSTR(',' || B.TARGET_ROLES || ',', ',' || :ROLE_NAME || ',') > 0)
-                ORDER BY B.INST_DT DESC
+                  AND (
+                        (B.RECUR_TYPE IS NULL
+                             AND B.PUBLISH_TO IS NOT NULL
+                             AND SYSDATE <= B.PUBLISH_TO)
+                     OR (B.RECUR_TYPE IS NOT NULL
+                             AND (B.PUBLISH_TO IS NULL OR TRUNC(SYSDATE) <= B.PUBLISH_TO)
+                             AND (
+                                   (B.RECUR_TYPE = 'MONTHLY'
+                                        AND TO_NUMBER(TO_CHAR(SYSDATE,'DD'))
+                                            = LEAST(B.RECUR_DAY, TO_NUMBER(TO_CHAR(LAST_DAY(SYSDATE),'DD'))))
+                                OR (B.RECUR_TYPE = 'YEARLY'
+                                        AND TO_NUMBER(TO_CHAR(SYSDATE,'MM')) = B.RECUR_MONTH
+                                        AND TO_NUMBER(TO_CHAR(SYSDATE,'DD'))
+                                            = LEAST(B.RECUR_DAY, TO_NUMBER(TO_CHAR(LAST_DAY(SYSDATE),'DD'))))
+                                OR (B.RECUR_TYPE = 'BIRTHDAY'
+                                        AND EXISTS (
+                                            SELECT 1 FROM HRMS.ECM100 EC
+                                            WHERE EC.EMPCD = :EMP_CD
+                                              AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                                              AND (SUBSTR(EC.BIRTHDAT,5,4) = TO_CHAR(SYSDATE,'MMDD')
+                                                   OR (SUBSTR(EC.BIRTHDAT,5,4) = '0229'
+                                                       AND TO_CHAR(SYSDATE,'MMDD') = '0228'
+                                                       AND TO_CHAR(LAST_DAY(TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0201','YYYYMMDD')),'DD') = '28')))))
+                     ))
+                ORDER BY CASE B.RECUR_TYPE
+                           WHEN 'BIRTHDAY' THEN 1
+                           WHEN 'YEARLY'   THEN 2
+                           WHEN 'MONTHLY'  THEN 3
+                           ELSE 4
+                         END,
+                         B.INST_DT DESC
             ) WHERE ROWNUM = 1";
 
         var rows = await _oracleService.ExecuteQueryAsync(sql, r => new HomeBannerModel
@@ -245,7 +280,9 @@ public class HomeService
             LINK_URL        = r["LINK_URL"]?.ToString(),
             LINK_TARGET     = r["LINK_TARGET"]?.ToString() ?? "_self",
             IS_DISMISSIBLE  = Convert.ToInt32(r["IS_DISMISSIBLE"]) == 1
-        }, new OracleParameter("ROLE_NAME", roleName ?? "Employee"));
+        },
+        new OracleParameter("ROLE_NAME", roleName ?? "Employee"),
+        new OracleParameter("EMP_CD",    (object?)empCd ?? DBNull.Value));
 
         return rows.FirstOrDefault();
     }

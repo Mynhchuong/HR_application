@@ -213,8 +213,9 @@ public class ImageController : BaseController
     }
 
     // ── Upload Home banner (chỉ HR/Admin) ──────────────────────────────────
-    // Validate 1920×1080 (16:9, ±2%), 1200×675 ≤ w×h ≤ 4096×2304, ≤5MB, JPG/PNG/WebP
-    // Auto-resize về 1920×1080 q=85 JPEG
+    // Banner popup chủ yếu xem trên mobile → ảnh DỌC 4:5 (1080×1350).
+    // Validate 4:5 (±2%), 1080×1350 ≤ w×h ≤ 2160×2700, ≤5MB, JPG/PNG/WebP
+    // Auto-resize về 1080×1350 q=85 JPEG
     [HttpPost]
     [ValidateAntiForgeryToken]
     [DisableRequestSizeLimit]
@@ -244,22 +245,22 @@ public class ImageController : BaseController
 
             int w = image.Width, h = image.Height;
 
-            // 3. Dimensions
-            if (w < 1200 || h < 675)
-                return Json(new { success = false, message = $"Ảnh {w}×{h} quá nhỏ. Tối thiểu 1200×675 (khuyến nghị 1920×1080)" });
-            if (w > 4096 || h > 2304)
-                return Json(new { success = false, message = $"Ảnh {w}×{h} quá lớn. Tối đa 4096×2304" });
+            // 3. Dimensions (ảnh dọc 4:5)
+            if (w < 1080 || h < 1350)
+                return Json(new { success = false, message = $"Ảnh {w}×{h} quá nhỏ. Tối thiểu 1080×1350 (khuyến nghị 1080×1350)" });
+            if (w > 2160 || h > 2700)
+                return Json(new { success = false, message = $"Ảnh {w}×{h} quá lớn. Tối đa 2160×2700" });
 
-            // 4. Aspect ratio 16:9 ±2%
+            // 4. Aspect ratio 4:5 ±2%
             double ratio  = (double)w / h;
-            double target = 16.0 / 9.0;
+            double target = 4.0 / 5.0;
             if (Math.Abs(ratio - target) > 0.02 * target)
-                return Json(new { success = false, message = $"Tỉ lệ ảnh sai ({w}×{h}). Cần tỉ lệ 16:9 — crop lại 1920×1080" });
+                return Json(new { success = false, message = $"Tỉ lệ ảnh sai ({w}×{h}). Cần tỉ lệ 4:5 (ảnh dọc) — crop lại 1080×1350" });
 
-            // 5. Resize về 1920×1080 nếu khác
-            if (w != 1920 || h != 1080)
+            // 5. Resize về 1080×1350 nếu khác
+            if (w != 1080 || h != 1350)
             {
-                image.Mutate(x => x.Resize(1920, 1080));
+                image.Mutate(x => x.Resize(1080, 1350));
             }
 
             // 6. Save JPEG q=85 vào share folder
@@ -286,7 +287,7 @@ public class ImageController : BaseController
     }
 
     // ── Upload Home banner VIDEO (chỉ HR/Admin) ────────────────────────────
-    // Validate: MP4/WebM, ≤ 50MB. Duration ≤ 30s validate ở client.
+    // Validate: MP4/WebM, ≤ 50MB, magic byte đúng định dạng, MP4 duration ≤ 30s (best-effort server-side).
     [HttpPost]
     [ValidateAntiForgeryToken]
     [DisableRequestSizeLimit]
@@ -310,14 +311,38 @@ public class ImageController : BaseController
 
         try
         {
+            await using var upStream = file.OpenReadStream();
+
+            // 1. Magic byte — ContentType do client khai, không tin được
+            var magic = new byte[12];
+            int mn = await ReadAtLeastAsync(upStream, magic, 12);
+            bool looksMp4  = mn >= 12 && magic[4] == (byte)'f' && magic[5] == (byte)'t'
+                                      && magic[6] == (byte)'y' && magic[7] == (byte)'p';
+            bool looksWebm = mn >= 4  && magic[0] == 0x1A && magic[1] == 0x45
+                                      && magic[2] == 0xDF && magic[3] == 0xA3;
+            if (uploadExt == ".mp4"  && !looksMp4)
+                return Json(new { success = false, message = "File không phải video MP4 hợp lệ" });
+            if (uploadExt == ".webm" && !looksWebm)
+                return Json(new { success = false, message = "File không phải video WebM hợp lệ" });
+
+            // 2. Duration (MP4): parse moov/mvhd. Không đọc được → bỏ qua (client đã check).
+            if (uploadExt == ".mp4" && upStream.CanSeek)
+            {
+                var dur = TryGetMp4DurationSeconds(upStream);
+                if (dur is > 31)
+                    return Json(new { success = false, message = $"Video {dur.Value:F1}s quá dài, tối đa 30 giây" });
+            }
+
             var fileName = "banner_" + Guid.NewGuid().ToString("N") + uploadExt;
             var savePath = Path.Combine(HomeBannerFolder, fileName);
 
+            if (upStream.CanSeek) upStream.Position = 0;
             using (new NetworkShareHelper(ShareRoot, ShareCred))
             {
                 Directory.CreateDirectory(HomeBannerFolder);
                 await using var fs = new FileStream(savePath, FileMode.Create);
-                await file.CopyToAsync(fs);
+                if (upStream.CanSeek) await upStream.CopyToAsync(fs);
+                else                  await file.CopyToAsync(fs);
             }
 
             return Json(new { success = true, fileName, url = Url.Action("GetHomeBanner", "Image", new { fileName }) });
@@ -326,6 +351,119 @@ public class ImageController : BaseController
         {
             return Json(new { success = false, message = $"Lỗi upload: {ex.Message}" });
         }
+    }
+
+    // Xoá 1 file banner khỏi network share (best-effort). Dùng khi thay ảnh banner để không tồn rác.
+    internal static void TryDeleteHomeBannerFile(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName) ||
+            fileName.Contains("..") || fileName.Contains('/') || fileName.Contains('\\'))
+            return;
+        try
+        {
+            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            {
+                var p = Path.Combine(HomeBannerFolder, fileName);
+                if (System.IO.File.Exists(p)) System.IO.File.Delete(p);
+            }
+        }
+        catch { /* best-effort, không chặn flow chính */ }
+    }
+
+    // Đọc tối thiểu `count` byte (hoặc tới EOF) — stream có thể trả từng phần.
+    private static async Task<int> ReadAtLeastAsync(Stream s, byte[] buf, int count)
+    {
+        int total = 0;
+        while (total < count)
+        {
+            int n = await s.ReadAsync(buf.AsMemory(total, count - total));
+            if (n == 0) break;
+            total += n;
+        }
+        return total;
+    }
+
+    private static int ReadExact(Stream s, byte[] buf, int count)
+    {
+        int total = 0;
+        while (total < count)
+        {
+            int n = s.Read(buf, total, count - total);
+            if (n == 0) break;
+            total += n;
+        }
+        return total;
+    }
+
+    // Best-effort MP4 duration: đi qua các box top-level tìm 'moov' → 'mvhd'.
+    // Trả null nếu không parse được (file lạ, moov thiếu, box 64-bit bất thường…).
+    private static double? TryGetMp4DurationSeconds(Stream s)
+    {
+        try
+        {
+            long len = s.Length;
+            long pos = 0;
+            var hdr = new byte[16];
+            while (pos + 8 <= len)
+            {
+                s.Position = pos;
+                if (ReadExact(s, hdr, 8) < 8) break;
+                long size = ((long)hdr[0] << 24) | ((long)hdr[1] << 16) | ((long)hdr[2] << 8) | hdr[3];
+                string type = System.Text.Encoding.ASCII.GetString(hdr, 4, 4);
+                int headerLen = 8;
+                if (size == 1) // 64-bit largesize
+                {
+                    if (ReadExact(s, hdr, 8) < 8) break;
+                    size = 0;
+                    for (int i = 0; i < 8; i++) size = (size << 8) | hdr[i];
+                    headerLen = 16;
+                }
+                if (size < headerLen) break;
+
+                if (type == "moov")
+                {
+                    long moovEnd = pos + size;
+                    long p = pos + headerLen;
+                    var b = new byte[8];
+                    while (p + 8 <= moovEnd && p + 8 <= len)
+                    {
+                        s.Position = p;
+                        if (ReadExact(s, b, 8) < 8) break;
+                        long bsize = ((long)b[0] << 24) | ((long)b[1] << 16) | ((long)b[2] << 8) | b[3];
+                        string btype = System.Text.Encoding.ASCII.GetString(b, 4, 4);
+                        if (bsize < 8) break;
+                        if (btype == "mvhd")
+                        {
+                            int take = (int)Math.Min(bsize, 120);
+                            var mv = new byte[take];
+                            s.Position = p;
+                            if (ReadExact(s, mv, take) < 32) return null;
+                            byte version = mv[8];
+                            if (version == 1)
+                            {
+                                if (take < 40) return null;
+                                uint ts = (uint)((mv[28] << 24) | (mv[29] << 16) | (mv[30] << 8) | mv[31]);
+                                ulong dur = 0;
+                                for (int i = 32; i < 40; i++) dur = (dur << 8) | mv[i];
+                                return ts == 0 ? (double?)null : (double)dur / ts;
+                            }
+                            else
+                            {
+                                if (take < 28) return null;
+                                uint ts  = (uint)((mv[20] << 24) | (mv[21] << 16) | (mv[22] << 8) | mv[23]);
+                                uint dur = (uint)((mv[24] << 24) | (mv[25] << 16) | (mv[26] << 8) | mv[27]);
+                                return ts == 0 ? (double?)null : (double)dur / ts;
+                            }
+                        }
+                        p += bsize;
+                    }
+                    return null;
+                }
+                pos += size;
+            }
+        }
+        catch { /* parse lỗi → coi như không xác định */ }
+        return null;
     }
 
     // ── Hình minh hoạ theo work cd (Dept+Line+Work) ─────────────────────────

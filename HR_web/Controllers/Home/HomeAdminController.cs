@@ -1,7 +1,9 @@
 using HR_web.API.Service;
+using HR_web.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace HR_web.Controllers.Home;
 
@@ -63,6 +65,18 @@ public class HomeAdminController : BaseController
         if (!IsHrOrAdmin()) return Forbid403();
         if (req == null) return Json(new { success = false, message = "Thiếu dữ liệu" });
 
+        // Ảnh/video cũ (nếu đang sửa) — để dọn file rác trên share khi thay media
+        string? oldImageFile = null;
+        if (req.Id is int rid && rid > 0)
+        {
+            try
+            {
+                var arr = JObject.Parse(await _api.BannerListRawAsync())["data"] as JArray;
+                oldImageFile = arr?.FirstOrDefault(b => (int?)b["ID"] == rid)?["IMAGE_FILE"]?.ToString();
+            }
+            catch { /* không lấy được thì thôi, không chặn save */ }
+        }
+
         var payload = new
         {
             ID              = req.Id,
@@ -76,11 +90,27 @@ public class HomeAdminController : BaseController
             IS_DISMISSIBLE  = req.IsDismissible,
             PUBLISH_FROM    = req.PublishFrom,
             PUBLISH_TO      = req.PublishTo,
+            RECUR_TYPE      = req.RecurType,
+            RECUR_MONTH     = req.RecurMonth,
+            RECUR_DAY       = req.RecurDay,
             LOGIN_USER      = CurrentUser?.EmpCd,
             LOGIN_NAME      = CurrentUser?.FullName,
             LOGIN_ROLE      = CurrentUser?.RoleName
         };
         var raw = await _api.BannerSaveRawAsync(payload);
+
+        // Dọn file media cũ trên share nếu save OK và media đã bị thay
+        if (!string.IsNullOrEmpty(oldImageFile) &&
+            !string.Equals(oldImageFile, req.ImageFile, StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                if ((bool?)JObject.Parse(raw)["success"] == true)
+                    ImageController.TryDeleteHomeBannerFile(oldImageFile);
+            }
+            catch { /* best-effort */ }
+        }
+
         return Content(raw, "application/json");
     }
 
@@ -189,17 +219,20 @@ public class HomeAdminController : BaseController
 
     public class BannerSaveRequest
     {
-        public int?     Id             { get; set; }
-        public string   ImageFile      { get; set; } = "";
-        public string?  OverlayTextVi  { get; set; }
-        public string?  OverlayTextEn  { get; set; }
-        public string?  OverlayPos     { get; set; }
-        public string?  LinkUrl        { get; set; }
-        public string?  LinkTarget     { get; set; }
-        public string?  TargetRoles    { get; set; }
-        public bool     IsDismissible  { get; set; } = true;
-        public DateTime PublishFrom    { get; set; }
-        public DateTime PublishTo      { get; set; }
+        public int?      Id            { get; set; }
+        public string    ImageFile     { get; set; } = "";
+        public string?   OverlayTextVi { get; set; }
+        public string?   OverlayTextEn { get; set; }
+        public string?   OverlayPos    { get; set; }
+        public string?   LinkUrl       { get; set; }
+        public string?   LinkTarget    { get; set; }
+        public string?   TargetRoles   { get; set; }
+        public bool      IsDismissible { get; set; } = true;
+        public DateTime  PublishFrom   { get; set; }
+        public DateTime? PublishTo     { get; set; }        // null khi banner lặp mãi mãi
+        public string?   RecurType     { get; set; }        // null | "MONTHLY" | "YEARLY" | "BIRTHDAY"
+        public int?      RecurMonth    { get; set; }
+        public int?      RecurDay      { get; set; }
     }
 
     public class GreetingSaveRequest

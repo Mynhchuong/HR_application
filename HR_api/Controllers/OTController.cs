@@ -77,7 +77,11 @@ public class OTController : ControllerBase
                              -- ORA-00935 (group function nested too deeply): ORDER BY lặp lại MAX(...)
                              -- khi bị SELECT * FROM(...) WHERE ROWNUM=1 bọc ngoài sẽ báo lỗi này —
                              -- phải tách ra thành 1 cột alias rồi ORDER BY theo alias, không lặp MAX().
-                             CASE WHEN MAX(OT_BEFORE) = 'Y' OR MAX(OT_AFTER) = 'Y' THEN 0 ELSE 1 END PICK_PRI
+                             -- Suy ra cờ hiệu quả từ OT_xxx_TIME khi ERP quên bật cờ OT_xxx='Y'
+                             -- (phải KHỚP với PICK_PRI ở GetOtWindowAsync, nếu không 2 hàm chọn khác ca).
+                             CASE WHEN MAX(OT_BEFORE) = 'Y' OR MAX(OT_AFTER) = 'Y'
+                                    OR NVL(MAX(OT_BEFORE_TIME),0) > 0 OR NVL(MAX(OT_AFTER_TIME),0) > 0
+                                  THEN 0 ELSE 1 END PICK_PRI
                       FROM (
                       SELECT EMPCD, DAT, SHIFTCD, OVER_TIME, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME, OT_REST, SIGNED_STATUS
                       FROM HRMS.EBM300 WHERE DAT = :WORK_DATE AND EMPCD = :EMPCD1
@@ -94,7 +98,10 @@ public class OTController : ControllerBase
                       ORDER BY PICK_PRI, SHIFTCD)
                       WHERE ROWNUM = 1) E
                 JOIN HRMS.EBM100 S ON S.SHIFTCD = E.SHIFTCD
-                LEFT JOIN (SELECT EMPCD, CONFIRM_STATUS, CONFIRM_DATE, OT_HOURS FROM HRMS.HR_OT_REQUEST WHERE WORK_DATE = :WORK_DATE3) R ON R.EMPCD = E.EMPCD
+                -- Dedup HR_OT_REQUEST: có thể còn dòng trùng legacy cho cùng NV+ngày → nếu không
+                -- lọc, LEFT JOIN nở nhiều dòng rồi WHERE ROWNUM=1 bên ngoài chọn ngẫu nhiên (có
+                -- thể trúng dòng giữ trạng thái cũ). Lấy dòng CONFIRM_DATE mới nhất.
+                LEFT JOIN " + DedupOtRequest(":WORK_DATE3", "EMPCD") + @" R ON R.EMPCD = E.EMPCD
                 WHERE ROWNUM = 1
                 ";
 
@@ -170,6 +177,11 @@ public class OTController : ControllerBase
         if (otWindow.Start.HasValue && DateTime.Now >= otWindow.Start.Value)
             return Ok(new { success = false, message = "Đã tới giờ tăng ca, không thể xác nhận hoặc đổi ý nữa" });
 
+        // Không tính được khung giờ (ca lỗi / đã bị xoá khỏi ERP) + ngày đã qua → chặn cho chắc,
+        // đối xứng với IS_EDITABLE ở GetOTToday. Ca đêm vẫn qua được vì otWindow.Start có giá trị.
+        if (!otWindow.Start.HasValue && workDate.Date < DateTime.Today)
+            return Ok(new { success = false, message = "Không thể xác nhận tăng ca cho ngày này" });
+
         var lockKey = $"{model.EMPCD}|{workDate:yyyyMMdd}";
         var sem = _confirmLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
         await sem.WaitAsync();
@@ -203,7 +215,9 @@ public class OTController : ControllerBase
             {
                 // Đã có trong HR_OT_REQUEST → nếu đổi trạng thái hoặc số giờ thì UPDATE tại chỗ
                 var existing = existingRows[0];
-                bool hoursChanged = existing.OT_HOURS.HasValue && model.OT_HOURS.HasValue && existing.OT_HOURS != model.OT_HOURS;
+                // existing.OT_HOURS có thể NULL do bản ghi cũ — khi client gửi số giờ mới thì vẫn
+                // coi là đổi (null != value) để UPDATE bù giờ, giúp dữ liệu tự lành dần.
+                bool hoursChanged = model.OT_HOURS.HasValue && existing.OT_HOURS != model.OT_HOURS;
 
                 if (existing.CONFIRM_STATUS != model.CONFIRM_STATUS || hoursChanged)
                 {
@@ -401,6 +415,20 @@ public class OTController : ControllerBase
 
     private record OtWindowInfo(string? Type, DateTime? Start, DateTime? End);
 
+    // Derived table HR_OT_REQUEST đã DEDUP theo NV(+giờ) cho 1 ngày. Bảng còn dòng trùng legacy
+    // (RetryAsUpdateAsync chỉ UPDATE đồng loạt chứ không xoá) — nếu LEFT JOIN thẳng thì COUNT(*)
+    // ở summary bị phồng và list ra dòng kép ở các màn HR/Clerk/Supervisor. Lấy dòng mới nhất.
+    // dateParam: tên bind param ngày (vd ":W_DATE3"). partitionCols: "EMPCD" (admin, match EMPCD)
+    // hoặc "EMPCD, NVL(OT_HOURS,0)" (match cả số giờ).
+    private static string DedupOtRequest(string dateParam, string partitionCols) => $@"(
+        SELECT EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, REQUEST_ID FROM (
+            SELECT EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, REQUEST_ID,
+                   ROW_NUMBER() OVER (PARTITION BY {partitionCols}
+                                      ORDER BY CONFIRM_DATE DESC NULLS LAST, REQUEST_ID DESC) RN
+            FROM HRMS.HR_OT_REQUEST WHERE WORK_DATE = {dateParam}
+        ) WHERE RN = 1
+    )";
+
     // Tính khung giờ tăng ca từ ERP (EBM300/EBM300_WAIT + EBM100) — cùng công thức với GetOTToday.
     private async Task<OtWindowInfo> GetOtWindowAsync(string empcd, DateTime workDate)
     {
@@ -525,8 +553,8 @@ public class OTController : ControllerBase
                 JOIN HRMS.ECM100 EC ON EC.EMPCD  = OT.EMPCD
                 JOIN HRMS.EBM100 S  ON S.SHIFTCD = OT.SHIFTCD
                 LEFT JOIN HRMS.EAM410        B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-                LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD  = OT.EMPCD  AND R.WORK_DATE = :WORK_DATE3
-                                               AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
+                LEFT JOIN " + DedupOtRequest(":WORK_DATE3", "EMPCD, NVL(OT_HOURS,0)") + @" R
+                       ON R.EMPCD = OT.EMPCD AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
                 LEFT JOIN HRMS.HR_USERS      UR ON UR.EMPCD = OT.EMPCD
                 LEFT JOIN HRMS.HR_ROLES      RR ON RR.ID    = UR.ROLE_ID
                 LEFT JOIN (
@@ -703,8 +731,8 @@ public class OTController : ControllerBase
                 JOIN      HRMS.ECM100        EC ON EC.EMPCD  = OT.EMPCD
                 JOIN      HRMS.EBM100         S ON S.SHIFTCD = OT.SHIFTCD
                 LEFT JOIN HRMS.EAM410         B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-                LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD  = OT.EMPCD  AND R.WORK_DATE = :WORK_DATE3
-                                                AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
+                LEFT JOIN " + DedupOtRequest(":WORK_DATE3", "EMPCD, NVL(OT_HOURS,0)") + @" R
+                       ON R.EMPCD = OT.EMPCD AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND NVL(OT.OT_HOURS, 0) > 0
                   AND (:DEPT_ID IS NULL OR EC.DEPTCD = :DEPT_ID2)
@@ -795,10 +823,11 @@ public class OTController : ControllerBase
             const string statusExpr = "CASE WHEN R.CONFIRM_STATUS IN ('CONFIRMED','REJECTED') THEN R.CONFIRM_STATUS " +
                                        "WHEN OT.SIGNED_STATUS = 'Y' THEN 'CONFIRMED' ELSE 'PENDING' END";
 
-            // Admin mode: bỏ match OT_HOURS trong JOIN → luôn hiện trạng thái thực tế của HR_OT_REQUEST
+            // Admin mode: bỏ match OT_HOURS trong JOIN → luôn hiện trạng thái thực tế của HR_OT_REQUEST.
+            // Dùng derived table đã DEDUP (xem DedupOtRequest) để dòng trùng legacy không nở COUNT/list.
             string joinHRRequest = admin == 1
-                ? "LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :W_DATE3"
-                : "LEFT JOIN HRMS.HR_OT_REQUEST  R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :W_DATE3 AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)";
+                ? "LEFT JOIN " + DedupOtRequest(":W_DATE3", "EMPCD") + " R ON R.EMPCD = OT.EMPCD"
+                : "LEFT JOIN " + DedupOtRequest(":W_DATE3", "EMPCD, NVL(OT_HOURS,0)") + " R ON R.EMPCD = OT.EMPCD AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)";
 
             string fromSql = @"
                 FROM OT_BASE OT
@@ -1032,8 +1061,8 @@ public class OTController : ControllerBase
                 JOIN      HRMS.ECM100       EC ON EC.EMPCD  = OT.EMPCD
                 JOIN      HRMS.EBM100        S ON S.SHIFTCD = OT.SHIFTCD
                 LEFT JOIN HRMS.EAM410        B ON B.DEPTCD  = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-                LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD   = OT.EMPCD  AND R.WORK_DATE = :W_DATE3
-                                               AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
+                LEFT JOIN " + DedupOtRequest(":W_DATE3", "EMPCD, NVL(OT_HOURS,0)") + @" R
+                       ON R.EMPCD = OT.EMPCD AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
                 LEFT JOIN HRMS.HR_USERS      UR ON UR.EMPCD  = OT.EMPCD
                 LEFT JOIN HRMS.HR_ROLES      RR ON RR.ID     = UR.ROLE_ID";
 
@@ -1202,8 +1231,8 @@ public class OTController : ControllerBase
                 SELECT DISTINCT EC.EMPCD
                 FROM OT_BASE OT
                 JOIN HRMS.ECM100 EC ON EC.EMPCD = OT.EMPCD
-                LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :WORK_DATE3
-                                               AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
+                LEFT JOIN {DedupOtRequest(":WORK_DATE3", "EMPCD, NVL(OT_HOURS,0)")} R
+                       ON R.EMPCD = OT.EMPCD AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND NVL(OT.OT_HOURS,0) > 0
                   AND NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING'
@@ -1258,7 +1287,7 @@ public class OTController : ControllerBase
             if (string.IsNullOrWhiteSpace(workDateStr) || !DateTime.TryParse(workDateStr, out var workDate))
                 return Ok(new { success = false, message = "Ngày không hợp lệ" });
 
-            const string sqlPending = @"
+            string sqlPending = @"
                 WITH OT_BASE AS (
                     SELECT EMPCD, DAT, SHIFTCD,
                            MAX(OVER_TIME) OT_HOURS, MAX(OT_BEFORE) OT_BEFORE, MAX(OT_AFTER) OT_AFTER
@@ -1271,8 +1300,8 @@ public class OTController : ControllerBase
                 SELECT DISTINCT EC.EMPCD
                 FROM OT_BASE OT
                 JOIN HRMS.ECM100 EC ON EC.EMPCD = OT.EMPCD
-                LEFT JOIN HRMS.HR_OT_REQUEST R ON R.EMPCD = OT.EMPCD AND R.WORK_DATE = :WORK_DATE3
-                                               AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
+                LEFT JOIN " + DedupOtRequest(":WORK_DATE3", "EMPCD, NVL(OT_HOURS,0)") + @" R
+                       ON R.EMPCD = OT.EMPCD AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND NVL(OT.OT_HOURS,0) > 0
                   AND NVL(R.CONFIRM_STATUS,'PENDING') = 'PENDING'
@@ -1370,23 +1399,44 @@ public class OTController : ControllerBase
                     var pResult  = new OracleParameter("P_RESULT",  OracleDbType.Int32)         { Direction = System.Data.ParameterDirection.Output };
                     var pMessage = new OracleParameter("P_MESSAGE", OracleDbType.Varchar2, 500) { Direction = System.Data.ParameterDirection.Output };
 
-                    await _oracleService.ExecuteProcedureAsync("HRMS.SP_OT_CONFIRM_INSERT",
-                        new OracleParameter("P_REQUEST_ID",     requestId),
-                        new OracleParameter("P_EMPCD",          it.EMPCD),
-                        new OracleParameter("P_WORK_DATE",      workDate),
-                        new OracleParameter("P_OT_HOURS",       finalHours),
-                        new OracleParameter("P_CONFIRM_STATUS", "CONFIRMED"),
-                        pResult,
-                        pMessage);
+                    try
+                    {
+                        await _oracleService.ExecuteProcedureAsync("HRMS.SP_OT_CONFIRM_INSERT",
+                            new OracleParameter("P_REQUEST_ID",     requestId),
+                            new OracleParameter("P_EMPCD",          it.EMPCD),
+                            new OracleParameter("P_WORK_DATE",      workDate),
+                            new OracleParameter("P_OT_HOURS",       finalHours),
+                            new OracleParameter("P_CONFIRM_STATUS", "CONFIRMED"),
+                            pResult,
+                            pMessage);
+                    }
+                    catch (OracleException ex) when (ex.Number == 1)
+                    {
+                        // ORA-00001: NV vừa tự ký xen vào giữa "check existing" và SP → coi như skip.
+                        res.skipped++;
+                        res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = "Đã có bản ghi" });
+                        continue;
+                    }
 
                     if (int.Parse(pResult.Value?.ToString() ?? "0") != 0)
                     {
+                        // SP có thể tự catch ORA-00001 nội bộ rồi trả về qua P_MESSAGE (giống ConfirmOT)
+                        if ((pMessage.Value?.ToString() ?? "").Contains("ORA-00001", StringComparison.OrdinalIgnoreCase))
+                        {
+                            res.skipped++;
+                            res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = "Đã có bản ghi" });
+                            continue;
+                        }
                         res.failed++;
                         res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = pMessage.Value?.ToString() ?? "SP báo lỗi" });
                         continue;
                     }
 
-                    // KHÔNG đụng ERP — admin chỉ đọc ERP, không write
+                    // KHÔNG đụng ERP — admin chỉ đọc ERP, không write.
+                    // Enrich OT_TYPE/OT_START/OT_END như ConfirmOT: SP không nhận các cột này, để NULL
+                    // sẽ làm AdminBulkUpdate không tính lại được OT_END sau này.
+                    await EnrichOtRequestAsync(requestId, await GetOtWindowAsync(it.EMPCD, workDate));
+
                     _otLog.Log(OtLogHelper.LogAction.INS, requestId, it.EMPCD, workDate,
                         null, "CONFIRMED", null, finalHours, body.ACTOR_EMPCD);
 
@@ -1440,13 +1490,14 @@ public class OTController : ControllerBase
                 {
                     // Lookup existing
                     var rows = await _oracleService.ExecuteQueryAsync(
-                        @"SELECT REQUEST_ID, OT_START, OT_TYPE, CONFIRM_STATUS, OT_HOURS
+                        @"SELECT REQUEST_ID, OT_START, OT_END, OT_TYPE, CONFIRM_STATUS, OT_HOURS
                           FROM HRMS.HR_OT_REQUEST
                           WHERE EMPCD = :E AND WORK_DATE = :D AND ROWNUM = 1",
                         r => new
                         {
                             REQUEST_ID     = r["REQUEST_ID"]?.ToString(),
                             OT_START       = r["OT_START"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["OT_START"]),
+                            OT_END         = r["OT_END"]   == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["OT_END"]),
                             OT_TYPE        = r["OT_TYPE"]?.ToString(),
                             CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
                             OT_HOURS       = r["OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"])
@@ -1466,19 +1517,32 @@ public class OTController : ControllerBase
                     var newHours = it.OT_HOURS.Value;
                     var confirmStatus = string.IsNullOrEmpty(it.CONFIRM_STATUS) ? "CONFIRMED" : it.CONFIRM_STATUS;
 
-                    // Tính OT_END mới nếu có OT_START
-                    DateTime? newEnd = null;
-                    if (row.OT_START.HasValue)
+                    // Tính lại mốc giờ theo loại OT khi đổi số giờ:
+                    //  - AFTER (sau ca): OT_START cố định (giờ tan ca) → dời OT_END = OT_START + newHours.
+                    //  - BEFORE (trước ca): OT_END cố định (giờ vào ca) → dời OT_START = OT_END - newHours,
+                    //    KHÔNG đẩy OT_END muộn hơn (sẽ lấn vào ca chính).
+                    //  - Không xác định OT_TYPE: giữ như cũ (mốc còn thiếu → NVL bên dưới bỏ qua).
+                    DateTime? newStart = null;
+                    DateTime? newEnd   = null;
+                    bool isBefore = string.Equals(row.OT_TYPE, "BEFORE", StringComparison.OrdinalIgnoreCase);
+                    if (isBefore)
                     {
-                        // OT_START là mốc bắt đầu OT thực tế, cứ + newHours
-                        newEnd = row.OT_START.Value.AddHours((double)newHours);
+                        if (row.OT_END.HasValue)
+                            newStart = row.OT_END.Value.AddHours(-(double)newHours);
+                    }
+                    else
+                    {
+                        if (row.OT_START.HasValue)
+                            newEnd = row.OT_START.Value.AddHours((double)newHours);
                     }
 
                     await _oracleService.ExecuteNonQueryAsync(
                         @"UPDATE HRMS.HR_OT_REQUEST
-                          SET OT_HOURS = :H, OT_END = NVL(:Ed, OT_END), CONFIRM_STATUS = :C, CONFIRM_DATE = SYSDATE
+                          SET OT_HOURS = :H, OT_START = NVL(:Sd, OT_START), OT_END = NVL(:Ed, OT_END),
+                              CONFIRM_STATUS = :C, CONFIRM_DATE = SYSDATE
                           WHERE REQUEST_ID = :R",
                         new OracleParameter("H",  newHours),
+                        new OracleParameter("Sd", (object?)newStart ?? DBNull.Value),
                         new OracleParameter("Ed", (object?)newEnd ?? DBNull.Value),
                         new OracleParameter("C",  confirmStatus),
                         new OracleParameter("R",  reqId));

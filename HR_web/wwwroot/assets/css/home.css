@@ -382,14 +382,19 @@ body.home-hero-popup-open { overflow: hidden; }
 .home-hero-popup-panel {
     position: relative;
     width: 100%;
-    max-width: 900px;
+    max-width: 520px;          /* ảnh dọc 4:5 — chủ yếu xem trên mobile */
     max-height: 90vh;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 4 / 5;
     border-radius: 16px;
     overflow: hidden;
     box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
     background: #f3f4f6;
     animation: heroSlideIn .3s cubic-bezier(.34, 1.56, .64, 1);
+}
+/* Video giữ khung ngang 16:9 để không bị viền đen 2 đầu trong khung dọc */
+.home-hero-popup-video .home-hero-popup-panel {
+    max-width: 900px;
+    aspect-ratio: 16 / 9;
 }
 
 .home-hero-popup-close {

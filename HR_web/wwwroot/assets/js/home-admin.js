@@ -92,6 +92,8 @@
         const listEl = $('#bannerList');
         if (!listEl) return;
 
+        let cachedBanners = []; // items của lần render gần nhất → mở modal Sửa không cần fetch lại
+
         async function loadList() {
             listEl.innerHTML = '<div class="admin-loading">Đang tải…</div>';
             try {
@@ -103,17 +105,31 @@
             }
         }
 
+        const MONTHS_VI = ['', 'tháng 1','tháng 2','tháng 3','tháng 4','tháng 5','tháng 6','tháng 7','tháng 8','tháng 9','tháng 10','tháng 11','tháng 12'];
+        function recurLabel(b) {
+            if (b.RECUR_TYPE === 'MONTHLY')  return `🔁 Ngày ${b.RECUR_DAY} hàng tháng`;
+            if (b.RECUR_TYPE === 'YEARLY')   return `🔁 Ngày ${b.RECUR_DAY}/${b.RECUR_MONTH} hàng năm`;
+            if (b.RECUR_TYPE === 'BIRTHDAY') return '🎂 Sinh nhật nhân viên';
+            return '';
+        }
+
         function statusBadge(b) {
+            if (!b.IS_ACTIVE) return '<span class="admin-banner-status admin-banner-status-inactive">Đã xoá</span>';
             const now = new Date();
             const from = new Date(b.PUBLISH_FROM);
-            const to   = new Date(b.PUBLISH_TO);
-            if (!b.IS_ACTIVE) return '<span class="admin-banner-status admin-banner-status-inactive">Đã xoá</span>';
-            if (now < from)  return '<span class="admin-banner-status admin-banner-status-scheduled">Sắp hiện</span>';
-            if (now > to)    return '<span class="admin-banner-status admin-banner-status-expired">Hết hạn</span>';
+            if (now < from) return '<span class="admin-banner-status admin-banner-status-scheduled">Sắp áp dụng</span>';
+            if (b.RECUR_TYPE) {
+                if (b.PUBLISH_TO && now > new Date(b.PUBLISH_TO))
+                    return '<span class="admin-banner-status admin-banner-status-expired">Ngừng lặp</span>';
+                return '<span class="admin-banner-status admin-banner-status-active">🔁 Đang lặp</span>';
+            }
+            if (b.PUBLISH_TO && now > new Date(b.PUBLISH_TO))
+                return '<span class="admin-banner-status admin-banner-status-expired">Hết hạn</span>';
             return '<span class="admin-banner-status admin-banner-status-active">Đang active</span>';
         }
 
         function renderList(items) {
+            cachedBanners = items || [];
             if (items.length === 0) {
                 listEl.innerHTML = '<div class="admin-loading">Chưa có banner nào.</div>';
                 return;
@@ -128,7 +144,9 @@
                     <div class="admin-banner-card-body">
                         <div class="admin-banner-card-title">${statusBadge(b)} #${b.ID}</div>
                         <div class="admin-banner-card-meta">
-                            📅 ${fmtDate(b.PUBLISH_FROM)} → ${fmtDate(b.PUBLISH_TO)}<br />
+                            ${b.RECUR_TYPE
+                                ? recurLabel(b) + ' &nbsp;·&nbsp; từ ' + fmtDate(b.PUBLISH_FROM) + (b.PUBLISH_TO ? ' đến ' + fmtDate(b.PUBLISH_TO) : ' (không hết hạn)') + '<br />'
+                                : '📅 ' + fmtDate(b.PUBLISH_FROM) + ' → ' + fmtDate(b.PUBLISH_TO) + '<br />'}
                             ${b.OVERLAY_TEXT_VI ? '🇻🇳 ' + escapeHtml(b.OVERLAY_TEXT_VI) + '<br />' : ''}
                             ${b.OVERLAY_TEXT_EN ? '🇬🇧 ' + escapeHtml(b.OVERLAY_TEXT_EN) + '<br />' : ''}
                             ${b.LINK_URL ? '🔗 ' + escapeHtml(b.LINK_URL) + '<br />' : ''}
@@ -167,14 +185,27 @@
             editing = null;
             resetForm();
             $('#bannerModalTitle').textContent = id ? 'Sửa banner #' + id : 'Thêm banner';
+
+            // Banner mới: chặn chọn ngày trong quá khứ (server cũng validate PUBLISH_TO)
+            const pf = $('#bannerPublishFrom'), pt = $('#bannerPublishTo');
+            if (id) { pf.removeAttribute('min'); pt.removeAttribute('min'); }
+            else {
+                const nowLocal = toDatetimeLocalString(new Date());
+                pf.min = nowLocal; pt.min = nowLocal;
+            }
+
             if (id) {
-                getJson(ROOT + 'HomeAdmin/BannerList').then(json => {
-                    const b = (json.data || []).find(x => x.ID === id);
-                    if (b) {
-                        editing = b;
-                        fillForm(b);
-                    }
-                });
+                const b = cachedBanners.find(x => x.ID === id);
+                if (b) {
+                    editing = b;
+                    fillForm(b);
+                } else {
+                    // fallback: cache trống (mở modal trước khi list tải xong)
+                    getJson(ROOT + 'HomeAdmin/BannerList').then(json => {
+                        const bb = (json.data || []).find(x => x.ID === id);
+                        if (bb) { editing = bb; fillForm(bb); }
+                    });
+                }
             }
             modal.hidden = false;
         }
@@ -184,16 +215,49 @@
             $('#bannerId').value = '';
             $('#bannerImageFile').value = '';
             $('#bannerPreview').innerHTML = '<div class="admin-upload-placeholder">Chưa có ảnh/video</div>';
-            $('#bannerUploadHint').textContent = 'Ảnh: 1920×1080 (16:9), ≤ 5MB. Video: MP4, ≤ 30 giây, ≤ 50MB.';
+            $('#bannerUploadHint').textContent = 'Ảnh: 1080×1350 (4:5, ảnh dọc), ≤ 5MB. Video: MP4, ≤ 30 giây, ≤ 50MB.';
             $('#bannerUploadHint').className = 'admin-upload-hint';
             $('#bannerFormError').hidden = true;
+            $('#bannerRecurType').value = '';
+            $('#bannerRecurDayMonthly').value = '';
+            $('#bannerRecurDayYearly').value = '';
+            $('#bannerRecurMonth').value = '';
+            onRecurTypeChange();
         }
+
+        // Đổi kiểu hiển thị: hiện/ẩn ô cấu hình lặp + đổi nhãn/ràng buộc 2 ô ngày
+        function onRecurTypeChange() {
+            const t = $('#bannerRecurType').value;
+            const recurring = t === 'MONTHLY' || t === 'YEARLY' || t === 'BIRTHDAY';
+            $('#bannerRecurMonthlyRow').hidden  = t !== 'MONTHLY';
+            $('#bannerRecurYearlyRow').hidden   = t !== 'YEARLY';
+            $('#bannerRecurBirthdayNote').hidden = t !== 'BIRTHDAY';
+
+            const fromLbl = $('#bannerPublishFromLabel'), toLbl = $('#bannerPublishToLabel');
+            const toEl = $('#bannerPublishTo');
+            if (recurring) {
+                fromLbl.textContent = 'Bắt đầu áp dụng từ *';
+                toLbl.textContent   = 'Ngừng lặp sau ngày (trống = mãi mãi)';
+                toEl.required = false;
+                toEl.removeAttribute('min');
+            } else {
+                fromLbl.textContent = 'Ngày bắt đầu *';
+                toLbl.textContent   = 'Ngày kết thúc *';
+                toEl.required = true;
+            }
+        }
+        $('#bannerRecurType')?.addEventListener('change', onRecurTypeChange);
 
         function fillForm(b) {
             $('#bannerId').value              = b.ID;
             $('#bannerImageFile').value       = b.IMAGE_FILE || '';
+            $('#bannerRecurType').value       = b.RECUR_TYPE || '';
+            $('#bannerRecurDayMonthly').value = b.RECUR_TYPE === 'MONTHLY' ? (b.RECUR_DAY ?? '') : '';
+            $('#bannerRecurDayYearly').value  = b.RECUR_TYPE === 'YEARLY'  ? (b.RECUR_DAY ?? '') : '';
+            $('#bannerRecurMonth').value      = b.RECUR_TYPE === 'YEARLY'  ? (b.RECUR_MONTH ?? '') : '';
+            onRecurTypeChange();
             $('#bannerPublishFrom').value     = toDatetimeLocalString(b.PUBLISH_FROM);
-            $('#bannerPublishTo').value       = toDatetimeLocalString(b.PUBLISH_TO);
+            $('#bannerPublishTo').value       = b.PUBLISH_TO ? toDatetimeLocalString(b.PUBLISH_TO) : '';
             $('#bannerOverlayVi').value       = b.OVERLAY_TEXT_VI || '';
             $('#bannerOverlayEn').value       = b.OVERLAY_TEXT_EN || '';
             $('#bannerOverlayPos').value      = b.OVERLAY_POS || 'BL';
@@ -344,21 +408,21 @@
                 img.onerror = () => reject(new Error('Không đọc được ảnh'));
                 img.src = URL.createObjectURL(file);
             });
-            if (dim.w < 1200 || dim.h < 675)
-                return { ok: false, msg: `Ảnh ${dim.w}×${dim.h} quá nhỏ (min 1200×675)` };
-            if (dim.w > 4096 || dim.h > 2304)
-                return { ok: false, msg: `Ảnh ${dim.w}×${dim.h} quá lớn (max 4096×2304)` };
+            if (dim.w < 1080 || dim.h < 1350)
+                return { ok: false, msg: `Ảnh ${dim.w}×${dim.h} quá nhỏ (min 1080×1350)` };
+            if (dim.w > 2160 || dim.h > 2700)
+                return { ok: false, msg: `Ảnh ${dim.w}×${dim.h} quá lớn (max 2160×2700)` };
 
             const ratio       = dim.w / dim.h;
-            const targetRatio = 16 / 9;
+            const targetRatio = 4 / 5;
             if (Math.abs(ratio - targetRatio) > 0.02 * targetRatio)
-                return { ok: false, msg: `Tỉ lệ sai (${dim.w}×${dim.h} = ${ratio.toFixed(2)}). Cần 16:9 — crop 1920×1080` };
+                return { ok: false, msg: `Tỉ lệ sai (${dim.w}×${dim.h} = ${ratio.toFixed(2)}). Cần 4:5 ảnh dọc — crop 1080×1350` };
 
             return {
                 ok: true,
-                info: dim.w === 1920 && dim.h === 1080
-                    ? '✅ Kích thước chuẩn 1920×1080'
-                    : `✅ Tỉ lệ 16:9 OK, server sẽ resize (${dim.w}×${dim.h})`
+                info: dim.w === 1080 && dim.h === 1350
+                    ? '✅ Kích thước chuẩn 1080×1350'
+                    : `✅ Tỉ lệ 4:5 OK, server sẽ resize (${dim.w}×${dim.h})`
             };
         }
 
@@ -367,8 +431,23 @@
         if (form) form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const err = $('#bannerFormError'); err.hidden = true;
+            const showErr = m => { err.textContent = m; err.hidden = false; };
             const imageFile = $('#bannerImageFile').value;
-            if (!imageFile) { err.textContent = 'Vui lòng upload ảnh hoặc video trước khi lưu'; err.hidden = false; return; }
+            if (!imageFile) { showErr('Vui lòng upload ảnh hoặc video trước khi lưu'); return; }
+
+            const recurType = $('#bannerRecurType').value || null;
+            let recurDay = null, recurMonth = null;
+            if (recurType === 'MONTHLY') {
+                recurDay = parseInt($('#bannerRecurDayMonthly').value, 10);
+                if (!(recurDay >= 1 && recurDay <= 31)) { showErr('Ngày trong tháng phải từ 1 đến 31'); return; }
+            } else if (recurType === 'YEARLY') {
+                recurDay   = parseInt($('#bannerRecurDayYearly').value, 10);
+                recurMonth = parseInt($('#bannerRecurMonth').value, 10);
+                if (!(recurDay >= 1 && recurDay <= 31))   { showErr('Ngày lặp phải từ 1 đến 31'); return; }
+                if (!(recurMonth >= 1 && recurMonth <= 12)) { showErr('Tháng lặp phải từ 1 đến 12'); return; }
+            }
+            if (!$('#bannerPublishFrom').value) { showErr('Vui lòng chọn ngày bắt đầu áp dụng'); return; }
+            if (!recurType && !$('#bannerPublishTo').value) { showErr('Vui lòng chọn ngày kết thúc'); return; }
 
             const payload = {
                 Id:             $('#bannerId').value ? parseInt($('#bannerId').value, 10) : null,
@@ -381,7 +460,10 @@
                 TargetRoles:    $('#bannerTargetRoles').value.trim() || null,
                 IsDismissible:  $('#bannerDismissible').checked,
                 PublishFrom:    $('#bannerPublishFrom').value,
-                PublishTo:      $('#bannerPublishTo').value
+                PublishTo:      $('#bannerPublishTo').value || null,
+                RecurType:      recurType,
+                RecurMonth:     Number.isFinite(recurMonth) ? recurMonth : null,
+                RecurDay:       Number.isFinite(recurDay)   ? recurDay   : null
             };
             const btn = $('#bannerSaveBtn');
             btn.disabled = true;

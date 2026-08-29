@@ -118,3 +118,4 @@ HR_web/Views/Home/DemoEnterprise.cshtml
 HR_api/Scripts/alter_leave_ct_gatepass_link.sql
 UI_REDESIGN_PLAN.md
 HR_api/Scripts/alter_leave_nl_streak_alert.sql
+HR_api/Scripts/add_banner_recurrence.sql

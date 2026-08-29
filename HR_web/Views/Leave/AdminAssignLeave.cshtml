@@ -84,6 +84,25 @@
             </div>
         </div>
 
+        <!-- Bulk paste EMPCD card -->
+        <div class="card mb-3">
+            <div class="card-body py-2">
+                <label class="filter-label">Dán nhiều số thẻ (mã NV) — cách nhau bằng xuống dòng, dấu phẩy, tab hoặc khoảng trắng</label>
+                <textarea id="bulkPaste" class="form-control form-control-sm" rows="3"
+                          placeholder="VD:&#10;12345&#10;23456, 34567"></textarea>
+                <div class="d-flex gap-2 mt-2 align-items-center flex-wrap">
+                    <button type="button" class="btn btn-sm btn-primary mb-0" onclick="applyBulkPaste()">
+                        <i class="bi bi-check2-square me-1"></i>Chọn theo danh sách
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mb-0" onclick="clearBulkPaste()">Xóa ô</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary mb-0" id="btnViewSelected" onclick="openSelectedPreview()" disabled>
+                        <i class="bi bi-list-check me-1"></i>Xem NV đã chọn (<span id="viewSelectedCount">0</span>)
+                    </button>
+                    <span id="bulkPasteResult" class="text-xs"></span>
+                </div>
+            </div>
+        </div>
+
         <!-- Employee list card -->
         <div class="card">
             <div class="card-header py-2">
@@ -231,6 +250,28 @@
     </div>
 </div>
 
+<!-- Bulk paste preview modal -->
+<div class="modal fade" id="bulkPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h5 class="modal-title" style="font-size:.95rem;">
+                    Nhân viên đã chọn — <span id="bulkPreviewCount">0</span> NV
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="bulkPreviewNotFound"></div>
+                <div id="bulkPreviewList" class="emp-list-wrap" style="max-height:60vh;"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-outline-danger btn-sm" id="bulkUndoBtn" onclick="undoBulkPaste()">Bỏ chọn danh sách vừa dán</button>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">Xong</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
     const ADMIN_EMPCD          = '@adminEmpCd';
@@ -346,6 +387,108 @@
         onDeptChange(); // rebuilds line/work "-- Tất cả --" then applyFilter()
     }
 
+    // ─── Dán nhiều số thẻ (mã NV) → tick sẵn vào selectedSet ─────
+    let lastBulkMatched = [];   // EMPCD khớp ở lần dán gần nhất (để nút "Bỏ chọn danh sách vừa dán")
+
+    function clearBulkPaste() {
+        document.getElementById('bulkPaste').value = '';
+        document.getElementById('bulkPasteResult').innerHTML = '';
+        lastBulkMatched = [];
+    }
+
+    // 1 dòng NV trong modal xem lại (không tương tác, chỉ để soát)
+    function bulkRowHtml(e) {
+        const left = e.LEFT_NUM;
+        const badgeCls = left > 3 ? 'badge-ok' : left > 0 ? 'badge-low' : 'badge-empty';
+        const badgeTxt = left <= 0 ? 'Hết phép' : `${left} ngày`;
+        const sub = [e.DEPT_NAME, e.LINE_NAME, e.WORK_NAME].filter(Boolean).join(' / ');
+        return `<div class="emp-item" style="cursor:default;">
+            <div class="emp-info">
+                <span class="emp-name">${e.EMP_NAME || ''}</span>
+                <span class="emp-sub">${sub}</span>
+            </div>
+            <span class="emp-code">${e.EMPCD}</span>
+            <span class="leave-badge ${badgeCls}">${badgeTxt}</span>
+        </div>`;
+    }
+
+    function showBulkPreview(empcds, notFound) {
+        const set  = new Set(empcds);
+        const emps = allEmps.filter(e => set.has(e.EMPCD));
+        // giữ thứ tự theo empcds truyền vào
+        emps.sort((a, b) => empcds.indexOf(a.EMPCD) - empcds.indexOf(b.EMPCD));
+
+        document.getElementById('bulkPreviewCount').textContent = emps.length;
+        document.getElementById('bulkPreviewNotFound').innerHTML = (notFound && notFound.length)
+            ? `<div class="warn-item mb-2">${notFound.length} mã không có trong danh sách (nghỉ việc / sai số thẻ): <strong>${notFound.join(', ')}</strong></div>`
+            : '';
+        document.getElementById('bulkPreviewList').innerHTML = emps.length
+            ? emps.map(bulkRowHtml).join('')
+            : '<div class="text-muted text-center py-3" style="font-size:.83rem;">Chưa chọn nhân viên nào</div>';
+        document.getElementById('bulkUndoBtn').style.display = lastBulkMatched.length ? '' : 'none';
+
+        new bootstrap.Modal(document.getElementById('bulkPreviewModal')).show();
+    }
+
+    // Nút "Xem NV đã chọn" — soát toàn bộ selectedSet trước khi bấm Sắp lịch
+    function openSelectedPreview() {
+        lastBulkMatched = [];
+        showBulkPreview([...selectedSet], []);
+    }
+
+    function undoBulkPaste() {
+        lastBulkMatched.forEach(c => selectedSet.delete(c));
+        lastBulkMatched = [];
+        applyFilter(); updateCounts(); syncSelectAllCheckbox();
+        bootstrap.Modal.getInstance(document.getElementById('bulkPreviewModal'))?.hide();
+    }
+
+    function applyBulkPaste() {
+        const raw = document.getElementById('bulkPaste').value || '';
+        const resEl = document.getElementById('bulkPasteResult');
+
+        // Tách theo xuống dòng / phẩy / chấm phẩy / tab / khoảng trắng; bỏ nháy do copy từ Excel
+        const seen = new Set();
+        const codes = raw.split(/[\s,;]+/)
+            .map(t => t.trim().replace(/^["']+|["']+$/g, ''))
+            .filter(Boolean)
+            .filter(c => { const k = c.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+
+        if (codes.length === 0) { resEl.innerHTML = '<span class="text-muted">Chưa nhập mã nào</span>'; return; }
+
+        // Index theo EMPCD (không phân biệt hoa thường) + fallback bỏ số 0 đứng đầu (Excel hay cắt)
+        const byCode = new Map();
+        const byStripped = new Map();      // key -> emp | null (null = trùng, bỏ qua để tránh chọn nhầm)
+        allEmps.forEach(e => {
+            const code = String(e.EMPCD);
+            byCode.set(code.toLowerCase(), e);
+            const s = code.replace(/^0+/, '').toLowerCase();
+            byStripped.set(s, byStripped.has(s) ? null : e);
+        });
+
+        const matched = [], notFound = [];
+        codes.forEach(c => {
+            let e = byCode.get(c.toLowerCase());
+            if (!e) e = byStripped.get(c.replace(/^0+/, '').toLowerCase()) || null;
+            if (e) { selectedSet.add(e.EMPCD); matched.push(e.EMPCD); }
+            else notFound.push(c);
+        });
+
+        lastBulkMatched = matched.slice();
+        applyFilter();            // cập nhật tick trong danh sách hiện tại + counts
+        updateCounts();
+        syncSelectAllCheckbox();
+
+        let msg = `<span class="text-success">Đã chọn ${matched.length} NV</span>`;
+        if (notFound.length > 0) {
+            msg += ` · <span class="text-danger">${notFound.length} mã không tìm thấy: ${notFound.join(', ')}</span>`;
+        }
+        resEl.innerHTML = msg;
+
+        // Hiện danh sách để admin soát lại (kèm mã không tìm thấy)
+        if (matched.length > 0 || notFound.length > 0) showBulkPreview(matched, notFound);
+    }
+
     // ─── Filter (search both code + name, Vietnamese-aware) ──────
     function applyFilter() {
         const raw  = (document.getElementById('filterSearch').value || '').trim();
@@ -439,6 +582,11 @@
         inf.textContent = selectedSet.size > 0
             ? `Sẽ sắp lịch cho ${selectedSet.size} nhân viên`
             : 'Chọn nhân viên để kích hoạt nút sắp lịch';
+
+        const vc = document.getElementById('viewSelectedCount');
+        if (vc) vc.textContent = selectedSet.size;
+        const vb = document.getElementById('btnViewSelected');
+        if (vb) vb.disabled = selectedSet.size === 0;
     }
 
     // ─── Auto-calc days from date range ──────────────────────────
@@ -514,6 +662,7 @@
 
             if (data.success) {
                 selectedSet.clear();
+                clearBulkPaste();
                 renderEmpList();
                 updateCounts();
                 loadEmps();

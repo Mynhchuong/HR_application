@@ -11,8 +11,8 @@
         <h1>🖼️ Quản lý Banner</h1>
         <p class="text-muted">
             Cùng một thời điểm chỉ có <strong>1 banner active</strong>.<br />
-            <strong>Ảnh:</strong> 1920×1080 (16:9), ≤ 5MB.
-            <strong>Video:</strong> MP4, ≤ 30 giây, ≤ 50MB.
+            <strong>Ảnh:</strong> 1080×1350 (4:5, ảnh dọc — tối ưu cho mobile), ≤ 5MB.
+            <strong>Video:</strong> MP4 ngang 16:9, ≤ 30 giây, ≤ 50MB.
         </p>
     </div>
 
@@ -58,19 +58,50 @@
                                 </label>
                             </div>
                             <div id="bannerUploadHint" class="admin-upload-hint">
-                                Ảnh: 1920×1080 (16:9), ≤ 5MB. Video: MP4, ≤ 30 giây, ≤ 50MB.
+                                Ảnh: 1080×1350 (4:5, ảnh dọc), ≤ 5MB. Video: MP4 ngang 16:9, ≤ 30 giây, ≤ 50MB.
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <div class="form-row">
+                    <label class="form-label">Kiểu hiển thị</label>
+                    <select name="RecurType" id="bannerRecurType" class="form-control">
+                        <option value="">Một lần — theo khoảng ngày</option>
+                        <option value="MONTHLY">🔁 Lặp hàng tháng — ngày N</option>
+                        <option value="YEARLY">🔁 Lặp hàng năm — ngày D tháng M</option>
+                        <option value="BIRTHDAY">🎂 Sinh nhật nhân viên</option>
+                    </select>
+                </div>
+
+                <div class="form-row" id="bannerRecurMonthlyRow" hidden>
+                    <label class="form-label">Ngày trong tháng (1–31) *</label>
+                    <input type="number" id="bannerRecurDayMonthly" min="1" max="31" class="form-control" placeholder="VD: 10" />
+                    <small class="form-hint">Tháng không đủ ngày (29/30/31) sẽ hiện vào ngày cuối tháng.</small>
+                </div>
+
+                <div class="form-row-2col" id="bannerRecurYearlyRow" hidden>
+                    <div class="form-row">
+                        <label class="form-label">Ngày (1–31) *</label>
+                        <input type="number" id="bannerRecurDayYearly" min="1" max="31" class="form-control" placeholder="VD: 1" />
+                    </div>
+                    <div class="form-row">
+                        <label class="form-label">Tháng (1–12) *</label>
+                        <input type="number" id="bannerRecurMonth" min="1" max="12" class="form-control" placeholder="VD: 1" />
+                    </div>
+                </div>
+
+                <div class="form-row" id="bannerRecurBirthdayNote" hidden>
+                    <small class="form-hint">🎂 Banner hiện cho từng nhân viên đúng ngày sinh của họ (theo ngày sinh trong hệ thống). 29/2 → hiện 28/2 ở năm thường.</small>
+                </div>
+
                 <div class="form-row-2col">
                     <div class="form-row">
-                        <label class="form-label">Ngày bắt đầu *</label>
+                        <label class="form-label" id="bannerPublishFromLabel">Ngày bắt đầu *</label>
                         <input type="datetime-local" name="PublishFrom" id="bannerPublishFrom" class="form-control" required />
                     </div>
                     <div class="form-row">
-                        <label class="form-label">Ngày kết thúc *</label>
+                        <label class="form-label" id="bannerPublishToLabel">Ngày kết thúc *</label>
                         <input type="datetime-local" name="PublishTo" id="bannerPublishTo" class="form-control" required />
                     </div>
                 </div>

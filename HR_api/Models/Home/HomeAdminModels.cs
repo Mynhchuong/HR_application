@@ -15,7 +15,11 @@ public class HomeAdminBannerListItem
     public string?  TARGET_ROLES    { get; set; } // CSV
     public bool     IS_DISMISSIBLE  { get; set; }
     public DateTime PUBLISH_FROM    { get; set; }
-    public DateTime PUBLISH_TO      { get; set; }
+    public DateTime? PUBLISH_TO     { get; set; } // NULL = không hết hạn (chỉ dùng khi RECUR_TYPE != null)
+    // Quy tắc lặp: null = banner một lần | "MONTHLY" | "YEARLY" | "BIRTHDAY"
+    public string?  RECUR_TYPE      { get; set; }
+    public int?     RECUR_MONTH     { get; set; } // 1..12 — chỉ YEARLY
+    public int?     RECUR_DAY       { get; set; } // 1..31 — MONTHLY & YEARLY
     public bool     IS_ACTIVE       { get; set; }
     public string?  INST_ID         { get; set; }
     public DateTime? INST_DT        { get; set; }
@@ -34,11 +38,14 @@ public class SaveBannerRequest
     public string   LINK_TARGET     { get; set; } = "_self";
     public string?  TARGET_ROLES    { get; set; }
     public bool     IS_DISMISSIBLE  { get; set; } = true;
-    public DateTime PUBLISH_FROM    { get; set; }
-    public DateTime PUBLISH_TO      { get; set; }
+    public DateTime  PUBLISH_FROM   { get; set; }
+    public DateTime? PUBLISH_TO     { get; set; } // null cho phép khi RECUR_TYPE != null (mãi mãi)
+    public string?  RECUR_TYPE      { get; set; } // null | "MONTHLY" | "YEARLY" | "BIRTHDAY"
+    public int?     RECUR_MONTH     { get; set; }
+    public int?     RECUR_DAY       { get; set; }
     public string?  LOGIN_USER      { get; set; }
     public string?  LOGIN_NAME      { get; set; }
-    public string?  LOGIN_ROLE      { get; set; } // "HR" hoặc "Admin" — HR bị giới hạn field
+    public string?  LOGIN_ROLE      { get; set; } // "HR"/"CSR" bị giới hạn field, "Admin" full
 }
 
 public class BannerActionRequest

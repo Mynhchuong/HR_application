@@ -36,7 +36,7 @@ public class HomeAdminService
             SELECT ID, IMAGE_FILE,
                    OVERLAY_TEXT_VI, OVERLAY_TEXT_EN, OVERLAY_POS,
                    LINK_URL, LINK_TARGET, TARGET_ROLES, IS_DISMISSIBLE,
-                   PUBLISH_FROM, PUBLISH_TO, IS_ACTIVE,
+                   PUBLISH_FROM, PUBLISH_TO, RECUR_TYPE, RECUR_MONTH, RECUR_DAY, IS_ACTIVE,
                    INST_ID, INST_DT, UPDT_ID, UPDT_DT
             FROM HRMS.HR_HOME_BANNER
             ORDER BY IS_ACTIVE DESC, PUBLISH_FROM DESC, ID DESC";
@@ -53,7 +53,10 @@ public class HomeAdminService
             TARGET_ROLES    = r["TARGET_ROLES"]?.ToString(),
             IS_DISMISSIBLE  = Convert.ToInt32(r["IS_DISMISSIBLE"]) == 1,
             PUBLISH_FROM    = Convert.ToDateTime(r["PUBLISH_FROM"]),
-            PUBLISH_TO      = Convert.ToDateTime(r["PUBLISH_TO"]),
+            PUBLISH_TO      = r["PUBLISH_TO"]  == DBNull.Value ? null : Convert.ToDateTime(r["PUBLISH_TO"]),
+            RECUR_TYPE      = r["RECUR_TYPE"]?.ToString(),
+            RECUR_MONTH     = r["RECUR_MONTH"] == DBNull.Value ? null : Convert.ToInt32(r["RECUR_MONTH"]),
+            RECUR_DAY       = r["RECUR_DAY"]   == DBNull.Value ? null : Convert.ToInt32(r["RECUR_DAY"]),
             IS_ACTIVE       = Convert.ToInt32(r["IS_ACTIVE"]) == 1,
             INST_ID         = r["INST_ID"]?.ToString(),
             INST_DT         = r["INST_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["INST_DT"]),
@@ -68,11 +71,49 @@ public class HomeAdminService
         if (string.IsNullOrEmpty(req.IMAGE_FILE))
             return (false, "Thiếu ảnh banner", null);
         // Fix B25: chống DateTime.MinValue khi JSON thiếu ngày
-        if (req.PUBLISH_FROM == default || req.PUBLISH_TO == default ||
-            req.PUBLISH_FROM.Year < 2000 || req.PUBLISH_TO.Year < 2000)
-            return (false, "Vui lòng chọn ngày bắt đầu và kết thúc", null);
-        if (req.PUBLISH_TO < req.PUBLISH_FROM)
-            return (false, "Ngày kết thúc phải sau ngày bắt đầu", null);
+        if (req.PUBLISH_FROM == default || req.PUBLISH_FROM.Year < 2000)
+            return (false, "Vui lòng chọn ngày bắt đầu áp dụng", null);
+
+        // ── Quy tắc lặp ─────────────────────────────────────────────────────
+        // null/"" = banner MỘT LẦN (cần PUBLISH_TO); "MONTHLY"/"YEARLY"/"BIRTHDAY" = lặp (PUBLISH_TO optional).
+        string? recurType = string.IsNullOrWhiteSpace(req.RECUR_TYPE) ? null : req.RECUR_TYPE.Trim().ToUpperInvariant();
+        bool isRecurring  = recurType != null;
+        int? recurMonth = null, recurDay = null;
+
+        if (!isRecurring)
+        {
+            if (req.PUBLISH_TO is not { } pto || pto == default || pto.Year < 2000)
+                return (false, "Vui lòng chọn ngày kết thúc", null);
+            if (pto < req.PUBLISH_FROM)
+                return (false, "Ngày kết thúc phải sau ngày bắt đầu", null);
+            // Banner tạo mới không được đặt đã hết hạn sẵn (sửa banner cũ vẫn cho rút ngắn để dừng sớm)
+            if ((req.ID == null || req.ID == 0) && pto <= DateTime.Now)
+                return (false, "Ngày kết thúc phải ở tương lai", null);
+        }
+        else
+        {
+            if (recurType is not ("MONTHLY" or "YEARLY" or "BIRTHDAY"))
+                return (false, "Kiểu lặp không hợp lệ", null);
+            // PUBLISH_TO ở banner lặp = ngày NGỪNG lặp (optional, trống = mãi mãi)
+            if (req.PUBLISH_TO is { } ptoR && ptoR != default && ptoR.Year >= 2000 && ptoR < req.PUBLISH_FROM)
+                return (false, "Ngày ngừng lặp phải sau ngày bắt đầu", null);
+
+            if (recurType == "MONTHLY")
+            {
+                if (req.RECUR_DAY is not (>= 1 and <= 31))
+                    return (false, "Ngày trong tháng phải từ 1 đến 31", null);
+                recurDay = req.RECUR_DAY;
+            }
+            else if (recurType == "YEARLY")
+            {
+                if (req.RECUR_MONTH is not (>= 1 and <= 12) || req.RECUR_DAY is not (>= 1 and <= 31))
+                    return (false, "Ngày/tháng lặp không hợp lệ", null);
+                recurMonth = req.RECUR_MONTH;
+                recurDay   = req.RECUR_DAY;
+            }
+            // BIRTHDAY: không cần month/day
+        }
+
         if (!new[] { "TL", "TR", "BL", "BR", "CENTER" }.Contains(req.OVERLAY_POS))
             return (false, "OVERLAY_POS không hợp lệ", null);
         if (!new[] { "_self", "_blank" }.Contains(req.LINK_TARGET))
@@ -90,19 +131,42 @@ public class HomeAdminService
         // Sanitize LINK_URL — chỉ chấp nhận http(s):// hoặc /...
         var linkUrl = SanitizeLinkUrl(req.LINK_URL);
 
-        // HR bị giới hạn field — reject nếu HR cố sửa nâng cao
-        bool isHrOnly = string.Equals(req.LOGIN_ROLE, "HR", StringComparison.OrdinalIgnoreCase);
+        // HR VÀ CSR đều bị giới hạn field (chỉ image/overlay/publish) — chỉ Admin được set
+        // link/target/roles/dismissible. Trước đây chỉ chặn "HR" nên CSR lọt qua nhánh full-field.
+        bool isRestricted = !string.Equals(req.LOGIN_ROLE, "Admin", StringComparison.OrdinalIgnoreCase);
 
-        // Overlap check: chỉ reject nếu vừa CHỒNG THỜI GIAN vừa CHỒNG ROLE.
-        // TARGET_ROLES trống = hiển thị cho ALL → coi như overlap với mọi role.
-        var overlap = await CountOverlappingActiveBannersAsync(
-            req.PUBLISH_FROM, req.PUBLISH_TO, req.ID, req.TARGET_ROLES);
-        if (overlap > 0)
-            return (false, "Đã có banner cùng khoảng thời gian và cùng role. Đổi role hoặc ngày.", null);
-
+        // Nạp bản ghi cũ TRƯỚC overlap check (cần TARGET_ROLES cũ khi restricted-update)
         HomeAdminBannerListItem? oldRow = null;
-        if (req.ID.HasValue)
-            oldRow = (await ListBannersAsync()).FirstOrDefault(b => b.ID == req.ID.Value);
+        if (req.ID is int reqId && reqId > 0)
+        {
+            oldRow = (await ListBannersAsync()).FirstOrDefault(b => b.ID == reqId);
+            if (oldRow == null) return (false, "Không tìm thấy banner", null);
+        }
+
+        // Overlap check CHỈ áp dụng cho banner MỘT LẦN (so với các banner một lần khác).
+        // Banner lặp được phép cùng tồn tại — thứ tự ưu tiên ở consumer quyết định banner nào hiện.
+        if (!isRecurring)
+        {
+            // Dùng TARGET_ROLES SẼ THỰC SỰ được ghi, không phải giá trị thô từ request:
+            //  - Admin              → theo request (đã normalize)
+            //  - restricted + sửa   → giữ nguyên giá trị cũ trong DB
+            //  - restricted + tạo mới → luôn NULL (= mọi role)
+            // TARGET_ROLES trống = hiển thị cho ALL → coi như overlap với mọi role.
+            string? effectiveRoles = !isRestricted
+                ? NormalizeRoles(req.TARGET_ROLES)
+                : (oldRow?.TARGET_ROLES);
+            var overlap = await CountOverlappingActiveBannersAsync(
+                req.PUBLISH_FROM, req.PUBLISH_TO!.Value, req.ID, effectiveRoles);
+            if (overlap > 0)
+                return (false, "Đã có banner cùng khoảng thời gian và cùng role. Đổi role hoặc ngày.", null);
+        }
+
+        // Param dùng chung cho INSERT/UPDATE — PUBLISH_TO có thể NULL (banner lặp mãi mãi)
+        object publishToParam = (req.PUBLISH_TO is { } _pto && _pto != default && _pto.Year >= 2000)
+            ? _pto : DBNull.Value;
+        object recurTypeParam  = (object?)recurType  ?? DBNull.Value;
+        object recurMonthParam = (object?)recurMonth ?? DBNull.Value;
+        object recurDayParam   = (object?)recurDay   ?? DBNull.Value;
 
         if (req.ID == null || req.ID == 0)
         {
@@ -111,11 +175,13 @@ public class HomeAdminService
                 INSERT INTO HRMS.HR_HOME_BANNER
                     (IMAGE_FILE, OVERLAY_TEXT_VI, OVERLAY_TEXT_EN, OVERLAY_POS,
                      LINK_URL, LINK_TARGET, TARGET_ROLES, IS_DISMISSIBLE,
-                     PUBLISH_FROM, PUBLISH_TO, IS_ACTIVE, INST_ID, INST_DT)
+                     PUBLISH_FROM, PUBLISH_TO, RECUR_TYPE, RECUR_MONTH, RECUR_DAY,
+                     IS_ACTIVE, INST_ID, INST_DT)
                 VALUES
                     (:IMAGE_FILE, :OVERLAY_TEXT_VI, :OVERLAY_TEXT_EN, :OVERLAY_POS,
                      :LINK_URL, :LINK_TARGET, :TARGET_ROLES, :IS_DISMISSIBLE,
-                     :PUBLISH_FROM, :PUBLISH_TO, 1, :INST_ID, SYSDATE)
+                     :PUBLISH_FROM, :PUBLISH_TO, :RECUR_TYPE, :RECUR_MONTH, :RECUR_DAY,
+                     1, :INST_ID, SYSDATE)
                 RETURNING ID INTO :OUT_ID";
 
             var outIdParam = new OracleParameter("OUT_ID", OracleDbType.Decimal, System.Data.ParameterDirection.Output);
@@ -125,12 +191,15 @@ public class HomeAdminService
                 new OracleParameter("OVERLAY_TEXT_VI", (object?)req.OVERLAY_TEXT_VI ?? DBNull.Value),
                 new OracleParameter("OVERLAY_TEXT_EN", (object?)req.OVERLAY_TEXT_EN ?? DBNull.Value),
                 new OracleParameter("OVERLAY_POS",     req.OVERLAY_POS),
-                new OracleParameter("LINK_URL",        (object?)(isHrOnly ? null : linkUrl) ?? DBNull.Value),
-                new OracleParameter("LINK_TARGET",     isHrOnly ? "_self" : req.LINK_TARGET),
-                new OracleParameter("TARGET_ROLES",    (object?)(isHrOnly ? null : NormalizeRoles(req.TARGET_ROLES)) ?? DBNull.Value),
-                new OracleParameter("IS_DISMISSIBLE",  (isHrOnly ? true : req.IS_DISMISSIBLE) ? 1 : 0),
+                new OracleParameter("LINK_URL",        (object?)(isRestricted ? null : linkUrl) ?? DBNull.Value),
+                new OracleParameter("LINK_TARGET",     isRestricted ? "_self" : req.LINK_TARGET),
+                new OracleParameter("TARGET_ROLES",    (object?)(isRestricted ? null : NormalizeRoles(req.TARGET_ROLES)) ?? DBNull.Value),
+                new OracleParameter("IS_DISMISSIBLE",  (isRestricted ? true : req.IS_DISMISSIBLE) ? 1 : 0),
                 new OracleParameter("PUBLISH_FROM",    req.PUBLISH_FROM),
-                new OracleParameter("PUBLISH_TO",      req.PUBLISH_TO),
+                new OracleParameter("PUBLISH_TO",      publishToParam),
+                new OracleParameter("RECUR_TYPE",      recurTypeParam),
+                new OracleParameter("RECUR_MONTH",     recurMonthParam),
+                new OracleParameter("RECUR_DAY",       recurDayParam),
                 new OracleParameter("INST_ID",         (object?)req.LOGIN_USER ?? DBNull.Value),
                 outIdParam);
 
@@ -146,9 +215,9 @@ public class HomeAdminService
         }
         else
         {
-            // UPDATE — HR: chỉ được sửa image/overlay/publish. Giữ nguyên link/target/roles/dismissible
+            // UPDATE — HR/CSR: chỉ được sửa image/overlay/publish. Giữ nguyên link/target/roles/dismissible
             string sqlUpd;
-            if (isHrOnly)
+            if (isRestricted)
             {
                 sqlUpd = @"
                     UPDATE HRMS.HR_HOME_BANNER
@@ -158,6 +227,9 @@ public class HomeAdminService
                         OVERLAY_POS     = :OVERLAY_POS,
                         PUBLISH_FROM    = :PUBLISH_FROM,
                         PUBLISH_TO      = :PUBLISH_TO,
+                        RECUR_TYPE      = :RECUR_TYPE,
+                        RECUR_MONTH     = :RECUR_MONTH,
+                        RECUR_DAY       = :RECUR_DAY,
                         UPDT_ID         = :UPDT_ID,
                         UPDT_DT         = SYSDATE
                     WHERE ID = :ID";
@@ -168,7 +240,10 @@ public class HomeAdminService
                     new OracleParameter("OVERLAY_TEXT_EN", (object?)req.OVERLAY_TEXT_EN ?? DBNull.Value),
                     new OracleParameter("OVERLAY_POS",     req.OVERLAY_POS),
                     new OracleParameter("PUBLISH_FROM",    req.PUBLISH_FROM),
-                    new OracleParameter("PUBLISH_TO",      req.PUBLISH_TO),
+                    new OracleParameter("PUBLISH_TO",      publishToParam),
+                    new OracleParameter("RECUR_TYPE",      recurTypeParam),
+                    new OracleParameter("RECUR_MONTH",     recurMonthParam),
+                    new OracleParameter("RECUR_DAY",       recurDayParam),
                     new OracleParameter("UPDT_ID",         (object?)req.LOGIN_USER ?? DBNull.Value),
                     new OracleParameter("ID",              req.ID.Value));
             }
@@ -186,6 +261,9 @@ public class HomeAdminService
                         IS_DISMISSIBLE  = :IS_DISMISSIBLE,
                         PUBLISH_FROM    = :PUBLISH_FROM,
                         PUBLISH_TO      = :PUBLISH_TO,
+                        RECUR_TYPE      = :RECUR_TYPE,
+                        RECUR_MONTH     = :RECUR_MONTH,
+                        RECUR_DAY       = :RECUR_DAY,
                         UPDT_ID         = :UPDT_ID,
                         UPDT_DT         = SYSDATE
                     WHERE ID = :ID";
@@ -200,7 +278,10 @@ public class HomeAdminService
                     new OracleParameter("TARGET_ROLES",    (object?)NormalizeRoles(req.TARGET_ROLES) ?? DBNull.Value),
                     new OracleParameter("IS_DISMISSIBLE",  req.IS_DISMISSIBLE ? 1 : 0),
                     new OracleParameter("PUBLISH_FROM",    req.PUBLISH_FROM),
-                    new OracleParameter("PUBLISH_TO",      req.PUBLISH_TO),
+                    new OracleParameter("PUBLISH_TO",      publishToParam),
+                    new OracleParameter("RECUR_TYPE",      recurTypeParam),
+                    new OracleParameter("RECUR_MONTH",     recurMonthParam),
+                    new OracleParameter("RECUR_DAY",       recurDayParam),
                     new OracleParameter("UPDT_ID",         (object?)req.LOGIN_USER ?? DBNull.Value),
                     new OracleParameter("ID",              req.ID.Value));
             }
@@ -246,13 +327,15 @@ public class HomeAdminService
     private async Task<int> CountOverlappingActiveBannersAsync(
         DateTime from, DateTime to, int? excludeId, string? newTargetRoles)
     {
-        // Bước 1: lấy tất cả banner CHỒNG THỜI GIAN (chưa cần biết role)
-        // LOẠI banner đã hết hạn hoàn toàn (PUBLISH_TO < today) — không xung đột với banner mới
+        // Bước 1: lấy tất cả banner MỘT LẦN CHỒNG THỜI GIAN (chưa cần biết role)
+        // LOẠI banner đã hết hạn (PUBLISH_TO < SYSDATE) — khớp đúng thời điểm consumer ngừng hiện.
+        // Banner lặp (RECUR_TYPE IS NOT NULL) không tính vào overlap.
         const string sql = @"
             SELECT ID, TARGET_ROLES
             FROM HRMS.HR_HOME_BANNER
             WHERE IS_ACTIVE = 1
-              AND PUBLISH_TO >= TRUNC(SYSDATE)
+              AND RECUR_TYPE IS NULL
+              AND PUBLISH_TO >= SYSDATE
               AND ID <> NVL(:EXCLUDE_ID, -1)
               AND PUBLISH_FROM <= :NEW_TO
               AND PUBLISH_TO   >= :NEW_FROM";
@@ -301,7 +384,15 @@ public class HomeAdminService
     {
         if (string.IsNullOrWhiteSpace(url)) return null;
         var t = url.Trim();
-        if (t.StartsWith("/")) return t;
+        // Chặn open-redirect qua URL protocol-relative / backslash-trick / slash mã hoá:
+        //   //evil.com , /\evil.com , /%2Fevil.com , /%5Cevil.com
+        if (t.StartsWith("//") || t.StartsWith("/\\")
+            || t.StartsWith("/%2f", StringComparison.OrdinalIgnoreCase)
+            || t.StartsWith("/%5c", StringComparison.OrdinalIgnoreCase))
+            return null;
+        // Đường dẫn nội bộ: bắt buộc "/" + ký tự thường (không phải "/" hay "\")
+        if (t.Length >= 2 && t[0] == '/' && t[1] != '/' && t[1] != '\\') return t;
+        if (t == "/") return t;
         if (t.StartsWith("http://",  StringComparison.OrdinalIgnoreCase) ||
             t.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             return t;
@@ -315,15 +406,16 @@ public class HomeAdminService
         return parts.Length == 0 ? null : string.Join(",", parts);
     }
 
+    // Banner cache key ở HomeService gồm cả EMPCD (vì banner sinh nhật là per-user) → không
+    // enumerate xoá từng key được. Dùng "epoch": bump 1 con số dùng chung, mọi key cũ thành
+    // vô hiệu ngay, TTL 5 phút chỉ còn là backstop dọn rác.
+    public const string BannerEpochKey = "home:banner:epoch";
+
     private void InvalidateBannerCache()
     {
-        // Đơn giản: xoá key phổ biến. Nếu có role khác thì chờ TTL 5 phút.
-        foreach (var role in new[] { "Employee", "Clerk", "Supervisor", "DeputyManager",
-                                     "Manager", "Assistant", "Expat", "HR", "Admin" })
-        {
-            _cache.Remove($"home:banner:active:{role}:vi");
-            _cache.Remove($"home:banner:active:{role}:en");
-        }
+        long cur = _cache.TryGetValue(BannerEpochKey, out long v) ? v : 0L;
+        _cache.Set(BannerEpochKey, cur + 1,
+            new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
     }
 
     // ============================================================

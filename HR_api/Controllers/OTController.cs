@@ -67,7 +67,12 @@ public class OTController : ControllerBase
                                  + E.OT_AFTER_TIME / 24
                             WHEN E.OT_BEFORE = 'Y' OR NVL(E.OT_BEFORE_TIME,0) > 0 THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
                        END END_OT,
+                       -- Giờ tan ca hôm đó (ca đêm STIME>ETIME → tan ca ngày hôm sau). Mốc khoá
+                       -- xác nhận cho tăng ca TRƯỚC ca (cho phép xác nhận suốt ca).
+                       TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
+                         + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END SHIFT_END,
                        (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE, R.OT_HOURS CONFIRMED_OT_HOURS,
+                       R.OT_START CONF_OT_START, R.OT_END CONF_OT_END,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND TO_CHAR(DAT,'YYYYIW') = TO_CHAR(SYSDATE,'YYYYIW') AND DAT <= SYSDATE), 0) SUM_WEEK,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TRUNC(SYSDATE,'MM') AND SYSDATE), 0) SUM_MONTH,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0101','YYYYMMDD') AND SYSDATE), 0) SUM_YEAR
@@ -110,13 +115,30 @@ public class OTController : ControllerBase
                 var erpHours       = r["OT_HOURS"]           == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"]);
                 var confirmedHours = r["CONFIRMED_OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["CONFIRMED_OT_HOURS"]);
                 bool hoursUpdated  = confirmedHours.HasValue && erpHours.HasValue && confirmedHours != erpHours;
-                string confirmStatus = hoursUpdated ? "PENDING" : (r["CONFIRM_STATUS"]?.ToString() ?? "PENDING");
                 DateTime? startOt  = r["START_OT"] == DBNull.Value ? null : Convert.ToDateTime(r["START_OT"]);
+                DateTime? shiftEnd = r["SHIFT_END"] == DBNull.Value ? null : Convert.ToDateTime(r["SHIFT_END"]);
+                DateTime? endOt    = r["END_OT"]   == DBNull.Value ? null : Convert.ToDateTime(r["END_OT"]);
 
-                // Khoá xác nhận/đổi ý ngay khi tới giờ bắt đầu tăng ca — tránh trường hợp
-                // nhân viên đổi ý sau khi ca tăng ca đã bắt đầu.
+                // Kế hoạch OT đổi khung giờ sau khi NV đã ký (vd sáng 06:30-07:30 -> chiều 16:30-17:30):
+                // so mốc đã ký (R.OT_START/OT_END) với khung ERP hiện tại → bắt ký lại (PENDING).
+                // Chỉ xét khi bản ghi đã ký có enrich OT_START/OT_END (bỏ qua dòng legacy NULL).
+                DateTime? confOtStart = r["CONF_OT_START"] == DBNull.Value ? null : Convert.ToDateTime(r["CONF_OT_START"]);
+                DateTime? confOtEnd   = r["CONF_OT_END"]   == DBNull.Value ? null : Convert.ToDateTime(r["CONF_OT_END"]);
+                string M(DateTime? d) => d?.ToString("yyyyMMddHHmm") ?? "";
+                bool windowChanged = confOtStart.HasValue && confOtEnd.HasValue
+                    && (M(confOtStart) != M(startOt) || M(confOtEnd) != M(endOt));
+
+                string confirmStatus = (hoursUpdated || windowChanged)
+                    ? "PENDING" : (r["CONFIRM_STATUS"]?.ToString() ?? "PENDING");
+
+                // Mốc khoá chỉnh sửa:
+                //  - Tăng ca SAU ca : tới giờ OT bắt đầu (tránh đổi ý sau khi OT đã chạy).
+                //  - Tăng ca TRƯỚC ca: tới HẾT GIỜ LÀM của ca hôm đó — OT trước ca sáng sớm,
+                //    NV hay bấm không kịp nên cho xác nhận suốt ca.
+                bool isBeforeOt = r["OT_BEFORE"]?.ToString() == "Y";
+                DateTime? lockAt = isBeforeOt ? shiftEnd : startOt;
                 bool isEditable = workDate.Date >= DateTime.Today.Date
-                    && (!startOt.HasValue || DateTime.Now < startOt.Value);
+                    && (!lockAt.HasValue || DateTime.Now < lockAt.Value);
 
                 return new OTTodayModel
                 {
@@ -130,7 +152,8 @@ public class OTController : ControllerBase
                     OT_REST        = r["OT_REST"]?.ToString(),
                     HAS_OT         = r["HAS_OT"]?.ToString(),
                     START_OT       = startOt,
-                    END_OT         = r["END_OT"]      == DBNull.Value ? null : Convert.ToDateTime(r["END_OT"]),
+                    END_OT         = endOt,
+                    SHIFT_END      = shiftEnd,
                     CONFIRM_STATUS = confirmStatus,
                     CONFIRM_DATE   = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
                     SUM_WEEK       = Convert.ToDecimal(r["SUM_WEEK"]),
@@ -170,16 +193,21 @@ public class OTController : ControllerBase
         if (model.CONFIRM_STATUS != "CONFIRMED" && model.CONFIRM_STATUS != "REJECTED")
             return Ok(new { success = false, message = "Trạng thái không hợp lệ" });
 
-        // Khoá xác nhận/đổi ý ngay khi tới giờ bắt đầu tăng ca (kiểm tra lại ở server,
-        // phòng trường hợp client gửi request trễ sau khi form đã hết hạn chỉnh sửa).
+        // Mốc khoá xác nhận/đổi ý (kiểm tra lại ở server, phòng client gửi request trễ):
+        //  - Tăng ca SAU ca : khoá khi tới giờ OT bắt đầu (như cũ).
+        //  - Tăng ca TRƯỚC ca: khoá khi HẾT GIỜ LÀM của ca hôm đó (giờ tan ca) — vì OT trước ca
+        //    diễn ra sáng sớm (vd 5h30), NV hay bấm không kịp; cho phép xác nhận trong suốt ca.
         // otWindow cũng được dùng để set OT_TYPE/OT_START/OT_END khi lưu HR_OT_REQUEST bên dưới.
         var otWindow = await GetOtWindowAsync(model.EMPCD, workDate);
-        if (otWindow.Start.HasValue && DateTime.Now >= otWindow.Start.Value)
-            return Ok(new { success = false, message = "Đã tới giờ tăng ca, không thể xác nhận hoặc đổi ý nữa" });
+        DateTime? lockAt = otWindow.Type == "BEFORE" ? otWindow.ShiftEnd : otWindow.Start;
+        if (lockAt.HasValue && DateTime.Now >= lockAt.Value)
+            return Ok(new { success = false, message = otWindow.Type == "BEFORE"
+                ? "Đã hết giờ làm việc, không thể xác nhận hoặc đổi ý tăng ca nữa"
+                : "Đã tới giờ tăng ca, không thể xác nhận hoặc đổi ý nữa" });
 
-        // Không tính được khung giờ (ca lỗi / đã bị xoá khỏi ERP) + ngày đã qua → chặn cho chắc,
-        // đối xứng với IS_EDITABLE ở GetOTToday. Ca đêm vẫn qua được vì otWindow.Start có giá trị.
-        if (!otWindow.Start.HasValue && workDate.Date < DateTime.Today)
+        // Không tính được mốc khoá (ca lỗi / đã bị xoá khỏi ERP) + ngày đã qua → chặn cho chắc,
+        // đối xứng với IS_EDITABLE ở GetOTToday. Ca đêm vẫn qua được vì lockAt có giá trị.
+        if (!lockAt.HasValue && workDate.Date < DateTime.Today)
             return Ok(new { success = false, message = "Không thể xác nhận tăng ca cho ngày này" });
 
         var lockKey = $"{model.EMPCD}|{workDate:yyyyMMdd}";
@@ -202,26 +230,34 @@ public class OTController : ControllerBase
                 return Ok(new { success = false, message = "Không có kế hoạch tăng ca trong ngày này" });
 
             // Bước 1: Kiểm tra xem HR_OT_REQUEST đã có dòng cho EMPCD + WORK_DATE chưa
-            string sqlGetExisting = "SELECT REQUEST_ID, CONFIRM_STATUS, OT_HOURS FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND ROWNUM = 1";
+            string sqlGetExisting = "SELECT REQUEST_ID, CONFIRM_STATUS, OT_HOURS, OT_START, OT_END FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND ROWNUM = 1";
             var existingRows = await _oracleService.ExecuteQueryAsync(sqlGetExisting, r => new {
                 REQUEST_ID     = r["REQUEST_ID"]?.ToString(),
                 CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
-                OT_HOURS       = r["OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"])
+                OT_HOURS       = r["OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"]),
+                OT_START       = r["OT_START"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["OT_START"]),
+                OT_END         = r["OT_END"]   == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["OT_END"])
             },
                 new OracleParameter("EMPCD", model.EMPCD),
                 new OracleParameter("WORK_DATE", workDate));
 
             if (existingRows.Count > 0 && existingRows[0] != null)
             {
-                // Đã có trong HR_OT_REQUEST → nếu đổi trạng thái hoặc số giờ thì UPDATE tại chỗ
+                // Đã có trong HR_OT_REQUEST → nếu đổi trạng thái / số giờ / khung giờ thì UPDATE tại chỗ
                 var existing = existingRows[0];
                 // existing.OT_HOURS có thể NULL do bản ghi cũ — khi client gửi số giờ mới thì vẫn
                 // coi là đổi (null != value) để UPDATE bù giờ, giúp dữ liệu tự lành dần.
                 bool hoursChanged = model.OT_HOURS.HasValue && existing.OT_HOURS != model.OT_HOURS;
 
-                if (existing.CONFIRM_STATUS != model.CONFIRM_STATUS || hoursChanged)
+                // Kế hoạch OT đổi khung giờ (vd sáng -> chiều) sau khi đã ký → phải UPDATE lại
+                // OT_TYPE/OT_START/OT_END, nếu không GetOTToday cứ báo PENDING mãi.
+                static string M(DateTime? d) => d?.ToString("yyyyMMddHHmm") ?? "";
+                bool windowChanged = existing.OT_START.HasValue && existing.OT_END.HasValue
+                    && (M(existing.OT_START) != M(otWindow.Start) || M(existing.OT_END) != M(otWindow.End));
+
+                if (existing.CONFIRM_STATUS != model.CONFIRM_STATUS || hoursChanged || windowChanged)
                 {
-                    // Đổi ý/đổi giờ: UPDATE tại chỗ thay vì DELETE + INSERT lại — tránh cửa sổ
+                    // Đổi ý/đổi giờ/đổi khung: UPDATE tại chỗ thay vì DELETE + INSERT lại — tránh cửa sổ
                     // mất chữ ký nếu app/DB chết giữa 2 bước (không có transaction bao ngoài).
                     return await RetryAsUpdateAsync(model, workDate, otWindow);
                 }
@@ -413,7 +449,7 @@ public class OTController : ControllerBase
             new OracleParameter("R", requestId));
     }
 
-    private record OtWindowInfo(string? Type, DateTime? Start, DateTime? End);
+    private record OtWindowInfo(string? Type, DateTime? Start, DateTime? End, DateTime? ShiftEnd);
 
     // Derived table HR_OT_REQUEST đã DEDUP theo NV(+giờ) cho 1 ngày. Bảng còn dòng trùng legacy
     // (RetryAsUpdateAsync chỉ UPDATE đồng loạt chứ không xoá) — nếu LEFT JOIN thẳng thì COUNT(*)
@@ -421,8 +457,10 @@ public class OTController : ControllerBase
     // dateParam: tên bind param ngày (vd ":W_DATE3"). partitionCols: "EMPCD" (admin, match EMPCD)
     // hoặc "EMPCD, NVL(OT_HOURS,0)" (match cả số giờ).
     private static string DedupOtRequest(string dateParam, string partitionCols) => $@"(
-        SELECT EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, REQUEST_ID FROM (
+        SELECT EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, REQUEST_ID,
+               OT_TYPE, OT_START, OT_END FROM (
             SELECT EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, REQUEST_ID,
+                   OT_TYPE, OT_START, OT_END,
                    ROW_NUMBER() OVER (PARTITION BY {partitionCols}
                                       ORDER BY CONFIRM_DATE DESC NULLS LAST, REQUEST_ID DESC) RN
             FROM HRMS.HR_OT_REQUEST WHERE WORK_DATE = {dateParam}
@@ -445,7 +483,11 @@ public class OTController : ControllerBase
                              + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END
                              + E.OT_AFTER_TIME / 24
                         WHEN E.OT_BEFORE = 'Y' OR NVL(E.OT_BEFORE_TIME,0) > 0 THEN TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.STIME,'YYYYMMDDHH24MI')
-                   END END_OT
+                   END END_OT,
+                   -- Giờ tan ca của ca hôm đó (ca đêm STIME>ETIME thì tan ca ở ngày hôm sau).
+                   -- Dùng làm mốc khoá xác nhận cho tăng ca TRƯỚC ca.
+                   TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
+                     + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END SHIFT_END
             FROM (SELECT * FROM (
                   SELECT EMPCD, DAT, SHIFTCD,
                          MAX(OT_BEFORE) OT_BEFORE, MAX(OT_BEFORE_TIME) OT_BEFORE_TIME,
@@ -470,14 +512,15 @@ public class OTController : ControllerBase
             string? type = r["OT_BEFORE"]?.ToString() == "Y" ? "BEFORE" : (r["OT_AFTER"]?.ToString() == "Y" ? "AFTER" : null);
             DateTime? start = r["START_OT"] == DBNull.Value ? null : Convert.ToDateTime(r["START_OT"]);
             DateTime? end   = r["END_OT"]   == DBNull.Value ? null : Convert.ToDateTime(r["END_OT"]);
-            return new OtWindowInfo(type, start, end);
+            DateTime? shiftEnd = r["SHIFT_END"] == DBNull.Value ? null : Convert.ToDateTime(r["SHIFT_END"]);
+            return new OtWindowInfo(type, start, end, shiftEnd);
         },
             new OracleParameter("WORK_DATE", workDate),
             new OracleParameter("EMPCD", empcd),
             new OracleParameter("WORK_DATE2", workDate),
             new OracleParameter("EMPCD1", empcd));
 
-        return rows.FirstOrDefault() ?? new OtWindowInfo(null, null, null);
+        return rows.FirstOrDefault() ?? new OtWindowInfo(null, null, null, null);
     }
 
     private async Task UpdateErpSignedAsync(string empcd, DateTime workDate, string confirmStatus)

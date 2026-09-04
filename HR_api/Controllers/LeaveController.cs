@@ -90,12 +90,13 @@ public class LeaveController : ControllerBase
     // không kèm lý do). NL (Không lương) dùng prefix "VR" + lý do NV gõ (yêu cầu HR 2026-08-25,
     // xác nhận lại — trước đó có lúc để NL = "VR" trần không kèm lý do, ĐÃ SỬA LẠI theo yêu cầu này).
     private static readonly HashSet<string> NewRemarkTypes = new() { "NL", "SI", "DT", "DC", "CT", "VS", "DS", "KT" };
-    // Phần lớn prefix remark = chính LEAVE_TYPE. Ngoại lệ HR yêu cầu: ĐC có dấu (khác mã lưu DB "DC",
-    // giữ mã DB ASCII cho an toàn — chỉ đổi phần chữ ghi vào ERP), NL dùng chữ "VR" thay vì mã loại.
-    // Đám tang (DT) ghi ASCII "DT" thẳng, không dùng "ĐT" có dấu (yêu cầu HR 2026-08-25).
+    // Phần lớn prefix remark = chính LEAVE_TYPE (ASCII sẵn). Chỉ NL dùng chữ "VR" thay vì mã loại.
+    // ĐC (Đám cưới) trước đây từng cố tình ghi có dấu "ĐC" theo yêu cầu HR 2026-08-25, nhưng ERP đọc
+    // REMAR theo font VNI-Windows không xử lý ký tự có dấu này đúng — ĐÃ SỬA LẠI về ASCII "DC" cho
+    // nhất quán với Đám tang (DT) vốn đã dùng ASCII "DT" thẳng từ đầu (xác nhận lại 2026-08-27).
     private static readonly Dictionary<string, string> RemarkPrefix = new()
     {
-        ["DC"] = "ĐC", ["NL"] = "VR"
+        ["NL"] = "VR"
     };
     // Loại nghỉ bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — CT theo yêu cầu vẫn KHÔNG cần nộp giấy tờ.
     private static readonly HashSet<string> DocRequiredTypes = new() { "SI", "DT", "DC", "VS", "DS", "KT" };
@@ -948,8 +949,11 @@ public class LeaveController : ControllerBase
                     new OracleParameter { ParameterName = "TO_DATE",   OracleDbType = OracleDbType.Date, Value = ld.ToDate }
                 )).ToHashSet();
 
-                // NV được phép nghỉ Chủ Nhật → không skip Sunday dù nằm trong holiday
-                bool isSundayAllowed = (await _oracleService.ExecuteQueryAsync(
+                // NV được phép nghỉ Chủ Nhật → không skip Sunday dù nằm trong holiday. Dưỡng sức (DS)
+                // tính theo ngày lịch kể cả Chủ Nhật/ngày lễ theo quy định — luôn coi như "được phép"
+                // với loại này, không phụ thuộc whitelist HR_SUNDAY_LEAVE_ALLOWED (dành cho NV làm
+                // ca Chủ Nhật thật, khác khái niệm với DS).
+                bool isSundayAllowed = ld.LeaveType == "DS" || (await _oracleService.ExecuteQueryAsync(
                     "SELECT 1 AS X FROM HRMS.HR_SUNDAY_LEAVE_ALLOWED WHERE EMPCD = :EMPCD AND IS_ACTIVE = 1",
                     r => 1,
                     new OracleParameter("EMPCD", requestInfo.Empcd)
@@ -1301,7 +1305,8 @@ END;";
                         new OracleParameter { ParameterName = "TO_DATE",   OracleDbType = OracleDbType.Date, Value = toDate }
                     )).ToHashSet();
 
-                    bool isSundayAllowed = (await _oracleService.ExecuteQueryAsync(
+                    // Dưỡng sức (DS) tính theo ngày lịch kể cả Chủ Nhật/ngày lễ — luôn coi như "được phép".
+                    bool isSundayAllowed = model.LEAVE_TYPE == "DS" || (await _oracleService.ExecuteQueryAsync(
                         "SELECT 1 AS X FROM HRMS.HR_SUNDAY_LEAVE_ALLOWED WHERE EMPCD = :EMPCD AND IS_ACTIVE = 1",
                         r => 1,
                         new OracleParameter("EMPCD", targetEmpcd)
@@ -1865,6 +1870,7 @@ END;";
             // giữa 2 đợt nghỉ NL (gap = số ngày trống giữa TO_DATE đợt trước và FROM_DATE đợt sau).
             // Gộp nhóm theo kiểu "gaps and islands": mỗi khi gap > 1 thì bắt đầu nhóm (GRP_ID) mới.
             string nlStreakSql = @"
+                AND (:NLQ_FLAG IS NULL OR L.LEAVE_TYPE = 'NL')
                 AND (:NLQ_FLAG IS NULL OR L.EMPCD IN (
                     SELECT EMPCD FROM (
                         SELECT EMPCD, GRP_ID, SUM(TOTAL_DAYS) AS STREAK_DAYS
@@ -1899,7 +1905,7 @@ END;";
             string whereSql = @"
                 WHERE R.REQUEST_TYPE = 'LEAVE'
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
-                  AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1
+                  AND L.TO_DATE >= :D_FROM AND L.FROM_DATE <= :D_TO
                   AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
                   AND (:SRC_FLAG  IS NULL OR L.SOURCE       = :SRC_VAL)
                   AND (:LT_FLAG   IS NULL OR L.LEAVE_TYPE    = :LT_VAL)
@@ -1912,7 +1918,7 @@ END;";
             string whereSqlNoStatus = @"
                 WHERE R.REQUEST_TYPE = 'LEAVE'
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
-                  AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1
+                  AND L.TO_DATE >= :D_FROM AND L.FROM_DATE <= :D_TO
                   AND (:SRC_FLAG  IS NULL OR L.SOURCE       = :SRC_VAL)
                   AND (:LT_FLAG   IS NULL OR L.LEAVE_TYPE    = :LT_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
@@ -2333,34 +2339,6 @@ END;";
         }
     }
 
-    // TẠM THỜI — debug xem có trigger/job nào ở tầng DB gây xóa dây chuyền EFM410 -> HR_LEAVE_REQUEST
-    // không, sẽ xóa ngay sau khi kiểm tra xong.
-    [HttpGet("debug-check-triggers")]
-    public async Task<IActionResult> DebugCheckTriggers()
-    {
-        var triggers = await _oracleService.ExecuteQueryAsync(@"
-            SELECT OWNER, TRIGGER_NAME, TABLE_OWNER, TABLE_NAME, TRIGGERING_EVENT, STATUS
-            FROM ALL_TRIGGERS
-            WHERE TABLE_NAME IN ('EFM410', 'HR_LEAVE_REQUEST', 'HR_REQUEST')
-            ORDER BY TABLE_NAME",
-            r => new {
-                owner = r["OWNER"]?.ToString(), triggerName = r["TRIGGER_NAME"]?.ToString(),
-                tableOwner = r["TABLE_OWNER"]?.ToString(), tableName = r["TABLE_NAME"]?.ToString(),
-                triggeringEvent = r["TRIGGERING_EVENT"]?.ToString(), status = r["STATUS"]?.ToString()
-            });
-
-        var jobs = await _oracleService.ExecuteQueryAsync(@"
-            SELECT JOB_NAME, OWNER, ENABLED, STATE
-            FROM ALL_SCHEDULER_JOBS
-            WHERE UPPER(JOB_NAME) LIKE '%EFM%' OR UPPER(JOB_NAME) LIKE '%LEAVE%' OR UPPER(JOB_NAME) LIKE '%SYNC%'",
-            r => new {
-                jobName = r["JOB_NAME"]?.ToString(), owner = r["OWNER"]?.ToString(),
-                enabled = r["ENABLED"]?.ToString(), state = r["STATE"]?.ToString()
-            });
-
-        return Ok(new { success = true, triggers, jobs });
-    }
-
     // ─────────────────────────────────────────────────────────────────────────
     // GET /apiHR/Leave/admin-emp-list — Toàn bộ NV + phép năm còn lại (Admin)
     // ─────────────────────────────────────────────────────────────────────────
@@ -2616,7 +2594,9 @@ END;";
                         new OracleParameter { ParameterName = "TO_DATE",   OracleDbType = OracleDbType.Date, Value = toDate }
                     )).ToHashSet();
 
-                    bool isSundayAllowed = (await _oracleService.ExecuteQueryAsync(
+                    // Dưỡng sức (DS) tính theo ngày lịch kể cả Chủ Nhật/ngày lễ — luôn coi như "được phép"
+                    // (dù AdminAssign hiện không cho chọn DS, giữ nhất quán với 2 chỗ Submit/Approve).
+                    bool isSundayAllowed = model.LEAVE_TYPE == "DS" || (await _oracleService.ExecuteQueryAsync(
                         "SELECT 1 AS X FROM HRMS.HR_SUNDAY_LEAVE_ALLOWED WHERE EMPCD = :EMPCD AND IS_ACTIVE = 1",
                         r => 1,
                         new OracleParameter("EMPCD", targetEmpcd)

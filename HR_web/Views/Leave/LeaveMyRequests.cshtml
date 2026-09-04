@@ -716,18 +716,24 @@ function datesOverlap(f1, t1, f2, t2) { return f1 <= t2 && t1 >= f2; }
 
 const canTakeSundayLeave = @(ViewBag.CanTakeSundayLeave == true ? "true" : "false");
 
+// Dưỡng sức (DS) tính theo ngày lịch (kể cả Chủ Nhật/ngày lễ) theo quy định — luôn cho chọn
+// Chủ Nhật với loại này, không phụ thuộc canTakeSundayLeave (vốn chỉ áp dụng cho các loại nghỉ
+// tính theo ngày công thường, công ty nghỉ Chủ Nhật).
+function sundayOkFor(leaveType) { return canTakeSundayLeave || leaveType === 'DS'; }
+
 function isSunday(dateStr) {
     if (!dateStr) return false;
     const p = dateStr.split('-');
     return new Date(Date.UTC(+p[0], +p[1]-1, +p[2])).getUTCDay() === 0;
 }
-function countDaysNoSunday(fromStr, toStr) {
+function countDaysNoSunday(fromStr, toStr, leaveType) {
+    const sundayOk = sundayOkFor(leaveType);
     const p1 = fromStr.split('-'), p2 = toStr.split('-');
     let cur = new Date(Date.UTC(+p1[0], +p1[1]-1, +p1[2]));
     const end = new Date(Date.UTC(+p2[0], +p2[1]-1, +p2[2]));
     let count = 0;
     while (cur <= end) {
-        if (canTakeSundayLeave || cur.getUTCDay() !== 0) count++;
+        if (sundayOk || cur.getUTCDay() !== 0) count++;
         cur.setUTCDate(cur.getUTCDate() + 1);
     }
     return count;
@@ -739,12 +745,13 @@ function showDateError(errId, msg, focusId) {
 
 function calcCreateDays() {
     const f = $('#createFromDate').val(), t = $('#createToDate').val();
-    if (!canTakeSundayLeave && f && isSunday(f)) {
+    const createLT = $('#createLeaveType').val() || 'AL';
+    if (!sundayOkFor(createLT) && f && isSunday(f)) {
         $('#createFromDate').val('');
         showDateError('createError', 'Từ ngày không được là Chủ Nhật (công ty làm T2–T7)', 'createFromDate');
         return;
     }
-    if (!canTakeSundayLeave && t && isSunday(t)) {
+    if (!sundayOkFor(createLT) && t && isSunday(t)) {
         $('#createToDate').val('');
         showDateError('createError', 'Đến ngày không được là Chủ Nhật (công ty làm T2–T7)', 'createToDate');
         return;
@@ -754,7 +761,7 @@ function calcCreateDays() {
     if (f && t) {
         if (t < f) { $('#createToDate').val(f); }
         const tFinal = $('#createToDate').val();
-        const diff = countDaysNoSunday(f, tFinal);
+        const diff = countDaysNoSunday(f, tFinal, createLT);
         if (diff > 0) $('#createTotalDays').val(diff);
     }
 }
@@ -793,14 +800,14 @@ async function saveCreate() {
     const to     = $('#createToDate').val();
     const days   = parseFloat($('#createTotalDays').val());
     const reason = $('#createReason').val().trim();
+    const createLT = $('#createLeaveType').val() || 'AL';
     if (!from || !to)       { $('#createError').removeClass('d-none').text('Vui lòng chọn ngày'); return; }
     if (from < today)       { $('#createError').removeClass('d-none').text('Không được chọn ngày trong quá khứ'); $('#createFromDate').focus(); return; }
-    if (!canTakeSundayLeave && isSunday(from)) { $('#createError').removeClass('d-none').text('Từ ngày không được là Chủ Nhật (công ty làm T2–T7)'); $('#createFromDate').focus(); return; }
-    if (!canTakeSundayLeave && isSunday(to))   { $('#createError').removeClass('d-none').text('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)'); $('#createToDate').focus(); return; }
+    if (!sundayOkFor(createLT) && isSunday(from)) { $('#createError').removeClass('d-none').text('Từ ngày không được là Chủ Nhật (công ty làm T2–T7)'); $('#createFromDate').focus(); return; }
+    if (!sundayOkFor(createLT) && isSunday(to))   { $('#createError').removeClass('d-none').text('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)'); $('#createToDate').focus(); return; }
     if (to < from)          { $('#createError').removeClass('d-none').text('Đến ngày phải lớn hơn hoặc bằng Từ ngày'); $('#createToDate').focus(); return; }
     if (!days || days <= 0) { $('#createError').removeClass('d-none').text('Số ngày nghỉ không hợp lệ'); return; }
 
-    const createLT = $('#createLeaveType').val() || 'AL';
     if (createLT !== 'AL' && !reason) { $('#createError').removeClass('d-none').text('Vui lòng nhập lý do nghỉ phép'); $('#createReason').focus(); return; }
 
     // AL deadline: STIME ca ngày FROM_DATE - 7.5h (fair cho ca đêm).
@@ -894,12 +901,13 @@ async function saveCreate() {
 
 function calcDays() {
     const f = $('#editFromDate').val(), t = $('#editToDate').val();
-    if (!canTakeSundayLeave && f && isSunday(f)) {
+    const editLT = $('#editLeaveType').val() || 'AL';
+    if (!sundayOkFor(editLT) && f && isSunday(f)) {
         $('#editFromDate').val('');
         showDateError('editError', 'Từ ngày không được là Chủ Nhật (công ty làm T2–T7)', 'editFromDate');
         return;
     }
-    if (!canTakeSundayLeave && t && isSunday(t)) {
+    if (!sundayOkFor(editLT) && t && isSunday(t)) {
         $('#editToDate').val('');
         showDateError('editError', 'Đến ngày không được là Chủ Nhật (công ty làm T2–T7)', 'editToDate');
         return;
@@ -909,7 +917,7 @@ function calcDays() {
     if (f && t) {
         if (t < f) { $('#editToDate').val(f); }
         const tFinal = $('#editToDate').val();
-        const diff = countDaysNoSunday(f, tFinal);
+        const diff = countDaysNoSunday(f, tFinal, editLT);
         if (diff > 0) $('#editTotalDays').val(diff);
     }
 }
@@ -935,12 +943,12 @@ async function saveEdit() {
     const today = localDateStr();
     const from  = $('#editFromDate').val();
     const to    = $('#editToDate').val();
+    const editLT = $('#editLeaveType').val() || 'AL';
     if (from < today)   { $('#editError').removeClass('d-none').text('Không được chọn ngày trong quá khứ'); $('#editFromDate').focus(); return; }
-    if (!canTakeSundayLeave && isSunday(from)) { $('#editError').removeClass('d-none').text('Từ ngày không được là Chủ Nhật (công ty làm T2–T7)'); $('#editFromDate').focus(); return; }
-    if (!canTakeSundayLeave && isSunday(to))   { $('#editError').removeClass('d-none').text('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)'); $('#editToDate').focus(); return; }
+    if (!sundayOkFor(editLT) && isSunday(from)) { $('#editError').removeClass('d-none').text('Từ ngày không được là Chủ Nhật (công ty làm T2–T7)'); $('#editFromDate').focus(); return; }
+    if (!sundayOkFor(editLT) && isSunday(to))   { $('#editError').removeClass('d-none').text('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)'); $('#editToDate').focus(); return; }
     if (to < from)      { $('#editError').removeClass('d-none').text('Đến ngày phải lớn hơn hoặc bằng Từ ngày'); $('#editToDate').focus(); return; }
 
-    const editLT   = $('#editLeaveType').val() || 'AL';
     const editDays = parseFloat($('#editTotalDays').val()) || 1;
     if (editLT !== 'AL' && !$('#editReason').val().trim()) {
         $('#editError').removeClass('d-none').text('Vui lòng nhập lý do nghỉ'); $('#editReason').focus(); return;

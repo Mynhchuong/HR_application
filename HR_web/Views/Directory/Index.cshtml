@@ -89,10 +89,30 @@
         .dept-badge .material-symbols-rounded { font-size: 0.9rem; }
 
         .workcd-image-wrap {
-            border-radius: 20px; overflow: hidden; margin-bottom: 1rem;
+            border-radius: 20px; overflow: hidden; margin-bottom: 1rem; background: #fff;
             box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.04);
         }
+        .workcd-image-caption {
+            font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #64748b;
+            padding: 0.75rem 1.25rem 0.5rem; letter-spacing: 0.05em;
+        }
         .workcd-image-wrap img { display: block; width: 100%; max-height: 220px; object-fit: cover; }
+        .workcd-image-fallback {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem;
+            padding: 2rem 1rem; color: #94a3b8; font-size: 0.85rem; font-weight: 600;
+        }
+
+        .dir-pagination {
+            display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+            margin: 0.75rem 0 1rem; flex-wrap: wrap;
+        }
+        .dir-page-btn {
+            display: inline-block; padding: 0.4rem 0.9rem; border-radius: 10px;
+            border: 1px solid #e2e8f0; color: #4f46e5; font-weight: 600; font-size: 0.85rem;
+            text-decoration: none; background: #fff;
+        }
+        .dir-page-btn.is-disabled { color: #cbd5e1; background: #f8fafc; pointer-events: none; }
+        .dir-page-current { font-size: 0.8rem; font-weight: 700; color: #64748b; }
 
         .group-title { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #64748b; padding: 1rem 1.25rem 0.5rem; letter-spacing: 0.05em; }
 
@@ -169,13 +189,19 @@
                 </div>
             </div>
 
-            @if (!string.IsNullOrWhiteSpace(emp.DeptCd) && !string.IsNullOrWhiteSpace(emp.LineCd) && !string.IsNullOrWhiteSpace(emp.WorkCd))
+            @if (!string.IsNullOrWhiteSpace(emp.InterestCd))
             {
                 <div id="workcd-image-wrap" class="workcd-image-wrap">
-                    <img id="workcd-image"
-                         src="@Url.Action("GetWorkCdImage", "Image", new { deptCd = emp.DeptCd, lineCd = emp.LineCd, workCd = emp.WorkCd })"
-                         alt=""
-                         onerror="document.getElementById('workcd-image-wrap').style.display='none';" />
+                    <div class="workcd-image-caption">Work Employee</div>
+                    <div id="workcd-image-fallback" class="workcd-image-fallback">
+                        <span class="material-symbols-rounded" style="font-size:1.8rem;">image</span>
+                        <div>HR chưa cập nhật hình ảnh</div>
+                    </div>
+                    <img id="workcd-image" style="display:none;"
+                         src="@Url.Action("GetWorkCdImage", "Image", new { interestCd = emp.InterestCd })"
+                         alt="Work Employee"
+                         onload="this.style.display='block';document.getElementById('workcd-image-fallback').style.display='none';"
+                         onerror="this.style.display='none';" />
                 </div>
             }
 
@@ -202,6 +228,24 @@
                     </div>
                 </div>
                 <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">construction</span></div>
+                    <div class="item-body">
+                        <div class="item-label">Work</div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(emp.InterestName))
+                    {
+                        <div class="item-value vni-font">@emp.InterestName</div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(emp.InterestCd))
+                    {
+                        <div class="item-value">@emp.InterestCd</div>
+                    }
+                    else
+                    {
+                        <div class="item-value" style="color:#94a3b8;font-weight:600;font-size:0.85rem;">HR hasn't updated yet</div>
+                    }
+                </div>
+                <div class="setting-item">
                     <div class="item-icon"><span class="material-symbols-rounded">work_history</span></div>
                     <div class="item-body">
                         <div class="item-label">Hire Date</div>
@@ -224,11 +268,14 @@
                 </div>
             </div>
 
-            @if (Model.ChangeHistory.Any())
+            <div class="group-title">Department / Line / Work Change History</div>
+            int historyTotalPages = Model.ChangeHistory.PageSize > 0
+                ? (int)Math.Ceiling(Model.ChangeHistory.Total / (double)Model.ChangeHistory.PageSize)
+                : 1;
+            @if (Model.ChangeHistory.Items.Any())
             {
-                <div class="group-title">Department / Line / Work Change History</div>
                 <div class="settings-group">
-                    @foreach (var h in Model.ChangeHistory)
+                    @foreach (var h in Model.ChangeHistory.Items)
                     {
                         <div class="history-item">
                             <div class="history-date">@(h.Dat?.ToString("dd/MM/yyyy") ?? "-")</div>
@@ -246,6 +293,40 @@
                                 </div>
                             </div>
                         </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="settings-group">
+                    <div class="dir-empty" style="padding: 2rem 1rem;">
+                        <span class="material-symbols-rounded" style="font-size:1.8rem;">history_toggle_off</span>
+                        <div class="mt-2" style="font-size:0.85rem;">No information yet</div>
+                    </div>
+                </div>
+            }
+
+            @if (historyTotalPages > 1)
+            {
+                bool historyAtFirst = Model.ChangeHistory.Page <= 1;
+                bool historyAtLast  = Model.ChangeHistory.Page >= historyTotalPages;
+                <div class="dir-pagination">
+                    @if (historyAtFirst)
+                    {
+                        <span class="dir-page-btn is-disabled">‹ Prev</span>
+                    }
+                    else
+                    {
+                        <a class="dir-page-btn" href="@Url.Action("Index", new { empCd = emp.EmpCd, historyPage = Model.ChangeHistory.Page - 1 })">‹ Prev</a>
+                    }
+                    <span class="dir-page-current">Page @Model.ChangeHistory.Page / @historyTotalPages</span>
+                    @if (historyAtLast)
+                    {
+                        <span class="dir-page-btn is-disabled">Next ›</span>
+                    }
+                    else
+                    {
+                        <a class="dir-page-btn" href="@Url.Action("Index", new { empCd = emp.EmpCd, historyPage = Model.ChangeHistory.Page + 1 })">Next ›</a>
                     }
                 </div>
             }

@@ -13,8 +13,9 @@ public class OTTodayModel
     public string? OT_AFTER_TIME { get; set; }
     public string? OT_REST { get; set; }
     public string? HAS_OT { get; set; }
-    public DateTime? START_OT { get; set; }       
-    public DateTime? END_OT { get; set; }         
+    public DateTime? START_OT { get; set; }
+    public DateTime? END_OT { get; set; }
+    public DateTime? SHIFT_END { get; set; }   // giờ tan ca hôm đó — mốc khoá cho OT trước ca
     public string? CONFIRM_STATUS { get; set; }
     public DateTime? CONFIRM_DATE { get; set; }
     public decimal SUM_WEEK { get; set; }

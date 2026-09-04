@@ -800,15 +800,7 @@ public class AccountController : ControllerBase
                 ) E ON E.STT = A.INTEREST AND E.RN = 1
                 WHERE A.EMPCD = :EMPCD";
 
-            var results = await _oracleService.ExecuteQueryAsync(sql, reader =>
-            {
-                // INTEREST lưu chung 1 chuỗi VD "Y80" = cờ Y/N (ký tự đầu) + mã STT (join sang EAM420 lấy TEN)
-                var hardworkStt = reader["HARDWORK_STT"]?.ToString();
-                var hardworkFlag = !string.IsNullOrEmpty(hardworkStt) && (hardworkStt[0] == 'Y' || hardworkStt[0] == 'N')
-                    ? hardworkStt[0].ToString()
-                    : null;
-
-                return new UserDetailModel
+            var results = await _oracleService.ExecuteQueryAsync(sql, reader => new UserDetailModel
             {
                 DeptCd = reader["DEPTCD"]?.ToString(),
                 LineCd = reader["LINECD"]?.ToString(),
@@ -828,8 +820,7 @@ public class AccountController : ControllerBase
                 Juminno      = reader["JUMINNO"]?.ToString(),
                 JuminnoDate  = reader["JUMINNO_DATE"]?.ToString(),
                 HireDate     = SafeToDate(reader["IGENTDAT"]),
-                Hardwork     = hardworkFlag,
-                HardworkStt  = hardworkStt,
+                HardworkStt  = reader["HARDWORK_STT"]?.ToString(),
                 HardworkTen  = reader["HARDWORK_TEN"]?.ToString(),
                 Address = string.Join(", ",
                     new[] {
@@ -837,7 +828,6 @@ public class AccountController : ControllerBase
                         reader["CODE_NAME3_N"]?.ToString()?.Trim(),
                         reader["CODE_NAME1_N"]?.ToString()?.Trim()
                     }.Where(s => !string.IsNullOrEmpty(s)))
-                };
             }, new OracleParameter("EMPCD", empCd.Trim()));
 
             var r = results.FirstOrDefault();

@@ -213,8 +213,8 @@ public class ImageController : BaseController
     }
 
     // ── Upload Home banner (chỉ HR/Admin) ──────────────────────────────────
-    // Banner popup chủ yếu xem trên mobile → ảnh DỌC 4:5 (1080×1350).
-    // Validate 4:5 (±2%), 1080×1350 ≤ w×h ≤ 2160×2700, ≤5MB, JPG/PNG/WebP
+    // Banner popup chủ yếu xem trên mobile → slot hiển thị 4:5 (1080×1350).
+    // Validate: ≤5MB, JPG/PNG/WebP. KHÔNG check tỉ lệ / kích thước — nhận mọi ảnh.
     // Auto-resize về 1080×1350 q=85 JPEG
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -245,25 +245,17 @@ public class ImageController : BaseController
 
             int w = image.Width, h = image.Height;
 
-            // 3. Dimensions (ảnh dọc 4:5)
-            if (w < 1080 || h < 1350)
-                return Json(new { success = false, message = $"Ảnh {w}×{h} quá nhỏ. Tối thiểu 1080×1350 (khuyến nghị 1080×1350)" });
-            if (w > 2160 || h > 2700)
-                return Json(new { success = false, message = $"Ảnh {w}×{h} quá lớn. Tối đa 2160×2700" });
-
-            // 4. Aspect ratio 4:5 ±2%
-            double ratio  = (double)w / h;
-            double target = 4.0 / 5.0;
-            if (Math.Abs(ratio - target) > 0.02 * target)
-                return Json(new { success = false, message = $"Tỉ lệ ảnh sai ({w}×{h}). Cần tỉ lệ 4:5 (ảnh dọc) — crop lại 1080×1350" });
-
-            // 5. Resize về 1080×1350 nếu khác
+            // 3. Resize về 1080×1350 nếu khác (nhận mọi tỉ lệ / kích thước)
             if (w != 1080 || h != 1350)
             {
-                image.Mutate(x => x.Resize(1080, 1350));
+                image.Mutate(x => x.Resize(new ResizeOptions
+                {
+                    Size = new SixLabors.ImageSharp.Size(1080, 1350),
+                    Mode = ResizeMode.Crop   // fill slot 4:5, crop phần thừa thay vì bóp méo
+                }));
             }
 
-            // 6. Save JPEG q=85 vào share folder
+            // 4. Save JPEG q=85 vào share folder
             var fileName = "banner_" + Guid.NewGuid().ToString("N") + ".jpg";
             var savePath = Path.Combine(HomeBannerFolder, fileName);
 
@@ -466,10 +458,12 @@ public class ImageController : BaseController
         return null;
     }
 
-    // ── Hình minh hoạ theo work cd (Dept+Line+Work) ─────────────────────────
-    // Tên file chuẩn: {DEPTCD}_{LINECD}_{WORKCD}.jpg — xem GetWorkCdKey().
-    internal static string GetWorkCdKey(string deptCd, string lineCd, string workCd)
-        => $"{deptCd}_{lineCd}_{workCd}.jpg";
+    // ── Hình minh hoạ theo mã công việc (ECM100.INTEREST, VD Y80) ───────────
+    // Tên file chuẩn: {INTEREST_CD}.jpg — xem GetWorkCdKey().
+    private static readonly System.Text.RegularExpressions.Regex InterestCdPattern =
+        new(@"^[A-Za-z0-9]{1,10}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    internal static string GetWorkCdKey(string interestCd) => $"{interestCd}.jpg";
 
     // Check hàng loạt xem file đã tồn tại chưa - mở 1 phiên network share dùng chung cho cả danh sách.
     internal static HashSet<string> CheckWorkCdImagesExist(IEnumerable<string> fileNames)
@@ -491,15 +485,15 @@ public class ImageController : BaseController
     }
 
     [HttpGet, AllowAnonymous]
-    public IActionResult GetWorkCdImage(string deptCd, string lineCd, string workCd)
+    public IActionResult GetWorkCdImage(string interestCd)
     {
-        if (string.IsNullOrWhiteSpace(deptCd) || string.IsNullOrWhiteSpace(lineCd) || string.IsNullOrWhiteSpace(workCd))
+        if (string.IsNullOrWhiteSpace(interestCd) || !InterestCdPattern.IsMatch(interestCd))
             return BadRequest();
-        var fileName = GetWorkCdKey(deptCd, lineCd, workCd);
+        var fileName = GetWorkCdKey(interestCd);
         return ServeNetworkImage(Path.Combine(WorkCdFolder, fileName), fileName);
     }
 
-    // Lưu nhiều ảnh cùng lúc. Mỗi file phải đặt tên đúng {DEPTCD}_{LINECD}_{WORKCD}.<ext>
+    // Lưu nhiều ảnh cùng lúc. Mỗi file phải đặt tên đúng {INTEREST_CD}.<ext>
     // (phần mở rộng không quan trọng, sẽ được convert về JPEG khi lưu).
     // Helper thuần (không phải action) - dùng chung cho WorkCdImageController.
     internal static async Task<(int savedCount, List<string> matched, List<object> skipped)> SaveWorkCdImagesAsync(List<IFormFile> files)
@@ -530,16 +524,15 @@ public class ImageController : BaseController
                     continue;
                 }
 
-                var parts = baseName.Split('_');
-                if (parts.Length != 3 || parts.Any(string.IsNullOrWhiteSpace))
+                if (!InterestCdPattern.IsMatch(baseName))
                 {
-                    skipped.Add(new { file = file.FileName, reason = "Tên file không đúng mẫu DEPTCD_LINECD_WORKCD" });
+                    skipped.Add(new { file = file.FileName, reason = "Tên file không đúng mẫu {mã công việc}.jpg, VD: Y80.jpg" });
                     continue;
                 }
 
                 try
                 {
-                    var savePath = Path.Combine(WorkCdFolder, GetWorkCdKey(parts[0], parts[1], parts[2]));
+                    var savePath = Path.Combine(WorkCdFolder, GetWorkCdKey(baseName));
                     using var stream = file.OpenReadStream();
                     using var image = await SixLabors.ImageSharp.Image.LoadAsync(stream);
                     await using var fs = new FileStream(savePath, FileMode.Create);

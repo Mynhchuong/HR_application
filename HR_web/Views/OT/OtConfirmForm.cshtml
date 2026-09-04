@@ -410,6 +410,12 @@
 
                 @if (Model.IS_EDITABLE)
                 {
+                    // Mốc khoá client (khoá form live không cần reload):
+                    //  - Tăng ca TRƯỚC ca: giờ tan ca hôm đó (cho xác nhận suốt ca).
+                    //  - Tăng ca SAU ca : giờ OT bắt đầu.
+                    var isBeforeOt = Model.OT_BEFORE == "Y";
+                    var lockAt = isBeforeOt ? Model.SHIFT_END : Model.START_OT;
+
                     <div class="note-box" id="otNoteBox">
                         <img src="~/assets/img/illustrations/chi.png" class="note-icon" alt="Note" />
                         <div class="note-text">
@@ -420,12 +426,14 @@
                     <div id="otLockedBox" class="note-box d-none" style="background:#fef2f2; border-color:#fecaca;">
                         <span class="material-symbols-rounded" style="color:#dc2626; font-size:1.75rem; flex-shrink:0;">lock_clock</span>
                         <div class="note-text" style="color:#991b1b;">
-                            Đã tới giờ tăng ca, bạn không thể xác nhận hoặc đổi ý nữa.
+                            @(isBeforeOt
+                                ? "Đã hết giờ làm việc, bạn không thể xác nhận hoặc đổi ý tăng ca nữa."
+                                : "Đã tới giờ tăng ca, bạn không thể xác nhận hoặc đổi ý nữa.")
                         </div>
                     </div>
 
                     <form asp-controller="OT" asp-action="OtConfirmForm" method="post" id="frmOtConfirm"
-                          data-start-ot="@(Model.START_OT.HasValue ? Model.START_OT.Value.ToString("yyyy-MM-ddTHH:mm:ss") : "")">
+                          data-lock-at="@(lockAt.HasValue ? lockAt.Value.ToString("yyyy-MM-ddTHH:mm:ss") : "")">
                         <input type="hidden" name="empcd" value="@Model.EMPCD" />
                         <input type="hidden" name="work_date" value="@ViewBag.WorkDate" />
                         <input type="hidden" name="ot_hours" value="@Model.OT_HOURS" />
@@ -486,10 +494,10 @@
     function checkOtLock() {
         const form = document.getElementById('frmOtConfirm');
         if (!form) return;
-        const startOtStr = form.dataset.startOt;
-        if (!startOtStr) return;
-        const startOt = new Date(startOtStr);
-        if (isNaN(startOt.getTime()) || new Date() < startOt) return;
+        const lockAtStr = form.dataset.lockAt;
+        if (!lockAtStr) return;
+        const lockAt = new Date(lockAtStr);
+        if (isNaN(lockAt.getTime()) || new Date() < lockAt) return;
 
         _otLocked = true;
         document.getElementById('otNoteBox')?.classList.add('d-none');

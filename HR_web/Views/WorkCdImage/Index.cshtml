@@ -1,11 +1,7 @@
 @model HR_web.Models.Directory.WorkCdListResult
-@using HR_web.Models.Directory
 @{
     ViewData["Title"] = "Work Position Images";
-    var depts = (List<DeptOptionModel>)(ViewBag.Depts ?? new List<DeptOptionModel>());
-    var lines = (List<LineOptionModel>)(ViewBag.Lines ?? new List<LineOptionModel>());
-    string deptCd = ViewBag.DeptCd ?? "";
-    string lineCd = ViewBag.LineCd ?? "";
+    string search = ViewBag.Search ?? "";
     bool missingOnly = ViewBag.MissingOnly ?? false;
     int totalPages = ViewBag.TotalPages ?? 1;
 }
@@ -43,7 +39,7 @@
     <div class="card my-4 mb-5">
         <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
             <div class="bg-gradient-success shadow-success border-radius-lg pt-3 pb-2 px-3">
-                <h6 class="text-white mb-0"><i class="bi bi-image me-1"></i> Work Position Images (Dept / Line / Work)</h6>
+                <h6 class="text-white mb-0"><i class="bi bi-image me-1"></i> Work Position Images (theo mã công việc)</h6>
             </div>
         </div>
         <div class="card-body px-4 pb-3 pt-4">
@@ -72,35 +68,19 @@
             <!-- FILTER -->
             <form id="filterForm" method="get" class="row g-2 align-items-end mb-3">
                 <input type="hidden" name="page" id="hiddenPage" value="1" />
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold mb-0 text-primary">Phòng ban</label>
-                    <select name="deptCd" id="deptCd" class="form-control"
-                            onchange="document.getElementById('lineCd').value='';document.getElementById('hiddenPage').value=1;document.getElementById('filterForm').submit();">
-                        <option value="">Tất cả</option>
-                        @foreach (var d in depts)
-                        {
-                            <option value="@d.DeptCd" selected="@(d.DeptCd == deptCd)">@d.DeptName</option>
-                        }
-                    </select>
+                <div class="col-md-8">
+                    <label class="form-label small fw-bold mb-0 text-primary">Tìm kiếm</label>
+                    <input type="text" name="search" value="@search" class="form-control" placeholder="Mã công việc hoặc tên công việc..." />
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold mb-0 text-primary">Chuyền (Line)</label>
-                    <select name="lineCd" id="lineCd" class="form-control"
-                            onchange="document.getElementById('hiddenPage').value=1;document.getElementById('filterForm').submit();">
-                        <option value="">Tất cả</option>
-                        @foreach (var l in lines)
-                        {
-                            <option value="@l.LineCd" selected="@(l.LineCd == lineCd)">@l.LineName</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-md-4 d-flex align-items-center">
+                <div class="col-md-2 d-flex align-items-center">
                     <div class="form-check form-switch mb-0">
                         <input class="form-check-input" type="checkbox" role="switch" name="missingOnly" value="true" id="missingOnly"
-                               @(missingOnly ? "checked" : "")
-                               onchange="document.getElementById('hiddenPage').value=1;document.getElementById('filterForm').submit();" />
+                               @(missingOnly ? "checked" : "") />
                         <label class="form-check-label small fw-bold text-danger" for="missingOnly">Chỉ hiện chưa có hình</label>
                     </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-dark w-100 mb-0">Lọc</button>
                 </div>
             </form>
 
@@ -108,13 +88,12 @@
             <div class="alert alert-info small mb-2">
                 <i class="bi bi-info-circle me-1"></i>
                 <b>Thêm hàng loạt:</b> đặt tên từng file ảnh đúng theo cột <b>Tên file cần đặt</b> trong bảng bên dưới
-                (mẫu <code>DEPTCD_LINECD_WORKCD.jpg</code>), bấm nút <i class="bi bi-clipboard"></i> để copy tên,
+                (mẫu <code>{MÃ CÔNG VIỆC}.jpg</code>, VD <code>Y80.jpg</code>), bấm nút <i class="bi bi-clipboard"></i> để copy tên,
                 rồi chọn tất cả file cùng lúc và bấm <b>Tải lên</b> — hệ thống tự khớp theo tên file, không cần thêm từng cái.
             </div>
             <form method="post" asp-action="UploadBulk" enctype="multipart/form-data" class="d-flex gap-2 align-items-center mb-4 flex-wrap">
                 @Html.AntiForgeryToken()
-                <input type="hidden" name="deptCd" value="@deptCd" />
-                <input type="hidden" name="lineCd" value="@lineCd" />
+                <input type="hidden" name="search" value="@search" />
                 <input type="hidden" name="missingOnly" value="@missingOnly" />
                 <input type="hidden" name="page" value="@Model.Page" />
                 <input type="file" name="files" multiple accept="image/jpeg,image/png,image/webp" class="form-control" style="max-width:420px;" required />
@@ -122,7 +101,7 @@
             </form>
 
             <div class="small text-muted mb-2">
-                Tổng <b>@Model.Total</b> vị trí — trang @Model.Page/@totalPages
+                Tổng <b>@Model.Total</b> mã công việc — trang @Model.Page/@totalPages
             </div>
 
             <!-- TABLE -->
@@ -131,9 +110,8 @@
                     <thead>
                         <tr class="text-xs text-secondary text-uppercase">
                             <th style="width:64px;">Ảnh</th>
-                            <th>Phòng ban</th>
-                            <th>Chuyền</th>
-                            <th>Vị trí</th>
+                            <th>Mã công việc</th>
+                            <th>Tên công việc</th>
                             <th>Tên file cần đặt</th>
                             <th style="width:130px;">Trạng thái</th>
                         </tr>
@@ -146,7 +124,7 @@
                                     <div class="wcd-thumb">
                                         @if (item.HasImage)
                                         {
-                                            <img src="@Url.Action("GetWorkCdImage", "Image", new { deptCd = item.DeptCd, lineCd = item.LineCd, workCd = item.WorkCd })" />
+                                            <img src="@Url.Action("GetWorkCdImage", "Image", new { interestCd = item.InterestCd })" />
                                         }
                                         else
                                         {
@@ -154,9 +132,8 @@
                                         }
                                     </div>
                                 </td>
-                                <td class="small fw-bold vni-font">@item.DeptName</td>
-                                <td class="small vni-font">@item.LineName</td>
-                                <td class="small vni-font">@item.WorkName</td>
+                                <td class="small fw-bold">@item.InterestCd</td>
+                                <td class="small vni-font">@item.InterestName</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-1">
                                         <code class="small" style="font-size:.72rem;">@item.ImageFileName</code>
@@ -202,7 +179,7 @@
                     }
                     else
                     {
-                        <a class="wcd-page-btn" href="@Url.Action("Index", new { deptCd, lineCd, missingOnly, page = Model.Page - 1 })">‹ Trước</a>
+                        <a class="wcd-page-btn" href="@Url.Action("Index", new { search, missingOnly, page = Model.Page - 1 })">‹ Trước</a>
                     }
                     <span class="wcd-page-current">Trang @Model.Page / @totalPages</span>
                     @if (atLast)
@@ -211,7 +188,7 @@
                     }
                     else
                     {
-                        <a class="wcd-page-btn" href="@Url.Action("Index", new { deptCd, lineCd, missingOnly, page = Model.Page + 1 })">Sau ›</a>
+                        <a class="wcd-page-btn" href="@Url.Action("Index", new { search, missingOnly, page = Model.Page + 1 })">Sau ›</a>
                     }
                 </div>
             }

@@ -10,14 +10,15 @@ namespace HR_web.Controllers;
 public class DirectoryController : BaseController
 {
     private readonly DirectoryService _service;
+    private const int HistoryPageSize = 5;
 
     public DirectoryController(DirectoryService service)
     {
         _service = service;
     }
 
-    // GET: /Directory/Index?empCd=xxx
-    public async Task<IActionResult> Index(string? empCd)
+    // GET: /Directory/Index?empCd=xxx&historyPage=1
+    public async Task<IActionResult> Index(string? empCd, int historyPage = 1)
     {
         if (string.IsNullOrWhiteSpace(empCd))
             return View(new DirectoryPageModel());
@@ -25,7 +26,7 @@ public class DirectoryController : BaseController
         try
         {
             var employeeTask = _service.GetEmployeeAsync(empCd.Trim());
-            var historyTask = _service.GetChangeHistoryAsync(empCd.Trim());
+            var historyTask = _service.GetChangeHistoryAsync(empCd.Trim(), historyPage, HistoryPageSize);
             await Task.WhenAll(employeeTask, historyTask);
 
             var employee = employeeTask.Result;

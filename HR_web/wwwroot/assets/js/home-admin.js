@@ -215,7 +215,7 @@
             $('#bannerId').value = '';
             $('#bannerImageFile').value = '';
             $('#bannerPreview').innerHTML = '<div class="admin-upload-placeholder">Chưa có ảnh/video</div>';
-            $('#bannerUploadHint').textContent = 'Ảnh: 1080×1350 (4:5, ảnh dọc), ≤ 5MB. Video: MP4, ≤ 30 giây, ≤ 50MB.';
+            $('#bannerUploadHint').textContent = 'Ảnh: JPG/PNG/WebP ≤ 5MB (server tự resize về 1080×1350). Video: MP4, ≤ 30 giây, ≤ 50MB.';
             $('#bannerUploadHint').className = 'admin-upload-hint';
             $('#bannerFormError').hidden = true;
             $('#bannerRecurType').value = '';
@@ -408,21 +408,13 @@
                 img.onerror = () => reject(new Error('Không đọc được ảnh'));
                 img.src = URL.createObjectURL(file);
             });
-            if (dim.w < 1080 || dim.h < 1350)
-                return { ok: false, msg: `Ảnh ${dim.w}×${dim.h} quá nhỏ (min 1080×1350)` };
-            if (dim.w > 2160 || dim.h > 2700)
-                return { ok: false, msg: `Ảnh ${dim.w}×${dim.h} quá lớn (max 2160×2700)` };
 
-            const ratio       = dim.w / dim.h;
-            const targetRatio = 4 / 5;
-            if (Math.abs(ratio - targetRatio) > 0.02 * targetRatio)
-                return { ok: false, msg: `Tỉ lệ sai (${dim.w}×${dim.h} = ${ratio.toFixed(2)}). Cần 4:5 ảnh dọc — crop 1080×1350` };
-
+            // Nhận mọi tỉ lệ / kích thước — server sẽ tự resize + crop về 1080×1350
             return {
                 ok: true,
                 info: dim.w === 1080 && dim.h === 1350
                     ? '✅ Kích thước chuẩn 1080×1350'
-                    : `✅ Tỉ lệ 4:5 OK, server sẽ resize (${dim.w}×${dim.h})`
+                    : `✅ Server sẽ resize về 1080×1350 (gốc ${dim.w}×${dim.h})`
             };
         }
 

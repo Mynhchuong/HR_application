@@ -52,6 +52,8 @@ public class DirectoryController : ControllerBase
                     A.DEPTNM,
                     A.LINENM,
                     A.WORKNM,
+                    A.INTEREST,
+                    F.TEN AS INTEREST_NAME,
                     C.ENGFNM AS WORKCD_NAME,
                     A.SHIFT_TYPE,
                     A.NEW_DEPTCD,
@@ -78,6 +80,7 @@ public class DirectoryController : ControllerBase
                         A.LINECD,
                         A.WORKCD,
                         A.WORKCD_CODE,
+                        A.INTEREST,
                         E.SHIFT_TYPE,
                         B.NEW_DEPTCD,
                         B.NEW_LINECD,
@@ -111,7 +114,14 @@ public class DirectoryController : ControllerBase
                     AND C.CODEID = A.WORKCD_CODE
                 LEFT JOIN HRMS.SAD100 E
                     ON E.CODETP = 'E103'
-                    AND E.CODEID = A.JIKWICD";
+                    AND E.CODEID = A.JIKWICD
+                LEFT JOIN (
+                    -- Danh mục: mỗi mã INTEREST (VD Y80) có 1 dòng gốc chứa TEN (tên công việc, VD QUÉT KEO)
+                    SELECT STT, TEN,
+                           ROW_NUMBER() OVER (PARTITION BY STT ORDER BY MONTHID DESC) RN
+                    FROM HRMS.EAM420
+                    WHERE TEN IS NOT NULL
+                ) F ON F.STT = A.INTEREST AND F.RN = 1";
 
             var results = await _oracleService.ExecuteQueryAsync(sql, reader => new EmployeeDirectoryModel
             {
@@ -135,6 +145,8 @@ public class DirectoryController : ControllerBase
                 LineName       = reader["LINENM"]?.ToString(),
                 WorkName       = reader["WORKNM"]?.ToString(),
                 WorkCdNameEn   = reader["WORKCD_NAME"]?.ToString(),
+                InterestCd     = reader["INTEREST"]?.ToString(),
+                InterestName   = reader["INTEREST_NAME"]?.ToString(),
                 ShiftType      = reader["SHIFT_TYPE"]?.ToString(),
                 NewDeptCd      = reader["NEW_DEPTCD"]?.ToString(),
                 NewLineCd      = reader["NEW_LINECD"]?.ToString(),
@@ -152,14 +164,20 @@ public class DirectoryController : ControllerBase
         }
     }
 
-    // GET apiHR/Directory/change-history?empCd=xxx
-    // Lịch sử chuyển dept/line/work của nhân viên (toàn bộ, không giới hạn theo ngày hôm nay).
+    // GET apiHR/Directory/change-history?empCd=xxx&page=1&pageSize=5
+    // Lịch sử chuyển dept/line/work của nhân viên (toàn bộ, không giới hạn theo ngày hôm nay), có phân trang.
     [HttpGet("change-history")]
-    public async Task<IActionResult> GetChangeHistory(string empCd)
+    public async Task<IActionResult> GetChangeHistory(string empCd, int page = 1, int pageSize = 5)
     {
         try
         {
             if (string.IsNullOrWhiteSpace(empCd)) return BadRequest(new { error = "empCd is required" });
+            if (page < 1) page = 1;
+            if (pageSize < 1 || pageSize > 50) pageSize = 5;
+
+            var countSql = "SELECT COUNT(*) C FROM HRMS.TB_MASCHANGEWORK WHERE EMPCD = :EMPCD AND USEYN = 'Y'";
+            var countTask = _oracleService.ExecuteQueryAsync(countSql,
+                reader => Convert.ToInt32(reader["C"]), new OracleParameter("EMPCD", empCd.Trim()));
 
             string sql = @"
                 SELECT
@@ -171,7 +189,12 @@ public class DirectoryController : ControllerBase
                     NEWW.DEPTNM AS NEW_DEPTNM,
                     NEWW.TEAMNM AS NEW_LINENM,
                     NEWW.WORKNM AS NEW_WORKNM
-                FROM HRMS.TB_MASCHANGEWORK T
+                FROM (
+                    SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.DAT DESC, T.SEQ DESC) RN
+                    FROM HRMS.TB_MASCHANGEWORK T
+                    WHERE T.EMPCD = :EMPCD
+                    AND T.USEYN = 'Y'
+                ) T
                 LEFT JOIN HRMS.EAM410 OLDW
                     ON  T.DEPTCD = OLDW.DEPTCD
                     AND T.LINECD = OLDW.LINECD
@@ -180,11 +203,10 @@ public class DirectoryController : ControllerBase
                     ON  T.NEW_DEPTCD = NEWW.DEPTCD
                     AND T.NEW_LINECD = NEWW.LINECD
                     AND T.NEW_WORKCD = NEWW.WORKCD
-                WHERE T.EMPCD = :EMPCD
-                AND T.USEYN = 'Y'
+                WHERE T.RN BETWEEN :FROM_ROW AND :TO_ROW
                 ORDER BY T.DAT DESC, T.SEQ DESC";
 
-            var results = await _oracleService.ExecuteQueryAsync(sql, reader => new EmployeeChangeHistoryModel
+            var itemsTask = _oracleService.ExecuteQueryAsync(sql, reader => new EmployeeChangeHistoryModel
             {
                 Seq         = Convert.ToInt32(reader["SEQ"]),
                 Dat         = SafeToDate(reader["DAT"]),
@@ -194,9 +216,15 @@ public class DirectoryController : ControllerBase
                 NewDeptName = reader["NEW_DEPTNM"]?.ToString(),
                 NewLineName = reader["NEW_LINENM"]?.ToString(),
                 NewWorkName = reader["NEW_WORKNM"]?.ToString(),
-            }, new OracleParameter("EMPCD", empCd.Trim()));
+            },
+                new OracleParameter("EMPCD", empCd.Trim()),
+                new OracleParameter("FROM_ROW", (page - 1) * pageSize + 1),
+                new OracleParameter("TO_ROW", page * pageSize));
 
-            return Ok(results);
+            await Task.WhenAll(countTask, itemsTask);
+            int total = countTask.Result.FirstOrDefault();
+
+            return Ok(new { total, page, pageSize, items = itemsTask.Result });
         }
         catch (Exception ex)
         {
@@ -204,54 +232,45 @@ public class DirectoryController : ControllerBase
         }
     }
 
-    // GET apiHR/Directory/workcd-list?deptCd=&lineCd=&page=1&pageSize=50
-    // Danh sách toàn bộ tổ hợp Dept/Line/Work (dùng để quản lý hình minh hoạ theo work cd).
-    [HttpGet("workcd-list")]
-    public async Task<IActionResult> GetWorkCdList(string? deptCd, string? lineCd, int page = 1, int pageSize = 50)
+    // GET apiHR/Directory/interest-list?search=&page=1&pageSize=50
+    // Danh sách toàn bộ mã công việc (ECM100.INTEREST, VD Y80/QUÉT KEO) - dùng để quản lý hình minh hoạ.
+    [HttpGet("interest-list")]
+    public async Task<IActionResult> GetInterestList(string? search, int page = 1, int pageSize = 50)
     {
         try
         {
             if (page < 1) page = 1;
             if (pageSize < 1 || pageSize > 200) pageSize = 50;
 
-            var where = new List<string> { "USEYN = 'Y'" };
+            var where = new List<string> { "TEN IS NOT NULL" };
 
-            // OracleParameter không được dùng chung giữa 2 command khác nhau (ORA-50030),
-            // nên phải tạo instance MỚI cho mỗi lần gọi ExecuteQueryAsync -> dùng factory.
             List<OracleParameter> BuildParams()
             {
                 var p = new List<OracleParameter>();
-                if (!string.IsNullOrWhiteSpace(deptCd))
-                    p.Add(new OracleParameter("DEPTCD", deptCd.Trim()));
-                if (!string.IsNullOrWhiteSpace(lineCd))
-                    p.Add(new OracleParameter("LINECD", lineCd.Trim()));
+                if (!string.IsNullOrWhiteSpace(search))
+                    p.Add(new OracleParameter("SEARCH", "%" + search.Trim().ToUpper() + "%"));
                 return p;
             }
 
-            if (!string.IsNullOrWhiteSpace(deptCd))
-                where.Add("DEPTCD = :DEPTCD");
-            if (!string.IsNullOrWhiteSpace(lineCd))
-                where.Add("LINECD = :LINECD");
+            if (!string.IsNullOrWhiteSpace(search))
+                where.Add("(UPPER(STT) LIKE :SEARCH OR UPPER(TEN) LIKE :SEARCH)");
 
             string whereClause = string.Join(" AND ", where);
 
             var countSql = $@"
                 SELECT COUNT(*) C FROM (
-                    SELECT DISTINCT DEPTCD, LINECD, WORKCD, DEPTNM, TEAMNM, WORKNM
-                    FROM HRMS.EAM410 WHERE {whereClause}
+                    SELECT DISTINCT STT, TEN FROM HRMS.EAM420 WHERE {whereClause}
                 )";
             var totalResult = await _oracleService.ExecuteQueryAsync(countSql, reader => Convert.ToInt32(reader["C"]), BuildParams().ToArray());
             int total = totalResult.FirstOrDefault();
 
             var sql = $@"
-                SELECT DEPTCD, LINECD, WORKCD, DEPTNM, TEAMNM, WORKNM FROM (
-                    SELECT DEPTCD, LINECD, WORKCD, DEPTNM, TEAMNM, WORKNM,
-                           ROW_NUMBER() OVER (ORDER BY DEPTNM, TEAMNM, WORKNM) RN
-                    FROM (SELECT DISTINCT DEPTCD, LINECD, WORKCD, DEPTNM, TEAMNM, WORKNM
-                          FROM HRMS.EAM410 WHERE {whereClause})
+                SELECT STT, TEN FROM (
+                    SELECT STT, TEN, ROW_NUMBER() OVER (ORDER BY TEN) RN
+                    FROM (SELECT DISTINCT STT, TEN FROM HRMS.EAM420 WHERE {whereClause})
                 )
                 WHERE RN BETWEEN :FROM_ROW AND :TO_ROW
-                ORDER BY DEPTNM, TEAMNM, WORKNM";
+                ORDER BY TEN";
 
             var pageParams = BuildParams();
             pageParams.Add(new OracleParameter("FROM_ROW", (page - 1) * pageSize + 1));
@@ -259,12 +278,8 @@ public class DirectoryController : ControllerBase
 
             var items = await _oracleService.ExecuteQueryAsync(sql, reader => new WorkCdItemModel
             {
-                DeptCd   = reader["DEPTCD"]?.ToString() ?? "",
-                LineCd   = reader["LINECD"]?.ToString() ?? "",
-                WorkCd   = reader["WORKCD"]?.ToString() ?? "",
-                DeptName = reader["DEPTNM"]?.ToString(),
-                LineName = reader["TEAMNM"]?.ToString(),
-                WorkName = reader["WORKNM"]?.ToString(),
+                InterestCd   = reader["STT"]?.ToString() ?? "",
+                InterestName = reader["TEN"]?.ToString(),
             }, pageParams.ToArray());
 
             return Ok(new { total, page, pageSize, items });
@@ -273,35 +288,6 @@ public class DirectoryController : ControllerBase
         {
             return StatusCode(500, new { error = ex.Message });
         }
-    }
-
-    // GET apiHR/Directory/dept-list - danh sách dept cho dropdown filter
-    [HttpGet("dept-list")]
-    public async Task<IActionResult> GetDeptList()
-    {
-        var items = await _oracleService.ExecuteQueryAsync(
-            "SELECT DISTINCT DEPTCD, DEPTNM FROM HRMS.EAM410 WHERE USEYN = 'Y' ORDER BY DEPTNM",
-            reader => new { DeptCd = reader["DEPTCD"]?.ToString(), DeptName = reader["DEPTNM"]?.ToString() });
-        return Ok(items);
-    }
-
-    // GET apiHR/Directory/line-list?deptCd= - danh sách line cho dropdown filter (lọc theo dept nếu có)
-    [HttpGet("line-list")]
-    public async Task<IActionResult> GetLineList(string? deptCd)
-    {
-        var where = "USEYN = 'Y'";
-        var parameters = new List<OracleParameter>();
-        if (!string.IsNullOrWhiteSpace(deptCd))
-        {
-            where += " AND DEPTCD = :DEPTCD";
-            parameters.Add(new OracleParameter("DEPTCD", deptCd.Trim()));
-        }
-
-        var items = await _oracleService.ExecuteQueryAsync(
-            $"SELECT DISTINCT LINECD, TEAMNM FROM HRMS.EAM410 WHERE {where} ORDER BY TEAMNM",
-            reader => new { LineCd = reader["LINECD"]?.ToString(), LineName = reader["TEAMNM"]?.ToString() },
-            parameters.ToArray());
-        return Ok(items);
     }
 
     private static DateTime? SafeToDate(object value)

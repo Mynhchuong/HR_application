@@ -92,9 +92,8 @@ public class UserDetailModel
     public string? Juminno { get; set; }        // CCCD
     public string? JuminnoDate { get; set; }    // Ngày cấp CCCD (YYYYMMDD)
     public DateTime? HireDate { get; set; }     // Ngày đầu tiên làm ở công ty (IGENTDAT)
-    public string? Hardwork { get; set; }       // EAM420.HARDWORK (Y/N) - dòng mới nhất theo MONTHID
-    public string? HardworkStt { get; set; }    // EAM420.STT (mã)
-    public string? HardworkTen { get; set; }    // EAM420.TEN (tên công việc nặng nhọc, VD: QUÉT KEO)
+    public string? HardworkStt { get; set; }    // ECM100.INTEREST - mã công việc (VD Y80)
+    public string? HardworkTen { get; set; }    // EAM420.TEN tương ứng (VD QUÉT KEO)
 }
 
 public class UpdateSignatureRequest

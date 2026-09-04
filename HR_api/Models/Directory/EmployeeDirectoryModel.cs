@@ -25,6 +25,9 @@ public class EmployeeDirectoryModel
     public string? WorkName { get; set; }
     public string? WorkCdNameEn { get; set; }      // C.ENGFNM AS WORKCD_NAME
 
+    public string? InterestCd { get; set; }        // ECM100.INTEREST - mã công việc (VD Y80), dùng để map ảnh
+    public string? InterestName { get; set; }      // EAM420.TEN tương ứng (VD QUÉT KEO)
+
     public string? ShiftType { get; set; }
 
     public string? NewDeptCd { get; set; }

@@ -18,6 +18,7 @@ public class OTTodayModel
     public DateTime? CONFIRM_DATE { get; set; }
     public DateTime? START_OT { get; set; }
     public DateTime? END_OT { get; set; }
+    public DateTime? SHIFT_END { get; set; }   // giờ tan ca — mốc khoá cho OT trước ca
     public bool IS_EDITABLE { get; set; } = true;
     public bool HOURS_UPDATED { get; set; }
     public decimal? PREV_OT_HOURS { get; set; }

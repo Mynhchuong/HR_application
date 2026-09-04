@@ -163,6 +163,44 @@ const MY_EMPCD  = '@(me?.EmpCd ?? "")';
 let pageSize    = 30;
 let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false;
 
+// --- Ghi nhớ trang / bộ lọc để khi từ Chat quay lại không bị nhảy về trang 1 ---
+const LIST_STATE_KEY = 'hrInquiryListState';
+const LIST_STATE_TTL = 30 * 60 * 1000; // 30 phút
+
+function saveListState() {
+    try {
+        sessionStorage.setItem(LIST_STATE_KEY, JSON.stringify({
+            ts:        Date.now(),
+            page:      currentPage,
+            pageSize:  pageSize,
+            fStatus:   document.getElementById('fStatus').value,
+            fChatType: document.getElementById('fChatType').value,
+            fTopic:    document.getElementById('fTopic').value,
+            fAssigned: document.getElementById('fAssigned').value,
+            fSort:     document.getElementById('fSort').value,
+            fSearch:   document.getElementById('fSearch').value
+        }));
+    } catch {}
+}
+
+function readListState() {
+    try {
+        const st = JSON.parse(sessionStorage.getItem(LIST_STATE_KEY) || 'null');
+        if (!st || !st.ts || (Date.now() - st.ts) > LIST_STATE_TTL) return null;
+        return st;
+    } catch { return null; }
+}
+
+function setSelectValue(id, v) {
+    const el = document.getElementById(id);
+    if (!el || v == null) return;
+    if (el.tagName === 'SELECT') {
+        if (Array.from(el.options).some(o => o.value === v)) el.value = v;
+    } else {
+        el.value = v;
+    }
+}
+
 const AUTO_RELOAD_MS = 30000;
 let autoTimer       = null;
 let prevUnread      = null;
@@ -271,6 +309,7 @@ async function loadData(page = 1, silent = false) {
         }
         renderPagination();
         updateAutoStatus();
+        saveListState();
     } catch { if (!silent) showToast('Lỗi kết nối', 'error'); }
     finally { isLoading = false; }
 }
@@ -384,23 +423,38 @@ async function loadTopics() {
     } catch {}
 }
 
-// Apply querystring filter (dùng cho link từ Home HR dashboard: /HrInquiry/Index?status=OPEN&assigned=UNASSIGNED)
-(function () {
-    const p = new URLSearchParams(window.location.search);
-    const st = p.get('status');
-    const as = p.get('assigned');
-    if (st) {
-        const el = document.getElementById('fStatus');
-        if (el && Array.from(el.options).some(o => o.value === st)) el.value = st;
-    }
-    if (as) {
-        const el = document.getElementById('fAssigned');
-        if (el && Array.from(el.options).some(o => o.value === as)) el.value = as;
-    }
-})();
+// Khởi tạo: ưu tiên querystring (link từ Home HR dashboard), nếu không thì khôi phục
+// trang / bộ lọc đã lưu để quay lại từ màn hình Chat không bị nhảy về trang 1.
+(async function init() {
+    const p        = new URLSearchParams(window.location.search);
+    const qsStatus = p.get('status');
+    const qsAssign = p.get('assigned');
+    const hasQs    = !!(qsStatus || qsAssign);
 
-loadTopics();
-loadData(1);
-startAutoReload();
+    await loadTopics();
+
+    let startPage = 1;
+
+    if (hasQs) {
+        setSelectValue('fStatus',   qsStatus);
+        setSelectValue('fAssigned', qsAssign);
+        try { sessionStorage.removeItem(LIST_STATE_KEY); } catch {}
+    } else {
+        const st = readListState();
+        if (st) {
+            if (st.pageSize) { pageSize = st.pageSize; setSelectValue('fPageSize', String(st.pageSize)); }
+            setSelectValue('fStatus',   st.fStatus);
+            setSelectValue('fChatType', st.fChatType);
+            setSelectValue('fTopic',    st.fTopic);
+            setSelectValue('fAssigned', st.fAssigned);
+            setSelectValue('fSort',     st.fSort);
+            setSelectValue('fSearch',   st.fSearch);
+            startPage = st.page || 1;
+        }
+    }
+
+    loadData(startPage);
+    startAutoReload();
+})();
 </script>
 }

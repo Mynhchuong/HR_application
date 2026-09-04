@@ -13,3 +13,11 @@ public class EmployeeChangeHistoryModel
     public string? NewLineName { get; set; }
     public string? NewWorkName { get; set; }
 }
+
+public class EmployeeChangeHistoryListResult
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<EmployeeChangeHistoryModel> Items { get; set; } = new();
+}

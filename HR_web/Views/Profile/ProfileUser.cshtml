@@ -183,13 +183,18 @@
         </div>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(Model.DeptCd) && !string.IsNullOrWhiteSpace(Model.LineCd) && !string.IsNullOrWhiteSpace(Model.WorkCd))
+    @if (!string.IsNullOrWhiteSpace(Model.HardworkStt))
     {
-        <div id="workcd-image-wrap" style="border-radius:20px;overflow:hidden;margin-bottom:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.04);">
-            <img id="workcd-image"
-                 src="@Url.Action("GetWorkCdImage", "Image", new { deptCd = Model.DeptCd, lineCd = Model.LineCd, workCd = Model.WorkCd })"
-                 alt="" style="display:block;width:100%;max-height:220px;object-fit:cover;"
-                 onerror="document.getElementById('workcd-image-wrap').style.display='none';" />
+        <div id="workcd-image-wrap" style="border-radius:20px;overflow:hidden;margin-bottom:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.04);background:#fff;">
+            <div id="workcd-image-fallback" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem;padding:2rem 1rem;color:#94a3b8;font-size:.85rem;font-weight:600;">
+                <span class="material-symbols-rounded" style="font-size:1.8rem;">image</span>
+                <div>HR chưa cập nhật hình ảnh</div>
+            </div>
+            <img id="workcd-image" style="display:none;width:100%;max-height:220px;object-fit:cover;"
+                 src="@Url.Action("GetWorkCdImage", "Image", new { interestCd = Model.HardworkStt })"
+                 alt=""
+                 onload="this.style.display='block';document.getElementById('workcd-image-fallback').style.display='none';"
+                 onerror="this.style.display='none';" />
         </div>
     }
 
@@ -261,19 +266,22 @@
             <div class="item-value">@(Model.HireDate?.ToString("dd/MM/yyyy") ?? "-")</div>
         </div>
         <div class="setting-item">
-            <div class="item-icon"><span class="material-symbols-rounded">military_tech</span></div>
+            <div class="item-icon"><span class="material-symbols-rounded">construction</span></div>
             <div class="item-content">
-                <div class="item-label">Công việc nặng nhọc</div>
-                @if (Model.Hardwork == "Y" && !string.IsNullOrWhiteSpace(Model.HardworkTen))
-                {
-                    <div class="item-description vni-font">@Model.HardworkTen</div>
-                }
-                else
-                {
-                    <div class="item-description">Đánh giá của phòng Nhân sự</div>
-                }
+                <div class="item-label">Work</div>
             </div>
-            <div class="item-value">@(Model.Hardwork == "Y" ? "Có" : "Không")</div>
+            @if (!string.IsNullOrWhiteSpace(Model.HardworkTen))
+            {
+                <div class="item-value vni-font">@Model.HardworkTen</div>
+            }
+            else if (!string.IsNullOrWhiteSpace(Model.HardworkStt))
+            {
+                <div class="item-value">@Model.HardworkStt</div>
+            }
+            else
+            {
+                <div class="item-value" style="color:#94a3b8;font-weight:600;font-size:0.85rem;">HR chưa cập nhật</div>
+            }
         </div>
     </div>
 

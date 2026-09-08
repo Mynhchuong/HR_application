@@ -133,6 +133,20 @@ public class OTAdminBulkSignForRequest
     public List<OTAdminSignForItem> ITEMS { get; set; } = new();
 }
 
+// Ký giùm NHIỀU NV × NHIỀU NGÀY khác nhau (import Excel). Mỗi item mang ngày riêng.
+public class OTAdminSignForMultiItem
+{
+    public string EMPCD { get; set; } = string.Empty;
+    public string? WORK_DATE { get; set; }   // yyyy-MM-dd
+    public decimal? OT_HOURS { get; set; }
+}
+
+public class OTAdminBulkSignForMultiRequest
+{
+    public string? ACTOR_EMPCD { get; set; }
+    public List<OTAdminSignForMultiItem> ITEMS { get; set; } = new();
+}
+
 public class OTAdminUpdateItem
 {
     public string EMPCD { get; set; } = string.Empty;
@@ -158,6 +172,8 @@ public class OTAdminBulkResult
 {
     public string EMPCD { get; set; } = string.Empty;
     public bool OK { get; set; }
+    public bool SKIPPED { get; set; }          // bỏ qua (đã ký / không có OT) — khác với lỗi
+    public string? WORK_DATE { get; set; }     // yyyy-MM-dd — dùng cho import nhiều ngày
     public string? MESSAGE { get; set; }
 }
 

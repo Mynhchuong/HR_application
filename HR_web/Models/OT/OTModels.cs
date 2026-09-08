@@ -186,6 +186,20 @@ public class OTAdminBulkSignForRequest
     public List<OTAdminSignForItem> ITEMS { get; set; } = new();
 }
 
+// Ký giùm nhiều NV × nhiều ngày (import Excel)
+public class OTAdminSignForMultiItem
+{
+    public string EMPCD { get; set; } = string.Empty;
+    public string? WORK_DATE { get; set; }   // yyyy-MM-dd
+    public decimal? OT_HOURS { get; set; }
+}
+
+public class OTAdminBulkSignForMultiRequest
+{
+    public string? ACTOR_EMPCD { get; set; }
+    public List<OTAdminSignForMultiItem> ITEMS { get; set; } = new();
+}
+
 public class OTAdminUpdateItem
 {
     public string EMPCD { get; set; } = string.Empty;
@@ -211,6 +225,8 @@ public class OTAdminBulkResult
 {
     public string EMPCD { get; set; } = string.Empty;
     public bool OK { get; set; }
+    public bool SKIPPED { get; set; }
+    public string? WORK_DATE { get; set; }
     public string? MESSAGE { get; set; }
 }
 

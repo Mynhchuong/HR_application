@@ -190,7 +190,7 @@
                 <span class="material-symbols-rounded" style="font-size:1.8rem;">image</span>
                 <div>HR chưa cập nhật hình ảnh</div>
             </div>
-            <img id="workcd-image" style="display:none;width:100%;max-height:220px;object-fit:cover;"
+            <img id="workcd-image" style="display:none;width:100%;max-height:280px;object-fit:contain;background:#f8fafc;"
                  src="@Url.Action("GetWorkCdImage", "Image", new { interestCd = Model.HardworkStt })"
                  alt=""
                  onload="this.style.display='block';document.getElementById('workcd-image-fallback').style.display='none';"

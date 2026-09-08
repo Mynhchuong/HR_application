@@ -291,6 +291,23 @@ public class OtService
         catch (Exception ex) { return new OTAdminBulkResponse { success = false, message = ex.Message }; }
     }
 
+    // Ký giùm nhiều NV × nhiều ngày (import Excel) — 1 batch
+    public async Task<OTAdminBulkResponse> AdminBulkSignForMultiAsync(OTAdminBulkSignForMultiRequest req)
+    {
+        try
+        {
+            var response = await _api.PostAsync("ot/admin/bulk-signfor-multi", req);
+            if (response?.IsSuccessStatusCode == true)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<OTAdminBulkResponse>(json)
+                       ?? new OTAdminBulkResponse { success = false, message = "Không parse được response" };
+            }
+            return new OTAdminBulkResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new OTAdminBulkResponse { success = false, message = ex.Message }; }
+    }
+
     public async Task<OTAdminBulkResponse> AdminBulkUpdateAsync(OTAdminBulkUpdateRequest req)
     {
         try

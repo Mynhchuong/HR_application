@@ -1392,113 +1392,157 @@ public class OTController : ControllerBase
                 return Ok(new OTAdminBulkResponse { success = false, message = "Ngày làm việc không hợp lệ" });
 
             var res = new OTAdminBulkResponse { success = true };
-
             foreach (var it in body.ITEMS)
             {
                 if (string.IsNullOrEmpty(it.EMPCD)) continue;
-
-                try
-                {
-                    // 1. Lookup ERP OVER_TIME (để insert đúng hours → danh sách join match)
-                    var erpHoursRows = await _oracleService.ExecuteQueryAsync(
-                        @"SELECT MAX(OVER_TIME) OT_HOURS FROM (
-                            SELECT OVER_TIME FROM HRMS.EBM300      WHERE DAT = :WORK_DATE  AND EMPCD = :EMPCD  AND OVER_TIME IS NOT NULL AND OVER_TIME > 0
-                            UNION ALL
-                            SELECT OVER_TIME FROM HRMS.EBM300_WAIT WHERE DAT = :WORK_DATE2 AND EMPCD = :EMPCD1 AND OVER_TIME IS NOT NULL AND OVER_TIME > 0
-                        )",
-                        r => r["OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"]),
-                        new OracleParameter("WORK_DATE",  workDate),
-                        new OracleParameter("WORK_DATE2", workDate),
-                        new OracleParameter("EMPCD",      it.EMPCD),
-                        new OracleParameter("EMPCD1",     it.EMPCD));
-
-                    var erpHours = erpHoursRows.FirstOrDefault();
-                    if (!erpHours.HasValue || erpHours.Value <= 0)
-                    {
-                        res.failed++;
-                        res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = "Không có kế hoạch tăng ca trong ngày này" });
-                        continue;
-                    }
-
-                    // OT_HOURS: ưu tiên từ item (nếu FE truyền), fallback ERP OVER_TIME
-                    var finalHours = it.OT_HOURS ?? erpHours.Value;
-
-                    // 2. Check HR_OT_REQUEST đã có chưa (giống ConfirmOT)
-                    var existing = (await _oracleService.ExecuteQueryAsync(
-                        "SELECT REQUEST_ID FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND ROWNUM = 1",
-                        r => r["REQUEST_ID"]?.ToString(),
-                        new OracleParameter("EMPCD", it.EMPCD),
-                        new OracleParameter("WORK_DATE", workDate))).FirstOrDefault();
-
-                    if (!string.IsNullOrEmpty(existing))
-                    {
-                        res.skipped++;
-                        res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = "Đã có bản ghi" });
-                        continue;
-                    }
-
-                    // 3. INSERT qua stored procedure SP_OT_CONFIRM_INSERT (giống ConfirmOT)
-                    string requestId = DateTime.Now.ToString("yyyyMMddHHmmss") + it.EMPCD;
-                    var pResult  = new OracleParameter("P_RESULT",  OracleDbType.Int32)         { Direction = System.Data.ParameterDirection.Output };
-                    var pMessage = new OracleParameter("P_MESSAGE", OracleDbType.Varchar2, 500) { Direction = System.Data.ParameterDirection.Output };
-
-                    try
-                    {
-                        await _oracleService.ExecuteProcedureAsync("HRMS.SP_OT_CONFIRM_INSERT",
-                            new OracleParameter("P_REQUEST_ID",     requestId),
-                            new OracleParameter("P_EMPCD",          it.EMPCD),
-                            new OracleParameter("P_WORK_DATE",      workDate),
-                            new OracleParameter("P_OT_HOURS",       finalHours),
-                            new OracleParameter("P_CONFIRM_STATUS", "CONFIRMED"),
-                            pResult,
-                            pMessage);
-                    }
-                    catch (OracleException ex) when (ex.Number == 1)
-                    {
-                        // ORA-00001: NV vừa tự ký xen vào giữa "check existing" và SP → coi như skip.
-                        res.skipped++;
-                        res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = "Đã có bản ghi" });
-                        continue;
-                    }
-
-                    if (int.Parse(pResult.Value?.ToString() ?? "0") != 0)
-                    {
-                        // SP có thể tự catch ORA-00001 nội bộ rồi trả về qua P_MESSAGE (giống ConfirmOT)
-                        if ((pMessage.Value?.ToString() ?? "").Contains("ORA-00001", StringComparison.OrdinalIgnoreCase))
-                        {
-                            res.skipped++;
-                            res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = "Đã có bản ghi" });
-                            continue;
-                        }
-                        res.failed++;
-                        res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = pMessage.Value?.ToString() ?? "SP báo lỗi" });
-                        continue;
-                    }
-
-                    // KHÔNG đụng ERP — admin chỉ đọc ERP, không write.
-                    // Enrich OT_TYPE/OT_START/OT_END như ConfirmOT: SP không nhận các cột này, để NULL
-                    // sẽ làm AdminBulkUpdate không tính lại được OT_END sau này.
-                    await EnrichOtRequestAsync(requestId, await GetOtWindowAsync(it.EMPCD, workDate));
-
-                    _otLog.Log(OtLogHelper.LogAction.INS, requestId, it.EMPCD, workDate,
-                        null, "CONFIRMED", null, finalHours, body.ACTOR_EMPCD);
-
-                    res.processed++;
-                    res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = true, MESSAGE = requestId });
-                }
-                catch (Exception exi)
-                {
-                    res.failed++;
-                    res.results.Add(new OTAdminBulkResult { EMPCD = it.EMPCD, OK = false, MESSAGE = exi.Message });
-                }
+                await SignForOneAsync(it.EMPCD.Trim(), workDate, it.OT_HOURS, body.ACTOR_EMPCD, res);
             }
 
-            res.message = $"Ký giùm: OK {res.processed}, Skip {res.skipped}, Lỗi {res.failed}";
+            res.message = $"Ký giùm: OK {res.processed}, Bỏ qua {res.skipped}, Lỗi {res.failed}";
             return Ok(res);
         }
         catch (Exception ex)
         {
             return Ok(new OTAdminBulkResponse { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/OT/admin/bulk-signfor-multi
+    // Ký giùm NHIỀU NV × NHIỀU NGÀY khác nhau (import Excel). Mỗi item có ngày riêng.
+    [HttpPost("admin/bulk-signfor-multi")]
+    public async Task<IActionResult> AdminBulkSignForMulti([FromBody] OTAdminBulkSignForMultiRequest body)
+    {
+        try
+        {
+            if (body?.ITEMS == null || body.ITEMS.Count == 0)
+                return Ok(new OTAdminBulkResponse { success = false, message = "Danh sách rỗng" });
+            if (!await IsAdminOrHRAsync(body.ACTOR_EMPCD))
+                return Ok(new OTAdminBulkResponse { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
+
+            var res = new OTAdminBulkResponse { success = true };
+            foreach (var it in body.ITEMS)
+            {
+                var empcd = it.EMPCD?.Trim() ?? "";
+                if (string.IsNullOrEmpty(empcd))
+                {
+                    res.failed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = "", WORK_DATE = it.WORK_DATE, OK = false, MESSAGE = "Thiếu mã nhân viên" });
+                    continue;
+                }
+                if (!DateTime.TryParseExact(it.WORK_DATE, "yyyy-MM-dd", null,
+                    System.Globalization.DateTimeStyles.None, out var wd))
+                {
+                    res.failed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = it.WORK_DATE, OK = false, MESSAGE = "Ngày không hợp lệ" });
+                    continue;
+                }
+                await SignForOneAsync(empcd, wd, it.OT_HOURS, body.ACTOR_EMPCD, res, it.WORK_DATE);
+            }
+
+            res.message = $"Ký giùm: OK {res.processed}, Bỏ qua {res.skipped}, Lỗi {res.failed}";
+            return Ok(res);
+        }
+        catch (Exception ex)
+        {
+            return Ok(new OTAdminBulkResponse { success = false, message = ex.Message });
+        }
+    }
+
+    // Ký giùm 1 NV cho 1 ngày — dùng chung cho bulk-signfor (1 ngày) và bulk-signfor-multi (nhiều ngày).
+    // Quy tắc:
+    //  - Ngày đó KHÔNG có OT trong ERP (OVER_TIME <= 0)       → FAILED  "không có kế hoạch tăng ca"
+    //  - Đã ký rồi (HR_OT_REQUEST có dòng, HOẶC EBM300*.SIGNED_STATUS='Y') → SKIPPED "đã ký rồi"
+    //  - Còn lại → INSERT CONFIRMED qua SP_OT_CONFIRM_INSERT + enrich + log. KHÔNG ghi ERP.
+    private async Task SignForOneAsync(string empcd, DateTime workDate, decimal? itemHours,
+        string? actorEmpCd, OTAdminBulkResponse res, string? workDateLabel = null)
+    {
+        try
+        {
+            // 1. ERP có OT ngày này không?
+            var erpHours = (await _oracleService.ExecuteQueryAsync(
+                @"SELECT MAX(OVER_TIME) OT_HOURS FROM (
+                    SELECT OVER_TIME FROM HRMS.EBM300      WHERE DAT = :WD  AND EMPCD = :E  AND OVER_TIME IS NOT NULL AND OVER_TIME > 0
+                    UNION ALL
+                    SELECT OVER_TIME FROM HRMS.EBM300_WAIT WHERE DAT = :WD2 AND EMPCD = :E1 AND OVER_TIME IS NOT NULL AND OVER_TIME > 0)",
+                r => r["OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"]),
+                new OracleParameter("WD", workDate),  new OracleParameter("E", empcd),
+                new OracleParameter("WD2", workDate), new OracleParameter("E1", empcd))).FirstOrDefault();
+
+            if (!erpHours.HasValue || erpHours.Value <= 0)
+            {
+                res.failed++;
+                res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, MESSAGE = "Ngày này không có kế hoạch tăng ca" });
+                return;
+            }
+
+            var finalHours = itemHours ?? erpHours.Value;
+
+            // 2. Đã ký chưa? — bản ghi app HOẶC cờ SIGNED_STATUS bên ERP
+            bool already = (await _oracleService.ExecuteQueryAsync(
+                @"SELECT 1 X FROM DUAL WHERE
+                        EXISTS (SELECT 1 FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :E  AND WORK_DATE = :WD)
+                     OR EXISTS (SELECT 1 FROM HRMS.EBM300        WHERE EMPCD = :E1 AND DAT = :WD2 AND SIGNED_STATUS = 'Y')
+                     OR EXISTS (SELECT 1 FROM HRMS.EBM300_WAIT   WHERE EMPCD = :E2 AND DAT = :WD3 AND SIGNED_STATUS = 'Y')",
+                r => 1,
+                new OracleParameter("E", empcd),  new OracleParameter("WD", workDate),
+                new OracleParameter("E1", empcd), new OracleParameter("WD2", workDate),
+                new OracleParameter("E2", empcd), new OracleParameter("WD3", workDate))).Any();
+
+            if (already)
+            {
+                res.skipped++;
+                res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, SKIPPED = true, MESSAGE = "Đã ký rồi — bỏ qua" });
+                return;
+            }
+
+            // 3. INSERT CONFIRMED qua SP (fff để 2 item cùng NV khác ngày không đụng REQUEST_ID)
+            string requestId = DateTime.Now.ToString("yyyyMMddHHmmssfff") + empcd;
+            var pResult  = new OracleParameter("P_RESULT",  OracleDbType.Int32)         { Direction = System.Data.ParameterDirection.Output };
+            var pMessage = new OracleParameter("P_MESSAGE", OracleDbType.Varchar2, 500) { Direction = System.Data.ParameterDirection.Output };
+
+            try
+            {
+                await _oracleService.ExecuteProcedureAsync("HRMS.SP_OT_CONFIRM_INSERT",
+                    new OracleParameter("P_REQUEST_ID",     requestId),
+                    new OracleParameter("P_EMPCD",          empcd),
+                    new OracleParameter("P_WORK_DATE",      workDate),
+                    new OracleParameter("P_OT_HOURS",       finalHours),
+                    new OracleParameter("P_CONFIRM_STATUS", "CONFIRMED"),
+                    pResult, pMessage);
+            }
+            catch (OracleException ex) when (ex.Number == 1)
+            {
+                res.skipped++;
+                res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, SKIPPED = true, MESSAGE = "Đã ký rồi — bỏ qua" });
+                return;
+            }
+
+            if (int.Parse(pResult.Value?.ToString() ?? "0") != 0)
+            {
+                if ((pMessage.Value?.ToString() ?? "").Contains("ORA-00001", StringComparison.OrdinalIgnoreCase))
+                {
+                    res.skipped++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, SKIPPED = true, MESSAGE = "Đã ký rồi — bỏ qua" });
+                    return;
+                }
+                res.failed++;
+                res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, MESSAGE = pMessage.Value?.ToString() ?? "SP báo lỗi" });
+                return;
+            }
+
+            // KHÔNG đụng ERP. Enrich OT_TYPE/OT_START/OT_END như ConfirmOT.
+            await EnrichOtRequestAsync(requestId, await GetOtWindowAsync(empcd, workDate));
+
+            _otLog.Log(OtLogHelper.LogAction.INS, requestId, empcd, workDate,
+                null, "CONFIRMED", null, finalHours, actorEmpCd);
+
+            res.processed++;
+            res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = true, MESSAGE = "Ký thành công" });
+        }
+        catch (Exception ex)
+        {
+            res.failed++;
+            res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, MESSAGE = ex.Message });
         }
     }
 

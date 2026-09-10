@@ -204,6 +204,26 @@
     </div>
 </div>
 
+<!-- Chi tiết đã nộp giấy tờ theo ngày (chỉ xem) -->
+<div class="modal fade" id="docDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0"><i class="bi bi-eye text-secondary me-1"></i> Chi tiết đã nộp giấy tờ theo ngày</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <div id="docDetailListWrap" style="max-height:320px;overflow-y:auto;">
+                    <div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm"></div></div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Edit Modal -->
 <div class="modal fade" id="editModal" tabindex="-1">
     <div class="modal-dialog">
@@ -432,6 +452,43 @@ function docWarningHtml(item) {
     </div>`;
 }
 
+// Nút xem chi tiết đã nộp giấy tờ ngày nào rồi — hiện với mọi loại phải nộp giấy, kể cả khi đã nộp
+// xong, để công nhân tự kiểm tra lại HR đã ghi nhận đúng/đủ ngày chưa.
+function docDetailBtnHtml(item) {
+    // Chỉ hiện khi đơn đã Đã duyệt hoặc đã Sắp lịch nghỉ — đơn còn Chờ duyệt/Từ chối thì chưa có
+    // gì để xem (chưa tới bước nộp giấy tờ), tránh gây hiểu lầm cho NV.
+    if (!DOC_REQUIRED_TYPES.includes(item.LEAVE_TYPE)) return '';
+    if (item.STATUS !== 'APPROVED' && item.STATUS !== 'ASSIGNED') return '';
+    return `<button class="btn btn-outline-secondary btn-sm py-0 px-1 mt-1" style="font-size:.68rem;" onclick="viewDocDetail('${item.REQUEST_ID}')"><i class="bi bi-eye"></i> Xem đã nộp giấy gì</button>`;
+}
+
+const docDetailModal = new bootstrap.Modal(document.getElementById('docDetailModal'));
+async function viewDocDetail(requestId) {
+    document.getElementById('docDetailListWrap').innerHTML = '<div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm"></div></div>';
+    docDetailModal.show();
+    try {
+        const res = await $.get('@Url.Action("GetDocDayList", "Leave")', { requestId });
+        if (!res.success) {
+            document.getElementById('docDetailListWrap').innerHTML = `<div class="text-danger text-sm">${escHtml(res.message || 'Lỗi tải dữ liệu')}</div>`;
+            return;
+        }
+        const DOW = ['CN','T2','T3','T4','T5','T6','T7'];
+        document.getElementById('docDetailListWrap').innerHTML = (res.days || []).map(d => {
+            const dt = new Date(d.date);
+            const label = `${('0'+dt.getDate()).slice(-2)}/${('0'+(dt.getMonth()+1)).slice(-2)} (${DOW[dt.getDay()]})`;
+            const statusHtml = d.confirmed ? `<span class="badge bg-success">Đã nộp</span>` : `<span class="badge bg-secondary">Chưa nộp</span>`;
+            return `<div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #f1f5f9;">
+                <div style="width:90px;" class="text-sm text-nowrap">${label}</div>
+                <div style="width:90px;">${statusHtml}</div>
+                <div class="text-sm" style="width:90px;">${d.leavecd ? `<span class="badge bg-light text-dark border">${escHtml(d.leavecd)}</span>` : '<span class="text-muted">-</span>'}</div>
+                <div class="text-sm flex-grow-1 text-secondary">${escHtml(d.remark || '-')}</div>
+            </div>`;
+        }).join('') || '<div class="text-muted text-sm">Không có dữ liệu</div>';
+    } catch (e) {
+        document.getElementById('docDetailListWrap').innerHTML = '<div class="text-danger text-sm">Lỗi kết nối</div>';
+    }
+}
+
 function statusBadge(item) {
     const s = item.STATUS, cs = item.CONFIRM_STATUS, src = item.SOURCE;
     if (src === 'ASSIGNED') {
@@ -551,7 +608,7 @@ function buildRow(item, idx) {
         <td class="px-2 text-sm text-nowrap">${formatDate(item.TO_DATE)}</td>
         <td class="px-2 text-sm fw-bold">${item.TOTAL_DAYS ?? '-'}</td>
         <td class="px-2 text-sm d-none d-md-table-cell"><div class="txt-clamp" title="${escHtml(item.REASON||'')}">${escHtml(item.REASON||'-')}</div></td>
-        <td class="text-center">${statusBadge(item)}${remarkHtml(item)}${needsDocWarning(item) ? '<div class="badge bg-danger mt-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>Chưa nộp giấy tờ</div>' : ''}</td>
+        <td class="text-center">${statusBadge(item)}${remarkHtml(item)}${needsDocWarning(item) ? '<div class="badge bg-danger mt-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>Chưa nộp giấy tờ</div>' : ''}${docDetailBtnHtml(item)}</td>
         <td class="text-center">${sigCell}</td>
         <td class="text-center">${actionBtns(item)}</td>
     </tr>`;
@@ -579,7 +636,7 @@ function buildCard(item, idx) {
         ${docWarningHtml(item)}
         <div class="lv-row">
             <div class="d-flex gap-1">${sourceBadge(item.SOURCE)} ${leaveBadge(item.LEAVE_TYPE)}</div>
-            <div class="flex-shrink-0">${statusBadge(item)}</div>
+            <div class="flex-shrink-0 text-end">${statusBadge(item)}<div>${docDetailBtnHtml(item)}</div></div>
         </div>
         <div class="lv-row">
             <span class="lv-lbl">Từ ngày</span><span class="lv-val">${formatDate(item.FROM_DATE)}</span>
@@ -665,11 +722,13 @@ function addDaysStr(dateStr, n) {
 // min = ngày mai do lần check AL lúc mở modal, dù các loại này được phép chọn hôm nay).
 //   - AL: theo giờ ca làm hôm nay (deadline -6h), có thể bị đẩy sang ngày mai.
 //   - DC/DS: tối thiểu hôm nay + 3 ngày.
-//   - NL: trước giờ vào ca hôm nay — ca đã bắt đầu thì dời sang ngày mai (bug thật đã báo:
-//     UI vẫn cho chọn hôm nay dù ca đã bắt đầu lúc 7h30, server chặn nhưng UI không báo trước).
+//   - NL/SI: trước giờ vào ca hôm nay — ca đã bắt đầu thì dời sang ngày mai (bug thật đã báo:
+//     UI vẫn cho chọn hôm nay dù ca đã bắt đầu, server chặn nhưng UI không báo trước; riêng SI
+//     trước đây bị BỎ SÓT khỏi danh sách này hoàn toàn — NV 14040127 xin SI lúc 11h06 dù ca đã
+//     vào lúc 07h10 vẫn lọt qua UI, báo 2026-09-10 — nay xếp SI chung nhóm với NL).
 //   - DT/VS/KT: trước giờ hết ca hôm nay — hết ca thì dời sang ngày mai.
-//   - SI/CT: cho chọn ngay hôm nay, không giới hạn giờ.
-const SAME_DAY_DEADLINE_TYPES = ['NL', 'DT', 'VS', 'KT'];
+//   - CT: cho chọn ngay hôm nay, không giới hạn giờ.
+const SAME_DAY_DEADLINE_TYPES = ['NL', 'SI', 'DT', 'VS', 'KT'];
 async function updateCreateDateMin() {
     const createLT = $('#createLeaveType').val() || 'AL';
     const today = localDateStr();
@@ -834,6 +893,17 @@ async function saveCreate() {
             $('#createError').removeClass('d-none').text('Loại nghỉ này phải đăng ký trước ít nhất 3 ngày');
             $('#createFromDate').focus(); return;
         }
+    } else if (SAME_DAY_DEADLINE_TYPES.includes(createLT) && from === today) {
+        // Re-check ngay trước khi gửi — phòng trường hợp NV mở modal từ lâu (giờ chặn theo ca đã
+        // trôi qua trong lúc modal còn mở) hoặc đổi loại nghỉ nhanh trước khi AJAX ở
+        // updateCreateDateMin() kịp trả về. Server (ValidateSelfLeaveDateRulesAsync) chặn lại nếu miss.
+        try {
+            const dl = await $.ajax({ url: '@Url.Action("SameDayDeadline", "Leave")', type: 'GET', data: { leave_type: createLT, from_date: from } });
+            if (dl.success === false || dl.allowed === false) {
+                $('#createError').removeClass('d-none').text(dl.message || 'Đã qua giờ đăng ký cho hôm nay');
+                $('#createFromDate').focus(); return;
+            }
+        } catch (e) { /* network fail — để server quyết định */ }
     }
     if (createLT === 'AL' && myBalance != null) {
         const left = myBalance.LEFT_NUM ?? 0;
@@ -899,6 +969,39 @@ async function saveCreate() {
     finally  { $btn.prop('disabled', false).html('<i class="bi bi-send me-1"></i> Gửi đơn'); }
 }
 
+// Bản sao của updateCreateDateMin() cho modal Sửa — trước đây modal Sửa chỉ khoá cứng
+// min=hôm nay bất kể loại nghỉ (openEditBtn), KHÔNG re-check theo giờ ca như lúc Tạo mới, nên
+// NV có thể tạo đơn hợp lệ rồi Sửa lại FROM_DATE về ngày/giờ đã quá hạn đăng ký mà UI không cản
+// (server đã chặn — xem ValidateSelfLeaveDateRulesAsync — nhưng UI cần báo trước cho đỡ rối).
+async function updateEditDateMin() {
+    const editLT = $('#editLeaveType').val() || 'AL';
+    const today  = localDateStr();
+    let minDate  = today;
+
+    if (editLT === 'AL') {
+        try {
+            const dl = await $.ajax({ url: '@Url.Action("AlDeadline", "Leave")', type: 'GET', data: { from_date: today } });
+            if ($('#editLeaveType').val() !== editLT) return;
+            if (dl && dl.success !== false && dl.allowed === false) minDate = addDaysStr(today, 1);
+        } catch (e) { /* silent — server-side sẽ chặn lại nếu client miss */ }
+    } else if (editLT === 'DC' || editLT === 'DS') {
+        minDate = addDaysStr(today, 3);
+    } else if (SAME_DAY_DEADLINE_TYPES.includes(editLT)) {
+        try {
+            const dl = await $.ajax({ url: '@Url.Action("SameDayDeadline", "Leave")', type: 'GET', data: { leave_type: editLT, from_date: today } });
+            if ($('#editLeaveType').val() !== editLT) return;
+            if (dl && dl.success !== false && dl.allowed === false) minDate = addDaysStr(today, 1);
+        } catch (e) { /* silent */ }
+    }
+
+    $('#editFromDate').attr('min', minDate);
+    if ($('#editFromDate').val() < minDate) $('#editFromDate').val(minDate);
+    $('#editToDate').attr('min', minDate);
+    if ($('#editToDate').val() < minDate) $('#editToDate').val(minDate);
+    calcDays();
+}
+document.getElementById('editLeaveType')?.addEventListener('change', updateEditDateMin);
+
 function calcDays() {
     const f = $('#editFromDate').val(), t = $('#editToDate').val();
     const editLT = $('#editLeaveType').val() || 'AL';
@@ -934,7 +1037,7 @@ function openEditBtn(btn) {
     $('#editToDate').attr('min', fromStr || today).val(toStr);
     $('#editTotalDays').val($b.data('days'));
     $('#editReason').val($b.data('reason') || '');
-    $('#editLeaveType').trigger('change');
+    $('#editLeaveType').trigger('change'); // tự gọi updateLTNote('edit') + updateEditDateMin() (set min theo giờ ca thật)
     $('#editError').addClass('d-none').text('');
     new bootstrap.Modal('#editModal').show();
 }
@@ -960,6 +1063,26 @@ async function saveEdit() {
             $('#editError').removeClass('d-none').text('Loại nghỉ này phải đăng ký trước ít nhất 3 ngày');
             $('#editFromDate').focus(); return;
         }
+    }
+    // Re-check ngay trước khi lưu — phòng trường hợp NV mở modal Sửa từ lâu rồi mới bấm Lưu,
+    // giờ chặn (deadline AL / giờ ca NL,DT,VS,KT) đã trôi qua trong lúc modal còn mở.
+    // Server (ValidateSelfLeaveDateRulesAsync) chặn lại nếu chỗ này bị miss.
+    if (editLT === 'AL') {
+        try {
+            const dl = await $.ajax({ url: '@Url.Action("AlDeadline", "Leave")', type: 'GET', data: { from_date: from } });
+            if (dl.success === false || dl.allowed === false) {
+                $('#editError').removeClass('d-none').text(dl.message || 'Đã qua giờ đăng ký phép năm cho ngày này');
+                $('#editFromDate').focus(); return;
+            }
+        } catch (e) { /* network fail — để server quyết định */ }
+    } else if (SAME_DAY_DEADLINE_TYPES.includes(editLT) && from === today) {
+        try {
+            const dl = await $.ajax({ url: '@Url.Action("SameDayDeadline", "Leave")', type: 'GET', data: { leave_type: editLT, from_date: from } });
+            if (dl.success === false || dl.allowed === false) {
+                $('#editError').removeClass('d-none').text(dl.message || 'Đã qua giờ đăng ký cho hôm nay');
+                $('#editFromDate').focus(); return;
+            }
+        } catch (e) { /* network fail — để server quyết định */ }
     }
     if (editLT === 'AL' && myBalance != null) {
         const left = myBalance.LEFT_NUM ?? 0;

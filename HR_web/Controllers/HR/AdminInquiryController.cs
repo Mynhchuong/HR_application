@@ -63,8 +63,9 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         ViewBag.CurrentEmpCd = CurrentUser!.EmpCd;
         ViewBag.CurrentName  = CurrentUser.FullName;
 
-        // Mark read phía HR (Admin dùng chung HR bucket)
-        _ = _inquiry.MarkReadAsync(id, "HR");
+        // Mark read phía HR (Admin dùng chung HR bucket) — ghi mốc đã đọc RIÊNG cho tài khoản này
+        // (viewerEmpcd), khỏi ảnh hưởng badge chưa đọc của các CSR/HR/Admin khác.
+        _ = _inquiry.MarkReadAsync(id, "HR", viewerEmpcd: CurrentUser!.EmpCd);
 
         return View(result);
     }
@@ -85,7 +86,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         int     pageSize   = 30)
     {
         if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
-        var result = await _inquiry.GetHrListAsync(status, topicCd, chatType, assignedTo, search, sort, page, pageSize);
+        var result = await _inquiry.GetHrListAsync(status, topicCd, chatType, assignedTo, search, sort, CurrentUser?.EmpCd, page, pageSize);
         return Json(result);
     }
 
@@ -164,7 +165,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     public async Task<IActionResult> MarkRead([FromBody] IdRequest req)
     {
         if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
-        var result = await _inquiry.MarkReadAsync(req.Id, "HR");
+        var result = await _inquiry.MarkReadAsync(req.Id, "HR", viewerEmpcd: CurrentUser?.EmpCd);
         return Json(result);
     }
 

@@ -63,6 +63,10 @@ public class InquiryMarkReadRequest
     public long    InquiryId { get; set; }
     public string  ReaderType { get; set; } = "EMP";   // EMP | HR
     public string? AnonToken  { get; set; }
+    // Mã NV của người đang xem (khi ReaderType=HR) — CSR/HR/Admin xem chung 1 hội thoại nhưng phải
+    // tính "đã đọc" RIÊNG cho từng người, không dùng chung 1 cờ (bug 2026-09-10: 1 acc đọc, các acc
+    // còn lại tự nhiên bị đánh dấu đã đọc theo dù chưa mở).
+    public string? ViewerEmpcd { get; set; }
 }
 
 public class InquiryRatingRequest

@@ -78,6 +78,29 @@
         transform: translateY(-1px);
     }
 
+    /* Nhãn cụm màu trong 1 section dài (VD "Nhân sự") — mỗi cụm liền nhau + màu riêng cho lẹ mắt */
+    .menu-group-label {
+        display: flex;
+        align-items: center;
+        font-size: 0.66rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 10px 14px 4px 14px;
+        opacity: 0.85;
+    }
+    .menu-group-label:first-child {
+        padding-top: 2px;
+    }
+    .menu-group-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        margin-right: 6px;
+        flex-shrink: 0;
+    }
+
     .menu-theme-personal > .nav-link .menu-icon-shell {
         background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
     }
@@ -156,6 +179,23 @@
     .nav-link.active .nav-link-text {
         color: #fff !important;
     }
+
+    /* Tên chức năng dài (VD "Danh sách cấp Bánh cố định") bị cắt/tràn ở màn hẹp — cho xuống dòng
+     * thay vì cắt chữ. min-width:0 để item flex chịu co lại, không đẩy tràn ra ngoài. */
+    .menu-child-item .nav-link {
+        white-space: normal !important;
+        align-items: flex-start;
+        min-width: 0;
+    }
+    .menu-child-item .nav-link-text {
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.35;
+        padding-top: 0.15rem;
+    }
+    .menu-child-item .menu-child-icon {
+        flex-shrink: 0;
+    }
 </style>
 
 <!-- ===== SIDENAV HEADER ===== -->
@@ -223,16 +263,33 @@
 
                 <div class="collapse ps-3 @(open ? "show" : "")" id="@menu.Id">
                     <ul class="navbar-nav">
+                        @{ string? lastGroup = null; }
                         @foreach (var item in menu.Children.Where(c => c.VisibleWhen == null || c.VisibleWhen()))
                         {
                             bool active = !string.IsNullOrEmpty(item.Url) &&
                                           currentPath.StartsWith(Url.Content(item.Url).ToLower());
 
+                            // Đổi cụm (Group) so với item trước → chèn nhãn màu cho cụm mới.
+                            if (!string.IsNullOrEmpty(item.Group) && item.Group != lastGroup
+                                && MenuGroupCatalog.Styles.TryGetValue(item.Group, out var groupStyle))
+                            {
+                                <li class="menu-group-label" style="color:@groupStyle.Color;">
+                                    <span class="menu-group-dot" style="background:@groupStyle.Color;"></span>@groupStyle.Label
+                                </li>
+                            }
+                            lastGroup = item.Group;
+
+                            string? itemColor = null;
+                            if (!string.IsNullOrEmpty(item.Group) && MenuGroupCatalog.Styles.TryGetValue(item.Group, out var itemStyle))
+                            {
+                                itemColor = itemStyle.Color;
+                            }
+
                             <li class="nav-item menu-child-item" data-search="@item.Title.ToLower()">
                                 <a class="nav-link text-dark rounded px-2 py-1 @(active ? "active fw-bold bg-light" : "")"
                                    href="@Url.Content(item.Url ?? "#")">
-                                    <span class="menu-child-icon">
-                                        <i class="material-symbols-rounded">@item.Icon</i>
+                                    <span class="menu-child-icon" style="@(itemColor != null ? $"background:{itemColor}22;" : "")">
+                                        <i class="material-symbols-rounded" style="@(itemColor != null ? $"color:{itemColor};" : "")">@item.Icon</i>
                                     </span>
                                     <span class="nav-link-text">@item.Title</span>
                                 </a>
@@ -262,6 +319,24 @@
         this.style.boxShadow = 'none';
     });
 
+    // Nhãn cụm màu (.menu-group-label) không có data-search riêng — ẩn nhãn nào mà TOÀN BỘ mục bên
+    // dưới (tới nhãn kế tiếp) đều đang bị lọc ẩn, để khỏi còn nhãn "trơ" không có mục nào bên dưới.
+    function updateGroupLabels(sectionEl) {
+        var listEl = sectionEl.querySelector('.collapse > ul');
+        if (!listEl) return;
+        var lastLabel = null, anyVisible = false;
+        Array.prototype.forEach.call(listEl.children, function (li) {
+            if (li.classList.contains('menu-group-label')) {
+                if (lastLabel) lastLabel.style.display = anyVisible ? '' : 'none';
+                lastLabel = li;
+                anyVisible = false;
+            } else if (li.classList.contains('menu-child-item') && li.style.display !== 'none') {
+                anyVisible = true;
+            }
+        });
+        if (lastLabel) lastLabel.style.display = anyVisible ? '' : 'none';
+    }
+
     input.addEventListener('input', function () {
         var q = this.value.trim().toLowerCase();
         var groups = document.querySelectorAll('#sidenav-collapse-main > ul > .nav-item');
@@ -274,6 +349,7 @@
             if (q === '') {
                 // Khôi phục trạng thái gốc
                 children.forEach(function (c) { c.style.display = ''; });
+                group.querySelectorAll('.menu-group-label').forEach(function (l) { l.style.display = ''; });
                 group.style.display = '';
                 if (collapseEl && !collapseEl.classList.contains('show')) {
                     collapseEl.classList.remove('force-show');
@@ -292,6 +368,7 @@
                     c.style.display = 'none';
                 }
             });
+            updateGroupLabels(group);
 
             if (matched > 0) {
                 group.style.display = '';

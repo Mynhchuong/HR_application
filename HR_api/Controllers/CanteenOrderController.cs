@@ -499,6 +499,152 @@ public class CanteenOrderController : ControllerBase
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }
+
+    // Dùng chung cho log-bulk-delete / log-bulk-change-food — khớp đúng bộ lọc của trang
+    // ChangeLog (GET order-view) để "chọn tất cả khớp bộ lọc" chọn ĐÚNG tập NV admin/HR đang xem
+    // trên UI, không lệch. Trả về mảnh WHERE (alias "co" cho CANTEEN_ORDER) + list param tương ứng.
+    // Bắt buộc phải có From/To (không cho chạy toàn bảng) — Keys-mode (chọn từng dòng) đi đường khác.
+    private static (string where, List<OracleParameter> pars) BuildLogFilterWhere(CanteenLogBulkFilter filter)
+    {
+        if (string.IsNullOrEmpty(filter.From) || string.IsNullOrEmpty(filter.To))
+            throw new ArgumentException("Thiếu khoảng ngày lọc");
+
+        var dateFrom = DateTime.TryParse(filter.From, out var df) ? df.ToString("yyyyMMdd") : throw new ArgumentException("Ngày bắt đầu không hợp lệ");
+        var dateTo   = DateTime.TryParse(filter.To,   out var dt) ? dt.ToString("yyyyMMdd") : throw new ArgumentException("Ngày kết thúc không hợp lệ");
+
+        var whereParts = new List<string> { "co.DAT BETWEEN :DF AND :DT" };
+        var pars = new List<OracleParameter> { new("DF", dateFrom), new("DT", dateTo) };
+
+        if (!string.IsNullOrEmpty(filter.Empcd))
+        {
+            whereParts.Add("co.EMPCD = :EMPCD");
+            pars.Add(new OracleParameter("EMPCD", filter.Empcd));
+        }
+        if (!string.IsNullOrEmpty(filter.FoodType))
+        {
+            whereParts.Add("co.TYPE_OF_FOOD = :FOOD");
+            pars.Add(new OracleParameter("FOOD", filter.FoodType.ToUpper()));
+        }
+        if (!string.IsNullOrEmpty(filter.TypeMeal))
+        {
+            whereParts.Add("co.TYPE_MEAL = :TYPEMEAL");
+            pars.Add(new OracleParameter("TYPEMEAL", filter.TypeMeal.ToUpper()));
+        }
+        if (!string.IsNullOrEmpty(filter.Deptcd) || !string.IsNullOrEmpty(filter.Linecd) || !string.IsNullOrEmpty(filter.Workcd))
+        {
+            var ecConds = new List<string> { "ec.EMPCD = co.EMPCD", "ec.JEAJIKGB = 'Y'" };
+            if (!string.IsNullOrEmpty(filter.Deptcd)) { ecConds.Add("ec.DEPTCD = :DEPTCD"); pars.Add(new OracleParameter("DEPTCD", filter.Deptcd)); }
+            if (!string.IsNullOrEmpty(filter.Linecd)) { ecConds.Add("ec.LINECD = :LINECD"); pars.Add(new OracleParameter("LINECD", filter.Linecd)); }
+            if (!string.IsNullOrEmpty(filter.Workcd)) { ecConds.Add("ec.WORKCD = :WORKCD"); pars.Add(new OracleParameter("WORKCD", filter.Workcd)); }
+            whereParts.Add($"EXISTS (SELECT 1 FROM HRMS.ECM100 ec WHERE {string.Join(" AND ", ecConds)})");
+        }
+
+        return (string.Join(" AND ", whereParts), pars);
+    }
+
+    // Keys-mode: build "(EMPCD,DAT,TYPE_MEAL) IN ((:E0,:D0,:M0), ...)" — Oracle hỗ trợ row-value IN
+    // list (không phải FETCH FIRST/JSON_TABLE nên chạy được trên Oracle 10g). Giới hạn 300 dòng/lần
+    // để câu SQL không phình quá lớn — batch nhiều hơn thì FE nên dùng chế độ lọc (filter-mode).
+    private const int MaxBulkKeys = 300;
+
+    private static (string where, List<OracleParameter> pars) BuildKeysWhere(List<CanteenLogKey> keys)
+    {
+        var tuples = new List<string>();
+        var pars = new List<OracleParameter>();
+        for (int i = 0; i < keys.Count; i++)
+        {
+            tuples.Add($"(:E{i}, :D{i}, :M{i})");
+            pars.Add(new OracleParameter($"E{i}", keys[i].Empcd));
+            pars.Add(new OracleParameter($"D{i}", keys[i].Dat));
+            pars.Add(new OracleParameter($"M{i}", keys[i].TypeMeal));
+        }
+        return ($"(co.EMPCD, co.DAT, co.TYPE_MEAL) IN ({string.Join(",", tuples)})", pars);
+    }
+
+    // Validate + chọn đường build where chung cho cả 2 endpoint bulk bên dưới. keys ưu tiên nếu có
+    // (chọn từng dòng cụ thể trên UI); không có keys thì bắt buộc phải có filter (chọn tất cả khớp
+    // bộ lọc đang xem, kể cả những dòng chưa load ra trang hiện tại).
+    private static (string where, List<OracleParameter> pars, string? error) ResolveBulkWhere(
+        List<CanteenLogKey>? keys, CanteenLogBulkFilter? filter)
+    {
+        var validKeys = (keys ?? new()).Where(k => !string.IsNullOrEmpty(k.Empcd) && !string.IsNullOrEmpty(k.Dat) && !string.IsNullOrEmpty(k.TypeMeal)).ToList();
+        if (validKeys.Count > 0)
+        {
+            if (validKeys.Count > MaxBulkKeys)
+                return ("", new(), $"Chỉ được chọn tối đa {MaxBulkKeys} dòng/lần — dùng chế độ lọc cho số lượng lớn hơn.");
+            var (w, p) = BuildKeysWhere(validKeys);
+            return (w, p, null);
+        }
+        if (filter == null)
+            return ("", new(), "Thiếu danh sách chọn hoặc bộ lọc");
+        try
+        {
+            var (w, p) = BuildLogFilterWhere(filter);
+            return (w, p, null);
+        }
+        catch (ArgumentException ex) { return ("", new(), ex.Message); }
+    }
+
+    // POST /apiHR/CanteenOrder/log-bulk-delete
+    // Xoá hàng loạt bản ghi log đổi món (CANTEEN_ORDER) — chọn từng dòng (keys) hoặc "chọn tất cả
+    // khớp bộ lọc" (filter). Chỉ dùng cho trang ChangeLog (Admin/HR — HR_web đã chặn quyền trước khi
+    // gọi tới đây). Không thể hoàn tác — trả về đúng số dòng thật đã xoá để FE xác nhận với người dùng.
+    [HttpPost("log-bulk-delete")]
+    public async Task<IActionResult> LogBulkDelete([FromBody] CanteenLogBulkBody body)
+    {
+        try
+        {
+            var (where, pars, error) = ResolveBulkWhere(body.Keys, body.Filter);
+            if (error != null) return Ok(new { success = false, message = error });
+
+            var sql = $"DELETE FROM HRMS.CANTEEN_ORDER co WHERE {where}";
+            int affected = await _db.ExecuteNonQueryAsync(sql, pars.ToArray());
+
+            return Ok(new { success = true, affected, message = $"Đã xoá {affected} bản ghi" });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    private static readonly HashSet<string> AllowedFoodTypes = new() { "M", "N", "C", "B" };
+
+    // POST /apiHR/CanteenOrder/log-bulk-change-food
+    // Đổi hàng loạt món hiện tại (mặc định đổi VỀ Mặn — yêu cầu HR/Admin 2026-09-10: "ai đổi món
+    // Bánh ngày hôm đó chuyển thành món mặn"). Cùng cơ chế chọn dòng/chọn theo bộ lọc như xoá ở trên.
+    [HttpPost("log-bulk-change-food")]
+    public async Task<IActionResult> LogBulkChangeFood([FromBody] CanteenLogBulkChangeFoodBody body)
+    {
+        try
+        {
+            var newFood = string.IsNullOrEmpty(body.NewFoodType) ? "M" : body.NewFoodType.ToUpper();
+            if (!AllowedFoodTypes.Contains(newFood))
+                return Ok(new { success = false, message = "Loại món không hợp lệ" });
+
+            var (where, pars, error) = ResolveBulkWhere(body.Keys, body.Filter);
+            if (error != null) return Ok(new { success = false, message = error });
+
+            var actor = string.IsNullOrEmpty(body.LoginUser) ? "HR" : body.LoginUser;
+            pars.Add(new OracleParameter("NEWFOOD", newFood));
+            pars.Add(new OracleParameter("CHANGER", actor));
+
+            var sql = $@"
+                UPDATE HRMS.CANTEEN_ORDER co
+                SET co.TYPE_OF_FOOD = :NEWFOOD,
+                    co.CHANGE_FROM  = :CHANGER,
+                    co.IS_MYSAMHO   = 'N',
+                    co.UPDT_ID      = :CHANGER,
+                    co.UPDT_DT      = SYSDATE
+                WHERE {where}";
+            int affected = await _db.ExecuteNonQueryAsync(sql, pars.ToArray());
+
+            return Ok(new { success = true, affected, message = $"Đã đổi {affected} bản ghi sang {FoodTypeLabel(newFood)}" });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    private static string FoodTypeLabel(string code) => code switch
+    {
+        "M" => "Mặn", "N" => "Nhẹ", "C" => "Chay", "B" => "Bánh", _ => code
+    };
 }
 
 public class CanteenChangeBody
@@ -518,4 +664,41 @@ public class BulkBreadBody
     public string        FromDate { get; set; } = string.Empty;
     public string        ToDate   { get; set; } = string.Empty;
     public string?        LoginUser { get; set; }
+}
+
+// Trang ChangeLog (Admin/HR) — xoá/đổi món hàng loạt: 1 dòng cụ thể xác định bởi khoá
+// (EMPCD, DAT, TYPE_MEAL) của HRMS.CANTEEN_ORDER.
+public class CanteenLogKey
+{
+    public string Empcd    { get; set; } = "";
+    public string Dat      { get; set; } = ""; // yyyyMMdd, khớp cột DAT
+    public string TypeMeal { get; set; } = ""; // LUNCH | OT
+}
+
+// Bộ lọc dùng cho "chọn tất cả khớp bộ lọc" — khớp đúng field của GET order-view (ChangeLog).
+public class CanteenLogBulkFilter
+{
+    public string? From { get; set; }
+    public string? To { get; set; }
+    public string? Empcd { get; set; }
+    public string? Deptcd { get; set; }
+    public string? Linecd { get; set; }
+    public string? Workcd { get; set; }
+    public string? FoodType { get; set; }
+    public string? TypeMeal { get; set; }
+}
+
+public class CanteenLogBulkBody
+{
+    public List<CanteenLogKey>?  Keys   { get; set; }
+    public CanteenLogBulkFilter? Filter { get; set; }
+    public string?               LoginUser { get; set; }
+}
+
+public class CanteenLogBulkChangeFoodBody
+{
+    public List<CanteenLogKey>?  Keys   { get; set; }
+    public CanteenLogBulkFilter? Filter { get; set; }
+    public string  NewFoodType { get; set; } = "M";
+    public string? LoginUser   { get; set; }
 }

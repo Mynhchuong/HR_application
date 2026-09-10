@@ -109,10 +109,19 @@ public class TeamBirthdayItem
 // Chỉ chứa trạng thái ĐÃ HOÀN TẤT (APPROVED / CONFIRMED) — không show pending.
 public class HomeMyCalendarItem
 {
-    public string DATE   { get; set; } = "";  // yyyy-MM-dd
-    public string TYPE   { get; set; } = "";  // LEAVE | GP | OT | ASSIGN
-    public string LABEL  { get; set; } = "";  // "Nghỉ phép (AL)", "Ra cổng (OUT)", …
-    public string DETAIL { get; set; } = "";  // dòng chi tiết (giờ, lý do, người sắp)
+    public string  DATE         { get; set; } = "";  // yyyy-MM-dd
+    public string  TYPE         { get; set; } = "";  // LEAVE | GP | OT | ASSIGN
+    public string  LABEL        { get; set; } = "";  // "Nghỉ phép (AL)", "Ra cổng (OUT)", …
+    public string  DETAIL       { get; set; } = "";  // dòng chi tiết (giờ, lý do — KHÔNG có tên người ký)
+    // Tên người duyệt/người sắp lịch tách riêng khỏi DETAIL — CNAME đọc theo font VNI-Windows nên
+    // frontend phải bọc riêng bằng class vni-font, không lẫn chung với chữ Unicode thường của Lý do.
+    public string? SIGNER_LABEL { get; set; }         // "Người duyệt" | "Người sắp lịch"
+    public string? SIGNER_NAME  { get; set; }
+    // Chỉ set cho TYPE=LEAVE/ASSIGN thuộc loại phải nộp giấy tờ (SI/DT/DC/VS/DS/KT) — để lịch cá
+    // nhân trên Trang chủ chấm thêm dấu đã nộp/chưa nộp cho NV tự biết (yêu cầu 2026-09-10).
+    // DOC_STATUS tính RIÊNG CHO TỪNG NGÀY (không phải trạng thái chung cả đơn).
+    public bool    DOC_REQUIRED { get; set; }
+    public string? DOC_STATUS   { get; set; }         // null = chưa nộp ngày này | SUBMITTED | RESUBMIT_REQUESTED
 }
 
 // Context user hiện tại — được HomeController resolve từ CurrentUser

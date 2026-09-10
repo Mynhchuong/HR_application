@@ -338,7 +338,9 @@
             if (!res.ok) { showEmpError(`Lỗi server: HTTP ${res.status}`); return; }
             const data = await res.json();
             if (!data.success) { showEmpError(data.message); return; }
-            allEmps = data.data || [];
+            // Không cho Admin tự chọn chính mình vào danh sách sắp lịch nghỉ — chặn cả ở đây (UI)
+            // và ở backend (LeaveController.AdminAssign).
+            allEmps = (data.data || []).filter(e => e.EMPCD !== ADMIN_EMPCD);
             buildDropdowns();
             applyFilter();
         } catch (e) {

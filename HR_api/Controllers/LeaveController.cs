@@ -52,9 +52,12 @@ public class LeaveController : ControllerBase
         return null;
     }
 
-    // NL (không lương): khác DT/VS/KT (việc đột xuất, cho phép trong lúc đang làm ca) — NL là
-    // nghỉ chủ động nên phải đăng ký TRƯỚC KHI ca hôm nay bắt đầu. Ca đã bắt đầu thì không cho
-    // đăng ký NL cho hôm nay nữa (tránh vừa đi làm vừa xin nghỉ không lương ngay trong ca).
+    // NL/SI (Không lương / Bệnh có giấy): khác DT/VS/KT (việc đột xuất thật sự, cho phép xin ngay
+    // cả khi đang trong ca) — NL/SI là nghỉ phải BÁO TRƯỚC khi ca hôm nay bắt đầu. Ca đã bắt đầu
+    // thì không cho đăng ký NL/SI cho hôm nay nữa (tránh vừa đi làm vừa xin nghỉ ngay trong ca —
+    // bug thật đã tái hiện: NV 14040127 xin SI lúc 11h06 dù ca N6 đã vào lúc 07h10, báo 2026-09-10).
+    private static readonly HashSet<string> SameDayShiftStartTypes = new() { "NL", "SI" };
+
     private async Task<string?> CheckSameDayShiftStartAsync(string empcd, DateTime fromDate, string leaveTypeName)
     {
         if (fromDate.Date != DateTime.Today) return null;
@@ -70,6 +73,110 @@ public class LeaveController : ControllerBase
         if (DateTime.Now > shiftStart)
             return $"Ca {shift.SHIFTCD} hôm nay đã bắt đầu lúc {sh:D2}:{sm:D2}, không thể đăng ký {leaveTypeName} cho hôm nay. Vui lòng chọn ngày khác.";
 
+        return null;
+    }
+
+    // Gom lại đúng 1 chỗ luật "báo trước theo loại" (AL/DC/DS/NL/DT/VS/KT/SI/CT) — dùng CHUNG cho
+    // cả Submit() (tạo mới) LẪN Update() (sửa đơn đang PENDING). Trước đây Update() không gọi lại
+    // luật này, nên NV có thể lách: xin phép AL/NL cho ngày hợp lệ rồi SỬA lại FROM_DATE về hôm
+    // nay/ngày đã qua giờ chặn — bug thật đã tái hiện trên data thật (xem debug-samedaycheck).
+    private async Task<string?> ValidateSelfLeaveDateRulesAsync(string empcd, string leaveType, DateTime fromDate)
+    {
+        if (leaveType == "AL")
+        {
+            var chk = await CheckAlDeadlineAsync(empcd, fromDate);
+            return chk.Allowed ? null : chk.Message;
+        }
+        if (leaveType == "DC" || leaveType == "DS")
+        {
+            return fromDate.Date < DateTime.Today.AddDays(3)
+                ? "Loại nghỉ này phải đăng ký trước ít nhất 3 ngày"
+                : null;
+        }
+        if (SameDaySuddenLeaveTypes.Contains(leaveType))
+        {
+            if (fromDate.Date < DateTime.Today) return "Không được chọn ngày trong quá khứ";
+            return await CheckSameDayShiftEndAsync(empcd, fromDate, NewLeaveTypeNames.GetValueOrDefault(leaveType, leaveType));
+        }
+        if (SameDayShiftStartTypes.Contains(leaveType))
+        {
+            if (fromDate.Date < DateTime.Today) return "Không được chọn ngày trong quá khứ";
+            return await CheckSameDayShiftStartAsync(empcd, fromDate, NewLeaveTypeNames.GetValueOrDefault(leaveType, leaveType));
+        }
+        return fromDate.Date < DateTime.Today ? "Không được chọn ngày trong quá khứ" : null;
+    }
+
+    // Trước đây CHỈ có FE tự check trùng ngày (gọi my-requests rồi so sánh ở JS) trước khi Submit/
+    // Update — dễ bị lách (gọi API thẳng, hoặc 2 tab bấm gần như cùng lúc). Giờ chặn LẠI ở server,
+    // đúng luật "trùng" y hệt FE: đơn PENDING/APPROVED (không phải ASSIGNED) HOẶC đơn ASSIGNED đã
+    // CONFIRMED coi là trùng nếu khoảng ngày giao nhau. excludeRequestId dùng khi Update() (không
+    // tự đụng chính đơn đang sửa).
+    private async Task<string?> CheckSelfLeaveOverlapAsync(string empcd, DateTime fromDate, DateTime toDate, string? excludeRequestId)
+    {
+        string excludeClause = string.IsNullOrEmpty(excludeRequestId) ? "" : "AND L.REQUEST_ID != :EXCLUDE_ID";
+        string sql = $@"
+            SELECT * FROM (
+                SELECT R.STATUS, L.SOURCE, L.CONFIRM_STATUS, L.FROM_DATE, L.TO_DATE
+                FROM HRMS.HR_LEAVE_REQUEST L
+                JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
+                WHERE L.EMPCD = :EMPCD
+                  AND R.REQUEST_TYPE = 'LEAVE'
+                  AND L.FROM_DATE <= :TO_DATE AND L.TO_DATE >= :FROM_DATE
+                  AND ((L.SOURCE != 'ASSIGNED' AND R.STATUS IN ('PENDING','APPROVED'))
+                       OR (L.SOURCE = 'ASSIGNED' AND L.CONFIRM_STATUS = 'CONFIRMED'))
+                  {excludeClause}
+            ) WHERE ROWNUM = 1";
+
+        var pars = new List<OracleParameter>
+        {
+            new("EMPCD", empcd),
+            new OracleParameter { ParameterName = "FROM_DATE", OracleDbType = OracleDbType.Date, Value = fromDate.Date },
+            new OracleParameter { ParameterName = "TO_DATE",   OracleDbType = OracleDbType.Date, Value = toDate.Date },
+        };
+        if (!string.IsNullOrEmpty(excludeRequestId)) pars.Add(new OracleParameter("EXCLUDE_ID", excludeRequestId));
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
+        {
+            Status = r["STATUS"]?.ToString(),
+            FromDate = Convert.ToDateTime(r["FROM_DATE"]),
+            ToDate   = Convert.ToDateTime(r["TO_DATE"]),
+        }, pars.ToArray());
+
+        var hit = rows.FirstOrDefault();
+        if (hit == null) return null;
+
+        string statusText = hit.Status == "APPROVED" ? "đã được duyệt" : hit.Status == "PENDING" ? "đang chờ duyệt" : "đã xác nhận";
+        return $"Bạn đã có đơn nghỉ {statusText} trùng khoảng ngày này ({hit.FromDate:dd/MM/yyyy} – {hit.ToDate:dd/MM/yyyy}). Chỉ có thể tạo lại nếu đơn cũ bị từ chối.";
+    }
+
+    // Trước đây KHÔNG có chỗ nào (Submit/Update/Approve) check số ngày phép năm còn lại — chỉ FE tự
+    // so myBalance.LEFT_NUM trước khi gửi (bấm F12 sửa payload hoặc gọi thẳng API là bỏ qua được).
+    // Ảnh hưởng lương thật (duyệt AL vượt số ngày được cấp) nên chặn lại ở server. Lưu ý: LEFT_NUM
+    // chỉ trừ những ngày ĐÃ ĐƯỢC DUYỆT và đồng bộ ERP (EFM410), CHƯA trừ các đơn AL khác đang
+    // PENDING cùng lúc — nếu NV có nhiều đơn AL PENDING song song, tổng có thể vượt LEFT_NUM cho
+    // tới khi có đơn được duyệt (do ERP mới là nơi trừ thật). Đây là giới hạn đã biết, không phải
+    // lỗi thiếu sót của riêng chỗ này.
+    private async Task<string?> CheckAlBalanceAsync(string empcd, decimal totalDays)
+    {
+        const string sql = @"
+            WITH ALLOC AS (
+                SELECT MAX(RECEIVE_NUM) AS RECEIVE_NUM FROM HRMS.EFM100
+                WHERE EMPCD = :EMPCD AND SUBSTR(CAL_MONTH,1,4) = TO_CHAR(SYSDATE,'YYYY')
+            ),
+            USED AS (
+                SELECT COUNT(CASE WHEN LEAVECD IN ('PN','LP') AND REMAR IN ('VR','ASSIGNED') THEN 1 END) AS USED_NUM
+                FROM HRMS.EFM410
+                WHERE EMPCD = :EMPCD2 AND TO_CHAR(FR_DAT,'YYYY') = TO_CHAR(SYSDATE,'YYYY')
+            )
+            SELECT NVL(A.RECEIVE_NUM,0) - NVL(U.USED_NUM,0) AS LEFT_NUM FROM ALLOC A, USED U";
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql,
+            r => r["LEFT_NUM"] == DBNull.Value ? 0 : Convert.ToInt32(r["LEFT_NUM"]),
+            new OracleParameter("EMPCD", empcd), new OracleParameter("EMPCD2", empcd));
+
+        int leftNum = rows.FirstOrDefault();
+        if (totalDays > leftNum)
+            return $"Bạn chỉ còn {leftNum} ngày phép năm, không đủ để nghỉ {totalDays} ngày.";
         return null;
     }
 
@@ -100,6 +207,11 @@ public class LeaveController : ControllerBase
     };
     // Loại nghỉ bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — CT theo yêu cầu vẫn KHÔNG cần nộp giấy tờ.
     private static readonly HashSet<string> DocRequiredTypes = new() { "SI", "DT", "DC", "VS", "DS", "KT" };
+    // Trạng thái được coi là "đã chốt" để cho phép cập nhật giấy tờ — quản lý/Admin SẮP LỊCH
+    // (SOURCE=ASSIGNED) không bao giờ có STATUS='APPROVED' (mãi mãi là 'ASSIGNED', không qua bước
+    // duyệt riêng), nhưng bản chất đã chốt lịch nghỉ y như đã duyệt nên vẫn tính là được cập nhật
+    // (yêu cầu 2026-09-10: "quản lý, admin sắp lịch tính là đã duyệt nha").
+    private static readonly HashSet<string> DocEditableStatuses = new() { "APPROVED", "ASSIGNED" };
     private static readonly Dictionary<string, string> NewLeaveTypeNames = new()
     {
         ["AL"] = "Phép năm", ["NL"] = "Không lương", ["SI"] = "Bệnh có giấy",
@@ -211,41 +323,26 @@ public class LeaveController : ControllerBase
 
             // Báo trước theo loại: AL = theo giờ ca làm (-6h), DC/DS = trước 3 ngày lịch,
             // DT/VS/KT = trong ngày được nhưng phải trước khi hết ca hôm nay (việc đột xuất),
-            // NL = trong ngày được nhưng phải trước khi ca hôm nay BẮT ĐẦU (nghỉ chủ động),
-            // SI/CT = trong ngày cũng được, không giới hạn giờ
+            // NL/SI = trong ngày được nhưng phải trước khi ca hôm nay BẮT ĐẦU (báo trước 2026-09-10:
+            // SI "bệnh có giấy" không cho khai retroactive giữa ca đang làm việc, giống NL),
+            // CT = trong ngày cũng được, không giới hạn giờ
+            string? dateRuleError = await ValidateSelfLeaveDateRulesAsync(model.EMPCD, model.LEAVE_TYPE, fromDate);
+            if (dateRuleError != null)
+                return Ok(new { success = false, message = dateRuleError });
+
+            // Chặn trùng ngày với đơn khác đang PENDING/APPROVED (hoặc ASSIGNED đã CONFIRMED) —
+            // trước đây chỉ FE tự check trước khi gửi, gọi thẳng API là bỏ qua được.
+            string? overlapError = await CheckSelfLeaveOverlapAsync(model.EMPCD, fromDate, toDate, excludeRequestId: null);
+            if (overlapError != null)
+                return Ok(new { success = false, message = overlapError });
+
+            // Chặn vượt số ngày phép năm còn lại — trước đây chỉ FE tự so myBalance.LEFT_NUM,
+            // gọi thẳng API là bỏ qua được (ảnh hưởng lương thật nếu duyệt vượt số ngày được cấp).
             if (model.LEAVE_TYPE == "AL")
             {
-                var chk = await CheckAlDeadlineAsync(model.EMPCD, fromDate);
-                if (!chk.Allowed)
-                    return Ok(new { success = false, message = chk.Message });
-            }
-            else if (model.LEAVE_TYPE == "DC" || model.LEAVE_TYPE == "DS")
-            {
-                if (fromDate.Date < DateTime.Today.AddDays(3))
-                    return Ok(new { success = false, message = "Loại nghỉ này phải đăng ký trước ít nhất 3 ngày" });
-            }
-            else if (SameDaySuddenLeaveTypes.Contains(model.LEAVE_TYPE))
-            {
-                if (fromDate.Date < DateTime.Today)
-                    return Ok(new { success = false, message = "Không được chọn ngày trong quá khứ" });
-
-                string? shiftEndError = await CheckSameDayShiftEndAsync(model.EMPCD, fromDate, NewLeaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE));
-                if (shiftEndError != null)
-                    return Ok(new { success = false, message = shiftEndError });
-            }
-            else if (model.LEAVE_TYPE == "NL")
-            {
-                if (fromDate.Date < DateTime.Today)
-                    return Ok(new { success = false, message = "Không được chọn ngày trong quá khứ" });
-
-                string? shiftStartError = await CheckSameDayShiftStartAsync(model.EMPCD, fromDate, NewLeaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE));
-                if (shiftStartError != null)
-                    return Ok(new { success = false, message = shiftStartError });
-            }
-            else
-            {
-                if (fromDate.Date < DateTime.Today)
-                    return Ok(new { success = false, message = "Không được chọn ngày trong quá khứ" });
+                string? balanceError = await CheckAlBalanceAsync(model.EMPCD, model.TOTAL_DAYS);
+                if (balanceError != null)
+                    return Ok(new { success = false, message = balanceError });
             }
 
             var empRows = await _oracleService.ExecuteQueryAsync(
@@ -512,13 +609,40 @@ public class LeaveController : ControllerBase
             if (current.Status != "PENDING")
                 return Ok(new { success = false, message = "Chỉ có thể sửa yêu cầu đang chờ duyệt" });
 
+            string effectiveType = model.LEAVE_TYPE ?? current.LeaveType ?? "";
+            // Trước đây Sửa đơn KHÔNG hề check LEAVE_TYPE hợp lệ (Submit() có check qua
+            // SelfSubmitLeaveTypeCodes, Update() thì không) — gọi thẳng API có thể đổi thành mã bất
+            // kỳ, kể cả mã không tồn tại/không dành cho tự nộp.
+            if (!SelfSubmitLeaveTypeCodes.Contains(effectiveType))
+                return Ok(new { success = false, message = "Loại nghỉ phép không hợp lệ" });
+
+            // Re-check ĐÚNG luật báo trước như lúc Submit() — trước đây Sửa đơn không check lại,
+            // NV có thể lách deadline bằng cách tạo đơn hợp lệ rồi sửa FROM_DATE về ngày đã quá hạn
+            // (bug thật đã tái hiện trên data thật).
+            string? dateRuleError = await ValidateSelfLeaveDateRulesAsync(model.EMPCD, effectiveType, fromDate);
+            if (dateRuleError != null)
+                return Ok(new { success = false, message = dateRuleError });
+
+            // Chặn trùng ngày với đơn khác (loại trừ chính đơn đang sửa) + chặn vượt số ngày phép
+            // năm còn lại — cùng lý do với Submit(): trước đây chỉ FE tự check, gọi thẳng API bỏ qua được.
+            string? overlapError = await CheckSelfLeaveOverlapAsync(model.EMPCD, fromDate, toDate, excludeRequestId: model.REQUEST_ID);
+            if (overlapError != null)
+                return Ok(new { success = false, message = overlapError });
+
+            if (effectiveType == "AL")
+            {
+                string? balanceError = await CheckAlBalanceAsync(model.EMPCD, model.TOTAL_DAYS);
+                if (balanceError != null)
+                    return Ok(new { success = false, message = balanceError });
+            }
+
             await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_LEAVE_REQUEST
                 SET LEAVE_TYPE = :LEAVE_TYPE, FROM_DATE = :FROM_DATE, TO_DATE = :TO_DATE,
                     TOTAL_DAYS = :TOTAL_DAYS, REASON = :REASON,
                     UPDATED_BY = :UPDATED_BY, UPDATED_DATE = SYSDATE
                 WHERE REQUEST_ID = :REQUEST_ID AND EMPCD = :EMPCD",
-                new OracleParameter("LEAVE_TYPE",  model.LEAVE_TYPE),
+                new OracleParameter("LEAVE_TYPE",  effectiveType),
                 new OracleParameter("FROM_DATE",   fromDate),
                 new OracleParameter("TO_DATE",     toDate),
                 new OracleParameter("TOTAL_DAYS",  model.TOTAL_DAYS),
@@ -888,12 +1012,15 @@ public class LeaveController : ControllerBase
                 return Ok(new { success = false, message = "Bạn không có quyền phê duyệt nghỉ phép" });
 
             var requestInfoRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT L.EMPCD, RR.ROLE_NAME REQ_ROLE, L.LEAVE_TYPE
+                SELECT L.EMPCD, RR.ROLE_NAME REQ_ROLE, L.LEAVE_TYPE, L.TOTAL_DAYS
                 FROM HRMS.HR_LEAVE_REQUEST L
                 LEFT JOIN HRMS.HR_USERS UR ON UR.EMPCD = L.EMPCD
                 LEFT JOIN HRMS.HR_ROLES RR ON RR.ID    = UR.ROLE_ID
                 WHERE L.REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
-                r => new { Empcd = r["EMPCD"]?.ToString(), Role = r["REQ_ROLE"]?.ToString(), LeaveType = r["LEAVE_TYPE"]?.ToString() },
+                r => new {
+                    Empcd = r["EMPCD"]?.ToString(), Role = r["REQ_ROLE"]?.ToString(), LeaveType = r["LEAVE_TYPE"]?.ToString(),
+                    TotalDays = r["TOTAL_DAYS"] == DBNull.Value ? 0m : Convert.ToDecimal(r["TOTAL_DAYS"])
+                },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
             var requestInfo = requestInfoRows.FirstOrDefault();
@@ -909,6 +1036,17 @@ public class LeaveController : ControllerBase
             // Công tác (CT) chỉ Manager/Expat/Admin được duyệt — chặn hành động thật, không chỉ ẩn ở UI/list.
             if (requestInfo.LeaveType == "CT" && !CanApproveCT(approverRole))
                 return Ok(new { success = false, message = "Đơn Công tác chỉ Manager, Expat hoặc Admin mới được duyệt" });
+
+            // Chặn duyệt vượt số ngày phép năm còn lại — re-check ngay tại thời điểm DUYỆT (không chỉ
+            // lúc Submit/Update), vì NV có thể có NHIỀU đơn AL PENDING song song, mỗi đơn riêng lẻ đều
+            // hợp lệ lúc nộp (LEFT_NUM chỉ trừ đơn ĐÃ duyệt/đồng bộ ERP), nhưng duyệt hết cả 2 thì
+            // tổng vượt số ngày được cấp — ảnh hưởng lương thật nếu lọt qua ERP.
+            if (requestInfo.LeaveType == "AL" && !string.IsNullOrEmpty(requestInfo.Empcd))
+            {
+                string? balanceError = await CheckAlBalanceAsync(requestInfo.Empcd, requestInfo.TotalDays);
+                if (balanceError != null)
+                    return Ok(new { success = false, message = balanceError + " (đơn khác của NV có thể đã được duyệt trước, làm giảm số ngày còn lại)" });
+            }
 
             int rows = await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_REQUEST
@@ -1249,6 +1387,14 @@ END;";
             {
                 try
                 {
+                    // Không cho Quản lý/Supervisor tự sắp lịch nghỉ cho chính mình — phải tự nộp đơn
+                    // (Submit) như nhân viên thường, tránh tự cấp phép nghỉ không qua ai kiểm soát.
+                    if (string.Equals(targetEmpcd, model.ASSIGNER_EMPCD, StringComparison.OrdinalIgnoreCase))
+                    {
+                        results.Add(new { empcd = targetEmpcd, success = false, message = "Không thể tự sắp lịch nghỉ cho chính mình" });
+                        continue;
+                    }
+
                     var empRows = await _oracleService.ExecuteQueryAsync(
                         "SELECT CNAME FROM HRMS.ECM100 WHERE EMPCD = :EMPCD AND ROWNUM = 1",
                         r => r["CNAME"]?.ToString(),
@@ -2262,6 +2408,16 @@ END;";
             if (role != "HR" && role != "Clerk" && role != "Admin")
                 return Ok(new { success = false, message = "Bạn không có quyền cập nhật giấy tờ" });
 
+            var statusRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT R.STATUS FROM HRMS.HR_REQUEST R WHERE R.REQUEST_ID = :ID AND ROWNUM = 1",
+                r => r["STATUS"]?.ToString() ?? "",
+                new OracleParameter("ID", model.REQUEST_ID));
+            string? curStatus = statusRows.FirstOrDefault();
+            if (curStatus == null) return Ok(new { success = false, message = "Không tìm thấy đơn nghỉ phép" });
+            // Chỉ được cập nhật giấy tờ khi đơn đã ở trạng thái "Đã duyệt".
+            if (!DocEditableStatuses.Contains(curStatus))
+                return Ok(new { success = false, message = "Chỉ được cập nhật giấy tờ khi đơn đã Đã duyệt hoặc đã Sắp lịch nghỉ" });
+
             int rows = await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_LEAVE_REQUEST
                 SET DOC_STATUS = 'SUBMITTED', DOC_SUBMITTED_DATE = SYSDATE, DOC_SUBMITTED_BY = :ACTOR,
@@ -2302,19 +2458,25 @@ END;";
                 return Ok(new { success = false, message = "Bạn không có quyền yêu cầu nộp lại" });
 
             var infoRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT L.EMPCD, L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE FROM HRMS.HR_LEAVE_REQUEST L
+                SELECT L.EMPCD, L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE, R.STATUS
+                FROM HRMS.HR_LEAVE_REQUEST L JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
                 WHERE L.REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
                 r => new {
                     Empcd     = r["EMPCD"]?.ToString(),
                     LeaveType = r["LEAVE_TYPE"]?.ToString(),
                     FromDate  = Convert.ToDateTime(r["FROM_DATE"]),
-                    ToDate    = Convert.ToDateTime(r["TO_DATE"])
+                    ToDate    = Convert.ToDateTime(r["TO_DATE"]),
+                    Status    = r["STATUS"]?.ToString() ?? ""
                 },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
             var info = infoRows.FirstOrDefault();
             if (info == null)
                 return Ok(new { success = false, message = "Không tìm thấy đơn nghỉ phép" });
+            // Chỉ được cập nhật giấy tờ khi đơn đã Đã duyệt hoặc đã Sắp lịch nghỉ (quản lý/Admin
+            // sắp lịch tính như đã chốt, dù STATUS mãi mãi là ASSIGNED chứ không qua APPROVED).
+            if (!DocEditableStatuses.Contains(info.Status))
+                return Ok(new { success = false, message = "Chỉ được cập nhật giấy tờ khi đơn đã Đã duyệt hoặc đã Sắp lịch nghỉ" });
 
             int rows = await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_LEAVE_REQUEST
@@ -2337,6 +2499,510 @@ END;";
         {
             return Ok(new { success = false, message = ex.Message });
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Leave/doc-day-list?requestId= — Danh sách từng ngày trong đơn + trạng thái đã
+    // xác nhận nộp giấy hay chưa (để HR tick chọn ngày nào có giấy khi xác nhận).
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("doc-day-list")]
+    public async Task<IActionResult> GetDocDayList(string requestId)
+    {
+        try
+        {
+            var reqRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT L.EMPCD, L.FROM_DATE, L.TO_DATE FROM HRMS.HR_LEAVE_REQUEST L
+                WHERE L.REQUEST_ID = :ID AND ROWNUM = 1",
+                r => new {
+                    Empcd    = r["EMPCD"]?.ToString() ?? "",
+                    FromDate = Convert.ToDateTime(r["FROM_DATE"]),
+                    ToDate   = Convert.ToDateTime(r["TO_DATE"])
+                },
+                new OracleParameter("ID", requestId));
+
+            var info = reqRows.FirstOrDefault();
+            if (info == null) return Ok(new { success = false, message = "Không tìm thấy đơn nghỉ phép" });
+
+            var confirmedRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT TO_CHAR(LEAVE_DATE,'YYYY-MM-DD') D, LEAVECD, REMARK, CONFIRMED_BY, CONFIRMED_DATE
+                FROM HRMS.HR_LEAVE_DOC_DAY WHERE REQUEST_ID = :ID",
+                r => new {
+                    Date          = r["D"]?.ToString() ?? "",
+                    Leavecd       = r["LEAVECD"]?.ToString(),
+                    Remark        = r["REMARK"]?.ToString(),
+                    ConfirmedBy   = r["CONFIRMED_BY"]?.ToString(),
+                    ConfirmedDate = r["CONFIRMED_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CONFIRMED_DATE"])
+                },
+                new OracleParameter("ID", requestId));
+            var byDate = confirmedRows.ToDictionary(x => x.Date);
+
+            var days = new List<object>();
+            for (var d = info.FromDate.Date; d <= info.ToDate.Date; d = d.AddDays(1))
+            {
+                var key = d.ToString("yyyy-MM-dd");
+                if (byDate.TryGetValue(key, out var c))
+                    days.Add(new { date = key, confirmed = true, leavecd = c.Leavecd, remark = c.Remark, confirmedBy = c.ConfirmedBy, confirmedDate = c.ConfirmedDate });
+                else
+                    days.Add(new { date = key, confirmed = false, leavecd = (string?)null, remark = (string?)null, confirmedBy = (string?)null, confirmedDate = (DateTime?)null });
+            }
+
+            return Ok(new { success = true, empcd = info.Empcd, days });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Leave/doc-confirm-days — HR xác nhận nộp giấy theo từng ngày, tự gõ Absent
+    // Code/remark (không đoán tự động) — app ghi thẳng sang ERP (EFM410) cho đúng những ngày đó,
+    // đồng thời lưu lịch sử vào HR_LEAVE_DOC_DAY để tính đúng trạng thái nộp thiếu/đủ ngày.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("doc-confirm-days")]
+    public async Task<IActionResult> DocConfirmDays([FromBody] LeaveDocConfirmDaysRequest model)
+    {
+        try
+        {
+            if (model == null || string.IsNullOrEmpty(model.REQUEST_ID) || string.IsNullOrEmpty(model.ACTOR_EMPCD))
+                return Ok(new { success = false, message = "Thiếu thông tin" });
+            if (model.DAYS == null || model.DAYS.Count == 0)
+                return Ok(new { success = false, message = "Chưa chọn ngày nào" });
+
+            var roleRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => r["ROLE_NAME"]?.ToString(),
+                new OracleParameter("EMPCD", model.ACTOR_EMPCD));
+            string? role = roleRows.FirstOrDefault();
+            if (role != "HR" && role != "Clerk" && role != "Admin")
+                return Ok(new { success = false, message = "Bạn không có quyền cập nhật giấy tờ" });
+
+            var reqRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT L.EMPCD, L.FROM_DATE, L.TO_DATE, R.STATUS
+                FROM HRMS.HR_LEAVE_REQUEST L JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
+                WHERE L.REQUEST_ID = :ID AND ROWNUM = 1",
+                r => new {
+                    Empcd    = r["EMPCD"]?.ToString() ?? "",
+                    FromDate = Convert.ToDateTime(r["FROM_DATE"]),
+                    ToDate   = Convert.ToDateTime(r["TO_DATE"]),
+                    Status   = r["STATUS"]?.ToString() ?? ""
+                },
+                new OracleParameter("ID", model.REQUEST_ID));
+
+            var info = reqRows.FirstOrDefault();
+            if (info == null) return Ok(new { success = false, message = "Không tìm thấy đơn nghỉ phép" });
+            // Chỉ được cập nhật giấy tờ khi đơn đã Đã duyệt hoặc đã Sắp lịch nghỉ — các trạng thái
+            // khác (chờ duyệt, từ chối...) chưa chốt nên chưa cho ghi ERP.
+            if (!DocEditableStatuses.Contains(info.Status))
+                return Ok(new { success = false, message = "Chỉ được cập nhật giấy tờ khi đơn đã Đã duyệt hoặc đã Sắp lịch nghỉ" });
+
+            int totalDays = (info.ToDate.Date - info.FromDate.Date).Days + 1;
+
+            foreach (var day in model.DAYS)
+            {
+                if (!DateTime.TryParse(day.DATE, out var d)) continue;
+                if (d.Date < info.FromDate.Date || d.Date > info.ToDate.Date) continue; // chặn ghi ngày ngoài khoảng đơn
+
+                // Mã là TÙY CHỌN — để trống nghĩa là giữ nguyên mã cũ trên ERP, chỉ đổi Remark (VD
+                // case SI: mã vẫn "CP" như cũ, chỉ cần thêm "BHXH" vào remark, không cần gõ lại mã).
+                var leavecdInput = string.IsNullOrWhiteSpace(day.LEAVECD) ? null : day.LEAVECD.Trim().ToUpperInvariant();
+                var remark       = string.IsNullOrWhiteSpace(day.REMARK)  ? null : day.REMARK!.Trim();
+                if (leavecdInput == null && remark == null) continue; // không nhập gì thì bỏ qua ngày này
+
+                // Ghi thẳng sang ERP trước — UPDATE nếu ngày đó đã có dòng EFM410 (thường có sẵn, do
+                // lúc duyệt/sắp lịch đã insert qua SP_015_NEW). NVL giữ nguyên cột nào HR để trống.
+                int updated = await _oracleService.ExecuteNonQueryAsync(@"
+                    UPDATE HRMS.EFM410
+                    SET LEAVECD = NVL(:LEAVECD, LEAVECD), REMAR = NVL(:REMARK, REMAR), APPROVED_BY = :ACTOR
+                    WHERE EMPCD = :EMPCD AND FR_DAT = :LEAVE_DATE",
+                    new OracleParameter("LEAVECD",    (object?)leavecdInput ?? DBNull.Value),
+                    new OracleParameter("REMARK",     (object?)remark ?? DBNull.Value),
+                    new OracleParameter("ACTOR",      model.ACTOR_EMPCD),
+                    new OracleParameter("EMPCD",      info.Empcd),
+                    new OracleParameter("LEAVE_DATE", OracleDbType.Date) { Value = d.Date });
+
+                if (updated == 0)
+                {
+                    // Chưa có dòng ERP cho ngày này — bắt buộc phải có Mã mới tạo được (cột NOT NULL),
+                    // để trống thì không đủ thông tin để insert, đành bỏ qua ngày này.
+                    if (leavecdInput == null) continue;
+                    await _oracleService.ExecuteNonQueryAsync(@"
+                        INSERT INTO HRMS.EFM410 (EMPCD, LEAVECD, FR_DAT, IN_ID, REMAR, APPROVED_BY)
+                        VALUES (:EMPCD, :LEAVECD, :LEAVE_DATE, :ACTOR, :REMARK, :ACTOR)",
+                        new OracleParameter("EMPCD",      info.Empcd),
+                        new OracleParameter("LEAVECD",    leavecdInput),
+                        new OracleParameter("LEAVE_DATE", OracleDbType.Date) { Value = d.Date },
+                        new OracleParameter("ACTOR",      model.ACTOR_EMPCD),
+                        new OracleParameter("REMARK",     (object?)remark ?? DBNull.Value));
+                }
+
+                // Đọc lại mã/remark THẬT SỰ đang có trên ERP sau khi ghi — để lưu đúng vào lịch sử
+                // xác nhận, kể cả khi HR để trống Mã (giữ nguyên mã cũ).
+                var efmNow = await _oracleService.ExecuteQueryAsync(
+                    "SELECT LEAVECD, REMAR FROM HRMS.EFM410 WHERE EMPCD = :EMPCD AND FR_DAT = :LEAVE_DATE",
+                    r => new { Leavecd = r["LEAVECD"]?.ToString() ?? "", Remark = r["REMAR"]?.ToString() },
+                    new OracleParameter("EMPCD",      info.Empcd),
+                    new OracleParameter("LEAVE_DATE", OracleDbType.Date) { Value = d.Date });
+                var final = efmNow.FirstOrDefault();
+                if (final == null) continue;
+
+                // Lưu lịch sử xác nhận trên MySamho (ai xác nhận, ngày nào, ghi gì) — nguồn xác định
+                // trạng thái "đã nộp", không dựa vào việc đoán nội dung EFM410 như job đối chiếu cũ.
+                await _oracleService.ExecuteNonQueryAsync(@"
+                    MERGE INTO HRMS.HR_LEAVE_DOC_DAY T
+                    USING (SELECT :REQUEST_ID AS REQUEST_ID, :LEAVE_DATE AS LEAVE_DATE FROM DUAL) S
+                    ON (T.REQUEST_ID = S.REQUEST_ID AND T.LEAVE_DATE = S.LEAVE_DATE)
+                    WHEN MATCHED THEN UPDATE SET
+                        T.LEAVECD = :LEAVECD, T.REMARK = :REMARK,
+                        T.CONFIRMED_BY = :ACTOR, T.CONFIRMED_DATE = SYSDATE
+                    WHEN NOT MATCHED THEN INSERT
+                        (REQUEST_ID, LEAVE_DATE, EMPCD, LEAVECD, REMARK, CONFIRMED_BY, CONFIRMED_DATE)
+                    VALUES
+                        (:REQUEST_ID, :LEAVE_DATE, :EMPCD, :LEAVECD, :REMARK, :ACTOR, SYSDATE)",
+                    new OracleParameter("REQUEST_ID", model.REQUEST_ID),
+                    new OracleParameter("LEAVE_DATE", OracleDbType.Date) { Value = d.Date },
+                    new OracleParameter("EMPCD",      info.Empcd),
+                    new OracleParameter("LEAVECD",    final.Leavecd),
+                    new OracleParameter("REMARK",     (object?)final.Remark ?? DBNull.Value),
+                    new OracleParameter("ACTOR",      model.ACTOR_EMPCD));
+            }
+
+            // Đủ hết số ngày trong đơn -> SUBMITTED; còn thiếu vài ngày -> PARTIALLY_SUBMITTED.
+            var confirmedCountRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT FROM HRMS.HR_LEAVE_DOC_DAY WHERE REQUEST_ID = :ID",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("ID", model.REQUEST_ID));
+            int confirmedCount = confirmedCountRows.FirstOrDefault();
+            string newStatus = confirmedCount >= totalDays ? "SUBMITTED" : "PARTIALLY_SUBMITTED";
+
+            await _oracleService.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_LEAVE_REQUEST
+                SET DOC_STATUS = :STATUS, DOC_SUBMITTED_DATE = SYSDATE, DOC_SUBMITTED_BY = :ACTOR,
+                    UPDATED_BY = :ACTOR2, UPDATED_DATE = SYSDATE
+                WHERE REQUEST_ID = :ID",
+                new OracleParameter("STATUS", newStatus),
+                new OracleParameter("ACTOR",  model.ACTOR_EMPCD),
+                new OracleParameter("ACTOR2", model.ACTOR_EMPCD),
+                new OracleParameter("ID",     model.REQUEST_ID));
+
+            return Ok(new {
+                success = true,
+                message = $"Đã ghi nhận {model.DAYS.Count} ngày — tổng {confirmedCount}/{totalDays} ngày đã nộp giấy",
+                docStatus = newStatus, confirmedCount, totalDays
+            });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // HR đổi ý (2026-09-10): bỏ kiểu gõ tay trong đơn nghỉ MySamho, chuyển sang sửa trực tiếp trên
+    // 1 trang riêng y chang màn ERP thật (theo đúng SQL HR đưa) — CHỈ sửa được Leavecd + Remark,
+    // các cột còn lại (NV, ngày, phòng ban...) chỉ xem. Sửa xong tự map ngược lại đơn nghỉ MySamho
+    // tương ứng (nếu ngày đó thuộc 1 đơn Đã duyệt cần giấy tờ) để cập nhật DOC_STATUS luôn — gộp
+    // 2 bước (sửa ERP + đánh dấu đã nộp bên MySamho) thành 1 cho gọn.
+    //
+    // GET /apiHR/Leave/erp-absent-list — danh sách EFM410 trong khoảng ngày, y chang màn ERP.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("erp-absent-list")]
+    public async Task<IActionResult> GetErpAbsentList(
+        string date_from, string date_to, string? empcd = null, string? deptcd = null,
+        string? linecd = null, string? workcd = null, string? leavecd = null,
+        string? ms_status = null, string? ms_leave_type = null, int page = 1, int page_size = 100)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(date_from) || string.IsNullOrEmpty(date_to))
+                return Ok(new { success = false, message = "Thiếu khoảng ngày" });
+            if (!DateTime.TryParse(date_from, out var frDate) || !DateTime.TryParse(date_to, out var toDate))
+                return Ok(new { success = false, message = "Ngày không hợp lệ" });
+
+            var empcdP  = string.IsNullOrWhiteSpace(empcd)  ? "%" : $"%{empcd.Trim()}%";
+            var deptcdP = string.IsNullOrWhiteSpace(deptcd) ? "%" : deptcd.Trim();
+            var linecdP = string.IsNullOrWhiteSpace(linecd) ? "%" : linecd.Trim();
+            var workcdP = string.IsNullOrWhiteSpace(workcd) ? "%" : workcd.Trim();
+            var leavecdP= string.IsNullOrWhiteSpace(leavecd)? "%" : leavecd.Trim();
+            var msLeaveTypeP = string.IsNullOrWhiteSpace(ms_leave_type) ? null : ms_leave_type.Trim().ToUpperInvariant();
+
+            // Lọc theo đơn MySamho tương ứng đã duyệt hay chưa — dùng EXISTS/NOT EXISTS riêng (không
+            // parse lại MS_COMBINED) cho gọn. "Đã duyệt" tính luôn Sắp lịch nghỉ (ASSIGNED) — đồng
+            // nhất với rule "quản lý/Admin sắp lịch tính như đã duyệt" áp dụng toàn hệ thống.
+            string msStatusFilter = ms_status switch
+            {
+                "APPROVED" => @"
+                  AND EXISTS (SELECT 1 FROM HRMS.HR_LEAVE_REQUEST ML JOIN HRMS.HR_REQUEST MR ON MR.REQUEST_ID = ML.REQUEST_ID
+                              WHERE ML.EMPCD = A.EMPCD AND A.FR_DAT BETWEEN ML.FROM_DATE AND ML.TO_DATE
+                                AND MR.STATUS IN ('APPROVED','ASSIGNED'))",
+                // 1 nhân viên/ngày hiếm khi có > 1 đơn MySamho trùng nhau, nhưng nếu có (VD bị từ
+                // chối rồi nộp lại) thì msSub bên dưới LUÔN ưu tiên hiện đơn Đã duyệt/Sắp lịch nếu
+                // có — nên "chưa duyệt" phải là "có đơn NHƯNG không có đơn nào Đã duyệt/Sắp lịch cả",
+                // chứ không phải chỉ "có 1 đơn chưa duyệt" (dễ sai khi có nhiều đơn trùng ngày).
+                "NOT_APPROVED" => @"
+                  AND EXISTS (SELECT 1 FROM HRMS.HR_LEAVE_REQUEST ML JOIN HRMS.HR_REQUEST MR ON MR.REQUEST_ID = ML.REQUEST_ID
+                              WHERE ML.EMPCD = A.EMPCD AND A.FR_DAT BETWEEN ML.FROM_DATE AND ML.TO_DATE)
+                  AND NOT EXISTS (SELECT 1 FROM HRMS.HR_LEAVE_REQUEST ML2 JOIN HRMS.HR_REQUEST MR2 ON MR2.REQUEST_ID = ML2.REQUEST_ID
+                              WHERE ML2.EMPCD = A.EMPCD AND A.FR_DAT BETWEEN ML2.FROM_DATE AND ML2.TO_DATE
+                                AND MR2.STATUS IN ('APPROVED','ASSIGNED'))",
+                _ => ""
+            };
+            // Lọc theo loại nghỉ trên MySamho (AL/NL/SI/DT/DC/CT/VS/DS/KT) — khác với filter "Mã
+            // nghỉ" (lọc theo Absent Code bên ERP), cái này lọc theo LEAVE_TYPE của đơn MySamho map
+            // sang ngày đó (yêu cầu 2026-09-10).
+            string msLeaveTypeFilter = msLeaveTypeP == null ? "" : @"
+                  AND EXISTS (SELECT 1 FROM HRMS.HR_LEAVE_REQUEST ML4 JOIN HRMS.HR_REQUEST MR4 ON MR4.REQUEST_ID = ML4.REQUEST_ID
+                              WHERE ML4.EMPCD = A.EMPCD AND A.FR_DAT BETWEEN ML4.FROM_DATE AND ML4.TO_DATE
+                                AND ML4.LEAVE_TYPE = :MS_LEAVE_TYPE)";
+
+            // Tái sử dụng đúng điều kiện WHERE/JOIN theo SQL HR đưa cho cả 2 câu (đếm tổng + lấy trang).
+            string baseFrom = $@"
+                FROM HRMS.EFM410 A
+                INNER JOIN HRMS.ECM100 B ON A.EMPCD = B.EMPCD
+                INNER JOIN HRMS.EAM410 C ON B.DEPTCD = C.DEPTCD AND B.LINECD = C.LINECD AND B.WORKCD = C.WORKCD
+                INNER JOIN HRMS.EAM700 D ON A.LEAVECD = D.LEAVECD
+                LEFT JOIN  HRMS.ECM100 APV ON APV.EMPCD = A.APPROVED_BY
+                WHERE A.FR_DAT BETWEEN :FR_DATE AND :TO_DATE
+                  AND A.EMPCD  LIKE :EMPCD
+                  AND B.DEPTCD LIKE :DEPTCD
+                  AND B.LINECD LIKE :LINECD
+                  AND B.WORKCD LIKE :WORKCD
+                  AND A.LEAVECD LIKE :LEAVECD
+                  AND NOT EXISTS (SELECT 'X' FROM HRMS.EFM410_WAIT W
+                                  WHERE W.EMPCD = A.EMPCD AND W.FR_DAT = A.FR_DAT AND W.FLAG_APPROVE = 'N')
+                  {msStatusFilter}
+                  {msLeaveTypeFilter}";
+
+            // Local function tạo OracleParameter MỚI mỗi lần gọi (không tái dùng lại instance cũ giữa
+            // 2 lệnh COUNT/DATA) — thêm MS_LEAVE_TYPE vào cuối danh sách chỉ khi có lọc theo loại.
+            OracleParameter[] MakeParams()
+            {
+                var list = new List<OracleParameter> {
+                    new OracleParameter("FR_DATE", OracleDbType.Date) { Value = frDate.Date },
+                    new OracleParameter("TO_DATE", OracleDbType.Date) { Value = toDate.Date },
+                    new OracleParameter("EMPCD",   empcdP),
+                    new OracleParameter("DEPTCD",  deptcdP),
+                    new OracleParameter("LINECD",  linecdP),
+                    new OracleParameter("WORKCD",  workcdP),
+                    new OracleParameter("LEAVECD", leavecdP)
+                };
+                if (msLeaveTypeP != null) list.Add(new OracleParameter("MS_LEAVE_TYPE", msLeaveTypeP));
+                return list.ToArray();
+            }
+
+            var countRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT " + baseFrom,
+                r => Convert.ToInt32(r["CNT"]),
+                MakeParams());
+            int total = countRows.FirstOrDefault();
+
+            int safePage = Math.Max(1, page);
+            int safeSize = Math.Max(1, Math.Min(page_size, 5000));
+            int minRow = (safePage - 1) * safeSize;
+            int maxRow = safePage * safeSize;
+
+            // Gộp 5 giá trị MySamho vào 1 subquery correlated DUY NHẤT (nối chuỗi bằng CHR(1), tách
+            // lại bên C#) thay vì chạy 5 subquery giống hệt nhau cho mỗi dòng — trước đây mỗi dòng
+            // EFM410 phải quét HR_LEAVE_REQUEST tới 5 lần, giờ chỉ 1 lần (đỡ ~80% chi phí phần này).
+            // Chỉ lấy 1 đơn đại diện (ROWNUM=1) đủ để hiện gợi ý cho HR, tránh nhân dòng nếu trùng ngày.
+            // KHÔNG lọc theo LEAVE_TYPE ở đây (khác với ErpAbsentUpdate) — cột MySamho phải hiện MỌI
+            // đơn có trên MySamho (kể cả Phép năm/AL...), không riêng 6 loại cần giấy tờ. Trước đây
+            // lọc cứng IN ('SI','DT','DC','VS','DS','KT') khiến đơn AL/CT... bị báo nhầm "Chưa có
+            // trên MySamho" dù NV đã nộp đơn thật (HR phát hiện 2026-09-10, VD NV 14123005).
+            // Nếu 1 NV/ngày trùng > 1 đơn (VD bị từ chối rồi nộp lại) — ưu tiên hiện đơn Đã duyệt/Sắp
+            // lịch trước (khớp với msStatusFilter phía trên: "chưa duyệt" nghĩa là hoàn toàn không có
+            // đơn nào Đã duyệt/Sắp lịch, không phải chỉ tình cờ ROWNUM=1 vớ trúng đơn chưa duyệt).
+            // MAX(...) KEEP (DENSE_RANK FIRST ORDER BY ...) = lấy đúng 1 giá trị từ dòng "hạng nhất"
+            // theo thứ tự chỉ định, coi cả kết quả WHERE là 1 nhóm (không cần GROUP BY) — tránh phải
+            // lồng thêm 1 lớp subquery/ROWNUM (Oracle 10g+, không phải LISTAGG nên vẫn hợp lệ).
+            const string msSub = @"
+                (SELECT MAX(ML.REQUEST_ID || CHR(1) || ML.LEAVE_TYPE || CHR(1) || MR.STATUS || CHR(1)
+                             || NVL(ML.DOC_STATUS,'') || CHR(1) || NVL(ML.REASON,''))
+                        KEEP (DENSE_RANK FIRST ORDER BY CASE WHEN MR.STATUS IN ('APPROVED','ASSIGNED') THEN 0 ELSE 1 END)
+                 FROM HRMS.HR_LEAVE_REQUEST ML JOIN HRMS.HR_REQUEST MR ON MR.REQUEST_ID = ML.REQUEST_ID
+                 WHERE ML.EMPCD = A.EMPCD AND A.FR_DAT BETWEEN ML.FROM_DATE AND ML.TO_DATE)";
+
+            var dataSql = $@"
+                SELECT * FROM (
+                    SELECT ROWNUM RN, T.* FROM (
+                        SELECT A.EMPCD, B.CNAME EMP_NAME, TO_CHAR(A.FR_DAT,'YYYY-MM-DD') FR_DATE,
+                               A.LEAVECD, D.LEAVENM, A.REMAR, C.DEPTNM, C.TEAMNM, C.WORKNM,
+                               B.DEPTCD, B.LINECD, B.WORKCD, A.APPROVED_BY, APV.CNAME APPROVED_BY_NAME,
+                               {msSub} MS_COMBINED
+                        {baseFrom}
+                        ORDER BY A.FR_DAT, A.EMPCD
+                    ) T WHERE ROWNUM <= :MAX_ROW
+                ) WHERE RN > :MIN_ROW";
+
+            var listParams = MakeParams().ToList();
+            listParams.Add(new OracleParameter("MAX_ROW", maxRow));
+            listParams.Add(new OracleParameter("MIN_ROW", minRow));
+
+            var rawRows = await _oracleService.ExecuteQueryAsync(
+                dataSql,
+                r => new
+                {
+                    Empcd        = r["EMPCD"]?.ToString() ?? "",
+                    EmpName      = r["EMP_NAME"]?.ToString(),
+                    FrDate       = r["FR_DATE"]?.ToString(),
+                    Leavecd      = r["LEAVECD"]?.ToString(),
+                    Leavenm      = r["LEAVENM"]?.ToString(),
+                    Remark       = r["REMAR"] == DBNull.Value ? null : r["REMAR"]?.ToString(),
+                    DeptNm       = r["DEPTNM"]?.ToString(),
+                    TeamNm       = r["TEAMNM"]?.ToString(),
+                    WorkNm       = r["WORKNM"]?.ToString(),
+                    Deptcd       = r["DEPTCD"]?.ToString(),
+                    Linecd       = r["LINECD"]?.ToString(),
+                    Workcd       = r["WORKCD"]?.ToString(),
+                    ApprovedBy     = r["APPROVED_BY"] == DBNull.Value ? null : r["APPROVED_BY"]?.ToString(),
+                    ApprovedByName = r["APPROVED_BY_NAME"] == DBNull.Value ? null : r["APPROVED_BY_NAME"]?.ToString(),
+                    MsCombined   = r["MS_COMBINED"] == DBNull.Value ? null : r["MS_COMBINED"]?.ToString()
+                },
+                listParams.ToArray());
+
+            // Tách MS_COMBINED (REQUEST_ID\x01LEAVE_TYPE\x01STATUS\x01DOC_STATUS\x01REASON) —
+            // NVL() ở DOC_STATUS/REASON trong SQL trả '' cho null nên map lại thành null ở đây.
+            var rows = rawRows.Select(x =>
+            {
+                var p = x.MsCombined?.Split('\u0001') ?? Array.Empty<string>();
+                string? Part(int i) => i < p.Length && p[i].Length > 0 ? p[i] : null;
+                return new
+                {
+                    x.Empcd, x.EmpName, x.FrDate, x.Leavecd, x.Leavenm, x.Remark,
+                    x.DeptNm, x.TeamNm, x.WorkNm, x.Deptcd, x.Linecd, x.Workcd,
+                    x.ApprovedBy, x.ApprovedByName,
+                    MsRequestId = Part(0), MsLeaveType = Part(1), MsStatus = Part(2),
+                    MsDocStatus = Part(3), MsReason = Part(4)
+                };
+            });
+
+            return Ok(new {
+                success = true, total, page = safePage, page_size = safeSize,
+                total_pages = (int)Math.Ceiling(total / (double)safeSize),
+                data = rows
+            });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // GET /apiHR/Leave/absent-code-list — danh sách mã Absent Code gốc bên ERP (EAM700), cho combobox.
+    [HttpGet("absent-code-list")]
+    public async Task<IActionResult> GetAbsentCodeList()
+    {
+        try
+        {
+            var rows = await _oracleService.ExecuteQueryAsync(
+                "SELECT LEAVECD, LEAVENM, SA_PAY FROM HRMS.EAM700 ORDER BY LEAVECD",
+                r => new {
+                    Code = r["LEAVECD"]?.ToString() ?? "",
+                    Name = r["LEAVENM"]?.ToString() ?? "",
+                    Pay  = r["SA_PAY"]?.ToString() == "Y"
+                });
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST /apiHR/Leave/erp-absent-update — sửa Leavecd/Remark 1 dòng EFM410 đã có sẵn (không tạo
+    // mới), tự map ngược sang đơn nghỉ MySamho tương ứng (nếu có, đã Đã duyệt) để cập nhật DOC_STATUS.
+    [HttpPost("erp-absent-update")]
+    public async Task<IActionResult> ErpAbsentUpdate([FromBody] ErpAbsentUpdateRequest model)
+    {
+        try
+        {
+            if (model == null || string.IsNullOrEmpty(model.EMPCD) || string.IsNullOrEmpty(model.FR_DATE)
+                || string.IsNullOrEmpty(model.LEAVECD) || string.IsNullOrEmpty(model.ACTOR_EMPCD))
+                return Ok(new { success = false, message = "Thiếu thông tin" });
+            if (!DateTime.TryParse(model.FR_DATE, out var frDate))
+                return Ok(new { success = false, message = "Ngày không hợp lệ" });
+
+            var roleRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => r["ROLE_NAME"]?.ToString(),
+                new OracleParameter("EMPCD", model.ACTOR_EMPCD));
+            string? role = roleRows.FirstOrDefault();
+            // Chỉ HR/Admin — Thư ký (Clerk) KHÔNG được sửa Absent Code ERP (yêu cầu 2026-09-10).
+            if (role != "HR" && role != "Admin")
+                return Ok(new { success = false, message = "Bạn không có quyền sửa" });
+
+            var leavecd = model.LEAVECD.Trim().ToUpperInvariant();
+            var remark  = string.IsNullOrWhiteSpace(model.REMARK) ? null : model.REMARK.Trim();
+
+            // Trang này chỉ SỬA dòng ERP đã tồn tại sẵn (không insert mới) — đúng yêu cầu "chỉ sửa
+            // code với remark thôi".
+            int rows = await _oracleService.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.EFM410
+                SET LEAVECD = :LEAVECD, REMAR = :REMARK, APPROVED_BY = :ACTOR
+                WHERE EMPCD = :EMPCD AND FR_DAT = :FR_DATE",
+                new OracleParameter("LEAVECD", leavecd),
+                new OracleParameter("REMARK",  (object?)remark ?? DBNull.Value),
+                new OracleParameter("ACTOR",   model.ACTOR_EMPCD),
+                new OracleParameter("EMPCD",   model.EMPCD),
+                new OracleParameter("FR_DATE", OracleDbType.Date) { Value = frDate.Date });
+
+            if (rows == 0)
+                return Ok(new { success = false, message = "Không tìm thấy dòng ERP cho nhân viên/ngày này" });
+
+            // Map ngược sang MySamho — chỉ áp dụng khi ngày này thuộc 1 đơn nghỉ đã Đã duyệt HOẶC
+            // đã Sắp lịch nghỉ (quản lý/Admin sắp lịch tính như đã chốt), loại cần giấy tờ.
+            var msRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT L.REQUEST_ID, L.FROM_DATE, L.TO_DATE FROM HRMS.HR_LEAVE_REQUEST L
+                JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
+                WHERE L.EMPCD = :EMPCD AND :FR_DATE BETWEEN L.FROM_DATE AND L.TO_DATE
+                  AND L.LEAVE_TYPE IN ('SI','DT','DC','VS','DS','KT') AND R.STATUS IN ('APPROVED','ASSIGNED')
+                  AND ROWNUM = 1",
+                r => new {
+                    RequestId = r["REQUEST_ID"]?.ToString() ?? "",
+                    FromDate  = Convert.ToDateTime(r["FROM_DATE"]),
+                    ToDate    = Convert.ToDateTime(r["TO_DATE"])
+                },
+                new OracleParameter("EMPCD",   model.EMPCD),
+                new OracleParameter("FR_DATE", OracleDbType.Date) { Value = frDate.Date });
+
+            var ms = msRows.FirstOrDefault();
+            bool mapped = false;
+            string? newStatus = null;
+            if (ms != null)
+            {
+                await _oracleService.ExecuteNonQueryAsync(@"
+                    MERGE INTO HRMS.HR_LEAVE_DOC_DAY T
+                    USING (SELECT :REQUEST_ID AS REQUEST_ID, :LEAVE_DATE AS LEAVE_DATE FROM DUAL) S
+                    ON (T.REQUEST_ID = S.REQUEST_ID AND T.LEAVE_DATE = S.LEAVE_DATE)
+                    WHEN MATCHED THEN UPDATE SET
+                        T.LEAVECD = :LEAVECD, T.REMARK = :REMARK, T.CONFIRMED_BY = :ACTOR, T.CONFIRMED_DATE = SYSDATE
+                    WHEN NOT MATCHED THEN INSERT
+                        (REQUEST_ID, LEAVE_DATE, EMPCD, LEAVECD, REMARK, CONFIRMED_BY, CONFIRMED_DATE)
+                    VALUES
+                        (:REQUEST_ID, :LEAVE_DATE, :EMPCD, :LEAVECD, :REMARK, :ACTOR, SYSDATE)",
+                    new OracleParameter("REQUEST_ID", ms.RequestId),
+                    new OracleParameter("LEAVE_DATE", OracleDbType.Date) { Value = frDate.Date },
+                    new OracleParameter("LEAVECD",    leavecd),
+                    new OracleParameter("REMARK",     (object?)remark ?? DBNull.Value),
+                    new OracleParameter("ACTOR",      model.ACTOR_EMPCD),
+                    new OracleParameter("EMPCD",      model.EMPCD));
+
+                int totalDays = (ms.ToDate.Date - ms.FromDate.Date).Days + 1;
+                var cntRows = await _oracleService.ExecuteQueryAsync(
+                    "SELECT COUNT(*) CNT FROM HRMS.HR_LEAVE_DOC_DAY WHERE REQUEST_ID = :ID",
+                    r => Convert.ToInt32(r["CNT"]),
+                    new OracleParameter("ID", ms.RequestId));
+                int confirmedCount = cntRows.FirstOrDefault();
+                newStatus = confirmedCount >= totalDays ? "SUBMITTED" : "PARTIALLY_SUBMITTED";
+
+                await _oracleService.ExecuteNonQueryAsync(@"
+                    UPDATE HRMS.HR_LEAVE_REQUEST
+                    SET DOC_STATUS = :STATUS, DOC_SUBMITTED_DATE = SYSDATE, DOC_SUBMITTED_BY = :ACTOR,
+                        UPDATED_BY = :ACTOR2, UPDATED_DATE = SYSDATE
+                    WHERE REQUEST_ID = :ID",
+                    new OracleParameter("STATUS", newStatus),
+                    new OracleParameter("ACTOR",  model.ACTOR_EMPCD),
+                    new OracleParameter("ACTOR2", model.ACTOR_EMPCD),
+                    new OracleParameter("ID",     ms.RequestId));
+
+                mapped = true;
+            }
+
+            return Ok(new {
+                success = true,
+                message = mapped ? $"Đã lưu ERP và cập nhật MySamho ({newStatus})" : "Đã lưu ERP (ngày này không thuộc đơn nghỉ MySamho nào cần giấy tờ)",
+                mapped
+            });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -2494,6 +3160,14 @@ END;";
             {
                 try
                 {
+                    // Không cho Admin tự sắp lịch nghỉ cho chính mình — cùng lý do với endpoint
+                    // Assign của Supervisor/Manager (tránh tự cấp phép nghỉ không qua ai kiểm soát).
+                    if (string.Equals(targetEmpcd, model.ASSIGNER_EMPCD, StringComparison.OrdinalIgnoreCase))
+                    {
+                        results.Add(new { empcd = targetEmpcd, success = false, message = "Không thể tự sắp lịch nghỉ cho chính mình" });
+                        continue;
+                    }
+
                     var empRows = await _oracleService.ExecuteQueryAsync(
                         "SELECT CNAME FROM HRMS.ECM100 WHERE EMPCD = :EMPCD AND ROWNUM = 1",
                         r => r["CNAME"]?.ToString(),
@@ -3075,9 +3749,9 @@ END;";
     }
 
     // GET /apiHR/Leave/same-day-deadline?empcd=&leave_type=&from_date=YYYY-MM-DD
-    // Frontend gọi khi NV chọn loại NL hoặc DT/VS/KT với FROM_DATE = hôm nay, để tự động dời
+    // Frontend gọi khi NV chọn loại NL/SI hoặc DT/VS/KT với FROM_DATE = hôm nay, để tự động dời
     // min date sang ngày mai nếu đã quá hạn (giống hệt cơ chế al-deadline) — tránh bug UI vẫn
-    // cho chọn hôm nay dù ca đã bắt đầu (NL) / đã hết ca (DT/VS/KT), Submit() sẽ chặn ở server.
+    // cho chọn hôm nay dù ca đã bắt đầu (NL/SI) / đã hết ca (DT/VS/KT), Submit() sẽ chặn ở server.
     [HttpGet("same-day-deadline")]
     public async Task<IActionResult> GetSameDayDeadline(string empcd, string leave_type, string from_date)
     {
@@ -3089,7 +3763,7 @@ END;";
                 return Ok(new { success = false, message = "Ngày không hợp lệ" });
 
             string leaveTypeName = NewLeaveTypeNames.GetValueOrDefault(leave_type, leave_type);
-            string? error = leave_type == "NL"
+            string? error = SameDayShiftStartTypes.Contains(leave_type)
                 ? await CheckSameDayShiftStartAsync(empcd, fromDate, leaveTypeName)
                 : SameDaySuddenLeaveTypes.Contains(leave_type)
                     ? await CheckSameDayShiftEndAsync(empcd, fromDate, leaveTypeName)

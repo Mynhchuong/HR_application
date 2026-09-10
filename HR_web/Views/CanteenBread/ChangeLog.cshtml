@@ -1,7 +1,11 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Log Đổi Món";
-    var isClerk = (ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel)?.RoleName == "Clerk";
+    var role = (ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel)?.RoleName;
+    var isClerk = role == "Clerk";
+    // Xoá / đổi món hàng loạt: chỉ Admin/HR (khớp CanBulkEditLog phía Controller).
+    var canBulkEdit = role == "Admin" || role == "HR";
+    var colCount = canBulkEdit ? 10 : 9;
 }
 
 @section Styles {
@@ -35,6 +39,7 @@
 }
 
 <div class="container-fluid py-4">
+@if (canBulkEdit) { @Html.AntiForgeryToken() }
 <div class="card">
     <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
         <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -77,10 +82,31 @@
             <span id="totalBadge" class="total-badge ms-1" style="display:none;"></span>
         </div>
 
+@if (canBulkEdit)
+{
+        <div id="bulkBar" class="px-4 pb-2" style="display:none;">
+            <div class="d-flex align-items-center gap-2 flex-wrap p-2 rounded" style="background:#fff7ed;border:1px solid #fed7aa;">
+                <span id="bulkCount" class="fw-bold text-sm" style="color:#c2410c;"></span>
+                <button class="btn btn-sm btn-warning mb-0" onclick="bulkChangeToMan()">
+                    <i class="bi bi-arrow-repeat me-1"></i>Đổi thành Mặn
+                </button>
+                <button class="btn btn-sm btn-danger mb-0" onclick="bulkDelete()">
+                    <i class="bi bi-trash me-1"></i>Xoá bản ghi
+                </button>
+                <button class="btn btn-sm btn-outline-secondary mb-0" onclick="clearSelection()">Bỏ chọn</button>
+                <span id="bulkAllHint" class="text-xs ms-1" style="display:none;color:#9a3412;"></span>
+            </div>
+        </div>
+}
+
         <div class="table-responsive px-4">
             <table class="table align-items-center mb-0 w-100 table-hover table-striped">
                 <thead class="bg-light">
                     <tr>
+                        @if (canBulkEdit)
+                        {
+                            <th class="px-2" style="width:32px;"><input type="checkbox" id="chkAll" onclick="toggleSelectAllPage(this)" title="Chọn tất cả trên trang này"></th>
+                        }
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Ngày</th>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Mã NV</th>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2">Tên NV</th>
@@ -93,7 +119,7 @@
                     </tr>
                 </thead>
                 <tbody id="logBody">
-                    <tr><td colspan="9" class="cl-loading"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                    <tr><td colspan="@colCount" class="cl-loading"><div class="spinner-border text-primary" role="status"></div></td></tr>
                 </tbody>
             </table>
         </div>
@@ -113,6 +139,17 @@ const PAGE_SIZE = 50;
 
 const foodLabel = { M:'🍖 Mặn', N:'🥗 Nhẹ', C:'🥦 Chay', B:'🥐 Bánh' };
 const shiftLabel = { LUNCH:'🍱 Bữa ca', OT:'🌙 Tăng ca' };
+
+// ── Bulk xoá / đổi món (chỉ Admin/HR) ─────────────────────────────────
+const CAN_BULK = @(canBulkEdit.ToString().ToLower());
+const COL_COUNT = @colCount;
+const AF_TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+// key = "empcd|dat|typeMeal" → { empcd, dat, typeMeal }
+const selectedKeys = new Map();
+// true = "chọn tất cả khớp bộ lọc" (áp cho mọi dòng khớp filter, kể cả ngoài trang đang xem)
+let selectAllMatching = false;
+// filter object của lần tìm gần nhất — dùng khi selectAllMatching
+let lastFilter = {};
 
 const IS_CLERK = @(isClerk.ToString().ToLower());
 // Clerk: lấy dept/line/work theo đúng phạm vi HR_USERS_DEPT của mình (GetXByScope tự dùng
@@ -188,6 +225,11 @@ async function doSearch(page = 1) {
     const foodType = document.getElementById('fFood').value;
     const typeMeal = document.getElementById('fShift').value;
 
+    // Lưu filter cho chế độ "chọn tất cả khớp bộ lọc". Mỗi lần tìm/chuyển trang đều bỏ chọn cũ
+    // để tránh key rác từ trang trước.
+    lastFilter = { from, to, empcd, deptcd, linecd, workcd, foodType, typeMeal };
+    clearSelection();
+
     const qs = new URLSearchParams();
     if (from)     qs.set('from',     from);
     if (to)       qs.set('to',       to);
@@ -201,7 +243,7 @@ async function doSearch(page = 1) {
     qs.set('pageSize', PAGE_SIZE);
 
     document.getElementById('logBody').innerHTML =
-        '<tr><td colspan="9" class="cl-loading"><div class="spinner-border text-primary" role="status"></div></td></tr>';
+        `<tr><td colspan="${COL_COUNT}" class="cl-loading"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
 
     const res  = await fetch('GetChangeLog?' + qs.toString());
     const data = await res.json();
@@ -210,7 +252,7 @@ async function doSearch(page = 1) {
 
     if (!data.success) {
         document.getElementById('logBody').innerHTML =
-            `<tr><td colspan="9" class="text-center text-danger py-4">${esc(data.message)}</td></tr>`;
+            `<tr><td colspan="${COL_COUNT}" class="text-center text-danger py-4">${esc(data.message)}</td></tr>`;
         totalRecords = 0;
         badge.style.display = 'none';
         renderPagination();
@@ -224,7 +266,7 @@ async function doSearch(page = 1) {
     const rows = data.data;
     if (!rows.length) {
         document.getElementById('logBody').innerHTML =
-            '<tr><td colspan="9" class="text-center text-secondary py-5">Không có dữ liệu</td></tr>';
+            `<tr><td colspan="${COL_COUNT}" class="text-center text-secondary py-5">Không có dữ liệu</td></tr>`;
         renderPagination();
         return;
     }
@@ -239,7 +281,12 @@ async function doSearch(page = 1) {
             ? '<span class="source-badge">📱 App</span>'
             : `<span class="source-badge">🖥️ ${esc(r.changeFrom || 'HT')}</span>`;
 
+        const chkCell = CAN_BULK
+            ? `<td class="px-2"><input type="checkbox" class="row-chk" data-empcd="${esc(r.empcd)}" data-dat="${esc(r.dat)}" data-meal="${esc(r.typeMeal)}" onclick="onRowCheck(this)"></td>`
+            : '';
+
         return `<tr>
+            ${chkCell}
             <td class="px-2 text-sm">${dat}</td>
             <td class="px-2 text-sm font-weight-bold">${esc(r.empcd) || '—'}</td>
             <td class="px-2 text-sm vni-font">${esc(r.empName) || '—'}</td>
@@ -253,6 +300,7 @@ async function doSearch(page = 1) {
     }).join('');
 
     renderPagination();
+    syncCheckboxesToState();
 }
 
 function exportExcel() {
@@ -319,6 +367,149 @@ function resetFilter() {
     document.getElementById('fFood').value = '';
     document.getElementById('fShift').value = '';
     doSearch(1);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// BULK: xoá / đổi món hàng loạt (chỉ Admin/HR — CAN_BULK)
+// ══════════════════════════════════════════════════════════════════════
+function pageRowChecks() { return Array.from(document.querySelectorAll('#logBody .row-chk')); }
+
+function keyOf(cb) { return `${cb.dataset.empcd}|${cb.dataset.dat}|${cb.dataset.meal}`; }
+
+// Sau khi render lại bảng: tick lại các checkbox theo state đang giữ + cập nhật thanh công cụ.
+function syncCheckboxesToState() {
+    if (!CAN_BULK) return;
+    pageRowChecks().forEach(cb => {
+        cb.checked = selectAllMatching || selectedKeys.has(keyOf(cb));
+    });
+    const chkAll = document.getElementById('chkAll');
+    if (chkAll) {
+        const all = pageRowChecks();
+        chkAll.checked = all.length > 0 && all.every(cb => cb.checked);
+        chkAll.indeterminate = !chkAll.checked && all.some(cb => cb.checked);
+    }
+    updateBulkBar();
+}
+
+function onRowCheck(cb) {
+    // Người dùng tự chỉnh từng dòng → thoát chế độ "chọn tất cả khớp bộ lọc".
+    if (selectAllMatching) {
+        selectAllMatching = false;
+        // giữ lại những dòng đang hiện trên trang làm lựa chọn thủ công
+        pageRowChecks().forEach(c => { if (c.checked) selectedKeys.set(keyOf(c), rowKeyObj(c)); });
+    }
+    if (cb.checked) selectedKeys.set(keyOf(cb), rowKeyObj(cb));
+    else            selectedKeys.delete(keyOf(cb));
+    syncCheckboxesToState();
+}
+
+function rowKeyObj(cb) { return { empcd: cb.dataset.empcd, dat: cb.dataset.dat, typeMeal: cb.dataset.meal }; }
+
+function toggleSelectAllPage(master) {
+    if (selectAllMatching) selectAllMatching = false;
+    pageRowChecks().forEach(cb => {
+        cb.checked = master.checked;
+        if (master.checked) selectedKeys.set(keyOf(cb), rowKeyObj(cb));
+        else                selectedKeys.delete(keyOf(cb));
+    });
+    syncCheckboxesToState();
+}
+
+function enableSelectAllMatching() {
+    selectAllMatching = true;
+    selectedKeys.clear();
+    syncCheckboxesToState();
+}
+
+function clearSelection() {
+    selectedKeys.clear();
+    selectAllMatching = false;
+    const chkAll = document.getElementById('chkAll');
+    if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; }
+    pageRowChecks().forEach(cb => cb.checked = false);
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    if (!CAN_BULK) return;
+    const bar  = document.getElementById('bulkBar');
+    const cnt  = document.getElementById('bulkCount');
+    const hint = document.getElementById('bulkAllHint');
+    const n = selectAllMatching ? totalRecords : selectedKeys.size;
+
+    if (n === 0) { bar.style.display = 'none'; return; }
+    bar.style.display = '';
+
+    if (selectAllMatching) {
+        cnt.textContent = `Đang chọn TẤT CẢ ${totalRecords} bản ghi khớp bộ lọc`;
+        hint.style.display = '';
+        hint.innerHTML = `<a href="javascript:void(0)" onclick="clearSelection()">Bỏ chọn</a>`;
+    } else {
+        cnt.textContent = `Đã chọn ${selectedKeys.size} bản ghi`;
+        // Còn bản ghi khớp bộ lọc ngoài trang hiện tại → gợi ý mở rộng chọn hết.
+        const pageChecked = pageRowChecks().filter(c => c.checked).length;
+        if (pageChecked === pageRowChecks().length && totalRecords > selectedKeys.size) {
+            hint.style.display = '';
+            hint.innerHTML = `<a href="javascript:void(0)" onclick="enableSelectAllMatching()">Chọn tất cả ${totalRecords} bản ghi khớp bộ lọc</a>`;
+        } else {
+            hint.style.display = 'none';
+        }
+    }
+}
+
+function buildBulkPayload(extra) {
+    const p = extra ? { ...extra } : {};
+    if (selectAllMatching) {
+        p.filter = { ...lastFilter };
+    } else {
+        p.keys = Array.from(selectedKeys.values());
+    }
+    return p;
+}
+
+async function postBulk(url, payload) {
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': AF_TOKEN },
+        body: JSON.stringify(payload)
+    });
+    return res.json();
+}
+
+function bulkChangeToMan() {
+    const n = selectAllMatching ? totalRecords : selectedKeys.size;
+    if (!n) return;
+    showConfirm(
+        `Đổi ${n} bản ghi đã chọn về món Mặn? Ghi đè món hiện tại của những NV này, không thể hoàn tác.`,
+        async () => {
+            try {
+                const data = await postBulk('@Url.Action("LogBulkChangeFood", "CanteenBread")', buildBulkPayload({ newFoodType: 'M' }));
+                if (!data.success) { showToast(data.message || 'Đổi món thất bại', 'error'); return; }
+                showToast(data.message || `Đã đổi ${data.affected} bản ghi`, 'success');
+                clearSelection();
+                doSearch(currentPage);
+            } catch { showToast('Lỗi kết nối', 'error'); }
+        },
+        { title: 'Đổi thành Mặn', okText: 'Đổi', okClass: 'btn-warning', icon: 'arrow_forward', iconColor: '#d97706', iconBg: '#fef3c7' }
+    );
+}
+
+function bulkDelete() {
+    const n = selectAllMatching ? totalRecords : selectedKeys.size;
+    if (!n) return;
+    showConfirm(
+        `Xoá hẳn ${n} bản ghi log đổi món đã chọn? KHÔNG thể hoàn tác — NV sẽ quay về món mặc định của hệ thống cho ngày đó.`,
+        async () => {
+            try {
+                const data = await postBulk('@Url.Action("LogBulkDelete", "CanteenBread")', buildBulkPayload());
+                if (!data.success) { showToast(data.message || 'Xoá thất bại', 'error'); return; }
+                showToast(data.message || `Đã xoá ${data.affected} bản ghi`, 'success');
+                clearSelection();
+                doSearch(currentPage);
+            } catch { showToast('Lỗi kết nối', 'error'); }
+        },
+        { title: 'Xoá bản ghi', okText: 'Xoá', okClass: 'btn-danger', icon: 'delete', iconColor: '#dc2626', iconBg: '#fee2e2' }
+    );
 }
 
 // Init: set default date range (TODAY)

@@ -303,12 +303,18 @@
         const isEn      = lang === 'en';
         const emptyLbl  = isEn ? 'No pending documents' : 'Không có đơn nào chưa nộp giấy tờ';
         const errorLbl  = card ? (card.dataset.labelError || 'Không tải được danh sách') : 'Không tải được danh sách';
+        // Danh sách này phải khớp LEAVE_TYPE IN (...) trong HomeSummaryService.CountLeaveDocMissingAsync/
+        // GetLeaveDocMissingListAsync (6 loại: DT,DC,VS,KT,SI,DS) — thiếu SI/DS ở đây khiến 2 loại đó
+        // hiện thẳng mã "SI"/"DS" thay vì tên đầy đủ (phát hiện khi rà lại toàn bộ các file liên quan
+        // tính năng nộp giấy tờ, 2026-09-10).
         const leaveTypeNames = isEn
-            ? { DT: 'Funeral', DC: 'Wedding', VS: 'Childbirth', KT: 'Prenatal checkup' }
-            : { DT: 'Đám tang', DC: 'Đám cưới', VS: 'Vợ sanh', KT: 'Khám thai' };
+            ? { DT: 'Funeral', DC: 'Wedding', VS: 'Childbirth', KT: 'Prenatal checkup', SI: 'Sick leave (with certificate)', DS: 'Postnatal recovery' }
+            : { DT: 'Đám tang', DC: 'Đám cưới', VS: 'Vợ sanh', KT: 'Khám thai', SI: 'Bệnh có giấy', DS: 'Dưỡng sức' };
+        // PARTIALLY_SUBMITTED (thêm 2026-09-10, xem LeaveListForHR/LeaveListForClerk) trước đây rớt vào
+        // nhánh mặc định "Chưa nộp" — sai vì đơn đã nộp một phần rồi, không phải chưa nộp gì cả.
         const docStatusLabel = isEn
-            ? { RESUBMIT_REQUESTED: 'Resubmit requested' }
-            : { RESUBMIT_REQUESTED: 'Yêu cầu nộp lại' };
+            ? { RESUBMIT_REQUESTED: 'Resubmit requested', PARTIALLY_SUBMITTED: 'Partially submitted' }
+            : { RESUBMIT_REQUESTED: 'Yêu cầu nộp lại', PARTIALLY_SUBMITTED: 'Nộp 1 phần' };
         const docStatusDefault = isEn ? 'Not submitted' : 'Chưa nộp';
 
         function openModal() {
@@ -348,7 +354,7 @@
             const orgParts = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(x => x).join(' · ');
             const ltName = leaveTypeNames[item.LEAVE_TYPE] || item.LEAVE_TYPE || '';
             const isResubmit = item.DOC_STATUS === 'RESUBMIT_REQUESTED';
-            const statusText = isResubmit ? docStatusLabel.RESUBMIT_REQUESTED : docStatusDefault;
+            const statusText = docStatusLabel[item.DOC_STATUS] || docStatusDefault;
             const statusBadge = `<span class="home-bd-docstatus${isResubmit ? ' is-resubmit' : ''}">${escapeHtml(statusText)}</span>`;
             return `<div class="home-bd-item">
                 <div class="home-bd-avatar">${initial}</div>
@@ -396,6 +402,13 @@
         let eventsByDate = {}; // { 'YYYY-MM-DD': [ {TYPE, LABEL, DETAIL}, ... ] }
 
         const ICON  = { LEAVE: '🌴', GP: '🚪', OT: '⏱️', ASSIGN: '📅' };
+        // Nhãn trạng thái nộp giấy tờ trong popup chi tiết ngày — DOC_STATUS giờ tính RIÊNG CHO
+        // TỪNG NGÀY (không phải trạng thái chung cả đơn nữa), nên nhãn cũng nói rõ "ngày này".
+        const DOC_STATUS_LABEL = {
+            SUBMITTED: 'Đã nộp giấy tờ ngày này',
+            RESUBMIT_REQUESTED: 'HR yêu cầu nộp lại giấy tờ'
+        };
+        const DOC_STATUS_DEFAULT = 'Chưa nộp giấy tờ ngày này';
 
         function pad(n) { return n < 10 ? '0' + n : '' + n; }
         function todayKey() {
@@ -446,6 +459,16 @@
                         dots.appendChild(span);
                     });
                     cell.appendChild(dots);
+
+                    // Chấm góc: ngày có nghỉ phải nộp giấy tờ (SI/DT/DC/VS/DS/KT) — xanh nếu tất cả
+                    // đã nộp đủ, đỏ nếu còn thiếu ít nhất 1 loại. Giúp NV lướt mắt biết ngay chưa nộp.
+                    const docEvs = evs.filter(x => x.DOC_REQUIRED);
+                    if (docEvs.length) {
+                        const allDone = docEvs.every(x => x.DOC_STATUS === 'SUBMITTED');
+                        const badge = document.createElement('span');
+                        badge.className = `mc-doc-badge ${allDone ? 'mc-doc-ok' : 'mc-doc-warn'}`;
+                        cell.appendChild(badge);
+                    }
                 }
                 grid.appendChild(cell);
             }
@@ -461,15 +484,28 @@
             const dateLabel = `${p[2]}/${p[1]}/${p[0]}`;
             detTitle.innerHTML = `<i class="bi bi-calendar-event me-1"></i> Chi tiết ngày ${esc(dateLabel)}`;
 
-            detBody.innerHTML = evs.map(ev => `
+            detBody.innerHTML = evs.map(ev => {
+                const docChip = ev.DOC_REQUIRED
+                    ? `<span class="mc-doc-chip ${ev.DOC_STATUS === 'SUBMITTED' ? 'ok' : 'warn'}">
+                           ${ev.DOC_STATUS === 'SUBMITTED' ? '✓' : '❗'} ${esc(DOC_STATUS_LABEL[ev.DOC_STATUS] || DOC_STATUS_DEFAULT)}
+                       </span>`
+                    : '';
+                // Tên người duyệt/người sắp lịch đọc theo font VNI-Windows (CNAME) — phải bọc riêng
+                // bằng class vni-font, không lẫn chung với chữ Unicode thường của dòng Lý do.
+                const signerLine = ev.SIGNER_NAME
+                    ? `<div class="mc-det">${esc(ev.SIGNER_LABEL || '')}: <span class="vni-font">${esc(ev.SIGNER_NAME)}</span></div>`
+                    : '';
+                return `
                 <div class="mc-event mc-${esc(ev.TYPE)}">
                     <div class="mc-icon">${ICON[ev.TYPE] || '📌'}</div>
                     <div class="mc-body">
                         <div class="mc-lbl">${esc(ev.LABEL)}</div>
-                        <div class="mc-det">${esc(ev.DETAIL)}</div>
+                        ${signerLine}
+                        ${ev.DETAIL ? `<div class="mc-det">${esc(ev.DETAIL)}</div>` : ''}
+                        ${docChip}
                     </div>
-                </div>
-            `).join('') + `
+                </div>`;
+            }).join('') + `
                 <div class="mc-footer-note">
                     <i class="bi bi-info-circle"></i>
                     Chỉ hiện đơn đã làm trên app — đơn viết giấy không hiện ở đây

@@ -404,6 +404,26 @@
     </div>
 </div>
 
+<!-- Chi tiết đã nộp giấy tờ theo ngày (chỉ xem) -->
+<div class="modal fade" id="docDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0"><i class="bi bi-eye text-secondary me-1"></i> Chi tiết đã nộp giấy tờ theo ngày</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <div id="docDetailListWrap" style="max-height:320px;overflow-y:auto;">
+                    <div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm"></div></div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
 const NO_DATA_IMG = '@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))';
@@ -443,6 +463,39 @@ const MONTHS_VI  = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Thá
                     'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
 const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', NL:'Không lương', SI:'Bệnh có giấy', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', DS:'Dưỡng sức', KT:'Khám thai' };
 const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', NL:'secondary', SI:'danger', DT:'dark', DC:'success', CT:'primary', VS:'info', DS:'warning', KT:'info' };
+// Loại bắt buộc nộp giấy tờ chứng minh — để quản lý xem NV mình đã nộp giấy đủ chưa.
+const DOC_REQUIRED_TYPES = ['SI', 'DT', 'DC', 'VS', 'DS', 'KT'];
+
+function docDetailBtnHtml(item) {
+    if (!DOC_REQUIRED_TYPES.includes(item.LEAVE_TYPE)) return '';
+    return `<button class="btn btn-outline-secondary btn-sm py-0 px-1 mt-1" style="font-size:.68rem;" onclick="event.stopPropagation();viewDocDetail('${item.REQUEST_ID}')"><i class="bi bi-eye"></i> Đã nộp giấy?</button>`;
+}
+const docDetailModal = new bootstrap.Modal(document.getElementById('docDetailModal'));
+async function viewDocDetail(requestId) {
+    document.getElementById('docDetailListWrap').innerHTML = '<div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm"></div></div>';
+    docDetailModal.show();
+    try {
+        const res = await $.get('@Url.Action("GetDocDayList", "Leave")', { requestId });
+        if (!res.success) {
+            document.getElementById('docDetailListWrap').innerHTML = `<div class="text-danger text-sm">${escHtml(res.message || 'Lỗi tải dữ liệu')}</div>`;
+            return;
+        }
+        const DOW = ['CN','T2','T3','T4','T5','T6','T7'];
+        document.getElementById('docDetailListWrap').innerHTML = (res.days || []).map(d => {
+            const dt = new Date(d.date);
+            const label = `${('0'+dt.getDate()).slice(-2)}/${('0'+(dt.getMonth()+1)).slice(-2)} (${DOW[dt.getDay()]})`;
+            const statusHtml = d.confirmed ? `<span class="badge bg-success">Đã nộp</span>` : `<span class="badge bg-secondary">Chưa nộp</span>`;
+            return `<div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #f1f5f9;">
+                <div style="width:90px;" class="text-sm text-nowrap">${label}</div>
+                <div style="width:90px;">${statusHtml}</div>
+                <div class="text-sm" style="width:90px;">${d.leavecd ? `<span class="badge bg-light text-dark border">${escHtml(d.leavecd)}</span>` : '<span class="text-muted">-</span>'}</div>
+                <div class="text-sm flex-grow-1 text-secondary">${escHtml(d.remark || '-')}</div>
+            </div>`;
+        }).join('') || '<div class="text-muted text-sm">Không có dữ liệu</div>';
+    } catch (e) {
+        document.getElementById('docDetailListWrap').innerHTML = '<div class="text-danger text-sm">Lỗi kết nối</div>';
+    }
+}
 
 function getMonthRange() {
     const firstDay = new Date(curYear, curMonth - 1, 1);
@@ -463,7 +516,9 @@ function loadEmps() {
         $.get(EMP_SCOPE_URL),
         $.get(BALANCE_URL)
     ).done(function(empRes, balRes) {
-        allEmps = empRes[0] || [];
+        // Không cho Quản lý/Supervisor tự chọn chính mình vào danh sách sắp lịch nghỉ (phải tự nộp
+        // đơn như nhân viên thường) — chặn cả ở đây (UI) và ở backend (LeaveController.Assign).
+        allEmps = (empRes[0] || []).filter(e => e.empcd !== CURRENT_EMPCD);
         const balData = (balRes[0]?.data) || [];
         empBalanceMap = {};
         balData.forEach(b => { empBalanceMap[b.EMPCD] = b; });
@@ -770,7 +825,7 @@ function buildApprovalRow(item, idx) {
         <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
         <td class="px-2">${timeCell}</td>
         <td class="px-2 text-sm" style="min-width:220px;max-width:320px;white-space:normal;color:#475569;">${item.REASON ? escHtml(item.REASON) : '<span class="text-muted">-</span>'}</td>
-        <td class="text-center">${statusHtml}</td>
+        <td class="text-center">${statusHtml}${docDetailBtnHtml(item)}</td>
         <td class="text-center">${sigCell}</td>
         <td class="text-center">${actions}</td>
     </tr>`;

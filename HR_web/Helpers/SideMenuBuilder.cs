@@ -131,28 +131,36 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isHR || isAdmin,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign"               },
-                    new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy"                 },
-                    new SideMenuItem { Title = "Quản lý Thực đơn",     Url = "~/Menu/Manage",                Icon = "restaurant_menu"        },
-                    new SideMenuItem { Title = "Quản lý Món ăn",       Url = "~/Menu/FoodManage",            Icon = "set_meal"               },
-                    new SideMenuItem { Title = "Khoá đổi món",         Url = "~/MealLock/Index",                    Icon = "lock_clock"             },
-                    new SideMenuItem { Title = "Phiếu Bánh",          Url = "~/CanteenBread/BreadQuota",           Icon = "bakery_dining"          },
-                    new SideMenuItem { Title = "Log Đổi Món",         Url = "~/CanteenBread/ChangeLog",            Icon = "history"                },
-                    new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",            Icon = "manage_accounts"        },
-                    new SideMenuItem { Title = "Hình minh hoạ Work Cd", Url = "~/WorkCdImage/Index",         Icon = "image"                  },
-                    new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",              Icon = "account_balance_wallet" },
-                    new SideMenuItem { Title = "Phân Quyền Phạm Vi",   Url = "~/UserDept/Index",              Icon = "shield"                 },
-                    new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",             Icon = "view_list"              },
-                    new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",       Icon = "door_front"             },
-                    new SideMenuItem { Title = "Log Sắp Lịch Nghỉ",    Url = "~/Leave/LeaveAssignmentLog",   Icon = "assignment_late"        },
-                    new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy"             },
-                    new SideMenuItem { Title = "DS làm Chủ Nhật",       Url = "~/SundayLeave/Index",           Icon = "wb_sunny"               },
-                    new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum"                  },
-                    new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart"       },
-                    new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",             Icon = "home_app_logo"          },
-                    new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",           Icon = "poll"                   },
-                    new SideMenuItem { Title = "Chứng chỉ Đào tạo",    Url = "~/TrainingAdmin/Certificates",        Icon = "card_membership"        },
-                    new SideMenuItem { Title = "Quản lý Đào tạo",      Url = "~/TrainingAdmin/Index",             Icon = "school"                 },
+                    // Menu HR khá dài (23 mục) — HR yêu cầu 2026-09-10 gom cụm theo màu cho lẹ, mỗi
+                    // cụm liền nhau + có nhãn màu riêng (xem MenuGroupCatalog).
+                    new SideMenuItem { Title = "Log Sắp Lịch Nghỉ",    Url = "~/Leave/LeaveAssignmentLog",   Icon = "assignment_late",        Group = "leave" },
+                    new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy",             Group = "leave" },
+                    new SideMenuItem { Title = "Sửa Absent Code ERP",  Url = "~/Leave/ErpAbsentManage",      Icon = "edit_note",              Group = "leave" },
+                    new SideMenuItem { Title = "DS làm Chủ Nhật",       Url = "~/SundayLeave/Index",           Icon = "wb_sunny",               Group = "leave" },
+
+                    new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",             Icon = "view_list",              Group = "attendance" },
+                    new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",       Icon = "door_front",             Group = "attendance" },
+
+                    new SideMenuItem { Title = "Quản lý Thực đơn",     Url = "~/Menu/Manage",                Icon = "restaurant_menu",        Group = "canteen" },
+                    new SideMenuItem { Title = "Quản lý Món ăn",       Url = "~/Menu/FoodManage",            Icon = "set_meal",               Group = "canteen" },
+                    new SideMenuItem { Title = "Khoá đổi món",         Url = "~/MealLock/Index",                    Icon = "lock_clock",       Group = "canteen" },
+                    new SideMenuItem { Title = "Phiếu Bánh",          Url = "~/CanteenBread/BreadQuota",           Icon = "bakery_dining",     Group = "canteen" },
+                    new SideMenuItem { Title = "Log Đổi Món",         Url = "~/CanteenBread/ChangeLog",            Icon = "history",           Group = "canteen" },
+
+                    new SideMenuItem { Title = "Chứng chỉ Đào tạo",    Url = "~/TrainingAdmin/Certificates",        Icon = "card_membership", Group = "training" },
+                    new SideMenuItem { Title = "Quản lý Đào tạo",      Url = "~/TrainingAdmin/Index",             Icon = "school",             Group = "training" },
+
+                    new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum",                 Group = "chat" },
+                    new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",              Group = "chat" },
+
+                    new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",               Group = "system" },
+                    new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy",                 Group = "system" },
+                    new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",            Icon = "manage_accounts",          Group = "system" },
+                    new SideMenuItem { Title = "Hình minh hoạ Work Cd", Url = "~/WorkCdImage/Index",         Icon = "image",                   Group = "system" },
+                    new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",              Icon = "account_balance_wallet",   Group = "system" },
+                    new SideMenuItem { Title = "Phân Quyền Phạm Vi",   Url = "~/UserDept/Index",              Icon = "shield",                  Group = "system" },
+                    new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",             Icon = "home_app_logo",           Group = "system" },
+                    new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",           Icon = "poll",                   Group = "system" },
                 //    new SideMenuItem { Title = "DS miễn làm Survey",    Url = "~/SurveyExempt/Index",          Icon = "person_off"             },
                 }
             },
@@ -212,19 +220,24 @@ public static class SideMenuBuilder
                 Title = "Quản trị",
                 Icon = "admin_panel_settings",
                 VisibleWhen = () => isAdmin,
+                // Menu Admin cũng khá dài — gom cụm theo màu như menu HR (yêu cầu 2026-09-10).
                 Children = [
-                    new() { Title = "Sắp Lịch Toàn Công Ty", Url = "~/Leave/AdminAssignLeave",    Icon = "event_available" },
-                    new() { Title = "Theo Dõi Yêu Cầu",      Url = "~/Leave/AdminManageRequests", Icon = "manage_history"  },
-                    new() { Title = "Quản lý Tăng ca",       Url = "~/OT/OtListForAdmin",         Icon = "edit_calendar"   },
-                    new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",              Icon = "menu_book"       },
-                    new() { Title = "Quản lý Mẫu thông báo",  Url = "~/NotiTemplate/Index",        Icon = "notifications"   },
+                    new() { Title = "Sắp Lịch Toàn Công Ty", Url = "~/Leave/AdminAssignLeave",    Icon = "event_available", Group = "leave" },
+                    new() { Title = "Theo Dõi Yêu Cầu",      Url = "~/Leave/AdminManageRequests", Icon = "manage_history",  Group = "leave" },
+
+                    new() { Title = "Quản lý Tăng ca",       Url = "~/OT/OtListForAdmin",         Icon = "edit_calendar",   Group = "attendance" },
+
+                    new() { Title = "Danh sách cấp Bánh cố định", Url = "~/CanteenBread/BreadQuota", Icon = "bakery_dining", Group = "canteen" },
+
+                    new() { Title = "Quản lý hội thoại",     Url = "~/AdminInquiry/Index",        Icon = "forum",           Group = "chat" },
+                    new() { Title = "Chủ đề hội thoại",      Url = "~/AdminInquiry/Topics",       Icon = "topic",           Group = "chat" },
+                    new() { Title = "Báo cáo hội thoại",    Url = "~/AdminInquiry/Report",       Icon = "bar_chart",       Group = "chat" },
+
+                    new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",              Icon = "menu_book",       Group = "system" },
+                    new() { Title = "Quản lý Mẫu thông báo",  Url = "~/NotiTemplate/Index",        Icon = "notifications",   Group = "system" },
                     //new() { Title = "Gửi thông báo",          Url = "~/AdminNoti/Create",          Icon = "edit_notifications" },
-                    new() { Title = "Thông báo",       Url = "~/AdminNoti/Index",           Icon = "campaign"        },
-                    new() { Title = "Quản lý hội thoại",     Url = "~/AdminInquiry/Index",        Icon = "forum"           },
-                    new() { Title = "Chủ đề hội thoại",      Url = "~/AdminInquiry/Topics",       Icon = "topic"           },
-                    new() { Title = "Báo cáo hội thoại",    Url = "~/AdminInquiry/Report",       Icon = "bar_chart"       },
-                    new() { Title = "Danh sách cấp Bánh cố định", Url = "~/CanteenBread/BreadQuota", Icon = "bakery_dining" },
-                    new() { Title = "Tra cứu Danh bạ NV",    Url = "~/Directory/Index",           Icon = "contact_page"    },
+                    new() { Title = "Thông báo",       Url = "~/AdminNoti/Index",           Icon = "campaign",        Group = "system" },
+                    new() { Title = "Tra cứu Danh bạ NV",    Url = "~/Directory/Index",           Icon = "contact_page",    Group = "system" },
                 ]
             },
         };

@@ -1010,15 +1010,30 @@ public class InquiryController : ControllerBase
 
             if (req.ReaderType == "HR")
             {
+                // IS_READ_HR vẫn giữ nguyên — đây là "đã xem bởi HR" nói chung, NV chỉ cần biết có
+                // người bên HR xem chưa, không quan tâm cụ thể ai (không phải nguồn gây bug).
                 await _db.ExecuteNonQueryAsync(@"
                     UPDATE HRMS.HR_INQUIRY_MSG
                     SET IS_READ_HR = 1
                     WHERE INQUIRY_ID = :ID AND SENDER_TYPE = 'EMP' AND IS_READ_HR = 0",
                     new OracleParameter("ID", req.InquiryId));
 
-                await _db.ExecuteNonQueryAsync(@"
-                    UPDATE HRMS.HR_INQUIRY SET UNREAD_HR = 0 WHERE ID = :ID",
-                    new OracleParameter("ID", req.InquiryId));
+                // Badge "chưa đọc" hiện cho CSR/HR/Admin PHẢI tính riêng theo từng người xem — trước
+                // đây dùng chung 1 cờ HR_INQUIRY.UNREAD_HR nên 1 người mở hội thoại là mất badge của
+                // TẤT CẢ mọi người khác luôn (bug HR báo 2026-09-10). Giờ ghi mốc "đã đọc tới đâu"
+                // riêng cho từng VIEWER_EMPCD, HrList sẽ tự tính lại unread riêng cho người đang xem.
+                if (!string.IsNullOrEmpty(req.ViewerEmpcd))
+                {
+                    await _db.ExecuteNonQueryAsync(@"
+                        MERGE INTO HRMS.HR_INQUIRY_READER T
+                        USING (SELECT :ID AS INQUIRY_ID, :EMPCD AS VIEWER_EMPCD FROM DUAL) S
+                        ON (T.INQUIRY_ID = S.INQUIRY_ID AND T.VIEWER_EMPCD = S.VIEWER_EMPCD)
+                        WHEN MATCHED THEN UPDATE SET T.LAST_READ_DT = SYSDATE
+                        WHEN NOT MATCHED THEN INSERT (INQUIRY_ID, VIEWER_EMPCD, LAST_READ_DT)
+                        VALUES (:ID, :EMPCD, SYSDATE)",
+                        new OracleParameter("ID", req.InquiryId),
+                        new OracleParameter("EMPCD", req.ViewerEmpcd));
+                }
             }
             else
             {
@@ -1336,6 +1351,7 @@ public class InquiryController : ControllerBase
         string? empCd      = null,
         string? search     = null,
         string? sort       = null,   // newest (default) | oldest
+        string? viewerEmpcd = null,  // mã NV người đang xem — tính "chưa đọc" riêng cho người này
         int     page       = 1,
         int     pageSize   = 30)
     {
@@ -1360,7 +1376,15 @@ public class InquiryController : ControllerBase
 
             string orderClause = sort == "oldest"
                 ? "ORDER BY i.LAST_MSG_DT ASC NULLS LAST, i.ID ASC"
-                : "ORDER BY i.UNREAD_HR DESC, i.LAST_MSG_DT DESC NULLS LAST";
+                : "ORDER BY UNREAD_HR DESC, i.LAST_MSG_DT DESC NULLS LAST";
+
+            // "Chưa đọc" tính RIÊNG cho từng người xem (HR_INQUIRY_READER.LAST_READ_DT theo
+            // VIEWER_EMPCD) — không dùng chung 1 cờ i.UNREAD_HR nữa (bug: 1 người mở là mất badge
+            // của mọi CSR/HR/Admin khác). Đếm số tin NV gửi SAU mốc lần cuối người này đọc.
+            const string unreadHrExpr = @"
+                (SELECT COUNT(*) FROM HRMS.HR_INQUIRY_MSG m
+                 WHERE m.INQUIRY_ID = i.ID AND m.SENDER_TYPE = 'EMP' AND m.IS_DELETED = 0
+                   AND m.SENT_DT > NVL(rd.LAST_READ_DT, DATE '1900-01-01'))";
 
             string sql = $@"
                 SELECT * FROM (
@@ -1371,10 +1395,12 @@ public class InquiryController : ControllerBase
                                b.DEPTNM AS DEPT_NAME, b.TEAMNM AS LINE_NAME, b.WORKNM AS WORK_NAME,
                                i.ANON_DISPLAY, NULL AS ANON_TOKEN, i.STATUS,
                                i.ASSIGNED_TO, i.ASSIGNED_NAME,
-                               i.UNREAD_HR, i.UNREAD_EMP, i.MSG_COUNT, i.LAST_MSG_DT, i.INST_DT,
+                               {unreadHrExpr} UNREAD_HR,
+                               i.UNREAD_EMP, i.MSG_COUNT, i.LAST_MSG_DT, i.INST_DT,
                                i.CLOSED_DT, i.CLOSED_BY_NAME, i.CLOSED_BY_TYPE, i.RATING
                         FROM HRMS.HR_INQUIRY i
                         LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = i.TOPIC_CD
+                        LEFT JOIN HRMS.HR_INQUIRY_READER rd ON rd.INQUIRY_ID = i.ID AND rd.VIEWER_EMPCD = :VIEWER_EMPCD
                         LEFT JOIN HRMS.ECM100 ec ON ec.EMPCD = i.EMPCD
                         LEFT JOIN HRMS.EAM410 b  ON b.DEPTCD = ec.DEPTCD AND b.LINECD = ec.LINECD AND b.WORKCD = ec.WORKCD
                         WHERE 1=1
@@ -1391,7 +1417,8 @@ public class InquiryController : ControllerBase
             var parameters = new List<OracleParameter>
             {
                 new("MAXRN",  maxRn),
-                new("OFFSET", offset)
+                new("OFFSET", offset),
+                new("VIEWER_EMPCD", (object?)viewerEmpcd ?? DBNull.Value)
             };
 
             if (!string.IsNullOrEmpty(status))     parameters.Add(new OracleParameter("STATUS",    status));
@@ -1412,13 +1439,15 @@ public class InquiryController : ControllerBase
 
             var rows = await _db.ExecuteQueryAsync(sql, r => MapListItem(r), parameters.ToArray());
 
-            // Summary COUNT (same filters, no pagination)
+            // Summary COUNT (same filters, no pagination) — tổng "chưa đọc" cũng phải tính riêng
+            // theo người xem, dùng lại đúng biểu thức unreadHrExpr ở trên (cùng JOIN reader table).
             string sqlCount = $@"
                 SELECT COUNT(*)                                                       AS TOTAL,
                        NVL(SUM(CASE WHEN i.STATUS = 'OPEN'   THEN 1 ELSE 0 END), 0) AS CNT_OPEN,
                        NVL(SUM(CASE WHEN i.STATUS = 'CLOSED' THEN 1 ELSE 0 END), 0) AS CNT_CLOSED,
-                       NVL(SUM(i.UNREAD_HR), 0)                                     AS TOTAL_UNREAD
+                       NVL(SUM({unreadHrExpr}), 0)                                   AS TOTAL_UNREAD
                 FROM HRMS.HR_INQUIRY i
+                LEFT JOIN HRMS.HR_INQUIRY_READER rd ON rd.INQUIRY_ID = i.ID AND rd.VIEWER_EMPCD = :VIEWER_EMPCD
                 WHERE 1=1
                 {whereStatus}
                 {whereTopic}
@@ -1427,7 +1456,7 @@ public class InquiryController : ControllerBase
                 {whereEmpCd}
                 {whereSearch}";
 
-            var countParams = new List<OracleParameter>();
+            var countParams = new List<OracleParameter> { new("VIEWER_EMPCD", (object?)viewerEmpcd ?? DBNull.Value) };
             if (!string.IsNullOrEmpty(status))     countParams.Add(new OracleParameter("STATUS",    status));
             if (!string.IsNullOrEmpty(topicCd))    countParams.Add(new OracleParameter("TOPIC",     topicCd));
             if (!string.IsNullOrEmpty(chatType))   countParams.Add(new OracleParameter("CHAT_TYPE", chatType));

@@ -206,6 +206,26 @@
     </div>
 </div>
 
+<!-- Chi tiết đã nộp giấy tờ theo ngày (chỉ xem) -->
+<div class="modal fade" id="docDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0"><i class="bi bi-eye text-secondary me-1"></i> Chi tiết đã nộp giấy tờ theo ngày</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <div id="docDetailListWrap" style="max-height:320px;overflow-y:auto;">
+                    <div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm"></div></div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script src="~/js/vendor/xlsx.full.min.js" asp-append-version="true"></script>
 <script src="~/js/xlsx-export-helper.js" asp-append-version="true"></script>
@@ -216,22 +236,56 @@ let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', NL:'Không lương', SI:'Bệnh có giấy', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', DS:'Dưỡng sức', KT:'Khám thai' };
 const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', NL:'secondary', SI:'danger', DT:'dark', DC:'danger', CT:'info', VS:'primary', DS:'warning', KT:'warning' };
 const DOC_REQUIRED_TYPES = ['SI', 'DT', 'DC', 'VS', 'DS', 'KT'];
-const DOC_STATUS_LABEL   = { SUBMITTED: 'Đã nộp', RESUBMIT_REQUESTED: 'Yêu cầu nộp lại' };
-const DOC_STATUS_COLOR   = { SUBMITTED: 'success', RESUBMIT_REQUESTED: 'warning' };
+const DOC_STATUS_LABEL   = { SUBMITTED: 'Đã nộp', PARTIALLY_SUBMITTED: 'Nộp 1 phần', RESUBMIT_REQUESTED: 'Yêu cầu nộp lại' };
+const DOC_STATUS_COLOR   = { SUBMITTED: 'success', PARTIALLY_SUBMITTED: 'info', RESUBMIT_REQUESTED: 'warning' };
 
 function docCell(item) {
     if (!DOC_REQUIRED_TYPES.includes(item.LEAVE_TYPE)) return '<span class="text-muted">-</span>';
     const st    = item.DOC_STATUS || null;
     const badge = `<span class="badge bg-${DOC_STATUS_COLOR[st] || 'secondary'}">${DOC_STATUS_LABEL[st] || 'Chưa nộp'}</span>`;
-    const btns  = st === 'SUBMITTED'
-        ? `<button class="btn btn-outline-warning btn-sm py-0 px-1 mt-1" style="font-size:.68rem;" onclick="requestDocResubmit('${item.REQUEST_ID}')">Yêu cầu nộp lại</button>`
-        : `<button class="btn btn-outline-success btn-sm py-0 px-1 mt-1" style="font-size:.68rem;" onclick="markDocSubmitted('${item.REQUEST_ID}')">Cập nhật đã nộp</button>`;
-    return `<div class="d-flex flex-column align-items-center gap-1">${badge}${btns}</div>`;
+    const detailBtn = `<button class="btn btn-outline-secondary btn-sm py-0 px-1" style="font-size:.68rem;" onclick="viewDocDetail('${item.REQUEST_ID}')" title="Xem chi tiết đã nộp giấy gì"><i class="bi bi-eye"></i> Chi tiết</button>`;
+    // Chỉ cho cập nhật/yêu cầu nộp lại khi đơn đã Đã duyệt HOẶC đã Sắp lịch nghỉ (quản lý/Admin
+    // sắp lịch tính như đã chốt — đã chặn ở API, đây chỉ ẩn nút cho gọn).
+    let actionBtn = '';
+    if (item.STATUS === 'APPROVED' || item.STATUS === 'ASSIGNED') {
+        actionBtn = st === 'SUBMITTED'
+            ? `<button class="btn btn-outline-warning btn-sm py-0 px-1" style="font-size:.68rem;" onclick="requestDocResubmit('${item.REQUEST_ID}')">Yêu cầu nộp lại</button>`
+            : `<button class="btn btn-outline-success btn-sm py-0 px-1" style="font-size:.68rem;" onclick="markDocSubmitted('${item.REQUEST_ID}')">Cập nhật đã nộp</button>`;
+    }
+    return `<div class="d-flex flex-column align-items-center gap-1">${badge}<div class="d-flex gap-1 flex-wrap justify-content-center">${detailBtn}${actionBtn}</div></div>`;
 }
 
 let _docPendingRequestId = null;
 const docConfirmModal  = new bootstrap.Modal(document.getElementById('docConfirmModal'));
 const docResubmitModal = new bootstrap.Modal(document.getElementById('docResubmitModal'));
+const docDetailModal   = new bootstrap.Modal(document.getElementById('docDetailModal'));
+
+async function viewDocDetail(requestId) {
+    document.getElementById('docDetailListWrap').innerHTML = '<div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm"></div></div>';
+    docDetailModal.show();
+    try {
+        const res = await $.get('@Url.Action("GetDocDayList", "Leave")', { requestId });
+        if (!res.success) {
+            document.getElementById('docDetailListWrap').innerHTML = `<div class="text-danger text-sm">${escHtml(res.message || 'Lỗi tải dữ liệu')}</div>`;
+            return;
+        }
+        const DOW = ['CN','T2','T3','T4','T5','T6','T7'];
+        document.getElementById('docDetailListWrap').innerHTML = (res.days || []).map(d => {
+            const dt = new Date(d.date);
+            const label = `${('0'+dt.getDate()).slice(-2)}/${('0'+(dt.getMonth()+1)).slice(-2)} (${DOW[dt.getDay()]})`;
+            const statusHtml = d.confirmed ? `<span class="badge bg-success">Đã nộp</span>` : `<span class="badge bg-secondary">Chưa nộp</span>`;
+            return `<div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #f1f5f9;">
+                <div style="width:90px;" class="text-sm text-nowrap">${label}</div>
+                <div style="width:90px;">${statusHtml}</div>
+                <div class="text-sm" style="width:90px;">${d.leavecd ? `<span class="badge bg-light text-dark border">${escHtml(d.leavecd)}</span>` : '<span class="text-muted">-</span>'}</div>
+                <div class="text-sm flex-grow-1 text-secondary">${escHtml(d.remark || '-')}</div>
+                ${d.confirmed ? `<span class="text-xxs text-muted text-nowrap">${escHtml(d.confirmedBy || '')}</span>` : ''}
+            </div>`;
+        }).join('') || '<div class="text-muted text-sm">Không có dữ liệu</div>';
+    } catch (e) {
+        document.getElementById('docDetailListWrap').innerHTML = '<div class="text-danger text-sm">Lỗi kết nối</div>';
+    }
+}
 
 function markDocSubmitted(requestId) {
     _docPendingRequestId = requestId;

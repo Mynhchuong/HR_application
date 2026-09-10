@@ -153,6 +153,24 @@ public class CanteenBreadService
         public bool               success { get; set; }
         public List<ChangeLogRow>? data   { get; set; }
     }
+
+    // ── Bulk xoá / đổi món trên trang ChangeLog (Admin/HR) ─────────────────
+    // payload đã build sẵn ở Controller (keys hoặc filter + newFoodType/loginUser).
+    public async Task<string> LogBulkDeleteRawAsync(object payload)
+    {
+        var res = await _api.PostAsync("CanteenOrder/log-bulk-delete", payload);
+        return res?.IsSuccessStatusCode == true
+            ? await res.Content.ReadAsStringAsync()
+            : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+    }
+
+    public async Task<string> LogBulkChangeFoodRawAsync(object payload)
+    {
+        var res = await _api.PostAsync("CanteenOrder/log-bulk-change-food", payload);
+        return res?.IsSuccessStatusCode == true
+            ? await res.Content.ReadAsStringAsync()
+            : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+    }
 }
 
 public class ChangeLogRow

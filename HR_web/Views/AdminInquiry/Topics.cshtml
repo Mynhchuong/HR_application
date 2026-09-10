@@ -97,6 +97,29 @@
         display: inline-block; width: 24px; height: 24px; border-radius: 6px;
         border: 1px solid #e2e8f0; vertical-align: middle; margin-left: 6px;
     }
+    /* Bấm chọn nhanh icon/màu — vẫn cho gõ tay ở ô input phía trên nếu cần cái khác */
+    .tp-icon-grid {
+        display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; padding: 6px;
+        border: 1px solid #e2e8f0; border-radius: 8px; max-height: 116px; overflow-y: auto;
+    }
+    .tp-icon-opt {
+        width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+        border-radius: 8px; border: 1.5px solid #e2e8f0; cursor: pointer; background: white;
+        color: #64748b; font-size: 1.1rem; transition: all .1s;
+    }
+    .tp-icon-opt:hover   { background: #f8fafc; }
+    .tp-icon-opt.selected { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+    .tp-color-swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .tp-color-opt {
+        width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
+        border: 2px solid transparent; box-shadow: 0 0 0 1px #e2e8f0 inset;
+    }
+    .tp-color-opt.selected { border-color: #1e293b; }
+    .tp-icon-color-row { display: flex; align-items: center; gap: .4rem; }
+    .tp-icon-color-row input[type=text] { flex: 1; }
+    .tp-icon-color-row input[type=color] {
+        width: 38px; height: 34px; padding: 2px; border: 1.5px solid #e2e8f0; border-radius: 8px; cursor: pointer;
+    }
     .tp-btn {
         border: none; border-radius: 10px; padding: .5rem .9rem;
         font-weight: 700; font-size: .85rem; cursor: pointer; transition: all .12s;
@@ -160,18 +183,23 @@
                 <input type="text" id="fldNameEn" maxlength="100" placeholder="VD: Payroll">
             </div>
             <div class="tp-form-row">
-                <div class="row2">
-                    <div>
-                        <label>Icon (Material)</label>
-                        <input type="text" id="fldIcon" placeholder="VD: payments, event_busy...">
-                        <div class="hint">Tên icon Material Symbols (rounded).</div>
-                    </div>
-                    <div>
-                        <label>Màu (hex)</label>
-                        <input type="text" id="fldColor" placeholder="#10b981" oninput="updateColorPreview()">
-                        <span id="colorPreview" class="tp-color-preview"></span>
-                    </div>
+                <label>Icon (Material)</label>
+                <div class="tp-icon-color-row">
+                    <input type="text" id="fldIcon" placeholder="VD: payments, event_busy..." oninput="onIconTextChange()">
+                    <span id="iconPreview" class="material-symbols-rounded" style="font-size:1.4rem;width:28px;text-align:center;color:#64748b;"></span>
                 </div>
+                <div class="hint">Bấm chọn nhanh bên dưới, hoặc tự gõ tên icon Material Symbols khác.</div>
+                <div class="tp-icon-grid" id="iconGrid"></div>
+            </div>
+            <div class="tp-form-row">
+                <label>Màu</label>
+                <div class="tp-icon-color-row">
+                    <input type="color" id="fldColorPicker" oninput="onColorPickerChange()">
+                    <input type="text" id="fldColor" placeholder="#10b981" oninput="updateColorPreview()">
+                    <span id="colorPreview" class="tp-color-preview"></span>
+                </div>
+                <div class="hint">Bấm chọn nhanh bên dưới, hoặc dùng bảng màu / gõ mã hex.</div>
+                <div class="tp-color-swatches" id="colorSwatches"></div>
             </div>
             <div class="tp-form-row">
                 <div class="row2">
@@ -215,6 +243,60 @@ let topics    = [];
 let editingCd = null;   // null = create, otherwise topicCd being edited
 
 function esc(s) { return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Bộ icon gợi ý sẵn cho chủ đề hội thoại HR (Material Symbols Rounded, khớp font đang dùng toàn app)
+// — bấm chọn cho lẹ, vẫn gõ tay được tên icon khác ở ô input nếu không có trong danh sách này.
+const ICON_OPTIONS = [
+    'payments', 'event_busy', 'schedule', 'gavel', 'restaurant', 'report', 'help_outline',
+    'school', 'cleaning_services', 'health_and_safety', 'groups', 'forum', 'campaign',
+    'badge', 'work', 'home', 'directions_car', 'local_shipping', 'medical_services',
+    'celebration', 'warning', 'build', 'inventory_2', 'security', 'contact_support',
+    'receipt_long', 'calendar_month', 'task_alt', 'sick', 'family_restroom'
+];
+// Bảng màu gợi ý — trùng với các màu đang dùng cho chủ đề có sẵn để đồng bộ giao diện.
+const COLOR_OPTIONS = [
+    '#10b981', '#6366f1', '#f97316', '#0ea5e9', '#eab308', '#ef4444',
+    '#94a3b8', '#8b5cf6', '#ec4899', '#14b8a6', '#3b82f6', '#64748b'
+];
+
+function renderIconGrid() {
+    const cur = document.getElementById('fldIcon').value.trim();
+    document.getElementById('iconGrid').innerHTML = ICON_OPTIONS.map(ic => `
+        <div class="tp-icon-opt material-symbols-rounded ${ic === cur ? 'selected' : ''}"
+             title="${esc(ic)}" onclick="pickIcon('${ic}')">${ic}</div>
+    `).join('');
+}
+function pickIcon(ic) {
+    document.getElementById('fldIcon').value = ic;
+    updateIconPreview();
+    renderIconGrid();
+}
+function onIconTextChange() {
+    updateIconPreview();
+    renderIconGrid();
+}
+function updateIconPreview() {
+    document.getElementById('iconPreview').textContent = document.getElementById('fldIcon').value.trim();
+}
+
+function renderColorSwatches() {
+    const cur = document.getElementById('fldColor').value.trim().toLowerCase();
+    document.getElementById('colorSwatches').innerHTML = COLOR_OPTIONS.map(c => `
+        <div class="tp-color-opt ${c.toLowerCase() === cur ? 'selected' : ''}"
+             style="background:${c}" title="${c}" onclick="pickColor('${c}')"></div>
+    `).join('');
+}
+function pickColor(c) {
+    document.getElementById('fldColor').value = c;
+    document.getElementById('fldColorPicker').value = c;
+    updateColorPreview();
+    renderColorSwatches();
+}
+function onColorPickerChange() {
+    document.getElementById('fldColor').value = document.getElementById('fldColorPicker').value;
+    updateColorPreview();
+    renderColorSwatches();
+}
 
 async function loadTopics() {
     document.getElementById('tpBody').innerHTML =
@@ -291,8 +373,11 @@ function openCreate() {
     document.getElementById('fldNameEn').value   = '';
     document.getElementById('fldIcon').value     = '';
     document.getElementById('fldColor').value    = '';
+    document.getElementById('fldColorPicker').value = '#94a3b8';
     document.getElementById('fldSort').value     = (topics.length ? Math.max(...topics.map(x=>x.sortOrder||0)) + 1 : 0);
     document.getElementById('fldActive').checked = true;
+    updateIconPreview();
+    renderIconGrid();
     updateColorPreview();
     document.getElementById('tpModal').classList.add('show');
 }
@@ -308,8 +393,11 @@ function openEdit(topicCd) {
     document.getElementById('fldNameEn').value     = t.topicNameEn|| '';
     document.getElementById('fldIcon').value       = t.icon       || '';
     document.getElementById('fldColor').value      = t.color      || '';
+    document.getElementById('fldColorPicker').value = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(t.color||'') ? t.color : '#94a3b8';
     document.getElementById('fldSort').value       = t.sortOrder  || 0;
     document.getElementById('fldActive').checked   = !!t.isActive;
+    updateIconPreview();
+    renderIconGrid();
     updateColorPreview();
     document.getElementById('tpModal').classList.add('show');
 }
@@ -321,6 +409,9 @@ function closeModal() {
 function updateColorPreview() {
     const v = document.getElementById('fldColor').value.trim();
     document.getElementById('colorPreview').style.background = v || 'transparent';
+    // Gõ tay ra mã hex hợp lệ (#rgb hoặc #rrggbb) thì đồng bộ luôn qua ô color picker + bảng màu.
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)) document.getElementById('fldColorPicker').value = v;
+    renderColorSwatches();
 }
 
 async function saveTopic() {

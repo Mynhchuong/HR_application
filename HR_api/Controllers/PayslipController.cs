@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
+using Oracle.ManagedDataAccess.Types;
 using HR_api.Data;
 using HR_api.Models.Payslip;
 
@@ -160,6 +161,10 @@ public class PayslipController : ControllerBase
         }
     }
 
+    // NV phòng Office Staff nhận phiếu lương qua email riêng, không cần app nhắc nữa (yêu cầu HR
+    // 2026-09-10) — loại phòng này khỏi thông báo "công bố phiếu lương".
+    private const string OfficeStaffDeptName = "OFFICE STAFF";
+
     [HttpPost("release")]
     public async Task<IActionResult> ReleasePeriod([FromBody] dynamic model)
     {
@@ -172,27 +177,73 @@ public class PayslipController : ControllerBase
                 new OracleParameter("UPDT_ID", (object?)updtId ?? DBNull.Value),
                 new OracleParameter("ID", id));
 
-            _ = Task.Run(async () =>
-            {
-                var (title, body, titleEn, bodyEn) = await _notiHelper.GetTemplateAsync("PAYSLIP");
-                await _notiHelper.SendNotificationAsync(new Models.Notification.SendNotificationRequest
-                {
-                    TITLE       = title,
-                    BODY        = body,
-                    TITLE_EN    = titleEn,
-                    BODY_EN     = bodyEn,
-                    NOTI_TYPE   = "COMPANY",
-                    TARGET_VAL  = "ALL",
-                    LINK_ACTION = "PAYSLIP",
-                    CREATED_BY  = updtId
-                });
-            });
+            _ = Task.Run(() => NotifyPayslipReleasedAsync(updtId));
 
             return Ok(new { success = true, message = "Đã công bố phiếu lương" });
         }
         catch (Exception ex)
         {
             return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // Gửi thông báo "công bố phiếu lương" cho TOÀN CÔNG TY TRỪ phòng Office Staff (nhận lương qua
+    // email riêng rồi, không cần in-app notification nữa). Dùng NOTI_TYPE='MULTI' liệt kê mọi
+    // phòng ban CÒN LẠI thay vì 'COMPANY'/'ALL' như trước — tái sử dụng đúng cơ chế "gửi nhiều
+    // target" (HR_NOTIFICATION_TARGET) mà trang Admin gửi thông báo đã dùng sẵn, không cần thêm
+    // loại NOTI_TYPE hay đổi logic đọc thông báo ở NotificationController.
+    private async Task NotifyPayslipReleasedAsync(string? updtId)
+    {
+        try
+        {
+            var (title, body, titleEn, bodyEn) = await _notiHelper.GetTemplateAsync("PAYSLIP");
+
+            var deptRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT DISTINCT DEPTCD FROM HRMS.EAM410 WHERE UPPER(TRIM(DEPTNM)) != :EXCLUDE_DEPT",
+                r => r["DEPTCD"]?.ToString() ?? "",
+                new OracleParameter("EXCLUDE_DEPT", OfficeStaffDeptName));
+            var targets = deptRows.Where(d => !string.IsNullOrEmpty(d)).Distinct()
+                .Select(d => new Models.Notification.NotificationTarget { TYPE = "DEPT", VAL = d })
+                .ToList();
+            if (targets.Count == 0) return; // an toàn — không dò được phòng ban nào thì thôi, khỏi gửi sai
+
+            string sqlInsert = @"
+                INSERT INTO HRMS.HR_NOTIFICATIONS (TITLE, BODY, TITLE_EN, BODY_EN, NOTI_TYPE, TARGET_VAL, LINK_ACTION, CREATED_BY, CREATED_DATE)
+                VALUES (:TITLE, :BODY, :TITLE_EN, :BODY_EN, 'MULTI', 'MULTI', :LINK_ACTION, :CREATED_BY, SYSDATE)
+                RETURNING ID INTO :OUT_ID";
+
+            var outIdParam = new OracleParameter("OUT_ID", OracleDbType.Decimal, System.Data.ParameterDirection.Output);
+            await _oracleService.ExecuteNonQueryAsync(sqlInsert,
+                new OracleParameter("TITLE",       title),
+                new OracleParameter("BODY",        body),
+                new OracleParameter("TITLE_EN",    (object?)titleEn ?? DBNull.Value),
+                new OracleParameter("BODY_EN",     (object?)bodyEn  ?? DBNull.Value),
+                new OracleParameter("LINK_ACTION", "PAYSLIP"),
+                new OracleParameter("CREATED_BY",  (object?)updtId  ?? DBNull.Value),
+                outIdParam);
+
+            decimal notiId = outIdParam.Value is OracleDecimal od && !od.IsNull ? od.Value : 0;
+            if (notiId <= 0) return;
+
+            foreach (var t in targets)
+            {
+                await _oracleService.ExecuteNonQueryAsync(@"
+                    INSERT INTO HRMS.HR_NOTIFICATION_TARGET (NOTI_ID, TARGET_TYPE, TARGET_VAL)
+                    VALUES (:NID, :TT, :TV)",
+                    new OracleParameter("NID", notiId),
+                    new OracleParameter("TT",  t.TYPE),
+                    new OracleParameter("TV",  t.VAL));
+            }
+
+            await _notiHelper.SendFcmForMultiAsync(notiId, new Models.Notification.SendMultiNotificationRequest
+            {
+                TITLE = title, BODY = body, TITLE_EN = titleEn, BODY_EN = bodyEn,
+                LINK_ACTION = "PAYSLIP", CREATED_BY = updtId, TARGETS = targets
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[PayslipController] NotifyPayslipReleasedAsync error: {ex.Message}");
         }
     }
 

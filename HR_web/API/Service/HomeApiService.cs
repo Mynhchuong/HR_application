@@ -283,8 +283,12 @@ public class MyCalendarResponse
 
 public class HomeMyCalendarItem
 {
-    public string DATE   { get; set; } = "";
-    public string TYPE   { get; set; } = "";   // LEAVE | GP | OT | ASSIGN
-    public string LABEL  { get; set; } = "";
-    public string DETAIL { get; set; } = "";
+    public string  DATE         { get; set; } = "";
+    public string  TYPE         { get; set; } = "";   // LEAVE | GP | OT | ASSIGN
+    public string  LABEL        { get; set; } = "";
+    public string  DETAIL       { get; set; } = "";
+    public string? SIGNER_LABEL { get; set; }
+    public string? SIGNER_NAME  { get; set; }
+    public bool    DOC_REQUIRED { get; set; }
+    public string? DOC_STATUS   { get; set; }
 }

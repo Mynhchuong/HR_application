@@ -195,6 +195,20 @@ public class LeaveActionResponse
     public bool   success    { get; set; }
     public string? message   { get; set; }
     public string? request_id { get; set; }
+    // Kết quả từng nhân viên khi sắp lịch hàng loạt (Assign) — HR_api đã trả field này kèm lý do
+    // (VD "Không thể tự sắp lịch nghỉ cho chính mình"), nhưng thiếu field ở model này nên bị rớt
+    // mất khi qua HR_web, JS (TeamSchedule.cshtml) đọc res.results nhưng luôn rỗng — phát hiện khi
+    // test lại bằng tài khoản quản lý thật (2026-09-10).
+    public List<LeaveAssignResultItem> results { get; set; } = new();
+}
+
+public class LeaveAssignResultItem
+{
+    public string  empcd      { get; set; } = string.Empty;
+    public string? emp_name   { get; set; }
+    public bool    success    { get; set; }
+    public string? message    { get; set; }
+    public string? request_id { get; set; }
 }
 
 public class LeaveUpdateRequest
@@ -293,6 +307,30 @@ public class AdminBulkDeleteRequest
     public List<string> REQUEST_IDS { get; set; } = new();
 }
 
+// HR xác nhận nộp giấy theo từng ngày, tự gõ Absent Code/remark (không đoán tự động) — app ghi
+// thẳng sang ERP (EFM410) cho đúng những ngày đó.
+public class LeaveDocConfirmDayItem
+{
+    public string  Date    { get; set; } = string.Empty; // yyyy-MM-dd
+    public string  Leavecd { get; set; } = string.Empty; // Absent Code HR tự gõ
+    public string? Remark  { get; set; }
+}
+
+public class LeaveDocConfirmDaysBody
+{
+    public string RequestId { get; set; } = string.Empty;
+    public List<LeaveDocConfirmDayItem> Days { get; set; } = new();
+}
+
+// Trang sửa Absent Code ERP trực tiếp (thay cho gõ tay trong đơn nghỉ MySamho) — chỉ sửa Leavecd/Remark.
+public class ErpAbsentUpdateBody
+{
+    public string  Empcd   { get; set; } = string.Empty;
+    public string  FrDate  { get; set; } = string.Empty; // yyyy-MM-dd
+    public string  Leavecd { get; set; } = string.Empty;
+    public string? Remark  { get; set; }
+}
+
 public class AdminBulkDeleteResponse
 {
     public bool   success       { get; set; }
@@ -313,6 +351,10 @@ public class AdminAssignResponse
     public string? message       { get; set; }
     public int    total_inserted { get; set; }
     public List<AdminAssignWarning> warnings { get; set; } = new();
+    // Kết quả từng nhân viên (kể cả lý do bị chặn, VD "Không thể tự sắp lịch nghỉ cho chính mình") —
+    // HR_api đã trả field này, AdminAssignLeave.cshtml (showResults) đã đọc data.results nhưng thiếu
+    // field ở model này nên luôn rỗng — phát hiện khi test lại bằng tài khoản quản lý thật (2026-09-10).
+    public List<LeaveAssignResultItem> results { get; set; } = new();
 }
 
 public class SundayEmpModel

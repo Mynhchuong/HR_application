@@ -126,11 +126,13 @@ public class InquiryService
     }
 
     // POST /apiHR/Inquiry/mark-read
-    public async Task<InquiryActionResponse> MarkReadAsync(long inquiryId, string readerType, string? anonToken = null)
+    // viewerEmpcd: mã NV người đang xem (khi readerType=HR) — CSR/HR/Admin xem chung 1 hội thoại
+    // nhưng "đã đọc" phải tính riêng cho từng người (bug 2026-09-10).
+    public async Task<InquiryActionResponse> MarkReadAsync(long inquiryId, string readerType, string? anonToken = null, string? viewerEmpcd = null)
     {
         try
         {
-            var payload = new { inquiryId, readerType, anonToken };
+            var payload = new { inquiryId, readerType, anonToken, viewerEmpcd };
             var res = await _api.PostAsync("Inquiry/mark-read", payload);
             if (res?.IsSuccessStatusCode == true)
                 return JsonConvert.DeserializeObject<InquiryActionResponse>(await res.Content.ReadAsStringAsync())
@@ -188,6 +190,8 @@ public class InquiryService
     }
 
     // GET /apiHR/Inquiry/hr-list
+    // viewerEmpcd: mã NV người đang xem — tính badge "chưa đọc" riêng cho người này (bug 2026-09-10:
+    // trước đây dùng chung 1 cờ, 1 người mở hội thoại là tắt badge cho mọi CSR/HR/Admin khác).
     public async Task<InquiryHrListResponse> GetHrListAsync(
         string? status     = null,
         string? topicCd    = null,
@@ -195,18 +199,20 @@ public class InquiryService
         string? assignedTo = null,
         string? search     = null,
         string? sort       = null,
+        string? viewerEmpcd = null,
         int     page       = 1,
         int     pageSize   = 30)
     {
         try
         {
             var q = new List<string>();
-            if (!string.IsNullOrEmpty(status))     q.Add($"status={Uri.EscapeDataString(status)}");
-            if (!string.IsNullOrEmpty(topicCd))    q.Add($"topicCd={Uri.EscapeDataString(topicCd)}");
-            if (!string.IsNullOrEmpty(chatType))   q.Add($"chatType={Uri.EscapeDataString(chatType)}");
-            if (!string.IsNullOrEmpty(assignedTo)) q.Add($"assignedTo={Uri.EscapeDataString(assignedTo)}");
-            if (!string.IsNullOrEmpty(search))     q.Add($"search={Uri.EscapeDataString(search)}");
-            if (!string.IsNullOrEmpty(sort))       q.Add($"sort={Uri.EscapeDataString(sort)}");
+            if (!string.IsNullOrEmpty(status))      q.Add($"status={Uri.EscapeDataString(status)}");
+            if (!string.IsNullOrEmpty(topicCd))     q.Add($"topicCd={Uri.EscapeDataString(topicCd)}");
+            if (!string.IsNullOrEmpty(chatType))    q.Add($"chatType={Uri.EscapeDataString(chatType)}");
+            if (!string.IsNullOrEmpty(assignedTo))  q.Add($"assignedTo={Uri.EscapeDataString(assignedTo)}");
+            if (!string.IsNullOrEmpty(search))      q.Add($"search={Uri.EscapeDataString(search)}");
+            if (!string.IsNullOrEmpty(sort))        q.Add($"sort={Uri.EscapeDataString(sort)}");
+            if (!string.IsNullOrEmpty(viewerEmpcd)) q.Add($"viewerEmpcd={Uri.EscapeDataString(viewerEmpcd)}");
             q.Add($"page={page}");
             q.Add($"pageSize={pageSize}");
             var res = await _api.GetAsync_Raw("Inquiry/hr-list", string.Join("&", q));

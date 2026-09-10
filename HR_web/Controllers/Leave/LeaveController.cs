@@ -576,6 +576,97 @@ public class LeaveController : BaseController
         return Json(result);
     }
 
+    // Vai trò xem được chi tiết nộp giấy của NGƯỜI KHÁC (HR/thư ký sửa được, quản lý chỉ xem) —
+    // nhân viên thường chỉ xem được đơn của chính mình (check EMPCD bên dưới).
+    private static readonly string[] DocEditRoles = { "HR", "Clerk", "Admin" };
+    private static readonly string[] DocViewRoles = { "Supervisor", "DeputyManager", "Manager", "Assistant" };
+    // Sửa Absent Code ERP trực tiếp (ErpAbsentManage) — CHỈ HR/Admin, Thư ký KHÔNG được vào (yêu
+    // cầu 2026-09-10, khác với DocEditRoles ở trên vẫn còn Clerk cho luồng xem/nhập nộp giấy cũ).
+    private static readonly string[] ErpAbsentRoles = { "HR", "Admin" };
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/GetDocDayList (AJAX) — từng ngày trong đơn + đã xác nhận nộp giấy chưa.
+    // HR/Clerk/Admin xem được mọi đơn (để sửa); quản lý xem được đơn nhân viên (chỉ để xem);
+    // nhân viên thường chỉ xem được đơn của chính mình.
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetDocDayList(string requestId)
+    {
+        var role = CurrentUser?.RoleName;
+        bool isStaffView = DocEditRoles.Contains(role) || DocViewRoles.Contains(role);
+        var raw = await _leaveService.GetDocDayListRawAsync(requestId);
+        if (!isStaffView)
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(raw);
+                var empcd = doc.RootElement.TryGetProperty("empcd", out var e) ? e.GetString() : null;
+                if (!string.Equals(empcd, CurrentUser?.EmpCd, StringComparison.OrdinalIgnoreCase))
+                    return Json(new { success = false, message = "Không có quyền xem" });
+            }
+            catch { return Json(new { success = false, message = "Không có quyền xem" }); }
+        }
+        return Content(raw, "application/json");
+    }
+
+    // ─────────────────────────────────────────────
+    // POST: /Leave/ConfirmDocDays (AJAX) — HR tự gõ Absent Code/remark theo từng ngày, app ghi
+    // thẳng sang ERP (EFM410), không đoán/gợi ý tự động.
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> ConfirmDocDays([FromBody] LeaveDocConfirmDaysBody body)
+    {
+        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Clerk" && CurrentUser?.RoleName != "Admin")
+            return Json(new { success = false, message = "Không có quyền" });
+        var payload = new { REQUEST_ID = body.RequestId, ACTOR_EMPCD = CurrentUser.EmpCd ?? "", DAYS = body.Days };
+        var raw = await _leaveService.ConfirmDocDaysRawAsync(payload);
+        return Content(raw, "application/json");
+    }
+
+    // ─────────────────────────────────────────────
+    // GET: /Leave/ErpAbsentManage — HR đổi ý (2026-09-10), bỏ gõ tay trong đơn nghỉ MySamho, thay
+    // bằng 1 trang sửa Absent Code ERP trực tiếp y chang màn ERP thật (chỉ sửa Leavecd + Remark).
+    // ─────────────────────────────────────────────
+    public IActionResult ErpAbsentManage()
+    {
+        if (!ErpAbsentRoles.Contains(CurrentUser?.RoleName)) return Forbid();
+        var today = DateTime.Today;
+        ViewBag.DateFrom = today.ToString("yyyy-MM-dd");
+        ViewBag.DateTo   = today.ToString("yyyy-MM-dd");
+        return View();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetErpAbsentList(
+        string date_from, string date_to, string? empcd = null, string? deptcd = null,
+        string? linecd = null, string? workcd = null, string? leavecd = null,
+        string? ms_status = null, string? ms_leave_type = null, int page = 1, int page_size = 100)
+    {
+        if (!ErpAbsentRoles.Contains(CurrentUser?.RoleName)) return Json(new { success = false, message = "Không có quyền" });
+        var raw = await _leaveService.GetErpAbsentListRawAsync(date_from, date_to, empcd, deptcd, linecd, workcd, leavecd, ms_status, ms_leave_type, page, page_size);
+        return Content(raw, "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAbsentCodeList()
+    {
+        if (!ErpAbsentRoles.Contains(CurrentUser?.RoleName)) return Json(new { success = false, message = "Không có quyền" });
+        var raw = await _leaveService.GetAbsentCodeListRawAsync();
+        return Content(raw, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ErpAbsentUpdate([FromBody] ErpAbsentUpdateBody body)
+    {
+        if (!ErpAbsentRoles.Contains(CurrentUser?.RoleName)) return Json(new { success = false, message = "Không có quyền" });
+        var payload = new {
+            EMPCD = body.Empcd, FR_DATE = body.FrDate, LEAVECD = body.Leavecd,
+            REMARK = body.Remark, ACTOR_EMPCD = CurrentUser?.EmpCd ?? ""
+        };
+        var raw = await _leaveService.ErpAbsentUpdateRawAsync(payload);
+        return Content(raw, "application/json");
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAdminConfirmedGp(
         string? dept_id = null, string? line_id = null, string? work_id = null,

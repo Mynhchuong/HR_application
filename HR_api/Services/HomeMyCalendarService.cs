@@ -54,10 +54,23 @@ public class HomeMyCalendarService
     // Loop TỪNG NGÀY trong FROM_DATE → TO_DATE để chấm màu từng ô.
     // SOURCE=SELF   → TYPE=LEAVE  🟢
     // SOURCE=ASSIGNED → TYPE=ASSIGN 🟣
+    // Loại phải nộp giấy tờ chứng minh — khớp DocRequiredTypes bên LeaveController (SI/DT/DC/VS/DS/KT).
+    private static readonly HashSet<string> DocRequiredTypes = new() { "SI", "DT", "DC", "VS", "DS", "KT" };
+
+    // Tên đầy đủ 9 loại nghỉ mới + vài mã cũ còn đọc được — khớp NewLeaveTypeNames bên LeaveController
+    // (trước đây switch chỉ có AL/SL/CL/NPL, 9 loại mới đều rớt vào default "Nghỉ" chung chung).
+    private static readonly Dictionary<string, string> LeaveTypeNames = new()
+    {
+        ["AL"] = "Phép năm", ["NL"] = "Không lương", ["SI"] = "Bệnh có giấy",
+        ["DT"] = "Đám tang", ["DC"] = "Đám cưới",     ["CT"] = "Công tác",
+        ["VS"] = "Vợ sanh",  ["DS"] = "Dưỡng sức",    ["KT"] = "Khám thai",
+        ["SL"] = "Nghỉ bệnh", ["CL"] = "Nghỉ chế độ", ["NPL"] = "Không lương"
+    };
+
     private async Task<List<HomeMyCalendarItem>> LoadLeaveApprovedAsync(string empcd, DateTime from, DateTime to)
     {
         const string sql = @"
-            SELECT L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE, L.SOURCE, L.REASON,
+            SELECT L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE, L.SOURCE, L.REASON, L.DOC_STATUS,
                    AP.CNAME APPROVER_NAME, ASN.CNAME ASSIGNER_NAME
             FROM HRMS.HR_LEAVE_REQUEST L
             JOIN HRMS.HR_REQUEST R    ON R.REQUEST_ID = L.REQUEST_ID
@@ -76,12 +89,24 @@ public class HomeMyCalendarService
             ToDate     = r["TO_DATE"]   == DBNull.Value ? DateTime.MinValue : Convert.ToDateTime(r["TO_DATE"]),
             Source     = r["SOURCE"]?.ToString() ?? "SELF",
             Reason     = r["REASON"]?.ToString() ?? "",
+            DocStatus  = r["DOC_STATUS"] == DBNull.Value ? null : r["DOC_STATUS"]?.ToString(),
             Approver   = r["APPROVER_NAME"]?.ToString() ?? "",
             Assigner   = r["ASSIGNER_NAME"]?.ToString() ?? ""
         },
         new OracleParameter("EMPCD",  empcd),
         new OracleParameter("D_TO",   to.Date),
         new OracleParameter("D_FROM", from.Date));
+
+        // Ngày nào đã nộp giấy tờ THẬT SỰ (theo HR_LEAVE_DOC_DAY, nguồn xác định "đã nộp" chính xác
+        // của tính năng nộp giấy tờ) — để chấm đúng từng ngày cụ thể thay vì lặp lại 1 trạng thái
+        // chung cho cả đơn (yêu cầu 2026-09-10: "cụ thể là ngày nào hiện luôn").
+        var confirmedRows = await _oracleService.ExecuteQueryAsync(
+            "SELECT TO_CHAR(LEAVE_DATE,'YYYY-MM-DD') D FROM HRMS.HR_LEAVE_DOC_DAY WHERE EMPCD = :EMPCD AND LEAVE_DATE BETWEEN :D_FROM AND :D_TO",
+            r => r["D"]?.ToString() ?? "",
+            new OracleParameter("EMPCD", empcd),
+            new OracleParameter("D_FROM", from.Date),
+            new OracleParameter("D_TO", to.Date));
+        var confirmedDates = confirmedRows.Where(d => d.Length > 0).ToHashSet();
 
         var items = new List<HomeMyCalendarItem>();
         foreach (var row in rows)
@@ -91,30 +116,42 @@ public class HomeMyCalendarService
             var cur = row.FromDate.Date < from.Date ? from.Date : row.FromDate.Date;
             var end = row.ToDate.Date   > to.Date   ? to.Date   : row.ToDate.Date;
             bool isAssigned = row.Source == "ASSIGNED";
+            bool docRequired = DocRequiredTypes.Contains(row.LeaveType);
 
-            string leaveTypeLabel = row.LeaveType switch
-            {
-                "AL"  => "Phép năm",
-                "SL"  => "Nghỉ bệnh",
-                "CL"  => "Nghỉ chế độ",
-                "NPL" => "Không lương",
-                _     => "Nghỉ"
-            };
+            string leaveTypeLabel = LeaveTypeNames.GetValueOrDefault(row.LeaveType, "Nghỉ");
             string label = isAssigned ? $"Quản lý xếp lịch nghỉ: {leaveTypeLabel}" : $"Nghỉ phép: {leaveTypeLabel}";
-            string detail = isAssigned
-                ? (string.IsNullOrEmpty(row.Assigner) ? "Quản lý xếp lịch nghỉ cho bạn" : $"Quản lý xếp lịch: {row.Assigner}")
-                : (string.IsNullOrEmpty(row.Approver) ? "Đã duyệt"                      : $"Người duyệt: {row.Approver}");
-            if (!string.IsNullOrEmpty(row.Reason))
-                detail += $" · Lý do: {row.Reason}";
+            // Tên người duyệt/người sắp lịch (CNAME) đọc theo font VNI-Windows — tách riêng khỏi
+            // DETAIL để frontend bọc đúng font vni-font, không lẫn với chữ Unicode thường của Lý do
+            // (trước đây gộp chung 1 chuỗi DETAIL khiến tên hiện lỗi phông trên popup lịch cá nhân).
+            string signerLabel = isAssigned ? "Người sắp lịch" : "Người duyệt";
+            string? signerName = isAssigned ? row.Assigner : row.Approver;
+            if (string.IsNullOrEmpty(signerName)) signerName = null;
+            string detail = string.IsNullOrEmpty(row.Reason) ? "" : $"Lý do: {row.Reason}";
 
             while (cur <= end)
             {
+                var dateKey = cur.ToString("yyyy-MM-dd");
+                // Cả đơn đã SUBMITTED đủ (kể cả do job tự dò ERP đánh dấu — job đó KHÔNG ghi từng
+                // dòng vào HR_LEAVE_DOC_DAY, chỉ set thẳng DOC_STATUS='SUBMITTED') -> coi mọi ngày
+                // trong đơn là xong, khỏi cần tra HR_LEAVE_DOC_DAY. Còn PARTIALLY_SUBMITTED thì mới
+                // cần tra đúng ngày nào đã xác nhận (đây là lúc HR_LEAVE_DOC_DAY có dữ liệu chính xác
+                // theo từng ngày — "cụ thể là ngày nào" theo yêu cầu 2026-09-10).
+                string? dayDocStatus = !docRequired ? null
+                    : row.DocStatus == "SUBMITTED" ? "SUBMITTED"
+                    : confirmedDates.Contains(dateKey) ? "SUBMITTED"
+                    : row.DocStatus == "RESUBMIT_REQUESTED" ? "RESUBMIT_REQUESTED"
+                    : null;
+
                 items.Add(new HomeMyCalendarItem
                 {
-                    DATE   = cur.ToString("yyyy-MM-dd"),
-                    TYPE   = isAssigned ? "ASSIGN" : "LEAVE",
-                    LABEL  = label,
-                    DETAIL = detail
+                    DATE         = dateKey,
+                    TYPE         = isAssigned ? "ASSIGN" : "LEAVE",
+                    LABEL        = label,
+                    DETAIL       = detail,
+                    SIGNER_LABEL = signerLabel,
+                    SIGNER_NAME  = signerName,
+                    DOC_REQUIRED = docRequired,
+                    DOC_STATUS   = dayDocStatus
                 });
                 cur = cur.AddDays(1);
             }

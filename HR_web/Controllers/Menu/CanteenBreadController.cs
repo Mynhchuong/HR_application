@@ -26,6 +26,12 @@ public class CanteenBreadController : BaseController
         || CurrentUser?.RoleName == "Clerk"
         || CurrentUser?.RoleName == "CSR";
 
+    // Xoá / đổi món hàng loạt trên trang ChangeLog — CHỈ Admin/HR (yêu cầu 2026-09-10), khác
+    // CanViewLog (rộng hơn, cho cả Canteen/Clerk/CSR xem log nhưng KHÔNG được sửa/xoá dữ liệu).
+    private bool CanBulkEditLog =>
+           CurrentUser?.RoleName == "Admin"
+        || CurrentUser?.RoleName == "HR";
+
     private IActionResult ForbidJson() =>
         Json(new { success = false, message = "Bạn không có quyền thao tác chức năng này" });
 
@@ -197,6 +203,34 @@ public class CanteenBreadController : BaseController
         return Content(raw, "application/json");
     }
 
+    // Xoá hàng loạt bản ghi log — chọn từng dòng (Keys) hoặc "chọn tất cả khớp bộ lọc" (Filter).
+    // CHỈ Admin/HR (không cho Canteen/Clerk/CSR dù họ xem được log).
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> LogBulkDelete([FromBody] CanteenLogBulkRequest body)
+    {
+        if (!CanBulkEditLog) return ForbidJson();
+        var payload = new { keys = body.Keys, filter = body.Filter, loginUser = CurrentUser?.EmpCd };
+        var raw = await _svc.LogBulkDeleteRawAsync(payload);
+        return Content(raw, "application/json");
+    }
+
+    // Đổi món hàng loạt (mặc định đổi về Mặn) — VD: tất cả NV đổi món Bánh 1 ngày nào đó, chuyển
+    // hết về Mặn. CHỈ Admin/HR.
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> LogBulkChangeFood([FromBody] CanteenLogBulkRequest body)
+    {
+        if (!CanBulkEditLog) return ForbidJson();
+        var payload = new
+        {
+            keys        = body.Keys,
+            filter      = body.Filter,
+            newFoodType = string.IsNullOrEmpty(body.NewFoodType) ? "M" : body.NewFoodType,
+            loginUser   = CurrentUser?.EmpCd
+        };
+        var raw = await _svc.LogBulkChangeFoodRawAsync(payload);
+        return Content(raw, "application/json");
+    }
+
     private static readonly Dictionary<string, string> FoodLabel  = new() { ["M"] = "Mặn", ["N"] = "Nhẹ", ["C"] = "Chay", ["B"] = "Bánh" };
     private static readonly Dictionary<string, string> ShiftLabel = new() { ["LUNCH"] = "Bữa ca", ["OT"] = "Tăng ca" };
 
@@ -285,5 +319,35 @@ public class CanteenBreadController : BaseController
     {
         public string FromDate { get; set; } = "";
         public string ToDate   { get; set; } = "";
+    }
+
+    // ── Bulk xoá / đổi món trên ChangeLog ────────────────────
+    public class CanteenLogKeyBody
+    {
+        public string Empcd    { get; set; } = "";
+        public string Dat      { get; set; } = "";
+        public string TypeMeal { get; set; } = "";
+    }
+
+    public class CanteenLogFilterBody
+    {
+        public string? From { get; set; }
+        public string? To { get; set; }
+        public string? Empcd { get; set; }
+        public string? Deptcd { get; set; }
+        public string? Linecd { get; set; }
+        public string? Workcd { get; set; }
+        public string? FoodType { get; set; }
+        public string? TypeMeal { get; set; }
+    }
+
+    public class CanteenLogBulkRequest
+    {
+        // Chọn từng dòng cụ thể (checkbox trên trang hiện tại) — ưu tiên nếu có.
+        public List<CanteenLogKeyBody>? Keys { get; set; }
+        // "Chọn tất cả khớp bộ lọc" — áp dụng cho MỌI dòng khớp filter, kể cả ngoài trang đang xem.
+        public CanteenLogFilterBody?    Filter { get; set; }
+        // Chỉ dùng cho LogBulkChangeFood — mặc định "M" (Mặn) nếu không truyền.
+        public string? NewFoodType { get; set; }
     }
 }

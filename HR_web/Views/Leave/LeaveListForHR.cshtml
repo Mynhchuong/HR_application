@@ -46,6 +46,9 @@
             <div class="bg-gradient-success shadow-success border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="text-white mb-0"><i class="bi bi-building me-1"></i> Nghỉ Phép Toàn Công Ty</h6>
                 <div class="d-flex align-items-center gap-2">
+                    <a href="@Url.Action("ErpAbsentManage", "Leave")" class="btn btn-sm mb-0" style="background:#fff;color:#344767;font-weight:600;height:36px;" title="Sửa Absent Code trực tiếp trên ERP">
+                        <i class="bi bi-pencil-square me-1"></i> Sửa Absent Code ERP
+                    </a>
                     <button type="button" id="exportBtn" class="btn btn-sm mb-0" style="background:#fff;color:#344767;font-weight:600;height:36px;">
                         <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel
                     </button>
@@ -178,20 +181,21 @@
     </div>
 </div>
 
-<!-- Xác nhận đã nộp giấy tờ -->
+<!-- Chi tiết đã nộp giấy tờ theo ngày (chỉ xem — sửa ERP làm ở trang riêng /Leave/ErpAbsentManage) -->
 <div class="modal fade" id="docConfirmModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header py-2">
-                <h6 class="modal-title mb-0"><i class="bi bi-check-circle text-success me-1"></i> Xác nhận đã nộp giấy tờ</h6>
+                <h6 class="modal-title mb-0"><i class="bi bi-eye text-secondary me-1"></i> Chi tiết đã nộp giấy tờ theo ngày</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-0" style="font-size:.85rem;">Xác nhận đã nhận giấy tờ của nhân viên này?</p>
+                <div id="docDayListWrap" style="max-height:320px;overflow-y:auto;">
+                    <div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm"></div></div>
+                </div>
             </div>
             <div class="modal-footer py-2">
-                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
-                <button class="btn btn-success btn-sm" id="docConfirmOkBtn">Xác nhận</button>
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
             </div>
         </div>
     </div>
@@ -227,33 +231,55 @@ let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', NL:'Không lương', SI:'Bệnh có giấy', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', DS:'Dưỡng sức', KT:'Khám thai' };
 const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', NL:'secondary', SI:'danger', DT:'dark', DC:'danger', CT:'info', VS:'primary', DS:'warning', KT:'warning' };
 const DOC_REQUIRED_TYPES = ['SI', 'DT', 'DC', 'VS', 'DS', 'KT'];
-const DOC_STATUS_LABEL   = { SUBMITTED: 'Đã nộp', RESUBMIT_REQUESTED: 'Yêu cầu nộp lại' };
-const DOC_STATUS_COLOR   = { SUBMITTED: 'success', RESUBMIT_REQUESTED: 'warning' };
+const DOC_STATUS_LABEL   = { SUBMITTED: 'Đã nộp', PARTIALLY_SUBMITTED: 'Nộp 1 phần', RESUBMIT_REQUESTED: 'Yêu cầu nộp lại' };
+const DOC_STATUS_COLOR   = { SUBMITTED: 'success', PARTIALLY_SUBMITTED: 'info', RESUBMIT_REQUESTED: 'warning' };
 
+// HR đổi ý (2026-09-10): bỏ hẳn kiểu gõ tay Absent Code/Remark ở đây — việc sửa ERP giờ làm ở trang
+// riêng "/Leave/ErpAbsentManage" (y chang màn ERP). Ở đây chỉ còn xem chi tiết đã nộp giấy ngày nào,
+// và yêu cầu nộp lại (không đụng ERP, chỉ đổi cờ DOC_STATUS bên MySamho).
 function docCell(item) {
     if (!DOC_REQUIRED_TYPES.includes(item.LEAVE_TYPE)) return '<span class="text-muted">-</span>';
     const st    = item.DOC_STATUS || null;
     const badge = `<span class="badge bg-${DOC_STATUS_COLOR[st] || 'secondary'}">${DOC_STATUS_LABEL[st] || 'Chưa nộp'}</span>`;
-    const btns  = st === 'SUBMITTED'
-        ? `<button class="btn btn-outline-warning btn-sm py-0 px-1 mt-1" style="font-size:.68rem;" onclick="requestDocResubmit('${item.REQUEST_ID}')">Yêu cầu nộp lại</button>`
-        : `<button class="btn btn-outline-success btn-sm py-0 px-1 mt-1" style="font-size:.68rem;" onclick="markDocSubmitted('${item.REQUEST_ID}')">Cập nhật đã nộp</button>`;
-    return `<div class="d-flex flex-column align-items-center gap-1">${badge}${btns}</div>`;
+    const detailBtn = `<button class="btn btn-outline-secondary btn-sm py-0 px-1" style="font-size:.68rem;" onclick="viewDocDetail('${item.REQUEST_ID}')" title="Xem chi tiết đã nộp giấy gì"><i class="bi bi-eye"></i> Chi tiết</button>`;
+    // Chỉ cho yêu cầu nộp lại khi đơn đã Đã duyệt HOẶC đã Sắp lịch nghỉ (quản lý/Admin sắp lịch
+    // tính như đã chốt — đã chặn ở API, đây chỉ ẩn nút).
+    const resubmitBtn = ((item.STATUS === 'APPROVED' || item.STATUS === 'ASSIGNED') && st === 'SUBMITTED')
+        ? `<button class="btn btn-outline-warning btn-sm py-0 px-1" style="font-size:.68rem;" onclick="requestDocResubmit('${item.REQUEST_ID}')">Yêu cầu nộp lại</button>`
+        : '';
+    return `<div class="d-flex flex-column align-items-center gap-1">${badge}<div class="d-flex gap-1 flex-wrap justify-content-center">${detailBtn}${resubmitBtn}</div></div>`;
 }
 
 let _docPendingRequestId = null;
 const docConfirmModal  = new bootstrap.Modal(document.getElementById('docConfirmModal'));
 const docResubmitModal = new bootstrap.Modal(document.getElementById('docResubmitModal'));
 
-function markDocSubmitted(requestId) {
-    _docPendingRequestId = requestId;
+async function viewDocDetail(requestId) {
+    document.getElementById('docDayListWrap').innerHTML = '<div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm"></div></div>';
     docConfirmModal.show();
+    try {
+        const res = await $.get('@Url.Action("GetDocDayList", "Leave")', { requestId });
+        if (!res.success) {
+            document.getElementById('docDayListWrap').innerHTML = `<div class="text-danger text-sm">${escHtml(res.message || 'Lỗi tải dữ liệu')}</div>`;
+            return;
+        }
+        const DOW = ['CN','T2','T3','T4','T5','T6','T7'];
+        document.getElementById('docDayListWrap').innerHTML = (res.days || []).map(d => {
+            const dt = new Date(d.date);
+            const label = `${('0'+dt.getDate()).slice(-2)}/${('0'+(dt.getMonth()+1)).slice(-2)} (${DOW[dt.getDay()]})`;
+            const statusHtml = d.confirmed ? `<span class="badge bg-success">Đã nộp</span>` : `<span class="badge bg-secondary">Chưa nộp</span>`;
+            return `<div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #f1f5f9;">
+                <div style="width:90px;" class="text-sm text-nowrap">${label}</div>
+                <div style="width:90px;">${statusHtml}</div>
+                <div class="text-sm" style="width:90px;">${d.leavecd ? `<span class="badge bg-light text-dark border">${escHtml(d.leavecd)}</span>` : '<span class="text-muted">-</span>'}</div>
+                <div class="text-sm flex-grow-1 text-secondary">${escHtml(d.remark || '-')}</div>
+                ${d.confirmed ? `<span class="text-xxs text-muted text-nowrap">${escHtml(d.confirmedBy || '')}${d.confirmedDate ? ' · ' + formatDate(d.confirmedDate) : ''}</span>` : ''}
+            </div>`;
+        }).join('') || '<div class="text-muted text-sm">Không có dữ liệu</div>';
+    } catch (e) {
+        document.getElementById('docDayListWrap').innerHTML = '<div class="text-danger text-sm">Lỗi kết nối</div>';
+    }
 }
-document.getElementById('docConfirmOkBtn').addEventListener('click', async () => {
-    docConfirmModal.hide();
-    const res = await $.post('@Url.Action("MarkDocSubmitted", "Leave")', { requestId: _docPendingRequestId });
-    showToast(res.message || (res.success ? 'Đã cập nhật' : 'Có lỗi'), res.success ? 'success' : 'error');
-    if (res.success) loadData(currentPage);
-});
 
 function requestDocResubmit(requestId) {
     _docPendingRequestId = requestId;

@@ -119,3 +119,7 @@ HR_api/Scripts/alter_leave_ct_gatepass_link.sql
 UI_REDESIGN_PLAN.md
 HR_api/Scripts/alter_leave_nl_streak_alert.sql
 HR_api/Scripts/add_banner_recurrence.sql
+HR_api/Scripts/create_leave_doc_day.sql
+HR_api/Scripts/index_erp_absent_manage_perf.sql
+HR_api/Scripts/create_inquiry_reader.sql
+absent code (1).numbers

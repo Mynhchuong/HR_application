@@ -846,6 +846,24 @@ body.home-hero-popup-open { overflow: hidden; }
 #mycalDetailBody .mc-event .mc-body { flex: 1; min-width: 0; }
 #mycalDetailBody .mc-event .mc-lbl { font-weight: 700; color: #1f2937; font-size: .95rem; }
 #mycalDetailBody .mc-event .mc-det { font-size: .8rem; color: #4b5563; margin-top: 4px; line-height: 1.5; }
+
+/* Nộp giấy tờ: chấm góc trên lịch + badge trong popup chi tiết (thêm 2026-09-10) */
+.mycal-cell .mc-doc-badge {
+    position: absolute; top: 3px; right: 3px;
+    width: 8px; height: 8px; border-radius: 50%;
+    box-shadow: 0 0 0 1.5px #fff;
+}
+.mycal-cell .mc-doc-badge.mc-doc-ok   { background: #10b981; }
+.mycal-cell .mc-doc-badge.mc-doc-warn { background: #ef4444; }
+#mycalDetailBody .mc-doc-chip {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: .7rem; font-weight: 700;
+}
+#mycalDetailBody .mc-doc-chip.ok   { background: #d1fae5; color: #065f46; }
+#mycalDetailBody .mc-doc-chip.warn { background: #fee2e2; color: #991b1b; }
 #mycalDetailBody .mc-footer-note {
     margin-top: 12px; padding: 8px 12px;
     background: #f3f4f6; border-radius: 8px;

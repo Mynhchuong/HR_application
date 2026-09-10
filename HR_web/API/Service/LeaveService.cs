@@ -495,6 +495,96 @@ public class LeaveService
         catch (Exception ex) { return new LeaveActionResponse { success = false, message = ex.Message }; }
     }
 
+    public async Task<string> GetDocDayListRawAsync(string requestId)
+    {
+        try
+        {
+            var response = await _api.GetAsync_Raw("leave/doc-day-list", $"requestId={Uri.EscapeDataString(requestId)}");
+            if (response != null && response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối API\"}";
+        }
+        catch (Exception ex)
+        {
+            return "{\"success\":false,\"message\":" + JsonConvert.SerializeObject(ex.Message) + "}";
+        }
+    }
+
+    public async Task<string> ConfirmDocDaysRawAsync(object payload)
+    {
+        try
+        {
+            var response = await _api.PostAsync("leave/doc-confirm-days", payload);
+            if (response != null && response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối API\"}";
+        }
+        catch (Exception ex)
+        {
+            return "{\"success\":false,\"message\":" + JsonConvert.SerializeObject(ex.Message) + "}";
+        }
+    }
+
+    // Trang sửa Absent Code ERP trực tiếp (thay cho gõ tay trong đơn nghỉ MySamho, HR đổi ý 2026-09-10).
+    public async Task<string> GetErpAbsentListRawAsync(
+        string dateFrom, string dateTo, string? empcd, string? deptcd, string? linecd, string? workcd,
+        string? leavecd, string? msStatus, string? msLeaveType, int page, int pageSize)
+    {
+        try
+        {
+            var q = new List<string> {
+                $"date_from={Uri.EscapeDataString(dateFrom)}",
+                $"date_to={Uri.EscapeDataString(dateTo)}",
+                $"page={page}", $"page_size={pageSize}"
+            };
+            if (!string.IsNullOrEmpty(empcd))      q.Add($"empcd={Uri.EscapeDataString(empcd)}");
+            if (!string.IsNullOrEmpty(deptcd))     q.Add($"deptcd={Uri.EscapeDataString(deptcd)}");
+            if (!string.IsNullOrEmpty(linecd))     q.Add($"linecd={Uri.EscapeDataString(linecd)}");
+            if (!string.IsNullOrEmpty(workcd))     q.Add($"workcd={Uri.EscapeDataString(workcd)}");
+            if (!string.IsNullOrEmpty(leavecd))    q.Add($"leavecd={Uri.EscapeDataString(leavecd)}");
+            if (!string.IsNullOrEmpty(msStatus))   q.Add($"ms_status={Uri.EscapeDataString(msStatus)}");
+            if (!string.IsNullOrEmpty(msLeaveType)) q.Add($"ms_leave_type={Uri.EscapeDataString(msLeaveType)}");
+            var response = await _api.GetAsync_Raw("leave/erp-absent-list", string.Join("&", q));
+            if (response != null && response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối API\"}";
+        }
+        catch (Exception ex)
+        {
+            return "{\"success\":false,\"message\":" + JsonConvert.SerializeObject(ex.Message) + "}";
+        }
+    }
+
+    public async Task<string> GetAbsentCodeListRawAsync()
+    {
+        try
+        {
+            var response = await _api.GetAsync_Raw("leave/absent-code-list", "");
+            if (response != null && response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối API\"}";
+        }
+        catch (Exception ex)
+        {
+            return "{\"success\":false,\"message\":" + JsonConvert.SerializeObject(ex.Message) + "}";
+        }
+    }
+
+    public async Task<string> ErpAbsentUpdateRawAsync(object payload)
+    {
+        try
+        {
+            var response = await _api.PostAsync("leave/erp-absent-update", payload);
+            if (response != null && response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối API\"}";
+        }
+        catch (Exception ex)
+        {
+            return "{\"success\":false,\"message\":" + JsonConvert.SerializeObject(ex.Message) + "}";
+        }
+    }
+
     public async Task<bool> CheckSundayAllowedAsync(string empCd)
     {
         try

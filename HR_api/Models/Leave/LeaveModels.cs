@@ -58,6 +58,34 @@ public class LeaveDocStatusRequest
     public string? REMARK      { get; set; }   // dùng khi yêu cầu nộp lại
 }
 
+// HR xác nhận nộp giấy theo TỪNG NGÀY, tự gõ Absent Code/remark — app ghi thẳng sang ERP (EFM410),
+// không giới hạn theo danh sách mã cố định (HR có thể gõ mã khác chưa từng dùng qua).
+public class LeaveDocConfirmDayInput
+{
+    public string  DATE    { get; set; } = string.Empty; // yyyy-MM-dd
+    public string  LEAVECD { get; set; } = string.Empty; // Absent Code HR tự gõ
+    public string? REMARK  { get; set; }
+}
+
+public class LeaveDocConfirmDaysRequest
+{
+    public string REQUEST_ID  { get; set; } = string.Empty;
+    public string ACTOR_EMPCD { get; set; } = string.Empty;
+    public List<LeaveDocConfirmDayInput> DAYS { get; set; } = new();
+}
+
+// HR đổi ý (2026-09-10): thay vì gõ tay trong đơn nghỉ MySamho, sửa trực tiếp trên màn hình y chang
+// ERP (EFM410) — chỉ được sửa Leavecd + Remark, các cột còn lại chỉ xem. Sửa xong tự map ngược lại
+// đơn nghỉ MySamho tương ứng (nếu có) để cập nhật DOC_STATUS luôn, khỏi phải làm 2 bước riêng.
+public class ErpAbsentUpdateRequest
+{
+    public string  EMPCD       { get; set; } = string.Empty;
+    public string  FR_DATE     { get; set; } = string.Empty; // yyyy-MM-dd
+    public string  LEAVECD     { get; set; } = string.Empty;
+    public string? REMARK      { get; set; }
+    public string  ACTOR_EMPCD { get; set; } = string.Empty;
+}
+
 public class LeaveMyRequestModel
 {
     public string    REQUEST_ID     { get; set; } = string.Empty;

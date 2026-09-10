@@ -47,7 +47,17 @@
       "Bash(pkill -f \"dotnet.*HR_web.dll\")",
       "Bash(lsof -ti:5089,5050)",
       "Bash(xargs -r kill)",
-      "Bash(lsof -i:5089,5050)"
+      "Bash(lsof -i:5089,5050)",
+      "Bash(curl -s -m 8 -o /dev/null -w \"%{http_code} -> %{redirect_url}\\\\n\" \"http://localhost:5050/\")",
+      "Bash(curl -s -m 8 -o /dev/null -w \"%{http_code} -> %{redirect_url}\\\\n\" \"http://localhost:5050/AiCsr/Chat\")",
+      "Bash(curl -s \"http://localhost:5089/apiHR/Inquiry/hr-list?viewerEmpcd=admin&search=329&page=1&pageSize=5\" -H \"X-Api-Key: ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(x['Id'], x['InquiryNo'], 'UnreadHr=',x['UnreadHr'], x['Status']\\) for x in d.get\\('data',[]\\)]; print\\('totalUnread=', d.get\\('totalUnread'\\)\\)\")",
+      "Bash(curl -s \"http://localhost:5089/apiHR/Inquiry/debug-reader-state?inquiryId=174&viewer=admin\" -H \"X-Api-Key: ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9\")",
+      "Bash(curl -s 'http://localhost:5089/apiHR/Inquiry/debug-reader-state?inquiryId=174&viewer=admin' -H 'X-Api-Key: ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9')",
+      "Bash(python3 -c \"import json,sys;d=json.load\\(sys.stdin\\);print\\('totalUnread=',d.get\\('totalUnread'\\),' cntOpen=',d.get\\('cntOpen'\\),' cntClosed=',d.get\\('cntClosed'\\)\\)\")",
+      "Bash(curl -s -o /dev/null -w 'debug-backfill-reader \\(should be 404\\): %{http_code}\\\\n' http://localhost:5089/apiHR/Inquiry/debug-backfill-reader -H 'X-Api-Key: ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9')",
+      "Bash(curl -s 'http://localhost:5089/apiHR/Inquiry/hr-list?viewerEmpcd=admin&status=CLOSED&page=1&pageSize=1' -H 'X-Api-Key: ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9')",
+      "Bash(python3 -c \"import json,sys;d=json.load\\(sys.stdin\\);print\\('CLOSED list ok, totalUnread=',d.get\\('totalUnread'\\)\\)\")"
     ]
   }
 }

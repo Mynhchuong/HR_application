@@ -1231,7 +1231,7 @@ public class InquiryController : ControllerBase
                 new OracleParameter("INQ_ID",  req.InquiryId),
                 new OracleParameter("CD",      req.EmpCd  ?? ""),
                 new OracleParameter("NAME",    closerName),
-                new OracleParameter("CONTENT", closerName + " đã đóng hội thoại này"));
+                new OracleParameter("CONTENT", "Cuộc hội thoại đã kết thúc"));
 
             // Fire-and-forget notification
             string capCloseInqNo   = conv.InquiryNo;
@@ -1381,10 +1381,19 @@ public class InquiryController : ControllerBase
             // "Chưa đọc" tính RIÊNG cho từng người xem (HR_INQUIRY_READER.LAST_READ_DT theo
             // VIEWER_EMPCD) — không dùng chung 1 cờ i.UNREAD_HR nữa (bug: 1 người mở là mất badge
             // của mọi CSR/HR/Admin khác). Đếm số tin NV gửi SAU mốc lần cuối người này đọc.
+            //
+            // KHÔNG tính chưa đọc khi (yêu cầu 2026-09-10):
+            //   - hội thoại đã ĐÓNG (CLOSED) — không ai cần đọc nữa;
+            //   - hội thoại đã có người PHỤ TRÁCH khác mình — người ta đang lo rồi, người khác
+            //     khỏi cần badge; chỉ chính người phụ trách mới thấy chưa đọc.
             const string unreadHrExpr = @"
-                (SELECT COUNT(*) FROM HRMS.HR_INQUIRY_MSG m
-                 WHERE m.INQUIRY_ID = i.ID AND m.SENDER_TYPE = 'EMP' AND m.IS_DELETED = 0
-                   AND m.SENT_DT > NVL(rd.LAST_READ_DT, DATE '1900-01-01'))";
+                CASE
+                    WHEN i.STATUS = 'CLOSED' THEN 0
+                    WHEN i.ASSIGNED_TO IS NOT NULL AND i.ASSIGNED_TO <> :VIEWER_EMPCD THEN 0
+                    ELSE (SELECT COUNT(*) FROM HRMS.HR_INQUIRY_MSG m
+                          WHERE m.INQUIRY_ID = i.ID AND m.SENDER_TYPE = 'EMP' AND m.IS_DELETED = 0
+                            AND m.SENT_DT > NVL(rd.LAST_READ_DT, DATE '1900-01-01'))
+                END";
 
             string sql = $@"
                 SELECT * FROM (

@@ -46,9 +46,10 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
         ViewBag.CurrentEmpCd = CurrentUser!.EmpCd;
         ViewBag.CurrentName  = CurrentUser.FullName;
 
-        // Mark read phía HR (fire-and-forget) — ghi mốc đã đọc RIÊNG cho tài khoản này (viewerEmpcd),
-        // khỏi ảnh hưởng badge chưa đọc của các CSR/HR/Admin khác.
-        _ = _inquiry.MarkReadAsync(id, "HR", viewerEmpcd: CurrentUser!.EmpCd);
+        // Mark read phía HR — ghi mốc đã đọc RIÊNG cho tài khoản này (viewerEmpcd), khỏi ảnh hưởng
+        // badge chưa đọc của các CSR/HR/Admin khác. AWAIT để chắc chắn ghi HR_INQUIRY_READER trước
+        // khi user quay lại danh sách.
+        await _inquiry.MarkReadAsync(id, "HR", viewerEmpcd: CurrentUser!.EmpCd);
 
         return View(result);
     }

@@ -1,0 +1,151 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "AI SAMHO - CSR";
+    var chatId = (long)(ViewBag.ChatId ?? 0L);
+}
+
+@section Styles {
+<style>
+    .aic-wrap { max-width:820px;margin:0 auto; }
+    .aic-body { background:#f8fafc;border:1px solid #e2e8f0;height:min(60vh,540px);overflow-y:auto;padding:1rem; }
+    .msg { display:flex;margin-bottom:.85rem;gap:.5rem;align-items:flex-start; }
+    .msg .av { width:30px;height:30px;border-radius:50%;flex:0 0 30px;display:flex;align-items:center;justify-content:center;font-size:.85rem; }
+    .msg .col { display:flex;flex-direction:column;max-width:76%;min-width:0; }
+    .msg .bub { padding:.55rem .85rem;border-radius:14px;font-size:.9rem;line-height:1.55;
+                white-space:pre-wrap;overflow-wrap:break-word;word-break:normal; }
+    .msg .bub strong { font-weight:700; }
+    .msg .who { font-size:.7rem;color:#94a3b8;margin-bottom:2px;font-weight:700; }
+    .msg.emp { flex-direction:row-reverse; }
+    .msg.emp .col { align-items:flex-end; }
+    .msg.emp .bub { background:#4f46e5;color:#fff;border-bottom-right-radius:4px; }
+    .msg.emp .who { text-align:right; }
+    .msg.ai .av { background:#ede9fe; }
+    .msg.ai .bub { background:#fff;border:1px solid #e2e8f0; }
+    .msg.ai.failed .bub { background:#fff7ed;border-color:#fed7aa;color:#9a3412; }
+    .msg.csr .av { background:#dcfce7; }
+    .msg.csr .bub { background:#f0fdf4;border:1px solid #bbf7d0; }
+    .msg.csr .who { color:#15803d; }
+    .aic-foot { display:flex;gap:.5rem;padding:.75rem;background:#fff;border:1px solid #e2e8f0;border-top:0;border-radius:0 0 14px 14px; }
+    .aic-foot textarea { flex:1;resize:none;border:1.5px solid #e2e8f0;border-radius:12px;padding:.55rem .8rem;font-size:.9rem;outline:none;max-height:120px; }
+    .aic-foot textarea:focus { border-color:#15803d; }
+    .aic-send { border:0;background:#15803d;color:#fff;border-radius:12px;padding:0 1.1rem;font-weight:700;cursor:pointer; }
+    .aic-send:disabled { opacity:.5;cursor:not-allowed; }
+</style>
+}
+
+<div class="container-fluid py-4">
+<div class="aic-wrap">
+    @Html.AntiForgeryToken()
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <a href="@Url.Action("Index","AiCsrAdmin")" class="btn btn-sm btn-outline-secondary mb-0"><i class="bi bi-arrow-left"></i> Danh sách</a>
+        <div>
+            <span id="hdrEmp" class="fw-bold vni-font"></span>
+            <span id="hdrStatus" class="ms-2"></span>
+        </div>
+        <button id="btnClose" class="btn btn-sm btn-outline-danger mb-0" onclick="toggleStatus()">Đóng</button>
+    </div>
+    <div class="aic-body" id="body"><div class="text-center py-5"><div class="spinner-border text-dark"></div></div></div>
+    <div class="aic-foot">
+        <textarea id="inp" rows="1" placeholder="Trả lời nhân viên… (bổ sung khi AI trả lời chưa đủ ý)"></textarea>
+        <button class="aic-send" id="send" onclick="reply()">Gửi</button>
+    </div>
+    <p class="text-xs text-muted mt-2">Tin của bạn gửi đi sẽ báo cho nhân viên (chuông + push).</p>
+</div>
+</div>
+
+@section Scripts {
+<script>
+const CHAT_ID = @chatId;
+const TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+let lastMsgId = 0, status = 'OPEN', sending = false;
+
+function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function fmt(s){ return esc(s).replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>'); }
+function bubble(m){
+    const t = m.senderType;
+    const cls = t==='EMP'?'emp':t==='CSR'?'csr':('ai'+(m.aiFailed?' failed':''));
+    const av  = t==='EMP'?'🧑':t==='CSR'?'🎧':'🤖';
+    const who = t==='EMP'?`<div class="who">${esc(m.senderName)||'Nhân viên'}</div>`
+              : t==='CSR'?`<div class="who">${esc(m.senderName)||'Hỗ trợ CSR'}</div>`
+              : `<div class="who">AI SAMHO - CSR</div>`;
+    return `<div class="msg ${cls}"><div class="av">${av}</div><div class="col">${who}<div class="bub">${fmt(m.content)}</div></div></div>`;
+}
+function render(msgs, append){
+    const body = document.getElementById('body');
+    const html = msgs.map(bubble).join('');
+    if (append) body.insertAdjacentHTML('beforeend', html);
+    else body.innerHTML = html || '<div class="text-center text-muted py-5">Chưa có tin nhắn</div>';
+    if (msgs.length) lastMsgId = Math.max(lastMsgId, ...msgs.map(m=>m.id));
+    body.scrollTop = body.scrollHeight;
+}
+function setStatus(st){
+    status = st;
+    document.getElementById('hdrStatus').innerHTML = st==='OPEN'
+        ? '<span class="badge bg-success">Đang mở</span>' : '<span class="badge bg-secondary">Đã đóng</span>';
+    document.getElementById('btnClose').textContent = st==='OPEN' ? 'Đóng' : 'Mở lại';
+}
+
+async function loadThread(){
+    try {
+        const r = await fetch(`@Url.Action("GetThread","AiCsrAdmin")?id=${CHAT_ID}`);
+        const d = await r.json();
+        if (!d.success) { showToast(d.message||'Lỗi', 'error'); return; }
+        document.getElementById('hdrEmp').textContent = (d.head?.EmpName||d.head?.empName||'') + ' · ' + (d.head?.Empcd||d.head?.empcd||'');
+        setStatus(d.head?.Status || d.head?.status || 'OPEN');
+        render(d.messages || [], false);
+    } catch { showToast('Lỗi kết nối', 'error'); }
+}
+
+async function reply(){
+    if (sending) return;
+    const ta = document.getElementById('inp');
+    const c = ta.value.trim();
+    if (!c) return;
+    // xoá ngay, trước await
+    ta.value = ''; ta.style.height = 'auto';
+    setTimeout(() => { ta.value = ''; }, 0);
+    sending = true; document.getElementById('send').disabled = true;
+    try {
+        const r = await fetch('@Url.Action("Reply","AiCsrAdmin")', {
+            method:'POST', headers:{'Content-Type':'application/json','RequestVerificationToken':TOKEN},
+            body: JSON.stringify({ chatId: CHAT_ID, content: c })
+        });
+        const d = await r.json();
+        if (!d.success) { if (!ta.value) ta.value = c; showToast(d.message||'Gửi thất bại', 'error'); }
+        else { render(d.messages||[], false); showToast('Đã gửi & báo cho nhân viên', 'success'); }
+    } catch { if (!ta.value) ta.value = c; showToast('Lỗi kết nối', 'error'); }
+    finally { sending = false; document.getElementById('send').disabled = false; }
+}
+
+function toggleStatus(){
+    const next = status === 'OPEN' ? 'CLOSED' : 'OPEN';
+    showConfirm(next==='CLOSED'?'Đóng hội thoại này?':'Mở lại hội thoại này?', async () => {
+        try {
+            const r = await fetch('@Url.Action("SetStatus","AiCsrAdmin")', {
+                method:'POST', headers:{'Content-Type':'application/json','RequestVerificationToken':TOKEN},
+                body: JSON.stringify({ chatId: CHAT_ID, status: next })
+            });
+            const d = await r.json();
+            if (d.success) setStatus(next); else showToast(d.message||'Lỗi', 'error');
+        } catch { showToast('Lỗi kết nối', 'error'); }
+    }, { title: next==='CLOSED'?'Đóng hội thoại':'Mở lại', okText:'Xác nhận', okClass:'btn-primary', icon:'check', iconColor:'#4f46e5', iconBg:'#eef2ff' });
+}
+
+setInterval(async () => {
+    if (document.hidden) return;
+    try {
+        const r = await fetch(`@Url.Action("GetMessages","AiCsrAdmin")?id=${CHAT_ID}&afterMsgId=${lastMsgId}`);
+        const d = await r.json();
+        if (d.success && d.messages?.length) render(d.messages, true);
+    } catch {}
+}, 15000);
+
+const inp = document.getElementById('inp');
+inp.addEventListener('input', () => { inp.style.height='auto'; inp.style.height=Math.min(inp.scrollHeight,120)+'px'; });
+inp.addEventListener('keydown', e => {
+    if (e.key==='Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); reply(); }
+});
+
+loadThread();
+</script>
+}

@@ -65,7 +65,9 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
 
         // Mark read phía HR (Admin dùng chung HR bucket) — ghi mốc đã đọc RIÊNG cho tài khoản này
         // (viewerEmpcd), khỏi ảnh hưởng badge chưa đọc của các CSR/HR/Admin khác.
-        _ = _inquiry.MarkReadAsync(id, "HR", viewerEmpcd: CurrentUser!.EmpCd);
+        // AWAIT (không fire-and-forget) để chắc chắn ghi được HR_INQUIRY_READER trước khi user
+        // quay lại danh sách — nếu không, mở xong quay ra vẫn thấy "chưa đọc".
+        await _inquiry.MarkReadAsync(id, "HR", viewerEmpcd: CurrentUser!.EmpCd);
 
         return View(result);
     }

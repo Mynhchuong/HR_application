@@ -38,8 +38,10 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.AddScoped<OracleService>();
+builder.Services.AddHttpClient(); // AI SAMHO - CSR gọi HTTP ra ngoài (AiCsrService)
 builder.Services.AddScoped<HR_api.Helpers.NotificationHelper>();
 builder.Services.AddScoped<HR_api.Services.NotificationService>();
+builder.Services.AddScoped<HR_api.Services.AiCsrService>();
 builder.Services.AddScoped<HR_api.Services.BulletinService>();
 builder.Services.AddHostedService<HR_api.HostedServices.BulletinLifecycleService>();
 

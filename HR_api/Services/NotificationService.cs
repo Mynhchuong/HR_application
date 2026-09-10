@@ -203,6 +203,22 @@ public class NotificationService
         });
 
     // ═══════════════════════════════════════════════════════════════
+    //  AI SAMHO - CSR
+    // ═══════════════════════════════════════════════════════════════
+
+    // CSR trả lời tay trong đoạn chat AI của NV -> báo NV. LINK_ACTION="AI_CSR" (web/mobile map
+    // sang /AiCsr/Chat). Không báo nếu người trả lời chính là NV (không xảy ra nhưng phòng hờ).
+    public void AiCsrReplied(string targetEmpCd, string csrEmpCd, string preview)
+        => FireAndForget(async () =>
+        {
+            if (string.IsNullOrEmpty(targetEmpCd) || targetEmpCd == csrEmpCd) return;
+            string shortPrev = string.IsNullOrEmpty(preview) ? "" : (preview.Length > 80 ? preview.Substring(0, 80) + "…" : preview);
+            var ph = new Dictionary<string, string> { ["preview"] = shortPrev };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("AI_CSR_REPLIED", ph);
+            await _helper.SendNotificationAsync(Personal(targetEmpCd, csrEmpCd, title, body, "AI_CSR", titleEn, bodyEn));
+        });
+
+    // ═══════════════════════════════════════════════════════════════
     //  SURVEY
     // ═══════════════════════════════════════════════════════════════
 

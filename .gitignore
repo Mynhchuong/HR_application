@@ -123,3 +123,5 @@ HR_api/Scripts/create_leave_doc_day.sql
 HR_api/Scripts/index_erp_absent_manage_perf.sql
 HR_api/Scripts/create_inquiry_reader.sql
 absent code (1).numbers
+note.txt
+HR_api/Scripts/create_ai_csr_chat.sql

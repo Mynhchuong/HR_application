@@ -1,0 +1,119 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "AI SAMHO - CSR";
+}
+
+@section Styles {
+<style>
+    .status-pill { font-size:.65rem;font-weight:800;padding:2px 9px;border-radius:20px;text-transform:uppercase;white-space:nowrap; }
+    .status-pill.open { background:#dcfce7;color:#166534; }
+    .status-pill.closed { background:#f1f5f9;color:#64748b; }
+    .unread-badge { background:#ef4444;color:#fff;font-size:.65rem;font-weight:800;border-radius:20px;padding:1px 7px;min-width:18px;text-align:center;display:inline-block; }
+    #tbody tr { cursor:pointer; }
+    .q-title { font-weight:700;color:#1e293b;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block; }
+    .dlw-chip { background:#f1f5f9;border-radius:4px;padding:1px 6px;font-weight:600;font-size:.7rem;white-space:nowrap;margin-right:3px; }
+</style>
+}
+
+<div class="container-fluid py-4">
+<div class="card my-4">
+    <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+        <div class="bg-gradient-dark shadow-dark border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="text-white mb-0"><span class="material-symbols-rounded me-1" style="vertical-align:middle;font-size:1.1rem">smart_toy</span>AI SAMHO - CSR — Quản lý hội thoại</h6>
+            <span class="text-white text-xs" id="statLine"></span>
+        </div>
+    </div>
+    <div class="card-body px-0 pt-0 pb-2">
+        <div class="px-4 pt-3 pb-2 d-flex flex-wrap gap-2 align-items-center">
+            <select class="form-select form-select-sm" id="fStatus" style="width:auto" onchange="load(1)">
+                <option value="">Tất cả trạng thái</option>
+                <option value="OPEN">Đang mở</option>
+                <option value="CLOSED">Đã đóng</option>
+            </select>
+            <div class="input-group input-group-sm" style="max-width:280px">
+                <span class="input-group-text"><span class="material-symbols-rounded" style="font-size:.9rem">search</span></span>
+                <input type="text" class="form-control" id="fSearch" placeholder="Mã NV, tên, câu hỏi..." oninput="debounced()">
+            </div>
+            <button class="btn btn-sm btn-outline-dark mb-0" onclick="load(currentPage)"><span class="material-symbols-rounded" style="font-size:1rem;vertical-align:middle">refresh</span></button>
+        </div>
+        <div class="table-responsive p-0 px-4">
+            <table class="table align-items-center mb-0 w-100 table-hover table-striped">
+                <thead class="bg-light"><tr>
+                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2">Nhân viên</th>
+                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2">Câu hỏi</th>
+                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center">Tin</th>
+                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center">Chưa đọc</th>
+                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center">Trạng thái</th>
+                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 d-none d-lg-table-cell">Tin cuối</th>
+                </tr></thead>
+                <tbody id="tbody"><tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-dark"></div></td></tr></tbody>
+            </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center px-4 mt-3 mb-2">
+            <div id="pageCount" class="text-sm text-secondary"></div>
+            <nav><ul class="pagination pagination-sm mb-0" id="pageBar"></ul></nav>
+        </div>
+    </div>
+</div>
+</div>
+
+@section Scripts {
+<script>
+const THREAD_URL = '@Url.Action("Thread","AiCsrAdmin")';
+let currentPage = 1, totalPages = 1, totalRecords = 0;
+const PAGE_SIZE = 30;
+
+function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function fmtDt(ds){ if(!ds) return '—'; const d=new Date(ds),diff=Math.floor((Date.now()-d)/1000);
+    if(diff<3600) return Math.floor(diff/60)+'p'; if(diff<86400) return Math.floor(diff/3600)+'h';
+    return d.toLocaleDateString('vi-VN'); }
+
+let _t;
+function debounced(){ clearTimeout(_t); _t = setTimeout(()=>load(1), 400); }
+
+async function load(page=1){
+    currentPage = page;
+    const qs = new URLSearchParams();
+    const s = document.getElementById('fStatus').value;
+    const q = document.getElementById('fSearch').value.trim();
+    if (s) qs.set('status', s);
+    if (q) qs.set('search', q);
+    qs.set('page', page); qs.set('pageSize', PAGE_SIZE);
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-dark"></div></td></tr>';
+    try {
+        const r = await fetch('@Url.Action("GetList","AiCsrAdmin")?' + qs.toString());
+        const d = await r.json();
+        if (!d.success) { document.getElementById('tbody').innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${esc(d.message)}</td></tr>`; return; }
+        totalRecords = d.total; totalPages = d.totalPages || 1;
+        document.getElementById('statLine').textContent = `${d.total} hội thoại · ${d.cntOpen} đang mở · ${d.cntUnread} chưa đọc`;
+        const rows = d.data || [];
+        if (!rows.length) { document.getElementById('tbody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-5">Không có dữ liệu</td></tr>'; renderPage(); return; }
+        document.getElementById('tbody').innerHTML = rows.map(i => {
+            const chips = [i.deptName,i.lineName,i.workName].filter(Boolean).map(x=>`<span class="dlw-chip">${esc(x)}</span>`).join('');
+            return `<tr onclick="location.href='${THREAD_URL}?id=${i.id}'">
+                <td class="px-2 text-sm"><div class="fw-bold vni-font">${esc(i.empName)||'—'}</div><div class="text-xs text-muted">${esc(i.empcd)}</div><div class="mt-1 vni-font">${chips}</div></td>
+                <td class="px-2 text-sm"><span class="q-title">${esc(i.title)||'—'}</span></td>
+                <td class="px-2 text-center text-sm">${i.msgCount}</td>
+                <td class="px-2 text-center">${i.unreadCsr>0?`<span class="unread-badge">${i.unreadCsr}</span>`:'<span class="text-muted">—</span>'}</td>
+                <td class="px-2 text-center"><span class="status-pill ${i.status==='OPEN'?'open':'closed'}">${i.status==='OPEN'?'Mở':'Đóng'}</span></td>
+                <td class="px-2 d-none d-lg-table-cell text-secondary text-sm">${fmtDt(i.lastMsgDt)}</td>
+            </tr>`;
+        }).join('');
+        renderPage();
+    } catch { document.getElementById('tbody').innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Lỗi kết nối</td></tr>'; }
+}
+
+function renderPage(){
+    const bar = document.getElementById('pageBar'); bar.innerHTML = '';
+    document.getElementById('pageCount').textContent = totalRecords ? `Trang ${currentPage}/${totalPages} · ${totalRecords} bản ghi` : '';
+    if (totalPages <= 1) return;
+    const mk = (label,p,dis,act) => { const li=document.createElement('li'); li.className='page-item'+(dis?' disabled':'')+(act?' active':'');
+        const a=document.createElement('a'); a.className='page-link'; a.textContent=label; if(!dis&&!act) a.onclick=()=>load(p); li.appendChild(a); return li; };
+    bar.appendChild(mk('‹',currentPage-1,currentPage<=1));
+    for (let p=Math.max(1,currentPage-2);p<=Math.min(totalPages,currentPage+2);p++) bar.appendChild(mk(p,p,false,p===currentPage));
+    bar.appendChild(mk('›',currentPage+1,currentPage>=totalPages));
+}
+
+load(1);
+</script>
+}

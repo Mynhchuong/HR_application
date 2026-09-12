@@ -111,6 +111,11 @@ public class NotificationController : ControllerBase
         {
             if (string.IsNullOrEmpty(empcd)) return Ok(new { success = false, message = "Thiếu mã nhân viên" });
 
+            // Admin/CSR/HR hầu như không mở màn thông báo (yêu cầu 2026-09-12) — trả rỗng luôn, kể
+            // cả với thông báo broadcast (COMPANY/DEPT/MULTI...) vẫn còn lưu chung cho người khác.
+            if (await _notiHelper.IsNoNotiRoleAsync(empcd))
+                return Ok(new { success = true, data = new List<NotificationModel>() });
+
             int offset = (page - 1) * page_size;
 
             // Lấy thông báo: COMPANY / DEPT / LINE / WORK / EMPCD / MULTI (qua HR_NOTIFICATION_TARGET)
@@ -291,6 +296,10 @@ public class NotificationController : ControllerBase
         {
             if (string.IsNullOrEmpty(empcd))
                 return Ok(new { success = false, count = 0 });
+
+            // Admin/CSR/HR hầu như không mở màn thông báo (yêu cầu 2026-09-12) — luôn trả 0.
+            if (await _notiHelper.IsNoNotiRoleAsync(empcd))
+                return Ok(new { success = true, count = 0 });
 
             if (_cache.TryGetValue(UnreadCountCacheKey(empcd), out int cachedCount))
                 return Ok(new { success = true, count = cachedCount });

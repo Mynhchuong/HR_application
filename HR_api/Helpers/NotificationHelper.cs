@@ -130,6 +130,11 @@ public class NotificationHelper
     {
         try
         {
+            // Admin/CSR/HR không nhận thông báo cá nhân nữa (yêu cầu 2026-09-12) — bỏ qua ngay từ
+            // đầu, không insert vào HR_NOTIFICATIONS, để bảng đỡ phình vì họ hầu như không đọc.
+            if (model.NOTI_TYPE == "EMPCD" && await IsNoNotiRoleAsync(model.TARGET_VAL))
+                return 0;
+
             string sqlInsert = @"
                 INSERT INTO HRMS.HR_NOTIFICATIONS
                     (TITLE, BODY, TITLE_EN, BODY_EN, NOTI_TYPE, TARGET_VAL, LINK_ACTION, CREATED_BY, CREATED_DATE)
@@ -368,23 +373,51 @@ public class NotificationHelper
         catch { return false; }
     }
 
+    // Admin/CSR/HR hầu như không mở màn thông báo (yêu cầu 2026-09-12) — chặn toàn bộ thông báo cá
+    // nhân gửi tới 3 role này ngay từ lúc insert để đỡ phình bảng HR_NOTIFICATIONS, thay vì tạo ra
+    // rồi không ai đọc. Dùng chung cho SendNotificationAsync (chặn insert) + SendFcmAsync (lọc push
+    // broadcast) + NotificationController.GetMyNotifications/GetUnreadCount (ẩn hẳn khi tự mở app).
+    public async Task<bool> IsNoNotiRoleAsync(string? empCd)
+    {
+        if (string.IsNullOrEmpty(empCd)) return false;
+        try
+        {
+            var rows = await _oracleService.ExecuteQueryAsync(
+                @"SELECT 1 FROM HRMS.HR_USERS U
+                  JOIN HRMS.HR_ROLES R ON R.ID = U.ROLE_ID
+                  WHERE U.EMPCD = :EMPCD AND R.ROLE_NAME IN ('Admin','CSR','HR') AND ROWNUM = 1",
+                r => 1,
+                new OracleParameter("EMPCD", empCd));
+            return rows.Count > 0;
+        }
+        catch { return false; }
+    }
+
     private async Task<List<string>> GetTokensForTargetAsync(string? notiType, string? targetVal)
     {
         if (string.IsNullOrEmpty(notiType)) return new();
 
         try
         {
+            // Admin/CSR/HR không nhận push kể cả thông báo broadcast (yêu cầu 2026-09-12) — dòng
+            // HR_NOTIFICATIONS vẫn giữ 1 dòng chung cho cả công ty (không phình DB), chỉ loại token
+            // của 3 role này ra khỏi danh sách push thực tế.
+            const string noNotiRoleSql = @"EMPCD NOT IN (
+                SELECT U.EMPCD FROM HRMS.HR_USERS U JOIN HRMS.HR_ROLES R ON R.ID = U.ROLE_ID
+                WHERE R.ROLE_NAME IN ('Admin','CSR','HR'))";
+
             return notiType switch
             {
                 "COMPANY" => await _oracleService.ExecuteQueryAsync(
-                    "SELECT TOKEN FROM HRMS.HR_USER_TOKENS",
+                    $"SELECT TOKEN FROM HRMS.HR_USER_TOKENS WHERE {noNotiRoleSql}",
                     r => r["TOKEN"]?.ToString() ?? ""),
 
-                "DEPT" when !string.IsNullOrEmpty(targetVal) => await _oracleService.ExecuteQueryAsync(@"
+                "DEPT" when !string.IsNullOrEmpty(targetVal) => await _oracleService.ExecuteQueryAsync($@"
                     SELECT T.TOKEN FROM HRMS.HR_USER_TOKENS T
                     JOIN HRMS.ECM100 EC ON EC.EMPCD = T.EMPCD
                     WHERE EC.DEPTCD = :VAL
-                      AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))",
+                      AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                      AND T.{noNotiRoleSql}",
                     r => r["TOKEN"]?.ToString() ?? "",
                     new OracleParameter("VAL", targetVal)),
 

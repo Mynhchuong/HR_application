@@ -308,6 +308,39 @@ public class OtService
         catch (Exception ex) { return new OTAdminBulkResponse { success = false, message = ex.Message }; }
     }
 
+    // Xác nhận bổ sung (HR yêu cầu 2026-09-12) — mirror AdminBulkSignFor(Multi)Async.
+    public async Task<OTAdminBulkResponse> AdminRequestSupplementAsync(OTAdminBulkSignForRequest req)
+    {
+        try
+        {
+            var response = await _api.PostAsync("ot/admin/request-supplement", req);
+            if (response?.IsSuccessStatusCode == true)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<OTAdminBulkResponse>(json)
+                       ?? new OTAdminBulkResponse { success = false, message = "Không parse được response" };
+            }
+            return new OTAdminBulkResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new OTAdminBulkResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<OTAdminBulkResponse> AdminRequestSupplementMultiAsync(OTAdminBulkSignForMultiRequest req)
+    {
+        try
+        {
+            var response = await _api.PostAsync("ot/admin/request-supplement-multi", req);
+            if (response?.IsSuccessStatusCode == true)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<OTAdminBulkResponse>(json)
+                       ?? new OTAdminBulkResponse { success = false, message = "Không parse được response" };
+            }
+            return new OTAdminBulkResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new OTAdminBulkResponse { success = false, message = ex.Message }; }
+    }
+
     public async Task<OTAdminBulkResponse> AdminBulkUpdateAsync(OTAdminBulkUpdateRequest req)
     {
         try

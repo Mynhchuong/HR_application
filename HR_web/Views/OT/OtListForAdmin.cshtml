@@ -52,12 +52,16 @@
             <div class="bg-gradient-dark shadow-dark border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="text-white text-capitalize mb-0"><i class="fas fa-user-shield me-1"></i> Quản Lý OT (Admin)</h6>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <a href="@Url.Action("DownloadSignForTemplate", "OT")" class="btn btn-sm btn-outline-light mb-0" title="Tải mẫu Excel ký giùm">
+                    <a href="@Url.Action("DownloadSignForTemplate", "OT")" class="btn btn-sm btn-outline-light mb-0" title="Tải mẫu Excel (dùng chung cho Import ký giùm và Import xác nhận bổ sung)">
                         <i class="bi bi-file-earmark-arrow-down"></i> Mẫu Excel
                     </a>
                     <label class="btn btn-sm btn-light mb-0" style="cursor:pointer;" title="Import Excel ký giùm nhiều NV, nhiều ngày">
                         <i class="bi bi-file-earmark-excel"></i> Import ký giùm
                         <input type="file" id="importSignForFile" accept=".xlsx" hidden>
+                    </label>
+                    <label class="btn btn-sm btn-light mb-0" style="cursor:pointer;" title="Import Excel gửi xác nhận bổ sung nhiều NV, nhiều ngày">
+                        <i class="bi bi-file-earmark-excel"></i> Import xác nhận bổ sung
+                        <input type="file" id="importSuppFile" accept=".xlsx" hidden>
                     </label>
                     <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
                         <i class="bi bi-calendar3 text-dark"></i>
@@ -81,6 +85,7 @@
                 <span>Đã chọn <strong id="selCount">0</strong> nhân viên</span>
                 <div class="ms-auto d-flex gap-2 flex-wrap">
                     <button id="btnBulkSign"   class="btn btn-sm btn-success mb-0"><i class="bi bi-pen"></i> Ký giùm</button>
+                    <button id="btnBulkRequestSupp" class="btn btn-sm btn-info text-white mb-0"><i class="bi bi-bell"></i> Gửi xác nhận bổ sung</button>
                     <button id="btnBulkDelete" class="btn btn-sm btn-danger mb-0"><i class="bi bi-trash"></i> Xoá</button>
                     <button id="btnClearSel"   class="btn btn-sm btn-outline-secondary mb-0"><i class="bi bi-x"></i> Bỏ chọn</button>
                 </div>
@@ -138,7 +143,7 @@
 <div id="importResultBackdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9998;display:none;"></div>
 <div id="importResultBox" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.25);padding:1.25rem 1.5rem;width:min(680px,94vw);display:none;">
     <div class="d-flex align-items-center justify-content-between mb-2">
-        <strong><i class="bi bi-file-earmark-excel text-success me-1"></i> Kết quả import ký giùm</strong>
+        <strong id="importResultTitle"><i class="bi bi-file-earmark-excel text-success me-1"></i> Kết quả import</strong>
         <button type="button" class="btn-close" onclick="$('#importResultBackdrop,#importResultBox').hide()"></button>
     </div>
     <div id="importResultBody"></div>
@@ -157,6 +162,8 @@
     const URL_BULK_SIGN    = '@Url.Action("AdminBulkSignFor",  "OT")';
     const URL_BULK_DELETE  = '@Url.Action("AdminBulkDelete",   "OT")';
     const URL_IMPORT_SIGN  = '@Url.Action("ImportSignForExcel", "OT")';
+    const URL_REQUEST_SUPP = '@Url.Action("AdminRequestSupplement", "OT")';
+    const URL_IMPORT_SUPP  = '@Url.Action("ImportRequestSupplementExcel", "OT")';
     const BATCH_SIZE       = 50;
 
     let currentPage=1, totalPages=1, totalRecords=0, isLoading=false, pageSize=100;
@@ -384,6 +391,19 @@
         }, { title: 'Xác nhận ký giùm', okText: 'Ký', okClass: 'btn-success', icon: 'check_circle', iconColor: '#16a34a', iconBg: '#dcfce7' });
     });
 
+    // ─── Gửi xác nhận bổ sung (batch 50) ───
+    $('#btnBulkRequestSupp').on('click', function() {
+        if (selected.size === 0) { showToast('Chưa chọn nhân viên nào','warning'); return; }
+        const empcds = Array.from(selected.keys());
+        const nBatch = Math.ceil(empcds.length / BATCH_SIZE);
+        showConfirm(`Gửi yêu cầu xác nhận bổ sung cho ${empcds.length} nhân viên (chia ${nBatch} batch × ${BATCH_SIZE}). NV tự bấm Đồng ý trong 3 ngày.`, () => {
+            runBatched('Đang gửi xác nhận bổ sung', URL_REQUEST_SUPP, empcds, batch => ({
+                WORK_DATE: $('#filterDate').val(),
+                ITEMS: batch.map(e => ({ EMPCD: e, OT_HOURS: null }))
+            }));
+        }, { title: 'Xác nhận gửi', okText: 'Gửi', okClass: 'btn-info', icon: 'notifications', iconColor: '#0dcaf0', iconBg: '#cff4fc' });
+    });
+
     // ─── Xoá (batch 50) ───
     $('#btnBulkDelete').on('click', function() {
         if (selected.size === 0) { showToast('Chưa chọn nhân viên nào','warning'); return; }
@@ -415,7 +435,7 @@
         }).done(function (res) {
             hideProgress();
             if (!res || !res.success) { showToast(res && res.message ? res.message : 'Import lỗi', 'error'); return; }
-            renderImportResult(res);
+            renderImportResult(res, { title: 'Kết quả import ký giùm', successLabel: 'Ký thành công' });
             loadData(currentPage);
         }).fail(function (xhr) {
             hideProgress();
@@ -423,12 +443,42 @@
         }).always(function () { $('#importSignForFile').val(''); });
     });
 
-    function renderImportResult(res) {
+    // ─── Import Excel xác nhận bổ sung (nhiều NV × nhiều ngày) ───
+    $('#importSuppFile').on('change', function () {
+        const f = this.files && this.files[0];
+        if (!f) return;
+        if (!/\.xlsx$/i.test(f.name)) { showToast('Chỉ nhận file .xlsx', 'warning'); this.value = ''; return; }
+        const fd = new FormData();
+        fd.append('file', f);
+
+        showProgress('Đang import Excel...', 0);
+        $('#progressText').text('Đang đọc file & gửi xác nhận bổ sung, vui lòng đợi...');
+        $('#progressBar > div').css('width', '35%');
+
+        $.ajax({
+            url: URL_IMPORT_SUPP, type: 'POST', data: fd,
+            processData: false, contentType: false, timeout: 600000
+        }).done(function (res) {
+            hideProgress();
+            if (!res || !res.success) { showToast(res && res.message ? res.message : 'Import lỗi', 'error'); return; }
+            renderImportResult(res, { title: 'Kết quả import xác nhận bổ sung', successLabel: 'Gửi thành công' });
+            loadData(currentPage);
+        }).fail(function (xhr) {
+            hideProgress();
+            showToast('Import lỗi (' + xhr.status + ')', 'error');
+        }).always(function () { $('#importSuppFile').val(''); });
+    });
+
+    // opts: { title, successLabel } — dùng chung cho cả import ký giùm và import xác nhận bổ sung,
+    // chỉ khác nhãn hiển thị (yêu cầu HR 2026-09-12: phải rõ bao nhiêu dòng OK/lỗi, dòng nào lỗi gì).
+    function renderImportResult(res, opts) {
+        opts = opts || { title: 'Kết quả import', successLabel: 'Thành công' };
+        $('#importResultTitle').html(`<i class="bi bi-file-earmark-excel text-success me-1"></i> ${opts.title}`);
         const all  = res.rows || [];
         const errs = all.filter(r => !r.ok && !r.skipped);
         const skips= all.filter(r => !r.ok && r.skipped);
         let html = `<div class="d-flex flex-wrap gap-2 mb-2">
-            <span class="badge bg-success">Ký thành công: ${res.ok}</span>
+            <span class="badge bg-success">${opts.successLabel}: ${res.ok}</span>
             <span class="badge bg-secondary">Bỏ qua: ${res.skipped}</span>
             <span class="badge bg-danger">Lỗi: ${res.failed}</span>
             <span class="badge bg-light text-dark border">Tổng dòng: ${res.total}</span>
@@ -448,7 +498,7 @@
             });
             html += `</tbody></table></div>`;
         } else {
-            html += `<div class="text-success"><i class="bi bi-check-circle me-1"></i>Tất cả dòng đều ký thành công.</div>`;
+            html += `<div class="text-success"><i class="bi bi-check-circle me-1"></i>Tất cả dòng đều ${opts.successLabel.toLowerCase()}.</div>`;
         }
         $('#importResultBody').html(html);
         $('#importResultBackdrop, #importResultBox').show();

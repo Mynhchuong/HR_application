@@ -22,6 +22,8 @@ public class OTTodayModel
     public bool IS_EDITABLE { get; set; } = true;
     public bool HOURS_UPDATED { get; set; }
     public decimal? PREV_OT_HOURS { get; set; }
+    public bool IS_SUPPLEMENT { get; set; }
+    public DateTime? SUPP_DEADLINE { get; set; }
 }
 
 public class OTConfirmRequest

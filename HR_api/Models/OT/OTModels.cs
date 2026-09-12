@@ -24,6 +24,11 @@ public class OTTodayModel
     public bool IS_EDITABLE { get; set; } = true;
     public bool HOURS_UPDATED { get; set; }
     public decimal? PREV_OT_HOURS { get; set; }
+    // Xác nhận bổ sung (HR yêu cầu 2026-09-12): NV có OT ngày quá khứ chưa kịp tự ký, Admin gửi yêu
+    // cầu xác nhận bổ sung (CONFIRM_STATUS='SUPP_PENDING'), hạn 3 ngày kể từ lúc gửi. Còn hạn thì
+    // vẫn cho bấm xác nhận dù ngày đã qua (chỉ Đồng ý, không có Từ chối — xem OtConfirmForm.cshtml).
+    public bool IS_SUPPLEMENT { get; set; }
+    public DateTime? SUPP_DEADLINE { get; set; }
 }
 
 public class OTClerkModel

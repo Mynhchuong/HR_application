@@ -11,6 +11,7 @@
     .pagination .page-item.disabled .page-link { cursor: default; }
     .erp-code-select { min-width: 130px; }
     .erp-row-dirty { background: #fffbeb; }
+    .erp-save-chk, #selectAllChk { transform: scale(1.15); cursor: pointer; }
     @@media (max-width: 767px) {
         .container-fluid { padding-left: 8px !important; padding-right: 8px !important; }
     }
@@ -118,6 +119,7 @@
                 <table class="table table-sm align-items-center mb-0">
                     <thead>
                         <tr>
+                            <th class="text-center" style="width:36px;"><input type="checkbox" id="selectAllChk" title="Chọn tất cả trang này"></th>
                             <th class="text-xs text-secondary">#</th>
                             <th class="text-xs text-secondary">Mã NV / Tên</th>
                             <th class="text-xs text-secondary">Ngày</th>
@@ -211,6 +213,7 @@ function buildRow(item, idx) {
     const rowKey = `${item.Empcd}__${item.FrDate}`;
     const deptLine = [item.DeptNm, item.TeamNm, item.WorkNm].filter(Boolean).map(escHtml).join('<br>');
     return `<tr data-row-key="${escHtml(rowKey)}" data-empcd="${escHtml(item.Empcd)}" data-frdate="${escHtml(item.FrDate)}">
+        <td class="text-center"><input type="checkbox" class="erp-save-chk" title="Chọn để lưu dù không sửa gì (ERP đã đúng sẵn)" onchange="toggleRowSelect(this)"></td>
         <td class="text-xs text-secondary">${idx}</td>
         <td>
             <div class="text-xs text-secondary">${escHtml(item.Empcd)}</div>
@@ -234,7 +237,16 @@ function buildRow(item, idx) {
 // Sửa ô nào (chọn Mã nghỉ hoặc gõ Remark) thì highlight cả dòng đó lên — không lưu ngay, gom lại
 // bấm "Lưu tất cả" 1 lần cho mọi dòng đã sửa (yêu cầu HR 2026-09-12, bỏ lưu từng dòng riêng lẻ).
 function markDirty(el) {
-    $(el).closest('tr').addClass('erp-row-dirty');
+    const $tr = $(el).closest('tr');
+    $tr.addClass('erp-row-dirty');
+    $tr.find('.erp-save-chk').prop('checked', true);
+    updateDirtyCount();
+}
+
+// Checkbox chọn lưu thủ công — dùng khi ERP đã đúng sẵn, không cần sửa Mã nghỉ/Remark gì cả,
+// nhưng vẫn muốn bấm "Lưu tất cả" để chạy lại map + cập nhật DOC_STATUS bên MySamho (yêu cầu HR).
+function toggleRowSelect(el) {
+    $(el).closest('tr').toggleClass('erp-row-dirty', el.checked);
     updateDirtyCount();
 }
 
@@ -273,7 +285,7 @@ async function saveAll() {
                 url: UPDATE_URL, type: 'POST', contentType: 'application/json',
                 data: JSON.stringify({ Empcd: empcd, FrDate: frdate, Leavecd: leavecd, Remark: remark })
             });
-            if (res.success) { $tr.removeClass('erp-row-dirty'); ok++; }
+            if (res.success) { $tr.removeClass('erp-row-dirty'); $tr.find('.erp-save-chk').prop('checked', false); ok++; }
             else { fail++; }
         } catch (e) { fail++; }
     }
@@ -284,6 +296,13 @@ async function saveAll() {
     else showToast(`Đã lưu ${ok} dòng, ${fail} dòng lỗi (còn highlight vàng — thử lưu lại)`, fail === total ? 'error' : 'warning');
 }
 $('#saveAllBtn').on('click', saveAll);
+
+$('#selectAllChk').on('change', function () {
+    const checked = this.checked;
+    $('#erpTableBody .erp-save-chk').each(function () {
+        if (this.checked !== checked) $(this).prop('checked', checked).trigger('change');
+    });
+});
 
 // Cảnh báo rời trang khi còn dòng chưa lưu — trước đây lưu ngay từng dòng nên không cần, giờ gom
 // nhiều dòng lại mới lưu nên dễ mất việc đang làm nếu lỡ tay đóng tab/điều hướng đi chỗ khác.
@@ -309,26 +328,26 @@ function getParams(page) {
 function loadData(page = 1) {
     if (!$('#filterDateFrom').val() || !$('#filterDateTo').val()) return;
     currentPage = page;
-    $('#erpTableBody').html(`<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
+    $('#erpTableBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),
         success: function (res) {
             if (!res.success) {
-                $('#erpTableBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
+                $('#erpTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
                 return;
             }
             totalRecords = res.total || 0;
             totalPages   = res.total_pages || 0;
             const rows   = res.data || [];
             if (!rows.length) {
-                $('#erpTableBody').html(`<tr><td colspan="8" class="text-center text-secondary py-4">Không có dữ liệu</td></tr>`);
+                $('#erpTableBody').html(`<tr><td colspan="9" class="text-center text-secondary py-4">Không có dữ liệu</td></tr>`);
             } else {
                 $('#erpTableBody').html(rows.map((r,i) => buildRow(r,(page-1)*pageSize+i+1)).join(''));
             }
             renderPagination();
         },
         error: function (xhr) {
-            $('#erpTableBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#erpTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
         }
     });
 }

@@ -14,7 +14,7 @@ public class OtLogHelper
         _oracleService = oracleService;
     }
 
-    public enum LogAction { INS, UPD, DEL }
+    public enum LogAction { INS, UPD, DEL, SUPP_REQ }
 
     public void Log(
         LogAction action,

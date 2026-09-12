@@ -277,9 +277,8 @@
         <label class="date-picker-label">Xem tăng ca ngày</label>
         <div class="date-input-wrapper">
             <span class="material-symbols-rounded text-muted">calendar_month</span>
-            <input type="date" id="workDatePicker" 
-                   value="@ViewBag.WorkDate" 
-                   min="@DateTime.Today.ToString("yyyy-MM-dd")" 
+            <input type="date" id="workDatePicker"
+                   value="@ViewBag.WorkDate"
                    onchange="changeWorkDate(this.value)" />
         </div>
     </div>
@@ -411,24 +410,39 @@
                 @if (Model.IS_EDITABLE)
                 {
                     // Mốc khoá client (khoá form live không cần reload):
+                    //  - Xác nhận bổ sung: hạn 3 ngày kể từ lúc Admin gửi (SUPP_DEADLINE).
                     //  - Tăng ca TRƯỚC ca: giờ tan ca hôm đó (cho xác nhận suốt ca).
                     //  - Tăng ca SAU ca : giờ OT bắt đầu.
                     var isBeforeOt = Model.OT_BEFORE == "Y";
-                    var lockAt = isBeforeOt ? Model.SHIFT_END : Model.START_OT;
+                    var lockAt = Model.IS_SUPPLEMENT ? Model.SUPP_DEADLINE : (isBeforeOt ? Model.SHIFT_END : Model.START_OT);
 
-                    <div class="note-box" id="otNoteBox">
-                        <img src="~/assets/img/illustrations/chi.png" class="note-icon" alt="Note" />
-                        <div class="note-text">
-                            Tôi biết được rằng làm tăng ca là do <strong>tự nguyện</strong>, nếu tôi không thích tăng ca tôi chỉ cần không ký tên xác nhận và tôi hoàn toàn tự do ra về sau khi đã hoàn tất giờ làm việc bình thường. Nếu ký tên và xác nhận dưới đây có nghĩa là tôi thừa nhận tôi tự nguyện tăng ca. Tôi hiểu rõ pháp luật Việt Nam và quy định công ty cho phép công nhân làm việc tăng ca <strong>không quá 4 giờ trong 1 ngày, không quá 12 giờ trong 1 tuần, không quá 40 giờ trong 1 tháng và không quá 300 giờ trong 1 năm</strong>. Tất cả công nhân mang thai từ tháng thứ 7 và công nhân dưới 18 tuổi không được làm tăng ca.
+                    if (Model.IS_SUPPLEMENT)
+                    {
+                        <div class="note-box" id="otNoteBox" style="background:#eff6ff;border-color:#bfdbfe;">
+                            <span class="material-symbols-rounded" style="color:#2563eb; font-size:1.75rem; flex-shrink:0;">notification_important</span>
+                            <div class="note-text" style="color:#1e3a8a;">
+                                Đây là yêu cầu <strong>xác nhận bổ sung</strong> cho tăng ca ngày @(Model.WORK_DATE.HasValue ? Model.WORK_DATE.Value.ToString("dd/MM/yyyy") : "-") đã diễn ra, do bạn chưa kịp tự xác nhận trong hạn. Vui lòng bấm <strong>Đồng ý</strong> trước <strong>@(Model.SUPP_DEADLINE.HasValue ? Model.SUPP_DEADLINE.Value.ToString("dd/MM/yyyy HH:mm") : "-")</strong>.
+                            </div>
                         </div>
-                    </div>
+                    }
+                    else
+                    {
+                        <div class="note-box" id="otNoteBox">
+                            <img src="~/assets/img/illustrations/chi.png" class="note-icon" alt="Note" />
+                            <div class="note-text">
+                                Tôi biết được rằng làm tăng ca là do <strong>tự nguyện</strong>, nếu tôi không thích tăng ca tôi chỉ cần không ký tên xác nhận và tôi hoàn toàn tự do ra về sau khi đã hoàn tất giờ làm việc bình thường. Nếu ký tên và xác nhận dưới đây có nghĩa là tôi thừa nhận tôi tự nguyện tăng ca. Tôi hiểu rõ pháp luật Việt Nam và quy định công ty cho phép công nhân làm việc tăng ca <strong>không quá 4 giờ trong 1 ngày, không quá 12 giờ trong 1 tuần, không quá 40 giờ trong 1 tháng và không quá 300 giờ trong 1 năm</strong>. Tất cả công nhân mang thai từ tháng thứ 7 và công nhân dưới 18 tuổi không được làm tăng ca.
+                            </div>
+                        </div>
+                    }
 
                     <div id="otLockedBox" class="note-box d-none" style="background:#fef2f2; border-color:#fecaca;">
                         <span class="material-symbols-rounded" style="color:#dc2626; font-size:1.75rem; flex-shrink:0;">lock_clock</span>
                         <div class="note-text" style="color:#991b1b;">
-                            @(isBeforeOt
-                                ? "Đã hết giờ làm việc, bạn không thể xác nhận hoặc đổi ý tăng ca nữa."
-                                : "Đã tới giờ tăng ca, bạn không thể xác nhận hoặc đổi ý nữa.")
+                            @(Model.IS_SUPPLEMENT
+                                ? "Đã hết hạn xác nhận bổ sung, bạn không thể xác nhận nữa."
+                                : (isBeforeOt
+                                    ? "Đã hết giờ làm việc, bạn không thể xác nhận hoặc đổi ý tăng ca nữa."
+                                    : "Đã tới giờ tăng ca, bạn không thể xác nhận hoặc đổi ý nữa."))
                         </div>
                     </div>
 
@@ -440,7 +454,14 @@
                         <input type="hidden" name="confirmStatus" id="confirmStatus" value="" />
 
                         <div class="action-group" id="otActionGroup">
-                            @if (Model.CONFIRM_STATUS == "CONFIRMED")
+                            @if (Model.IS_SUPPLEMENT)
+                            {
+                                <button type="button" class="btn-action btn-approve" onclick="submitConfirm('CONFIRMED')">
+                                    <span class="material-symbols-rounded">check_circle</span>
+                                    XÁC NHẬN BỔ SUNG
+                                </button>
+                            }
+                            else if (Model.CONFIRM_STATUS == "CONFIRMED")
                             {
                                 <button type="button" class="btn-action btn-approve" style="pointer-events: none; cursor: default; box-shadow: none; opacity: 0.5;" disabled>
                                     <span class="material-symbols-rounded">check_circle</span>

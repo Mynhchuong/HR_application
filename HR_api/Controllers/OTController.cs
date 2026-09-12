@@ -73,6 +73,7 @@ public class OTController : ControllerBase
                          + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END SHIFT_END,
                        (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE, R.OT_HOURS CONFIRMED_OT_HOURS,
                        R.OT_START CONF_OT_START, R.OT_END CONF_OT_END,
+                       R.CONFIRM_STATUS RAW_CONFIRM_STATUS, R.SUPP_REQUESTED_DATE,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND TO_CHAR(DAT,'YYYYIW') = TO_CHAR(SYSDATE,'YYYYIW') AND DAT <= SYSDATE), 0) SUM_WEEK,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TRUNC(SYSDATE,'MM') AND SYSDATE), 0) SUM_MONTH,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0101','YYYYMMDD') AND SYSDATE), 0) SUM_YEAR
@@ -131,14 +132,24 @@ public class OTController : ControllerBase
                 string confirmStatus = (hoursUpdated || windowChanged)
                     ? "PENDING" : (r["CONFIRM_STATUS"]?.ToString() ?? "PENDING");
 
+                // Xác nhận bổ sung (HR yêu cầu 2026-09-12): Admin gửi yêu cầu cho NV có OT ngày quá
+                // khứ chưa kịp tự ký (CONFIRM_STATUS='SUPP_PEND' + SUPP_REQUESTED_DATE), hạn 3 ngày
+                // kể từ lúc gửi. RAW_CONFIRM_STATUS (khác CONFIRM_STATUS đã qua statusExpr ở trên,
+                // vốn gộp SUPP_PEND vào 'PENDING') mới giữ được giá trị gốc để nhận diện case này.
+                DateTime? suppRequestedDate = r["SUPP_REQUESTED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["SUPP_REQUESTED_DATE"]);
+                string? rawConfirmStatus = r["RAW_CONFIRM_STATUS"] == DBNull.Value ? null : r["RAW_CONFIRM_STATUS"]?.ToString();
+                DateTime? suppDeadline = suppRequestedDate?.AddDays(3);
+                bool isSupplement = rawConfirmStatus == "SUPP_PEND" && suppDeadline.HasValue && DateTime.Now <= suppDeadline.Value;
+
                 // Mốc khoá chỉnh sửa:
                 //  - Tăng ca SAU ca : tới giờ OT bắt đầu (tránh đổi ý sau khi OT đã chạy).
                 //  - Tăng ca TRƯỚC ca: tới HẾT GIỜ LÀM của ca hôm đó — OT trước ca sáng sớm,
                 //    NV hay bấm không kịp nên cho xác nhận suốt ca.
                 bool isBeforeOt = r["OT_BEFORE"]?.ToString() == "Y";
                 DateTime? lockAt = isBeforeOt ? shiftEnd : startOt;
-                bool isEditable = workDate.Date >= DateTime.Today.Date
-                    && (!lockAt.HasValue || DateTime.Now < lockAt.Value);
+                bool isEditable = (workDate.Date >= DateTime.Today.Date
+                    && (!lockAt.HasValue || DateTime.Now < lockAt.Value))
+                    || isSupplement;
 
                 return new OTTodayModel
                 {
@@ -161,7 +172,9 @@ public class OTController : ControllerBase
                     SUM_YEAR       = Convert.ToDecimal(r["SUM_YEAR"]),
                     IS_EDITABLE    = isEditable,
                     HOURS_UPDATED  = hoursUpdated,
-                    PREV_OT_HOURS  = hoursUpdated ? confirmedHours : null
+                    PREV_OT_HOURS  = hoursUpdated ? confirmedHours : null,
+                    IS_SUPPLEMENT  = isSupplement,
+                    SUPP_DEADLINE  = isSupplement ? suppDeadline : null
                 };
             },
             new OracleParameter("EMPCD", empcd),
@@ -193,6 +206,26 @@ public class OTController : ControllerBase
         if (model.CONFIRM_STATUS != "CONFIRMED" && model.CONFIRM_STATUS != "REJECTED")
             return Ok(new { success = false, message = "Trạng thái không hợp lệ" });
 
+        // Xác nhận bổ sung (HR yêu cầu 2026-09-12): nếu record đang ở CONFIRM_STATUS='SUPP_PEND'
+        // (Admin đã gửi yêu cầu xác nhận bổ sung cho OT ngày quá khứ) và còn trong hạn 3 ngày kể từ
+        // SUPP_REQUESTED_DATE, bỏ qua mốc khoá giờ thông thường bên dưới (ngày đã qua nên lockAt bình
+        // thường luôn nằm trong quá khứ) và chỉ cho phép Đồng ý — không cho Từ chối (việc đã xảy ra rồi).
+        var suppRow = (await _oracleService.ExecuteQueryAsync(
+            "SELECT CONFIRM_STATUS, SUPP_REQUESTED_DATE FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE AND ROWNUM = 1",
+            r => new {
+                CONFIRM_STATUS      = r["CONFIRM_STATUS"]?.ToString(),
+                SUPP_REQUESTED_DATE = r["SUPP_REQUESTED_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SUPP_REQUESTED_DATE"])
+            },
+            new OracleParameter("EMPCD", model.EMPCD),
+            new OracleParameter("WORK_DATE", workDate))).FirstOrDefault();
+
+        bool isSupplementPending = suppRow?.CONFIRM_STATUS == "SUPP_PEND"
+            && suppRow.SUPP_REQUESTED_DATE.HasValue
+            && DateTime.Now <= suppRow.SUPP_REQUESTED_DATE.Value.AddDays(3);
+
+        if (isSupplementPending && model.CONFIRM_STATUS != "CONFIRMED")
+            return Ok(new { success = false, message = "Yêu cầu xác nhận bổ sung chỉ có thể Đồng ý, không thể Từ chối" });
+
         // Mốc khoá xác nhận/đổi ý (kiểm tra lại ở server, phòng client gửi request trễ):
         //  - Tăng ca SAU ca : khoá khi tới giờ OT bắt đầu (như cũ).
         //  - Tăng ca TRƯỚC ca: khoá khi HẾT GIỜ LÀM của ca hôm đó (giờ tan ca) — vì OT trước ca
@@ -200,14 +233,14 @@ public class OTController : ControllerBase
         // otWindow cũng được dùng để set OT_TYPE/OT_START/OT_END khi lưu HR_OT_REQUEST bên dưới.
         var otWindow = await GetOtWindowAsync(model.EMPCD, workDate);
         DateTime? lockAt = otWindow.Type == "BEFORE" ? otWindow.ShiftEnd : otWindow.Start;
-        if (lockAt.HasValue && DateTime.Now >= lockAt.Value)
+        if (!isSupplementPending && lockAt.HasValue && DateTime.Now >= lockAt.Value)
             return Ok(new { success = false, message = otWindow.Type == "BEFORE"
                 ? "Đã hết giờ làm việc, không thể xác nhận hoặc đổi ý tăng ca nữa"
                 : "Đã tới giờ tăng ca, không thể xác nhận hoặc đổi ý nữa" });
 
         // Không tính được mốc khoá (ca lỗi / đã bị xoá khỏi ERP) + ngày đã qua → chặn cho chắc,
         // đối xứng với IS_EDITABLE ở GetOTToday. Ca đêm vẫn qua được vì lockAt có giá trị.
-        if (!lockAt.HasValue && workDate.Date < DateTime.Today)
+        if (!isSupplementPending && !lockAt.HasValue && workDate.Date < DateTime.Today)
             return Ok(new { success = false, message = "Không thể xác nhận tăng ca cho ngày này" });
 
         var lockKey = $"{model.EMPCD}|{workDate:yyyyMMdd}";
@@ -458,9 +491,9 @@ public class OTController : ControllerBase
     // hoặc "EMPCD, NVL(OT_HOURS,0)" (match cả số giờ).
     private static string DedupOtRequest(string dateParam, string partitionCols) => $@"(
         SELECT EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, REQUEST_ID,
-               OT_TYPE, OT_START, OT_END FROM (
+               OT_TYPE, OT_START, OT_END, SUPP_REQUESTED_DATE FROM (
             SELECT EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, REQUEST_ID,
-                   OT_TYPE, OT_START, OT_END,
+                   OT_TYPE, OT_START, OT_END, SUPP_REQUESTED_DATE,
                    ROW_NUMBER() OVER (PARTITION BY {partitionCols}
                                       ORDER BY CONFIRM_DATE DESC NULLS LAST, REQUEST_ID DESC) RN
             FROM HRMS.HR_OT_REQUEST WHERE WORK_DATE = {dateParam}
@@ -1538,6 +1571,208 @@ public class OTController : ControllerBase
 
             res.processed++;
             res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = true, MESSAGE = "Ký thành công" });
+        }
+        catch (Exception ex)
+        {
+            res.failed++;
+            res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, MESSAGE = ex.Message });
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ADMIN — Xác nhận bổ sung (HR yêu cầu 2026-09-12)
+    // NV có OT ngày quá khứ chưa kịp tự ký (đã hết hạn "chờ ký") → Admin gửi yêu cầu cho chính NV
+    // tự xác nhận bổ sung trong hạn 3 ngày, thay vì Admin ký giùm luôn. CONFIRM_STATUS='SUPP_PEND'
+    // là trạng thái trung gian; NV bấm "Đồng ý" ở OtConfirmForm sẽ gọi lại đúng ConfirmOT thường.
+    // ═════════════════════════════════════════════════════════════════════════
+
+    // POST /apiHR/OT/admin/request-supplement — 1 ngày, nhiều NV (từ Danh sách chờ ký, checkbox)
+    [HttpPost("admin/request-supplement")]
+    public async Task<IActionResult> AdminRequestSupplement([FromBody] OTAdminBulkSignForRequest body)
+    {
+        try
+        {
+            if (body == null || body.ITEMS == null || body.ITEMS.Count == 0)
+                return Ok(new OTAdminBulkResponse { success = false, message = "Danh sách rỗng" });
+            if (!await IsAdminOrHRAsync(body.ACTOR_EMPCD))
+                return Ok(new OTAdminBulkResponse { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
+            if (!DateTime.TryParseExact(body.WORK_DATE, "yyyy-MM-dd", null,
+                System.Globalization.DateTimeStyles.None, out var workDate))
+                return Ok(new OTAdminBulkResponse { success = false, message = "Ngày làm việc không hợp lệ" });
+
+            var res = new OTAdminBulkResponse { success = true };
+            foreach (var it in body.ITEMS)
+            {
+                if (string.IsNullOrEmpty(it.EMPCD)) continue;
+                await RequestSuppOneAsync(it.EMPCD.Trim(), workDate, body.ACTOR_EMPCD, res);
+            }
+
+            res.message = $"Gửi xác nhận bổ sung: OK {res.processed}, Bỏ qua {res.skipped}, Lỗi {res.failed}";
+            return Ok(res);
+        }
+        catch (Exception ex)
+        {
+            return Ok(new OTAdminBulkResponse { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/OT/admin/request-supplement-multi — nhiều NV × nhiều ngày (import Excel)
+    [HttpPost("admin/request-supplement-multi")]
+    public async Task<IActionResult> AdminRequestSupplementMulti([FromBody] OTAdminBulkSignForMultiRequest body)
+    {
+        try
+        {
+            if (body?.ITEMS == null || body.ITEMS.Count == 0)
+                return Ok(new OTAdminBulkResponse { success = false, message = "Danh sách rỗng" });
+            if (!await IsAdminOrHRAsync(body.ACTOR_EMPCD))
+                return Ok(new OTAdminBulkResponse { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
+
+            var res = new OTAdminBulkResponse { success = true };
+            foreach (var it in body.ITEMS)
+            {
+                var empcd = it.EMPCD?.Trim() ?? "";
+                if (string.IsNullOrEmpty(empcd))
+                {
+                    res.failed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = "", WORK_DATE = it.WORK_DATE, OK = false, MESSAGE = "Thiếu mã nhân viên" });
+                    continue;
+                }
+                if (!DateTime.TryParseExact(it.WORK_DATE, "yyyy-MM-dd", null,
+                    System.Globalization.DateTimeStyles.None, out var wd))
+                {
+                    res.failed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = it.WORK_DATE, OK = false, MESSAGE = "Ngày không hợp lệ" });
+                    continue;
+                }
+                await RequestSuppOneAsync(empcd, wd, body.ACTOR_EMPCD, res, it.WORK_DATE);
+            }
+
+            res.message = $"Gửi xác nhận bổ sung: OK {res.processed}, Bỏ qua {res.skipped}, Lỗi {res.failed}";
+            return Ok(res);
+        }
+        catch (Exception ex)
+        {
+            return Ok(new OTAdminBulkResponse { success = false, message = ex.Message });
+        }
+    }
+
+    // Gửi yêu cầu xác nhận bổ sung cho 1 NV/1 ngày — mirror SignForOneAsync nhưng KHÔNG set CONFIRMED
+    // ngay; chỉ đánh dấu SUPP_PEND + SUPP_REQUESTED_DATE để chính NV tự xác nhận trong hạn 3 ngày.
+    // KHÔNG đụng ERP (giữ nguyên tắc admin chỉ đọc ERP, không write).
+    private async Task RequestSuppOneAsync(string empcd, DateTime workDate, string? actorEmpCd,
+        OTAdminBulkResponse res, string? workDateLabel = null)
+    {
+        try
+        {
+            // 1. ERP có OT ngày này không?
+            var erpHours = (await _oracleService.ExecuteQueryAsync(
+                @"SELECT MAX(OVER_TIME) OT_HOURS FROM (
+                    SELECT OVER_TIME FROM HRMS.EBM300      WHERE DAT = :WD  AND EMPCD = :E  AND OVER_TIME IS NOT NULL AND OVER_TIME > 0
+                    UNION ALL
+                    SELECT OVER_TIME FROM HRMS.EBM300_WAIT WHERE DAT = :WD2 AND EMPCD = :E1 AND OVER_TIME IS NOT NULL AND OVER_TIME > 0)",
+                r => r["OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"]),
+                new OracleParameter("WD", workDate),  new OracleParameter("E", empcd),
+                new OracleParameter("WD2", workDate), new OracleParameter("E1", empcd))).FirstOrDefault();
+
+            if (!erpHours.HasValue || erpHours.Value <= 0)
+            {
+                res.failed++;
+                res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, MESSAGE = "Ngày này không có kế hoạch tăng ca" });
+                return;
+            }
+
+            // 2. Đã có row app chưa (nếu có, lấy luôn CONFIRM_STATUS + SUPP_REQUESTED_DATE để xét)
+            var existing = (await _oracleService.ExecuteQueryAsync(
+                @"SELECT REQUEST_ID, CONFIRM_STATUS, SUPP_REQUESTED_DATE FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :E AND WORK_DATE = :WD AND ROWNUM = 1",
+                r => new {
+                    REQUEST_ID          = r["REQUEST_ID"]?.ToString(),
+                    CONFIRM_STATUS      = r["CONFIRM_STATUS"]?.ToString(),
+                    SUPP_REQUESTED_DATE = r["SUPP_REQUESTED_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SUPP_REQUESTED_DATE"])
+                },
+                new OracleParameter("E", empcd), new OracleParameter("WD", workDate))).FirstOrDefault();
+
+            // 3. Đã ký thật rồi (CONFIRMED/REJECTED hoặc ERP SIGNED_STATUS='Y')? → khỏi cần bổ sung
+            bool erpSigned = (await _oracleService.ExecuteQueryAsync(
+                @"SELECT 1 X FROM DUAL WHERE
+                        EXISTS (SELECT 1 FROM HRMS.EBM300      WHERE EMPCD = :E1 AND DAT = :WD1 AND SIGNED_STATUS = 'Y')
+                     OR EXISTS (SELECT 1 FROM HRMS.EBM300_WAIT WHERE EMPCD = :E2 AND DAT = :WD2 AND SIGNED_STATUS = 'Y')",
+                r => 1,
+                new OracleParameter("E1", empcd), new OracleParameter("WD1", workDate),
+                new OracleParameter("E2", empcd), new OracleParameter("WD2", workDate))).Any();
+
+            if (erpSigned || existing?.CONFIRM_STATUS == "CONFIRMED" || existing?.CONFIRM_STATUS == "REJECTED")
+            {
+                res.skipped++;
+                res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, SKIPPED = true, MESSAGE = "Đã ký rồi — không cần xác nhận bổ sung" });
+                return;
+            }
+
+            // 4. Đã gửi yêu cầu bổ sung rồi và còn hạn 3 ngày? → khỏi gửi lại
+            bool suppStillOpen = existing?.CONFIRM_STATUS == "SUPP_PEND"
+                && existing.SUPP_REQUESTED_DATE.HasValue
+                && DateTime.Now <= existing.SUPP_REQUESTED_DATE.Value.AddDays(3);
+            if (suppStillOpen)
+            {
+                res.skipped++;
+                res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, SKIPPED = true, MESSAGE = "Đã gửi yêu cầu bổ sung rồi — còn hạn" });
+                return;
+            }
+
+            string requestId;
+            if (existing == null)
+            {
+                // Chưa có row nào — INSERT mới qua SP với CONFIRM_STATUS='SUPP_PEND'
+                requestId = DateTime.Now.ToString("yyyyMMddHHmmssfff") + empcd;
+                var pResult  = new OracleParameter("P_RESULT",  OracleDbType.Int32)         { Direction = System.Data.ParameterDirection.Output };
+                var pMessage = new OracleParameter("P_MESSAGE", OracleDbType.Varchar2, 500) { Direction = System.Data.ParameterDirection.Output };
+                try
+                {
+                    await _oracleService.ExecuteProcedureAsync("HRMS.SP_OT_CONFIRM_INSERT",
+                        new OracleParameter("P_REQUEST_ID",     requestId),
+                        new OracleParameter("P_EMPCD",          empcd),
+                        new OracleParameter("P_WORK_DATE",      workDate),
+                        new OracleParameter("P_OT_HOURS",       erpHours.Value),
+                        new OracleParameter("P_CONFIRM_STATUS", "SUPP_PEND"),
+                        pResult, pMessage);
+                }
+                catch (OracleException ex) when (ex.Number == 1)
+                {
+                    res.skipped++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, SKIPPED = true, MESSAGE = "Vừa có người xử lý — bỏ qua" });
+                    return;
+                }
+                if (int.Parse(pResult.Value?.ToString() ?? "0") != 0)
+                {
+                    res.failed++;
+                    res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = false, MESSAGE = pMessage.Value?.ToString() ?? "SP báo lỗi" });
+                    return;
+                }
+            }
+            else
+            {
+                // Có row cũ (SUPP_PEND đã hết hạn trước đó) — UPDATE lại thay vì insert trùng REQUEST_ID
+                requestId = existing.REQUEST_ID ?? "";
+                await _oracleService.ExecuteNonQueryAsync(
+                    "UPDATE HRMS.HR_OT_REQUEST SET CONFIRM_STATUS = 'SUPP_PEND', OT_HOURS = :H WHERE EMPCD = :E AND WORK_DATE = :WD",
+                    new OracleParameter("H", erpHours.Value), new OracleParameter("E", empcd), new OracleParameter("WD", workDate));
+            }
+
+            // Set SUPP_REQUESTED_DATE/BY (mốc 3 ngày tính từ đây) + enrich khung giờ như ConfirmOT.
+            // Lưu ý: tên bind ":BY" gây ORA-01745 (trùng từ khoá reserved GROUP BY/ORDER BY của
+            // Oracle) — phải đặt tên khác (":REQBY").
+            await _oracleService.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_OT_REQUEST SET SUPP_REQUESTED_DATE = SYSDATE, SUPP_REQUESTED_BY = :REQBY WHERE EMPCD = :E AND WORK_DATE = :WD",
+                new OracleParameter("REQBY", (object?)actorEmpCd ?? DBNull.Value),
+                new OracleParameter("E", empcd), new OracleParameter("WD", workDate));
+            await EnrichOtRequestAsync(requestId, await GetOtWindowAsync(empcd, workDate));
+
+            _otLog.Log(OtLogHelper.LogAction.SUPP_REQ, requestId, empcd, workDate,
+                existing?.CONFIRM_STATUS, "SUPP_PEND", null, erpHours, actorEmpCd);
+
+            _notiSvc.OTSupplementRequested(empcd, actorEmpCd ?? "ADMIN", workDate);
+
+            res.processed++;
+            res.results.Add(new OTAdminBulkResult { EMPCD = empcd, WORK_DATE = workDateLabel, OK = true, MESSAGE = "Đã gửi yêu cầu xác nhận bổ sung" });
         }
         catch (Exception ex)
         {

@@ -132,6 +132,20 @@ public class NotificationService
     //  OT
     // ═══════════════════════════════════════════════════════════════
 
+    // Admin gửi yêu cầu xác nhận bổ sung cho OT ngày quá khứ NV chưa kịp tự ký (yêu cầu HR 2026-09-12).
+    // Hạn 3 ngày tính từ lúc gửi (SYSDATE tại đây) — không phải từ workDate.
+    public void OTSupplementRequested(string empCd, string actorEmpCd, DateTime workDate)
+        => FireAndForget(async () =>
+        {
+            var ph = new Dictionary<string, string>
+            {
+                ["workDate"] = workDate.ToString("dd/MM/yyyy"),
+                ["deadline"] = DateTime.Now.AddDays(3).ToString("dd/MM/yyyy"),
+            };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("OT_SUPP_REQUEST", ph);
+            await _helper.SendNotificationAsync(Personal(empCd, actorEmpCd, title, body, "OT_SIGN", titleEn, bodyEn));
+        });
+
     public void OTSignReminderToEmployees(IEnumerable<string> pendingEmpCds, string clerkEmpCd, string workDateStr)
     {
         FireAndForget(async () =>

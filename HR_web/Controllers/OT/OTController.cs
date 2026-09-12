@@ -258,6 +258,17 @@ public class OTController : BaseController
         return View();
     }
 
+    // POST: /OT/AdminRequestSupplement — Xác nhận bổ sung 1 ngày, nhiều NV (yêu cầu HR 2026-09-12)
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> AdminRequestSupplement([FromBody] OTAdminBulkSignForRequest body)
+    {
+        if (body == null) return Json(new { success = false, message = "Body rỗng" });
+        body.ACTOR_EMPCD = CurrentUser?.EmpCd;
+        var result = await _otService.AdminRequestSupplementAsync(body);
+        return Json(result);
+    }
+
     // POST: /OT/AdminBulkSignFor
     [HttpPost]
     [Authorize(Roles = "Admin,HR")]
@@ -278,8 +289,10 @@ public class OTController : BaseController
     [Authorize(Roles = "Admin,HR")]
     public IActionResult DownloadSignForTemplate()
     {
+        // Mẫu dùng chung cho cả "Import ký giùm" và "Import xác nhận bổ sung" — cấu trúc file
+        // (Mã NV + Ngày) giống hệt nhau nên không tách riêng (yêu cầu HR 2026-09-12).
         using var wb = new XLWorkbook();
-        var ws = wb.Worksheets.Add("KyGiumOT");
+        var ws = wb.Worksheets.Add("MauOT");
         ws.Cell(1, 1).Value = "Mã NV";
         ws.Cell(1, 2).Value = "Ngày tăng ca (yyyy-mm-dd)";
         var hdr = ws.Range(1, 1, 1, 2);
@@ -304,7 +317,7 @@ public class OTController : BaseController
         wb.SaveAs(ms);
         return File(ms.ToArray(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "MauImport_KyGiumOT.xlsx");
+            "MauImport_OT.xlsx");
     }
 
     public class ImportRowResult
@@ -422,6 +435,116 @@ public class OTController : BaseController
             skipped = skipC,
             failed = errC,
             message = $"Tổng {rows.Count} dòng — Ký thành công {okC}, Bỏ qua {skipC}, Lỗi {errC}",
+            rows = rows.OrderBy(x => x.row)
+        });
+    }
+
+    // POST: /OT/ImportRequestSupplementExcel  (multipart) — Xác nhận bổ sung NHIỀU NV × NHIỀU NGÀY
+    // (yêu cầu HR 2026-09-12). Clone từ ImportSignForExcel — tách riêng để không đụng luồng ký giùm
+    // đang chạy ổn định trong production, dù logic đọc file gần như giống hệt.
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR")]
+    [RequestSizeLimit(5 * 1024 * 1024)]
+    public async Task<IActionResult> ImportRequestSupplementExcel(IFormFile? file)
+    {
+        if (file == null || file.Length == 0)
+            return Json(new { success = false, message = "Vui lòng chọn file Excel (.xlsx)" });
+
+        var rows = new List<ImportRowResult>();
+        var apiItems = new List<OTAdminSignForMultiItem>();
+        var apiRowRef = new List<ImportRowResult>();
+        var seen = new HashSet<string>();
+
+        string[] dateFormats = { "yyyy-MM-dd", "yyyy/MM/dd", "dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "yyyy-M-d" };
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            using var wb = new XLWorkbook(stream);
+            var ws = wb.Worksheet(1);
+            int lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
+            if (lastRow - 1 > 5000)
+                return Json(new { success = false, message = "File quá nhiều dòng (tối đa 5000)" });
+
+            for (int r = 2; r <= lastRow; r++)
+            {
+                var empRaw   = ws.Cell(r, 1).GetString()?.Trim() ?? "";
+                var dateCell = ws.Cell(r, 2);
+                var dateRaw  = dateCell.GetString()?.Trim() ?? "";
+                if (empRaw.Length == 0 && dateRaw.Length == 0) continue;
+
+                string? wd = null;
+                if (dateCell.TryGetValue<DateTime>(out var dtv) && dtv.Year > 2000)
+                    wd = dtv.ToString("yyyy-MM-dd");
+                else
+                    foreach (var f in dateFormats)
+                        if (DateTime.TryParseExact(dateRaw, f, null, DateTimeStyles.None, out var dt)) { wd = dt.ToString("yyyy-MM-dd"); break; }
+
+                if (empRaw.Length == 0)
+                { rows.Add(new ImportRowResult { row = r, empcd = "", work_date = dateRaw, message = "Thiếu mã NV" }); continue; }
+                if (wd == null)
+                { rows.Add(new ImportRowResult { row = r, empcd = empRaw, work_date = dateRaw, message = "Ngày không hợp lệ (cần yyyy-mm-dd hoặc dd/MM/yyyy)" }); continue; }
+
+                if (!seen.Add(empRaw + "|" + wd))
+                { rows.Add(new ImportRowResult { row = r, empcd = empRaw, work_date = wd, skipped = true, message = "Dòng trùng trong file — bỏ qua" }); continue; }
+
+                var rr = new ImportRowResult { row = r, empcd = empRaw, work_date = wd };
+                rows.Add(rr);
+                apiItems.Add(new OTAdminSignForMultiItem { EMPCD = empRaw, WORK_DATE = wd });
+                apiRowRef.Add(rr);
+            }
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "Lỗi đọc file Excel: " + ex.Message });
+        }
+
+        if (rows.Count == 0)
+            return Json(new { success = false, message = "File không có dữ liệu" });
+
+        const int CHUNK = 50;
+        for (int i = 0; i < apiItems.Count; i += CHUNK)
+        {
+            var slice    = apiItems.GetRange(i, Math.Min(CHUNK, apiItems.Count - i));
+            var sliceRef  = apiRowRef.GetRange(i, slice.Count);
+            var partRes = await _otService.AdminRequestSupplementMultiAsync(new OTAdminBulkSignForMultiRequest
+            {
+                ACTOR_EMPCD = CurrentUser?.EmpCd,
+                ITEMS = slice
+            });
+            if (!partRes.success)
+                return Json(new { success = false, message = partRes.message ?? "Lỗi API xác nhận bổ sung" });
+
+            var byKey = new Dictionary<string, OTAdminBulkResult>();
+            foreach (var ar in partRes.results ?? new())
+                byKey[(ar.EMPCD ?? "") + "|" + (ar.WORK_DATE ?? "")] = ar;
+
+            foreach (var rr in sliceRef)
+            {
+                if (byKey.TryGetValue(rr.empcd + "|" + rr.work_date, out var ar))
+                {
+                    rr.ok = ar.OK;
+                    rr.skipped = ar.SKIPPED;
+                    rr.message = ar.MESSAGE ?? (ar.OK ? "Đã gửi yêu cầu" : "");
+                }
+                else
+                {
+                    rr.message = "Không có kết quả trả về";
+                }
+            }
+        }
+
+        int okC2   = rows.Count(x => x.ok);
+        int skipC2 = rows.Count(x => !x.ok && x.skipped);
+        int errC2  = rows.Count(x => !x.ok && !x.skipped);
+        return Json(new
+        {
+            success = true,
+            total = rows.Count,
+            ok = okC2,
+            skipped = skipC2,
+            failed = errC2,
+            message = $"Tổng {rows.Count} dòng — Gửi thành công {okC2}, Bỏ qua {skipC2}, Lỗi {errC2}",
             rows = rows.OrderBy(x => x.row)
         });
     }

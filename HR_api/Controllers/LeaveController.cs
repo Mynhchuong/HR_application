@@ -846,15 +846,18 @@ public class LeaveController : ControllerBase
 
             // Filter logic:
             //  - Non-PENDING (APPROVED/REJECTED): filter theo CREATED_DATE trong khoảng tháng
-            //  - PENDING + FROM_DATE tương lai: LUÔN hiện (tránh sếp quên khi req tạo trước nhiều tháng)
-            //  - PENDING + FROM_DATE đã qua: bỏ hoàn toàn (không cần duyệt nữa)
+            //  - PENDING + TO_DATE >= hôm nay (đơn còn hiệu lực, kể cả nhiều ngày đang diễn ra dở):
+            //    LUÔN hiện (tránh sếp quên khi req tạo trước nhiều tháng, hoặc bỏ sót đơn nhiều ngày
+            //    có FROM_DATE đã qua nhưng TO_DATE chưa tới — bug thật 2026-09-11: đơn CT 9 ngày bị
+            //    ẩn khỏi list duyệt dù đang diễn ra, vì trước đó lọc theo FROM_DATE thay vì TO_DATE)
+            //  - PENDING + TO_DATE đã qua hẳn: bỏ hoàn toàn (không cần duyệt nữa)
             string whereSql = @"
                 WHERE R.REQUEST_TYPE = 'LEAVE'
                   AND L.SOURCE = 'SELF'
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND (
                         (R.STATUS <> 'PENDING' AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1)
-                     OR (R.STATUS  = 'PENDING' AND L.FROM_DATE    >= TRUNC(SYSDATE))
+                     OR (R.STATUS  = 'PENDING' AND L.TO_DATE      >= TRUNC(SYSDATE))
                   )
                   " + scopeFilter.SqlClause + @"
                   AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
@@ -871,7 +874,7 @@ public class LeaveController : ControllerBase
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND (
                         (R.STATUS <> 'PENDING' AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1)
-                     OR (R.STATUS  = 'PENDING' AND L.FROM_DATE    >= TRUNC(SYSDATE))
+                     OR (R.STATUS  = 'PENDING' AND L.TO_DATE      >= TRUNC(SYSDATE))
                   )
                   " + scopeFilter.SqlClause + @"
                   AND (:LT_FLAG   IS NULL OR L.LEAVE_TYPE    = :LT_VAL)
@@ -2940,7 +2943,7 @@ END;";
             // Map ngược sang MySamho — chỉ áp dụng khi ngày này thuộc 1 đơn nghỉ đã Đã duyệt HOẶC
             // đã Sắp lịch nghỉ (quản lý/Admin sắp lịch tính như đã chốt), loại cần giấy tờ.
             var msRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT L.REQUEST_ID, L.FROM_DATE, L.TO_DATE FROM HRMS.HR_LEAVE_REQUEST L
+                SELECT L.REQUEST_ID, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS FROM HRMS.HR_LEAVE_REQUEST L
                 JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
                 WHERE L.EMPCD = :EMPCD AND :FR_DATE BETWEEN L.FROM_DATE AND L.TO_DATE
                   AND L.LEAVE_TYPE IN ('SI','DT','DC','VS','DS','KT') AND R.STATUS IN ('APPROVED','ASSIGNED')
@@ -2948,7 +2951,8 @@ END;";
                 r => new {
                     RequestId = r["REQUEST_ID"]?.ToString() ?? "",
                     FromDate  = Convert.ToDateTime(r["FROM_DATE"]),
-                    ToDate    = Convert.ToDateTime(r["TO_DATE"])
+                    ToDate    = Convert.ToDateTime(r["TO_DATE"]),
+                    TotalDays = r["TOTAL_DAYS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["TOTAL_DAYS"])
                 },
                 new OracleParameter("EMPCD",   model.EMPCD),
                 new OracleParameter("FR_DATE", OracleDbType.Date) { Value = frDate.Date });
@@ -2975,7 +2979,13 @@ END;";
                     new OracleParameter("ACTOR",      model.ACTOR_EMPCD),
                     new OracleParameter("EMPCD",      model.EMPCD));
 
-                int totalDays = (ms.ToDate.Date - ms.FromDate.Date).Days + 1;
+                // Dùng TOTAL_DAYS đã lưu sẵn trên đơn (tính đúng loại trừ Chủ Nhật lúc tạo đơn) —
+                // KHÔNG tự tính lại (ToDate-FromDate+1) theo lịch thô, vì công ty không làm Chủ Nhật
+                // nên ERP không bao giờ tạo dòng EFM410 cho ngày CN (trừ NV whitelist CN/loại DS) —
+                // tính theo lịch thô sẽ khiến DOC_STATUS kẹt mãi ở PARTIALLY_SUBMITTED, không bao giờ
+                // lên SUBMITTED được, dù HR đã xác nhận đủ hết các ngày EFM410 thực có (bug thật phát
+                // hiện 2026-09-12, rõ nhất với đơn Vợ sanh 7-12 ngày luôn dính ít nhất 1 Chủ Nhật).
+                decimal totalDays = ms.TotalDays ?? ((ms.ToDate.Date - ms.FromDate.Date).Days + 1);
                 var cntRows = await _oracleService.ExecuteQueryAsync(
                     "SELECT COUNT(*) CNT FROM HRMS.HR_LEAVE_DOC_DAY WHERE REQUEST_ID = :ID",
                     r => Convert.ToInt32(r["CNT"]),

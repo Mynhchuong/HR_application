@@ -23,6 +23,9 @@
             <div class="bg-gradient-success shadow-success border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="text-white mb-0"><i class="bi bi-pencil-square me-1"></i> Sửa Absent Code ERP</h6>
                 <div class="d-flex align-items-center gap-2">
+                    <button type="button" id="saveAllBtn" class="btn btn-sm mb-0" style="background:#fff;color:#166534;font-weight:600;height:34px;" disabled>
+                        <i class="bi bi-save me-1"></i> Lưu tất cả<span id="dirtyCountBadge" class="badge bg-danger ms-1" style="display:none;">0</span>
+                    </button>
                     <button type="button" id="exportBtn" class="btn btn-sm mb-0" style="background:#fff;color:#344767;font-weight:600;height:34px;">
                         <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel
                     </button>
@@ -123,7 +126,6 @@
                             <th class="text-xs text-secondary">Remark</th>
                             <th class="text-xs text-secondary">Người duyệt</th>
                             <th class="text-xs text-secondary text-center">MySamho</th>
-                            <th class="text-xs text-secondary text-center">Lưu</th>
                         </tr>
                     </thead>
                     <tbody id="erpTableBody"></tbody>
@@ -226,40 +228,68 @@ function buildRow(item, idx) {
             ${item.ApprovedBy ? `<div class="text-xxs text-secondary">${escHtml(item.ApprovedBy)}</div><div class="vni-font">${escHtml(item.ApprovedByName || '')}</div>` : '-'}
         </td>
         <td class="text-center">${msCellHtml(item)}</td>
-        <td class="text-center">
-            <button class="btn btn-outline-success btn-sm py-0 px-2" style="font-size:.75rem;" onclick="saveRow(this)"><i class="bi bi-save"></i> Lưu</button>
-        </td>
     </tr>`;
 }
 
-function markDirty(el) { $(el).closest('tr').addClass('erp-row-dirty'); }
-
-async function saveRow(btn) {
-    const $tr = $(btn).closest('tr');
-    const empcd  = $tr.data('empcd');
-    const frdate = $tr.data('frdate');
-    const leavecd = $tr.find('.erp-code-select').val();
-    const remark  = $tr.find('.erp-remark-input').val();
-    if (!leavecd) { showToast('Chưa chọn Mã nghỉ', 'warning'); return; }
-
-    const $btn = $(btn).prop('disabled', true);
-    const oldHtml = $btn.html();
-    $btn.html('<span class="spinner-border spinner-border-sm"></span>');
-    try {
-        const res = await $.ajax({
-            url: UPDATE_URL, type: 'POST', contentType: 'application/json',
-            data: JSON.stringify({ Empcd: empcd, FrDate: frdate, Leavecd: leavecd, Remark: remark })
-        });
-        showToast(res.message || (res.success ? 'Đã lưu' : 'Có lỗi'), res.success ? 'success' : 'error');
-        // Không load lại cả bảng — HR nhập nhiều dòng liên tục, load lại mỗi lần lưu sẽ giật/chậm.
-        // Chỉ cần bỏ highlight "chưa lưu" của dòng đó, giữ nguyên vị trí đang làm.
-        if (res.success) { $tr.removeClass('erp-row-dirty'); }
-    } catch (e) {
-        showToast('Lỗi kết nối', 'error');
-    } finally {
-        $btn.prop('disabled', false).html(oldHtml);
-    }
+// Sửa ô nào (chọn Mã nghỉ hoặc gõ Remark) thì highlight cả dòng đó lên — không lưu ngay, gom lại
+// bấm "Lưu tất cả" 1 lần cho mọi dòng đã sửa (yêu cầu HR 2026-09-12, bỏ lưu từng dòng riêng lẻ).
+function markDirty(el) {
+    $(el).closest('tr').addClass('erp-row-dirty');
+    updateDirtyCount();
 }
+
+function updateDirtyCount() {
+    const n = $('#erpTableBody tr.erp-row-dirty').length;
+    $('#saveAllBtn').prop('disabled', n === 0);
+    $('#dirtyCountBadge').toggle(n > 0).text(n);
+}
+
+async function saveAll() {
+    const $rows = $('#erpTableBody tr.erp-row-dirty');
+    if (!$rows.length) return;
+
+    // Chặn thiếu Mã nghỉ trước khi gửi bất kỳ request nào, tránh lưu dở dang nửa chừng.
+    const missingCode = $rows.filter((_, tr) => !$(tr).find('.erp-code-select').val());
+    if (missingCode.length) {
+        missingCode.each((_, tr) => $(tr).find('.erp-code-select').addClass('is-invalid'));
+        showToast(`Còn ${missingCode.length} dòng chưa chọn Mã nghỉ`, 'warning');
+        return;
+    }
+
+    const $btn = $('#saveAllBtn').prop('disabled', true);
+    const oldHtml = $btn.html();
+    let ok = 0, fail = 0;
+    const total = $rows.length;
+
+    for (const tr of $rows.get()) {
+        const $tr = $(tr);
+        $btn.html(`<span class="spinner-border spinner-border-sm me-1"></span> Đang lưu ${ok + fail + 1}/${total}...`);
+        const empcd   = $tr.data('empcd');
+        const frdate  = $tr.data('frdate');
+        const leavecd = $tr.find('.erp-code-select').val();
+        const remark  = $tr.find('.erp-remark-input').val();
+        try {
+            const res = await $.ajax({
+                url: UPDATE_URL, type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({ Empcd: empcd, FrDate: frdate, Leavecd: leavecd, Remark: remark })
+            });
+            if (res.success) { $tr.removeClass('erp-row-dirty'); ok++; }
+            else { fail++; }
+        } catch (e) { fail++; }
+    }
+
+    updateDirtyCount();
+    $btn.html(oldHtml);
+    if (fail === 0) showToast(`Đã lưu ${ok} dòng`, 'success');
+    else showToast(`Đã lưu ${ok} dòng, ${fail} dòng lỗi (còn highlight vàng — thử lưu lại)`, fail === total ? 'error' : 'warning');
+}
+$('#saveAllBtn').on('click', saveAll);
+
+// Cảnh báo rời trang khi còn dòng chưa lưu — trước đây lưu ngay từng dòng nên không cần, giờ gom
+// nhiều dòng lại mới lưu nên dễ mất việc đang làm nếu lỡ tay đóng tab/điều hướng đi chỗ khác.
+window.addEventListener('beforeunload', function (e) {
+    if ($('#erpTableBody tr.erp-row-dirty').length > 0) { e.preventDefault(); e.returnValue = ''; }
+});
 
 function getParams(page) {
     return {
@@ -279,26 +309,26 @@ function getParams(page) {
 function loadData(page = 1) {
     if (!$('#filterDateFrom').val() || !$('#filterDateTo').val()) return;
     currentPage = page;
-    $('#erpTableBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
+    $('#erpTableBody').html(`<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),
         success: function (res) {
             if (!res.success) {
-                $('#erpTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
+                $('#erpTableBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
                 return;
             }
             totalRecords = res.total || 0;
             totalPages   = res.total_pages || 0;
             const rows   = res.data || [];
             if (!rows.length) {
-                $('#erpTableBody').html(`<tr><td colspan="9" class="text-center text-secondary py-4">Không có dữ liệu</td></tr>`);
+                $('#erpTableBody').html(`<tr><td colspan="8" class="text-center text-secondary py-4">Không có dữ liệu</td></tr>`);
             } else {
                 $('#erpTableBody').html(rows.map((r,i) => buildRow(r,(page-1)*pageSize+i+1)).join(''));
             }
             renderPagination();
         },
         error: function (xhr) {
-            $('#erpTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#erpTableBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
         }
     });
 }

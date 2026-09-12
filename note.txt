@@ -2866,3 +2866,1221 @@ COMMIT;
 -- DROP SEQUENCE HRMS.SEQ_HR_AI_CHAT;
 -- DROP SEQUENCE HRMS.SEQ_HR_AI_CHAT_MSG;
 -- DELETE FROM HRMS.HR_NOTI_TEMPLATES WHERE TEMPLATE_KEY = 'AI_CSR_REPLIED';
+
+-- ================================================================================
+-- ============  THAM CHIẾU SCHEMA — CỘT CÁC BẢNG "MY SAMHO" DÙNG  =================
+-- ============  (auto-dump từ ALL_TAB_COLUMNS 2026-09-10, xem đây trước khi hỏi DB) =
+-- ================================================================================
+--
+-- BẢNG ERP (không phải của app — ĐỌC là chính, ghi qua stored proc):
+--   ECM100         nhân viên master: EMPCD, CNAME(font VNI), DEPTCD/LINECD/WORKCD, JEAJIKGB='Y' là đang làm
+--   EAM410         cấu trúc phòng ban: (DEPTCD,LINECD,WORKCD) -> DEPTNM/TEAMNM/WORKNM
+--   EAM700         loại nghỉ phép ERP: LEAVECD, LEAVENM (font VNI)
+--   EAM800         ngày lễ công ty: HUILDAY
+--   EBM100         ca làm việc master: SHIFTCD, STIME, ETIME (HHMM)
+--   EBM300         lịch ca theo ngày (đã chốt): EMPCD, DAT, SHIFTCD
+--   EBM300_WAIT    lịch ca CHỜ chốt (union với EBM300 khi tra ca tương lai)
+--   EFM100         cấp phép năm: EMPCD, RECEIVE_NUM, CAL_MONTH (YYYYMM)
+--   EFM410         bảng VẮNG MẶT ERP: EMPCD, FR_DAT, LEAVECD ('PN'=phép năm...), REMAR ('VR'/'ASSIGNED'/'<mã> <lý do>')
+--   EFM410_WAIT    bảng trung gian SP_015 ghi vắng mặt vào EFM410
+--   EAM420/EAM510/EBM200/SAD100/TB_MASCHANGEWORK  — ERP master khác, xem cột bên dưới
+--   CANTEEN_ORDER  đặt cơm canteen (schema HRMS): PK (EMPCD,DAT,TYPE_MEAL); TYPE_OF_FOOD M/N/C/B
+--
+-- STORED PROC / FUNC hay gọi:
+--   SP_015_NEW / SP_015_FORHRAPP  ghi 1 ngày vắng mặt vào EFM410 (FORHRAPP dùng cho ngày Chủ Nhật)
+--   SP_INSERT_GATE_PASS           tạo gate pass đồng bộ ERP
+--   SP_OT_CONFIRM_INSERT          ký giùm OT
+--   FN_CONVERT_TO_VN              convert chuỗi sang tiếng Việt (font)
+--
+-- ================================================================================
+-- HRMS.CANTEEN_ORDER
+  EMPCD                        VARCHAR2(8) NOT NULL
+  DAT                          VARCHAR2(8) NOT NULL
+  TYPE_MEAL                    VARCHAR2(5) NOT NULL
+  TYPE_OF_FOOD                 VARCHAR2(1)
+  CHANGE_FROM                  VARCHAR2(20)
+  INST_ID                      VARCHAR2(20)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(20)
+  UPDT_DT                      DATE
+  IS_MYSAMHO                   VARCHAR2(1)
+  -- PK: EMPCD, DAT, TYPE_MEAL
+
+-- HRMS.EAM410
+  COMPYCD                      VARCHAR2(2) NOT NULL
+  DEPTCD                       VARCHAR2(6) NOT NULL
+  LINECD                       VARCHAR2(4) NOT NULL
+  WORKCD                       VARCHAR2(4) NOT NULL
+  DEPTNM                       VARCHAR2(50)
+  TEAMNM                       VARCHAR2(50)
+  WORKNM                       VARCHAR2(50)
+  USEYN                        VARCHAR2(1)
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  PROG_ID                      VARCHAR2(30)
+  WORKNAME                     VARCHAR2(50)
+  WORNAMECD_P                  VARCHAR2(10)
+  LOCATION                     VARCHAR2(10)
+  PROCESS                      VARCHAR2(15)
+  ATTRIBUTE1                   VARCHAR2(50)
+  ATTRIBUTE2                   VARCHAR2(50)
+  ATTRIBUTE3                   VARCHAR2(50)
+  ATTRIBUTE4                   VARCHAR2(50)
+  ATTRIBUTE5                   VARCHAR2(50)
+  ATTRIBUTE6                   VARCHAR2(50)
+  ATTRIBUTE7                   VARCHAR2(50)
+  ATTRIBUTE8                   VARCHAR2(50)
+  ATTRIBUTE9                   VARCHAR2(50)
+  ATTRIBUTE10                  VARCHAR2(50)
+  SUB_PROCESS                  VARCHAR2(50)
+  EIS_GROUP                    VARCHAR2(30)
+  EIS_DETAIL                   VARCHAR2(30)
+  MES_DEPT_CODE                VARCHAR2(9)
+  MES_LINE_CODE                VARCHAR2(4)
+  MAS_DEPT                     VARCHAR2(50)
+  EIS_GOAL                     VARCHAR2(20)
+  PPH_PLANT                    VARCHAR2(10)
+  PPH_DEPT                     VARCHAR2(10)
+  PPH_LINE                     VARCHAR2(10)
+  FP_USRGRUID                  VARCHAR2(10)
+  EIS_PROCESS                  VARCHAR2(50)
+  EIS_PLANT                    VARCHAR2(50)
+  EIS_CLASSIFICATION           VARCHAR2(50)
+  EIS_WORK                     VARCHAR2(50)
+  -- PK: COMPYCD, DEPTCD, LINECD, WORKCD
+
+-- HRMS.EAM420
+  COMPYCD                      VARCHAR2(2) NOT NULL
+  DEPTCD                       VARCHAR2(6) NOT NULL
+  LINECD                       VARCHAR2(4) NOT NULL
+  WORKCD                       VARCHAR2(4) NOT NULL
+  DEPTNM                       VARCHAR2(50)
+  TEAMNM                       VARCHAR2(50)
+  WORKNM                       VARCHAR2(50)
+  USEYN                        VARCHAR2(1)
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  PROG_ID                      VARCHAR2(30)
+  STT                          VARCHAR2(4)
+  TEN                          VARCHAR2(120)
+  FACT_NO1                     VARCHAR2(6)
+  FACT_NO2                     VARCHAR2(6)
+  FACT_NO3                     VARCHAR2(6)
+  FACT_NO4                     VARCHAR2(6)
+  FACT_NO5                     VARCHAR2(6)
+  FACT_NO6                     VARCHAR2(6)
+  FACT_NO7                     VARCHAR2(6)
+  FACT_NO8                     VARCHAR2(6)
+  FACT_NO9                     VARCHAR2(6)
+  EMPCD                        VARCHAR2(10) NOT NULL
+  MONTHID                      VARCHAR2(6) NOT NULL
+  ALLOWAMT                     NUMBER(8,2)
+  FACT_NO10                    VARCHAR2(6)
+  SENIOR                       NUMBER(8,2)
+  SPCAMT                       NUMBER
+  VAR_AL_DILIGENT              NUMBER
+  MONTHID_DILI                 VARCHAR2(6)
+  FACT_NO11                    VARCHAR2(6)
+  FACT_NO12                    VARCHAR2(6)
+  FACT_NO13                    VARCHAR2(6)
+  FACT_NO14                    VARCHAR2(6)
+  FACT_NO15                    VARCHAR2(6)
+  FACT_NO16                    VARCHAR2(6)
+  FACT_NO18                    VARCHAR2(6)
+  FACT_NO19                    VARCHAR2(6)
+  FACT_NO20                    VARCHAR2(6)
+  HARDWORK                     CHAR(1)
+  -- PK: COMPYCD, DEPTCD, LINECD, WORKCD, EMPCD, MONTHID
+
+-- HRMS.EAM510
+  CODE1                        VARCHAR2(2) NOT NULL
+  CODE2                        VARCHAR2(3) NOT NULL
+  CODE3                        VARCHAR2(5) NOT NULL
+  CODE4                        VARCHAR2(10)
+  CODE_NAME1                   VARCHAR2(100)
+  CODE_NAME2                   VARCHAR2(100)
+  CODE_NAME3                   VARCHAR2(100)
+  IN_ID                        VARCHAR2(20)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(20)
+  RENEW_DATE                   DATE
+  PROG_ID                      VARCHAR2(20)
+  CODE1_N                      VARCHAR2(2)
+  CODE3_N                      VARCHAR2(5)
+  CODE_NAME1_N                 VARCHAR2(100)
+  CODE_NAME3_N                 VARCHAR2(100)
+  REMARK                       VARCHAR2(50)
+  -- PK: CODE1, CODE2, CODE3
+
+-- HRMS.EAM700
+  LEAVECD                      VARCHAR2(3) NOT NULL
+  LEAVENM                      VARCHAR2(50)
+  SA_PAY                       CHAR(1)
+  ALL_PAY                      CHAR(1)
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  GROUP_APPROVE                NUMBER
+  -- PK: LEAVECD
+
+-- HRMS.EAM800
+  HUILDAY                      DATE NOT NULL
+  HUILNM                       VARCHAR2(40)
+  PAYYN                        VARCHAR2(1)
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  PROG_ID                      VARCHAR2(30)
+  -- PK: HUILDAY
+
+-- HRMS.EBM100
+  SHIFTCD                      VARCHAR2(3) NOT NULL
+  SHIFT_DESCRIPTION            VARCHAR2(30)
+  STIME                        VARCHAR2(4)
+  ETIME                        VARCHAR2(4)
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  PROG_ID                      VARCHAR2(30)
+  FTIME                        NUMBER
+  SHIFT_TYPE                   VARCHAR2(15)
+  SHIFT_CODE                   NUMBER
+  ATTRIBUTE1                   VARCHAR2(1)
+  STIME_M                      VARCHAR2(4)
+  ETIME_M                      VARCHAR2(4)
+  STIME_R                      VARCHAR2(4)
+  ETIME_R                      VARCHAR2(4)
+  SHIFT_CD_EIS                 VARCHAR2(1)
+  USE_YN                       VARCHAR2(1)
+  -- PK: SHIFTCD
+
+-- HRMS.EBM200
+  EMPCD                        VARCHAR2(11) NOT NULL
+  DAT                          DATE NOT NULL
+  TIME_IN                      DATE
+  TIME_OUT                     DATE
+  T_FORMAL                     NUMBER
+  T_ROT                        NUMBER
+  T_OT                         NUMBER
+  T_EL                         NUMBER
+  FLAG                         NUMBER
+  SHIFTCD                      VARCHAR2(2)
+  OVER_TIME                    NUMBER
+  IN_ID                        VARCHAR2(50)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(50)
+  RENEW_DATE                   DATE
+  OT_BEFORE                    CHAR(1)
+  OT_BEFORE_TIME               NUMBER
+  OT_AFTER                     CHAR(1)
+  OT_AFTER_TIME                NUMBER
+  OT_DAY                       NUMBER
+  OT_NIGHT                     NUMBER
+  T_OT_PPH                     NUMBER
+  T_ROT_PPH                    NUMBER
+  FLAG_ADDTIME                 VARCHAR2(1)
+  T_FORMAL_DAY                 NUMBER
+  T_FORMAL_NIGHT               NUMBER
+  T_ROT_DAY                    NUMBER
+  T_ROT_NIGHT                  NUMBER
+  T_OT_VIO_DAY                 NUMBER
+  T_HOLIDAY_DAY                NUMBER
+  T_HOLIDAY_NIGHT              NUMBER
+  T_REST_DAY                   NUMBER
+  T_REST_NIGHT                 NUMBER
+  T_OT_VIO_NIGHT               NUMBER
+  T_OT_VIO_REST_DAY            NUMBER
+  T_OT_VIO_REST_NIGHT          NUMBER
+  T_OT_VIO_HOLIDAY_DAY         NUMBER
+  T_OT_VIO_HOLIDAY_NIGHT       NUMBER
+  T_LECH_HOLIDAY_NIGHT         NUMBER
+  T_LEAVE_WORK                 NUMBER
+  LEAVE_WORK_FLAG              VARCHAR2(1)
+  CONFIRM_FLAG                 CHAR(1)
+  REMARK_EDIT                  VARCHAR2(200)
+  -- PK: EMPCD, DAT
+
+-- HRMS.EBM300
+  EMPCD                        VARCHAR2(11) NOT NULL
+  DAT                          DATE NOT NULL
+  SHIFTCD                      VARCHAR2(2)
+  OVER_TIME                    NUMBER(3,1)
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  OT_BEFORE                    CHAR(1)
+  OT_BEFORE_TIME               NUMBER(3,1)
+  OT_AFTER                     VARCHAR2(1)
+  OT_AFTER_TIME                NUMBER(3,1)
+  MATERNITY_RES                VARCHAR2(10)
+  T_LUNCH                      VARCHAR2(9)
+  OT_REST                      VARCHAR2(9)
+  SIGNED_STATUS                VARCHAR2(20)
+  SIGNED_LOG                   DATE
+  -- PK: EMPCD, DAT
+
+-- HRMS.EBM300_WAIT
+  EMPCD                        VARCHAR2(11) NOT NULL
+  DAT                          DATE NOT NULL
+  FLAG_APPROVE                 VARCHAR2(2) NOT NULL
+  SHIFTCD                      VARCHAR2(2)
+  OVER_TIME                    NUMBER(3,1)
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  OT_BEFORE                    CHAR(1)
+  OT_BEFORE_TIME               NUMBER(3,1)
+  OT_AFTER                     VARCHAR2(1)
+  OT_AFTER_TIME                NUMBER(3,1)
+  MATERNITY_RES                VARCHAR2(10)
+  T_LUNCH                      VARCHAR2(9)
+  OT_REST                      VARCHAR2(9)
+  SIGNED_STATUS                VARCHAR2(20)
+  SIGNED_LOG                   DATE
+  -- PK: EMPCD, DAT, FLAG_APPROVE
+
+-- HRMS.ECM100
+  EMPCD                        VARCHAR2(11) NOT NULL
+  COMPYCD                      VARCHAR2(2)
+  HNAME                        VARCHAR2(10)
+  CNAME                        VARCHAR2(50)
+  ENAME                        VARCHAR2(30)
+  DEPTCD                       VARCHAR2(6)
+  LINECD                       VARCHAR2(4)
+  JIKWICD                      VARCHAR2(3)
+  JIKGUBCD                     VARCHAR2(2)
+  JIKJGCD                      VARCHAR2(2)
+  JEAJIKGB                     VARCHAR2(2)
+  IGENTDAT                     VARCHAR2(10)
+  TAXCD                        VARCHAR2(10)
+  RETDAT                       VARCHAR2(10)
+  BIRTHDAT                     VARCHAR2(10)
+  CITYGBN                      VARCHAR2(1)
+  JUMINNO                      VARCHAR2(18)
+  BIRDGB                       VARCHAR2(1)
+  SEXGB                        VARCHAR2(1)
+  AREACD                       VARCHAR2(3)
+  LSTSCHNM                     VARCHAR2(50)
+  LSTEDUCD                     VARCHAR2(50)
+  BONADDR1                     VARCHAR2(100)
+  BONADDR2                     VARCHAR2(100)
+  HUNADDR1                     VARCHAR2(100)
+  HUNADDR2                     VARCHAR2(100)
+  CHILDNUM                     NUMBER(1)
+  BOARDINGHUS                  VARCHAR2(3)
+  BOARDING_NO                  VARCHAR2(3)
+  RECOMMEDNM                   VARCHAR2(100)
+  RECOMMEDREL                  VARCHAR2(10)
+  RECOMMEDCOP                  VARCHAR2(50)
+  RECOMMEDJK                   VARCHAR2(10)
+  MARRGB                       VARCHAR2(50)
+  MARRDAT                      VARCHAR2(10)
+  RELICD                       VARCHAR2(50)
+  INTEREST                     VARCHAR2(4)
+  MOSCD                        VARCHAR2(20)
+  HOMETEL                      VARCHAR2(20)
+  HANDPON                      VARCHAR2(20)
+  TEMPORCD                     VARCHAR2(2)
+  TEMPORDAT                    VARCHAR2(8)
+  REINSTDAT                    VARCHAR2(8)
+  ADVANCEDAT                   VARCHAR2(8)
+  RAISEDAT                     VARCHAR2(8)
+  HOBONGYN                     VARCHAR2(1)
+  HOBONGCD                     VARCHAR2(2)
+  BASEAMT                      NUMBER(9)
+  RESTGB                       VARCHAR2(2)
+  OLDAGE_YN                    VARCHAR2(1)
+  OLDAGE_NO                    VARCHAR2(20)
+  OLDAGE_INDAT                 VARCHAR2(10)
+  OLDAGE_OUDAT                 VARCHAR2(10)
+  UNEMPLOY_YN                  VARCHAR2(1)
+  UNEMPLOY_NO                  VARCHAR2(20)
+  UNEMPLOY_INDAT               VARCHAR2(8)
+  UNEMPLOY_OUDAT               VARCHAR2(8)
+  MEDICAL_YN                   VARCHAR2(1)
+  MEDICAL_NO                   VARCHAR2(20)
+  MEDICAL_INDAT                VARCHAR2(10)
+  MEDICAL_OUDAT                VARCHAR2(10)
+  DISABILITY_YN                VARCHAR2(1)
+  DISABILITY_NO                VARCHAR2(20)
+  DISABILITY_INDAT             VARCHAR2(8)
+  DISABILITY_OUDAT             VARCHAR2(8)
+  HABITAT_YN                   VARCHAR2(1)
+  HABITAT_NO                   VARCHAR2(20)
+  HABITAT_INDAT                VARCHAR2(8)
+  HABITAT_OUDAT                VARCHAR2(8)
+  SPJANAMT                     NUMBER(9)
+  JANAMT                       NUMBER(9)
+  JUNGYN                       VARCHAR2(1)
+  NATIONAL                     VARCHAR2(2)
+  DEGREE                       VARCHAR2(1)
+  WORKCD                       VARCHAR2(4)
+  CUST_NUM                     VARCHAR2(6)
+  CUST_ACC_NUM                 VARCHAR2(19)
+  DIRECTYN                     VARCHAR2(1)
+  BIRTHDAT1                    VARCHAR2(8)
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  PROG_ID                      VARCHAR2(30)
+  OLDAGE_RATE                  NUMBER
+  OLDAGE_PLACE                 VARCHAR2(50)
+  MEDICAL_RATE                 NUMBER
+  MEDICAL_PLACE                VARCHAR2(50)
+  JUMINNO_DATE                 VARCHAR2(10)
+  BONADDR3                     VARCHAR2(100)
+  HUNADDR3                     VARCHAR2(100)
+  JUMINNO_PLACE                VARCHAR2(50)
+  RET_REASON                   VARCHAR2(50)
+  LABOR_BOOK_NO                VARCHAR2(13)
+  CONTRACT_DATE                VARCHAR2(8)
+  LABOR_BOOK_DAT               VARCHAR2(8)
+  DEPTCD_T                     VARCHAR2(6)
+  LINECD_T                     VARCHAR2(4)
+  WORKCD_T                     VARCHAR2(4)
+  CONTRACT_TYPE                VARCHAR2(20)
+  NATION                       VARCHAR2(50)
+  WORKCD_CODE                  VARCHAR2(30)
+  INDIRECT_CODE                VARCHAR2(30)
+  TEAM                         VARCHAR2(4)
+  LCBOT                        NUMBER
+  CONTRACT_NUM                 VARCHAR2(20)
+  SCHOOL_NAME                  VARCHAR2(200)
+  MAJOR                        VARCHAR2(200)
+  RANKING                      VARCHAR2(20)
+  EMAIL                        VARCHAR2(200)
+  RECRUIMENT_CHANNEL           VARCHAR2(20)
+  EMAIL_VS                     VARCHAR2(100)
+  SENIORITY                    NUMBER
+  END_PROBATION                VARCHAR2(10)
+  EX_WORKER                    VARCHAR2(1)
+  JUMINO_OLD                   VARCHAR2(20)
+  SAL_CAL_DATE                 VARCHAR2(14)
+  IS_CALCULATE                 VARCHAR2(1)
+  ADDRESS_ETC                  VARCHAR2(150)
+  HUNADDRESS_ETC               VARCHAR2(150)
+  END_SEASONAL                 VARCHAR2(10)
+  IS_DISABILITIES              VARCHAR2(1)
+  IS_CUTTING                   VARCHAR2(1)
+  JUMINNO_DATE_OLD             VARCHAR2(60)
+  EVAHT_TARGET_CD              VARCHAR2(6)
+  N_BONADDR1                   VARCHAR2(50)
+  N_BONADDR3                   VARCHAR2(50)
+  N_ADDRESS_ETC                VARCHAR2(150)
+  N_HUNADDR1                   VARCHAR2(50)
+  N_HUNADDR3                   VARCHAR2(50)
+  N_HUNDRRESS_ETC              VARCHAR2(150)
+  -- PK: EMPCD
+
+-- HRMS.EFM100
+  EMPCD                        VARCHAR2(10) NOT NULL
+  JOINDAT                      VARCHAR2(8)
+  JOIN_MONTH                   VARCHAR2(6)
+  LAST_MONTH                   VARCHAR2(6)
+  TO_MONTH                     VARCHAR2(6)
+  RECEIVE_NUM                  NUMBER
+  USED_NUM                     NUMBER
+  YEAR_TOTAL                   NUMBER
+  LEFT_NUM                     NUMBER
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  CAL_MONTH                    VARCHAR2(6) NOT NULL
+  HARD_LEAVE                   NUMBER
+  YEAR_TOTAL_OLD               NUMBER
+  DO_MONTH                     NUMBER
+  RS_NUM                       NUMBER
+  HARD_YES                     CHAR(1)
+  SENIOR                       NUMBER
+  ACT_RECEIVE_NUM              NUMBER
+  ACT_LEFT_NUM                 NUMBER
+  -- PK: EMPCD, CAL_MONTH
+
+-- HRMS.EFM410
+  EMPCD                        VARCHAR2(11) NOT NULL
+  LEAVECD                      VARCHAR2(3) NOT NULL
+  FR_DAT                       DATE NOT NULL
+  TO_DAT                       DATE
+  NUM                          NUMBER
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  REMAR                        VARCHAR2(50)
+  APPROVED_BY                  VARCHAR2(20)
+  -- PK: EMPCD, FR_DAT
+
+-- HRMS.EFM410_WAIT
+  EMPCD                        VARCHAR2(11) NOT NULL
+  LEAVECD                      VARCHAR2(3) NOT NULL
+  FR_DAT                       DATE NOT NULL
+  FLAG_APPROVE                 VARCHAR2(2) NOT NULL
+  TO_DAT                       DATE
+  NUM                          NUMBER
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  REMAR                        VARCHAR2(30)
+  -- PK: EMPCD, LEAVECD, FR_DAT, FLAG_APPROVE
+
+-- HRMS.HR_AI_CHAT
+  ID                           NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  EMP_NAME                     NVARCHAR2(300)
+  TITLE                        NVARCHAR2(600)
+  STATUS                       VARCHAR2(10) NOT NULL
+  MSG_COUNT                    NUMBER NOT NULL
+  LAST_MSG_DT                  DATE
+  LAST_CSR_READ_DT             DATE
+  UNREAD_EMP                   NUMBER(1) NOT NULL
+  CLOSED_DT                    DATE
+  CLOSED_BY                    VARCHAR2(20)
+  INST_ID                      VARCHAR2(20)
+  INST_DT                      DATE NOT NULL
+  UPDT_ID                      VARCHAR2(20)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_AI_CHAT_MSG
+  ID                           NUMBER NOT NULL
+  CHAT_ID                      NUMBER NOT NULL
+  SENDER_TYPE                  VARCHAR2(5) NOT NULL
+  SENDER_CD                    VARCHAR2(20)
+  SENDER_NAME                  NVARCHAR2(300)
+  CONTENT                      NVARCHAR2(4000)
+  AI_FAILED                    NUMBER(1) NOT NULL
+  SENT_DT                      DATE NOT NULL
+  -- PK: ID
+
+-- HRMS.HR_BULLETIN
+  ID                           NUMBER NOT NULL
+  TITLE                        NVARCHAR2(900) NOT NULL
+  CONTENT                      NCLOB NOT NULL
+  COVER_IMG                    VARCHAR2(200)
+  PUBLISH_FROM                 DATE NOT NULL
+  PUBLISH_TO                   DATE NOT NULL
+  IS_PINNED                    NUMBER(1) NOT NULL
+  PIN_ORDER                    NUMBER NOT NULL
+  IS_PUBLISHED                 NUMBER(1) NOT NULL
+  PUBLISHED_DT                 DATE
+  IS_ACTIVE                    NUMBER(1) NOT NULL
+  VIEW_COUNT                   NUMBER NOT NULL
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  UPDT_FULL_NAME               NVARCHAR2(600)
+  -- PK: ID
+
+-- HRMS.HR_BULLETIN_COMMENT
+  ID                           NUMBER NOT NULL
+  BULLETIN_ID                  NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  CONTENT                      NVARCHAR2(3000) NOT NULL
+  IS_DELETED                   NUMBER(1) NOT NULL
+  INST_DT                      DATE
+  PARENT_ID                    NUMBER
+  -- PK: ID
+
+-- HRMS.HR_BULLETIN_MEDIA
+  ID                           NUMBER NOT NULL
+  BULLETIN_ID                  NUMBER NOT NULL
+  MEDIA_TYPE                   VARCHAR2(10) NOT NULL
+  FILE_NAME                    VARCHAR2(200) NOT NULL
+  DISPLAY_ORDER                NUMBER NOT NULL
+  INST_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_BULLETIN_REACTION
+  BULLETIN_ID                  NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  REACTION                     VARCHAR2(10) NOT NULL
+  INST_DT                      DATE
+  -- PK: BULLETIN_ID, EMPCD
+
+-- HRMS.HR_BULLETIN_VIEW
+  BULLETIN_ID                  NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  FIRST_VIEW                   DATE NOT NULL
+  -- PK: BULLETIN_ID, EMPCD
+
+-- HRMS.HR_CANTEEN_BREAD_QUOTA
+  ID                           NUMBER NOT NULL
+  DEPTCD                       VARCHAR2(6) NOT NULL
+  DEPT_NAME                    NVARCHAR2(300)
+  MAX_BREAD                    NUMBER(6) NOT NULL
+  IS_ACTIVE                    CHAR(1) NOT NULL
+  INST_ID                      VARCHAR2(20)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(20)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_CANTEEN_BREAD_ROSTER
+  ID                           NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  NOTE                         NVARCHAR2(600)
+  IS_ACTIVE                    CHAR(1) NOT NULL
+  INST_ID                      VARCHAR2(20)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(20)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_HOME_AUDIT
+  ID                           NUMBER NOT NULL
+  ACTOR_EMPCD                  VARCHAR2(20) NOT NULL
+  ACTOR_NAME                   NVARCHAR2(600)
+  ROLE_NAME                    VARCHAR2(30)
+  ACTION                       VARCHAR2(10) NOT NULL
+  ENTITY                       VARCHAR2(20) NOT NULL
+  ENTITY_ID                    VARCHAR2(40)
+  OLD_VAL                      CLOB
+  NEW_VAL                      CLOB
+  IP_ADDRESS                   VARCHAR2(50)
+  USER_AGENT                   VARCHAR2(500)
+  INST_DT                      DATE NOT NULL
+  -- PK: ID
+
+-- HRMS.HR_HOME_BANNER
+  ID                           NUMBER NOT NULL
+  IMAGE_FILE                   VARCHAR2(200) NOT NULL
+  OVERLAY_TEXT_VI              NVARCHAR2(900)
+  OVERLAY_TEXT_EN              NVARCHAR2(900)
+  OVERLAY_POS                  VARCHAR2(10)
+  LINK_URL                     VARCHAR2(500)
+  LINK_TARGET                  VARCHAR2(10)
+  TARGET_ROLES                 VARCHAR2(200)
+  IS_DISMISSIBLE               NUMBER(1) NOT NULL
+  PUBLISH_FROM                 DATE NOT NULL
+  PUBLISH_TO                   DATE
+  IS_ACTIVE                    NUMBER(1) NOT NULL
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  RECUR_TYPE                   VARCHAR2(10)
+  RECUR_MONTH                  NUMBER(2)
+  RECUR_DAY                    NUMBER(2)
+  -- PK: ID
+
+-- HRMS.HR_HOME_GREETING
+  ID                           NUMBER NOT NULL
+  TIME_SLOT                    VARCHAR2(20) NOT NULL
+  MESSAGE_VI                   NVARCHAR2(900) NOT NULL
+  MESSAGE_EN                   NVARCHAR2(900)
+  EMOJI                        VARCHAR2(20)
+  IS_ACTIVE                    NUMBER(1) NOT NULL
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_HOME_GREETING_RULE
+  TIME_SLOT                    VARCHAR2(20) NOT NULL
+  FROM_HOUR                    NUMBER(2) NOT NULL
+  TO_HOUR                      NUMBER(2) NOT NULL
+  IS_ACTIVE                    NUMBER(1) NOT NULL
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: TIME_SLOT
+
+-- HRMS.HR_INQUIRY
+  ID                           NUMBER NOT NULL
+  INQUIRY_NO                   VARCHAR2(20) NOT NULL
+  CHAT_TYPE                    VARCHAR2(10) NOT NULL
+  EMPCD                        VARCHAR2(20)
+  EMP_NAME                     NVARCHAR2(300)
+  ANON_TOKEN                   VARCHAR2(64)
+  ANON_DISPLAY                 NVARCHAR2(60)
+  TOPIC_CD                     VARCHAR2(20) NOT NULL
+  SUBJECT                      NVARCHAR2(600)
+  STATUS                       VARCHAR2(10) NOT NULL
+  PRIORITY                     VARCHAR2(10)
+  ASSIGNED_TO                  VARCHAR2(20)
+  ASSIGNED_NAME                NVARCHAR2(300)
+  LOCKED_DT                    DATE
+  MSG_COUNT                    NUMBER
+  UNREAD_HR                    NUMBER
+  UNREAD_EMP                   NUMBER
+  LAST_MSG_DT                  DATE
+  CLOSED_DT                    DATE
+  CLOSED_BY                    VARCHAR2(20)
+  CLOSED_BY_NAME               NVARCHAR2(300)
+  CLOSED_BY_TYPE               VARCHAR2(5)
+  CLOSE_NOTE                   NVARCHAR2(1500)
+  RATING                       NUMBER(1)
+  RATING_NOTE                  NVARCHAR2(900)
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE NOT NULL
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_INQUIRY_ATTACH
+  ID                           NUMBER NOT NULL
+  MSG_ID                       NUMBER NOT NULL
+  INQUIRY_ID                   NUMBER NOT NULL
+  FILE_NAME                    VARCHAR2(255) NOT NULL
+  FILE_PATH                    VARCHAR2(500) NOT NULL
+  FILE_TYPE                    VARCHAR2(10) NOT NULL
+  MIME_TYPE                    VARCHAR2(100)
+  FILE_SIZE                    NUMBER
+  THUMB_PATH                   VARCHAR2(500)
+  UPLOAD_DT                    DATE NOT NULL
+  -- PK: ID
+
+-- HRMS.HR_INQUIRY_MSG
+  ID                           NUMBER NOT NULL
+  INQUIRY_ID                   NUMBER NOT NULL
+  SENDER_TYPE                  VARCHAR2(5) NOT NULL
+  SENDER_CD                    VARCHAR2(20)
+  SENDER_NAME                  NVARCHAR2(300)
+  MSG_TYPE                     VARCHAR2(10) NOT NULL
+  CONTENT                      NVARCHAR2(4000)
+  IS_READ_HR                   NUMBER(1) NOT NULL
+  IS_READ_EMP                  NUMBER(1) NOT NULL
+  IS_DELETED                   NUMBER(1) NOT NULL
+  SENT_DT                      DATE NOT NULL
+  -- PK: ID
+
+-- HRMS.HR_INQUIRY_MSG_REF
+  ID                           NUMBER NOT NULL
+  MSG_ID                       NUMBER NOT NULL
+  INQUIRY_ID                   NUMBER NOT NULL
+  REF_TYPE                     VARCHAR2(20) NOT NULL
+  REF_ID                       NUMBER NOT NULL
+  REF_TITLE                    NVARCHAR2(1500)
+  INST_DT                      DATE NOT NULL
+  -- PK: ID
+
+-- HRMS.HR_INQUIRY_READER
+  INQUIRY_ID                   NUMBER NOT NULL
+  VIEWER_EMPCD                 VARCHAR2(20) NOT NULL
+  LAST_READ_DT                 DATE NOT NULL
+  -- PK: INQUIRY_ID, VIEWER_EMPCD
+
+-- HRMS.HR_INQUIRY_TOPIC
+  TOPIC_CD                     VARCHAR2(20) NOT NULL
+  TOPIC_NAME                   NVARCHAR2(300) NOT NULL
+  TOPIC_NAME_EN                NVARCHAR2(300)
+  ICON                         VARCHAR2(50)
+  COLOR                        VARCHAR2(20)
+  SORT_ORDER                   NUMBER
+  IS_ACTIVE                    NUMBER(1) NOT NULL
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: TOPIC_CD
+
+-- HRMS.HR_LEAVE_DOC_DAY
+  REQUEST_ID                   VARCHAR2(30) NOT NULL
+  LEAVE_DATE                   DATE NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  LEAVECD                      VARCHAR2(20) NOT NULL
+  REMARK                       VARCHAR2(200)
+  CONFIRMED_BY                 VARCHAR2(20) NOT NULL
+  CONFIRMED_DATE               DATE NOT NULL
+  -- PK: REQUEST_ID, LEAVE_DATE
+
+-- HRMS.HR_MEAL_LOCK
+  ID                           NUMBER NOT NULL
+  LOCK_DATE                    DATE NOT NULL
+  LOCK_LUNCH                   CHAR(1) NOT NULL
+  LOCK_OT                      CHAR(1) NOT NULL
+  CUTOFF_DT                    DATE
+  NOTE                         VARCHAR2(500)
+  IS_ACTIVE                    CHAR(1) NOT NULL
+  INST_ID                      VARCHAR2(11)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(11)
+  UPDT_DT                      DATE
+  LOCK_MAN                     CHAR(1) NOT NULL
+  LOCK_NHE                     CHAR(1) NOT NULL
+  LOCK_CHAY                    CHAR(1) NOT NULL
+  LOCK_BANH                    CHAR(1) NOT NULL
+  -- PK: ID
+
+-- HRMS.HR_NOTIFICATION_TARGET
+  ID                           NUMBER NOT NULL
+  NOTI_ID                      NUMBER NOT NULL
+  TARGET_TYPE                  VARCHAR2(10)
+  TARGET_VAL                   VARCHAR2(50)
+  -- PK: ID
+
+-- HRMS.HR_NOTI_TEMPLATES
+  ID                           NUMBER NOT NULL
+  TEMPLATE_KEY                 VARCHAR2(50) NOT NULL
+  TITLE_VI                     VARCHAR2(200) NOT NULL
+  BODY_VI                      VARCHAR2(1000) NOT NULL
+  TITLE_EN                     VARCHAR2(200)
+  BODY_EN                      VARCHAR2(1000)
+  IS_ACTIVE                    NUMBER(1) NOT NULL
+  UPDATED_BY                   VARCHAR2(20)
+  UPDATED_DATE                 DATE
+  -- PK: ID
+
+-- HRMS.HR_OT_LOG
+  ID                           NUMBER(19) NOT NULL
+  REQUEST_ID                   VARCHAR2(40)
+  EMPCD                        VARCHAR2(20) NOT NULL
+  WORK_DATE                    DATE NOT NULL
+  ACTION                       VARCHAR2(10) NOT NULL
+  OLD_STATUS                   VARCHAR2(20)
+  NEW_STATUS                   VARCHAR2(20)
+  OLD_HOURS                    NUMBER(5,2)
+  NEW_HOURS                    NUMBER(5,2)
+  ACTOR_EMPCD                  VARCHAR2(20)
+  INST_DT                      DATE NOT NULL
+  -- PK: ID
+
+-- HRMS.HR_SUNDAY_LEAVE_ALLOWED
+  EMPCD                        VARCHAR2(20) NOT NULL
+  IS_ACTIVE                    NUMBER(1) NOT NULL
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: EMPCD
+
+-- HRMS.HR_SURVEY
+  ID                           NUMBER NOT NULL
+  TITLE                        NVARCHAR2(900) NOT NULL
+  DESCRIPTION                  NVARCHAR2(4000)
+  SURVEY_TYPE                  VARCHAR2(10) NOT NULL
+  LANG                         VARCHAR2(2) NOT NULL
+  STATUS                       VARCHAR2(15) NOT NULL
+  START_DATE                   DATE
+  END_DATE                     DATE
+  RECIPIENT_MODE               VARCHAR2(20) NOT NULL
+  PASS_SCORE                   NUMBER
+  PUBLISHED_DT                 DATE
+  PUBLISHED_BY                 VARCHAR2(50)
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_SURVEY_ANSWER
+  ID                           NUMBER NOT NULL
+  RESPONSE_ID                  NUMBER NOT NULL
+  QUESTION_ID                  NUMBER NOT NULL
+  ANSWER_OPTION_IDS            VARCHAR2(500)
+  ANSWER_TEXT                  NCLOB
+  ANSWER_NUMBER                NUMBER
+  INST_DT                      DATE
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_SURVEY_EXEMPT
+  EMPCD                        VARCHAR2(20) NOT NULL
+  EXEMPT_TYPE                  VARCHAR2(15) NOT NULL
+  NOTE                         NVARCHAR2(1500)
+  EFFECTIVE_DATE               DATE NOT NULL
+  IS_ACTIVE                    NUMBER(1) NOT NULL
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: EMPCD, EXEMPT_TYPE
+
+-- HRMS.HR_SURVEY_OPTION
+  ID                           NUMBER NOT NULL
+  QUESTION_ID                  NUMBER NOT NULL
+  OPTION_TEXT                  NVARCHAR2(1500) NOT NULL
+  DISPLAY_ORDER                NUMBER NOT NULL
+  IS_CORRECT                   NUMBER(1) NOT NULL
+  -- PK: ID
+
+-- HRMS.HR_SURVEY_QUESTION
+  ID                           NUMBER NOT NULL
+  SURVEY_ID                    NUMBER NOT NULL
+  QUESTION_TEXT                NVARCHAR2(3000) NOT NULL
+  QUESTION_TYPE                VARCHAR2(15) NOT NULL
+  IS_REQUIRED                  NUMBER(1) NOT NULL
+  DISPLAY_ORDER                NUMBER NOT NULL
+  POINTS                       NUMBER
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_SURVEY_RECIPIENT
+  SURVEY_ID                    NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  SNAPSHOT_DT                  DATE NOT NULL
+  -- PK: SURVEY_ID, EMPCD
+
+-- HRMS.HR_SURVEY_RESPONSE
+  ID                           NUMBER NOT NULL
+  SURVEY_ID                    NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  STATUS                       VARCHAR2(20) NOT NULL
+  START_DT                     DATE NOT NULL
+  SUBMIT_DT                    DATE
+  SCORE                        NUMBER
+  MAX_SCORE                    NUMBER
+  IS_PASS                      NUMBER(1)
+  IP_ADDRESS                   VARCHAR2(50)
+  USER_AGENT                   VARCHAR2(500)
+  INST_DT                      DATE
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_SURVEY_SCOPE
+  ID                           NUMBER NOT NULL
+  SURVEY_ID                    NUMBER NOT NULL
+  SCOPE_TYPE                   VARCHAR2(20) NOT NULL
+  DEPTCD                       VARCHAR2(6)
+  LINECD                       VARCHAR2(4)
+  WORKCD                       VARCHAR2(4)
+  EMPCD                        VARCHAR2(20)
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_ATTENDANCE
+  SESSION_ID                   NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  CHECKIN_TIME                 DATE
+  STATUS                       VARCHAR2(10) NOT NULL
+  TEACHER_CONFIRMED            NUMBER(1) NOT NULL
+  CONFIRMED_BY                 VARCHAR2(20)
+  CONFIRMED_DT                 DATE
+  NOTE                         NVARCHAR2(1500)
+  -- PK: SESSION_ID, EMPCD
+
+-- HRMS.HR_TRAINING_AUDIT
+  ID                           NUMBER NOT NULL
+  ACTION                       VARCHAR2(40) NOT NULL
+  CLASS_ID                     NUMBER
+  SESSION_ID                   NUMBER
+  TEST_ID                      NUMBER
+  AFFECTED_COUNT               NUMBER NOT NULL
+  PAYLOAD                      NVARCHAR2(4000)
+  ACTOR_EMPCD                  VARCHAR2(20)
+  INST_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_CLASS
+  ID                           NUMBER NOT NULL
+  COURSE_ID                    NUMBER NOT NULL
+  CLASS_NAME                   NVARCHAR2(240) NOT NULL
+  DESCRIPTION                  NVARCHAR2(4000)
+  STATUS                       VARCHAR2(30) NOT NULL
+  REGISTRATION_MODE            VARCHAR2(15) NOT NULL
+  MAX_STUDENTS                 NUMBER
+  REGISTRATION_DEADLINE        DATE
+  START_DATE                   DATE
+  END_DATE                     DATE
+  MIN_ATTENDANCE_PERCENT       NUMBER
+  FINAL_TEST_ID                NUMBER
+  REQUIRE_POST_REVIEW          NUMBER(1) NOT NULL
+  IS_EXPRESS                   NUMBER(1) NOT NULL
+  CLONED_FROM_CLASS_ID         NUMBER
+  CLONED_FROM_TYPE             VARCHAR2(15)
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  BULLETIN_ID                  NUMBER
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_CLASS_GROUP
+  ID                           NUMBER NOT NULL
+  CLASS_ID                     NUMBER NOT NULL
+  GROUP_NAME                   NVARCHAR2(300) NOT NULL
+  MAX_STUDENTS                 NUMBER
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_CLASS_TEACHER
+  CLASS_ID                     NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  IS_PRIMARY                   NUMBER(1) NOT NULL
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  GROUP_ID                     NUMBER
+
+-- HRMS.HR_TRAINING_COURSE
+  ID                           NUMBER NOT NULL
+  TITLE                        NVARCHAR2(300) NOT NULL
+  DESCRIPTION                  NVARCHAR2(4000)
+  OBJECTIVES                   NVARCHAR2(4000)
+  CATEGORY                     NVARCHAR2(300)
+  COURSE_MODE                  VARCHAR2(15) NOT NULL
+  DEFAULT_DURATION_MIN         NUMBER
+  AUTO_OPEN_MONTHLY            NUMBER(1) NOT NULL
+  AUTO_OPEN_DAY                NUMBER(2)
+  DEFAULT_PASS_SCORE           NUMBER
+  DEFAULT_MIN_ATTEND_PCT       NUMBER
+  IS_ACTIVE                    NUMBER(1) NOT NULL
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_ENROLLMENT
+  CLASS_ID                     NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  SOURCE                       VARCHAR2(15) NOT NULL
+  STATUS                       VARCHAR2(20) NOT NULL
+  DROP_REASON                  VARCHAR2(50)
+  GROUP_ID                     NUMBER
+  FINAL_SCORE                  NUMBER
+  ATTENDANCE_PERCENT           NUMBER
+  IS_CERTIFIED                 NUMBER(1) NOT NULL
+  COMPLETION_DATE              DATE
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: CLASS_ID, EMPCD
+
+-- HRMS.HR_TRAINING_MATERIAL
+  ID                           NUMBER NOT NULL
+  MATERIAL_LEVEL               VARCHAR2(10) NOT NULL
+  COURSE_ID                    NUMBER
+  CLASS_ID                     NUMBER
+  TITLE                        NVARCHAR2(900) NOT NULL
+  FILE_NAME                    VARCHAR2(300) NOT NULL
+  FILE_TYPE                    VARCHAR2(10) NOT NULL
+  FILE_URL                     VARCHAR2(500)
+  IS_REQUIRED                  NUMBER(1) NOT NULL
+  DISPLAY_ORDER                NUMBER NOT NULL
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_MATERIAL_VIEW
+  MATERIAL_ID                  NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  FIRST_VIEW_DT                DATE NOT NULL
+  -- PK: MATERIAL_ID, EMPCD
+
+-- HRMS.HR_TRAINING_NOTI_QUEUE
+  ID                           NUMBER NOT NULL
+  TEMPLATE_KEY                 VARCHAR2(60) NOT NULL
+  TARGET_EMPCD                 VARCHAR2(20) NOT NULL
+  PLACEHOLDERS                 NVARCHAR2(4000)
+  RELATED_CLASS_ID             NUMBER
+  RELATED_SESSION_ID           NUMBER
+  RELATED_TEST_ID              NUMBER
+  STATUS                       VARCHAR2(15) NOT NULL
+  CLAIMED_BY                   VARCHAR2(50)
+  CLAIMED_DT                   DATE
+  RETRY_COUNT                  NUMBER NOT NULL
+  LAST_ERROR                   NVARCHAR2(1500)
+  NEXT_ATTEMPT_DT              DATE NOT NULL
+  INST_DT                      DATE
+  SENT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_QUESTION
+  ID                           NUMBER NOT NULL
+  CLASS_ID                     NUMBER NOT NULL
+  ASKED_BY                     VARCHAR2(20) NOT NULL
+  QUESTION_TEXT                NVARCHAR2(4000) NOT NULL
+  ASKED_DT                     DATE NOT NULL
+  ANSWERED_BY                  VARCHAR2(20)
+  ANSWER_TEXT                  NVARCHAR2(4000)
+  ANSWERED_DT                  DATE
+  IS_DELETED                   NUMBER(1) NOT NULL
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_RETAKE_GRANT
+  ID                           NUMBER NOT NULL
+  TEST_ID                      NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  GRANTED_BY                   VARCHAR2(20) NOT NULL
+  GRANTED_DT                   DATE NOT NULL
+  REASON                       VARCHAR2(500)
+  STATUS                       VARCHAR2(20) NOT NULL
+  USED_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_REVIEW
+  CLASS_ID                     NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  CONTENT_RATING               NUMBER(1) NOT NULL
+  ORGANIZATION_RATING          NUMBER(1) NOT NULL
+  FEEDBACK_TEXT                NVARCHAR2(4000)
+  INST_DT                      DATE NOT NULL
+  -- PK: CLASS_ID, EMPCD
+
+-- HRMS.HR_TRAINING_REVIEW_TEACHER
+  CLASS_ID                     NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  TEACHER_EMPCD                VARCHAR2(20) NOT NULL
+  RATING                       NUMBER(1) NOT NULL
+  FEEDBACK_TEXT                NVARCHAR2(4000)
+  INST_DT                      DATE NOT NULL
+  -- PK: CLASS_ID, EMPCD, TEACHER_EMPCD
+
+-- HRMS.HR_TRAINING_SESSION
+  ID                           NUMBER NOT NULL
+  CLASS_ID                     NUMBER NOT NULL
+  SESSION_NO                   NUMBER NOT NULL
+  SESSION_DATE                 DATE NOT NULL
+  START_TIME                   VARCHAR2(4) NOT NULL
+  END_TIME                     VARCHAR2(4) NOT NULL
+  TOPIC                        NVARCHAR2(1500)
+  LOCATION                     NVARCHAR2(600)
+  STATUS                       VARCHAR2(15) NOT NULL
+  GROUP_ID                     NUMBER
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_TEST
+  ID                           NUMBER NOT NULL
+  CLASS_ID                     NUMBER
+  IS_TEMPLATE                  NUMBER(1) NOT NULL
+  TEMPLATE_COURSE_ID           NUMBER
+  TITLE                        NVARCHAR2(900) NOT NULL
+  DESCRIPTION                  NVARCHAR2(3000)
+  STATUS                       VARCHAR2(15) NOT NULL
+  DURATION_MINUTES             NUMBER NOT NULL
+  AVAILABLE_FROM               DATE
+  AVAILABLE_TO                 DATE
+  PASS_SCORE                   NUMBER
+  MAX_ATTEMPTS                 NUMBER NOT NULL
+  CREATED_BY                   VARCHAR2(20) NOT NULL
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_TEST_ANSWER
+  ID                           NUMBER NOT NULL
+  ATTEMPT_ID                   NUMBER NOT NULL
+  QUESTION_ID                  NUMBER NOT NULL
+  ANSWER_OPTION_IDS            VARCHAR2(500)
+  ANSWER_TEXT                  NCLOB
+  POINTS_AWARDED               NUMBER
+  GRADER_COMMENT               NVARCHAR2(3000)
+  GRADED_BY                    VARCHAR2(20)
+  GRADED_DT                    DATE
+  INST_DT                      DATE
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_TEST_ATTEMPT
+  ID                           NUMBER NOT NULL
+  TEST_ID                      NUMBER NOT NULL
+  EMPCD                        VARCHAR2(20) NOT NULL
+  STATUS                       VARCHAR2(20) NOT NULL
+  START_DT                     DATE NOT NULL
+  SUBMIT_DT                    DATE
+  EFFECTIVE_DEADLINE           DATE NOT NULL
+  SCORE                        NUMBER
+  MAX_SCORE                    NUMBER
+  IS_PASS                      NUMBER(1)
+  IS_GRADED                    NUMBER(1) NOT NULL
+  IP_ADDRESS                   VARCHAR2(50)
+  USER_AGENT                   VARCHAR2(500)
+  INST_DT                      DATE
+  UPDT_DT                      DATE
+  ATTEMPT_NO                   NUMBER NOT NULL
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_TEST_OPTION
+  ID                           NUMBER NOT NULL
+  QUESTION_ID                  NUMBER NOT NULL
+  OPTION_TEXT                  NVARCHAR2(1500) NOT NULL
+  DISPLAY_ORDER                NUMBER NOT NULL
+  IS_CORRECT                   NUMBER(1) NOT NULL
+  -- PK: ID
+
+-- HRMS.HR_TRAINING_TEST_QUESTION
+  ID                           NUMBER NOT NULL
+  TEST_ID                      NUMBER NOT NULL
+  QUESTION_TEXT                NVARCHAR2(4000) NOT NULL
+  QUESTION_TYPE                VARCHAR2(15) NOT NULL
+  IS_REQUIRED                  NUMBER(1) NOT NULL
+  DISPLAY_ORDER                NUMBER NOT NULL
+  POINTS                       NUMBER NOT NULL
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  UPDT_ID                      VARCHAR2(50)
+  UPDT_DT                      DATE
+  -- PK: ID
+
+-- HRMS.HR_TR_COURSE_SES_TMPL
+  ID                           NUMBER NOT NULL
+  COURSE_ID                    NUMBER NOT NULL
+  SESSION_NO                   NUMBER NOT NULL
+  TOPIC                        NVARCHAR2(1500)
+  DAY_OFFSET                   NUMBER NOT NULL
+  START_TIME                   VARCHAR2(4) NOT NULL
+  END_TIME                     VARCHAR2(4) NOT NULL
+  LOCATION                     NVARCHAR2(600)
+  TEACHER_ROLE                 NVARCHAR2(300)
+  IS_TEST_SESSION              NUMBER(1) NOT NULL
+  NOTES                        NVARCHAR2(3000)
+  INST_ID                      VARCHAR2(50)
+  INST_DT                      DATE
+  -- PK: ID
+
+-- HRMS.SAD100
+  CODETP                       VARCHAR2(4) NOT NULL
+  CODEID                       VARCHAR2(7) NOT NULL
+  ENGFNM                       VARCHAR2(50)
+  ENGSNM                       VARCHAR2(30)
+  VNFNM                        VARCHAR2(50)
+  VNSNM                        VARCHAR2(30)
+  STAYMD                       VARCHAR2(8)
+  ENDYMD                       VARCHAR2(8)
+  LENG_STATUS                  VARCHAR2(1)
+  IN_ID                        VARCHAR2(10)
+  IN_DATE                      DATE
+  RENEW_ID                     VARCHAR2(10)
+  RENEW_DATE                   DATE
+  PROG_ID                      VARCHAR2(30)
+  YEAR_ID                      VARCHAR2(4)
+  EIS_MANAGER_GROUP            VARCHAR2(20)
+
+-- HRMS.TB_MASCHANGEWORK
+  SEQ                          NUMBER NOT NULL
+  DAT                          VARCHAR2(8) NOT NULL
+  EMPCD                        VARCHAR2(8) NOT NULL
+  DEPTCD                       VARCHAR2(10)
+  LINECD                       VARCHAR2(10)
+  WORKCD                       VARCHAR2(10)
+  NEW_DEPTCD                   VARCHAR2(10)
+  NEW_LINECD                   VARCHAR2(10)
+  NEW_WORKCD                   VARCHAR2(10)
+  USEYN                        VARCHAR2(1)
+  INST_DT                      DATE
+  UPDT_DT                      DATE
+  INST_ID                      VARCHAR2(8)
+  UPDT_ID                      VARCHAR2(8)
+  -- PK: SEQ, DAT, EMPCD
+
+
+

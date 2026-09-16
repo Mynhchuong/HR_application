@@ -115,11 +115,8 @@
                                         <div class="msg-refs">
                                             @foreach (var r in msg.Refs)
                                             {
-                                                string refUrl   = r.RefType == "POLICY"
-                                                    ? Url.Action("Detail", "Policy", new { ids = r.RefId })!
-                                                    : Url.Action("Detail", "Guide",  new { id  = r.RefId })!;
-                                                string refIcon  = r.RefType == "POLICY" ? "gavel" : "play_circle";
-                                                string refLabel = r.RefType == "POLICY" ? "Quy định" : "Hướng dẫn";
+                                                var refUrl = ChatHtmlHelper.RefTypeUrl(Url, r.RefType, r.RefId);
+                                                var (refIcon, refLabel) = ChatHtmlHelper.RefTypeMeta(r.RefType);
                                                 <a class="msg-ref-card" href="@refUrl">
                                                     <div class="mrc-icon"><span class="material-symbols-rounded" style="font-size:1.1rem">@refIcon</span></div>
                                                     <div class="mrc-info">

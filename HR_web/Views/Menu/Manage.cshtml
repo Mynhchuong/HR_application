@@ -6,9 +6,53 @@
     var errors = string.IsNullOrEmpty(importErrors)
         ? new List<HR_web.Models.Menu.ImportRowError>()
         : JsonConvert.DeserializeObject<List<HR_web.Models.Menu.ImportRowError>>(importErrors) ?? new();
+
+    var banhFixed = ViewBag.BanhFixed as List<HR_web.Models.Menu.MenuBanhFixedSlot> ?? new();
+    var banhFoods = ViewBag.BanhFoods as List<HR_web.Models.Menu.MenuFoodModel> ?? new();
 }
 
 <div class="container-fluid py-4">
+
+    <!-- Bánh cố định (Suất 2 món Bánh) — không theo lưới tuần, HR đổi bất kỳ lúc nào -->
+    <div class="card mb-3">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3">
+                <h6 class="text-white mb-0"><i class="bi bi-cake2 me-1"></i> Bánh cố định (Suất 2 món Bánh)</h6>
+            </div>
+        </div>
+        <div class="card-body pt-3">
+            <p class="text-xs text-secondary mb-3">
+                Hiện mỗi ngày trên trang <strong>Thực đơn hôm nay</strong> của nhân viên, không cần nhập theo từng ngày/ca —
+                đổi món ở đây khi có bánh mới.
+            </p>
+            <div class="row g-3">
+                @for (int slot = 1; slot <= 2; slot++)
+                {
+                    var s = banhFixed.FirstOrDefault(b => b.SlotNo == slot);
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center gap-3 p-2 border rounded-3" id="banhSlot@(slot)">
+                            @if (s?.FoodId != null && s.IsImage == "Y")
+                            {
+                                <img src="@Url.Action("GetFoodImage","Image", new { fileName = s.FoodId + ".jpg" })&v=@DateTimeOffset.UtcNow.ToUnixTimeSeconds()"
+                                     style="width:64px;height:64px;object-fit:cover;border-radius:10px;" />
+                            }
+                            else
+                            {
+                                <div style="width:64px;height:64px;background:#f0f0f0;border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                                    <i class="bi bi-image text-secondary"></i>
+                                </div>
+                            }
+                            <div class="flex-grow-1">
+                                <div class="text-xs text-secondary fw-bold">Bánh #@slot</div>
+                                <div class="text-sm fw-bold" id="banhSlot@(slot)Name">@(s?.FoodName ?? "Chưa chọn")</div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-dark mb-0" onclick="openBanhPicker(@slot)">Đổi</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
 
     @if (errors.Any())
     {
@@ -202,7 +246,7 @@
 <div class="modal fade" id="modalImport" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" action="@Url.Action("ImportExcel")" enctype="multipart/form-data">
+            <form id="formImportWeek" onsubmit="return false;">
                 @Html.AntiForgeryToken()
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="bi bi-upload me-1"></i> Import thực đơn từ Excel</h5>
@@ -228,18 +272,63 @@
                         <input type="file" id="importFile" name="file" accept=".xlsx" required style="display:none;" />
                         <div class="form-text text-xs mt-1">Chỉ nhận file .xlsx. Ngày bắt đầu/kết thúc lấy từ ô C2 và F2 trong file.</div>
                     </div>
+                    <div id="importWeekResult" class="mt-3"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-dark"><i class="bi bi-upload me-1"></i> Import</button>
+                    <button type="button" class="btn btn-dark" id="btnImportWeek"><i class="bi bi-upload me-1"></i> Import</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
+<!-- Modal: Chọn bánh cố định -->
+<div class="modal fade" id="modalBanhPicker" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Chọn món bánh</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
+                @if (!banhFoods.Any())
+                {
+                    <p class="text-secondary text-sm mb-0">Chưa có món nào loại "Bánh" trong danh mục — thêm ở trang <a href="@Url.Action("FoodManage")">Danh mục món ăn</a> trước.</p>
+                }
+                else
+                {
+                    <div class="list-group">
+                        @foreach (var f in banhFoods)
+                        {
+                            <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-3"
+                                    data-id="@f.ID" data-name="@f.FOOD_NAME" onclick="pickBanh(this)">
+                                @if (f.IS_IMAGE == "Y")
+                                {
+                                    <img src="@Url.Action("GetFoodImage","Image", new { fileName = f.ID + ".jpg" })" style="width:44px;height:44px;object-fit:cover;border-radius:8px;" />
+                                }
+                                else
+                                {
+                                    <div style="width:44px;height:44px;background:#f0f0f0;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                        <i class="bi bi-image text-secondary"></i>
+                                    </div>
+                                }
+                                <span>@f.FOOD_NAME</span>
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
+<script src="~/js/menu-food-review.js"></script>
 <script>
+const GET_FOOD_IMAGE_URL_SHARED = '@Url.Action("GetFoodImage", "Image")';
+const antiForgery = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+
 // Khi chọn Từ ngày → tự động tính Đến ngày = thứ 7 cùng tuần (+ 5 ngày)
 document.querySelector('input[name="FROM_DATE"]').addEventListener('change', function () {
     if (!this.value) return;
@@ -292,5 +381,97 @@ document.getElementById('importFile').addEventListener('change', function () {
         zone.style.background  = '#f8f9fa';
     }
 });
+
+// ── Import Excel thực đơn tuần ──────────────────────────────────────────────────
+function renderImportErrors(errors) {
+    const resultEl = document.getElementById('importWeekResult');
+    resultEl.innerHTML = `<div class="alert alert-danger py-2"><strong>${errors.length} lỗi cần sửa trong file Excel:</strong>
+        <ul class="mb-0">${errors.map(e => `<li><strong>${e.location}</strong>: ${e.message}</li>`).join('')}</ul></div>`;
+}
+
+async function finalizeWeekImport(fromDate, toDate, items, resolved) {
+    const resultEl = document.getElementById('importWeekResult');
+    const res  = await fetch('@Url.Action("FinalizeWeekImport")', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgery },
+        body: JSON.stringify({ FromDate: fromDate, ToDate: toDate, Items: items, Resolved: resolved })
+    });
+    const data = await res.json();
+    if (data.success) {
+        resultEl.innerHTML = `<div class="alert alert-success py-2">${data.message}</div>`;
+        setTimeout(() => location.href = '@Url.Action("EditWeek")?id=' + data.weekId, 1000);
+    } else {
+        resultEl.innerHTML = `<div class="alert alert-danger py-2">${data.message}</div>`;
+    }
+}
+
+document.getElementById('btnImportWeek').addEventListener('click', async () => {
+    const fileInput = document.getElementById('importFile');
+    const resultEl  = document.getElementById('importWeekResult');
+    if (!fileInput.files[0]) { fileInput.click(); return; }
+
+    const btn = document.getElementById('btnImportWeek');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang import...';
+    resultEl.innerHTML = '';
+
+    try {
+        const fd = new FormData();
+        fd.append('file', fileInput.files[0]);
+        const res  = await fetch('@Url.Action("ImportExcel")', {
+            method: 'POST', headers: { 'RequestVerificationToken': antiForgery }, body: fd
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            renderImportErrors(data.errors || []);
+            return;
+        }
+
+        if (data.pending && data.pending.length > 0) {
+            const items = data.pending.map(p => ({
+                typedName: p.typedName, matchedId: p.matchedId, matchedName: p.matchedName, matchedHasImage: p.matchedHasImage,
+                extraLabel: `${p.shift} — Thứ ${p.dayNo} — ${p.mealType}`,
+                _src: p
+            }));
+            resolveSimilarFoodQueue(items, (resolved) => {
+                const payload = resolved.map(r => ({
+                    Shift: r._src.shift, DayNo: r._src.dayNo, MealType: r._src.mealType, DisplayOrder: r._src.displayOrder,
+                    TypedName: r._src.typedName, MatchedId: r._src.matchedId, Decision: r.decision
+                }));
+                finalizeWeekImport(data.fromDate, data.toDate, data.items, payload);
+            });
+        } else {
+            await finalizeWeekImport(data.fromDate, data.toDate, data.items, []);
+        }
+    } catch (e) {
+        resultEl.innerHTML = `<div class="alert alert-danger py-2">Lỗi kết nối: ${e.message}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-upload me-1"></i> Import';
+    }
+});
+
+// ── Bánh cố định ────────────────────────────────────────────────────────────────
+let banhPickerSlot = null;
+
+function openBanhPicker(slot) {
+    banhPickerSlot = slot;
+    new bootstrap.Modal(document.getElementById('modalBanhPicker')).show();
+}
+
+async function pickBanh(el) {
+    const foodId = el.dataset.id;
+    const name   = el.dataset.name;
+    const slot   = banhPickerSlot;
+
+    const res  = await fetch('@Url.Action("SaveBanhFixed")?slot=' + slot + '&foodId=' + foodId, {
+        method: 'POST', headers: { 'RequestVerificationToken': antiForgery }
+    });
+    const data = await res.json();
+    bootstrap.Modal.getInstance(document.getElementById('modalBanhPicker')).hide();
+    if (data.success) location.reload();
+    else showToast(data.message || 'Lỗi', 'error');
+}
 </script>
 }

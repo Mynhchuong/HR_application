@@ -133,9 +133,10 @@ public class InquiryHrListResponse
     public int pageSize       { get; set; }
     public int total          { get; set; }
     public int totalPages     { get; set; }
-    public int cntOpen        { get; set; }
-    public int cntClosed      { get; set; }
-    public int totalUnread    { get; set; }
+    public int cntOpen           { get; set; }
+    public int cntClosed         { get; set; }
+    public int cntOpenUnassigned { get; set; }
+    public int totalUnread       { get; set; }
 }
 
 public class InquiryMessagesResponse

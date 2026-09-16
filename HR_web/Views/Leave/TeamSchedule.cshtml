@@ -464,7 +464,7 @@ const MONTHS_VI  = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Thá
 const LEAVE_LABEL = { AL:'Phép năm', CL:'BHXH', SL:'Bệnh', NPL:'Không lương', OTH:'Khác', NL:'Không lương', SI:'Bệnh có giấy', DT:'Đám tang', DC:'Đám cưới', CT:'Công tác', VS:'Vợ sanh', DS:'Dưỡng sức', KT:'Khám thai' };
 const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', NL:'secondary', SI:'danger', DT:'dark', DC:'success', CT:'primary', VS:'info', DS:'warning', KT:'info' };
 // Loại bắt buộc nộp giấy tờ chứng minh — để quản lý xem NV mình đã nộp giấy đủ chưa.
-const DOC_REQUIRED_TYPES = ['SI', 'DT', 'DC', 'VS', 'DS', 'KT'];
+const DOC_REQUIRED_TYPES = ['SI', 'DT', 'DC', 'VS', 'KT'];
 
 function docDetailBtnHtml(item) {
     if (!DOC_REQUIRED_TYPES.includes(item.LEAVE_TYPE)) return '';

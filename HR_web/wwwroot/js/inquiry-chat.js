@@ -19,14 +19,19 @@ window.InquiryChat = (function () {
     const seenIds = new Set();
     let titleFlashTimer = null;
     let origTitle = '';
-    const REF_ICONS = { POLICY: 'gavel', GUIDE: 'play_circle' };
-    const REF_LABELS = { POLICY: 'Quy định', GUIDE: 'Hướng dẫn' };
+    // Nguồn dữ liệu duy nhất cho các loại trích dẫn — thêm loại mới chỉ cần thêm 1 phần tử ở đây
+    // (tab picker, icon, nhãn, urlKey/urlParam đều tự suy ra), không phải sửa nhiều chỗ rải rác.
+    const REF_TYPES = [
+        { type: 'POLICY',   label: 'Quy định',  icon: 'gavel',       urlKey: 'policyDetail',   urlParam: 'ids' },
+        { type: 'GUIDE',    label: 'Hướng dẫn', icon: 'play_circle', urlKey: 'guideDetail',    urlParam: 'id'  },
+        { type: 'BULLETIN', label: 'Bản tin',   icon: 'campaign',    urlKey: 'bulletinDetail', urlParam: 'id'  },
+    ];
+    const REF_ICONS  = Object.fromEntries(REF_TYPES.map(t => [t.type, t.icon]));
+    const REF_LABELS = Object.fromEntries(REF_TYPES.map(t => [t.type, t.label]));
     function refUrlFor(type, id) {
-        if (type === 'POLICY' && cfg?.urls?.policyDetail)
-            return `${cfg.urls.policyDetail}?ids=${encodeURIComponent(id)}`;
-        if (type === 'GUIDE' && cfg?.urls?.guideDetail)
-            return `${cfg.urls.guideDetail}?id=${encodeURIComponent(id)}`;
-        return '#';
+        const def = REF_TYPES.find(t => t.type === type);
+        const base = def && cfg?.urls?.[def.urlKey];
+        return base ? `${base}?${def.urlParam}=${encodeURIComponent(id)}` : '#';
     }
 
     // ─── Sanitize HTML (light) ───────────────────────────────
@@ -570,8 +575,7 @@ window.InquiryChat = (function () {
                         <button class="refp-close" onclick="InquiryChat.closeRefPicker()">✕</button>
                     </div>
                     <div class="refp-tabs">
-                        <button class="refp-tab is-active" data-type="POLICY" onclick="InquiryChat.switchRefTab('POLICY')">Quy định</button>
-                        <button class="refp-tab"           data-type="GUIDE"  onclick="InquiryChat.switchRefTab('GUIDE')">Hướng dẫn</button>
+                        ${REF_TYPES.map((t, i) => `<button class="refp-tab${i === 0 ? ' is-active' : ''}" data-type="${t.type}" onclick="InquiryChat.switchRefTab('${t.type}')">${t.label}</button>`).join('')}
                     </div>
                     <div class="refp-search">
                         <input type="text" id="refPickerSearch" placeholder="Tìm theo tiêu đề / danh mục..." oninput="InquiryChat.onRefSearch(this.value)">
@@ -673,6 +677,84 @@ window.InquiryChat = (function () {
         selectedRefs.push({ refType, refId, refTitle, category });
         renderRefChips();
         closeRefPicker();
+    }
+
+    // ─── Câu trả lời mẫu (yêu cầu HR 2026-09-12) ───────────────────────────
+    // Mirror cấu trúc openRefPicker/loadRefList/pickRef ở trên, nhưng đơn giản hơn: 1 danh sách
+    // (không tab), chọn 1 mẫu sẽ CHÈN nội dung vào ô soạn tin (không tự gửi) rồi đóng picker.
+    let cannedSearchTimer = null;
+
+    function openCannedPicker() {
+        if (!cfg.urls.cannedReplies) return;
+        let modal = document.getElementById('cannedPickerModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'cannedPickerModal';
+            modal.className = 'refp-overlay';
+            modal.innerHTML = `
+                <div class="refp-modal" onclick="event.stopPropagation()">
+                    <div class="refp-header">
+                        <div class="refp-title">Chèn câu trả lời mẫu</div>
+                        <button class="refp-close" onclick="InquiryChat.closeCannedPicker()">✕</button>
+                    </div>
+                    <div class="refp-search">
+                        <input type="text" id="cannedPickerSearch" placeholder="Tìm theo tiêu đề..." oninput="InquiryChat.onCannedSearch(this.value)">
+                    </div>
+                    <div class="refp-list" id="cannedPickerList">
+                        <div class="refp-empty">Đang tải...</div>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+            modal.addEventListener('click', e => { if (e.target === modal) closeCannedPicker(); });
+        }
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        const input = document.getElementById('cannedPickerSearch');
+        if (input) input.value = '';
+        loadCannedList('');
+    }
+
+    function closeCannedPicker() {
+        const modal = document.getElementById('cannedPickerModal');
+        if (modal) modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    function onCannedSearch(val) {
+        clearTimeout(cannedSearchTimer);
+        cannedSearchTimer = setTimeout(() => loadCannedList(val), 300);
+    }
+
+    async function loadCannedList(q) {
+        const list = document.getElementById('cannedPickerList');
+        if (!list) return;
+        list.innerHTML = '<div class="refp-empty">Đang tải...</div>';
+        try {
+            const res  = await fetch(`${cfg.urls.cannedReplies}?q=${encodeURIComponent(q || '')}`);
+            const data = await res.json();
+            if (!data.success) { list.innerHTML = `<div class="refp-empty">Lỗi: ${esc(data.message || '')}</div>`; return; }
+            const items = data.data || [];
+            if (items.length === 0) { list.innerHTML = '<div class="refp-empty">Không tìm thấy mẫu nào</div>'; return; }
+            list.innerHTML = items.map(it => `
+                <div class="refp-item" data-id="${it.id}">
+                    <div class="ri-icon"><span class="material-symbols-rounded" style="font-size:1.1rem">quickreply</span></div>
+                    <div class="ri-info"><div class="ri-title">${esc(it.title || '')}</div></div>
+                    <button class="ri-pick" data-action="pick">Chèn</button>
+                </div>`).join('');
+            list.onclick = (e) => {
+                const item = e.target.closest('.refp-item');
+                if (!item) return;
+                const found = items.find(it => String(it.id) === item.dataset.id);
+                if (found) pickCanned(found);
+            };
+        } catch (e) {
+            list.innerHTML = `<div class="refp-empty">Lỗi kết nối</div>`;
+        }
+    }
+
+    function pickCanned(item) {
+        if (window.InquiryEditor?.insertContent) window.InquiryEditor.insertContent(item.content || '');
+        closeCannedPicker();
     }
 
     // ─── Ref viewer modal (mobile-friendly) ───────────────────────────────
@@ -812,6 +894,7 @@ window.InquiryChat = (function () {
         sendMessage, recallMsg, confirmClose, confirmUnlock,
         handleFiles, removeFile, autoResize, handleKeyDown,
         onEditorUpdate, safeHtml, MAX_CHARS,
-        openRefPicker, closeRefPicker, switchRefTab, onRefSearch, pickRef, removeRef
+        openRefPicker, closeRefPicker, switchRefTab, onRefSearch, pickRef, removeRef,
+        openCannedPicker, closeCannedPicker, onCannedSearch
     };
 })();

@@ -14,18 +14,22 @@
 .inq-hero small { font-size: .75rem; opacity: .8; color: #fff !important; }
 .inq-hero-icon  { font-size: 2.2rem; line-height: 1; }
 
-.inq-tabs {
-    display: flex; background: #f1f5f9; border-radius: 12px;
-    padding: 4px; margin-bottom: .75rem; gap: 4px;
-}
-.tab-btn {
-    flex: 1; border: none; background: transparent; border-radius: 9px;
-    padding: .45rem .5rem; font-size: .85rem; font-weight: 700;
-    color: #64748b; cursor: pointer; transition: all .2s;
-}
-.tab-btn.active { background: #fff; color: #4f46e5; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
-
 .inq-list { display: flex; flex-direction: column; gap: .5rem; }
+
+.inq-card-kind {
+    font-size: .62rem; font-weight: 800; padding: 1px 7px; border-radius: 20px; text-transform: uppercase;
+}
+.kind-direct { background: #dbeafe; color: #1d4ed8; }
+.kind-anon   { background: #ede9fe; color: #6d28d9; }
+
+.inq-card-ai {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    color: #fff;
+}
+.inq-card-ai .inq-card-icon { background: rgba(255,255,255,.18); }
+.inq-card-ai .inq-card-icon span { color: #fff !important; }
+.inq-card-ai .inq-card-subject, .inq-card-ai .inq-card-topic { color: #fff; }
+.inq-card-ai .inq-card-no { color: rgba(255,255,255,.75); }
 
 .inq-card {
     background: white; border-radius: 14px; padding: .85rem 1rem;
@@ -141,17 +145,6 @@
         <span class="material-symbols-rounded inq-hero-icon">forum</span>
     </div>
 
-    <div class="inq-tabs">
-        <button class="tab-btn active" onclick="switchTab('direct', this)">
-            <span class="material-symbols-rounded me-1" style="font-size:1rem;vertical-align:middle;">person</span>
-            Trực tiếp
-        </button>
-        <button class="tab-btn" onclick="switchTab('anon', this)">
-            <span class="material-symbols-rounded me-1" style="font-size:1rem;vertical-align:middle;">visibility_off</span>
-            Ẩn danh
-        </button>
-    </div>
-
     <div id="rateBannerWrap" class="rate-banner-wrap" style="display:none"></div>
 
     <div class="inq-filter">
@@ -166,10 +159,9 @@
         <input type="text" id="fSearch" placeholder="Tìm chủ đề, mã hội thoại..." oninput="applyFilter()">
     </div>
 
-    <div id="tabDirect">
-        <div class="inq-loading">Đang tải...</div>
-    </div>
-    <div id="tabAnon" style="display:none">
+    <div id="aiCardWrap" class="mb-2"></div>
+
+    <div id="inqListWrap">
         <div class="inq-loading">Đang tải...</div>
     </div>
 </div>
@@ -193,13 +185,6 @@ function getAnonToken() {
     return t;
 }
 
-function switchTab(tab, el) {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    el.classList.add('active');
-    document.getElementById('tabDirect').style.display = tab === 'direct' ? '' : 'none';
-    document.getElementById('tabAnon').style.display   = tab === 'anon'   ? '' : 'none';
-}
-
 function esc(s) {
     return (s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
@@ -213,46 +198,85 @@ function fmtTime(ds) {
     return d.toLocaleDateString('vi-VN');
 }
 
-function renderList(items, containerId, isAnon) {
-    const el = document.getElementById(containerId);
-    if (!items || items.length === 0) {
-        el.innerHTML = `<div class="inq-empty"><span class="material-symbols-rounded ei" style="font-size:3rem;color:#c7d2fe;">forum</span><p>${isAnon ? 'Chưa có hội thoại ẩn danh' : 'Chưa có hội thoại nào'}</p></div>`;
+// Gộp Trực tiếp + Ẩn danh thành 1 danh sách duy nhất, sắp theo tin nhắn cuối (yêu cầu 2026-09-16,
+// bỏ 2 tab riêng) — mỗi dòng tự phân biệt bằng badge nhỏ đọc từ item.chatType (API đã trả sẵn).
+function buildCardHtml(i) {
+    const isAnon = i.chatType === 'ANON';
+    const unread = i.unreadEmp;
+    const statusClass = i.status === 'OPEN' ? 'status-open' : 'status-closed';
+    const statusText  = i.status === 'OPEN' ? 'Mở' : 'Đóng';
+    const href = isAnon
+        ? `@Url.Action("Chat","EmployeeInquiry")?id=${i.id}&anonToken=${encodeURIComponent(getAnonToken())}`
+        : `@Url.Action("Chat","EmployeeInquiry")?id=${i.id}`;
+    const bg  = i.topicColor  ? `background:${i.topicColor}22;` : 'background:#e0e7ff;';
+    const ico = i.topicIcon   ? i.topicIcon : 'chat';
+    const kindBadge = isAnon
+        ? `<span class="inq-card-kind kind-anon">Ẩn danh</span>`
+        : `<span class="inq-card-kind kind-direct">Trực tiếp</span>`;
+    const closeBtn = i.status === 'OPEN'
+        ? `<button class="inq-card-close" onclick="event.preventDefault();event.stopPropagation();closeConv(${i.id}, ${isAnon ? 1 : 0})" title="Kết thúc hội thoại">
+               <span class="material-symbols-rounded" style="font-size:.85rem">close</span>Kết thúc
+           </button>`
+        : '';
+    const sortDt = i.lastMsgDt || i.instDt || '';
+    return `
+    <a class="inq-card" href="${esc(href)}" data-status="${i.status}" data-topic="${esc(i.topicCd || '')}" data-search="${esc((i.inquiryNo||'') + ' ' + (i.subject||'') + ' ' + (i.topicName||'')).toLowerCase()}" data-sort="${esc(sortDt)}">
+        <div class="inq-card-icon" style="${bg}">
+            <span class="material-symbols-rounded" style="color:#4f46e5">${esc(ico)}</span>
+        </div>
+        <div class="inq-card-body">
+            <div class="inq-card-row1">
+                <span class="inq-card-no">${esc(i.inquiryNo)}</span>
+                ${kindBadge}
+                <span class="inq-card-status ${statusClass}">${statusText}</span>
+                ${unread > 0 ? `<span class="inq-unread ms-auto">${unread}</span>` : ''}
+            </div>
+            <div class="inq-card-subject">${esc(i.subject || i.topicName || 'Hội thoại mới')}</div>
+            <div class="inq-card-meta">
+                <span class="inq-card-topic">${esc(i.topicName || '')}</span>
+                ${i.lastMsgDt ? `<span class="inq-card-time">· ${fmtTime(i.lastMsgDt)}</span>` : ''}
+            </div>
+        </div>
+        <div class="inq-card-actions">${closeBtn}</div>
+    </a>`;
+}
+
+function renderMergedList() {
+    const el = document.getElementById('inqListWrap');
+    const all = [...directItemsCache, ...anonItemsCache]
+        .sort((a, b) => new Date(b.lastMsgDt || b.instDt || 0) - new Date(a.lastMsgDt || a.instDt || 0));
+
+    if (all.length === 0) {
+        el.innerHTML = `<div class="inq-empty"><span class="material-symbols-rounded ei" style="font-size:3rem;color:#c7d2fe;">forum</span><p>Chưa có hội thoại nào</p></div>`;
         return;
     }
-    el.innerHTML = '<div class="inq-list">' + items.map(i => {
-        const unread = i.unreadEmp;
-        const statusClass = i.status === 'OPEN' ? 'status-open' : 'status-closed';
-        const statusText  = i.status === 'OPEN' ? 'Mở' : 'Đóng';
-        const href = isAnon
-            ? `@Url.Action("Chat","EmployeeInquiry")?id=${i.id}&anonToken=${encodeURIComponent(getAnonToken())}`
-            : `@Url.Action("Chat","EmployeeInquiry")?id=${i.id}`;
-        const bg  = i.topicColor  ? `background:${i.topicColor}22;` : 'background:#e0e7ff;';
-        const ico = i.topicIcon   ? i.topicIcon : 'chat';
-        const closeBtn = i.status === 'OPEN'
-            ? `<button class="inq-card-close" onclick="event.preventDefault();event.stopPropagation();closeConv(${i.id}, ${isAnon ? 1 : 0})" title="Kết thúc hội thoại">
-                   <span class="material-symbols-rounded" style="font-size:.85rem">close</span>Kết thúc
-               </button>`
-            : '';
-        return `
-        <a class="inq-card" href="${esc(href)}" data-status="${i.status}" data-topic="${esc(i.topicCd || '')}" data-search="${esc((i.inquiryNo||'') + ' ' + (i.subject||'') + ' ' + (i.topicName||'')).toLowerCase()}">
-            <div class="inq-card-icon" style="${bg}">
-                <span class="material-symbols-rounded" style="color:#4f46e5">${esc(ico)}</span>
+    el.innerHTML = '<div class="inq-list">' + all.map(buildCardHtml).join('') + '</div>';
+}
+
+// Thẻ "Chat với AI" cố định đầu danh sách (yêu cầu 2026-09-16, gộp AI SAMHO-CSR vào chung trang
+// này cho gọn menu — trước đây chỉ vào được qua banner ẩn trong Create). AI chỉ có khái niệm
+// "1 đoạn đang mở", không có API liệt kê lịch sử nhiều đoạn như Trực tiếp/Ẩn danh nên hiện cố định
+// 1 thẻ duy nhất (không nằm trong danh sách sort theo thời gian), có badge chưa đọc nếu có.
+async function renderAiCard() {
+    const el = document.getElementById('aiCardWrap');
+    let unread = 0;
+    try {
+        const res  = await fetch('@Url.Action("MyThread","AiCsr")');
+        const data = await res.json();
+        if (data.success && data.thread) unread = data.thread.unreadEmp || 0;
+    } catch {}
+    el.innerHTML = `
+    <a class="inq-card inq-card-ai" href="@Url.Action("Chat","AiCsr")">
+        <div class="inq-card-icon"><span class="material-symbols-rounded">smart_toy</span></div>
+        <div class="inq-card-body">
+            <div class="inq-card-row1">
+                <span class="inq-card-no">AI SAMHO</span>
+                ${unread > 0 ? `<span class="inq-unread ms-auto">${unread}</span>` : ''}
             </div>
-            <div class="inq-card-body">
-                <div class="inq-card-row1">
-                    <span class="inq-card-no">${esc(i.inquiryNo)}</span>
-                    <span class="inq-card-status ${statusClass}">${statusText}</span>
-                    ${unread > 0 ? `<span class="inq-unread ms-auto">${unread}</span>` : ''}
-                </div>
-                <div class="inq-card-subject">${esc(i.subject || i.topicName || 'Hội thoại mới')}</div>
-                <div class="inq-card-meta">
-                    <span class="inq-card-topic">${esc(i.topicName || '')}</span>
-                    ${i.lastMsgDt ? `<span class="inq-card-time">· ${fmtTime(i.lastMsgDt)}</span>` : ''}
-                </div>
-            </div>
-            <div class="inq-card-actions">${closeBtn}</div>
-        </a>`;
-    }).join('') + '</div>';
+            <div class="inq-card-subject">Chat với AI</div>
+            <div class="inq-card-meta"><span class="inq-card-topic">Trả lời ngay — CSR hỗ trợ thêm nếu chưa đủ ý</span></div>
+        </div>
+    </a>`;
 }
 
 // ─── Close conversation (Employee) ───────────────────────────────
@@ -277,33 +301,32 @@ async function closeConv(inqId, isAnon) {
             return;
         }
         if (window.showToast) showToast('Hội thoại đã kết thúc', 'success');
-        // Reload list
-        if (isAnon) loadAnon(); else loadDirect();
+        // Reload list gộp
+        if (isAnon) await loadAnon(); else await loadDirect();
     } catch {
         if (window.showToast) showToast('Lỗi kết nối', 'error');
     }
 }
 
 // ─── Filter (status / topic / search) ────────────────────────────
+// Thẻ AI (#aiCardWrap) không có data-status/data-topic nên không bị lọc — luôn hiện cố định,
+// đúng tinh thần "lối tắt" chứ không phải 1 hội thoại theo chủ đề như Trực tiếp/Ẩn danh.
 function applyFilter() {
     const s = document.getElementById('fStatus').value;
     const t = document.getElementById('fTopic').value;
     const q = document.getElementById('fSearch').value.trim().toLowerCase();
-    ['tabDirect', 'tabAnon'].forEach(id => {
-        const cards = document.querySelectorAll(`#${id} .inq-card`);
-        let visible = 0;
-        cards.forEach(c => {
-            const okS = !s || c.dataset.status === s;
-            const okT = !t || c.dataset.topic  === t;
-            const okQ = !q || (c.dataset.search || '').includes(q);
-            const show = okS && okT && okQ;
-            c.style.display = show ? '' : 'none';
-            if (show) visible++;
-        });
-        // Hide "empty" placeholder when filter has results elsewhere
-        const empty = document.querySelector(`#${id} .inq-empty`);
-        if (empty && cards.length > 0) empty.style.display = visible === 0 ? '' : 'none';
+    const cards = document.querySelectorAll('#inqListWrap .inq-card');
+    let visible = 0;
+    cards.forEach(c => {
+        const okS = !s || c.dataset.status === s;
+        const okT = !t || c.dataset.topic  === t;
+        const okQ = !q || (c.dataset.search || '').includes(q);
+        const show = okS && okT && okQ;
+        c.style.display = show ? '' : 'none';
+        if (show) visible++;
     });
+    const empty = document.querySelector('#inqListWrap .inq-empty');
+    if (empty && cards.length > 0) empty.style.display = visible === 0 ? '' : 'none';
 }
 
 function rebuildTopicFilter() {
@@ -332,14 +355,14 @@ async function loadDirect() {
         const data = await res.json();
         const items = data.data || [];
         directItemsCache = items;
-        renderList(items, 'tabDirect', false);
         countDirect = items.length;
         updateHeroSub();
+        renderMergedList();
         renderRateBanners([...items, ...anonItemsCache]);
         rebuildTopicFilter();
         applyFilter();
     } catch {
-        document.getElementById('tabDirect').innerHTML = '<div class="inq-empty"><p>Không tải được dữ liệu</p></div>';
+        document.getElementById('inqListWrap').innerHTML = '<div class="inq-empty"><p>Không tải được dữ liệu</p></div>';
     }
 }
 
@@ -450,17 +473,18 @@ async function loadAnon() {
         const data = await res.json();
         const items = data.data || [];
         anonItemsCache = items;
-        renderList(items, 'tabAnon', true);
         countAnon = items.length;
         updateHeroSub();
+        renderMergedList();
         renderRateBanners([...directItemsCache, ...items]);
         rebuildTopicFilter();
         applyFilter();
     } catch {
-        document.getElementById('tabAnon').innerHTML = '<div class="inq-empty"><p>Không tải được dữ liệu</p></div>';
+        document.getElementById('inqListWrap').innerHTML = '<div class="inq-empty"><p>Không tải được dữ liệu</p></div>';
     }
 }
 
+renderAiCard();
 loadDirect();
 loadAnon();
 </script>

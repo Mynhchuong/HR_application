@@ -357,10 +357,11 @@ function leaveBadge(t) {
     return `<span class="badge bg-${LEAVE_COLOR[t]||'secondary'}">${LEAVE_LABEL[t]||t||'-'}</span>`;
 }
 
-// Loại bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — khớp DocRequiredTypes phía API. CT KHÔNG cần nộp giấy tờ.
-const DOC_REQUIRED_TYPES = ['SI', 'DT', 'DC', 'VS', 'DS', 'KT'];
-// NL/SI/DS: cảnh báo mất chuyên cần + ngày công LUÔN LUÔN (không phụ thuộc có nộp giấy hay không — NL không có
-// cơ chế nộp giấy, SI/DS có nộp giấy nhưng vẫn mất ngày công theo bảng HR).
+// Loại bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — khớp DocRequiredTypes phía API. CT và DS
+// (Dưỡng sức) KHÔNG cần nộp giấy tờ (yêu cầu 2026-09-15).
+const DOC_REQUIRED_TYPES = ['SI', 'DT', 'DC', 'VS', 'KT'];
+// NL/SI/DS: cảnh báo mất chuyên cần + ngày công LUÔN LUÔN (không phụ thuộc có nộp giấy hay không — NL/DS không có
+// cơ chế nộp giấy, SI có nộp giấy nhưng vẫn mất ngày công theo bảng HR).
 const ALWAYS_LOSE_TYPES = ['NL', 'SI', 'DS'];
 // DT/DC/VS/KT: chỉ mất chuyên cần NẾU không bổ sung giấy tờ đúng hạn (không mất ngày công).
 const COND_LOSE_TYPES = ['DT', 'DC', 'VS', 'KT'];

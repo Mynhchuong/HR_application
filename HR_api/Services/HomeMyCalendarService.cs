@@ -54,8 +54,9 @@ public class HomeMyCalendarService
     // Loop TỪNG NGÀY trong FROM_DATE → TO_DATE để chấm màu từng ô.
     // SOURCE=SELF   → TYPE=LEAVE  🟢
     // SOURCE=ASSIGNED → TYPE=ASSIGN 🟣
-    // Loại phải nộp giấy tờ chứng minh — khớp DocRequiredTypes bên LeaveController (SI/DT/DC/VS/DS/KT).
-    private static readonly HashSet<string> DocRequiredTypes = new() { "SI", "DT", "DC", "VS", "DS", "KT" };
+    // Loại phải nộp giấy tờ chứng minh — khớp DocRequiredTypes bên LeaveController (SI/DT/DC/VS/KT,
+    // DS (Dưỡng sức) bỏ khỏi danh sách theo yêu cầu 2026-09-15).
+    private static readonly HashSet<string> DocRequiredTypes = new() { "SI", "DT", "DC", "VS", "KT" };
 
     // Tên đầy đủ 9 loại nghỉ mới + vài mã cũ còn đọc được — khớp NewLeaveTypeNames bên LeaveController
     // (trước đây switch chỉ có AL/SL/CL/NPL, 9 loại mới đều rớt vào default "Nghỉ" chung chung).

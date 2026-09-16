@@ -206,6 +206,54 @@ public class MenuFoodController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/MenuFood/banh-fixed — 2 slot bánh cố định (kèm tên/hình món đang chọn)
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("banh-fixed")]
+    public async Task<IActionResult> GetBanhFixed()
+    {
+        try
+        {
+            const string sql = @"
+                SELECT b.SLOT_NO, b.FOOD_ID, f.FOOD_NAME, f.IS_IMAGE
+                FROM HRMS.HR_MENU_BANH_FIXED b
+                LEFT JOIN HRMS.HR_MENU_FOOD f ON f.ID = b.FOOD_ID
+                ORDER BY b.SLOT_NO";
+
+            var result = await _db.ExecuteQueryAsync(sql, r => new
+            {
+                slotNo   = Convert.ToInt32(r["SLOT_NO"]),
+                foodId   = r["FOOD_ID"]   == DBNull.Value ? (int?)null : Convert.ToInt32(r["FOOD_ID"]),
+                foodName = r["FOOD_NAME"]?.ToString(),
+                isImage  = r["IS_IMAGE"]?.ToString() ?? "N",
+            });
+            return Ok(new { success = true, data = result });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/MenuFood/banh-fixed/save?slot=1|2&foodId=&loginUser=
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("banh-fixed/save")]
+    public async Task<IActionResult> SaveBanhFixed(int slot, int? foodId, string loginUser)
+    {
+        try
+        {
+            if (slot != 1 && slot != 2)
+                return Ok(new { success = false, message = "Slot không hợp lệ" });
+
+            int rows = await _db.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_MENU_BANH_FIXED SET FOOD_ID = :FOOD_ID, UPDT_ID = :UPDT_ID, UPDT_DT = SYSDATE WHERE SLOT_NO = :SLOT",
+                new OracleParameter("FOOD_ID", (object?)foodId ?? DBNull.Value),
+                new OracleParameter("UPDT_ID", (object?)loginUser ?? DBNull.Value),
+                new OracleParameter("SLOT", slot));
+
+            return Ok(new { success = rows > 0, message = rows > 0 ? "Đã cập nhật" : "Không tìm thấy slot" });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     private static MenuFoodModel Map(OracleDataReader r) => new()
     {
         ID         = Convert.ToInt32(r["ID"]),

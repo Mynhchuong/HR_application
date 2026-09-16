@@ -98,7 +98,7 @@ public class NotificationService
     private static readonly Dictionary<string, string> DocLeaveTypeNames = new()
     {
         ["DT"] = "Đám tang", ["DC"] = "Đám cưới", ["CT"] = "Công tác", ["VS"] = "Vợ sanh", ["KT"] = "Khám thai",
-        ["SI"] = "Bệnh có giấy", ["DS"] = "Dưỡng sức"
+        ["SI"] = "Bệnh có giấy"
     };
 
     public void LeaveDocReminder(string empCd, string leaveTypeCode, DateTime from, DateTime to)

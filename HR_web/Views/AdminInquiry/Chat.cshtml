@@ -132,11 +132,8 @@
                                         <div class="msg-refs">
                                             @foreach (var r in msg.Refs)
                                             {
-                                                string refUrl   = r.RefType == "POLICY"
-                                                    ? Url.Action("Detail", "Policy", new { ids = r.RefId })!
-                                                    : Url.Action("Detail", "Guide",  new { id  = r.RefId })!;
-                                                string refIcon  = r.RefType == "POLICY" ? "gavel" : "play_circle";
-                                                string refLabel = r.RefType == "POLICY" ? "Quy định" : "Hướng dẫn";
+                                                var refUrl = ChatHtmlHelper.RefTypeUrl(Url, r.RefType, r.RefId);
+                                                var (refIcon, refLabel) = ChatHtmlHelper.RefTypeMeta(r.RefType);
                                                 <a class="msg-ref-card" href="@refUrl">
                                                     <div class="mrc-icon"><span class="material-symbols-rounded" style="font-size:1.1rem">@refIcon</span></div>
                                                     <div class="mrc-info">
@@ -196,7 +193,8 @@
                         <button type="button" id="ed-unlink" class="ed-btn" title="Bỏ link"><span class="material-symbols-rounded">link_off</span></button>
                         <button type="button" id="ed-clear-fmt" class="ed-btn" title="Xóa định dạng"><span class="material-symbols-rounded">format_clear</span></button>
                         <div class="ed-sep"></div>
-                        <button type="button" class="ed-btn" title="Trích dẫn Quy định / Hướng dẫn" onclick="InquiryChat.openRefPicker()"><span class="material-symbols-rounded">menu_book</span></button>
+                        <button type="button" class="ed-btn" title="Trích dẫn Quy định / Hướng dẫn / Bản tin" onclick="InquiryChat.openRefPicker()"><span class="material-symbols-rounded">menu_book</span></button>
+                        <button type="button" class="ed-btn" title="Chèn câu trả lời mẫu" onclick="InquiryChat.openCannedPicker()"><span class="material-symbols-rounded">quickreply</span></button>
                     </div>
                     <div id="refChipsStrip" class="ref-chips-strip"></div>
                     <div id="msgEditor"></div>
@@ -242,7 +240,9 @@ InquiryChat.init({
         uploadFile:  '@Url.Action("UploadFile","AdminInquiry")',
         searchRefs:  '@Url.Action("SearchRefs","AdminInquiry")',
         policyDetail:'@Url.Action("Detail","Policy")',
-        guideDetail: '@Url.Action("Detail","Guide")'
+        guideDetail: '@Url.Action("Detail","Guide")',
+        bulletinDetail: '@Url.Action("Detail","Bulletin")',
+        cannedReplies: '@Url.Action("GetCannedRepliesForPicker","AdminInquiry")'
     }
 });
 </script>

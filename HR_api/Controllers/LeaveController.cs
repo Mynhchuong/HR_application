@@ -205,8 +205,9 @@ public class LeaveController : ControllerBase
     {
         ["NL"] = "VR"
     };
-    // Loại nghỉ bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — CT theo yêu cầu vẫn KHÔNG cần nộp giấy tờ.
-    private static readonly HashSet<string> DocRequiredTypes = new() { "SI", "DT", "DC", "VS", "DS", "KT" };
+    // Loại nghỉ bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — CT và DS (Dưỡng sức) theo
+    // yêu cầu (2026-09-15) đều KHÔNG cần nộp giấy tờ.
+    private static readonly HashSet<string> DocRequiredTypes = new() { "SI", "DT", "DC", "VS", "KT" };
     // Trạng thái được coi là "đã chốt" để cho phép cập nhật giấy tờ — quản lý/Admin SẮP LỊCH
     // (SOURCE=ASSIGNED) không bao giờ có STATUS='APPROVED' (mãi mãi là 'ASSIGNED', không qua bước
     // duyệt riêng), nhưng bản chất đã chốt lịch nghỉ y như đã duyệt nên vẫn tính là được cập nhật
@@ -2946,7 +2947,7 @@ END;";
                 SELECT L.REQUEST_ID, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS FROM HRMS.HR_LEAVE_REQUEST L
                 JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
                 WHERE L.EMPCD = :EMPCD AND :FR_DATE BETWEEN L.FROM_DATE AND L.TO_DATE
-                  AND L.LEAVE_TYPE IN ('SI','DT','DC','VS','DS','KT') AND R.STATUS IN ('APPROVED','ASSIGNED')
+                  AND L.LEAVE_TYPE IN ('SI','DT','DC','VS','KT') AND R.STATUS IN ('APPROVED','ASSIGNED')
                   AND ROWNUM = 1",
                 r => new {
                     RequestId = r["REQUEST_ID"]?.ToString() ?? "",

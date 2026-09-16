@@ -174,6 +174,9 @@
             setNum('ot-total',     data.OT_TOTAL);
             setNum('bd',           data.TEAM_BIRTHDAY_COUNT);
             setNum('leave-doc-missing', data.LEAVE_DOC_MISSING_COUNT);
+            setNum('hr-msg',       data.HR_UNREAD_MSG);
+            setNum('hr-inq',       data.HR_OPEN_INQ);
+            setNum('hr-bull',      data.HR_NEW_BULLETIN_CMT);
             // Training today — chỉ show card khi > 0 (tránh clutter khi không có session)
             setNum('training-today', data.TRAINING_TODAY_TOTAL);
             const trainingCard = body.querySelector('[data-kpi-card="training-today"]');

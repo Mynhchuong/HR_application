@@ -470,8 +470,8 @@ public class InquiryController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GET /apiHR/Inquiry/search-refs?type=POLICY|GUIDE&q=...
-    // Tìm Policy/Guide để HR/Admin chèn trích dẫn vào tin nhắn
+    // GET /apiHR/Inquiry/search-refs?type=POLICY|GUIDE|BULLETIN&q=...
+    // Tìm Policy/Guide/Bulletin để HR/Admin chèn trích dẫn vào tin nhắn
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet("search-refs")]
     public async Task<IActionResult> SearchRefs(string type = "POLICY", string? q = null)
@@ -479,22 +479,30 @@ public class InquiryController : ControllerBase
         try
         {
             type = (type ?? "").ToUpper();
-            if (type != "POLICY" && type != "GUIDE")
-                return Ok(new { success = false, message = "type phải là POLICY hoặc GUIDE" });
+            if (type != "POLICY" && type != "GUIDE" && type != "BULLETIN")
+                return Ok(new { success = false, message = "type phải là POLICY, GUIDE hoặc BULLETIN" });
 
             string trimmed = (q ?? "").Trim().ToUpper();
             string term    = "%" + trimmed + "%";
-            string inner = type == "POLICY"
-                ? @"SELECT ID, CATEGORY, TITLE
+            string inner = type switch
+            {
+                "POLICY" => @"SELECT ID, CATEGORY, TITLE
                     FROM HRMS.HR_COMPANY_POLICY
                     WHERE IS_ACTIVE = 1
                       AND (:Q IS NULL OR UPPER(TITLE) LIKE :TERM OR UPPER(CATEGORY) LIKE :TERM)
-                    ORDER BY CATEGORY, DISPLAY_ORDER, ID"
-                : @"SELECT ID, CATEGORY, TITLE
+                    ORDER BY CATEGORY, DISPLAY_ORDER, ID",
+                "GUIDE" => @"SELECT ID, CATEGORY, TITLE
                     FROM HRMS.HR_GUIDE
                     WHERE IS_ACTIVE = 1
                       AND (:Q IS NULL OR UPPER(TITLE) LIKE :TERM OR UPPER(CATEGORY) LIKE :TERM)
-                    ORDER BY CATEGORY NULLS LAST, DISPLAY_ORDER, ID";
+                    ORDER BY CATEGORY NULLS LAST, DISPLAY_ORDER, ID",
+                // HR_BULLETIN không có cột CATEGORY — trả NULL cho khớp shape 3 cột dùng chung.
+                _ => @"SELECT ID, CAST(NULL AS NVARCHAR2(200)) AS CATEGORY, TITLE
+                    FROM HRMS.HR_BULLETIN
+                    WHERE IS_ACTIVE = 1 AND IS_PUBLISHED = 1
+                      AND (:Q IS NULL OR UPPER(TITLE) LIKE :TERM)
+                    ORDER BY PUBLISHED_DT DESC NULLS LAST, ID DESC"
+            };
             string sql = $"SELECT * FROM ({inner}) WHERE ROWNUM <= 30";
 
             var rows = await _db.ExecuteQueryAsync(sql,
@@ -514,6 +522,158 @@ public class InquiryController : ControllerBase
         {
             return Ok(new { success = false, message = ex.Message });
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Câu trả lời mẫu (yêu cầu HR 2026-09-12) — kho dùng chung cho Admin/HR/CSR,
+    // chỉ Admin được thêm/sửa/xoá; ai chat cũng chọn được để chèn vào ô soạn tin.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // GET /apiHR/Inquiry/canned-replies?q=... — danh sách đang active, dùng cho picker khi chat
+    [HttpGet("canned-replies")]
+    public async Task<IActionResult> GetCannedReplies(string? q = null)
+    {
+        try
+        {
+            string trimmed = (q ?? "").Trim().ToUpper();
+            var rows = await _db.ExecuteQueryAsync(@"
+                SELECT * FROM (
+                    SELECT ID, TITLE, CONTENT FROM HRMS.HR_INQUIRY_CANNED_REPLY
+                    WHERE IS_ACTIVE = 1
+                      AND (:Q IS NULL OR UPPER(TITLE) LIKE :TERM)
+                    ORDER BY DISPLAY_ORDER, ID
+                ) WHERE ROWNUM <= 50",
+                r => new
+                {
+                    id      = Convert.ToInt64(r["ID"]),
+                    title   = r["TITLE"]?.ToString(),
+                    content = r["CONTENT"]?.ToString()
+                },
+                new OracleParameter("Q",    string.IsNullOrEmpty(trimmed) ? (object)DBNull.Value : trimmed),
+                new OracleParameter("TERM", "%" + trimmed + "%"));
+
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // GET /apiHR/Inquiry/admin/canned-replies?actor_empcd=... — TẤT CẢ (kể cả ẩn), cho trang quản lý
+    [HttpGet("admin/canned-replies")]
+    public async Task<IActionResult> GetCannedRepliesAdmin(string? actor_empcd = null)
+    {
+        try
+        {
+            if (!await IsAdminOrHrAsync(actor_empcd))
+                return Ok(new { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
+
+            var rows = await _db.ExecuteQueryAsync(@"
+                SELECT ID, TITLE, CONTENT, DISPLAY_ORDER, IS_ACTIVE, UPDATED_BY, UPDATED_DATE
+                FROM HRMS.HR_INQUIRY_CANNED_REPLY ORDER BY DISPLAY_ORDER, ID",
+                r => new
+                {
+                    id           = Convert.ToInt64(r["ID"]),
+                    title        = r["TITLE"]?.ToString(),
+                    content      = r["CONTENT"]?.ToString(),
+                    displayOrder = r["DISPLAY_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["DISPLAY_ORDER"]),
+                    isActive     = r["IS_ACTIVE"] != DBNull.Value && Convert.ToInt32(r["IS_ACTIVE"]) == 1,
+                    updatedBy    = r["UPDATED_BY"]?.ToString(),
+                    updatedDate  = r["UPDATED_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["UPDATED_DATE"])
+                });
+
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/Inquiry/admin/canned-replies/save — upsert theo ID (ID null/0 = tạo mới)
+    [HttpPost("admin/canned-replies/save")]
+    public async Task<IActionResult> SaveCannedReply([FromBody] SaveCannedReplyRequest req)
+    {
+        try
+        {
+            if (!await IsAdminOrHrAsync(req.ActorEmpCd))
+                return Ok(new { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
+            if (string.IsNullOrWhiteSpace(req.Title) || string.IsNullOrWhiteSpace(req.Content))
+                return Ok(new { success = false, message = "Thiếu tiêu đề hoặc nội dung" });
+
+            // Lưu ý: bind ":BY" gây ORA-01745 (trùng từ khoá reserved GROUP BY/ORDER BY của Oracle —
+            // xem cùng lỗi đã gặp ở OTController) — phải đặt tên khác (":UPDBY").
+            if (req.Id is > 0)
+            {
+                await _db.ExecuteNonQueryAsync(@"
+                    UPDATE HRMS.HR_INQUIRY_CANNED_REPLY
+                    SET TITLE = :TITLE, CONTENT = :CONTENT, DISPLAY_ORDER = :ORD,
+                        IS_ACTIVE = :ACTIVE, UPDATED_BY = :UPDBY, UPDATED_DATE = SYSDATE
+                    WHERE ID = :ID",
+                    new OracleParameter("TITLE",   req.Title),
+                    new OracleParameter("CONTENT", req.Content),
+                    new OracleParameter("ORD",     req.DisplayOrder),
+                    new OracleParameter("ACTIVE",  req.IsActive ? 1 : 0),
+                    new OracleParameter("UPDBY",   (object?)req.ActorEmpCd ?? DBNull.Value),
+                    new OracleParameter("ID",      req.Id));
+            }
+            else
+            {
+                await _db.ExecuteNonQueryAsync(@"
+                    INSERT INTO HRMS.HR_INQUIRY_CANNED_REPLY
+                        (TITLE, CONTENT, DISPLAY_ORDER, IS_ACTIVE, UPDATED_BY, UPDATED_DATE)
+                    VALUES
+                        (:TITLE, :CONTENT, :ORD, :ACTIVE, :UPDBY, SYSDATE)",
+                    new OracleParameter("TITLE",   req.Title),
+                    new OracleParameter("CONTENT", req.Content),
+                    new OracleParameter("ORD",     req.DisplayOrder),
+                    new OracleParameter("ACTIVE",  req.IsActive ? 1 : 0),
+                    new OracleParameter("UPDBY",   (object?)req.ActorEmpCd ?? DBNull.Value));
+            }
+
+            return Ok(new { success = true, message = "Lưu thành công" });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/Inquiry/admin/canned-replies/delete
+    [HttpPost("admin/canned-replies/delete")]
+    public async Task<IActionResult> DeleteCannedReply([FromBody] DeleteCannedReplyRequest req)
+    {
+        try
+        {
+            if (!await IsAdminOrHrAsync(req.ActorEmpCd))
+                return Ok(new { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
+
+            await _db.ExecuteNonQueryAsync(
+                "DELETE FROM HRMS.HR_INQUIRY_CANNED_REPLY WHERE ID = :ID",
+                new OracleParameter("ID", req.Id));
+
+            return Ok(new { success = true, message = "Đã xoá" });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // Xác thực ACTOR_EMPCD thực sự có role Admin/HR/CSR trong DB — tránh việc chỉ dựa vào
+    // check role phía HR_web (ai gọi thẳng apiHR/Inquiry/admin/* sẽ bỏ qua được lớp đó).
+    // Câu trả lời mẫu: ban đầu chỉ Admin quản lý, sau đổi ý cho cả HR/CSR quản lý (2026-09-14).
+    private async Task<bool> IsAdminOrHrAsync(string? empCd)
+    {
+        if (string.IsNullOrEmpty(empCd)) return false;
+        var rows = await _db.ExecuteQueryAsync(@"
+            SELECT 1 FROM HRMS.HR_USERS U
+            JOIN HRMS.HR_ROLES R ON R.ID = U.ROLE_ID
+            WHERE U.EMPCD = :EMPCD AND R.ROLE_NAME IN ('Admin','HR','CSR') AND ROWNUM = 1",
+            r => 1,
+            new OracleParameter("EMPCD", empCd));
+        return rows.Count > 0;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -891,13 +1051,16 @@ public class InquiryController : ControllerBase
                 foreach (var rf in req.Refs)
                 {
                     if (rf.RefId <= 0) continue;
-                    if (rf.RefType != "POLICY" && rf.RefType != "GUIDE") continue;
+                    if (rf.RefType != "POLICY" && rf.RefType != "GUIDE" && rf.RefType != "BULLETIN") continue;
 
                     // lookup title từ source table tương ứng
                     string? refTitle = null;
-                    string lookupSql = rf.RefType == "POLICY"
-                        ? "SELECT TITLE FROM HRMS.HR_COMPANY_POLICY WHERE ID = :ID AND IS_ACTIVE = 1"
-                        : "SELECT TITLE FROM HRMS.HR_GUIDE          WHERE ID = :ID AND IS_ACTIVE = 1";
+                    string lookupSql = rf.RefType switch
+                    {
+                        "POLICY"   => "SELECT TITLE FROM HRMS.HR_COMPANY_POLICY WHERE ID = :ID AND IS_ACTIVE = 1",
+                        "GUIDE"    => "SELECT TITLE FROM HRMS.HR_GUIDE          WHERE ID = :ID AND IS_ACTIVE = 1",
+                        _          => "SELECT TITLE FROM HRMS.HR_BULLETIN       WHERE ID = :ID AND IS_ACTIVE = 1 AND IS_PUBLISHED = 1"
+                    };
                     var titleRows = await _db.ExecuteQueryAsync(
                         lookupSql,
                         r => r["TITLE"]?.ToString(),
@@ -1454,6 +1617,7 @@ public class InquiryController : ControllerBase
                 SELECT COUNT(*)                                                       AS TOTAL,
                        NVL(SUM(CASE WHEN i.STATUS = 'OPEN'   THEN 1 ELSE 0 END), 0) AS CNT_OPEN,
                        NVL(SUM(CASE WHEN i.STATUS = 'CLOSED' THEN 1 ELSE 0 END), 0) AS CNT_CLOSED,
+                       NVL(SUM(CASE WHEN i.STATUS = 'OPEN' AND i.ASSIGNED_TO IS NULL THEN 1 ELSE 0 END), 0) AS CNT_OPEN_UNASSIGNED,
                        NVL(SUM({unreadHrExpr}), 0)                                   AS TOTAL_UNREAD
                 FROM HRMS.HR_INQUIRY i
                 LEFT JOIN HRMS.HR_INQUIRY_READER rd ON rd.INQUIRY_ID = i.ID AND rd.VIEWER_EMPCD = :VIEWER_EMPCD
@@ -1483,20 +1647,22 @@ public class InquiryController : ControllerBase
             }
 
             var counts = await _db.ExecuteQueryAsync(sqlCount, r => new {
-                total        = Convert.ToInt32(r["TOTAL"]),
-                cntOpen      = Convert.ToInt32(r["CNT_OPEN"]),
-                cntClosed    = Convert.ToInt32(r["CNT_CLOSED"]),
-                totalUnread  = Convert.ToInt32(r["TOTAL_UNREAD"])
+                total              = Convert.ToInt32(r["TOTAL"]),
+                cntOpen            = Convert.ToInt32(r["CNT_OPEN"]),
+                cntClosed          = Convert.ToInt32(r["CNT_CLOSED"]),
+                cntOpenUnassigned  = Convert.ToInt32(r["CNT_OPEN_UNASSIGNED"]),
+                totalUnread        = Convert.ToInt32(r["TOTAL_UNREAD"])
             }, countParams.ToArray());
 
             var c = counts.FirstOrDefault();
-            int total       = c?.total       ?? 0;
-            int cntOpen     = c?.cntOpen     ?? 0;
-            int cntClosed   = c?.cntClosed   ?? 0;
-            int totalUnread = c?.totalUnread ?? 0;
+            int total             = c?.total             ?? 0;
+            int cntOpen           = c?.cntOpen           ?? 0;
+            int cntClosed         = c?.cntClosed         ?? 0;
+            int cntOpenUnassigned = c?.cntOpenUnassigned ?? 0;
+            int totalUnread       = c?.totalUnread       ?? 0;
             int totalPages  = pageSize > 0 ? (int)Math.Ceiling((double)total / pageSize) : 1;
 
-            return Ok(new { success = true, data = rows, page, pageSize, total, totalPages, cntOpen, cntClosed, totalUnread });
+            return Ok(new { success = true, data = rows, page, pageSize, total, totalPages, cntOpen, cntClosed, cntOpenUnassigned, totalUnread });
         }
         catch (Exception ex)
         {
@@ -1902,4 +2068,20 @@ public class RecallRequest
     public string  SenderType { get; set; } = "EMP";
     public string? EmpCd      { get; set; }
     public string? AnonToken  { get; set; }
+}
+
+public class SaveCannedReplyRequest
+{
+    public long?   Id            { get; set; }
+    public string  Title         { get; set; } = "";
+    public string  Content       { get; set; } = "";
+    public int     DisplayOrder  { get; set; }
+    public bool    IsActive      { get; set; } = true;
+    public string? ActorEmpCd    { get; set; }
+}
+
+public class DeleteCannedReplyRequest
+{
+    public long    Id         { get; set; }
+    public string? ActorEmpCd { get; set; }
 }

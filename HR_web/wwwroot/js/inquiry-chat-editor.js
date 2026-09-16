@@ -86,6 +86,8 @@ if (target) {
         getText:   () => editor.getText(),
         getLength: () => editor.getText().length,
         setHTML:   (html) => editor.commands.setContent(html || ''),
+        // Chèn HTML tại vị trí con trỏ (không xoá nội dung đang gõ) — dùng cho "Chèn câu trả lời mẫu".
+        insertContent: (html) => editor.chain().focus().insertContent(html || '').run(),
         clear:     () => editor.commands.clearContent(true),
         focus:     () => editor.commands.focus()
     };

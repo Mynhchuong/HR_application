@@ -98,6 +98,16 @@ public class MenuService
         return r?.success == true ? r.data ?? new() : new();
     }
 
+    // ── Bánh cố định (Suất 2 món Bánh, không theo lưới tuần) ───────────────────
+    public async Task<List<MenuBanhFixedSlot>> GetBanhFixedAsync()
+    {
+        var r = await _api.GetAsync<Resp<List<MenuBanhFixedSlot>>>("MenuFood/banh-fixed");
+        return r?.success == true ? r.data ?? new() : new();
+    }
+
+    public async Task<(bool success, string message)> SaveBanhFixedAsync(int slot, int? foodId, string loginUser)
+        => await PostResult($"MenuFood/banh-fixed/save?slot={slot}&foodId={foodId}&loginUser={loginUser}", new { });
+
     // ── Món hôm nay của nhân viên (LUNCH + OT) ────────────────────────────────
     public async Task<List<UserTodayMealModel>> GetUserTodayMealAsync(string empCd)
     {

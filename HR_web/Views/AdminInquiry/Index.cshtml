@@ -43,37 +43,46 @@
 <div class="container-fluid py-4">
 
     <!-- Stats -->
-    <div class="row mb-4">
-        <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-            <div class="card"><div class="card-body p-3"><div class="row"><div class="col-8">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-5 g-3 mb-4">
+        <div class="col">
+            <div class="card h-100"><div class="card-body p-3"><div class="row"><div class="col-8">
                 <p class="text-sm mb-0 text-uppercase font-weight-bold text-secondary">Tổng hội thoại</p>
                 <h5 class="font-weight-bolder mb-0" id="statTotal">-</h5>
             </div><div class="col-4 text-end"><div class="icon bg-gradient-danger text-white shadow-danger ms-auto" style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
                 <span class="material-symbols-rounded">forum</span>
             </div></div></div></div></div>
         </div>
-        <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-            <div class="card"><div class="card-body p-3"><div class="row"><div class="col-8">
+        <div class="col">
+            <div class="card h-100"><div class="card-body p-3"><div class="row"><div class="col-8">
                 <p class="text-sm mb-0 text-uppercase font-weight-bold text-success">Đang mở</p>
                 <h5 class="font-weight-bolder mb-0" id="statOpen">-</h5>
             </div><div class="col-4 text-end"><div class="icon bg-gradient-success text-white shadow-success ms-auto" style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
                 <span class="material-symbols-rounded">chat_bubble</span>
             </div></div></div></div></div>
         </div>
-        <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-            <div class="card"><div class="card-body p-3"><div class="row"><div class="col-8">
+        <div class="col">
+            <div class="card h-100"><div class="card-body p-3"><div class="row"><div class="col-8">
                 <p class="text-sm mb-0 text-uppercase font-weight-bold text-danger">Chưa đọc</p>
                 <h5 class="font-weight-bolder mb-0" id="statUnread">-</h5>
             </div><div class="col-4 text-end"><div class="icon bg-gradient-warning text-white shadow-warning ms-auto" style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
                 <span class="material-symbols-rounded">mark_unread_chat_alt</span>
             </div></div></div></div></div>
         </div>
-        <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
-            <div class="card"><div class="card-body p-3"><div class="row"><div class="col-8">
+        <div class="col">
+            <div class="card h-100"><div class="card-body p-3"><div class="row"><div class="col-8">
                 <p class="text-sm mb-0 text-uppercase font-weight-bold text-secondary">Đã đóng</p>
                 <h5 class="font-weight-bolder mb-0" id="statClosed">-</h5>
             </div><div class="col-4 text-end"><div class="icon bg-gradient-secondary text-white shadow ms-auto" style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
                 <span class="material-symbols-rounded">check_circle</span>
+            </div></div></div></div></div>
+        </div>
+        <div class="col">
+            <div class="card h-100" id="statCardOpenUnassigned" style="cursor:pointer" title="Bấm để lọc: Đang mở, Chưa phụ trách" onclick="filterOpenUnassigned()">
+                <div class="card-body p-3"><div class="row"><div class="col-8">
+                <p class="text-sm mb-0 text-uppercase font-weight-bold text-warning">Mở &amp; chưa phụ trách</p>
+                <h5 class="font-weight-bolder mb-0" id="statOpenUnassigned">-</h5>
+            </div><div class="col-4 text-end"><div class="icon bg-gradient-danger text-white shadow-danger ms-auto" style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+                <span class="material-symbols-rounded">person_off</span>
             </div></div></div></div></div>
         </div>
     </div>
@@ -196,6 +205,13 @@ const ORIG_TITLE    = document.title;
 
 function changePageSize(v) { pageSize = parseInt(v,10) || 30; loadData(1); }
 
+// Bấm thẻ KPI "Mở & chưa phụ trách" -> tự set 2 filter tương ứng rồi tải lại trang 1.
+function filterOpenUnassigned() {
+    document.getElementById('fStatus').value = 'OPEN';
+    document.getElementById('fAssigned').value = 'UNASSIGNED';
+    loadData(1);
+}
+
 function esc(s) { return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtDt(ds) {
     if (!ds) return '—';
@@ -208,7 +224,28 @@ function fmtDt(ds) {
 let _debTimer;
 function debounceLoad() { clearTimeout(_debTimer); _debTimer = setTimeout(() => loadData(1), 400); }
 
+// Filter chỉ sống trong DOM — bấm vào 1 hội thoại là điều hướng nguyên trang (window.location.href),
+// back lại thì trang load mới tinh, filter mất hết (báo lỗi 2026-09-15). Lưu vào sessionStorage mỗi
+// lần load để back/reload lại vẫn giữ nguyên, dùng session (không phải local) để tự sạch khi đóng tab.
+const FILTER_KEY = 'adminInquiryIndexFilters';
+
+function saveFilterState(page) {
+    try {
+        sessionStorage.setItem(FILTER_KEY, JSON.stringify({
+            status:     document.getElementById('fStatus').value,
+            chatType:   document.getElementById('fChatType').value,
+            topicCd:    document.getElementById('fTopic').value,
+            assignedTo: document.getElementById('fAssigned').value,
+            sort:       document.getElementById('fSort')?.value || 'newest',
+            search:     document.getElementById('fSearch').value,
+            pageSize,
+            page
+        }));
+    } catch {}
+}
+
 function buildUrl(page) {
+    saveFilterState(page);
     const s    = document.getElementById('fStatus').value;
     const ct   = document.getElementById('fChatType').value;
     const t    = document.getElementById('fTopic').value;
@@ -245,6 +282,7 @@ async function loadData(page = 1, silent = false) {
         document.getElementById('statOpen').textContent   = (data.cntOpen     ?? 0).toLocaleString();
         document.getElementById('statUnread').textContent = newUnread.toLocaleString();
         document.getElementById('statClosed').textContent = (data.cntClosed   ?? 0).toLocaleString();
+        document.getElementById('statOpenUnassigned').textContent = (data.cntOpenUnassigned ?? 0).toLocaleString();
 
         if (silent && prevUnread !== null && newUnread > prevUnread) {
             notifyNewMessages(newUnread - prevUnread, newUnread);
@@ -448,22 +486,54 @@ async function loadTopics() {
 }
 
 // Apply querystring filter (dùng cho link từ Home HR dashboard: /AdminInquiry/Index?status=OPEN&assigned=UNASSIGNED)
-(function () {
+// — ưu tiên hơn filter đã lưu trong sessionStorage vì đây là ý định rõ ràng của link dẫn tới.
+function applyQuerystringFilters() {
     const p = new URLSearchParams(window.location.search);
     const st = p.get('status');
     const as = p.get('assigned');
+    let applied = false;
     if (st) {
         const el = document.getElementById('fStatus');
-        if (el && Array.from(el.options).some(o => o.value === st)) el.value = st;
+        if (el && Array.from(el.options).some(o => o.value === st)) { el.value = st; applied = true; }
     }
     if (as) {
         const el = document.getElementById('fAssigned');
-        if (el && Array.from(el.options).some(o => o.value === as)) el.value = as;
+        if (el && Array.from(el.options).some(o => o.value === as)) { el.value = as; applied = true; }
     }
-})();
+    return applied;
+}
 
-loadTopics();
-loadData(1);
-startAutoReload();
+// Khôi phục filter đã lưu (yêu cầu #fTopic phải load xong option trước, nếu không set giá trị sẽ
+// không khớp option nào và bị bỏ qua). Trả về trang đã lưu để loadData() nhảy đúng lại trang cũ.
+function restoreFilterState() {
+    let saved;
+    try { saved = JSON.parse(sessionStorage.getItem(FILTER_KEY) || 'null'); } catch { saved = null; }
+    if (!saved) return 1;
+
+    const setIfExists = (id, val) => {
+        const el = document.getElementById(id);
+        if (el && val != null && Array.from(el.options).some(o => o.value === val)) el.value = val;
+    };
+    setIfExists('fStatus', saved.status);
+    setIfExists('fChatType', saved.chatType);
+    setIfExists('fTopic', saved.topicCd);
+    setIfExists('fAssigned', saved.assignedTo);
+    setIfExists('fSort', saved.sort);
+    if (saved.search) document.getElementById('fSearch').value = saved.search;
+    if (saved.pageSize) {
+        pageSize = saved.pageSize;
+        setIfExists('fPageSize', String(saved.pageSize));
+    }
+    return saved.page || 1;
+}
+
+async function initPage() {
+    await loadTopics();
+    const hasQsFilter = applyQuerystringFilters();
+    const savedPage = hasQsFilter ? 1 : restoreFilterState();
+    loadData(savedPage);
+    startAutoReload();
+}
+initPage();
 </script>
 }

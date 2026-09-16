@@ -125,6 +125,40 @@ public class InquiryService
         catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
     }
 
+    // Câu trả lời mẫu (yêu cầu HR 2026-09-12) — passthrough raw JSON, giống SearchRefsRawAsync.
+    public Task<string> CannedRepliesRawAsync(string? q)
+        => GetInquiryRawAsync($"Inquiry/canned-replies?q={Uri.EscapeDataString(q ?? "")}");
+
+    public Task<string> CannedRepliesAdminRawAsync(string? actorEmpcd)
+        => GetInquiryRawAsync($"Inquiry/admin/canned-replies?actor_empcd={Uri.EscapeDataString(actorEmpcd ?? "")}");
+
+    public Task<string> CannedReplySaveRawAsync(object payload) => PostInquiryRawAsync("Inquiry/admin/canned-replies/save", payload);
+    public Task<string> CannedReplyDeleteRawAsync(object payload) => PostInquiryRawAsync("Inquiry/admin/canned-replies/delete", payload);
+
+    private async Task<string> GetInquiryRawAsync(string qs)
+    {
+        try
+        {
+            var res = await _api.GetRawAsync(qs);
+            if (res?.IsSuccessStatusCode == true)
+                return await res.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"", "'") + "\"}"; }
+    }
+
+    private async Task<string> PostInquiryRawAsync(string endpoint, object payload)
+    {
+        try
+        {
+            var res = await _api.PostAsync(endpoint, payload);
+            if (res?.IsSuccessStatusCode == true)
+                return await res.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"", "'") + "\"}"; }
+    }
+
     // POST /apiHR/Inquiry/mark-read
     // viewerEmpcd: mã NV người đang xem (khi readerType=HR) — CSR/HR/Admin xem chung 1 hội thoại
     // nhưng "đã đọc" phải tính riêng cho từng người (bug 2026-09-10).

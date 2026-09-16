@@ -50,8 +50,9 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",                   Icon = "payments"      },
                     new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",           Icon = "door_front"    },
                     new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",           Icon = "event_busy"    },
-                    new SideMenuItem { Title = "Hộp thư",             Url = "~/EmployeeInquiry/Index",           Icon = "forum"         },
-                    new SideMenuItem { Title = "AI SAMHO - CSR",      Url = "~/AiCsr/Chat",                      Icon = "smart_toy"     },
+                    // "AI SAMHO - CSR" đã gộp vào trong Hộp thư phản ánh (yêu cầu 2026-09-16, gọn menu) —
+                    // bỏ mục menu riêng, lối tắt AI giờ nằm ngay trong trang EmployeeInquiry/Index.
+                    new SideMenuItem { Title = "Hộp thư phản ánh",             Url = "~/EmployeeInquiry/Index",           Icon = "forum"         },
                     new SideMenuItem { Title = "Đào tạo cá nhân",     Url = "~/Training/Index",                  Icon = "school"        },
                 }
             },
@@ -152,6 +153,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý Đào tạo",      Url = "~/TrainingAdmin/Index",             Icon = "school",             Group = "training" },
 
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum",                 Group = "chat" },
+                    new SideMenuItem { Title = "Câu trả lời mẫu",       Url = "~/HrInquiry/CannedReplies",     Icon = "quickreply",            Group = "chat" },
                     new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",              Group = "chat" },
 
                     new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",               Group = "system" },
@@ -172,18 +174,24 @@ public static class SideMenuBuilder
                 Title = "CSR",
                 Icon = "support_agent",
                 VisibleWhen = () => isCSR || isAdmin,
+                // Menu CSR cũng khá dài — gom cụm theo màu giống menu HR (yêu cầu 2026-09-15),
+                // dùng chung MenuGroupCatalog, mỗi cụm liền nhau + có nhãn màu riêng.
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign"        },
-                    new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy"          },
-                    new SideMenuItem { Title = "Chứng chỉ Đào tạo",     Url = "~/TrainingAdmin/Certificates", Icon = "card_membership" },
-                    new SideMenuItem { Title = "Quản lý Đào tạo",       Url = "~/TrainingAdmin/Index",        Icon = "school"          },
-                    new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",          Icon = "poll"            },
-                    new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",            Icon = "forum"           },
-                    new SideMenuItem { Title = "AI SAMHO - CSR",        Url = "~/AiCsrAdmin/Index",           Icon = "smart_toy"       },
-                    new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart"       },
-                    new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",            Icon = "home_app_logo"   },
-                    new SideMenuItem { Title = "Log Đổi Món",           Url = "~/CanteenBread/ChangeLog",     Icon = "history"         },
+                    new SideMenuItem { Title = "Log Đổi Món",           Url = "~/CanteenBread/ChangeLog",     Icon = "history",         Group = "canteen" },
+
+                    new SideMenuItem { Title = "Chứng chỉ Đào tạo",     Url = "~/TrainingAdmin/Certificates", Icon = "card_membership", Group = "training" },
+                    new SideMenuItem { Title = "Quản lý Đào tạo",       Url = "~/TrainingAdmin/Index",        Icon = "school",          Group = "training" },
+
+                    new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",            Icon = "forum",           Group = "chat" },
+                    new SideMenuItem { Title = "Câu trả lời mẫu",       Url = "~/HrInquiry/CannedReplies",    Icon = "quickreply",      Group = "chat" },
+                    new SideMenuItem { Title = "AI SAMHO - CSR",        Url = "~/AiCsrAdmin/Index",           Icon = "smart_toy",       Group = "chat" },
+                    new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",       Group = "chat" },
+
+                    new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",        Group = "system" },
+                    new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy",          Group = "system" },
+                    new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",          Icon = "poll",            Group = "system" },
+                    new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",            Icon = "home_app_logo",   Group = "system" },
                 }
             },
 
@@ -234,6 +242,7 @@ public static class SideMenuBuilder
                     new() { Title = "Quản lý hội thoại",     Url = "~/AdminInquiry/Index",        Icon = "forum",           Group = "chat" },
                     new() { Title = "AI SAMHO - CSR",        Url = "~/AiCsrAdmin/Index",          Icon = "smart_toy",       Group = "chat" },
                     new() { Title = "Chủ đề hội thoại",      Url = "~/AdminInquiry/Topics",       Icon = "topic",           Group = "chat" },
+                    new() { Title = "Câu trả lời mẫu",       Url = "~/AdminInquiry/CannedReplies", Icon = "quickreply",     Group = "chat" },
                     new() { Title = "Báo cáo hội thoại",    Url = "~/AdminInquiry/Report",       Icon = "bar_chart",       Group = "chat" },
 
                     new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",              Icon = "menu_book",       Group = "system" },

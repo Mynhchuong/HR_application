@@ -59,16 +59,24 @@ public class HomeSummaryService
         // thấy KPI toàn công ty — coi Admin như luôn "có scope", các query bên dưới sẽ tự bỏ điều
         // kiện lọc phòng ban khi role là Admin (xem CountLeaveDocMissingAsync/GetLeaveDocMissingListAsync).
         bool isAdmin  = string.Equals(user.ROLENAME, "Admin", StringComparison.OrdinalIgnoreCase);
+        bool isHrCsr  = user.ROLENAME is "HR" or "Admin" or "CSR";
         var hasScope = isAdmin || await HasScopeAsync(user.EMPCD);
         if (!hasScope)
         {
-            // Vẫn count team birthday (không cần scope)
+            // Vẫn count team birthday (không cần scope) + dashboard HR/CSR (không phụ thuộc scope phòng ban)
             var teamBd = await _birthdayService.GetTeamBirthdayAsync(user);
             result.TEAM_BIRTHDAY_COUNT = teamBd.Count;
+            if (isHrCsr)
+            {
+                var hr = await CountHrDashboardAsync(user.EMPCD);
+                result.HR_UNREAD_MSG       = hr.UnreadMsg;
+                result.HR_OPEN_INQ         = hr.OpenInq;
+                result.HR_NEW_BULLETIN_CMT = hr.NewBulletinCmt;
+            }
             return result;
         }
 
-        // Chạy song song 7 query độc lập
+        // Chạy song song các query độc lập
         var leaveTask       = CountLeavePendingAsync(user.EMPCD);
         var gpTask          = CountGpPendingAsync(user.EMPCD);
         var otTask          = CountOtAsync(user.EMPCD);
@@ -77,8 +85,9 @@ public class HomeSummaryService
         var gpTodayTask     = CountGpTodayAsync(user.EMPCD);
         var trainingTodayTask = _trainingTeam.CountTodayInScopeAsync(user.EMPCD);
         var docMissingTask  = CountLeaveDocMissingAsync(user);
+        var hrDashTask      = isHrCsr ? CountHrDashboardAsync(user.EMPCD) : Task.FromResult(new HrDashCounts());
 
-        await Task.WhenAll(leaveTask, gpTask, otTask, bdTask, leaveTodayTask, gpTodayTask, trainingTodayTask, docMissingTask);
+        await Task.WhenAll(leaveTask, gpTask, otTask, bdTask, leaveTodayTask, gpTodayTask, trainingTodayTask, docMissingTask, hrDashTask);
 
         result.LEAVE_PENDING        = leaveTask.Result;
         result.GP_PENDING           = gpTask.Result;
@@ -90,8 +99,52 @@ public class HomeSummaryService
         result.GP_TODAY_TOTAL       = gpTodayTask.Result;
         result.TRAINING_TODAY_TOTAL = trainingTodayTask.Result;
         result.LEAVE_DOC_MISSING_COUNT = docMissingTask.Result;
+        result.HR_UNREAD_MSG        = hrDashTask.Result.UnreadMsg;
+        result.HR_OPEN_INQ          = hrDashTask.Result.OpenInq;
+        result.HR_NEW_BULLETIN_CMT  = hrDashTask.Result.NewBulletinCmt;
 
         return result;
+    }
+
+    // "Chưa đọc" tính RIÊNG cho từng người xem (HR_INQUIRY_READER.LAST_READ_DT theo VIEWER_EMPCD) —
+    // KHÔNG dùng chung 1 cờ HR_INQUIRY.UNREAD_HR (bug cũ: cờ dùng chung cho mọi HR/CSR/Admin nên
+    // cộng dồn qua cả hội thoại đã đóng/đã có người khác phụ trách, báo số ảo dù đã đọc hết —
+    // xem đúng logic unreadHrExpr đã sửa ở InquiryController.HrList). KHÔNG tính khi hội thoại
+    // đã CLOSED hoặc đã có người phụ trách KHÁC mình.
+    private async Task<HrDashCounts> CountHrDashboardAsync(string empcd)
+    {
+        const string sql = @"
+            SELECT
+                (SELECT NVL(SUM(
+                    CASE
+                        WHEN i.STATUS = 'CLOSED' THEN 0
+                        WHEN i.ASSIGNED_TO IS NOT NULL AND i.ASSIGNED_TO <> :E1 THEN 0
+                        ELSE (SELECT COUNT(*) FROM HRMS.HR_INQUIRY_MSG m
+                              WHERE m.INQUIRY_ID = i.ID AND m.SENDER_TYPE = 'EMP' AND m.IS_DELETED = 0
+                                AND m.SENT_DT > NVL(rd.LAST_READ_DT, DATE '1900-01-01'))
+                    END), 0)
+                 FROM HRMS.HR_INQUIRY i
+                 LEFT JOIN HRMS.HR_INQUIRY_READER rd ON rd.INQUIRY_ID = i.ID AND rd.VIEWER_EMPCD = :E2)     AS UNREAD_MSG,
+                (SELECT COUNT(*) FROM HRMS.HR_INQUIRY WHERE STATUS = 'OPEN' AND ASSIGNED_TO IS NULL)        AS OPEN_INQ,
+                (SELECT COUNT(DISTINCT BULLETIN_ID) FROM HRMS.HR_BULLETIN_COMMENT
+                  WHERE IS_DELETED = 0 AND INST_DT >= SYSDATE - 1)                                          AS NEW_CMT_BULL
+            FROM DUAL";
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql, r => new HrDashCounts
+        {
+            UnreadMsg      = Convert.ToInt32(r["UNREAD_MSG"]),
+            OpenInq        = Convert.ToInt32(r["OPEN_INQ"]),
+            NewBulletinCmt = Convert.ToInt32(r["NEW_CMT_BULL"]),
+        }, new OracleParameter("E1", empcd), new OracleParameter("E2", empcd));
+
+        return rows.FirstOrDefault() ?? new HrDashCounts();
+    }
+
+    private class HrDashCounts
+    {
+        public int UnreadMsg      { get; set; }
+        public int OpenInq        { get; set; }
+        public int NewBulletinCmt { get; set; }
     }
 
     // Đếm số đơn nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai (tháng hiện tại) đã duyệt mà chưa nộp giấy tờ
@@ -108,7 +161,7 @@ public class HomeSummaryService
             JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID = L.REQUEST_ID
             JOIN HRMS.ECM100    EC ON EC.EMPCD     = L.EMPCD
             WHERE R.REQUEST_TYPE = 'LEAVE'
-              AND L.LEAVE_TYPE IN ('DT','DC','VS','KT','SI','DS')
+              AND L.LEAVE_TYPE IN ('DT','DC','VS','KT','SI')
               AND R.STATUS IN ('APPROVED','ASSIGNED')
               AND (L.SOURCE = 'SELF' OR NVL(L.CONFIRM_STATUS,'X') != 'WORKER_REJECTED')
               AND TRUNC(L.TO_DATE,'MM') = TRUNC(SYSDATE,'MM')
@@ -139,7 +192,7 @@ public class HomeSummaryService
             JOIN HRMS.ECM100    EC ON EC.EMPCD     = L.EMPCD
             LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
             WHERE R.REQUEST_TYPE = 'LEAVE'
-              AND L.LEAVE_TYPE IN ('DT','DC','VS','KT','SI','DS')
+              AND L.LEAVE_TYPE IN ('DT','DC','VS','KT','SI')
               AND R.STATUS IN ('APPROVED','ASSIGNED')
               AND (L.SOURCE = 'SELF' OR NVL(L.CONFIRM_STATUS,'X') != 'WORKER_REJECTED')
               AND TRUNC(L.TO_DATE,'MM') = TRUNC(SYSDATE,'MM')

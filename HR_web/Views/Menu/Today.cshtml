@@ -485,6 +485,57 @@
         <span class="tp-feedback-arrow">›</span>
     </a>
 
+    <!-- 4b. Bánh cố định (luôn hiện, không theo lưới thực đơn ngày/ca) -->
+    @{
+        var banhFixed = (ViewBag.BanhFixed as List<HR_web.Models.Menu.MenuBanhFixedSlot> ?? new())
+            .Where(b => b.FoodId.HasValue).ToList();
+    }
+    @if (banhFixed.Any())
+    {
+        <div class="tp-shift">
+            <div class="tp-shift-hd" style="background:linear-gradient(135deg, #b45309 0%, #eab308 100%);">
+                <div class="tp-shift-hd-left">
+                    <span class="tp-shift-icon">🥐</span>
+                    <div>
+                        <div class="tp-shift-title">Suất 2 món Bánh</div>
+                        <div class="tp-shift-desc">Luôn có mỗi ngày</div>
+                    </div>
+                </div>
+            </div>
+            @foreach (var b in banhFixed)
+            {
+                var imgUrl = b.IsImage == "Y"
+                    ? Url.Action("GetFoodImage","Image", new { fileName = b.FoodId + ".jpg" }) + "&v=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                    : null;
+                var initial = (b.FoodName ?? "").Length > 0 ? b.FoodName![0].ToString().ToUpper() : "?";
+                <div class="tp-meal" data-food-img="@imgUrl" data-food-name="@b.FoodName" onclick="openFoodModal(this)">
+                    @if (imgUrl != null)
+                    {
+                        <img class="tp-meal-img" src="@imgUrl" alt="@b.FoodName" loading="lazy"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                        <div class="tp-meal-ph" style="display:none;background:#FEF9C3;">
+                            <span style="color:#78350F;font-size:1.1rem;font-weight:900;">@initial</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="tp-meal-ph" style="background:#FEF9C3;">
+                            <span style="color:#78350F;font-size:1.1rem;font-weight:900;">@initial</span>
+                        </div>
+                    }
+                    <div class="tp-meal-body">
+                        <span class="tp-meal-badge" style="background:#FEF9C3;color:#78350F;">🥐 Bánh</span>
+                        <div class="tp-meal-name">@b.FoodName</div>
+                    </div>
+                    <div class="tp-meal-action">
+                        <span>Xem</span>
+                        <i class="bi bi-chevron-right" style="font-size:.7rem;"></i>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
     <!-- 5. Shifts Food Menu -->
     @if (isEmpty)
     {

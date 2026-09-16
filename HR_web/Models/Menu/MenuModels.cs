@@ -27,6 +27,14 @@ public class MenuFoodModel
     public DateTime? UPDT_DT    { get; set; }
 }
 
+public class MenuBanhFixedSlot
+{
+    public int     SlotNo   { get; set; }
+    public int?    FoodId   { get; set; }
+    public string? FoodName { get; set; }
+    public string  IsImage  { get; set; } = "N";
+}
+
 public class MenuDetailModel
 {
     public int     ID            { get; set; }
@@ -67,11 +75,59 @@ public class SaveWeekRequest
 
 public class SaveFoodRequest
 {
-    public int?    ID         { get; set; }
-    public string  FOOD_NAME  { get; set; } = string.Empty;
-    public string? FOOD_TYPE  { get; set; }
-    public int     IS_ACTIVE  { get; set; } = 1;
-    public string? LOGIN_USER { get; set; }
+    public int?    ID              { get; set; }
+    public string  FOOD_NAME       { get; set; } = string.Empty;
+    public string? FOOD_TYPE       { get; set; }
+    public int     IS_ACTIVE       { get; set; } = 1;
+    public string? LOGIN_USER      { get; set; }
+    public bool    Bypass          { get; set; } = false;
+    public int?    CopyImageFromId { get; set; }
+}
+
+// ── Popup "món tên giống nhau" — import danh mục món ăn (bulk) ─────────────────
+public class FoodImportPendingItem
+{
+    public string Name            { get; set; } = "";
+    public string Type            { get; set; } = "";
+    public int    Active          { get; set; } = 1;
+    public int    MatchedId       { get; set; }
+    public string MatchedName     { get; set; } = "";
+    public bool   MatchedHasImage { get; set; }
+}
+
+public class FoodImportResolveItem
+{
+    public string Name      { get; set; } = "";
+    public string Type      { get; set; } = "";
+    public int    Active    { get; set; } = 1;
+    public string Decision  { get; set; } = ""; // useExisting|createNew|createNewCopyImage
+    public int    MatchedId { get; set; }
+}
+
+// ── Popup "món tên giống nhau" — import thực đơn tuần ──────────────────────────
+public class WeekImportPendingItem
+{
+    public string Shift           { get; set; } = "";
+    public int    DayNo           { get; set; }
+    public string MealType        { get; set; } = "";
+    public int    DisplayOrder    { get; set; } = 1;
+    public string TypedName       { get; set; } = "";
+    public int    MatchedId       { get; set; }
+    public string MatchedName     { get; set; } = "";
+    public bool   MatchedHasImage { get; set; }
+}
+
+public class WeekImportResolvedItem : WeekImportPendingItem
+{
+    public string Decision { get; set; } = ""; // useExisting|createNew|createNewCopyImage
+}
+
+public class FinalizeWeekImportRequest
+{
+    public DateTime FromDate { get; set; }
+    public DateTime ToDate   { get; set; }
+    public List<SaveDetailItem>        Items    { get; set; } = new();
+    public List<WeekImportResolvedItem> Resolved { get; set; } = new();
 }
 
 public class UserTodayMealModel

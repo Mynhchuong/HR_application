@@ -9,9 +9,9 @@ namespace HR_api.HostedServices;
 //      Absent Code / remark trên ERP (EFM410) đúng như bảng quy ước chưa — nếu khớp thì tự đánh dấu
 //      DOC_STATUS='SUBMITTED', không cần HR bấm tay trên MySamho nữa. Áp dụng luôn cho các đơn CŨ
 //      đã có sẵn từ trước (backfill) lẫn đơn mới phát sinh sau này.
-//   2) NHẮC NHỞ: nhân viên nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai/Bệnh có giấy/Dưỡng sức
-//      (DT/DC/VS/KT/SI/DS) đã qua TO_DATE + 3 ngày mà chưa nộp giấy tờ (sau bước 1 vẫn chưa
-//      SUBMITTED — DS không detect được qua ERP nên luôn rơi vào nhánh này cho tới khi HR bấm tay).
+//   2) NHẮC NHỞ: nhân viên nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai/Bệnh có giấy (DT/DC/VS/KT/SI)
+//      đã qua TO_DATE + 3 ngày mà chưa nộp giấy tờ (sau bước 1 vẫn chưa SUBMITTED). Dưỡng sức (DS)
+//      KHÔNG cần nộp giấy tờ nữa (yêu cầu 2026-09-15), đã bỏ khỏi cả 2 bước trên.
 // Chỉ quét sau 9h sáng (gate theo giờ, tránh chạy nhiều lần vô ích khi tick mỗi phút). Nhắc lặp lại
 // mỗi 3 ngày (dedupe qua DOC_REMINDED_DATE) cho tới khi DOC_STATUS='SUBMITTED'.
 public class LeaveDocReminderService : BackgroundService
@@ -133,7 +133,7 @@ public class LeaveDocReminderService : BackgroundService
             SELECT L.REQUEST_ID, L.EMPCD, L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE
             FROM HRMS.HR_LEAVE_REQUEST L
             JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
-            WHERE L.LEAVE_TYPE IN ('DT','DC','VS','KT','SI','DS')
+            WHERE L.LEAVE_TYPE IN ('DT','DC','VS','KT','SI')
               AND R.STATUS IN ('APPROVED','ASSIGNED')
               AND (L.SOURCE = 'SELF' OR NVL(L.CONFIRM_STATUS,'X') != 'WORKER_REJECTED')
               AND L.TO_DATE < TRUNC(SYSDATE) - 3

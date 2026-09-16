@@ -76,6 +76,14 @@ public class HomeSummaryModel
     // Số đơn nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai (tháng này) chưa nộp giấy tờ cho HR
     public int      LEAVE_DOC_MISSING_COUNT { get; set; }
 
+    // Cho HR/Admin/CSR — gộp vào "Tổng quan hôm nay" (chỉ tính khi role HR/Admin/CSR, xem
+    // HomeSummaryService.CountHrDashboardAsync). "Chưa đọc" tính RIÊNG theo người xem hiện tại
+    // (JOIN HR_INQUIRY_READER) — không dùng chung 1 cờ HR_INQUIRY.UNREAD_HR (bug cũ: số cộng dồn
+    // sai lệch, báo ra dù thực tế người xem đã đọc hết).
+    public int      HR_UNREAD_MSG      { get; set; }
+    public int      HR_OPEN_INQ        { get; set; }
+    public int      HR_NEW_BULLETIN_CMT { get; set; }
+
     public DateTime AS_OF         { get; set; } = DateTime.Now;
 }
 

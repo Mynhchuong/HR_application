@@ -144,6 +144,83 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Câu trả lời mẫu — HR/CSR chỉ dùng để chèn, quản lý (thêm/sửa/xoá) là của Admin
+    // GET /HrInquiry/GetCannedRepliesForPicker?q=...
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetCannedRepliesForPicker(string? q = null)
+    {
+        if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
+        var json = await _inquiry.CannedRepliesRawAsync(q);
+        return Content(json, "application/json");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PAGE: Quản lý câu trả lời mẫu (HR/CSR cũng được thêm/sửa/xoá — yêu cầu 2026-09-14,
+    // trước đó chỉ Admin). Dùng chung view với AdminInquiry/CannedReplies.cshtml (view không
+    // chỉ định controller trong Url.Action nên tự trỏ đúng controller đang xử lý request).
+    // GET /HrInquiry/CannedReplies
+    // ─────────────────────────────────────────────────────────────────────────
+    public IActionResult CannedReplies()
+    {
+        if (!IsHr) return Forbid();
+        return View("~/Views/AdminInquiry/CannedReplies.cshtml");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAdminCannedReplies()
+    {
+        if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
+        var raw = await _inquiry.CannedRepliesAdminRawAsync(CurrentUser?.EmpCd);
+        return Content(raw, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveCannedReply([FromBody] HrCannedReplySaveRequest req)
+    {
+        if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
+        if (req == null || string.IsNullOrWhiteSpace(req.Title) || string.IsNullOrWhiteSpace(req.Content))
+            return Json(new { success = false, message = "Thiếu tiêu đề hoặc nội dung" });
+
+        var payload = new
+        {
+            id           = req.Id,
+            title        = req.Title,
+            content      = req.Content,
+            displayOrder = req.DisplayOrder,
+            isActive     = req.IsActive,
+            actorEmpCd   = CurrentUser?.EmpCd
+        };
+        var raw = await _inquiry.CannedReplySaveRawAsync(payload);
+        return Content(raw, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DeleteCannedReply([FromBody] HrCannedReplyDeleteRequest req)
+    {
+        if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
+        if (req == null || req.Id <= 0) return Json(new { success = false, message = "Thiếu ID" });
+
+        var payload = new { id = req.Id, actorEmpCd = CurrentUser?.EmpCd };
+        var raw = await _inquiry.CannedReplyDeleteRawAsync(payload);
+        return Content(raw, "application/json");
+    }
+
+    public class HrCannedReplySaveRequest
+    {
+        public long?  Id           { get; set; }
+        public string Title        { get; set; } = "";
+        public string Content      { get; set; } = "";
+        public int    DisplayOrder { get; set; }
+        public bool   IsActive     { get; set; } = true;
+    }
+
+    public class HrCannedReplyDeleteRequest
+    {
+        public long Id { get; set; }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // AJAX: Đánh dấu đã đọc (HR side)
     // POST /HrInquiry/MarkRead
     // ─────────────────────────────────────────────────────────────────────────

@@ -357,12 +357,12 @@ public class AiCsrController : ControllerBase
                 UPDATE HRMS.HR_AI_CHAT
                 SET STATUS = :ST,
                     CLOSED_DT = CASE WHEN :ST2 = 'CLOSED' THEN SYSDATE ELSE NULL END,
-                    CLOSED_BY = CASE WHEN :ST3 = 'CLOSED' THEN :BY ELSE NULL END,
-                    UPDT_ID = :BY2
+                    CLOSED_BY = CASE WHEN :ST3 = 'CLOSED' THEN :ACTBY ELSE NULL END,
+                    UPDT_ID = :ACTBY2
                 WHERE ID = :ID",
                 new OracleParameter("ST", body.Status), new OracleParameter("ST2", body.Status),
-                new OracleParameter("ST3", body.Status), new OracleParameter("BY", (object?)body.ActorEmpcd ?? DBNull.Value),
-                new OracleParameter("BY2", (object?)body.ActorEmpcd ?? DBNull.Value),
+                new OracleParameter("ST3", body.Status), new OracleParameter("ACTBY", (object?)body.ActorEmpcd ?? DBNull.Value),
+                new OracleParameter("ACTBY2", (object?)body.ActorEmpcd ?? DBNull.Value),
                 new OracleParameter("ID", body.ChatId));
             return Ok(new { success = true });
         }

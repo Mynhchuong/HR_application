@@ -126,3 +126,6 @@ absent code (1).numbers
 note.txt
 HR_api/Scripts/create_ai_csr_chat.sql
 HR_api/Scripts/add_ot_supplement_columns.sql
+HR_api/Scripts/alter_inquiry_ref_type_bulletin.sql
+HR_api/Scripts/create_inquiry_canned_reply.sql
+HR_api/Scripts/create_menu_banh_fixed.sql

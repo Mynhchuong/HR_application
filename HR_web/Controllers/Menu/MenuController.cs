@@ -54,7 +54,20 @@ public class MenuController : BaseController
     public async Task<IActionResult> Manage()
     {
         var weeks = await _svc.GetWeekListAsync();
+        ViewBag.BanhFixed = await _svc.GetBanhFixedAsync();
+        var allFoods = await _svc.GetFoodListAsync();
+        ViewBag.BanhFoods = allFoods.Where(f => f.FOOD_TYPE == "BANH" && f.IS_ACTIVE == 1)
+                                     .OrderBy(f => f.FOOD_NAME).ToList();
         return View(weeks);
+    }
+
+    // AJAX — đổi món ở 1 trong 2 slot bánh cố định (Menu/Today)
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR,Canteen")]
+    public async Task<IActionResult> SaveBanhFixed(int slot, int? foodId)
+    {
+        var (success, msg) = await _svc.SaveBanhFixedAsync(slot, foodId, CurrentUser!.EmpCd);
+        return Json(new { success, message = msg });
     }
 
     [HttpPost]
@@ -240,26 +253,30 @@ public class MenuController : BaseController
     // IMPORT EXCEL
     // ═══════════════════════════════════════════════════════════════════════════
 
+    // Chỉ ĐỌC + validate file Excel, KHÔNG lưu gì cả — trả JSON cho JS xử lý tiếp:
+    //   - success=false + errors: lỗi cứng (ngày sai, tên không giống món nào cả) → hiển thị, bắt sửa lại.
+    //   - success=true + pending rỗng: không có gì mơ hồ → JS gọi luôn FinalizeWeekImport.
+    //   - success=true + pending có dữ liệu: có tên gần giống món đã có → JS hỏi lại rồi mới Finalize.
     [HttpPost]
     [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> ImportExcel(IFormFile file)
     {
-        var errors = new List<ImportRowError>();
-        var items  = new List<SaveDetailItem>();
+        var errors  = new List<ImportRowError>();
+        var items   = new List<SaveDetailItem>();
+        var pending = new List<WeekImportPendingItem>();
+
+        // JSON trả về theo convention lowercase của HR_web (Newtonsoft DefaultContractResolver giữ
+        // nguyên tên property C# — phải tự map object ẩn danh, không trả thẳng model PascalCase).
+        static object[] MapErrors(IEnumerable<ImportRowError> list)
+            => list.Select(e => new { location = e.Location, message = e.Message }).ToArray();
 
         try
         {
             if (file == null || file.Length == 0)
-            {
-                TempData["ImportError"] = "Vui lòng chọn file Excel (.xlsx)";
-                return RedirectToAction("Manage");
-            }
+                return Json(new { success = false, errors = MapErrors(new[] { new ImportRowError { Location = "File", Message = "Vui lòng chọn file Excel (.xlsx)" } }) });
 
             if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
-            {
-                TempData["ImportError"] = "Chỉ chấp nhận file .xlsx";
-                return RedirectToAction("Manage");
-            }
+                return Json(new { success = false, errors = MapErrors(new[] { new ImportRowError { Location = "File", Message = "Chỉ chấp nhận file .xlsx" } }) });
 
             using var wb = new XLWorkbook(file.OpenReadStream());
             var ws = wb.Worksheets.First();
@@ -335,22 +352,36 @@ public class MenuController : BaseController
                                 {
                                     var matched = foods.FirstOrDefault(f =>
                                         f.FOOD_NAME.Equals(line, StringComparison.OrdinalIgnoreCase));
-                                    if (matched == null)
+                                    if (matched != null)
                                     {
-                                        errors.Add(new()
+                                        items.Add(new SaveDetailItem
                                         {
-                                            Location = $"{shift} — {day} — {MealLabel[mealType]}",
-                                            Message  = $"Không tìm thấy \"{line}\" trong danh mục. Nhập ID số hoặc thêm món vào danh mục trước."
+                                            DAY_NO        = dayNo,
+                                            SHIFT         = shift,
+                                            MEAL_TYPE     = mealType,
+                                            FOOD_ID       = matched.ID,
+                                            DISPLAY_ORDER = displayOrder++
                                         });
                                         continue;
                                     }
-                                    items.Add(new SaveDetailItem
+
+                                    // Không trùng tuyệt đối — thử tìm tên gần giống trước khi báo lỗi cứng.
+                                    var similar = FoodNameMatcher.FindSimilar(line, null, foods);
+                                    if (similar != null)
                                     {
-                                        DAY_NO        = dayNo,
-                                        SHIFT         = shift,
-                                        MEAL_TYPE     = mealType,
-                                        FOOD_ID       = matched.ID,
-                                        DISPLAY_ORDER = displayOrder++
+                                        pending.Add(new WeekImportPendingItem
+                                        {
+                                            Shift = shift, DayNo = dayNo, MealType = mealType, DisplayOrder = displayOrder++,
+                                            TypedName = line, MatchedId = similar.ID, MatchedName = similar.FOOD_NAME,
+                                            MatchedHasImage = similar.IS_IMAGE == "Y"
+                                        });
+                                        continue;
+                                    }
+
+                                    errors.Add(new()
+                                    {
+                                        Location = $"{shift} — {day} — {MealLabel[mealType]}",
+                                        Message  = $"Không tìm thấy \"{line}\" trong danh mục. Nhập ID số hoặc thêm món vào danh mục trước."
                                     });
                                 }
                             }
@@ -359,43 +390,94 @@ public class MenuController : BaseController
                 }
             }
 
-            // ── Có lỗi → dừng, hiển thị cho HR sửa ────────────────────────
             if (errors.Any())
+                return Json(new { success = false, errors = MapErrors(errors) });
+
+            if (items.Count == 0 && pending.Count == 0)
+                return Json(new { success = false, errors = MapErrors(new[] { new ImportRowError { Location = "File", Message = "File Excel không có dữ liệu món ăn nào" } }) });
+
+            return Json(new
             {
-                TempData["ImportErrors"] = JsonConvert.SerializeObject(errors);
-                return RedirectToAction("Manage");
+                success = true, fromDate, toDate, items,
+                pending = pending.Select(p => new
+                {
+                    shift = p.Shift, dayNo = p.DayNo, mealType = p.MealType, displayOrder = p.DisplayOrder,
+                    typedName = p.TypedName, matchedId = p.MatchedId, matchedName = p.MatchedName, matchedHasImage = p.MatchedHasImage
+                })
+            });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, errors = MapErrors(new[] { new ImportRowError { Location = "File", Message = $"Lỗi đọc file: {ex.Message}" } } ) });
+        }
+    }
+
+    // POST /Menu/FinalizeWeekImport — hoàn tất import thực đơn tuần sau khi JS đã hỏi xong các
+    // dòng "tên gần giống" (nếu có). Tạo món mới cho các dòng chọn createNew/createNewCopyImage,
+    // gộp với items đã khớp chắc chắn, rồi tạo/tìm tuần + lưu grid y hệt luồng cũ.
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR,Canteen")]
+    public async Task<IActionResult> FinalizeWeekImport([FromBody] FinalizeWeekImportRequest req)
+    {
+        try
+        {
+            var items = new List<SaveDetailItem>(req.Items ?? new());
+
+            foreach (var r in req.Resolved ?? new())
+            {
+                int foodId;
+                if (r.Decision == "useExisting")
+                {
+                    foodId = r.MatchedId;
+                }
+                else
+                {
+                    // Danh mục món dùng chung FOOD_TYPE='MAN' cho cả cột "Món mặn" lẫn "Món dự kiến"
+                    // (xem FOOD_TYPE_MAP ở EditWeek.cshtml) — món mới tạo từ cột DU_KIEN cũng phải
+                    // lưu type MAN để lần sau hiện đúng trong danh sách chọn của cột đó.
+                    var foodType = r.MealType == "DU_KIEN" ? "MAN" : r.MealType;
+                    var (ok, createMsg, newId) = await _svc.SaveFoodAsync(new SaveFoodRequest
+                    {
+                        FOOD_NAME  = r.TypedName,
+                        FOOD_TYPE  = foodType,
+                        IS_ACTIVE  = 1,
+                        LOGIN_USER = CurrentUser!.EmpCd
+                    });
+                    if (!ok) return Json(new { success = false, message = $"Không tạo được món \"{r.TypedName}\": {createMsg}" });
+                    foodId = newId;
+                    if (r.Decision == "createNewCopyImage")
+                        await CopyFoodImageAsync(r.MatchedId, foodId);
+                }
+
+                items.Add(new SaveDetailItem
+                {
+                    DAY_NO        = r.DayNo,
+                    SHIFT         = r.Shift,
+                    MEAL_TYPE     = r.MealType,
+                    FOOD_ID       = foodId,
+                    DISPLAY_ORDER = r.DisplayOrder
+                });
             }
 
             if (items.Count == 0)
-            {
-                TempData["ImportError"] = "File Excel không có dữ liệu món ăn nào";
-                return RedirectToAction("Manage");
-            }
+                return Json(new { success = false, message = "Không có dữ liệu món ăn nào" });
 
             // ── Tạo hoặc tìm tuần theo ngày ────────────────────────────────
             var (okWeek, msgWeek) = await _svc.SaveWeekAsync(new SaveWeekRequest
             {
-                FROM_DATE  = fromDate,
-                TO_DATE    = toDate,
-                WEEK_NAME  = $"Tuần {fromDate:dd/MM} – {toDate:dd/MM/yyyy}",
+                FROM_DATE  = req.FromDate,
+                TO_DATE    = req.ToDate,
+                WEEK_NAME  = $"Tuần {req.FromDate:dd/MM} – {req.ToDate:dd/MM/yyyy}",
                 LOGIN_USER = CurrentUser!.EmpCd
             });
 
-            // Lấy ID tuần vừa tạo/tồn tại
-            // okWeek=false chỉ xảy ra khi tuần đã tồn tại → vẫn tìm được week bên dưới
             var weeks = await _svc.GetWeekListAsync();
             var week  = weeks.FirstOrDefault(w =>
-                w.FROM_DATE.Date == fromDate.Date && w.TO_DATE.Date == toDate.Date);
+                w.FROM_DATE.Date == req.FromDate.Date && w.TO_DATE.Date == req.ToDate.Date);
 
             if (week == null)
-            {
-                TempData["ErrorMessage"] = okWeek
-                    ? "Không thể tìm thấy tuần vừa tạo"
-                    : $"Không thể tạo tuần: {msgWeek}";
-                return RedirectToAction("Manage");
-            }
+                return Json(new { success = false, message = okWeek ? "Không thể tìm thấy tuần vừa tạo" : $"Không thể tạo tuần: {msgWeek}" });
 
-            // ── Lưu vào DB ──────────────────────────────────────────────────
             var (success, msg) = await _svc.SaveDetailAsync(new SaveDetailRequest
             {
                 WEEK_ID    = week.ID,
@@ -403,18 +485,16 @@ public class MenuController : BaseController
                 LOGIN_USER = CurrentUser!.EmpCd
             });
 
-            TempData[success ? "SuccessMessage" : "ErrorMessage"] = success
-                ? $"Import thành công {items.Count} món cho tuần {week.WEEK_NAME}!"
-                : msg;
-
-            return success
-                ? RedirectToAction("EditWeek", new { id = week.ID })
-                : RedirectToAction("Manage");
+            return Json(new
+            {
+                success,
+                message = success ? $"Import thành công {items.Count} món cho tuần {week.WEEK_NAME}!" : msg,
+                weekId  = week.ID
+            });
         }
         catch (Exception ex)
         {
-            TempData["ImportError"] = $"Lỗi đọc file: {ex.Message}";
-            return RedirectToAction("Manage");
+            return Json(new { success = false, message = $"Lỗi: {ex.Message}" });
         }
     }
 
@@ -456,6 +536,23 @@ public class MenuController : BaseController
         if (duplicate != null)
             return Json(new { success = false, message = $"Tên \"{trimmedName}\" đã tồn tại trong loại {model.FOOD_TYPE}." });
 
+        // Món mới, chưa bypass → kiểm tra tên gần giống món đã có (khác tên nhưng thực chất là 1 món,
+        // dẫn tới trùng lặp ngầm — món cũ có hình, món mới không có). Hỏi người dùng trước khi tạo.
+        bool isNew = model.ID == null || model.ID == 0;
+        if (isNew && !model.Bypass)
+        {
+            var similar = FoodNameMatcher.FindSimilar(trimmedName, model.FOOD_TYPE, allFoods);
+            if (similar != null)
+            {
+                return Json(new
+                {
+                    success = false,
+                    needConfirm = true,
+                    candidate = new { id = similar.ID, name = similar.FOOD_NAME, hasImage = similar.IS_IMAGE == "Y" }
+                });
+            }
+        }
+
         model.LOGIN_USER = CurrentUser!.EmpCd;
 
         // Lưu vào DB trước để lấy ID (với món mới)
@@ -464,6 +561,9 @@ public class MenuController : BaseController
             return Json(new { success = false, message = msg });
 
         int foodId = (model.ID == null || model.ID == 0) ? savedId : model.ID.Value;
+
+        if (isNew && model.CopyImageFromId.HasValue)
+            await CopyFoodImageAsync(model.CopyImageFromId.Value, foodId);
 
         // Lưu ảnh lên network share với tên = {id}.jpg
         string? imgError = null;
@@ -627,26 +727,23 @@ public class MenuController : BaseController
             "MauImportMonAn.xlsx");
     }
 
-    // Import món ăn từ Excel
+    // Import món ăn từ Excel — trả JSON: dòng nào tên gần giống món có sẵn thì đưa vào
+    // "pending" hỏi lại thay vì tự thêm luôn (tránh trùng lặp ngầm, món mới không có hình).
     [HttpPost]
     [Authorize(Roles = "Admin,HR,Canteen")]
     public async Task<IActionResult> ImportFoodExcel(IFormFile file)
     {
         if (file == null || file.Length == 0)
-        {
-            TempData["ImportFoodError"] = "Chưa chọn file.";
-            return RedirectToAction("FoodManage");
-        }
+            return Json(new { success = false, message = "Chưa chọn file." });
         if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
-        {
-            TempData["ImportFoodError"] = "Chỉ chấp nhận file .xlsx.";
-            return RedirectToAction("FoodManage");
-        }
+            return Json(new { success = false, message = "Chỉ chấp nhận file .xlsx." });
 
         var errors  = new List<string>();
+        var pending = new List<FoodImportPendingItem>();
         int inserted = 0;
 
-        // Tải danh sách hiện có 1 lần để check trùng trong cùng loại
+        // Tải danh sách hiện có 1 lần để check trùng trong cùng loại — thêm dần món mới
+        // insert được ngay trong lúc chạy để các dòng sau trong cùng file cũng so được với nó.
         var existingFoods = await _svc.GetFoodListAsync();
         // Track tên đã import trong file này (tên+loại) để tránh trùng nội bộ file
         var importedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -696,7 +793,20 @@ public class MenuController : BaseController
             }
 
             int isActive = active == "0" ? 0 : 1;
-            var req = new HR_web.Models.Menu.SaveFoodRequest
+
+            // Tên gần giống món đã có (khác tên, cùng loại) → không tự thêm, đưa vào hàng chờ hỏi lại.
+            var similar = FoodNameMatcher.FindSimilar(name, rawType, existingFoods);
+            if (similar != null)
+            {
+                pending.Add(new FoodImportPendingItem
+                {
+                    Name = name, Type = rawType, Active = isActive,
+                    MatchedId = similar.ID, MatchedName = similar.FOOD_NAME, MatchedHasImage = similar.IS_IMAGE == "Y"
+                });
+                continue;
+            }
+
+            var req = new SaveFoodRequest
             {
                 FOOD_NAME  = name,
                 FOOD_TYPE  = rawType,
@@ -704,16 +814,53 @@ public class MenuController : BaseController
                 LOGIN_USER = CurrentUser!.EmpCd
             };
 
-            var (ok, msg, _) = await _svc.SaveFoodAsync(req);
-            if (ok) inserted++;
+            var (ok, msg, newId) = await _svc.SaveFoodAsync(req);
+            if (ok)
+            {
+                inserted++;
+                existingFoods.Add(new MenuFoodModel { ID = newId, FOOD_NAME = name, FOOD_TYPE = rawType, IS_ACTIVE = isActive, IS_IMAGE = "N" });
+            }
             else errors.Add($"Dòng {row} ({name}): {msg}");
         }
 
-        TempData["ImportFoodSuccess"] = $"Import thành công {inserted} món ăn.";
-        if (errors.Any())
-            TempData["ImportFoodErrors"] = string.Join("|", errors);
+        return Json(new
+        {
+            success = true, inserted, errors,
+            pending = pending.Select(p => new
+            {
+                name = p.Name, type = p.Type, active = p.Active,
+                matchedId = p.MatchedId, matchedName = p.MatchedName, matchedHasImage = p.MatchedHasImage
+            })
+        });
+    }
 
-        return RedirectToAction("FoodManage");
+    // POST /Menu/ResolveFoodImportReview — người dùng đã chọn xong xử lý các dòng "tên gần giống"
+    // sau khi Import Excel danh mục món ăn (xem ImportFoodExcel).
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR,Canteen")]
+    public async Task<IActionResult> ResolveFoodImportReview([FromBody] List<FoodImportResolveItem> items)
+    {
+        int inserted = 0;
+        var errors = new List<string>();
+        foreach (var it in items ?? new())
+        {
+            if (it.Decision == "useExisting") continue;
+
+            var req = new SaveFoodRequest
+            {
+                FOOD_NAME  = it.Name,
+                FOOD_TYPE  = it.Type,
+                IS_ACTIVE  = it.Active,
+                LOGIN_USER = CurrentUser!.EmpCd
+            };
+            var (ok, msg, newId) = await _svc.SaveFoodAsync(req);
+            if (!ok) { errors.Add($"{it.Name}: {msg}"); continue; }
+
+            inserted++;
+            if (it.Decision == "createNewCopyImage")
+                await CopyFoodImageAsync(it.MatchedId, newId);
+        }
+        return Json(new { success = true, inserted, errors });
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -727,6 +874,8 @@ public class MenuController : BaseController
         var empCd = CurrentUser?.EmpCd;
         if (!string.IsNullOrEmpty(empCd))
             ViewBag.UserMeals = await _svc.GetUserTodayMealAsync(empCd);
+        // Suất 2 món Bánh cố định — không theo lưới thực đơn tuần, HR đổi bất kỳ lúc nào (Menu/Manage)
+        ViewBag.BanhFixed = await _svc.GetBanhFixedAsync();
         return View(data);
     }
 
@@ -805,6 +954,25 @@ public class MenuController : BaseController
     // ═══════════════════════════════════════════════════════════════════════════
     // Helpers
     // ═══════════════════════════════════════════════════════════════════════════
+
+    // Copy file ảnh {fromId}.jpg -> {toId}.jpg trên network share (popup "món tên giống nhau"
+    // chọn "Tạo mới + copy hình"). Bỏ qua im lặng nếu món nguồn không có ảnh — không phải lỗi.
+    private async Task<bool> CopyFoodImageAsync(int fromId, int toId)
+    {
+        try
+        {
+            using (new NetworkShareHelper(ImageController.ShareRoot, ImageController.ShareCred))
+            {
+                var srcPath = Path.Combine(CantinFolder, $"{fromId}.jpg");
+                if (!System.IO.File.Exists(srcPath)) return false;
+                Directory.CreateDirectory(CantinFolder);
+                System.IO.File.Copy(srcPath, Path.Combine(CantinFolder, $"{toId}.jpg"), overwrite: true);
+            }
+            await _svc.SetFoodImageAsync(toId, "Y");
+            return true;
+        }
+        catch { return false; }
+    }
 
     private static bool TryReadDate(IXLCell cell, out DateTime result)
     {

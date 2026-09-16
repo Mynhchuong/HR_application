@@ -5,8 +5,16 @@
     var role  = Model.RoleName;
     var isExpat   = role == "Expat";
     var isHrAdmin = role is "HR" or "Admin";
-    var isClerk   = role == "Clerk";
-    // Clerk KHÔNG phải approver — ẩn 2 tile "Đơn phép cần ký" và "Ra vào cổng"
+    var isCsr     = role == "CSR";
+    var isClerk   = role is "Clerk" or "CSR";
+    // Clerk/CSR KHÔNG phải approver — ẩn 2 tile "Đơn phép cần ký" và "Ra vào cổng"
+
+    // HR/Admin/CSR — 3 ô "tin nhắn mới / inquiry chưa xử lý / bản tin có bình luận mới"
+    var showHrDash  = isHrAdmin || isCsr;
+    var inquiryCtrl = role == "HR" ? "HrInquiry" : "AdminInquiry";
+    var msgLabel    = isEn ? "New messages"       : "Tin nhắn mới";
+    var inqLabel    = isEn ? "Unhandled inquiries" : "Inquiry chưa xử lý";
+    var bullCmtLabel = isEn ? "Bulletins w/ new comments" : "Bản tin có bình luận mới";
 
     var title = isEn ? "Today at a glance" : "Tổng quan hôm nay";
     var leaveLabel   = isEn ? "Leave to sign"     : "Đơn phép cần ký";
@@ -111,6 +119,21 @@
                     <div class="home-kpi-number" data-kpi="leave-doc-missing">0</div>
                     <div class="home-kpi-label">📋 @docMissingLabel</div>
                 </button>
+            }
+            @if (showHrDash)
+            {
+                <a href="@Url.Action("Index", inquiryCtrl, new { status = "OPEN" })" class="home-kpi home-kpi-hrmsg">
+                    <div class="home-kpi-number" data-kpi="hr-msg">0</div>
+                    <div class="home-kpi-label">💬 @msgLabel</div>
+                </a>
+                <a href="@Url.Action("Index", inquiryCtrl, new { status = "OPEN", assigned = "UNASSIGNED" })" class="home-kpi home-kpi-hrinq">
+                    <div class="home-kpi-number" data-kpi="hr-inq">0</div>
+                    <div class="home-kpi-label">📥 @inqLabel</div>
+                </a>
+                <a href="@Url.Action("Index", "Bulletin")" class="home-kpi home-kpi-hrbull">
+                    <div class="home-kpi-number" data-kpi="hr-bull">0</div>
+                    <div class="home-kpi-label">📣 @bullCmtLabel</div>
+                </a>
             }
         </div>
         <div class="home-summary-asof" data-summary-asof></div>

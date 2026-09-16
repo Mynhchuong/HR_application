@@ -236,7 +236,7 @@
 <div class="modal fade" id="modalImportFood" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" action="@Url.Action("ImportFoodExcel")" enctype="multipart/form-data">
+            <form id="formImportFood" onsubmit="return false;">
                 @Html.AntiForgeryToken()
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="bi bi-upload me-1"></i> Import món ăn từ Excel</h5>
@@ -254,13 +254,14 @@
                     </div>
                     <div>
                         <label class="form-label fw-bold">Chọn file Excel đã điền <span class="text-danger">*</span></label>
-                        <input type="file" name="file" accept=".xlsx" class="form-control" required />
+                        <input type="file" id="importFoodFile" name="file" accept=".xlsx" class="form-control" required />
                         <div class="form-text">Chỉ nhận file .xlsx</div>
                     </div>
+                    <div id="importFoodResult" class="mt-3"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-info">
+                    <button type="button" class="btn btn-info" id="btnImportFood">
                         <i class="bi bi-upload me-1"></i> Import
                     </button>
                 </div>
@@ -269,8 +270,10 @@
     </div>
 </div>
 
+<script src="~/js/menu-food-review.js"></script>
 <script>
 const GET_FOOD_IMAGE_URL = '@Url.Action("GetFoodImage", "Image")';
+const GET_FOOD_IMAGE_URL_SHARED = GET_FOOD_IMAGE_URL;
 
 function dlFile(url) {
     const a = document.createElement('a');
@@ -500,13 +503,9 @@ document.addEventListener('paste', async (e) => {
     }
 });
 
-document.getElementById('btnSaveFood').addEventListener('click', async () => {
+async function saveFood(bypass, copyImageFromId) {
     const name = document.getElementById('fName').value.trim();
     const type = document.getElementById('fType').value;
-
-    document.getElementById('fName').classList.toggle('is-invalid', !name);
-    document.getElementById('fType').classList.toggle('is-invalid', !type);
-    if (!name || !type) return;
 
     const btn = document.getElementById('btnSaveFood');
     btn.disabled = true;
@@ -518,6 +517,8 @@ document.getElementById('btnSaveFood').addEventListener('click', async () => {
         fd.append('FOOD_NAME', name);
         fd.append('FOOD_TYPE', type);
         fd.append('IS_ACTIVE', document.getElementById('fActive').checked ? '1' : '0');
+        fd.append('Bypass', bypass ? 'true' : 'false');
+        if (copyImageFromId) fd.append('CopyImageFromId', copyImageFromId);
         const imgFile = document.getElementById('fImage').files[0];
         if (imgFile) fd.append('imageFile', imgFile);
 
@@ -531,6 +532,19 @@ document.getElementById('btnSaveFood').addEventListener('click', async () => {
             bootstrap.Modal.getInstance(document.getElementById('modalFood')).hide();
             showAlert(data.message);
             setTimeout(() => location.reload(), 800);
+        } else if (data.needConfirm) {
+            showSimilarFoodModal({
+                typedName: name, matchedId: data.candidate.id,
+                matchedName: data.candidate.name, matchedHasImage: data.candidate.hasImage
+            }, (decision) => {
+                if (decision === 'useExisting') {
+                    showAlert(`Đã có sẵn "${data.candidate.name}" — dùng món đó nhé.`, 'info');
+                } else if (decision === 'createNew') {
+                    saveFood(true, null);
+                } else if (decision === 'createNewCopyImage') {
+                    saveFood(true, data.candidate.id);
+                }
+            });
         } else {
             showAlert(data.message, 'danger');
         }
@@ -539,6 +553,81 @@ document.getElementById('btnSaveFood').addEventListener('click', async () => {
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-floppy me-1"></i> Lưu';
+    }
+}
+
+document.getElementById('btnSaveFood').addEventListener('click', () => {
+    const name = document.getElementById('fName').value.trim();
+    const type = document.getElementById('fType').value;
+
+    document.getElementById('fName').classList.toggle('is-invalid', !name);
+    document.getElementById('fType').classList.toggle('is-invalid', !type);
+    if (!name || !type) return;
+
+    saveFood(false, null);
+});
+
+// ── Import Excel danh mục món ăn (bulk) ────────────────────────────────────────
+document.getElementById('btnImportFood').addEventListener('click', async () => {
+    const fileInput = document.getElementById('importFoodFile');
+    const resultEl  = document.getElementById('importFoodResult');
+    if (!fileInput.files[0]) { fileInput.reportValidity(); return; }
+
+    const btn = document.getElementById('btnImportFood');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang import...';
+    resultEl.innerHTML = '';
+
+    try {
+        const fd = new FormData();
+        fd.append('file', fileInput.files[0]);
+        const res  = await fetch('@Url.Action("ImportFoodExcel")', {
+            method: 'POST', headers: { 'RequestVerificationToken': antiForgery }, body: fd
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            resultEl.innerHTML = `<div class="alert alert-danger py-2">${data.message}</div>`;
+            return;
+        }
+
+        const finish = (extraInserted) => {
+            const total = (data.inserted || 0) + (extraInserted || 0);
+            let html = `<div class="alert alert-success py-2">Import thành công ${total} món ăn.</div>`;
+            if (data.errors && data.errors.length) {
+                html += `<div class="alert alert-warning py-2"><strong>${data.errors.length} dòng lỗi:</strong><ul class="mb-0">` +
+                    data.errors.map(e => `<li>${e}</li>`).join('') + `</ul></div>`;
+            }
+            resultEl.innerHTML = html;
+            setTimeout(() => location.reload(), 1500);
+        };
+
+        if (data.pending && data.pending.length > 0) {
+            const items = data.pending.map(p => ({
+                typedName: p.name, matchedId: p.matchedId, matchedName: p.matchedName, matchedHasImage: p.matchedHasImage,
+                _src: p
+            }));
+            resolveSimilarFoodQueue(items, async (resolved) => {
+                const payload = resolved.map(r => ({
+                    Name: r._src.name, Type: r._src.type, Active: r._src.active,
+                    Decision: r.decision, MatchedId: r._src.matchedId
+                }));
+                const res2  = await fetch('@Url.Action("ResolveFoodImportReview")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgery },
+                    body: JSON.stringify(payload)
+                });
+                const data2 = await res2.json();
+                finish(data2.inserted);
+            });
+        } else {
+            finish(0);
+        }
+    } catch (e) {
+        resultEl.innerHTML = `<div class="alert alert-danger py-2">Lỗi kết nối: ${e.message}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-upload me-1"></i> Import';
     }
 });
 

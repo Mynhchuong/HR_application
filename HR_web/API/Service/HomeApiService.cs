@@ -29,29 +29,6 @@ public class HomeApiService
     }
 
     // ============================================================
-    // GET /apiHR/Home/hr-summary → counts cho HR dashboard
-    // ============================================================
-    public async Task<HrDashboardCounts?> GetHrSummaryAsync()
-    {
-        try
-        {
-            var resp = await _api.GetAsync<HrSummaryResponse>("home/hr-summary", "");
-            return resp?.success == true ? resp.data : null;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[HomeApiService] GetHrSummaryAsync error: {ex.Message}");
-            return null;
-        }
-    }
-
-    private class HrSummaryResponse
-    {
-        public bool success { get; set; }
-        public HrDashboardCounts? data { get; set; }
-    }
-
-    // ============================================================
     // GET /apiHR/Home/summary
     // ============================================================
     public async Task<HomeSummaryData?> GetSummaryAsync(string empcd, string? roleName, bool force = false)
@@ -210,14 +187,6 @@ public class HomeSummaryResponse
     public HomeSummaryData? data    { get; set; }
 }
 
-// ─── HR dashboard counts
-public class HrDashboardCounts
-{
-    public int unreadMessages           { get; set; }
-    public int openInquiries            { get; set; }
-    public int bulletinsWithNewComments { get; set; }
-}
-
 public class HomeSummaryData
 {
     public int      LEAVE_PENDING       { get; set; }
@@ -229,6 +198,10 @@ public class HomeSummaryData
     public int      LEAVE_TODAY_TOTAL   { get; set; }
     public int      GP_TODAY_TOTAL      { get; set; }
     public int      LEAVE_DOC_MISSING_COUNT { get; set; }
+    // HR/Admin/CSR — gộp vào "Tổng quan hôm nay" (server chỉ tính khi role phù hợp, mặc định 0)
+    public int      HR_UNREAD_MSG       { get; set; }
+    public int      HR_OPEN_INQ         { get; set; }
+    public int      HR_NEW_BULLETIN_CMT { get; set; }
     public DateTime AS_OF               { get; set; }
 }
 

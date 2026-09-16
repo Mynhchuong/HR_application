@@ -31,8 +31,8 @@ public class HomeController : BaseController
         // Dispatcher: chọn view theo role
         if (role is "HR" or "Admin")     return View("Admin",    vm);
         if (role == "Expat")             return View("Expat",    vm);
-        // Clerk: theo dõi hoạt động đội — cùng view Manager có Summary Card
-        if (role is "Supervisor" or "DeputyManager" or "Manager" or "Assistant" or "Clerk")
+        // Clerk/CSR: không phải approver, chỉ theo dõi tổng số hôm nay — cùng view Manager có Summary Card
+        if (role is "Supervisor" or "DeputyManager" or "Manager" or "Assistant" or "Clerk" or "CSR")
                                           return View("Manager",  vm);
 
         return View("Employee", vm);  // Employee, role lạ
@@ -47,18 +47,6 @@ public class HomeController : BaseController
         if (CurrentUser?.EmpCd == null) return Json(new { success = false });
 
         var data = await _homeApi.GetSummaryAsync(CurrentUser.EmpCd, CurrentUser.RoleName, force == 1);
-        return Json(new { success = data != null, data });
-    }
-
-    // ============================================================
-    // GET /Home/HrSummary — counts cho HR/Admin (msg + inquiry + bulletin cmt)
-    // ============================================================
-    [HttpGet]
-    public async Task<IActionResult> HrSummary()
-    {
-        if (CurrentUser?.RoleName is not ("HR" or "Admin"))
-            return Json(new { success = false });
-        var data = await _homeApi.GetHrSummaryAsync();
         return Json(new { success = data != null, data });
     }
 

@@ -682,8 +682,81 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // PAGE: Quản lý câu trả lời mẫu (Admin) — yêu cầu HR 2026-09-12
+    // Kho dùng chung cho Admin/HR/CSR, chỉ Admin thêm/sửa/xoá — mirror pattern Topics ở trên.
+    // GET /AdminInquiry/CannedReplies
+    // ─────────────────────────────────────────────────────────────────────────
+    public IActionResult CannedReplies()
+    {
+        if (!IsAdmin) return Forbid();
+        return View();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAdminCannedReplies()
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        var raw = await _inquiry.CannedRepliesAdminRawAsync(CurrentUser?.EmpCd);
+        return Content(raw, "application/json");
+    }
+
+    // Dùng bởi picker khi chat (nút "Chèn câu trả lời mẫu") — chỉ đọc mẫu đang active.
+    [HttpGet]
+    public async Task<IActionResult> GetCannedRepliesForPicker(string? q = null)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        var raw = await _inquiry.CannedRepliesRawAsync(q);
+        return Content(raw, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveCannedReply([FromBody] AdminCannedReplySaveRequest req)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (req == null || string.IsNullOrWhiteSpace(req.Title) || string.IsNullOrWhiteSpace(req.Content))
+            return Json(new { success = false, message = "Thiếu tiêu đề hoặc nội dung" });
+
+        var payload = new
+        {
+            id           = req.Id,
+            title        = req.Title,
+            content      = req.Content,
+            displayOrder = req.DisplayOrder,
+            isActive     = req.IsActive,
+            actorEmpCd   = CurrentUser?.EmpCd
+        };
+        var raw = await _inquiry.CannedReplySaveRawAsync(payload);
+        return Content(raw, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DeleteCannedReply([FromBody] AdminCannedReplyDeleteRequest req)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (req == null || req.Id <= 0) return Json(new { success = false, message = "Thiếu ID" });
+
+        var payload = new { id = req.Id, actorEmpCd = CurrentUser?.EmpCd };
+        var raw = await _inquiry.CannedReplyDeleteRawAsync(payload);
+        return Content(raw, "application/json");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Inner request models (Admin-specific)
     // ─────────────────────────────────────────────────────────────────────────
+
+    public class AdminCannedReplySaveRequest
+    {
+        public long?  Id           { get; set; }
+        public string Title        { get; set; } = "";
+        public string Content      { get; set; } = "";
+        public int    DisplayOrder { get; set; }
+        public bool   IsActive     { get; set; } = true;
+    }
+
+    public class AdminCannedReplyDeleteRequest
+    {
+        public long Id { get; set; }
+    }
 
     public class AdminTopicSaveRequest
     {

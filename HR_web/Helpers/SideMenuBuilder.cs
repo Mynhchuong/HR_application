@@ -30,7 +30,7 @@ public static class SideMenuBuilder
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Tổng quan",           Url = "~/Home/Index",           Icon = "dashboard"     },
-                    new SideMenuItem { Title = "Thông báo",           Url = "~/Notification/Index",   Icon = "notifications" },
+                    new SideMenuItem { Title = "Thông báo",           Url = "~/Notification/Index",   Icon = "notifications", BadgeId = "sideBellBadge" },
                     new SideMenuItem { Title = "Thực đơn",   Url = "~/Menu/Today",    Icon = "restaurant"  },
                     new SideMenuItem { Title = "Bản tin",            Url = "~/Bulletin/Index",       Icon = "campaign"      },
                     new SideMenuItem { Title = "Quy định công ty",   Url = "~/Policy/Index",         Icon = "policy"        },
@@ -46,13 +46,13 @@ public static class SideMenuBuilder
                 Children = new List<SideMenuItem>
                 {
                     //new SideMenuItem { Title = "Lịch cá nhân",        Url = "~/Calendar/MyCalendar",     Icon = "calendar_month" },
-                    new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",                Icon = "fact_check"    },
+                    new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",                Icon = "fact_check",   BadgeId = "sideOtBadge" },
                     new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",                   Icon = "payments"      },
                     new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",           Icon = "door_front"    },
                     new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",           Icon = "event_busy"    },
                     // "AI SAMHO - CSR" đã gộp vào trong Hộp thư phản ánh (yêu cầu 2026-09-16, gọn menu) —
                     // bỏ mục menu riêng, lối tắt AI giờ nằm ngay trong trang EmployeeInquiry/Index.
-                    new SideMenuItem { Title = "Hộp thư phản ánh",             Url = "~/EmployeeInquiry/Index",           Icon = "forum"         },
+                    new SideMenuItem { Title = "Hộp thư phản ánh",             Url = "~/EmployeeInquiry/Index",           Icon = "forum",        BadgeId = "sideInqBadge" },
                     new SideMenuItem { Title = "Đào tạo cá nhân",     Url = "~/Training/Index",                  Icon = "school"        },
                 }
             },

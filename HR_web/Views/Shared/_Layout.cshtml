@@ -917,63 +917,60 @@
     @if (User.Identity?.IsAuthenticated == true)
     {
         <script>
-        // Unread badge (Notification)
-        (function() {
-            fetch('@Url.Action("UnreadCount","Notification")')
-                .then(r => r.json())
-                .then(d => {
-                    if (d.count > 0) {
-                        var b = document.getElementById('bellBadge');
-                        if (b) { b.textContent = d.count > 99 ? '99+' : d.count; b.style.display = 'block'; }
-                    }
-                }).catch(() => {});
-        })();
+        // ── Helper dùng chung cho MỌI badge số trên menu (bottom-nav mobile + sidebar desktop) ──
+        // Sau này thêm badge mới chỉ cần gọi loadBadge(...), khỏi viết lại fetch/set từng chỗ.
+        //   ids   : 1 id hoặc mảng id các <span> badge (element không tồn tại trên trang thì bỏ qua)
+        //   value : số > 0 mới hiện badge; 0/undefined thì ẩn (giữ nguyên style disp mặc định)
+        function setMenuBadge(ids, value) {
+            (Array.isArray(ids) ? ids : [ids]).forEach(function(id) {
+                var b = document.getElementById(id);
+                if (!b || !(value > 0)) return;
+                b.textContent = value > 99 ? '99+' : value;
+                b.style.display = 'inline-block';
+            });
+        }
+        // url        : endpoint AJAX trả JSON
+        // ids        : id badge (xem setMenuBadge)
+        // extractFn  : (json) => number — lấy số ra từ response, mặc định đọc field "count"
+        function loadBadge(url, ids, extractFn) {
+            fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(d) { setMenuBadge(ids, (extractFn || function(d){ return d.count; })(d)); })
+                .catch(function() {});
+        }
 
-        // Bulletin unread badge — số bài đang publish nhưng user chưa mở
-        (function() {
-            fetch('@Url.Action("UnreadCount","Bulletin")')
-                .then(r => r.json())
-                .then(d => {
-                    if (d.count > 0) {
-                        var b = document.getElementById('bulletinBadge');
-                        if (b) { b.textContent = d.count > 99 ? '99+' : d.count; b.style.display = 'block'; }
-                    }
-                }).catch(() => {});
-        })();
+        // Notification — bottom-nav mobile (#bellBadge) + sidebar desktop (#sideBellBadge)
+        loadBadge('@Url.Action("UnreadCount","Notification")', ['bellBadge', 'sideBellBadge']);
 
-        // Inquiry unread badge
+        // Bulletin — số bài đang publish nhưng user chưa mở
+        loadBadge('@Url.Action("UnreadCount","Bulletin")', 'bulletinBadge');
+
+        // OT need-confirm (sidebar "Xác nhận Tăng ca") — hiện "1" khi hôm nay có tăng ca đang chờ
+        // chính NV tự xác nhận (CONFIRM_STATUS='PENDING').
+        loadBadge('@Url.Action("GetTodayNeedConfirm","OT")', 'sideOtBadge', function(d) { return d.needConfirm ? 1 : 0; });
+
+        // Inquiry unread — bottom-nav mobile (#inqBadge) + sidebar desktop (#sideInqBadge, mục
+        // "Hộp thư phản ánh"). Nguồn số khác nhau theo role vì HR/Admin/NV dùng 3 controller riêng.
         (function() {
             @if (mobileRole == "HR")
             {
                 <text>
-            fetch('@Url.Action("GetList","HrInquiry")?status=OPEN&pageSize=100')
-                .then(r => r.json())
-                .then(d => {
-                    var total = (d.data || []).reduce(function(s, i) { return s + (i.unreadHr || 0); }, 0);
-                    if (total > 0) { var b = document.getElementById('inqBadge'); if (b) { b.textContent = total > 99 ? '99+' : total; b.style.display = 'block'; } }
-                }).catch(function() {});
+            loadBadge('@Url.Action("GetList","HrInquiry")?status=OPEN&pageSize=100', ['inqBadge', 'sideInqBadge'],
+                function(d) { return (d.data || []).reduce(function(s, i) { return s + (i.unreadHr || 0); }, 0); });
                 </text>
             }
             else if (mobileRole == "Admin")
             {
                 <text>
-            fetch('@Url.Action("GetList","AdminInquiry")?status=OPEN&pageSize=100')
-                .then(r => r.json())
-                .then(d => {
-                    var total = (d.data || []).reduce(function(s, i) { return s + (i.unreadHr || 0); }, 0);
-                    if (total > 0) { var b = document.getElementById('inqBadge'); if (b) { b.textContent = total > 99 ? '99+' : total; b.style.display = 'block'; } }
-                }).catch(function() {});
+            loadBadge('@Url.Action("GetList","AdminInquiry")?status=OPEN&pageSize=100', ['inqBadge', 'sideInqBadge'],
+                function(d) { return (d.data || []).reduce(function(s, i) { return s + (i.unreadHr || 0); }, 0); });
                 </text>
             }
             else
             {
                 <text>
-            fetch('@Url.Action("GetMyList","EmployeeInquiry")')
-                .then(r => r.json())
-                .then(d => {
-                    var total = (d.data || []).reduce(function(s, i) { return s + (i.unreadEmp || 0); }, 0);
-                    if (total > 0) { var b = document.getElementById('inqBadge'); if (b) { b.textContent = total > 99 ? '99+' : total; b.style.display = 'block'; } }
-                }).catch(function() {});
+            loadBadge('@Url.Action("GetMyList","EmployeeInquiry")', ['inqBadge', 'sideInqBadge'],
+                function(d) { return (d.data || []).reduce(function(s, i) { return s + (i.unreadEmp || 0); }, 0); });
                 </text>
             }
         })();

@@ -683,7 +683,9 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
 
     // ─────────────────────────────────────────────────────────────────────────
     // PAGE: Quản lý câu trả lời mẫu (Admin) — yêu cầu HR 2026-09-12
-    // Kho dùng chung cho Admin/HR/CSR, chỉ Admin thêm/sửa/xoá — mirror pattern Topics ở trên.
+    // Kho dùng chung cho Admin/HR/CSR, xem chung cùng 1 view (~/Views/AdminInquiry/CannedReplies.cshtml).
+    // HR/CSR cũng thêm/sửa/xoá được (yêu cầu 2026-09-14) — nhưng qua route riêng
+    // /HrInquiry/CannedReplies (HrInquiryController), KHÔNG qua controller này (Admin-only ở đây).
     // GET /AdminInquiry/CannedReplies
     // ─────────────────────────────────────────────────────────────────────────
     public IActionResult CannedReplies()

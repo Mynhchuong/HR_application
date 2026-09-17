@@ -144,7 +144,8 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // AJAX: Câu trả lời mẫu — HR/CSR chỉ dùng để chèn, quản lý (thêm/sửa/xoá) là của Admin
+    // AJAX: Câu trả lời mẫu — chèn khi trả lời (quản lý thêm/sửa/xoá xem CannedReplies() bên dưới,
+    // HR/CSR cũng có quyền — yêu cầu 2026-09-14)
     // GET /HrInquiry/GetCannedRepliesForPicker?q=...
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet]

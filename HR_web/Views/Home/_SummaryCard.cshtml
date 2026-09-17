@@ -11,9 +11,12 @@
 
     // HR/Admin/CSR — 3 ô "tin nhắn mới / inquiry chưa xử lý / bản tin có bình luận mới"
     var showHrDash  = isHrAdmin || isCsr;
-    var inquiryCtrl = role == "HR" ? "HrInquiry" : "AdminInquiry";
+    // Admin dùng AdminInquiryController (Admin-only); HR/CSR dùng chung HrInquiryController
+    // (đúng route menu sidebar đang trỏ) — trước đó lỡ gộp CSR vào nhánh Admin nên CSR bấm vào bị
+    // "không có quyền" (AdminInquiryController.Index/GetList chỉ cho Admin dù class Authorize có CSR).
+    var inquiryCtrl = role is "HR" or "CSR" ? "HrInquiry" : "AdminInquiry";
     var msgLabel    = isEn ? "New messages"       : "Tin nhắn mới";
-    var inqLabel    = isEn ? "Unhandled inquiries" : "Inquiry chưa xử lý";
+    var inqLabel    = isEn ? "Unhandled inquiries" : "Tin nhắn chưa xử lý";
     var bullCmtLabel = isEn ? "Bulletins w/ new comments" : "Bản tin có bình luận mới";
 
     var title = isEn ? "Today at a glance" : "Tổng quan hôm nay";

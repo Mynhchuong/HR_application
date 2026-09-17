@@ -196,6 +196,19 @@
     .menu-child-item .menu-child-icon {
         flex-shrink: 0;
     }
+    .menu-unread-badge {
+        background: #c00000;
+        color: #fff;
+        font-size: .65rem;
+        font-weight: 800;
+        border-radius: 20px;
+        padding: 1px 6px;
+        min-width: 16px;
+        text-align: center;
+        line-height: 1.4;
+        margin-left: 6px;
+        flex-shrink: 0;
+    }
 </style>
 
 <!-- ===== SIDENAV HEADER ===== -->
@@ -292,6 +305,10 @@
                                         <i class="material-symbols-rounded" style="@(itemColor != null ? $"color:{itemColor};" : "")">@item.Icon</i>
                                     </span>
                                     <span class="nav-link-text">@item.Title</span>
+                                    @if (!string.IsNullOrEmpty(item.BadgeId))
+                                    {
+                                        <span id="@item.BadgeId" class="menu-unread-badge" style="display:none;">0</span>
+                                    }
                                 </a>
                             </li>
                         }

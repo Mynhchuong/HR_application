@@ -45,6 +45,18 @@ public class OTController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET: /OT/GetTodayNeedConfirm — cho badge menu sidebar "Xác nhận Tăng ca" (yêu cầu 2026-09-16,
+    // tương tự badge tin nhắn chưa đọc/Thông báo — công nhân hay không để ý có tăng ca cần xác nhận).
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetTodayNeedConfirm()
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd)) return Json(new { needConfirm = false });
+        var data = await _otService.GetOTTodayAsync(CurrentUser.EmpCd);
+        return Json(new { needConfirm = data?.CONFIRM_STATUS == "PENDING" });
+    }
+
+    // ─────────────────────────────────────────────
     // POST: /OT/OtConfirmForm
     // ─────────────────────────────────────────────
     [HttpPost]

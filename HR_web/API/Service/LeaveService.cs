@@ -528,7 +528,8 @@ public class LeaveService
     // Trang sửa Absent Code ERP trực tiếp (thay cho gõ tay trong đơn nghỉ MySamho, HR đổi ý 2026-09-10).
     public async Task<string> GetErpAbsentListRawAsync(
         string dateFrom, string dateTo, string? empcd, string? deptcd, string? linecd, string? workcd,
-        string? leavecd, string? msStatus, string? msLeaveType, int page, int pageSize)
+        string? leavecd, string? msStatus, string? msLeaveType, string? docStatus, string? remark,
+        int page, int pageSize)
     {
         try
         {
@@ -544,6 +545,8 @@ public class LeaveService
             if (!string.IsNullOrEmpty(leavecd))    q.Add($"leavecd={Uri.EscapeDataString(leavecd)}");
             if (!string.IsNullOrEmpty(msStatus))   q.Add($"ms_status={Uri.EscapeDataString(msStatus)}");
             if (!string.IsNullOrEmpty(msLeaveType)) q.Add($"ms_leave_type={Uri.EscapeDataString(msLeaveType)}");
+            if (!string.IsNullOrEmpty(docStatus))  q.Add($"doc_status={Uri.EscapeDataString(docStatus)}");
+            if (!string.IsNullOrEmpty(remark))     q.Add($"remark={Uri.EscapeDataString(remark)}");
             var response = await _api.GetAsync_Raw("leave/erp-absent-list", string.Join("&", q));
             if (response != null && response.IsSuccessStatusCode)
                 return await response.Content.ReadAsStringAsync();

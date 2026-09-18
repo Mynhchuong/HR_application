@@ -101,6 +101,19 @@
                     <option value="KT">Khám thai</option>
                 </select>
             </div>
+            <div style="min-width:150px;flex:1 1 150px;max-width:180px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Giấy tờ</label>
+                <select id="filterDocStatus" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                    <option value="SUBMITTED">Đã nộp</option>
+                    <option value="PARTIALLY_SUBMITTED">Nộp 1 phần</option>
+                    <option value="NOT_SUBMITTED">Chưa nộp</option>
+                </select>
+            </div>
+            <div style="min-width:140px;flex:1 1 140px;max-width:200px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Remark</label>
+                <input type="text" id="filterRemark" class="form-control form-control-sm" placeholder="🔍 Tìm remark..." />
+            </div>
             <div class="d-flex align-items-end gap-2 ms-auto">
                 <div>
                     <label class="form-label small fw-bold mb-1 text-secondary">Hiển thị</label>
@@ -321,6 +334,8 @@ function getParams(page) {
         leavecd:   $('#filterLeavecd').val(),
         ms_status: $('#filterMsStatus').val(),
         ms_leave_type: $('#filterMsLeaveType').val(),
+        doc_status: $('#filterDocStatus').val(),
+        remark:     ($('#filterRemark').val() || '').trim(),
         page, page_size: pageSize
     };
 }
@@ -371,15 +386,18 @@ function renderPagination() {
 $('#pageSizeSelect').on('change', function () { pageSize = parseInt(this.value) || 50; loadData(1); });
 $('#filterDept').on('change', function () { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });
 $('#filterLine').on('change', function () { $('#filterWork').val(null).trigger('change.select2'); loadData(1); });
-$('#filterWork, #filterLeavecd, #filterMsStatus, #filterMsLeaveType').on('change', () => loadData(1));
-let searchTimeout;
+$('#filterWork, #filterLeavecd, #filterMsStatus, #filterMsLeaveType, #filterDocStatus').on('change', () => loadData(1));
+let searchTimeout, remarkTimeout;
 $('#searchEmpcd').on('input', function () { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => loadData(1), 400); });
+$('#filterRemark').on('input', function () { clearTimeout(remarkTimeout); remarkTimeout = setTimeout(() => loadData(1), 400); });
 $('#clearFilterBtn').on('click', function () {
     $('#searchEmpcd').val('');
     $('#filterDept, #filterLine, #filterWork').val(null).trigger('change.select2');
     $('#filterLeavecd').val('');
     $('#filterMsStatus').val('');
     $('#filterMsLeaveType').val('');
+    $('#filterDocStatus').val('');
+    $('#filterRemark').val('');
     loadData(1);
 });
 

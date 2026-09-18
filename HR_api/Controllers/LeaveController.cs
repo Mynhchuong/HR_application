@@ -25,6 +25,7 @@ public class LeaveController : ControllerBase
         _shiftLookup    = shiftLookup;
     }
 
+
     // DT/VS/KT (đám tang/vợ sanh/khám thai): thường phát sinh đột xuất nên vẫn cho đăng ký ngay
     // trong ngày, NHƯNG không cho đăng ký sau khi ca làm việc hôm nay đã kết thúc (tránh xin nghỉ
     // "hồi tố" cho 1 ngày đã qua). Không áp dụng cho ngày tương lai — chỉ chặn khi FROM_DATE = hôm nay.
@@ -291,6 +292,141 @@ public class LeaveController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Gate Pass cho CT (công tác) — dùng chung cho Submit() và AdminAssign().
+    // Công tác 1 ngày (FROM=TO): 1 Gate Pass GP_TYPE='MID' (ra 07:30 + vào 16:30 cùng ngày, y hệt
+    // hành vi cũ). Công tác NHIỀU ngày: tách 2 Gate Pass — "OUT" ngày đi (chỉ giờ ra 07:30) + "IN"
+    // ngày về (chỉ giờ vào 16:30) — KHÔNG tạo gì cho các ngày ở giữa vì NV không có mặt ở công ty
+    // những ngày đó, không phát sinh sự kiện ra/vào cổng thật (yêu cầu 2026-09-17, trước đó có bù
+    // tạm 1 GP MID/ngày cho 18060602 — đã sửa lại cho đúng model này). REASON nêu rõ "Công tác –
+    // ngày đi/về" để người duyệt Gate Pass nhìn vào biết ngay lý do, không tưởng nhầm là Gate Pass
+    // thường.
+    // status: "PENDING" (Submit, chờ duyệt cùng đơn CT) hoặc "APPROVED" (AdminAssign, hiệu lực ngay
+    // — không qua bước duyệt riêng). Trả về (idNgayDi, idNgayVe) — idNgayVe null nếu CT 1 ngày (chỉ
+    // 1 GP MID, lưu ở idNgayDi).
+    private async Task<(string? outId, string? returnId)> CreateCtGatePassAsync(
+        string empcd, string empName, DateTime fromDate, DateTime toDate,
+        string createdBy, string status, string? approver)
+    {
+        async Task<string?> InsertOneAsync(string gpType, DateTime? outTime, DateTime? inTime, string reason)
+        {
+            using var gpIdCmd = new OracleParameter("OUT_REQUEST_ID", OracleDbType.Varchar2, 40)
+                { Direction = System.Data.ParameterDirection.Output };
+
+            string sql = status == "APPROVED"
+                ? @"INSERT INTO HRMS.HR_REQUEST
+                        (REQUEST_ID, REQUEST_TYPE, EMPCD, EMP_NAME, REQUEST_DATE, STATUS,
+                         FINAL_APPROVER, FINAL_DATE, REMARK, CREATED_BY, CREATED_DATE, UPDATED_BY, UPDATED_DATE)
+                    VALUES (TO_CHAR(SYSDATE,'YYYYMMDDHH24MISS') || :EMPCD || 'G' || :SUF, 'GATEPASS', :EMPCD1, :EMP_NAME,
+                            SYSDATE, 'APPROVED', :APPROVER, SYSDATE, :REMARK, :CREATEDBY, SYSDATE, :APPROVER, SYSDATE)
+                    RETURNING REQUEST_ID INTO :OUT_REQUEST_ID"
+                : @"INSERT INTO HRMS.HR_REQUEST (REQUEST_ID, REQUEST_TYPE, EMPCD, EMP_NAME, REQUEST_DATE, STATUS, REMARK, CREATED_BY, CREATED_DATE)
+                    VALUES (TO_CHAR(SYSDATE,'YYYYMMDDHH24MISS') || :EMPCD || 'G' || :SUF, 'GATEPASS', :EMPCD1, :EMP_NAME,
+                            SYSDATE, 'PENDING', :REMARK, :CREATEDBY, SYSDATE)
+                    RETURNING REQUEST_ID INTO :OUT_REQUEST_ID";
+
+            var pars = new List<OracleParameter>
+            {
+                new("EMPCD",     empcd),
+                new("EMPCD1",    empcd),
+                new("EMP_NAME",  empName),
+                new("REMARK",    reason),
+                new("CREATEDBY", createdBy),
+                new("SUF",       gpType),
+            };
+            if (status == "APPROVED") pars.Add(new OracleParameter("APPROVER", approver ?? createdBy));
+            pars.Add(gpIdCmd);
+
+            await _oracleService.ExecuteNonQueryAsync(sql, pars.ToArray());
+
+            string? gpRequestId = gpIdCmd.Value is Oracle.ManagedDataAccess.Types.OracleString os && !os.IsNull ? os.Value : null;
+            if (string.IsNullOrEmpty(gpRequestId)) return null;
+
+            await _oracleService.ExecuteNonQueryAsync(@"
+                INSERT INTO HRMS.HR_GATEPASS_REQUEST (REQUEST_ID, EMPCD, GP_TYPE, OUT_TIME, IN_TIME, REASON, CREATED_DATE)
+                VALUES (:REQUEST_ID, :EMPCD, :GP_TYPE, :OUT_TIME, :IN_TIME, :REASON, SYSDATE)",
+                new OracleParameter("REQUEST_ID", gpRequestId),
+                new OracleParameter("EMPCD",      empcd),
+                new OracleParameter("GP_TYPE",    gpType),
+                new OracleParameter("OUT_TIME",   (object?)outTime ?? DBNull.Value),
+                new OracleParameter("IN_TIME",    (object?)inTime  ?? DBNull.Value),
+                new OracleParameter("REASON",     reason));
+
+            if (status == "APPROVED")
+            {
+                try { await SyncGatePassErpAsync(gpRequestId, approver ?? createdBy); }
+                catch { /* Gate Pass phụ trợ — lỗi ERP ở đây không rollback đơn CT */ }
+            }
+
+            return gpRequestId;
+        }
+
+        if (fromDate.Date == toDate.Date)
+        {
+            var id = await InsertOneAsync("MID",
+                fromDate.Date.AddHours(7).AddMinutes(30),
+                fromDate.Date.AddHours(16).AddMinutes(30),
+                "Công tác");
+            return (id, null);
+        }
+
+        var outId    = await InsertOneAsync("OUT", fromDate.Date.AddHours(7).AddMinutes(30), null, "Công tác - ngày đi");
+        var returnId = await InsertOneAsync("IN",  null, toDate.Date.AddHours(16).AddMinutes(30),  "Công tác - ngày về");
+        return (outId, returnId);
+    }
+
+    // Đồng bộ 1 Gate Pass ĐÃ ở trạng thái APPROVED sang ERP (SP_INSERT_GATE_PASS) — dùng sau khi
+    // caller đã tự đảm bảo GP đúng là APPROVED (Approve() tự UPDATE riêng rồi mới gọi hàm này;
+    // CreateCtGatePassAsync khi status=APPROVED thì GP đã APPROVED ngay lúc insert). KHÔNG tự
+    // UPDATE STATUS ở đây — trước đây AdminAssign tái dùng nguyên PL/SQL có UPDATE ...WHERE
+    // STATUS='PENDING' dù GP vừa insert đã APPROVED sẵn, khiến điều kiện đó không khớp, im lặng
+    // BỎ QUA luôn bước gọi SP_INSERT_GATE_PASS — bug thật, tách riêng ra để tránh lặp lại.
+    private async Task SyncGatePassErpAsync(string gpRequestId, string approver)
+    {
+        string gpPlsql = @"
+DECLARE
+    v_nls_fmt VARCHAR2(100);
+    v_empcd   HRMS.HR_REQUEST.EMPCD%TYPE;
+    v_gp_type HRMS.HR_GATEPASS_REQUEST.GP_TYPE%TYPE;
+    v_out_dt  HRMS.HR_GATEPASS_REQUEST.OUT_TIME%TYPE;
+    v_in_dt   HRMS.HR_GATEPASS_REQUEST.IN_TIME%TYPE;
+    v_dat     VARCHAR2(8);
+    v_timeout VARCHAR2(4);
+    v_timein  VARCHAR2(4);
+BEGIN
+    SELECT VALUE INTO v_nls_fmt FROM NLS_SESSION_PARAMETERS WHERE PARAMETER = 'NLS_DATE_FORMAT';
+    EXECUTE IMMEDIATE 'ALTER SESSION SET NLS_DATE_FORMAT = ''YYYYMMDD''';
+
+    SELECT R.EMPCD, G.GP_TYPE, G.OUT_TIME, G.IN_TIME
+    INTO v_empcd, v_gp_type, v_out_dt, v_in_dt
+    FROM HRMS.HR_REQUEST R
+    JOIN HRMS.HR_GATEPASS_REQUEST G ON G.REQUEST_ID = R.REQUEST_ID
+    WHERE R.REQUEST_ID = :GP_REQUEST_ID;
+
+    v_dat     := COALESCE(TO_CHAR(v_out_dt, 'YYYYMMDD'), TO_CHAR(v_in_dt, 'YYYYMMDD'));
+    v_timeout := CASE WHEN v_out_dt IS NOT NULL THEN TO_CHAR(v_out_dt, 'HH24MI') ELSE NULL END;
+    v_timein  := CASE WHEN v_in_dt  IS NOT NULL THEN TO_CHAR(v_in_dt,  'HH24MI') ELSE NULL END;
+
+    HRMS.SP_INSERT_GATE_PASS(
+        P_EMPCD       => v_empcd,
+        P_DAT         => v_dat,
+        P_TYPE        => v_gp_type,
+        P_TIMEIN      => v_timein,
+        P_TIMEOUT     => v_timeout,
+        P_INID        => :APPROVER,
+        P_APPROVED_ID => :APPROVER
+    );
+
+    EXECUTE IMMEDIATE 'ALTER SESSION SET NLS_DATE_FORMAT = ''' || v_nls_fmt || '''';
+EXCEPTION WHEN OTHERS THEN
+    EXECUTE IMMEDIATE 'ALTER SESSION SET NLS_DATE_FORMAT = ''' || v_nls_fmt || '''';
+    RAISE;
+END;";
+        await _oracleService.ExecuteNonQueryAsync(gpPlsql,
+            new OracleParameter("GP_REQUEST_ID", gpRequestId),
+            new OracleParameter("APPROVER",      approver));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // POST /apiHR/Leave/submit  — worker submits SELF leave
     // ─────────────────────────────────────────────────────────────────────────
     [HttpPost("submit")]
@@ -387,57 +523,22 @@ public class LeaveController : ControllerBase
                 new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
                 new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
 
-            // CT (công tác): tự động tạo kèm 1 Gate Pass PENDING, giờ ra/vào CỐ ĐỊNH 07:30-16:30
-            // (yêu cầu của sếp) — nhân viên KHÔNG cần nhập giờ, áp dụng chung mọi ca làm việc.
-            // GP_TYPE='MID' (có cả OUT_TIME lẫn IN_TIME) vì SP_INSERT_GATE_PASS ở nhánh 'OUT' bỏ qua
-            // giờ vào do mình truyền và tự lấy giờ tan ca theo lịch ca thật của NV — không đúng ý
-            // "cố định 16:30" khi NV không phải ca hành chính. GP này chỉ thật sự APPROVED + đồng bộ
-            // ERP (SP_INSERT_GATE_PASS) khi đơn CT được Manager/Expat/Admin duyệt (xem Approve()),
-            // KHÔNG tự approve ngay lúc Submit (tránh cấp quyền ra cổng trước khi đơn được duyệt).
+            // CT (công tác): tự động tạo kèm Gate Pass PENDING (1 ngày = 1 GP MID; nhiều ngày = 2 GP
+            // OUT ngày đi + IN ngày về — xem CreateCtGatePassAsync). GP chỉ thật sự APPROVED + đồng
+            // bộ ERP khi đơn CT được Manager/Expat/Admin duyệt (xem Approve()), KHÔNG tự approve
+            // ngay lúc Submit (tránh cấp quyền ra cổng trước khi đơn được duyệt).
             if (model.LEAVE_TYPE == "CT")
             {
-                DateTime outTime = fromDate.Date.AddHours(7).AddMinutes(30);
-                DateTime inTime  = fromDate.Date.AddHours(16).AddMinutes(30);
+                var (gpOutId, gpReturnId) = await CreateCtGatePassAsync(
+                    model.EMPCD, empName, fromDate, toDate, model.EMPCD, "PENDING", null);
 
-                // Tạo HR_REQUEST cho GP (PENDING — chờ duyệt cùng lúc với đơn CT).
-                // Tự sinh REQUEST_ID với hậu tố 'G' thay vì để trigger HR_REQUEST_TRG tự sinh
-                // (TO_CHAR(SYSDATE,'YYYYMMDDHH24MISS') || EMPCD) — nếu để trigger tự sinh, insert
-                // này và insert đơn CT phía trên (cùng EMPCD, cách nhau vài chục ms) có thể rơi vào
-                // CÙNG 1 GIÂY → trùng REQUEST_ID → ORA-00001, đã tái hiện thật khi test. Hậu tố 'G'
-                // đảm bảo không bao giờ trùng với ID của đơn Leave (EMPCD luôn thuần số).
-                using var gpIdCmd = new OracleParameter("OUT_REQUEST_ID", OracleDbType.Varchar2, 40)
-                    { Direction = System.Data.ParameterDirection.Output };
+                // Liên kết ngược lại đơn CT để Approve/Reject/Update/Delete xử lý cascade
                 await _oracleService.ExecuteNonQueryAsync(@"
-                    INSERT INTO HRMS.HR_REQUEST (REQUEST_ID, REQUEST_TYPE, EMPCD, EMP_NAME, REQUEST_DATE, STATUS, REMARK, CREATED_BY, CREATED_DATE)
-                    VALUES (TO_CHAR(SYSDATE,'YYYYMMDDHH24MISS') || :EMPCD || 'G', 'GATEPASS', :EMPCD1, :EMP_NAME, SYSDATE, 'PENDING', :REMARK, :EMPCD2, SYSDATE)
-                    RETURNING REQUEST_ID INTO :OUT_REQUEST_ID",
-                    new OracleParameter("EMPCD",    model.EMPCD),
-                    new OracleParameter("EMPCD1",   model.EMPCD),
-                    new OracleParameter("EMP_NAME", empName),
-                    new OracleParameter("REMARK",   "công tác"),
-                    new OracleParameter("EMPCD2",   model.EMPCD),
-                    gpIdCmd);
-
-                string? gpRequestIdRaw = gpIdCmd.Value is Oracle.ManagedDataAccess.Types.OracleString os && !os.IsNull ? os.Value : null;
-
-                if (!string.IsNullOrEmpty(gpRequestIdRaw))
-                {
-                    string gpRequestId = gpRequestIdRaw;
-                    // Tạo HR_GATEPASS_REQUEST với GP_TYPE='MID' (OUT_TIME=07:30, IN_TIME=16:30 cố định)
-                    await _oracleService.ExecuteNonQueryAsync(@"
-                        INSERT INTO HRMS.HR_GATEPASS_REQUEST (REQUEST_ID, EMPCD, GP_TYPE, OUT_TIME, IN_TIME, CREATED_DATE)
-                        VALUES (:REQUEST_ID, :EMPCD, 'MID', :OUT_TIME, :IN_TIME, SYSDATE)",
-                        new OracleParameter("REQUEST_ID", gpRequestId),
-                        new OracleParameter("EMPCD",      model.EMPCD),
-                        new OracleParameter("OUT_TIME",   outTime),
-                        new OracleParameter("IN_TIME",    inTime));
-
-                    // Liên kết ngược lại đơn CT để Approve/Reject/Update/Delete xử lý cascade
-                    await _oracleService.ExecuteNonQueryAsync(@"
-                        UPDATE HRMS.HR_LEAVE_REQUEST SET GP_REQUEST_ID = :GP_REQUEST_ID WHERE REQUEST_ID = :REQUEST_ID",
-                        new OracleParameter("GP_REQUEST_ID", gpRequestId),
-                        new OracleParameter("REQUEST_ID",    requestId));
-                }
+                    UPDATE HRMS.HR_LEAVE_REQUEST SET GP_REQUEST_ID = :GP_ID, GP_REQUEST_ID_RETURN = :GP_ID_RETURN
+                    WHERE REQUEST_ID = :REQUEST_ID",
+                    new OracleParameter("GP_ID",        (object?)gpOutId ?? DBNull.Value),
+                    new OracleParameter("GP_ID_RETURN", (object?)gpReturnId ?? DBNull.Value),
+                    new OracleParameter("REQUEST_ID",   requestId));
             }
 
             string leaveTypeName = NewLeaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE) ?? model.LEAVE_TYPE switch
@@ -592,13 +693,17 @@ public class LeaveController : ControllerBase
                 return Ok(new { success = false, message = "Ngày kết thúc phải sau ngày bắt đầu" });
 
             var statusRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT R.STATUS, L.LEAVE_TYPE, L.GP_REQUEST_ID FROM HRMS.HR_REQUEST R
+                SELECT R.STATUS, L.LEAVE_TYPE, L.GP_REQUEST_ID, L.GP_REQUEST_ID_RETURN, EC.CNAME
+                FROM HRMS.HR_REQUEST R
                 JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
+                LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = L.EMPCD
                 WHERE R.REQUEST_ID = :REQUEST_ID AND L.EMPCD = :EMPCD AND L.SOURCE = 'SELF' AND ROWNUM = 1",
                 r => new {
                     Status      = r["STATUS"]?.ToString(),
                     LeaveType   = r["LEAVE_TYPE"]?.ToString(),
-                    GpRequestId = r["GP_REQUEST_ID"]?.ToString()
+                    GpRequestId = r["GP_REQUEST_ID"]?.ToString(),
+                    GpRequestIdReturn = r["GP_REQUEST_ID_RETURN"]?.ToString(),
+                    EmpName     = r["CNAME"]?.ToString() ?? ""
                 },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID),
                 new OracleParameter("EMPCD",      model.EMPCD));
@@ -658,19 +763,44 @@ public class LeaveController : ControllerBase
                 new OracleParameter("EMPCD",      model.EMPCD),
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
-            // CT: đổi FROM_DATE thì OUT_TIME/IN_TIME của Gate Pass liên kết (còn PENDING) phải dời
-            // theo ngày mới, giờ vẫn cố định 07:30-16:30 — tránh Gate Pass trỏ về ngày cũ.
-            if (current.LeaveType == "CT" && !string.IsNullOrEmpty(current.GpRequestId))
+            // CT: đổi ngày (hoặc đổi loại nghỉ ra/vào CT) thì Gate Pass liên kết phải theo — số ngày
+            // công tác có thể đổi giữa 1-ngày (1 GP MID) và nhiều-ngày (2 GP OUT ngày đi + IN ngày
+            // về), nên xoá hẳn (các) GP cũ (chắc chắn còn PENDING, vì đơn CT còn PENDING mới sửa
+            // được — GP tạo cùng lúc lúc Submit và chỉ đổi trạng thái khi đơn CT được duyệt/từ chối,
+            // lúc đó Update() không chạy được nữa) rồi tạo lại mới nếu loại hiện tại vẫn là CT — đơn
+            // giản hơn dò từng trường hợp chuyển đổi.
+            if (current.LeaveType == "CT")
             {
-                DateTime newOutTime = fromDate.Date.AddHours(7).AddMinutes(30);
-                DateTime newInTime  = fromDate.Date.AddHours(16).AddMinutes(30);
+                foreach (var gpId in new[] { current.GpRequestId, current.GpRequestIdReturn })
+                {
+                    if (string.IsNullOrEmpty(gpId)) continue;
+                    await _oracleService.ExecuteNonQueryAsync(
+                        "DELETE FROM HRMS.HR_GATEPASS_REQUEST WHERE REQUEST_ID = :ID",
+                        new OracleParameter("ID", gpId));
+                    await _oracleService.ExecuteNonQueryAsync(
+                        "DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :ID",
+                        new OracleParameter("ID", gpId));
+                }
+            }
+
+            if (effectiveType == "CT")
+            {
+                var (newOutId, newReturnId) = await CreateCtGatePassAsync(
+                    model.EMPCD, current.EmpName, fromDate, toDate, model.EMPCD, "PENDING", null);
+
                 await _oracleService.ExecuteNonQueryAsync(@"
-                    UPDATE HRMS.HR_GATEPASS_REQUEST SET OUT_TIME = :OUT_TIME, IN_TIME = :IN_TIME, UPDATED_BY = :EMPCD, UPDATED_DATE = SYSDATE
+                    UPDATE HRMS.HR_LEAVE_REQUEST SET GP_REQUEST_ID = :GP_ID, GP_REQUEST_ID_RETURN = :GP_ID_RETURN
                     WHERE REQUEST_ID = :REQUEST_ID",
-                    new OracleParameter("OUT_TIME", newOutTime),
-                    new OracleParameter("IN_TIME",  newInTime),
-                    new OracleParameter("EMPCD",    model.EMPCD),
-                    new OracleParameter("REQUEST_ID", current.GpRequestId));
+                    new OracleParameter("GP_ID",        (object?)newOutId ?? DBNull.Value),
+                    new OracleParameter("GP_ID_RETURN", (object?)newReturnId ?? DBNull.Value),
+                    new OracleParameter("REQUEST_ID",   model.REQUEST_ID));
+            }
+            else if (current.LeaveType == "CT")
+            {
+                // Đổi từ CT sang loại khác — GP cũ đã xoá ở trên, dọn luôn GP_REQUEST_ID cũ trên đơn.
+                await _oracleService.ExecuteNonQueryAsync(
+                    "UPDATE HRMS.HR_LEAVE_REQUEST SET GP_REQUEST_ID = NULL, GP_REQUEST_ID_RETURN = NULL WHERE REQUEST_ID = :REQUEST_ID",
+                    new OracleParameter("REQUEST_ID", model.REQUEST_ID));
             }
 
             return Ok(new { success = true, message = "Cập nhật đơn nghỉ phép thành công" });
@@ -693,10 +823,14 @@ public class LeaveController : ControllerBase
                 return Ok(new { success = false, message = "Thiếu thông tin xoá" });
 
             var statusRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT R.STATUS, L.GP_REQUEST_ID FROM HRMS.HR_REQUEST R
+                SELECT R.STATUS, L.GP_REQUEST_ID, L.GP_REQUEST_ID_RETURN FROM HRMS.HR_REQUEST R
                 JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
                 WHERE R.REQUEST_ID = :REQUEST_ID AND L.EMPCD = :EMPCD AND L.SOURCE = 'SELF' AND ROWNUM = 1",
-                r => new { Status = r["STATUS"]?.ToString(), GpRequestId = r["GP_REQUEST_ID"]?.ToString() },
+                r => new {
+                    Status      = r["STATUS"]?.ToString(),
+                    GpRequestId = r["GP_REQUEST_ID"]?.ToString(),
+                    GpRequestIdReturn = r["GP_REQUEST_ID_RETURN"]?.ToString()
+                },
                 new OracleParameter("REQUEST_ID", request_id),
                 new OracleParameter("EMPCD",      empcd));
 
@@ -717,16 +851,18 @@ public class LeaveController : ControllerBase
                 new OracleParameter("REQUEST_ID", request_id),
                 new OracleParameter("EMPCD",      empcd));
 
-            // CT: xoá đơn thì Gate Pass 'OUT' liên kết (còn PENDING, chưa từng đồng bộ ERP) cũng
-            // phải xoá theo — tránh để lại rác không ai duyệt/từ chối được nữa.
-            if (!string.IsNullOrEmpty(current.GpRequestId))
+            // CT: xoá đơn thì (các) Gate Pass liên kết (còn PENDING, chưa từng đồng bộ ERP) cũng
+            // phải xoá theo — tránh để lại rác không ai duyệt/từ chối được nữa. Công tác nhiều ngày
+            // có 2 Gate Pass (GP_REQUEST_ID = ngày đi, GP_REQUEST_ID_RETURN = ngày về).
+            foreach (var gpId in new[] { current.GpRequestId, current.GpRequestIdReturn })
             {
+                if (string.IsNullOrEmpty(gpId)) continue;
                 await _oracleService.ExecuteNonQueryAsync(
                     "DELETE FROM HRMS.HR_GATEPASS_REQUEST WHERE REQUEST_ID = :REQUEST_ID",
-                    new OracleParameter("REQUEST_ID", current.GpRequestId));
+                    new OracleParameter("REQUEST_ID", gpId));
                 await _oracleService.ExecuteNonQueryAsync(
                     "DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :REQUEST_ID",
-                    new OracleParameter("REQUEST_ID", current.GpRequestId));
+                    new OracleParameter("REQUEST_ID", gpId));
             }
 
             return Ok(new { success = true, message = "Đã xoá đơn nghỉ phép" });
@@ -1067,14 +1203,15 @@ public class LeaveController : ControllerBase
 
             // ERP: call SP_015_NEW after approval
             var ldRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT FROM_DATE, TO_DATE, LEAVE_TYPE, REASON, GP_REQUEST_ID FROM HRMS.HR_LEAVE_REQUEST
+                SELECT FROM_DATE, TO_DATE, LEAVE_TYPE, REASON, GP_REQUEST_ID, GP_REQUEST_ID_RETURN FROM HRMS.HR_LEAVE_REQUEST
                 WHERE REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
                 r => new {
                     FromDate    = Convert.ToDateTime(r["FROM_DATE"]),
                     ToDate      = Convert.ToDateTime(r["TO_DATE"]),
                     LeaveType   = r["LEAVE_TYPE"]?.ToString(),
                     Reason      = r["REASON"]?.ToString(),
-                    GpRequestId = r["GP_REQUEST_ID"]?.ToString()
+                    GpRequestId = r["GP_REQUEST_ID"]?.ToString(),
+                    GpRequestIdReturn = r["GP_REQUEST_ID_RETURN"]?.ToString()
                 },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
@@ -1151,16 +1288,22 @@ public class LeaveController : ControllerBase
                     return Ok(new { success = false, message = "Insert ERP thất bại, phiếu đã trả về PENDING. Chi tiết: " + erpError });
                 }
 
-                // CT: duyệt luôn Gate Pass 'OUT' liên kết (được tạo PENDING lúc Submit) + đồng bộ ERP.
-                // Dùng đúng 1 PL/SQL block UPDATE + SP_INSERT_GATE_PASS như GatePassController.Approve()
-                // (KHÔNG gọi SP rời qua ExecuteProcedureAsync như bản đầu — đã verify thật: SP tự
-                // TO_DATE(P_DAT,'YYYYMMDD') rồi ghi ngược vào cột DAT (VARCHAR2) theo NLS_DATE_FORMAT
-                // hiện tại của session; thiếu ALTER SESSION ép 'YYYYMMDD' → DAT bị lưu sai định dạng
-                // kiểu '27-AUG-26' thay vì '20260827', phá hỏng mọi query/báo cáo dựa vào DAT).
+                // CT: duyệt luôn Gate Pass liên kết (được tạo PENDING lúc Submit) + đồng bộ ERP —
+                // công tác nhiều ngày có 2 Gate Pass (GP_REQUEST_ID = ngày đi, GP_REQUEST_ID_RETURN
+                // = ngày về), công tác 1 ngày chỉ có GP_REQUEST_ID (GP_REQUEST_ID_RETURN null) —
+                // lặp qua từng ID không rỗng, dùng đúng 1 PL/SQL block UPDATE + SP_INSERT_GATE_PASS
+                // như GatePassController.Approve() (KHÔNG gọi SP rời qua ExecuteProcedureAsync như
+                // bản đầu — đã verify thật: SP tự TO_DATE(P_DAT,'YYYYMMDD') rồi ghi ngược vào cột DAT
+                // (VARCHAR2) theo NLS_DATE_FORMAT hiện tại của session; thiếu ALTER SESSION ép
+                // 'YYYYMMDD' → DAT bị lưu sai định dạng kiểu '27-AUG-26' thay vì '20260827', phá
+                // hỏng mọi query/báo cáo dựa vào DAT).
                 // Không rollback đơn CT nếu bước này lỗi — đơn nghỉ đã ghi ERP thành công ở trên,
                 // Gate Pass chỉ là phụ trợ; lỗi sẽ được báo qua message để HR retry duyệt GP riêng.
-                if (ld.LeaveType == "CT" && !string.IsNullOrEmpty(ld.GpRequestId))
+                if (ld.LeaveType == "CT")
                 {
+                    foreach (var gpId in new[] { ld.GpRequestId, ld.GpRequestIdReturn })
+                    {
+                        if (string.IsNullOrEmpty(gpId)) continue;
                     try
                     {
                         string gpPlsql = @"
@@ -1215,12 +1358,13 @@ EXCEPTION WHEN OTHERS THEN
 END;";
 
                         var gpApprover  = new OracleParameter("APPROVER",      model.APPROVER_EMPCD);
-                        var gpReqId     = new OracleParameter("GP_REQUEST_ID", ld.GpRequestId);
+                        var gpReqId     = new OracleParameter("GP_REQUEST_ID", gpId);
                         var gpRowCount  = new OracleParameter("ROW_COUNT", OracleDbType.Int32) { Direction = System.Data.ParameterDirection.Output };
 
                         await _oracleService.ExecuteNonQueryAsync(gpPlsql, gpApprover, gpReqId, gpRowCount);
                     }
                     catch { /* Gate Pass phụ trợ — lỗi ở đây không rollback đơn CT đã duyệt thành công */ }
+                    }
                 }
             }
 
@@ -1264,7 +1408,7 @@ END;";
                 return Ok(new { success = false, message = "Bạn không có quyền từ chối nghỉ phép" });
 
             var rejectInfoRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT L.EMPCD, RR.ROLE_NAME REQ_ROLE, L.LEAVE_TYPE, L.GP_REQUEST_ID
+                SELECT L.EMPCD, RR.ROLE_NAME REQ_ROLE, L.LEAVE_TYPE, L.GP_REQUEST_ID, L.GP_REQUEST_ID_RETURN
                 FROM HRMS.HR_LEAVE_REQUEST L
                 LEFT JOIN HRMS.HR_USERS UR ON UR.EMPCD = L.EMPCD
                 LEFT JOIN HRMS.HR_ROLES RR ON RR.ID    = UR.ROLE_ID
@@ -1273,7 +1417,8 @@ END;";
                     Empcd       = r["EMPCD"]?.ToString(),
                     Role        = r["REQ_ROLE"]?.ToString(),
                     LeaveType   = r["LEAVE_TYPE"]?.ToString(),
-                    GpRequestId = r["GP_REQUEST_ID"]?.ToString()
+                    GpRequestId = r["GP_REQUEST_ID"]?.ToString(),
+                    GpRequestIdReturn = r["GP_REQUEST_ID_RETURN"]?.ToString()
                 },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
@@ -1304,22 +1449,27 @@ END;";
             if (rows == 0)
                 return Ok(new { success = false, message = "Không tìm thấy hoặc đã được xử lý rồi" });
 
-            // CT: từ chối luôn Gate Pass 'OUT' liên kết (đang PENDING) — NV không còn được cấp
-            // quyền ra cổng cho chuyến công tác đã bị từ chối.
-            if (rejectInfo.LeaveType == "CT" && !string.IsNullOrEmpty(rejectInfo.GpRequestId))
+            // CT: từ chối luôn (các) Gate Pass liên kết (đang PENDING) — NV không còn được cấp
+            // quyền ra cổng cho chuyến công tác đã bị từ chối. Công tác nhiều ngày có 2 Gate Pass
+            // (GP_REQUEST_ID = ngày đi, GP_REQUEST_ID_RETURN = ngày về).
+            if (rejectInfo.LeaveType == "CT")
             {
-                try
+                foreach (var gpId in new[] { rejectInfo.GpRequestId, rejectInfo.GpRequestIdReturn })
                 {
-                    await _oracleService.ExecuteNonQueryAsync(@"
-                        UPDATE HRMS.HR_REQUEST
-                        SET STATUS = 'REJECTED', FINAL_APPROVER = :APPROVER, FINAL_DATE = SYSDATE,
-                            UPDATED_BY = :APPROVER1, UPDATED_DATE = SYSDATE
-                        WHERE REQUEST_ID = :REQUEST_ID AND STATUS = 'PENDING'",
-                        new OracleParameter("APPROVER",   model.APPROVER_EMPCD),
-                        new OracleParameter("APPROVER1",  model.APPROVER_EMPCD),
-                        new OracleParameter("REQUEST_ID", rejectInfo.GpRequestId));
+                    if (string.IsNullOrEmpty(gpId)) continue;
+                    try
+                    {
+                        await _oracleService.ExecuteNonQueryAsync(@"
+                            UPDATE HRMS.HR_REQUEST
+                            SET STATUS = 'REJECTED', FINAL_APPROVER = :APPROVER, FINAL_DATE = SYSDATE,
+                                UPDATED_BY = :APPROVER1, UPDATED_DATE = SYSDATE
+                            WHERE REQUEST_ID = :REQUEST_ID AND STATUS = 'PENDING'",
+                            new OracleParameter("APPROVER",   model.APPROVER_EMPCD),
+                            new OracleParameter("APPROVER1",  model.APPROVER_EMPCD),
+                            new OracleParameter("REQUEST_ID", gpId));
+                    }
+                    catch { /* best-effort — đơn CT đã từ chối thành công dù bước này lỗi */ }
                 }
-                catch { /* best-effort — đơn CT đã từ chối thành công dù bước này lỗi */ }
             }
 
             if (!string.IsNullOrEmpty(rejectInfo.Empcd))
@@ -2708,7 +2858,8 @@ END;";
     public async Task<IActionResult> GetErpAbsentList(
         string date_from, string date_to, string? empcd = null, string? deptcd = null,
         string? linecd = null, string? workcd = null, string? leavecd = null,
-        string? ms_status = null, string? ms_leave_type = null, int page = 1, int page_size = 100)
+        string? ms_status = null, string? ms_leave_type = null,
+        string? doc_status = null, string? remark = null, int page = 1, int page_size = 100)
     {
         try
         {
@@ -2753,6 +2904,28 @@ END;";
                               WHERE ML4.EMPCD = A.EMPCD AND A.FR_DAT BETWEEN ML4.FROM_DATE AND ML4.TO_DATE
                                 AND ML4.LEAVE_TYPE = :MS_LEAVE_TYPE)";
 
+            // Lọc theo trạng thái nộp giấy tờ (yêu cầu 2026-09-17) — "Chưa nộp" chỉ áp dụng cho các
+            // loại BẮT BUỘC nộp giấy (SI/DT/DC/VS/KT, xem DocRequiredTypes) và DOC_STATUS còn NULL.
+            string docStatusFilter = doc_status switch
+            {
+                "SUBMITTED" => @"
+                  AND EXISTS (SELECT 1 FROM HRMS.HR_LEAVE_REQUEST ML5 JOIN HRMS.HR_REQUEST MR5 ON MR5.REQUEST_ID = ML5.REQUEST_ID
+                              WHERE ML5.EMPCD = A.EMPCD AND A.FR_DAT BETWEEN ML5.FROM_DATE AND ML5.TO_DATE
+                                AND ML5.DOC_STATUS = 'SUBMITTED')",
+                "PARTIALLY_SUBMITTED" => @"
+                  AND EXISTS (SELECT 1 FROM HRMS.HR_LEAVE_REQUEST ML5 JOIN HRMS.HR_REQUEST MR5 ON MR5.REQUEST_ID = ML5.REQUEST_ID
+                              WHERE ML5.EMPCD = A.EMPCD AND A.FR_DAT BETWEEN ML5.FROM_DATE AND ML5.TO_DATE
+                                AND ML5.DOC_STATUS = 'PARTIALLY_SUBMITTED')",
+                "NOT_SUBMITTED" => @"
+                  AND EXISTS (SELECT 1 FROM HRMS.HR_LEAVE_REQUEST ML5 JOIN HRMS.HR_REQUEST MR5 ON MR5.REQUEST_ID = ML5.REQUEST_ID
+                              WHERE ML5.EMPCD = A.EMPCD AND A.FR_DAT BETWEEN ML5.FROM_DATE AND ML5.TO_DATE
+                                AND ML5.LEAVE_TYPE IN ('SI','DT','DC','VS','KT') AND ML5.DOC_STATUS IS NULL)",
+                _ => ""
+            };
+
+            // Lọc theo Remark (ERP EFM410.REMAR) — tìm gần đúng, không phân biệt hoa/thường.
+            string remarkFilter = string.IsNullOrWhiteSpace(remark) ? "" : "AND UPPER(A.REMAR) LIKE UPPER(:REMARK_LIKE)";
+
             // Tái sử dụng đúng điều kiện WHERE/JOIN theo SQL HR đưa cho cả 2 câu (đếm tổng + lấy trang).
             string baseFrom = $@"
                 FROM HRMS.EFM410 A
@@ -2769,10 +2942,12 @@ END;";
                   AND NOT EXISTS (SELECT 'X' FROM HRMS.EFM410_WAIT W
                                   WHERE W.EMPCD = A.EMPCD AND W.FR_DAT = A.FR_DAT AND W.FLAG_APPROVE = 'N')
                   {msStatusFilter}
-                  {msLeaveTypeFilter}";
+                  {msLeaveTypeFilter}
+                  {docStatusFilter}
+                  {remarkFilter}";
 
             // Local function tạo OracleParameter MỚI mỗi lần gọi (không tái dùng lại instance cũ giữa
-            // 2 lệnh COUNT/DATA) — thêm MS_LEAVE_TYPE vào cuối danh sách chỉ khi có lọc theo loại.
+            // 2 lệnh COUNT/DATA) — thêm MS_LEAVE_TYPE/REMARK_LIKE vào cuối danh sách chỉ khi có lọc.
             OracleParameter[] MakeParams()
             {
                 var list = new List<OracleParameter> {
@@ -2785,6 +2960,7 @@ END;";
                     new OracleParameter("LEAVECD", leavecdP)
                 };
                 if (msLeaveTypeP != null) list.Add(new OracleParameter("MS_LEAVE_TYPE", msLeaveTypeP));
+                if (!string.IsNullOrWhiteSpace(remark)) list.Add(new OracleParameter("REMARK_LIKE", $"%{remark.Trim()}%"));
                 return list.ToArray();
             }
 
@@ -2926,17 +3102,34 @@ END;";
             var leavecd = model.LEAVECD.Trim().ToUpperInvariant();
             var remark  = string.IsNullOrWhiteSpace(model.REMARK) ? null : model.REMARK.Trim();
 
-            // Trang này chỉ SỬA dòng ERP đã tồn tại sẵn (không insert mới) — đúng yêu cầu "chỉ sửa
-            // code với remark thôi".
-            int rows = await _oracleService.ExecuteNonQueryAsync(@"
-                UPDATE HRMS.EFM410
-                SET LEAVECD = :LEAVECD, REMAR = :REMARK, APPROVED_BY = :ACTOR
-                WHERE EMPCD = :EMPCD AND FR_DAT = :FR_DATE",
-                new OracleParameter("LEAVECD", leavecd),
-                new OracleParameter("REMARK",  (object?)remark ?? DBNull.Value),
-                new OracleParameter("ACTOR",   model.ACTOR_EMPCD),
+            // Trang gửi LEAVECD+REMARK cùng lúc mỗi lần Lưu (kể cả khi chỉ sửa mỗi Remark — ô Mã
+            // nghỉ vẫn gửi lại nguyên giá trị cũ) — trước đây UPDATE luôn ghi đè APPROVED_BY = actor
+            // dù Mã nghỉ không đổi, khiến "Người duyệt" bị đổi thành người chỉ sửa remark (bug thật,
+            // báo 2026-09-17). Chỉ set lại APPROVED_BY khi LEAVECD THẬT SỰ đổi so với giá trị đang có.
+            var oldCodeRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT LEAVECD FROM HRMS.EFM410 WHERE EMPCD = :EMPCD AND FR_DAT = :FR_DATE",
+                r => r["LEAVECD"]?.ToString(),
                 new OracleParameter("EMPCD",   model.EMPCD),
                 new OracleParameter("FR_DATE", OracleDbType.Date) { Value = frDate.Date });
+
+            if (oldCodeRows.Count == 0)
+                return Ok(new { success = false, message = "Không tìm thấy dòng ERP cho nhân viên/ngày này" });
+
+            bool codeChanged = !string.Equals(oldCodeRows[0], leavecd, StringComparison.OrdinalIgnoreCase);
+
+            string updateSql = codeChanged
+                ? "UPDATE HRMS.EFM410 SET LEAVECD = :LEAVECD, REMAR = :REMARK, APPROVED_BY = :ACTOR WHERE EMPCD = :EMPCD AND FR_DAT = :FR_DATE"
+                : "UPDATE HRMS.EFM410 SET LEAVECD = :LEAVECD, REMAR = :REMARK WHERE EMPCD = :EMPCD AND FR_DAT = :FR_DATE";
+            var updateParams = new List<OracleParameter>
+            {
+                new("LEAVECD", leavecd),
+                new("REMARK",  (object?)remark ?? DBNull.Value),
+            };
+            if (codeChanged) updateParams.Add(new OracleParameter("ACTOR", model.ACTOR_EMPCD));
+            updateParams.Add(new OracleParameter("EMPCD", model.EMPCD));
+            updateParams.Add(new OracleParameter("FR_DATE", OracleDbType.Date) { Value = frDate.Date });
+
+            int rows = await _oracleService.ExecuteNonQueryAsync(updateSql, updateParams.ToArray());
 
             if (rows == 0)
                 return Ok(new { success = false, message = "Không tìm thấy dòng ERP cho nhân viên/ngày này" });
@@ -3270,6 +3463,28 @@ END;";
                         new OracleParameter("TO_DATE",    toDate),
                         new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
                         new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
+
+                    // CT (công tác) qua Admin "Sắp lịch": SOURCE='ASSIGNED' không đi qua Approve()
+                    // (mãi mãi là ASSIGNED, không có bước duyệt riêng) nên phải tạo Gate Pass NGAY ở
+                    // đây, APPROVED thẳng (Assign vốn hiệu lực ngay lập tức) — dùng chung
+                    // CreateCtGatePassAsync (1 ngày = 1 GP MID; nhiều ngày = 2 GP OUT ngày đi + IN
+                    // ngày về). KHÔNG rollback đơn CT nếu bước Gate Pass lỗi (Gate Pass chỉ là phụ trợ).
+                    if (model.LEAVE_TYPE == "CT")
+                    {
+                        try
+                        {
+                            var (gpOutId, gpReturnId) = await CreateCtGatePassAsync(
+                                targetEmpcd, empName, fromDate, toDate, model.ASSIGNER_EMPCD, "APPROVED", model.ASSIGNER_EMPCD);
+
+                            await _oracleService.ExecuteNonQueryAsync(@"
+                                UPDATE HRMS.HR_LEAVE_REQUEST SET GP_REQUEST_ID = :GP_ID, GP_REQUEST_ID_RETURN = :GP_ID_RETURN
+                                WHERE REQUEST_ID = :REQUEST_ID",
+                                new OracleParameter("GP_ID",        (object?)gpOutId ?? DBNull.Value),
+                                new OracleParameter("GP_ID_RETURN", (object?)gpReturnId ?? DBNull.Value),
+                                new OracleParameter("REQUEST_ID",   requestId));
+                        }
+                        catch { /* Gate Pass phụ trợ — lỗi ở đây không rollback đơn CT đã tạo/ghi ERP thành công */ }
+                    }
 
                     var erpHolidays = (await _oracleService.ExecuteQueryAsync(
                         @"SELECT TRUNC(HUILDAY) AS HUILDAY FROM HRMS.EAM800

@@ -640,10 +640,11 @@ public class LeaveController : BaseController
     public async Task<IActionResult> GetErpAbsentList(
         string date_from, string date_to, string? empcd = null, string? deptcd = null,
         string? linecd = null, string? workcd = null, string? leavecd = null,
-        string? ms_status = null, string? ms_leave_type = null, int page = 1, int page_size = 100)
+        string? ms_status = null, string? ms_leave_type = null,
+        string? doc_status = null, string? remark = null, int page = 1, int page_size = 100)
     {
         if (!ErpAbsentRoles.Contains(CurrentUser?.RoleName)) return Json(new { success = false, message = "Không có quyền" });
-        var raw = await _leaveService.GetErpAbsentListRawAsync(date_from, date_to, empcd, deptcd, linecd, workcd, leavecd, ms_status, ms_leave_type, page, page_size);
+        var raw = await _leaveService.GetErpAbsentListRawAsync(date_from, date_to, empcd, deptcd, linecd, workcd, leavecd, ms_status, ms_leave_type, doc_status, remark, page, page_size);
         return Content(raw, "application/json");
     }
 

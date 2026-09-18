@@ -404,7 +404,7 @@
         let curM = initM || (new Date().getMonth() + 1);
         let eventsByDate = {}; // { 'YYYY-MM-DD': [ {TYPE, LABEL, DETAIL}, ... ] }
 
-        const ICON  = { LEAVE: '🌴', GP: '🚪', OT: '⏱️', ASSIGN: '📅' };
+        const ICON  = { LEAVE: '🌴', GP: '🚪', OT: '⏱️', ASSIGN: '📅', ATT_MISSING: '🔴' };
         // Nhãn trạng thái nộp giấy tờ trong popup chi tiết ngày — DOC_STATUS giờ tính RIÊNG CHO
         // TỪNG NGÀY (không phải trạng thái chung cả đơn nữa), nên nhãn cũng nói rõ "ngày này".
         const DOC_STATUS_LABEL = {
@@ -498,8 +498,9 @@
                 const signerLine = ev.SIGNER_NAME
                     ? `<div class="mc-det">${esc(ev.SIGNER_LABEL || '')}: <span class="vni-font">${esc(ev.SIGNER_NAME)}</span></div>`
                     : '';
+                const attMissingAttr = ev.TYPE === 'ATT_MISSING' ? ` data-att-date="${esc(dateKey)}"` : '';
                 return `
-                <div class="mc-event mc-${esc(ev.TYPE)}">
+                <div class="mc-event mc-${esc(ev.TYPE)}"${attMissingAttr}>
                     <div class="mc-icon">${ICON[ev.TYPE] || '📌'}</div>
                     <div class="mc-body">
                         <div class="mc-lbl">${esc(ev.LABEL)}</div>
@@ -517,6 +518,15 @@
             if (window.bootstrap && modalEl) {
                 new bootstrap.Modal(modalEl).show();
             }
+        }
+
+        // Click vào dòng "thiếu chấm công" trong popup chi tiết -> mở form khai giờ vào/ra.
+        if (detBody) {
+            detBody.addEventListener('click', (e) => {
+                const item = e.target.closest('[data-att-date]');
+                if (!item) return;
+                window.location.href = `${rootUrl}AttendanceConfirm/WorkerForm?date=${item.dataset.attDate}`;
+            });
         }
 
         async function loadMonth() {

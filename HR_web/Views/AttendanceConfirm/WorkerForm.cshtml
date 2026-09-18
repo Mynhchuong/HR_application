@@ -1,0 +1,211 @@
+@{
+    ViewData["Title"] = "Khai giờ chấm công";
+    var workDate = (string)(ViewBag.WorkDate ?? DateTime.Today.ToString("yyyy-MM-dd"));
+}
+
+@section Styles {
+<style>
+    .wf-card { max-width: 480px; margin: 0 auto; }
+    .wf-info-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px dashed #e5e7eb; font-size: .85rem; }
+    .wf-info-row:last-child { border-bottom: none; }
+    .wf-info-row > span:first-child { flex-shrink: 0; color: #6b7280; }
+    .wf-info-row > span:last-child, .wf-info-row > strong { min-width: 0; overflow-wrap: break-word; text-align: right; }
+    .wf-missing-badge { font-size: .75rem; padding: 4px 10px; border-radius: 20px; background: #fee2e2; color: #991b1b; font-weight: 600; }
+    .wf-status-badge { font-size: .78rem; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+    .wf-pending-chip { font-size: .78rem; padding: 4px 10px; border-radius: 20px; border: 1px solid #fca5a5; background: #fef2f2; color: #991b1b; cursor: pointer; font-weight: 600; }
+    .wf-pending-chip.active { background: #991b1b; color: #fff; border-color: #991b1b; }
+    .wf-pending-chip.rejected { border-color: #f59e0b; background: #fffbeb; color: #92400e; }
+    .wf-pending-chip.rejected.active { background: #92400e; border-color: #92400e; color: #fff; }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <div class="card wf-card">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-success shadow-success border-radius-lg pt-3 pb-2 px-3">
+                <h6 class="text-white mb-0"><i class="bi bi-clock-history me-1"></i> Khai giờ chấm công</h6>
+            </div>
+        </div>
+        <div class="card-body">
+            <input type="date" id="wfDate" class="form-control form-control-sm mb-2" value="@workDate" onchange="loadDay()" />
+            <div id="wfPendingChips" class="d-flex flex-wrap gap-2 mb-3"></div>
+
+            <div id="wfLoading" class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+            <div id="wfContent" style="display:none;">
+                <div class="wf-info-row"><span>Ngày</span><strong id="wfInfoDate">-</strong></div>
+                <div class="wf-info-row"><span>Bộ phận</span><span id="wfInfoDept">-</span></div>
+                <div class="wf-info-row"><span>Ca làm việc</span><span id="wfInfoShift">-</span></div>
+                <div class="wf-info-row"><span>Giờ ERP</span><span id="wfInfoErp">-</span></div>
+                <div class="wf-info-row"><span>Thiếu</span><span id="wfInfoMissing"></span></div>
+                <div class="wf-info-row"><span>Loại ca (theo log ERP)</span><span id="wfInfoShiftType">-</span></div>
+                <div class="wf-info-row"><span>Trạng thái</span><span id="wfInfoStatus"></span></div>
+
+                <div id="wfFormArea" class="mt-3">
+                    <div class="row g-2 mb-1">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Giờ vào thực tế</label>
+                            <input type="time" id="wfTimeIn" class="form-control" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Giờ ra thực tế</label>
+                            <input type="time" id="wfTimeOut" class="form-control" />
+                        </div>
+                    </div>
+                    <div id="wfSuggestHint" class="text-xxs text-secondary mb-2" style="display:none;">
+                        <i class="bi bi-magic"></i> Đã điền sẵn theo giờ ca làm việc — kiểm tra lại rồi chỉnh nếu không đúng.
+                    </div>
+                    <div id="wfNightHint" class="text-xxs text-warning mb-2" style="display:none;">
+                        <i class="bi bi-moon-stars"></i> Ca đêm — nếu giờ ra qua nửa đêm (nhỏ hơn giờ vào), hệ thống tự hiểu là ngày hôm sau.
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Ghi chú (không bắt buộc)</label>
+                        <textarea id="wfNote" class="form-control form-control-sm" rows="2" maxlength="500" placeholder="Vd: lý do quên bấm giờ..."></textarea>
+                    </div>
+                    <button type="button" id="wfSubmitBtn" class="btn btn-success w-100 mt-2" onclick="submitDay()">
+                        <i class="bi bi-send-check me-1"></i> Gửi khai báo
+                    </button>
+                </div>
+                <div id="wfDoneNote" class="alert alert-info mt-3" style="display:none;font-size:.85rem;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const MYDAY_URL = '@Url.Action("GetMyDay")';
+const SUBMIT_URL = '@Url.Action("SubmitWorker")';
+const PENDING_URL = '@Url.Action("GetMyPending")';
+
+const STATUS_LABEL = {
+    MISSING: 'Chưa gửi yêu cầu', PENDING_WORKER: 'Chờ bạn khai giờ',
+    PENDING_MANAGER: 'Đã gửi, chờ quản lý xác nhận', CONFIRMED: 'Đã xác nhận', REJECTED: 'Bị từ chối — khai lại giúp'
+};
+const STATUS_COLOR = {
+    MISSING: '#94a3b8', PENDING_WORKER: '#f59e0b', PENDING_MANAGER: '#3b82f6', CONFIRMED: '#10b981', REJECTED: '#ef4444'
+};
+const MISSING_LABEL = { IN: 'Thiếu giờ vào', OUT: 'Thiếu giờ ra', BOTH: 'Thiếu cả giờ vào/ra' };
+let curBounds = { minIn: null, maxOut: null };  // giờ hợp lệ theo ca làm việc/OT thật trên ERP — set lại mỗi lần loadDay()
+const SHIFT_TYPE_LABEL = { REGULAR: 'Ca chính', OT_BEFORE: 'Có tăng ca trước ca', OT_AFTER: 'Có tăng ca sau ca' };
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function loadDay() {
+    const date = $('#wfDate').val();
+    if (!date) return;
+    $('#wfPendingChips .wf-pending-chip').removeClass('active').filter(`[data-date="${date}"]`).addClass('active');
+    $('#wfLoading').show();
+    $('#wfContent').hide();
+    try {
+        const res = await $.getJSON(MYDAY_URL, { date });
+        if (!res.success || !res.data) {
+            $('#wfLoading').hide();
+            $('#wfContent').show();
+            $('#wfFormArea').hide();
+            $('#wfInfoDate').text(date);
+            $('#wfInfoDept').text('-');
+            $('#wfInfoShift').text('-');
+            $('#wfNightHint').hide();
+            $('#wfSuggestHint').hide();
+            curBounds = { minIn: null, maxOut: null };
+            $('#wfTimeIn, #wfTimeOut').removeAttr('min max');
+            $('#wfInfoErp').text('-');
+            $('#wfInfoMissing').html('');
+            $('#wfInfoShiftType').text('-');
+            $('#wfInfoStatus').html('');
+            $('#wfNote').val('');
+            $('#wfDoneNote').show().text(res.message || 'Ngày này không thiếu chấm công trên ERP');
+            return;
+        }
+        const d = res.data;
+        $('#wfInfoDate').text(date.split('-').reverse().join('/'));
+        $('#wfInfoDept').text([d.DEPT_NAME, d.LINE_NAME, d.WORK_NAME].filter(Boolean).join(' - '));
+        const shiftTxt = d.SHIFT_STIME ? `${d.SHIFT_CD || ''} (${d.SHIFT_STIME} - ${d.SHIFT_ETIME || '?'})` : (d.SHIFT_CD || '-');
+        $('#wfInfoShift').html(esc(shiftTxt) + (d.IS_NIGHT_SHIFT ? ' <span class="badge bg-dark">ca đêm</span>' : ''));
+        $('#wfNightHint').toggle(!!d.IS_NIGHT_SHIFT);
+        $('#wfInfoErp').text(`${d.ERP_TIME_IN || '--:--'} → ${d.ERP_TIME_OUT || '--:--'}`);
+        $('#wfInfoMissing').html(`<span class="wf-missing-badge">${MISSING_LABEL[d.MISSING_TYPE] || d.MISSING_TYPE}</span>`);
+        $('#wfInfoShiftType').text(SHIFT_TYPE_LABEL[d.SHIFT_TYPE] || 'Ca chính');
+        const status = d.CONFIRM_STATUS || 'MISSING';
+        $('#wfInfoStatus').html(`<span class="wf-status-badge" style="background:${STATUS_COLOR[status]}22;color:${STATUS_COLOR[status]};">${STATUS_LABEL[status]}</span>`);
+
+        $('#wfTimeIn').val(d.WORKER_TIME_IN || d.ERP_TIME_IN || d.SUGGESTED_TIME_IN || '');
+        $('#wfTimeOut').val(d.WORKER_TIME_OUT || d.ERP_TIME_OUT || d.SUGGESTED_TIME_OUT || '');
+        $('#wfNote').val(d.WORKER_NOTE || '');
+        const usedSuggestion = (!d.WORKER_TIME_IN && !d.ERP_TIME_IN && d.SUGGESTED_TIME_IN)
+            || (!d.WORKER_TIME_OUT && !d.ERP_TIME_OUT && d.SUGGESTED_TIME_OUT);
+        $('#wfSuggestHint').toggle(!!usedSuggestion);
+
+        // Chặn giờ không hợp lý so với ca làm việc thật trên ERP (vd ca hành chính 7h30 mà chọn
+        // 7h25 là sai — không có log tăng ca trước ca thì không được vào sớm hơn giờ ca). Mốc
+        // min/max = đúng công thức SUGGESTED_TIME_IN/OUT bên server (đã cộng giờ OT nếu ERP có log).
+        // Chỉ áp khi phía đó thật sự đang thiếu trên ERP — phía ERP đã có sẵn thì không giới hạn lại.
+        curBounds = { minIn: !d.ERP_TIME_IN ? d.SUGGESTED_TIME_IN : null, maxOut: !d.ERP_TIME_OUT ? d.SUGGESTED_TIME_OUT : null };
+        $('#wfTimeIn').attr('min', curBounds.minIn || '');
+        $('#wfTimeOut').attr('max', (!d.IS_NIGHT_SHIFT && curBounds.maxOut) ? curBounds.maxOut : '');
+
+        const canSubmit = status === 'MISSING' || status === 'PENDING_WORKER' || status === 'REJECTED';
+        $('#wfFormArea').toggle(canSubmit);
+        $('#wfDoneNote').toggle(!canSubmit).text(!canSubmit ? (status === 'CONFIRMED' ? 'Ngày này đã được xác nhận xong.' : 'Đang chờ quản lý xác nhận, không thể sửa lúc này.') : '');
+    } catch (e) {
+        $('#wfDoneNote').show().text('Lỗi tải dữ liệu');
+    } finally {
+        $('#wfLoading').hide();
+        $('#wfContent').show();
+    }
+}
+
+async function submitDay() {
+    const timeIn = $('#wfTimeIn').val(), timeOut = $('#wfTimeOut').val();
+    if (!timeIn && !timeOut) { showToast('Vui lòng nhập ít nhất 1 giờ vào/ra', 'warning'); return; }
+    // Báo lỗi sớm ở client trước khi gọi server — server vẫn chặn lại lần nữa cho chắc (phòng sửa
+    // trực tiếp qua devtools). Bỏ qua check giờ ra khi ca đêm vì so sánh chuỗi HH:mm không đúng lúc
+    // qua nửa đêm (server tự xử lý đúng bằng DateTime thật).
+    if (timeIn && curBounds.minIn && timeIn < curBounds.minIn) {
+        showToast(`Giờ vào không được sớm hơn ${curBounds.minIn} (giờ ca làm việc trên ERP)`, 'warning');
+        return;
+    }
+    if (timeOut && curBounds.maxOut && !$('#wfNightHint').is(':visible') && timeOut > curBounds.maxOut) {
+        showToast(`Giờ ra không được muộn hơn ${curBounds.maxOut} (giờ ca làm việc trên ERP)`, 'warning');
+        return;
+    }
+    const $btn = $('#wfSubmitBtn').prop('disabled', true);
+    try {
+        const res = await $.ajax({
+            url: SUBMIT_URL, type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ WORK_DATE: $('#wfDate').val(), TIME_IN: timeIn, TIME_OUT: timeOut, NOTE: $('#wfNote').val() })
+        });
+        if (res.success) { showToast(res.message || 'Đã gửi khai báo', 'success'); loadDay(); loadPendingChips(); }
+        else showToast(res.message || 'Lỗi', 'error');
+    } catch (e) { showToast('Lỗi kết nối', 'error'); }
+    finally { $btn.prop('disabled', false); }
+}
+
+// Danh sách ngày còn thiếu/bị từ chối của chính NV — bấm 1 phát nhảy tới ngày đó thay vì phải mò
+// từng ngày trên input date (yêu cầu 2026-09-18: "filter ngày highlight ngày yêu cầu").
+async function loadPendingChips() {
+    const $wrap = $('#wfPendingChips');
+    try {
+        const res = await $.getJSON(PENDING_URL);
+        if (!res.success || !res.data || !res.data.length) { $wrap.empty(); return; }
+        const curDate = $('#wfDate').val();
+        $wrap.html(res.data.map(d => {
+            const p = d.WORK_DATE.split('-');
+            const label = `${p[2]}/${p[1]}` + (d.CONFIRM_STATUS === 'REJECTED' ? ' ⟳' : '');
+            const cls = d.CONFIRM_STATUS === 'REJECTED' ? 'rejected' : '';
+            const active = d.WORK_DATE === curDate ? 'active' : '';
+            return `<span class="wf-pending-chip ${cls} ${active}" data-date="${d.WORK_DATE}" onclick="jumpToDate(this)">${label}</span>`;
+        }).join(''));
+    } catch (e) { /* im lặng — chip chỉ là gợi ý, không chặn luồng chính */ }
+}
+
+function jumpToDate(el) {
+    $('#wfDate').val(el.dataset.date);
+    $('#wfPendingChips .wf-pending-chip').removeClass('active');
+    $(el).addClass('active');
+    loadDay();
+}
+
+$(function () { loadDay(); loadPendingChips(); });
+</script>
+}

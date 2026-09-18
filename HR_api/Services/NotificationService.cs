@@ -176,6 +176,48 @@ public class NotificationService
         });
 
     // ═══════════════════════════════════════════════════════════════
+    //  ATTENDANCE CONFIRM (xác nhận chấm công thiếu)
+    // ═══════════════════════════════════════════════════════════════
+
+    // Admin/HR/Clerk gửi yêu cầu tới NV — báo NV vào khai giờ vào/ra thực tế (bước 1).
+    public void AttendanceConfirmRequested(string empCd, string actorEmpCd, DateTime workDate)
+        => FireAndForget(async () =>
+        {
+            var ph = new Dictionary<string, string> { ["workDate"] = workDate.ToString("dd/MM/yyyy") };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("ATT_CONFIRM_REQUEST", ph);
+            await _helper.SendNotificationAsync(Personal(empCd, actorEmpCd, title, body, "ATT_CONFIRM_WORKER", titleEn, bodyEn));
+        });
+
+    // NV vừa khai giờ (bước 1) — báo quản lý theo scope dept/line/work của NV (bước 2).
+    public void AttendanceConfirmSubmitted(string empCd, string empName, DateTime workDate)
+        => FireAndForget(async () =>
+        {
+            var ph = new Dictionary<string, string>
+            {
+                ["empName"]  = empName,
+                ["workDate"] = workDate.ToString("dd/MM/yyyy"),
+            };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("ATT_CONFIRM_SUBMITTED", ph);
+            var approvers = await _helper.GetApproverEmpCdsAsync(empCd);
+            foreach (var ap in approvers)
+                await _helper.SendNotificationAsync(Personal(ap, empCd, title, body, "ATT_CONFIRM_MANAGER", titleEn, bodyEn));
+        });
+
+    // Quản lý/Admin/HR đã chốt (CONFIRMED/REJECTED) — báo kết quả cho NV.
+    public void AttendanceConfirmResult(string empCd, string actorEmpCd, DateTime workDate, string status)
+        => FireAndForget(async () =>
+        {
+            string statusLabel = status == "CONFIRMED" ? "xác nhận" : "từ chối";
+            var ph = new Dictionary<string, string>
+            {
+                ["workDate"] = workDate.ToString("dd/MM/yyyy"),
+                ["status"]   = statusLabel,
+            };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("ATT_CONFIRM_RESULT", ph);
+            await _helper.SendNotificationAsync(Personal(empCd, actorEmpCd, title, body, "ATT_CONFIRM_WORKER", titleEn, bodyEn));
+        });
+
+    // ═══════════════════════════════════════════════════════════════
     //  BULLETIN
     // ═══════════════════════════════════════════════════════════════
 

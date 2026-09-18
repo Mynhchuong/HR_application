@@ -129,3 +129,5 @@ HR_api/Scripts/add_ot_supplement_columns.sql
 HR_api/Scripts/alter_inquiry_ref_type_bulletin.sql
 HR_api/Scripts/create_inquiry_canned_reply.sql
 HR_api/Scripts/create_menu_banh_fixed.sql
+HR_api/Scripts/alter_attendance_confirm_worker_note.sql
+HR_api/Scripts/create_attendance_confirm.sql

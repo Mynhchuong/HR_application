@@ -44,7 +44,8 @@ public class HomeMyCalendarService
         {
             LoadLeaveApprovedAsync(empcd, from, to),
             LoadGpApprovedAsync(empcd, from, to),
-            LoadOtConfirmedAsync(empcd, from, to)
+            LoadOtConfirmedAsync(empcd, from, to),
+            LoadAttendanceMissingAsync(empcd, from, to)
         };
         await Task.WhenAll(tasks);
         return tasks.SelectMany(t => t.Result).OrderBy(x => x.DATE).ToList();
@@ -209,17 +210,20 @@ public class HomeMyCalendarService
                 timeStr = "";
 
             string detail = timeStr;
-            if (!string.IsNullOrEmpty(row.Approver))
-                detail += string.IsNullOrEmpty(detail) ? $"Người duyệt: {row.Approver}" : $" · Người duyệt: {row.Approver}";
             if (!string.IsNullOrEmpty(row.Reason))
                 detail += string.IsNullOrEmpty(detail) ? $"Lý do: {row.Reason}" : $" · Lý do: {row.Reason}";
 
+            // CNAME người duyệt đọc theo font VNI-Windows — phải tách riêng khỏi DETAIL (Unicode
+            // thường) và gán qua SIGNER_NAME để frontend bọc đúng class vni-font, giống cách Leave
+            // đã làm — trước đây nhét thẳng vào DETAIL nên hiện lỗi phông kiểu "Leâ Kim Lan".
             items.Add(new HomeMyCalendarItem
             {
-                DATE   = refDate.Value.ToString("yyyy-MM-dd"),
-                TYPE   = "GP",
-                LABEL  = typeLabel,
-                DETAIL = detail
+                DATE         = refDate.Value.ToString("yyyy-MM-dd"),
+                TYPE         = "GP",
+                LABEL        = typeLabel,
+                DETAIL       = detail,
+                SIGNER_LABEL = string.IsNullOrEmpty(row.Approver) ? null : "Người duyệt",
+                SIGNER_NAME  = string.IsNullOrEmpty(row.Approver) ? null : row.Approver
             });
         }
         return items;
@@ -296,6 +300,52 @@ public class HomeMyCalendarService
                 TYPE   = "OT",
                 LABEL  = "Tăng ca",
                 DETAIL = detail
+            });
+        }
+        return items;
+    }
+
+    // ─── Thiếu chấm công 🔴 ──────────────────────────────────────
+    // Nguồn: HRMS.ADD_TIME (ERP, chỉ đọc). Tín hiệu thiếu là REASON IS NOT NULL — KHÔNG dùng
+    // TIME_IN/TIME_OUT IS NULL vì HR đã tự điền sẵn giờ mặc định cho phía thiếu (xem ClassifyReason
+    // bên AttendanceConfirmService). Chỉ tô đỏ ngày còn thiếu VÀ chưa CONFIRMED trên app.
+    private async Task<List<HomeMyCalendarItem>> LoadAttendanceMissingAsync(string empcd, DateTime from, DateTime to)
+    {
+        const string sql = @"
+            SELECT TO_CHAR(A.DAT,'YYYY-MM-DD') WORK_DATE, CF.CONFIRM_STATUS
+            FROM HRMS.ADD_TIME A
+            LEFT JOIN HRMS.HR_ATT_CONFIRM CF ON CF.EMPCD = A.EMPCD AND TRUNC(CF.WORK_DATE) = TRUNC(A.DAT)
+            WHERE A.EMPCD = :EMPCD
+              AND A.DAT BETWEEN :D_FROM AND :D_TO
+              AND A.REASON IS NOT NULL
+              AND NVL(CF.CONFIRM_STATUS, 'MISSING') != 'CONFIRMED'";
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
+        {
+            WorkDate = r["WORK_DATE"]?.ToString() ?? "",
+            Status   = r["CONFIRM_STATUS"]?.ToString()
+        },
+        new OracleParameter("EMPCD",  empcd),
+        new OracleParameter("D_FROM", from.Date),
+        new OracleParameter("D_TO",   to.Date));
+
+        var items = new List<HomeMyCalendarItem>();
+        foreach (var row in rows)
+        {
+            if (string.IsNullOrEmpty(row.WorkDate)) continue;
+            string label = row.Status switch
+            {
+                "PENDING_WORKER"  => "Thiếu chấm công — cần khai giờ",
+                "PENDING_MANAGER" => "Thiếu chấm công — chờ quản lý xác nhận",
+                "REJECTED"        => "Thiếu chấm công — bị từ chối, khai lại",
+                _                 => "Thiếu chấm công"
+            };
+            items.Add(new HomeMyCalendarItem
+            {
+                DATE   = row.WorkDate,
+                TYPE   = "ATT_MISSING",
+                LABEL  = label,
+                DETAIL = "Bấm để khai giờ vào/ra thực tế"
             });
         }
         return items;

@@ -62,6 +62,11 @@ var Select2Helper = (function () {
             const selectedId = $el.data('selected-id');
             let selectedText = $el.data('selected-text');
 
+            // Gọi init() 2 lần trên cùng 1 <select> (vd trang gọi lại sau khi render lại filter bar)
+            // sẽ tạo ra 2 instance Select2 chồng lên nhau -> hiện 2 nút X clear cùng lúc. Destroy
+            // instance cũ trước khi init lại để luôn chỉ có đúng 1 instance.
+            if ($el.hasClass('select2-hidden-accessible')) $el.select2('destroy');
+
             $el.select2({
                 width: '100%',
                 placeholder: $el.data('placeholder'),

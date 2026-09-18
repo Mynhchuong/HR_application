@@ -4082,5 +4082,155 @@ COMMIT;
   UPDT_ID                      VARCHAR2(8)
   -- PK: SEQ, DAT, EMPCD
 
+-- ============================================================
+-- XÁC NHẬN CHẤM CÔNG THIẾU (Attendance Confirmation) — DDL
+-- Nguồn phát hiện thiếu: HRMS.ADD_TIME (ERP, chỉ SELECT — không ghi ngược).
+-- Convention: bám theo HR_HOME_* (create_home_config.sql)
+--   * SEQ_<TABLE>_BI BEFORE INSERT auto-fill ID
+--   * Cột audit chuẩn: INST_ID, INST_DT, UPDT_ID, UPDT_DT
+--   * Tablespace: HRMSD
+-- ============================================================
+
+
+-- ============================================================
+-- 1. HR_ATT_CONFIRM — 1 dòng = 1 (EMPCD, WORK_DATE) cần/đã xác nhận
+--    2 bước: NV khai (PENDING_WORKER -> PENDING_MANAGER) -> Quản lý/Admin/HR chốt (CONFIRMED/REJECTED)
+-- ============================================================
+CREATE TABLE HRMS.HR_ATT_CONFIRM (
+    ID                NUMBER          NOT NULL,
+    EMPCD             VARCHAR2(20)    NOT NULL,
+    WORK_DATE         DATE            NOT NULL,
+
+    SHIFT_CD          VARCHAR2(10),                                  -- ca chính lúc khai (EBM100.SHIFTCD)
+    SHIFT_TYPE        VARCHAR2(10)    DEFAULT 'REGULAR' NOT NULL,     -- REGULAR | OT_BEFORE | OT_AFTER
+
+    WORKER_TIME_IN    DATE,                                          -- NV tự khai (bước 1)
+    WORKER_TIME_OUT   DATE,
+    CONFIRM_TIME_IN   DATE,                                          -- Quản lý/Admin/HR chốt (bước 2, có thể = worker hoặc sửa lại)
+    CONFIRM_TIME_OUT  DATE,
+    WORKER_NOTE       NVARCHAR2(500),                                -- ghi chú của công nhân khi khai (bước 1)
+    NOTE              NVARCHAR2(500),                                -- ghi chú của quản lý khi xác nhận (bước 2)
+
+    CONFIRM_STATUS    VARCHAR2(20)    DEFAULT 'PENDING_WORKER' NOT NULL,
+
+    REQUESTED_BY      VARCHAR2(20),                                  -- NULL nếu NV tự khởi tạo (chọn ngày đỏ trên lịch Home)
+    REQUESTED_DATE    DATE,
+    CONFIRMED_BY      VARCHAR2(20),
+    CONFIRMED_DATE    DATE,
+
+    INST_ID           VARCHAR2(50),
+    INST_DT           DATE            DEFAULT SYSDATE,
+    UPDT_ID           VARCHAR2(50),
+    UPDT_DT           DATE,
+
+    CONSTRAINT PK_HR_ATT_CONFIRM      PRIMARY KEY (ID),
+    CONSTRAINT UQ_HR_ATT_CONFIRM_EMPD UNIQUE (EMPCD, WORK_DATE),
+    CONSTRAINT CHK_ATTCF_STATUS
+        CHECK (CONFIRM_STATUS IN ('PENDING_WORKER','PENDING_MANAGER','CONFIRMED','REJECTED')),
+    CONSTRAINT CHK_ATTCF_SHIFT_TYPE
+        CHECK (SHIFT_TYPE IN ('REGULAR','OT_BEFORE','OT_AFTER'))
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_ATT_CONFIRM START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_ATT_CONFIRM_BI
+BEFORE INSERT OR UPDATE ON HRMS.HR_ATT_CONFIRM
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        IF :NEW.ID IS NULL THEN
+            SELECT HRMS.SEQ_HR_ATT_CONFIRM.NEXTVAL INTO :NEW.ID FROM DUAL;
+        END IF;
+        IF :NEW.INST_DT IS NULL THEN
+            :NEW.INST_DT := SYSDATE;
+        END IF;
+    END IF;
+    IF UPDATING THEN
+        :NEW.UPDT_DT := SYSDATE;
+    END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_ATT_CONFIRM_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_ATTCF_EMPCD    ON HRMS.HR_ATT_CONFIRM (EMPCD)          TABLESPACE HRMSD;
+CREATE INDEX HRMS.IDX_ATTCF_STATUS   ON HRMS.HR_ATT_CONFIRM (CONFIRM_STATUS) TABLESPACE HRMSD;
+CREATE INDEX HRMS.IDX_ATTCF_WORKDATE ON HRMS.HR_ATT_CONFIRM (WORK_DATE)      TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 2. HR_ATT_CONFIRM_LOG — audit trail mọi lần đổi trạng thái
+--    (mirror HR_OT_LOG) — ghi nhận actor bất kể thao tác từ web hay app Mysamho
+-- ============================================================
+CREATE TABLE HRMS.HR_ATT_CONFIRM_LOG (
+    ID              NUMBER          NOT NULL,
+    CONFIRM_ID      NUMBER          NOT NULL,
+    EMPCD           VARCHAR2(20)    NOT NULL,
+    WORK_DATE       DATE            NOT NULL,
+    ACTION          VARCHAR2(20)    NOT NULL,     -- REQUEST_SENT | WORKER_SUBMIT | MANAGER_CONFIRM | MANAGER_REJECT
+    OLD_STATUS      VARCHAR2(20),
+    NEW_STATUS      VARCHAR2(20),
+    DETAIL          NVARCHAR2(500),
+    ACTOR_EMPCD     VARCHAR2(20),
+    INST_DT         DATE            DEFAULT SYSDATE NOT NULL,
+
+    CONSTRAINT PK_HR_ATT_CONFIRM_LOG   PRIMARY KEY (ID),
+    CONSTRAINT FK_ATTCFLOG_CONFIRM     FOREIGN KEY (CONFIRM_ID) REFERENCES HRMS.HR_ATT_CONFIRM (ID)
+) TABLESPACE HRMSD;
+
+CREATE SEQUENCE HRMS.SEQ_HR_ATT_CONFIRM_LOG START WITH 1 INCREMENT BY 1 NOCACHE;
+
+CREATE OR REPLACE TRIGGER HRMS.TRG_HR_ATT_CONFIRM_LOG_BI
+BEFORE INSERT ON HRMS.HR_ATT_CONFIRM_LOG
+FOR EACH ROW
+BEGIN
+    IF :NEW.ID IS NULL THEN
+        SELECT HRMS.SEQ_HR_ATT_CONFIRM_LOG.NEXTVAL INTO :NEW.ID FROM DUAL;
+    END IF;
+    IF :NEW.INST_DT IS NULL THEN
+        :NEW.INST_DT := SYSDATE;
+    END IF;
+END;
+/
+ALTER TRIGGER HRMS.TRG_HR_ATT_CONFIRM_LOG_BI ENABLE;
+
+CREATE INDEX HRMS.IDX_ATTCFLOG_CONFIRM ON HRMS.HR_ATT_CONFIRM_LOG (CONFIRM_ID) TABLESPACE HRMSD;
+
+
+-- ============================================================
+-- 3. HR_NOTI_TEMPLATES — 2 template mới (thêm qua UI NotiTemplate cũng được,
+--    để sẵn đây cho tiện chạy 1 lần cùng migration)
+-- ============================================================
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE) VALUES
+('ATT_CONFIRM_REQUEST', N'Yêu cầu xác nhận chấm công',
+ N'Bạn có 1 ngày ({workDate}) thiếu chấm công cần khai giờ vào/ra thực tế.',
+ 'Attendance confirmation requested',
+ 'You have a missing attendance record on {workDate} — please fill in your actual in/out time.', 1);
+
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE) VALUES
+('ATT_CONFIRM_SUBMITTED', N'Chờ xác nhận chấm công',
+ N'{empName} đã khai giờ chấm công ngày {workDate}, đang chờ bạn xác nhận.',
+ 'Attendance confirmation pending',
+ '{empName} submitted attendance for {workDate} — please review and confirm.', 1);
+
+INSERT INTO HRMS.HR_NOTI_TEMPLATES (TEMPLATE_KEY, TITLE_VI, BODY_VI, TITLE_EN, BODY_EN, IS_ACTIVE) VALUES
+('ATT_CONFIRM_RESULT', N'Kết quả xác nhận chấm công',
+ N'Chấm công ngày {workDate} của bạn đã được {status}.',
+ 'Attendance confirmation result',
+ 'Your attendance for {workDate} has been {status}.', 1);
+
+COMMIT;
+
+
+-- ============================================================
+-- ROLLBACK (uncomment khi cần xoá)
+-- ============================================================
+-- DELETE FROM HRMS.HR_NOTI_TEMPLATES WHERE TEMPLATE_KEY IN
+--     ('ATT_CONFIRM_REQUEST','ATT_CONFIRM_SUBMITTED','ATT_CONFIRM_RESULT');
+-- DROP TRIGGER HRMS.TRG_HR_ATT_CONFIRM_LOG_BI;
+-- DROP TRIGGER HRMS.TRG_HR_ATT_CONFIRM_BI;
+-- DROP SEQUENCE HRMS.SEQ_HR_ATT_CONFIRM_LOG;
+-- DROP SEQUENCE HRMS.SEQ_HR_ATT_CONFIRM;
+-- DROP TABLE HRMS.HR_ATT_CONFIRM_LOG PURGE;
+-- DROP TABLE HRMS.HR_ATT_CONFIRM     PURGE;
 
 

@@ -159,8 +159,10 @@
     color: #94a3b8;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    min-width: 80px;
+    width: 84px;
+    max-width: 84px;
     flex-shrink: 0;
+    word-break: break-word;
     padding-top: 3px;
 }
 

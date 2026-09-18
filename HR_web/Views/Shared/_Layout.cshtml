@@ -949,6 +949,10 @@
         // chính NV tự xác nhận (CONFIRM_STATUS='PENDING').
         loadBadge('@Url.Action("GetTodayNeedConfirm","OT")', 'sideOtBadge', function(d) { return d.needConfirm ? 1 : 0; });
 
+        // Attendance Confirm (sidebar "Xác nhận chấm công") — số ngày NV còn cần tự khai/khai lại
+        // (MISSING/PENDING_WORKER/REJECTED), cùng pattern với sideOtBadge.
+        loadBadge('@Url.Action("GetMyPending","AttendanceConfirm")', 'sideAttBadge', function(d) { return d.count || 0; });
+
         // Inquiry unread — bottom-nav mobile (#inqBadge) + sidebar desktop (#sideInqBadge, mục
         // "Hộp thư phản ánh"). Nguồn số khác nhau theo role vì HR/Admin/NV dùng 3 controller riêng.
         (function() {

@@ -636,6 +636,7 @@ body.home-hero-popup-open { overflow: hidden; }
     --mc-gp:     #f59e0b;  /* vàng cam */
     --mc-ot:     #3b82f6;  /* xanh dương */
     --mc-assign: #a855f7;  /* tím */
+    --mc-att-missing: #ef4444;  /* đỏ — thiếu chấm công */
 }
 
 .home-mycal {
@@ -717,6 +718,7 @@ body.home-hero-popup-open { overflow: hidden; }
 .home-mycal-legend .lg-dot.lg-gp     { background: var(--mc-gp); }
 .home-mycal-legend .lg-dot.lg-ot     { background: var(--mc-ot); }
 .home-mycal-legend .lg-dot.lg-assign { background: var(--mc-assign); }
+.home-mycal-legend .lg-dot.lg-att-missing { background: var(--mc-att-missing); }
 
 /* ─── Grid ─── */
 .home-mycal-grid {
@@ -780,6 +782,7 @@ body.home-hero-popup-open { overflow: hidden; }
 .mc-dot.mc-dot-GP     { background: var(--mc-gp); }
 .mc-dot.mc-dot-OT     { background: var(--mc-ot); }
 .mc-dot.mc-dot-ASSIGN { background: var(--mc-assign); }
+.mc-dot.mc-dot-ATT_MISSING { background: var(--mc-att-missing); }
 
 /* Note + CTA */
 .home-mycal-note {
@@ -840,6 +843,7 @@ body.home-hero-popup-open { overflow: hidden; }
 #mycalDetailBody .mc-event.mc-GP     { border-left-color: var(--mc-gp);     background: linear-gradient(90deg, #fffbeb 0%, #f9fafb 100%); }
 #mycalDetailBody .mc-event.mc-OT     { border-left-color: var(--mc-ot);     background: linear-gradient(90deg, #eff6ff 0%, #f9fafb 100%); }
 #mycalDetailBody .mc-event.mc-ASSIGN { border-left-color: var(--mc-assign); background: linear-gradient(90deg, #faf5ff 0%, #f9fafb 100%); }
+#mycalDetailBody .mc-event.mc-ATT_MISSING { border-left-color: var(--mc-att-missing); background: linear-gradient(90deg, #fef2f2 0%, #f9fafb 100%); cursor: pointer; }
 #mycalDetailBody .mc-event .mc-icon {
     font-size: 1.6rem; line-height: 1;
     width: 36px; height: 36px; border-radius: 10px;

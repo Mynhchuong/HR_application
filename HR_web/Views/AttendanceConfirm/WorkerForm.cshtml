@@ -76,6 +76,7 @@
 const MYDAY_URL = '@Url.Action("GetMyDay")';
 const SUBMIT_URL = '@Url.Action("SubmitWorker")';
 const PENDING_URL = '@Url.Action("GetMyPending")';
+const CSRF_TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 
 const STATUS_LABEL = {
     MISSING: 'Chưa gửi yêu cầu', PENDING_WORKER: 'Chờ bạn khai giờ',
@@ -173,6 +174,7 @@ async function submitDay() {
     try {
         const res = await $.ajax({
             url: SUBMIT_URL, type: 'POST', contentType: 'application/json',
+            headers: { 'RequestVerificationToken': CSRF_TOKEN },
             data: JSON.stringify({ WORK_DATE: $('#wfDate').val(), TIME_IN: timeIn, TIME_OUT: timeOut, NOTE: $('#wfNote').val() })
         });
         if (res.success) { showToast(res.message || 'Đã gửi khai báo', 'success'); loadDay(); loadPendingChips(); }

@@ -28,6 +28,17 @@ public class UserDetailModel
     public bool HasSignature { get; set; }
     public string? SignatureUrl { get; set; }
     public string? EmpCd { get; set; }
+    public List<DisciplineHistoryItem> DisciplineHistory { get; set; } = new();
+}
+
+// HRMS.DISCIPLINE_HISTORY — lịch sử lập biên bản kỷ luật NV (tự xem trong Hồ sơ cá nhân).
+public class DisciplineHistoryItem
+{
+    public string  Num       { get; set; } = "";
+    public string? Code      { get; set; }
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate   { get; set; }
+    public string? Remark    { get; set; }   // Font giống họ tên (vni-font)
 }
 
 // CreateUserModel has been moved to UserActionModels.cs

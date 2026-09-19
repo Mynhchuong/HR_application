@@ -92,9 +92,7 @@
                     <option value="BOTH">Not In &amp; Out</option>
                 </select>
             </div>
-            <div class="d-flex align-items-end gap-2 ms-auto">
-                <button type="button" id="clearFilterBtn" class="btn btn-outline-secondary btn-sm" title="Xóa bộ lọc"><i class="bi bi-x-circle"></i></button>
-            </div>
+            <div class="ms-auto"></div>
         </div>
 
         <div class="card-body px-0 pb-2">
@@ -168,6 +166,7 @@ const LIST_URL    = '@Url.Action("GetList")';
 const SUBMIT_URL  = '@Url.Action("SubmitWorker")';
 const CONFIRM_URL = '@Url.Action("ManagerConfirm")';
 const REQUEST_URL = '@Url.Action("RequestConfirm")';
+const CSRF_TOKEN  = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 let canConfirmGlobal = false; // Admin/HR luôn false — chỉ quản lý đúng scope mới bấm Xác nhận được
@@ -273,7 +272,7 @@ async function doConfirm(status) {
         STATUS: status
     };
     try {
-        const res = await $.ajax({ url: CONFIRM_URL, type: 'POST', contentType: 'application/json', data: JSON.stringify(payload) });
+        const res = await $.ajax({ url: CONFIRM_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(payload) });
         if (res.success) {
             bootstrap.Modal.getInstance(document.getElementById('confirmModal'))?.hide();
             showToast(res.message || 'Đã cập nhật', 'success');
@@ -293,7 +292,7 @@ $('#requestBtn').on('click', async function () {
     if (!targets.length) return;
     const $btn = $(this).prop('disabled', true);
     try {
-        const res = await $.ajax({ url: REQUEST_URL, type: 'POST', contentType: 'application/json', data: JSON.stringify(targets) });
+        const res = await $.ajax({ url: REQUEST_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(targets) });
         showToast(res.message || 'Đã xử lý', res.failed > 0 ? 'warning' : 'success');
         loadData(currentPage);
     } catch (e) { showToast('Lỗi kết nối', 'error'); }
@@ -371,13 +370,8 @@ $('#filterLine').on('change', function () { $('#filterWork').val(null).trigger('
 $('#filterWork, #filterStatus, #filterMissingType').on('change', () => loadData(1));
 let searchTimeout;
 $('#searchEmpcd').on('input', function () { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => loadData(1), 400); });
-$('#clearFilterBtn').on('click', function () {
-    $('#searchEmpcd').val('');
-    $('#filterDept, #filterLine, #filterWork').val(null).trigger('change.select2');
-    $('#filterStatus').val('');
-    $('#filterMissingType').val('');
-    loadData(1);
-});
+// Nút "Xóa lọc" tự chèn bởi list-page-helper.js (global, mọi trang có .filter-bar) — không tự thêm
+// tay ở đây nữa (trước đây thêm tay gây ra 2 nút X chồng nhau).
 
 $('#exportBtn').on('click', async function () {
     const $btn = $(this), orig = $btn.html();

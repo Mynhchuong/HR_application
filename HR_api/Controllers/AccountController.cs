@@ -832,6 +832,28 @@ public class AccountController : ControllerBase
 
             var r = results.FirstOrDefault();
             Console.WriteLine($"[user-detail] empCd={empCd} | addr_etc={r?.Address} | rows={results.Count}");
+
+            if (r != null)
+            {
+                // CODE '20.3.68' = "Không tăng lương định kỳ..." — ghi chú lương, không phải kỷ luật
+                // (đã rà toàn bộ CODE khác trong bảng, không có mã ghi chú non-kỷ luật nào khác).
+                r.DisciplineHistory = await _oracleService.ExecuteQueryAsync(@"
+                    SELECT NUM, CODE, START_DAT, END_DAT, REMAR
+                    FROM HRMS.DISCIPLINE_HISTORY
+                    WHERE EMPCD = :EMPCD
+                      AND CODE != '20.3.68'
+                    ORDER BY START_DAT DESC",
+                    reader => new DisciplineHistoryItem
+                    {
+                        Num       = reader["NUM"]?.ToString() ?? "",
+                        Code      = reader["CODE"]?.ToString(),
+                        StartDate = SafeToDate(reader["START_DAT"]),
+                        EndDate   = SafeToDate(reader["END_DAT"]),
+                        Remark    = reader["REMAR"]?.ToString()
+                    },
+                    new OracleParameter("EMPCD", empCd.Trim()));
+            }
+
             return Ok(r);
         }
         catch (Exception ex)

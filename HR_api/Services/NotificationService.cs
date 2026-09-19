@@ -218,6 +218,54 @@ public class NotificationService
         });
 
     // ═══════════════════════════════════════════════════════════════
+    //  GIFT (Quản lý Quà)
+    // ═══════════════════════════════════════════════════════════════
+
+    // Tới ngày dự kiến nhận quà — nhắc NV đến nhận (không chặn app, chỉ nhắc). Tắt/mở qua
+    // /NotiTemplate/Index (IS_ACTIVE của key GIFT_READY) — không cần sửa code khi đang dev/test.
+    public void GiftReady(string empCd, string actorEmpCd, string giftName)
+        => FireAndForget(async () =>
+        {
+            if (!await _helper.IsTemplateActiveAsync("GIFT_READY")) return;
+            var ph = new Dictionary<string, string> { ["giftName"] = giftName };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("GIFT_READY", ph);
+            await _helper.SendNotificationAsync(Personal(empCd, actorEmpCd, title, body, "GIFT_MY", titleEn, bodyEn));
+        });
+
+    // Đợt quà "toàn công ty" — 1 thông báo broadcast duy nhất thay vì bắn riêng từng người
+    // (mirror BulletinPublished/SurveyPublished — NOTI_TYPE=COMPANY).
+    public void GiftReadyCompanyWide(string giftName, string createdBy)
+        => FireAndForget(async () =>
+        {
+            if (!await _helper.IsTemplateActiveAsync("GIFT_READY")) return;
+            var ph = new Dictionary<string, string> { ["giftName"] = giftName };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("GIFT_READY", ph);
+            await _helper.SendNotificationAsync(new SendNotificationRequest
+            {
+                TITLE       = title,
+                BODY        = body,
+                TITLE_EN    = titleEn,
+                BODY_EN     = bodyEn,
+                NOTI_TYPE   = "COMPANY",
+                TARGET_VAL  = "ALL",
+                LINK_ACTION = "GIFT_MY",
+                CREATED_BY  = createdBy
+            });
+        });
+
+    // HR đã phát quà, gửi yêu cầu xác nhận — từ đây GiftGateFilter (HR_web) sẽ chặn app của NV
+    // cho tới khi xác nhận. LƯU Ý: tắt IS_ACTIVE của GIFT_CONFIRM_REQUEST chỉ tắt THÔNG BÁO —
+    // CONFIRM_STATUS vẫn chuyển PENDING_CONFIRM và gate vẫn chặn app bình thường (2 việc độc lập).
+    public void GiftConfirmRequested(string empCd, string actorEmpCd, string giftName)
+        => FireAndForget(async () =>
+        {
+            if (!await _helper.IsTemplateActiveAsync("GIFT_CONFIRM_REQUEST")) return;
+            var ph = new Dictionary<string, string> { ["giftName"] = giftName };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("GIFT_CONFIRM_REQUEST", ph);
+            await _helper.SendNotificationAsync(Personal(empCd, actorEmpCd, title, body, "GIFT_MY", titleEn, bodyEn));
+        });
+
+    // ═══════════════════════════════════════════════════════════════
     //  BULLETIN
     // ═══════════════════════════════════════════════════════════════
 

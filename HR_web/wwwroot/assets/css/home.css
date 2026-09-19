@@ -637,6 +637,7 @@ body.home-hero-popup-open { overflow: hidden; }
     --mc-ot:     #3b82f6;  /* xanh dương */
     --mc-assign: #a855f7;  /* tím */
     --mc-att-missing: #ef4444;  /* đỏ — thiếu chấm công */
+    --mc-gift: #db2777;  /* hồng — nhận quà */
 }
 
 .home-mycal {
@@ -783,6 +784,7 @@ body.home-hero-popup-open { overflow: hidden; }
 .mc-dot.mc-dot-OT     { background: var(--mc-ot); }
 .mc-dot.mc-dot-ASSIGN { background: var(--mc-assign); }
 .mc-dot.mc-dot-ATT_MISSING { background: var(--mc-att-missing); }
+.mc-dot.mc-dot-GIFT { background: var(--mc-gift); }
 
 /* Note + CTA */
 .home-mycal-note {
@@ -844,6 +846,7 @@ body.home-hero-popup-open { overflow: hidden; }
 #mycalDetailBody .mc-event.mc-OT     { border-left-color: var(--mc-ot);     background: linear-gradient(90deg, #eff6ff 0%, #f9fafb 100%); }
 #mycalDetailBody .mc-event.mc-ASSIGN { border-left-color: var(--mc-assign); background: linear-gradient(90deg, #faf5ff 0%, #f9fafb 100%); }
 #mycalDetailBody .mc-event.mc-ATT_MISSING { border-left-color: var(--mc-att-missing); background: linear-gradient(90deg, #fef2f2 0%, #f9fafb 100%); cursor: pointer; }
+#mycalDetailBody .mc-event.mc-GIFT { border-left-color: var(--mc-gift); background: linear-gradient(90deg, #fdf2f8 0%, #f9fafb 100%); }
 #mycalDetailBody .mc-event .mc-icon {
     font-size: 1.6rem; line-height: 1;
     width: 36px; height: 36px; border-radius: 10px;

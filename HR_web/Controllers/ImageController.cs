@@ -27,6 +27,7 @@ public class ImageController : BaseController
     private const string BulletinFolder = ShareRoot + @"\BULLETIN\IMG";
     private const string HomeBannerFolder = ShareRoot + @"\MY_SAMHO_HOME";
     internal const string WorkCdFolder = ShareRoot + @"\workcd";
+    private const string GiftFolder     = ShareRoot + @"\IMGGIFT";
 
     private static readonly string[] ImageExts    = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
     private const long               ImageMaxBytes = 10L * 1024 * 1024; // 10 MB
@@ -360,6 +361,58 @@ public class ImageController : BaseController
             }
         }
         catch { /* best-effort, không chặn flow chính */ }
+    }
+
+    // ── Ảnh quà (Gift catalog) ───────────────────────────────────────────────
+    // Tên file cố định {ID}.jpg (convert JPEG khi lưu, giống WorkCdImage) — khỏi cần lưu
+    // filename riêng trong DB, upload mới tự động ghi đè ảnh cũ.
+    // Route "image" đã whitelist trong GiftGateFilter -> NV đang bị gate vẫn xem được ảnh ở MyGifts.
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR")]
+    [IgnoreAntiforgeryToken]
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> UploadGiftImage(int itemId, IFormFile? file)
+    {
+        if (itemId <= 0) return Json(new { success = false, message = "Thiếu mã quà" });
+        if (file == null || file.Length == 0) return Json(new { success = false, message = "Chưa chọn file!" });
+
+        var ext = Path.GetExtension(file.FileName).ToLower();
+        if (!ImageExts.Contains(ext))
+            return Json(new { success = false, message = "Chỉ chấp nhận JPG, PNG, WebP, GIF!" });
+        if (file.Length > ImageMaxBytes)
+            return Json(new { success = false, message = "File không được vượt quá 10 MB!" });
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            using var image  = await SixLabors.ImageSharp.Image.LoadAsync(stream);
+            var savePath = Path.Combine(GiftFolder, itemId + ".jpg");
+
+            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            {
+                Directory.CreateDirectory(GiftFolder);
+                await using var fs = new FileStream(savePath, FileMode.Create);
+                await image.SaveAsJpegAsync(fs, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 90 });
+            }
+            return Json(new { success = true, url = Url.Action("GetGiftImage", "Image", new { itemId }) });
+        }
+        catch (SixLabors.ImageSharp.UnknownImageFormatException)
+        {
+            return Json(new { success = false, message = "Không đọc được file — có phải ảnh hợp lệ không?" });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = $"Lỗi lưu file: {ex.Message}" });
+        }
+    }
+
+    [HttpGet, AllowAnonymous]
+    [ResponseCache(Duration = 3600)]
+    public IActionResult GetGiftImage(int itemId)
+    {
+        if (itemId <= 0) return NotFound();
+        var fileName = itemId + ".jpg";
+        return ServeNetworkImage(Path.Combine(GiftFolder, fileName), fileName);
     }
 
     // Đọc tối thiểu `count` byte (hoặc tới EOF) — stream có thể trả từng phần.

@@ -4233,4 +4233,146 @@ COMMIT;
 -- DROP TABLE HRMS.HR_ATT_CONFIRM_LOG PURGE;
 -- DROP TABLE HRMS.HR_ATT_CONFIRM     PURGE;
 
+-- ============================================================
+-- QUẢN LÝ QUÀ (Gift Catalog & Lifecycle) — ĐÃ CHẠY 19/09/2026
+-- File đầy đủ: HR_api/Scripts/create_gift.sql
+-- Cơ chế: HR tạo danh mục quà (đơn/combo) → tạo "đợt quà" + import Excel danh sách
+-- (EMPCD, ngày nhận, địa điểm) → tới ngày báo lịch Home + push → HR bấm "đã phát"
+-- rồi "gửi yêu cầu xác nhận" → CÔNG NHÂN PHẢI XÁC NHẬN ĐÃ NHẬN MỚI ĐƯỢC DÙNG TIẾP APP
+-- (chặn toàn app qua GiftGateFilter, clone SurveyBlockerFilter).
+-- STATUS tổng (Chờ đến ngày/Sẵn sàng/Đã nhận/Quá hạn) KHÔNG lưu cột, tính live
+-- từ RECEIVE_DATE/RECEIVE_TO_DATE/DELIVERED_DT mỗi lần load (giống MISSING_TYPE
+-- bên HR_ATT_CONFIRM).
+-- ============================================================
+
+-- HRMS.HR_GIFT_CATEGORY — phân loại quà (Lễ/Sự kiện, NV mới, Tái ký HĐ, Sinh nhật...)
+CREATE TABLE HRMS.HR_GIFT_CATEGORY (
+    ID              NUMBER          NOT NULL,
+    NAME            NVARCHAR2(200)  NOT NULL,
+    DISPLAY_ORDER   NUMBER          DEFAULT 0,
+    IS_ACTIVE       NUMBER(1,0)     DEFAULT 1 NOT NULL,
+    INST_ID         VARCHAR2(50),
+    INST_DT         DATE            DEFAULT SYSDATE,
+    UPDT_ID         VARCHAR2(50),
+    UPDT_DT         DATE,
+    CONSTRAINT PK_HR_GIFT_CATEGORY PRIMARY KEY (ID)
+) TABLESPACE HRMSD;
+-- SEQ_HR_GIFT_CATEGORY + TRG_HR_GIFT_CATEGORY_BI (auto ID + audit)
+
+-- HRMS.HR_GIFT_ITEM — danh mục quà master (đơn lẻ/combo), dùng lại nhiều đợt (mirror HR_MENU_FOOD)
+CREATE TABLE HRMS.HR_GIFT_ITEM (
+    ID              NUMBER          NOT NULL,
+    CATEGORY_ID     NUMBER          NOT NULL,          -- FK HR_GIFT_CATEGORY
+    ITEM_NAME       NVARCHAR2(300)  NOT NULL,
+    ITEM_TYPE       VARCHAR2(10)    DEFAULT 'SINGLE' NOT NULL,   -- SINGLE | COMBO
+    IMAGE_PATH      VARCHAR2(500),
+    IS_ACTIVE       NUMBER(1,0)     DEFAULT 1 NOT NULL,
+    INST_ID         VARCHAR2(50),
+    INST_DT         DATE            DEFAULT SYSDATE,
+    UPDT_ID         VARCHAR2(50),
+    UPDT_DT         DATE,
+    CONSTRAINT PK_HR_GIFT_ITEM      PRIMARY KEY (ID),
+    CONSTRAINT FK_GIFTITEM_CATEGORY FOREIGN KEY (CATEGORY_ID) REFERENCES HRMS.HR_GIFT_CATEGORY (ID),
+    CONSTRAINT CHK_GIFTITEM_TYPE    CHECK (ITEM_TYPE IN ('SINGLE','COMBO'))
+) TABLESPACE HRMSD;
+-- SEQ_HR_GIFT_ITEM + TRG_HR_GIFT_ITEM_BI; IDX_GIFTITEM_CATEGORY (CATEGORY_ID)
+
+-- HRMS.HR_GIFT_COMBO_DETAIL — thành phần bên trong combo (khi ITEM_TYPE='COMBO')
+CREATE TABLE HRMS.HR_GIFT_COMBO_DETAIL (
+    ID              NUMBER          NOT NULL,
+    GIFT_ITEM_ID    NUMBER          NOT NULL,          -- FK HR_GIFT_ITEM
+    COMPONENT_NAME  NVARCHAR2(300)  NOT NULL,
+    DISPLAY_ORDER   NUMBER          DEFAULT 0,
+    CONSTRAINT PK_HR_GIFT_COMBO_DETAIL PRIMARY KEY (ID),
+    CONSTRAINT FK_GIFTCOMBO_ITEM       FOREIGN KEY (GIFT_ITEM_ID) REFERENCES HRMS.HR_GIFT_ITEM (ID)
+) TABLESPACE HRMSD;
+-- SEQ_HR_GIFT_COMBO_DETAIL + TRG_HR_GIFT_COMBO_DETAIL_BI; IDX_GIFTCOMBO_ITEM (GIFT_ITEM_ID)
+
+-- HRMS.HR_GIFT_BATCH — "đợt quà" (vd: Quà sinh nhật tháng 9/2026), mirror HR_SURVEY
+CREATE TABLE HRMS.HR_GIFT_BATCH (
+    ID                  NUMBER          NOT NULL,
+    BATCH_NAME          NVARCHAR2(300)  NOT NULL,
+    GIFT_ITEM_ID        NUMBER          NOT NULL,       -- FK HR_GIFT_ITEM
+    RECEIVE_FROM_DATE   DATE            NOT NULL,
+    RECEIVE_TO_DATE     DATE,                           -- hạn nhận, dùng để tính QUÁ HẠN (NULL = không giới hạn)
+    REMARK              NVARCHAR2(500),
+    INST_ID             VARCHAR2(50),
+    INST_DT             DATE            DEFAULT SYSDATE,
+    UPDT_ID             VARCHAR2(50),
+    UPDT_DT             DATE,
+    CONSTRAINT PK_HR_GIFT_BATCH   PRIMARY KEY (ID),
+    CONSTRAINT FK_GIFTBATCH_ITEM  FOREIGN KEY (GIFT_ITEM_ID) REFERENCES HRMS.HR_GIFT_ITEM (ID)
+) TABLESPACE HRMSD;
+-- SEQ_HR_GIFT_BATCH + TRG_HR_GIFT_BATCH_BI
+
+-- HRMS.HR_GIFT_RECIPIENT — 1 dòng = 1 công nhân trong 1 đợt quà, mirror HR_SURVEY_RECIPIENT
+-- + HR_TRAINING_ATTENDANCE gộp lại. Vòng đời CONFIRM_STATUS:
+--   NONE -> (HR bấm "đã phát": set DELIVERED_DT/BY/LOCATION) ->
+--   PENDING_CONFIRM (HR bấm "gửi yêu cầu xác nhận" -> app bị GiftGateFilter chặn) ->
+--   CONFIRMED (NV xác nhận -> app mở lại ngay, InvalidateUser cache).
+CREATE TABLE HRMS.HR_GIFT_RECIPIENT (
+    ID                  NUMBER          NOT NULL,
+    BATCH_ID            NUMBER          NOT NULL,       -- FK HR_GIFT_BATCH
+    EMPCD               VARCHAR2(20)    NOT NULL,
+    RECEIVE_DATE        DATE            NOT NULL,       -- ngày dự kiến nhận (theo dòng Excel import)
+    LOCATION            NVARCHAR2(200),                 -- địa điểm nhận dự kiến
+    DELIVERED_DT        DATE,                           -- thời gian thực tế HR bấm "đã phát"
+    DELIVERED_LOCATION  NVARCHAR2(200),
+    DELIVERED_BY        VARCHAR2(20),                   -- empcd người bấm phát
+    CONFIRM_STATUS      VARCHAR2(20)    DEFAULT 'NONE' NOT NULL,  -- NONE | PENDING_CONFIRM | CONFIRMED
+    CONFIRMED_DT        DATE,
+    NOTE                NVARCHAR2(500),
+    INST_ID             VARCHAR2(50),
+    INST_DT             DATE            DEFAULT SYSDATE,
+    UPDT_ID             VARCHAR2(50),
+    UPDT_DT             DATE,
+    CONSTRAINT PK_HR_GIFT_RECIPIENT    PRIMARY KEY (ID),
+    CONSTRAINT UQ_HR_GIFT_RECIPIENT    UNIQUE (BATCH_ID, EMPCD),
+    CONSTRAINT FK_GIFTRECIP_BATCH      FOREIGN KEY (BATCH_ID) REFERENCES HRMS.HR_GIFT_BATCH (ID),
+    CONSTRAINT CHK_GIFTRECIP_CONFIRM   CHECK (CONFIRM_STATUS IN ('NONE','PENDING_CONFIRM','CONFIRMED'))
+) TABLESPACE HRMSD;
+-- SEQ_HR_GIFT_RECIPIENT + TRG_HR_GIFT_RECIPIENT_BI
+-- IDX_GIFTRECIP_EMPCD (EMPCD), IDX_GIFTRECIP_CONFIRM (EMPCD, CONFIRM_STATUS) — dùng cho GiftGateFilter
+-- IDX_GIFTRECIP_DATE (RECEIVE_DATE)
+
+-- HRMS.HR_GIFT_LOG — audit trail (mirror HR_ATT_CONFIRM_LOG)
+CREATE TABLE HRMS.HR_GIFT_LOG (
+    ID              NUMBER          NOT NULL,
+    RECIPIENT_ID    NUMBER          NOT NULL,           -- FK HR_GIFT_RECIPIENT
+    ACTION          VARCHAR2(20)    NOT NULL,           -- IMPORTED | DELIVERED | CONFIRM_REQUESTED | CONFIRMED
+    ACTOR_EMPCD     VARCHAR2(20),
+    DETAIL          NVARCHAR2(500),
+    INST_DT         DATE            DEFAULT SYSDATE NOT NULL,
+    CONSTRAINT PK_HR_GIFT_LOG      PRIMARY KEY (ID),
+    CONSTRAINT FK_GIFTLOG_RECIP    FOREIGN KEY (RECIPIENT_ID) REFERENCES HRMS.HR_GIFT_RECIPIENT (ID)
+) TABLESPACE HRMSD;
+-- SEQ_HR_GIFT_LOG + TRG_HR_GIFT_LOG_BI; IDX_GIFTLOG_RECIP (RECIPIENT_ID)
+
+-- Seed HR_NOTI_TEMPLATES: GIFT_READY (đến ngày nhận quà), GIFT_CONFIRM_REQUEST
+-- (yêu cầu xác nhận nhận quà — gắn với gate chặn app). Nội dung sửa qua /NotiTemplate/Index.
+
+-- ĐÃ CHẠY 19/09/2026 — Đợt quà "toàn công ty": HR khỏi import Excel, tự động áp dụng cho
+-- toàn bộ NV đang làm việc (ECM100, chưa nghỉ) + gửi 1 thông báo broadcast toàn công ty
+-- thay vì bắn riêng từng người.
+ALTER TABLE HRMS.HR_GIFT_BATCH ADD (
+    IS_COMPANY_WIDE NUMBER(1,0) DEFAULT 0 NOT NULL,
+    LOCATION        NVARCHAR2(200)
+);
+
+-- ĐÃ CHẠY 19/09/2026 — "Kết thúc đợt" để chốt số liệu làm báo cáo: sau khi IS_CLOSED=1,
+-- chặn Import/Deliver/DeliverAll/SendConfirmRequest/Remind trên đợt đó (check ở GiftService).
+ALTER TABLE HRMS.HR_GIFT_BATCH ADD (
+    IS_CLOSED   NUMBER(1,0) DEFAULT 0 NOT NULL,
+    CLOSED_DT   DATE,
+    CLOSED_BY   VARCHAR2(20)
+);
+
+-- ĐÃ CHẠY 19/09/2026 — STATUS tổng của HR_GIFT_RECIPIENT (tính live, xem GiftService.StatusSqlExpr)
+-- đổi lại cho đúng vòng đời thực tế theo yêu cầu HR: bỏ mốc "Chờ đến ngày" (WAITING) — vừa import
+-- xong là coi như Sẵn sàng nhận luôn, không cần đợi tới RECEIVE_DATE mới đổi trạng thái; thêm mốc
+-- kết thúc "Hoàn tất" (COMPLETED) khi NV đã bấm xác nhận (trước đây dừng ở "Đã nhận" dù đã xác nhận
+-- hay chưa, gây hiểu lầm là xong việc). Trạng thái mới: READY (Sẵn sàng nhận, mặc định từ lúc tạo)
+-- -> DELIVERED (Đã nhận — HR phát rồi nhưng NV CHƯA xác nhận) -> COMPLETED (Hoàn tất — NV đã xác
+-- nhận) ; EXPIRED (Quá hạn) tách riêng, áp dụng cho dòng chưa phát mà đã qua RECEIVE_TO_DATE.
+
 

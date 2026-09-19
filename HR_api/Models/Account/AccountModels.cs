@@ -94,6 +94,17 @@ public class UserDetailModel
     public DateTime? HireDate { get; set; }     // Ngày đầu tiên làm ở công ty (IGENTDAT)
     public string? HardworkStt { get; set; }    // ECM100.INTEREST - mã công việc (VD Y80)
     public string? HardworkTen { get; set; }    // EAM420.TEN tương ứng (VD QUÉT KEO)
+    public List<DisciplineHistoryItem> DisciplineHistory { get; set; } = new();
+}
+
+// HRMS.DISCIPLINE_HISTORY — lịch sử lập biên bản kỷ luật NV (tự xem trong Hồ sơ cá nhân).
+public class DisciplineHistoryItem
+{
+    public string  Num          { get; set; } = "";   // Số biên bản
+    public string? Code         { get; set; }
+    public DateTime? StartDate  { get; set; }          // Ngày hiệu lực từ
+    public DateTime? EndDate    { get; set; }          // Ngày hiệu lực đến
+    public string? Remark       { get; set; }          // Font giống họ tên (vni-font)
 }
 
 public class UpdateSignatureRequest

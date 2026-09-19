@@ -206,6 +206,36 @@ public class MenuFoodController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/MenuFood/today-ids — FOOD_IDs đang có trong thực đơn HÔM NAY (canteen lọc nhanh
+    // để thêm ảnh cho đúng món hôm nay đang bán, khỏi lục cả danh mục). Mirror MenuWeekController.GetToday.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("today-ids")]
+    public async Task<IActionResult> GetTodayIds()
+    {
+        try
+        {
+            // Tính DAY_NO từ ngày hôm nay (C# DayOfWeek: Mon=1→DAY_NO=2, Sat=6→DAY_NO=7)
+            int dow   = (int)DateTime.Today.DayOfWeek;  // 0=Sun,1=Mon...6=Sat
+            int dayNo = dow == 0 ? 0 : dow + 1;         // Chủ nhật = 0 (không có thực đơn)
+
+            if (dayNo == 0)
+                return Ok(new { success = true, data = new List<int>() });
+
+            const string sql = @"
+                SELECT DISTINCT D.FOOD_ID
+                FROM HRMS.HR_MENU_WEEK W
+                JOIN HRMS.HR_MENU_DETAIL D ON D.WEEK_ID = W.ID
+                WHERE TRUNC(SYSDATE) BETWEEN TRUNC(W.FROM_DATE) AND TRUNC(W.TO_DATE)
+                  AND W.STATUS = 'PUBLISHED'
+                  AND D.DAY_NO = :DAY_NO";
+
+            var result = await _db.ExecuteQueryAsync(sql, r => Convert.ToInt32(r["FOOD_ID"]), new OracleParameter("DAY_NO", dayNo));
+            return Ok(new { success = true, data = result });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // GET /apiHR/MenuFood/banh-fixed — 2 slot bánh cố định (kèm tên/hình món đang chọn)
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet("banh-fixed")]

@@ -404,7 +404,7 @@
         let curM = initM || (new Date().getMonth() + 1);
         let eventsByDate = {}; // { 'YYYY-MM-DD': [ {TYPE, LABEL, DETAIL}, ... ] }
 
-        const ICON  = { LEAVE: '🌴', GP: '🚪', OT: '⏱️', ASSIGN: '📅', ATT_MISSING: '🔴' };
+        const ICON  = { LEAVE: '🌴', GP: '🚪', OT: '⏱️', ASSIGN: '📅', ATT_MISSING: '🔴', GIFT: '🎁' };
         // Nhãn trạng thái nộp giấy tờ trong popup chi tiết ngày — DOC_STATUS giờ tính RIÊNG CHO
         // TỪNG NGÀY (không phải trạng thái chung cả đơn nữa), nên nhãn cũng nói rõ "ngày này".
         const DOC_STATUS_LABEL = {

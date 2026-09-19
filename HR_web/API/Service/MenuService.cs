@@ -98,6 +98,12 @@ public class MenuService
         return r?.success == true ? r.data ?? new() : new();
     }
 
+    public async Task<List<int>> GetTodayFoodIdsAsync()
+    {
+        var r = await _api.GetAsync<Resp<List<int>>>("MenuFood/today-ids");
+        return r?.success == true ? r.data ?? new() : new();
+    }
+
     // ── Bánh cố định (Suất 2 món Bánh, không theo lưới tuần) ───────────────────
     public async Task<List<MenuBanhFixedSlot>> GetBanhFixedAsync()
     {

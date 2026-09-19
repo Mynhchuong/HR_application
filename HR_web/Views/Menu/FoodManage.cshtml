@@ -81,6 +81,10 @@
                     <option value="CHAY">Chay</option>
                     <option value="BANH">Bánh</option>
                 </select>
+                <button type="button" id="btnToday" class="btn btn-sm btn-outline-secondary mb-0"
+                        onclick="toggleToday()">
+                    <i class="bi bi-calendar-day me-1"></i> Hôm nay
+                </button>
                 <button type="button" id="btnThisWeek" class="btn btn-sm btn-outline-secondary mb-0"
                         onclick="toggleThisWeek()">
                     <i class="bi bi-calendar-week me-1"></i> Tuần này
@@ -291,15 +295,25 @@ const PAGE_SIZE = 20;
 let currentPage  = 1;
 let visibleRows  = [];
 let thisWeekIds  = null; // null = off, Set<number> = active
+let todayIds     = null; // null = off, Set<number> = active
+
+function turnOffToday() {
+    todayIds = null;
+    document.getElementById('btnToday').classList.replace('btn-success', 'btn-outline-secondary');
+}
+function turnOffThisWeek() {
+    thisWeekIds = null;
+    document.getElementById('btnThisWeek').classList.replace('btn-success', 'btn-outline-secondary');
+}
 
 async function toggleThisWeek() {
     const btn = document.getElementById('btnThisWeek');
     if (thisWeekIds !== null) {
-        thisWeekIds = null;
-        btn.classList.replace('btn-success', 'btn-outline-secondary');
+        turnOffThisWeek();
         applyFilter();
         return;
     }
+    turnOffToday();
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>';
     try {
@@ -320,17 +334,46 @@ async function toggleThisWeek() {
     }
 }
 
+async function toggleToday() {
+    const btn = document.getElementById('btnToday');
+    if (todayIds !== null) {
+        turnOffToday();
+        applyFilter();
+        return;
+    }
+    turnOffThisWeek();
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>';
+    try {
+        const res  = await fetch('@Url.Action("GetTodayFoodIds")');
+        const data = await res.json();
+        if (data.success && data.ids && data.ids.length > 0) {
+            todayIds = new Set(data.ids);
+            btn.classList.replace('btn-outline-secondary', 'btn-success');
+        } else {
+            showAlert('Hôm nay chưa có thực đơn nào được đăng', 'warning');
+        }
+    } catch (e) {
+        showAlert('Lỗi: ' + e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-calendar-day me-1"></i> Hôm nay';
+        applyFilter();
+    }
+}
+
 function applyFilter() {
     const name = document.getElementById('filterName').value.toLowerCase().trim();
     const type = document.getElementById('filterType').value;
     const allRows = [...document.querySelectorAll('#foodTableBody tr')];
 
     visibleRows = allRows.filter(r => {
-        const matchName = !name || r.dataset.name.includes(name);
-        const matchType = !type || r.dataset.type === type;
-        const rowId     = parseInt(r.id.replace('row-', ''), 10);
-        const matchWeek = thisWeekIds === null || thisWeekIds.has(rowId);
-        return matchName && matchType && matchWeek;
+        const matchName  = !name || r.dataset.name.includes(name);
+        const matchType  = !type || r.dataset.type === type;
+        const rowId      = parseInt(r.id.replace('row-', ''), 10);
+        const matchWeek  = thisWeekIds === null || thisWeekIds.has(rowId);
+        const matchToday = todayIds === null || todayIds.has(rowId);
+        return matchName && matchType && matchWeek && matchToday;
     });
 
     currentPage = 1;

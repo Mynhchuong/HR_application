@@ -55,6 +55,8 @@ builder.Services.AddScoped<HR_api.Helpers.OtLogHelper>();
 builder.Services.AddScoped<HR_api.Services.ShiftLookupService>();
 builder.Services.AddScoped<HR_api.Helpers.AttendanceConfirmLogHelper>();
 builder.Services.AddScoped<HR_api.Services.AttendanceConfirmService>();
+builder.Services.AddScoped<HR_api.Helpers.GiftLogHelper>();
+builder.Services.AddScoped<HR_api.Services.GiftService>();
 builder.Services.AddScoped<HR_api.Services.HomeBirthdayService>();
 builder.Services.AddScoped<HR_api.Services.HomeSummaryService>();
 builder.Services.AddScoped<HR_api.Services.HomeService>();

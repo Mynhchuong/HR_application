@@ -94,18 +94,20 @@ public class NotiTemplateController : ControllerBase
     {
         try
         {
+            // "USER" là pseudo-column/từ khoá riêng của Oracle -> KHÔNG đặt tên bind param là :USER
+            // (ORA-01745: invalid host/bind variable name). Đổi thành :ACTOR.
             const string sql = @"
                 UPDATE HRMS.HR_NOTI_TEMPLATES
                 SET IS_ACTIVE = CASE WHEN IS_ACTIVE = 1 THEN 0 ELSE 1 END,
-                    UPDATED_BY = :USER, UPDATED_DATE = SYSDATE
+                    UPDATED_BY = :ACTOR, UPDATED_DATE = SYSDATE
                 WHERE TEMPLATE_KEY = :KEY";
 
             await _db.ExecuteNonQueryAsync(sql,
-                new OracleParameter("USER", loginUser),
+                new OracleParameter("ACTOR", loginUser),
                 new OracleParameter("KEY",  key));
 
             NotificationHelper.InvalidateTemplateCache();
-            return Ok(new { success = true });
+            return Ok(new { success = true, message = "Đã cập nhật trạng thái" });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }

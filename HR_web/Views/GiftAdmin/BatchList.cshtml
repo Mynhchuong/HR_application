@@ -1,0 +1,165 @@
+@{
+    ViewData["Title"] = "Đợt quà";
+}
+
+@section Styles {
+<style>
+    .bl-row { cursor: pointer; }
+    .bl-row:hover { background: #fdf2f8; }
+    @@media (max-width: 767px) {
+        .container-fluid { padding-left: 8px !important; padding-right: 8px !important; }
+    }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <div class="card">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-danger shadow-danger border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="text-white mb-0"><i class="bi bi-calendar2-heart-fill me-1"></i> Đợt quà</h6>
+                <button type="button" class="btn btn-sm mb-0" style="background:#fff;color:#831843;font-weight:600;" onclick="openBatchModal()">
+                    <i class="bi bi-plus-lg me-1"></i> Tạo đợt quà
+                </button>
+            </div>
+        </div>
+        <div class="card-body px-0">
+            <div class="table-responsive px-3">
+                <table class="table table-sm align-items-center mb-0">
+                    <thead>
+                        <tr>
+                            <th class="text-xs text-secondary">Tên đợt</th>
+                            <th class="text-xs text-secondary">Quà</th>
+                            <th class="text-xs text-secondary">Từ ngày</th>
+                            <th class="text-xs text-secondary">Hạn nhận</th>
+                            <th class="text-xs text-secondary text-center">Số người</th>
+                            <th class="text-xs text-secondary text-center">Đã phát</th>
+                            <th class="text-xs text-secondary text-center">Đã xác nhận</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batchTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal tạo đợt quà -->
+<div class="modal fade" id="batchModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0">Tạo đợt quà</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label small fw-bold">Tên đợt quà</label>
+                    <input type="text" id="bName" class="form-control form-control-sm" placeholder="Vd: Quà sinh nhật tháng 9/2026" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold">Quà</label>
+                    <select id="bGiftItem" class="form-select form-select-sm"></select>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label class="form-label small fw-bold">Từ ngày</label>
+                        <input type="date" id="bFromDate" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-bold">Hạn nhận (không bắt buộc)</label>
+                        <input type="date" id="bToDate" class="form-control form-control-sm" />
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold">Ghi chú</label>
+                    <textarea id="bRemark" class="form-control form-control-sm" rows="2"></textarea>
+                </div>
+                <div class="form-check mb-2">
+                    <input type="checkbox" class="form-check-input" id="bCompanyWide" onchange="toggleCompanyWideArea()">
+                    <label class="form-check-label small fw-bold" for="bCompanyWide">Áp dụng cho toàn công ty</label>
+                    <div class="text-xxs text-secondary">Tự động áp dụng cho mọi nhân viên đang làm việc — khỏi phải import Excel, hệ thống gửi 1 thông báo chung cho toàn công ty.</div>
+                </div>
+                <div id="bCompanyWideArea" class="mb-2" style="display:none;">
+                    <label class="form-label small fw-bold">Địa điểm nhận (dùng chung cho tất cả)</label>
+                    <input type="text" id="bLocation" class="form-control form-control-sm" placeholder="Vd: Phòng Nhân sự (không bắt buộc)" />
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-success" onclick="saveBatch()"><i class="bi bi-check-lg me-1"></i>Tạo</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const CATALOG_URL     = '@Url.Action("GetCatalog")';
+const BATCH_LIST_URL  = '@Url.Action("GetBatchList")';
+const BATCH_SAVE_URL  = '@Url.Action("CreateBatch")';
+const BATCH_DETAIL_URL_BASE = '@Url.Action("BatchDetail")';
+const CSRF_TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+function escHtml(str) { return String(str==null?'':str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function formatDate(s) { if(!s) return '-'; const p = s.split('-'); return p.length===3 ? `${p[2]}/${p[1]}/${p[0]}` : s; }
+
+async function loadBatches() {
+    const res = await $.getJSON(BATCH_LIST_URL);
+    const rows = (res && res.data) || [];
+    $('#batchTableBody').html(rows.map(b => `
+        <tr class="bl-row" onclick="window.location.href='${BATCH_DETAIL_URL_BASE}/${b.ID}'">
+            <td class="text-sm fw-bold">${escHtml(b.BATCH_NAME)} ${b.IS_COMPANY_WIDE ? '<span class="badge bg-danger ms-1">Toàn công ty</span>' : ''} ${b.IS_CLOSED ? '<span class="badge bg-dark ms-1">Đã kết thúc</span>' : ''}</td>
+            <td class="text-xs text-secondary">${escHtml(b.GIFT_ITEM_NAME)} <span class="text-muted">(${escHtml(b.CATEGORY_NAME)})</span></td>
+            <td class="text-xs">${formatDate(b.RECEIVE_FROM_DATE)}</td>
+            <td class="text-xs">${b.RECEIVE_TO_DATE ? formatDate(b.RECEIVE_TO_DATE) : 'Không giới hạn'}</td>
+            <td class="text-xs text-center">${b.TOTAL_RECIPIENT}</td>
+            <td class="text-xs text-center">${b.DELIVERED_COUNT}</td>
+            <td class="text-xs text-center">${b.CONFIRMED_COUNT}</td>
+        </tr>`).join('') || '<tr><td colspan="7" class="text-center text-secondary py-3">Chưa có đợt quà nào</td></tr>');
+}
+
+async function loadGiftItems() {
+    const res = await $.getJSON(CATALOG_URL + '?active_only=true');
+    const rows = (res && res.data) || [];
+    $('#bGiftItem').html(rows.map(i => `<option value="${i.ID}">${escHtml(i.ITEM_NAME)} (${escHtml(i.CATEGORY_NAME)})</option>`).join(''));
+}
+
+function toggleCompanyWideArea() {
+    $('#bCompanyWideArea').toggle($('#bCompanyWide').is(':checked'));
+}
+
+function openBatchModal() {
+    $('#bName').val(''); $('#bFromDate').val(new Date().toISOString().slice(0,10)); $('#bToDate').val(''); $('#bRemark').val('');
+    $('#bCompanyWide').prop('checked', false); $('#bLocation').val('');
+    toggleCompanyWideArea();
+    new bootstrap.Modal(document.getElementById('batchModal')).show();
+}
+
+async function saveBatch() {
+    const name = $('#bName').val().trim();
+    if (!name || !$('#bFromDate').val()) { showToast ? showToast('Vui lòng nhập đủ thông tin', 'error') : alert('Vui lòng nhập đủ thông tin'); return; }
+
+    const isCompanyWide = $('#bCompanyWide').is(':checked');
+    const payload = {
+        BATCH_NAME: name,
+        GIFT_ITEM_ID: parseInt($('#bGiftItem').val()),
+        RECEIVE_FROM_DATE: $('#bFromDate').val(),
+        RECEIVE_TO_DATE: $('#bToDate').val() || null,
+        REMARK: $('#bRemark').val(),
+        IS_COMPANY_WIDE: isCompanyWide,
+        LOCATION: isCompanyWide ? ($('#bLocation').val() || null) : null
+    };
+    const res = await $.ajax({ url: BATCH_SAVE_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(payload) });
+    if (res.OK) {
+        showToast ? showToast(isCompanyWide ? 'Đã tạo đợt quà toàn công ty' : 'Đã tạo đợt quà', 'success') : null;
+        window.location.href = BATCH_DETAIL_URL_BASE + '/' + res.RECIPIENT_ID;
+    } else {
+        showToast ? showToast(res.MESSAGE || 'Lỗi', 'error') : alert(res.MESSAGE || 'Lỗi');
+    }
+}
+
+$(async function () {
+    await loadGiftItems();
+    await loadBatches();
+});
+</script>
+}

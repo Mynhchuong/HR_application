@@ -156,6 +156,12 @@
         box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
         background: #fff;
     }
+
+    .discipline-item { padding: 1rem 1.5rem; border-bottom: 1px solid #f8fafc; }
+    .discipline-item:last-child { border-bottom: none; }
+    .discipline-num { font-size: .9rem; font-weight: 700; color: #b91c1c; }
+    .discipline-period { font-size: .78rem; color: var(--app-muted); margin-top: 2px; }
+    .discipline-remark { font-size: .88rem; color: var(--app-text); margin-top: 6px; line-height: 1.5; }
 </style>
 
 <div class="profile-container">
@@ -284,6 +290,32 @@
             }
         </div>
     </div>
+
+    @if (Model.DisciplineHistory != null && Model.DisciplineHistory.Any())
+    {
+        <!-- Lịch sử kỷ luật -->
+        <div class="group-title">Lịch sử biên bản kỷ luật</div>
+        <div class="settings-group">
+            @foreach (var d in Model.DisciplineHistory)
+            {
+                <div class="discipline-item">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-1">
+                        <div class="discipline-num">
+                            <span class="material-symbols-rounded align-middle" style="font-size:1rem;">gavel</span>
+                            Biên bản số @d.Num
+                        </div>
+                        <div class="discipline-period">
+                            Hiệu lực: @(d.StartDate?.ToString("dd/MM/yyyy") ?? "-") — @(d.EndDate?.ToString("dd/MM/yyyy") ?? "Không giới hạn")
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(d.Remark))
+                    {
+                        <div class="discipline-remark vni-font">@d.Remark</div>
+                    }
+                </div>
+            }
+        </div>
+    }
 
     <!-- Bảo mật & Chữ ký -->
     <div class="group-title">Bảo mật & Chữ ký</div>

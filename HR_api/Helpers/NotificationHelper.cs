@@ -123,6 +123,16 @@ public class NotificationHelper
         return (titleVi, bodyVi, titleEn, bodyEn);
     }
 
+    // Kiểm tra 1 loại thông báo có đang bật (IS_ACTIVE=1 tại /NotiTemplate/Index) hay không — dùng
+    // làm công tắc tắt/mở thông báo khi đang dev/test tính năng mới, khỏi phải sửa code + deploy lại
+    // mỗi lần. Gọi TRƯỚC khi build nội dung + gửi, không phải sau GetTemplateAsync (tránh gửi nội
+    // dung rỗng/lỗi khi template bị tắt hoặc chưa được tạo).
+    public async Task<bool> IsTemplateActiveAsync(string key)
+    {
+        var cache = await GetTemplateCacheAsync();
+        return cache.ContainsKey(key);
+    }
+
     // ============================================================
     // SAVE NOTIFICATION TO DB + FIRE FCM PUSH (fire-and-forget)
     // ============================================================

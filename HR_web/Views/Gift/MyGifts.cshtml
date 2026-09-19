@@ -1,0 +1,108 @@
+@{
+    ViewData["Title"] = "Xác nhận nhận quà";
+}
+
+@section Styles {
+<style>
+    .gf-card { max-width: 480px; margin: 0 auto; }
+    .gf-item { border: 1px solid #f3d1e2; border-radius: 14px; padding: 14px; margin-bottom: 12px; background: #fff7fb; }
+    .gf-item .gf-name { font-weight: 700; color: #831843; font-size: 1rem; }
+    .gf-item .gf-row { display: flex; justify-content: space-between; gap: 10px; font-size: .85rem; color: #6b7280; margin-top: 4px; }
+    .gf-empty { text-align: center; padding: 40px 16px; color: #94a3b8; }
+    .gf-img { width: 100%; max-height: 200px; object-fit: cover; border-radius: 10px; margin-bottom: 10px; }
+    .gf-combo-label { font-size: .78rem; font-weight: 700; color: #831843; margin-top: 8px; margin-bottom: 4px; }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <div class="card gf-card">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-danger shadow-danger border-radius-lg pt-3 pb-2 px-3">
+                <h6 class="text-white mb-0"><i class="bi bi-gift-fill me-1"></i> Xác nhận nhận quà</h6>
+            </div>
+        </div>
+        <div class="card-body">
+            <p class="text-sm text-secondary">Bạn cần xác nhận đã nhận quà bên dưới để tiếp tục sử dụng ứng dụng.</p>
+            <div id="gfLoading" class="text-center py-4"><div class="spinner-border text-danger"></div></div>
+            <div id="gfList" style="display:none;"></div>
+            <div id="gfEmpty" class="gf-empty" style="display:none;">
+                <i class="bi bi-check-circle fs-1 text-success"></i>
+                <div class="mt-2">Bạn không có quà nào cần xác nhận.</div>
+                <a href="/Home/Index" class="btn btn-sm btn-outline-secondary mt-3">Về trang chủ</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const PENDING_URL = '@Url.Action("GetMyPending")';
+const CONFIRM_URL = '@Url.Action("ConfirmReceipt")';
+const GIFT_IMG_URL = '@Url.Action("GetGiftImage", "Image")';
+const CSRF_TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+function escHtml(str) { return String(str==null?'':str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderComboList(details) {
+    if (!details || !details.length) return '';
+    return `<div class="gf-combo-label"><i class="bi bi-box-seam"></i> Combo gồm có:</div>
+        <div>${details.map(d => `<span class="badge bg-light text-dark border me-1 mb-1">${escHtml(d.COMPONENT_NAME)}</span>`).join('')}</div>`;
+}
+
+function renderItem(item) {
+    return `<div class="gf-item" data-id="${item.RECIPIENT_ID}">
+        <img class="gf-img" src="${GIFT_IMG_URL}?itemId=${item.GIFT_ITEM_ID}" onerror="this.style.display='none'" />
+        <div class="gf-name"><i class="bi bi-gift me-1"></i> ${escHtml(item.GIFT_NAME)}</div>
+        ${item.LOCATION ? `<div class="gf-row"><span>Địa điểm</span><span>${escHtml(item.LOCATION)}</span></div>` : ''}
+        ${item.DELIVERED_DT ? `<div class="gf-row"><span>Thời gian phát</span><span>${escHtml(item.DELIVERED_DT)}</span></div>` : ''}
+        ${item.ITEM_TYPE === 'COMBO' ? renderComboList(item.COMBO_DETAILS) : ''}
+        <button type="button" class="btn btn-success btn-sm w-100 mt-3" onclick="confirmReceipt(${item.RECIPIENT_ID}, this)">
+            <i class="bi bi-check2-circle me-1"></i> Tôi đã nhận quà này
+        </button>
+    </div>`;
+}
+
+async function loadList() {
+    $('#gfLoading').show(); $('#gfList').hide(); $('#gfEmpty').hide();
+    try {
+        const res = await $.ajax({ url: PENDING_URL, type: 'GET' });
+        const rows = (res && res.data) || [];
+        if (!rows.length) {
+            $('#gfEmpty').show();
+        } else {
+            $('#gfList').html(rows.map(renderItem).join('')).show();
+        }
+    } catch (e) {
+        $('#gfEmpty').show();
+    } finally {
+        $('#gfLoading').hide();
+    }
+}
+
+async function confirmReceipt(recipientId, btn) {
+    $(btn).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+    try {
+        const res = await $.ajax({
+            url: CONFIRM_URL, type: 'POST', contentType: 'application/json',
+            headers: { 'RequestVerificationToken': CSRF_TOKEN },
+            data: JSON.stringify({ RECIPIENT_ID: recipientId })
+        });
+        if (res.OK) {
+            showToast ? showToast(res.MESSAGE || 'Đã xác nhận', 'success') : null;
+            await loadList();
+            // Không còn quà pending nào -> có thể quay lại trang trước đó / Home.
+            if ($('#gfList .gf-item').length === 0) {
+                setTimeout(() => { window.location.href = '/Home/Index'; }, 800);
+            }
+        } else {
+            showToast ? showToast(res.MESSAGE || 'Lỗi', 'error') : alert(res.MESSAGE || 'Lỗi');
+            $(btn).prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i> Tôi đã nhận quà này');
+        }
+    } catch (e) {
+        $(btn).prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i> Tôi đã nhận quà này');
+    }
+}
+
+$(function () { loadList(); });
+</script>
+}

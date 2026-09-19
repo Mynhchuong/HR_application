@@ -602,6 +602,15 @@ public class MenuController : BaseController
         return Json(new { success = true, ids });
     }
 
+    // AJAX — food IDs on today's published menu
+    [HttpGet]
+    [Authorize(Roles = "Admin,HR,Canteen")]
+    public async Task<IActionResult> GetTodayFoodIds()
+    {
+        var ids = await _svc.GetTodayFoodIdsAsync();
+        return Json(new { success = true, ids });
+    }
+
     // AJAX — toggle
     [HttpPost]
     [Authorize(Roles = "Admin,HR,Canteen")]

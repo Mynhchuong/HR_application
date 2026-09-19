@@ -28,6 +28,7 @@ public static class MenuGroupCatalog
     {
         ["leave"]      = ("Nghỉ phép",            "#10b981"), // xanh lá
         ["attendance"] = ("Tăng ca / Ra vào cổng", "#f97316"), // cam
+        ["gift"]       = ("Quà",                   "#db2777"), // hồng
         ["canteen"]    = ("Ăn uống",               "#0ea5e9"), // xanh dương
         ["training"]   = ("Đào tạo",               "#8b5cf6"), // tím
         ["chat"]       = ("Hội thoại",             "#eab308"), // vàng

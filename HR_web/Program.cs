@@ -13,6 +13,7 @@ builder.Services.AddControllersWithViews(options =>
 
     options.Filters.Add<RequireUpdateProfileFilter>();
     options.Filters.Add<HR_web.Filters.SurveyBlockerFilter>();
+    options.Filters.Add<HR_web.Filters.GiftGateFilter>();
 }).AddNewtonsoftJson(options =>
 {
 
@@ -95,6 +96,7 @@ builder.Services.AddScoped<HR_web.API.Service.BulletinService>();
 builder.Services.AddScoped<HR_web.API.Service.LeaveService>();
 builder.Services.AddScoped<HR_web.API.Service.CalendarService>();
 builder.Services.AddScoped<HR_web.API.Service.AttendanceConfirmService>();
+builder.Services.AddScoped<HR_web.API.Service.GiftService>();
 builder.Services.AddScoped<HR_web.API.Service.GuideService>();
 builder.Services.AddScoped<HR_web.API.Service.MenuService>();
 builder.Services.AddScoped<HR_web.API.Service.MealLockService>();
@@ -112,6 +114,7 @@ builder.Services.AddScoped<HR_web.API.Service.SurveyAdminService>();
 builder.Services.AddScoped<HR_web.API.Service.SurveyReportService>();
 builder.Services.AddScoped<HR_web.API.Service.SurveyExemptService>();
 builder.Services.AddScoped<HR_web.Filters.SurveyBlockerFilter>();
+builder.Services.AddScoped<HR_web.Filters.GiftGateFilter>();
 builder.Services.AddSingleton<HR_web.API.Service.VideoFileService>();
 builder.Services.AddHostedService<HR_web.Services.InquiryTempCleanupService>();
 

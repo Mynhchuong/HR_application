@@ -45,7 +45,8 @@ public class HomeMyCalendarService
             LoadLeaveApprovedAsync(empcd, from, to),
             LoadGpApprovedAsync(empcd, from, to),
             LoadOtConfirmedAsync(empcd, from, to),
-            LoadAttendanceMissingAsync(empcd, from, to)
+            LoadAttendanceMissingAsync(empcd, from, to),
+            LoadGiftReadyAsync(empcd, from, to)
         };
         await Task.WhenAll(tasks);
         return tasks.SelectMany(t => t.Result).OrderBy(x => x.DATE).ToList();
@@ -349,5 +350,38 @@ public class HomeMyCalendarService
             });
         }
         return items;
+    }
+
+    // ─── Quà 🎁 ────────────────────────────────────────────────
+    // Chỉ hiện ngày dự kiến nhận (RECEIVE_DATE) khi CHƯA phát (DELIVERED_DT IS NULL) — sau khi
+    // phát/xác nhận thì không cần tô lịch nữa (đã có badge/thông báo riêng lo phần "phải xác nhận").
+    private async Task<List<HomeMyCalendarItem>> LoadGiftReadyAsync(string empcd, DateTime from, DateTime to)
+    {
+        const string sql = @"
+            SELECT TO_CHAR(R.RECEIVE_DATE,'YYYY-MM-DD') RECEIVE_DATE, I.ITEM_NAME, R.LOCATION
+            FROM HRMS.HR_GIFT_RECIPIENT R
+            JOIN HRMS.HR_GIFT_BATCH B ON B.ID = R.BATCH_ID
+            JOIN HRMS.HR_GIFT_ITEM I ON I.ID = B.GIFT_ITEM_ID
+            WHERE R.EMPCD = :EMPCD
+              AND R.RECEIVE_DATE BETWEEN :D_FROM AND :D_TO
+              AND R.DELIVERED_DT IS NULL";
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
+        {
+            ReceiveDate = r["RECEIVE_DATE"]?.ToString() ?? "",
+            ItemName    = r["ITEM_NAME"]?.ToString() ?? "",
+            Location    = r["LOCATION"]?.ToString()
+        },
+        new OracleParameter("EMPCD",  empcd),
+        new OracleParameter("D_FROM", from.Date),
+        new OracleParameter("D_TO",   to.Date));
+
+        return rows.Where(r => !string.IsNullOrEmpty(r.ReceiveDate)).Select(r => new HomeMyCalendarItem
+        {
+            DATE   = r.ReceiveDate,
+            TYPE   = "GIFT",
+            LABEL  = $"Nhận quà: {r.ItemName}",
+            DETAIL = string.IsNullOrEmpty(r.Location) ? "Đến ngày nhận quà" : $"Địa điểm: {r.Location}"
+        }).ToList();
     }
 }

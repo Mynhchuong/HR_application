@@ -1,0 +1,388 @@
+@{
+    ViewData["Title"] = "Chi tiết đợt quà";
+    var batchId = (int)ViewBag.BatchId;
+}
+
+@section Styles {
+<style>
+    #recTableBody tr td { vertical-align: middle; }
+    .gd-status-badge { font-size: .72rem; padding: 4px 8px; border-radius: 6px; font-weight: 600; }
+    @@media (max-width: 767px) {
+        .container-fluid { padding-left: 8px !important; padding-right: 8px !important; }
+    }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <div class="card">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-danger shadow-danger border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="text-white mb-0"><i class="bi bi-calendar2-heart-fill me-1"></i> Chi tiết đợt quà <span id="batchNameTitle"></span> <span id="closedBadge" class="badge bg-dark ms-1" style="display:none;">Đã kết thúc</span></h6>
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <button type="button" id="deliverBulkBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#0f766e;font-weight:600;" disabled>
+                        <i class="bi bi-box-seam me-1"></i> Đánh dấu đã phát (đã chọn)<span id="selDeliverBadge" class="badge bg-danger ms-1" style="display:none;">0</span>
+                    </button>
+                    <button type="button" id="deliverAllBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#0f766e;font-weight:600;">
+                        <i class="bi bi-box-seam-fill me-1"></i> Đã phát cho tất cả
+                    </button>
+                    <button type="button" id="sendConfirmBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#166534;font-weight:600;" disabled>
+                        <i class="bi bi-bell me-1"></i> Gửi yêu cầu xác nhận<span id="selCountBadge" class="badge bg-danger ms-1" style="display:none;">0</span>
+                    </button>
+                    <button type="button" id="downloadTemplateBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#344767;font-weight:600;">
+                        <i class="bi bi-file-earmark-arrow-down me-1"></i> Tải file mẫu
+                    </button>
+                    <label id="importLabel" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#344767;font-weight:600;">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Import Excel
+                        <input type="file" id="importFile" accept=".xlsx" style="display:none;" onchange="doImport()" />
+                    </label>
+                    <button type="button" id="closeBatchBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#991b1b;font-weight:600;">
+                        <i class="bi bi-lock-fill me-1"></i> Kết thúc đợt
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="px-3 pt-3 pb-2 d-flex flex-wrap align-items-end gap-2 filter-bar" style="background:#f8fafc;border-bottom:1px solid #e9ecef;">
+            <div style="min-width:150px;flex:1 1 150px;max-width:190px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Mã NV</label>
+                <input type="text" id="searchEmpcd" class="form-control form-control-sm" placeholder="🔍 Tìm mã NV..." />
+            </div>
+            <div style="min-width:150px;flex:2 1 150px;max-width:220px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Bộ Phận</label>
+                <select id="filterDept" class="select2 form-control" data-url="@Url.Action("GetDept", "Dropdown")" data-placeholder="Tất cả"></select>
+            </div>
+            <div style="min-width:140px;flex:2 1 140px;max-width:200px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Line</label>
+                <select id="filterLine" class="select2 form-control" data-url="@Url.Action("GetLine", "Dropdown")" data-parent="#filterDept" data-placeholder="Tất cả"></select>
+            </div>
+            <div style="min-width:140px;flex:2 1 140px;max-width:200px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Nhóm Việc</label>
+                <select id="filterWork" class="select2 form-control" data-url="@Url.Action("GetWork", "Dropdown")" data-parent="#filterLine" data-parent-key="lineCd" data-parent2="#filterDept" data-parent2-key="deptCd" data-placeholder="Tất cả"></select>
+            </div>
+            <div style="min-width:170px;flex:1 1 170px;max-width:210px;">
+                <label class="form-label small fw-bold mb-1 text-primary">Trạng thái</label>
+                <select id="filterStatus" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                    <option value="READY">Sẵn sàng nhận</option>
+                    <option value="DELIVERED">Đã nhận (chưa xác nhận)</option>
+                    <option value="COMPLETED">Hoàn tất</option>
+                    <option value="EXPIRED">Quá hạn</option>
+                </select>
+            </div>
+            <div class="ms-auto"></div>
+        </div>
+
+        <div class="card-body px-0 pb-2">
+            <div class="table-responsive px-3">
+                <table class="table table-sm align-items-center mb-0">
+                    <thead>
+                        <tr>
+                            <th class="text-center" style="width:36px;" data-mobile="hidden"><input type="checkbox" id="selectAllChk" title="Chọn tất cả trang này"></th>
+                            <th class="text-xs text-secondary" data-mobile="hidden">#</th>
+                            <th class="text-xs text-secondary" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Mã NV / Tên">Mã NV / Tên</th>
+                            <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Bộ phận/Chuyền/Việc">Bộ phận / Chuyền / Nhóm việc</th>
+                            <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="Ngày nhận">Ngày nhận dự kiến</th>
+                            <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Địa điểm">Địa điểm dự kiến</th>
+                            <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
+                            <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Đã phát">Đã phát</th>
+                            <th class="text-xs text-secondary text-center" data-mobile="primary" data-mobile-label="Hành động">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recTableBody"></tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center px-4 mt-3 mb-2">
+                <div id="paginationCount" class="text-sm text-secondary"></div>
+                <nav><ul class="pagination pagination-sm mb-0" id="paginationBar"></ul></nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal đánh dấu đã phát (1 người) -->
+<div class="modal fade" id="deliverModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0">Đánh dấu đã phát</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="dvRecipientId" />
+                <label class="form-label small fw-bold">Địa điểm phát thực tế</label>
+                <input type="text" id="dvLocation" class="form-control form-control-sm" placeholder="Không bắt buộc" />
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-success" onclick="doDeliver()"><i class="bi bi-check-lg me-1"></i>Xác nhận đã phát</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal đã phát cho nhiều người (chọn / tất cả) -->
+<div class="modal fade" id="deliverBulkModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0" id="deliverBulkTitle">Đánh dấu đã phát</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-xs text-secondary" id="deliverBulkHint"></p>
+                <label class="form-label small fw-bold">Địa điểm phát thực tế</label>
+                <input type="text" id="dvBulkLocation" class="form-control form-control-sm" placeholder="Không bắt buộc" />
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-success" onclick="doDeliverBulkConfirm()"><i class="bi bi-check-lg me-1"></i>Xác nhận</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const BATCH_ID       = @batchId;
+const LIST_URL       = '@Url.Action("GetRecipients")';
+const BATCH_URL      = '@Url.Action("GetBatch")';
+const DELIVER_URL    = '@Url.Action("Deliver")';
+const DELIVER_BULK_URL = '@Url.Action("DeliverBulk")';
+const DELIVER_ALL_URL  = '@Url.Action("DeliverAll")';
+const CLOSE_URL      = '@Url.Action("CloseBatch")';
+const SEND_URL       = '@Url.Action("SendConfirmRequest")';
+const IMPORT_URL     = '@Url.Action("Import")';
+const TEMPLATE_URL   = '@Url.Action("DownloadTemplate")';
+const CSRF_TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
+let isClosed = false;
+let deliverBulkMode = 'selected'; // 'selected' | 'all'
+
+const STATUS_LABEL = { READY: 'Sẵn sàng nhận', DELIVERED: 'Đã nhận (chưa xác nhận)', COMPLETED: 'Hoàn tất', EXPIRED: 'Quá hạn' };
+const STATUS_COLOR = { READY: '#3b82f6', DELIVERED: '#f59e0b', COMPLETED: '#10b981', EXPIRED: '#ef4444' };
+
+function escHtml(str) { return String(str==null?'':str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function formatDate(s) { if(!s) return '-'; const p = s.split('-'); return p.length===3 ? `${p[2]}/${p[1]}/${p[0]}` : s; }
+
+function buildRow(item, idx) {
+    const deptLine = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean).map(escHtml).join('<br>');
+    const canSelect = item.STATUS !== 'COMPLETED' && !isClosed;
+
+    let actionHtml = '-';
+    if (!item.DELIVERED_DT) {
+        actionHtml = isClosed ? '<span class="text-xs text-secondary">Đợt đã kết thúc</span>' : `<button type="button" class="btn btn-sm btn-outline-success" onclick="openDeliverModal(${item.ID})">
+            <i class="bi bi-box-seam"></i> Đã phát</button>`;
+    } else if (item.CONFIRM_STATUS === 'PENDING_CONFIRM') {
+        actionHtml = `<span class="text-xs text-primary"><i class="bi bi-hourglass-split"></i> Chờ NV xác nhận</span>`;
+    } else if (item.CONFIRM_STATUS === 'CONFIRMED') {
+        actionHtml = `<span class="text-xs text-success"><i class="bi bi-check-circle"></i> Đã xác nhận</span>`;
+    } else {
+        actionHtml = `<span class="text-xs text-secondary">Chưa gửi yêu cầu</span>`;
+    }
+
+    return `<tr>
+        <td class="text-center"><input type="checkbox" class="rec-chk" data-id="${item.ID}" data-delivered="${item.DELIVERED_DT ? '1':'0'}" data-confirm="${item.CONFIRM_STATUS}" ${canSelect ? '' : 'disabled'} onchange="updateSelCount()"></td>
+        <td class="text-xs text-secondary">${idx}</td>
+        <td>
+            <div class="text-xs text-secondary">${escHtml(item.EMPCD)}</div>
+            <div class="text-sm vni-font fw-bold">${escHtml(item.EMP_NAME)}</div>
+        </td>
+        <td class="text-xxs vni-font text-secondary" style="line-height:1.3;">
+            <div style="max-width:170px;overflow-wrap:break-word;word-break:break-word;">${deptLine}</div>
+        </td>
+        <td class="text-sm text-nowrap">${formatDate(item.RECEIVE_DATE)}</td>
+        <td class="text-xs">${escHtml(item.LOCATION || '-')}</td>
+        <td><span class="gd-status-badge" style="background:${STATUS_COLOR[item.STATUS]}22;color:${STATUS_COLOR[item.STATUS]};">${STATUS_LABEL[item.STATUS] || item.STATUS}</span></td>
+        <td class="text-xs">
+            ${item.DELIVERED_DT ? `${item.DELIVERED_DT}<br><span class="text-secondary">${escHtml(item.DELIVERED_BY_NAME || '')}</span>` : '-'}
+        </td>
+        <td class="text-center">${actionHtml}</td>
+    </tr>`;
+}
+
+function getParams(page) {
+    return {
+        batch_id: BATCH_ID,
+        search: ($('#searchEmpcd').val() || '').trim(),
+        dept_id: $('#filterDept').val(), line_id: $('#filterLine').val(), work_id: $('#filterWork').val(),
+        status: $('#filterStatus').val(),
+        page, page_size: pageSize
+    };
+}
+
+async function loadBatchHeader() {
+    const res = await $.getJSON(BATCH_URL, { id: BATCH_ID });
+    const b = res && res.data;
+    if (!b) return;
+    isClosed = !!b.IS_CLOSED;
+    $('#batchNameTitle').text('— ' + b.BATCH_NAME);
+    $('#closedBadge').toggle(isClosed);
+    $('#deliverBulkBtn, #deliverAllBtn, #sendConfirmBtn, #importLabel, #closeBatchBtn').prop('disabled', isClosed).toggleClass('disabled', isClosed);
+    if (isClosed) { $('#closeBatchBtn').hide(); } else { $('#closeBatchBtn').show(); }
+}
+
+function loadData(page = 1) {
+    currentPage = page;
+    $('#recTableBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-danger"></div></td></tr>`);
+    MobileTableHelper.refresh('recTableBody');
+    $.ajax({
+        url: LIST_URL, type: 'GET', data: getParams(page),
+        success: function (res) {
+            if (!res.success) {
+                $('#recTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
+                MobileTableHelper.refresh('recTableBody');
+                return;
+            }
+            totalRecords = res.total || 0;
+            totalPages   = res.total_pages || 0;
+            const rows   = res.data || [];
+            if (!rows.length) {
+                $('#recTableBody').html(`<tr><td colspan="9" class="text-center text-secondary py-4">Chưa có danh sách người nhận — import Excel để bắt đầu</td></tr>`);
+            } else {
+                $('#recTableBody').html(rows.map((r,i) => buildRow(r,(page-1)*pageSize+i+1)).join(''));
+            }
+            MobileTableHelper.refresh('recTableBody');
+            updateSelCount();
+            renderPagination();
+        },
+        error: function (xhr) {
+            $('#recTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            MobileTableHelper.refresh('recTableBody');
+        }
+    });
+}
+
+function renderPagination() {
+    if (!totalRecords) { $('#paginationCount').text(''); $('#paginationBar').empty(); return; }
+    const s = (currentPage-1)*pageSize+1, e = Math.min(currentPage*pageSize, totalRecords);
+    $('#paginationCount').html(`<span class="text-xs">${s}-${e} / <strong>${totalRecords}</strong> người</span>`);
+    const $bar = $('#paginationBar').empty();
+    const mk = (label,p,disabled,active) => {
+        const li = $('<li class="page-item">').toggleClass('disabled', !!disabled).toggleClass('active', !!active);
+        $('<a class="page-link">').html(label).on('click', () => { if (!disabled && !active) loadData(p); }).appendTo(li);
+        return li;
+    };
+    $bar.append(mk('&lsaquo;', currentPage-1, currentPage<=1));
+    let from = Math.max(1, currentPage-2), to = Math.min(totalPages, currentPage+2);
+    for (let p=from; p<=to; p++) $bar.append(mk(p, p, false, p===currentPage));
+    $bar.append(mk('&rsaquo;', currentPage+1, currentPage>=totalPages));
+}
+
+function updateSelCount() {
+    const $chk = $('#recTableBody .rec-chk:checked');
+    const nConfirm = $chk.filter(function(){ return $(this).data('delivered')==1 && $(this).data('confirm')==='NONE'; }).length;
+    const nDeliver = $chk.filter(function(){ return $(this).data('delivered')==0; }).length;
+    $('#sendConfirmBtn').prop('disabled', nConfirm === 0);
+    $('#selCountBadge').toggle(nConfirm > 0).text(nConfirm);
+    $('#deliverBulkBtn').prop('disabled', nDeliver === 0 || isClosed);
+    $('#selDeliverBadge').toggle(nDeliver > 0).text(nDeliver);
+}
+
+$('#selectAllChk').on('change', function () {
+    $('#recTableBody .rec-chk:not(:disabled)').prop('checked', this.checked);
+    updateSelCount();
+});
+
+let searchTimeout;
+$('#searchEmpcd').on('input', function () { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => loadData(1), 400); });
+$('#filterDept').on('change', function () { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });
+$('#filterLine').on('change', function () { $('#filterWork').val(null).trigger('change.select2'); loadData(1); });
+$('#filterWork, #filterStatus').on('change', () => loadData(1));
+// Nút "Xóa lọc" tự chèn bởi list-page-helper.js (global, mọi trang có .filter-bar).
+
+function openDeliverModal(recipientId) {
+    $('#dvRecipientId').val(recipientId);
+    $('#dvLocation').val('');
+    new bootstrap.Modal(document.getElementById('deliverModal')).show();
+}
+
+async function doDeliver() {
+    const payload = { RECIPIENT_ID: parseInt($('#dvRecipientId').val()), DELIVERED_LOCATION: $('#dvLocation').val() };
+    const res = await $.ajax({ url: DELIVER_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(payload) });
+    if (res.OK) {
+        bootstrap.Modal.getInstance(document.getElementById('deliverModal'))?.hide();
+        showToast ? showToast(res.MESSAGE || 'Đã cập nhật', 'success') : null;
+        loadData(currentPage);
+    } else {
+        showToast ? showToast(res.MESSAGE || 'Lỗi', 'error') : alert(res.MESSAGE || 'Lỗi');
+    }
+}
+
+$('#deliverBulkBtn').on('click', function () {
+    const ids = $('#recTableBody .rec-chk:checked').filter(function(){ return $(this).data('delivered')==0; }).map((_, el) => parseInt($(el).data('id'))).get();
+    if (!ids.length) return;
+    deliverBulkMode = 'selected';
+    $('#deliverBulkTitle').text('Đánh dấu đã phát (đã chọn)');
+    $('#deliverBulkHint').text(`Áp dụng cho ${ids.length} người đã chọn.`);
+    $('#dvBulkLocation').val('');
+    new bootstrap.Modal(document.getElementById('deliverBulkModal')).show();
+});
+
+$('#deliverAllBtn').on('click', function () {
+    if (isClosed) return;
+    deliverBulkMode = 'all';
+    $('#deliverBulkTitle').text('Đã phát cho tất cả');
+    $('#deliverBulkHint').text('Áp dụng cho TẤT CẢ người nhận trong đợt này chưa được đánh dấu đã phát (không phụ thuộc bộ lọc hiện tại).');
+    $('#dvBulkLocation').val('');
+    new bootstrap.Modal(document.getElementById('deliverBulkModal')).show();
+});
+
+async function doDeliverBulkConfirm() {
+    const location = $('#dvBulkLocation').val();
+    bootstrap.Modal.getInstance(document.getElementById('deliverBulkModal'))?.hide();
+    if (deliverBulkMode === 'all') {
+        const res = await $.ajax({ url: DELIVER_ALL_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify({ BATCH_ID: BATCH_ID, DELIVERED_LOCATION: location }) });
+        showToast ? showToast(res.MESSAGE || 'Đã xử lý', res.OK ? 'success' : 'error') : null;
+        loadData(currentPage);
+    } else {
+        const ids = $('#recTableBody .rec-chk:checked').filter(function(){ return $(this).data('delivered')==0; }).map((_, el) => parseInt($(el).data('id'))).get();
+        if (!ids.length) return;
+        const res = await $.ajax({ url: DELIVER_BULK_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(ids) });
+        showToast ? showToast(res.message || 'Đã xử lý', res.failed > 0 ? 'warning' : 'success') : null;
+        loadData(currentPage);
+    }
+}
+
+$('#sendConfirmBtn').on('click', async function () {
+    const ids = $('#recTableBody .rec-chk:checked').filter(function(){ return $(this).data('delivered')==1 && $(this).data('confirm')==='NONE'; }).map((_, el) => parseInt($(el).data('id'))).get();
+    if (!ids.length) return;
+    const $btn = $(this).prop('disabled', true);
+    try {
+        const res = await $.ajax({ url: SEND_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(ids) });
+        showToast ? showToast(res.message || 'Đã xử lý', res.failed > 0 ? 'warning' : 'success') : null;
+        loadData(currentPage);
+    } finally { $btn.prop('disabled', false); }
+});
+
+$('#closeBatchBtn').on('click', async function () {
+    if (!confirm('Kết thúc đợt quà này? Sau khi kết thúc sẽ KHÔNG thể import/đánh dấu đã phát/gửi yêu cầu xác nhận thêm — dùng để chốt số liệu làm báo cáo.')) return;
+    const res = await $.ajax({ url: CLOSE_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify({ BATCH_ID: BATCH_ID }) });
+    showToast ? showToast(res.MESSAGE || 'Đã xử lý', res.OK ? 'success' : 'error') : null;
+    if (res.OK) { await loadBatchHeader(); loadData(currentPage); }
+});
+
+$('#downloadTemplateBtn').on('click', function () { window.location.href = TEMPLATE_URL; });
+
+async function doImport() {
+    const fileInput = document.getElementById('importFile');
+    if (!fileInput.files.length) return;
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('batchId', BATCH_ID);
+    try {
+        const res = await $.ajax({ url: IMPORT_URL, type: 'POST', data: formData, contentType: false, processData: false });
+        showToast ? showToast(res.message || 'Đã import', res.failed > 0 ? 'warning' : 'success') : null;
+        loadData(1);
+    } catch (e) {
+        showToast ? showToast('Lỗi import', 'error') : alert('Lỗi import');
+    } finally {
+        fileInput.value = '';
+    }
+}
+
+$(function () {
+    if (typeof Select2Helper !== 'undefined') Select2Helper.init();
+    if (typeof MobileTableHelper !== 'undefined') MobileTableHelper.init('recTableBody');
+    loadBatchHeader().then(() => loadData(1));
+});
+</script>
+}

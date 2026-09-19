@@ -48,6 +48,7 @@ public static class SideMenuBuilder
                     //new SideMenuItem { Title = "Lịch cá nhân",        Url = "~/Calendar/MyCalendar",     Icon = "calendar_month" },
                     new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",                Icon = "fact_check",   BadgeId = "sideOtBadge" },
                     new SideMenuItem { Title = "Xác nhận chấm công", Url = "~/AttendanceConfirm/WorkerForm",    Icon = "schedule",     BadgeId = "sideAttBadge" },
+                   // new SideMenuItem { Title = "Xác nhận nhận quà",  Url = "~/Gift/MyGifts",                     Icon = "card_giftcard", BadgeId = "sideGiftBadge" },
                     new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",                   Icon = "payments"      },
                     new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",           Icon = "door_front"    },
                     new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",           Icon = "event_busy"    },
@@ -88,6 +89,9 @@ public static class SideMenuBuilder
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForClerk",          Icon = "view_list"     },
                     new SideMenuItem { Title = "Xác nhận chấm công",   Url = "~/AttendanceConfirm/Index",    Icon = "schedule"       },
+                    // Thư ký CHỈ xem báo cáo + nhắc công nhân lãnh quà — không có quyền tạo danh mục/
+                    // đợt quà/import/đánh dấu đã phát như HR (chốt 2026-09-19).
+                    new SideMenuItem { Title = "Báo cáo Quà",          Url = "~/GiftAdmin/Report",           Icon = "bar_chart"     },
                     new SideMenuItem { Title = "Theo dõi ra vào cổng", Url = "~/GatePass/GpListForClerk",   Icon = "door_front"    },
                     new SideMenuItem { Title = "Danh sách Nghỉ Phép",  Url = "~/Leave/LeaveListForClerk",   Icon = "event_busy"    },
                     new SideMenuItem { Title = "Lịch nghỉ & Cổng",    Url = "~/Leave/TeamCalendar",         Icon = "calendar_month" },
@@ -148,6 +152,10 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",             Icon = "view_list",              Group = "attendance" },
                     new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",       Icon = "door_front",             Group = "attendance" },
                     new SideMenuItem { Title = "Xác nhận chấm công",   Url = "~/AttendanceConfirm/Index",    Icon = "schedule",                Group = "attendance" },
+
+                    new SideMenuItem { Title = "Đợt quà",              Url = "~/GiftAdmin/BatchList",        Icon = "card_giftcard",          Group = "gift" },
+                    new SideMenuItem { Title = "Danh mục Quà",         Url = "~/GiftAdmin/Catalog",          Icon = "redeem",                 Group = "gift" },
+                    new SideMenuItem { Title = "Báo cáo Quà",          Url = "~/GiftAdmin/Report",           Icon = "bar_chart",              Group = "gift" },
 
                     new SideMenuItem { Title = "Quản lý Thực đơn",     Url = "~/Menu/Manage",                Icon = "restaurant_menu",        Group = "canteen" },
                     new SideMenuItem { Title = "Quản lý Món ăn",       Url = "~/Menu/FoodManage",            Icon = "set_meal",               Group = "canteen" },

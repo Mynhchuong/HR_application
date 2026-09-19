@@ -123,7 +123,6 @@
                         <option value="500">500</option>
                     </select>
                 </div>
-                <button type="button" id="clearFilterBtn" class="btn btn-outline-secondary btn-sm" title="Xóa bộ lọc"><i class="bi bi-x-circle"></i></button>
             </div>
         </div>
 
@@ -390,16 +389,7 @@ $('#filterWork, #filterLeavecd, #filterMsStatus, #filterMsLeaveType, #filterDocS
 let searchTimeout, remarkTimeout;
 $('#searchEmpcd').on('input', function () { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => loadData(1), 400); });
 $('#filterRemark').on('input', function () { clearTimeout(remarkTimeout); remarkTimeout = setTimeout(() => loadData(1), 400); });
-$('#clearFilterBtn').on('click', function () {
-    $('#searchEmpcd').val('');
-    $('#filterDept, #filterLine, #filterWork').val(null).trigger('change.select2');
-    $('#filterLeavecd').val('');
-    $('#filterMsStatus').val('');
-    $('#filterMsLeaveType').val('');
-    $('#filterDocStatus').val('');
-    $('#filterRemark').val('');
-    loadData(1);
-});
+// Nút "Xóa lọc" tự chèn bởi list-page-helper.js (global, mọi trang có .filter-bar).
 
 $('#exportBtn').on('click', async function () {
     const $btn = $(this), orig = $btn.html();

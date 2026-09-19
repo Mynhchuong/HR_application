@@ -140,7 +140,9 @@
                     <button type="button" class="cr-ed-btn" title="Nghiêng" onmousedown="event.preventDefault()" onclick="document.execCommand('italic')"><em>I</em></button>
                     <button type="button" class="cr-ed-btn" title="Gạch chân" onmousedown="event.preventDefault()" onclick="document.execCommand('underline')"><u>U</u></button>
                     <button type="button" class="cr-ed-btn" title="Danh sách" onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList')"><span class="material-symbols-rounded" style="font-size:1rem">format_list_bulleted</span></button>
+                    <button type="button" class="cr-ed-btn" title="Chèn ảnh" onmousedown="event.preventDefault()" onclick="document.getElementById('crImageFile').click()"><span class="material-symbols-rounded" style="font-size:1rem">image</span></button>
                     <button type="button" class="cr-ed-btn" title="Xóa định dạng" onmousedown="event.preventDefault()" onclick="document.execCommand('removeFormat')"><span class="material-symbols-rounded" style="font-size:1rem">format_clear</span></button>
+                    <input type="file" id="crImageFile" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none" onchange="insertCannedImage()">
                 </div>
                 <div id="crContentEditor" contenteditable="true"></div>
             </div>
@@ -182,6 +184,7 @@
 const URL_LIST   = '@Url.Action("GetAdminCannedReplies")';
 const URL_SAVE   = '@Url.Action("SaveCannedReply")';
 const URL_DELETE = '@Url.Action("DeleteCannedReply")';
+const URL_UPLOAD_IMG = '@Url.Action("UploadCannedReplyImage", "Image")';
 const TOKEN      = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 
 let cannedReplies = [];
@@ -270,6 +273,45 @@ function openEdit(id) {
 
 function closeModal() {
     document.getElementById('crModal').classList.remove('show');
+}
+
+// ── Chèn ảnh vào nội dung — lưu file chung thư mục ảnh Bulletin (BULLETIN\IMG),
+// không tạo thư mục riêng vì canned reply ít ảnh. Phải nhớ vị trí con trỏ trước khi mở
+// hộp thoại chọn file, vì click ra ngoài contenteditable làm mất selection.
+let crSavedRange = null;
+document.getElementById('crContentEditor').addEventListener('mouseup', saveCrSelection);
+document.getElementById('crContentEditor').addEventListener('keyup', saveCrSelection);
+function saveCrSelection() {
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0 && document.getElementById('crContentEditor').contains(sel.anchorNode)) {
+        crSavedRange = sel.getRangeAt(0).cloneRange();
+    }
+}
+
+async function insertCannedImage() {
+    const input = document.getElementById('crImageFile');
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { showToast('Ảnh vượt quá 10MB', 'error'); input.value = ''; return; }
+
+    try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch(URL_UPLOAD_IMG, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!data.success) { showToast(data.message || 'Lỗi upload ảnh', 'error'); return; }
+
+        const editor = document.getElementById('crContentEditor');
+        editor.focus();
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        if (crSavedRange) sel.addRange(crSavedRange);
+        document.execCommand('insertHTML', false, `<img src="${data.url}" style="max-width:100%;border-radius:8px;margin:4px 0;">`);
+    } catch (e) {
+        showToast('Lỗi upload ảnh: ' + e.message, 'error');
+    } finally {
+        input.value = '';
+    }
 }
 
 async function saveCanned() {

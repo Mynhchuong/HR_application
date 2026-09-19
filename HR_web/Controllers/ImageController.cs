@@ -177,6 +177,45 @@ public class ImageController : BaseController
         return ServeNetworkImage(Path.Combine(BulletinFolder, fileName), fileName);
     }
 
+    // ── Ảnh chèn trong nội dung Câu trả lời mẫu (CannedReplies) — lưu chung thư mục
+    // BULLETIN\IMG, khỏi tạo thêm thư mục riêng vì số lượng ảnh không nhiều. Đọc lại vẫn dùng
+    // GetBulletinImage (AllowAnonymous) ở trên, chỉ khác quyền upload cho đúng 3 role đang dùng
+    // trang CannedReplies (Admin/HR/CSR — rộng hơn UploadBulletinImage chỉ Admin/HR).
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR,CSR")]
+    [IgnoreAntiforgeryToken]
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> UploadCannedReplyImage(IFormFile? file)
+    {
+        if (file == null || file.Length == 0)
+            return Json(new { success = false, message = "Chưa chọn file!" });
+
+        var ext = Path.GetExtension(file.FileName).ToLower();
+        if (!ImageExts.Contains(ext))
+            return Json(new { success = false, message = "Chỉ chấp nhận JPG, PNG, WebP, GIF!" });
+
+        if (file.Length > ImageMaxBytes)
+            return Json(new { success = false, message = "File không được vượt quá 10 MB!" });
+
+        var fileName = Guid.NewGuid().ToString("N") + ext;
+        var savePath = Path.Combine(BulletinFolder, fileName);
+
+        try
+        {
+            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            {
+                Directory.CreateDirectory(BulletinFolder);
+                await using var stream = new FileStream(savePath, FileMode.Create);
+                await file.CopyToAsync(stream);
+            }
+            return Json(new { success = true, url = Url.Action("GetBulletinImage", "Image", new { fileName }) });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = $"Lỗi lưu file: {ex.Message}" });
+        }
+    }
+
     // ── Home banner ─────────────────────────────────────────────────────────
     // Stream ảnh/video banner từ \\192.168.1.5\vserp_picture\MY_SAMHO_HOME\
     [HttpGet, AllowAnonymous]

@@ -404,7 +404,22 @@
         let curM = initM || (new Date().getMonth() + 1);
         let eventsByDate = {}; // { 'YYYY-MM-DD': [ {TYPE, LABEL, DETAIL}, ... ] }
 
-        const ICON  = { LEAVE: '🌴', GP: '🚪', OT: '⏱️', ASSIGN: '📅', ATT_MISSING: '🔴', GIFT: '🎁' };
+        // Đăng ký từng loại sự kiện lịch — thêm loại MỚI trong tương lai chỉ cần thêm 1 dòng ở
+        // đây (icon hiện + priority sắp xếp), KHÔNG phải sửa gì trong renderGrid/showDetail bên
+        // dưới. priority nhỏ hơn = quan trọng hơn, ưu tiên hiện trước khi 1 ngày có nhiều loại
+        // (ô ngày trên điện thoại rất nhỏ, không thể hiện hết 5-6 icon cùng lúc).
+        const EVENT_TYPES = {
+            ATT_MISSING: { icon: '🔴', priority: 1 },  // cần hành động ngay -> ưu tiên cao nhất
+            PAYDAY:      { icon: '⭐', priority: 2 },  // ngày 10 mỗi tháng, tin vui nên ưu tiên cao
+            TRAINING:    { icon: '📚', priority: 3 },  // buổi học phải tham gia
+            GIFT:        { icon: '🎁', priority: 4 },
+            LEAVE:       { icon: '🌴', priority: 5 },
+            ASSIGN:      { icon: '📅', priority: 6 },
+            GP:          { icon: '🚪', priority: 7 },
+            OT:          { icon: '⏱️', priority: 8 },
+        };
+        const MAX_ICONS_PER_CELL = 3; // hơn số này thì gộp thành chip "+N", bấm vào ô vẫn xem đủ
+        function iconFor(type) { return EVENT_TYPES[type]?.icon || '📌'; }
         // Nhãn trạng thái nộp giấy tờ trong popup chi tiết ngày — DOC_STATUS giờ tính RIÊNG CHO
         // TỪNG NGÀY (không phải trạng thái chung cả đơn nữa), nên nhãn cũng nói rõ "ngày này".
         const DOC_STATUS_LABEL = {
@@ -453,14 +468,28 @@
                 cell.appendChild(numEl);
 
                 if (evs.length) {
+                    // Công nhân phản hồi chấm màu nhỏ khó thấy trên điện thoại -> đổi qua emoji.
+                    // Sắp theo priority (EVENT_TYPES) rồi cắt còn MAX_ICONS_PER_CELL — 1 ngày có
+                    // 4-5 loại sự kiện vẫn không tràn ô, phần dư gộp thành chip "+N" (bấm vào ô
+                    // vẫn mở popup xem đủ mọi loại, chỉ ô lịch là rút gọn).
                     const dots = document.createElement('div');
                     dots.className = 'mycal-dots';
-                    const types = Array.from(new Set(evs.map(x => x.TYPE)));
-                    types.forEach(t => {
+                    const types = Array.from(new Set(evs.map(x => x.TYPE)))
+                        .sort((a, b) => (EVENT_TYPES[a]?.priority ?? 99) - (EVENT_TYPES[b]?.priority ?? 99));
+
+                    types.slice(0, MAX_ICONS_PER_CELL).forEach(t => {
                         const span = document.createElement('span');
-                        span.className = `mc-dot mc-dot-${t}`;
+                        span.className = `mc-emoji mc-emoji-${t}`;
+                        span.textContent = iconFor(t);
                         dots.appendChild(span);
                     });
+                    const hidden = types.length - MAX_ICONS_PER_CELL;
+                    if (hidden > 0) {
+                        const more = document.createElement('span');
+                        more.className = 'mc-more';
+                        more.textContent = `+${hidden}`;
+                        dots.appendChild(more);
+                    }
                     cell.appendChild(dots);
 
                     // Chấm góc: ngày có nghỉ phải nộp giấy tờ (SI/DT/DC/VS/DS/KT) — xanh nếu tất cả
@@ -501,7 +530,7 @@
                 const attMissingAttr = ev.TYPE === 'ATT_MISSING' ? ` data-att-date="${esc(dateKey)}"` : '';
                 return `
                 <div class="mc-event mc-${esc(ev.TYPE)}"${attMissingAttr}>
-                    <div class="mc-icon">${ICON[ev.TYPE] || '📌'}</div>
+                    <div class="mc-icon">${iconFor(ev.TYPE)}</div>
                     <div class="mc-body">
                         <div class="mc-lbl">${esc(ev.LABEL)}</div>
                         ${signerLine}
@@ -529,6 +558,14 @@
             });
         }
 
+        // Ngày 10 mỗi tháng = ngày lãnh lương — quy tắc lịch cố định, không phải dữ liệu cá nhân
+        // nên trang trí thẳng ở client, không cần chờ/phụ thuộc API (vẫn hiện dù API lỗi).
+        function addPaydayDecoration() {
+            const key = `${curY}-${pad(curM)}-10`;
+            if (!eventsByDate[key]) eventsByDate[key] = [];
+            eventsByDate[key].push({ TYPE: 'PAYDAY', LABEL: 'Ngày lãnh lương', DETAIL: 'Chúc mừng ngày lương! 💰' });
+        }
+
         async function loadMonth() {
             eventsByDate = {};
             try {
@@ -542,6 +579,7 @@
                     });
                 }
             } catch (e) { console.warn('[MyCalendar] load fail', e); }
+            addPaydayDecoration();
             renderGrid();
         }
 

@@ -46,7 +46,8 @@ public class HomeMyCalendarService
             LoadGpApprovedAsync(empcd, from, to),
             LoadOtConfirmedAsync(empcd, from, to),
             LoadAttendanceMissingAsync(empcd, from, to),
-            LoadGiftReadyAsync(empcd, from, to)
+            LoadGiftReadyAsync(empcd, from, to),
+            LoadTrainingAsync(empcd, from, to)
         };
         await Task.WhenAll(tasks);
         return tasks.SelectMany(t => t.Result).OrderBy(x => x.DATE).ToList();
@@ -382,6 +383,55 @@ public class HomeMyCalendarService
             TYPE   = "GIFT",
             LABEL  = $"Nhận quà: {r.ItemName}",
             DETAIL = string.IsNullOrEmpty(r.Location) ? "Đến ngày nhận quà" : $"Địa điểm: {r.Location}"
+        }).ToList();
+    }
+
+    // ─── Lịch học (Training) 📚 ──────────────────────────────────
+    // Chỉ hiện buổi CHƯA HỦY (bỏ CANCELLED), của lớp mình đang ENROLLED, đúng group nếu buổi đó
+    // giới hạn theo group (S.GROUP_ID NULL = buổi chung cả lớp) — mirror filter đang dùng ở
+    // TrainingSessionService (AutoMarkAbsentAsync/GetAbsentStatsAsync).
+    private async Task<List<HomeMyCalendarItem>> LoadTrainingAsync(string empcd, DateTime from, DateTime to)
+    {
+        const string sql = @"
+            SELECT TO_CHAR(S.SESSION_DATE,'YYYY-MM-DD') SESSION_DATE, S.START_TIME, S.END_TIME,
+                   S.TOPIC, S.LOCATION, C.CLASS_NAME
+            FROM HRMS.HR_TRAINING_SESSION S
+            JOIN HRMS.HR_TRAINING_ENROLLMENT E ON E.CLASS_ID = S.CLASS_ID
+            JOIN HRMS.HR_TRAINING_CLASS C ON C.ID = S.CLASS_ID
+            WHERE E.EMPCD = :EMPCD
+              AND E.STATUS = 'ENROLLED'
+              AND S.STATUS != 'CANCELLED'
+              AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)
+              AND TRUNC(S.SESSION_DATE) BETWEEN :D_FROM AND :D_TO";
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
+        {
+            SessionDate = r["SESSION_DATE"]?.ToString() ?? "",
+            StartTime   = r["START_TIME"]?.ToString() ?? "",
+            EndTime     = r["END_TIME"]?.ToString() ?? "",
+            Topic       = r["TOPIC"]?.ToString(),
+            Location    = r["LOCATION"]?.ToString(),
+            ClassName   = r["CLASS_NAME"]?.ToString() ?? ""
+        },
+        new OracleParameter("EMPCD",  empcd),
+        new OracleParameter("D_FROM", from.Date),
+        new OracleParameter("D_TO",   to.Date));
+
+        string FmtTime(string hhmm) => hhmm?.Length == 4 ? $"{hhmm.Substring(0, 2)}:{hhmm.Substring(2, 2)}" : hhmm ?? "";
+
+        return rows.Where(r => !string.IsNullOrEmpty(r.SessionDate)).Select(r =>
+        {
+            string detail = $"Giờ: {FmtTime(r.StartTime)}-{FmtTime(r.EndTime)}";
+            if (!string.IsNullOrEmpty(r.Location)) detail += $" · {r.Location}";
+            if (!string.IsNullOrEmpty(r.Topic))    detail += $" · {r.Topic}";
+
+            return new HomeMyCalendarItem
+            {
+                DATE   = r.SessionDate,
+                TYPE   = "TRAINING",
+                LABEL  = $"Học: {r.ClassName}",
+                DETAIL = detail
+            };
         }).ToList();
     }
 }

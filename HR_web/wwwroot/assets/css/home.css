@@ -715,11 +715,9 @@ body.home-hero-popup-open { overflow: hidden; }
     width: 8px; height: 8px; border-radius: 50%;
     display: inline-block; font-size: 0;
 }
-.home-mycal-legend .lg-dot.lg-leave  { background: var(--mc-leave); }
-.home-mycal-legend .lg-dot.lg-gp     { background: var(--mc-gp); }
-.home-mycal-legend .lg-dot.lg-ot     { background: var(--mc-ot); }
-.home-mycal-legend .lg-dot.lg-assign { background: var(--mc-assign); }
-.home-mycal-legend .lg-dot.lg-att-missing { background: var(--mc-att-missing); }
+.home-mycal-legend .lg-emoji {
+    font-size: .85rem; line-height: 1; display: inline-block;
+}
 
 /* ─── Grid ─── */
 .home-mycal-grid {
@@ -768,23 +766,23 @@ body.home-hero-popup-open { overflow: hidden; }
     font-size: .88rem; font-weight: 600; color: #1f2937; line-height: 1;
 }
 
-/* Dots: dùng chấm màu thay emoji */
+/* Emoji thay chấm màu — công nhân phản hồi chấm màu nhỏ khó thấy trên điện thoại */
 .mycal-dots {
-    display: flex; gap: 3px; margin-top: 4px;
+    display: flex; gap: 4px; margin-top: 5px;
     justify-content: center; align-items: center;
-    min-height: 6px;
+    min-height: 14px;
 }
-.mycal-dots .mc-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    box-shadow: 0 1px 2px rgba(0,0,0,.15);
+.mycal-dots .mc-emoji {
+    font-size: .95rem; line-height: 1;
+    filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.2));
 }
-.mycal-cell.mycal-today .mc-dot { box-shadow: 0 0 0 1.5px #fff, 0 1px 2px rgba(0,0,0,.15); }
-.mc-dot.mc-dot-LEAVE  { background: var(--mc-leave); }
-.mc-dot.mc-dot-GP     { background: var(--mc-gp); }
-.mc-dot.mc-dot-OT     { background: var(--mc-ot); }
-.mc-dot.mc-dot-ASSIGN { background: var(--mc-assign); }
-.mc-dot.mc-dot-ATT_MISSING { background: var(--mc-att-missing); }
-.mc-dot.mc-dot-GIFT { background: var(--mc-gift); }
+/* Chip "+N" khi 1 ngày có nhiều loại sự kiện hơn mức hiện được trong ô (MAX_ICONS_PER_CELL) */
+.mycal-dots .mc-more {
+    font-size: .62rem; font-weight: 800; line-height: 1;
+    color: #6b7280; background: #e5e7eb;
+    border-radius: 999px; padding: 2px 5px;
+}
+.mycal-cell.mycal-today .mc-more { color: #fff; background: rgba(255,255,255,.3); }
 
 /* Note + CTA */
 .home-mycal-note {
@@ -847,6 +845,8 @@ body.home-hero-popup-open { overflow: hidden; }
 #mycalDetailBody .mc-event.mc-ASSIGN { border-left-color: var(--mc-assign); background: linear-gradient(90deg, #faf5ff 0%, #f9fafb 100%); }
 #mycalDetailBody .mc-event.mc-ATT_MISSING { border-left-color: var(--mc-att-missing); background: linear-gradient(90deg, #fef2f2 0%, #f9fafb 100%); cursor: pointer; }
 #mycalDetailBody .mc-event.mc-GIFT { border-left-color: var(--mc-gift); background: linear-gradient(90deg, #fdf2f8 0%, #f9fafb 100%); }
+#mycalDetailBody .mc-event.mc-PAYDAY { border-left-color: #f59e0b; background: linear-gradient(90deg, #fffbeb 0%, #f9fafb 100%); }
+#mycalDetailBody .mc-event.mc-TRAINING { border-left-color: #0d9488; background: linear-gradient(90deg, #f0fdfa 0%, #f9fafb 100%); }
 #mycalDetailBody .mc-event .mc-icon {
     font-size: 1.6rem; line-height: 1;
     width: 36px; height: 36px; border-radius: 10px;
@@ -903,13 +903,15 @@ body.home-hero-popup-open { overflow: hidden; }
         flex-shrink: 0; white-space: nowrap;
     }
 
-    .home-mycal-grid { padding: 8px 6px 12px; gap: 2px; }
-    .home-mycal-grid .mycal-dow { font-size: .62rem; padding: 4px 0 6px; }
+    .home-mycal-grid { padding: 8px 5px 12px; gap: 3px; }
+    .home-mycal-grid .mycal-dow { font-size: .66rem; padding: 4px 0 6px; }
 
-    .mycal-cell { border-radius: 8px; padding: 1px; }
-    .mycal-daynum { font-size: .82rem; }
-    .mycal-dots { gap: 2.5px; margin-top: 3px; }
-    .mycal-dots .mc-dot { width: 5px; height: 5px; }
+    /* Phóng to + kéo cao ô ngày theo phản hồi công nhân (khó nhìn trên điện thoại) —
+       bỏ aspect-ratio vuông, cho cao hơn rộng để đủ chỗ số ngày + emoji rõ ràng. */
+    .mycal-cell { aspect-ratio: 4 / 5; border-radius: 10px; padding: 2px; }
+    .mycal-daynum { font-size: .95rem; }
+    .mycal-dots { gap: 3px; margin-top: 4px; min-height: 16px; }
+    .mycal-dots .mc-emoji { font-size: 1.05rem; }
 
     /* disable hover transform trên touch để không bị stuck-hover */
     @media (hover: none) {
@@ -961,10 +963,12 @@ body.home-hero-popup-open { overflow: hidden; }
     .home-mycal-legend { padding: 8px 8px 4px; }
     .home-mycal-legend .lg-item { padding: 3px 7px; font-size: .66rem; }
     .home-mycal-legend .lg-dot { width: 6px; height: 6px; }
-    .home-mycal-grid { padding: 6px 4px 10px; gap: 1.5px; }
-    .home-mycal-grid .mycal-dow { font-size: .58rem; padding: 3px 0 5px; }
-    .mycal-daynum { font-size: .74rem; }
-    .mycal-dots .mc-dot { width: 4.5px; height: 4.5px; }
+    .home-mycal-grid { padding: 6px 3px 10px; gap: 2px; }
+    .home-mycal-grid .mycal-dow { font-size: .6rem; padding: 3px 0 5px; }
+    .mycal-cell { aspect-ratio: 4 / 5; }
+    .mycal-daynum { font-size: .86rem; }
+    .mycal-dots { min-height: 14px; }
+    .mycal-dots .mc-emoji { font-size: .92rem; }
     .home-mycal-note { margin: 0 8px 8px; padding: 7px 9px; font-size: .66rem; }
     .home-mycal-actions { padding: 0 8px 12px; }
 }

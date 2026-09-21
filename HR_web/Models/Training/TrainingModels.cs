@@ -17,6 +17,15 @@ public class MaterialViewRequest
     public string EMPCD { get; set; } = "";
 }
 
+public class UpdateVideoProgressRequest
+{
+    public int MATERIAL_ID { get; set; }
+    public string EMPCD { get; set; } = "";
+    public int POSITION_SEC { get; set; }
+    public int DURATION_SEC { get; set; }
+    public bool IS_ENDED { get; set; }
+}
+
 public class AskQuestionRequest
 {
     public int CLASS_ID { get; set; }
@@ -101,6 +110,7 @@ public class SaveMaterialRequest
     public string MATERIAL_LEVEL { get; set; } = "CLASS";
     public int? COURSE_ID { get; set; }
     public int? CLASS_ID { get; set; }
+    public int? SESSION_ID { get; set; }
     public string TITLE { get; set; } = "";
     public string FILE_NAME { get; set; } = "";
     public string FILE_TYPE { get; set; } = "";
@@ -256,6 +266,7 @@ public class SaveClassRequest
     public decimal? MIN_ATTENDANCE_PERCENT { get; set; }
     public int? FINAL_TEST_ID { get; set; }
     public int? REQUIRE_POST_REVIEW { get; set; }
+    public string? DELIVERY_MODE { get; set; }
     public string LOGIN_USER { get; set; } = "";
 }
 
@@ -468,6 +479,7 @@ public class CloneFromCourseRequest
     public string? DESCRIPTION { get; set; }
     public string? PRIMARY_TEACHER_EMPCD { get; set; }
     public List<string> EMPCDS { get; set; } = new();
+    public string DELIVERY_MODE { get; set; } = "OFFLINE";
     public string LOGIN_USER { get; set; } = "";
 }
 

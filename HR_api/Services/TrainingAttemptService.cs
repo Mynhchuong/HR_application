@@ -11,10 +11,12 @@ public class TrainingAttemptService
 {
     private readonly OracleService _db;
     private readonly TrainingNotificationService? _noti;
+    private readonly TrainingVideoProgressService _videoProgress;
 
-    public TrainingAttemptService(OracleService db, TrainingNotificationService? noti = null)
+    public TrainingAttemptService(OracleService db, TrainingVideoProgressService videoProgress, TrainingNotificationService? noti = null)
     {
         _db = db;
+        _videoProgress = videoProgress;
         _noti = noti;
     }
 
@@ -53,19 +55,37 @@ public class TrainingAttemptService
         if (test.AF.HasValue && now < test.AF.Value) return (null, "Chưa đến giờ làm bài");
 
         // Verify student enrolled trong class của test
+        int? myGroupId = null;
         if (test.CLASS_ID.HasValue)
         {
-            var okEnroll = (await _db.ExecuteQueryAsync(
-                "SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID AND EMPCD = :EMP AND STATUS = 'ENROLLED'",
-                r => Convert.ToInt32(r["CNT"]),
+            var enroll = (await _db.ExecuteQueryAsync(
+                "SELECT GROUP_ID FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID AND EMPCD = :EMP AND STATUS = 'ENROLLED'",
+                r => new { GROUP_ID = r["GROUP_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["GROUP_ID"]) },
                 new OracleParameter("CID", test.CLASS_ID.Value),
-                new OracleParameter("EMP", req.EMPCD))).First();
-            if (okEnroll == 0) return (null, "Bạn không thuộc lớp này");
+                new OracleParameter("EMP", req.EMPCD))).FirstOrDefault();
+            if (enroll == null) return (null, "Bạn không thuộc lớp này");
+            myGroupId = enroll.GROUP_ID;
         }
 
-        // Đã có attempt đang làm dở? Trả lại (idempotent, resume).
+        // Đã có attempt đang làm dở? Trả lại (idempotent, resume) — KHÔNG chặn resume bằng gate xem
+        // video bên dưới, gate chỉ áp dụng cho việc BẮT ĐẦU 1 lượt thi mới.
         var existing = await GetAttemptByTestEmpAsync(req.TEST_ID, req.EMPCD);
         if (existing != null && existing.STATUS == "IN_PROGRESS") return (existing, null);
+
+        // Đào tạo online: phải xem hết toàn bộ video các buổi mới được BẮT ĐẦU bài test.
+        if (test.CLASS_ID.HasValue)
+        {
+            var deliveryMode = (await _db.ExecuteQueryAsync(
+                "SELECT DELIVERY_MODE FROM HRMS.HR_TRAINING_CLASS WHERE ID = :CID",
+                r => r["DELIVERY_MODE"]?.ToString() ?? "OFFLINE",
+                new OracleParameter("CID", test.CLASS_ID.Value))).FirstOrDefault();
+            if (deliveryMode == "ONLINE")
+            {
+                var (allWatched, missing) = await _videoProgress.IsClassFullyWatchedAsync(test.CLASS_ID.Value, req.EMPCD, myGroupId);
+                if (!allWatched)
+                    return (null, $"Bạn cần xem hết {missing} video bài học trước khi làm bài kiểm tra.");
+            }
+        }
 
         var nextAttemptNo = (existing?.ATTEMPT_NO ?? 0) + 1;
 

@@ -14,7 +14,7 @@
             Title = title,
             Icon = "bi-file-earmark",
             Gradient = "primary",
-            BackUrl = Url.Action("Materials", "Training", new { id = classId }),
+            BackUrl = Url.Action("ClassDetail", "Training", new { id = classId }) + "?tab=materials",
         })
         <div class="card-body">
             @if (fileType == "PDF")

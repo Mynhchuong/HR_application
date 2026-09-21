@@ -399,6 +399,17 @@
         const detTitle = document.getElementById('mycalDetailTitle');
         const detBody  = document.getElementById('mycalDetailBody');
 
+        // Bootstrap gắn aria-hidden="true" lên modal khi đóng nhưng không tự bỏ focus khỏi nút bên
+        // trong (vd nút đóng) trước đó — trình duyệt cảnh báo "Blocked aria-hidden..." trong console.
+        // Chủ động bỏ focus (blur) ngay khi modal bắt đầu đóng để tránh cảnh báo này.
+        if (modalEl) {
+            modalEl.addEventListener('hide.bs.modal', () => {
+                if (modalEl.contains(document.activeElement)) {
+                    document.activeElement.blur();
+                }
+            });
+        }
+
         const [initY, initM] = (root.dataset.initMonth || '').split('-').map(n => parseInt(n, 10));
         let curY = initY || new Date().getFullYear();
         let curM = initM || (new Date().getMonth() + 1);

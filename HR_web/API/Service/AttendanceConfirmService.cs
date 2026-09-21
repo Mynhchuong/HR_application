@@ -35,11 +35,11 @@ public class AttendanceConfirmService
         catch (Exception ex) { return new AttendanceMissingListResponse { success = false, message = ex.Message }; }
     }
 
-    public async Task<MyPendingResponse> GetMyPendingAsync(string empcd, int days = 60)
+    public async Task<MyPendingResponse> GetMyPendingAsync(string empcd)
     {
         try
         {
-            var result = await _api.GetAsync<MyPendingResponse>("attendanceconfirm/my-pending", $"empcd={empcd}&days={days}");
+            var result = await _api.GetAsync<MyPendingResponse>("attendanceconfirm/my-pending", $"empcd={empcd}");
             return result ?? new MyPendingResponse { success = false, message = "Lỗi kết nối server" };
         }
         catch (Exception ex) { return new MyPendingResponse { success = false, message = ex.Message }; }

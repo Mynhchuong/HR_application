@@ -19,6 +19,9 @@ public class ClassModel
     public DateTime? START_DATE { get; set; }
     public DateTime? END_DATE { get; set; }
 
+    // OFFLINE | ONLINE — ONLINE: buổi = video phải xem hết, không điểm danh
+    public string DELIVERY_MODE { get; set; } = "OFFLINE";
+
     // Completion criteria
     public decimal MIN_ATTENDANCE_PERCENT { get; set; } = 75;
     public int?   FINAL_TEST_ID { get; set; }
@@ -104,6 +107,7 @@ public class SaveClassRequest
     public decimal? MIN_ATTENDANCE_PERCENT { get; set; }
     public int?   FINAL_TEST_ID { get; set; }
     public int?   REQUIRE_POST_REVIEW { get; set; }
+    public string? DELIVERY_MODE { get; set; }
     public string LOGIN_USER { get; set; } = "";
 }
 
@@ -164,6 +168,7 @@ public class CloneFromCourseRequest
     public string?  DESCRIPTION { get; set; }
     public string?  PRIMARY_TEACHER_EMPCD { get; set; }
     public List<string> EMPCDS { get; set; } = new();    // optional — có thể bỏ trống, HR nhập sau
+    public string   DELIVERY_MODE { get; set; } = "OFFLINE";
     public string   LOGIN_USER { get; set; } = "";
 }
 

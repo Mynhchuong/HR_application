@@ -580,6 +580,14 @@ public class TrainingAdminController : BaseController
         return Content(json, "application/json");
     }
 
+    // GET /TrainingAdmin/GetSessionMaterials?sessionId= — video buổi học (đào tạo online)
+    [HttpGet]
+    public async Task<IActionResult> GetSessionMaterials(int sessionId)
+    {
+        var res = await _training.GetFromApiAsync<object>($"TrainingAdmin/session/{sessionId}/materials");
+        return Json(res);
+    }
+
     // GET /TrainingAdmin/SessionImportTemplate — tải file Excel mẫu để nhập nhiều buổi học 1 lần
     [HttpGet]
     public IActionResult SessionImportTemplate()

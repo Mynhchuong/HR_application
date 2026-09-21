@@ -20,6 +20,7 @@ public class TrainingController : ControllerBase
     private readonly TrainingTeamService _team;
     private readonly TrainingAuthHelper _auth;
     private readonly TrainingTestService _test;
+    private readonly TrainingVideoProgressService _videoProgress;
 
     public TrainingController(
         TrainingEnrollmentService enroll,
@@ -31,7 +32,8 @@ public class TrainingController : ControllerBase
         TrainingReviewService review,
         TrainingTeamService team,
         TrainingAuthHelper auth,
-        TrainingTestService test)
+        TrainingTestService test,
+        TrainingVideoProgressService videoProgress)
     {
         _enroll   = enroll;
         _session  = session;
@@ -43,6 +45,7 @@ public class TrainingController : ControllerBase
         _team     = team;
         _auth     = auth;
         _test     = test;
+        _videoProgress = videoProgress;
     }
 
     // GET /apiHR/Training/my-classes?empcd=
@@ -153,6 +156,57 @@ public class TrainingController : ControllerBase
     {
         var newView = await _material.TrackViewAsync(req);
         return Ok(new { success = true, data = new { newView } });
+    }
+
+    // GET /apiHR/Training/session/{id}/materials?empcd= — video/tài liệu riêng của 1 buổi (đào tạo online)
+    [HttpGet("session/{id}/materials")]
+    public async Task<IActionResult> SessionMaterials(int id, [FromQuery] string empcd)
+    {
+        if (string.IsNullOrWhiteSpace(empcd))
+            return Ok(new { success = false, message = "empcd required" });
+
+        var s = await _session.GetDetailAsync(id, empcd);
+        if (s == null) return Ok(new { success = false, message = "Không tìm thấy session" });
+
+        if (!await _auth.IsStudentAsync(empcd, s.CLASS_ID) &&
+            !await _auth.IsTeacherAsync(empcd, s.CLASS_ID) &&
+            !await _auth.IsHrOrAdminAsync(empcd))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền truy cập tài liệu buổi học này" });
+        }
+
+        var data = await _material.ListBySessionAsync(id, empcd);
+        return Ok(new { success = true, data });
+    }
+
+    // POST /apiHR/Training/videoprogress/update — học viên xem video, báo tiến độ (đào tạo online)
+    [HttpPost("videoprogress/update")]
+    public async Task<IActionResult> VideoProgressUpdate([FromBody] UpdateVideoProgressRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.EMPCD))
+            return Ok(new { success = false, message = "empcd required" });
+
+        // Chặn ghi tiến độ hộ người khác — phải là học viên (hoặc GV/HR) của đúng lớp sở hữu buổi
+        // chứa video này, khớp pattern auth-check các endpoint khác trong controller.
+        var classId = await _material.GetClassIdBySessionMaterialAsync(req.MATERIAL_ID);
+        if (classId == null)
+            return Ok(new { success = false, message = "Không tìm thấy video" });
+        if (!await _auth.IsStudentAsync(req.EMPCD, classId.Value) &&
+            !await _auth.IsTeacherAsync(req.EMPCD, classId.Value) &&
+            !await _auth.IsHrOrAdminAsync(req.EMPCD))
+        {
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền cập nhật tiến độ video này" });
+        }
+
+        try
+        {
+            await _videoProgress.UpdateProgressAsync(req);
+            return Ok(new { success = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
     }
 
     // GET /apiHR/Training/class/{id}/qa?empcd=

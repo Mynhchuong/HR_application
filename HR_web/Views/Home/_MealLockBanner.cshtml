@@ -63,45 +63,81 @@
                 return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             };
 
-            const itemsHtml = upcoming.map(r => {
-                const dMeal = new Date(r.lockDate);
-                const mealDayStr = `${dayFullNames[dMeal.getDay()]} (${fmtShortDate(r.lockDate)})`;
+            // Cùng 1 ngày có thể có nhiều lần khoá (vd thêm 1 mốc khoá đặc biệt riêng) — gộp chung
+            // 1 khối theo NGÀY thay vì lặp lại tiêu đề "Ăn Trưa Thứ 7 (26/09)" nhiều lần cho gọn.
+            const groupsByDate = new Map();
+            upcoming.forEach(r => {
+                if (!groupsByDate.has(r.lockDate)) groupsByDate.set(r.lockDate, []);
+                groupsByDate.get(r.lockDate).push(r);
+            });
 
+            const itemHtmls = Array.from(groupsByDate.entries()).map(([lockDate, rows]) => {
+                const dMeal = new Date(lockDate);
+                const mealDayStr = `${dayFullNames[dMeal.getDay()]} (${fmtShortDate(lockDate)})`;
+
+                const anyLunch = rows.some(r => r.lockLunch);
+                const anyOt = rows.some(r => r.lockOt);
                 let mealType = '';
-                if (r.lockLunch && r.lockOt) mealType = 'Ăn Trưa & Tăng Ca';
-                else if (r.lockLunch) mealType = 'Ăn Trưa';
-                else if (r.lockOt) mealType = 'Suất Tăng Ca';
+                if (anyLunch && anyOt) mealType = 'Ăn Trưa & Tăng Ca';
+                else if (anyLunch) mealType = 'Ăn Trưa';
+                else if (anyOt) mealType = 'Suất Tăng Ca';
                 else mealType = 'Suất Ăn';
 
-                let cutLine = '';
-                if (r.cutoffDt) {
-                    const dCut = new Date(r.cutoffDt);
-                    const cutDow = dayFullNames[dCut.getDay()];
-                    const hh = String(dCut.getHours()).padStart(2, '0');
-                    const mm = String(dCut.getMinutes()).padStart(2, '0');
-                    const cutDateStr = fmtShortDate(r.cutoffDt);
-                    cutLine = `Khóa đổi món lúc <strong style="color:#c2410c;">${hh}:${mm} ${cutDow} (${cutDateStr})</strong>`;
-                } else {
-                    cutLine = `<strong style="color:#dc2626;">Khoá đổi món cả ngày</strong>`;
-                }
-
-                const noteLine = r.note ? `<div style="font-size:0.76rem;color:#9a3412;margin-top:2px;font-style:italic;">📝 ${escTxt(r.note)}</div>` : '';
+                const subRowsHtml = rows.map(r => {
+                    let cutLine = '';
+                    if (r.cutoffDt) {
+                        const dCut = new Date(r.cutoffDt);
+                        const cutDow = dayFullNames[dCut.getDay()];
+                        const hh = String(dCut.getHours()).padStart(2, '0');
+                        const mm = String(dCut.getMinutes()).padStart(2, '0');
+                        const cutDateStr = fmtShortDate(r.cutoffDt);
+                        cutLine = `Khóa lúc <strong style="color:#c2410c;">${hh}:${mm} ${cutDow} (${cutDateStr})</strong>`;
+                    } else {
+                        cutLine = `<strong style="color:#dc2626;">Khoá cả ngày</strong>`;
+                    }
+                    const noteLine = r.note ? `<div class="home-meallock-note">📝 ${escTxt(r.note)}</div>` : '';
+                    return `<div class="home-meallock-subitem">${cutLine}${noteLine}</div>`;
+                }).join('');
 
                 return `<div class="home-meallock-item">
-                    <div><strong>${mealType} ${mealDayStr}</strong>: ${cutLine}</div>
-                    ${noteLine}
+                    <div class="home-meallock-item-head"><strong>${mealType} ${mealDayStr}</strong></div>
+                    ${subRowsHtml}
                 </div>`;
-            }).join('');
+            });
+
+            // Nhiều hơn 2 lịch khoá là danh sách dài, xấu trên mobile — chỉ hiện 2 lịch gần nhất,
+            // các lịch còn lại gói gọn sau nút "Xem thêm" để bấm ra khi cần.
+            const MAX_VISIBLE = 2;
+            const visibleHtml = itemHtmls.slice(0, MAX_VISIBLE).join('');
+            const extraCount = itemHtmls.length - MAX_VISIBLE;
+            const hiddenHtml = extraCount > 0 ? itemHtmls.slice(MAX_VISIBLE).join('') : '';
+            const moreBtnHtml = extraCount > 0
+                ? `<button type="button" id="homeMealLockMoreBtn" class="home-meallock-more" data-count="${extraCount}" onclick="toggleHomeMealLockMore(this)">
+                       <span>Xem thêm ${extraCount} lịch khác</span> <i class="bi bi-chevron-down"></i>
+                   </button>`
+                : '';
 
             const banner = document.getElementById('homeMealLockBanner');
             const contentEl = document.getElementById('homeMealLockContent');
             if (banner && contentEl) {
-                contentEl.innerHTML = itemsHtml;
+                contentEl.innerHTML = visibleHtml
+                    + (extraCount > 0 ? `<div id="homeMealLockExtra" style="display:none;">${hiddenHtml}</div>${moreBtnHtml}` : '');
                 banner.style.display = 'flex';
             }
         })
         .catch(() => {});
 })();
+
+function toggleHomeMealLockMore(btn) {
+    const extra = document.getElementById('homeMealLockExtra');
+    if (!extra) return;
+    const expanded = extra.style.display !== 'none';
+    extra.style.display = expanded ? 'none' : 'block';
+    const count = btn.dataset.count;
+    btn.innerHTML = expanded
+        ? `<span>Xem thêm ${count} lịch khác</span> <i class="bi bi-chevron-down"></i>`
+        : `<span>Thu gọn</span> <i class="bi bi-chevron-up"></i>`;
+}
 
 function dismissHomeMealLock() {
     sessionStorage.setItem('home_meallock_dismissed', '1');

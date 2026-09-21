@@ -29,46 +29,34 @@
         </div>
     </div>
 
-    <!-- Quick Navigation Cards — panel "Bài kiểm tra" đã hiện sẵn bên phải nên không cần card anchor -->
-    <div class="row mb-4">
-        <div class="col-6 col-md-4 mb-3">
-            <a href="@Url.Action("Materials", "Training", new { id = classId })" class="card border-0 shadow-sm text-decoration-none h-100 p-3 text-center nav-feature-card">
-                <div class="feature-icon-wrapper bg-primary-subtle text-primary-emphasis mx-auto mb-2">
-                    <i class="bi bi-folder2-open"></i>
-                </div>
-                <h6 class="fw-bold text-dark mb-0">Tài liệu học tập</h6>
-            </a>
+    <!-- Banner nhắc đánh giá — chỉ hiện khi lớp bắt buộc đánh giá, đang học, và chưa nộp. Đặt ngay
+         đầu trang (trước khi vào tab) + màu nổi bật + rung nhẹ để công nhân không lướt qua bỏ sót. -->
+    <div id="review-reminder-banner" class="d-none alert border-0 shadow-sm mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2"
+         style="background: linear-gradient(90deg, #fff7ed 0%, #ffedd5 100%); border-left: 5px solid #ea580c !important; border-radius: 12px;">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-star-fill" style="color:#ea580c; font-size:1.4rem;" id="review-reminder-icon"></i>
+            <span class="fw-bold" style="color:#9a3412;">Đừng quên đánh giá lớp học này nhé!</span>
         </div>
-        <div class="col-6 col-md-4 mb-3">
-            <a href="@Url.Action("QA", "Training", new { id = classId })" class="card border-0 shadow-sm text-decoration-none h-100 p-3 text-center nav-feature-card">
-                <div class="feature-icon-wrapper bg-success-subtle text-success-emphasis mx-auto mb-2">
-                    <i class="bi bi-chat-dots"></i>
-                </div>
-                <h6 class="fw-bold text-dark mb-0">Hỏi đáp Q&A</h6>
-            </a>
-        </div>
-        <div class="col-6 col-md-4 mb-3">
-            <a href="@Url.Action("Review", "Training", new { id = classId })" class="card border-0 shadow-sm text-decoration-none h-100 p-3 text-center nav-feature-card">
-                <div class="feature-icon-wrapper bg-warning-subtle text-warning-emphasis mx-auto mb-2">
-                    <i class="bi bi-chat-square-text"></i>
-                </div>
-                <h6 class="fw-bold text-dark mb-0">Đánh giá & Khảo sát</h6>
-            </a>
-        </div>
+        <button onclick="goToReview()" class="btn btn-sm fw-bold text-white px-3 py-2 rounded-3" style="background:#ea580c;">
+            Đánh giá ngay
+        </button>
     </div>
 
-    <!-- Main Content Tabs: Buổi học / Bài kiểm tra -->
+    <!-- Chỉ 2 tab công nhân bấm THƯỜNG XUYÊN: Buổi học / Bài kiểm tra. Tab ngang cuộn được rất dễ
+         bị bỏ sót với người ít rành công nghệ (không biết vuốt để thấy hết) — Tài liệu/Hỏi đáp/Đánh
+         giá (ít bấm hơn) chuyển xuống dạng accordion cố định bên dưới, cuộn dọc là thấy hết,
+         không có gì bị giấu. -->
     <ul class="nav nav-tabs mb-4" id="classDetailTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="sessions-tab-btn" data-bs-toggle="tab" data-bs-target="#sessions-pane" type="button" role="tab" aria-controls="sessions-pane" aria-selected="true">
                 <i class="bi bi-calendar-event align-middle" style="font-size:1.1rem;"></i>
-                Buổi học
+                <span>Buổi học</span>
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tests-tab-btn" data-bs-toggle="tab" data-bs-target="#tests-pane" type="button" role="tab" aria-controls="tests-pane" aria-selected="false">
                 <i class="bi bi-question-circle align-middle" style="font-size:1.1rem;"></i>
-                Bài kiểm tra
+                <span>Bài kiểm tra</span>
             </button>
         </li>
     </ul>
@@ -112,31 +100,126 @@
             </div>
         </div>
     </div>
+
+    <!-- Tài liệu / Hỏi đáp / Đánh giá — accordion luôn hiện sẵn 3 tiêu đề (không tab, không cuộn
+         ngang), bấm vào đâu xổ ra đó ngay tại chỗ. -->
+    <div class="accordion mb-4" id="classDetailAccordion">
+        <div class="accordion-item border-0 shadow-sm mb-3" style="border-radius: 16px; overflow: hidden;">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#materials-pane" id="materials-tab-btn">
+                    <i class="bi bi-folder2-open text-primary me-2" style="font-size:1.2rem;"></i> Tài liệu học tập
+                    <span id="materials-count-badge" class="badge bg-primary rounded-pill ms-2 d-none"></span>
+                </button>
+            </h2>
+            <div id="materials-pane" class="accordion-collapse collapse" data-bs-parent="#classDetailAccordion">
+                <div class="accordion-body">
+                    <div class="row" id="materials-list">
+                        <div class="col-12 text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item border-0 shadow-sm mb-3" style="border-radius: 16px; overflow: hidden;">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#qa-pane" id="qa-tab-btn">
+                    <i class="bi bi-chat-dots text-success me-2" style="font-size:1.2rem;"></i> Hỏi đáp cùng giảng viên
+                    <span id="qa-count-badge" class="badge bg-success rounded-pill ms-2 d-none"></span>
+                </button>
+            </h2>
+            <div id="qa-pane" class="accordion-collapse collapse" data-bs-parent="#classDetailAccordion">
+                <div class="accordion-body">
+                    <div class="mb-4">
+                        <textarea id="qa-input" class="form-control py-3" placeholder="Nhập câu hỏi của bạn về bài học hoặc tài liệu tại đây..." rows="3" style="border-radius: 12px;"></textarea>
+                        <div class="text-end mt-2">
+                            <button onclick="askQuestion()" class="btn btn-success px-4 py-2 rounded-3 fw-bold shadow-sm">Gửi câu hỏi</button>
+                        </div>
+                    </div>
+                    <div id="qa-list">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-success" role="status"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item border-0 shadow-sm mb-3" style="border-radius: 16px; overflow: hidden;">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#review-pane" id="review-tab-btn">
+                    <i class="bi bi-star text-warning me-2" style="font-size:1.2rem;"></i> Đánh giá & Phản hồi
+                    <span id="review-need-dot" class="review-need-dot d-none"></span>
+                </button>
+            </h2>
+            <div id="review-pane" class="accordion-collapse collapse" data-bs-parent="#classDetailAccordion">
+                <div class="accordion-body">
+                    <div class="row">
+                        <div class="col-12 col-md-8 col-lg-6 mx-auto">
+                            <div id="review-form-card">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     </div>
     </div>
 </div>
 
 <style>
-    .nav-feature-card {
+    /* Accordion Tài liệu/Hỏi đáp/Đánh giá — nút to, dễ bấm trên điện thoại công nhân */
+    #classDetailAccordion .accordion-button {
+        font-size: .95rem;
+        padding: 1rem 1.1rem;
+        background: #fff;
+    }
+    #classDetailAccordion .accordion-button:not(.collapsed) {
+        background: #f8f9fa;
+        color: #212529;
+        box-shadow: none;
+    }
+    #classDetailAccordion .accordion-button:focus {
+        box-shadow: none;
+        border-color: rgba(0,0,0,.125);
+    }
+    /* Chấm đỏ + rung nhẹ nhắc "chưa đánh giá" — bắt mắt hơn dòng chữ tĩnh */
+    .review-need-dot {
+        display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+        background: #dc3545; margin-left: 6px; animation: reviewDotPulse 1.4s ease-in-out infinite;
+    }
+    @@keyframes reviewDotPulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.6); opacity: .5; }
+    }
+    #review-reminder-icon { animation: reviewDotPulse 1.4s ease-in-out infinite; }
+    /* Material card (tab Tài liệu) */
+    .material-card {
         border-radius: 14px;
-        transition: all 0.25s ease;
-        border: 1px solid rgba(0,0,0,0.03);
+        transition: all 0.2s ease;
+        border: 1px solid rgba(0,0,0,0.04);
     }
-    .nav-feature-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.06) !important;
-        background-color: #f8f9fa;
+    .material-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.06) !important;
     }
-    .feature-icon-wrapper {
-        width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    .material-row { gap: 1rem; }
+    .material-icon { flex-shrink: 0; }
+    .material-actions { flex-shrink: 0; }
+    /* Star rating (tab Đánh giá) */
+    .star-rating {
+        font-size: clamp(1.8rem, 8vw, 2.5rem);
+        cursor: pointer;
+        color: #dee2e6;
+        transition: color 0.1s;
     }
-    .feature-icon-wrapper i {
-        font-size: 1.6rem;
+    .star-rating.active {
+        color: #ffc107;
     }
     /* Timeline style */
     .timeline-container {
@@ -176,15 +259,12 @@
         #class-header-container .card.bg-light .small { font-size: .68rem !important; }
         #class-header-container .card.bg-light .text-end.small { font-size: .75rem !important; }
 
-        /* Quick nav feature cards */
-        .nav-feature-card { padding: .6rem !important; }
-        .feature-icon-wrapper { width: 36px; height: 36px; margin-bottom: .4rem !important; }
-        .feature-icon-wrapper i { font-size: 1.1rem !important; }
-        .nav-feature-card h6 { font-size: .72rem !important; }
-
         /* Main tabs: Buổi học / Bài kiểm tra */
-        #classDetailTabs .nav-link { font-size: .78rem; padding: .5rem .65rem; }
-        #classDetailTabs .nav-link i { font-size: .85rem !important; }
+        #classDetailTabs .nav-link { font-size: .8rem; padding: .6rem .8rem; }
+        #classDetailTabs .nav-link i { font-size: .95rem !important; }
+
+        /* Accordion Tài liệu/Hỏi đáp/Đánh giá */
+        #classDetailAccordion .accordion-button { font-size: .82rem; padding: .85rem .9rem; }
 
         /* Session timeline cards */
         .timeline-container { padding-left: 18px; }
@@ -199,8 +279,44 @@
         #tests-list .card .small { font-size: .68rem; }
         #tests-list .badge { font-size: .6rem !important; }
         #tests-list .btn { font-size: .78rem; }
+
+        /* Materials list */
+        .material-card { padding: .65rem !important; }
+        .material-row { gap: .5rem; }
+        .material-icon { padding: .5rem !important; }
+        .material-icon i { font-size: 1.4rem !important; }
+        .material-card h6 { font-size: .82rem; }
+        .material-card p.material-meta { font-size: .65rem; }
+        .material-card p.material-meta .badge { font-size: .58rem; padding: .25rem .4rem; }
+        .material-actions .btn.rounded-circle { width: 32px; height: 32px; padding: 0 !important; }
+        .material-actions .btn.rounded-circle i { font-size: .9rem !important; }
+        .material-actions .btn.rounded-3 { padding: .3rem .5rem !important; font-size: .68rem; }
+        .material-actions .btn.rounded-3 i { font-size: .8rem !important; }
+
+        /* Q&A list */
+        #qa-list .card { padding: .85rem !important; }
+        #qa-list .small { font-size: .68rem; }
+
+        /* Review form */
+        #review-form-card h4 { font-size: 1.05rem; }
     }
 </style>
+
+<!-- SESSION VIDEO PLAYER MODAL (đào tạo online) -->
+<div class="modal fade" id="sessionVideoPlayerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header border-bottom-0">
+                <h6 class="fw-bold modal-title" id="svp-title">Video bài học</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-0">
+                <video id="svp-video-el" controls style="width: 100%; border-radius: 12px; background: #000;"></video>
+                <p class="text-muted small mt-2 mb-0"><i class="bi bi-info-circle me-1"></i>Xem hết video mới được tính đã học buổi này.</p>
+            </div>
+        </div>
+    </div>
+</div>
 
 @section Scripts {
     <script>
@@ -209,7 +325,15 @@
             getClassTests: '@Url.Action("GetClassTests", "Training")',
             sessionDetailTemplate: '@Url.Action("SessionDetail", "Training", new { id = "__ID__" })',
             testDoTemplate: '@Url.Action("TestDo", "Training", new { id = "__ID__" })',
-            testResultTemplate: '@Url.Action("TestResult", "Training", new { id = "__ID__" })'
+            testResultTemplate: '@Url.Action("TestResult", "Training", new { id = "__ID__" })',
+            getSessionVideoMaterials: '@Url.Action("GetSessionVideoMaterials", "Training")',
+            updateVideoProgress: '@Url.Action("UpdateVideoProgress", "Training")',
+            trackMaterialView: '@Url.Action("TrackMaterialView", "Training")',
+            materialPreviewTemplate: '@Url.Action("MaterialPreview", "Training")',
+            getQAList: '@Url.Action("GetQAList", "Training")',
+            askQuestion: '@Url.Action("AskQuestion", "Training")',
+            getMyReview: '@Url.Action("GetMyReview", "Training")',
+            submitReview: '@Url.Action("SubmitReview", "Training")'
         };
         const empCd = '@empCd';
         const classId = @classId;
@@ -223,7 +347,31 @@
             // xong trước → classData vẫn null → badge không hiện dù DB đã set đúng).
             loadClassDetail().then(() => {
                 loadTestsList();
+                renderMaterials();
+                // Tải trước Hỏi đáp ngay từ đầu (không đợi bấm mở accordion) chỉ để có số hiện lên
+                // tiêu đề — công nhân thấy "Hỏi đáp (3)" là biết trong đó có nội dung, đỡ phải mở thử.
+                loadQAList();
             });
+
+            // Hỏi đáp + Đánh giá gộp thành accordion luôn thay vì trang riêng — nạp lười (lazy)
+            // lúc bấm xổ ra lần đầu mỗi lượt xem trang, đỡ tốn request nếu học viên không xem tới.
+            document.getElementById('qa-pane').addEventListener('shown.bs.collapse', () => loadQAList());
+            document.getElementById('review-pane').addEventListener('shown.bs.collapse', () => loadReviewForm());
+
+            // Mở sẵn đúng mục nếu link tới có ?tab=materials|qa|review|tests (thay cho các trang
+            // riêng Materials/QA/Review cũ — VD banner "Nhắc đánh giá" ở MyClasses).
+            const wantTab = new URLSearchParams(window.location.search).get('tab');
+            if (wantTab) {
+                if (wantTab === 'tests') {
+                    new bootstrap.Tab(document.getElementById('tests-tab-btn')).show();
+                } else {
+                    const pane = document.getElementById(`${wantTab}-pane`);
+                    if (pane) {
+                        new bootstrap.Collapse(pane, { show: true });
+                        pane.addEventListener('shown.bs.collapse', () => pane.scrollIntoView({ behavior: 'smooth', block: 'start' }), { once: true });
+                    }
+                }
+            }
         });
 
         function loadClassDetail() {
@@ -241,7 +389,24 @@
                     classData = res.data;
                     renderHeader();
                     renderSessions();
+                    checkReviewReminder();
                 });
+        }
+
+        // Nhắc đánh giá — chỉ khi lớp bắt buộc đánh giá, đang học, và học viên chưa nộp (khớp
+        // đúng điều kiện đang dùng ở banner MyClasses). Bấm "Đánh giá ngay" xổ accordion + cuộn tới.
+        function checkReviewReminder() {
+            const cls = classData.cls;
+            const enr = classData.myEnrollment;
+            const needsReview = cls.STATUS === 'IN_PROGRESS' && enr && enr.REQUIRE_POST_REVIEW && !enr.HAS_REVIEWED;
+            document.getElementById('review-reminder-banner').classList.toggle('d-none', !needsReview);
+            document.getElementById('review-need-dot').classList.toggle('d-none', !needsReview);
+        }
+
+        function goToReview() {
+            const pane = document.getElementById('review-pane');
+            new bootstrap.Collapse(pane, { show: true });
+            pane.addEventListener('shown.bs.collapse', () => pane.scrollIntoView({ behavior: 'smooth', block: 'start' }), { once: true });
         }
 
         function renderHeader() {
@@ -337,6 +502,8 @@
             return new Date(endDt.getTime() + 30 * 60000);
         }
 
+        const isOnlineClass = () => classData && classData.cls && classData.cls.DELIVERY_MODE === 'ONLINE';
+
         function renderSessions() {
             // Buổi GROUP_ID null = chung cả lớp → luôn hiện; buổi có GROUP_ID chỉ hiện nếu đúng nhóm học viên.
             const myGroupId = classData.myEnrollment ? classData.myEnrollment.GROUP_ID : null;
@@ -347,6 +514,7 @@
                 return;
             }
 
+            const isOnline = isOnlineClass();
             wrap.innerHTML = '';
             list.forEach(s => {
                 let badgeClass = 'upcoming';
@@ -370,9 +538,11 @@
                     }
                 }
 
-                // Điểm danh
+                // Điểm danh — lớp ONLINE không điểm danh, thay bằng trạng thái xem video (nạp async bên dưới).
                 let attendText = '<span class="text-muted small">Chưa điểm danh</span>';
-                if (s.ATTENDANCE_STATUS) {
+                if (isOnline) {
+                    attendText = `<span class="badge bg-secondary" id="video-watch-badge-${s.ID}">Đang tải...</span>`;
+                } else if (s.ATTENDANCE_STATUS) {
                     const attMap = {
                         'PRESENT': { cls: 'bg-success', lbl: 'Có mặt' },
                         'LATE':    { cls: 'bg-warning text-dark', lbl: 'Đi muộn' },
@@ -407,16 +577,98 @@
                                 </div>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
-                                <span class="small text-muted"><i class="bi bi-geo-alt me-1"></i>Địa điểm: ${s.LOCATION || 'Phòng học'}</span>
-                                <a href="${window.TRAINING_URLS.sessionDetailTemplate.replace('__ID__', s.ID)}" class="btn btn-sm btn-primary px-3 rounded-2 fw-bold d-flex align-items-center gap-1">
-                                    <i class="bi bi-qr-code-scan" style="font-size: 1rem;"></i>
-                                    Điểm danh & Chi tiết
-                                </a>
+                                ${isOnline ? '' : `<span class="small text-muted"><i class="bi bi-geo-alt me-1"></i>Địa điểm: ${s.LOCATION || 'Phòng học'}</span>`}
+                                ${isOnline
+                                    ? `<button type="button" onclick="openSessionVideo(${s.ID}, ${s.SESSION_NO})" class="btn btn-sm btn-primary px-3 rounded-2 fw-bold d-flex align-items-center gap-1 ms-auto">
+                                           <i class="bi bi-play-circle" style="font-size: 1rem;"></i>
+                                           Xem video bài học
+                                       </button>`
+                                    : `<a href="${window.TRAINING_URLS.sessionDetailTemplate.replace('__ID__', s.ID)}" class="btn btn-sm btn-primary px-3 rounded-2 fw-bold d-flex align-items-center gap-1">
+                                           <i class="bi bi-qr-code-scan" style="font-size: 1rem;"></i>
+                                           Điểm danh & Chi tiết
+                                       </a>`}
                             </div>
                         </div>
                     </div>
                 `;
             });
+
+            if (isOnline) {
+                list.forEach(s => refreshVideoWatchBadge(s.ID));
+            }
+        }
+
+        // Trạng thái xem video của buổi (đào tạo online) — "Đã xem hết" chỉ khi TẤT CẢ video bắt
+        // buộc của buổi đã IS_COMPLETED=1 (khớp gate thật ở TrainingAttemptService.StartAttemptAsync).
+        function refreshVideoWatchBadge(sessionId) {
+            fetch(`${window.TRAINING_URLS.getSessionVideoMaterials}?sessionId=${sessionId}`)
+                .then(r => r.json())
+                .then(res => {
+                    const badge = document.getElementById(`video-watch-badge-${sessionId}`);
+                    if (!badge) return;
+                    const mats = (res.success && res.data) || [];
+                    if (mats.length === 0) {
+                        badge.className = 'badge bg-secondary';
+                        badge.textContent = 'Chưa có video';
+                        return;
+                    }
+                    const allDone = mats.every(m => m.IS_COMPLETED === 1);
+                    badge.className = allDone ? 'badge bg-success' : 'badge bg-warning text-dark';
+                    badge.textContent = allDone ? 'Đã xem hết' : 'Chưa xem hết';
+                });
+        }
+
+        let videoProgressTimer = null;
+        let currentVideoMaterialId = null;
+
+        function openSessionVideo(sessionId, sessionNo) {
+            fetch(`${window.TRAINING_URLS.getSessionVideoMaterials}?sessionId=${sessionId}`)
+                .then(r => r.json())
+                .then(res => {
+                    const mats = (res.success && res.data) || [];
+                    const video = mats.find(m => m.FILE_TYPE === 'MP4');
+                    if (!video) {
+                        window.showToast('Buổi học này chưa có video.', 'warning');
+                        return;
+                    }
+                    currentVideoMaterialId = video.ID;
+                    document.getElementById('svp-title').textContent = `Buổi ${sessionNo}: ${video.TITLE}`;
+                    const el = document.getElementById('svp-video-el');
+                    el.src = video.FILE_URL;
+                    // Set currentTime sau khi metadata load xong — set ngay lúc gán src có thể bị bỏ qua ở 1 số trình duyệt.
+                    el.addEventListener('loadedmetadata', function onMeta() {
+                        el.currentTime = video.LAST_POSITION_SEC || 0;
+                        el.removeEventListener('loadedmetadata', onMeta);
+                    });
+                    new bootstrap.Modal(document.getElementById('sessionVideoPlayerModal')).show();
+
+                    document.getElementById('sessionVideoPlayerModal').addEventListener('hidden.bs.modal', function onHide() {
+                        el.pause();
+                        el.removeAttribute('src');
+                        el.load();
+                        if (videoProgressTimer) { clearInterval(videoProgressTimer); videoProgressTimer = null; }
+                        refreshVideoWatchBadge(sessionId);
+                        this.removeEventListener('hidden.bs.modal', onHide);
+                    });
+
+                    if (videoProgressTimer) clearInterval(videoProgressTimer);
+                    videoProgressTimer = setInterval(() => reportVideoProgress(el, false), 5000);
+                    el.onended = () => reportVideoProgress(el, true);
+                });
+        }
+
+        function reportVideoProgress(el, isEnded) {
+            if (!currentVideoMaterialId || !el.duration) return;
+            fetch(window.TRAINING_URLS.updateVideoProgress, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    MATERIAL_ID: currentVideoMaterialId,
+                    POSITION_SEC: Math.floor(el.currentTime),
+                    DURATION_SEC: Math.floor(el.duration),
+                    IS_ENDED: isEnded
+                })
+            }).catch(() => {});
         }
 
         function loadTestsList() {
@@ -531,5 +783,351 @@
                         `;
                     });
         }
+
+        // ═══════════════════════════════════════════════════════════
+        //  TÀI LIỆU HỌC TẬP — gộp từ Materials.cshtml, dùng chung classData
+        //  đã tải sẵn (không cần fetch riêng — đỡ 1 request/mobile).
+        // ═══════════════════════════════════════════════════════════
+
+        function renderMaterials() {
+            const mList = document.getElementById('materials-list');
+            const list = (classData && classData.materials) || [];
+
+            // Ghi số lượng ngay trên tiêu đề — công nhân nhìn là biết bên trong có gì, khỏi phải bấm thử.
+            const mBadge = document.getElementById('materials-count-badge');
+            mBadge.classList.toggle('d-none', list.length === 0);
+            mBadge.textContent = list.length;
+
+            if (list.length === 0) {
+                mList.innerHTML = `
+                    <div class="col-12 text-center py-4">
+                        <i class="bi bi-folder2-open text-muted" style="font-size: 3.5rem;"></i>
+                        <h6 class="fw-bold mt-2">Chưa có tài liệu nào</h6>
+                        <p class="text-muted small mb-0">Giảng viên chưa tải lên tài liệu học tập cho lớp này.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            mList.innerHTML = '';
+            list.forEach(m => {
+                let icon = 'bi-file-earmark';
+                if (m.FILE_TYPE === 'PDF') icon = 'bi-file-earmark-pdf';
+                else if (m.FILE_TYPE === 'XLS' || m.FILE_TYPE === 'XLSX') icon = 'bi-file-earmark-spreadsheet';
+                else if (m.FILE_TYPE === 'DOC' || m.FILE_TYPE === 'DOCX') icon = 'bi-file-earmark-text';
+                else if (m.FILE_TYPE === 'MP4') icon = 'bi-camera-video';
+                else if (m.FILE_TYPE === 'IMG') icon = 'bi-file-earmark-image';
+
+                const reqBadge = m.IS_REQUIRED === 1 ? '<span class="badge bg-danger ms-2 small">Bắt buộc</span>' : '';
+                const viewedBadge = m.HAS_VIEWED === 1
+                    ? '<span class="badge bg-success ms-1 small">Đã xem</span>'
+                    : '<span class="badge bg-secondary ms-1 small">Chưa xem</span>';
+
+                mList.innerHTML += `
+                    <div class="col-12 col-md-6 mb-3">
+                        <div class="card border-0 shadow-sm p-3 h-100 material-card">
+                            <div class="d-flex align-items-center material-row">
+                                <div class="material-icon bg-gradient-primary rounded-3 p-3 text-white d-flex align-items-center justify-content-center">
+                                    <i class="${icon}" style="font-size: 2.2rem;"></i>
+                                </div>
+                                <div class="flex-fill min-w-0">
+                                    <h6 class="fw-bold text-dark text-truncate mb-1" title="${m.TITLE}">${m.TITLE}</h6>
+                                    <p class="text-muted small material-meta mb-0">${m.FILE_TYPE} | ${reqBadge} ${viewedBadge}</p>
+                                </div>
+                                <div class="material-actions d-flex gap-1">
+                                    ${m.FILE_TYPE === 'LINK' ? `
+                                    <button onclick="previewMaterial(${m.ID}, '${m.FILE_URL}')" class="btn btn-sm btn-outline-primary rounded-3 fw-bold d-flex align-items-center gap-1">
+                                        <i class="bi bi-box-arrow-up-right"></i> Mở liên kết
+                                    </button>` : `
+                                    <a href="${buildPreviewUrl(m)}" title="Xem trước" class="btn btn-sm btn-outline-primary rounded-circle p-2.5 d-flex align-items-center justify-content-center">
+                                        <i class="bi bi-eye" style="font-size: 1.1rem;"></i>
+                                    </a>
+                                    <button onclick="downloadMaterial(${m.ID}, '${m.FILE_URL}', '${(m.FILE_NAME || m.TITLE || 'tailieu').replace(/'/g, "\\'")}')" title="Tải về" class="btn btn-sm btn-primary rounded-circle p-2.5 d-flex align-items-center justify-content-center shadow-sm">
+                                        <i class="bi bi-download" style="font-size: 1.1rem;"></i>
+                                    </button>`}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Link sang trang xem trước trong app (có header + nút quay lại), tránh window.open() ra
+        // file thô — vừa không có UI quay lại, vừa gây lỗi rớt session trên 1 số WebView.
+        function buildPreviewUrl(m) {
+            const params = new URLSearchParams({
+                id: m.ID,
+                classId: classId,
+                title: m.TITLE || '',
+                fileType: m.FILE_TYPE || '',
+                fileUrl: m.FILE_URL || ''
+            });
+            return `${window.TRAINING_URLS.materialPreviewTemplate}?${params.toString()}`;
+        }
+
+        function trackView(materialId) {
+            return fetch(window.TRAINING_URLS.trackMaterialView, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ MATERIAL_ID: materialId })
+            });
+        }
+
+        // Xem trước — mở file/link trong tab mới (PDF/ảnh/video render trực tiếp trên trình duyệt).
+        function previewMaterial(materialId, url) {
+            trackView(materialId).then(() => {
+                window.open(url, '_blank');
+                renderMaterials();
+            });
+        }
+
+        // Tải về — ép trình duyệt tải file xuống thay vì mở xem, dùng thẻ <a download>.
+        function downloadMaterial(materialId, url, fileName) {
+            trackView(materialId).then(() => {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                renderMaterials();
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  HỎI ĐÁP Q&A — gộp từ QA.cshtml, nạp lười khi bấm tab lần đầu.
+        // ═══════════════════════════════════════════════════════════
+
+        function loadQAList() {
+            const qaWrap = document.getElementById('qa-list');
+            fetch(`${window.TRAINING_URLS.getQAList}?classId=${classId}&empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        qaWrap.innerHTML = `<div class="alert alert-warning">${res.message || 'Lỗi tải Q&A.'}</div>`;
+                        return;
+                    }
+
+                    const list = res.data || [];
+
+                    // Ghi số lượng ngay trên tiêu đề — giống Tài liệu, để công nhân biết đã có
+                    // thảo luận/trả lời trong đó mà không cần bấm mở thử.
+                    const qBadge = document.getElementById('qa-count-badge');
+                    qBadge.classList.toggle('d-none', list.length === 0);
+                    qBadge.textContent = list.length;
+
+                    if (list.length === 0) {
+                        qaWrap.innerHTML = `
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-chat-dots text-muted" style="font-size: 3.5rem;"></i>
+                                <h6 class="fw-bold mt-2">Chưa có thảo luận nào</h6>
+                                <p class="text-muted small mb-0">Hãy đặt câu hỏi đầu tiên ở khung nhập phía trên!</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    qaWrap.innerHTML = '';
+                    list.forEach(q => {
+                        const isAnswered = !!q.ANSWER_TEXT;
+
+                        let answerBlock = '';
+                        if (isAnswered) {
+                            answerBlock = `
+                                <div class="bg-light border-start border-success border-3 p-3 mt-3 rounded-2" style="margin-left: 20px;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="fw-bold small text-success"><i class="bi bi-person-badge me-1"></i>Giảng viên: <span class="vni-font">${q.ANSWERED_BY_NAME || q.ANSWERED_BY}</span></span>
+                                        <span class="text-muted small">${new Date(q.ANSWERED_DT).toLocaleDateString('vi-VN')}</span>
+                                    </div>
+                                    <p class="mb-0 text-dark small">${q.ANSWER_TEXT}</p>
+                                </div>
+                            `;
+                        } else {
+                            answerBlock = `
+                                <div class="p-2 mt-2" style="margin-left: 20px;">
+                                    <p class="text-muted small mb-0 italic"><i class="bi bi-clock me-1"></i>Đang chờ giáo viên phản hồi...</p>
+                                </div>
+                            `;
+                        }
+
+                        const orgParts = [q.ASKED_BY_DEPT_NAME, q.ASKED_BY_LINE_NAME, q.ASKED_BY_WORK_NAME].filter(Boolean);
+                        const orgLine = orgParts.length
+                            ? `<div class="small text-muted"><i class="bi bi-diagram-3 me-1"></i>${orgParts.join(' / ')}</div>`
+                            : '';
+                        const groupBadge = q.ASKED_BY_GROUP_NAME
+                            ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-2">${q.ASKED_BY_GROUP_NAME}</span>`
+                            : '';
+
+                        qaWrap.innerHTML += `
+                            <div class="card border p-3 mb-3" style="border-radius: 12px; background: #fff;">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <span class="fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Học viên: <span class="vni-font">${q.ASKED_BY_NAME || q.ASKED_BY}</span>${groupBadge}</span>
+                                        ${orgLine}
+                                    </div>
+                                    <span class="text-muted small">${new Date(q.ASKED_DT).toLocaleDateString('vi-VN')}</span>
+                                </div>
+                                <p class="mb-0 text-secondary">${q.QUESTION_TEXT}</p>
+                                ${answerBlock}
+                            </div>
+                        `;
+                    });
+                })
+                .catch(err => {
+                    qaWrap.innerHTML = `<div class="alert alert-danger">Lỗi kết nối: ${err.message}</div>`;
+                });
+        }
+
+        function askQuestion() {
+            const input = document.getElementById('qa-input');
+            const text = input.value.trim();
+            if (!text) {
+                window.showToast('Vui lòng nhập nội dung câu hỏi!', 'warning');
+                return;
+            }
+
+            fetch(window.TRAINING_URLS.askQuestion, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ CLASS_ID: classId, QUESTION_TEXT: text })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast('Đã gửi câu hỏi thành công!', 'success');
+                    input.value = '';
+                    loadQAList();
+                } else {
+                    window.showToast(res.message || 'Không thể gửi câu hỏi.', 'error');
+                }
+            })
+            .catch(err => {
+                window.showToast('Lỗi gửi câu hỏi: ' + err.message, 'error');
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  ĐÁNH GIÁ & PHẢN HỒI — gộp từ Review.cshtml, nạp lười khi bấm tab lần đầu.
+        // ═══════════════════════════════════════════════════════════
+
+        let selectedContentRating = 0;
+        let selectedTeacherRating = 0;
+
+        function loadReviewForm() {
+            const card = document.getElementById('review-form-card');
+
+            fetch(`${window.TRAINING_URLS.getMyReview}?id=${classId}&empcd=${empCd}`)
+                .then(r => r.json())
+                .then(res => {
+                    const review = res.data;
+
+                    if (review) {
+                        const contentRating = review.RATING_CONTENT || review.ratingContent || review.rating_content || 0;
+                        const teacherRating = review.RATING_TEACHER || review.ratingTeacher || review.rating_teacher || 0;
+                        const commentText = review.COMMENT_TEXT || review.commentText || review.comment_text || '';
+
+                        card.innerHTML = `
+                            <div class="text-center py-4">
+                                <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+                                <h4 class="fw-bold text-dark mt-3">Cảm ơn bạn đã phản hồi!</h4>
+                                <p class="text-muted">Bạn đã hoàn thành đánh giá chất lượng cho khoá học này.</p>
+
+                                <div class="bg-light p-4 mt-4 rounded-3 text-start border">
+                                    <div class="mb-3 border-bottom pb-2">
+                                        <span class="small text-muted d-block mb-1">Chất lượng nội dung:</span>
+                                        <div class="text-warning fs-4">${'★'.repeat(contentRating)}${'☆'.repeat(5 - contentRating)}</div>
+                                    </div>
+                                    <div class="mb-3 border-bottom pb-2">
+                                        <span class="small text-muted d-block mb-1">Chất lượng giảng dạy:</span>
+                                        <div class="text-warning fs-4">${'★'.repeat(teacherRating)}${'☆'.repeat(5 - teacherRating)}</div>
+                                    </div>
+                                    <div>
+                                        <span class="small text-muted d-block mb-1">Ý kiến đóng góp:</span>
+                                        <p class="mb-0 text-dark small">${commentText || 'Không có ý kiến đóng góp'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        card.innerHTML = `
+                            <h4 class="fw-bold text-dark text-center mb-3">Đánh giá Lớp học</h4>
+                            <p class="text-muted text-center small mb-4">Ý kiến đóng góp của bạn giúp chúng tôi cải thiện chất lượng đào tạo tốt hơn.</p>
+
+                            <div class="mb-4 text-center">
+                                <label class="fw-bold small text-muted d-block mb-2">Chất lượng nội dung khoá học</label>
+                                <div class="d-flex justify-content-center gap-1">
+                                    ${[1,2,3,4,5].map(num => `<i onclick="rateStar('content', ${num})" class="bi bi-star star-rating rating-c-${num}"></i>`).join('')}
+                                </div>
+                            </div>
+
+                            <div class="mb-4 text-center">
+                                <label class="fw-bold small text-muted d-block mb-2">Chất lượng giảng viên giảng dạy</label>
+                                <div class="d-flex justify-content-center gap-1">
+                                    ${[1,2,3,4,5].map(num => `<i onclick="rateStar('teacher', ${num})" class="bi bi-star star-rating rating-t-${num}"></i>`).join('')}
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="fw-bold small text-muted mb-2">Ý kiến đóng góp khác (tuỳ chọn)</label>
+                                <textarea id="review-comment" class="form-control" placeholder="Nhập ý kiến đóng góp của bạn..." rows="3" style="border-radius: 12px;"></textarea>
+                            </div>
+
+                            <div class="d-grid">
+                                <button onclick="submitReview()" class="btn btn-primary py-3 rounded-3 fw-bold shadow-sm">Gửi đánh giá</button>
+                            </div>
+                        `;
+                    }
+                });
+        }
+
+        window.rateStar = function(type, num) {
+            const prefix = type === 'content' ? 'c' : 't';
+            if (type === 'content') selectedContentRating = num; else selectedTeacherRating = num;
+            for (let i = 1; i <= 5; i++) {
+                const el = document.querySelector(`.rating-${prefix}-${i}`);
+                if (i <= num) {
+                    el.classList.remove('bi-star');
+                    el.classList.add('bi-star-fill', 'active');
+                } else {
+                    el.classList.remove('bi-star-fill', 'active');
+                    el.classList.add('bi-star');
+                }
+            }
+        };
+
+        window.submitReview = function() {
+            if (selectedContentRating === 0 || selectedTeacherRating === 0) {
+                window.showToast('Vui lòng chọn số sao đánh giá!', 'warning');
+                return;
+            }
+
+            const comment = document.getElementById('review-comment').value.trim();
+
+            fetch(window.TRAINING_URLS.submitReview, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    CLASS_ID: classId,
+                    EMPCD: empCd,
+                    RATING_CONTENT: selectedContentRating,
+                    RATING_TEACHER: selectedTeacherRating,
+                    COMMENT_TEXT: comment
+                })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    window.showToast('Gửi đánh giá thành công!', 'success');
+                    loadReviewForm();
+                    // Đã nộp — tắt banner + chấm đỏ nhắc ngay, khỏi phải tải lại trang.
+                    if (classData && classData.myEnrollment) classData.myEnrollment.HAS_REVIEWED = true;
+                    checkReviewReminder();
+                } else {
+                    window.showToast(res.message || 'Lỗi gửi đánh giá.', 'error');
+                }
+            })
+            .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+        };
     </script>
 }

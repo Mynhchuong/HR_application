@@ -56,14 +56,14 @@ public class AttendanceConfirmController : ControllerBase
 
     // GET /apiHR/AttendanceConfirm/my-pending — danh sách ngày NV cần khai/khai lại (badge menu + gợi ý WorkerForm)
     [HttpGet("my-pending")]
-    public async Task<IActionResult> GetMyPending(string empcd, int days = 60)
+    public async Task<IActionResult> GetMyPending(string empcd)
     {
         try
         {
             if (string.IsNullOrWhiteSpace(empcd))
                 return Ok(new { success = false, message = "Thiếu mã nhân viên", count = 0, data = new List<object>() });
 
-            var list = await _svc.GetMyPendingDaysAsync(empcd, days);
+            var list = await _svc.GetMyPendingDaysAsync(empcd);
             return Ok(new { success = true, count = list.Count, data = list });
         }
         catch (Exception ex)

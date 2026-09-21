@@ -63,6 +63,8 @@ public class TrainingEnrollmentService
     // 1 enrollment cụ thể — student class detail dùng để biết nhóm của chính mình (GV nhóm nào dạy mình)
     public async Task<EnrollmentModel?> GetOneAsync(int classId, string empcd)
     {
+        // Kèm REQUIRE_POST_REVIEW + HAS_REVIEWED — ClassDetail (học viên) dùng 2 field này để hiện
+        // banner nhắc đánh giá, giống hệt cách GetMyClassesAsync/MapEnrollmentWithClass đã làm.
         return (await _db.ExecuteQueryAsync(@"
             SELECT E.CLASS_ID, E.EMPCD, EC.CNAME AS EMP_NAME,
                    EC.DEPTCD, EC.LINECD, EC.WORKCD,
@@ -70,13 +72,23 @@ public class TrainingEnrollmentService
                    E.SOURCE, E.STATUS, E.DROP_REASON,
                    E.GROUP_ID, G.GROUP_NAME,
                    E.FINAL_SCORE, E.ATTENDANCE_PERCENT, E.IS_CERTIFIED, E.COMPLETION_DATE,
-                   E.INST_ID, E.INST_DT, E.UPDT_ID, E.UPDT_DT
+                   E.INST_ID, E.INST_DT, E.UPDT_ID, E.UPDT_DT,
+                   CL.REQUIRE_POST_REVIEW,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_REVIEW RV
+                     WHERE RV.CLASS_ID = E.CLASS_ID AND RV.EMPCD = E.EMPCD) AS REVIEW_CNT
               FROM HRMS.HR_TRAINING_ENROLLMENT E
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = E.CLASS_ID
               LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = E.EMPCD
               LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
               LEFT JOIN HRMS.HR_TRAINING_CLASS_GROUP G ON G.ID = E.GROUP_ID
              WHERE E.CLASS_ID = :CID AND E.EMPCD = :EMP",
-            MapEnrollment,
+            r =>
+            {
+                var e = MapEnrollment(r);
+                e.REQUIRE_POST_REVIEW = (r["REQUIRE_POST_REVIEW"]?.ToString() ?? "0") == "1";
+                e.HAS_REVIEWED = (r["REVIEW_CNT"] is DBNull ? 0 : Convert.ToInt32(r["REVIEW_CNT"])) > 0;
+                return e;
+            },
             new OracleParameter("CID", classId),
             new OracleParameter("EMP", empcd))).FirstOrDefault();
     }
@@ -484,7 +496,7 @@ public class TrainingEnrollmentService
                    E.GROUP_ID, G.GROUP_NAME,
                    E.FINAL_SCORE, E.ATTENDANCE_PERCENT, E.IS_CERTIFIED, E.COMPLETION_DATE,
                    E.INST_ID, E.INST_DT, E.UPDT_ID, E.UPDT_DT,
-                   CL.CLASS_NAME, CL.STATUS AS CLASS_STATUS,
+                   CL.CLASS_NAME, CL.STATUS AS CLASS_STATUS, CL.DELIVERY_MODE,
                    CL.START_DATE AS CLASS_START_DATE, CL.END_DATE AS CLASS_END_DATE,
                    CL.REQUIRE_POST_REVIEW,
                    CO.TITLE AS COURSE_TITLE, CO.COURSE_MODE AS CLASS_MODE,
@@ -493,16 +505,35 @@ public class TrainingEnrollmentService
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S
                      WHERE S.CLASS_ID = E.CLASS_ID
                        AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)) AS TOTAL_SESSIONS,
-                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ATTENDANCE A
-                     WHERE A.EMPCD = E.EMPCD
-                       AND A.STATUS IN ('PRESENT', 'LATE')
-                       AND A.TEACHER_CONFIRMED = 1
-                       AND A.SESSION_ID IN (
-                           SELECT S.ID FROM HRMS.HR_TRAINING_SESSION S
-                            WHERE S.CLASS_ID = E.CLASS_ID
-                              AND S.STATUS = 'COMPLETED'
-                              AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)
-                       )) AS COMPLETED_SESSIONS,
+                   -- Lớp ONLINE không điểm danh — buổi đã hoàn thành tính theo đã xem hết
+                   -- video bắt buộc của buổi đó thay vì HR_TRAINING_ATTENDANCE.
+                   (CASE WHEN CL.DELIVERY_MODE = 'ONLINE' THEN
+                       (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S
+                         WHERE S.CLASS_ID = E.CLASS_ID
+                           AND S.STATUS != 'CANCELLED'
+                           AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)
+                           AND NOT EXISTS (
+                               -- Dùng :EMP (bind var) thay vì E.EMPCD — Oracle không cho correlated
+                               -- subquery tham chiếu alias cách 2 cấp qua JOIN...ON (ORA-00904).
+                               SELECT 1 FROM HRMS.HR_TRAINING_MATERIAL M
+                               LEFT JOIN HRMS.HR_TRAINING_VIDEO_PROGRESS VP
+                                      ON VP.MATERIAL_ID = M.ID AND VP.EMPCD = :EMP
+                                WHERE M.SESSION_ID = S.ID
+                                  AND M.MATERIAL_LEVEL = 'SESSION' AND M.FILE_TYPE = 'MP4' AND M.IS_REQUIRED = 1
+                                  AND NVL(VP.IS_COMPLETED, 0) = 0
+                           ))
+                   ELSE
+                       (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ATTENDANCE A
+                         WHERE A.EMPCD = E.EMPCD
+                           AND A.STATUS IN ('PRESENT', 'LATE')
+                           AND A.TEACHER_CONFIRMED = 1
+                           AND A.SESSION_ID IN (
+                               SELECT S.ID FROM HRMS.HR_TRAINING_SESSION S
+                                WHERE S.CLASS_ID = E.CLASS_ID
+                                  AND S.STATUS = 'COMPLETED'
+                                  AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)
+                           ))
+                   END) AS COMPLETED_SESSIONS,
                    (SELECT T_EC.CNAME FROM HRMS.HR_TRAINING_CLASS_TEACHER T
                       LEFT JOIN HRMS.ECM100 T_EC ON T_EC.EMPCD = T.EMPCD
                      WHERE T.CLASS_ID = E.CLASS_ID AND T.IS_PRIMARY = 1 AND ROWNUM = 1) AS PRIMARY_TEACHER_NAME
@@ -591,6 +622,7 @@ public class TrainingEnrollmentService
         e.CLASS_END_DATE       = r["CLASS_END_DATE"] as DateTime?;
         e.COURSE_TITLE         = r["COURSE_TITLE"] as string;
         e.CLASS_MODE           = r["CLASS_MODE"] as string;
+        e.DELIVERY_MODE        = r["DELIVERY_MODE"]?.ToString() ?? "OFFLINE";
         e.TOTAL_SESSIONS       = r["TOTAL_SESSIONS"] is DBNull ? 0 : Convert.ToInt32(r["TOTAL_SESSIONS"]);
         e.COMPLETED_SESSIONS   = r["COMPLETED_SESSIONS"] is DBNull ? 0 : Convert.ToInt32(r["COMPLETED_SESSIONS"]);
         e.PRIMARY_TEACHER_NAME = r["PRIMARY_TEACHER_NAME"] as string;

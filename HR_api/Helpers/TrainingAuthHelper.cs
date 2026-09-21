@@ -147,7 +147,8 @@ public class TrainingAuthHelper
         return rows.Any();
     }
 
-    // Check user là teacher của material không
+    // Check user là teacher của material không (level CLASS hoặc SESSION — video từng buổi online
+    // không có CLASS_ID trực tiếp, phải join qua HR_TRAINING_SESSION để lấy CLASS_ID).
     public async Task<bool> IsTeacherOfMaterialAsync(string empcd, int materialId)
     {
         if (string.IsNullOrWhiteSpace(empcd)) return false;
@@ -156,6 +157,16 @@ public class TrainingAuthHelper
               JOIN HRMS.HR_TRAINING_MATERIAL M ON M.CLASS_ID = CT.CLASS_ID
               JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = CT.CLASS_ID
              WHERE M.ID = :MATERIAL_ID
+               AND CT.EMPCD = :EMPCD
+               AND CL.STATUS <> 'DRAFT'
+               AND ROWNUM = 1
+            UNION ALL
+            SELECT 1 FROM HRMS.HR_TRAINING_CLASS_TEACHER CT
+              JOIN HRMS.HR_TRAINING_MATERIAL M ON M.SESSION_ID IS NOT NULL
+              JOIN HRMS.HR_TRAINING_SESSION S ON S.ID = M.SESSION_ID
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = S.CLASS_ID
+             WHERE M.ID = :MATERIAL_ID
+               AND CT.CLASS_ID = S.CLASS_ID
                AND CT.EMPCD = :EMPCD
                AND CL.STATUS <> 'DRAFT'
                AND ROWNUM = 1",

@@ -89,26 +89,6 @@ public class TrainingController : BaseController
         return View();
     }
 
-    // GET /Training/QA/{id}
-    public IActionResult QA(int id)
-    {
-        var empcd = CurrentUser?.EmpCd;
-        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
-        ViewBag.EmpCd = empcd;
-        ViewBag.ClassId = id;
-        return View();
-    }
-
-    // GET /Training/Materials/{id}
-    public IActionResult Materials(int id)
-    {
-        var empcd = CurrentUser?.EmpCd;
-        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
-        ViewBag.EmpCd = empcd;
-        ViewBag.ClassId = id;
-        return View();
-    }
-
     // GET /Training/MaterialPreview/{id} — trang xem trước tài liệu có header + nút "Quay lại"
     // trong app, thay vì window.open() thẳng ra file thô (không có UI quay lại, và trên iOS
     // WKWebView việc mở "cửa sổ mới" qua window.open còn khiến session cookie rớt → bị đá về
@@ -145,16 +125,6 @@ public class TrainingController : BaseController
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
         ViewBag.EmpCd = empcd;
         ViewBag.TestId = id;
-        return View();
-    }
-
-    // GET /Training/Review/{id}
-    public IActionResult Review(int id)
-    {
-        var empcd = CurrentUser?.EmpCd;
-        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
-        ViewBag.EmpCd = empcd;
-        ViewBag.ClassId = id;
         return View();
     }
 
@@ -201,6 +171,26 @@ public class TrainingController : BaseController
         var empcd = CurrentUser?.EmpCd ?? "";
         var res = await _training.GetFromApiAsync<object>($"Training/session/{sessionId}/detail", $"empcd={empcd}");
         return Json(res);
+    }
+
+    // GET /Training/GetSessionVideoMaterials?sessionId= — video buổi học + tiến độ xem (đào tạo online)
+    [HttpGet]
+    public async Task<IActionResult> GetSessionVideoMaterials(int sessionId)
+    {
+        var empcd = CurrentUser?.EmpCd ?? "";
+        var res = await _training.GetFromApiAsync<object>($"Training/session/{sessionId}/materials", $"empcd={empcd}");
+        return Json(res);
+    }
+
+    // POST /Training/UpdateVideoProgress — học viên báo tiến độ xem video (đào tạo online)
+    [HttpPost]
+    public async Task<IActionResult> UpdateVideoProgress([FromBody] UpdateVideoProgressRequest req)
+    {
+        req.EMPCD = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync("Training/videoprogress/update", req);
+        if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
+        var json = await response.Content.ReadAsStringAsync();
+        return Content(json, "application/json");
     }
 
     [HttpPost]

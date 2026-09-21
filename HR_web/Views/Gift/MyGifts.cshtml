@@ -11,6 +11,8 @@
     .gf-empty { text-align: center; padding: 40px 16px; color: #94a3b8; }
     .gf-img { width: 100%; max-height: 200px; object-fit: cover; border-radius: 10px; margin-bottom: 10px; }
     .gf-combo-label { font-size: .78rem; font-weight: 700; color: #831843; margin-top: 8px; margin-bottom: 4px; }
+    .gf-hero { text-align: center; padding: 6px 0 12px; }
+    .gf-hero img { height: 110px; width: auto; object-fit: contain; }
 </style>
 }
 
@@ -22,6 +24,9 @@
             </div>
         </div>
         <div class="card-body">
+            <div class="gf-hero">
+                <img src="@Url.Content("~/assets/img/illustrations/qua.png")" alt="Quà tặng" />
+            </div>
             <p class="text-sm text-secondary">Bạn cần xác nhận đã nhận quà bên dưới để tiếp tục sử dụng ứng dụng.</p>
             <div id="gfLoading" class="text-center py-4"><div class="spinner-border text-danger"></div></div>
             <div id="gfList" style="display:none;"></div>

@@ -394,6 +394,14 @@ public class TrainingSessionService
         if (session.STATUS is "COMPLETED" or "CANCELLED")
             return (false, $"Session đang {session.STATUS}, không check-in được");
 
+        // Lớp ONLINE không điểm danh — chặn ở backend dù UI không hiện nút check-in.
+        var deliveryMode = (await _db.ExecuteQueryAsync(
+            "SELECT DELIVERY_MODE FROM HRMS.HR_TRAINING_CLASS WHERE ID = :CID",
+            r => r["DELIVERY_MODE"]?.ToString() ?? "OFFLINE",
+            new OracleParameter("CID", session.CLASS_ID))).FirstOrDefault();
+        if (deliveryMode == "ONLINE")
+            return (false, "Lớp học online không cần điểm danh");
+
         // Verify student là ENROLLED và nằm trong scope group của session
         var okEnroll = (await _db.ExecuteQueryAsync(@"
             SELECT E.EMPCD FROM HRMS.HR_TRAINING_ENROLLMENT E

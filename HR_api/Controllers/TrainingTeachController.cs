@@ -174,6 +174,13 @@ public class TrainingTeachController : ControllerBase
                 return StatusCode(403, new { success = false, message = "Bạn không có quyền tải tài liệu lên lớp học này" });
             }
         }
+        else if (req.SESSION_ID.HasValue)
+        {
+            if (!await _auth.IsTeacherOfSessionAsync(req.LOGIN_USER, req.SESSION_ID.Value) && !await _auth.IsHrOrAdminAsync(req.LOGIN_USER))
+            {
+                return StatusCode(403, new { success = false, message = "Bạn không có quyền tải video lên buổi học này" });
+            }
+        }
         else
         {
             if (!await _auth.IsHrOrAdminAsync(req.LOGIN_USER))

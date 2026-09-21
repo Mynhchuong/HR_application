@@ -20,13 +20,13 @@
     border-radius: 16px;
     box-shadow: 0 6px 20px rgba(99, 102, 241, .2);
 }
-.home-greeting-hi { font-size: 0.85rem; opacity: 0.9; line-height: 1.4; }
+.home-greeting-hi { font-size: 0.75rem; opacity: 0.9; line-height: 1.4; }
 .home-greeting-message {
-    font-size: 1.05rem; font-weight: 600; margin-top: 6px; line-height: 1.4;
+    font-size: 0.92rem; font-weight: 600; margin-top: 6px; line-height: 1.4;
     display: inline;   /* để emoji auto flow theo text, không xuống dòng riêng */
 }
 .home-greeting-text { display: inline; }
-.home-greeting-emoji { display: inline-block; font-size: 1.15rem; margin-left: 4px; vertical-align: middle; }
+.home-greeting-emoji { display: inline-block; font-size: 1.02rem; margin-left: 4px; vertical-align: middle; }
 
 @media (min-width: 640px) {
     .home-greeting-bar { padding: 16px 22px; }
@@ -1060,10 +1060,55 @@ body.home-hero-popup-open { overflow: hidden; }
     background: rgba(255, 255, 255, 0.85);
     border: 1px solid rgba(254, 215, 170, 0.7);
     border-radius: 10px;
-    padding: 8px 12px;
+    padding: 7px 10px;
     margin-bottom: 4px;
+    font-size: 0.78rem;
 }
 .home-meallock-item:last-child {
     margin-bottom: 0;
+}
+.home-meallock-note {
+    font-size: 0.72rem;
+    color: #9a3412;
+    margin-top: 2px;
+    font-style: italic;
+    overflow-wrap: break-word;
+}
+.home-meallock-item-head {
+    margin-bottom: 3px;
+}
+/* Nhiều mốc khoá trong cùng 1 ngày — thụt lề nhẹ, có gạch dọc để thấy rõ đang gộp chung 1 ngày */
+.home-meallock-subitem {
+    padding: 3px 0 3px 10px;
+    border-left: 2px solid rgba(234, 88, 12, 0.3);
+    margin-top: 3px;
+}
+.home-meallock-subitem:first-of-type {
+    margin-top: 0;
+}
+
+/* Nút "Xem thêm N lịch khác" — thay vì để danh sách dài tràn cả trang trên mobile */
+.home-meallock-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    margin-top: 2px;
+    padding: 6px 10px;
+    background: rgba(234, 88, 12, 0.08);
+    border: 1px dashed rgba(234, 88, 12, 0.35);
+    border-radius: 10px;
+    color: #c2410c;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+.home-meallock-more:hover {
+    background: rgba(234, 88, 12, 0.15);
+}
+#homeMealLockExtra .home-meallock-item:first-child {
+    margin-top: 4px;
 }
 

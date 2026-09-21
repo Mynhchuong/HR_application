@@ -328,7 +328,9 @@ public class AttendanceConfirmService
     // Các ngày công nhân CẦN tự khai/khai lại (MISSING/PENDING_WORKER/REJECTED) — nguồn cho badge
     // menu sidebar + list gợi ý ngày trên WorkerForm (không cần scope quản lý, chỉ đúng chính NV).
     // ─────────────────────────────────────────────────────────────────────────
-    public async Task<List<MyPendingDayItem>> GetMyPendingDaysAsync(string empcd, int lookbackDays = 60)
+    // Chỉ lấy trong tháng hiện tại (yêu cầu 2026-09-21) — trước đây lookback 60 ngày dồn quá nhiều
+    // ngày cũ vào danh sách gợi ý, công nhân nhấn không hết.
+    public async Task<List<MyPendingDayItem>> GetMyPendingDaysAsync(string empcd)
     {
         if (string.IsNullOrEmpty(empcd)) return new();
 
@@ -344,6 +346,7 @@ public class AttendanceConfirmService
               AND NVL(CF.CONFIRM_STATUS,'MISSING') IN ('MISSING','PENDING_WORKER','REJECTED')
             ORDER BY A.DAT DESC";
 
+        var today = DateTime.Today;
         return await _oracleService.ExecuteQueryAsync(sql, r =>
         {
             var (inMissing, outMissing) = ClassifyReason(r["REASON"]?.ToString());
@@ -355,8 +358,8 @@ public class AttendanceConfirmService
             };
         },
         new OracleParameter("EMPCD",  empcd),
-        new OracleParameter("D_FROM", DateTime.Today.AddDays(-lookbackDays)),
-        new OracleParameter("D_TO",   DateTime.Today));
+        new OracleParameter("D_FROM", new DateTime(today.Year, today.Month, 1)),
+        new OracleParameter("D_TO",   today));
     }
 
     // ─────────────────────────────────────────────────────────────────────────

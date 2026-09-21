@@ -30,7 +30,7 @@ public class TrainingCompletionService
         // Load Class + Course để biết mode + criteria
         var meta = (await _db.ExecuteQueryAsync(@"
             SELECT CL.ID, CL.STATUS, CL.MIN_ATTENDANCE_PERCENT, CL.FINAL_TEST_ID, CL.REQUIRE_POST_REVIEW,
-                   CL.IS_EXPRESS, CO.COURSE_MODE
+                   CL.IS_EXPRESS, CL.DELIVERY_MODE, CO.COURSE_MODE
               FROM HRMS.HR_TRAINING_CLASS CL
               JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID
              WHERE CL.ID = :ID",
@@ -41,6 +41,7 @@ public class TrainingCompletionService
                 FINAL_TEST  = r["FINAL_TEST_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["FINAL_TEST_ID"]),
                 REQ_REVIEW  = Convert.ToInt32(r["REQUIRE_POST_REVIEW"]),
                 IS_EXPRESS  = Convert.ToInt32(r["IS_EXPRESS"]),
+                DELIVERY_MODE = r["DELIVERY_MODE"]?.ToString() ?? "OFFLINE",
                 COURSE_MODE = r["COURSE_MODE"]?.ToString() ?? "STANDARD",
             }, new OracleParameter("ID", req.CLASS_ID))).FirstOrDefault();
         if (meta == null) throw new InvalidOperationException("Không tìm thấy Class");
@@ -83,7 +84,7 @@ public class TrainingCompletionService
             var (att, score, passed, reason) = meta.COURSE_MODE == "EXPRESS"
                 ? await ComputeExpressAsync(req.CLASS_ID, s.EMPCD, s.GROUP_ID, meta.FINAL_TEST)
                 : await ComputeStandardAsync(req.CLASS_ID, s.EMPCD, s.GROUP_ID,
-                    meta.MIN_ATT, meta.FINAL_TEST, meta.REQ_REVIEW == 1);
+                    meta.MIN_ATT, meta.FINAL_TEST, meta.REQ_REVIEW == 1, meta.DELIVERY_MODE == "ONLINE");
 
             // Học viên đã COMPLETED từ trước: chỉ backfill FINAL_SCORE khi tính lại ra điểm hợp lệ
             // (đậu final test). KHÔNG đổi STATUS/COMPLETION_DATE/IS_CERTIFIED — họ đã chốt đậu đúng
@@ -178,7 +179,7 @@ public class TrainingCompletionService
     {
         var meta = (await _db.ExecuteQueryAsync(@"
             SELECT CL.MIN_ATTENDANCE_PERCENT, CL.FINAL_TEST_ID, CL.REQUIRE_POST_REVIEW,
-                   CL.IS_EXPRESS, CO.COURSE_MODE
+                   CL.IS_EXPRESS, CL.DELIVERY_MODE, CO.COURSE_MODE
               FROM HRMS.HR_TRAINING_CLASS CL
               JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID
              WHERE CL.ID = :ID",
@@ -187,6 +188,7 @@ public class TrainingCompletionService
                 MIN_ATT     = Convert.ToDecimal(r["MIN_ATTENDANCE_PERCENT"]),
                 FINAL_TEST  = r["FINAL_TEST_ID"] is DBNull ? (int?)null : Convert.ToInt32(r["FINAL_TEST_ID"]),
                 REQ_REVIEW  = Convert.ToInt32(r["REQUIRE_POST_REVIEW"]),
+                DELIVERY_MODE = r["DELIVERY_MODE"]?.ToString() ?? "OFFLINE",
                 COURSE_MODE = r["COURSE_MODE"]?.ToString() ?? "STANDARD",
             }, new OracleParameter("ID", classId))).FirstOrDefault();
         if (meta == null) return new();
@@ -210,7 +212,7 @@ public class TrainingCompletionService
             var (att, score, passed, reason) = meta.COURSE_MODE == "EXPRESS"
                 ? await ComputeExpressAsync(classId, s.EMPCD, s.GROUP_ID, meta.FINAL_TEST)
                 : await ComputeStandardAsync(classId, s.EMPCD, s.GROUP_ID,
-                    meta.MIN_ATT, meta.FINAL_TEST, meta.REQ_REVIEW == 1);
+                    meta.MIN_ATT, meta.FINAL_TEST, meta.REQ_REVIEW == 1, meta.DELIVERY_MODE == "ONLINE");
 
             result.Add(new CompletionResultModel
             {
@@ -230,12 +232,17 @@ public class TrainingCompletionService
     // ═══════════════════════════════════════════════════════════════
 
     private async Task<(decimal? att, decimal? score, bool passed, string? reason)>
-        ComputeStandardAsync(int classId, string empcd, int? groupId, decimal minAtt, int? finalTestId, bool requireReview)
+        ComputeStandardAsync(int classId, string empcd, int? groupId, decimal minAtt, int? finalTestId, bool requireReview, bool isOnline = false)
     {
-        // Attendance % (§5b.4 group-filtered)
-        var att = await ComputeAttendancePercentAsync(classId, empcd, groupId);
-        if (att < minAtt)
-            return (att, null, false, $"Attendance {att}% < required {minAtt}%");
+        // Lớp ONLINE không điểm danh — bỏ qua hoàn toàn check % chuyên cần (rule "xem hết mới
+        // được test" đã chặn ở TrainingAttemptService.StartAttemptAsync, không cần chặn lại ở đây).
+        decimal? att = null;
+        if (!isOnline)
+        {
+            att = await ComputeAttendancePercentAsync(classId, empcd, groupId);
+            if (att < minAtt)
+                return (att, null, false, $"Attendance {att}% < required {minAtt}%");
+        }
 
         // Final test check
         decimal? score = null;

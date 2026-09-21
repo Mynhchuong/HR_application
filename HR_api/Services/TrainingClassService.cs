@@ -36,7 +36,7 @@ public class TrainingClassService
                    CL.START_DATE, CL.END_DATE,
                    CL.MIN_ATTENDANCE_PERCENT, CL.FINAL_TEST_ID, CL.REQUIRE_POST_REVIEW,
                    CL.IS_EXPRESS, CL.CLONED_FROM_CLASS_ID, CL.CLONED_FROM_TYPE,
-                   CL.BULLETIN_ID,
+                   CL.BULLETIN_ID, CL.DELIVERY_MODE,
                    CL.INST_ID, CL.INST_DT, CL.UPDT_ID, CL.UPDT_DT,
                    CO.TITLE AS COURSE_TITLE, CO.COURSE_MODE,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ENROLLMENT E
@@ -65,7 +65,7 @@ public class TrainingClassService
                    CL.START_DATE, CL.END_DATE,
                    CL.MIN_ATTENDANCE_PERCENT, CL.FINAL_TEST_ID, CL.REQUIRE_POST_REVIEW,
                    CL.IS_EXPRESS, CL.CLONED_FROM_CLASS_ID, CL.CLONED_FROM_TYPE,
-                   CL.BULLETIN_ID,
+                   CL.BULLETIN_ID, CL.DELIVERY_MODE,
                    CL.INST_ID, CL.INST_DT, CL.UPDT_ID, CL.UPDT_DT,
                    CO.TITLE AS COURSE_TITLE, CO.COURSE_MODE
               FROM HRMS.HR_TRAINING_CLASS CL
@@ -80,20 +80,38 @@ public class TrainingClassService
         if (!string.IsNullOrWhiteSpace(empcd))
         {
             var progress = (await _db.ExecuteQueryAsync(@"
-                SELECT 
+                SELECT
                     (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S
                       WHERE S.CLASS_ID = E.CLASS_ID
                         AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)) AS TOTAL_SESSIONS,
-                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ATTENDANCE A
-                      WHERE A.EMPCD = E.EMPCD
-                        AND A.STATUS IN ('PRESENT', 'LATE')
-                        AND A.TEACHER_CONFIRMED = 1
-                        AND A.SESSION_ID IN (
-                            SELECT S.ID FROM HRMS.HR_TRAINING_SESSION S
-                             WHERE S.CLASS_ID = E.CLASS_ID
-                               AND S.STATUS = 'COMPLETED'
-                               AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)
-                        )) AS COMPLETED_SESSIONS
+                    -- Lớp ONLINE không điểm danh — tính đã hoàn thành theo đã xem hết video bắt buộc.
+                    (CASE WHEN :DMODE = 'ONLINE' THEN
+                        (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S
+                          WHERE S.CLASS_ID = E.CLASS_ID
+                            AND S.STATUS != 'CANCELLED'
+                            AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)
+                            AND NOT EXISTS (
+                                -- Dùng :EMP (bind var) thay vì E.EMPCD — Oracle không cho correlated
+                                -- subquery tham chiếu alias cách 2 cấp qua JOIN...ON (ORA-00904).
+                                SELECT 1 FROM HRMS.HR_TRAINING_MATERIAL M
+                                LEFT JOIN HRMS.HR_TRAINING_VIDEO_PROGRESS VP
+                                       ON VP.MATERIAL_ID = M.ID AND VP.EMPCD = :EMP
+                                 WHERE M.SESSION_ID = S.ID
+                                   AND M.MATERIAL_LEVEL = 'SESSION' AND M.FILE_TYPE = 'MP4' AND M.IS_REQUIRED = 1
+                                   AND NVL(VP.IS_COMPLETED, 0) = 0
+                            ))
+                    ELSE
+                        (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ATTENDANCE A
+                          WHERE A.EMPCD = E.EMPCD
+                            AND A.STATUS IN ('PRESENT', 'LATE')
+                            AND A.TEACHER_CONFIRMED = 1
+                            AND A.SESSION_ID IN (
+                                SELECT S.ID FROM HRMS.HR_TRAINING_SESSION S
+                                 WHERE S.CLASS_ID = E.CLASS_ID
+                                   AND S.STATUS = 'COMPLETED'
+                                   AND (S.GROUP_ID IS NULL OR S.GROUP_ID = E.GROUP_ID)
+                            ))
+                    END) AS COMPLETED_SESSIONS
                   FROM HRMS.HR_TRAINING_ENROLLMENT E
                  WHERE E.CLASS_ID = :CID AND E.EMPCD = :EMP",
                 r => new {
@@ -101,7 +119,8 @@ public class TrainingClassService
                     Completed = Convert.ToInt32(r["COMPLETED_SESSIONS"])
                 },
                 new OracleParameter("CID", id),
-                new OracleParameter("EMP", empcd)
+                new OracleParameter("EMP", empcd),
+                new OracleParameter("DMODE", cls.DELIVERY_MODE)
             )).FirstOrDefault();
 
             if (progress != null)
@@ -205,14 +224,14 @@ public class TrainingClassService
                      REGISTRATION_MODE, MAX_STUDENTS, REGISTRATION_DEADLINE,
                      START_DATE, END_DATE,
                      MIN_ATTENDANCE_PERCENT, FINAL_TEST_ID, REQUIRE_POST_REVIEW,
-                     IS_EXPRESS,
+                     IS_EXPRESS, DELIVERY_MODE,
                      INST_ID)
                 VALUES
                     (:COURSE_ID, :CLASS_NAME, :DESCRIPTION, 'DRAFT',
                      :REG_MODE, :MAX_STUDENTS, :REG_DEADLINE,
                      :START_DATE, :END_DATE,
                      :MIN_ATT, :FINAL_TEST, :REQ_REVIEW,
-                     0,
+                     0, :DELIVERY_MODE,
                      :LOGIN_USER)
                 RETURNING ID INTO :NEW_ID";
 
@@ -232,6 +251,7 @@ public class TrainingClassService
                 new OracleParameter("MIN_ATT",      (object?)req.MIN_ATTENDANCE_PERCENT ?? 75m),
                 new OracleParameter("FINAL_TEST",   (object?)req.FINAL_TEST_ID ?? DBNull.Value),
                 new OracleParameter("REQ_REVIEW",   req.REQUIRE_POST_REVIEW ?? 0),
+                new OracleParameter("DELIVERY_MODE", string.IsNullOrWhiteSpace(req.DELIVERY_MODE) ? "OFFLINE" : req.DELIVERY_MODE),
                 new OracleParameter("LOGIN_USER",   req.LOGIN_USER),
                 idParam);
             return OracleService.ConvertToInt(idParam.Value);
@@ -519,7 +539,31 @@ public class TrainingClassService
             new OracleParameter("CID", classId));
 
         await _db.ExecuteNonQueryAsync(@"
-            DELETE FROM HRMS.HR_TRAINING_ATTENDANCE 
+            DELETE FROM HRMS.HR_TRAINING_ATTENDANCE
+            WHERE SESSION_ID IN (
+                SELECT ID FROM HRMS.HR_TRAINING_SESSION WHERE CLASS_ID = :CID
+            )", new OracleParameter("CID", classId));
+
+        // Video/tài liệu gắn riêng theo buổi (đào tạo online, MATERIAL_LEVEL='SESSION') — phải dọn
+        // trước khi xóa HR_TRAINING_SESSION, nếu không dính FK_TRM_SESSION (ORA-02292).
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_VIDEO_PROGRESS
+            WHERE MATERIAL_ID IN (
+                SELECT M.ID FROM HRMS.HR_TRAINING_MATERIAL M
+                  JOIN HRMS.HR_TRAINING_SESSION S ON S.ID = M.SESSION_ID
+                 WHERE S.CLASS_ID = :CID
+            )", new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_MATERIAL_VIEW
+            WHERE MATERIAL_ID IN (
+                SELECT M.ID FROM HRMS.HR_TRAINING_MATERIAL M
+                  JOIN HRMS.HR_TRAINING_SESSION S ON S.ID = M.SESSION_ID
+                 WHERE S.CLASS_ID = :CID
+            )", new OracleParameter("CID", classId));
+
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_MATERIAL
             WHERE SESSION_ID IN (
                 SELECT ID FROM HRMS.HR_TRAINING_SESSION WHERE CLASS_ID = :CID
             )", new OracleParameter("CID", classId));
@@ -556,6 +600,12 @@ public class TrainingClassService
 
         await _db.ExecuteNonQueryAsync(@"
             DELETE FROM HRMS.HR_TRAINING_REVIEW WHERE CLASS_ID = :CID",
+            new OracleParameter("CID", classId));
+
+        // Q&A (HR_TRAINING_QUESTION) — thiếu sẵn trong cascade cũ, dính FK_TRQ_CLASS nếu lớp có
+        // câu hỏi (kể cả đã IS_DELETED=1, hàng vẫn còn trong bảng nên vẫn phải dọn).
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_TRAINING_QUESTION WHERE CLASS_ID = :CID",
             new OracleParameter("CID", classId));
 
         await _db.ExecuteNonQueryAsync(@"
@@ -711,19 +761,22 @@ public class TrainingClassService
         {
             Direction = System.Data.ParameterDirection.Output
         };
+        var deliveryMode = string.IsNullOrWhiteSpace(req.DELIVERY_MODE) ? "OFFLINE" : req.DELIVERY_MODE;
+        var isOnline = deliveryMode == "ONLINE";
+
         await _db.ExecuteNonQueryAsync(@"
             INSERT INTO HRMS.HR_TRAINING_CLASS
                 (COURSE_ID, CLASS_NAME, DESCRIPTION,
                  STATUS, REGISTRATION_MODE,
                  START_DATE, END_DATE,
                  MIN_ATTENDANCE_PERCENT,
-                 CLONED_FROM_TYPE, IS_EXPRESS,
+                 CLONED_FROM_TYPE, IS_EXPRESS, DELIVERY_MODE,
                  INST_ID)
             VALUES (:COID, :NAME, :DESCX,
                     'DRAFT', 'ASSIGNED',
                     :SD, :ED,
                     :MIN,
-                    'COURSE_TEMPLATE', 0,
+                    'COURSE_TEMPLATE', 0, :DELIVERY_MODE,
                     :USR)
             RETURNING ID INTO :NEW_ID",
             new OracleParameter("COID", req.COURSE_ID),
@@ -732,6 +785,7 @@ public class TrainingClassService
             new OracleParameter("SD",   req.START_DATE.Date),
             new OracleParameter("ED",   endDate),
             new OracleParameter("MIN",  course.MIN_ATT),
+            new OracleParameter("DELIVERY_MODE", deliveryMode),
             new OracleParameter("USR",  req.LOGIN_USER),
             idParam);
         var newClassId = OracleService.ConvertToInt(idParam.Value);
@@ -740,7 +794,9 @@ public class TrainingClassService
         // Không dùng OracleTransaction vì OracleService.ExecuteNonQueryAsync tạo connection mới per call.
         try
         {
-            // Step B: Clone sessions
+            // Step B: Clone sessions. ONLINE: không giới hạn theo ngày/buổi (học viên rảnh lúc nào
+            // xem lúc đó) — mọi session dùng chung SESSION_DATE = START_DATE, giờ 0000-2359, chỉ
+            // để thỏa NOT NULL; thứ tự thật lấy theo SESSION_NO, không theo ngày/giờ.
             foreach (var t in templates)
             {
                 await _db.ExecuteNonQueryAsync(@"
@@ -749,9 +805,9 @@ public class TrainingClassService
                     VALUES (:CID, :NO, :DT, :ST, :ET, :TP, :LC, 'UPCOMING', :USR)",
                     new OracleParameter("CID", newClassId),
                     new OracleParameter("NO",  t.NO),
-                    new OracleParameter("DT",  req.START_DATE.AddDays(t.OFF).Date),
-                    new OracleParameter("ST",  t.ST),
-                    new OracleParameter("ET",  t.ET),
+                    new OracleParameter("DT",  isOnline ? req.START_DATE.Date : req.START_DATE.AddDays(t.OFF).Date),
+                    new OracleParameter("ST",  isOnline ? "0000" : t.ST),
+                    new OracleParameter("ET",  isOnline ? "2359" : t.ET),
                     new OracleParameter("TP",  (object?)t.TOPIC ?? DBNull.Value),
                     new OracleParameter("LC",  (object?)t.LOC ?? DBNull.Value),
                     new OracleParameter("USR", req.LOGIN_USER));
@@ -1565,6 +1621,7 @@ public class TrainingClassService
         CLONED_FROM_CLASS_ID   = r["CLONED_FROM_CLASS_ID"] is DBNull ? null : Convert.ToInt32(r["CLONED_FROM_CLASS_ID"]),
         CLONED_FROM_TYPE       = r["CLONED_FROM_TYPE"] as string,
         BULLETIN_ID            = r["BULLETIN_ID"] is DBNull ? null : Convert.ToInt32(r["BULLETIN_ID"]),
+        DELIVERY_MODE          = r["DELIVERY_MODE"]?.ToString() ?? "OFFLINE",
         INST_ID                = r["INST_ID"] as string,
         INST_DT                = r["INST_DT"] as DateTime?,
         UPDT_ID                = r["UPDT_ID"] as string,

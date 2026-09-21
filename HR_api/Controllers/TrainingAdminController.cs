@@ -597,6 +597,14 @@ public partial class TrainingAdminController : ControllerBase
         return Ok(new { success = true, data });
     }
 
+    // GET /apiHR/TrainingAdmin/session/{id}/materials — video buổi học (đào tạo online)
+    [HttpGet("session/{id}/materials")]
+    public async Task<IActionResult> SessionMaterials(int id)
+    {
+        var data = await _material.ListBySessionAsync(id);
+        return Ok(new { success = true, data });
+    }
+
     // POST /apiHR/TrainingAdmin/material/save
     [HttpPost("material/save")]
     public async Task<IActionResult> MaterialSave([FromBody] SaveMaterialRequest req)

@@ -94,17 +94,18 @@ public class TrainingLifecycleService : BackgroundService
         // Cùng filter lớp đã công bố — buổi lỡ ONGOING trong lớp nháp sẽ được HR sửa lại
         // (SaveAsync tự reset về UPCOMING), không complete + mark absent nhầm.
         var toCompleted = await db.ExecuteQueryAsync(@"
-            SELECT S.ID FROM HRMS.HR_TRAINING_SESSION S
+            SELECT S.ID, C.DELIVERY_MODE FROM HRMS.HR_TRAINING_SESSION S
               JOIN HRMS.HR_TRAINING_CLASS C ON C.ID = S.CLASS_ID
              WHERE S.STATUS = 'ONGOING'
                AND SYSDATE > TO_DATE(TO_CHAR(S.SESSION_DATE,'YYYYMMDD') || S.END_TIME, 'YYYYMMDDHH24MI')
                              + (30/1440)
                AND C.STATUS IN ('SCHEDULED','IN_PROGRESS')",
-            r => Convert.ToInt32(r["ID"]));
+            r => new { ID = Convert.ToInt32(r["ID"]), DELIVERY_MODE = r["DELIVERY_MODE"]?.ToString() ?? "OFFLINE" });
 
-        foreach (var id in toCompleted)
+        foreach (var s in toCompleted)
         {
             if (stop.IsCancellationRequested) return;
+            var id = s.ID;
             var claimed = await db.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_TRAINING_SESSION
                    SET STATUS = 'COMPLETED', UPDT_ID = 'SYSTEM'
@@ -113,6 +114,9 @@ public class TrainingLifecycleService : BackgroundService
             if (claimed == 0) continue;
 
             _log.LogInformation("Session {Id} → COMPLETED", id);
+
+            // Lớp ONLINE không điểm danh — không tạo dòng ABSENT vô nghĩa, cũng không nhắc gì thêm.
+            if (s.DELIVERY_MODE == "ONLINE") continue;
 
             // Auto-mark absent + EXCUSED (§5.4 leave-aware). Idempotent MERGE.
             await att.AutoMarkAbsentAsync(id);

@@ -208,7 +208,8 @@
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-muted">Hình thức đào tạo</label>
                         <select id="class-mode" class="form-select" style="border-radius: 8px;">
-                            <option value="STANDARD">STANDARD (Tiêu chuẩn)</option>
+                            <option value="OFFLINE">OFFLINE (Tại lớp)</option>
+                            <option value="ONLINE">ONLINE (Trực tuyến)</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -520,6 +521,7 @@
             document.getElementById('class-name').value = '';
             document.getElementById('class-start-date').value = '';
             document.getElementById('class-end-date').value = '';
+            document.getElementById('class-mode').value = 'OFFLINE';
             document.getElementById('class-reg-mode').value = 'ASSIGNED';
             document.getElementById('class-reg-deadline').value = '';
             document.getElementById('class-max-students').value = '';
@@ -565,7 +567,7 @@
                     CLASS_NAME: className,
                     START_DATE: start,
                     END_DATE: end,
-                    CLASS_MODE: mode,
+                    DELIVERY_MODE: mode,
                     REGISTRATION_MODE: regMode,
                     REGISTRATION_DEADLINE: regDeadline ? regDeadline : null,
                     MAX_STUDENTS: maxStudents ? parseInt(maxStudents) : null

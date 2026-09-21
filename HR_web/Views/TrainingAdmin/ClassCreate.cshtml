@@ -75,6 +75,13 @@
                     <input type="text" id="wizard-teacher" class="form-control py-2.5" placeholder="Nhập mã giảng viên (ví dụ: 240901)" style="border-radius: 8px;" />
                 </div>
                 <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Hình thức đào tạo</label>
+                    <select id="wizard-delivery-mode" class="form-select py-2.5" style="border-radius: 8px;">
+                        <option value="OFFLINE">OFFLINE (Tại lớp)</option>
+                        <option value="ONLINE">ONLINE (Trực tuyến — buổi = video phải xem hết)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
                     <label class="form-label small fw-bold text-muted">Chế độ đăng ký học</label>
                     <select id="wizard-reg-mode" class="form-select py-2.5" onchange="toggleRegOptions()" style="border-radius: 8px;">
                         <option value="ASSIGNED">ASSIGNED (Chỉ định học viên)</option>
@@ -341,6 +348,7 @@
             const startDate = document.getElementById('wizard-start-date').value;
             const desc = document.getElementById('wizard-desc').value.trim();
             const teacher = document.getElementById('wizard-teacher').value.trim();
+            const deliveryMode = document.getElementById('wizard-delivery-mode').value;
             const regMode = document.getElementById('wizard-reg-mode').value;
             const regDeadline = document.getElementById('wizard-reg-deadline').value;
             const maxStudents = document.getElementById('wizard-max-students').value;
@@ -367,6 +375,7 @@
                     START_DATE: startDate,
                     DESCRIPTION: desc || null,
                     PRIMARY_TEACHER_EMPCD: teacher || null,
+                    DELIVERY_MODE: deliveryMode,
                     EMPCDS: parsedStudents
                 })
             })

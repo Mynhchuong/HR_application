@@ -41,6 +41,7 @@ public class EnrollmentModel
     public DateTime? CLASS_START_DATE { get; set; }
     public DateTime? CLASS_END_DATE { get; set; }
     public string? CLASS_MODE { get; set; }
+    public string DELIVERY_MODE { get; set; } = "OFFLINE";
     public int? TOTAL_SESSIONS { get; set; }
     public int? COMPLETED_SESSIONS { get; set; }
     public string? PRIMARY_TEACHER_NAME { get; set; }

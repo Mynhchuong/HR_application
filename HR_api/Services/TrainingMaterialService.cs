@@ -12,11 +12,23 @@ public class TrainingMaterialService
 
     public TrainingMaterialService(OracleService db) { _db = db; }
 
+    // Class sở hữu 1 material level SESSION (qua HR_TRAINING_SESSION) — dùng để auth-check trước
+    // khi cho ghi tiến độ xem video (§ TrainingController.VideoProgressUpdate).
+    public async Task<int?> GetClassIdBySessionMaterialAsync(int materialId)
+    {
+        return (await _db.ExecuteQueryAsync(
+            @"SELECT S.CLASS_ID FROM HRMS.HR_TRAINING_MATERIAL M
+                JOIN HRMS.HR_TRAINING_SESSION S ON S.ID = M.SESSION_ID
+               WHERE M.ID = :MID",
+            r => (int?)Convert.ToInt32(r["CLASS_ID"]),
+            new OracleParameter("MID", materialId))).FirstOrDefault();
+    }
+
     // List materials theo Class (bao gồm level=CLASS + level=COURSE của Course parent)
     public async Task<List<MaterialModel>> ListByClassAsync(int classId, string? currentEmpcd = null)
     {
         const string sql = @"
-            SELECT M.ID, M.MATERIAL_LEVEL, M.COURSE_ID, M.CLASS_ID,
+            SELECT M.ID, M.MATERIAL_LEVEL, M.COURSE_ID, M.CLASS_ID, M.SESSION_ID,
                    M.TITLE, M.FILE_NAME, M.FILE_TYPE, M.FILE_URL,
                    M.IS_REQUIRED, M.DISPLAY_ORDER,
                    M.INST_ID, M.INST_DT,
@@ -40,7 +52,7 @@ public class TrainingMaterialService
     public async Task<List<MaterialModel>> ListByCourseAsync(int courseId)
     {
         const string sql = @"
-            SELECT M.ID, M.MATERIAL_LEVEL, M.COURSE_ID, M.CLASS_ID,
+            SELECT M.ID, M.MATERIAL_LEVEL, M.COURSE_ID, M.CLASS_ID, M.SESSION_ID,
                    M.TITLE, M.FILE_NAME, M.FILE_TYPE, M.FILE_URL,
                    M.IS_REQUIRED, M.DISPLAY_ORDER,
                    M.INST_ID, M.INST_DT,
@@ -53,15 +65,39 @@ public class TrainingMaterialService
             new OracleParameter("CID", courseId));
     }
 
+    // Video (hoặc tài liệu) gắn riêng 1 buổi — đào tạo online (buổi N = xem video buổi N).
+    // Kèm trạng thái xem theo HR_TRAINING_VIDEO_PROGRESS để dựng UI học viên + gate làm test.
+    public async Task<List<MaterialModel>> ListBySessionAsync(int sessionId, string? currentEmpcd = null)
+    {
+        const string sql = @"
+            SELECT M.ID, M.MATERIAL_LEVEL, M.COURSE_ID, M.CLASS_ID, M.SESSION_ID,
+                   M.TITLE, M.FILE_NAME, M.FILE_TYPE, M.FILE_URL,
+                   M.IS_REQUIRED, M.DISPLAY_ORDER,
+                   M.INST_ID, M.INST_DT,
+                   NULL AS VIEW_COUNT,
+                   NULL AS HAS_VIEWED,
+                   P.LAST_POSITION_SEC, P.DURATION_SEC, P.IS_COMPLETED
+              FROM HRMS.HR_TRAINING_MATERIAL M
+              LEFT JOIN HRMS.HR_TRAINING_VIDEO_PROGRESS P
+                     ON P.MATERIAL_ID = M.ID AND P.EMPCD = :EMP
+             WHERE M.MATERIAL_LEVEL = 'SESSION' AND M.SESSION_ID = :SID
+             ORDER BY M.DISPLAY_ORDER, M.ID";
+        return await _db.ExecuteQueryAsync(sql, MapMaterialWithProgress,
+            new OracleParameter("SID", sessionId),
+            new OracleParameter("EMP", (object?)currentEmpcd ?? DBNull.Value));
+    }
+
     public async Task<int> SaveAsync(SaveMaterialRequest req)
     {
         // Validate — DDL đã CHECK level+id consistency, nhưng validate sớm cho UX message
-        if (req.MATERIAL_LEVEL != "COURSE" && req.MATERIAL_LEVEL != "CLASS")
-            throw new InvalidOperationException("MATERIAL_LEVEL phải COURSE hoặc CLASS");
-        if (req.MATERIAL_LEVEL == "COURSE" && (req.COURSE_ID == null || req.CLASS_ID != null))
-            throw new InvalidOperationException("Level COURSE cần COURSE_ID + CLASS_ID = null");
-        if (req.MATERIAL_LEVEL == "CLASS" && (req.CLASS_ID == null || req.COURSE_ID != null))
-            throw new InvalidOperationException("Level CLASS cần CLASS_ID + COURSE_ID = null");
+        if (req.MATERIAL_LEVEL != "COURSE" && req.MATERIAL_LEVEL != "CLASS" && req.MATERIAL_LEVEL != "SESSION")
+            throw new InvalidOperationException("MATERIAL_LEVEL phải COURSE, CLASS hoặc SESSION");
+        if (req.MATERIAL_LEVEL == "COURSE" && (req.COURSE_ID == null || req.CLASS_ID != null || req.SESSION_ID != null))
+            throw new InvalidOperationException("Level COURSE cần COURSE_ID + CLASS_ID/SESSION_ID = null");
+        if (req.MATERIAL_LEVEL == "CLASS" && (req.CLASS_ID == null || req.COURSE_ID != null || req.SESSION_ID != null))
+            throw new InvalidOperationException("Level CLASS cần CLASS_ID + COURSE_ID/SESSION_ID = null");
+        if (req.MATERIAL_LEVEL == "SESSION" && (req.SESSION_ID == null || req.COURSE_ID != null || req.CLASS_ID != null))
+            throw new InvalidOperationException("Level SESSION cần SESSION_ID + COURSE_ID/CLASS_ID = null");
         if (string.IsNullOrWhiteSpace(req.TITLE)) throw new InvalidOperationException("TITLE required");
         if (string.IsNullOrWhiteSpace(req.FILE_NAME)) throw new InvalidOperationException("FILE_NAME required");
         var okTypes = new[] { "PDF", "DOCX", "MP4", "IMG", "LINK" };
@@ -72,11 +108,11 @@ public class TrainingMaterialService
         {
             const string sqlIns = @"
                 INSERT INTO HRMS.HR_TRAINING_MATERIAL
-                    (MATERIAL_LEVEL, COURSE_ID, CLASS_ID,
+                    (MATERIAL_LEVEL, COURSE_ID, CLASS_ID, SESSION_ID,
                      TITLE, FILE_NAME, FILE_TYPE, FILE_URL,
                      IS_REQUIRED, DISPLAY_ORDER, INST_ID)
                 VALUES
-                    (:LV, :COID, :CLID, :TT, :FN, :FT, :FU, :REQ, :ORD, :USR)
+                    (:LV, :COID, :CLID, :SEID, :TT, :FN, :FT, :FU, :REQ, :ORD, :USR)
                 RETURNING ID INTO :NEW_ID";
             var idParam = new OracleParameter("NEW_ID", OracleDbType.Int32)
             {
@@ -86,6 +122,7 @@ public class TrainingMaterialService
                 new OracleParameter("LV",   req.MATERIAL_LEVEL),
                 new OracleParameter("COID", (object?)req.COURSE_ID ?? DBNull.Value),
                 new OracleParameter("CLID", (object?)req.CLASS_ID  ?? DBNull.Value),
+                new OracleParameter("SEID", (object?)req.SESSION_ID ?? DBNull.Value),
                 new OracleParameter("TT",   req.TITLE),
                 new OracleParameter("FN",   req.FILE_NAME),
                 new OracleParameter("FT",   req.FILE_TYPE),
@@ -154,8 +191,9 @@ public class TrainingMaterialService
     {
         ID             = Convert.ToInt32(r["ID"]),
         MATERIAL_LEVEL = r["MATERIAL_LEVEL"]?.ToString() ?? "CLASS",
-        COURSE_ID      = r["COURSE_ID"] is DBNull ? null : Convert.ToInt32(r["COURSE_ID"]),
-        CLASS_ID       = r["CLASS_ID"]  is DBNull ? null : Convert.ToInt32(r["CLASS_ID"]),
+        COURSE_ID      = r["COURSE_ID"]  is DBNull ? null : Convert.ToInt32(r["COURSE_ID"]),
+        CLASS_ID       = r["CLASS_ID"]   is DBNull ? null : Convert.ToInt32(r["CLASS_ID"]),
+        SESSION_ID     = r["SESSION_ID"] is DBNull ? null : Convert.ToInt32(r["SESSION_ID"]),
         TITLE          = r["TITLE"]?.ToString() ?? "",
         FILE_NAME      = r["FILE_NAME"]?.ToString() ?? "",
         FILE_TYPE      = r["FILE_TYPE"]?.ToString() ?? "PDF",
@@ -167,4 +205,13 @@ public class TrainingMaterialService
         VIEW_COUNT     = r["VIEW_COUNT"] is DBNull ? null : Convert.ToInt32(r["VIEW_COUNT"]),
         HAS_VIEWED     = r["HAS_VIEWED"] is DBNull ? null : Convert.ToInt32(r["HAS_VIEWED"]),
     };
+
+    private static MaterialModel MapMaterialWithProgress(OracleDataReader r)
+    {
+        var m = MapMaterial(r);
+        m.LAST_POSITION_SEC = r["LAST_POSITION_SEC"] is DBNull ? null : Convert.ToInt32(r["LAST_POSITION_SEC"]);
+        m.DURATION_SEC      = r["DURATION_SEC"]      is DBNull ? null : Convert.ToInt32(r["DURATION_SEC"]);
+        m.IS_COMPLETED      = r["IS_COMPLETED"]      is DBNull ? null : Convert.ToInt32(r["IS_COMPLETED"]);
+        return m;
+    }
 }

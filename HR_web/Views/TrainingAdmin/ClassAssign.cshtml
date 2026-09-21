@@ -77,6 +77,7 @@
                                             <th data-mobile="detail" data-mobile-label="Nhóm">Nhóm</th>
                                             <th data-mobile="detail" data-mobile-label="Phòng">Phòng</th>
                                             <th data-mobile="detail" data-mobile-label="Chủ đề">Chủ đề</th>
+                                            <th id="th-session-video" class="d-none" data-mobile="detail" data-mobile-label="Video">Video bài học</th>
                                             <th class="pe-3 text-end" data-mobile="detail" data-mobile-label="Thao tác">Thao tác</th>
                                         </tr>
                                     </thead>
@@ -274,6 +275,32 @@
     </div>
 </div>
 
+<!-- SESSION VIDEO MODAL (đào tạo online) -->
+<div class="modal fade" id="sessionVideoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg training-modal-card">
+            <div class="modal-header border-bottom-0 p-4 pb-0">
+                <h5 class="fw-bold modal-title" id="sessionVideoModalTitle">Video buổi học</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="svm-session-id" />
+                <div id="svm-current-list" class="mb-3"></div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">Chọn file video (MP4 — tối đa 500MB)</label>
+                    <input type="file" id="svm-file" accept="video/mp4,video/*" class="form-control" style="border-radius: 8px;" />
+                </div>
+                <div class="d-grid">
+                    <button type="button" onclick="uploadSessionVideoSubmit()" class="btn btn-primary py-2.5 rounded-3 fw-bold shadow-sm">
+                        <span id="svm-spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                        Tải lên video
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ASSIGN TEACHER MODAL -->
 <div class="modal fade" id="assignTeacherModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -422,7 +449,11 @@
             removeStudent: '@Url.Action("RemoveStudent", "TrainingAdmin")',
             cloneFromClass: '@Url.Action("CloneFromClass", "TrainingAdmin")',
             classAssignTemplate: '@Url.Action("ClassAssign", "TrainingAdmin", new { id = "__ID__" })',
-            bulletinDetailTemplate: '@Url.Action("Detail", "Bulletin", new { id = "__ID__" })'
+            bulletinDetailTemplate: '@Url.Action("Detail", "Bulletin", new { id = "__ID__" })',
+            getSessionMaterials: '@Url.Action("GetSessionMaterials", "TrainingAdmin")',
+            saveMaterial: '@Url.Action("SaveMaterial", "TrainingTeach")',
+            deleteMaterial: '@Url.Action("DeleteMaterial", "TrainingTeach")',
+            uploadFile: '@Url.Action("UploadTrainingMaterial", "File")'
         };
 
         const selectedClassId = @classId;
@@ -444,12 +475,14 @@
         let modalTeacher = null;
         let modalStudent = null;
         let modalGroup = null;
+        let modalSessionVideo = null;
 
         document.addEventListener('DOMContentLoaded', function () {
             modalSession = new bootstrap.Modal(document.getElementById('createSessionModal'));
             modalTeacher = new bootstrap.Modal(document.getElementById('assignTeacherModal'));
             modalStudent = new bootstrap.Modal(document.getElementById('assignStudentModal'));
             modalGroup = new bootstrap.Modal(document.getElementById('createGroupModal'));
+            modalSessionVideo = new bootstrap.Modal(document.getElementById('sessionVideoModal'));
 
             loadClassDetailAdmin();
             MobileTableHelper.init('sub-sessions-list');
@@ -673,6 +706,10 @@
             const list = selectedClassData.sessions || [];
             tbody.innerHTML = '';
 
+            // Lớp ONLINE: buổi = video phải xem hết — thêm cột thao tác video, ẩn hẳn với lớp OFFLINE.
+            const isOnline = selectedClassData.cls?.DELIVERY_MODE === 'ONLINE';
+            document.getElementById('th-session-video').classList.toggle('d-none', !isOnline);
+
             // Lớp CHƯA công bố (nháp / đang mở ĐK) → sửa/xóa được mọi buổi chưa hủy — server sẽ
             // tự reset buổi lỡ "Đang diễn ra" về UPCOMING khi lưu (buổi của lớp nháp không thể diễn ra).
             const clsDraft = ['DRAFT', 'OPEN_FOR_REGISTRATION'].includes(selectedClassData.cls?.STATUS);
@@ -694,6 +731,12 @@
                     ? `<span class="badge bg-info-subtle text-info-emphasis">${s.GROUP_NAME}</span>`
                     : `<span class="text-muted small">Chung cả lớp</span>`;
 
+                const videoCell = isOnline
+                    ? `<td><button onclick="openSessionVideoModal(${s.ID}, ${s.SESSION_NO})" class="btn btn-xs btn-outline-secondary rounded-pill px-2" id="video-btn-${s.ID}">
+                           <i class="bi bi-camera-video"></i> <span id="video-status-${s.ID}">...</span>
+                       </button></td>`
+                    : '';
+
                 tbody.innerHTML += `
                     <tr>
                         <td class="ps-3 fw-bold text-dark">Buổi ${s.SESSION_NO}</td>
@@ -702,15 +745,155 @@
                         <td>${groupLabel}</td>
                         <td>${s.LOCATION || 'N/A'}</td>
                         <td class="text-truncate" style="max-width: 180px;" title="${s.TOPIC || ''}">${s.TOPIC || '-'}</td>
+                        ${videoCell}
                         <td class="pe-3 text-end">${actions}</td>
                     </tr>
                 `;
             });
 
             if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-3 text-muted small">Lớp học chưa được lên lịch buổi học nào.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${isOnline ? 8 : 7}" class="text-center py-3 text-muted small">Lớp học chưa được lên lịch buổi học nào.</td></tr>`;
             }
             MobileTableHelper.refresh('sub-sessions-list');
+
+            if (isOnline) {
+                list.forEach(s => refreshSessionVideoStatus(s.ID));
+            }
+        }
+
+        // Chấm nhanh trạng thái "Đã có video" / "Chưa có video" cho từng buổi (đào tạo online).
+        function refreshSessionVideoStatus(sessionId) {
+            fetch(`${window.TRAINING_URLS.getSessionMaterials}?sessionId=${sessionId}`)
+                .then(r => r.json())
+                .then(res => {
+                    const el = document.getElementById(`video-status-${sessionId}`);
+                    if (!el) return;
+                    const has = res.success && (res.data || []).length > 0;
+                    el.textContent = has ? 'Đã có video' : 'Chưa có video';
+                    document.getElementById(`video-btn-${sessionId}`).classList.toggle('btn-outline-success', has);
+                    document.getElementById(`video-btn-${sessionId}`).classList.toggle('btn-outline-secondary', !has);
+                });
+        }
+
+        function openSessionVideoModal(sessionId, sessionNo) {
+            document.getElementById('sessionVideoModalTitle').textContent = `Video Buổi ${sessionNo}`;
+            document.getElementById('svm-session-id').value = sessionId;
+            document.getElementById('svm-file').value = '';
+            document.getElementById('svm-current-list').innerHTML = '<div class="text-muted small">Đang tải...</div>';
+
+            fetch(`${window.TRAINING_URLS.getSessionMaterials}?sessionId=${sessionId}`)
+                .then(r => r.json())
+                .then(res => renderSessionVideoList(res.success ? (res.data || []) : []));
+
+            modalSessionVideo.show();
+        }
+
+        function renderSessionVideoList(materials) {
+            const box = document.getElementById('svm-current-list');
+            if (materials.length === 0) {
+                box.innerHTML = '<div class="text-muted small">Buổi này chưa có video.</div>';
+                return;
+            }
+            box.innerHTML = materials.map(m => `
+                <div class="d-flex align-items-center justify-content-between bg-light rounded-3 p-2 mb-2">
+                    <span class="small fw-bold text-dark text-truncate" style="max-width: 220px;" title="${m.TITLE}">
+                        <i class="bi bi-camera-video-fill me-1"></i>${m.TITLE}
+                    </span>
+                    <div>
+                        <a href="${m.FILE_URL}" target="_blank" class="btn btn-xs btn-outline-secondary rounded-circle p-1 me-1" title="Xem thử">
+                            <i class="bi bi-play-fill" style="font-size:1rem;"></i>
+                        </a>
+                        <button onclick="deleteSessionVideo(${m.ID})" class="btn btn-xs btn-outline-danger rounded-circle p-1" title="Xóa video">
+                            <i class="bi bi-trash" style="font-size:1rem;"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function uploadSessionVideoSubmit() {
+            const sessionId = parseInt(document.getElementById('svm-session-id').value);
+            const fileInput = document.getElementById('svm-file');
+            if (fileInput.files.length === 0) {
+                window.showToast('Vui lòng chọn file video!', 'warning');
+                return;
+            }
+            const file = fileInput.files[0];
+            const spinner = document.getElementById('svm-spinner');
+            spinner.classList.remove('d-none');
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('level', 'SESSION');
+            formData.append('classId', selectedClassId);
+            formData.append('sessionId', sessionId);
+
+            fetch(window.TRAINING_URLS.uploadFile, { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(resUpload => {
+                    if (!resUpload.success) {
+                        spinner.classList.add('d-none');
+                        window.showToast(resUpload.message || 'Lỗi tải file lên máy chủ.', 'error');
+                        return;
+                    }
+                    return fetch(window.TRAINING_URLS.saveMaterial, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            SESSION_ID: sessionId,
+                            MATERIAL_LEVEL: 'SESSION',
+                            TITLE: file.name,
+                            FILE_NAME: resUpload.fileName,
+                            FILE_TYPE: resUpload.fileType,
+                            FILE_URL: resUpload.url,
+                            IS_REQUIRED: 1,
+                            DISPLAY_ORDER: 1
+                        })
+                    });
+                })
+                .then(r => r && r.json())
+                .then(resMeta => {
+                    spinner.classList.add('d-none');
+                    if (!resMeta) return;
+                    if (resMeta.success) {
+                        window.showToast('Đã tải lên video buổi học!', 'success');
+                        fileInput.value = '';
+                        fetch(`${window.TRAINING_URLS.getSessionMaterials}?sessionId=${sessionId}`)
+                            .then(r => r.json())
+                            .then(res => renderSessionVideoList(res.success ? (res.data || []) : []));
+                        refreshSessionVideoStatus(sessionId);
+                    } else {
+                        window.showToast(resMeta.message || 'Lỗi lưu metadata video.', 'error');
+                    }
+                })
+                .catch(err => {
+                    spinner.classList.add('d-none');
+                    window.showToast('Lỗi kết nối: ' + err.message, 'error');
+                });
+        }
+
+        function deleteSessionVideo(materialId) {
+            window.showConfirm('Xóa video này? Học viên sẽ không xem được nữa.', () => {
+                const sessionId = parseInt(document.getElementById('svm-session-id').value);
+                fetch(window.TRAINING_URLS.deleteMaterial, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ID: materialId })
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        window.showToast('Đã xóa video.', 'success');
+                        fetch(`${window.TRAINING_URLS.getSessionMaterials}?sessionId=${sessionId}`)
+                            .then(r => r.json())
+                            .then(res2 => renderSessionVideoList(res2.success ? (res2.data || []) : []));
+                        refreshSessionVideoStatus(sessionId);
+                    } else {
+                        window.showToast(res.message || 'Lỗi xóa video.', 'error');
+                    }
+                })
+                .catch(err => window.showToast('Lỗi kết nối: ' + err.message, 'error'));
+            });
         }
 
         // Populate dropdown chọn nhóm trong modal Sắp lịch/Sửa buổi học — dùng chung DS nhóm đã tạo

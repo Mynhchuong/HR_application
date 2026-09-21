@@ -83,6 +83,7 @@ builder.Services.AddScoped<HR_api.Services.TrainingClassService>();
 builder.Services.AddScoped<HR_api.Services.TrainingEnrollmentService>();
 builder.Services.AddScoped<HR_api.Services.TrainingSessionService>();
 builder.Services.AddScoped<HR_api.Services.TrainingMaterialService>();
+builder.Services.AddScoped<HR_api.Services.TrainingVideoProgressService>();
 builder.Services.AddScoped<HR_api.Services.TrainingQAService>();
 builder.Services.AddScoped<HR_api.Services.TrainingTestService>();
 builder.Services.AddScoped<HR_api.Services.TrainingAttemptService>();

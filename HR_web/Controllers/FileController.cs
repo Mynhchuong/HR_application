@@ -32,7 +32,8 @@ public class FileController : BaseController
 
     // ─────────────────────────────────────────────────────────────
     // POST /File/UploadTrainingMaterial
-    // multipart: file, level (COURSE|CLASS), courseId|classId
+    // multipart: file, level (COURSE|CLASS|SESSION), courseId|classId (+ sessionId nếu SESSION)
+    // level SESSION = video 1 buổi học (đào tạo online) — vẫn cần classId để check quyền giáo viên.
     // Return: { success, url, fileName, fileType }
     // ─────────────────────────────────────────────────────────────
     [HttpPost]
@@ -40,16 +41,18 @@ public class FileController : BaseController
     [IgnoreAntiforgeryToken]
     [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadTrainingMaterial(
-        IFormFile? file, string level, int? courseId = null, int? classId = null)
+        IFormFile? file, string level, int? courseId = null, int? classId = null, int? sessionId = null)
     {
         if (file == null || file.Length == 0)
             return Json(new { success = false, message = "Chưa chọn file" });
-        if (level != "COURSE" && level != "CLASS")
-            return Json(new { success = false, message = "level phải COURSE hoặc CLASS" });
+        if (level != "COURSE" && level != "CLASS" && level != "SESSION")
+            return Json(new { success = false, message = "level phải COURSE, CLASS hoặc SESSION" });
         if (level == "COURSE" && !courseId.HasValue)
             return Json(new { success = false, message = "COURSE level cần courseId" });
         if (level == "CLASS" && !classId.HasValue)
             return Json(new { success = false, message = "CLASS level cần classId" });
+        if (level == "SESSION" && (!classId.HasValue || !sessionId.HasValue))
+            return Json(new { success = false, message = "SESSION level cần classId + sessionId" });
         if (file.Length > MaxBytes)
             return Json(new { success = false, message = "File quá 500 MB" });
 
@@ -60,7 +63,7 @@ public class FileController : BaseController
         bool isHrOrAdminOrCsr = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
         if (!isHrOrAdminOrCsr)
         {
-            // Level COURSE chỉ HR/Admin/CSR (quản lý khóa học) — level CLASS thì giáo viên
+            // Level COURSE chỉ HR/Admin/CSR (quản lý khóa học) — level CLASS/SESSION thì giáo viên
             // đứng lớp đó cũng được upload, dùng cùng check-access với UploadMaterial page.
             if (level == "COURSE")
                 return Json(new { success = false, message = "Bạn không có quyền upload tài liệu cấp khóa học" });
@@ -76,7 +79,12 @@ public class FileController : BaseController
         else if (ImgExts.Contains(ext))   fileType = "IMG";
         else return Json(new { success = false, message = "Định dạng file không hỗ trợ" });
 
-        var subFolder = level == "COURSE" ? $"COURSE_{courseId}" : $"CLASS_{classId}";
+        var subFolder = level switch
+        {
+            "COURSE"  => $"COURSE_{courseId}",
+            "SESSION" => $"CLASS_{classId}_SESSION_{sessionId}",
+            _         => $"CLASS_{classId}",
+        };
         var folder    = Path.Combine(TrainingFolder, subFolder);
         var savedName = Guid.NewGuid().ToString("N") + ext;
         var savePath  = Path.Combine(folder, savedName);

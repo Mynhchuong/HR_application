@@ -329,6 +329,17 @@ public class GatePassController : ControllerBase
             if (statusRows[0] != "PENDING")
                 return Ok(new { success = false, message = "Chỉ có thể xoá yêu cầu đang chờ duyệt" });
 
+            // Chặn xoá nếu Gate Pass này do hệ thống tự tạo kèm 1 đơn Công tác (CT) — NV dễ tưởng
+            // nhầm là phiếu dư/trùng rồi xoá, khiến đơn CT mất luôn quyền ra cổng dù đơn vẫn còn đó
+            // (bug thật đã xảy ra 2026-09-21, VD NV 26040602). Muốn hủy phải hủy đơn Công tác.
+            var ctLinkRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT COUNT(*) CNT FROM HRMS.HR_LEAVE_REQUEST
+                WHERE GP_REQUEST_ID = :REQUEST_ID OR GP_REQUEST_ID_RETURN = :REQUEST_ID",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("REQUEST_ID", request_id));
+            if (ctLinkRows.FirstOrDefault() > 0)
+                return Ok(new { success = false, message = "Gate Pass này tự động tạo theo đơn Công tác — muốn hủy vui lòng hủy đơn Công tác, không xoá trực tiếp ở đây." });
+
             await _oracleService.ExecuteNonQueryAsync(@"
                 DELETE FROM HRMS.HR_GATEPASS_REQUEST WHERE REQUEST_ID = :REQUEST_ID AND EMPCD = :EMPCD",
                 new OracleParameter("REQUEST_ID", request_id),
@@ -1112,6 +1123,17 @@ END;";
 
             var idParams     = model.REQUEST_IDS.Select((id, i) => new OracleParameter($"ID{i}", id)).ToArray();
             var placeholders = string.Join(",", idParams.Select(p => $":{p.ParameterName}"));
+
+            // Chặn xoá Gate Pass đang bị 1 đơn Công tác (CT) tham chiếu — cùng lý do với Delete() tự
+            // phục vụ phía trên (bug thật 2026-09-21). Admin muốn hủy phải hủy đơn Công tác.
+            var ctLinkedRows = await _oracleService.ExecuteQueryAsync($@"
+                SELECT COUNT(*) CNT FROM HRMS.HR_LEAVE_REQUEST
+                WHERE GP_REQUEST_ID IN ({placeholders}) OR GP_REQUEST_ID_RETURN IN ({placeholders})",
+                r => Convert.ToInt32(r["CNT"]),
+                idParams);
+            if (ctLinkedRows.FirstOrDefault() > 0)
+                return Ok(new { success = false, message = "Có phiếu đang tự động gắn với 1 đơn Công tác — muốn hủy vui lòng hủy đơn Công tác thay vì xóa trực tiếp ở đây." });
+
             var deletedCount = new OracleParameter("DELETED_COUNT", OracleDbType.Int32) { Direction = System.Data.ParameterDirection.Output };
 
             await _oracleService.ExecuteNonQueryAsync($@"

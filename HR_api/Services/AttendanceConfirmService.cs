@@ -515,6 +515,13 @@ public class AttendanceConfirmService
         if (!RoleHierarchyHelper.HasApprovalPermission(actorRole))
             return Fail(existing.EMPCD, null, "Bạn không có quyền xác nhận");
 
+        // Áp cùng rule phân cấp role với Leave/GatePass (yêu cầu 2026-09-21) — trước đây chỉ check
+        // scope dept + level ≥ Supervisor, KHÔNG so role người xác nhận với role NV, nên 1 Supervisor
+        // cùng scope vẫn xác nhận được cho cả Manager dù đáng lẽ phải là Expat/Admin mới đúng.
+        var requesterRole = await GetRoleNameAsync(existing.EMPCD);
+        if (!RoleHierarchyHelper.CanApprove(actorRole, requesterRole))
+            return Fail(existing.EMPCD, null, $"Yêu cầu này cần {RoleHierarchyHelper.RequiredApproverName(requesterRole)} xác nhận.");
+
         string newStatus = req.STATUS == "REJECTED" ? "REJECTED" : "CONFIRMED";
         DateTime? timeIn  = CombineTime(existing.WorkDate, req.TIME_IN);
         DateTime? timeOut = CombineTime(existing.WorkDate, req.TIME_OUT);

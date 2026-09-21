@@ -529,18 +529,23 @@ public class InquiryController : ControllerBase
     // chỉ Admin được thêm/sửa/xoá; ai chat cũng chọn được để chèn vào ô soạn tin.
     // ─────────────────────────────────────────────────────────────────────────
 
-    // GET /apiHR/Inquiry/canned-replies?q=... — danh sách đang active, dùng cho picker khi chat
+    // GET /apiHR/Inquiry/canned-replies?q=&role=... — danh sách đang active, dùng cho picker khi chat.
+    // role = RoleName của người đang chat (HR/Admin/CSR) — chỉ trả mẫu TARGET_ROLES rỗng (dùng chung)
+    // hoặc có chứa role đó, để HR/Admin/CSR không còn thấy lẫn mẫu của nhau (yêu cầu 2026-09-21).
     [HttpGet("canned-replies")]
-    public async Task<IActionResult> GetCannedReplies(string? q = null)
+    public async Task<IActionResult> GetCannedReplies(string? q = null, string? role = null)
     {
         try
         {
             string trimmed = (q ?? "").Trim().ToUpper();
+            string? roleTrim = string.IsNullOrWhiteSpace(role) ? null : role.Trim();
             var rows = await _db.ExecuteQueryAsync(@"
                 SELECT * FROM (
                     SELECT ID, TITLE, CONTENT FROM HRMS.HR_INQUIRY_CANNED_REPLY
                     WHERE IS_ACTIVE = 1
                       AND (:Q IS NULL OR UPPER(TITLE) LIKE :TERM)
+                      AND (:ROLE IS NULL OR TARGET_ROLES IS NULL
+                           OR INSTR(',' || TARGET_ROLES || ',', ',' || :ROLE || ',') > 0)
                     ORDER BY DISPLAY_ORDER, ID
                 ) WHERE ROWNUM <= 50",
                 r => new
@@ -550,7 +555,8 @@ public class InquiryController : ControllerBase
                     content = r["CONTENT"]?.ToString()
                 },
                 new OracleParameter("Q",    string.IsNullOrEmpty(trimmed) ? (object)DBNull.Value : trimmed),
-                new OracleParameter("TERM", "%" + trimmed + "%"));
+                new OracleParameter("TERM", "%" + trimmed + "%"),
+                new OracleParameter("ROLE", (object?)roleTrim ?? DBNull.Value));
 
             return Ok(new { success = true, data = rows });
         }
@@ -570,7 +576,7 @@ public class InquiryController : ControllerBase
                 return Ok(new { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
 
             var rows = await _db.ExecuteQueryAsync(@"
-                SELECT ID, TITLE, CONTENT, DISPLAY_ORDER, IS_ACTIVE, UPDATED_BY, UPDATED_DATE
+                SELECT ID, TITLE, CONTENT, DISPLAY_ORDER, IS_ACTIVE, TARGET_ROLES, UPDATED_BY, UPDATED_DATE
                 FROM HRMS.HR_INQUIRY_CANNED_REPLY ORDER BY DISPLAY_ORDER, ID",
                 r => new
                 {
@@ -579,6 +585,7 @@ public class InquiryController : ControllerBase
                     content      = r["CONTENT"]?.ToString(),
                     displayOrder = r["DISPLAY_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["DISPLAY_ORDER"]),
                     isActive     = r["IS_ACTIVE"] != DBNull.Value && Convert.ToInt32(r["IS_ACTIVE"]) == 1,
+                    targetRoles  = r["TARGET_ROLES"] == DBNull.Value ? null : r["TARGET_ROLES"]?.ToString(),
                     updatedBy    = r["UPDATED_BY"]?.ToString(),
                     updatedDate  = r["UPDATED_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["UPDATED_DATE"])
                 });
@@ -609,12 +616,13 @@ public class InquiryController : ControllerBase
                 await _db.ExecuteNonQueryAsync(@"
                     UPDATE HRMS.HR_INQUIRY_CANNED_REPLY
                     SET TITLE = :TITLE, CONTENT = :CONTENT, DISPLAY_ORDER = :ORD,
-                        IS_ACTIVE = :ACTIVE, UPDATED_BY = :UPDBY, UPDATED_DATE = SYSDATE
+                        IS_ACTIVE = :ACTIVE, TARGET_ROLES = :TROLES, UPDATED_BY = :UPDBY, UPDATED_DATE = SYSDATE
                     WHERE ID = :ID",
                     new OracleParameter("TITLE",   req.Title),
                     new OracleParameter("CONTENT", req.Content),
                     new OracleParameter("ORD",     req.DisplayOrder),
                     new OracleParameter("ACTIVE",  req.IsActive ? 1 : 0),
+                    new OracleParameter("TROLES",  (object?)NormalizeTargetRoles(req.TargetRoles) ?? DBNull.Value),
                     new OracleParameter("UPDBY",   (object?)req.ActorEmpCd ?? DBNull.Value),
                     new OracleParameter("ID",      req.Id));
             }
@@ -622,13 +630,14 @@ public class InquiryController : ControllerBase
             {
                 await _db.ExecuteNonQueryAsync(@"
                     INSERT INTO HRMS.HR_INQUIRY_CANNED_REPLY
-                        (TITLE, CONTENT, DISPLAY_ORDER, IS_ACTIVE, UPDATED_BY, UPDATED_DATE)
+                        (TITLE, CONTENT, DISPLAY_ORDER, IS_ACTIVE, TARGET_ROLES, UPDATED_BY, UPDATED_DATE)
                     VALUES
-                        (:TITLE, :CONTENT, :ORD, :ACTIVE, :UPDBY, SYSDATE)",
+                        (:TITLE, :CONTENT, :ORD, :ACTIVE, :TROLES, :UPDBY, SYSDATE)",
                     new OracleParameter("TITLE",   req.Title),
                     new OracleParameter("CONTENT", req.Content),
                     new OracleParameter("ORD",     req.DisplayOrder),
                     new OracleParameter("ACTIVE",  req.IsActive ? 1 : 0),
+                    new OracleParameter("TROLES",  (object?)NormalizeTargetRoles(req.TargetRoles) ?? DBNull.Value),
                     new OracleParameter("UPDBY",   (object?)req.ActorEmpCd ?? DBNull.Value));
             }
 
@@ -674,6 +683,18 @@ public class InquiryController : ControllerBase
             r => 1,
             new OracleParameter("EMPCD", empCd));
         return rows.Count > 0;
+    }
+
+    // CSV role dùng chung mẫu (yêu cầu 2026-09-21) — rỗng/trống = dùng chung cho cả Admin/HR/CSR,
+    // giữ theo đúng convention TARGET_ROLES của HR_BULLETIN (HomeAdminService.NormalizeRoles).
+    private static string? NormalizeTargetRoles(string? csv)
+    {
+        if (string.IsNullOrWhiteSpace(csv)) return null;
+        var roles = csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Where(r => r is "Admin" or "HR" or "CSR")
+                        .Distinct()
+                        .ToArray();
+        return roles.Length == 0 ? null : string.Join(",", roles);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1930,6 +1951,60 @@ public class InquiryController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Inquiry/report-messages?from=YYYY-MM-DD&to=YYYY-MM-DD
+    // Toàn bộ tin nhắn của các hội thoại trong khoảng ngày — dùng cho sheet
+    // "Nội dung chat" khi xuất Excel báo cáo (yêu cầu 2026-09-21, HR/CSR cần xem
+    // lại NV nhắn gì, ai phản hồi lúc mấy giờ, ai bấm kết thúc). Cùng cách lọc
+    // ngày với ReportRaw ở trên để 2 sheet luôn khớp đúng 1 tập hội thoại.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("report-messages")]
+    public async Task<IActionResult> ReportMessages(string? from = null, string? to = null)
+    {
+        try
+        {
+            DateTime startDt, endDt;
+            if (DateTime.TryParse(from, out var fDt) && DateTime.TryParse(to, out var tDt))
+            {
+                startDt = fDt.Date;
+                endDt   = tDt.Date.AddDays(1);
+            }
+            else
+            {
+                var today = DateTime.Today;
+                int dow   = (int)today.DayOfWeek;
+                int diff  = dow == 0 ? -6 : 1 - dow;
+                startDt = today.AddDays(diff);
+                endDt   = startDt.AddDays(7);
+            }
+
+            var rows = await _db.ExecuteQueryAsync(@"
+                SELECT m.INQUIRY_ID, m.SENDER_TYPE, m.SENDER_NAME, m.MSG_TYPE, m.CONTENT, m.SENT_DT
+                FROM HRMS.HR_INQUIRY_MSG m
+                JOIN HRMS.HR_INQUIRY i ON i.ID = m.INQUIRY_ID
+                WHERE TRUNC(i.INST_DT) >= :START_DT AND TRUNC(i.INST_DT) < :END_DT
+                  AND m.IS_DELETED = 0
+                ORDER BY m.INQUIRY_ID, m.SENT_DT, m.ID",
+                r => new
+                {
+                    inquiryId  = Convert.ToInt64(r["INQUIRY_ID"]),
+                    senderType = r["SENDER_TYPE"]?.ToString() ?? "",
+                    senderName = r["SENDER_NAME"]?.ToString(),
+                    msgType    = r["MSG_TYPE"]?.ToString() ?? "TEXT",
+                    content    = r["CONTENT"]?.ToString(),
+                    sentDt     = r["SENT_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SENT_DT"])
+                },
+                new OracleParameter("START_DT", startDt.Date),
+                new OracleParameter("END_DT",   endDt.Date));
+
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // POST /apiHR/Inquiry/rate
     // Đánh giá sau khi CLOSED (chỉ Employee, chỉ 1 lần)
     // ─────────────────────────────────────────────────────────────────────────
@@ -2077,6 +2152,7 @@ public class SaveCannedReplyRequest
     public string  Content       { get; set; } = "";
     public int     DisplayOrder  { get; set; }
     public bool    IsActive      { get; set; } = true;
+    public string? TargetRoles   { get; set; }   // CSV: "HR,Admin,CSR" — null/rỗng = dùng chung cả 3
     public string? ActorEmpCd    { get; set; }
 }
 

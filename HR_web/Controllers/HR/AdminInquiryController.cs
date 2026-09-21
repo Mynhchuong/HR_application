@@ -610,6 +610,93 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         wsRating.Columns().AdjustToContents();
         wsRating.Column(10).Width = 60;
 
+        // ─── Sheet 6: Nội dung chat (toàn bộ tin nhắn từng hội thoại — yêu cầu 2026-09-21,
+        // HR/CSR cần xem lại NV nhắn gì, ai phản hồi lúc mấy giờ, ai bấm kết thúc) ─────
+        var msgResult  = await _inquiry.GetReportMessagesAsync(from, to);
+        var infoById   = rawResult.data.ToDictionary(d => d.id, d => d);
+        var wsChat     = wb.Worksheets.Add("Nội dung chat");
+        string[] chatHeaders =
+        {
+            "ID chat", "Chủ đề", "Mã NV", "Họ và tên",
+            "Thời gian", "Người gửi", "Tên người gửi", "Nội dung",
+            "Người kết thúc", "TG kết thúc"
+        };
+        for (int i = 0; i < chatHeaders.Length; i++)
+        {
+            var c = wsChat.Cell(1, i + 1);
+            c.Value = chatHeaders[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#dc2626");
+            c.Style.Font.FontColor = XLColor.White;
+            c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        row = 2;
+        long? prevInquiryId = null;
+        foreach (var m in msgResult.data.OrderBy(x => x.inquiryId).ThenBy(x => x.sentDt))
+        {
+            infoById.TryGetValue(m.inquiryId, out var info);
+
+            // Kẻ viền đậm phía trên khi sang hội thoại khác — thay cho gộp ô cho đơn giản
+            if (prevInquiryId.HasValue && prevInquiryId.Value != m.inquiryId)
+                wsChat.Range(row, 1, row, chatHeaders.Length).Style.Border.TopBorder = XLBorderStyleValues.Medium;
+
+            wsChat.Cell(row, 1).Value = info?.inquiryNo ?? m.inquiryId.ToString();
+            wsChat.Cell(row, 2).Value = info?.topicName ?? "";
+            wsChat.Cell(row, 3).Value = info?.empCd ?? "";
+
+            var nameCell = wsChat.Cell(row, 4);
+            nameCell.Value = info?.empDisplay ?? "";
+            nameCell.Style.Font.FontName = "Vnitbi__";
+
+            if (m.sentDt.HasValue) wsChat.Cell(row, 5).Value = m.sentDt.Value; else wsChat.Cell(row, 5).Value = "—";
+            wsChat.Cell(row, 5).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+
+            string senderLabel = m.senderType switch
+            {
+                "EMP" => "Nhân viên",
+                "HR"  => "HR/CSR",
+                "SYS" => "Hệ thống",
+                _     => m.senderType
+            };
+            wsChat.Cell(row, 6).Value = senderLabel;
+
+            var senderNameCell = wsChat.Cell(row, 7);
+            senderNameCell.Value = m.senderName ?? "";
+            senderNameCell.Style.Font.FontName = "Vnitbi__";
+
+            var contentCell = wsChat.Cell(row, 8);
+            contentCell.Value = m.msgType switch
+            {
+                "IMAGE" => "[Hình ảnh]",
+                "FILE"  => "[Tệp đính kèm]",
+                _       => StripHtml(m.content)
+            };
+            if (m.senderType == "SYS") contentCell.Style.Font.Italic = true;
+
+            string closedByLabel = info?.closedByType switch
+            {
+                "HR"    => "HR",
+                "EMP"   => "NV tự đóng",
+                "ADMIN" => "Admin",
+                _       => ""
+            };
+            var closedByCell = wsChat.Cell(row, 9);
+            closedByCell.Value = string.IsNullOrEmpty(info?.closedByName) ? closedByLabel : $"{info!.closedByName} ({closedByLabel})";
+            closedByCell.Style.Font.FontName = "Vnitbi__";
+
+            if (info?.closedDt != null) wsChat.Cell(row, 10).Value = info.closedDt.Value; else wsChat.Cell(row, 10).Value = "—";
+            wsChat.Cell(row, 10).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+
+            prevInquiryId = m.inquiryId;
+            row++;
+        }
+        if (msgResult.data.Count > 0)
+            wsChat.Range(1, 1, 1, chatHeaders.Length).SetAutoFilter();
+        wsChat.SheetView.FreezeRows(1);
+        wsChat.Columns().AdjustToContents();
+        wsChat.Column(8).Width = 70;
+
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
 
@@ -707,7 +794,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     public async Task<IActionResult> GetCannedRepliesForPicker(string? q = null)
     {
         if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
-        var raw = await _inquiry.CannedRepliesRawAsync(q);
+        var raw = await _inquiry.CannedRepliesRawAsync(q, CurrentUser?.RoleName);
         return Content(raw, "application/json");
     }
 
@@ -725,6 +812,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             content      = req.Content,
             displayOrder = req.DisplayOrder,
             isActive     = req.IsActive,
+            targetRoles  = req.TargetRoles,
             actorEmpCd   = CurrentUser?.EmpCd
         };
         var raw = await _inquiry.CannedReplySaveRawAsync(payload);
@@ -748,11 +836,12 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
 
     public class AdminCannedReplySaveRequest
     {
-        public long?  Id           { get; set; }
-        public string Title        { get; set; } = "";
-        public string Content      { get; set; } = "";
-        public int    DisplayOrder { get; set; }
-        public bool   IsActive     { get; set; } = true;
+        public long?   Id           { get; set; }
+        public string  Title        { get; set; } = "";
+        public string  Content      { get; set; } = "";
+        public int     DisplayOrder { get; set; }
+        public bool    IsActive     { get; set; } = true;
+        public string? TargetRoles  { get; set; }
     }
 
     public class AdminCannedReplyDeleteRequest

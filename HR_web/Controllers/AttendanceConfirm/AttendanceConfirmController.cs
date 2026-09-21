@@ -26,6 +26,19 @@ public class AttendanceConfirmController : BaseController
         return View();
     }
 
+    // GET: /AttendanceConfirm/IndexForExpat — bản tiếng Anh cùng trang, dùng chung API với Index()
+    // (yêu cầu 2026-09-21: Expat vào menu "Attendance Confirm" nhưng trang toàn tiếng Việt).
+    // Cùng pattern GpListForExpat/OtListForExpat/LeaveApprovalForExpat — không giới hạn thêm Roles ở
+    // action, chỉ khác view + menu trỏ vào đây.
+    public IActionResult IndexForExpat()
+    {
+        ViewBag.DateFrom     = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).ToString("yyyy-MM-dd");
+        ViewBag.DateTo       = DateTime.Today.ToString("yyyy-MM-dd");
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
+        ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
+        return View();
+    }
+
     // GET: /AttendanceConfirm/WorkerForm?date=yyyy-MM-dd — công nhân khai giờ vào/ra 1 ngày
     public IActionResult WorkerForm(string? date)
     {

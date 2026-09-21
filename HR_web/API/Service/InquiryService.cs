@@ -126,8 +126,9 @@ public class InquiryService
     }
 
     // Câu trả lời mẫu (yêu cầu HR 2026-09-12) — passthrough raw JSON, giống SearchRefsRawAsync.
-    public Task<string> CannedRepliesRawAsync(string? q)
-        => GetInquiryRawAsync($"Inquiry/canned-replies?q={Uri.EscapeDataString(q ?? "")}");
+    // role: RoleName người đang chat (yêu cầu 2026-09-21) — lọc mẫu đúng HR/Admin/CSR, tránh lẫn nhau.
+    public Task<string> CannedRepliesRawAsync(string? q, string? role = null)
+        => GetInquiryRawAsync($"Inquiry/canned-replies?q={Uri.EscapeDataString(q ?? "")}&role={Uri.EscapeDataString(role ?? "")}");
 
     public Task<string> CannedRepliesAdminRawAsync(string? actorEmpcd)
         => GetInquiryRawAsync($"Inquiry/admin/canned-replies?actor_empcd={Uri.EscapeDataString(actorEmpcd ?? "")}");
@@ -290,6 +291,24 @@ public class InquiryService
             return new InquiryReportRawResponse { success = false, message = "Lỗi kết nối API" };
         }
         catch (Exception ex) { return new InquiryReportRawResponse { success = false, message = ex.Message }; }
+    }
+
+    // GET /apiHR/Inquiry/report-messages?from=YYYY-MM-DD&to=YYYY-MM-DD — toàn bộ tin nhắn trong
+    // khoảng ngày, dùng cho sheet "Nội dung chat" khi xuất Excel báo cáo (yêu cầu 2026-09-21).
+    public async Task<InquiryReportMessagesResponse> GetReportMessagesAsync(string? from, string? to)
+    {
+        try
+        {
+            var q = new List<string>();
+            if (!string.IsNullOrEmpty(from)) q.Add($"from={Uri.EscapeDataString(from)}");
+            if (!string.IsNullOrEmpty(to))   q.Add($"to={Uri.EscapeDataString(to)}");
+            var res = await _api.GetAsync_Raw("Inquiry/report-messages", string.Join("&", q));
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<InquiryReportMessagesResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new InquiryReportMessagesResponse { success = false };
+            return new InquiryReportMessagesResponse { success = false, message = "Lỗi kết nối API" };
+        }
+        catch (Exception ex) { return new InquiryReportMessagesResponse { success = false, message = ex.Message }; }
     }
 
     // POST /apiHR/Inquiry/rate

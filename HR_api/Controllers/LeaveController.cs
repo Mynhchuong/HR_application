@@ -360,17 +360,20 @@ public class LeaveController : ControllerBase
             return gpRequestId;
         }
 
+        // Ghi rõ "Tự động từ MySamho" trong REASON — NV/HR nhìn vào danh sách Gate Pass biết ngay
+        // đây là phiếu hệ thống tự tạo theo đơn Công tác, không phải tự xin, tránh xóa nhầm (bug
+        // thật 2026-09-21, xem thêm chặn xóa ở GatePassController.Delete/AdminDeleteGp).
         if (fromDate.Date == toDate.Date)
         {
             var id = await InsertOneAsync("MID",
                 fromDate.Date.AddHours(7).AddMinutes(30),
                 fromDate.Date.AddHours(16).AddMinutes(30),
-                "Công tác");
+                "Tự động từ MySamho - Công tác");
             return (id, null);
         }
 
-        var outId    = await InsertOneAsync("OUT", fromDate.Date.AddHours(7).AddMinutes(30), null, "Công tác - ngày đi");
-        var returnId = await InsertOneAsync("IN",  null, toDate.Date.AddHours(16).AddMinutes(30),  "Công tác - ngày về");
+        var outId    = await InsertOneAsync("OUT", fromDate.Date.AddHours(7).AddMinutes(30), null, "Tự động từ MySamho - Công tác (ngày đi)");
+        var returnId = await InsertOneAsync("IN",  null, toDate.Date.AddHours(16).AddMinutes(30),  "Tự động từ MySamho - Công tác (ngày về)");
         return (outId, returnId);
     }
 

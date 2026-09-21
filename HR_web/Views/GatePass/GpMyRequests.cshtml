@@ -183,8 +183,11 @@ function remarkHtml(item) {
 
 function actionBtns(item) {
     if (!item.IS_EDITABLE) return '<span class="text-muted text-xs">-</span>';
-    return `<button class="btn btn-xs btn-outline-warning me-1" data-id="${item.REQUEST_ID}" data-type="${item.GP_TYPE||''}" data-out="${item.OUT_TIME||''}" data-in="${item.IN_TIME||''}" data-reason="${escHtml(item.REASON||'')}" onclick="openEditBtn(this)"><i class="bi bi-pencil"></i></button>
-            <button class="btn btn-xs btn-outline-danger" onclick="confirmDelete('${item.REQUEST_ID}')"><i class="bi bi-trash"></i></button>`;
+    const editBtn = `<button class="btn btn-xs btn-outline-warning me-1" data-id="${item.REQUEST_ID}" data-type="${item.GP_TYPE||''}" data-out="${item.OUT_TIME||''}" data-in="${item.IN_TIME||''}" data-reason="${escHtml(item.REASON||'')}" onclick="openEditBtn(this)"><i class="bi bi-pencil"></i></button>`;
+    // Gate Pass hệ thống tự tạo theo đơn Công tác — ẩn hẳn nút xoá, tránh NV xóa nhầm khiến đơn CT
+    // mất quyền ra cổng dù đơn vẫn còn đó (bug thật 2026-09-21). Muốn hủy phải hủy đơn Công tác.
+    if ((item.REASON || '').startsWith('Tự động từ MySamho')) return editBtn;
+    return editBtn + `<button class="btn btn-xs btn-outline-danger" onclick="confirmDelete('${item.REQUEST_ID}')"><i class="bi bi-trash"></i></button>`;
 }
 
 function timeCell(item) {

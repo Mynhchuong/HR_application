@@ -4420,3 +4420,15 @@ CREATE TABLE HRMS.HR_TRAINING_VIDEO_PROGRESS (
     CONSTRAINT CHK_TRVP_COMPLETED   CHECK (IS_COMPLETED IN (0,1))
 ) TABLESPACE HRMSD;
 
+
+-- ============================================================
+-- CÂU TRẢ LỜI MẪU: PHÂN LOẠI THEO ROLE (ADDED 21/09/2026)
+-- Thêm TARGET_ROLES cho HR_INQUIRY_CANNED_REPLY để tách mẫu của
+-- HR / Admin / CSR, tránh lẫn lộn (trước giờ 1 kho chung không phân biệt).
+-- NULL/rỗng = dùng chung cho cả 3 role (mặc định của các mẫu cũ).
+-- ============================================================
+
+ALTER TABLE HRMS.HR_INQUIRY_CANNED_REPLY ADD TARGET_ROLES VARCHAR2(60);
+COMMENT ON COLUMN HRMS.HR_INQUIRY_CANNED_REPLY.TARGET_ROLES IS 'CSV ROLE_NAME (HR,Admin,CSR) duoc dung mau nay; NULL = dung chung cho ca 3 role';
+
+-- Đã chèn 3 mẫu demo minh họa, mỗi role 1 cái (ID 8=HR, 9=Admin, 10=CSR).

@@ -152,7 +152,7 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
     public async Task<IActionResult> GetCannedRepliesForPicker(string? q = null)
     {
         if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
-        var json = await _inquiry.CannedRepliesRawAsync(q);
+        var json = await _inquiry.CannedRepliesRawAsync(q, CurrentUser?.RoleName);
         return Content(json, "application/json");
     }
 
@@ -190,6 +190,7 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
             content      = req.Content,
             displayOrder = req.DisplayOrder,
             isActive     = req.IsActive,
+            targetRoles  = req.TargetRoles,
             actorEmpCd   = CurrentUser?.EmpCd
         };
         var raw = await _inquiry.CannedReplySaveRawAsync(payload);
@@ -209,11 +210,12 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
 
     public class HrCannedReplySaveRequest
     {
-        public long?  Id           { get; set; }
-        public string Title        { get; set; } = "";
-        public string Content      { get; set; } = "";
-        public int    DisplayOrder { get; set; }
-        public bool   IsActive     { get; set; } = true;
+        public long?   Id           { get; set; }
+        public string  Title        { get; set; } = "";
+        public string  Content      { get; set; } = "";
+        public int     DisplayOrder { get; set; }
+        public bool    IsActive     { get; set; } = true;
+        public string? TargetRoles  { get; set; }
     }
 
     public class HrCannedReplyDeleteRequest

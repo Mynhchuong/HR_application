@@ -259,3 +259,22 @@ public class InquiryReportRawResponse
     public string?                    to      { get; set; }
     public List<InquiryReportRawRow>  data    { get; set; } = new();
 }
+
+// Tin nhắn cho sheet "Nội dung chat" khi xuất báo cáo (yêu cầu 2026-09-21)
+[JsonObject(NamingStrategyType = typeof(CamelCaseNamingStrategy))]
+public class InquiryReportMsgRow
+{
+    public long      inquiryId  { get; set; }
+    public string    senderType { get; set; } = "";   // EMP | HR | SYS
+    public string?   senderName { get; set; }
+    public string    msgType    { get; set; } = "TEXT";
+    public string?   content    { get; set; }
+    public DateTime? sentDt     { get; set; }
+}
+
+public class InquiryReportMessagesResponse
+{
+    public bool                        success { get; set; }
+    public string?                     message { get; set; }
+    public List<InquiryReportMsgRow>   data    { get; set; } = new();
+}

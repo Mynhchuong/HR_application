@@ -36,6 +36,14 @@
     .pill-hidden { font-size: .68rem; font-weight: 800; padding: 2px 9px; border-radius: 20px;
                    background: #f1f5f9; color: #64748b; text-transform: uppercase; }
 
+    .role-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+    .pill-role { font-size: .66rem; font-weight: 800; padding: 2px 8px; border-radius: 20px;
+                 text-transform: uppercase; }
+    .pill-role.role-hr    { background: #dbeafe; color: #1d4ed8; }
+    .pill-role.role-admin { background: #fee2e2; color: #b91c1c; }
+    .pill-role.role-csr   { background: #fef3c7; color: #92400e; }
+    .pill-role.role-all   { background: #f1f5f9; color: #64748b; }
+
     .cr-actions { display: flex; gap: .35rem; justify-content: flex-end; }
     .cr-act-btn { background: white; border: 1px solid #e2e8f0; color: #475569; border-radius: 8px;
                   padding: .3rem .55rem; font-size: .72rem; font-weight: 700; cursor: pointer;
@@ -109,13 +117,14 @@
             <thead>
                 <tr>
                     <th>Tiêu đề</th>
+                    <th>Dùng cho</th>
                     <th class="center">Thứ tự</th>
                     <th class="center">Trạng thái</th>
                     <th class="center">Thao tác</th>
                 </tr>
             </thead>
             <tbody id="crBody">
-                <tr><td colspan="4"><div class="cr-loading">Đang tải...</div></td></tr>
+                <tr><td colspan="5"><div class="cr-loading">Đang tải...</div></td></tr>
             </tbody>
         </table>
     </div>
@@ -145,6 +154,15 @@
                     <input type="file" id="crImageFile" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none" onchange="insertCannedImage()">
                 </div>
                 <div id="crContentEditor" contenteditable="true"></div>
+            </div>
+            <div class="cr-form-row">
+                <label>Dùng cho</label>
+                <div style="display:flex;gap:1rem;padding-top:.15rem">
+                    <label class="cr-checkbox"><input type="checkbox" class="fldRole" value="HR" checked><span>HR</span></label>
+                    <label class="cr-checkbox"><input type="checkbox" class="fldRole" value="Admin" checked><span>Admin</span></label>
+                    <label class="cr-checkbox"><input type="checkbox" class="fldRole" value="CSR" checked><span>CSR</span></label>
+                </div>
+                <div class="cr-preview" style="margin-top:4px">Bỏ chọn hết = mặc định dùng chung cho cả 3. Chỉ tick role nào thì role đó mới thấy mẫu này khi chat.</div>
             </div>
             <div class="cr-form-row">
                 <div class="row2">
@@ -212,10 +230,16 @@ async function loadCannedReplies() {
     }
 }
 
+function roleBadges(targetRoles) {
+    const roles = (targetRoles || '').split(',').map(r => r.trim()).filter(Boolean);
+    if (!roles.length) return '<span class="pill-role role-all">Dùng chung</span>';
+    return `<div class="role-tags">${roles.map(r => `<span class="pill-role role-${r.toLowerCase()}">${esc(r)}</span>`).join('')}</div>`;
+}
+
 function renderTable() {
     if (!cannedReplies.length) {
         document.getElementById('crBody').innerHTML =
-            '<tr><td colspan="4"><div class="cr-empty">Chưa có mẫu trả lời nào</div></td></tr>';
+            '<tr><td colspan="5"><div class="cr-empty">Chưa có mẫu trả lời nào</div></td></tr>';
         return;
     }
     const rows = cannedReplies.map(c => {
@@ -229,6 +253,7 @@ function renderTable() {
                 <div class="cr-title">${esc(c.title)}</div>
                 <div class="cr-preview">${esc(stripHtml(c.content))}</div>
             </td>
+            <td>${roleBadges(c.targetRoles)}</td>
             <td class="center">${c.displayOrder}</td>
             <td class="center">${status}</td>
             <td class="center">
@@ -249,6 +274,16 @@ function renderTable() {
     document.getElementById('crBody').innerHTML = rows;
 }
 
+function setRoleCheckboxes(targetRoles) {
+    const roles = (targetRoles || '').split(',').map(r => r.trim()).filter(Boolean);
+    document.querySelectorAll('.fldRole').forEach(cb => cb.checked = roles.length === 0 || roles.includes(cb.value));
+}
+
+function getRoleCheckboxesCsv() {
+    const checked = Array.from(document.querySelectorAll('.fldRole:checked')).map(cb => cb.value);
+    return (checked.length === 0 || checked.length === 3) ? null : checked.join(',');
+}
+
 function openCreate() {
     editingId = null;
     document.getElementById('crModalTitle').textContent = 'Thêm mẫu';
@@ -256,6 +291,7 @@ function openCreate() {
     document.getElementById('crContentEditor').innerHTML = '';
     document.getElementById('fldSort').value = (cannedReplies.length ? Math.max(...cannedReplies.map(x=>x.displayOrder||0)) + 1 : 0);
     document.getElementById('fldActive').checked = true;
+    setRoleCheckboxes(null);
     document.getElementById('crModal').classList.add('show');
 }
 
@@ -268,6 +304,7 @@ function openEdit(id) {
     document.getElementById('crContentEditor').innerHTML = c.content || '';
     document.getElementById('fldSort').value = c.displayOrder || 0;
     document.getElementById('fldActive').checked = !!c.isActive;
+    setRoleCheckboxes(c.targetRoles);
     document.getElementById('crModal').classList.add('show');
 }
 
@@ -326,7 +363,7 @@ async function saveCanned() {
     const btn = document.getElementById('btnSave');
     btn.disabled = true;
     try {
-        const payload = { id: editingId, title, content, displayOrder, isActive };
+        const payload = { id: editingId, title, content, displayOrder, isActive, targetRoles: getRoleCheckboxesCsv() };
         const res = await fetch(URL_SAVE, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
@@ -348,7 +385,7 @@ async function toggleActive(id, makeActive) {
     const c = cannedReplies.find(x => x.id === id);
     if (!c) return;
     try {
-        const payload = { id, title: c.title, content: c.content, displayOrder: c.displayOrder, isActive: makeActive };
+        const payload = { id, title: c.title, content: c.content, displayOrder: c.displayOrder, isActive: makeActive, targetRoles: c.targetRoles };
         const res = await fetch(URL_SAVE, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },

@@ -59,6 +59,10 @@ public class AttendanceConfirmService
         DateTime fromDate, DateTime toDate, string? status, string? missingType,
         int page, int pageSize)
     {
+        // Ép trần "hôm qua" bất kể FE truyền gì lên — dữ liệu ADD_TIME hôm nay chưa chốt (xem ghi
+        // chú ở SubmitWorkerConfirmAsync), loại hẳn khỏi danh sách được khai/duyệt (yêu cầu 2026-09-22).
+        var yesterday = DateTime.Today.AddDays(-1);
+        if (toDate.Date > yesterday) toDate = yesterday;
         // Chỉ true khi caller là quản lý thật (Supervisor+), KHÔNG phải Admin/HR — Admin/HR chỉ xem/
         // xuất Excel/gửi nhắc, không tự bấm Xác nhận thay (yêu cầu HR 2026-09-18).
         bool canConfirm = !isAdminOrHr && RoleHierarchyHelper.HasApprovalPermission(await GetRoleNameAsync(callerEmpCd));
@@ -147,11 +151,23 @@ public class AttendanceConfirmService
 
         string sqlData = @"
             SELECT * FROM (
-                SELECT T.*, ROW_NUMBER() OVER (ORDER BY DECODE(CONFIRM_STATUS,'MISSING',1,'PENDING_MANAGER',2,'PENDING_WORKER',3,4), DEPT_ID, EMPCD, WORK_DATE) RN
+                SELECT T.*, ROW_NUMBER() OVER (
+                    ORDER BY DECODE(CONFIRM_STATUS,'MISSING',1,'PENDING_MANAGER',2,'PENDING_WORKER',3,4),
+                             -- Sort theo role NV giống hệt Leave approval (yêu cầu 2026-09-22) — role
+                             -- cao hơn (Expat/Manager/...) nổi lên trước trong list quản lý/Expat xác nhận.
+                             CASE WHEN T.EMP_ROLE = 'Expat'         THEN 1
+                                  WHEN T.EMP_ROLE = 'Manager'       THEN 2
+                                  WHEN T.EMP_ROLE = 'DeputyManager' THEN 3
+                                  WHEN T.EMP_ROLE = 'Supervisor'    THEN 4
+                                  WHEN T.EMP_ROLE = 'HR'            THEN 5
+                                  WHEN T.EMP_ROLE = 'Clerk'         THEN 6
+                                  WHEN T.EMP_ROLE = 'Employee'      THEN 7
+                                  ELSE 8 END,
+                             DEPT_ID, EMPCD, WORK_DATE) RN
                 FROM (
                     SELECT A.EMPCD, B.CNAME EMP_NAME, TO_CHAR(A.DAT,'YYYY-MM-DD') WORK_DATE,
                            B.DEPTCD DEPT_ID, C.DEPTNM DEPT_NAME, B.LINECD LINE_ID, C.TEAMNM LINE_NAME,
-                           B.WORKCD WORK_ID, C.WORKNM WORK_NAME,
+                           B.WORKCD WORK_ID, C.WORKNM WORK_NAME, RR2.ROLE_NAME EMP_ROLE,
                            -- ADD_TIME.TIME_IN/TIME_OUT HẦU NHƯ KHÔNG BAO GIỜ NULL — HR đã tự điền sẵn
                            -- giờ mặc định (giờ ca chuẩn) cho phía thiếu trước khi lưu. REASON mới là
                            -- tín hiệu thật; chỉ tin giờ ERP ở phía REASON xác nhận là giờ quẹt thẻ thật.
@@ -161,12 +177,34 @@ public class AttendanceConfirmService
                            CF.ID CONFIRM_ID, (" + statusExpr + @") CONFIRM_STATUS,
                            CF.WORKER_TIME_IN, CF.WORKER_TIME_OUT, CF.CONFIRM_TIME_IN, CF.CONFIRM_TIME_OUT,
                            CF.SHIFT_TYPE, CF.WORKER_NOTE, CF.NOTE, CF.REQUESTED_BY, CF.REQUESTED_DATE,
-                           CF.CONFIRMED_BY, CF.CONFIRMED_DATE, CB.CNAME CONFIRMED_BY_NAME
+                           CF.CONFIRMED_BY, CF.CONFIRMED_DATE, CB.CNAME CONFIRMED_BY_NAME,
+                           OT.OT_BEFORE, OT.OT_BEFORE_TIME, OT.OT_AFTER, OT.OT_AFTER_TIME
                     " + fromSql + @"
                     LEFT JOIN HRMS.ECM100 CB ON CB.EMPCD = CF.CONFIRMED_BY
+                    -- Role NV — chỉ để sort list giống Leave, không phục vụ phân quyền gì khác ở đây.
+                    LEFT JOIN HRMS.HR_USERS UR2 ON UR2.EMPCD = A.EMPCD
+                    LEFT JOIN HRMS.HR_ROLES RR2 ON RR2.ID    = UR2.ROLE_ID
+                    -- Tăng ca thật (log ERP) — dùng để nới trần/sàn giờ chọn khi quản lý xác nhận
+                    -- và cảnh báo ""có tăng ca chưa chấm công"" (yêu cầu 2026-09-22, case thật
+                    -- 26072207 21/9: quên bấm giờ ra + tăng ca sau ca 1 giờ, list trước đây không
+                    -- biết có OT nên trần giờ ra bị chặn sai ở đúng giờ ca, không cho cộng thêm OT).
+                    LEFT JOIN (
+                        SELECT EMPCD, DAT,
+                               MAX(OT_BEFORE) OT_BEFORE, MAX(OT_BEFORE_TIME) OT_BEFORE_TIME,
+                               MAX(OT_AFTER)  OT_AFTER,  MAX(OT_AFTER_TIME)  OT_AFTER_TIME
+                        FROM (
+                            SELECT EMPCD, DAT, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME
+                            FROM HRMS.EBM300 WHERE DAT BETWEEN :D_FROM AND :D_TO
+                            UNION ALL
+                            SELECT EMPCD, DAT, OT_BEFORE, OT_BEFORE_TIME, OT_AFTER, OT_AFTER_TIME
+                            FROM HRMS.EBM300_WAIT WHERE DAT BETWEEN :D_FROM AND :D_TO
+                        )
+                        GROUP BY EMPCD, DAT
+                    ) OT ON OT.EMPCD = A.EMPCD AND TRUNC(OT.DAT) = TRUNC(A.DAT)
                     " + whereSql + @"
                 ) T
-            ) WHERE RN > :R_MIN AND RN <= :R_MAX";
+            ) WHERE RN > :R_MIN AND RN <= :R_MAX
+            ORDER BY RN";
 
         var dataParams = baseParams.Select(p => (OracleParameter)p.Clone()).ToList();
         dataParams.Add(new OracleParameter("R_MIN", offset));
@@ -178,6 +216,39 @@ public class AttendanceConfirmService
             string? erpOut = FmtTime(r["ERP_TIME_OUT"]);
             string missingType = erpIn == null && erpOut == null ? "BOTH" : erpIn == null ? "IN" : "OUT";
             var (shiftStime, shiftEtime, isNight) = ComputeShiftDisplay(r["STIME"], r["ETIME"]);
+
+            // Tăng ca thật live từ EBM300/EBM300_WAIT (join OT ở trên) — CF.SHIFT_TYPE chỉ có khi
+            // NV đã khai (bước 1), MISSING/chưa khai thì CF null nên phải tính sống ở đây, không thì
+            // quản lý xác nhận sẽ không biết NV có tăng ca để nới trần/sàn giờ chọn cho đúng (case
+            // thật 26072207 21/9: quên giờ ra + tăng ca sau ca 1 giờ).
+            string? otBeforeFlag = r["OT_BEFORE"]?.ToString();
+            decimal otBeforeHours = r["OT_BEFORE_TIME"] == DBNull.Value ? 0m : Convert.ToDecimal(r["OT_BEFORE_TIME"]);
+            string? otAfterFlag  = r["OT_AFTER"]?.ToString();
+            decimal otAfterHours  = r["OT_AFTER_TIME"]  == DBNull.Value ? 0m : Convert.ToDecimal(r["OT_AFTER_TIME"]);
+            bool hasOtBefore = otBeforeFlag == "Y" || otBeforeHours > 0;
+            bool hasOtAfter  = !hasOtBefore && (otAfterFlag == "Y" || otAfterHours > 0);
+            string liveShiftType = hasOtBefore ? "OT_BEFORE" : hasOtAfter ? "OT_AFTER" : "REGULAR";
+            string? storedShiftType = r["SHIFT_TYPE"]?.ToString();
+
+            // Gợi ý giờ mặc định = giờ ca + tăng ca thật (giống hệt công thức ở GetMyDayAsync) — để
+            // FE (modal xác nhận) nới đúng trần/sàn thay vì chặn cứng ở giờ ca gốc.
+            string? suggestedIn = null, suggestedOut = null;
+            string workDateCompact = (r["WORK_DATE"]?.ToString() ?? "").Replace("-", "");
+            if (erpIn == null && !string.IsNullOrEmpty(shiftStime) &&
+                DateTime.TryParseExact(workDateCompact + shiftStime.Replace(":", ""), "yyyyMMddHHmm", null,
+                    System.Globalization.DateTimeStyles.None, out var baseIn))
+            {
+                if (hasOtBefore && otBeforeHours > 0) baseIn = baseIn.AddHours((double)-otBeforeHours);
+                suggestedIn = baseIn.ToString("HH:mm");
+            }
+            if (erpOut == null && !string.IsNullOrEmpty(shiftEtime) &&
+                DateTime.TryParseExact(workDateCompact + shiftEtime.Replace(":", ""), "yyyyMMddHHmm", null,
+                    System.Globalization.DateTimeStyles.None, out var baseOut))
+            {
+                if (isNight) baseOut = baseOut.AddDays(1);
+                if (hasOtAfter && otAfterHours > 0) baseOut = baseOut.AddHours((double)otAfterHours);
+                suggestedOut = baseOut.ToString("HH:mm");
+            }
 
             return new AttendanceMissingItem
             {
@@ -192,6 +263,8 @@ public class AttendanceConfirmService
                 WORK_NAME        = r["WORK_NAME"]?.ToString(),
                 ERP_TIME_IN      = erpIn,
                 ERP_TIME_OUT     = erpOut,
+                SUGGESTED_TIME_IN  = suggestedIn,
+                SUGGESTED_TIME_OUT = suggestedOut,
                 MISSING_TYPE     = missingType,
                 SHIFT_CD         = r["SHIFTCD"]?.ToString(),
                 SHIFT_STIME      = shiftStime,
@@ -205,7 +278,9 @@ public class AttendanceConfirmService
                 WORKER_TIME_OUT  = FmtTime(r["WORKER_TIME_OUT"]),
                 CONFIRM_TIME_IN  = FmtTime(r["CONFIRM_TIME_IN"]),
                 CONFIRM_TIME_OUT = FmtTime(r["CONFIRM_TIME_OUT"]),
-                SHIFT_TYPE       = r["SHIFT_TYPE"]?.ToString(),
+                SHIFT_TYPE       = !string.IsNullOrEmpty(storedShiftType) ? storedShiftType : liveShiftType,
+                OT_BEFORE_HOURS  = hasOtBefore ? otBeforeHours : (decimal?)null,
+                OT_AFTER_HOURS   = hasOtAfter  ? otAfterHours  : (decimal?)null,
                 WORKER_NOTE      = r["WORKER_NOTE"]?.ToString(),
                 NOTE             = r["NOTE"]?.ToString(),
                 REQUESTED_BY     = r["REQUESTED_BY"]?.ToString(),
@@ -302,6 +377,10 @@ public class AttendanceConfirmService
         var (shiftType, otBeforeHours, otAfterHours) = await GetShiftTypeInfoAsync(empcd, workDate);
         if (string.IsNullOrEmpty(item.SHIFT_TYPE))
             item.SHIFT_TYPE = shiftType;
+        // Số giờ tăng ca thật (yêu cầu 2026-09-22: hiện rõ "tăng ca mấy giờ" cho công nhân tự khai,
+        // không chỉ quản lý/HR/Clerk/Expat/Admin bên list mới thấy).
+        if (shiftType == "OT_BEFORE" && otBeforeHours > 0) item.OT_BEFORE_HOURS = otBeforeHours;
+        if (shiftType == "OT_AFTER"  && otAfterHours  > 0) item.OT_AFTER_HOURS  = otAfterHours;
 
         // Gợi ý giờ mặc định = giờ ca làm việc (STIME/ETIME), cộng thêm giờ tăng ca trước/sau nếu
         // ERP có log — NV chỉ cần xác nhận thay vì gõ tay từ đầu (yêu cầu 2026-09-18).
@@ -347,6 +426,13 @@ public class AttendanceConfirmService
             ORDER BY A.DAT DESC";
 
         var today = DateTime.Today;
+        // Chỉ lấy tới hôm qua — dữ liệu ADD_TIME hôm nay chưa chốt (xem ghi chú ở
+        // SubmitWorkerConfirmAsync), chưa nên gợi ý công nhân khai ngay.
+        var yesterday    = today.AddDays(-1);
+        var startOfMonth = new DateTime(today.Year, today.Month, 1);
+        // Ngày 1 đầu tháng: "hôm qua" rơi vào tháng trước, startOfMonth > yesterday sẽ ra khoảng
+        // rỗng — lùi D_FROM về đúng "hôm qua" để không mất ngày đó khỏi gợi ý.
+        var dFrom = yesterday < startOfMonth ? yesterday : startOfMonth;
         return await _oracleService.ExecuteQueryAsync(sql, r =>
         {
             var (inMissing, outMissing) = ClassifyReason(r["REASON"]?.ToString());
@@ -358,8 +444,8 @@ public class AttendanceConfirmService
             };
         },
         new OracleParameter("EMPCD",  empcd),
-        new OracleParameter("D_FROM", new DateTime(today.Year, today.Month, 1)),
-        new OracleParameter("D_TO",   today));
+        new OracleParameter("D_FROM", dFrom),
+        new OracleParameter("D_TO",   yesterday));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -374,6 +460,13 @@ public class AttendanceConfirmService
 
         if (string.IsNullOrEmpty(req.TIME_IN) && string.IsNullOrEmpty(req.TIME_OUT))
             return Fail(req.EMPCD, req.WORK_DATE, "Vui lòng nhập ít nhất 1 giờ vào/ra");
+
+        // HR yêu cầu 2026-09-22: dữ liệu ADD_TIME của HÔM NAY chưa chốt — buổi sáng bên chấm công tự
+        // thêm vân tay tạm cho người xin vào trễ + người quên thật để kịp báo cáo 10h, qua sáng hôm
+        // sau mới gỡ cờ và đồng bộ lại vân tay thật. Nên chỉ cho khai/duyệt từ hôm qua trở về trước,
+        // tránh công nhân xác nhận nhầm 1 giờ tạm rồi tối đó ERP đổi lại giờ thật gây lệch dữ liệu.
+        if (workDate.Date >= DateTime.Today)
+            return Fail(req.EMPCD, req.WORK_DATE, "Dữ liệu chấm công hôm nay chưa chốt (ERP đồng bộ lại vân tay vào sáng hôm sau) — vui lòng xác nhận từ ngày mai trở đi");
 
         var shift = await _shiftLookup.GetShiftForDateAsync(req.EMPCD, workDate);
         bool isNightShift = shift != null && int.TryParse(shift.STIME, out var st) && int.TryParse(shift.ETIME, out var et) && st > et;
@@ -523,6 +616,12 @@ public class AttendanceConfirmService
             return Fail(existing.EMPCD, null, $"Yêu cầu này cần {RoleHierarchyHelper.RequiredApproverName(requesterRole)} xác nhận.");
 
         string newStatus = req.STATUS == "REJECTED" ? "REJECTED" : "CONFIRMED";
+
+        // Từ chối bắt buộc có ghi chú để công nhân biết lý do — chặn thật ở đây, không chỉ validate
+        // phía FE (yêu cầu 2026-09-22).
+        if (newStatus == "REJECTED" && string.IsNullOrWhiteSpace(req.NOTE))
+            return Fail(existing.EMPCD, null, "Vui lòng nhập lý do từ chối để nhân viên biết");
+
         DateTime? timeIn  = CombineTime(existing.WorkDate, req.TIME_IN);
         DateTime? timeOut = CombineTime(existing.WorkDate, req.TIME_OUT);
         if (timeIn.HasValue && timeOut.HasValue && timeOut < timeIn) timeOut = timeOut.Value.AddDays(1);
@@ -578,6 +677,15 @@ public class AttendanceConfirmService
     {
         try
         {
+            // Dữ liệu ADD_TIME của hôm nay chưa chốt (xem ghi chú ở SubmitWorkerConfirmAsync) — HR/
+            // Clerk không gửi yêu cầu xác nhận cho ngày hôm nay được.
+            if (workDate.Date >= DateTime.Today)
+            {
+                res.failed++;
+                res.results.Add(new AttendanceConfirmActionResult { EMPCD = empcd, WORK_DATE = workDate.ToString("yyyy-MM-dd"), OK = false, MESSAGE = "Dữ liệu hôm nay chưa chốt, chưa thể gửi yêu cầu xác nhận" });
+                return;
+            }
+
             // REASON là tín hiệu thật (xem ClassifyReason) — ADD_TIME.TIME_IN/TIME_OUT hầu như
             // không bao giờ NULL vì HR đã tự điền giờ mặc định cho phía thiếu trước khi lưu.
             var erpReason = (await _oracleService.ExecuteQueryAsync(

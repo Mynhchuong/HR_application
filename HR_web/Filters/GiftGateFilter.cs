@@ -22,6 +22,10 @@ public class GiftGateFilter : IAsyncActionFilter
         "giftadmin",                // trang quản trị/báo cáo — tránh HR/Clerk tự khóa mình khi xử lý quà cho người khác
         "notification", "adminnoti",// xem thông báo
         "image", "video",           // asset serve từ Controller
+        // dropdown (dept/line/work) — GiftAdmin/Report + BatchDetail cần để lọc, thiếu whitelist
+        // này thì HR/Clerk có quà PENDING_CONFIRM của chính mình sẽ bị 409 ngay khi mở filter dropdown
+        // (review 2026-09-22, cùng whitelist SurveyBlockerFilter đã có sẵn cho đúng lý do này).
+        "dropdown",
     };
 
     private const string CACHE_PREFIX = "gift_pending_";
@@ -45,6 +49,15 @@ public class GiftGateFilter : IAsyncActionFilter
         var controllerName = (context.RouteData.Values["controller"]?.ToString() ?? "").ToLower();
         if (WhitelistControllers.Contains(controllerName)) { await next(); return; }
 
+        // Badge nền chỉ đọc, không được làm phát sinh 409 trên mọi trang khi có quà pending.
+        var actionName = context.RouteData.Values["action"]?.ToString() ?? "";
+        if (controllerName.Equals("bulletin", StringComparison.OrdinalIgnoreCase)
+            && actionName.Equals("UnreadCount", StringComparison.OrdinalIgnoreCase))
+        {
+            await next();
+            return;
+        }
+
         var user = AuthHelper.GetCurrentUser(context.HttpContext.User);
         if (user == null || string.IsNullOrEmpty(user.EmpCd)) { await next(); return; }
 
@@ -57,9 +70,17 @@ public class GiftGateFilter : IAsyncActionFilter
 
         if (pendingId.HasValue && pendingId.Value > 0)
         {
+            // X-Requested-With chỉ jQuery $.ajax tự gắn — fetch() (home.js, TrainingTeach, chat...)
+            // không có, sẽ bị coi nhầm là điều hướng trang thật rồi redirect thẳng, khiến code gọi
+            // fetch().then(r => r.json()) parse nhầm HTML của trang MyGifts (review 2026-09-22).
+            // Thêm check Accept: điều hướng trang thật của trình duyệt luôn có "text/html" trong
+            // Accept; mọi lời gọi lấy dữ liệu (cả $.ajax lẫn fetch mặc định "*/*") thì không — nhận
+            // diện được luôn fetch() mà không cần sửa tay từng trang.
+            var acceptHeader = context.HttpContext.Request.Headers["Accept"].ToString();
             bool isAjax = string.Equals(
                 context.HttpContext.Request.Headers["X-Requested-With"].ToString(),
-                "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
+                "XMLHttpRequest", StringComparison.OrdinalIgnoreCase)
+                || !acceptHeader.Contains("text/html", StringComparison.OrdinalIgnoreCase);
 
             if (isAjax)
             {

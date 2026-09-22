@@ -1209,6 +1209,11 @@ END;";
             // biết CT vừa duyệt có Gate Pass PENDING/lỗi hay không để nhắc quản lý duyệt tay).
             bool isCtApproval = false;
             bool ctGatePassOk = true;
+            // Đơn CT cũ (tạo trước khi có auto-link Gate Pass) có thể không có GP_REQUEST_ID nào cả —
+            // trước đây ctGatePassOk mặc định true khiến FE hiện nhầm popup xanh "đã duyệt Gate Pass"
+            // dù thực ra chẳng có Gate Pass nào (review 2026-09-22). Chỉ coi is_ct đáng báo khi có ít
+            // nhất 1 Gate Pass thật sự liên kết.
+            bool anyGpLinked = false;
 
             // ERP: call SP_015_NEW after approval
             var ldRows = await _oracleService.ExecuteQueryAsync(@"
@@ -1382,6 +1387,7 @@ END;";
                     foreach (var gpId in new[] { ld.GpRequestId, ld.GpRequestIdReturn })
                     {
                         if (string.IsNullOrEmpty(gpId)) continue;
+                        anyGpLinked = true;
                         var gpStatusRows = await _oracleService.ExecuteQueryAsync(
                             "SELECT STATUS FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :ID",
                             r => r["STATUS"]?.ToString(),
@@ -1399,7 +1405,7 @@ END;";
             // Invalidate Home summary cache của approver — số pending vừa giảm 1
             _homeSummarySvc.InvalidateFor(model.APPROVER_EMPCD);
 
-            return Ok(new { success = true, message = "Đã duyệt đơn nghỉ phép", is_ct = isCtApproval, ct_gate_pass_ok = ctGatePassOk });
+            return Ok(new { success = true, message = "Đã duyệt đơn nghỉ phép", is_ct = isCtApproval && anyGpLinked, ct_gate_pass_ok = ctGatePassOk });
         }
         catch (Exception ex)
         {

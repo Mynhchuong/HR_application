@@ -43,7 +43,16 @@ public class TrainingClassService
                      WHERE E.CLASS_ID = CL.ID
                        AND E.STATUS IN ('ENROLLED','PENDING_APPROVAL','COMPLETED','FAILED')) AS ENROLLMENT_COUNT,
                    (SELECT COUNT(*) FROM HRMS.HR_TRAINING_SESSION S
-                     WHERE S.CLASS_ID = CL.ID) AS SESSION_COUNT
+                     WHERE S.CLASS_ID = CL.ID) AS SESSION_COUNT,
+                   -- Lớp COMPLETED/CLOSED mà vẫn còn học viên STATUS=ENROLLED = CHƯA TỪNG bấm Chốt kết
+                   -- quả & cấp chứng chỉ (không tính FAILED — FAILED nghĩa là lớp ĐÃ chốt xong, học
+                   -- viên rớt là kết quả cuối, không phải bị bỏ sót; ClassAssign.cshtml vẫn cho bấm
+                   -- lại nút Chốt với lớp có FAILED để hỗ trợ chốt sau khi học viên thi lại, nhưng đó
+                   -- là chốt lại lần 2, không phải chưa chốt theo đúng ý HR/CSR ở đây.
+                   (CASE WHEN CL.STATUS IN ('COMPLETED','CLOSED') THEN
+                       (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ENROLLMENT E
+                         WHERE E.CLASS_ID = CL.ID AND E.STATUS = 'ENROLLED')
+                     ELSE 0 END) AS PENDING_FINALIZE_COUNT
               FROM HRMS.HR_TRAINING_CLASS CL
               JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID
              WHERE (:P_STATUS IS NULL OR CL.STATUS    = :P_STATUS)
@@ -1599,6 +1608,7 @@ public class TrainingClassService
         var c = MapClassFullWithCourse(r);
         c.ENROLLMENT_COUNT = Convert.ToInt32(r["ENROLLMENT_COUNT"]);
         c.SESSION_COUNT    = Convert.ToInt32(r["SESSION_COUNT"]);
+        c.PENDING_FINALIZE_COUNT = Convert.ToInt32(r["PENDING_FINALIZE_COUNT"]);
         return c;
     }
 

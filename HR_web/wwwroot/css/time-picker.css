@@ -1,0 +1,16 @@
+/* TimePickerHelper — style mặc định (gọn, hợp layout nhiều cột trên mobile).
+   Trang nào cần rộng/nổi bật hơn (VD form 1 cột) có thể override lại 2 class .time-picker select
+   ngay trong @section Styles của trang đó — xem class .wf-hour-select ở WorkerForm.cshtml. */
+.time-picker { display: flex; align-items: center; gap: 4px; }
+.time-picker select {
+    font-size: .85rem; font-weight: 700; text-align: center; min-width: 0;
+    padding: .45rem .2rem; border-radius: 8px; border: 1.5px solid #d1d5db; background: #fff;
+}
+.time-picker select.hour-select {
+    flex: 1.5 1 0; text-align: left; padding-left: .35rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.time-picker select.min-select { flex: .8 1 0; }
+.time-picker select:focus { outline: none; border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.15); }
+.time-picker select.auto-time { background: #f0f4ff; color: #3a5fcf; border-color: #93c5fd; }
+.time-colon { font-size: 1.1rem; font-weight: 900; color: #374151; }

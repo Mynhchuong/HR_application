@@ -1,7 +1,11 @@
 @{
     ViewData["Title"] = "Xác nhận chấm công thiếu";
     var dateFrom = (string)(ViewBag.DateFrom ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd"));
-    var dateTo   = (string)(ViewBag.DateTo   ?? DateTime.Today.ToString("yyyy-MM-dd"));
+    var dateTo   = (string)(ViewBag.DateTo   ?? DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"));
+    // Dữ liệu ADD_TIME hôm nay chưa chốt (bên chấm công tự thêm vân tay tạm để kịp báo cáo 10h,
+    // sáng hôm sau mới đồng bộ lại vân tay thật) — chặn chọn hôm nay/tương lai, backend cũng tự
+    // ép trần này (yêu cầu HR 2026-09-22).
+    var maxDate  = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd");
 }
 
 @section Styles {
@@ -37,7 +41,7 @@
                     <span class="text-white small">→</span>
                     <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
                         <i class="bi bi-calendar3 text-success"></i>
-                        <input type="date" id="filterDateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateTo" onchange="loadData(1)" />
+                        <input type="date" id="filterDateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateTo" max="@maxDate" onchange="loadData(1)" />
                     </div>
                 </div>
             </div>
@@ -135,22 +139,37 @@
             <div class="modal-body">
                 <input type="hidden" id="cfConfirmId" />
                 <div id="cfShiftInfo" class="text-xs text-secondary mb-2"></div>
+                <div id="cfOtWarning" class="alert alert-warning py-2 px-2 mb-2 text-xs" style="display:none;"></div>
+                <div class="text-xxs text-secondary mb-2">
+                    <i class="bi bi-info-circle"></i> Chọn lại giờ nếu nhân viên của bạn khai chưa đúng.
+                </div>
                 <div class="row g-2 mb-2">
-                    <div class="col-6">
+                    <div class="col-6" id="cfTimeInCol">
                         <label class="form-label small fw-bold">Giờ vào</label>
-                        <input type="time" id="cfTimeIn" class="form-control form-control-sm" />
+                        <div class="time-picker">
+                            <select id="cfTimeInHour" class="hour-select"></select>
+                            <span class="time-colon">:</span>
+                            <select id="cfTimeInMin" class="min-select"></select>
+                        </div>
+                        <input type="hidden" id="cfTimeIn" />
                     </div>
-                    <div class="col-6">
+                    <div class="col-6" id="cfTimeOutCol">
                         <label class="form-label small fw-bold">Giờ ra</label>
-                        <input type="time" id="cfTimeOut" class="form-control form-control-sm" />
+                        <div class="time-picker">
+                            <select id="cfTimeOutHour" class="hour-select"></select>
+                            <span class="time-colon">:</span>
+                            <select id="cfTimeOutMin" class="min-select"></select>
+                        </div>
+                        <input type="hidden" id="cfTimeOut" />
                     </div>
                 </div>
                 <div class="mb-2">
                     <label class="form-label small fw-bold">Ghi chú</label>
-                    <textarea id="cfNote" class="form-control form-control-sm" rows="2" maxlength="500" placeholder="Ghi chú (không bắt buộc)"></textarea>
+                    <textarea id="cfNote" class="form-control form-control-sm" rows="2" maxlength="500" placeholder="Ghi chú (bắt buộc nếu từ chối, để NV biết lý do)"></textarea>
                 </div>
             </div>
             <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="doConfirm('REJECTED')"><i class="bi bi-x-lg me-1"></i>Từ chối</button>
                 <button type="button" class="btn btn-sm btn-success" onclick="doConfirm('CONFIRMED')"><i class="bi bi-check-lg me-1"></i>Xác nhận</button>
             </div>
@@ -205,10 +224,21 @@ function buildRow(item, idx) {
 
     let actionHtml = '-';
     const shiftInfo = item.SHIFT_STIME ? `${escHtml(item.SHIFT_CD || '')} (${item.SHIFT_STIME} - ${item.SHIFT_ETIME || '?'})${item.IS_NIGHT_SHIFT ? ' · ca đêm' : ''}` : (item.SHIFT_CD || '');
+    // Nổi bật ngay trên list — không phải mở popup xác nhận mới thấy có tăng ca (yêu cầu 2026-09-22).
+    const otBadge = item.SHIFT_TYPE === 'OT_BEFORE'
+        ? `<span class="badge bg-warning text-dark mt-1"><i class="bi bi-exclamation-triangle-fill"></i> Tăng ca trước ca${item.OT_BEFORE_HOURS ? ' ' + item.OT_BEFORE_HOURS + 'h' : ''}</span>`
+        : item.SHIFT_TYPE === 'OT_AFTER'
+        ? `<span class="badge bg-warning text-dark mt-1"><i class="bi bi-exclamation-triangle-fill"></i> Tăng ca sau ca${item.OT_AFTER_HOURS ? ' ' + item.OT_AFTER_HOURS + 'h' : ''}</span>`
+        : '';
     if (canConfirm) {
         actionHtml = `<button type="button" class="btn btn-sm btn-outline-success"
                 data-confirm-id="${item.CONFIRM_ID}" data-time-in="${escHtml(item.WORKER_TIME_IN || '')}" data-time-out="${escHtml(item.WORKER_TIME_OUT || '')}"
-                data-shift-info="${escHtml(shiftInfo)}" data-worker-note="${escHtml(item.WORKER_NOTE || '')}"
+                data-shift-info="${escHtml(shiftInfo)}" data-worker-note="${escHtml(item.WORKER_NOTE || '')}" data-missing-type="${escHtml(item.MISSING_TYPE || '')}"
+                data-erp-time-in="${escHtml(item.ERP_TIME_IN || '')}" data-erp-time-out="${escHtml(item.ERP_TIME_OUT || '')}"
+                data-suggested-time-in="${escHtml(item.SUGGESTED_TIME_IN || '')}" data-suggested-time-out="${escHtml(item.SUGGESTED_TIME_OUT || '')}"
+                data-shift-stime="${escHtml(item.SHIFT_STIME || '')}" data-shift-etime="${escHtml(item.SHIFT_ETIME || '')}"
+                data-is-night="${item.IS_NIGHT_SHIFT ? '1' : '0'}" data-shift-type="${escHtml(item.SHIFT_TYPE || '')}"
+                data-ot-before-hours="${item.OT_BEFORE_HOURS || ''}" data-ot-after-hours="${item.OT_AFTER_HOURS || ''}"
                 onclick="event.stopPropagation(); openConfirmModal(this)">
             <i class="bi bi-check2-circle"></i> Xác nhận</button>`;
     } else if (status === 'PENDING_WORKER') {
@@ -236,6 +266,7 @@ function buildRow(item, idx) {
             <span class="badge" style="background:${MISSING_COLOR[item.MISSING_TYPE] || '#ef4444'};">${MISSING_LABEL[item.MISSING_TYPE] || item.MISSING_TYPE}</span>
             <div class="text-xxs text-secondary mt-1">ERP: ${item.ERP_TIME_IN || '--:--'} → ${item.ERP_TIME_OUT || '--:--'}</div>
             ${shiftInfo ? `<div class="text-xxs text-secondary">Ca: ${shiftInfo}</div>` : ''}
+            ${otBadge ? `<div>${otBadge}</div>` : ''}
         </td>
         <td><span class="att-status-badge" style="background:${STATUS_COLOR[status]}22;color:${STATUS_COLOR[status]};">${STATUS_LABEL[status] || status}</span></td>
         <td class="text-xs">
@@ -252,10 +283,65 @@ function buildRow(item, idx) {
     </tr>`;
 }
 
+// missingType: 'IN' | 'OUT' | 'BOTH' — chỉ hiện phía NV thực sự thiếu cần xác nhận, ẩn phía kia
+// (đã đúng theo ERP), giống hệt WorkerForm (yêu cầu 2026-09-22, hạn chế quản lý sửa nhầm).
+function applyConfirmTimeVisibility(missingType) {
+    const showIn  = missingType !== 'OUT';
+    const showOut = missingType !== 'IN';
+    const both = showIn && showOut;
+    $('#cfTimeInCol').toggle(showIn).removeClass('col-6 col-12').addClass(both ? 'col-6' : 'col-12');
+    $('#cfTimeOutCol').toggle(showOut).removeClass('col-6 col-12').addClass(both ? 'col-6' : 'col-12');
+}
+
+// Giới hạn giờ chọn được theo ca thật trên ERP + tăng ca thật (yêu cầu 2026-09-22 — case thật
+// 26072207 21/9: quên bấm giờ ra, có tăng ca sau ca 1 giờ, trần giờ ra phải nới ra 17:10 thay vì
+// chặn cứng ở giờ ca gốc 16:10 mới đúng). SUGGESTED_TIME_IN/OUT do backend tính sẵn (đã cộng OT
+// nếu có log ERP, giống hệt công thức bên WorkerForm) — ưu tiên dùng thay vì SHIFT_STIME/ETIME
+// thô khi có.
+function applyConfirmTimeRange(btn) {
+    const isNight = btn.dataset.isNight === '1';
+    const erpIn   = btn.dataset.erpTimeIn  || null;
+    const erpOut  = btn.dataset.erpTimeOut || null;
+    const sugIn   = btn.dataset.suggestedTimeIn  || null;
+    const sugOut  = btn.dataset.suggestedTimeOut || null;
+    const stime   = btn.dataset.shiftStime || null;
+    const etime   = btn.dataset.shiftEtime || null;
+
+    const minIn  = !erpIn  ? (sugIn  || stime) : null;
+    const maxOut = !erpOut ? (sugOut || etime) : null;
+    const crossMaxIn  = !isNight ? (erpOut || sugOut || etime || null) : null;
+    const crossMinOut = !isNight ? (erpIn  || sugIn  || stime || null) : null;
+
+    TimePickerHelper.setRange('cfTimeIn',  { min: minIn, max: crossMaxIn });
+    TimePickerHelper.setRange('cfTimeOut', { min: crossMinOut, max: !isNight ? maxOut : null });
+}
+
+// Cảnh báo nổi bật khi NV có tăng ca thật (log ERP) mà chưa chấm công đủ — quản lý/HR/Clerk dễ bỏ
+// sót cộng thêm giờ OT nếu chỉ nhìn giờ ca gốc (yêu cầu 2026-09-22).
+function applyOtWarning(btn) {
+    const shiftType = btn.dataset.shiftType || 'REGULAR';
+    const otBefore   = parseFloat(btn.dataset.otBeforeHours || '0');
+    const otAfter    = parseFloat(btn.dataset.otAfterHours  || '0');
+    const $box = $('#cfOtWarning');
+    if (shiftType === 'OT_BEFORE' && otBefore > 0) {
+        $box.show().html(`<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Chú ý:</strong> Nhân viên có tăng ca <strong>trước ca ${otBefore} giờ</strong> nhưng chưa chấm công đủ — nhớ trừ thêm giờ tăng ca khi chọn "Giờ vào".`);
+    } else if (shiftType === 'OT_AFTER' && otAfter > 0) {
+        $box.show().html(`<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Chú ý:</strong> Nhân viên có tăng ca <strong>sau ca ${otAfter} giờ</strong> nhưng chưa chấm công đủ — nhớ cộng thêm giờ tăng ca khi chọn "Giờ ra".`);
+    } else {
+        $box.hide().empty();
+    }
+}
+
 function openConfirmModal(btn) {
     $('#cfConfirmId').val(btn.dataset.confirmId);
-    $('#cfTimeIn').val(btn.dataset.timeIn || '');
-    $('#cfTimeOut').val(btn.dataset.timeOut || '');
+    applyConfirmTimeRange(btn);
+    applyOtWarning(btn);
+    // exact=true ở phía không thiếu (đã khóa/ẩn, không ai sửa) — giữ nguyên giờ đã khai/ERP thật,
+    // không làm tròn 5 phút, tránh lệch giờ khi quản lý mở popup rồi bấm Xác nhận (review 2026-09-22).
+    const cfMissingType = btn.dataset.missingType || 'BOTH';
+    TimePickerHelper.setValue('cfTimeIn',  btn.dataset.timeIn  || '', false, cfMissingType === 'OUT');
+    TimePickerHelper.setValue('cfTimeOut', btn.dataset.timeOut || '', false, cfMissingType === 'IN');
+    applyConfirmTimeVisibility(btn.dataset.missingType || 'BOTH');
     $('#cfNote').val('');
     let infoHtml = btn.dataset.shiftInfo ? `<i class="bi bi-clock"></i> Ca: ${escHtml(btn.dataset.shiftInfo)}` : '';
     if (btn.dataset.workerNote) infoHtml += `<div class="mt-1"><i class="bi bi-chat-left-text"></i> NV ghi chú: ${escHtml(btn.dataset.workerNote)}</div>`;
@@ -264,11 +350,18 @@ function openConfirmModal(btn) {
 }
 
 async function doConfirm(status) {
+    const note = $('#cfNote').val().trim();
+    // Từ chối bắt buộc ghi lý do để công nhân biết vì sao — server cũng chặn lại (yêu cầu 2026-09-22).
+    if (status === 'REJECTED' && !note) {
+        showToast('Vui lòng nhập lý do từ chối để nhân viên biết', 'warning');
+        $('#cfNote').focus();
+        return;
+    }
     const payload = {
         CONFIRM_ID: parseInt($('#cfConfirmId').val()),
         TIME_IN: $('#cfTimeIn').val(),
         TIME_OUT: $('#cfTimeOut').val(),
-        NOTE: $('#cfNote').val(),
+        NOTE: note,
         STATUS: status
     };
     try {
@@ -386,17 +479,24 @@ $('#exportBtn').on('click', async function () {
             pg++;
         } while (pg <= pgTotal);
         if (!rows.length) { showToast('Không có dữ liệu để xuất', 'warning'); return; }
-        const headers = ['STT', 'Mã NV', 'Họ Tên', 'Ngày', 'Bộ phận', 'Chuyền', 'Nhóm việc', 'ERP giờ vào', 'ERP giờ ra', 'Trạng thái', 'Giờ NV khai vào', 'Giờ NV khai ra', 'Giờ chốt vào', 'Giờ chốt ra', 'Ghi chú', 'Người xác nhận', 'Ngày xác nhận'];
+        const headers = ['STT', 'Mã NV', 'Họ Tên', 'Ngày', 'Bộ phận', 'Chuyền', 'Nhóm việc', 'ERP giờ vào', 'ERP giờ ra',
+            'Có tăng ca', 'Tăng ca trước/sau ca', 'Số giờ tăng ca',
+            'Trạng thái', 'Giờ NV khai vào', 'Giờ NV khai ra', 'Giờ chốt vào', 'Giờ chốt ra',
+            'Lý do NV', 'Ghi chú quản lý', 'Người xác nhận', 'Ngày xác nhận'];
         let html = '<html><head><meta charset="utf-8"/></head><body><table border="1"><thead><tr>';
         html += headers.map(h => `<th style="background:#bbf7d0;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
         rows.forEach((r, i) => {
-            html += `<tr><td>${i + 1}</td><td data-t="s">${escHtml(r.EMPCD)}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${formatDate(r.WORK_DATE)}</td>` +
+            const hasOt      = r.SHIFT_TYPE === 'OT_BEFORE' || r.SHIFT_TYPE === 'OT_AFTER';
+            const otTypeText = r.SHIFT_TYPE === 'OT_BEFORE' ? 'Trước ca' : r.SHIFT_TYPE === 'OT_AFTER' ? 'Sau ca' : '';
+            const otHours    = r.SHIFT_TYPE === 'OT_BEFORE' ? (r.OT_BEFORE_HOURS || '') : r.SHIFT_TYPE === 'OT_AFTER' ? (r.OT_AFTER_HOURS || '') : '';
+            html += `<tr><td>${i + 1}</td><td data-t="s">${escHtml(r.EMPCD)}</td><td>${escHtml(r.EMP_NAME||'')}</td><td data-t="s">${formatDate(r.WORK_DATE)}</td>` +
                 `<td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${escHtml(r.WORK_NAME||'')}</td>` +
                 `<td>${escHtml(r.ERP_TIME_IN||'')}</td><td>${escHtml(r.ERP_TIME_OUT||'')}</td>` +
+                `<td>${hasOt ? 'Có' : 'Không'}</td><td>${escHtml(otTypeText)}</td><td>${escHtml(String(otHours))}</td>` +
                 `<td>${escHtml(STATUS_LABEL[r.CONFIRM_STATUS||'MISSING']||'')}</td>` +
                 `<td>${escHtml(r.WORKER_TIME_IN||'')}</td><td>${escHtml(r.WORKER_TIME_OUT||'')}</td>` +
                 `<td>${escHtml(r.CONFIRM_TIME_IN||'')}</td><td>${escHtml(r.CONFIRM_TIME_OUT||'')}</td>` +
-                `<td>${escHtml(r.NOTE||'')}</td><td>${escHtml(r.CONFIRMED_BY||'')}</td><td>${escHtml(r.CONFIRMED_DATE||'')}</td></tr>`;
+                `<td>${escHtml(r.WORKER_NOTE||'')}</td><td>${escHtml(r.NOTE||'')}</td><td>${escHtml(r.CONFIRMED_BY||'')}</td><td data-t="s">${escHtml(r.CONFIRMED_DATE||'')}</td></tr>`;
         });
         html += '</tbody></table></body></html>';
         exportHtmlTableToXlsx(html, `AttendanceConfirm_${$('#filterDateFrom').val()}_${$('#filterDateTo').val()}.xlsx`);
@@ -407,6 +507,8 @@ $('#exportBtn').on('click', async function () {
 $(function () {
     if (typeof Select2Helper !== 'undefined') Select2Helper.init();
     if (typeof MobileTableHelper !== 'undefined') MobileTableHelper.init('attTableBody');
+    TimePickerHelper.init('cfTimeIn');
+    TimePickerHelper.init('cfTimeOut');
     loadData(1);
 });
 </script>

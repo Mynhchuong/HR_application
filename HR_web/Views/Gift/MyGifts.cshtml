@@ -24,6 +24,9 @@
             </div>
         </div>
         <div class="card-body">
+            <form id="giftAntiForgeryForm" class="d-none">
+                @Html.AntiForgeryToken()
+            </form>
             <div class="gf-hero">
                 <img src="@Url.Content("~/assets/img/illustrations/qua.png")" alt="Quà tặng" />
             </div>

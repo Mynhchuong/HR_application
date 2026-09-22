@@ -8,6 +8,7 @@ import Color          from 'https://esm.sh/@tiptap/extension-color@2';
 import Highlight      from 'https://esm.sh/@tiptap/extension-highlight@2';
 import Link           from 'https://esm.sh/@tiptap/extension-link@2';
 import Placeholder    from 'https://esm.sh/@tiptap/extension-placeholder@2';
+import Image          from 'https://esm.sh/@tiptap/extension-image@2';
 
 const target = document.getElementById('msgEditor');
 if (target) {
@@ -22,7 +23,12 @@ if (target) {
             TextStyle, Color,
             Highlight.configure({ multicolor: false }),
             Link.configure({ openOnClick: false, autolink: true }),
-            Placeholder.configure({ placeholder: 'Nhập tin nhắn... (Enter để gửi, Shift+Enter để xuống dòng)' })
+            Placeholder.configure({ placeholder: 'Nhập tin nhắn... (Enter để gửi, Shift+Enter để xuống dòng)' }),
+            // Không có node "image" trong schema thì insertContent() sẽ âm thầm loại bỏ thẻ <img>
+            // ngay lúc chèn — đúng bug thật: chèn Câu trả lời mẫu có ảnh vào ô chat, ảnh biến mất
+            // trước cả khi gửi (2026-09-22). allowBase64: false — ảnh canned reply luôn là URL
+            // (GetBulletinImage), không cần base64, tránh phình payload/CONTENT NVARCHAR2(4000).
+            Image.configure({ inline: true, allowBase64: false })
         ],
         editorProps: {
             attributes: { class: 'editor-content' },

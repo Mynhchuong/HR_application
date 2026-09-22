@@ -19,10 +19,13 @@ public class AttendanceConfirmController : BaseController
     [Authorize(Roles = "Admin,HR,Clerk,Supervisor,DeputyManager,Manager,Expat")]
     public IActionResult Index()
     {
-        // Mặc định đầu tháng hiện tại -> hôm nay (yêu cầu HR/Clerk 2026-09-18: xem theo tháng, tháng
+        // Mặc định đầu tháng hiện tại -> hôm qua (yêu cầu HR/Clerk 2026-09-18: xem theo tháng, tháng
         // nào cũng phát sinh nhiều — rolling 30 ngày trước đây dễ lệch qua tháng trước gây khó theo dõi).
+        // Chặn tới hôm qua, KHÔNG lấy hôm nay — dữ liệu ADD_TIME hôm nay chưa chốt (bên chấm công tự
+        // thêm vân tay tạm cho người vào trễ/quên thật để kịp báo cáo 10h, sáng hôm sau mới đồng bộ
+        // lại vân tay thật), backend cũng tự ép trần này (yêu cầu HR 2026-09-22).
         ViewBag.DateFrom = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).ToString("yyyy-MM-dd");
-        ViewBag.DateTo   = DateTime.Today.ToString("yyyy-MM-dd");
+        ViewBag.DateTo   = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd");
         return View();
     }
 
@@ -33,16 +36,17 @@ public class AttendanceConfirmController : BaseController
     public IActionResult IndexForExpat()
     {
         ViewBag.DateFrom     = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).ToString("yyyy-MM-dd");
-        ViewBag.DateTo       = DateTime.Today.ToString("yyyy-MM-dd");
+        ViewBag.DateTo       = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd");
         ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
         ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
         return View();
     }
 
-    // GET: /AttendanceConfirm/WorkerForm?date=yyyy-MM-dd — công nhân khai giờ vào/ra 1 ngày
+    // GET: /AttendanceConfirm/WorkerForm?date=yyyy-MM-dd — công nhân khai giờ vào/ra 1 ngày.
+    // Mặc định hôm qua — dữ liệu hôm nay chưa chốt (xem ghi chú ở Index()), backend cũng tự chặn.
     public IActionResult WorkerForm(string? date)
     {
-        ViewBag.WorkDate = string.IsNullOrEmpty(date) ? DateTime.Today.ToString("yyyy-MM-dd") : date;
+        ViewBag.WorkDate = string.IsNullOrEmpty(date) ? DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd") : date;
         return View();
     }
 

@@ -35,6 +35,12 @@ public class AttendanceMissingItem
     public string?  CONFIRM_TIME_IN  { get; set; }
     public string?  CONFIRM_TIME_OUT { get; set; }
     public string?  SHIFT_TYPE       { get; set; }
+    // Tăng ca thật lấy live từ EBM300/EBM300_WAIT (yêu cầu 2026-09-22) — CHỈ populate cho
+    // GetMissingListAsync (list quản lý/HR/Clerk); GetMyDayAsync tính suggestion trực tiếp không
+    // cần 2 field này. > 0 nghĩa là có tăng ca, dùng để nới trần/sàn giờ chọn + cảnh báo NV có
+    // tăng ca mà chưa chấm công đủ.
+    public decimal? OT_BEFORE_HOURS  { get; set; }
+    public decimal? OT_AFTER_HOURS   { get; set; }
     public string?  WORKER_NOTE      { get; set; }   // ghi chú của công nhân (bước 1)
     public string?  NOTE             { get; set; }   // ghi chú của quản lý (bước 2)
     public string?  REQUESTED_BY     { get; set; }

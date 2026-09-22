@@ -1,7 +1,11 @@
 @{
     ViewData["Title"] = "Attendance Confirmation";
     var dateFrom = (string)(ViewBag.DateFrom ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd"));
-    var dateTo   = (string)(ViewBag.DateTo   ?? DateTime.Today.ToString("yyyy-MM-dd"));
+    var dateTo   = (string)(ViewBag.DateTo   ?? DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"));
+    // Today's ADD_TIME data isn't finalized yet (timekeeping team adds a temporary fingerprint for
+    // late-arrivals/forgotten swipes to close the 10am report, then re-syncs the real data the next
+    // morning) — block picking today/future here, backend also enforces the same cap.
+    var maxDate  = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd");
 }
 
 @section Styles {
@@ -37,7 +41,7 @@
                     <span class="text-white small">→</span>
                     <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
                         <i class="bi bi-calendar3 text-success"></i>
-                        <input type="date" id="filterDateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateTo" onchange="loadData(1)" />
+                        <input type="date" id="filterDateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateTo" max="@maxDate" onchange="loadData(1)" />
                     </div>
                 </div>
             </div>
@@ -135,22 +139,37 @@
             <div class="modal-body">
                 <input type="hidden" id="cfConfirmId" />
                 <div id="cfShiftInfo" class="text-xs text-secondary mb-2"></div>
+                <div id="cfOtWarning" class="alert alert-warning py-2 px-2 mb-2 text-xs" style="display:none;"></div>
+                <div class="text-xxs text-secondary mb-2">
+                    <i class="bi bi-info-circle"></i> Re-select the time if your employee declared it incorrectly.
+                </div>
                 <div class="row g-2 mb-2">
-                    <div class="col-6">
+                    <div class="col-6" id="cfTimeInCol">
                         <label class="form-label small fw-bold">Time In</label>
-                        <input type="time" id="cfTimeIn" class="form-control form-control-sm" />
+                        <div class="time-picker">
+                            <select id="cfTimeInHour" class="hour-select"></select>
+                            <span class="time-colon">:</span>
+                            <select id="cfTimeInMin" class="min-select"></select>
+                        </div>
+                        <input type="hidden" id="cfTimeIn" />
                     </div>
-                    <div class="col-6">
+                    <div class="col-6" id="cfTimeOutCol">
                         <label class="form-label small fw-bold">Time Out</label>
-                        <input type="time" id="cfTimeOut" class="form-control form-control-sm" />
+                        <div class="time-picker">
+                            <select id="cfTimeOutHour" class="hour-select"></select>
+                            <span class="time-colon">:</span>
+                            <select id="cfTimeOutMin" class="min-select"></select>
+                        </div>
+                        <input type="hidden" id="cfTimeOut" />
                     </div>
                 </div>
                 <div class="mb-2">
                     <label class="form-label small fw-bold">Note</label>
-                    <textarea id="cfNote" class="form-control form-control-sm" rows="2" maxlength="500" placeholder="Note (optional)"></textarea>
+                    <textarea id="cfNote" class="form-control form-control-sm" rows="2" maxlength="500" placeholder="Note (required if rejecting, so the employee knows why)"></textarea>
                 </div>
             </div>
             <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="doConfirm('REJECTED')"><i class="bi bi-x-lg me-1"></i>Reject</button>
                 <button type="button" class="btn btn-sm btn-success" onclick="doConfirm('CONFIRMED')"><i class="bi bi-check-lg me-1"></i>Confirm</button>
             </div>
@@ -205,10 +224,21 @@ function buildRow(item, idx) {
 
     let actionHtml = '-';
     const shiftInfo = item.SHIFT_STIME ? `${escHtml(item.SHIFT_CD || '')} (${item.SHIFT_STIME} - ${item.SHIFT_ETIME || '?'})${item.IS_NIGHT_SHIFT ? ' · night shift' : ''}` : (item.SHIFT_CD || '');
+    // Highlight right on the list — no need to open the confirm popup to see there's overtime.
+    const otBadge = item.SHIFT_TYPE === 'OT_BEFORE'
+        ? `<span class="badge bg-warning text-dark mt-1"><i class="bi bi-exclamation-triangle-fill"></i> OT before shift${item.OT_BEFORE_HOURS ? ' ' + item.OT_BEFORE_HOURS + 'h' : ''}</span>`
+        : item.SHIFT_TYPE === 'OT_AFTER'
+        ? `<span class="badge bg-warning text-dark mt-1"><i class="bi bi-exclamation-triangle-fill"></i> OT after shift${item.OT_AFTER_HOURS ? ' ' + item.OT_AFTER_HOURS + 'h' : ''}</span>`
+        : '';
     if (canConfirm) {
         actionHtml = `<button type="button" class="btn btn-sm btn-outline-success"
                 data-confirm-id="${item.CONFIRM_ID}" data-time-in="${escHtml(item.WORKER_TIME_IN || '')}" data-time-out="${escHtml(item.WORKER_TIME_OUT || '')}"
-                data-shift-info="${escHtml(shiftInfo)}" data-worker-note="${escHtml(item.WORKER_NOTE || '')}"
+                data-shift-info="${escHtml(shiftInfo)}" data-worker-note="${escHtml(item.WORKER_NOTE || '')}" data-missing-type="${escHtml(item.MISSING_TYPE || '')}"
+                data-erp-time-in="${escHtml(item.ERP_TIME_IN || '')}" data-erp-time-out="${escHtml(item.ERP_TIME_OUT || '')}"
+                data-suggested-time-in="${escHtml(item.SUGGESTED_TIME_IN || '')}" data-suggested-time-out="${escHtml(item.SUGGESTED_TIME_OUT || '')}"
+                data-shift-stime="${escHtml(item.SHIFT_STIME || '')}" data-shift-etime="${escHtml(item.SHIFT_ETIME || '')}"
+                data-is-night="${item.IS_NIGHT_SHIFT ? '1' : '0'}" data-shift-type="${escHtml(item.SHIFT_TYPE || '')}"
+                data-ot-before-hours="${item.OT_BEFORE_HOURS || ''}" data-ot-after-hours="${item.OT_AFTER_HOURS || ''}"
                 onclick="event.stopPropagation(); openConfirmModal(this)">
             <i class="bi bi-check2-circle"></i> Confirm</button>`;
     } else if (status === 'PENDING_WORKER') {
@@ -236,6 +266,7 @@ function buildRow(item, idx) {
             <span class="badge" style="background:${MISSING_COLOR[item.MISSING_TYPE] || '#ef4444'};">${MISSING_LABEL[item.MISSING_TYPE] || item.MISSING_TYPE}</span>
             <div class="text-xxs text-secondary mt-1">ERP: ${item.ERP_TIME_IN || '--:--'} → ${item.ERP_TIME_OUT || '--:--'}</div>
             ${shiftInfo ? `<div class="text-xxs text-secondary">Shift: ${shiftInfo}</div>` : ''}
+            ${otBadge ? `<div>${otBadge}</div>` : ''}
         </td>
         <td><span class="att-status-badge" style="background:${STATUS_COLOR[status]}22;color:${STATUS_COLOR[status]};">${STATUS_LABEL[status] || status}</span></td>
         <td class="text-xs">
@@ -252,10 +283,64 @@ function buildRow(item, idx) {
     </tr>`;
 }
 
+// missingType: 'IN' | 'OUT' | 'BOTH' — only show the side the employee actually needs to confirm,
+// hide the other (already correct per ERP), same as WorkerForm.
+function applyConfirmTimeVisibility(missingType) {
+    const showIn  = missingType !== 'OUT';
+    const showOut = missingType !== 'IN';
+    const both = showIn && showOut;
+    $('#cfTimeInCol').toggle(showIn).removeClass('col-6 col-12').addClass(both ? 'col-6' : 'col-12');
+    $('#cfTimeOutCol').toggle(showOut).removeClass('col-6 col-12').addClass(both ? 'col-6' : 'col-12');
+}
+
+// Restrict pickable hours to the real shift range + real overtime (2026-09-22 — real case
+// 26072207 21/9: forgot to clock out, had 1h OT after shift, so the checkout cap must extend
+// to 17:10, not stay locked at the raw shift end 16:10). SUGGESTED_TIME_IN/OUT is computed by the
+// backend (OT-adjusted, same formula as WorkerForm) — prefer it over the raw SHIFT_STIME/ETIME.
+function applyConfirmTimeRange(btn) {
+    const isNight = btn.dataset.isNight === '1';
+    const erpIn   = btn.dataset.erpTimeIn  || null;
+    const erpOut  = btn.dataset.erpTimeOut || null;
+    const sugIn   = btn.dataset.suggestedTimeIn  || null;
+    const sugOut  = btn.dataset.suggestedTimeOut || null;
+    const stime   = btn.dataset.shiftStime || null;
+    const etime   = btn.dataset.shiftEtime || null;
+
+    const minIn  = !erpIn  ? (sugIn  || stime) : null;
+    const maxOut = !erpOut ? (sugOut || etime) : null;
+    const crossMaxIn  = !isNight ? (erpOut || sugOut || etime || null) : null;
+    const crossMinOut = !isNight ? (erpIn  || sugIn  || stime || null) : null;
+
+    TimePickerHelper.setRange('cfTimeIn',  { min: minIn, max: crossMaxIn });
+    TimePickerHelper.setRange('cfTimeOut', { min: crossMinOut, max: !isNight ? maxOut : null });
+}
+
+// Prominent warning when the employee has real overtime (ERP log) but hasn't fully clocked it —
+// manager/HR/Clerk can easily miss adding the OT hours if they only look at the base shift time.
+function applyOtWarning(btn) {
+    const shiftType = btn.dataset.shiftType || 'REGULAR';
+    const otBefore  = parseFloat(btn.dataset.otBeforeHours || '0');
+    const otAfter   = parseFloat(btn.dataset.otAfterHours  || '0');
+    const $box = $('#cfOtWarning');
+    if (shiftType === 'OT_BEFORE' && otBefore > 0) {
+        $box.show().html(`<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Note:</strong> This employee has <strong>${otBefore}h overtime before shift</strong> not yet fully clocked — remember to subtract the OT hours when setting "Time In".`);
+    } else if (shiftType === 'OT_AFTER' && otAfter > 0) {
+        $box.show().html(`<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Note:</strong> This employee has <strong>${otAfter}h overtime after shift</strong> not yet fully clocked — remember to add the OT hours when setting "Time Out".`);
+    } else {
+        $box.hide().empty();
+    }
+}
+
 function openConfirmModal(btn) {
     $('#cfConfirmId').val(btn.dataset.confirmId);
-    $('#cfTimeIn').val(btn.dataset.timeIn || '');
-    $('#cfTimeOut').val(btn.dataset.timeOut || '');
+    applyConfirmTimeRange(btn);
+    applyOtWarning(btn);
+    // exact=true on the side that's not missing (locked/hidden, nobody edits it) — keep the exact
+    // declared/ERP time, don't round to 5-min steps (review 2026-09-22).
+    const cfMissingType = btn.dataset.missingType || 'BOTH';
+    TimePickerHelper.setValue('cfTimeIn',  btn.dataset.timeIn  || '', false, cfMissingType === 'OUT');
+    TimePickerHelper.setValue('cfTimeOut', btn.dataset.timeOut || '', false, cfMissingType === 'IN');
+    applyConfirmTimeVisibility(btn.dataset.missingType || 'BOTH');
     $('#cfNote').val('');
     let infoHtml = btn.dataset.shiftInfo ? `<i class="bi bi-clock"></i> Shift: ${escHtml(btn.dataset.shiftInfo)}` : '';
     if (btn.dataset.workerNote) infoHtml += `<div class="mt-1"><i class="bi bi-chat-left-text"></i> Employee note: ${escHtml(btn.dataset.workerNote)}</div>`;
@@ -264,11 +349,18 @@ function openConfirmModal(btn) {
 }
 
 async function doConfirm(status) {
+    const note = $('#cfNote').val().trim();
+    // Rejecting requires a reason so the employee knows why — backend also enforces this.
+    if (status === 'REJECTED' && !note) {
+        showToast('Please enter a reason for rejection so the employee knows why', 'warning');
+        $('#cfNote').focus();
+        return;
+    }
     const payload = {
         CONFIRM_ID: parseInt($('#cfConfirmId').val()),
         TIME_IN: $('#cfTimeIn').val(),
         TIME_OUT: $('#cfTimeOut').val(),
-        NOTE: $('#cfNote').val(),
+        NOTE: note,
         STATUS: status
     };
     try {
@@ -385,17 +477,24 @@ $('#exportBtn').on('click', async function () {
             pg++;
         } while (pg <= pgTotal);
         if (!rows.length) { showToast('No data to export', 'warning'); return; }
-        const headers = ['No.', 'Emp Code', 'Full Name', 'Date', 'Department', 'Line', 'Work Group', 'ERP Time In', 'ERP Time Out', 'Status', 'Emp Declared In', 'Emp Declared Out', 'Final Time In', 'Final Time Out', 'Note', 'Confirmed By', 'Confirmed Date'];
+        const headers = ['No.', 'Emp Code', 'Full Name', 'Date', 'Department', 'Line', 'Work Group', 'ERP Time In', 'ERP Time Out',
+            'Has OT', 'OT Before/After', 'OT Hours',
+            'Status', 'Emp Declared In', 'Emp Declared Out', 'Final Time In', 'Final Time Out',
+            'Employee Reason', 'Manager Note', 'Confirmed By', 'Confirmed Date'];
         let html = '<html><head><meta charset="utf-8"/></head><body><table border="1"><thead><tr>';
         html += headers.map(h => `<th style="background:#bbf7d0;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
         rows.forEach((r, i) => {
-            html += `<tr><td>${i + 1}</td><td data-t="s">${escHtml(r.EMPCD)}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${formatDate(r.WORK_DATE)}</td>` +
+            const hasOt      = r.SHIFT_TYPE === 'OT_BEFORE' || r.SHIFT_TYPE === 'OT_AFTER';
+            const otTypeText = r.SHIFT_TYPE === 'OT_BEFORE' ? 'Before shift' : r.SHIFT_TYPE === 'OT_AFTER' ? 'After shift' : '';
+            const otHours    = r.SHIFT_TYPE === 'OT_BEFORE' ? (r.OT_BEFORE_HOURS || '') : r.SHIFT_TYPE === 'OT_AFTER' ? (r.OT_AFTER_HOURS || '') : '';
+            html += `<tr><td>${i + 1}</td><td data-t="s">${escHtml(r.EMPCD)}</td><td>${escHtml(r.EMP_NAME||'')}</td><td data-t="s">${formatDate(r.WORK_DATE)}</td>` +
                 `<td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${escHtml(r.WORK_NAME||'')}</td>` +
                 `<td>${escHtml(r.ERP_TIME_IN||'')}</td><td>${escHtml(r.ERP_TIME_OUT||'')}</td>` +
+                `<td>${hasOt ? 'Yes' : 'No'}</td><td>${escHtml(otTypeText)}</td><td>${escHtml(String(otHours))}</td>` +
                 `<td>${escHtml(STATUS_LABEL[r.CONFIRM_STATUS||'MISSING']||'')}</td>` +
                 `<td>${escHtml(r.WORKER_TIME_IN||'')}</td><td>${escHtml(r.WORKER_TIME_OUT||'')}</td>` +
                 `<td>${escHtml(r.CONFIRM_TIME_IN||'')}</td><td>${escHtml(r.CONFIRM_TIME_OUT||'')}</td>` +
-                `<td>${escHtml(r.NOTE||'')}</td><td>${escHtml(r.CONFIRMED_BY||'')}</td><td>${escHtml(r.CONFIRMED_DATE||'')}</td></tr>`;
+                `<td>${escHtml(r.WORKER_NOTE||'')}</td><td>${escHtml(r.NOTE||'')}</td><td>${escHtml(r.CONFIRMED_BY||'')}</td><td data-t="s">${escHtml(r.CONFIRMED_DATE||'')}</td></tr>`;
         });
         html += '</tbody></table></body></html>';
         exportHtmlTableToXlsx(html, `AttendanceConfirm_${$('#filterDateFrom').val()}_${$('#filterDateTo').val()}.xlsx`);
@@ -406,6 +505,8 @@ $('#exportBtn').on('click', async function () {
 $(function () {
     if (typeof Select2Helper !== 'undefined') Select2Helper.init();
     if (typeof MobileTableHelper !== 'undefined') MobileTableHelper.init('attTableBody');
+    TimePickerHelper.init('cfTimeIn');
+    TimePickerHelper.init('cfTimeOut');
     loadData(1);
 });
 </script>

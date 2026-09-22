@@ -313,6 +313,13 @@ public class HomeMyCalendarService
     // bên AttendanceConfirmService). Chỉ tô đỏ ngày còn thiếu VÀ chưa CONFIRMED trên app.
     private async Task<List<HomeMyCalendarItem>> LoadAttendanceMissingAsync(string empcd, DateTime from, DateTime to)
     {
+        // Dữ liệu ADD_TIME hôm nay chưa chốt (bên chấm công tự thêm vân tay tạm để kịp báo cáo 10h,
+        // sáng hôm sau mới đồng bộ lại vân tay thật — xem AttendanceConfirmService) — ép trần hôm qua
+        // như AttendanceConfirmService.GetMissingListAsync đang làm, không thì lịch Home báo đỏ "thiếu
+        // chấm công" đúng ngày mà WorkerForm lại chặn không cho khai (review 2026-09-22).
+        var yesterday = DateTime.Today.AddDays(-1);
+        if (to.Date > yesterday) to = yesterday;
+
         const string sql = @"
             SELECT TO_CHAR(A.DAT,'YYYY-MM-DD') WORK_DATE, CF.CONFIRM_STATUS
             FROM HRMS.ADD_TIME A

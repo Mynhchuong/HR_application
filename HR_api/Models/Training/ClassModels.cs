@@ -47,6 +47,11 @@ public class ClassModel
     public int? SESSION_COUNT { get; set; }
     public int? TOTAL_SESSIONS { get; set; }
     public int? COMPLETED_SESSIONS { get; set; }
+
+    // Số học viên còn STATUS=ENROLLED khi lớp đã COMPLETED/CLOSED — tức lớp CHƯA TỪNG được bấm
+    // Chốt kết quả & cấp chứng chỉ. Không tính FAILED (đã chốt xong, học viên rớt là kết quả
+    // cuối — không phải bị bỏ sót). 0 với lớp chưa tới COMPLETED, hoặc lớp đã chốt hết.
+    public int? PENDING_FINALIZE_COUNT { get; set; }
 }
 
 // Bảng phụ HR_TRAINING_CLASS_TEACHER

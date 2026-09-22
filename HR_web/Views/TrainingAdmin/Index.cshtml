@@ -41,6 +41,54 @@
     <div class="tab-content" id="adminTabsContent">
         <!-- 1. CLASSES PANEL -->
         <div class="tab-pane fade show active" id="classes-panel">
+            <!-- Quick Stats -->
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-xl-3">
+                    <div class="card stats-card lp-active border-0 shadow-sm p-3 h-100" data-filter-status="" onclick="filterByStatus('')" style="border-radius: 16px; border-left: 5px solid #0d6efd !important; cursor: pointer;">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <h6 class="text-muted small fw-bold text-uppercase mb-1">Tổng số lớp</h6>
+                                <h3 class="fw-bold mb-0 text-dark" id="stat-total-classes">0</h3>
+                            </div>
+                            <i class="bi bi-people text-primary bg-primary-subtle p-3 rounded-3" style="font-size: 1.5rem;"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-xl-3">
+                    <div class="card stats-card border-0 shadow-sm p-3 h-100" data-filter-status="IN_PROGRESS" onclick="filterByStatus('IN_PROGRESS')" style="border-radius: 16px; border-left: 5px solid #198754 !important; cursor: pointer;">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <h6 class="text-muted small fw-bold text-uppercase mb-1">Đang học</h6>
+                                <h3 class="fw-bold mb-0 text-success" id="stat-inprogress-classes">0</h3>
+                            </div>
+                            <i class="bi bi-journal-text text-success bg-success-subtle p-3 rounded-3" style="font-size: 1.5rem;"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-xl-3">
+                    <div class="card stats-card border-0 shadow-sm p-3 h-100" data-filter-status="COMPLETED" onclick="filterByStatus('COMPLETED')" style="border-radius: 16px; border-left: 5px solid #6c757d !important; cursor: pointer;">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <h6 class="text-muted small fw-bold text-uppercase mb-1">Đã kết thúc</h6>
+                                <h3 class="fw-bold mb-0 text-secondary" id="stat-ended-classes">0</h3>
+                            </div>
+                            <i class="bi bi-mortarboard text-secondary bg-secondary-subtle p-3 rounded-3" style="font-size: 1.5rem;"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-xl-3">
+                    <div class="card stats-card border-0 shadow-sm p-3 h-100" data-filter-status="PENDING_FINALIZE" onclick="filterByStatus('PENDING_FINALIZE')" title="Lớp đã kết thúc nhưng chưa từng bấm Chốt kết quả & cấp chứng chỉ" style="border-radius: 16px; border-left: 5px solid #dc3545 !important; cursor: pointer;">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <h6 class="text-muted small fw-bold text-uppercase mb-1">Chưa chốt chứng chỉ</h6>
+                                <h3 class="fw-bold mb-0 text-danger" id="stat-pending-classes">0</h3>
+                            </div>
+                            <i class="bi bi-exclamation-triangle text-danger bg-danger-subtle p-3 rounded-3" style="font-size: 1.5rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 16px;">
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0 text-dark">Danh sách Lớp học tổ chức</h5>
@@ -55,13 +103,16 @@
                         <input type="text" id="class-filter-search" class="form-control form-control-sm" placeholder="Tìm theo tên lớp học..." oninput="loadClasses()" style="border-radius: 8px;" />
                     </div>
                     <div class="col-md-3">
-                        <select id="class-filter-status" class="form-select form-select-sm" onchange="loadClasses()" style="border-radius: 8px;">
+                        <select id="class-filter-status" class="form-select form-select-sm" onchange="classesPage = 1; renderClassTable();" style="border-radius: 8px;">
                             <option value="">-- Tất cả trạng thái lớp --</option>
                             <option value="DRAFT">Nháp</option>
                             <option value="SCHEDULED">Đã lên lịch</option>
                             <option value="IN_PROGRESS">Đang học</option>
                             <option value="OPEN_FOR_REGISTRATION">Đang mở đăng ký</option>
                             <option value="COMPLETED">Đã kết thúc</option>
+                            <!-- Không phải STATUS thật trong DB — là lớp COMPLETED/CLOSED còn học viên
+                                 ENROLLED (chưa từng chốt), lọc hoàn toàn ở client, xem renderClassTable(). -->
+                            <option value="PENDING_FINALIZE">⚠ Hoàn tất - chưa chốt chứng chỉ</option>
                             <option value="CANCELLED">Đã hủy</option>
                         </select>
                     </div>
@@ -81,6 +132,7 @@
                                 <th data-mobile="detail" data-mobile-label="Chế độ">Chế độ</th>
                                 <th data-mobile="detail" data-mobile-label="Đăng ký">Đăng ký</th>
                                 <th data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
+                                <th data-mobile="detail" data-mobile-label="Chứng chỉ">Chứng chỉ</th>
                                 <th class="pe-4 text-end" data-mobile="primary" data-mobile-label="Thao tác">Thao tác</th>
                             </tr>
                         </thead>
@@ -412,19 +464,37 @@
         const CLASSES_PER_PAGE = 10;
         let classesPage = 1;
 
+        // Status lọc ở server (search/courseId), KHÔNG gửi status lên server nữa — "PENDING_FINALIZE"
+        // là trạng thái ảo (không có trong CL.STATUS thật của DB) nên phải lọc toàn bộ ở client, và để
+        // các thẻ tổng quan bên trên luôn đúng số liệu toàn bộ (không đổi theo giá trị đang lọc).
         function loadClasses() {
             const search = document.getElementById('class-filter-search')?.value || '';
-            const status = document.getElementById('class-filter-status')?.value || '';
             const courseId = document.getElementById('class-filter-course')?.value || '';
 
-            const url = `${window.TRAINING_URLS.getClassList}?search=${encodeURIComponent(search)}&status=${status}&courseId=${courseId}`;
+            const url = `${window.TRAINING_URLS.getClassList}?search=${encodeURIComponent(search)}&courseId=${courseId}`;
             fetch(url)
                 .then(r => r.json())
                 .then(res => {
                     classList = res.data || [];
                     classesPage = 1;        // đổi filter → về trang đầu
+                    updateClassStats();
                     renderClassTable();
                 });
+        }
+
+        function updateClassStats() {
+            document.getElementById('stat-total-classes').textContent = classList.length;
+            document.getElementById('stat-inprogress-classes').textContent = classList.filter(c => c.STATUS === 'IN_PROGRESS').length;
+            document.getElementById('stat-ended-classes').textContent = classList.filter(c => c.STATUS === 'COMPLETED' || c.STATUS === 'CLOSED').length;
+            document.getElementById('stat-pending-classes').textContent = classList.filter(c => (c.PENDING_FINALIZE_COUNT || 0) > 0).length;
+        }
+
+        // Bấm thẻ tổng quan -> set đúng lựa chọn trong dropdown Trạng thái rồi lọc lại (giống hệt
+        // như đang tự chọn trạng thái trong dropdown, vì PENDING_FINALIZE giờ là 1 option trong đó).
+        function filterByStatus(status) {
+            document.getElementById('class-filter-status').value = status;
+            classesPage = 1;
+            renderClassTable();     // tự đồng bộ highlight thẻ theo statusFilter hiện tại
         }
 
         function goToClassPage(p) {
@@ -433,10 +503,21 @@
         }
 
         function renderClassTable() {
-                    const totalPages = Math.max(1, Math.ceil(classList.length / CLASSES_PER_PAGE));
+                    const statusFilter = document.getElementById('class-filter-status')?.value || '';
+                    document.querySelectorAll('.stats-card[data-filter-status]').forEach(function (card) {
+                        card.classList.toggle('lp-active', card.dataset.filterStatus === statusFilter);
+                    });
+                    let filteredList = classList;
+                    if (statusFilter === 'PENDING_FINALIZE') {
+                        filteredList = classList.filter(c => (c.PENDING_FINALIZE_COUNT || 0) > 0);
+                    } else if (statusFilter) {
+                        filteredList = classList.filter(c => c.STATUS === statusFilter);
+                    }
+
+                    const totalPages = Math.max(1, Math.ceil(filteredList.length / CLASSES_PER_PAGE));
                     if (classesPage > totalPages) classesPage = totalPages;
                     const startIdx = (classesPage - 1) * CLASSES_PER_PAGE;
-                    const pageList = classList.slice(startIdx, startIdx + CLASSES_PER_PAGE);
+                    const pageList = filteredList.slice(startIdx, startIdx + CLASSES_PER_PAGE);
 
                     const tbody = document.getElementById('class-grid');
                     tbody.innerHTML = '';
@@ -465,6 +546,13 @@
                         };
                         const badgeStatus = statusLabels[c.STATUS] || `<span class="badge bg-secondary">${c.STATUS}</span>`;
 
+                        let badgeCert = '<span class="text-muted small">-</span>';
+                        if (c.STATUS === 'COMPLETED' || c.STATUS === 'CLOSED') {
+                            badgeCert = (c.PENDING_FINALIZE_COUNT || 0) > 0
+                                ? `<span class="badge bg-danger-subtle text-danger-emphasis fw-bold">Chưa chốt (${c.PENDING_FINALIZE_COUNT})</span>`
+                                : '<span class="badge bg-success-subtle text-success-emphasis fw-bold">Đã chốt</span>';
+                        }
+
                         tbody.innerHTML += `
                             <tr id="class_row_${c.ID}">
                                 <td class="ps-4 fw-bold text-dark">${c.CLASS_NAME}</td>
@@ -473,6 +561,7 @@
                                 <td>${badgeMode}</td>
                                 <td>${badgeReg}</td>
                                 <td>${badgeStatus}</td>
+                                <td>${badgeCert}</td>
                                 <td class="pe-4 text-end">
                                     <button onclick="selectClassAdmin(${c.ID})" class="btn btn-sm btn-outline-primary fw-bold px-3">Quản trị</button>
                                 </td>
@@ -480,13 +569,13 @@
                         `;
                     });
 
-                    if (classList.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-3 text-muted small">Không có lớp học nào phù hợp.</td></tr>`;
+                    if (filteredList.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-3 text-muted small">Không có lớp học nào phù hợp.</td></tr>`;
                     }
 
-                    document.getElementById('class-list-summary').textContent = classList.length === 0
+                    document.getElementById('class-list-summary').textContent = filteredList.length === 0
                         ? ''
-                        : `Hiển thị ${startIdx + 1}-${Math.min(startIdx + CLASSES_PER_PAGE, classList.length)} / ${classList.length} lớp học`;
+                        : `Hiển thị ${startIdx + 1}-${Math.min(startIdx + CLASSES_PER_PAGE, filteredList.length)} / ${filteredList.length} lớp học`;
                     renderClassPagination(totalPages);
                     MobileTableHelper.refresh('class-grid');
         }

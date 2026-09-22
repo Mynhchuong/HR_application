@@ -39,6 +39,8 @@
     <link href="~/css/mobile-table.css" rel="stylesheet" asp-append-version="true" />
     <!-- List Page Helper CSS (stats + filter bar + header, mobile) -->
     <link href="~/css/list-page-helper.css" rel="stylesheet" asp-append-version="true" />
+    <!-- Time Picker Helper CSS (dropdown chọn giờ kiểu Gate Pass, dùng chung nhiều trang) -->
+    <link href="~/css/time-picker.css" rel="stylesheet" asp-append-version="true" />
     <!-- Video Fullscreen Helper CSS -->
     <link href="~/assets/css/video-fullscreen.css" rel="stylesheet" asp-append-version="true" />
 
@@ -591,6 +593,8 @@
     <script src="~/assets/js/select2-helper.js" asp-append-version="true"></script>
     <!-- Mobile Table Helper -->
     <script src="~/js/mobile-table.js" asp-append-version="true"></script>
+    <!-- Time Picker Helper (dropdown chọn giờ kiểu Gate Pass, dùng chung nhiều trang) -->
+    <script src="~/js/time-picker-helper.js" asp-append-version="true"></script>
     <script src="~/js/list-page-helper.js" asp-append-version="true"></script>
     <script src="~/assets/js/video-fullscreen.js" asp-append-version="true"></script>
 
@@ -738,6 +742,10 @@
         (function () {
             var checkPendingUrl = '@Url.Action("CheckPending", "Gift")';
             var myGiftsUrl      = '@Url.Action("MyGifts", "Gift")';
+            // Expose cho gift-gate.js (file JS tĩnh, không tự render được @@Url.Action/PathBase) —
+            // review phát hiện gift-gate.js trước đó hardcode "/Gift/MyGifts", sai khi deploy dưới
+            // virtual directory (VD /HR_Web) như project_web_pathbase.md đã quy định.
+            window.GIFT_MY_GIFTS_URL = myGiftsUrl;
             var checking = false;
             function recheckGiftGate() {
                 if (checking) return;

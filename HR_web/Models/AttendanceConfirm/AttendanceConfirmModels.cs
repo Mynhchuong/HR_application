@@ -31,6 +31,8 @@ public class AttendanceMissingItem
     public string?  CONFIRM_TIME_IN  { get; set; }
     public string?  CONFIRM_TIME_OUT { get; set; }
     public string?  SHIFT_TYPE       { get; set; }
+    public decimal? OT_BEFORE_HOURS  { get; set; }
+    public decimal? OT_AFTER_HOURS   { get; set; }
     public string?  WORKER_NOTE      { get; set; }
     public string?  NOTE             { get; set; }
     public string?  REQUESTED_BY     { get; set; }

@@ -428,6 +428,7 @@
             publishRegistration: '@Url.Action("PublishRegistration", "TrainingAdmin")',
             finalizeEnrollment: '@Url.Action("FinalizeEnrollment", "TrainingAdmin")',
             remindReview:      '@Url.Action("RemindReview", "TrainingAdmin", new { id = "__ID__" })',
+            sessionAttendanceTemplate: '@Url.Action("SessionAttendance", "TrainingTeach", new { id = "__ID__" })',
             cancelClass: '@Url.Action("CancelClass", "TrainingAdmin")',
             deleteClass: '@Url.Action("DeleteClass", "TrainingAdmin")',
             closeClass: '@Url.Action("CloseClass", "TrainingAdmin")',
@@ -725,6 +726,15 @@
                         <button onclick="cancelSession(${s.ID}, ${s.SESSION_NO})" class="btn btn-xs btn-outline-danger rounded-circle p-1 d-flex align-items-center justify-content-center d-inline-flex ms-1" title="Xóa buổi học">
                             <i class="bi bi-trash" style="font-size:1rem;"></i>
                         </button>`;
+                } else if (s.STATUS === 'ONGOING' || s.STATUS === 'COMPLETED') {
+                    // Bổ sung/sửa điểm danh khi giảng viên quên xác nhận (yêu cầu HR/CSR 2026-09-22) —
+                    // HR/CSR/Admin đã được BE cho phép sửa điểm danh y hệt giảng viên (TrainingAuthHelper.
+                    // IsHrOrAdminAsync), chỉ thiếu lối vào ở trang quản lý lớp — trỏ thẳng qua trang sửa
+                    // điểm danh sẵn có của giảng viên. Sau khi sửa xong, bấm "Chốt kết quả" lại bình
+                    // thường (FinalizeClassAsync đã tự re-check học viên FAILED, không cần thêm gì).
+                    actions += ` <a href="${window.TRAINING_URLS.sessionAttendanceTemplate.replace('__ID__', s.ID)}" class="btn btn-xs btn-outline-success rounded-circle p-1 d-flex align-items-center justify-content-center d-inline-flex ms-1" title="Bổ sung / sửa điểm danh">
+                            <i class="bi bi-check2-square" style="font-size:1rem;"></i>
+                        </a>`;
                 }
 
                 const groupLabel = s.GROUP_NAME

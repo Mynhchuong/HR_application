@@ -37,8 +37,10 @@ public class AttendanceConfirmController : ControllerBase
 
             DateTime fromDate = DateTime.TryParseExact(from_date, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out var fd)
                 ? fd : new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+            // Mặc định tới hôm qua — dữ liệu ADD_TIME hôm nay chưa chốt (GetMissingListAsync cũng
+            // tự ép trần này nếu FE lỡ truyền to_date=hôm nay).
             DateTime toDate = DateTime.TryParseExact(to_date, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out var td)
-                ? td : DateTime.Today;
+                ? td : DateTime.Today.AddDays(-1);
 
             bool isAdminOrHr = await _svc.IsAdminOrHRAsync(caller_empcd);
 
@@ -81,6 +83,12 @@ public class AttendanceConfirmController : ControllerBase
             if (string.IsNullOrWhiteSpace(empcd) ||
                 !DateTime.TryParseExact(work_date, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out var workDate))
                 return Ok(new { success = false, message = "Thông tin không hợp lệ" });
+
+            // Dữ liệu ADD_TIME hôm nay chưa chốt — bên chấm công tự thêm vân tay tạm cho người xin
+            // vào trễ + người quên thật để kịp báo cáo 10h, qua sáng hôm sau mới đồng bộ lại vân tay
+            // thật. Chặn khai/xem ngay từ đây để công nhân không xác nhận nhầm giờ tạm (yêu cầu HR 2026-09-22).
+            if (workDate.Date >= DateTime.Today)
+                return Ok(new { success = false, message = "Dữ liệu chấm công hôm nay chưa chốt (ERP đồng bộ lại vân tay vào sáng hôm sau) — vui lòng xác nhận từ ngày mai trở đi" });
 
             var item = await _svc.GetMyDayAsync(empcd, workDate);
             if (item == null) return Ok(new { success = false, message = "Ngày này không thiếu chấm công trên ERP" });

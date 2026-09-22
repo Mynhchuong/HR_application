@@ -1,6 +1,10 @@
 @{
     ViewData["Title"] = "Khai giờ chấm công";
-    var workDate = (string)(ViewBag.WorkDate ?? DateTime.Today.ToString("yyyy-MM-dd"));
+    var workDate = (string)(ViewBag.WorkDate ?? DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"));
+    // Dữ liệu ADD_TIME hôm nay chưa chốt (bên chấm công tự thêm vân tay tạm cho người vào trễ/quên
+    // thật để kịp báo cáo 10h, sáng hôm sau mới đồng bộ lại vân tay thật) — chặn chọn hôm nay/tương
+    // lai ngay trên UI, backend cũng tự chặn lại (yêu cầu HR 2026-09-22).
+    var maxDate = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd");
 }
 
 @section Styles {
@@ -70,7 +74,7 @@
         <div class="card-body">
             <div class="wf-date-picker">
                 <i class="bi bi-calendar3"></i>
-                <input type="date" id="wfDate" value="@workDate" onchange="loadDay()" />
+                <input type="date" id="wfDate" value="@workDate" max="@maxDate" onchange="loadDay()" />
             </div>
             <div id="wfPendingChips" class="d-flex flex-wrap gap-2 mb-3"></div>
 
@@ -88,13 +92,23 @@
 
                 <div id="wfFormArea" class="mt-3">
                     <div class="row g-2 mb-1">
-                        <div class="col-6">
+                        <div class="col-6" id="wfTimeInCol">
                             <label class="form-label small fw-bold">Giờ vào thực tế</label>
-                            <input type="time" id="wfTimeIn" class="form-control" />
+                            <div class="time-picker">
+                                <select id="wfTimeInHour" class="hour-select"></select>
+                                <span class="time-colon">:</span>
+                                <select id="wfTimeInMin" class="min-select"></select>
+                            </div>
+                            <input type="hidden" id="wfTimeIn" />
                         </div>
-                        <div class="col-6">
+                        <div class="col-6" id="wfTimeOutCol">
                             <label class="form-label small fw-bold">Giờ ra thực tế</label>
-                            <input type="time" id="wfTimeOut" class="form-control" />
+                            <div class="time-picker">
+                                <select id="wfTimeOutHour" class="hour-select"></select>
+                                <span class="time-colon">:</span>
+                                <select id="wfTimeOutMin" class="min-select"></select>
+                            </div>
+                            <input type="hidden" id="wfTimeOut" />
                         </div>
                     </div>
                     <div id="wfSuggestHint" class="text-xxs text-secondary mb-2" style="display:none;">
@@ -143,6 +157,17 @@ let pendingDaysCache = [];  // danh sách ngày còn thiếu/bị từ chối tr
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// missingType: 'IN' | 'OUT' | 'BOTH' — ẩn hẳn phía ERP đã có sẵn (không thiếu), chỉ hiện phía đang
+// thiếu để công nhân xác nhận (giá trị phía ẩn vẫn tự điền đúng theo ERP, vẫn gửi lên bình thường
+// khi submit — chỉ không hiện cho công nhân thấy/sửa nhầm).
+function setTimeFieldLocks(missingType) {
+    const showIn  = missingType !== 'OUT';
+    const showOut = missingType !== 'IN';
+    const both = showIn && showOut;
+    $('#wfTimeInCol').toggle(showIn).removeClass('col-6 col-12').addClass(both ? 'col-6' : 'col-12');
+    $('#wfTimeOutCol').toggle(showOut).removeClass('col-6 col-12').addClass(both ? 'col-6' : 'col-12');
+}
+
 async function loadDay() {
     const date = $('#wfDate').val();
     if (!date) return;
@@ -159,7 +184,11 @@ async function loadDay() {
             $('#wfNightHint').hide();
             $('#wfSuggestHint').hide();
             curBounds = { minIn: null, maxOut: null };
-            $('#wfTimeIn, #wfTimeOut').removeAttr('min max');
+            TimePickerHelper.setRange('wfTimeIn', null);
+            TimePickerHelper.setRange('wfTimeOut', null);
+            TimePickerHelper.setValue('wfTimeIn', '');
+            TimePickerHelper.setValue('wfTimeOut', '');
+            setTimeFieldLocks('BOTH');
             $('#wfNote').val('');
             $('#wfDoneNote').hide();
             $('#wfNoMissingMsg').text(res.message || 'Ngày này không thiếu chấm công 🎉');
@@ -177,24 +206,50 @@ async function loadDay() {
         $('#wfNightHint').toggle(!!d.IS_NIGHT_SHIFT);
         $('#wfInfoErp').text(`${d.ERP_TIME_IN || '--:--'} → ${d.ERP_TIME_OUT || '--:--'}`);
         $('#wfInfoMissing').html(`<span class="wf-missing-badge">${MISSING_LABEL[d.MISSING_TYPE] || d.MISSING_TYPE}</span>`);
-        $('#wfInfoShiftType').text(SHIFT_TYPE_LABEL[d.SHIFT_TYPE] || 'Ca chính');
+        const shiftTypeLabel = SHIFT_TYPE_LABEL[d.SHIFT_TYPE] || 'Ca chính';
+        const isOt = d.SHIFT_TYPE === 'OT_BEFORE' || d.SHIFT_TYPE === 'OT_AFTER';
+        const otHours = d.SHIFT_TYPE === 'OT_BEFORE' ? d.OT_BEFORE_HOURS : d.SHIFT_TYPE === 'OT_AFTER' ? d.OT_AFTER_HOURS : null;
+        $('#wfInfoShiftType').html(isOt
+            ? `<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill"></i> ${shiftTypeLabel}${otHours ? ' ' + otHours + 'h' : ''}</span>`
+            : shiftTypeLabel);
         const status = d.CONFIRM_STATUS || 'MISSING';
         $('#wfInfoStatus').html(`<span class="wf-status-badge" style="background:${STATUS_COLOR[status]}22;color:${STATUS_COLOR[status]};">${STATUS_LABEL[status]}</span>`);
-
-        $('#wfTimeIn').val(d.WORKER_TIME_IN || d.ERP_TIME_IN || d.SUGGESTED_TIME_IN || '');
-        $('#wfTimeOut').val(d.WORKER_TIME_OUT || d.ERP_TIME_OUT || d.SUGGESTED_TIME_OUT || '');
-        $('#wfNote').val(d.WORKER_NOTE || '');
-        const usedSuggestion = (!d.WORKER_TIME_IN && !d.ERP_TIME_IN && d.SUGGESTED_TIME_IN)
-            || (!d.WORKER_TIME_OUT && !d.ERP_TIME_OUT && d.SUGGESTED_TIME_OUT);
-        $('#wfSuggestHint').toggle(!!usedSuggestion);
 
         // Chặn giờ không hợp lý so với ca làm việc thật trên ERP (vd ca hành chính 7h30 mà chọn
         // 7h25 là sai — không có log tăng ca trước ca thì không được vào sớm hơn giờ ca). Mốc
         // min/max = đúng công thức SUGGESTED_TIME_IN/OUT bên server (đã cộng giờ OT nếu ERP có log).
         // Chỉ áp khi phía đó thật sự đang thiếu trên ERP — phía ERP đã có sẵn thì không giới hạn lại.
+        // Ca đêm không giới hạn trần/sàn chéo vì giờ ra thật có thể qua nửa đêm hôm sau (yêu cầu
+        // 2026-09-22).
+        //
+        // QUAN TRỌNG: max-only (không có min) KHÔNG chặn được giờ quá sớm — 00:00 vẫn "≤ max" nên
+        // vẫn chọn được (bug thật: ca HC 7h30-16h30, thiếu giờ ra, vẫn bấm được "00h Đêm"). Phải
+        // thêm sàn chéo cho Giờ ra = giờ vào thật (ERP_TIME_IN) — ra không thể trước lúc vào — và
+        // tương tự trần chéo cho Giờ vào = giờ ra thật (ERP_TIME_OUT) nếu phía đó đã có sẵn.
         curBounds = { minIn: !d.ERP_TIME_IN ? d.SUGGESTED_TIME_IN : null, maxOut: !d.ERP_TIME_OUT ? d.SUGGESTED_TIME_OUT : null };
-        $('#wfTimeIn').attr('min', curBounds.minIn || '');
-        $('#wfTimeOut').attr('max', (!d.IS_NIGHT_SHIFT && curBounds.maxOut) ? curBounds.maxOut : '');
+        // Ưu tiên SUGGESTED_TIME_IN/OUT (đã cộng giờ tăng ca thật) trước khi rơi về giờ ca gốc — thiếu
+        // bước này làm trần/sàn chéo bị chặn sai đúng ở case tăng ca (review 2026-09-22, cùng lỗi với
+        // 26072207 nhưng ở phía WorkerForm thay vì Index.cshtml — khớp với sửa bên đó).
+        const crossMaxIn  = !d.IS_NIGHT_SHIFT ? (d.ERP_TIME_OUT || d.SUGGESTED_TIME_OUT || d.SHIFT_ETIME || null) : null;
+        const crossMinOut = !d.IS_NIGHT_SHIFT ? (d.ERP_TIME_IN  || d.SUGGESTED_TIME_IN  || d.SHIFT_STIME || null) : null;
+        TimePickerHelper.setRange('wfTimeIn',  { min: curBounds.minIn, max: crossMaxIn });
+        TimePickerHelper.setRange('wfTimeOut', { min: crossMinOut, max: (!d.IS_NIGHT_SHIFT && curBounds.maxOut) ? curBounds.maxOut : null });
+
+        const inIsAuto  = !d.WORKER_TIME_IN && !d.ERP_TIME_IN && d.SUGGESTED_TIME_IN;
+        const outIsAuto = !d.WORKER_TIME_OUT && !d.ERP_TIME_OUT && d.SUGGESTED_TIME_OUT;
+        // exact=true khi đang set giờ ERP thật ở phía không thiếu (bị khóa/ẩn) — không làm tròn 5
+        // phút để tránh lệch so với giờ quẹt thẻ thật lúc gửi lên (review 2026-09-22).
+        TimePickerHelper.setValue('wfTimeIn',  d.WORKER_TIME_IN  || d.ERP_TIME_IN  || d.SUGGESTED_TIME_IN  || '', !!inIsAuto,  !d.WORKER_TIME_IN  && !!d.ERP_TIME_IN);
+        TimePickerHelper.setValue('wfTimeOut', d.WORKER_TIME_OUT || d.ERP_TIME_OUT || d.SUGGESTED_TIME_OUT || '', !!outIsAuto, !d.WORKER_TIME_OUT && !!d.ERP_TIME_OUT);
+        $('#wfNote').val(d.WORKER_NOTE || '');
+        $('#wfSuggestHint').toggle(!!(inIsAuto || outIsAuto));
+
+        // Chỉ khóa (disable) đúng phía ERP đã có sẵn, mở phía đang thiếu để công nhân xác nhận —
+        // thiếu giờ ra thì chỉ xác nhận giờ ra, thiếu giờ vào thì chỉ xác nhận giờ vào, thiếu cả 2
+        // thì mở cả 2 (yêu cầu 2026-09-22, hạn chế công nhân sửa nhầm phía đã đúng sẵn trên ERP).
+        // Giá trị phía bị khóa vẫn gửi lên bình thường (đã điền đúng theo ERP ở trên) — quản lý xác
+        // nhận vẫn thấy đủ cả 2 mốc giờ như trước, chỉ khác là công nhân không sửa được phía đúng rồi.
+        setTimeFieldLocks(d.MISSING_TYPE || 'BOTH');
 
         const canSubmit = status === 'MISSING' || status === 'PENDING_WORKER' || status === 'REJECTED';
         $('#wfFormArea').toggle(canSubmit);
@@ -280,6 +335,11 @@ function jumpToDate(el) {
     loadDay();
 }
 
-$(function () { loadDay(); loadPendingChips(); });
+$(function () {
+    TimePickerHelper.init('wfTimeIn');
+    TimePickerHelper.init('wfTimeOut');
+    loadDay();
+    loadPendingChips();
+});
 </script>
 }

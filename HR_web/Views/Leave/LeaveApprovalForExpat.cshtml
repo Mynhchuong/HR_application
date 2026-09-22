@@ -199,12 +199,31 @@
     </div>
 </div>
 
+<!-- Gate Pass reminder after approving a Business Trip (CT) request -->
+<div class="modal fade" id="ctGpReminderModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header" id="ctGpReminderHeader">
+                <h6 class="modal-title mb-0"><span class="material-symbols-rounded align-middle" style="font-size:1.1rem;">door_front</span> <span id="ctGpReminderTitle"></span></h6>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0 text-sm" id="ctGpReminderBody"></p>
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                <a class="btn btn-sm btn-warning text-white" id="ctGpReminderLink" target="_blank">Go Approve Gate Pass</a>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
 const PAGE_URL      = '@Url.Action("GetApprovalListPage", "Leave")';
 const APPROVE_URL   = '@Url.Action("ApproveRequest",      "Leave")';
 const REJECT_URL    = '@Url.Action("RejectRequest",       "Leave")';
 const SIG_URL       = '@Url.Action("GetSignature", "Image")';
+const GP_LIST_URL   = '@Url.Action("GpListForExpat", "GatePass")';
 const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
 const CURRENT_ROLE  = '@ViewBag.CurrentRole';
 const CAN_APPROVE   = ['Supervisor', 'DeputyManager', 'Manager', 'Expat', 'Admin'].includes(CURRENT_ROLE);
@@ -394,12 +413,33 @@ async function submitAction() {
         if (res.success) {
             bootstrap.Modal.getInstance('#actionModal').hide();
             showToast(type === 'approve' ? 'Leave request approved' : 'Leave request rejected', type === 'approve' ? 'success' : 'warning');
+            if (type === 'approve' && res.is_ct) showCtGpReminder(res.ct_gate_pass_ok);
             loadData(currentPage);
         } else {
             $('#actionError').removeClass('d-none').text(res.message || 'Processing error');
         }
     } catch { $('#actionError').removeClass('d-none').text('Connection error'); }
     finally  { $btn.prop('disabled', false).text('Confirm'); }
+}
+
+// Linked Gate Pass is already auto-approved by the backend in the same Approve() call on the
+// normal path — this popup just confirms it clearly, and warns with a manual-approve link if a
+// Gate Pass somehow didn't end up APPROVED (ERP sync error, deleted Gate Pass, etc.) so the
+// employee is never left without an exit gate pass for their business trip.
+function showCtGpReminder(gpOk) {
+    const $hd = $('#ctGpReminderHeader').removeClass('bg-success bg-warning text-white');
+    if (gpOk) {
+        $hd.addClass('bg-success text-white');
+        $('#ctGpReminderTitle').text('Gate Pass auto-approved');
+        $('#ctGpReminderBody').text('The Business Trip request is approved, and its Gate Pass was automatically approved and synced to ERP as well — the employee can exit the gate normally.');
+        $('#ctGpReminderLink').hide();
+    } else {
+        $hd.addClass('bg-warning text-white');
+        $('#ctGpReminderTitle').text('Gate Pass needs manual approval');
+        $('#ctGpReminderBody').text('The Business Trip request is approved, but its linked Gate Pass could not be auto-approved (possible ERP sync error or the Gate Pass was deleted). Please approve it manually so the employee can exit the gate for the trip.');
+        $('#ctGpReminderLink').attr('href', GP_LIST_URL).show();
+    }
+    new bootstrap.Modal('#ctGpReminderModal').show();
 }
 
 $('#filterDept').on('change', function() { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });

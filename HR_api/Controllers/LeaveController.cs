@@ -1204,6 +1204,12 @@ END;";
             if (rows == 0)
                 return Ok(new { success = false, message = "Không tìm thấy hoặc đã được xử lý rồi" });
 
+            // Khai báo ở scope ngoài (method-level) để dùng được ở return cuối cùng — khối
+            // if (ld != null ...) bên dưới đóng trước dòng return đó (yêu cầu 2026-09-22: FE cần
+            // biết CT vừa duyệt có Gate Pass PENDING/lỗi hay không để nhắc quản lý duyệt tay).
+            bool isCtApproval = false;
+            bool ctGatePassOk = true;
+
             // ERP: call SP_015_NEW after approval
             var ldRows = await _oracleService.ExecuteQueryAsync(@"
                 SELECT FROM_DATE, TO_DATE, LEAVE_TYPE, REASON, GP_REQUEST_ID, GP_REQUEST_ID_RETURN FROM HRMS.HR_LEAVE_REQUEST
@@ -1304,6 +1310,7 @@ END;";
                 // Gate Pass chỉ là phụ trợ; lỗi sẽ được báo qua message để HR retry duyệt GP riêng.
                 if (ld.LeaveType == "CT")
                 {
+                    isCtApproval = true;
                     foreach (var gpId in new[] { ld.GpRequestId, ld.GpRequestIdReturn })
                     {
                         if (string.IsNullOrEmpty(gpId)) continue;
@@ -1368,6 +1375,19 @@ END;";
                     }
                     catch { /* Gate Pass phụ trợ — lỗi ở đây không rollback đơn CT đã duyệt thành công */ }
                     }
+
+                    // Đọc lại trạng thái thật sau khi thử duyệt — catch{} phía trên nuốt lỗi nên
+                    // không thể tin ROW_COUNT/không có exception là đã chắc chắn thành công (yêu cầu
+                    // 2026-09-22: FE cần biết chính xác để nhắc HR/quản lý duyệt tay lại nếu còn PENDING).
+                    foreach (var gpId in new[] { ld.GpRequestId, ld.GpRequestIdReturn })
+                    {
+                        if (string.IsNullOrEmpty(gpId)) continue;
+                        var gpStatusRows = await _oracleService.ExecuteQueryAsync(
+                            "SELECT STATUS FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :ID",
+                            r => r["STATUS"]?.ToString(),
+                            new OracleParameter("ID", gpId));
+                        if (gpStatusRows.FirstOrDefault() != "APPROVED") ctGatePassOk = false;
+                    }
                 }
             }
 
@@ -1379,7 +1399,7 @@ END;";
             // Invalidate Home summary cache của approver — số pending vừa giảm 1
             _homeSummarySvc.InvalidateFor(model.APPROVER_EMPCD);
 
-            return Ok(new { success = true, message = "Đã duyệt đơn nghỉ phép" });
+            return Ok(new { success = true, message = "Đã duyệt đơn nghỉ phép", is_ct = isCtApproval, ct_gate_pass_ok = ctGatePassOk });
         }
         catch (Exception ex)
         {

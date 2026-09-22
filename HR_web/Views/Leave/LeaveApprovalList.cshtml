@@ -204,12 +204,31 @@
     </div>
 </div>
 
+<!-- Nhắc Gate Pass sau khi duyệt Công tác (yêu cầu 2026-09-22) -->
+<div class="modal fade" id="ctGpReminderModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header" id="ctGpReminderHeader">
+                <h6 class="modal-title mb-0"><span class="material-symbols-rounded align-middle" style="font-size:1.1rem;">door_front</span> <span id="ctGpReminderTitle"></span></h6>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0 text-sm" id="ctGpReminderBody"></p>
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+                <a class="btn btn-sm btn-warning text-white" id="ctGpReminderLink" target="_blank">Đi duyệt Gate Pass</a>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
 const PAGE_URL      = '@Url.Action("GetApprovalListPage", "Leave")';
 const APPROVE_URL   = '@Url.Action("ApproveRequest",      "Leave")';
 const REJECT_URL    = '@Url.Action("RejectRequest",       "Leave")';
 const SIG_URL       = '@Url.Action("GetSignature", "Image")';
+const GP_LIST_URL   = '@Url.Action("GpListForSupervisor", "GatePass")';
 const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
 const CURRENT_ROLE  = '@ViewBag.CurrentRole';
 const CAN_APPROVE   = ['Supervisor', 'DeputyManager', 'Manager', 'Expat', 'Admin'].includes(CURRENT_ROLE);
@@ -402,12 +421,33 @@ async function submitAction() {
         if (res.success) {
             bootstrap.Modal.getInstance('#actionModal').hide();
             showToast(type === 'approve' ? 'Đã duyệt đơn nghỉ thành công' : 'Đã từ chối đơn nghỉ', type === 'approve' ? 'success' : 'warning');
+            if (type === 'approve' && res.is_ct) showCtGpReminder(res.ct_gate_pass_ok);
             loadData(currentPage);
         } else {
             $('#actionError').removeClass('d-none').text(res.message || 'Lỗi xử lý');
         }
     } catch { $('#actionError').removeClass('d-none').text('Lỗi kết nối'); }
     finally  { $btn.prop('disabled', false).text('Xác Nhận'); }
+}
+
+// Đơn Công tác vừa duyệt xong — Gate Pass liên kết đã được backend tự duyệt kèm trong cùng
+// bước Approve() (không cần thao tác tay ở luồng bình thường). Popup chỉ để xác nhận rõ ràng cho
+// quản lý, và cảnh báo kèm link đi duyệt tay nếu lỡ có Gate Pass nào chưa lên APPROVED (ERP lỗi/
+// Gate Pass đã bị xóa trước đó...) — tránh lặp lại bug NV không có Gate Pass để ra cổng đi công tác.
+function showCtGpReminder(gpOk) {
+    const $hd = $('#ctGpReminderHeader').removeClass('bg-success bg-warning text-white');
+    if (gpOk) {
+        $hd.addClass('bg-success text-white');
+        $('#ctGpReminderTitle').text('Gate Pass đã duyệt tự động');
+        $('#ctGpReminderBody').text('Đơn Công tác đã duyệt xong, Gate Pass ra cổng cũng đã được tự động duyệt kèm và đồng bộ ERP — nhân viên có thể ra cổng đi công tác bình thường.');
+        $('#ctGpReminderLink').hide();
+    } else {
+        $hd.addClass('bg-warning text-white');
+        $('#ctGpReminderTitle').text('Cần duyệt Gate Pass tay');
+        $('#ctGpReminderBody').text('Đơn Công tác đã duyệt xong, nhưng Gate Pass ra cổng liên kết chưa duyệt được tự động (có thể do lỗi đồng bộ ERP hoặc Gate Pass đã bị xóa). Vui lòng vào duyệt tay để nhân viên có thể ra cổng đi công tác.');
+        $('#ctGpReminderLink').attr('href', GP_LIST_URL).show();
+    }
+    new bootstrap.Modal('#ctGpReminderModal').show();
 }
 
 $('#filterDept').on('change', function() { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });

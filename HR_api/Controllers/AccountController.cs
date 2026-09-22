@@ -852,6 +852,22 @@ public class AccountController : ControllerBase
                         Remark    = reader["REMAR"]?.ToString()
                     },
                     new OracleParameter("EMPCD", empCd.Trim()));
+
+                // Hợp đồng lao động (yêu cầu 2026-09-21) — chỉ lấy XD/KXD, bỏ PLTL/PLGL (phụ lục
+                // tăng lương, không phải hợp đồng). DEFINITE: T=XD (có thời hạn), F=KXD (không thời hạn).
+                r.LaborContracts = await _oracleService.ExecuteQueryAsync(@"
+                    SELECT DECODE(DEFINITE,'T','XD','F','KXD',DEFINITE) CONTRACT_TYPE, ST_DATE, ED_DATE, REMAR
+                    FROM HRMS.EAM900
+                    WHERE EMPCD = :EMPCD AND DEFINITE IN ('T','F')
+                    ORDER BY ST_DATE DESC",
+                    reader => new LaborContractItem
+                    {
+                        ContractType = reader["CONTRACT_TYPE"]?.ToString() ?? "",
+                        StartDate    = SafeToDate(reader["ST_DATE"]),
+                        EndDate      = SafeToDate(reader["ED_DATE"]),
+                        Remark       = reader["REMAR"]?.ToString()
+                    },
+                    new OracleParameter("EMPCD", empCd.Trim()));
             }
 
             return Ok(r);

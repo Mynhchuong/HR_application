@@ -29,6 +29,7 @@ public class UserDetailModel
     public string? SignatureUrl { get; set; }
     public string? EmpCd { get; set; }
     public List<DisciplineHistoryItem> DisciplineHistory { get; set; } = new();
+    public List<LaborContractItem> LaborContracts { get; set; } = new();
 }
 
 // HRMS.DISCIPLINE_HISTORY — lịch sử lập biên bản kỷ luật NV (tự xem trong Hồ sơ cá nhân).
@@ -39,6 +40,15 @@ public class DisciplineHistoryItem
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate   { get; set; }
     public string? Remark    { get; set; }   // Font giống họ tên (vni-font)
+}
+
+// HRMS.EAM900 — lịch sử hợp đồng lao động, chỉ lấy XD (có thời hạn) / KXD (không thời hạn).
+public class LaborContractItem
+{
+    public string  ContractType { get; set; } = "";
+    public DateTime? StartDate  { get; set; }
+    public DateTime? EndDate    { get; set; }
+    public string? Remark       { get; set; }
 }
 
 // CreateUserModel has been moved to UserActionModels.cs

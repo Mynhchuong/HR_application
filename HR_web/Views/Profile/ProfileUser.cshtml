@@ -162,6 +162,12 @@
     .discipline-num { font-size: .9rem; font-weight: 700; color: #b91c1c; }
     .discipline-period { font-size: .78rem; color: var(--app-muted); margin-top: 2px; }
     .discipline-remark { font-size: .88rem; color: var(--app-text); margin-top: 6px; line-height: 1.5; }
+
+    .contract-item { padding: 1rem 1.5rem; border-bottom: 1px solid #f8fafc; }
+    .contract-item:last-child { border-bottom: none; }
+    .contract-type { font-size: .9rem; font-weight: 700; color: #1d4ed8; }
+    .contract-period { font-size: .78rem; color: var(--app-muted); margin-top: 2px; }
+    .contract-remark { font-size: .88rem; color: var(--app-text); margin-top: 6px; line-height: 1.5; }
 </style>
 
 <div class="profile-container">
@@ -311,6 +317,32 @@
                     @if (!string.IsNullOrWhiteSpace(d.Remark))
                     {
                         <div class="discipline-remark vni-font">@d.Remark</div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @if (Model.LaborContracts != null && Model.LaborContracts.Any())
+    {
+        <!-- Hợp đồng lao động -->
+        <div class="group-title">Hợp đồng lao động</div>
+        <div class="settings-group">
+            @foreach (var c in Model.LaborContracts)
+            {
+                <div class="contract-item">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-1">
+                        <div class="contract-type">
+                            <span class="material-symbols-rounded align-middle" style="font-size:1rem;">description</span>
+                            @(c.ContractType == "XD" ? "Hợp đồng có thời hạn" : "Hợp đồng không thời hạn")
+                        </div>
+                        <div class="contract-period">
+                            @(c.StartDate?.ToString("dd/MM/yyyy") ?? "-") — @(c.EndDate?.ToString("dd/MM/yyyy") ?? "Không thời hạn")
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(c.Remark))
+                    {
+                        <div class="contract-remark vni-font">@c.Remark</div>
                     }
                 </div>
             }

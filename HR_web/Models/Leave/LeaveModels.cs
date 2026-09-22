@@ -200,6 +200,12 @@ public class LeaveActionResponse
     // mất khi qua HR_web, JS (TeamSchedule.cshtml) đọc res.results nhưng luôn rỗng — phát hiện khi
     // test lại bằng tài khoản quản lý thật (2026-09-10).
     public List<LeaveAssignResultItem> results { get; set; } = new();
+
+    // Chỉ có ý nghĩa khi duyệt đơn Công tác (CT) — yêu cầu 2026-09-22: nhắc quản lý/Expat vô
+    // duyệt Gate Pass nếu Gate Pass liên kết chưa APPROVED (backend đã thử tự duyệt kèm, nhưng
+    // lỗi ERP/PENDING sót lại sẽ bị nuốt bởi catch{} phụ trợ, không rollback đơn CT đã duyệt).
+    public bool is_ct { get; set; }
+    public bool ct_gate_pass_ok { get; set; } = true;
 }
 
 public class LeaveAssignResultItem

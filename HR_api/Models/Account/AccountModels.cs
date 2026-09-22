@@ -95,6 +95,18 @@ public class UserDetailModel
     public string? HardworkStt { get; set; }    // ECM100.INTEREST - mã công việc (VD Y80)
     public string? HardworkTen { get; set; }    // EAM420.TEN tương ứng (VD QUÉT KEO)
     public List<DisciplineHistoryItem> DisciplineHistory { get; set; } = new();
+    public List<LaborContractItem> LaborContracts { get; set; } = new();
+}
+
+// HRMS.EAM900 — lịch sử hợp đồng lao động (yêu cầu 2026-09-21). DEFINITE có 4 giá trị (T/F/L/G)
+// nhưng chỉ lấy T=XD (có thời hạn) và F=KXD (không thời hạn) — L/G là phụ lục tăng lương
+// (PLTL/PLGL), không phải hợp đồng, không hiển thị ở đây.
+public class LaborContractItem
+{
+    public string  ContractType { get; set; } = "";   // XD | KXD
+    public DateTime? StartDate  { get; set; }          // ST_DATE
+    public DateTime? EndDate    { get; set; }          // ED_DATE — NULL với KXD (không thời hạn)
+    public string? Remark       { get; set; }
 }
 
 // HRMS.DISCIPLINE_HISTORY — lịch sử lập biên bản kỷ luật NV (tự xem trong Hồ sơ cá nhân).

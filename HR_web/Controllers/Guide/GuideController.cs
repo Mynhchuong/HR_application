@@ -10,13 +10,15 @@ public class GuideController : BaseController
 {
     private readonly GuideService _service;
     private readonly VideoFileService _videoSvc;
+    private readonly AppLinkService _appLinkSvc;
 
     private const string VideoFolder = "GUIDE_VIDEO";
 
-    public GuideController(GuideService service, VideoFileService videoSvc)
+    public GuideController(GuideService service, VideoFileService videoSvc, AppLinkService appLinkSvc)
     {
-        _service  = service;
-        _videoSvc = videoSvc;
+        _service    = service;
+        _videoSvc   = videoSvc;
+        _appLinkSvc = appLinkSvc;
     }
 
     [AllowAnonymous]
@@ -54,6 +56,26 @@ public class GuideController : BaseController
         }
 
         return View(model);
+    }
+
+    // POST /Guide/RequestAppLink — nhân viên nhập mã thẻ để nhận link cài app iOS
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RequestAppLink(string empcd)
+    {
+        var result = await _appLinkSvc.RequestLinkAsync(empcd);
+        return Json(result);
+    }
+
+    // POST /Guide/ReassignAppLink — "Đổi máy mới": đóng link cũ, phát link mới
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReassignAppLink(string empcd)
+    {
+        var result = await _appLinkSvc.ReassignAsync(empcd, CurrentUser?.EmpCd);
+        return Json(result);
     }
 
     [Authorize(Roles = "Admin")]

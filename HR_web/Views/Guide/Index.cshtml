@@ -132,6 +132,101 @@
     }
     .guide-empty i { font-size: 3rem; opacity: .25; display: block; margin-bottom: .75rem; }
 
+    /* ── App link card ────────────────────────── */
+    .applink-card {
+        background: #fff;
+        border: 1.5px solid var(--guide-border);
+        border-radius: 20px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,.05);
+    }
+    .applink-head {
+        display: flex; align-items: center; gap: .8rem; margin-bottom: 1.1rem;
+    }
+    .applink-icon {
+        width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 6px 14px rgba(30,41,59,.25);
+    }
+    .applink-icon i { font-size: 1.4rem; color: #fff; }
+    .applink-head-text h6 { font-size: .92rem; font-weight: 800; color: #1e293b; margin: 0; line-height: 1.3; }
+    .applink-head-text small { font-size: .74rem; color: #64748b; }
+
+    .applink-input-row { display: flex; gap: 8px; }
+    .applink-input-row input {
+        flex: 1; border: 1.5px solid var(--guide-border); border-radius: 14px;
+        padding: 12px 16px; font-size: .9rem; outline: none; background: var(--guide-bg);
+        transition: border-color .15s, background .15s;
+    }
+    .applink-input-row input:focus { border-color: var(--guide-primary); background: #fff; }
+    .applink-input-row button {
+        border: none; border-radius: 14px; padding: 0 20px;
+        background: linear-gradient(135deg, var(--guide-primary) 0%, var(--guide-dark) 100%);
+        color: #fff; font-weight: 700; font-size: .85rem;
+        box-shadow: 0 4px 12px rgba(14,165,233,.3);
+        white-space: nowrap;
+        transition: transform .15s;
+    }
+    .applink-input-row button:active { transform: scale(.96); }
+    .applink-input-row button:disabled { opacity: .55; box-shadow: none; }
+
+    .applink-result { margin-top: 1rem; }
+    .applink-msg {
+        border-radius: 14px; font-size: .82rem; padding: .7rem .9rem;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .applink-msg .material-symbols-rounded { font-size: 1.15rem; flex-shrink: 0; }
+    .applink-msg.info    { background: var(--guide-bg); color: var(--guide-dark); }
+    .applink-msg.warning { background: #fffbeb; color: #92400e; }
+    .applink-msg.danger  { background: #fef2f2; color: #991b1b; }
+
+    .applink-link-card {
+        background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+        border: 1.5px solid #bbf7d0; border-radius: 16px; padding: 1rem;
+    }
+    .applink-link-card .applink-link-label {
+        font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+        color: #15803d; margin-bottom: .35rem; display: flex; align-items: center; gap: 5px;
+    }
+    .applink-link-url {
+        font-size: .78rem; color: #166534; word-break: break-all; margin-bottom: .8rem;
+    }
+    .applink-btn-row { display: flex; gap: 8px; }
+    .applink-btn-row .applink-btn-primary,
+    .applink-btn-row .applink-btn-ghost {
+        flex: 1; border-radius: 12px; padding: .65rem; font-size: .8rem; font-weight: 700;
+        text-align: center; text-decoration: none !important;
+        display: flex; align-items: center; justify-content: center; gap: 5px;
+        border: none; transition: transform .15s;
+    }
+    .applink-btn-row .applink-btn-primary {
+        background: #16a34a; color: #fff !important; box-shadow: 0 4px 12px rgba(22,163,74,.3);
+    }
+    .applink-btn-row .applink-btn-ghost {
+        background: #fff; color: #166534 !important; border: 1.5px solid #bbf7d0;
+    }
+    .applink-btn-row button:active, .applink-btn-row a:active { transform: scale(.96); }
+
+    .applink-choice-card {
+        background: var(--guide-bg); border: 1.5px solid var(--guide-border);
+        border-radius: 16px; padding: 1rem;
+    }
+    .applink-choice-card > p { font-size: .82rem; color: #334155; margin: 0 0 .8rem; }
+    .applink-choice-btns { display: flex; gap: 8px; }
+    .applink-choice-btns a, .applink-choice-btns button {
+        flex: 1; border-radius: 12px; padding: .7rem .5rem; font-size: .78rem; font-weight: 700;
+        border: 1.5px solid var(--guide-border); background: #fff; color: #1e293b;
+        text-align: center; text-decoration: none !important;
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        transition: transform .15s;
+    }
+    .applink-choice-btns a:active, .applink-choice-btns button:active { transform: scale(.96); }
+    .applink-choice-btns .material-symbols-rounded { font-size: 1.3rem; }
+    .applink-choice-btns .btn-update { color: var(--guide-dark); border-color: var(--guide-primary); background: #fff; }
+    .applink-choice-btns .btn-newphone { color: #7c3aed; border-color: #ddd6fe; background: #faf5ff; }
+
     /* ── Back to login ────────────────────────── */
     .btn-back-login {
         display: flex;
@@ -164,6 +259,24 @@
         <h5><i class="bi bi-book-half me-2"></i>Hướng Dẫn Sử Dụng</h5>
         <small>Chọn chức năng bạn muốn xem hướng dẫn</small>
         <img src="@Url.Content("~/assets/img/illustrations/" + guideHeroImg)" class="guide-hero-img" alt="" />
+    </div>
+
+    <!-- Nhận link cài đặt app iOS -->
+    <div class="applink-card">
+        <div class="applink-head">
+            <div class="applink-icon"><i class="bi bi-apple"></i></div>
+            <div class="applink-head-text">
+                <h6>Nhận link cài đặt app</h6>
+                <small>Dành cho iPhone — nhập mã thẻ để lấy link cài đặt</small>
+            </div>
+        </div>
+        @Html.AntiForgeryToken()
+        <div class="applink-input-row">
+            <input type="text" id="applinkEmpcd" placeholder="Nhập mã thẻ của bạn" autocomplete="off"
+                   onkeydown="if(event.key==='Enter') requestAppLink()" />
+            <button type="button" id="applinkBtn" onclick="requestAppLink()">Nhận link</button>
+        </div>
+        <div class="applink-result" id="applinkResult"></div>
     </div>
 
     @if (!Model.Any())
@@ -208,3 +321,89 @@
         </a>
     }
 </div>
+
+@section Scripts {
+<script>
+    const APPLINK_REQUEST_URL  = '@Url.Action("RequestAppLink", "Guide")';
+    const APPLINK_REASSIGN_URL = '@Url.Action("ReassignAppLink", "Guide")';
+    const APPLINK_UPDATE_URL   = '@Url.Action("Detail", "Guide", new { id = 11 })';
+    const APPLINK_CSRF = document.querySelector('.applink-card input[name="__RequestVerificationToken"]')?.value ?? '';
+
+    async function postApplink(url, empcd) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'RequestVerificationToken': APPLINK_CSRF },
+            body: 'empcd=' + encodeURIComponent(empcd)
+        });
+        return res.json();
+    }
+
+    const APPLINK_ICONS = { info: 'info', warning: 'warning', danger: 'error' };
+
+    function renderApplinkAlert(message, type) {
+        const icon = APPLINK_ICONS[type] || 'info';
+        document.getElementById('applinkResult').innerHTML =
+            `<div class="applink-msg ${type}"><span class="material-symbols-rounded">${icon}</span>${message}</div>`;
+    }
+
+    function renderApplinkLink(linkUrl) {
+        document.getElementById('applinkResult').innerHTML = `
+            <div class="applink-link-card">
+                <div class="applink-link-label"><span class="material-symbols-rounded" style="font-size:1rem;">check_circle</span>Link cài đặt của bạn</div>
+                <div class="applink-link-url">${linkUrl}</div>
+                <div class="applink-btn-row">
+                    <a href="${linkUrl}" target="_blank" class="applink-btn-primary"><span class="material-symbols-rounded" style="font-size:1.05rem;">open_in_new</span>Mở link cài đặt</a>
+                    <button type="button" class="applink-btn-ghost" onclick="copyApplink('${linkUrl}')"><span class="material-symbols-rounded" style="font-size:1.05rem;">content_copy</span>Sao chép</button>
+                </div>
+            </div>`;
+    }
+
+    function copyApplink(link) {
+        navigator.clipboard?.writeText(link);
+        if (typeof showToast === 'function') showToast('Đã sao chép link', 'success');
+        else alert('Đã sao chép link');
+    }
+
+    async function requestAppLink() {
+        const empcd = document.getElementById('applinkEmpcd').value.trim();
+        if (!empcd) { renderApplinkAlert('Vui lòng nhập mã thẻ', 'warning'); return; }
+
+        const btn = document.getElementById('applinkBtn');
+        btn.disabled = true;
+        renderApplinkAlert('Đang kiểm tra...', 'info');
+
+        try {
+            const data = await postApplink(APPLINK_REQUEST_URL, empcd);
+            if (!data.success) {
+                renderApplinkAlert(data.message || 'Có lỗi xảy ra', 'danger');
+            } else if (data.alreadyAssigned) {
+                document.getElementById('applinkResult').innerHTML = `
+                    <div class="applink-choice-card">
+                        <p>Mã thẻ này đã nhận link trước đó rồi. Bạn muốn:</p>
+                        <div class="applink-choice-btns">
+                            <a href="${APPLINK_UPDATE_URL}" class="btn-update"><span class="material-symbols-rounded">system_update</span>Cập nhật app</a>
+                            <button type="button" class="btn-newphone" onclick="reassignAppLink('${empcd.replace(/'/g, "\\'")}')"><span class="material-symbols-rounded">phone_iphone</span>Đổi máy mới</button>
+                        </div>
+                    </div>`;
+            } else {
+                renderApplinkLink(data.linkUrl);
+            }
+        } catch {
+            renderApplinkAlert('Không kết nối được máy chủ, vui lòng thử lại', 'danger');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function reassignAppLink(empcd) {
+        renderApplinkAlert('Đang cấp link mới...', 'info');
+        try {
+            const data = await postApplink(APPLINK_REASSIGN_URL, empcd);
+            if (data.success) renderApplinkLink(data.linkUrl);
+            else renderApplinkAlert(data.message || 'Có lỗi xảy ra', 'danger');
+        } catch {
+            renderApplinkAlert('Không kết nối được máy chủ, vui lòng thử lại', 'danger');
+        }
+    }
+</script>
+}

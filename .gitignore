@@ -134,3 +134,4 @@ HR_api/Scripts/create_attendance_confirm.sql
 HR_api/Scripts/alter_gift_company_wide.sql
 HR_api/Scripts/create_gift.sql
 HR_api/Scripts/alter_training_online_mode.sql
+HR_api/Scripts/create_app_link.sql

@@ -1,0 +1,154 @@
+@model List<HR_web.Models.AppLink.AppLinkModel>
+@{
+    ViewData["Title"] = "Kho link cài app";
+    var stats = ViewBag.Stats as HR_web.Models.AppLink.AppLinkStatsModel ?? new();
+    var status = ViewBag.Status as string;
+}
+
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-dark shadow-dark border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="text-white mb-0"><i class="bi bi-phone me-1"></i> Kho link cài app iOS</h6>
+                <button type="button" class="btn btn-sm btn-white mb-0" data-bs-toggle="modal" data-bs-target="#importModal">
+                    <i class="bi bi-upload me-1"></i> Import link
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body px-3 pt-0 pb-2 mt-3">
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success py-2">@TempData["SuccessMessage"]</div>
+            }
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger py-2">@TempData["ErrorMessage"]</div>
+            }
+
+            <div class="row g-2 mb-3">
+                <div class="col-6 col-md-3">
+                    <a href="@Url.Action("Index")" class="text-decoration-none">
+                        <div class="card border @(string.IsNullOrEmpty(status) ? "border-dark" : "")">
+                            <div class="card-body p-2 text-center">
+                                <div class="text-xs text-secondary">Tổng số</div>
+                                <div class="text-lg fw-bold">@stats.TOTAL</div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6 col-md-3">
+                    <a href="@Url.Action("Index", new { status = "AVAILABLE" })" class="text-decoration-none">
+                        <div class="card border @(status == "AVAILABLE" ? "border-success" : "")">
+                            <div class="card-body p-2 text-center">
+                                <div class="text-xs text-secondary">Còn trong kho</div>
+                                <div class="text-lg fw-bold text-success">@stats.AVAILABLE</div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6 col-md-3">
+                    <a href="@Url.Action("Index", new { status = "ASSIGNED" })" class="text-decoration-none">
+                        <div class="card border @(status == "ASSIGNED" ? "border-primary" : "")">
+                            <div class="card-body p-2 text-center">
+                                <div class="text-xs text-secondary">Đã phát</div>
+                                <div class="text-lg fw-bold text-primary">@stats.ASSIGNED</div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6 col-md-3">
+                    <a href="@Url.Action("Index", new { status = "REPLACED" })" class="text-decoration-none">
+                        <div class="card border @(status == "REPLACED" ? "border-secondary" : "")">
+                            <div class="card-body p-2 text-center">
+                                <div class="text-xs text-secondary">Đã thay (đổi máy)</div>
+                                <div class="text-lg fw-bold text-secondary">@stats.REPLACED</div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            @if (!Model.Any())
+            {
+                <div class="text-center py-5 text-secondary">
+                    <i class="bi bi-link-45deg" style="font-size:48px;opacity:.3;display:block;margin-bottom:.75rem;"></i>
+                    <p>Chưa có link nào@(string.IsNullOrEmpty(status) ? "" : " ở trạng thái này"). Nhấn <strong>Import link</strong> để thêm.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table align-items-center mb-0 table-hover">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="text-xs text-secondary">ID</th>
+                                <th class="text-xs text-secondary">Link</th>
+                                <th class="text-xs text-secondary">Trạng thái</th>
+                                <th class="text-xs text-secondary">Mã thẻ</th>
+                                <th class="text-xs text-secondary">Ngày phát</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model)
+                            {
+                                <tr>
+                                    <td class="text-xs">@item.ID</td>
+                                    <td class="text-xs" style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="@item.LINK_URL">@item.LINK_URL</td>
+                                    <td>
+                                        @if (item.STATUS == "AVAILABLE")
+                                        {
+                                            <span class="badge bg-success-subtle text-success-emphasis">Còn trong kho</span>
+                                        }
+                                        else if (item.STATUS == "ASSIGNED")
+                                        {
+                                            <span class="badge bg-primary-subtle text-primary-emphasis">Đã phát</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary-subtle text-secondary-emphasis">Đã thay</span>
+                                        }
+                                    </td>
+                                    <td class="text-xs">
+                                        @if (!string.IsNullOrEmpty(item.ASSIGNED_EMPCD))
+                                        {
+                                            @item.ASSIGNED_EMPCD <span class="text-secondary">— @item.ASSIGNED_EMP_NAME</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-secondary">—</span>
+                                        }
+                                    </td>
+                                    <td class="text-xs">@(item.ASSIGNED_DT?.ToString("dd/MM/yyyy HH:mm") ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Modal import link -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form asp-action="Import" asp-controller="AppLinkAdmin" method="post">
+            @Html.AntiForgeryToken()
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title mb-0">Import link cài app</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label small fw-bold">Dán danh sách link, mỗi dòng 1 link</label>
+                    <textarea name="linksText" class="form-control" rows="10" placeholder="https://testflight.apple.com/join/xxxxxxxx&#10;https://testflight.apple.com/join/yyyyyyyy" required></textarea>
+                    <div class="text-xxs text-secondary mt-1">Link trùng với link đã có trong kho sẽ tự động bỏ qua.</div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check-lg me-1"></i>Thêm vào kho</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

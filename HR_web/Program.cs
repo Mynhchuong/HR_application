@@ -98,6 +98,7 @@ builder.Services.AddScoped<HR_web.API.Service.CalendarService>();
 builder.Services.AddScoped<HR_web.API.Service.AttendanceConfirmService>();
 builder.Services.AddScoped<HR_web.API.Service.GiftService>();
 builder.Services.AddScoped<HR_web.API.Service.GuideService>();
+builder.Services.AddScoped<HR_web.API.Service.AppLinkService>();
 builder.Services.AddScoped<HR_web.API.Service.MenuService>();
 builder.Services.AddScoped<HR_web.API.Service.MealLockService>();
 builder.Services.AddScoped<HR_web.API.Service.CanteenBreadService>();

@@ -361,11 +361,12 @@ $('#sendConfirmBtn').on('click', async function () {
     } finally { $btn.prop('disabled', false); }
 });
 
-$('#closeBatchBtn').on('click', async function () {
-    if (!confirm('Kết thúc đợt quà này? Sau khi kết thúc sẽ KHÔNG thể import/đánh dấu đã phát/gửi yêu cầu xác nhận thêm — dùng để chốt số liệu làm báo cáo.')) return;
-    const res = await $.ajax({ url: CLOSE_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify({ BATCH_ID: BATCH_ID }) });
-    showToast ? showToast(res.MESSAGE || 'Đã xử lý', res.OK ? 'success' : 'error') : null;
-    if (res.OK) { await loadBatchHeader(); loadData(currentPage); }
+$('#closeBatchBtn').on('click', function () {
+    showConfirm('Kết thúc đợt quà này? Sau khi kết thúc sẽ KHÔNG thể import/đánh dấu đã phát/gửi yêu cầu xác nhận thêm — dùng để chốt số liệu làm báo cáo.', async function () {
+        const res = await $.ajax({ url: CLOSE_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify({ BATCH_ID: BATCH_ID }) });
+        showToast ? showToast(res.MESSAGE || 'Đã xử lý', res.OK ? 'success' : 'error') : null;
+        if (res.OK) { await loadBatchHeader(); loadData(currentPage); }
+    }, { title: 'Kết thúc đợt quà', okText: 'Kết thúc', okClass: 'btn-warning', icon: 'event_busy', iconColor: '#d97706', iconBg: '#fef3c7' });
 });
 
 $('#downloadTemplateBtn').on('click', function () { window.location.href = TEMPLATE_URL; });

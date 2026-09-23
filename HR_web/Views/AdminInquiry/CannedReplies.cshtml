@@ -435,19 +435,20 @@ async function toggleActive(id, makeActive) {
     } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
 }
 
-async function deleteCanned(id) {
-    if (!confirm('Xóa mẫu trả lời này?')) return;
-    try {
-        const res = await fetch(URL_DELETE, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
-            body: JSON.stringify({ id })
-        });
-        const data = await res.json();
-        if (!data.success) { showToast(data.message || 'Không thể xóa', 'error'); return; }
-        showToast('Đã xóa mẫu', 'success');
-        await loadCannedReplies();
-    } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
+function deleteCanned(id) {
+    showConfirm('Xóa mẫu trả lời này?', async function () {
+        try {
+            const res = await fetch(URL_DELETE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN },
+                body: JSON.stringify({ id })
+            });
+            const data = await res.json();
+            if (!data.success) { showToast(data.message || 'Không thể xóa', 'error'); return; }
+            showToast('Đã xóa mẫu', 'success');
+            await loadCannedReplies();
+        } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
+    });
 }
 
 loadCannedReplies();

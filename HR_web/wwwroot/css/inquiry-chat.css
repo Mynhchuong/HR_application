@@ -107,6 +107,20 @@ html, body { height: 100%; }
 .msg-content u      { text-decoration: underline; }
 .msg-content s      { text-decoration: line-through; }
 .msg-content mark   { background: #fef08a; color: #1e293b; padding: 0 .15rem; border-radius: 3px; }
+/* Ảnh chèn trong nội dung tin nhắn (vd Câu trả lời mẫu có ảnh) — không giới hạn kích thước thì ảnh
+   hiện nguyên khổ gốc, tràn màn hình trên điện thoại (báo lỗi 2026-09-23). Bấm vào vẫn xem full qua
+   lightbox chung (onChatClick đã tự bắt mọi <img> trong .msg-content, không cần sửa gì thêm). */
+.msg-content img {
+    max-width: 220px;
+    max-height: 220px;
+    width: auto;
+    height: auto;
+    object-fit: cover;
+    border-radius: 8px;
+    margin: 4px 0;
+    display: block;
+    cursor: zoom-in;
+}
 
 .msg-time { font-size: .68rem; margin-top: .3rem; opacity: .7; }
 .msg-row.mine   .msg-time { color: rgba(255,255,255,.8); text-align: right; }
@@ -215,6 +229,7 @@ html, body { height: 100%; }
 }
 .editor-content ul, .editor-content ol { margin: .25rem 0; padding-left: 1.2rem; }
 .editor-content a { color: var(--chat-accent); text-decoration: underline; }
+.editor-content img { max-width: 120px; max-height: 120px; width: auto; height: auto; object-fit: cover; border-radius: 6px; display: block; margin: 4px 0; }
 
 .editor-footer {
     display: flex; justify-content: flex-end; align-items: center;

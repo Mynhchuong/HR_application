@@ -4,7 +4,14 @@ public class GiftComboDetailItem
 {
     public int    ID             { get; set; }
     public string COMPONENT_NAME { get; set; } = "";
+    public int    QTY            { get; set; } = 1;
     public int    DISPLAY_ORDER  { get; set; }
+}
+
+public class GiftComboComponentInput
+{
+    public string NAME { get; set; } = "";
+    public int    QTY  { get; set; } = 1;
 }
 
 public class GiftCategoryItem
@@ -34,7 +41,7 @@ public class GiftCatalogSaveRequest
     public string  ITEM_NAME   { get; set; } = "";
     public string  ITEM_TYPE   { get; set; } = "SINGLE";
     public string? IMAGE_PATH  { get; set; }
-    public List<string> COMBO_COMPONENTS { get; set; } = new();
+    public List<GiftComboComponentInput> COMBO_COMPONENTS { get; set; } = new();
     public string  ACTOR_EMPCD { get; set; } = "";
 }
 

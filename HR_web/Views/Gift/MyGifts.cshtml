@@ -36,7 +36,7 @@
             <div id="gfEmpty" class="gf-empty" style="display:none;">
                 <i class="bi bi-check-circle fs-1 text-success"></i>
                 <div class="mt-2">Bạn không có quà nào cần xác nhận.</div>
-                <a href="/Home/Index" class="btn btn-sm btn-outline-secondary mt-3">Về trang chủ</a>
+                <a href="@Url.Action("Index", "Home")" class="btn btn-sm btn-outline-secondary mt-3">Về trang chủ</a>
             </div>
         </div>
     </div>
@@ -54,7 +54,7 @@ function escHtml(str) { return String(str==null?'':str).replace(/&/g,'&amp;').re
 function renderComboList(details) {
     if (!details || !details.length) return '';
     return `<div class="gf-combo-label"><i class="bi bi-box-seam"></i> Combo gồm có:</div>
-        <div>${details.map(d => `<span class="badge bg-light text-dark border me-1 mb-1">${escHtml(d.COMPONENT_NAME)}</span>`).join('')}</div>`;
+        <div>${details.map(d => `<span class="badge bg-light text-dark border me-1 mb-1">${escHtml(d.COMPONENT_NAME)}${d.QTY > 1 ? ' x' + d.QTY : ''}</span>`).join('')}</div>`;
 }
 
 function renderItem(item) {
@@ -101,7 +101,7 @@ async function confirmReceipt(recipientId, btn) {
             await loadList();
             // Không còn quà pending nào -> có thể quay lại trang trước đó / Home.
             if ($('#gfList .gf-item').length === 0) {
-                setTimeout(() => { window.location.href = '/Home/Index'; }, 800);
+                setTimeout(() => { window.location.href = '@Url.Action("Index", "Home")'; }, 800);
             }
         } else {
             showToast ? showToast(res.MESSAGE || 'Lỗi', 'error') : alert(res.MESSAGE || 'Lỗi');

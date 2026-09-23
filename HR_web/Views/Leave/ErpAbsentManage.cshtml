@@ -412,7 +412,7 @@ $('#exportBtn').on('click', async function () {
             const msLbl    = MS_LEAVE_LABEL[r.MsLeaveType] || r.MsLeaveType || '';
             const msStatusTxt = !r.MsRequestId ? 'Chưa có trên MySamho' : (r.MsStatus === 'APPROVED' ? 'Đã duyệt' : (r.MsStatus === 'ASSIGNED' ? 'Sắp lịch nghỉ' : (r.MsStatus || '')));
             const msDocTxt = needsDoc ? (MS_DOC_LABEL[r.MsDocStatus] || 'Chưa nộp') : '-';
-            html += `<tr><td>${i + 1}</td><td data-t="s">${escHtml(r.Empcd || '')}</td><td>${escHtml(r.EmpName || '')}</td><td>${formatDate(r.FrDate)}</td><td>${escHtml(r.DeptNm || '')}</td><td>${escHtml(r.TeamNm || '')}</td><td>${escHtml(r.WorkNm || '')}</td><td>${escHtml(r.Leavecd || '')}</td><td>${escHtml(r.Remark || '')}</td><td data-t="s">${escHtml(r.ApprovedBy || '')}</td><td>${escHtml(r.ApprovedByName || '')}</td><td>${escHtml(msLbl)}</td><td>${escHtml(msStatusTxt)}</td><td>${escHtml(msDocTxt)}</td><td>${escHtml(r.MsReason || '')}</td></tr>`;
+            html += `<tr><td>${i + 1}</td><td data-t="s">${escHtml(r.Empcd || '')}</td><td>${escHtml(r.EmpName || '')}</td><td data-t="s">${formatDate(r.FrDate)}</td><td>${escHtml(r.DeptNm || '')}</td><td>${escHtml(r.TeamNm || '')}</td><td>${escHtml(r.WorkNm || '')}</td><td>${escHtml(r.Leavecd || '')}</td><td>${escHtml(r.Remark || '')}</td><td data-t="s">${escHtml(r.ApprovedBy || '')}</td><td>${escHtml(r.ApprovedByName || '')}</td><td>${escHtml(msLbl)}</td><td>${escHtml(msStatusTxt)}</td><td>${escHtml(msDocTxt)}</td><td>${escHtml(r.MsReason || '')}</td></tr>`;
         });
         html += '</tbody></table></body></html>';
         exportHtmlTableToXlsx(html, `ErpAbsent_${$('#filterDateFrom').val()}_${$('#filterDateTo').val()}.xlsx`);

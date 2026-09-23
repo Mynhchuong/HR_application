@@ -179,6 +179,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",             Icon = "home_app_logo",           Group = "system" },
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",           Icon = "poll",                   Group = "system" },
                 //    new SideMenuItem { Title = "DS miễn làm Survey",    Url = "~/SurveyExempt/Index",          Icon = "person_off"             },
+                    new SideMenuItem { Title = "Kho link cài app",      Url = "~/AppLinkAdmin/Index",          Icon = "phone_iphone",           Group = "system" },
                 }
             },
 

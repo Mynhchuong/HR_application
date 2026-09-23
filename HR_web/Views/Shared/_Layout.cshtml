@@ -947,7 +947,16 @@
         // ids        : id badge (xem setMenuBadge)
         // extractFn  : (json) => number — lấy số ra từ response, mặc định đọc field "count"
         function loadBadge(url, ids, extractFn) {
-            if (/\/gift(\/|$)/i.test(window.location.pathname)) return;
+            // Trang đích của 1 "app gate" bắt buộc (Survey/Gift/bắt đổi mật khẩu.../...) phải bỏ
+            // qua mọi badge — nếu không, badge gọi sang controller KHÔNG nằm trong whitelist của
+            // gate đó (OT, AttendanceConfirm, Inquiry...) sẽ bị chính gate chặn (409), app-gate.js
+            // lại tự redirect NGAY VỀ TRANG NÀY → tải lại trang → gọi badge lại → lặp vô hạn, NV
+            // không bao giờ hoàn thành nổi (bug thật 2026-09-23 — trước đó chỉ vá path "gift", bỏ
+            // sót "survey"; "profile" thêm vào khi RequireUpdateProfileFilter được chuẩn hoá trả
+            // 409 JSON giống AppGateFilterBase, nếu không sẽ dính lại đúng bug này khi NV đang bị
+            // bắt buộc đổi mật khẩu/chữ ký). Thêm gate mới có trang đích riêng thì PHẢI thêm route
+            // vào đây — không có cách nào tự suy ra từ AppGateRegistry phía server.
+            if (/\/(gift|survey|profile)(\/|$)/i.test(window.location.pathname)) return;
             fetch(url)
                 .then(function(r) { return r.json(); })
                 .then(function(d) { setMenuBadge(ids, (extractFn || function(d){ return d.count; })(d)); })

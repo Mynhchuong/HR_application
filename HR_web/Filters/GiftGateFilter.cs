@@ -19,7 +19,8 @@ public class GiftGateFilter : AppGateFilterBase<GiftGateFilter.PendingGift>
 
     static GiftGateFilter()
     {
-        AppGateRegistry.Register("gift", "giftadmin");
+        AppGateRegistry.RegisterDestination("gift");
+        AppGateRegistry.RegisterOwnAdmin("gift", "giftadmin");
     }
 
     private readonly GiftService _gift;

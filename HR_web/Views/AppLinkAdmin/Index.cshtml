@@ -1,8 +1,6 @@
-@model List<HR_web.Models.AppLink.AppLinkModel>
 @{
     ViewData["Title"] = "Kho link cài app";
     var stats = ViewBag.Stats as HR_web.Models.AppLink.AppLinkStatsModel ?? new();
-    var status = ViewBag.Status as string;
 }
 
 <div class="container-fluid py-4">
@@ -26,106 +24,90 @@
                 <div class="alert alert-danger py-2">@TempData["ErrorMessage"]</div>
             }
 
-            <div class="row g-2 mb-3">
-                <div class="col-6 col-md-3">
-                    <a href="@Url.Action("Index")" class="text-decoration-none">
-                        <div class="card border @(string.IsNullOrEmpty(status) ? "border-dark" : "")">
-                            <div class="card-body p-2 text-center">
-                                <div class="text-xs text-secondary">Tổng số</div>
-                                <div class="text-lg fw-bold">@stats.TOTAL</div>
-                            </div>
-                        </div>
-                    </a>
-                </div>
-                <div class="col-6 col-md-3">
-                    <a href="@Url.Action("Index", new { status = "AVAILABLE" })" class="text-decoration-none">
-                        <div class="card border @(status == "AVAILABLE" ? "border-success" : "")">
-                            <div class="card-body p-2 text-center">
-                                <div class="text-xs text-secondary">Còn trong kho</div>
-                                <div class="text-lg fw-bold text-success">@stats.AVAILABLE</div>
-                            </div>
-                        </div>
-                    </a>
-                </div>
-                <div class="col-6 col-md-3">
-                    <a href="@Url.Action("Index", new { status = "ASSIGNED" })" class="text-decoration-none">
-                        <div class="card border @(status == "ASSIGNED" ? "border-primary" : "")">
-                            <div class="card-body p-2 text-center">
-                                <div class="text-xs text-secondary">Đã phát</div>
-                                <div class="text-lg fw-bold text-primary">@stats.ASSIGNED</div>
-                            </div>
-                        </div>
-                    </a>
-                </div>
-                <div class="col-6 col-md-3">
-                    <a href="@Url.Action("Index", new { status = "REPLACED" })" class="text-decoration-none">
-                        <div class="card border @(status == "REPLACED" ? "border-secondary" : "")">
-                            <div class="card-body p-2 text-center">
-                                <div class="text-xs text-secondary">Đã thay (đổi máy)</div>
-                                <div class="text-lg fw-bold text-secondary">@stats.REPLACED</div>
-                            </div>
-                        </div>
-                    </a>
+            <!-- Lấy link giùm NV — dùng khi HR cầm máy nhập/gửi link thay NV -->
+            <div class="card border mb-3">
+                <div class="card-body p-3">
+                    <div class="fw-bold text-sm mb-2"><i class="bi bi-send-check me-1"></i>Lấy link cho nhân viên</div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <input type="text" id="hrEmpcd" class="form-control form-control-sm" style="max-width:220px;" placeholder="Nhập mã thẻ NV" autocomplete="off" />
+                        <button type="button" class="btn btn-sm btn-primary mb-0" onclick="hrRequestLink()">
+                            <i class="bi bi-search me-1"></i>Lấy link
+                        </button>
+                    </div>
+                    <div id="hrLinkResult" class="mt-2"></div>
                 </div>
             </div>
 
-            @if (!Model.Any())
-            {
-                <div class="text-center py-5 text-secondary">
-                    <i class="bi bi-link-45deg" style="font-size:48px;opacity:.3;display:block;margin-bottom:.75rem;"></i>
-                    <p>Chưa có link nào@(string.IsNullOrEmpty(status) ? "" : " ở trạng thái này"). Nhấn <strong>Import link</strong> để thêm.</p>
+            <div class="row g-2 mb-3">
+                <div class="col-6 col-md-3">
+                    <div class="card border filter-stat" data-status="" style="cursor:pointer;">
+                        <div class="card-body p-2 text-center">
+                            <div class="text-xs text-secondary">Tổng số</div>
+                            <div class="text-lg fw-bold">@stats.TOTAL</div>
+                        </div>
+                    </div>
                 </div>
-            }
-            else
-            {
-                <div class="table-responsive">
-                    <table class="table align-items-center mb-0 table-hover">
-                        <thead class="bg-light">
-                            <tr>
-                                <th class="text-xs text-secondary">ID</th>
-                                <th class="text-xs text-secondary">Link</th>
-                                <th class="text-xs text-secondary">Trạng thái</th>
-                                <th class="text-xs text-secondary">Mã thẻ</th>
-                                <th class="text-xs text-secondary">Ngày phát</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in Model)
-                            {
-                                <tr>
-                                    <td class="text-xs">@item.ID</td>
-                                    <td class="text-xs" style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="@item.LINK_URL">@item.LINK_URL</td>
-                                    <td>
-                                        @if (item.STATUS == "AVAILABLE")
-                                        {
-                                            <span class="badge bg-success-subtle text-success-emphasis">Còn trong kho</span>
-                                        }
-                                        else if (item.STATUS == "ASSIGNED")
-                                        {
-                                            <span class="badge bg-primary-subtle text-primary-emphasis">Đã phát</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge bg-secondary-subtle text-secondary-emphasis">Đã thay</span>
-                                        }
-                                    </td>
-                                    <td class="text-xs">
-                                        @if (!string.IsNullOrEmpty(item.ASSIGNED_EMPCD))
-                                        {
-                                            @item.ASSIGNED_EMPCD <span class="text-secondary">— @item.ASSIGNED_EMP_NAME</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-secondary">—</span>
-                                        }
-                                    </td>
-                                    <td class="text-xs">@(item.ASSIGNED_DT?.ToString("dd/MM/yyyy HH:mm") ?? "—")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                <div class="col-6 col-md-3">
+                    <div class="card border filter-stat" data-status="AVAILABLE" style="cursor:pointer;">
+                        <div class="card-body p-2 text-center">
+                            <div class="text-xs text-secondary">Còn trong kho</div>
+                            <div class="text-lg fw-bold text-success">@stats.AVAILABLE</div>
+                        </div>
+                    </div>
                 </div>
-            }
+                <div class="col-6 col-md-3">
+                    <div class="card border filter-stat" data-status="ASSIGNED" style="cursor:pointer;">
+                        <div class="card-body p-2 text-center">
+                            <div class="text-xs text-secondary">Đã phát</div>
+                            <div class="text-lg fw-bold text-primary">@stats.ASSIGNED</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border filter-stat" data-status="REPLACED" style="cursor:pointer;">
+                        <div class="card-body p-2 text-center">
+                            <div class="text-xs text-secondary">Đã thay (đổi máy)</div>
+                            <div class="text-lg fw-bold text-secondary">@stats.REPLACED</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 align-items-end mb-3 filter-bar">
+                <div style="min-width:220px;">
+                    <label class="form-label small fw-bold mb-1">Tìm mã thẻ / link</label>
+                    <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Mã thẻ hoặc nội dung link..." autocomplete="off" />
+                </div>
+                <div style="min-width:160px;">
+                    <label class="form-label small fw-bold mb-1">Trạng thái</label>
+                    <select id="filterStatus" class="form-select form-select-sm">
+                        <option value="">Tất cả</option>
+                        <option value="AVAILABLE">Còn trong kho</option>
+                        <option value="ASSIGNED">Đã phát</option>
+                        <option value="REPLACED">Đã thay</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table align-items-center mb-0 table-hover">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="text-xs text-secondary">ID</th>
+                            <th class="text-xs text-secondary">Link</th>
+                            <th class="text-xs text-secondary">Trạng thái</th>
+                            <th class="text-xs text-secondary">Mã thẻ</th>
+                            <th class="text-xs text-secondary">Ngày phát</th>
+                        </tr>
+                    </thead>
+                    <tbody id="linkTableBody"></tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
+                <div id="paginationCount"></div>
+                <ul class="pagination pagination-sm mb-0" id="paginationBar"></ul>
+            </div>
         </div>
     </div>
 </div>
@@ -152,3 +134,157 @@
         </form>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    const LIST_URL = '@Url.Action("GetList", "AppLinkAdmin")';
+    const HR_REQUEST_URL  = '@Url.Action("RequestLink", "AppLinkAdmin")';
+    const HR_REASSIGN_URL = '@Url.Action("ReassignLink", "AppLinkAdmin")';
+    const HR_CSRF = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+    const pageSize = 50;
+    let currentPage = 1, totalRecords = 0, totalPages = 0, currentStatus = '';
+
+    function escHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function statusBadge(status) {
+        if (status === 'AVAILABLE') return '<span class="badge bg-success-subtle text-success-emphasis">Còn trong kho</span>';
+        if (status === 'ASSIGNED')  return '<span class="badge bg-primary-subtle text-primary-emphasis">Đã phát</span>';
+        return '<span class="badge bg-secondary-subtle text-secondary-emphasis">Đã thay</span>';
+    }
+
+    // Che bớt link trong bảng — tránh HR bôi đen copy tay gửi bừa (không qua khung "Lấy link cho
+    // nhân viên" ở trên thì không có kiểm soát 3 lần/mã thẻ, không ghi nhận ai đã cấp). Chỉ hiện vài
+    // ký tự cuối của code để đối chiếu, không đặt title/copy button để khỏi lộ nguyên link khi hover.
+    function maskLink(url) {
+        var m = /code=([A-Z0-9]+)/i.exec(url || '');
+        var code = m ? m[1] : '';
+        var tail = code.length > 4 ? code.slice(-4) : code;
+        return '••••••••' + escHtml(tail);
+    }
+
+    function buildRow(item) {
+        var assigned = item.ASSIGNED_EMPCD
+            ? escHtml(item.ASSIGNED_EMPCD) + ' <span class="text-secondary vni-font">— ' + escHtml(item.ASSIGNED_EMP_NAME || '') + '</span>'
+            : '<span class="text-secondary">—</span>';
+        var dt = item.ASSIGNED_DT ? new Date(item.ASSIGNED_DT).toLocaleString('vi-VN') : '—';
+        return `<tr>
+            <td class="text-xs">${item.ID}</td>
+            <td class="text-xs" style="user-select:none;">
+                <span class="material-symbols-rounded text-secondary" style="font-size:.9rem;vertical-align:-2px;">lock</span>
+                ${maskLink(item.LINK_URL)}
+            </td>
+            <td>${statusBadge(item.STATUS)}</td>
+            <td class="text-xs">${assigned}</td>
+            <td class="text-xs">${dt}</td>
+        </tr>`;
+    }
+
+    function loadData(page) {
+        currentPage = page || 1;
+        $('#linkTableBody').html('<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-dark"></div></td></tr>');
+        $.ajax({
+            url: LIST_URL, type: 'GET',
+            data: { status: currentStatus, search: $('#searchInput').val(), page: currentPage, page_size: pageSize },
+            success: function (res) {
+                if (!res.success) {
+                    $('#linkTableBody').html(`<tr><td colspan="5" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
+                    return;
+                }
+                totalRecords = res.total || 0;
+                totalPages   = res.total_pages || 0;
+                var rows = res.data || [];
+                $('#linkTableBody').html(rows.length
+                    ? rows.map(buildRow).join('')
+                    : '<tr><td colspan="5" class="text-center text-secondary py-4">Không có link nào khớp bộ lọc</td></tr>');
+                renderPagination();
+            },
+            error: function (xhr) {
+                $('#linkTableBody').html(`<tr><td colspan="5" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            }
+        });
+    }
+
+    function renderPagination() {
+        if (!totalRecords) { $('#paginationCount').text(''); $('#paginationBar').empty(); return; }
+        var s = (currentPage-1)*pageSize+1, e = Math.min(currentPage*pageSize, totalRecords);
+        $('#paginationCount').html(`<span class="text-xs">${s}-${e} / <strong>${totalRecords}</strong> link</span>`);
+        var $bar = $('#paginationBar').empty();
+        var mk = function(label, p, disabled, active) {
+            var li = $('<li class="page-item">').toggleClass('disabled', !!disabled).toggleClass('active', !!active);
+            $('<a class="page-link" href="javascript:;">').html(label).on('click', function () { if (!disabled && !active) loadData(p); }).appendTo(li);
+            return li;
+        };
+        $bar.append(mk('&lsaquo;', currentPage-1, currentPage<=1));
+        var from = Math.max(1, currentPage-2), to = Math.min(totalPages, currentPage+2);
+        for (var p = from; p <= to; p++) $bar.append(mk(p, p, false, p===currentPage));
+        $bar.append(mk('&rsaquo;', currentPage+1, currentPage>=totalPages));
+    }
+
+    $('.filter-stat').on('click', function () {
+        currentStatus = $(this).data('status') || '';
+        $('#filterStatus').val(currentStatus);
+        $('.filter-stat').removeClass('border-dark border-success border-primary border-secondary');
+        loadData(1);
+    });
+    $('#filterStatus').on('change', function () { currentStatus = this.value; loadData(1); });
+    let searchTimeout;
+    $('#searchInput').on('input', function () { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => loadData(1), 400); });
+    // Nút "Xóa lọc" tự chèn bởi list-page-helper.js (global, mọi trang có .filter-bar).
+
+    async function postHrLink(url, empcd) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'RequestVerificationToken': HR_CSRF },
+            body: 'empcd=' + encodeURIComponent(empcd)
+        });
+        return res.json();
+    }
+
+    function renderHrMsg(message, type) {
+        document.getElementById('hrLinkResult').innerHTML = `<div class="alert alert-${type} py-2 mb-0">${message}</div>`;
+    }
+
+    function renderHrLink(empcd, linkUrl) {
+        document.getElementById('hrLinkResult').innerHTML = `
+            <div class="alert alert-success py-2 mb-0">
+                <div class="text-xs mb-1">Link cho mã thẻ <strong>${empcd}</strong>:</div>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <code class="text-xs" style="word-break:break-all;">${linkUrl}</code>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="copyHrLink('${linkUrl}')"><i class="bi bi-clipboard"></i> Sao chép</button>
+                    <button type="button" class="btn btn-sm btn-outline-warning py-0" onclick="hrReassignLink('${empcd}')"><i class="bi bi-arrow-repeat"></i> Cấp lại link mới</button>
+                </div>
+            </div>`;
+    }
+
+    function copyHrLink(link) {
+        navigator.clipboard?.writeText(link);
+        if (typeof showToast === 'function') showToast('Đã sao chép link', 'success');
+    }
+
+    async function hrRequestLink() {
+        const empcd = document.getElementById('hrEmpcd').value.trim();
+        if (!empcd) { renderHrMsg('Vui lòng nhập mã thẻ', 'warning'); return; }
+        renderHrMsg('Đang tìm...', 'info');
+        try {
+            const data = await postHrLink(HR_REQUEST_URL, empcd);
+            if (data.success) { renderHrLink(empcd, data.linkUrl); loadData(currentPage); }
+            else renderHrMsg(data.message || 'Có lỗi xảy ra', 'danger');
+        } catch {
+            renderHrMsg('Không kết nối được máy chủ', 'danger');
+        }
+    }
+
+    async function hrReassignLink(empcd) {
+        renderHrMsg('Đang cấp link mới...', 'info');
+        try {
+            const data = await postHrLink(HR_REASSIGN_URL, empcd);
+            if (data.success) { renderHrLink(empcd, data.linkUrl); loadData(currentPage); }
+            else renderHrMsg(data.message || 'Có lỗi xảy ra', 'danger');
+        } catch {
+            renderHrMsg('Không kết nối được máy chủ', 'danger');
+        }
+    }
+
+    loadData(1);
+</script>
+}

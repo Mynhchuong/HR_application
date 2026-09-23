@@ -132,7 +132,7 @@ public class GiftService
         if (comboIds.Count == 0) return items;
 
         var detailRows = await _oracleService.ExecuteQueryAsync(@"
-            SELECT ID, GIFT_ITEM_ID, COMPONENT_NAME, DISPLAY_ORDER
+            SELECT ID, GIFT_ITEM_ID, COMPONENT_NAME, QTY, DISPLAY_ORDER
             FROM HRMS.HR_GIFT_COMBO_DETAIL
             WHERE GIFT_ITEM_ID IN (SELECT COLUMN_VALUE FROM TABLE(SYS.ODCINUMBERLIST(" +
                 string.Join(",", comboIds) + @")))
@@ -144,6 +144,7 @@ public class GiftService
                 {
                     ID             = Convert.ToInt32(r["ID"]),
                     COMPONENT_NAME = r["COMPONENT_NAME"]?.ToString() ?? "",
+                    QTY            = r["QTY"] == DBNull.Value ? 1 : Convert.ToInt32(r["QTY"]),
                     DISPLAY_ORDER  = r["DISPLAY_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["DISPLAY_ORDER"])
                 }
             });
@@ -200,13 +201,14 @@ public class GiftService
         if (req.ITEM_TYPE == "COMBO")
         {
             int order = 1;
-            foreach (var comp in req.COMBO_COMPONENTS.Where(c => !string.IsNullOrWhiteSpace(c)))
+            foreach (var comp in req.COMBO_COMPONENTS.Where(c => !string.IsNullOrWhiteSpace(c.NAME)))
             {
                 await _oracleService.ExecuteNonQueryAsync(@"
-                    INSERT INTO HRMS.HR_GIFT_COMBO_DETAIL (GIFT_ITEM_ID, COMPONENT_NAME, DISPLAY_ORDER)
-                    VALUES (:ITEM_ID, :COMP, :DORDER)",
+                    INSERT INTO HRMS.HR_GIFT_COMBO_DETAIL (GIFT_ITEM_ID, COMPONENT_NAME, QTY, DISPLAY_ORDER)
+                    VALUES (:ITEM_ID, :COMP, :QTY, :DORDER)",
                     new OracleParameter("ITEM_ID", itemId),
-                    new OracleParameter("COMP",    comp.Trim()),
+                    new OracleParameter("COMP",    comp.NAME.Trim()),
+                    new OracleParameter("QTY",     comp.QTY <= 0 ? 1 : comp.QTY),
                     new OracleParameter("DORDER",  order++));
             }
         }
@@ -759,11 +761,12 @@ public class GiftService
         foreach (var item in rows.Where(r => r.ITEM_TYPE == "COMBO"))
         {
             item.COMBO_DETAILS = await _oracleService.ExecuteQueryAsync(
-                "SELECT ID, COMPONENT_NAME, DISPLAY_ORDER FROM HRMS.HR_GIFT_COMBO_DETAIL WHERE GIFT_ITEM_ID = :ID ORDER BY DISPLAY_ORDER",
+                "SELECT ID, COMPONENT_NAME, QTY, DISPLAY_ORDER FROM HRMS.HR_GIFT_COMBO_DETAIL WHERE GIFT_ITEM_ID = :ID ORDER BY DISPLAY_ORDER",
                 r => new GiftComboDetailItem
                 {
                     ID             = Convert.ToInt32(r["ID"]),
                     COMPONENT_NAME = r["COMPONENT_NAME"]?.ToString() ?? "",
+                    QTY            = r["QTY"] == DBNull.Value ? 1 : Convert.ToInt32(r["QTY"]),
                     DISPLAY_ORDER  = r["DISPLAY_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["DISPLAY_ORDER"])
                 },
                 new OracleParameter("ID", item.GIFT_ITEM_ID));

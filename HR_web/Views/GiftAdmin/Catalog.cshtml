@@ -5,7 +5,8 @@
 @section Styles {
 <style>
     .gc-combo-row { display: flex; gap: 6px; margin-bottom: 6px; }
-    .gc-combo-row input { flex: 1; }
+    .gc-combo-row input.combo-comp { flex: 1; }
+    .gc-combo-row input.combo-qty { flex: 0 0 80px; }
     .gc-item-thumb { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; }
     .gc-cat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 2px; gap: 6px; }
     .gc-cat-row:hover { background: #fdf2f8; }
@@ -317,7 +318,7 @@ function setActiveCategory(catId) {
 
 function renderComboBadges(details) {
     if (!details || !details.length) return '-';
-    return details.map(d => `<span class="badge bg-light text-dark border me-1 mb-1">${escHtml(d.COMPONENT_NAME)}</span>`).join('');
+    return details.map(d => `<span class="badge bg-light text-dark border me-1 mb-1">${escHtml(d.COMPONENT_NAME)}${d.QTY > 1 ? ' x' + d.QTY : ''}</span>`).join('');
 }
 
 function renderItemTable() {
@@ -370,9 +371,10 @@ async function loadCatalog() {
     renderItemTable();
 }
 
-function addComboRow(value) {
+function addComboRow(value, qty) {
     const row = $(`<div class="gc-combo-row">
-        <input type="text" class="form-control form-control-sm combo-comp" value="${escHtml(value)}" placeholder="Vd: Chén, Tô, Muối..." />
+        <input type="text" class="form-control form-control-sm combo-comp" value="${escHtml(value || '')}" placeholder="Vd: Chén, Tô, Muối..." />
+        <input type="number" min="1" class="form-control form-control-sm combo-qty" style="max-width:80px;" value="${qty || 1}" placeholder="SL" />
         <button type="button" class="btn btn-sm btn-outline-danger" onclick="$(this).parent().remove()"><i class="bi bi-x"></i></button>
     </div>`);
     $('#comboRows').append(row);
@@ -391,7 +393,7 @@ function openItemModal(item) {
         $('#itemCategory').val(item.CATEGORY_ID);
         $('#itemName').val(item.ITEM_NAME);
         $('#itemType').val(item.ITEM_TYPE);
-        (item.COMBO_DETAILS || []).forEach(d => addComboRow(d.COMPONENT_NAME));
+        (item.COMBO_DETAILS || []).forEach(d => addComboRow(d.COMPONENT_NAME, d.QTY));
 
         $('#itemImageHint').hide();
         $('#itemImageArea').show();
@@ -439,7 +441,11 @@ async function saveItem() {
     const name = $('#itemName').val().trim();
     if (!name) { showToast ? showToast('Vui lòng nhập tên quà', 'error') : alert('Vui lòng nhập tên quà'); return; }
 
-    const components = $('.combo-comp').map((_, el) => $(el).val().trim()).get().filter(Boolean);
+    const components = $('.gc-combo-row').map((_, row) => {
+        const name = $(row).find('.combo-comp').val().trim();
+        const qty = parseInt($(row).find('.combo-qty').val()) || 1;
+        return name ? { NAME: name, QTY: qty } : null;
+    }).get().filter(Boolean);
     const payload = {
         ID: parseInt($('#itemId').val()) || 0,
         CATEGORY_ID: parseInt($('#itemCategory').val()),

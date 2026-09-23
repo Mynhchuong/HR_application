@@ -8,6 +8,10 @@ namespace HR_api.Services;
 // nhân viên tự nhập mã thẻ ở Guide/Index để nhận link (xem AppLinkController + create_app_link.sql).
 public class AppLinkService
 {
+    // 1 mã thẻ tối đa được lấy link 3 lần (tính mọi lần trong lịch sử, kể cả đã đổi máy) — hết quota
+    // thì phải nhắn Nhân sự để được HR cấp tay qua AppLinkAdmin (bypassLimit=true, xem AssignNewLinkAsync).
+    private const int MaxIssuesPerEmpcd = 3;
+
     private readonly OracleService _oracleService;
 
     public AppLinkService(OracleService oracleService)
@@ -15,18 +19,46 @@ public class AppLinkService
         _oracleService = oracleService;
     }
 
-    public async Task<List<AppLinkModel>> GetListAsync(string? status)
+    public async Task<(List<AppLinkModel> data, int total)> GetListAsync(string? status, string? search, int page, int pageSize)
     {
-        var sql = @"
-            SELECT L.ID, L.LINK_URL, L.STATUS, L.ASSIGNED_EMPCD, U.FULL_NAME AS ASSIGNED_EMP_NAME,
-                   L.ASSIGNED_DT, L.INST_ID, L.INST_DT
-            FROM HRMS.HR_APP_LINK L
-            LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = L.ASSIGNED_EMPCD
-            WHERE (:STATUS IS NULL OR L.STATUS = :STATUS)
-            ORDER BY L.ID DESC";
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 50;
 
-        return await _oracleService.ExecuteQueryAsync(sql, Map,
-            new OracleParameter("STATUS", (object?)status ?? DBNull.Value));
+        search = string.IsNullOrWhiteSpace(search) ? null : $"%{search.Trim().ToUpper()}%";
+
+        const string whereSql = @"
+            WHERE (:STATUS IS NULL OR L.STATUS = :STATUS)
+              AND (:SEARCH IS NULL OR UPPER(L.LINK_URL) LIKE :SEARCH OR UPPER(L.ASSIGNED_EMPCD) LIKE :SEARCH)";
+
+        var totalRows = await _oracleService.ExecuteQueryAsync(
+            "SELECT COUNT(*) CNT FROM HRMS.HR_APP_LINK L " + whereSql,
+            r => Convert.ToInt32(r["CNT"]),
+            new OracleParameter("STATUS", (object?)status ?? DBNull.Value),
+            new OracleParameter("SEARCH", (object?)search ?? DBNull.Value));
+        int total = totalRows.FirstOrDefault();
+
+        if (total == 0) return (new List<AppLinkModel>(), 0);
+
+        int offset = (page - 1) * pageSize;
+        int maxRn  = offset + pageSize;
+
+        var sql = @"
+            SELECT * FROM (
+                SELECT L.ID, L.LINK_URL, L.STATUS, L.ASSIGNED_EMPCD, U.FULL_NAME AS ASSIGNED_EMP_NAME,
+                       L.ASSIGNED_DT, L.INST_ID, L.INST_DT,
+                       ROW_NUMBER() OVER (ORDER BY L.ID DESC) RN
+                FROM HRMS.HR_APP_LINK L
+                LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = L.ASSIGNED_EMPCD
+                " + whereSql + @"
+            ) WHERE RN > :R_MIN AND RN <= :R_MAX";
+
+        var data = await _oracleService.ExecuteQueryAsync(sql, Map,
+            new OracleParameter("STATUS", (object?)status ?? DBNull.Value),
+            new OracleParameter("SEARCH", (object?)search ?? DBNull.Value),
+            new OracleParameter("R_MIN", offset),
+            new OracleParameter("R_MAX", maxRn));
+
+        return (data, total);
     }
 
     public async Task<AppLinkStatsModel> GetStatsAsync()
@@ -80,7 +112,7 @@ public class AppLinkService
         return (true, $"Đã thêm {inserted} link mới" + (skipped > 0 ? $" (bỏ qua {skipped} link đã có)" : ""), inserted, skipped);
     }
 
-    public async Task<AppLinkResult> RequestLinkAsync(string empcd)
+    public async Task<AppLinkResult> RequestLinkAsync(string empcd, bool bypassLimit = false)
     {
         empcd = empcd?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(empcd))
@@ -110,14 +142,21 @@ public class AppLinkService
 
         if (current.Count > 0) return current[0];
 
-        return await AssignNewLinkAsync(empcd);
+        return await AssignNewLinkAsync(empcd, bypassLimit);
     }
 
-    public async Task<AppLinkResult> ReassignAsync(ReassignAppLinkRequest req)
+    public async Task<AppLinkResult> ReassignAsync(ReassignAppLinkRequest req, bool bypassLimit = false)
     {
         var empcd = req.EMPCD?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(empcd))
             return new AppLinkResult { success = false, message = "Vui lòng nhập mã thẻ" };
+
+        if (!bypassLimit)
+        {
+            var issued = await CountIssuedAsync(empcd);
+            if (issued >= MaxIssuesPerEmpcd)
+                return new AppLinkResult { success = false, message = $"Mã thẻ này đã lấy link {MaxIssuesPerEmpcd} lần, không thể lấy thêm. Vui lòng nhắn Nhân sự để được hỗ trợ." };
+        }
 
         // Link cũ đã tải rồi, đổi máy mới thì link cũ không sài lại được -> đóng lại, không trả về pool
         await _oracleService.ExecuteNonQueryAsync(@"
@@ -126,13 +165,30 @@ public class AppLinkService
             WHERE ASSIGNED_EMPCD = :E AND STATUS = 'ASSIGNED'",
             new OracleParameter("E", empcd));
 
-        return await AssignNewLinkAsync(empcd);
+        return await AssignNewLinkAsync(empcd, bypassLimit);
+    }
+
+    private async Task<int> CountIssuedAsync(string empcd)
+    {
+        var rows = await _oracleService.ExecuteQueryAsync(
+            "SELECT COUNT(*) AS CNT FROM HRMS.HR_APP_LINK WHERE ASSIGNED_EMPCD = :E",
+            r => Convert.ToInt32(r["CNT"]), new OracleParameter("E", empcd));
+        return rows.Count > 0 ? rows[0] : 0;
     }
 
     // Retry ngắn để tránh race khi 2 người bấm nhận link cùng lúc trúng cùng 1 dòng AVAILABLE
     // (Oracle 10g không có SKIP LOCKED nên dùng optimistic UPDATE ... WHERE STATUS='AVAILABLE').
-    private async Task<AppLinkResult> AssignNewLinkAsync(string empcd)
+    // bypassLimit=true dành cho HR tự lấy giùm qua AppLinkAdmin — chính là lối thoát cho thông báo
+    // "nhắn Nhân sự" khi NV đã hết quota 3 lần tự lấy.
+    private async Task<AppLinkResult> AssignNewLinkAsync(string empcd, bool bypassLimit = false)
     {
+        if (!bypassLimit)
+        {
+            var issued = await CountIssuedAsync(empcd);
+            if (issued >= MaxIssuesPerEmpcd)
+                return new AppLinkResult { success = false, message = $"Mã thẻ này đã lấy link {MaxIssuesPerEmpcd} lần, không thể lấy thêm. Vui lòng nhắn Nhân sự để được hỗ trợ." };
+        }
+
         for (int attempt = 0; attempt < 5; attempt++)
         {
             var candidate = await _oracleService.ExecuteQueryAsync(@"

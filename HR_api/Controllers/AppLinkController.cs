@@ -15,15 +15,24 @@ public class AppLinkController : ControllerBase
         _service = service;
     }
 
-    // GET /apiHR/AppLink/admin/list?status=
+    // GET /apiHR/AppLink/admin/list?status=&search=&page=&page_size=
     [HttpGet("admin/list")]
-    public async Task<IActionResult> GetAdminList(string? status)
+    public async Task<IActionResult> GetAdminList(string? status, string? search, int page = 1, int page_size = 50)
     {
         try
         {
-            var list = await _service.GetListAsync(status);
+            var (data, total) = await _service.GetListAsync(status, search, page, page_size);
             var stats = await _service.GetStatsAsync();
-            return Ok(new { success = true, data = list, stats });
+            return Ok(new
+            {
+                success = true,
+                data,
+                stats,
+                total,
+                page,
+                page_size,
+                total_pages = page_size > 0 ? (int)Math.Ceiling((double)total / page_size) : 0
+            });
         }
         catch (Exception ex)
         {
@@ -68,6 +77,37 @@ public class AppLinkController : ControllerBase
         try
         {
             var result = await _service.ReassignAsync(req);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return Ok(new AppLinkResult { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/AppLink/admin/request — HR tự lấy link giùm NV (từ AppLinkAdmin), bỏ qua giới
+    // hạn 3 lần/mã thẻ — chính là lối "nhắn Nhân sự" mà NV được hướng dẫn khi hết quota tự lấy.
+    [HttpPost("admin/request")]
+    public async Task<IActionResult> AdminRequestLink([FromBody] RequestAppLinkRequest req)
+    {
+        try
+        {
+            var result = await _service.RequestLinkAsync(req.EMPCD, bypassLimit: true);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return Ok(new AppLinkResult { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/AppLink/admin/reassign — HR cấp lại link mới giùm NV, bỏ qua giới hạn 3 lần.
+    [HttpPost("admin/reassign")]
+    public async Task<IActionResult> AdminReassign([FromBody] ReassignAppLinkRequest req)
+    {
+        try
+        {
+            var result = await _service.ReassignAsync(req, bypassLimit: true);
             return Ok(result);
         }
         catch (Exception ex)

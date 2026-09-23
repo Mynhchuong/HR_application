@@ -18,7 +18,8 @@ public class SurveyBlockerFilter : AppGateFilterBase<SurveyBlockerFilter.Pending
 
     static SurveyBlockerFilter()
     {
-        AppGateRegistry.Register("survey", "surveyadmin", "surveyexempt");
+        AppGateRegistry.RegisterDestination("survey");
+        AppGateRegistry.RegisterOwnAdmin("survey", "surveyadmin", "surveyexempt");
     }
 
     private readonly SurveyService _survey;

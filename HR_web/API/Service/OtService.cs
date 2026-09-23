@@ -24,6 +24,24 @@ public class OtService
         catch (Exception ex) { Console.WriteLine($"[OtService] GetOTTodayAsync error: {ex.Message}"); return null; }
     }
 
+    private class PendingCompTimeResponse
+    {
+        public bool success { get; set; }
+        public string? work_date { get; set; }
+    }
+
+    // Ngày gần nhất còn cờ COMP_TIME_REQUIRED chưa được NV xem tới — dùng để gắn link "Xem ngay"
+    // trên OtConfirmForm.cshtml khi ngày đang xem (mặc định hôm nay) không phải ngày đó.
+    public async Task<string?> GetPendingCompTimeDateAsync(string empcd)
+    {
+        try
+        {
+            var result = await _api.GetAsync<PendingCompTimeResponse>("ot/pending-comp-time", $"empcd={empcd}");
+            return result?.success == true ? result.work_date : null;
+        }
+        catch { return null; }
+    }
+
     public async Task<OTConfirmResponse> ConfirmOTAsync(string empcd, string confirmStatus, string? workDate = null, decimal? otHours = null)
     {
         try
@@ -355,6 +373,22 @@ public class OtService
             return new OTAdminBulkResponse { success = false, message = "Lỗi kết nối server" };
         }
         catch (Exception ex) { return new OTAdminBulkResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<OTSimpleResponse> AdminSetCompTimeAsync(OTAdminSetCompTimeRequest req)
+    {
+        try
+        {
+            var response = await _api.PostAsync("ot/admin/comp-time", req);
+            if (response?.IsSuccessStatusCode == true)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<OTSimpleResponse>(json)
+                       ?? new OTSimpleResponse { success = false, message = "Không parse được response" };
+            }
+            return new OTSimpleResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new OTSimpleResponse { success = false, message = ex.Message }; }
     }
 
     public async Task<OTAdminBulkResponse> AdminBulkDeleteAsync(OTAdminBulkDeleteRequest req)

@@ -52,6 +52,8 @@ public class ClassModel
     // Chốt kết quả & cấp chứng chỉ. Không tính FAILED (đã chốt xong, học viên rớt là kết quả
     // cuối — không phải bị bỏ sót). 0 với lớp chưa tới COMPLETED, hoặc lớp đã chốt hết.
     public int? PENDING_FINALIZE_COUNT { get; set; }
+    public int? PASS_COUNT { get; set; }
+    public int? FAIL_COUNT { get; set; }
 }
 
 // Bảng phụ HR_TRAINING_CLASS_TEACHER

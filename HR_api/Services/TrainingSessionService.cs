@@ -358,7 +358,10 @@ public class TrainingSessionService
               LEFT JOIN HRMS.HR_TRAINING_ATTENDANCE A
                      ON A.SESSION_ID = :SID AND A.EMPCD = E.EMPCD
              WHERE E.CLASS_ID = :CID
-               AND E.STATUS = 'ENROLLED'
+               -- Bao gồm cả COMPLETED/FAILED (không chỉ ENROLLED) — lớp đã bị Chốt kết quả rồi vẫn
+               -- phải sửa/bổ sung điểm danh được (vd điểm danh thiếu làm rớt oan cả lớp), nếu không
+               -- giáo viên/HR mở trang này sau khi chốt sẽ thấy danh sách trống trơn (review 2026-09-23).
+               AND E.STATUS IN ('ENROLLED', 'COMPLETED', 'FAILED')
                AND (:SGID IS NULL OR E.GROUP_ID = :SGID)
              ORDER BY E.EMPCD";
 

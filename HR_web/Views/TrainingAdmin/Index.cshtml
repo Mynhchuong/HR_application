@@ -548,9 +548,12 @@
 
                         let badgeCert = '<span class="text-muted small">-</span>';
                         if (c.STATUS === 'COMPLETED' || c.STATUS === 'CLOSED') {
-                            badgeCert = (c.PENDING_FINALIZE_COUNT || 0) > 0
+                            const passFailLine = ((c.PASS_COUNT || 0) > 0 || (c.FAIL_COUNT || 0) > 0)
+                                ? `<div class="small mt-1"><span class="text-success fw-bold">${c.PASS_COUNT || 0} đậu</span> / <span class="text-danger fw-bold">${c.FAIL_COUNT || 0} rớt</span></div>`
+                                : '';
+                            badgeCert = ((c.PENDING_FINALIZE_COUNT || 0) > 0
                                 ? `<span class="badge bg-danger-subtle text-danger-emphasis fw-bold">Chưa chốt (${c.PENDING_FINALIZE_COUNT})</span>`
-                                : '<span class="badge bg-success-subtle text-success-emphasis fw-bold">Đã chốt</span>';
+                                : '<span class="badge bg-success-subtle text-success-emphasis fw-bold">Đã chốt</span>') + passFailLine;
                         }
 
                         tbody.innerHTML += `

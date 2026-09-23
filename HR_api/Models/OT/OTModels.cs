@@ -29,6 +29,9 @@ public class OTTodayModel
     // vẫn cho bấm xác nhận dù ngày đã qua (chỉ Đồng ý, không có Từ chối — xem OtConfirmForm.cshtml).
     public bool IS_SUPPLEMENT { get; set; }
     public DateTime? SUPP_DEADLINE { get; set; }
+    // HR đánh dấu record này bắt buộc NV xác nhận nhận tăng ca BÙ (nghỉ bù) thay vì/kèm lương OT —
+    // hiện nhắc nhở ở OtConfirmForm.cshtml. HR tự bật/tắt qua OtListForAdmin (AdminBulkUpdate).
+    public bool COMP_TIME_REQUIRED { get; set; }
 }
 
 public class OTClerkModel
@@ -94,6 +97,7 @@ public class OTHRDetailModel
     public DateTime? END_OT { get; set; }
     public int TOTAL_COUNT { get; set; }
     public int CHANGE_COUNT { get; set; }
+    public bool COMP_TIME_REQUIRED { get; set; }
 }
 
 public class OtLogEntry
@@ -157,6 +161,8 @@ public class OTAdminUpdateItem
     public string EMPCD { get; set; } = string.Empty;
     public decimal? OT_HOURS { get; set; }
     public string? CONFIRM_STATUS { get; set; }
+    // null = giữ nguyên giá trị hiện có (không đổi) — chỉ ghi đè khi HR chủ động tick/bỏ tick.
+    public bool? COMP_TIME_REQUIRED { get; set; }
 }
 
 public class OTAdminBulkUpdateRequest
@@ -190,4 +196,14 @@ public class OTAdminBulkResponse
     public int skipped { get; set; }
     public int failed { get; set; }
     public List<OTAdminBulkResult> results { get; set; } = new();
+}
+
+// HR bật/tắt cờ "yêu cầu xác nhận tăng ca BÙ" cho 1 record OT — tách riêng khỏi AdminBulkUpdate
+// (vốn bắt buộc phải kèm OT_HOURS hợp lệ) để HR toggle 1 checkbox không cần đụng tới số giờ.
+public class OTAdminSetCompTimeRequest
+{
+    public string EMPCD { get; set; } = string.Empty;
+    public string? WORK_DATE { get; set; }
+    public bool REQUIRED { get; set; }
+    public string? ACTOR_EMPCD { get; set; }
 }

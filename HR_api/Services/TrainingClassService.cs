@@ -52,7 +52,11 @@ public class TrainingClassService
                    (CASE WHEN CL.STATUS IN ('COMPLETED','CLOSED') THEN
                        (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ENROLLMENT E
                          WHERE E.CLASS_ID = CL.ID AND E.STATUS = 'ENROLLED')
-                     ELSE 0 END) AS PENDING_FINALIZE_COUNT
+                     ELSE 0 END) AS PENDING_FINALIZE_COUNT,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ENROLLMENT E
+                     WHERE E.CLASS_ID = CL.ID AND E.STATUS = 'COMPLETED') AS PASS_COUNT,
+                   (SELECT COUNT(*) FROM HRMS.HR_TRAINING_ENROLLMENT E
+                     WHERE E.CLASS_ID = CL.ID AND E.STATUS = 'FAILED') AS FAIL_COUNT
               FROM HRMS.HR_TRAINING_CLASS CL
               JOIN HRMS.HR_TRAINING_COURSE CO ON CO.ID = CL.COURSE_ID
              WHERE (:P_STATUS IS NULL OR CL.STATUS    = :P_STATUS)
@@ -1609,6 +1613,8 @@ public class TrainingClassService
         c.ENROLLMENT_COUNT = Convert.ToInt32(r["ENROLLMENT_COUNT"]);
         c.SESSION_COUNT    = Convert.ToInt32(r["SESSION_COUNT"]);
         c.PENDING_FINALIZE_COUNT = Convert.ToInt32(r["PENDING_FINALIZE_COUNT"]);
+        c.PASS_COUNT = Convert.ToInt32(r["PASS_COUNT"]);
+        c.FAIL_COUNT = Convert.ToInt32(r["FAIL_COUNT"]);
         return c;
     }
 

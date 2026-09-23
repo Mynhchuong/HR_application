@@ -27,6 +27,35 @@ public class OTController : ControllerBase
         _otLog = otLog;
     }
 
+    // GET /apiHR/OT/pending-comp-time — NV mở OtConfirmForm mặc định chỉ thấy đúng 1 ngày (work_date,
+    // mặc định hôm nay). Nếu HR gắn cờ COMP_TIME_REQUIRED cho 1 ngày TRONG QUÁ KHỨ (vd hôm nay không
+    // có tăng ca nhưng ngày 9/9 có), NV sẽ không bao giờ thấy được nếu không tự gõ đúng ngày đó —
+    // endpoint này trả về ngày gần nhất còn cờ để OtConfirmForm.cshtml gắn link "Xem ngay".
+    [HttpGet("pending-comp-time")]
+    public async Task<IActionResult> GetPendingCompTime(string empcd)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd))
+                return Ok(new { success = true, work_date = (string?)null });
+
+            var rows = await _oracleService.ExecuteQueryAsync(
+                @"SELECT WORK_DATE FROM (
+                    SELECT WORK_DATE FROM HRMS.HR_OT_REQUEST
+                     WHERE EMPCD = :E AND COMP_TIME_REQUIRED = 1
+                     ORDER BY WORK_DATE DESC
+                  ) WHERE ROWNUM = 1",
+                r => Convert.ToDateTime(r["WORK_DATE"]),
+                new OracleParameter("E", empcd));
+
+            return Ok(new { success = true, work_date = rows.Count > 0 ? rows[0].ToString("yyyy-MM-dd") : null });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     [HttpGet("today")]
     public async Task<IActionResult> GetOTToday(string empcd, string? work_date = null)
     {
@@ -73,7 +102,7 @@ public class OTController : ControllerBase
                          + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END SHIFT_END,
                        (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE, R.OT_HOURS CONFIRMED_OT_HOURS,
                        R.OT_START CONF_OT_START, R.OT_END CONF_OT_END,
-                       R.CONFIRM_STATUS RAW_CONFIRM_STATUS, R.SUPP_REQUESTED_DATE,
+                       R.CONFIRM_STATUS RAW_CONFIRM_STATUS, R.SUPP_REQUESTED_DATE, R.COMP_TIME_REQUIRED,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND TO_CHAR(DAT,'YYYYIW') = TO_CHAR(SYSDATE,'YYYYIW') AND DAT <= SYSDATE), 0) SUM_WEEK,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TRUNC(SYSDATE,'MM') AND SYSDATE), 0) SUM_MONTH,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TO_DATE(TO_CHAR(SYSDATE,'YYYY')||'0101','YYYYMMDD') AND SYSDATE), 0) SUM_YEAR
@@ -174,7 +203,8 @@ public class OTController : ControllerBase
                     HOURS_UPDATED  = hoursUpdated,
                     PREV_OT_HOURS  = hoursUpdated ? confirmedHours : null,
                     IS_SUPPLEMENT  = isSupplement,
-                    SUPP_DEADLINE  = isSupplement ? suppDeadline : null
+                    SUPP_DEADLINE  = isSupplement ? suppDeadline : null,
+                    COMP_TIME_REQUIRED = r["COMP_TIME_REQUIRED"] != DBNull.Value && Convert.ToInt32(r["COMP_TIME_REQUIRED"]) == 1
                 };
             },
             new OracleParameter("EMPCD", empcd),
@@ -491,9 +521,9 @@ public class OTController : ControllerBase
     // hoặc "EMPCD, NVL(OT_HOURS,0)" (match cả số giờ).
     private static string DedupOtRequest(string dateParam, string partitionCols) => $@"(
         SELECT EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, REQUEST_ID,
-               OT_TYPE, OT_START, OT_END, SUPP_REQUESTED_DATE FROM (
+               OT_TYPE, OT_START, OT_END, SUPP_REQUESTED_DATE, COMP_TIME_REQUIRED FROM (
             SELECT EMPCD, WORK_DATE, OT_HOURS, CONFIRM_STATUS, CONFIRM_DATE, REQUEST_ID,
-                   OT_TYPE, OT_START, OT_END, SUPP_REQUESTED_DATE,
+                   OT_TYPE, OT_START, OT_END, SUPP_REQUESTED_DATE, COMP_TIME_REQUIRED,
                    ROW_NUMBER() OVER (PARTITION BY {partitionCols}
                                       ORDER BY CONFIRM_DATE DESC NULLS LAST, REQUEST_ID DESC) RN
             FROM HRMS.HR_OT_REQUEST WHERE WORK_DATE = {dateParam}
@@ -990,7 +1020,7 @@ public class OTController : ControllerBase
                             EC.CNAME EMP_NAME, EC.DEPTCD DEPT_ID, EC.LINECD LINE_ID, EC.WORKCD WORK_ID,
                             B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                             S.STIME, S.ETIME,
-                            (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE,
+                            (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE, R.COMP_TIME_REQUIRED,
                             RR.ROLE_NAME REQUESTER_ROLE, NVL(LG.CHANGE_COUNT,0) CHANGE_COUNT
                         " + fromSql + whereSql + @"
                     ) T
@@ -1020,7 +1050,8 @@ public class OTController : ControllerBase
                     OT_AFTER_TIME  = r["OT_AFTER_TIME"]?.ToString(),
                     CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
                     CONFIRM_DATE   = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
-                    TOTAL_COUNT    = summary.TOTAL
+                    TOTAL_COUNT    = summary.TOTAL,
+                    COMP_TIME_REQUIRED = r["COMP_TIME_REQUIRED"] != DBNull.Value && Convert.ToInt32(r["COMP_TIME_REQUIRED"]) == 1
                 };
 
                 try
@@ -1858,15 +1889,19 @@ public class OTController : ControllerBase
                             newEnd = row.OT_START.Value.AddHours((double)newHours);
                     }
 
+                    // COMP_TIME_REQUIRED: null = HR không đổi cờ này, giữ nguyên giá trị đang có
+                    // (NVL(:Ct, COMP_TIME_REQUIRED)) — chỉ ghi đè khi HR chủ động tick/bỏ tick.
                     await _oracleService.ExecuteNonQueryAsync(
                         @"UPDATE HRMS.HR_OT_REQUEST
                           SET OT_HOURS = :H, OT_START = NVL(:Sd, OT_START), OT_END = NVL(:Ed, OT_END),
-                              CONFIRM_STATUS = :C, CONFIRM_DATE = SYSDATE
+                              CONFIRM_STATUS = :C, CONFIRM_DATE = SYSDATE,
+                              COMP_TIME_REQUIRED = NVL(:Ct, COMP_TIME_REQUIRED)
                           WHERE REQUEST_ID = :R",
                         new OracleParameter("H",  newHours),
                         new OracleParameter("Sd", (object?)newStart ?? DBNull.Value),
                         new OracleParameter("Ed", (object?)newEnd ?? DBNull.Value),
                         new OracleParameter("C",  confirmStatus),
+                        new OracleParameter("Ct", it.COMP_TIME_REQUIRED.HasValue ? (it.COMP_TIME_REQUIRED.Value ? 1 : 0) : (object)DBNull.Value),
                         new OracleParameter("R",  reqId));
 
                     await _oracleService.ExecuteNonQueryAsync(
@@ -1898,6 +1933,90 @@ public class OTController : ControllerBase
         catch (Exception ex)
         {
             return Ok(new OTAdminBulkResponse { success = false, message = ex.Message });
+        }
+    }
+
+    // POST /apiHR/OT/admin/comp-time — HR bật/tắt "yêu cầu xác nhận tăng ca BÙ" cho 1 NV/ngày,
+    // hiện nhắc nhở ở OtConfirmForm.cshtml. Tách riêng khỏi AdminBulkUpdate (bắt buộc kèm OT_HOURS
+    // hợp lệ) vì đây chỉ là 1 checkbox, không nên bắt HR nhập lại giờ mỗi lần toggle.
+    [HttpPost("admin/comp-time")]
+    public async Task<IActionResult> AdminSetCompTime([FromBody] OTAdminSetCompTimeRequest body)
+    {
+        try
+        {
+            if (body == null || string.IsNullOrEmpty(body.EMPCD))
+                return Ok(new { success = false, message = "Thiếu mã nhân viên" });
+            if (!await IsAdminOrHRAsync(body.ACTOR_EMPCD))
+                return Ok(new { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
+            if (!DateTime.TryParseExact(body.WORK_DATE, "yyyy-MM-dd", null,
+                System.Globalization.DateTimeStyles.None, out var workDate))
+                return Ok(new { success = false, message = "Ngày làm việc không hợp lệ" });
+
+            int rows = await _oracleService.ExecuteNonQueryAsync(
+                @"UPDATE HRMS.HR_OT_REQUEST SET COMP_TIME_REQUIRED = :V
+                  WHERE EMPCD = :E AND WORK_DATE = :D",
+                new OracleParameter("V", body.REQUIRED ? 1 : 0),
+                new OracleParameter("E", body.EMPCD),
+                new OracleParameter("D", workDate));
+
+            if (rows > 0)
+                return Ok(new { success = true });
+
+            // Chưa có bản ghi HR_OT_REQUEST cho NV/ngày này — ngày mới có kế hoạch tăng ca ở ERP,
+            // NV chưa tự ký và HR chưa ký giùm. Nếu HR muốn TẮT cờ thì khỏi làm gì (mặc định vốn
+            // đã là 0). Nếu HR muốn BẬT thì phải tạo trước 1 dòng PENDING (mirror RequestSuppOneAsync)
+            // để có chỗ lưu cờ — không tự ý CONFIRMED/ký giùm thay NV.
+            if (!body.REQUIRED)
+                return Ok(new { success = true });
+
+            var erpHours = (await _oracleService.ExecuteQueryAsync(
+                @"SELECT MAX(OVER_TIME) OT_HOURS FROM (
+                    SELECT OVER_TIME FROM HRMS.EBM300      WHERE DAT = :WD  AND EMPCD = :E  AND OVER_TIME IS NOT NULL AND OVER_TIME > 0
+                    UNION ALL
+                    SELECT OVER_TIME FROM HRMS.EBM300_WAIT WHERE DAT = :WD2 AND EMPCD = :E1 AND OVER_TIME IS NOT NULL AND OVER_TIME > 0)",
+                r => r["OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"]),
+                new OracleParameter("WD", workDate),  new OracleParameter("E", body.EMPCD),
+                new OracleParameter("WD2", workDate), new OracleParameter("E1", body.EMPCD))).FirstOrDefault();
+
+            if (!erpHours.HasValue || erpHours.Value <= 0)
+                return Ok(new { success = false, message = "Ngày này không có kế hoạch tăng ca ở ERP." });
+
+            string requestId = DateTime.Now.ToString("yyyyMMddHHmmssfff") + body.EMPCD;
+            var pResult  = new OracleParameter("P_RESULT",  OracleDbType.Int32)         { Direction = System.Data.ParameterDirection.Output };
+            var pMessage = new OracleParameter("P_MESSAGE", OracleDbType.Varchar2, 500) { Direction = System.Data.ParameterDirection.Output };
+            try
+            {
+                await _oracleService.ExecuteProcedureAsync("HRMS.SP_OT_CONFIRM_INSERT",
+                    new OracleParameter("P_REQUEST_ID",     requestId),
+                    new OracleParameter("P_EMPCD",          body.EMPCD),
+                    new OracleParameter("P_WORK_DATE",      workDate),
+                    new OracleParameter("P_OT_HOURS",       erpHours.Value),
+                    new OracleParameter("P_CONFIRM_STATUS", "PENDING"),
+                    pResult, pMessage);
+            }
+            catch (OracleException ex) when (ex.Number == 1)
+            {
+                // Vừa có người khác (NV tự ký, HR ký giùm...) tạo row cùng lúc — thử UPDATE lại 1 lần.
+                int retryRows = await _oracleService.ExecuteNonQueryAsync(
+                    @"UPDATE HRMS.HR_OT_REQUEST SET COMP_TIME_REQUIRED = 1 WHERE EMPCD = :E AND WORK_DATE = :D",
+                    new OracleParameter("E", body.EMPCD), new OracleParameter("D", workDate));
+                return Ok(retryRows > 0
+                    ? new { success = true }
+                    : new { success = false, message = "Vừa có người xử lý — vui lòng thử lại." });
+            }
+
+            if (int.Parse(pResult.Value?.ToString() ?? "0") != 0)
+                return Ok(new { success = false, message = pMessage.Value?.ToString() ?? "SP báo lỗi" });
+
+            await _oracleService.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_OT_REQUEST SET COMP_TIME_REQUIRED = 1 WHERE REQUEST_ID = :R",
+                new OracleParameter("R", requestId));
+
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
         }
     }
 

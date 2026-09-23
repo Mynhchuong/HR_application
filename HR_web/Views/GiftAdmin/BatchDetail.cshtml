@@ -31,6 +31,9 @@
                     <button type="button" id="downloadTemplateBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#344767;font-weight:600;">
                         <i class="bi bi-file-earmark-arrow-down me-1"></i> Tải file mẫu
                     </button>
+                    <a id="exportExcelBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#166534;font-weight:600;">
+                        <i class="bi bi-file-earmark-excel-fill me-1"></i> Xuất Excel
+                    </a>
                     <label id="importLabel" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#344767;font-weight:600;">
                         <i class="bi bi-file-earmark-excel me-1"></i> Import Excel
                         <input type="file" id="importFile" accept=".xlsx" style="display:none;" onchange="doImport()" />
@@ -82,6 +85,7 @@
                             <th class="text-xs text-secondary" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Mã NV / Tên">Mã NV / Tên</th>
                             <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Bộ phận/Chuyền/Việc">Bộ phận / Chuyền / Nhóm việc</th>
                             <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="Ngày nhận">Ngày nhận dự kiến</th>
+                            <th class="text-xs text-secondary text-center" data-mobile="detail" data-mobile-label="SL">SL</th>
                             <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Địa điểm">Địa điểm dự kiến</th>
                             <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
                             <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Đã phát">Đã phát</th>
@@ -151,7 +155,10 @@ const CLOSE_URL      = '@Url.Action("CloseBatch")';
 const SEND_URL       = '@Url.Action("SendConfirmRequest")';
 const IMPORT_URL     = '@Url.Action("Import")';
 const TEMPLATE_URL   = '@Url.Action("DownloadTemplate")';
+const EXPORT_URL     = '@Url.Action("ExportExcel")';
 const CSRF_TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+document.getElementById('exportExcelBtn').href = `${EXPORT_URL}?batch_id=${BATCH_ID}`;
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 let isClosed = false;
@@ -190,6 +197,7 @@ function buildRow(item, idx) {
             <div style="max-width:170px;overflow-wrap:break-word;word-break:break-word;">${deptLine}</div>
         </td>
         <td class="text-sm text-nowrap">${formatDate(item.RECEIVE_DATE)}</td>
+        <td class="text-sm text-center fw-bold">${item.QTY || 1}</td>
         <td class="text-xs">${escHtml(item.LOCATION || '-')}</td>
         <td><span class="gd-status-badge" style="background:${STATUS_COLOR[item.STATUS]}22;color:${STATUS_COLOR[item.STATUS]};">${STATUS_LABEL[item.STATUS] || item.STATUS}</span></td>
         <td class="text-xs">
@@ -222,13 +230,13 @@ async function loadBatchHeader() {
 
 function loadData(page = 1) {
     currentPage = page;
-    $('#recTableBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-danger"></div></td></tr>`);
+    $('#recTableBody').html(`<tr><td colspan="10" class="text-center py-5"><div class="spinner-border text-danger"></div></td></tr>`);
     MobileTableHelper.refresh('recTableBody');
     $.ajax({
         url: LIST_URL, type: 'GET', data: getParams(page),
         success: function (res) {
             if (!res.success) {
-                $('#recTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
+                $('#recTableBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
                 MobileTableHelper.refresh('recTableBody');
                 return;
             }
@@ -236,7 +244,7 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const rows   = res.data || [];
             if (!rows.length) {
-                $('#recTableBody').html(`<tr><td colspan="9" class="text-center text-secondary py-4">Chưa có danh sách người nhận — import Excel để bắt đầu</td></tr>`);
+                $('#recTableBody').html(`<tr><td colspan="10" class="text-center text-secondary py-4">Chưa có danh sách người nhận — import Excel để bắt đầu</td></tr>`);
             } else {
                 $('#recTableBody').html(rows.map((r,i) => buildRow(r,(page-1)*pageSize+i+1)).join(''));
             }
@@ -245,7 +253,7 @@ function loadData(page = 1) {
             renderPagination();
         },
         error: function (xhr) {
-            $('#recTableBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#recTableBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('recTableBody');
         }
     });

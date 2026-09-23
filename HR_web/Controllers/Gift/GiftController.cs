@@ -34,13 +34,17 @@ public class GiftController : BaseController
     }
 
     // GET /Gift/CheckPending — AJAX re-check khi WebView phục hồi trang từ back-forward cache
-    // (nút back cứng Android) — copy y hệt SurveyController.CheckPending.
+    // (nút back cứng Android) — cùng contract {redirect_url} với SurveyController.CheckPending,
+    // xem _Layout.cshtml recheckAppGates().
     [HttpGet]
     public async Task<IActionResult> CheckPending()
     {
-        if (string.IsNullOrEmpty(CurrentUser?.EmpCd)) return Json(new { pendingId = (int?)null });
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd)) return Json(new { redirect_url = (string?)null });
         var pendingId = await _svc.GetOldestPendingIdAsync(CurrentUser.EmpCd);
-        return Json(new { pendingId });
+        var url = pendingId.HasValue && pendingId.Value > 0
+            ? Url.Action("MyGifts", "Gift", new { id = pendingId.Value })
+            : null;
+        return Json(new { redirect_url = url });
     }
 
     [HttpPost, ValidateAntiForgeryToken]

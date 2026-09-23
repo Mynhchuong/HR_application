@@ -24,6 +24,7 @@ public class OTTodayModel
     public decimal? PREV_OT_HOURS { get; set; }
     public bool IS_SUPPLEMENT { get; set; }
     public DateTime? SUPP_DEADLINE { get; set; }
+    public bool COMP_TIME_REQUIRED { get; set; }
 }
 
 public class OTConfirmRequest
@@ -125,6 +126,7 @@ public class OTHRDetailModel
     public DateTime? START_OT { get; set; }
     public DateTime? END_OT { get; set; }
     public int CHANGE_COUNT { get; set; }
+    public bool COMP_TIME_REQUIRED { get; set; }
 }
 
 public class OtLogEntry
@@ -207,6 +209,7 @@ public class OTAdminUpdateItem
     public string EMPCD { get; set; } = string.Empty;
     public decimal? OT_HOURS { get; set; }
     public string? CONFIRM_STATUS { get; set; }
+    public bool? COMP_TIME_REQUIRED { get; set; }
 }
 
 public class OTAdminBulkUpdateRequest
@@ -240,4 +243,18 @@ public class OTAdminBulkResponse
     public int skipped { get; set; }
     public int failed { get; set; }
     public List<OTAdminBulkResult> results { get; set; } = new();
+}
+
+public class OTAdminSetCompTimeRequest
+{
+    public string EMPCD { get; set; } = string.Empty;
+    public string? WORK_DATE { get; set; }
+    public bool REQUIRED { get; set; }
+    public string? ACTOR_EMPCD { get; set; }
+}
+
+public class OTSimpleResponse
+{
+    public bool success { get; set; }
+    public string? message { get; set; }
 }

@@ -85,8 +85,10 @@
                             <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Bộ phận/Chuyền/Việc">Bộ phận / Chuyền / Nhóm việc</th>
                             <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="Đợt/Quà">Đợt quà</th>
                             <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="Ngày nhận">Ngày nhận dự kiến</th>
+                            <th class="text-xs text-secondary text-center" data-mobile="detail" data-mobile-label="SL">SL</th>
                             <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
                             <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Đã phát">Đã phát</th>
+                            <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Xác nhận (My Samho)">Xác nhận (My Samho)</th>
                         </tr>
                     </thead>
                     <tbody id="repTableBody"></tbody>
@@ -138,8 +140,10 @@ function buildRow(item, idx) {
         </td>
         <td class="text-xs">${escHtml(item.BATCH_NAME)}<div class="text-secondary">${escHtml(item.GIFT_ITEM_NAME)}</div></td>
         <td class="text-sm text-nowrap">${formatDate(item.RECEIVE_DATE)}</td>
+        <td class="text-sm text-center fw-bold">${item.QTY || 1}</td>
         <td><span class="rp-status-badge" style="background:${STATUS_COLOR[item.STATUS]}22;color:${STATUS_COLOR[item.STATUS]};">${STATUS_LABEL[item.STATUS] || item.STATUS}</span></td>
         <td class="text-xs">${item.DELIVERED_DT ? `${item.DELIVERED_DT}<br><span class="text-secondary">${escHtml(item.DELIVERED_BY_NAME || '')}</span>` : '-'}</td>
+        <td class="text-xs">${item.CONFIRM_STATUS === 'CONFIRMED' ? `<span class="text-success"><i class="bi bi-check-circle"></i> ${escHtml(item.CONFIRMED_DT || '')}</span>` : '-'}</td>
     </tr>`;
 }
 
@@ -163,13 +167,13 @@ async function loadBatchOptions() {
 
 function loadData(page = 1) {
     currentPage = page;
-    $('#repTableBody').html(`<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-danger"></div></td></tr>`);
+    $('#repTableBody').html(`<tr><td colspan="10" class="text-center py-5"><div class="spinner-border text-danger"></div></td></tr>`);
     MobileTableHelper.refresh('repTableBody');
     $.ajax({
         url: LIST_URL, type: 'GET', data: getParams(page),
         success: function (res) {
             if (!res.success) {
-                $('#repTableBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
+                $('#repTableBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
                 MobileTableHelper.refresh('repTableBody');
                 return;
             }
@@ -178,7 +182,7 @@ function loadData(page = 1) {
             const rows   = res.data || [];
             renderSummaryBar(rows);
             if (!rows.length) {
-                $('#repTableBody').html(`<tr><td colspan="8" class="text-center text-secondary py-4">Không có dữ liệu</td></tr>`);
+                $('#repTableBody').html(`<tr><td colspan="10" class="text-center text-secondary py-4">Không có dữ liệu</td></tr>`);
             } else {
                 $('#repTableBody').html(rows.map((r,i) => buildRow(r,(page-1)*pageSize+i+1)).join(''));
             }
@@ -187,7 +191,7 @@ function loadData(page = 1) {
             updateSelCount();
         },
         error: function (xhr) {
-            $('#repTableBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            $('#repTableBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
             MobileTableHelper.refresh('repTableBody');
         }
     });

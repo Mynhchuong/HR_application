@@ -32,6 +32,11 @@ public class OTController : BaseController
             if (data == null)
                 ViewBag.Error = "Không có dữ liệu OT hoặc không thể kết nối máy chủ.";
 
+            // HR có thể gắn cờ "cần xác nhận tăng ca bù" cho 1 ngày TRONG QUÁ KHỨ khác ngày đang xem
+            // (mặc định hôm nay) — không có link này NV sẽ không bao giờ biết để tự gõ đúng ngày đó.
+            var pendingCompDate = await _otService.GetPendingCompTimeDateAsync(CurrentUser.EmpCd);
+            ViewBag.PendingCompTimeDate = (pendingCompDate != selectedDate) ? pendingCompDate : null;
+
             ViewBag.WorkDate = selectedDate;
             ViewBag.HasSignature = CurrentUser?.SIGNATUREBLOB == "Y";
             return View(data);
@@ -580,6 +585,17 @@ public class OTController : BaseController
         if (body == null) return Json(new { success = false, message = "Body rỗng" });
         body.ACTOR_EMPCD = CurrentUser?.EmpCd;
         var result = await _otService.AdminBulkDeleteAsync(body);
+        return Json(result);
+    }
+
+    // POST: /OT/AdminSetCompTime — HR bật/tắt "yêu cầu xác nhận tăng ca BÙ" cho 1 NV/ngày
+    [HttpPost]
+    [Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> AdminSetCompTime([FromBody] OTAdminSetCompTimeRequest body)
+    {
+        if (body == null) return Json(new { success = false, message = "Body rỗng" });
+        body.ACTOR_EMPCD = CurrentUser?.EmpCd;
+        var result = await _otService.AdminSetCompTimeAsync(body);
         return Json(result);
     }
 }

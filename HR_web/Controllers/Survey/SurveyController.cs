@@ -52,14 +52,17 @@ public class SurveyController : BaseController
     {
         var user = CurrentUser;
         if (user == null || string.IsNullOrEmpty(user.EmpCd))
-            return Json(new { pendingId = (int?)null });
+            return Json(new { redirect_url = (string?)null });
 
         // Chỉ Admin (6) không cần làm survey — HR (5) vẫn phải làm.
         if (user.RoleId == 6)
-            return Json(new { pendingId = (int?)null });
+            return Json(new { redirect_url = (string?)null });
 
         var pendingId = await _svc.GetOldestPendingSurveyIdAsync(user.EmpCd, user.RoleId);
-        return Json(new { pendingId });
+        var url = pendingId.HasValue && pendingId.Value > 0
+            ? Url.Action("Do", "Survey", new { id = pendingId.Value })
+            : null;
+        return Json(new { redirect_url = url });
     }
 
     // ─────────────────────────────────────────────

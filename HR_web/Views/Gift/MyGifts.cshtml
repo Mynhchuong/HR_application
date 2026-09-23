@@ -61,6 +61,7 @@ function renderItem(item) {
     return `<div class="gf-item" data-id="${item.RECIPIENT_ID}">
         <img class="gf-img" src="${GIFT_IMG_URL}?itemId=${item.GIFT_ITEM_ID}" onerror="this.style.display='none'" />
         <div class="gf-name"><i class="bi bi-gift me-1"></i> ${escHtml(item.GIFT_NAME)}</div>
+        ${item.QTY > 1 ? `<div class="gf-row"><span>Số lượng</span><span class="fw-bold">${item.QTY}</span></div>` : ''}
         ${item.LOCATION ? `<div class="gf-row"><span>Địa điểm</span><span>${escHtml(item.LOCATION)}</span></div>` : ''}
         ${item.DELIVERED_DT ? `<div class="gf-row"><span>Thời gian phát</span><span>${escHtml(item.DELIVERED_DT)}</span></div>` : ''}
         ${item.ITEM_TYPE === 'COMBO' ? renderComboList(item.COMBO_DETAILS) : ''}

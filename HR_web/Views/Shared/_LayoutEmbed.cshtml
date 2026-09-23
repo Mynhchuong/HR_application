@@ -91,29 +91,35 @@
             modal.show();
         };
 
-        // Chặn "thoát" survey bắt buộc qua nút back cứng Android khi WebView phục hồi trang này
-        // từ back-forward cache (không đi qua server nên SurveyBlockerFilter không chạy lại được).
-        // Xem giải thích đầy đủ ở _Layout.cshtml — layout embed này cũng cần re-check tương tự.
+        // Chặn "thoát" 1 gate bắt buộc (survey chưa làm, quà chưa xác nhận, ...) qua nút back cứng
+        // Android khi WebView phục hồi trang này từ back-forward cache (không đi qua server nên
+        // AppGateFilterBase không chạy lại được). Cùng cơ chế/contract {redirect_url} với
+        // _Layout.cshtml (recheckAppGates) — layout embed này cũng cần re-check tương tự.
         (function () {
-            var checkPendingUrl = '@Url.Action("CheckPending", "Survey")';
-            var doTemplateUrl   = '@Url.Action("Do", "Survey", new { id = "__ID__" })';
+            var GATES = [
+                { checkUrl: '@Url.Action("CheckPending", "Survey")', pathRe: /\/survey(\/|$)/i },
+                { checkUrl: '@Url.Action("CheckPending", "Gift")',   pathRe: /\/gift(\/|$)/i },
+            ];
             var checking = false;
-            function recheckSurveyGate() {
-                if (checking) return;
-                if (/\/survey(\/|$)/i.test(window.location.pathname)) return;
-                checking = true;
-                fetch(checkPendingUrl, { credentials: 'same-origin' })
+            function tryGate(i) {
+                if (i >= GATES.length) { checking = false; return; }
+                var gate = GATES[i];
+                if (gate.pathRe.test(window.location.pathname)) { tryGate(i + 1); return; }
+                fetch(gate.checkUrl, { credentials: 'same-origin' })
                     .then(function (r) { return r.ok ? r.json() : null; })
                     .then(function (res) {
-                        if (res && res.pendingId) {
-                            window.location.href = doTemplateUrl.replace('__ID__', res.pendingId);
-                        }
+                        if (res && res.redirect_url) window.location.href = res.redirect_url;
+                        else tryGate(i + 1);
                     })
-                    .catch(function () { })
-                    .finally(function () { checking = false; });
+                    .catch(function () { tryGate(i + 1); });
             }
-            window.addEventListener('pageshow', function (e) { if (e.persisted) recheckSurveyGate(); });
-            window.addEventListener('popstate', recheckSurveyGate);
+            function recheckAppGates() {
+                if (checking) return;
+                checking = true;
+                tryGate(0);
+            }
+            window.addEventListener('pageshow', function (e) { if (e.persisted) recheckAppGates(); });
+            window.addEventListener('popstate', recheckAppGates);
         })();
     </script>
     @RenderSection("Scripts", required: false)

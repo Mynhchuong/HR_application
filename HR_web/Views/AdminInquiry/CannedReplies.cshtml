@@ -6,6 +6,23 @@
 <style>
     .cr-page { max-width: 1100px; margin: 0 auto; padding-bottom: 3rem; }
 
+    /* Ảnh chèn trong câu trả lời mẫu — thu nhỏ thành thumbnail, bấm vào xem full (giống ảnh trong
+       chat hội thoại) thay vì hiện nguyên kích thước gốc rất to trong khung soạn thảo. */
+    #crContentEditor img {
+        max-width: 220px; max-height: 220px; object-fit: cover;
+        border-radius: 8px; margin: 4px 0; cursor: zoom-in; display: block;
+    }
+    .cr-img-lightbox {
+        display: none; position: fixed; inset: 0; z-index: 2000;
+        background: rgba(0,0,0,.82); align-items: center; justify-content: center; padding: 2rem;
+    }
+    .cr-img-lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+    .cr-img-lightbox .lb-close {
+        position: absolute; top: 1rem; right: 1.25rem; width: 40px; height: 40px; border-radius: 50%;
+        background: rgba(255,255,255,.15); color: #fff; border: none; font-size: 1.25rem; cursor: pointer;
+    }
+    .cr-img-lightbox .lb-close:hover { background: rgba(255,255,255,.25); }
+
     .cr-btn-new {
         background: white; color: #dc2626; border: none; border-radius: 10px;
         padding: .5rem .9rem; font-weight: 800; font-size: .85rem; cursor: pointer;
@@ -194,6 +211,11 @@
 
 @Html.AntiForgeryToken()
 
+<div class="cr-img-lightbox" id="crImgLightbox">
+    <button type="button" class="lb-close" aria-label="Close">✕</button>
+    <img alt="">
+</div>
+
 @section Scripts {
 <script>
 // Không chỉ định controller — view này dùng chung cho cả AdminInquiry (Admin) và HrInquiry
@@ -343,13 +365,28 @@ async function insertCannedImage() {
         const sel = window.getSelection();
         sel.removeAllRanges();
         if (crSavedRange) sel.addRange(crSavedRange);
-        document.execCommand('insertHTML', false, `<img src="${data.url}" style="max-width:100%;border-radius:8px;margin:4px 0;">`);
+        document.execCommand('insertHTML', false, `<img src="${data.url}" style="max-width:220px;max-height:220px;object-fit:cover;border-radius:8px;margin:4px 0;cursor:zoom-in;">`);
     } catch (e) {
         showToast('Lỗi upload ảnh: ' + e.message, 'error');
     } finally {
         input.value = '';
     }
 }
+
+// Bấm ảnh trong khung soạn thảo -> xem full (thumbnail nhỏ khi soạn, giống ảnh trong chat).
+document.getElementById('crContentEditor').addEventListener('click', function (e) {
+    const img = e.target.closest('img');
+    if (!img) return;
+    document.getElementById('crImgLightbox').querySelector('img').src = img.src;
+    document.getElementById('crImgLightbox').style.display = 'flex';
+});
+document.getElementById('crImgLightbox').addEventListener('click', function () {
+    this.style.display = 'none';
+});
+document.querySelector('#crImgLightbox .lb-close').addEventListener('click', function (e) {
+    e.stopPropagation();
+    document.getElementById('crImgLightbox').style.display = 'none';
+});
 
 async function saveCanned() {
     const title   = document.getElementById('fldTitle').value.trim();

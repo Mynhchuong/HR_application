@@ -73,12 +73,13 @@ public class GiftBatchCreateRequest
     public string  ACTOR_EMPCD       { get; set; } = "";
 }
 
-// 1 dòng Excel import: Mã nhân viên, Ngày nhận quà, Địa điểm nhận (nếu có)
+// 1 dòng Excel import: Mã nhân viên, Ngày nhận quà, Địa điểm nhận (nếu có), Số lượng (mặc định 1)
 public class GiftRecipientImportRow
 {
     public string  EMPCD        { get; set; } = "";
     public string  RECEIVE_DATE { get; set; } = ""; // yyyy-MM-dd
     public string? LOCATION     { get; set; }
+    public int     QTY          { get; set; } = 1;
 }
 
 public class GiftRecipientImportRequest
@@ -107,6 +108,7 @@ public class GiftRecipientListItem
 
     public string   RECEIVE_DATE       { get; set; } = "";
     public string?  LOCATION           { get; set; }
+    public int      QTY                { get; set; } = 1;
 
     public string?  DELIVERED_DT       { get; set; }
     public string?  DELIVERED_LOCATION { get; set; }
@@ -198,6 +200,7 @@ public class GiftMyPendingItem
     public string  GIFT_NAME    { get; set; } = "";
     public string  ITEM_TYPE    { get; set; } = "SINGLE"; // SINGLE | COMBO
     public string? LOCATION     { get; set; }
+    public int     QTY          { get; set; } = 1;
     public string? DELIVERED_DT { get; set; }
     public List<GiftComboDetailItem> COMBO_DETAILS { get; set; } = new();
 }

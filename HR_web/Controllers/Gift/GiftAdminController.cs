@@ -123,17 +123,23 @@ public class GiftAdminController : BaseController
                 var empcd    = ws.Cell(r, 1).GetString().Trim();
                 var dateCell = ws.Cell(r, 2);
                 var location = ws.Cell(r, 3).GetString().Trim();
+                var qtyCell  = ws.Cell(r, 4).GetString().Trim();
                 if (string.IsNullOrEmpty(empcd)) continue;
 
                 string receiveDate = dateCell.DataType == XLDataType.DateTime
                     ? dateCell.GetDateTime().ToString("yyyy-MM-dd")
                     : dateCell.GetString().Trim();
 
+                // Cột "Số lượng" là thêm mới, file template cũ (3 cột) vẫn import được — không có
+                // cột/để trống/không parse được số thì mặc định 1 (giữ hành vi cũ).
+                if (!int.TryParse(qtyCell, out var qty) || qty <= 0) qty = 1;
+
                 rows.Add(new GiftRecipientImportRow
                 {
                     EMPCD        = empcd,
                     RECEIVE_DATE = receiveDate,
-                    LOCATION     = string.IsNullOrEmpty(location) ? null : location
+                    LOCATION     = string.IsNullOrEmpty(location) ? null : location,
+                    QTY          = qty
                 });
             }
 
@@ -158,7 +164,7 @@ public class GiftAdminController : BaseController
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("DanhSachNhanQua");
 
-        string[] headers = { "Mã nhân viên", "Ngày nhận quà (yyyy-mm-dd)", "Địa điểm nhận" };
+        string[] headers = { "Mã nhân viên", "Ngày nhận quà (yyyy-mm-dd)", "Địa điểm nhận", "Số lượng" };
         for (int i = 0; i < headers.Length; i++)
         {
             var cell = ws.Cell(1, i + 1);
@@ -171,6 +177,7 @@ public class GiftAdminController : BaseController
         ws.Cell(2, 1).Value = "12345678";
         ws.Cell(2, 2).Value = DateTime.Today.ToString("yyyy-MM-dd");
         ws.Cell(2, 3).Value = "Phòng Nhân sự";
+        ws.Cell(2, 4).Value = 1;
 
         ws.Columns().AdjustToContents();
 
@@ -263,8 +270,8 @@ public class GiftAdminController : BaseController
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("BaoCaoQua");
 
-        string[] headers = { "STT", "Mã NV", "Họ Tên", "Bộ phận", "Chuyền", "Nhóm việc", "Đợt quà", "Quà", "Ngày nhận dự kiến",
-            "Địa điểm dự kiến", "Trạng thái", "Ngày phát thực tế", "Địa điểm phát", "Người phát", "Đã xác nhận", "Ghi chú" };
+        string[] headers = { "STT", "Mã NV", "Họ Tên", "Bộ phận", "Chuyền", "Nhóm việc", "Đợt quà", "Quà", "Số lượng", "Ngày nhận dự kiến",
+            "Địa điểm dự kiến", "Trạng thái", "Ngày phát thực tế", "Địa điểm phát", "Người phát", "Thời gian xác nhận (My Samho)", "Ghi chú" };
         for (int i = 0; i < headers.Length; i++)
         {
             var cell = ws.Cell(1, i + 1);
@@ -295,14 +302,15 @@ public class GiftAdminController : BaseController
             ws.Cell(row, 6).Value  = item.WORK_NAME ?? "";
             ws.Cell(row, 7).Value  = item.BATCH_NAME ?? "";
             ws.Cell(row, 8).Value  = item.GIFT_ITEM_NAME ?? "";
-            ws.Cell(row, 9).Value  = item.RECEIVE_DATE;
-            ws.Cell(row, 10).Value = item.LOCATION ?? "";
-            ws.Cell(row, 11).Value = StatusLabel(item.STATUS);
-            ws.Cell(row, 12).Value = item.DELIVERED_DT ?? "";
-            ws.Cell(row, 13).Value = item.DELIVERED_LOCATION ?? "";
-            ws.Cell(row, 14).Value = item.DELIVERED_BY_NAME ?? "";
-            ws.Cell(row, 15).Value = item.CONFIRM_STATUS == "CONFIRMED" ? "Đã xác nhận" : "";
-            ws.Cell(row, 16).Value = item.NOTE ?? "";
+            ws.Cell(row, 9).Value  = item.QTY;
+            ws.Cell(row, 10).Value = item.RECEIVE_DATE;
+            ws.Cell(row, 11).Value = item.LOCATION ?? "";
+            ws.Cell(row, 12).Value = StatusLabel(item.STATUS);
+            ws.Cell(row, 13).Value = item.DELIVERED_DT ?? "";
+            ws.Cell(row, 14).Value = item.DELIVERED_LOCATION ?? "";
+            ws.Cell(row, 15).Value = item.DELIVERED_BY_NAME ?? "";
+            ws.Cell(row, 16).Value = item.CONFIRM_STATUS == "CONFIRMED" ? (item.CONFIRMED_DT ?? "Đã xác nhận") : "";
+            ws.Cell(row, 17).Value = item.NOTE ?? "";
             row++;
         }
 

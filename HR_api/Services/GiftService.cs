@@ -339,6 +339,8 @@ public class GiftService
                 continue;
             }
 
+            var qty = row.QTY > 0 ? row.QTY : 1;
+
             try
             {
                 await _oracleService.ExecuteNonQueryAsync(@"
@@ -346,15 +348,16 @@ public class GiftService
                     USING (SELECT :BATCH_ID BID, :EMPCD EC FROM DUAL) S
                     ON (R.BATCH_ID = S.BID AND R.EMPCD = S.EC)
                     WHEN MATCHED THEN UPDATE SET
-                        R.RECEIVE_DATE = :RDATE, R.LOCATION = :LOC, R.UPDT_ID = :ACTOR
+                        R.RECEIVE_DATE = :RDATE, R.LOCATION = :LOC, R.QTY = :QTY, R.UPDT_ID = :ACTOR
                     WHEN NOT MATCHED THEN INSERT
-                        (BATCH_ID, EMPCD, RECEIVE_DATE, LOCATION, INST_ID)
+                        (BATCH_ID, EMPCD, RECEIVE_DATE, LOCATION, QTY, INST_ID)
                     VALUES
-                        (:BATCH_ID, :EMPCD, :RDATE, :LOC, :ACTOR)",
+                        (:BATCH_ID, :EMPCD, :RDATE, :LOC, :QTY, :ACTOR)",
                     new OracleParameter("BATCH_ID", req.BATCH_ID),
                     new OracleParameter("EMPCD",    row.EMPCD.Trim()),
                     new OracleParameter("RDATE",    receiveDate.Date),
                     new OracleParameter("LOC",      (object?)row.LOCATION ?? DBNull.Value),
+                    new OracleParameter("QTY",      qty),
                     new OracleParameter("ACTOR",    req.ACTOR_EMPCD));
 
                 res.processed++;
@@ -449,7 +452,7 @@ public class GiftService
                            R.EMPCD, EC.CNAME EMP_NAME,
                            EC.DEPTCD DEPT_ID, EA.DEPTNM DEPT_NAME, EC.LINECD LINE_ID, EA.TEAMNM LINE_NAME,
                            EC.WORKCD WORK_ID, EA.WORKNM WORK_NAME,
-                           TO_CHAR(R.RECEIVE_DATE,'YYYY-MM-DD') RECEIVE_DATE, R.LOCATION,
+                           TO_CHAR(R.RECEIVE_DATE,'YYYY-MM-DD') RECEIVE_DATE, R.LOCATION, R.QTY,
                            TO_CHAR(R.DELIVERED_DT,'YYYY-MM-DD HH24:MI') DELIVERED_DT,
                            R.DELIVERED_LOCATION, R.DELIVERED_BY, DB.CNAME DELIVERED_BY_NAME,
                            R.CONFIRM_STATUS, TO_CHAR(R.CONFIRMED_DT,'YYYY-MM-DD HH24:MI') CONFIRMED_DT,
@@ -479,6 +482,7 @@ public class GiftService
             WORK_NAME          = r["WORK_NAME"]?.ToString(),
             RECEIVE_DATE       = r["RECEIVE_DATE"]?.ToString() ?? "",
             LOCATION           = r["LOCATION"]?.ToString(),
+            QTY                = r["QTY"] == DBNull.Value ? 1 : Convert.ToInt32(r["QTY"]),
             DELIVERED_DT       = r["DELIVERED_DT"]?.ToString(),
             DELIVERED_LOCATION = r["DELIVERED_LOCATION"]?.ToString(),
             DELIVERED_BY       = r["DELIVERED_BY"]?.ToString(),
@@ -732,7 +736,7 @@ public class GiftService
 
         var rows = await _oracleService.ExecuteQueryAsync(@"
             SELECT R.ID, I.ID GIFT_ITEM_ID, I.ITEM_NAME GIFT_NAME, I.ITEM_TYPE,
-                   R.LOCATION, TO_CHAR(R.DELIVERED_DT,'DD/MM/YYYY HH24:MI') DELIVERED_DT
+                   R.LOCATION, R.QTY, TO_CHAR(R.DELIVERED_DT,'DD/MM/YYYY HH24:MI') DELIVERED_DT
             FROM HRMS.HR_GIFT_RECIPIENT R
             JOIN HRMS.HR_GIFT_BATCH B ON B.ID = R.BATCH_ID
             JOIN HRMS.HR_GIFT_ITEM I ON I.ID = B.GIFT_ITEM_ID
@@ -745,6 +749,7 @@ public class GiftService
                 GIFT_NAME    = r["GIFT_NAME"]?.ToString() ?? "",
                 ITEM_TYPE    = r["ITEM_TYPE"]?.ToString() ?? "SINGLE",
                 LOCATION     = r["LOCATION"]?.ToString(),
+                QTY          = r["QTY"] == DBNull.Value ? 1 : Convert.ToInt32(r["QTY"]),
                 DELIVERED_DT = r["DELIVERED_DT"]?.ToString()
             },
             new OracleParameter("EMPCD", empcd));

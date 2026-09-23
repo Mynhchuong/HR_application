@@ -109,6 +109,7 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 text-center">Giờ TC</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 text-center">Thời Gian</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9">Tình Trạng</th>
+                            <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9" title="Yêu cầu NV xác nhận nhận tăng ca BÙ (nghỉ bù) thay vì/kèm lương OT">TC Bù</th>
                         </tr>
                     </thead>
                     <tbody id="otTableBody"></tbody>
@@ -164,6 +165,7 @@
     const URL_IMPORT_SIGN  = '@Url.Action("ImportSignForExcel", "OT")';
     const URL_REQUEST_SUPP = '@Url.Action("AdminRequestSupplement", "OT")';
     const URL_IMPORT_SUPP  = '@Url.Action("ImportRequestSupplementExcel", "OT")';
+    const URL_SET_COMP_TIME = '@Url.Action("AdminSetCompTime", "OT")';
     const BATCH_SIZE       = 50;
 
     let currentPage=1, totalPages=1, totalRecords=0, isLoading=false, pageSize=100;
@@ -208,6 +210,10 @@
             <td class="px-2 text-sm text-center"><strong>${item.OT_HOURS||0}h</strong></td>
             <td class="px-2 text-sm text-center">${timeHtml}</td>
             <td class="align-middle text-center text-sm">${statusHtml}</td>
+            <td class="align-middle text-center">
+                <input type="checkbox" class="comp-time-chk" data-empcd="${escHtml(item.EMPCD||'')}"
+                       ${item.COMP_TIME_REQUIRED ? 'checked' : ''} title="Yêu cầu NV xác nhận nhận tăng ca BÙ">
+            </td>
         </tr>`;
     }
 
@@ -229,12 +235,12 @@
     function loadData(page = 1) {
         if (isLoading) return;
         isLoading = true; currentPage = page;
-        $('#otTableBody').html(`<tr><td colspan="10" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải dữ liệu...</div></td></tr>`);
+        $('#otTableBody').html(`<tr><td colspan="11" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải dữ liệu...</div></td></tr>`);
         $.ajax({
             url: PAGE_URL, type: 'GET', data: getParams(page),
             success: function(res) {
                 if (!res || !res.success) {
-                    $('#otTableBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">Lỗi: ${res?.message || 'Dữ liệu không hợp lệ'}</td></tr>`);
+                    $('#otTableBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Lỗi: ${res?.message || 'Dữ liệu không hợp lệ'}</td></tr>`);
                     return;
                 }
                 const s = res.summary || {};
@@ -246,7 +252,7 @@
                 totalPages   = res.total_pages || 0;
                 const data = res.data || [];
                 if (!data.length) {
-                    $('#otTableBody').html(`<tr><td colspan="10" class="text-center text-muted py-4"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu</td></tr>`);
+                    $('#otTableBody').html(`<tr><td colspan="11" class="text-center text-muted py-4"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Không có dữ liệu</td></tr>`);
                 } else {
                     // Cache item info into selected map if row already selected (update giờ mới nhất)
                     data.forEach(it => { if (selected.has(it.EMPCD)) selected.set(it.EMPCD, it); });
@@ -257,7 +263,7 @@
                 renderPagination();
             },
             error: function(xhr) {
-                $('#otTableBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+                $('#otTableBody').html(`<tr><td colspan="11" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
             },
             complete: function() { isLoading = false; }
         });
@@ -292,6 +298,24 @@
         const empcd = $(this).data('empcd');
         const item  = (window._pageData || []).find(x => x.EMPCD === empcd);
         toggleRow(empcd, item || { EMPCD: empcd }, this.checked);
+    });
+
+    $(document).on('change', '.comp-time-chk', function() {
+        const $chk = $(this);
+        const empcd = $chk.data('empcd');
+        $chk.prop('disabled', true);
+        $.ajax({
+            url: URL_SET_COMP_TIME, type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ EMPCD: empcd, WORK_DATE: $('#filterDate').val(), REQUIRED: $chk.is(':checked') })
+        }).done(function (res) {
+            if (!res.success) {
+                showToast(res.message || 'Lỗi cập nhật', 'error');
+                $chk.prop('checked', !$chk.is(':checked')); // revert
+            }
+        }).fail(function () {
+            showToast('Lỗi kết nối', 'error');
+            $chk.prop('checked', !$chk.is(':checked'));
+        }).always(function () { $chk.prop('disabled', false); });
     });
 
     $('#selectAllChk').on('change', function() {

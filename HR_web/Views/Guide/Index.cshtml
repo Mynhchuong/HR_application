@@ -279,6 +279,21 @@
         <div class="applink-result" id="applinkResult"></div>
     </div>
 
+    <!-- Tải app Android — link cố định Google Play, không cần mã thẻ như iOS -->
+    <a href="https://play.google.com/store/apps/details?id=com.samho.mysamho" target="_blank"
+       rel="noopener" class="applink-card" style="display:block; text-decoration:none;">
+        <div class="applink-head" style="margin-bottom:0;">
+            <div class="applink-icon" style="background: linear-gradient(135deg, #3ddc84 0%, #0f9d58 100%);">
+                <i class="bi bi-android2"></i>
+            </div>
+            <div class="applink-head-text">
+                <h6>Tải app trên CH Play</h6>
+                <small>Dành cho điện thoại Android — bấm để tải trực tiếp</small>
+            </div>
+            <i class="bi bi-box-arrow-up-right ms-auto text-secondary"></i>
+        </div>
+    </a>
+
     @if (!Model.Any())
     {
         <div class="guide-empty">

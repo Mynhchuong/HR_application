@@ -75,7 +75,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Gate Pass Approval",  Url = "~/GatePass/GpListForExpat",         Icon = "door_front"     },
                     new SideMenuItem { Title = "Leave Approval",      Url = "~/Leave/LeaveApprovalForExpat",     Icon = "event_available"},
                     new SideMenuItem { Title = "Leave & Gate Calendar",          Url = "~/Leave/TeamCalendarForExpat",      Icon = "calendar_month" },
-                    new SideMenuItem { Title = "My Team",                       Url = "~/Employee/MyTeam",                 Icon = "groups"         },
+                    new SideMenuItem { Title = "My Team",                       Url = "~/Employee/MyTeamForExpat",         Icon = "groups"         },
                 }
             },
 

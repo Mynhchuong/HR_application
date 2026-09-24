@@ -53,7 +53,7 @@ function escHtml(str) { return String(str==null?'':str).replace(/&/g,'&amp;').re
 
 function renderComboList(details) {
     if (!details || !details.length) return '';
-    return `<div class="gf-combo-label"><i class="bi bi-box-seam"></i> Combo gồm có:</div>
+    return `<div class="gf-combo-label"><i class="bi bi-box-seam"></i> Thành phần combo:</div>
         <div>${details.map(d => `<span class="badge bg-light text-dark border me-1 mb-1">${escHtml(d.COMPONENT_NAME)}${d.QTY > 1 ? ' x' + d.QTY : ''}</span>`).join('')}</div>`;
 }
 
@@ -61,6 +61,8 @@ function renderItem(item) {
     return `<div class="gf-item" data-id="${item.RECIPIENT_ID}">
         <img class="gf-img" src="${GIFT_IMG_URL}?itemId=${item.GIFT_ITEM_ID}" onerror="this.style.display='none'" />
         <div class="gf-name"><i class="bi bi-gift me-1"></i> ${escHtml(item.GIFT_NAME)}</div>
+        <div class="gf-row"><span>Phân loại</span><span class="fw-bold">${item.CATEGORY_NAME ? escHtml(item.CATEGORY_NAME) : (item.ITEM_TYPE === 'COMBO' ? 'Combo' : 'Đơn lẻ')}</span></div>
+        ${item.BATCH_NAME ? `<div class="gf-row"><span>Đợt phát</span><span class="fw-bold">${escHtml(item.BATCH_NAME)}</span></div>` : ''}
         ${item.QTY > 1 ? `<div class="gf-row"><span>Số lượng</span><span class="fw-bold">${item.QTY}</span></div>` : ''}
         ${item.LOCATION ? `<div class="gf-row"><span>Địa điểm</span><span>${escHtml(item.LOCATION)}</span></div>` : ''}
         ${item.DELIVERED_DT ? `<div class="gf-row"><span>Thời gian phát</span><span>${escHtml(item.DELIVERED_DT)}</span></div>` : ''}

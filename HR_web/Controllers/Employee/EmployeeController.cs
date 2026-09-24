@@ -12,13 +12,21 @@ public class EmployeeController : BaseController
 
     public IActionResult MyTeam() => View();
 
+    // GET: /Employee/MyTeamForExpat — bản tiếng Anh cho role Expat, cùng pattern
+    // OtListForExpat/GpListForExpat/LeaveApprovalForExpat (dùng chung data/export endpoint,
+    // chỉ khác view hiển thị + header Excel theo CurrentUser.RoleName == "Expat").
+    public IActionResult MyTeamForExpat() => View();
+
     [HttpGet]
     public async Task<IActionResult> GetMyTeamData(
         string? search = null, string? deptcd = null,
         string? linecd = null, string? workcd = null)
     {
         if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
-            return Json(new { success = false, message = "Chưa đăng nhập" });
+        {
+            var isExpat0 = CurrentUser?.RoleName == "Expat";
+            return Json(new { success = false, message = isExpat0 ? "Not logged in" : "Chưa đăng nhập" });
+        }
         var result = await _svc.GetMyTeamAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd);
         return Json(result);
     }
@@ -31,13 +39,16 @@ public class EmployeeController : BaseController
         if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
             return Unauthorized();
 
+        var isExpat = CurrentUser?.RoleName == "Expat";
         var result = await _svc.GetMyTeamAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd);
         var data   = result.data ?? new();
 
         using var wb = new XLWorkbook();
-        var ws = wb.Worksheets.Add("Danh sách nhân viên");
+        var ws = wb.Worksheets.Add(isExpat ? "Employee List" : "Danh sách nhân viên");
 
-        string[] headers = { "STT", "Mã NV", "Họ & Tên", "Bộ phận", "Tên Bộ phận", "Line", "Tên Line", "Nhóm việc", "Tên Nhóm việc", "Giờ TC tháng", "Giờ TC năm" };
+        string[] headers = isExpat
+            ? new[] { "No.", "Emp. Code", "Full Name", "Dept.", "Dept. Name", "Line", "Line Name", "Work Code", "Work Name", "OT Hours (Month)", "OT Hours (Year)" }
+            : new[] { "STT", "Mã NV", "Họ & Tên", "Bộ phận", "Tên Bộ phận", "Line", "Tên Line", "Nhóm việc", "Tên Nhóm việc", "Giờ TC tháng", "Giờ TC năm" };
         for (int i = 0; i < headers.Length; i++)
         {
             var c = ws.Cell(1, i + 1);
@@ -75,8 +86,9 @@ public class EmployeeController : BaseController
 
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
+        var fileName = isExpat ? $"EmployeeList_{DateTime.Now:yyyyMMdd}.xlsx" : $"DanhSachNhanVien_{DateTime.Now:yyyyMMdd}.xlsx";
         return File(ms.ToArray(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            $"DanhSachNhanVien_{DateTime.Now:yyyyMMdd}.xlsx");
+            fileName);
     }
 }

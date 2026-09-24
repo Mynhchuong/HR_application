@@ -91,6 +91,28 @@ public class TrainingSessionService
 
         if (req.ID == null)
         {
+            // Trước đây tạo buổi mới không hề kiểm tra trạng thái/khoảng ngày của Class — HR có thể
+            // vô tình thêm buổi vào lớp đã CLOSED/CANCELLED/COMPLETED (buổi "mồ côi", không ai chấm dứt
+            // dc vì TrainingLifecycleService chỉ tự chuyển trạng thái buổi khi Class SCHEDULED/IN_PROGRESS)
+            // hoặc chọn ngày buổi nằm ngoài START_DATE/END_DATE của lớp (audit 2026-09-24).
+            var cls = (await _db.ExecuteQueryAsync(
+                "SELECT STATUS, START_DATE, END_DATE FROM HRMS.HR_TRAINING_CLASS WHERE ID = :CID",
+                r => new
+                {
+                    STATUS     = r["STATUS"]?.ToString() ?? "",
+                    START_DATE = r["START_DATE"] is DBNull ? (DateTime?)null : Convert.ToDateTime(r["START_DATE"]),
+                    END_DATE   = r["END_DATE"] is DBNull ? (DateTime?)null : Convert.ToDateTime(r["END_DATE"]),
+                },
+                new OracleParameter("CID", req.CLASS_ID))).FirstOrDefault()
+                ?? throw new InvalidOperationException("Không tìm thấy lớp học");
+
+            if (cls.STATUS is "CLOSED" or "CANCELLED" or "COMPLETED")
+                throw new InvalidOperationException($"Lớp đang {cls.STATUS}, không thể thêm buổi học mới");
+            if (cls.START_DATE.HasValue && req.SESSION_DATE.Date < cls.START_DATE.Value.Date)
+                throw new InvalidOperationException($"Ngày buổi học không được trước ngày khai giảng ({cls.START_DATE.Value:dd/MM/yyyy})");
+            if (cls.END_DATE.HasValue && req.SESSION_DATE.Date > cls.END_DATE.Value.Date)
+                throw new InvalidOperationException($"Ngày buổi học không được sau ngày kết thúc lớp ({cls.END_DATE.Value:dd/MM/yyyy})");
+
             const string sqlIns = @"
                 INSERT INTO HRMS.HR_TRAINING_SESSION
                     (CLASS_ID, SESSION_NO, SESSION_DATE, START_TIME, END_TIME,

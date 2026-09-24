@@ -1095,7 +1095,8 @@ public class TrainingAdminController : BaseController
     [HttpPost]
     public async Task<IActionResult> RemindReview(int id)
     {
-        var response = await _training.PostToApiAsync($"TrainingAdmin/class/{id}/remind-review", new { });
+        var loginUser = CurrentUser?.EmpCd ?? "";
+        var response = await _training.PostToApiAsync($"TrainingAdmin/class/{id}/remind-review?loginUser={Uri.EscapeDataString(loginUser)}", new { });
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();
         return Content(json, "application/json");

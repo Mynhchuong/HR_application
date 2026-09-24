@@ -265,6 +265,13 @@
         let allStudents = [];
         let sessionInfo = null;
 
+        // Escape an toàn để chèn vào thuộc tính HTML (value="...") — không chỉ &<> mà cả dấu ",
+        // nếu không escape dấu " thì reasonVal chứa `"><script>` sẽ thoát khỏi thuộc tính value.
+        function escAttr(str) {
+            return String(str == null ? '' : str)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
         // Giờ lưu dạng "HHmm" thô (vd "1243") — format lại thành "HH:mm" cho dễ đọc.
         function fmtTime(t) {
             if (!t) return '';
@@ -516,7 +523,7 @@
                             <div class="status-btn-group">${statusBtns('')}</div>
                         </td>
                         <td>
-                            <input type="text" data-reason-empcd="${empAttr}" class="form-control form-control-sm" placeholder="Ghi chú lý do..." value="${reasonVal}" style="border-radius: 6px; max-width: 250px;" onchange="saveReason('${st.EMPCD}', this.value)" ${disabledAttr} />
+                            <input type="text" data-reason-empcd="${empAttr}" class="form-control form-control-sm" placeholder="Ghi chú lý do..." value="${escAttr(reasonVal)}" style="border-radius: 6px; max-width: 250px;" onchange="saveReason('${st.EMPCD}', this.value)" ${disabledAttr} />
                         </td>
                         <td class="pe-4 text-end">
                             ${saveBtnHtml('')}
@@ -536,7 +543,7 @@
                         <div class="mb-2">${checkinBadge}</div>
                         <div class="status-btn-group">${statusBtns(true)}</div>
                         <div class="att-card-actions">
-                            <input type="text" data-reason-empcd="${empAttr}" class="form-control form-control-sm" placeholder="Ghi chú lý do..." value="${reasonVal}" onchange="saveReason('${st.EMPCD}', this.value)" ${disabledAttr} />
+                            <input type="text" data-reason-empcd="${empAttr}" class="form-control form-control-sm" placeholder="Ghi chú lý do..." value="${escAttr(reasonVal)}" onchange="saveReason('${st.EMPCD}', this.value)" ${disabledAttr} />
                             ${saveBtnHtml('d-flex')}
                         </div>
                     </div>

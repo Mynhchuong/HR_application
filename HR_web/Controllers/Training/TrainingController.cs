@@ -30,22 +30,24 @@ public class TrainingController : BaseController
         return View();
     }
 
-    // GET /Training/CertificateView/{classId} — xem/in chứng chỉ của chính mình cho 1 lớp đã hoàn thành
-    public IActionResult CertificateView(int classId)
+    // GET /Training/CertificateView/{classId}?empcd= — xem/in chứng chỉ; empcd chỉ dùng khi
+    // HR/Admin xem giùm chứng chỉ nhân viên khác (từ trang Quản lý Chứng chỉ), mặc định là chính mình.
+    public IActionResult CertificateView(int classId, string? empcd)
     {
-        var empcd = CurrentUser?.EmpCd;
-        if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
-        ViewBag.EmpCd = empcd;
+        var loginEmpcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(loginEmpcd)) return RedirectToAction("Login", "Account");
+        ViewBag.EmpCd = string.IsNullOrEmpty(empcd) ? loginEmpcd : empcd;
         ViewBag.ClassId = classId;
         return View();
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetCertificateDetail(int classId)
+    public async Task<IActionResult> GetCertificateDetail(int classId, string? empcd)
     {
         var loginUser = CurrentUser?.EmpCd ?? "";
         if (string.IsNullOrEmpty(loginUser)) return Json(new { success = false, message = "Chưa đăng nhập" });
-        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/certificate/list", $"classId={classId}&empcd={loginUser}&loginUser={loginUser}");
+        var targetEmpcd = string.IsNullOrEmpty(empcd) ? loginUser : empcd;
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/certificate/list", $"classId={classId}&empcd={targetEmpcd}&loginUser={loginUser}");
         return Json(res);
     }
 

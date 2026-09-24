@@ -120,7 +120,8 @@
             getCertificateList: '@Url.Action("GetCertificateList", "TrainingAdmin")',
             revokeCertificate: '@Url.Action("RevokeCertificate", "TrainingAdmin")',
             getDept: '@Url.Action("GetDept", "Dropdown")',
-            getLine: '@Url.Action("GetLine", "Dropdown")'
+            getLine: '@Url.Action("GetLine", "Dropdown")',
+            certificateView: '@Url.Action("CertificateView", "Training")'
         };
 
         const currentLoginUser = '@empCd';
@@ -268,6 +269,7 @@
                                 <td><strong class="text-success">${scoreStr}</strong></td>
                                 <td><strong class="text-primary">${attendStr}</strong></td>
                                 <td class="pe-3 text-end">
+                                    <a href="${window.TRAINING_URLS.certificateView}?classId=${c.CLASS_ID}&empcd=${encodeURIComponent(c.EMPCD)}" target="_blank" class="btn btn-xs btn-outline-primary fw-bold rounded-2 me-1">Xem chứng chỉ</a>
                                     <button onclick="revokeCert(${c.CLASS_ID}, '${c.EMPCD}')" class="btn btn-xs btn-outline-danger fw-bold rounded-2">Thu hồi</button>
                                 </td>
                             </tr>

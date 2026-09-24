@@ -737,22 +737,25 @@ public class GiftService
         if (string.IsNullOrEmpty(empcd)) return new GiftMyPendingResponse { count = 0 };
 
         var rows = await _oracleService.ExecuteQueryAsync(@"
-            SELECT R.ID, I.ID GIFT_ITEM_ID, I.ITEM_NAME GIFT_NAME, I.ITEM_TYPE,
-                   R.LOCATION, R.QTY, TO_CHAR(R.DELIVERED_DT,'DD/MM/YYYY HH24:MI') DELIVERED_DT
+            SELECT R.ID, I.ID GIFT_ITEM_ID, I.ITEM_NAME GIFT_NAME, I.ITEM_TYPE, CAT.NAME CATEGORY_NAME,
+                   B.BATCH_NAME, R.LOCATION, R.QTY, TO_CHAR(R.DELIVERED_DT,'DD/MM/YYYY HH24:MI') DELIVERED_DT
             FROM HRMS.HR_GIFT_RECIPIENT R
             JOIN HRMS.HR_GIFT_BATCH B ON B.ID = R.BATCH_ID
             JOIN HRMS.HR_GIFT_ITEM I ON I.ID = B.GIFT_ITEM_ID
+            LEFT JOIN HRMS.HR_GIFT_CATEGORY CAT ON CAT.ID = I.CATEGORY_ID
             WHERE R.EMPCD = :EMPCD AND R.CONFIRM_STATUS = 'PENDING_CONFIRM'
             ORDER BY R.DELIVERED_DT ASC",
             r => new GiftMyPendingItem
             {
-                RECIPIENT_ID = Convert.ToInt32(r["ID"]),
-                GIFT_ITEM_ID = Convert.ToInt32(r["GIFT_ITEM_ID"]),
-                GIFT_NAME    = r["GIFT_NAME"]?.ToString() ?? "",
-                ITEM_TYPE    = r["ITEM_TYPE"]?.ToString() ?? "SINGLE",
-                LOCATION     = r["LOCATION"]?.ToString(),
-                QTY          = r["QTY"] == DBNull.Value ? 1 : Convert.ToInt32(r["QTY"]),
-                DELIVERED_DT = r["DELIVERED_DT"]?.ToString()
+                RECIPIENT_ID  = Convert.ToInt32(r["ID"]),
+                GIFT_ITEM_ID  = Convert.ToInt32(r["GIFT_ITEM_ID"]),
+                GIFT_NAME     = r["GIFT_NAME"]?.ToString() ?? "",
+                ITEM_TYPE     = r["ITEM_TYPE"]?.ToString() ?? "SINGLE",
+                CATEGORY_NAME = r["CATEGORY_NAME"]?.ToString(),
+                BATCH_NAME    = r["BATCH_NAME"]?.ToString(),
+                LOCATION      = r["LOCATION"]?.ToString(),
+                QTY           = r["QTY"] == DBNull.Value ? 1 : Convert.ToInt32(r["QTY"]),
+                DELIVERED_DT  = r["DELIVERED_DT"]?.ToString()
             },
             new OracleParameter("EMPCD", empcd));
 

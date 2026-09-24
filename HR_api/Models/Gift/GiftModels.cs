@@ -206,6 +206,8 @@ public class GiftMyPendingItem
     public int     GIFT_ITEM_ID { get; set; }
     public string  GIFT_NAME    { get; set; } = "";
     public string  ITEM_TYPE    { get; set; } = "SINGLE"; // SINGLE | COMBO
+    public string? CATEGORY_NAME { get; set; }
+    public string? BATCH_NAME   { get; set; }
     public string? LOCATION     { get; set; }
     public int     QTY          { get; set; } = 1;
     public string? DELIVERED_DT { get; set; }

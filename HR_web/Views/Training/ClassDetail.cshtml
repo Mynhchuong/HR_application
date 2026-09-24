@@ -341,6 +341,10 @@
         let allTests = [];
         let testsTabFilter = 'ALL';
 
+        function escHtml(str) {
+            return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             // loadTestsList() đọc classData.cls.FINAL_TEST_ID để hiện badge "Bài thi cuối khóa" —
             // phải chờ loadClassDetail() gán xong classData, nếu không sẽ race (tests list load
@@ -940,7 +944,7 @@
                                         <span class="fw-bold small text-success"><i class="bi bi-person-badge me-1"></i>Giảng viên: <span class="vni-font">${q.ANSWERED_BY_NAME || q.ANSWERED_BY}</span></span>
                                         <span class="text-muted small">${new Date(q.ANSWERED_DT).toLocaleDateString('vi-VN')}</span>
                                     </div>
-                                    <p class="mb-0 text-dark small">${q.ANSWER_TEXT}</p>
+                                    <p class="mb-0 text-dark small">${escHtml(q.ANSWER_TEXT)}</p>
                                 </div>
                             `;
                         } else {
@@ -968,7 +972,7 @@
                                     </div>
                                     <span class="text-muted small">${new Date(q.ASKED_DT).toLocaleDateString('vi-VN')}</span>
                                 </div>
-                                <p class="mb-0 text-secondary">${q.QUESTION_TEXT}</p>
+                                <p class="mb-0 text-secondary">${escHtml(q.QUESTION_TEXT)}</p>
                                 ${answerBlock}
                             </div>
                         `;
@@ -1044,7 +1048,7 @@
                                     </div>
                                     <div>
                                         <span class="small text-muted d-block mb-1">Ý kiến đóng góp:</span>
-                                        <p class="mb-0 text-dark small">${commentText || 'Không có ý kiến đóng góp'}</p>
+                                        <p class="mb-0 text-dark small">${commentText ? escHtml(commentText) : 'Không có ý kiến đóng góp'}</p>
                                     </div>
                                 </div>
                             </div>

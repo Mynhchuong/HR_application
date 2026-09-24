@@ -1871,12 +1871,17 @@
                         if (fails.length > 0) {
                             msg += '\n\nKhông đạt:\n' + fails.map(f => `${f.EMPCD}${f.FAIL_REASON ? ' — ' + f.FAIL_REASON : ''}`).join('\n');
                         }
-                        // Đây chỉ là popup THÔNG BÁO kết quả (callback rỗng, không xóa gì) — phải truyền
+                        // Đây chỉ là popup THÔNG BÁO kết quả, không phải hành động xóa — phải truyền
                         // options riêng, không thì showConfirm tự rớt về mặc định "Xóa" màu đỏ khiến
-                        // HR tưởng nhầm là hành động xóa.
-                        window.showConfirm(msg, () => {}, {
+                        // HR tưởng nhầm là hành động xóa. Bấm "Xem chứng chỉ" đưa thẳng qua trang
+                        // Quản lý Chứng chỉ (đây là nơi duy nhất HR có thể xem/in — trang lớp học
+                        // này không có nút xem chứng chỉ, dễ khiến HR tưởng chốt xong mà "không ra gì").
+                        const certOk = (d.COMPLETED_COUNT ?? 0) > 0;
+                        window.showConfirm(msg, () => {
+                            if (certOk) window.open('@Url.Action("Certificates", "TrainingAdmin")', '_blank');
+                        }, {
                             title: 'Kết quả chốt lớp',
-                            okText: 'Đã hiểu',
+                            okText: certOk ? 'Xem chứng chỉ' : 'Đã hiểu',
                             okClass: 'btn-success',
                             icon: 'task_alt',
                             iconColor: '#16a34a',

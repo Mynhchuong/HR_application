@@ -87,7 +87,7 @@
                                         <span class="fw-bold small text-success"><i class="bi bi-person-badge me-1"></i>Bạn trả lời:</span>
                                         <span class="text-muted small">${new Date(q.ANSWERED_DT).toLocaleDateString('vi-VN')}</span>
                                     </div>
-                                    <p class="mb-2 text-dark small">${q.ANSWER_TEXT}</p>
+                                    <p class="mb-2 text-dark small">${escHtml(q.ANSWER_TEXT)}</p>
                                     <div class="text-end">
                                         <button onclick="editAnswer(${q.ID}, '${escapeJs(q.ANSWER_TEXT)}')" class="btn btn-xs btn-outline-success me-1">Sửa</button>
                                         <button onclick="deleteQuestion(${q.ID})" class="btn btn-xs btn-outline-danger">Xóa câu hỏi</button>
@@ -124,7 +124,7 @@
                                     </div>
                                     <span class="text-muted small">${new Date(q.ASKED_DT).toLocaleDateString('vi-VN')}</span>
                                 </div>
-                                <p class="mb-0 text-secondary">${q.QUESTION_TEXT}</p>
+                                <p class="mb-0 text-secondary">${escHtml(q.QUESTION_TEXT)}</p>
                                 ${answerFormOrBlock}
                             </div>
                         `;
@@ -204,6 +204,10 @@
         function escapeJs(str) {
             if (!str) return '';
             return str.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
+        }
+
+        function escHtml(str) {
+            return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
     </script>
 }

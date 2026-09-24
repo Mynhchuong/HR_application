@@ -53,6 +53,19 @@ public partial class TrainingAdminController : ControllerBase
         _team = team;
     }
 
+    // Chặn quyền tầng API (không chỉ dựa vào [Authorize(Roles=...)] ở HR_web) — trước đây hầu hết
+    // endpoint mutating ở đây không tự kiểm tra, chỉ có assign-teacher/remove-teacher là có; bất kỳ
+    // client nào cầm được X-Api-Key chung đều gọi thẳng xoá/sửa lớp, gỡ học viên, thu hồi chứng chỉ...
+    // mà không cần là HR/Admin thật. (audit 2026-09-24)
+    private async Task<IActionResult?> RequireHrOrAdminAsync(string? loginUser)
+    {
+        if (string.IsNullOrWhiteSpace(loginUser))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+        if (!await _auth.IsHrOrAdminAsync(loginUser))
+            return StatusCode(403, new { success = false, message = "Bạn không có quyền thực hiện chức năng này" });
+        return null;
+    }
+
     [HttpGet("course/list")]
     public async Task<IActionResult> CourseList(
         [FromQuery] string? mode,
@@ -76,6 +89,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("course/save")]
     public async Task<IActionResult> CourseSave([FromBody] SaveCourseRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var id = await _course.SaveAsync(req);
@@ -91,6 +105,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("course/archive")]
     public async Task<IActionResult> CourseArchive([FromBody] ArchiveCourseRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _course.ArchiveAsync(req, active: false);
@@ -106,6 +121,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("course/unarchive")]
     public async Task<IActionResult> CourseUnarchive([FromBody] ArchiveCourseRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _course.ArchiveAsync(req, active: true);
@@ -121,6 +137,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("course/delete")]
     public async Task<IActionResult> CourseDelete([FromBody] ArchiveCourseRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _course.DeleteAsync(req.ID, req.LOGIN_USER ?? "HR");
@@ -144,6 +161,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("course/session-templates/save")]
     public async Task<IActionResult> SessionTemplateSave([FromBody] SaveSessionTemplateRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var count = await _course.SaveSessionTemplatesAsync(req);
@@ -188,6 +206,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/save")]
     public async Task<IActionResult> ClassSave([FromBody] SaveClassRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var id = await _class.SaveAsync(req);
@@ -209,6 +228,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/publish-registration")]
     public async Task<IActionResult> ClassPublishRegistration([FromBody] ChangeClassStatusRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var result = await _class.PublishRegistrationAsync(req.ID, req.LOGIN_USER, req.REGISTER_URL);
@@ -225,8 +245,9 @@ public partial class TrainingAdminController : ControllerBase
 
     // POST /apiHR/TrainingAdmin/class/{id}/remind-review — nhắc mềm học viên ENROLLED chưa nộp review
     [HttpPost("class/{id}/remind-review")]
-    public async Task<IActionResult> ClassRemindReview(int id)
+    public async Task<IActionResult> ClassRemindReview(int id, [FromQuery] string? loginUser)
     {
+        if (await RequireHrOrAdminAsync(loginUser) is { } authFail) return authFail;
         try
         {
             var count = await _review.RemindPendingReviewsAsync(id);
@@ -244,6 +265,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/finalize-enrollment")]
     public async Task<IActionResult> ClassFinalize([FromBody] ChangeClassStatusRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var result = await _class.FinalizeEnrollmentAsync(req.ID, req.LOGIN_USER);
@@ -262,6 +284,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/cancel")]
     public async Task<IActionResult> ClassCancel([FromBody] ChangeClassStatusRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _class.CancelAsync(req.ID, req.LOGIN_USER);
@@ -277,6 +300,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/close")]
     public async Task<IActionResult> ClassClose([FromBody] ChangeClassStatusRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _class.CloseAsync(req.ID, req.LOGIN_USER);
@@ -292,6 +316,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/delete")]
     public async Task<IActionResult> ClassDelete([FromBody] ChangeClassStatusRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _class.DeleteAsync(req.ID, req.LOGIN_USER);
@@ -360,6 +385,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/group/save")]
     public async Task<IActionResult> GroupSave([FromBody] SaveGroupRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var id = await _class.SaveGroupAsync(req);
@@ -375,6 +401,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/group/delete")]
     public async Task<IActionResult> GroupDelete([FromBody] DeleteGroupRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _class.DeleteGroupAsync(req);
@@ -390,6 +417,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/group/auto-split")]
     public async Task<IActionResult> GroupAutoSplit([FromBody] AutoSplitGroupRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var updated = await _class.AutoSplitGroupAsync(req);
@@ -417,6 +445,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("enrollment/assign")]
     public async Task<IActionResult> EnrollmentAssign([FromBody] BulkAssignRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var result = await _enroll.BulkAssignAsync(req);
@@ -432,6 +461,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("enrollment/pre-assign")]
     public async Task<IActionResult> EnrollmentPreAssign([FromBody] BulkPreAssignRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var result = await _enroll.BulkPreAssignAsync(req);
@@ -447,6 +477,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("enrollment/approve")]
     public async Task<IActionResult> EnrollmentApprove([FromBody] ApproveEnrollmentRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _enroll.ApproveAsync(req);
@@ -462,6 +493,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("enrollment/reject")]
     public async Task<IActionResult> EnrollmentReject([FromBody] RejectEnrollmentRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _enroll.RejectAsync(req);
@@ -477,6 +509,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("enrollment/assign-group")]
     public async Task<IActionResult> EnrollmentAssignGroup([FromBody] AssignGroupRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var updated = await _enroll.AssignGroupAsync(req);
@@ -492,6 +525,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("enrollment/remove")]
     public async Task<IActionResult> EnrollmentRemove([FromBody] RemoveEnrollmentRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _enroll.RemoveAsync(req);
@@ -519,6 +553,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("session/save")]
     public async Task<IActionResult> SessionSave([FromBody] SaveSessionRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var id = await _session.SaveAsync(req);
@@ -534,6 +569,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("session/bulk-import")]
     public async Task<IActionResult> SessionBulkImport([FromBody] BulkImportSessionsRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         var result = await _session.BulkImportAsync(req);
         return Ok(new { success = true, data = result });
     }
@@ -542,6 +578,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("session/reschedule")]
     public async Task<IActionResult> SessionReschedule([FromBody] RescheduleSessionRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _session.RescheduleAsync(req);
@@ -557,6 +594,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("session/cancel")]
     public async Task<IActionResult> SessionCancel([FromBody] CancelSessionRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _session.CancelAsync(req);
@@ -609,6 +647,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("material/save")]
     public async Task<IActionResult> MaterialSave([FromBody] SaveMaterialRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var id = await _material.SaveAsync(req);
@@ -624,6 +663,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("material/delete")]
     public async Task<IActionResult> MaterialDelete([FromBody] DeleteMaterialRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _material.DeleteAsync(req);
@@ -665,6 +705,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("test/save")]
     public async Task<IActionResult> TestSave([FromBody] SaveTestRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var id = await _test.SaveAsync(req);
@@ -680,6 +721,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("test/questions/save")]
     public async Task<IActionResult> TestQuestionsSave([FromBody] SaveTestQuestionsRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _test.SaveQuestionsAsync(req);
@@ -695,6 +737,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("test/publish")]
     public async Task<IActionResult> TestPublish([FromBody] ChangeTestStatusRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _test.PublishAsync(req.ID, req.LOGIN_USER, req.AVAILABLE_FROM, req.AVAILABLE_TO);
@@ -710,6 +753,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("test/close")]
     public async Task<IActionResult> TestClose([FromBody] ChangeTestStatusRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _test.CloseAsync(req.ID, req.LOGIN_USER);
@@ -723,8 +767,9 @@ public partial class TrainingAdminController : ControllerBase
 
     // POST /apiHR/TrainingAdmin/test/auto-submit-expired — chạy tay cho tới khi Phase 5 làm batch job
     [HttpPost("test/auto-submit-expired")]
-    public async Task<IActionResult> TestAutoSubmitExpired()
+    public async Task<IActionResult> TestAutoSubmitExpired([FromQuery] string? loginUser)
     {
+        if (await RequireHrOrAdminAsync(loginUser) is { } authFail) return authFail;
         var n = await _attempt.AutoSubmitExpiredAsync();
         return Ok(new { success = true, data = new { finalized = n } });
     }
@@ -745,6 +790,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("class/finalize")]
     public async Task<IActionResult> ClassFinalize([FromBody] FinalizeClassRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var result = await _completion.FinalizeClassAsync(req);
@@ -779,26 +825,28 @@ public partial class TrainingAdminController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int page_size = 50)
     {
+        // loginUser bắt buộc — bỏ trống trước đây khiến nhánh scoping bên dưới bị skip hoàn toàn,
+        // trả về TOÀN BỘ chứng chỉ mọi phòng ban không giới hạn gì (lỗ hổng, audit 2026-09-24).
+        if (string.IsNullOrEmpty(loginUser))
+            return Ok(new { success = false, message = "LOGIN_USER required" });
+
         string? scopeSql = null;
         List<OracleParameter>? scopeParams = null;
         string? searchEmpcd = empcd;
 
-        if (!string.IsNullOrEmpty(loginUser))
+        var isHrOrAdmin = await _auth.IsHrOrAdminAsync(loginUser);
+        if (!isHrOrAdmin)
         {
-            var isHrOrAdmin = await _auth.IsHrOrAdminAsync(loginUser);
-            if (!isHrOrAdmin)
+            var hasScope = await _team.HasScopeAsync(loginUser);
+            if (hasScope)
             {
-                var hasScope = await _team.HasScopeAsync(loginUser);
-                if (hasScope)
-                {
-                    var scope = OTScopeFilterHelper.ForScopeByTuple(loginUser, empAlias: "EC", prefix: "CF");
-                    scopeSql = scope.SqlClause;
-                    scopeParams = scope.Params;
-                }
-                else
-                {
-                    searchEmpcd = loginUser;
-                }
+                var scope = OTScopeFilterHelper.ForScopeByTuple(loginUser, empAlias: "EC", prefix: "CF");
+                scopeSql = scope.SqlClause;
+                scopeParams = scope.Params;
+            }
+            else
+            {
+                searchEmpcd = loginUser;
             }
         }
 
@@ -820,6 +868,7 @@ public partial class TrainingAdminController : ControllerBase
     [HttpPost("certificate/revoke")]
     public async Task<IActionResult> CertificateRevoke([FromBody] RevokeCertificateRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _completion.RevokeCertificateAsync(req.CLASS_ID, req.EMPCD, req.LOGIN_USER);
@@ -849,6 +898,7 @@ public partial class TrainingAdminController
     [HttpPost("class/clone-from-course")]
     public async Task<IActionResult> ClassCloneFromCourse([FromBody] CloneFromCourseRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var id = await _class.CloneFromCourseAsync(req);
@@ -868,6 +918,7 @@ public partial class TrainingAdminController
     [HttpPost("class/clone-from-class")]
     public async Task<IActionResult> ClassCloneFromClass([FromBody] CloneFromClassRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var id = await _class.CloneFromClassAsync(req);
@@ -890,6 +941,7 @@ public partial class TrainingAdminController
     [HttpPost("class/express-create")]
     public async Task<IActionResult> ClassExpressCreate([FromBody] ExpressCreateRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             var id = await _class.ExpressCreateAsync(req);
@@ -909,6 +961,7 @@ public partial class TrainingAdminController
     [HttpPost("enrollment/recover")]
     public async Task<IActionResult> EnrollmentRecover([FromBody] RecoverEnrollmentRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         try
         {
             await _enroll.RecoverAsync(req);
@@ -962,6 +1015,7 @@ public partial class TrainingAdminController
     [HttpPost("test/retake-grant")]
     public async Task<IActionResult> GrantRetake([FromBody] GrantRetakeRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         var (ok, err) = await _attempt.GrantRetakeAsync(req);
         return Ok(new { success = ok, message = err });
     }
@@ -971,6 +1025,7 @@ public partial class TrainingAdminController
     [HttpPost("test/retake-grant-all-failed")]
     public async Task<IActionResult> GrantRetakeAllFailed([FromBody] GrantRetakeAllRequest req)
     {
+        if (await RequireHrOrAdminAsync(req.LOGIN_USER) is { } authFail) return authFail;
         var (ok, err, granted) = await _attempt.GrantRetakeAllFailedAsync(req);
         return Ok(new { success = ok, message = err, granted });
     }

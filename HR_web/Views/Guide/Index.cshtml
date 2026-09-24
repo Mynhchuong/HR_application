@@ -173,6 +173,13 @@
     .applink-input-row button:disabled { opacity: .55; box-shadow: none; }
 
     .applink-result { margin-top: 1rem; }
+    .applink-note {
+        display: flex; align-items: flex-start; gap: 8px;
+        background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+        border-radius: 10px; padding: .6rem .8rem; margin-bottom: 1rem;
+        font-size: .74rem; line-height: 1.5;
+    }
+    .applink-note i { font-size: .95rem; margin-top: 1px; flex-shrink: 0; }
     .applink-msg {
         border-radius: 14px; font-size: .82rem; padding: .7rem .9rem;
         display: flex; align-items: center; gap: 8px;
@@ -261,20 +268,26 @@
         <img src="@Url.Content("~/assets/img/illustrations/" + guideHeroImg)" class="guide-hero-img" alt="" />
     </div>
 
-    <!-- Nhận link cài đặt app iOS -->
+    <!-- Nhận link cài đặt app iOS — trang này AllowAnonymous (chưa cài app = chưa đăng nhập được),
+         không biết trước ai là Expat nên hiện song ngữ VI/EN luôn thay vì tách trang riêng. -->
     <div class="applink-card">
         <div class="applink-head">
             <div class="applink-icon"><i class="bi bi-apple"></i></div>
             <div class="applink-head-text">
-                <h6>Nhận link cài đặt app</h6>
-                <small>Dành cho iPhone — nhập mã thẻ để lấy link cài đặt</small>
+                <h6>Nhận link cài đặt app <span class="text-secondary fw-normal">/ Get install link</span></h6>
+                <small>Dành cho iPhone — nhập mã thẻ để lấy link cài đặt<br />For iPhone — enter your employee code to get the install link</small>
             </div>
+        </div>
+        <div class="applink-note">
+            <i class="bi bi-wifi-off"></i>
+            Lưu ý: iOS chỉ cài được khi dùng mạng ngoài (4G/Wifi nhà), <strong>không dùng được mạng công ty</strong>.<br />
+            Note: iOS install only works on an external network (mobile data / home Wi-Fi) — <strong>company Wi-Fi will not work</strong>.
         </div>
         @Html.AntiForgeryToken()
         <div class="applink-input-row">
-            <input type="text" id="applinkEmpcd" placeholder="Nhập mã thẻ của bạn" autocomplete="off"
+            <input type="text" id="applinkEmpcd" placeholder="Nhập mã thẻ / Enter your employee code" autocomplete="off"
                    onkeydown="if(event.key==='Enter') requestAppLink()" />
-            <button type="button" id="applinkBtn" onclick="requestAppLink()">Nhận link</button>
+            <button type="button" id="applinkBtn" onclick="requestAppLink()">Nhận link / Get link</button>
         </div>
         <div class="applink-result" id="applinkResult"></div>
     </div>
@@ -287,8 +300,8 @@
                 <i class="bi bi-android2"></i>
             </div>
             <div class="applink-head-text">
-                <h6>Tải app trên CH Play</h6>
-                <small>Dành cho điện thoại Android — bấm để tải trực tiếp</small>
+                <h6>Tải app trên CH Play <span class="text-secondary fw-normal">/ Download on Google Play</span></h6>
+                <small>Dành cho điện thoại Android — bấm để tải trực tiếp<br />For Android phones — tap to download directly</small>
             </div>
             <i class="bi bi-box-arrow-up-right ms-auto text-secondary"></i>
         </div>

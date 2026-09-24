@@ -68,6 +68,7 @@ public static class SideMenuBuilder
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Home",                Url = "~/Home/Index",                      Icon = "home"           },
+                    new SideMenuItem { Title = "User Guide", Url = "~/Guide/Index",                    Icon = "menu_book"      },
                     //new SideMenuItem { Title = "Notifications",       Url = "~/Notification/IndexForExpat",      Icon = "notifications"  },
                    // new SideMenuItem { Title = "Bulletin",            Url = "~/Bulletin/Index",                  Icon = "campaign"       },
                     new SideMenuItem { Title = "OT List",            Url = "~/OT/OtListForExpat",               Icon = "view_list"      },

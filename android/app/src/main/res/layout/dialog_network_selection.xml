@@ -26,26 +26,28 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Cung hỷ phát tài!"
-            android:textSize="22sp"
+            android:text="Chào mừng bạn! / Welcome!"
+            android:textSize="20sp"
             android:textStyle="bold"
             android:textColor="#333333"
+            android:gravity="center"
             android:layout_marginBottom="8dp"/>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Vui lòng chọn mạng để bắt đầu"
-            android:textSize="16sp"
+            android:text="Vui lòng chọn mạng để bắt đầu\nPlease select a network to continue"
+            android:textSize="15sp"
             android:textColor="#666666"
-            android:layout_marginBottom="24dp"/>
+            android:gravity="center"
+            android:layout_marginBottom="16dp"/>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnInternal"
             android:layout_width="match_parent"
             android:layout_height="60dp"
-            android:text="Mạng nội bộ Samho"
-            android:textSize="16sp"
+            android:text="Mạng nội bộ Samho / Company Network"
+            android:textSize="14sp"
             app:cornerRadius="12dp"
             app:icon="@android:drawable/ic_menu_directions"
             android:layout_marginBottom="12dp"
@@ -55,13 +57,22 @@
             android:id="@+id/btnExternal"
             android:layout_width="match_parent"
             android:layout_height="60dp"
-            android:text="Mạng bên ngoài (4G/Wifi)"
-            android:textSize="16sp"
+            android:text="Mạng bên ngoài (4G/Wifi) / External (4G/Wifi)"
+            android:textSize="14sp"
             app:cornerRadius="12dp"
             app:icon="@android:drawable/ic_menu_share"
             android:backgroundTint="#F5F5F5"
             android:textColor="#333333"
             style="@style/Widget.MaterialComponents.Button.TextButton"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Khuyến nghị dùng 4G cá nhân để trải nghiệm tốt nhất\nWe recommend using your personal 4G for the best experience"
+            android:textSize="12sp"
+            android:textColor="#999999"
+            android:gravity="center"
+            android:layout_marginTop="14dp"/>
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

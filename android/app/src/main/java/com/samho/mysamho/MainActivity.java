@@ -314,7 +314,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 btnInternal.setEnabled(false);
                 btnExternal.setEnabled(false);
-                btnInternal.setText("Đang kiểm tra...");
+                btnInternal.setText("Đang kiểm tra... / Checking...");
                 new Thread(() -> {
                     boolean ok = checkInternalNetwork();
                     runOnUiThread(() -> {
@@ -325,10 +325,11 @@ public class MainActivity extends AppCompatActivity {
                         } else {
                             btnInternal.setEnabled(true);
                             btnExternal.setEnabled(true);
-                            btnInternal.setText("Mạng nội bộ Samho");
+                            btnInternal.setText("Mạng nội bộ Samho / Company Network");
                             new AlertDialog.Builder(MainActivity.this)
-                                .setTitle("Không kết nối được mạng nội bộ")
-                                .setMessage("Vui lòng kết nối vào một trong hai mạng WiFi của công ty:\n\n• Juniper_Secured\n• Pluto_Secured")
+                                .setTitle("Không kết nối được mạng nội bộ / Cannot reach company network")
+                                .setMessage("Vui lòng kết nối vào một trong hai mạng WiFi của công ty:\n\n• Juniper_Secured\n• Pluto_Secured\n\n" +
+                                        "Please connect to one of the company Wi-Fi networks:\n\n• Juniper_Secured\n• Pluto_Secured")
                                 .setPositiveButton("OK", null)
                                 .show();
                         }
@@ -340,7 +341,7 @@ public class MainActivity extends AppCompatActivity {
         btnExternal.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                selectedBaseUrl = "http://hr.esamho.com/hr_Web";
+                selectedBaseUrl = "https://hr.esamho.com/hr_Web";
                 startApp();
                 dialog.dismiss();
             }

@@ -386,6 +386,30 @@
             </div>`;
     }
 
+    function escApplinkHtml(s) { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    // Hết quota 3 lần -> hiện lại các link cũ đã từng phát cho mã thẻ này để NV thử lại (link ASSIGNED
+    // có thể còn dùng được, REPLACED là link cũ đã đóng khi đổi máy trước đó — vẫn hiện để NV tự thử).
+    function renderApplinkLimitReached(data) {
+        const links = data.previousLinks || [];
+        const rows = links.map((l, idx) => {
+            const dt = l.ASSIGNED_DT ? new Date(l.ASSIGNED_DT).toLocaleDateString('vi-VN') : '';
+            const statusLabel = l.STATUS === 'REPLACED' ? ' <span class="text-secondary">(đã đổi máy)</span>' : '';
+            return `<div class="applink-link-card" style="margin-top:${idx===0?'12px':'8px'};">
+                <div class="applink-link-label"><span class="material-symbols-rounded" style="font-size:1rem;">history</span>Lần ${idx+1}${dt ? ' — ' + dt : ''}${statusLabel}</div>
+                <div class="applink-link-url">${escApplinkHtml(l.LINK_URL)}</div>
+                <div class="applink-btn-row">
+                    <a href="${escApplinkHtml(l.LINK_URL)}" target="_blank" class="applink-btn-primary"><span class="material-symbols-rounded" style="font-size:1.05rem;">open_in_new</span>Thử link này</a>
+                    <button type="button" class="applink-btn-ghost" onclick="copyApplink('${l.LINK_URL.replace(/'/g, "\\'")}')"><span class="material-symbols-rounded" style="font-size:1.05rem;">content_copy</span>Sao chép</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        document.getElementById('applinkResult').innerHTML = `
+            <div class="applink-msg danger"><span class="material-symbols-rounded">error</span>${escApplinkHtml(data.message || '')}</div>
+            ${rows}`;
+    }
+
     function copyApplink(link) {
         navigator.clipboard?.writeText(link);
         if (typeof showToast === 'function') showToast('Đã sao chép link', 'success');
@@ -402,7 +426,9 @@
 
         try {
             const data = await postApplink(APPLINK_REQUEST_URL, empcd);
-            if (!data.success) {
+            if (!data.success && data.limitReached) {
+                renderApplinkLimitReached(data);
+            } else if (!data.success) {
                 renderApplinkAlert(data.message || 'Có lỗi xảy ra', 'danger');
             } else if (data.alreadyAssigned) {
                 document.getElementById('applinkResult').innerHTML = `
@@ -428,6 +454,7 @@
         try {
             const data = await postApplink(APPLINK_REASSIGN_URL, empcd);
             if (data.success) renderApplinkLink(data.linkUrl);
+            else if (data.limitReached) renderApplinkLimitReached(data);
             else renderApplinkAlert(data.message || 'Có lỗi xảy ra', 'danger');
         } catch {
             renderApplinkAlert('Không kết nối được máy chủ, vui lòng thử lại', 'danger');

@@ -47,4 +47,15 @@ public class AppLinkResult
     public bool    alreadyAssigned { get; set; }
     public string? linkUrl { get; set; }
     public DateTime? assignedDt { get; set; }
+    // Hết quota 3 lần -> trả về các link cũ đã từng phát cho mã thẻ này, để NV thử lại link cũ
+    // (link ASSIGNED có thể còn dùng được, REPLACED là link cũ đã đóng khi đổi máy).
+    public bool    limitReached { get; set; }
+    public List<AppLinkHistoryItem>? previousLinks { get; set; }
+}
+
+public class AppLinkHistoryItem
+{
+    public string    LINK_URL { get; set; } = "";
+    public string    STATUS   { get; set; } = "";
+    public DateTime? ASSIGNED_DT { get; set; }
 }

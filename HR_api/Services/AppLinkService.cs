@@ -155,7 +155,7 @@ public class AppLinkService
         {
             var issued = await CountIssuedAsync(empcd);
             if (issued >= MaxIssuesPerEmpcd)
-                return new AppLinkResult { success = false, message = $"Mã thẻ này đã lấy link {MaxIssuesPerEmpcd} lần, không thể lấy thêm. Vui lòng nhắn Nhân sự để được hỗ trợ." };
+                return await BuildLimitReachedResultAsync(empcd);
         }
 
         // Link cũ đã tải rồi, đổi máy mới thì link cũ không sài lại được -> đóng lại, không trả về pool
@@ -166,6 +166,31 @@ public class AppLinkService
             new OracleParameter("E", empcd));
 
         return await AssignNewLinkAsync(empcd, bypassLimit);
+    }
+
+    // Hết quota 3 lần -> trả kèm các link cũ đã từng phát cho mã thẻ này (mới nhất trước) để NV
+    // thử lại link cũ (yêu cầu HR 2026-09-24: đỡ phải nhắn Nhân sự nếu link cũ còn dùng được).
+    private async Task<AppLinkResult> BuildLimitReachedResultAsync(string empcd)
+    {
+        var previous = await _oracleService.ExecuteQueryAsync(@"
+            SELECT LINK_URL, STATUS, ASSIGNED_DT FROM HRMS.HR_APP_LINK
+            WHERE ASSIGNED_EMPCD = :E
+            ORDER BY ASSIGNED_DT DESC",
+            r => new AppLinkHistoryItem
+            {
+                LINK_URL    = r["LINK_URL"]?.ToString() ?? "",
+                STATUS      = r["STATUS"]?.ToString() ?? "",
+                ASSIGNED_DT = r["ASSIGNED_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["ASSIGNED_DT"])
+            },
+            new OracleParameter("E", empcd));
+
+        return new AppLinkResult
+        {
+            success = false,
+            limitReached = true,
+            message = $"Mã thẻ này đã lấy link {MaxIssuesPerEmpcd} lần, không thể lấy thêm. Bạn có thể thử lại 1 trong các link cũ bên dưới, hoặc nhắn Nhân sự để được hỗ trợ.",
+            previousLinks = previous
+        };
     }
 
     private async Task<int> CountIssuedAsync(string empcd)
@@ -186,7 +211,7 @@ public class AppLinkService
         {
             var issued = await CountIssuedAsync(empcd);
             if (issued >= MaxIssuesPerEmpcd)
-                return new AppLinkResult { success = false, message = $"Mã thẻ này đã lấy link {MaxIssuesPerEmpcd} lần, không thể lấy thêm. Vui lòng nhắn Nhân sự để được hỗ trợ." };
+                return await BuildLimitReachedResultAsync(empcd);
         }
 
         for (int attempt = 0; attempt < 5; attempt++)

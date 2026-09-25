@@ -39,4 +39,13 @@ public class AppLinkResult
     public bool    alreadyAssigned { get; set; }
     public string? linkUrl { get; set; }
     public DateTime? assignedDt { get; set; }
+    public bool    limitReached { get; set; }
+    public List<AppLinkHistoryItem>? previousLinks { get; set; }
+}
+
+public class AppLinkHistoryItem
+{
+    public string    LINK_URL { get; set; } = "";
+    public string    STATUS   { get; set; } = "";
+    public DateTime? ASSIGNED_DT { get; set; }
 }

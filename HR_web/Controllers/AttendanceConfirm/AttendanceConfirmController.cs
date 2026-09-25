@@ -26,6 +26,11 @@ public class AttendanceConfirmController : BaseController
         // lại vân tay thật), backend cũng tự ép trần này (yêu cầu HR 2026-09-22).
         ViewBag.DateFrom = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).ToString("yyyy-MM-dd");
         ViewBag.DateTo   = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd");
+        // Backend (ManagerConfirmAsync) đã chặn tự xác nhận phiếu của chính mình (role level so với
+        // chính nó luôn bằng nhau nên CanApprove trả false) — nhưng UI chưa ẩn nút, bấm vào vẫn hiện
+        // nút "Xác nhận" bình thường rồi mới báo lỗi. Truyền EMPCD hiện tại để JS tự ẩn nút ở dòng của
+        // chính mình (audit 2026-09-24).
+        ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
         return View();
     }
 

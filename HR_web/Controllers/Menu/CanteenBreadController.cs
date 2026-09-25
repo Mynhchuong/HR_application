@@ -289,6 +289,116 @@ public class CanteenBreadController : BaseController
             $"LogDoiMon_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
     }
 
+    // GET /CanteenBread/ChangeLogImportTemplate — file mẫu import hàng loạt (HR cần update nhiều
+    // dòng cùng lúc, yêu cầu 2026-09-24). CHỈ Admin/HR như các thao tác bulk khác trên trang này.
+    [HttpGet]
+    public IActionResult ChangeLogImportTemplate()
+    {
+        if (!CanBulkEditLog) return ForbidJson();
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Import");
+
+        string[] headers = { "Ngày (dd/mm/yyyy)", "Mã NV", "Bữa (LUNCH/OT)", "Món ăn (M/N/C/B)" };
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var c = ws.Cell(1, i + 1);
+            c.Value = headers[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#1e3a5f");
+            c.Style.Font.FontColor = XLColor.White;
+            c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        ws.Cell(2, 1).Value = DateTime.Today.ToString("dd/MM/yyyy");
+        ws.Cell(2, 2).Value = "12345678";
+        ws.Cell(2, 3).Value = "LUNCH";
+        ws.Cell(2, 4).Value = "M";
+
+        ws.Cell(4, 1).Value = "Hướng dẫn:";
+        ws.Cell(4, 1).Style.Font.Italic = true;
+        ws.Cell(5, 1).Value = "- Bữa: LUNCH = bữa giữa ca, OT = tăng ca";
+        ws.Cell(6, 1).Value = "- Món ăn: M = Mặn, N = Nhẹ, C = Chay, B = Bánh";
+        ws.Cell(7, 1).Value = "- Mỗi dòng ghi đè đúng món của 1 mã NV trong 1 ngày + 1 bữa (không cần xoá dòng cũ trước khi import lại)";
+        for (int r = 5; r <= 7; r++) { ws.Cell(r, 1).Style.Font.Italic = true; ws.Cell(r, 1).Style.Font.FontColor = XLColor.Gray; }
+
+        ws.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "MauImportLogDoiMon.xlsx");
+    }
+
+    // POST /CanteenBread/ChangeLogImport — HR upload Excel để cập nhật hàng loạt (ngày, mã NV, món
+    // ăn). Parse ở HR_web (ClosedXML), gửi rows đã parse sang HR_api MERGE từng dòng — cùng pattern
+    // Training session bulk-import.
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangeLogImport(IFormFile file)
+    {
+        if (!CanBulkEditLog) return ForbidJson();
+        if (file == null || file.Length == 0)
+            return Json(new { success = false, message = "Vui lòng chọn file Excel" });
+
+        var rows = new List<object>();
+        var parseErrors = new List<object>();
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            using var wb = new XLWorkbook(stream);
+            var ws = wb.Worksheet(1);
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
+
+            for (int r = 2; r <= lastRow; r++)
+            {
+                var datCell  = ws.Cell(r, 1).GetString().Trim();
+                var empcd    = ws.Cell(r, 2).GetString().Trim();
+                var typeMeal = ws.Cell(r, 3).GetString().Trim();
+                var typeFood = ws.Cell(r, 4).GetString().Trim();
+
+                if (string.IsNullOrEmpty(datCell) && string.IsNullOrEmpty(empcd)) continue; // dòng trống bỏ qua
+
+                if (string.IsNullOrEmpty(empcd))
+                { parseErrors.Add(new { row = r, message = "Thiếu mã NV" }); continue; }
+
+                rows.Add(new { empcd, dat = datCell, typeMeal, typeOfFood = typeFood });
+            }
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "Không đọc được file Excel: " + ex.Message });
+        }
+
+        if (rows.Count == 0)
+            return Json(new { success = false, message = "File không có dòng dữ liệu hợp lệ nào", errors = parseErrors });
+
+        var payload = new { rows, loginUser = CurrentUser?.EmpCd };
+        var raw = await _svc.LogBulkImportRawAsync(payload);
+
+        // Gộp thêm lỗi parse cục bộ (thiếu mã NV) vào cùng mảng errors trả về từ API, để FE hiện
+        // chung 1 danh sách lỗi duy nhất — theo đúng convention SessionImport (TrainingAdmin).
+        if (parseErrors.Count > 0)
+        {
+            try
+            {
+                var obj = System.Text.Json.Nodes.JsonNode.Parse(raw)?.AsObject();
+                if (obj != null)
+                {
+                    var existing = obj["errors"]?.AsArray() ?? new System.Text.Json.Nodes.JsonArray();
+                    foreach (var pe in parseErrors)
+                        existing.Add(System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(pe)));
+                    obj["errors"] = existing;
+                    return Content(obj.ToJsonString(), "application/json");
+                }
+            }
+            catch { /* nếu parse lỗi thì trả nguyên raw, không chặn kết quả import chính */ }
+        }
+
+        return Content(raw, "application/json");
+    }
+
     public class QuotaItem
     {
         public string  Deptcd   { get; set; } = "";

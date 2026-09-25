@@ -171,6 +171,14 @@ public class CanteenBreadService
             ? await res.Content.ReadAsStringAsync()
             : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
     }
+
+    public async Task<string> LogBulkImportRawAsync(object payload)
+    {
+        var res = await _api.PostAsync("CanteenOrder/log-bulk-import", payload);
+        return res?.IsSuccessStatusCode == true
+            ? await res.Content.ReadAsStringAsync()
+            : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+    }
 }
 
 public class ChangeLogRow

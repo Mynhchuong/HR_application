@@ -186,6 +186,7 @@ const SUBMIT_URL  = '@Url.Action("SubmitWorker")';
 const CONFIRM_URL = '@Url.Action("ManagerConfirm")';
 const REQUEST_URL = '@Url.Action("RequestConfirm")';
 const CSRF_TOKEN  = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 let canConfirmGlobal = false; // Admin/HR luôn false — chỉ quản lý đúng scope mới bấm Xác nhận được
@@ -220,7 +221,8 @@ function buildRow(item, idx) {
     const deptLine = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean).map(escHtml).join('<br>');
     const status = item.CONFIRM_STATUS || 'MISSING';
     const canRequest = status === 'MISSING';
-    const canConfirm = status === 'PENDING_MANAGER' && canConfirmGlobal;
+    const isSelf = !!CURRENT_EMPCD && item.EMPCD === CURRENT_EMPCD;
+    const canConfirm = status === 'PENDING_MANAGER' && canConfirmGlobal && !isSelf;
 
     let actionHtml = '-';
     const shiftInfo = item.SHIFT_STIME ? `${escHtml(item.SHIFT_CD || '')} (${item.SHIFT_STIME} - ${item.SHIFT_ETIME || '?'})${item.IS_NIGHT_SHIFT ? ' · ca đêm' : ''}` : (item.SHIFT_CD || '');
@@ -243,6 +245,8 @@ function buildRow(item, idx) {
             <i class="bi bi-check2-circle"></i> Xác nhận</button>`;
     } else if (status === 'PENDING_WORKER') {
         actionHtml = `<span class="text-xs text-warning"><i class="bi bi-hourglass-split"></i> Đang chờ NV</span>`;
+    } else if (status === 'PENDING_MANAGER' && isSelf) {
+        actionHtml = `<span class="text-xs text-primary" title="Không thể tự xác nhận công của chính mình — cần cấp trên xác nhận"><i class="bi bi-person-fill-lock"></i> Cần cấp trên xác nhận</span>`;
     } else if (status === 'PENDING_MANAGER') {
         actionHtml = `<span class="text-xs text-primary"><i class="bi bi-hourglass-split"></i> Đang chờ quản lý xác nhận</span>`;
     } else if (status === 'CONFIRMED') {

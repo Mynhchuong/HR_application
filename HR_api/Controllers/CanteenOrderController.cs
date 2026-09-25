@@ -645,6 +645,99 @@ public class CanteenOrderController : ControllerBase
     {
         "M" => "Mặn", "N" => "Nhẹ", "C" => "Chay", "B" => "Bánh", _ => code
     };
+
+    private static readonly HashSet<string> AllowedTypeMeal = new() { "LUNCH", "OT" };
+
+    // POST /apiHR/CanteenOrder/log-bulk-import — HR import Excel hàng loạt (ngày, mã NV, món ăn) cho
+    // trang ChangeLog. Không áp dụng validate quota/khoá/cap tuần như Change() (đây là admin override
+    // giống BulkBread), chỉ validate dữ liệu đầu vào hợp lệ + mã NV có tồn tại. MERGE từng dòng theo
+    // đúng khoá nghiệp vụ (EMPCD, DAT, TYPE_MEAL) — HR_web đã parse file Excel, chỉ gửi rows đã parse.
+    [HttpPost("log-bulk-import")]
+    public async Task<IActionResult> LogBulkImport([FromBody] CanteenLogImportBody body)
+    {
+        try
+        {
+            var rows = body.Rows ?? new List<CanteenLogImportRow>();
+            if (rows.Count == 0)
+                return Ok(new { success = false, message = "Không có dòng dữ liệu nào để import" });
+
+            var actor = string.IsNullOrEmpty(body.LoginUser) ? "HR" : body.LoginUser;
+            var errors = new List<object>();
+            int affected = 0;
+
+            const string mergeSql = @"
+                MERGE INTO HRMS.CANTEEN_ORDER T
+                USING (SELECT :EMPCD AS EMPCD, :DAT AS DAT, :MEALCAT AS TYPE_MEAL, :TYPE AS TYPE_OF_FOOD, :CHANGER AS CHANGER FROM DUAL) S
+                ON (T.EMPCD = S.EMPCD AND T.DAT = S.DAT AND T.TYPE_MEAL = S.TYPE_MEAL)
+                WHEN MATCHED THEN UPDATE SET
+                    T.TYPE_OF_FOOD = S.TYPE_OF_FOOD,
+                    T.CHANGE_FROM  = S.CHANGER,
+                    T.IS_MYSAMHO   = 'N',
+                    T.UPDT_ID      = S.CHANGER,
+                    T.UPDT_DT      = SYSDATE
+                WHEN NOT MATCHED THEN INSERT (EMPCD, DAT, TYPE_MEAL, TYPE_OF_FOOD, CHANGE_FROM, IS_MYSAMHO, INST_ID, INST_DT, UPDT_ID, UPDT_DT)
+                                      VALUES (S.EMPCD, S.DAT, S.TYPE_MEAL, S.TYPE_OF_FOOD, S.CHANGER, 'N', S.CHANGER, SYSDATE, S.CHANGER, SYSDATE)";
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                int excelRowNo = i + 2; // dòng 1 là header
+
+                var empcd = row.Empcd?.Trim() ?? "";
+                if (string.IsNullOrEmpty(empcd))
+                { errors.Add(new { row = excelRowNo, message = "Thiếu mã NV" }); continue; }
+
+                if (!DateTime.TryParse(row.Dat, out var dat))
+                { errors.Add(new { row = excelRowNo, empcd, message = $"Ngày không hợp lệ: {row.Dat}" }); continue; }
+
+                var typeMeal = (row.TypeMeal ?? "LUNCH").Trim().ToUpper();
+                if (!AllowedTypeMeal.Contains(typeMeal))
+                { errors.Add(new { row = excelRowNo, empcd, message = $"Bữa không hợp lệ (chỉ nhận LUNCH/OT): {row.TypeMeal}" }); continue; }
+
+                var typeFood = (row.TypeOfFood ?? "").Trim().ToUpper();
+                if (!AllowedFoodTypes.Contains(typeFood))
+                { errors.Add(new { row = excelRowNo, empcd, message = $"Món ăn không hợp lệ (chỉ nhận M/N/C/B): {row.TypeOfFood}" }); continue; }
+
+                var empExists = await _db.ExecuteQueryAsync(
+                    "SELECT 1 FROM HRMS.HR_USERS WHERE EMPCD = :E",
+                    r => 1, new OracleParameter("E", empcd));
+                if (empExists.Count == 0)
+                { errors.Add(new { row = excelRowNo, empcd, message = "Không tìm thấy mã NV này" }); continue; }
+
+                await _db.ExecuteNonQueryAsync(mergeSql,
+                    new OracleParameter("EMPCD",   empcd),
+                    new OracleParameter("DAT",     dat.ToString("yyyyMMdd")),
+                    new OracleParameter("MEALCAT", typeMeal),
+                    new OracleParameter("TYPE",    typeFood),
+                    new OracleParameter("CHANGER", actor));
+                affected++;
+            }
+
+            return Ok(new
+            {
+                success = true,
+                affected,
+                errorCount = errors.Count,
+                errors,
+                message = $"Đã import {affected}/{rows.Count} dòng" + (errors.Count > 0 ? $", {errors.Count} dòng lỗi" : "")
+            });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+}
+
+public class CanteenLogImportRow
+{
+    public string  Empcd      { get; set; } = "";
+    public string  Dat        { get; set; } = ""; // chuỗi ngày parse được (dd/MM/yyyy hoặc yyyy-MM-dd)
+    public string? TypeMeal   { get; set; } = "LUNCH"; // LUNCH | OT
+    public string  TypeOfFood { get; set; } = ""; // M | N | C | B
+}
+
+public class CanteenLogImportBody
+{
+    public List<CanteenLogImportRow>? Rows { get; set; }
+    public string? LoginUser { get; set; }
 }
 
 public class CanteenChangeBody

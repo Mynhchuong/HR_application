@@ -79,6 +79,12 @@
             <button class="btn btn-sm btn-dark mb-0" onclick="doSearch()"><i class="bi bi-search me-1"></i>Tìm</button>
             <button class="btn btn-sm btn-outline-secondary mb-0" onclick="resetFilter()" title="Xóa filter"><i class="bi bi-x-lg"></i></button>
             <button class="btn btn-sm btn-success mb-0" onclick="exportExcel()" title="Xuất Excel theo filter đang chọn"><i class="bi bi-file-earmark-excel me-1"></i>Xuất Excel</button>
+@if (canBulkEdit)
+{
+            <a href="@Url.Action("ChangeLogImportTemplate", "CanteenBread")" class="btn btn-sm btn-outline-secondary mb-0" download title="Tải file mẫu import"><i class="bi bi-file-earmark-arrow-down me-1"></i>Tải file mẫu</a>
+            <button class="btn btn-sm btn-outline-primary mb-0" onclick="document.getElementById('changelogImportFile').click()" title="Import Excel hàng loạt"><i class="bi bi-file-earmark-arrow-up me-1"></i>Import Excel</button>
+            <input type="file" id="changelogImportFile" accept=".xlsx,.xls" class="d-none" onchange="submitChangeLogImport(this.files[0])" />
+}
             <span id="totalBadge" class="total-badge ms-1" style="display:none;"></span>
         </div>
 
@@ -87,6 +93,9 @@
         <div id="bulkBar" class="px-4 pb-2" style="display:none;">
             <div class="d-flex align-items-center gap-2 flex-wrap p-2 rounded" style="background:#fff7ed;border:1px solid #fed7aa;">
                 <span id="bulkCount" class="fw-bold text-sm" style="color:#c2410c;"></span>
+                <button id="bulkAllHintBtn" type="button" class="btn btn-sm btn-dark mb-0" style="display:none;" onclick="enableSelectAllMatching()">
+                    <i class="bi bi-check2-all me-1"></i>
+                </button>
                 <button class="btn btn-sm btn-warning mb-0" onclick="bulkChangeToMan()">
                     <i class="bi bi-arrow-repeat me-1"></i>Đổi thành Mặn
                 </button>
@@ -94,7 +103,6 @@
                     <i class="bi bi-trash me-1"></i>Xoá bản ghi
                 </button>
                 <button class="btn btn-sm btn-outline-secondary mb-0" onclick="clearSelection()">Bỏ chọn</button>
-                <span id="bulkAllHint" class="text-xs ms-1" style="display:none;color:#9a3412;"></span>
             </div>
         </div>
 }
@@ -432,9 +440,9 @@ function clearSelection() {
 
 function updateBulkBar() {
     if (!CAN_BULK) return;
-    const bar  = document.getElementById('bulkBar');
-    const cnt  = document.getElementById('bulkCount');
-    const hint = document.getElementById('bulkAllHint');
+    const bar     = document.getElementById('bulkBar');
+    const cnt     = document.getElementById('bulkCount');
+    const hintBtn = document.getElementById('bulkAllHintBtn');
     const n = selectAllMatching ? totalRecords : selectedKeys.size;
 
     if (n === 0) { bar.style.display = 'none'; return; }
@@ -442,17 +450,24 @@ function updateBulkBar() {
 
     if (selectAllMatching) {
         cnt.textContent = `Đang chọn TẤT CẢ ${totalRecords} bản ghi khớp bộ lọc`;
-        hint.style.display = '';
-        hint.innerHTML = `<a href="javascript:void(0)" onclick="clearSelection()">Bỏ chọn</a>`;
+        hintBtn.style.display = '';
+        hintBtn.innerHTML = `<i class="bi bi-x-circle me-1"></i>Chỉ chọn trang này`;
+        hintBtn.onclick = clearSelection;
+        hintBtn.className = 'btn btn-sm btn-outline-secondary mb-0';
     } else {
-        cnt.textContent = `Đã chọn ${selectedKeys.size} bản ghi`;
-        // Còn bản ghi khớp bộ lọc ngoài trang hiện tại → gợi ý mở rộng chọn hết.
+        cnt.textContent = `Đã chọn ${selectedKeys.size}/${totalRecords} bản ghi (trang này)`;
+        // Chọn hết ô trên trang hiện tại nhưng bộ lọc còn nhiều hơn 1 trang → nút BẬT SẴN, nổi bật,
+        // không phải link chữ nhỏ dễ bị bỏ sót (yêu cầu HR 2026-09-24: filter ra 3000 mà chọn all chỉ
+        // được 50 — checkbox "chọn tất cả" ở header chỉ chọn được trang hiện tại theo thiết kế, phải
+        // bấm thêm nút này mới thật sự chọn hết toàn bộ khớp bộ lọc).
         const pageChecked = pageRowChecks().filter(c => c.checked).length;
         if (pageChecked === pageRowChecks().length && totalRecords > selectedKeys.size) {
-            hint.style.display = '';
-            hint.innerHTML = `<a href="javascript:void(0)" onclick="enableSelectAllMatching()">Chọn tất cả ${totalRecords} bản ghi khớp bộ lọc</a>`;
+            hintBtn.style.display = '';
+            hintBtn.innerHTML = `<i class="bi bi-check2-all me-1"></i>Chọn tất cả ${totalRecords} bản ghi khớp bộ lọc`;
+            hintBtn.onclick = enableSelectAllMatching;
+            hintBtn.className = 'btn btn-sm btn-dark mb-0';
         } else {
-            hint.style.display = 'none';
+            hintBtn.style.display = 'none';
         }
     }
 }
@@ -510,6 +525,45 @@ function bulkDelete() {
         },
         { title: 'Xoá bản ghi', okText: 'Xoá', okClass: 'btn-danger', icon: 'delete', iconColor: '#dc2626', iconBg: '#fee2e2' }
     );
+}
+
+async function submitChangeLogImport(file) {
+    if (!file) return;
+    const fileInput = document.getElementById('changelogImportFile');
+    showToast('Đang import Excel...', 'info');
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('@Url.Action("ChangeLogImport", "CanteenBread")', {
+            method: 'POST',
+            headers: { 'RequestVerificationToken': AF_TOKEN },
+            body: formData
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            showToast(data.message || 'Import thất bại', 'error');
+            return;
+        }
+
+        const errList = data.errors || [];
+        if (errList.length > 0) {
+            const detail = errList.slice(0, 10).map(e => `Dòng ${e.row}${e.empcd ? ' (' + e.empcd + ')' : ''}: ${e.message}`).join('\n')
+                + (errList.length > 10 ? `\n... và ${errList.length - 10} lỗi khác` : '');
+            showConfirm(
+                `${data.message}\n\nChi tiết lỗi:\n${detail}`,
+                () => {},
+                { title: 'Kết quả import', okText: 'Đã hiểu', okClass: 'btn-warning', icon: 'warning', iconColor: '#d97706', iconBg: '#fef3c7' }
+            );
+        } else {
+            showToast(data.message || `Đã import ${data.affected} dòng`, 'success');
+        }
+        doSearch(currentPage);
+    } catch {
+        showToast('Lỗi kết nối', 'error');
+    } finally {
+        fileInput.value = '';
+    }
 }
 
 // Init: set default date range (TODAY)

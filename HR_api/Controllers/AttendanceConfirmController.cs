@@ -56,6 +56,49 @@ public class AttendanceConfirmController : ControllerBase
         }
     }
 
+    // GET /apiHR/AttendanceConfirm/supp-pending-ot — HR đã gửi "xác nhận bổ sung" tăng ca (chờ chính
+    // NV tự ký ở OtConfirmForm), lọc theo đúng scope dept/line/work của Clerk/Supervisor/Manager gọi
+    // (Admin/HR xem hết) — chỉ để biết mà nhắc NV, không thao tác được ở đây.
+    [HttpGet("supp-pending-ot")]
+    public async Task<IActionResult> GetSuppPendingOt(string caller_empcd)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(caller_empcd))
+                return Ok(new { success = false, message = "Thiếu mã người dùng" });
+
+            bool isAdminOrHr = await _svc.IsAdminOrHRAsync(caller_empcd);
+            var result = await _svc.GetSuppPendingOtAsync(caller_empcd, isAdminOrHr);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = "API Error: " + ex.Message });
+        }
+    }
+
+    // POST /apiHR/AttendanceConfirm/remind-supp-ot — nhắc lại NV tự xác nhận bổ sung tăng ca (không
+    // gia hạn, chỉ gửi lại thông báo). Chặn scope y hệt manager-confirm.
+    [HttpPost("remind-supp-ot")]
+    public async Task<IActionResult> RemindSuppOt([FromBody] RemindSuppOtRequest req)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(req.ACTOR_EMPCD) || string.IsNullOrWhiteSpace(req.EMPCD))
+                return Ok(new { success = false, message = "Thiếu thông tin" });
+            if (!DateTime.TryParseExact(req.WORK_DATE, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out var workDate))
+                return Ok(new { success = false, message = "Ngày không hợp lệ" });
+
+            bool isAdminOrHr = await _svc.IsAdminOrHRAsync(req.ACTOR_EMPCD);
+            var result = await _svc.RemindSuppOtAsync(req.ACTOR_EMPCD, isAdminOrHr, req.EMPCD, workDate);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = "API Error: " + ex.Message });
+        }
+    }
+
     // GET /apiHR/AttendanceConfirm/my-pending — danh sách ngày NV cần khai/khai lại (badge menu + gợi ý WorkerForm)
     [HttpGet("my-pending")]
     public async Task<IActionResult> GetMyPending(string empcd)

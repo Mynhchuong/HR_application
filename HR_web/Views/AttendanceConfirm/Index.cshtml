@@ -85,6 +85,7 @@
                     <option value="PENDING_MANAGER">Chờ quản lý xác nhận</option>
                     <option value="CONFIRMED">Đã xác nhận</option>
                     <option value="REJECTED">Bị từ chối</option>
+                    <option value="SUPP_OT">Chờ ký bổ sung Tăng ca (HR gửi)</option>
                 </select>
             </div>
             <div style="min-width:160px;flex:1 1 160px;max-width:200px;">
@@ -185,6 +186,7 @@ const LIST_URL    = '@Url.Action("GetList")';
 const SUBMIT_URL  = '@Url.Action("SubmitWorker")';
 const CONFIRM_URL = '@Url.Action("ManagerConfirm")';
 const REQUEST_URL = '@Url.Action("RequestConfirm")';
+const SUPP_PENDING_URL = '@Url.Action("GetSuppPendingOt")';
 const CSRF_TOKEN  = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
 
@@ -204,7 +206,73 @@ const MISSING_COLOR = { IN: '#f59e0b', OUT: '#ef4444', BOTH: '#7c3aed' };
 function escHtml(str) { return String(str==null?'':str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatDate(s) { if(!s) return '-'; const p = s.split('-'); return p.length===3 ? `${p[2]}/${p[1]}/${p[0]}` : s; }
 
+// HR đã gửi "xác nhận bổ sung" tăng ca — gộp CHUNG vào 1 bảng với "Xác nhận chấm công thiếu" cho
+// gọn (yêu cầu Clerk/Quản lý 2026-09-30: "sài chung 1 cái view luôn cho gọn"), thay vì 1 khối riêng
+// phía trên. Chỉ chèn ở TRANG 1 (không lặp lại mỗi trang), dùng chung layout 10 cột với buildRow().
+let suppPendingRows = [];
+
+async function loadSuppPending() {
+    try {
+        const res = await $.getJSON(SUPP_PENDING_URL);
+        suppPendingRows = (res && res.data) || [];
+    } catch { suppPendingRows = []; }
+    renderSummaryBar(lastSummary);
+    if ($('#filterStatus').val() === 'SUPP_OT') { renderSuppOnlyTable(); return; }
+    if (currentPage === 1) renderTableFromCache();
+}
+
+function buildSuppRow(item, idx) {
+    const deptLine = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean).map(escHtml).join('<br>');
+    return `<tr style="background:#eff6ff;">
+        <td class="text-center"><input type="checkbox" class="supp-chk" data-empcd="${escHtml(item.EMPCD)}" data-workdate="${escHtml(item.WORK_DATE)}" onchange="updateSelCount()"></td>
+        <td class="text-xs text-secondary">${idx}</td>
+        <td>
+            <div class="text-xs text-secondary">${escHtml(item.EMPCD)}</div>
+            <div class="text-sm vni-font fw-bold">${escHtml(item.EMP_NAME||'')}</div>
+        </td>
+        <td class="text-sm text-nowrap">${formatDate(item.WORK_DATE)}</td>
+        <td class="text-xxs vni-font text-secondary" style="line-height:1.3;">
+            <div style="max-width:170px;overflow-wrap:break-word;word-break:break-word;">${deptLine}</div>
+        </td>
+        <td class="text-xs">
+            <span class="badge bg-primary">Tăng ca ${item.OT_HOURS||0}h</span>
+            <div class="text-xxs text-secondary mt-1">HR yêu cầu ký bổ sung</div>
+        </td>
+        <td><span class="att-status-badge" style="background:#3b82f622;color:#3b82f6;"><i class="bi bi-hourglass-split"></i> Chờ ký bổ sung TC</span></td>
+        <td class="text-xs text-danger">Hạn: ${formatDate(item.SUPP_DEADLINE)}</td>
+        <td class="text-xxs text-secondary">-</td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="remindSuppOt('${escHtml(item.EMPCD)}', '${item.WORK_DATE}', this)">
+                <i class="bi bi-bell me-1"></i>Nhắc xác nhận
+            </button>
+        </td>
+    </tr>`;
+}
+
+// Re-render trang hiện tại từ cache (dùng khi suppPendingRows load xong SAU khi bảng chính đã vẽ
+// rồi — tránh phải gọi lại AJAX loadData()).
+function renderTableFromCache() {
+    if (!lastRenderedRows) return;
+    renderAttTable(lastRenderedRows, currentPage);
+}
+
+async function remindSuppOt(empcd, workDate, btn) {
+    const $btn = $(btn).prop('disabled', true);
+    try {
+        const res = await $.ajax({
+            url: '@Url.Action("RemindSuppOt")', type: 'POST', contentType: 'application/json',
+            headers: { 'RequestVerificationToken': CSRF_TOKEN },
+            data: JSON.stringify({ EMPCD: empcd, WORK_DATE: workDate })
+        });
+        showToast ? showToast(res.message || (res.success ? 'Đã nhắc' : 'Lỗi'), res.success ? 'success' : 'error') : null;
+    } catch { showToast ? showToast('Lỗi kết nối', 'error') : null; }
+    finally { $btn.prop('disabled', false); }
+}
+
+let lastSummary = null;
+
 function renderSummaryBar(summary) {
+    lastSummary = summary;
     const $bar = $('#summaryBar');
     if (!summary) { $bar.empty(); return; }
     const chips = [
@@ -212,6 +280,9 @@ function renderSummaryBar(summary) {
         { label: 'Chờ NV khai', val: summary.PENDING_WORKER, color: STATUS_COLOR.PENDING_WORKER },
         { label: 'Chờ quản lý xác nhận', val: summary.PENDING_MANAGER, color: STATUS_COLOR.PENDING_MANAGER },
         { label: 'Đã xác nhận', val: summary.CONFIRMED, color: STATUS_COLOR.CONFIRMED },
+        // Tổng số yêu cầu ký bổ sung Tăng ca HR đã gửi (scope của người xem) — yêu cầu Clerk/Quản lý
+        // 2026-09-30: "summary thêm 1 cột total yêu cầu ký tăng ca lại từ hr cho người ta biết".
+        { label: 'Chờ ký bổ sung TC', val: suppPendingRows.length, color: '#3b82f6' },
     ];
     $bar.html(chips.map(c => `<span class="att-status-badge" style="background:${c.color}22;color:${c.color};">${c.label}: <strong>${c.val || 0}</strong></span>`).join(''));
 }
@@ -379,26 +450,43 @@ async function doConfirm(status) {
 }
 
 function updateSelCount() {
-    const n = $('#attTableBody .att-save-chk:checked').length;
+    const n = $('#attTableBody .att-save-chk:checked').length + $('#attTableBody .supp-chk:checked').length;
     $('#requestBtn').prop('disabled', n === 0);
     $('#selCountBadge').toggle(n > 0).text(n);
 }
 
+// Gộp chung 1 nút: dòng chấm công thiếu (MISSING) -> gửi yêu cầu khai giờ như cũ; dòng chờ ký bổ
+// sung tăng ca (supp-chk) -> gửi nhắc ký bổ sung (remind-supp-ot) — bấm 1 lần xử lý cả 2 loại đã chọn
+// (yêu cầu Clerk/Quản lý 2026-09-30: "checkbox gửi yêu cầu làm giùm mình").
 $('#requestBtn').on('click', async function () {
-    const targets = $('#attTableBody .att-save-chk:checked').map((_, el) => ({ EMPCD: $(el).data('empcd'), WORK_DATE: $(el).data('workdate') })).get();
-    if (!targets.length) return;
+    const attTargets  = $('#attTableBody .att-save-chk:checked').map((_, el) => ({ EMPCD: $(el).data('empcd'), WORK_DATE: $(el).data('workdate') })).get();
+    const suppTargets = $('#attTableBody .supp-chk:checked').map((_, el) => ({ EMPCD: $(el).data('empcd'), WORK_DATE: $(el).data('workdate') })).get();
+    if (!attTargets.length && !suppTargets.length) return;
     const $btn = $(this).prop('disabled', true);
     try {
-        const res = await $.ajax({ url: REQUEST_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(targets) });
-        showToast(res.message || 'Đã xử lý', res.failed > 0 ? 'warning' : 'success');
+        const tasks = [];
+        if (attTargets.length) {
+            tasks.push($.ajax({ url: REQUEST_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(attTargets) }));
+        }
+        suppTargets.forEach(t => {
+            tasks.push($.ajax({
+                url: '@Url.Action("RemindSuppOt")', type: 'POST', contentType: 'application/json',
+                headers: { 'RequestVerificationToken': CSRF_TOKEN },
+                data: JSON.stringify({ EMPCD: t.EMPCD, WORK_DATE: t.WORK_DATE })
+            }));
+        });
+        const results = await Promise.all(tasks);
+        const anyFailed = results.some(r => r && r.success === false);
+        showToast(`Đã xử lý ${attTargets.length} yêu cầu khai giờ + ${suppTargets.length} nhắc ký bổ sung`, anyFailed ? 'warning' : 'success');
         loadData(currentPage);
+        loadSuppPending();
     } catch (e) { showToast('Lỗi kết nối', 'error'); }
     finally { $btn.prop('disabled', false); }
 });
 
 $('#selectAllChk').on('change', function () {
     const checked = this.checked;
-    $('#attTableBody .att-save-chk:not(:disabled)').prop('checked', checked);
+    $('#attTableBody .att-save-chk:not(:disabled), #attTableBody .supp-chk').prop('checked', checked);
     updateSelCount();
 });
 
@@ -413,8 +501,41 @@ function getParams(page) {
     };
 }
 
+let lastRenderedRows = null;
+
+// Vẽ bảng: trang 1 chèn thêm các dòng "chờ NV tự xác nhận bổ sung tăng ca" (nếu có) lên đầu, dùng
+// chung 1 bảng/1 view với danh sách chấm công thiếu cho gọn — không lặp lại ở các trang sau.
+function renderAttTable(rows, page) {
+    lastRenderedRows = rows;
+    const suppHtml = (page === 1 && suppPendingRows.length)
+        ? suppPendingRows.map((r, i) => buildSuppRow(r, i + 1)).join('')
+        : '';
+    const normalHtml = rows.length
+        ? rows.map((r, i) => buildRow(r, (page - 1) * pageSize + i + 1)).join('')
+        : (suppHtml ? '' : `<tr><td colspan="10" class="text-center text-secondary py-4">Không có dữ liệu</td></tr>`);
+    $('#attTableBody').html(suppHtml + normalHtml);
+    MobileTableHelper.refresh('attTableBody');
+    updateSelCount();
+}
+
+// Filter riêng "Chờ ký bổ sung Tăng ca" — dữ liệu này KHÔNG nằm trong bảng chính (khác nguồn/khác
+// phân trang), nên khi chọn filter này thì hiện TOÀN BỘ suppPendingRows, bỏ qua gọi AJAX bảng chính.
+function renderSuppOnlyTable() {
+    totalRecords = suppPendingRows.length;
+    totalPages = 1;
+    canConfirmGlobal = false;
+    renderSummaryBar(lastSummary);
+    $('#attTableBody').html(suppPendingRows.length
+        ? suppPendingRows.map((r, i) => buildSuppRow(r, i + 1)).join('')
+        : `<tr><td colspan="10" class="text-center text-secondary py-4">Không có ai đang chờ ký bổ sung tăng ca</td></tr>`);
+    MobileTableHelper.refresh('attTableBody');
+    updateSelCount();
+    renderPagination();
+}
+
 function loadData(page = 1) {
     currentPage = page;
+    if ($('#filterStatus').val() === 'SUPP_OT') { renderSuppOnlyTable(); return; }
     $('#attTableBody').html(`<tr><td colspan="10" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
     MobileTableHelper.refresh('attTableBody');
     $.ajax({
@@ -428,15 +549,8 @@ function loadData(page = 1) {
             totalRecords = res.total || 0;
             totalPages   = res.total_pages || 0;
             canConfirmGlobal = !!res.can_confirm;
-            const rows   = res.data || [];
             renderSummaryBar(res.summary);
-            if (!rows.length) {
-                $('#attTableBody').html(`<tr><td colspan="10" class="text-center text-secondary py-4">Không có dữ liệu</td></tr>`);
-            } else {
-                $('#attTableBody').html(rows.map((r,i) => buildRow(r,(page-1)*pageSize+i+1)).join(''));
-            }
-            MobileTableHelper.refresh('attTableBody');
-            updateSelCount();
+            renderAttTable(res.data || [], page);
             renderPagination();
         },
         error: function (xhr) {
@@ -514,6 +628,7 @@ $(function () {
     TimePickerHelper.init('cfTimeIn');
     TimePickerHelper.init('cfTimeOut');
     loadData(1);
+    loadSuppPending();
 });
 </script>
 }

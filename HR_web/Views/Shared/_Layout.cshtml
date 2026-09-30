@@ -784,8 +784,17 @@
         window.showOtLogPopup = async function(empcd, workDate, empName) {
             const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             const fmtDt = s => { if (!s) return ''; const d = new Date(s); return isNaN(d) ? '' : d.toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); };
-            const statusLabel = s => s === 'CONFIRMED' ? 'Đồng ý' : (s === 'REJECTED' ? 'Từ chối' : (s || '—'));
-            const actionLabel = a => a === 'INS' ? 'Ký lần đầu' : (a === 'UPD' ? 'Đổi ý' : (a === 'DEL' ? 'Xoá' : (a || '')));
+            // Khớp đủ mọi CONFIRM_STATUS/ACTION thực tế ghi vào HR_OT_LOG (OtLogHelper.LogAction) —
+            // trước đây thiếu SUPP_PEND/SUPP_REQ nên popup hiện thẳng mã code thô, HR đọc không hiểu
+            // (báo cáo 2026-09-30: "SUPP_REQ — → SUPP_PEND", "SUPP_PEND → Đồng ý").
+            const statusLabel = s => ({
+                CONFIRMED: 'Đồng ý', REJECTED: 'Từ chối', PENDING: 'Chờ ký',
+                SUPP_PEND: 'Chờ ký bổ sung (HR đã gửi yêu cầu)',
+            }[s] || (s || '—'));
+            const actionLabel = a => ({
+                INS: 'Ký lần đầu', UPD: 'Đổi ý', DEL: 'Xoá',
+                SUPP_REQ: 'HR gửi yêu cầu ký bổ sung', PLAN_CHG: 'ERP đổi kế hoạch ca',
+            }[a] || (a || ''));
 
             const modalEl = document.getElementById('otLogModal');
             const modal   = new bootstrap.Modal(modalEl);
@@ -809,14 +818,33 @@
                 body.innerHTML =
                     `<div class="small text-muted mb-2">${empName ? `<span class="vni-font" style="text-transform:uppercase;">${esc(empName)}</span> — ` : ''}${esc(empcd)}</div>` +
                     '<ul class="list-unstyled mb-0">' +
-                    rows.map(e => `<li class="d-flex justify-content-between align-items-start border-bottom py-2">
+                    rows.map(e => {
+                        const hoursChanged = e.OLD_HOURS != null && e.NEW_HOURS != null && Number(e.OLD_HOURS) !== Number(e.NEW_HOURS);
+                        const actorLabel = e.ACTOR_NAME ? `<span class="vni-font">${esc(e.ACTOR_NAME)}</span> (${esc(e.ACTOR_EMPCD || '')})` : esc(e.ACTOR_EMPCD || '');
+                        // PLAN_CHG: ERP tự đổi số giờ OT sau khi NV đã ký (không phải NV/HR đổi ý
+                        // trạng thái) — không có OLD_STATUS/NEW_STATUS nên hiện riêng, tránh in "— → —"
+                        // vô nghĩa. Không có ACTOR_EMPCD vì đây là hệ thống tự phát hiện, không phải ai
+                        // bấm (yêu cầu HR 2026-09-30: "để ý người ta hay đổi quá").
+                        if (e.ACTION === 'PLAN_CHG') {
+                            return `<li class="d-flex justify-content-between align-items-start border-bottom py-2">
+                        <div>
+                            <span class="badge bg-warning text-dark me-1">${actionLabel(e.ACTION)}</span>
+                            Số giờ tăng ca: ${e.OLD_HOURS}h &rarr; <strong>${e.NEW_HOURS}h</strong>
+                            <div class="text-xs text-muted">Hệ thống tự phát hiện lệch với bản đã ký trước đó</div>
+                        </div>
+                        <div class="text-xs text-muted text-end" style="white-space:nowrap;">${fmtDt(e.INST_DT)}</div>
+                    </li>`;
+                        }
+                        return `<li class="d-flex justify-content-between align-items-start border-bottom py-2">
                         <div>
                             <span class="badge bg-light text-dark border me-1">${actionLabel(e.ACTION)}</span>
                             ${statusLabel(e.OLD_STATUS)} &rarr; <strong>${statusLabel(e.NEW_STATUS)}</strong>
-                            ${e.ACTOR_EMPCD ? `<div class="text-xs text-muted">bởi ${esc(e.ACTOR_EMPCD)}</div>` : ''}
+                            ${hoursChanged ? `<div class="text-xs text-muted">Số giờ: ${e.OLD_HOURS}h &rarr; ${e.NEW_HOURS}h</div>` : ''}
+                            ${e.ACTOR_EMPCD ? `<div class="text-xs text-muted">bởi ${actorLabel}</div>` : ''}
                         </div>
                         <div class="text-xs text-muted text-end" style="white-space:nowrap;">${fmtDt(e.INST_DT)}</div>
-                    </li>`).join('') +
+                    </li>`;
+                    }).join('') +
                     '</ul>';
             } catch (err) {
                 body.innerHTML = '<div class="text-center text-danger py-3">Lỗi kết nối</div>';

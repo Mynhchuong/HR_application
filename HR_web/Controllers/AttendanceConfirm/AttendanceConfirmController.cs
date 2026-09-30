@@ -66,6 +66,34 @@ public class AttendanceConfirmController : BaseController
         return Json(result);
     }
 
+    // GET: /AttendanceConfirm/GetSuppPendingOt — HR đã gửi "xác nhận bổ sung" tăng ca, Clerk/Supervisor/
+    // Manager cần thấy trong đúng scope của mình để nhắc NV đăng nhập app tự xác nhận.
+    [HttpGet]
+    public async Task<IActionResult> GetSuppPendingOt()
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd)) return Json(new { success = false, message = "Chưa đăng nhập" });
+        var result = await _svc.GetSuppPendingOtAsync(CurrentUser.EmpCd);
+        return Json(result);
+    }
+
+    // POST: /AttendanceConfirm/RemindSuppOt — nhắc lại NV tự xác nhận bổ sung tăng ca.
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemindSuppOt([FromBody] RemindSuppOtBody body)
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd)) return Json(new { success = false, message = "Chưa đăng nhập" });
+        var result = await _svc.RemindSuppOtAsync(new RemindSuppOtRequest
+        {
+            EMPCD = body.EMPCD, WORK_DATE = body.WORK_DATE, ACTOR_EMPCD = CurrentUser.EmpCd
+        });
+        return Json(result);
+    }
+
+    public class RemindSuppOtBody
+    {
+        public string EMPCD     { get; set; } = "";
+        public string WORK_DATE { get; set; } = "";
+    }
+
     // GET: /AttendanceConfirm/GetMyPending — badge menu sidebar "Xác nhận chấm công" + gợi ý ngày ở WorkerForm
     [HttpGet]
     public async Task<IActionResult> GetMyPending()

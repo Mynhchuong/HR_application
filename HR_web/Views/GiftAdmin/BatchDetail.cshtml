@@ -7,6 +7,11 @@
 <style>
     #recTableBody tr td { vertical-align: middle; }
     .gd-status-badge { font-size: .72rem; padding: 4px 8px; border-radius: 6px; font-weight: 600; }
+    .summary-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:10px; font-size:.78rem; font-weight:700; cursor:pointer; border:1.5px solid transparent; transition:transform .12s; }
+    .summary-chip:hover { transform:translateY(-1px); }
+    .summary-chip.active { border-color:currentColor; }
+    .summary-chip .sc-num { font-size:.95rem; }
+    .summary-chip .sc-qty { font-weight:500; opacity:.8; font-size:.72rem; }
     @@media (max-width: 767px) {
         .container-fluid { padding-left: 8px !important; padding-right: 8px !important; }
     }
@@ -27,6 +32,9 @@
                     </button>
                     <button type="button" id="sendConfirmBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#166534;font-weight:600;" disabled>
                         <i class="bi bi-bell me-1"></i> Gửi yêu cầu xác nhận<span id="selCountBadge" class="badge bg-danger ms-1" style="display:none;">0</span>
+                    </button>
+                    <button type="button" id="remindConfirmAllBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#166534;font-weight:600;" title="Nhắc TẤT CẢ người trong đợt còn chưa xác nhận, không cần chọn dòng">
+                        <i class="bi bi-bell-fill me-1"></i> Nhắc xác nhận (tất cả)
                     </button>
                     <button type="button" id="downloadTemplateBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#344767;font-weight:600;">
                         <i class="bi bi-file-earmark-arrow-down me-1"></i> Tải file mẫu
@@ -74,6 +82,8 @@
             </div>
             <div class="ms-auto"></div>
         </div>
+
+        <div class="px-3 pb-2 d-flex flex-wrap gap-2" id="summaryBar"></div>
 
         <div class="card-body px-0 pb-2">
             <div class="table-responsive px-3">
@@ -153,6 +163,7 @@ const DELIVER_BULK_URL = '@Url.Action("DeliverBulk")';
 const DELIVER_ALL_URL  = '@Url.Action("DeliverAll")';
 const CLOSE_URL      = '@Url.Action("CloseBatch")';
 const SEND_URL       = '@Url.Action("SendConfirmRequest")';
+const REMIND_CONFIRM_ALL_URL = '@Url.Action("RemindConfirmAll")';
 const IMPORT_URL     = '@Url.Action("Import")';
 const TEMPLATE_URL   = '@Url.Action("DownloadTemplate")';
 const EXPORT_URL     = '@Url.Action("ExportExcel")';
@@ -169,6 +180,32 @@ const STATUS_COLOR = { READY: '#3b82f6', DELIVERED: '#f59e0b', COMPLETED: '#10b9
 
 function escHtml(str) { return String(str==null?'':str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatDate(s) { if(!s) return '-'; const p = s.split('-'); return p.length===3 ? `${p[2]}/${p[1]}/${p[0]}` : s; }
+
+// Summary số lượng theo trạng thái — bấm vào 1 ô để lọc nhanh theo trạng thái đó (đồng bộ với
+// select Trạng thái phía trên), bấm lại lần nữa để bỏ lọc.
+function renderSummaryBar(summary) {
+    const $bar = $('#summaryBar');
+    if (!summary) { $bar.empty(); return; }
+    const cur = $('#filterStatus').val();
+    const order = ['READY', 'DELIVERED', 'COMPLETED', 'EXPIRED'];
+    $bar.html(order.map(key => {
+        const s = summary[key] || { count: 0, qty: 0 };
+        const color = STATUS_COLOR[key];
+        const active = cur === key;
+        return `<div class="summary-chip ${active ? 'active' : ''}" data-status="${key}"
+                     style="background:${color}18;color:${color};${active ? 'border-color:'+color+';' : ''}"
+                     onclick="toggleSummaryFilter('${key}')">
+                    <span class="sc-num">${s.count}</span> ${STATUS_LABEL[key]}
+                    <span class="sc-qty">(${s.qty} SL)</span>
+                </div>`;
+    }).join(''));
+}
+
+function toggleSummaryFilter(key) {
+    const $sel = $('#filterStatus');
+    $sel.val($sel.val() === key ? '' : key);
+    loadData(1);
+}
 
 function buildRow(item, idx) {
     const deptLine = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean).map(escHtml).join('<br>');
@@ -224,7 +261,7 @@ async function loadBatchHeader() {
     isClosed = !!b.IS_CLOSED;
     $('#batchNameTitle').text('— ' + b.BATCH_NAME);
     $('#closedBadge').toggle(isClosed);
-    $('#deliverBulkBtn, #deliverAllBtn, #sendConfirmBtn, #importLabel, #closeBatchBtn').prop('disabled', isClosed).toggleClass('disabled', isClosed);
+    $('#deliverBulkBtn, #deliverAllBtn, #sendConfirmBtn, #remindConfirmAllBtn, #importLabel, #closeBatchBtn').prop('disabled', isClosed).toggleClass('disabled', isClosed);
     if (isClosed) { $('#closeBatchBtn').hide(); } else { $('#closeBatchBtn').show(); }
 }
 
@@ -242,6 +279,7 @@ function loadData(page = 1) {
             }
             totalRecords = res.total || 0;
             totalPages   = res.total_pages || 0;
+            renderSummaryBar(res.summary);
             const rows   = res.data || [];
             if (!rows.length) {
                 $('#recTableBody').html(`<tr><td colspan="10" class="text-center text-secondary py-4">Chưa có danh sách người nhận — import Excel để bắt đầu</td></tr>`);
@@ -359,6 +397,18 @@ $('#sendConfirmBtn').on('click', async function () {
         showToast ? showToast(res.message || 'Đã xử lý', res.failed > 0 ? 'warning' : 'success') : null;
         loadData(currentPage);
     } finally { $btn.prop('disabled', false); }
+});
+
+$('#remindConfirmAllBtn').on('click', function () {
+    if (isClosed) return;
+    showConfirm(
+        'Gửi thông báo nhắc TẤT CẢ người trong đợt này (đã phát nhưng chưa xác nhận) đăng nhập app bấm "Đã nhận quà"? Không phụ thuộc bộ lọc/dòng đang chọn.',
+        async () => {
+            const res = await $.ajax({ url: REMIND_CONFIRM_ALL_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify({ BATCH_ID: BATCH_ID }) });
+            showToast ? showToast(res.message || 'Đã xử lý', res.success ? 'success' : 'error') : null;
+        },
+        { title: 'Nhắc xác nhận nhận quà', okText: 'Gửi nhắc', okClass: 'btn-success', icon: 'notifications_active', iconColor: '#166534', iconBg: '#dcfce7' }
+    );
 });
 
 $('#closeBatchBtn').on('click', function () {

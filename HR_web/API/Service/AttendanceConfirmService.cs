@@ -35,6 +35,31 @@ public class AttendanceConfirmService
         catch (Exception ex) { return new AttendanceMissingListResponse { success = false, message = ex.Message }; }
     }
 
+    public async Task<OtSuppPendingListResponse> GetSuppPendingOtAsync(string callerEmpcd)
+    {
+        try
+        {
+            var result = await _api.GetAsync<OtSuppPendingListResponse>("attendanceconfirm/supp-pending-ot", $"caller_empcd={callerEmpcd}");
+            return result ?? new OtSuppPendingListResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new OtSuppPendingListResponse { success = false, message = ex.Message }; }
+    }
+
+    public async Task<SimpleApiResponse> RemindSuppOtAsync(RemindSuppOtRequest req)
+    {
+        try
+        {
+            var response = await _api.PostAsync("attendanceconfirm/remind-supp-ot", req);
+            if (response != null)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<SimpleApiResponse>(json) ?? new SimpleApiResponse { success = false, message = "Lỗi parse response" };
+            }
+            return new SimpleApiResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new SimpleApiResponse { success = false, message = ex.Message }; }
+    }
+
     public async Task<MyPendingResponse> GetMyPendingAsync(string empcd)
     {
         try

@@ -101,7 +101,7 @@ public class OTController : ControllerBase
                        TO_DATE(TO_CHAR(E.DAT,'YYYYMMDD') || S.ETIME,'YYYYMMDDHH24MI')
                          + CASE WHEN TO_NUMBER(S.STIME) > TO_NUMBER(S.ETIME) THEN 1 ELSE 0 END SHIFT_END,
                        (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE, R.OT_HOURS CONFIRMED_OT_HOURS,
-                       R.OT_START CONF_OT_START, R.OT_END CONF_OT_END,
+                       R.OT_START CONF_OT_START, R.OT_END CONF_OT_END, R.REQUEST_ID,
                        R.CONFIRM_STATUS RAW_CONFIRM_STATUS, R.SUPP_REQUESTED_DATE, R.COMP_TIME_REQUIRED,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND TO_CHAR(DAT,'YYYYIW') = TO_CHAR(SYSDATE,'YYYYIW') AND DAT <= SYSDATE), 0) SUM_WEEK,
                        NVL((SELECT SUM(NVL(T_ROT,0)+NVL(T_OT,0)) FROM HRMS.EBM200 WHERE EMPCD = :EMPCD AND DAT BETWEEN TRUNC(SYSDATE,'MM') AND SYSDATE), 0) SUM_MONTH,
@@ -145,6 +145,16 @@ public class OTController : ControllerBase
                 var erpHours       = r["OT_HOURS"]           == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"]);
                 var confirmedHours = r["CONFIRMED_OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["CONFIRMED_OT_HOURS"]);
                 bool hoursUpdated  = confirmedHours.HasValue && erpHours.HasValue && confirmedHours != erpHours;
+
+                // Ghi vào "Lịch sử đổi ý" ngay khi phát hiện ERP đổi số giờ OT sau khi NV đã ký (yêu
+                // cầu HR 2026-09-30: "để ý người ta hay đổi quá") — phát hiện tại đây vì NV đang mở
+                // đúng trang OtConfirmForm nên gần như chắc chắn bắt được ngay khi vừa xảy ra.
+                if (hoursUpdated)
+                {
+                    var reqIdForLog = r["REQUEST_ID"]?.ToString();
+                    if (!string.IsNullOrEmpty(reqIdForLog))
+                        _otLog.LogPlanChanged(reqIdForLog, empcd, workDate, confirmedHours, erpHours);
+                }
                 DateTime? startOt  = r["START_OT"] == DBNull.Value ? null : Convert.ToDateTime(r["START_OT"]);
                 DateTime? shiftEnd = r["SHIFT_END"] == DBNull.Value ? null : Convert.ToDateTime(r["SHIFT_END"]);
                 DateTime? endOt    = r["END_OT"]   == DBNull.Value ? null : Convert.ToDateTime(r["END_OT"]);
@@ -666,7 +676,7 @@ public class OTController : ControllerBase
                 LEFT JOIN (
                     SELECT EMPCD, COUNT(*) CHANGE_COUNT
                     FROM HRMS.HR_OT_LOG
-                    WHERE WORK_DATE = :WORK_DATE4 AND ACTION = 'UPD'
+                    WHERE WORK_DATE = :WORK_DATE4 AND ACTION IN ('UPD','PLAN_CHG')
                     GROUP BY EMPCD
                 ) LG ON LG.EMPCD = OT.EMPCD";
 
@@ -946,7 +956,7 @@ public class OTController : ControllerBase
                 LEFT JOIN (
                     SELECT EMPCD, COUNT(*) CHANGE_COUNT
                     FROM HRMS.HR_OT_LOG
-                    WHERE WORK_DATE = :W_DATE4 AND ACTION = 'UPD'
+                    WHERE WORK_DATE = :W_DATE4 AND ACTION IN ('UPD','PLAN_CHG')
                     GROUP BY EMPCD
                 ) LG ON LG.EMPCD = OT.EMPCD";
 
@@ -1021,6 +1031,8 @@ public class OTController : ControllerBase
                             B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                             S.STIME, S.ETIME,
                             (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE, R.COMP_TIME_REQUIRED,
+                            R.CONFIRM_STATUS RAW_CONFIRM_STATUS, R.SUPP_REQUESTED_DATE,
+                            R.OT_HOURS CONFIRMED_OT_HOURS, R.REQUEST_ID,
                             RR.ROLE_NAME REQUESTER_ROLE, NVL(LG.CHANGE_COUNT,0) CHANGE_COUNT
                         " + fromSql + whereSql + @"
                     ) T
@@ -1053,6 +1065,27 @@ public class OTController : ControllerBase
                     TOTAL_COUNT    = summary.TOTAL,
                     COMP_TIME_REQUIRED = r["COMP_TIME_REQUIRED"] != DBNull.Value && Convert.ToInt32(r["COMP_TIME_REQUIRED"]) == 1
                 };
+
+                // Xác nhận bổ sung — statusExpr đã gộp SUPP_PEND vào 'PENDING' ở CONFIRM_STATUS,
+                // dùng RAW_CONFIRM_STATUS (chưa qua gộp) để nhận diện đúng case này (cùng logic GetOTToday).
+                DateTime? suppRequestedDate = r["SUPP_REQUESTED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["SUPP_REQUESTED_DATE"]);
+                string? rawConfirmStatus = r["RAW_CONFIRM_STATUS"] == DBNull.Value ? null : r["RAW_CONFIRM_STATUS"]?.ToString();
+                DateTime? suppDeadline = suppRequestedDate?.AddDays(3);
+                model.SUPP_DEADLINE = suppDeadline;
+                model.IS_SUPPLEMENT = rawConfirmStatus == "SUPP_PEND" && suppDeadline.HasValue && DateTime.Now <= suppDeadline.Value;
+
+                // Ghi vào "Lịch sử đổi ý" ngay khi HR mở trang này mà phát hiện ERP đổi số giờ OT sau
+                // khi NV đã ký (yêu cầu HR 2026-09-30) — chỉ có ý nghĩa khi đã CONFIRMED thật (không
+                // tính REJECTED/SUPP_PEND); ở chế độ admin=0 JOIN đã tự loại case lệch giờ nên không
+                // trùng lặp với GetOTToday khi cùng lúc cả HR và NV đều đang xem trang.
+                var confirmedHoursForLog = r["CONFIRMED_OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["CONFIRMED_OT_HOURS"]);
+                if (rawConfirmStatus == "CONFIRMED" && confirmedHoursForLog.HasValue && model.OT_HOURS.HasValue
+                    && confirmedHoursForLog.Value != model.OT_HOURS.Value)
+                {
+                    var reqIdForLog = r["REQUEST_ID"]?.ToString();
+                    if (!string.IsNullOrEmpty(reqIdForLog))
+                        _otLog.LogPlanChanged(reqIdForLog, model.EMPCD, workDate, confirmedHoursForLog, model.OT_HOURS);
+                }
 
                 try
                 {
@@ -1171,7 +1204,13 @@ public class OTController : ControllerBase
                 LEFT JOIN " + DedupOtRequest(":W_DATE3", "EMPCD, NVL(OT_HOURS,0)") + @" R
                        ON R.EMPCD = OT.EMPCD AND NVL(R.OT_HOURS,0) = NVL(OT.OT_HOURS,0)
                 LEFT JOIN HRMS.HR_USERS      UR ON UR.EMPCD  = OT.EMPCD
-                LEFT JOIN HRMS.HR_ROLES      RR ON RR.ID     = UR.ROLE_ID";
+                LEFT JOIN HRMS.HR_ROLES      RR ON RR.ID     = UR.ROLE_ID
+                LEFT JOIN (
+                    SELECT EMPCD, COUNT(*) CHANGE_COUNT
+                    FROM HRMS.HR_OT_LOG
+                    WHERE WORK_DATE = :W_DATE4 AND ACTION IN ('UPD','PLAN_CHG')
+                    GROUP BY EMPCD
+                ) LG ON LG.EMPCD = OT.EMPCD";
 
             string whereSql = @"
                 WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
@@ -1188,6 +1227,7 @@ public class OTController : ControllerBase
                 new OracleParameter("W_DATE1",      OracleDbType.Date)     { Value = workDate },
                 new OracleParameter("W_DATE2",      OracleDbType.Date)     { Value = workDate },
                 new OracleParameter("W_DATE3",      OracleDbType.Date)     { Value = workDate },
+                new OracleParameter("W_DATE4",      OracleDbType.Date)     { Value = workDate },
                 new OracleParameter("S_FLAG",       OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search)  ? null : "Y") ?? DBNull.Value },
                 new OracleParameter("S_VAL1",       OracleDbType.Varchar2) { Value = searchPattern },
                 new OracleParameter("ST_FLAG",      OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(status)  ? null : "Y") ?? DBNull.Value },
@@ -1234,7 +1274,7 @@ public class OTController : ControllerBase
                                B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                                S.STIME, S.ETIME,
                                (" + statusExpr + @") CONFIRM_STATUS, R.CONFIRM_DATE,
-                               RR.ROLE_NAME REQUESTER_ROLE
+                               RR.ROLE_NAME REQUESTER_ROLE, NVL(LG.CHANGE_COUNT,0) CHANGE_COUNT
                         " + fromSql + whereSql + @"
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -1262,6 +1302,7 @@ public class OTController : ControllerBase
                     OT_AFTER_TIME  = r["OT_AFTER_TIME"]?.ToString(),
                     CONFIRM_STATUS = r["CONFIRM_STATUS"]?.ToString(),
                     CONFIRM_DATE   = r["CONFIRM_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["CONFIRM_DATE"]),
+                    CHANGE_COUNT   = r["CHANGE_COUNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["CHANGE_COUNT"]),
                     TOTAL_COUNT    = summary.TOTAL
                 };
                 try
@@ -2061,24 +2102,55 @@ public class OTController : ControllerBase
                         continue;
                     }
 
+                    // Xoá + ghi log chung 1 transaction THẬT (không fire-and-forget như OtLogHelper.Log
+                    // nữa) — trước đây log chạy nền tách rời, nếu ghi log lỗi (silent, chỉ Console.
+                    // WriteLine) thì bản ghi vẫn bị xoá xong mà KHÔNG có dấu vết "ai xoá, lúc nào" trong
+                    // HR_OT_LOG (phát hiện thực tế 2026-09-30: NV 16080101 bị mất bản ghi đã ký ngày
+                    // 28/9, log hoàn toàn không có entry DEL). Giờ: 1 trong các lệnh lỗi → rollback hết,
+                    // không xoá gì cả — đảm bảo KHÔNG BAO GIỜ xoá thành công mà thiếu log nữa.
                     foreach (var row in reqIds)
                     {
                         var rid = row.REQUEST_ID;
                         if (string.IsNullOrEmpty(rid)) continue;
 
-                        await _oracleService.ExecuteNonQueryAsync(
-                            "DELETE FROM HRMS.HR_ROUTE_APPROVE WHERE REQUEST_ID = :R",
-                            new OracleParameter("R", rid));
-                        await _oracleService.ExecuteNonQueryAsync(
-                            "DELETE FROM HRMS.HR_OT_REQUEST WHERE REQUEST_ID = :R",
-                            new OracleParameter("R", rid));
-                        await _oracleService.ExecuteNonQueryAsync(
-                            "DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :R",
-                            new OracleParameter("R", rid));
+                        await using var tx = await _oracleService.BeginTransactionAsync();
+                        try
+                        {
+                            await _oracleService.ExecuteNonQueryAsync(tx,
+                                "DELETE FROM HRMS.HR_ROUTE_APPROVE WHERE REQUEST_ID = :R",
+                                new OracleParameter("R", rid));
+                            await _oracleService.ExecuteNonQueryAsync(tx,
+                                "DELETE FROM HRMS.HR_OT_REQUEST WHERE REQUEST_ID = :R",
+                                new OracleParameter("R", rid));
+                            await _oracleService.ExecuteNonQueryAsync(tx,
+                                "DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :R",
+                                new OracleParameter("R", rid));
+                            await _oracleService.ExecuteNonQueryAsync(tx, @"
+                                INSERT INTO HRMS.HR_OT_LOG
+                                    (REQUEST_ID, EMPCD, WORK_DATE, ACTION,
+                                     OLD_STATUS, NEW_STATUS, OLD_HOURS, NEW_HOURS,
+                                     ACTOR_EMPCD, INST_DT)
+                                VALUES
+                                    (:REQUEST_ID, :EMPCD, :WORK_DATE, :ACTION,
+                                     :OLD_STATUS, :NEW_STATUS, :OLD_HOURS, :NEW_HOURS,
+                                     :ACTOR_EMPCD, SYSDATE)",
+                                new OracleParameter("REQUEST_ID", rid),
+                                new OracleParameter("EMPCD", empcd),
+                                new OracleParameter("WORK_DATE", workDate),
+                                new OracleParameter("ACTION", OtLogHelper.LogAction.DEL.ToString()),
+                                new OracleParameter("OLD_STATUS", (object?)row.CONFIRM_STATUS ?? DBNull.Value),
+                                new OracleParameter("NEW_STATUS", DBNull.Value),
+                                new OracleParameter("OLD_HOURS", (object?)row.OT_HOURS ?? DBNull.Value),
+                                new OracleParameter("NEW_HOURS", DBNull.Value),
+                                new OracleParameter("ACTOR_EMPCD", (object?)body.ACTOR_EMPCD ?? DBNull.Value));
 
-                        // Log SAU khi xoá thành công — tránh ghi "đã xoá" nếu 1 trong 3 lệnh trên lỗi.
-                        _otLog.Log(OtLogHelper.LogAction.DEL, rid, empcd, workDate,
-                            row.CONFIRM_STATUS, null, row.OT_HOURS, null, body.ACTOR_EMPCD);
+                            await tx.CommitAsync();
+                        }
+                        catch
+                        {
+                            await tx.RollbackAsync();
+                            throw;
+                        }
                     }
 
                     // Reset lại cờ ký bên ERP để khớp với việc xoá phía MySamho — tránh trường hợp
@@ -2136,10 +2208,12 @@ public class OTController : ControllerBase
                 return Ok(new { success = false, message = "Bạn không có quyền xem lịch sử này" });
 
             var list = await _oracleService.ExecuteQueryAsync(
-                @"SELECT ACTION, OLD_STATUS, NEW_STATUS, OLD_HOURS, NEW_HOURS, ACTOR_EMPCD, INST_DT
-                  FROM HRMS.HR_OT_LOG
-                  WHERE EMPCD = :EMPCD AND WORK_DATE = :WORK_DATE
-                  ORDER BY INST_DT, ID",
+                @"SELECT L.ACTION, L.OLD_STATUS, L.NEW_STATUS, L.OLD_HOURS, L.NEW_HOURS, L.ACTOR_EMPCD, L.INST_DT,
+                         EC.CNAME ACTOR_NAME
+                  FROM HRMS.HR_OT_LOG L
+                  LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = L.ACTOR_EMPCD
+                  WHERE L.EMPCD = :EMPCD AND L.WORK_DATE = :WORK_DATE
+                  ORDER BY L.INST_DT, L.ID",
                 r => new OtLogEntry
                 {
                     ACTION      = r["ACTION"]?.ToString() ?? "",
@@ -2148,6 +2222,7 @@ public class OTController : ControllerBase
                     OLD_HOURS   = r["OLD_HOURS"] == DBNull.Value ? null : Convert.ToDecimal(r["OLD_HOURS"]),
                     NEW_HOURS   = r["NEW_HOURS"] == DBNull.Value ? null : Convert.ToDecimal(r["NEW_HOURS"]),
                     ACTOR_EMPCD = r["ACTOR_EMPCD"]?.ToString(),
+                    ACTOR_NAME  = r["ACTOR_NAME"]?.ToString(),
                     INST_DT     = Convert.ToDateTime(r["INST_DT"])
                 },
                 new OracleParameter("EMPCD", empcd),

@@ -134,3 +134,30 @@ public class MyDayResponse
     public string?              message { get; set; }
     public AttendanceMissingItem? data  { get; set; }
 }
+
+// HR/Admin đã gửi "xác nhận bổ sung" tăng ca — Clerk/Supervisor/Manager thấy trong scope của mình.
+public class OtSuppPendingItem
+{
+    public string  EMPCD      { get; set; } = "";
+    public string? EMP_NAME   { get; set; }
+    public string? DEPT_NAME  { get; set; }
+    public string? LINE_NAME  { get; set; }
+    public string? WORK_NAME  { get; set; }
+    public string  WORK_DATE  { get; set; } = "";
+    public decimal? OT_HOURS  { get; set; }
+    public string  SUPP_DEADLINE { get; set; } = "";
+}
+
+public class OtSuppPendingListResponse
+{
+    public bool    success { get; set; } = true;
+    public string? message { get; set; }
+    public List<OtSuppPendingItem> data { get; set; } = new();
+}
+
+public class RemindSuppOtRequest
+{
+    public string EMPCD       { get; set; } = "";
+    public string WORK_DATE   { get; set; } = "";
+    public string ACTOR_EMPCD { get; set; } = "";
+}

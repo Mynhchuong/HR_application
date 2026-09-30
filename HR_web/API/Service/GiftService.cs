@@ -125,6 +125,18 @@ public class GiftService
         return new GiftBulkActionResponse { success = false, message = "Lỗi kết nối server" };
     }
 
+    // Nhắc TẤT CẢ người trong đợt còn chưa xác nhận nhận quà — không cần chọn dòng.
+    public async Task<GiftBulkActionResponse> RemindConfirmAllAsync(GiftRemindConfirmAllRequest req)
+    {
+        var response = await _api.PostAsync("gift/remind-confirm-all", req);
+        if (response != null)
+        {
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonConvert.DeserializeObject<GiftBulkActionResponse>(json) ?? new GiftBulkActionResponse { success = false, message = "Lỗi parse response" };
+        }
+        return new GiftBulkActionResponse { success = false, message = "Lỗi kết nối server" };
+    }
+
     // ── Công nhân ─────────────────────────────────────────────
     public async Task<GiftActionResult> ConfirmReceiptAsync(GiftConfirmReceiptRequest req)
         => await PostForResult("gift/confirm-receipt", req);

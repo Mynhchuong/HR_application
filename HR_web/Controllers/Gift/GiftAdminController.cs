@@ -242,6 +242,16 @@ public class GiftAdminController : BaseController
         return Json(result);
     }
 
+    // Nhắc TẤT CẢ người trong đợt còn chưa xác nhận nhận quà (đăng nhập app bấm "Đã nhận") —
+    // không cần chọn dòng nào, áp dụng cho cả đợt (yêu cầu HR 2026-09-30).
+    [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> RemindConfirmAll([FromBody] GiftRemindConfirmAllRequest req)
+    {
+        if (CurrentUser == null) return Json(new { success = false, message = "Phiên đăng nhập hết hạn" });
+        req.ACTOR_EMPCD = CurrentUser.EmpCd;
+        return Json(await _svc.RemindConfirmAllAsync(req));
+    }
+
     // Thư ký/HR/Admin nhắc công nhân đến lãnh quà (chỉ gửi thông báo, không đổi trạng thái) —
     // đây là action DUY NHẤT thuộc nhóm "thao tác" mà Clerk được phép dùng.
     [HttpPost, ValidateAntiForgeryToken]

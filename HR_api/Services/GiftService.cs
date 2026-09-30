@@ -443,8 +443,45 @@ public class GiftService
             baseParams.Select(p => (OracleParameter)p.Clone()).ToArray());
         int total = totalRows.FirstOrDefault();
 
+        // Summary số lượng theo từng trạng thái — tính trên CÙNG bộ lọc (dept/line/work/search/ngày)
+        // nhưng KHÔNG áp filter Trạng thái, để dù đang xem 1 trạng thái vẫn thấy đủ breakdown 4 nhóm.
+        // Tính TRƯỚC early-return total==0 vì trạng thái đang lọc có thể rỗng trong khi trạng thái
+        // khác vẫn có dữ liệu (VD lọc EXPIRED=0 nhưng READY/DELIVERED vẫn còn).
+        string whereSqlNoStatus = @"
+            WHERE R.RECEIVE_DATE BETWEEN :D_FROM AND :D_TO
+              AND (:BID_FLAG IS NULL OR R.BATCH_ID = :BID_VAL)
+              AND (:DID_FLAG IS NULL OR EC.DEPTCD = :DID_VAL)
+              AND (:LID_FLAG IS NULL OR EC.LINECD = :LID_VAL)
+              AND (:WID_FLAG IS NULL OR EC.WORKCD = :WID_VAL)
+              AND (:S_FLAG   IS NULL OR UPPER(R.EMPCD) LIKE :S_VAL)
+              " + (scopeFilter?.SqlClause ?? "");
+        string sqlSummary = @"
+            SELECT (" + StatusSqlExpr + @") STATUS_KEY, COUNT(*) CNT, SUM(NVL(R.QTY,1)) QTY_SUM
+            " + fromSql + whereSqlNoStatus + @"
+            GROUP BY (" + StatusSqlExpr + ")";
+        var summaryParams = baseParams
+            .Where(p => p.ParameterName is not ("ST_FLAG" or "ST_VAL"))
+            .Select(p => (OracleParameter)p.Clone())
+            .ToArray();
+        var summaryRows = await _oracleService.ExecuteQueryAsync(sqlSummary, r => new
+        {
+            Status = r["STATUS_KEY"]?.ToString() ?? "READY",
+            Count  = r["CNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["CNT"]),
+            QtySum = r["QTY_SUM"] == DBNull.Value ? 0 : Convert.ToInt32(r["QTY_SUM"])
+        }, summaryParams);
+
+        var summary = new Dictionary<string, object>
+        {
+            ["READY"]     = new { count = 0, qty = 0 },
+            ["DELIVERED"] = new { count = 0, qty = 0 },
+            ["COMPLETED"] = new { count = 0, qty = 0 },
+            ["EXPIRED"]   = new { count = 0, qty = 0 },
+        };
+        foreach (var s in summaryRows)
+            summary[s.Status] = new { count = s.Count, qty = s.QtySum };
+
         if (total == 0)
-            return new GiftRecipientListResponse { success = true, total = 0, page = page, page_size = pageSize, total_pages = 0 };
+            return new GiftRecipientListResponse { success = true, total = 0, page = page, page_size = pageSize, total_pages = 0, summary = summary };
 
         string sqlData = @"
             SELECT * FROM (
@@ -500,7 +537,8 @@ public class GiftService
         {
             success = true, total = total, page = page, page_size = pageSize,
             total_pages = pageSize > 0 ? (int)Math.Ceiling((double)total / pageSize) : 0,
-            data = rows
+            data = rows,
+            summary = summary
         };
     }
 
@@ -648,6 +686,32 @@ public class GiftService
             res.results.Add(new GiftActionResult { RECIPIENT_ID = recipientId, OK = true, MESSAGE = "Đã gửi yêu cầu xác nhận" });
         }
         res.message = $"Gửi yêu cầu xác nhận: OK {res.processed}, Bỏ qua {res.skipped}, Lỗi {res.failed}";
+        return res;
+    }
+
+    // HR nhắc TẤT CẢ người trong đợt còn chưa xác nhận (đã phát nhưng CONFIRM_STATUS != CONFIRMED) —
+    // gộp cả 2 nhóm "chưa từng gửi yêu cầu" (NONE) và "đã gửi rồi nhưng NV chưa bấm xác nhận"
+    // (PENDING_CONFIRM), vì SendConfirmRequestBulkAsync vốn đã idempotent (gọi lại chỉ resend thông
+    // báo + giữ nguyên PENDING_CONFIRM) — không cần logic riêng, tái dùng luôn để tránh trùng code.
+    // Không phụ thuộc bộ lọc/checkbox hiện tại trên FE, giống "Đã phát cho tất cả" (yêu cầu HR
+    // 2026-09-30: "nhắc mọi người login nhấn xác nhận nhận quà").
+    public async Task<GiftBulkActionResponse> RemindConfirmAllAsync(GiftRemindConfirmAllRequest req)
+    {
+        if (await IsBatchClosedAsync(req.BATCH_ID))
+            return new GiftBulkActionResponse { success = false, message = "Đợt quà đã kết thúc, không thể thao tác" };
+
+        var ids = await _oracleService.ExecuteQueryAsync(
+            @"SELECT ID FROM HRMS.HR_GIFT_RECIPIENT
+              WHERE BATCH_ID = :BID AND DELIVERED_DT IS NOT NULL AND NVL(CONFIRM_STATUS,'NONE') != 'CONFIRMED'",
+            r => Convert.ToInt32(r["ID"]),
+            new OracleParameter("BID", req.BATCH_ID));
+
+        if (ids.Count == 0)
+            return new GiftBulkActionResponse { success = true, processed = 0, message = "Không có ai cần nhắc — mọi người đã xác nhận hết rồi" };
+
+        var bulkReq = new GiftSendConfirmBulkRequest { RECIPIENT_IDS = ids, ACTOR_EMPCD = req.ACTOR_EMPCD };
+        var res = await SendConfirmRequestBulkAsync(bulkReq);
+        res.message = $"Đã nhắc {res.processed} người chưa xác nhận nhận quà" + (res.failed > 0 ? $" (lỗi {res.failed})" : "");
         return res;
     }
 

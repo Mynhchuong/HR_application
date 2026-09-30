@@ -166,6 +166,12 @@ public class GiftBatchCloseRequest
     public string ACTOR_EMPCD { get; set; } = "";
 }
 
+public class GiftRemindConfirmAllRequest
+{
+    public int    BATCH_ID    { get; set; }
+    public string ACTOR_EMPCD { get; set; } = "";
+}
+
 public class GiftConfirmReceiptRequest
 {
     public int    RECIPIENT_ID { get; set; }

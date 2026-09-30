@@ -98,6 +98,10 @@ public class OTHRDetailModel
     public int TOTAL_COUNT { get; set; }
     public int CHANGE_COUNT { get; set; }
     public bool COMP_TIME_REQUIRED { get; set; }
+    // Xác nhận bổ sung (HR yêu cầu 2026-09-12): HR đã gửi yêu cầu tự xác nhận cho NV có OT quá khứ
+    // chưa kịp ký, còn hạn 3 ngày — xem statusExpr/GetOTHRDetail, cùng logic GetOTToday.
+    public bool IS_SUPPLEMENT { get; set; }
+    public DateTime? SUPP_DEADLINE { get; set; }
 }
 
 public class OtLogEntry
@@ -108,6 +112,7 @@ public class OtLogEntry
     public decimal? OLD_HOURS { get; set; }
     public decimal? NEW_HOURS { get; set; }
     public string? ACTOR_EMPCD { get; set; }
+    public string? ACTOR_NAME { get; set; }
     public DateTime INST_DT { get; set; }
 }
 

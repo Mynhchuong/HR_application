@@ -162,6 +162,15 @@ public class GiftController : ControllerBase
         catch (Exception ex) { return Ok(new GiftBulkActionResponse { success = false, message = ex.Message }); }
     }
 
+    // POST /apiHR/Gift/remind-confirm-all — HR nhắc TẤT CẢ người trong đợt còn chưa xác nhận
+    // (không cần chọn dòng), gộp cả người chưa từng được gửi yêu cầu lẫn người đã gửi mà chưa bấm.
+    [HttpPost("remind-confirm-all")]
+    public async Task<IActionResult> RemindConfirmAll([FromBody] GiftRemindConfirmAllRequest req)
+    {
+        try { return Ok(await _svc.RemindConfirmAllAsync(req)); }
+        catch (Exception ex) { return Ok(new GiftBulkActionResponse { success = false, message = ex.Message }); }
+    }
+
     // POST /apiHR/Gift/remind — Thư ký/HR/Admin nhắc công nhân đến lãnh quà (chỉ gửi thông báo,
     // không đổi trạng thái, không chặn app).
     [HttpPost("remind")]

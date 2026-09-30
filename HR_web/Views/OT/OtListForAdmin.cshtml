@@ -194,6 +194,11 @@
         let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ ký</span>`;
         if (item.CONFIRM_STATUS === 'CONFIRMED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã ký</span>`;
         else if (item.CONFIRM_STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger">Từ chối</span>`;
+        // Xác nhận bổ sung: HR đã gửi yêu cầu, đang chờ chính NV tự đăng nhập bấm đồng ý (hạn 3 ngày).
+        if (item.IS_SUPPLEMENT) {
+            const deadlineStr = item.SUPP_DEADLINE ? new Date(item.SUPP_DEADLINE).toLocaleDateString('vi-VN') : '';
+            statusHtml += `<div class="mt-1"><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Hạn NV tự xác nhận: ${deadlineStr}"><i class="bi bi-send-check me-1"></i>Chờ NV xác nhận bổ sung${deadlineStr ? ' (hạn ' + deadlineStr + ')' : ''}</span></div>`;
+        }
         if (item.CHANGE_COUNT > 0) {
             statusHtml += `<div class="mt-1"><a href="javascript:void(0)" class="badge bg-light text-dark border ot-log-btn" data-empcd="${escHtml(item.EMPCD||'')}" data-workdate="${escHtml($('#filterDate').val())}" data-empname="${escHtml(item.EMP_NAME||'')}"><i class="bi bi-clock-history me-1"></i>Đổi ý ${item.CHANGE_COUNT}x</a></div>`;
         }

@@ -67,6 +67,42 @@ public class AttendanceMissingListResponse
     public List<AttendanceMissingItem> data { get; set; } = new();
 }
 
+// HR/Admin đã gửi yêu cầu "xác nhận bổ sung" tăng ca (HR_OT_REQUEST.CONFIRM_STATUS='SUPP_PEND') cho
+// NV — Clerk/Supervisor/DeputyManager/Manager cần thấy trong đúng scope dept/line/work của mình để
+// biết mà nhắc NV đăng nhập app tự xác nhận (yêu cầu HR 2026-09-30). Chỉ thông tin, không thao tác
+// được ở đây — việc ký vẫn do chính NV tự làm ở OT/OtConfirmForm.
+public class OtSuppPendingItem
+{
+    public string  EMPCD      { get; set; } = "";
+    public string? EMP_NAME   { get; set; }
+    public string? DEPT_NAME  { get; set; }
+    public string? LINE_NAME  { get; set; }
+    public string? WORK_NAME  { get; set; }
+    public string  WORK_DATE  { get; set; } = ""; // yyyy-MM-dd
+    public decimal? OT_HOURS  { get; set; }
+    public string  SUPP_DEADLINE { get; set; } = ""; // yyyy-MM-dd
+}
+
+public class OtSuppPendingListResponse
+{
+    public bool    success { get; set; } = true;
+    public string? message { get; set; }
+    public List<OtSuppPendingItem> data { get; set; } = new();
+}
+
+public class SimpleApiResponse
+{
+    public bool    success { get; set; }
+    public string? message { get; set; }
+}
+
+public class RemindSuppOtRequest
+{
+    public string EMPCD       { get; set; } = "";
+    public string WORK_DATE   { get; set; } = ""; // yyyy-MM-dd
+    public string ACTOR_EMPCD { get; set; } = "";
+}
+
 // Bước 1 — công nhân khai giờ vào/ra thực tế cho 1 ngày
 public class WorkerSubmitRequest
 {

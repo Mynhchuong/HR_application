@@ -306,6 +306,102 @@ public class AttendanceConfirmService
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // HR/Admin đã gửi "xác nhận bổ sung" tăng ca (HR_OT_REQUEST.CONFIRM_STATUS='SUPP_PEND') cho NV —
+    // Clerk/Supervisor/DeputyManager/Manager cần thấy trong đúng scope dept/line/work của mình để biết
+    // mà nhắc NV (yêu cầu HR 2026-09-30). Chỉ đọc, không thao tác — NV vẫn tự ký ở OtConfirmForm.
+    // Cùng logic tính hạn 3 ngày với GetOTToday/GetOTHRDetail (HR_api/Controllers/OTController.cs).
+    public async Task<OtSuppPendingListResponse> GetSuppPendingOtAsync(string callerEmpCd, bool isAdminOrHr)
+    {
+        OTScopeFilterHelper.FilterResult? scopeFilter = null;
+        if (!isAdminOrHr)
+        {
+            var hasScope = await _oracleService.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :SE AND ROWNUM = 1",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("SE", callerEmpCd));
+            if (hasScope.FirstOrDefault() == 0)
+                return new OtSuppPendingListResponse { success = true, message = "Chưa được phân quyền bộ phận" };
+            scopeFilter = OTScopeFilterHelper.ForScopeByTuple(callerEmpCd, empAlias: "EC", prefix: "SC");
+        }
+
+        // Lấy trước 5 ngày an toàn (hạn thật chỉ 3 ngày kể từ SUPP_REQUESTED_DATE) rồi lọc chính xác
+        // bằng C# (so cả giờ:phút, không chỉ ngày) — khớp cách tính ở GetOTToday/GetOTHRDetail.
+        string sql = @"
+            SELECT R.EMPCD, EC.CNAME EMP_NAME, B.DEPTNM, B.TEAMNM, B.WORKNM,
+                   R.WORK_DATE, R.OT_HOURS, R.SUPP_REQUESTED_DATE
+            FROM HRMS.HR_OT_REQUEST R
+            JOIN HRMS.ECM100 EC ON EC.EMPCD = R.EMPCD
+            LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+            WHERE R.CONFIRM_STATUS = 'SUPP_PEND'
+              AND R.SUPP_REQUESTED_DATE >= SYSDATE - 5
+              " + (scopeFilter?.SqlClause ?? "") + @"
+            ORDER BY R.SUPP_REQUESTED_DATE DESC";
+
+        var pars = new List<OracleParameter>();
+        if (scopeFilter != null) pars.AddRange(scopeFilter.Params);
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
+        {
+            Empcd       = r["EMPCD"]?.ToString() ?? "",
+            EmpName     = r["EMP_NAME"]?.ToString(),
+            DeptName    = r["DEPTNM"]?.ToString(),
+            LineName    = r["TEAMNM"]?.ToString(),
+            WorkName    = r["WORKNM"]?.ToString(),
+            WorkDate    = r["WORK_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["WORK_DATE"]),
+            OtHours     = r["OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"]),
+            SuppRequestedDate = r["SUPP_REQUESTED_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SUPP_REQUESTED_DATE"])
+        }, pars.ToArray());
+
+        var now = DateTime.Now;
+        var data = rows
+            .Where(x => x.SuppRequestedDate.HasValue && now <= x.SuppRequestedDate.Value.AddDays(3))
+            .Select(x => new OtSuppPendingItem
+            {
+                EMPCD         = x.Empcd,
+                EMP_NAME      = x.EmpName,
+                DEPT_NAME     = x.DeptName,
+                LINE_NAME     = x.LineName,
+                WORK_NAME     = x.WorkName,
+                WORK_DATE     = x.WorkDate?.ToString("yyyy-MM-dd") ?? "",
+                OT_HOURS      = x.OtHours,
+                SUPP_DEADLINE = x.SuppRequestedDate!.Value.AddDays(3).ToString("yyyy-MM-dd")
+            })
+            .ToList();
+
+        return new OtSuppPendingListResponse { success = true, data = data };
+    }
+
+    // Clerk/Supervisor/DeputyManager/Manager (hoặc Admin/HR) bấm "Nhắc xác nhận" từ danh sách trên —
+    // gửi lại ĐÚNG thông báo OT_SUPP_REQUEST cho NV, KHÔNG đụng SUPP_REQUESTED_DATE nên hạn 3 ngày
+    // giữ nguyên (chỉ nhắc, không gia hạn). Quản lý thường bị chặn scope giống ManagerConfirmAsync.
+    public async Task<SimpleApiResponse> RemindSuppOtAsync(string actorEmpcd, bool isAdminOrHr, string empcd, DateTime workDate)
+    {
+        if (!isAdminOrHr)
+        {
+            bool inScope = (await _oracleService.ExecuteQueryAsync(@"
+                SELECT 1 X FROM HRMS.ECM100 EC
+                WHERE EC.EMPCD = :TARGET
+                  AND (EC.DEPTCD, EC.LINECD, EC.WORKCD) IN (
+                      SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :ACTOR)
+                  AND ROWNUM = 1",
+                r => 1,
+                new OracleParameter("TARGET", empcd),
+                new OracleParameter("ACTOR", actorEmpcd))).Any();
+            if (!inScope) return new SimpleApiResponse { success = false, message = "Bạn không thuộc phạm vi quản lý của nhân viên này" };
+        }
+
+        var pending = (await _oracleService.ExecuteQueryAsync(
+            "SELECT SUPP_REQUESTED_DATE FROM HRMS.HR_OT_REQUEST WHERE EMPCD = :E AND WORK_DATE = :WD AND CONFIRM_STATUS = 'SUPP_PEND' AND ROWNUM = 1",
+            r => r["SUPP_REQUESTED_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SUPP_REQUESTED_DATE"]),
+            new OracleParameter("E", empcd), new OracleParameter("WD", workDate))).FirstOrDefault();
+
+        if (pending == null) return new SimpleApiResponse { success = false, message = "NV đã xác nhận rồi hoặc yêu cầu đã hết hạn" };
+
+        _notiSvc.OTSupplementRequested(empcd, actorEmpcd, workDate);
+        return new SimpleApiResponse { success = true, message = "Đã gửi nhắc xác nhận" };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // NV xem lại chính ngày của mình (WorkerForm) — KHÔNG áp scope quản lý (ai cũng được xem
     // ngày của chính mình, không cần HR_USERS_DEPT).
     // ─────────────────────────────────────────────────────────────────────────

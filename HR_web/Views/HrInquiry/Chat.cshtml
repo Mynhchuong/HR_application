@@ -9,6 +9,10 @@
     bool isMyConv  = inq.AssignedTo == myEmpCd;
     bool isLocked  = !string.IsNullOrEmpty(inq.AssignedTo) && !isMyConv;
     bool canClose  = !isClosed && isMyConv;
+    // "AI SAMHO - CSR" (HR_AI_CHAT) dùng CHUNG trang chat này (yêu cầu 2026-10-01) nhưng không có
+    // đính kèm file/trích dẫn thật (bảng gốc không lưu) — ẩn 2 nút đó, và Send/Close/GetMessages
+    // phải trỏ qua endpoint Ai* riêng (xem cuối trang) thay vì endpoint Inquiry thường.
+    bool isAiSource = ViewBag.IsAiSource is true;
 
     string Cls(string st)    => st == "SYS" ? "sys" : (st == "HR" ? "mine" : "theirs");
     string AvCls(string st)  => st == "HR" ? "av-mine" : "av-theirs";
@@ -31,7 +35,7 @@
             <div class="chat-header-meta">
                 <span class="status-pill @(isClosed?"closed":"open")">@(isClosed?"Đã đóng":"Đang mở")</span>
                 @if (inq.ChatType == "ANON") { <span class="anon-pill"><span class="material-symbols-rounded" style="font-size:.7rem;vertical-align:middle">visibility_off</span> Ẩn danh</span> }
-                @if (inq.ChatType == "DIRECT" && !string.IsNullOrEmpty(inq.EmpName))
+                @if ((inq.ChatType == "DIRECT" || inq.ChatType == "AI") && !string.IsNullOrEmpty(inq.EmpName))
                 {
                     var deptMeta = string.Join(" / ", new[] { inq.DeptName, inq.LineName, inq.WorkName }.Where(s => !string.IsNullOrEmpty(s)));
                     <span style="font-size:.72rem;color:#64748b" class="vni-font">@inq.EmpName</span>
@@ -189,9 +193,12 @@
         <div class="chat-input-wrap">
             <div class="file-preview-strip" id="filePreviewStrip"></div>
             <div class="chat-input-row">
-                <button class="btn-attach" onclick="document.getElementById('fileInput').click()">
-                    <span class="material-symbols-rounded" style="font-size:1.2rem">attach_file</span>
-                </button>
+                @if (!isAiSource)
+                {
+                    <button class="btn-attach" onclick="document.getElementById('fileInput').click()">
+                        <span class="material-symbols-rounded" style="font-size:1.2rem">attach_file</span>
+                    </button>
+                }
                 <div class="editor-wrap">
                     <div class="editor-toolbar">
                         <button type="button" id="ed-bold"      class="ed-btn" title="Đậm (Ctrl+B)"><strong>B</strong></button>
@@ -209,7 +216,10 @@
                         <button type="button" id="ed-unlink" class="ed-btn" title="Bỏ link"><span class="material-symbols-rounded">link_off</span></button>
                         <button type="button" id="ed-clear-fmt" class="ed-btn" title="Xóa định dạng"><span class="material-symbols-rounded">format_clear</span></button>
                         <div class="ed-sep"></div>
-                        <button type="button" class="ed-btn" title="Trích dẫn Quy định / Hướng dẫn / Bản tin" onclick="InquiryChat.openRefPicker()"><span class="material-symbols-rounded">menu_book</span></button>
+                        @if (!isAiSource)
+                        {
+                            <button type="button" class="ed-btn" title="Trích dẫn Quy định / Hướng dẫn / Bản tin" onclick="InquiryChat.openRefPicker()"><span class="material-symbols-rounded">menu_book</span></button>
+                        }
                         <button type="button" class="ed-btn" title="Chèn câu trả lời mẫu" onclick="InquiryChat.openCannedPicker()"><span class="material-symbols-rounded">quickreply</span></button>
                     </div>
                     <div id="refChipsStrip" class="ref-chips-strip"></div>
@@ -247,10 +257,10 @@ InquiryChat.init({
     recallableIfUnreadBy: 'EMP',
     defaultTheirsName: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(inq.EmpName ?? "Nhân viên")),
     urls: {
-        getMessages: '@Url.Action("GetMessages","HrInquiry")',
-        send:        '@Url.Action("Send","HrInquiry")',
+        getMessages: '@(isAiSource ? Url.Action("AiGetMessages","HrInquiry") : Url.Action("GetMessages","HrInquiry"))',
+        send:        '@(isAiSource ? Url.Action("AiSend","HrInquiry") : Url.Action("Send","HrInquiry"))',
         recall:      '@Url.Action("Recall","HrInquiry")',
-        close:       '@Url.Action("Close","HrInquiry")',
+        close:       '@(isAiSource ? Url.Action("AiClose","HrInquiry") : Url.Action("Close","HrInquiry"))',
         getFile:     '@Url.Action("GetFile","HrInquiry")',
         uploadFile:  '@Url.Action("UploadFile","HrInquiry")',
         searchRefs:  '@Url.Action("SearchRefs","HrInquiry")',

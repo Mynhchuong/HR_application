@@ -372,6 +372,39 @@ function renderRatingDetail(rows) {
     box.innerHTML = html;
 }
 
+// "AI SAMHO - CSR" (HR_AI_CHAT) — khối riêng, tách hẳn khỏi phần Inquiry phía trên vì không có
+// chủ đề/đánh giá/khoá phụ trách, chỉ có trạng thái + ai đã trả lời (yêu cầu 2026-10-01).
+function buildAiSectionHtml(ai) {
+    if (!ai || ai.success !== true) return '';
+    const s = ai.summary ?? {};
+    let html = `<div class="rpt-section-title"><span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">smart_toy</span> AI SAMHO - CSR</div>`;
+
+    html += `<div class="rpt-cards" style="grid-template-columns:repeat(5,1fr)">
+        <div class="rpt-card"><div class="rpt-card-val" style="color:#7c3aed">${s.total ?? 0}</div><div class="rpt-card-lbl">Tổng đoạn chat</div></div>
+        <div class="rpt-card"><div class="rpt-card-val green">${s.cntOpen ?? 0}</div><div class="rpt-card-lbl">Đang mở</div></div>
+        <div class="rpt-card"><div class="rpt-card-val gray">${s.cntClosed ?? 0}</div><div class="rpt-card-lbl">Đã đóng</div></div>
+        <div class="rpt-card"><div class="rpt-card-val" style="color:#0ea5e9">${s.avgMsg != null ? Number(s.avgMsg).toFixed(1) : '—'}</div><div class="rpt-card-lbl">Tin TB/đoạn</div></div>
+        <div class="rpt-card"><div class="rpt-card-val amber">${s.failedCnt ?? 0}</div><div class="rpt-card-lbl">AI trả lời lỗi</div></div>
+    </div>`;
+
+    const hrs = ai.byHr ?? [];
+    if (hrs.length === 0) {
+        html += `<div class="rpt-table-wrap"><div class="rpt-empty">Chưa có CSR/HR nào trả lời AI chat trong khoảng thời gian này</div></div>`;
+    } else {
+        html += `<div class="rpt-table-wrap"><table class="rpt-table">
+            <thead><tr><th>Nhân sự</th><th class="num">Số đoạn đã trả lời</th><th class="num">Tổng số tin đã gửi</th></tr></thead><tbody>`;
+        for (const h of hrs) {
+            html += `<tr>
+                <td><span class="vni-font" style="font-weight:700;color:#1e293b">${esc(h.hrName || '—')}</span> ${h.hrCd ? `<span style="font-size:.72rem;color:#94a3b8;margin-left:4px">${esc(h.hrCd)}</span>` : ''}</td>
+                <td class="num">${h.repliedChats}</td>
+                <td class="num" style="color:#64748b">${h.repliedMsgs}</td>
+            </tr>`;
+        }
+        html += `</tbody></table></div>`;
+    }
+    return html;
+}
+
 function renderReport(data) {
     const s  = data.summary ?? {};
     const total = s.total ?? 0;
@@ -426,11 +459,13 @@ function renderReport(data) {
     }
     html += `</div>`;
 
-    // ─── Closed-by
-    const tc = (s.closedByHr ?? 0) + (s.closedByEmp ?? 0) + (s.closedByAdmin ?? 0);
+    // ─── Closed-by (thêm "CSR đóng" riêng — yêu cầu 2026-10-01: trước đây CSR bị gắn cứng tính
+    // chung vào bucket HR, báo cáo không tách ra được ai đóng thật)
+    const tc = (s.closedByHr ?? 0) + (s.closedByCsr ?? 0) + (s.closedByEmp ?? 0) + (s.closedByAdmin ?? 0);
     if (tc > 0) {
         html += `<div class="rpt-closed-by">
             <div class="rpt-cb-item"><div class="rpt-cb-val" style="color:#dc2626">${s.closedByHr ?? 0} <span style="font-size:.75rem;color:#94a3b8">(${pct(s.closedByHr??0, tc)}%)</span></div><div class="rpt-cb-lbl">HR đóng</div></div>
+            <div class="rpt-cb-item"><div class="rpt-cb-val" style="color:#0ea5e9">${s.closedByCsr ?? 0} <span style="font-size:.75rem;color:#94a3b8">(${pct(s.closedByCsr??0, tc)}%)</span></div><div class="rpt-cb-lbl">CSR đóng</div></div>
             <div class="rpt-cb-item"><div class="rpt-cb-val" style="color:#16a34a">${s.closedByEmp ?? 0} <span style="font-size:.75rem;color:#94a3b8">(${pct(s.closedByEmp??0, tc)}%)</span></div><div class="rpt-cb-lbl">NV tự đóng</div></div>
             <div class="rpt-cb-item"><div class="rpt-cb-val" style="color:#7c3aed">${s.closedByAdmin ?? 0} <span style="font-size:.75rem;color:#94a3b8">(${pct(s.closedByAdmin??0, tc)}%)</span></div><div class="rpt-cb-lbl">Admin đóng</div></div>
             <div class="rpt-cb-item"><div class="rpt-cb-val gray" style="font-size:1rem">${s.avgMsg != null ? Number(s.avgMsg).toFixed(1) : '—'}</div><div class="rpt-cb-lbl">Tin TB/HT</div></div>
@@ -486,6 +521,10 @@ function renderReport(data) {
         }
         html += `</tbody></table></div>`;
     }
+
+    // ─── AI SAMHO - CSR (yêu cầu 2026-10-01: "báo cáo tính luôn AI") — nguồn tách hẳn khỏi
+    // HR_INQUIRY nên render riêng khối này, không gộp vào các card/bảng Inquiry phía trên.
+    html += buildAiSectionHtml(data.ai);
 
     // ─── Rating detail (sao + nội dung) — placeholder, load riêng sau khi có box
     html += `<div class="rpt-section-title"><span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">reviews</span> Chi tiết đánh giá</div>`;

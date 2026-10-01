@@ -370,18 +370,201 @@ public class AiCsrController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────
+    // Báo cáo "AI SAMHO - CSR" — gộp hiển thị vào Báo cáo hội thoại chung (AdminInquiry/Report,
+    // yêu cầu 2026-10-01) nhưng tách SQL riêng vì nguồn (HR_AI_CHAT) khác hẳn HR_INQUIRY, không có
+    // chủ đề/đánh giá/khoá phụ trách — chỉ có trạng thái + ai trả lời (SENDER_TYPE='CSR').
+    // GET apiHR/AiCsr/report?from=&to=
+    // ─────────────────────────────────────────────────────────────
+    [HttpGet("report")]
+    public async Task<IActionResult> Report(string? from = null, string? to = null)
+    {
+        try
+        {
+            DateTime startDt, endDt;
+            if (DateTime.TryParse(from, out var fDt) && DateTime.TryParse(to, out var tDt))
+            {
+                startDt = fDt.Date;
+                endDt   = tDt.Date.AddDays(1); // inclusive end-day, cùng quy ước với Inquiry/report
+            }
+            else
+            {
+                var today = DateTime.Today;
+                int dow   = (int)today.DayOfWeek;
+                int diff  = dow == 0 ? -6 : 1 - dow;
+                startDt = today.AddDays(diff);
+                endDt   = startDt.AddDays(7);
+            }
+
+            // ── Summary ──────────────────────────────────────────────────
+            var summaryRows = await _db.ExecuteQueryAsync(@"
+                SELECT COUNT(*) TOTAL,
+                       SUM(CASE WHEN STATUS = 'OPEN'   THEN 1 ELSE 0 END) CNT_OPEN,
+                       SUM(CASE WHEN STATUS = 'CLOSED' THEN 1 ELSE 0 END) CNT_CLOSED,
+                       ROUND(AVG(MSG_COUNT), 1) AVG_MSG
+                FROM HRMS.HR_AI_CHAT
+                WHERE TRUNC(INST_DT) >= :START_DT AND TRUNC(INST_DT) < :END_DT",
+                r => new
+                {
+                    Total     = Convert.ToInt32(r["TOTAL"]),
+                    CntOpen   = r["CNT_OPEN"]   == DBNull.Value ? 0 : Convert.ToInt32(r["CNT_OPEN"]),
+                    CntClosed = r["CNT_CLOSED"] == DBNull.Value ? 0 : Convert.ToInt32(r["CNT_CLOSED"]),
+                    AvgMsg    = r["AVG_MSG"]    == DBNull.Value ? (double?)null : Convert.ToDouble(r["AVG_MSG"]),
+                },
+                new OracleParameter("START_DT", startDt), new OracleParameter("END_DT", endDt));
+
+            // Đếm riêng — ORA-00937 nếu nhồi chung vào summary (subquery lồng tham chiếu lại
+            // HR_AI_CHAT không alias gây Oracle hiểu nhầm là group function cấp 2).
+            var failedRows = await _db.ExecuteQueryAsync(@"
+                SELECT COUNT(*) FAILED_CNT
+                FROM HRMS.HR_AI_CHAT_MSG m
+                JOIN HRMS.HR_AI_CHAT c ON c.ID = m.CHAT_ID
+                WHERE m.SENDER_TYPE = 'AI' AND m.AI_FAILED = 1
+                  AND TRUNC(c.INST_DT) >= :START_DT AND TRUNC(c.INST_DT) < :END_DT",
+                r => Convert.ToInt32(r["FAILED_CNT"]),
+                new OracleParameter("START_DT", startDt), new OracleParameter("END_DT", endDt));
+
+            var s = summaryRows.FirstOrDefault();
+
+            // ── Workload theo CSR/HR/Admin đã trả lời (SENDER_TYPE='CSR' trong khoảng ngày chat
+            // được tạo — cùng cơ sở lọc với summary, không lọc theo SENT_DT của từng tin để tránh
+            // đếm người trả lời cũ cho 1 chat cũ nhưng mới nhắn thêm ngoài khoảng) ─────────────────
+            var byHr = await _db.ExecuteQueryAsync(@"
+                SELECT m.SENDER_CD, MAX(ec.CNAME) HR_NAME,
+                       COUNT(DISTINCT m.CHAT_ID) REPLIED_CHATS, COUNT(*) REPLIED_MSGS
+                FROM HRMS.HR_AI_CHAT_MSG m
+                JOIN HRMS.HR_AI_CHAT c ON c.ID = m.CHAT_ID
+                LEFT JOIN HRMS.ECM100 ec ON ec.EMPCD = m.SENDER_CD
+                WHERE m.SENDER_TYPE = 'CSR'
+                  AND TRUNC(c.INST_DT) >= :START_DT AND TRUNC(c.INST_DT) < :END_DT
+                GROUP BY m.SENDER_CD
+                ORDER BY REPLIED_CHATS DESC",
+                r => new
+                {
+                    hrCd         = r["SENDER_CD"]?.ToString() ?? "",
+                    hrName       = r["HR_NAME"]?.ToString(),
+                    repliedChats = Convert.ToInt32(r["REPLIED_CHATS"]),
+                    repliedMsgs  = Convert.ToInt32(r["REPLIED_MSGS"]),
+                },
+                new OracleParameter("START_DT", startDt), new OracleParameter("END_DT", endDt));
+
+            // ── Raw data cho sheet Excel riêng ──────────────────────────────
+            var raw = await _db.ExecuteQueryAsync(@"
+                SELECT c.ID, c.EMPCD, c.EMP_NAME, c.TITLE, c.STATUS, c.MSG_COUNT, c.INST_DT, c.CLOSED_DT,
+                       b.DEPTNM DEPT_NAME, b.TEAMNM LINE_NAME, b.WORKNM WORK_NAME,
+                       (SELECT MAX(m2.SENDER_CD) KEEP (DENSE_RANK LAST ORDER BY m2.ID)
+                        FROM HRMS.HR_AI_CHAT_MSG m2 WHERE m2.CHAT_ID = c.ID AND m2.SENDER_TYPE = 'CSR') LAST_CSR_CD
+                FROM HRMS.HR_AI_CHAT c
+                LEFT JOIN HRMS.ECM100 ec ON ec.EMPCD = c.EMPCD
+                LEFT JOIN HRMS.EAM410 b  ON b.DEPTCD = ec.DEPTCD AND b.LINECD = ec.LINECD AND b.WORKCD = ec.WORKCD
+                WHERE TRUNC(c.INST_DT) >= :START_DT AND TRUNC(c.INST_DT) < :END_DT
+                ORDER BY c.INST_DT DESC",
+                r => new
+                {
+                    id       = Convert.ToDecimal(r["ID"]),
+                    empcd    = r["EMPCD"]?.ToString(),
+                    empName  = r["EMP_NAME"]?.ToString(),
+                    title    = r["TITLE"]?.ToString(),
+                    status   = r["STATUS"]?.ToString(),
+                    msgCount = r["MSG_COUNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["MSG_COUNT"]),
+                    instDt   = r["INST_DT"]   == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["INST_DT"]),
+                    closedDt = r["CLOSED_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CLOSED_DT"]),
+                    deptName = r["DEPT_NAME"]?.ToString(),
+                    lineName = r["LINE_NAME"]?.ToString(),
+                    workName = r["WORK_NAME"]?.ToString(),
+                    lastCsrCd = r["LAST_CSR_CD"]?.ToString(),
+                },
+                new OracleParameter("START_DT", startDt), new OracleParameter("END_DT", endDt));
+
+            return Ok(new
+            {
+                success = true,
+                from = startDt.ToString("yyyy-MM-dd"),
+                to   = endDt.AddDays(-1).ToString("yyyy-MM-dd"),
+                summary = new
+                {
+                    total     = s?.Total ?? 0,
+                    cntOpen   = s?.CntOpen ?? 0,
+                    cntClosed = s?.CntClosed ?? 0,
+                    avgMsg    = s?.AvgMsg,
+                    failedCnt = failedRows.FirstOrDefault(),
+                },
+                byHr = byHr,
+                rawData = raw
+            });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Toàn bộ tin nhắn của mọi đoạn chat AI trong khoảng ngày — cho sheet "Nội dung chat AI" khi
+    // xuất báo cáo (yêu cầu 2026-10-01, cùng tinh thần sheet "Nội dung chat" của Inquiry/report).
+    // GET apiHR/AiCsr/report-messages?from=&to=
+    // ─────────────────────────────────────────────────────────────
+    [HttpGet("report-messages")]
+    public async Task<IActionResult> ReportMessages(string? from = null, string? to = null)
+    {
+        try
+        {
+            DateTime startDt, endDt;
+            if (DateTime.TryParse(from, out var fDt) && DateTime.TryParse(to, out var tDt))
+            {
+                startDt = fDt.Date; endDt = tDt.Date.AddDays(1);
+            }
+            else
+            {
+                var today = DateTime.Today;
+                int dow = (int)today.DayOfWeek;
+                int diff = dow == 0 ? -6 : 1 - dow;
+                startDt = today.AddDays(diff); endDt = startDt.AddDays(7);
+            }
+
+            var rows = await _db.ExecuteQueryAsync(@"
+                SELECT m.CHAT_ID, c.TITLE, c.EMPCD, c.EMP_NAME, c.STATUS,
+                       m.SENDER_TYPE, m.SENDER_CD, m.SENDER_NAME, m.CONTENT, m.AI_FAILED, m.SENT_DT
+                FROM HRMS.HR_AI_CHAT_MSG m
+                JOIN HRMS.HR_AI_CHAT c ON c.ID = m.CHAT_ID
+                WHERE TRUNC(c.INST_DT) >= :START_DT AND TRUNC(c.INST_DT) < :END_DT
+                ORDER BY m.CHAT_ID, m.ID",
+                r => new
+                {
+                    chatId     = Convert.ToDecimal(r["CHAT_ID"]),
+                    title      = r["TITLE"]?.ToString(),
+                    empcd      = r["EMPCD"]?.ToString(),
+                    empName    = r["EMP_NAME"]?.ToString(),
+                    status     = r["STATUS"]?.ToString(),
+                    senderType = r["SENDER_TYPE"]?.ToString(),
+                    senderCd   = r["SENDER_CD"]?.ToString(),
+                    senderName = r["SENDER_NAME"]?.ToString(),
+                    content    = r["CONTENT"]?.ToString(),
+                    aiFailed   = r["AI_FAILED"] != DBNull.Value && Convert.ToInt32(r["AI_FAILED"]) == 1,
+                    sentDt     = r["SENT_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SENT_DT"]),
+                },
+                new OracleParameter("START_DT", startDt), new OracleParameter("END_DT", endDt));
+
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────
     private sealed class HeadRow
     {
         public decimal Id; public string? Empcd; public string? EmpName; public string? Title;
         public string? Status; public int UnreadEmp;
+        public string? DeptName; public string? LineName; public string? WorkName;
     }
 
     private async Task<HeadRow?> LoadHeadAsync(decimal chatId)
     {
-        var rows = await _db.ExecuteQueryAsync(
-            "SELECT ID, EMPCD, EMP_NAME, TITLE, STATUS, UNREAD_EMP FROM HRMS.HR_AI_CHAT WHERE ID = :ID",
+        var rows = await _db.ExecuteQueryAsync(@"
+            SELECT C.ID, C.EMPCD, C.EMP_NAME, C.TITLE, C.STATUS, C.UNREAD_EMP,
+                   B.DEPTNM AS DEPT_NAME, B.TEAMNM AS LINE_NAME, B.WORKNM AS WORK_NAME
+            FROM HRMS.HR_AI_CHAT C
+            LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = C.EMPCD
+            LEFT JOIN HRMS.EAM410 B  ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
+            WHERE C.ID = :ID",
             r => new HeadRow
             {
                 Id = Convert.ToDecimal(r["ID"]),
@@ -390,6 +573,9 @@ public class AiCsrController : ControllerBase
                 Title = r["TITLE"]?.ToString(),
                 Status = r["STATUS"]?.ToString(),
                 UnreadEmp = r["UNREAD_EMP"] == DBNull.Value ? 0 : Convert.ToInt32(r["UNREAD_EMP"]),
+                DeptName = r["DEPT_NAME"]?.ToString(),
+                LineName = r["LINE_NAME"]?.ToString(),
+                WorkName = r["WORK_NAME"]?.ToString(),
             },
             new OracleParameter("ID", chatId));
         return rows.FirstOrDefault();

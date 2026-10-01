@@ -50,5 +50,25 @@ public class AiCsrService
     public Task<string> CsrMarkReadRawAsync(object payload)  => Post("AiCsr/csr-mark-read", payload);
     public Task<string> SetStatusRawAsync(object payload)    => Post("AiCsr/set-status", payload);
 
+    // Báo cáo "AI SAMHO - CSR" — gộp vào Báo cáo hội thoại chung (AdminInquiry/Report, yêu cầu
+    // 2026-10-01). Giữ dạng raw JSON như các method khác ở đây — AdminInquiryController tự parse
+    // bằng JObject rồi gộp vào response chung, không cần model C# riêng cho phần này.
+    public async Task<string> ReportRawAsync(string? from, string? to)
+    {
+        var q = new List<string>();
+        if (!string.IsNullOrEmpty(from)) q.Add($"from={Uri.EscapeDataString(from)}");
+        if (!string.IsNullOrEmpty(to))   q.Add($"to={Uri.EscapeDataString(to)}");
+        return await ReadAsync(await _api.GetAsync_Raw("AiCsr/report", string.Join("&", q)));
+    }
+
+    // Toàn bộ tin nhắn AI chat trong khoảng ngày — cho sheet "Nội dung chat AI" khi xuất Excel.
+    public async Task<string> ReportMessagesRawAsync(string? from, string? to)
+    {
+        var q = new List<string>();
+        if (!string.IsNullOrEmpty(from)) q.Add($"from={Uri.EscapeDataString(from)}");
+        if (!string.IsNullOrEmpty(to))   q.Add($"to={Uri.EscapeDataString(to)}");
+        return await ReadAsync(await _api.GetAsync_Raw("AiCsr/report-messages", string.Join("&", q)));
+    }
+
     private async Task<string> Post(string ep, object payload) => await ReadAsync(await _api.PostAsync(ep, payload));
 }

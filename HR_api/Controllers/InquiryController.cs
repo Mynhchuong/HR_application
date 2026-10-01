@@ -1359,10 +1359,12 @@ public class InquiryController : ControllerBase
             if (conv.Status != "OPEN")
                 return Ok(new { success = false, message = "Hội thoại đã đóng rồi" });
 
-            // Kiểm tra quyền đóng
-            if (req.CloserType == "HR")
+            // Kiểm tra quyền đóng — CSR xử lý giống hệt HR (cùng chịu luật khoá phụ trách), chỉ khác
+            // CLOSED_BY_TYPE lưu riêng 'CSR' để báo cáo tách được ai đóng (yêu cầu 2026-10-01: "csr
+            // đâu" — trước đây CSR gắn cứng lưu là 'HR' nên báo cáo không tách ra được).
+            if (req.CloserType == "HR" || req.CloserType == "CSR")
             {
-                // HR chỉ đóng được conversation mà mình đang phụ trách
+                // HR/CSR chỉ đóng được conversation mà mình đang phụ trách
                 if (!string.IsNullOrEmpty(conv.AssignedTo) && conv.AssignedTo != req.EmpCd)
                     return Ok(new { success = false, message = "Bạn chỉ có thể đóng conversation mà mình đang phụ trách" });
             }
@@ -1380,7 +1382,7 @@ public class InquiryController : ControllerBase
             }
 
             string closerName   = req.CloserName ?? "HR";
-            string dbCloserType = req.CloserType; // DB constraint CHK_INQUIRY_CLOSED_TYPE allows 'HR' | 'EMP' | 'ADMIN'
+            string dbCloserType = req.CloserType; // DB constraint CHK_INQUIRY_CLOSED_TYPE allows 'HR' | 'EMP' | 'ADMIN' | 'CSR'
 
             // Đóng conversation — atomic: check STATUS='OPEN' + ownership trong cùng 1 UPDATE
             int closeRows = await _db.ExecuteNonQueryAsync(@"
@@ -1392,7 +1394,7 @@ public class InquiryController : ControllerBase
                   AND STATUS = 'OPEN'
                   AND (
                        :CLOSER_TYPE = 'ADMIN'
-                    OR (:CLOSER_TYPE = 'HR'  AND (ASSIGNED_TO IS NULL OR ASSIGNED_TO = :EMP_CD))
+                    OR (:CLOSER_TYPE IN ('HR','CSR') AND (ASSIGNED_TO IS NULL OR ASSIGNED_TO = :EMP_CD))
                     OR (:CLOSER_TYPE = 'EMP' AND (EMPCD = :EMP_CD OR ANON_TOKEN = :ANON_TOKEN))
                   )",
                 new OracleParameter("CLOSER_EMP",   req.EmpCd        ?? ""),
@@ -1728,6 +1730,7 @@ public class InquiryController : ControllerBase
                     ROUND(AVG(RATING), 1)    AS AVG_RATING,
                     ROUND(AVG(MSG_COUNT), 1) AS AVG_MSG,
                     SUM(CASE WHEN CLOSED_BY_TYPE = 'HR'    THEN 1 ELSE 0 END) AS CLOSED_BY_HR,
+                    SUM(CASE WHEN CLOSED_BY_TYPE = 'CSR'   THEN 1 ELSE 0 END) AS CLOSED_BY_CSR,
                     SUM(CASE WHEN CLOSED_BY_TYPE = 'EMP'   THEN 1 ELSE 0 END) AS CLOSED_BY_EMP,
                     SUM(CASE WHEN CLOSED_BY_TYPE = 'ADMIN' THEN 1 ELSE 0 END) AS CLOSED_BY_ADMIN,
                     ROUND(AVG(
@@ -1751,6 +1754,7 @@ public class InquiryController : ControllerBase
                         AvgRating     = D(r["AVG_RATING"]),
                         AvgMsg        = D(r["AVG_MSG"]),
                         ClosedByHr    = I(r["CLOSED_BY_HR"]),
+                        ClosedByCsr   = I(r["CLOSED_BY_CSR"]),
                         ClosedByEmp   = I(r["CLOSED_BY_EMP"]),
                         ClosedByAdmin = I(r["CLOSED_BY_ADMIN"]),
                         AvgHandleMin  = D(r["AVG_HANDLE_MIN"])

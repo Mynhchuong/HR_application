@@ -192,6 +192,7 @@ public class InquiryReportSummaryDto
     public double? AvgRating     { get; set; }
     public double? AvgMsg        { get; set; }
     public int     ClosedByHr    { get; set; }
+    public int     ClosedByCsr   { get; set; }
     public int     ClosedByEmp   { get; set; }
     public int     ClosedByAdmin { get; set; }
     public double? AvgHandleMin  { get; set; }

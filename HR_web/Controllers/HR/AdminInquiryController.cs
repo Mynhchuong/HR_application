@@ -5,6 +5,7 @@ using HR_web.API.Service;
 using HR_web.Models.Inquiry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
 
 namespace HR_web.Controllers.HR;
 
@@ -17,7 +18,8 @@ namespace HR_web.Controllers.HR;
 [Authorize(Roles = "Admin,CSR")]
 public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseController
 {
-    public AdminInquiryController(InquiryService inquiry) : base(inquiry) { }
+    private readonly AiCsrService _aiCsr;
+    public AdminInquiryController(InquiryService inquiry, AiCsrService aiCsr) : base(inquiry) { _aiCsr = aiCsr; }
 
     private bool IsAdmin => CurrentUser?.RoleName == "Admin";
 
@@ -45,15 +47,21 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // PAGE: Màn hình chat (có nút Unlock)
-    // GET /AdminInquiry/Chat?id=
+    // PAGE: Màn hình chat (có nút Unlock) — dùng CHUNG cho cả hội thoại thường và AI SAMHO - CSR
+    // (source=AI), cùng cơ chế với HrInquiryController.Chat (yêu cầu 2026-10-01: "cùng 1 cơ chế
+    // mà chia 2 page cực quá").
+    // GET /AdminInquiry/Chat?id=&source=AI
     // ─────────────────────────────────────────────────────────────────────────
-    public async Task<IActionResult> Chat(long id)
+    public async Task<IActionResult> Chat(long id, string? source = null)
     {
         if (!IsAdmin) return Forbid();
         if (id <= 0) return RedirectToAction("Index");
 
-        var result = await _inquiry.GetMessagesAsync(id);
+        bool isAi = source == "AI";
+        var result = isAi
+            ? await BuildAiChatResponseAsync(id)
+            : await _inquiry.GetMessagesAsync(id);
+
         if (!result.success || result.inquiry == null)
         {
             TempData["ErrorMessage"] = result.message ?? "Không tìm thấy hội thoại";
@@ -62,14 +70,137 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
 
         ViewBag.CurrentEmpCd = CurrentUser!.EmpCd;
         ViewBag.CurrentName  = CurrentUser.FullName;
+        ViewBag.IsAiSource   = isAi;
 
-        // Mark read phía HR (Admin dùng chung HR bucket) — ghi mốc đã đọc RIÊNG cho tài khoản này
-        // (viewerEmpcd), khỏi ảnh hưởng badge chưa đọc của các CSR/HR/Admin khác.
-        // AWAIT (không fire-and-forget) để chắc chắn ghi được HR_INQUIRY_READER trước khi user
-        // quay lại danh sách — nếu không, mở xong quay ra vẫn thấy "chưa đọc".
-        await _inquiry.MarkReadAsync(id, "HR", viewerEmpcd: CurrentUser!.EmpCd);
+        if (isAi)
+        {
+            _ = _aiCsr.CsrMarkReadRawAsync(new { chatId = id });
+        }
+        else
+        {
+            // Mark read phía HR (Admin dùng chung HR bucket) — ghi mốc đã đọc RIÊNG cho tài khoản này
+            // (viewerEmpcd), khỏi ảnh hưởng badge chưa đọc của các CSR/HR/Admin khác.
+            // AWAIT (không fire-and-forget) để chắc chắn ghi được HR_INQUIRY_READER trước khi user
+            // quay lại danh sách — nếu không, mở xong quay ra vẫn thấy "chưa đọc".
+            await _inquiry.MarkReadAsync(id, "HR", viewerEmpcd: CurrentUser!.EmpCd);
+        }
 
         return View(result);
+    }
+
+    // Xem BuildAiChatResponseAsync/MapAiMessages (HrInquiryController) để biết chi tiết mapping —
+    // cố tình KHÔNG tách helper dùng chung giữa 2 controller để tránh thêm 1 lớp phụ thuộc chéo
+    // giữa HR và Admin chỉ vì 1 đoạn mapping ngắn.
+    private async Task<InquiryMessagesResponse> BuildAiChatResponseAsync(long id)
+    {
+        JObject obj;
+        try { obj = JObject.Parse(await _aiCsr.ThreadRawAsync(id)); }
+        catch { return new InquiryMessagesResponse { success = false, message = "Lỗi kết nối server" }; }
+
+        if (obj["success"]?.Value<bool>() != true)
+            return new InquiryMessagesResponse { success = false, message = obj["message"]?.Value<string>() ?? "Không tìm thấy hội thoại" };
+
+        var head = obj["head"];
+        var msgs = (obj["messages"] as JArray) ?? new JArray();
+
+        var inquiry = new InquiryListItemDto
+        {
+            Id           = id,
+            InquiryNo    = $"AI-{id}",
+            ChatType     = "AI",
+            TopicCd      = "",
+            TopicName    = "AI SAMHO - CSR",
+            TopicColor   = "#7c3aed",
+            Subject      = head?["Title"]?.Value<string>(),
+            EmpCd        = head?["Empcd"]?.Value<string>(),
+            EmpName      = head?["EmpName"]?.Value<string>(),
+            DeptName     = head?["DeptName"]?.Value<string>(),
+            LineName     = head?["LineName"]?.Value<string>(),
+            WorkName     = head?["WorkName"]?.Value<string>(),
+            Status       = head?["Status"]?.Value<string>() ?? "OPEN",
+            AssignedTo   = CurrentUser?.EmpCd,
+            AssignedName = CurrentUser?.FullName,
+            UnreadHr     = 0,
+            UnreadEmp    = head?["UnreadEmp"]?.Value<int>() ?? 0,
+            MsgCount     = msgs.Count
+        };
+
+        return new InquiryMessagesResponse { success = true, inquiry = inquiry, messages = MapAiMessages(msgs, id) };
+    }
+
+    private static List<InquiryMsgDto> MapAiMessages(JArray msgs, long inquiryId)
+    {
+        return msgs.Select(m =>
+        {
+            string senderType = m["senderType"]?.Value<string>() ?? "EMP";
+            string mapped = senderType switch { "CSR" => "HR", "AI" => "SYS", _ => "EMP" };
+            return new InquiryMsgDto
+            {
+                Id         = m["id"]?.Value<long>() ?? 0,
+                InquiryId  = inquiryId,
+                SenderType = mapped,
+                SenderCd   = m["senderCd"]?.Value<string>(),
+                SenderName = senderType == "AI" ? "🤖 AI SAMHO - CSR" : m["senderName"]?.Value<string>(),
+                MsgType    = "TEXT",
+                Content    = m["content"]?.Value<string>(),
+                IsReadHr   = true,
+                IsReadEmp  = true,
+                IsDeleted  = false,
+                SentDt     = m["sentDt"]?.Value<DateTime?>() ?? DateTime.Now
+            };
+        }).ToList();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Gửi tin nhắn trả lời AI chat / Đóng AI chat — xem HrInquiryController.AiSend/AiClose.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AiSend([FromBody] AdminSendRequest req)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (req.InquiryId <= 0) return Json(new { success = false, message = "Thiếu ID hội thoại" });
+        if (string.IsNullOrWhiteSpace(req.Content)) return Json(new { success = false, message = "Tin nhắn không được để trống" });
+
+        var payload = new
+        {
+            chatId   = req.InquiryId,
+            csrEmpcd = CurrentUser?.EmpCd,
+            csrName  = CurrentUser?.FullName,
+            content  = req.Content.Trim()
+        };
+        return Content(await _aiCsr.CsrReplyRawAsync(payload), "application/json");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AiClose([FromBody] AdminCloseRequest req)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (req.InquiryId <= 0) return Json(new { success = false, message = "Thiếu ID hội thoại" });
+
+        var payload = new { chatId = req.InquiryId, actorEmpcd = CurrentUser?.EmpCd, status = "CLOSED" };
+        return Content(await _aiCsr.SetStatusRawAsync(payload), "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> AiGetMessages(long id, long afterMsgId = 0)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (id <= 0) return Json(new { success = false, message = "Thiếu ID hội thoại" });
+
+        JObject obj;
+        try { obj = JObject.Parse(await _aiCsr.ThreadMessagesRawAsync(id, afterMsgId)); }
+        catch { return Json(new { success = false, message = "Lỗi kết nối server" }); }
+
+        if (obj["success"]?.Value<bool>() != true)
+            return Json(new { success = false, message = obj["message"]?.Value<string>() });
+
+        var msgs = (obj["messages"] as JArray) ?? new JArray();
+        return Json(new
+        {
+            success = true,
+            inquiry = new { status = obj["status"]?.Value<string>() ?? "OPEN" },
+            messages = MapAiMessages(msgs, id)
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -90,6 +221,20 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
         var result = await _inquiry.GetHrListAsync(status, topicCd, chatType, assignedTo, search, sort, CurrentUser?.EmpCd, page, pageSize);
         return Json(result);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Danh sách hội thoại "AI SAMHO - CSR" (HR_AI_CHAT — nguồn riêng, KHÔNG chung
+    // HR_INQUIRY) — gộp hiển thị vào CÙNG trang qua filter "Loại hội thoại" riêng (yêu cầu
+    // 2026-10-01, cùng cơ chế đã làm ở HrInquiry/Index để HR/CSR check). Xem chi tiết/trả lời vẫn
+    // chung Chat?source=AI (controller AiCsrAdmin — cả Index lẫn Thread — đã bỏ hẳn).
+    // GET /AdminInquiry/GetAiList?status=&search=&page=&pageSize=
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetAiList(string? status = null, string? search = null, int page = 1, int pageSize = 30)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        return Content(await _aiCsr.ListRawAsync(status, search, page, pageSize), "application/json");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -138,7 +283,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             empCd:      CurrentUser!.EmpCd,
             anonToken:  null,
             senderType:   "ADMIN",          // bypass lock check ở API
-            senderName:   CurrentUser.RoleName,
+            senderName:   CurrentUser.FullName,
             assignedName: CurrentUser.FullName,
             content:      req.Content,
             files:      finalFiles.Count > 0 ? finalFiles : null,
@@ -252,7 +397,16 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         if (!CanViewReport) return Json(new { success = false, message = "Không có quyền" });
 
         var result = await _inquiry.GetReportAsync(from, to);
-        return Json(result);
+
+        // Gộp thêm "AI SAMHO - CSR" vào cùng báo cáo (yêu cầu 2026-10-01: "báo cáo tính luôn AI") —
+        // nguồn (HR_AI_CHAT) tách hẳn khỏi HR_INQUIRY nên không nhồi vào summary/byTopic/byHr hiện
+        // có (sẽ sai lệch số liệu cũ), mà thêm field "ai" riêng cho FE tự vẽ phần riêng.
+        JObject? aiReport = null;
+        try { aiReport = JObject.Parse(await _aiCsr.ReportRawAsync(from, to)); } catch { }
+
+        var combined = JObject.FromObject(result);
+        combined["ai"] = aiReport;
+        return Content(combined.ToString(Newtonsoft.Json.Formatting.None), "application/json");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -350,7 +504,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         sumHdr.Style.Fill.BackgroundColor = XLColor.FromHtml("#fef2f2");
 
         // ─── Section: Người đóng hội thoại (kèm %) ────────────────────────
-        int tc = s.closedByHr + s.closedByEmp + s.closedByAdmin;
+        int tc = s.closedByHr + s.closedByCsr + s.closedByEmp + s.closedByAdmin;
         string Pct(int part) => tc > 0 ? $" ({Math.Round(part * 100.0 / tc)}%)" : "";
 
         r++;
@@ -362,6 +516,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         r++;
 
         wsSum.Cell(r, 1).Value = "HR đóng";        wsSum.Cell(r, 2).Value = s.closedByHr    + Pct(s.closedByHr);    r++;
+        wsSum.Cell(r, 1).Value = "CSR đóng";       wsSum.Cell(r, 2).Value = s.closedByCsr   + Pct(s.closedByCsr);   r++;
         wsSum.Cell(r, 1).Value = "NV tự đóng";     wsSum.Cell(r, 2).Value = s.closedByEmp   + Pct(s.closedByEmp);   r++;
         wsSum.Cell(r, 1).Value = "Admin đóng";     wsSum.Cell(r, 2).Value = s.closedByAdmin + Pct(s.closedByAdmin); r++;
         wsSum.Cell(r, 1).Value = "Tổng đã đóng";   wsSum.Cell(r, 2).Value = tc;                                     r++;
@@ -510,6 +665,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             string closedByLabel = rw.closedByType switch
             {
                 "HR"    => "HR",
+                "CSR"   => "CSR",
                 "EMP"   => "NV tự đóng",
                 "ADMIN" => "Admin",
                 _       => ""
@@ -677,6 +833,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             string closedByLabel = info?.closedByType switch
             {
                 "HR"    => "HR",
+                "CSR"   => "CSR",
                 "EMP"   => "NV tự đóng",
                 "ADMIN" => "Admin",
                 _       => ""
@@ -696,6 +853,148 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         wsChat.SheetView.FreezeRows(1);
         wsChat.Columns().AdjustToContents();
         wsChat.Column(8).Width = 70;
+
+        // ─── Sheet 7: AI SAMHO - CSR (yêu cầu 2026-10-01: "báo cáo tính luôn AI, xuất Excel luôn
+        // AI") — nguồn HR_AI_CHAT tách hẳn khỏi HR_INQUIRY nên query/sheet riêng, không gộp chung
+        // số liệu với các sheet trên để tránh sai lệch báo cáo cũ.
+        JObject? aiReport = null;
+        try { aiReport = JObject.Parse(await _aiCsr.ReportRawAsync(from, to)); } catch { }
+
+        if (aiReport?["success"]?.Value<bool>() == true)
+        {
+            var wsAi = wb.Worksheets.Add("AI SAMHO - CSR");
+            var aiS  = aiReport["summary"];
+
+            wsAi.Cell(1, 1).Value = "BÁO CÁO AI SAMHO - CSR";
+            wsAi.Cell(1, 1).Style.Font.Bold = true;
+            wsAi.Cell(1, 1).Style.Font.FontSize = 14;
+            wsAi.Range(1, 1, 1, 2).Merge();
+            wsAi.Cell(2, 1).Value = "Kỳ báo cáo"; wsAi.Cell(2, 2).Value = periodLabel;
+
+            int ar = 4;
+            void AiRow(string label, object? value) { wsAi.Cell(ar, 1).Value = label; wsAi.Cell(ar, 2).Value = value?.ToString() ?? "—"; ar++; }
+            AiRow("Tổng đoạn chat AI", aiS?["total"]?.Value<int>());
+            AiRow("Đang mở", aiS?["cntOpen"]?.Value<int>());
+            AiRow("Đã đóng", aiS?["cntClosed"]?.Value<int>());
+            AiRow("Tin nhắn TB/đoạn", aiS?["avgMsg"]?.Value<double?>());
+            AiRow("Số lần AI trả lời lỗi (cần CSR hỗ trợ)", aiS?["failedCnt"]?.Value<int>());
+            wsAi.Range(4, 1, ar - 1, 1).Style.Font.Bold = true;
+            wsAi.Column(1).Width = 36; wsAi.Column(2).Width = 30;
+
+            // Workload — ai đã trả lời bao nhiêu đoạn chat AI
+            ar += 1;
+            wsAi.Cell(ar, 1).Value = "WORKLOAD TRẢ LỜI AI CHAT"; wsAi.Cell(ar, 1).Style.Font.Bold = true;
+            wsAi.Range(ar, 1, ar, 2).Merge(); ar++;
+            string[] aiHrHeaders = { "Mã NS", "Họ và tên", "Số đoạn đã trả lời", "Tổng số tin đã gửi" };
+            for (int i = 0; i < aiHrHeaders.Length; i++)
+            {
+                var c = wsAi.Cell(ar, i + 1);
+                c.Value = aiHrHeaders[i]; c.Style.Font.Bold = true;
+                c.Style.Fill.BackgroundColor = XLColor.FromHtml("#7c3aed"); c.Style.Font.FontColor = XLColor.White;
+            }
+            int hrHeaderRow = ar; ar++;
+            foreach (var h in (aiReport["byHr"] as JArray) ?? new JArray())
+            {
+                wsAi.Cell(ar, 1).Value = h["hrCd"]?.Value<string>() ?? "";
+                var nameCell = wsAi.Cell(ar, 2); nameCell.Value = h["hrName"]?.Value<string>() ?? ""; nameCell.Style.Font.FontName = "Vnitbi__";
+                wsAi.Cell(ar, 3).Value = h["repliedChats"]?.Value<int>() ?? 0;
+                wsAi.Cell(ar, 4).Value = h["repliedMsgs"]?.Value<int>() ?? 0;
+                ar++;
+            }
+            if (ar > hrHeaderRow + 1) wsAi.Range(hrHeaderRow, 1, ar - 1, aiHrHeaders.Length).SetAutoFilter();
+
+            // Raw data — từng đoạn chat
+            ar += 1;
+            wsAi.Cell(ar, 1).Value = "DANH SÁCH ĐOẠN CHAT"; wsAi.Cell(ar, 1).Style.Font.Bold = true;
+            wsAi.Range(ar, 1, ar, 2).Merge(); ar++;
+            string[] aiRawHeaders = { "ID", "Mã NV", "Họ và tên", "Phòng ban", "Line", "Việc", "Câu hỏi đầu", "Trạng thái", "Số tin", "Ngày tạo", "Ngày đóng", "CSR trả lời cuối" };
+            for (int i = 0; i < aiRawHeaders.Length; i++)
+            {
+                var c = wsAi.Cell(ar, i + 1);
+                c.Value = aiRawHeaders[i]; c.Style.Font.Bold = true;
+                c.Style.Fill.BackgroundColor = XLColor.FromHtml("#7c3aed"); c.Style.Font.FontColor = XLColor.White;
+            }
+            int rawHeaderRow = ar; ar++;
+            foreach (var x in (aiReport["rawData"] as JArray) ?? new JArray())
+            {
+                wsAi.Cell(ar, 1).Value = x["id"]?.Value<string>() ?? "";
+                wsAi.Cell(ar, 2).Value = x["empcd"]?.Value<string>() ?? "";
+                var nameCell = wsAi.Cell(ar, 3); nameCell.Value = x["empName"]?.Value<string>() ?? ""; nameCell.Style.Font.FontName = "Vnitbi__";
+                var dlwCell = wsAi.Range(ar, 4, ar, 6); dlwCell.Style.Font.FontName = "Vnitbi__";
+                wsAi.Cell(ar, 4).Value = x["deptName"]?.Value<string>() ?? "";
+                wsAi.Cell(ar, 5).Value = x["lineName"]?.Value<string>() ?? "";
+                wsAi.Cell(ar, 6).Value = x["workName"]?.Value<string>() ?? "";
+                wsAi.Cell(ar, 7).Value = x["title"]?.Value<string>() ?? "";
+                wsAi.Cell(ar, 8).Value = x["status"]?.Value<string>() == "OPEN" ? "Đang mở" : "Đã đóng";
+                wsAi.Cell(ar, 9).Value = x["msgCount"]?.Value<int>() ?? 0;
+                var instDt = x["instDt"]?.Value<DateTime?>();
+                if (instDt.HasValue) { wsAi.Cell(ar, 10).Value = instDt.Value; wsAi.Cell(ar, 10).Style.DateFormat.Format = "dd/MM/yyyy HH:mm"; } else wsAi.Cell(ar, 10).Value = "—";
+                var closedDt = x["closedDt"]?.Value<DateTime?>();
+                if (closedDt.HasValue) { wsAi.Cell(ar, 11).Value = closedDt.Value; wsAi.Cell(ar, 11).Style.DateFormat.Format = "dd/MM/yyyy HH:mm"; } else wsAi.Cell(ar, 11).Value = "—";
+                wsAi.Cell(ar, 12).Value = x["lastCsrCd"]?.Value<string>() ?? "—";
+                ar++;
+            }
+            if (ar > rawHeaderRow + 1) wsAi.Range(rawHeaderRow, 1, ar - 1, aiRawHeaders.Length).SetAutoFilter();
+            wsAi.SheetView.FreezeRows(rawHeaderRow);
+            wsAi.Columns().AdjustToContents();
+            wsAi.Column(7).Width = 45;
+
+            // ─── Sheet 8: Nội dung chat AI (toàn bộ tin nhắn từng đoạn — yêu cầu 2026-10-01, cùng
+            // tinh thần sheet "Nội dung chat" của Inquiry phía trên) ─────────────────────────────
+            JObject? aiMsgReport = null;
+            try { aiMsgReport = JObject.Parse(await _aiCsr.ReportMessagesRawAsync(from, to)); } catch { }
+
+            if (aiMsgReport?["success"]?.Value<bool>() == true)
+            {
+                var wsAiChat = wb.Worksheets.Add("Nội dung chat AI");
+                string[] aiChatHeaders = { "ID đoạn chat", "Câu hỏi đầu", "Mã NV", "Họ và tên", "Thời gian", "Người gửi", "Tên người gửi", "Nội dung" };
+                for (int i = 0; i < aiChatHeaders.Length; i++)
+                {
+                    var c = wsAiChat.Cell(1, i + 1);
+                    c.Value = aiChatHeaders[i]; c.Style.Font.Bold = true;
+                    c.Style.Fill.BackgroundColor = XLColor.FromHtml("#7c3aed"); c.Style.Font.FontColor = XLColor.White;
+                    c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
+
+                int acRow = 2;
+                decimal? prevChatId = null;
+                foreach (var m in (aiMsgReport["data"] as JArray) ?? new JArray())
+                {
+                    decimal chatId = m["chatId"]?.Value<decimal>() ?? 0;
+                    if (prevChatId.HasValue && prevChatId.Value != chatId)
+                        wsAiChat.Range(acRow, 1, acRow, aiChatHeaders.Length).Style.Border.TopBorder = XLBorderStyleValues.Medium;
+
+                    wsAiChat.Cell(acRow, 1).Value = chatId.ToString();
+                    wsAiChat.Cell(acRow, 2).Value = m["title"]?.Value<string>() ?? "";
+                    wsAiChat.Cell(acRow, 3).Value = m["empcd"]?.Value<string>() ?? "";
+                    var nameCell = wsAiChat.Cell(acRow, 4); nameCell.Value = m["empName"]?.Value<string>() ?? ""; nameCell.Style.Font.FontName = "Vnitbi__";
+
+                    var sentDt = m["sentDt"]?.Value<DateTime?>();
+                    if (sentDt.HasValue) { wsAiChat.Cell(acRow, 5).Value = sentDt.Value; wsAiChat.Cell(acRow, 5).Style.DateFormat.Format = "dd/MM/yyyy HH:mm"; }
+                    else wsAiChat.Cell(acRow, 5).Value = "—";
+
+                    string senderType = m["senderType"]?.Value<string>() ?? "";
+                    string senderLabel = senderType switch { "EMP" => "Nhân viên", "CSR" => "CSR/HR", "AI" => "AI", _ => senderType };
+                    wsAiChat.Cell(acRow, 6).Value = senderLabel;
+
+                    var senderNameCell = wsAiChat.Cell(acRow, 7);
+                    senderNameCell.Value = m["senderName"]?.Value<string>() ?? "";
+                    senderNameCell.Style.Font.FontName = "Vnitbi__";
+
+                    var contentCell = wsAiChat.Cell(acRow, 8);
+                    contentCell.Value = StripHtml(m["content"]?.Value<string>());
+                    if (senderType == "AI" && m["aiFailed"]?.Value<bool>() == true) contentCell.Style.Font.Italic = true;
+
+                    prevChatId = chatId;
+                    acRow++;
+                }
+                if (acRow > 2) wsAiChat.Range(1, 1, 1, aiChatHeaders.Length).SetAutoFilter();
+                wsAiChat.SheetView.FreezeRows(1);
+                wsAiChat.Columns().AdjustToContents();
+                wsAiChat.Column(2).Width = 40;
+                wsAiChat.Column(8).Width = 70;
+            }
+        }
 
         using var ms = new MemoryStream();
         wb.SaveAs(ms);

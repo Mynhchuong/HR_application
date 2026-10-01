@@ -22,7 +22,11 @@
 .kind-direct { background: #dbeafe; color: #1d4ed8; }
 .kind-anon   { background: #ede9fe; color: #6d28d9; }
 
-.inq-card-ai {
+.inq-card.inq-card-ai {
+    /* Ghép 2 class (.inq-card.inq-card-ai) để thắng độ ưu tiên CSS so với .inq-card (background:
+       white) khai báo SAU trong file này — trước đây cùng 1-class nên thua theo thứ tự khai báo,
+       khiến nền gradient tím bị đè trắng còn chữ vẫn trắng (set riêng ở dưới) => chữ trắng trên nền
+       trắng, nhìn như trống (bug báo 2026-10-01). */
     background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
     color: #fff;
 }

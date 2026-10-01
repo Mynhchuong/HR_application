@@ -86,10 +86,11 @@
                 <option value="OPEN">Đang mở</option>
                 <option value="CLOSED">Đã đóng</option>
             </select>
-            <select class="form-select form-select-sm" id="fChatType" style="width:auto" onchange="loadData(1)">
+            <select class="form-select form-select-sm" id="fChatType" style="width:auto" onchange="onChatTypeChange()">
                 <option value="">Trực tiếp &amp; Ẩn danh</option>
                 <option value="DIRECT">Trực tiếp</option>
                 <option value="ANON">Ẩn danh</option>
+                <option value="AI">🤖 AI SAMHO - CSR</option>
             </select>
             <select class="form-select form-select-sm" id="fTopic" style="width:auto;min-width:130px" onchange="loadData(1)">
                 <option value="">Tất cả chủ đề</option>
@@ -155,9 +156,14 @@
 
 @section Scripts {
 <script>
-const LIST_URL  = '@Url.Action("GetList","HrInquiry")';
-const CHAT_URL  = '@Url.Action("Chat","HrInquiry")';
-const CLOSE_URL = '@Url.Action("Close","HrInquiry")';
+const LIST_URL     = '@Url.Action("GetList","HrInquiry")';
+const CHAT_URL     = '@Url.Action("Chat","HrInquiry")';
+const CLOSE_URL    = '@Url.Action("Close","HrInquiry")';
+// "AI SAMHO - CSR" — nguồn dữ liệu RIÊNG (HR_AI_CHAT, không chung HR_INQUIRY), gộp hiển thị vào
+// cùng bảng qua filter "Loại hội thoại" riêng (yêu cầu 2026-10-01). Xem chi tiết/trả lời dùng
+// CHUNG màn hình Chat?source=AI (yêu cầu 2026-10-01: "cùng 1 cơ chế mà chia 2 page cực quá") —
+// trang/controller AiCsrAdmin (Index lẫn Thread) đã bỏ hẳn.
+const AI_LIST_URL   = '@Url.Action("GetAiList","HrInquiry")';
 const TOKEN     = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 const MY_EMPCD  = '@(me?.EmpCd ?? "")';
 let pageSize    = 30;
@@ -238,7 +244,23 @@ function buildUrl(page) {
     return url;
 }
 
-async function loadData(page = 1, silent = false) {
+// fTopic/fAssigned/fSort không áp dụng cho nguồn AI chat (không có chủ đề/phụ trách/không hỗ trợ
+// sort riêng) — disable cho rõ, tránh người dùng tưởng chọn mà không có tác dụng.
+function onChatTypeChange() {
+    const isAi = document.getElementById('fChatType').value === 'AI';
+    document.getElementById('fTopic').disabled    = isAi;
+    document.getElementById('fAssigned').disabled = isAi;
+    document.getElementById('fSort').disabled     = isAi;
+    loadData(1);
+}
+
+function loadData(page = 1, silent = false) {
+    return document.getElementById('fChatType').value === 'AI'
+        ? loadAiData(page, silent)
+        : loadNormalData(page, silent);
+}
+
+async function loadNormalData(page = 1, silent = false) {
     if (isLoading) return;
     isLoading = true; currentPage = page;
     if (!silent) {
@@ -304,6 +326,76 @@ async function loadData(page = 1, silent = false) {
                     <td class="px-2 text-center">${i.unreadHr > 0 ? `<span class="unread-badge">${i.unreadHr}</span>` : '<span class="text-muted">—</span>'}</td>
                     <td class="px-2 d-none d-lg-table-cell text-secondary text-sm">${fmtDt(i.lastMsgDt)}</td>
                     <td class="px-2 text-center">${actionCell}</td>
+                </tr>`;
+            }).join('');
+        }
+        renderPagination();
+        updateAutoStatus();
+        saveListState();
+    } catch { if (!silent) showToast('Lỗi kết nối', 'error'); }
+    finally { isLoading = false; }
+}
+
+function buildAiUrl(page) {
+    const s = document.getElementById('fStatus').value;
+    const q = document.getElementById('fSearch').value.trim();
+    let url = `${AI_LIST_URL}?page=${page}&pageSize=${pageSize}`;
+    if (s) url += `&status=${encodeURIComponent(s)}`;
+    if (q) url += `&search=${encodeURIComponent(q)}`;
+    return url;
+}
+
+// "AI SAMHO - CSR" — cùng khung bảng/phân trang với loadNormalData nhưng khác nguồn (HR_AI_CHAT)
+// nên khác field (empcd/empName thay vì empCd/empName viết hoa khác, unreadCsr thay vì unreadHr,
+// không có chủ đề/phụ trách) — tách hẳn hàm render thay vì nhồi chung if/else vào loadNormalData.
+async function loadAiData(page = 1, silent = false) {
+    if (isLoading) return;
+    isLoading = true; currentPage = page;
+    if (!silent) {
+        document.getElementById('inqTableBody').innerHTML =
+            '<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-info" role="status"></div><div class="mt-2 text-sm text-secondary">Đang tải...</div></td></tr>';
+    }
+
+    try {
+        const res  = await fetch(buildAiUrl(page));
+        const data = await res.json();
+        if (!data.success) { if (!silent) showToast(data.message || 'Lỗi tải dữ liệu', 'error'); return; }
+
+        totalRecords = data.total      ?? 0;
+        totalPages   = data.totalPages ?? 1;
+        const newUnread = data.cntUnread ?? 0;
+        document.getElementById('statTotal').textContent  = (data.total   ?? 0).toLocaleString();
+        document.getElementById('statOpen').textContent   = (data.cntOpen ?? 0).toLocaleString();
+        document.getElementById('statUnread').textContent = newUnread.toLocaleString();
+        document.getElementById('statClosed').textContent = ((data.total ?? 0) - (data.cntOpen ?? 0)).toLocaleString();
+
+        if (silent && prevUnread !== null && newUnread > prevUnread) {
+            notifyNewMessages(newUnread - prevUnread, newUnread);
+        }
+        prevUnread = newUnread;
+
+        const items = data.data || [];
+        const tbody = document.getElementById('inqTableBody');
+        if (!items.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5"><span class="material-symbols-rounded" style="font-size:2.5rem;color:#c7d2fe;display:block">smart_toy</span>Không có hội thoại AI nào</td></tr>';
+        } else {
+            tbody.innerHTML = items.map(i => {
+                const statusCls = i.status === 'OPEN' ? 'open' : 'closed';
+                const statusTxt = i.status === 'OPEN' ? 'Mở' : 'Đóng';
+                const meta = [i.deptName, i.lineName, i.workName].filter(Boolean).join(' · ');
+                const empDisplay = `<div class="emp-name-row vni-font">${esc(i.empName||'—')}</div>`
+                           + `<div class="emp-meta">${i.empcd ? `<span class="empcd">${esc(i.empcd)}</span>${meta ? ' · ' : ''}` : ''}${meta ? `<span class="vni-font">${esc(meta)}</span>` : ''}</div>`;
+                return `<tr onclick="window.location.href='${CHAT_URL}?id=${i.id}&source=AI'">
+                    <td class="px-2">
+                        <span class="inq-subj">${esc(i.title||'Hội thoại AI')}</span>
+                        <span class="topic-chip" style="background:#ede9fe;color:#6d28d9;">🤖 AI SAMHO</span>
+                    </td>
+                    <td class="px-2 text-sm">${empDisplay}</td>
+                    <td class="px-2 d-none d-md-table-cell"><span class="text-muted" style="font-size:.78rem">—</span></td>
+                    <td class="px-2 text-center"><span class="status-pill ${statusCls}">${statusTxt}</span></td>
+                    <td class="px-2 text-center">${i.unreadCsr > 0 ? `<span class="unread-badge">${i.unreadCsr}</span>` : '<span class="text-muted">—</span>'}</td>
+                    <td class="px-2 d-none d-lg-table-cell text-secondary text-sm">${fmtDt(i.lastMsgDt)}</td>
+                    <td class="px-2 text-center"><span class="text-muted" style="font-size:.78rem">—</span></td>
                 </tr>`;
             }).join('');
         }
@@ -452,6 +544,11 @@ async function loadTopics() {
             startPage = st.page || 1;
         }
     }
+
+    const isAiRestored = document.getElementById('fChatType').value === 'AI';
+    document.getElementById('fTopic').disabled    = isAiRestored;
+    document.getElementById('fAssigned').disabled = isAiRestored;
+    document.getElementById('fSort').disabled     = isAiRestored;
 
     loadData(startPage);
     startAutoReload();

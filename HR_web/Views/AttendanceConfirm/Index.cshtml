@@ -36,12 +36,12 @@
                     </button>
                     <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
                         <i class="bi bi-calendar3 text-success"></i>
-                        <input type="date" id="filterDateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateFrom" onchange="loadData(1)" />
+                        <input type="date" id="filterDateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateFrom" onchange="loadData(1); loadSuppPending();" />
                     </div>
                     <span class="text-white small">→</span>
                     <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
                         <i class="bi bi-calendar3 text-success"></i>
-                        <input type="date" id="filterDateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateTo" max="@maxDate" onchange="loadData(1)" />
+                        <input type="date" id="filterDateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateTo" max="@maxDate" onchange="loadData(1); loadSuppPending();" />
                     </div>
                 </div>
             </div>
@@ -86,6 +86,7 @@
                     <option value="CONFIRMED">Đã xác nhận</option>
                     <option value="REJECTED">Bị từ chối</option>
                     <option value="SUPP_OT">Chờ ký bổ sung Tăng ca (HR gửi)</option>
+                    <option value="SUPP_DONE">Đã bổ sung Tăng ca (NV đã ký)</option>
                 </select>
             </div>
             <div style="min-width:160px;flex:1 1 160px;max-width:200px;">
@@ -213,18 +214,45 @@ let suppPendingRows = [];
 
 async function loadSuppPending() {
     try {
-        const res = await $.getJSON(SUPP_PENDING_URL);
+        // Dùng CHUNG bộ lọc Bộ Phận/Line/Nhóm Việc/Mã NV/Khoảng ngày với bảng chính — trước đây gọi
+        // không kèm filter nào (kể cả ngày) nên luôn trả về TOÀN BỘ 30 ngày riêng, không khớp với
+        // khoảng ngày người dùng đang chọn ở bảng chính (bug báo 2026-10-01: summary bảng chính = 0
+        // nhưng 2 chip ký bổ sung vẫn ra số vì tự lấy ngày riêng, không theo filter UI).
+        const res = await $.getJSON(SUPP_PENDING_URL, {
+            dept_id: $('#filterDept').val(), line_id: $('#filterLine').val(), work_id: $('#filterWork').val(),
+            search: ($('#searchEmpcd').val() || '').trim(),
+            date_from: $('#filterDateFrom').val(), date_to: $('#filterDateTo').val()
+        });
         suppPendingRows = (res && res.data) || [];
     } catch { suppPendingRows = []; }
     renderSummaryBar(lastSummary);
-    if ($('#filterStatus').val() === 'SUPP_OT') { renderSuppOnlyTable(); return; }
+    if ($('#filterStatus').val() === 'SUPP_OT' || $('#filterStatus').val() === 'SUPP_DONE') { renderSuppOnlyTable(); return; }
     if (currentPage === 1) renderTableFromCache();
 }
 
 function buildSuppRow(item, idx) {
     const deptLine = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean).map(escHtml).join('<br>');
-    return `<tr style="background:#eff6ff;">
-        <td class="text-center"><input type="checkbox" class="supp-chk" data-empcd="${escHtml(item.EMPCD)}" data-workdate="${escHtml(item.WORK_DATE)}" onchange="updateSelCount()"></td>
+    const isDone = item.STATUS === 'DONE';
+    // DONE = NV đã tự bổ sung ký xong (yêu cầu 2026-10-01) — không còn gì để nhắc, chỉ hiển thị
+    // thông tin, không có checkbox/nút hành động.
+    const checkboxCell = isDone
+        ? `<td class="text-center text-secondary">-</td>`
+        : `<td class="text-center"><input type="checkbox" class="supp-chk" data-empcd="${escHtml(item.EMPCD)}" data-workdate="${escHtml(item.WORK_DATE)}" onchange="updateSelCount()"></td>`;
+    const statusCell = isDone
+        ? `<td><span class="att-status-badge" style="background:#10b98122;color:#10b981;"><i class="bi bi-check-circle"></i> Đã bổ sung TC</span></td>`
+        : `<td><span class="att-status-badge" style="background:#3b82f622;color:#3b82f6;"><i class="bi bi-hourglass-split"></i> Chờ ký bổ sung TC</span></td>`;
+    const deadlineCell = isDone
+        ? `<td class="text-xs text-success">Đã ký: ${item.CONFIRMED_DATE ? escHtml(item.CONFIRMED_DATE) : '-'}</td>`
+        : `<td class="text-xs text-danger">Hạn: ${formatDate(item.SUPP_DEADLINE)}</td>`;
+    const actionCell = isDone
+        ? `<td class="text-center text-secondary">-</td>`
+        : `<td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="remindSuppOt('${escHtml(item.EMPCD)}', '${item.WORK_DATE}', this)">
+                <i class="bi bi-bell me-1"></i>Nhắc xác nhận
+            </button>
+        </td>`;
+    return `<tr style="background:${isDone ? '#f0fdf4' : '#eff6ff'};">
+        ${checkboxCell}
         <td class="text-xs text-secondary">${idx}</td>
         <td>
             <div class="text-xs text-secondary">${escHtml(item.EMPCD)}</div>
@@ -236,16 +264,12 @@ function buildSuppRow(item, idx) {
         </td>
         <td class="text-xs">
             <span class="badge bg-primary">Tăng ca ${item.OT_HOURS||0}h</span>
-            <div class="text-xxs text-secondary mt-1">HR yêu cầu ký bổ sung</div>
+            <div class="text-xxs text-secondary mt-1">${isDone ? 'HR đã yêu cầu ký bổ sung' : 'HR yêu cầu ký bổ sung'}</div>
         </td>
-        <td><span class="att-status-badge" style="background:#3b82f622;color:#3b82f6;"><i class="bi bi-hourglass-split"></i> Chờ ký bổ sung TC</span></td>
-        <td class="text-xs text-danger">Hạn: ${formatDate(item.SUPP_DEADLINE)}</td>
+        ${statusCell}
+        ${deadlineCell}
         <td class="text-xxs text-secondary">-</td>
-        <td class="text-center">
-            <button type="button" class="btn btn-sm btn-outline-primary" onclick="remindSuppOt('${escHtml(item.EMPCD)}', '${item.WORK_DATE}', this)">
-                <i class="bi bi-bell me-1"></i>Nhắc xác nhận
-            </button>
-        </td>
+        ${actionCell}
     </tr>`;
 }
 
@@ -282,7 +306,9 @@ function renderSummaryBar(summary) {
         { label: 'Đã xác nhận', val: summary.CONFIRMED, color: STATUS_COLOR.CONFIRMED },
         // Tổng số yêu cầu ký bổ sung Tăng ca HR đã gửi (scope của người xem) — yêu cầu Clerk/Quản lý
         // 2026-09-30: "summary thêm 1 cột total yêu cầu ký tăng ca lại từ hr cho người ta biết".
-        { label: 'Chờ ký bổ sung TC', val: suppPendingRows.length, color: '#3b82f6' },
+        { label: 'Chờ ký bổ sung TC', val: suppPendingRows.filter(r => r.STATUS !== 'DONE').length, color: '#3b82f6' },
+        // Đã bổ sung xong — yêu cầu 2026-10-01: "status đã bổ sung yêu cầu tăng ca luôn".
+        { label: 'Đã bổ sung TC', val: suppPendingRows.filter(r => r.STATUS === 'DONE').length, color: '#10b981' },
     ];
     $bar.html(chips.map(c => `<span class="att-status-badge" style="background:${c.color}22;color:${c.color};">${c.label}: <strong>${c.val || 0}</strong></span>`).join(''));
 }
@@ -507,8 +533,12 @@ let lastRenderedRows = null;
 // chung 1 bảng/1 view với danh sách chấm công thiếu cho gọn — không lặp lại ở các trang sau.
 function renderAttTable(rows, page) {
     lastRenderedRows = rows;
-    const suppHtml = (page === 1 && suppPendingRows.length)
-        ? suppPendingRows.map((r, i) => buildSuppRow(r, i + 1)).join('')
+    // Chỉ chèn khi Trạng thái đang để "Tất cả", và chỉ chèn dòng PENDING (còn chờ) — dòng DONE (đã
+    // bổ sung xong) chỉ xem qua filter riêng, không chèn mặc định để tránh rối bảng chính.
+    const showSupp = !$('#filterStatus').val();
+    const pendingRows = suppPendingRows.filter(r => r.STATUS !== 'DONE');
+    const suppHtml = (page === 1 && showSupp && pendingRows.length)
+        ? pendingRows.map((r, i) => buildSuppRow(r, i + 1)).join('')
         : '';
     const normalHtml = rows.length
         ? rows.map((r, i) => buildRow(r, (page - 1) * pageSize + i + 1)).join('')
@@ -518,16 +548,19 @@ function renderAttTable(rows, page) {
     updateSelCount();
 }
 
-// Filter riêng "Chờ ký bổ sung Tăng ca" — dữ liệu này KHÔNG nằm trong bảng chính (khác nguồn/khác
-// phân trang), nên khi chọn filter này thì hiện TOÀN BỘ suppPendingRows, bỏ qua gọi AJAX bảng chính.
+// Filter riêng "Chờ ký bổ sung TC" / "Đã bổ sung TC" — dữ liệu này KHÔNG nằm trong bảng chính (khác
+// nguồn/khác phân trang), nên khi chọn 1 trong 2 filter này thì hiện TOÀN BỘ nhóm tương ứng từ
+// suppPendingRows, bỏ qua gọi AJAX bảng chính.
 function renderSuppOnlyTable() {
-    totalRecords = suppPendingRows.length;
+    const wantDone = $('#filterStatus').val() === 'SUPP_DONE';
+    const rows = suppPendingRows.filter(r => (r.STATUS === 'DONE') === wantDone);
+    totalRecords = rows.length;
     totalPages = 1;
     canConfirmGlobal = false;
     renderSummaryBar(lastSummary);
-    $('#attTableBody').html(suppPendingRows.length
-        ? suppPendingRows.map((r, i) => buildSuppRow(r, i + 1)).join('')
-        : `<tr><td colspan="10" class="text-center text-secondary py-4">Không có ai đang chờ ký bổ sung tăng ca</td></tr>`);
+    $('#attTableBody').html(rows.length
+        ? rows.map((r, i) => buildSuppRow(r, i + 1)).join('')
+        : `<tr><td colspan="10" class="text-center text-secondary py-4">${wantDone ? 'Chưa có ai bổ sung ký tăng ca' : 'Không có ai đang chờ ký bổ sung tăng ca'}</td></tr>`);
     MobileTableHelper.refresh('attTableBody');
     updateSelCount();
     renderPagination();
@@ -535,7 +568,7 @@ function renderSuppOnlyTable() {
 
 function loadData(page = 1) {
     currentPage = page;
-    if ($('#filterStatus').val() === 'SUPP_OT') { renderSuppOnlyTable(); return; }
+    if ($('#filterStatus').val() === 'SUPP_OT' || $('#filterStatus').val() === 'SUPP_DONE') { renderSuppOnlyTable(); return; }
     $('#attTableBody').html(`<tr><td colspan="10" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
     MobileTableHelper.refresh('attTableBody');
     $.ajax({
@@ -576,11 +609,12 @@ function renderPagination() {
     $bar.append(mk('&rsaquo;', currentPage+1, currentPage>=totalPages));
 }
 
-$('#filterDept').on('change', function () { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });
-$('#filterLine').on('change', function () { $('#filterWork').val(null).trigger('change.select2'); loadData(1); });
-$('#filterWork, #filterStatus, #filterMissingType').on('change', () => loadData(1));
+$('#filterDept').on('change', function () { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); loadSuppPending(); });
+$('#filterLine').on('change', function () { $('#filterWork').val(null).trigger('change.select2'); loadData(1); loadSuppPending(); });
+$('#filterWork').on('change', () => { loadData(1); loadSuppPending(); });
+$('#filterStatus, #filterMissingType').on('change', () => loadData(1));
 let searchTimeout;
-$('#searchEmpcd').on('input', function () { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => loadData(1), 400); });
+$('#searchEmpcd').on('input', function () { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { loadData(1); loadSuppPending(); }, 400); });
 // Nút "Xóa lọc" tự chèn bởi list-page-helper.js (global, mọi trang có .filter-bar) — không tự thêm
 // tay ở đây nữa (trước đây thêm tay gây ra 2 nút X chồng nhau).
 

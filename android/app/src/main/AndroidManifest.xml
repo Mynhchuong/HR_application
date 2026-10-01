@@ -23,7 +23,8 @@
         android:theme="@style/Theme.MySamho">
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|uiMode|smallestScreenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

@@ -81,6 +81,10 @@ public class OtSuppPendingItem
     public string  WORK_DATE  { get; set; } = ""; // yyyy-MM-dd
     public decimal? OT_HOURS  { get; set; }
     public string  SUPP_DEADLINE { get; set; } = ""; // yyyy-MM-dd
+    // PENDING = còn chờ NV tự ký; DONE = NV đã bổ sung ký xong (yêu cầu 2026-10-01: cần thấy luôn
+    // trạng thái đã ký, không chỉ trạng thái đang chờ).
+    public string  STATUS     { get; set; } = "PENDING";
+    public string? CONFIRMED_DATE { get; set; } // yyyy-MM-dd HH:mm, chỉ có khi STATUS = DONE
 }
 
 public class OtSuppPendingListResponse

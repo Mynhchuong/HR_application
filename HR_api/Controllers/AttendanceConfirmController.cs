@@ -60,15 +60,18 @@ public class AttendanceConfirmController : ControllerBase
     // NV tự ký ở OtConfirmForm), lọc theo đúng scope dept/line/work của Clerk/Supervisor/Manager gọi
     // (Admin/HR xem hết) — chỉ để biết mà nhắc NV, không thao tác được ở đây.
     [HttpGet("supp-pending-ot")]
-    public async Task<IActionResult> GetSuppPendingOt(string caller_empcd)
+    public async Task<IActionResult> GetSuppPendingOt(string caller_empcd, string? dept_id = null, string? line_id = null, string? work_id = null, string? search = null, string? date_from = null, string? date_to = null)
     {
         try
         {
             if (string.IsNullOrWhiteSpace(caller_empcd))
                 return Ok(new { success = false, message = "Thiếu mã người dùng" });
 
+            DateTime? fromDate = DateTime.TryParse(date_from, out var df) ? df : null;
+            DateTime? toDate   = DateTime.TryParse(date_to, out var dt) ? dt : null;
+
             bool isAdminOrHr = await _svc.IsAdminOrHRAsync(caller_empcd);
-            var result = await _svc.GetSuppPendingOtAsync(caller_empcd, isAdminOrHr);
+            var result = await _svc.GetSuppPendingOtAsync(caller_empcd, isAdminOrHr, dept_id, line_id, work_id, search, fromDate, toDate);
             return Ok(result);
         }
         catch (Exception ex)

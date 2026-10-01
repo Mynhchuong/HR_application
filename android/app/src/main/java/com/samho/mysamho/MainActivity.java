@@ -139,6 +139,22 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
+            // Renderer WebView crash (thường do trang nặng JS/ảnh trên máy ít RAM) — mặc định
+            // Android (targetSdk >= 26) sẽ KILL LUÔN CẢ APP nếu không override cái này, khiến
+            // app tự tắt/bật lại và trông như "tự load lại liên tục". Xử lý tại chỗ: bỏ WebView
+            // cũ (đã crash, không dùng lại được), tạo lại và load lại URL hiện tại, không kill app.
+            @Override
+            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                if (view != webView) return false;
+                // WebView đã crash, không dùng lại được nữa (kể cả gọi recreate() vì webView.saveState
+                // sẽ không lưu được gì từ 1 WebView đã chết → dễ ra màn hình trắng). An toàn nhất là
+                // restart sạch từ đầu, không mang theo savedInstanceState cũ.
+                android.content.Intent restartIntent = new Intent(MainActivity.this, MainActivity.class);
+                finish();
+                startActivity(restartIntent);
+                return true;
+            }
+
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);

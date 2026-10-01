@@ -310,7 +310,10 @@ public class AttendanceConfirmService
     // Clerk/Supervisor/DeputyManager/Manager cần thấy trong đúng scope dept/line/work của mình để biết
     // mà nhắc NV (yêu cầu HR 2026-09-30). Chỉ đọc, không thao tác — NV vẫn tự ký ở OtConfirmForm.
     // Cùng logic tính hạn 3 ngày với GetOTToday/GetOTHRDetail (HR_api/Controllers/OTController.cs).
-    public async Task<OtSuppPendingListResponse> GetSuppPendingOtAsync(string callerEmpCd, bool isAdminOrHr)
+    public async Task<OtSuppPendingListResponse> GetSuppPendingOtAsync(
+        string callerEmpCd, bool isAdminOrHr,
+        string? deptId = null, string? lineId = null, string? workId = null, string? search = null,
+        DateTime? fromDate = null, DateTime? toDate = null)
     {
         OTScopeFilterHelper.FilterResult? scopeFilter = null;
         if (!isAdminOrHr)
@@ -324,20 +327,54 @@ public class AttendanceConfirmService
             scopeFilter = OTScopeFilterHelper.ForScopeByTuple(callerEmpCd, empAlias: "EC", prefix: "SC");
         }
 
-        // Lấy trước 5 ngày an toàn (hạn thật chỉ 3 ngày kể từ SUPP_REQUESTED_DATE) rồi lọc chính xác
-        // bằng C# (so cả giờ:phút, không chỉ ngày) — khớp cách tính ở GetOTToday/GetOTHRDetail.
+        // Cùng bộ lọc dept/line/work/search với bảng chính (GetMissingListAsync) — trước đây danh
+        // sách này luôn lấy TOÀN BỘ không lọc gì, bị chèn chung vào bảng khiến filter trông như hỏng
+        // (yêu cầu/bug báo 2026-10-01: lọc Bộ Phận=P1 vẫn thấy dòng của bộ phận khác).
+        string searchPattern = string.IsNullOrEmpty(search) ? "%" : "%" + search.ToUpper() + "%";
+
+        // FIX 2026-10-01: trước đây lọc theo SUPP_REQUESTED_DATE >= SYSDATE-30 (ngày HR GỬI yêu cầu),
+        // hoàn toàn KHÔNG LIÊN QUAN tới khoảng ngày (date_from/date_to) người dùng chọn ở bảng chính
+        // (bảng chính lọc theo ADD_TIME.DAT = ngày công thiếu thật). 2 nguồn dữ liệu khác nhau
+        // (ADD_TIME vs HR_OT_REQUEST) bị gộp chung 1 gridview nhưng không JOIN/lọc theo cùng 1 mốc
+        // ngày — gây hiện tượng summary bảng chính = 0 (không có công thiếu trong khoảng ngày chọn)
+        // trong khi 2 chip ký bổ sung vẫn ra số (vì chúng tự lấy 30 ngày riêng, không theo filter ngày
+        // UI). Sửa: lọc theo R.WORK_DATE (ngày tăng ca thật) nằm trong CHÍNH khoảng date_from/date_to
+        // mà người dùng đang chọn — khớp đúng ngữ nghĩa "cùng 1 khoảng ngày" với bảng chính.
+        // SUPP_REQUESTED_DATE KHÔNG bị xoá khi NV ký xong (RetryAsUpdateAsync chỉ UPDATE
+        // CONFIRM_STATUS/OT_HOURS/CONFIRM_DATE) — vẫn dùng cột này để nhận diện "đã từng là yêu cầu
+        // ký bổ sung" (IS NOT NULL) dù giờ đã CONFIRMED; hạn 3 ngày của case PENDING vẫn tính từ đây.
         string sql = @"
             SELECT R.EMPCD, EC.CNAME EMP_NAME, B.DEPTNM, B.TEAMNM, B.WORKNM,
-                   R.WORK_DATE, R.OT_HOURS, R.SUPP_REQUESTED_DATE
+                   R.WORK_DATE, R.OT_HOURS, R.SUPP_REQUESTED_DATE, R.CONFIRM_STATUS, R.CONFIRM_DATE
             FROM HRMS.HR_OT_REQUEST R
             JOIN HRMS.ECM100 EC ON EC.EMPCD = R.EMPCD
             LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
-            WHERE R.CONFIRM_STATUS = 'SUPP_PEND'
-              AND R.SUPP_REQUESTED_DATE >= SYSDATE - 5
+            WHERE R.SUPP_REQUESTED_DATE IS NOT NULL
+              AND R.CONFIRM_STATUS IN ('SUPP_PEND','CONFIRMED')
+              AND (:DF_FLAG IS NULL OR R.WORK_DATE >= :DF_VAL)
+              AND (:DT_FLAG IS NULL OR R.WORK_DATE <= :DT_VAL)
+              AND (:DID_FLAG IS NULL OR EC.DEPTCD = :DID_VAL)
+              AND (:LID_FLAG IS NULL OR EC.LINECD = :LID_VAL)
+              AND (:WID_FLAG IS NULL OR EC.WORKCD = :WID_VAL)
+              AND (:S_FLAG   IS NULL OR UPPER(R.EMPCD) LIKE :S_VAL)
               " + (scopeFilter?.SqlClause ?? "") + @"
             ORDER BY R.SUPP_REQUESTED_DATE DESC";
 
-        var pars = new List<OracleParameter>();
+        var pars = new List<OracleParameter>
+        {
+            new OracleParameter("DF_FLAG",  OracleDbType.Varchar2) { Value = (object?)(fromDate.HasValue ? "Y" : null) ?? DBNull.Value },
+            new OracleParameter("DF_VAL",   OracleDbType.Date)     { Value = (object?)fromDate?.Date ?? DBNull.Value },
+            new OracleParameter("DT_FLAG",  OracleDbType.Varchar2) { Value = (object?)(toDate.HasValue ? "Y" : null) ?? DBNull.Value },
+            new OracleParameter("DT_VAL",   OracleDbType.Date)     { Value = (object?)toDate?.Date ?? DBNull.Value },
+            new OracleParameter("DID_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(deptId) ? null : "Y") ?? DBNull.Value },
+            new OracleParameter("DID_VAL",  OracleDbType.Varchar2) { Value = (object?)deptId ?? DBNull.Value },
+            new OracleParameter("LID_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(lineId) ? null : "Y") ?? DBNull.Value },
+            new OracleParameter("LID_VAL",  OracleDbType.Varchar2) { Value = (object?)lineId ?? DBNull.Value },
+            new OracleParameter("WID_FLAG", OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(workId) ? null : "Y") ?? DBNull.Value },
+            new OracleParameter("WID_VAL",  OracleDbType.Varchar2) { Value = (object?)workId ?? DBNull.Value },
+            new OracleParameter("S_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(search) ? null : "Y") ?? DBNull.Value },
+            new OracleParameter("S_VAL",    OracleDbType.Varchar2) { Value = searchPattern },
+        };
         if (scopeFilter != null) pars.AddRange(scopeFilter.Params);
 
         var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
@@ -349,24 +386,45 @@ public class AttendanceConfirmService
             WorkName    = r["WORKNM"]?.ToString(),
             WorkDate    = r["WORK_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["WORK_DATE"]),
             OtHours     = r["OT_HOURS"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(r["OT_HOURS"]),
-            SuppRequestedDate = r["SUPP_REQUESTED_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SUPP_REQUESTED_DATE"])
+            SuppRequestedDate = r["SUPP_REQUESTED_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SUPP_REQUESTED_DATE"]),
+            ConfirmStatus = r["CONFIRM_STATUS"]?.ToString(),
+            ConfirmDate   = r["CONFIRM_DATE"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CONFIRM_DATE"])
         }, pars.ToArray());
 
         var now = DateTime.Now;
-        var data = rows
-            .Where(x => x.SuppRequestedDate.HasValue && now <= x.SuppRequestedDate.Value.AddDays(3))
-            .Select(x => new OtSuppPendingItem
+        var data = new List<OtSuppPendingItem>();
+        foreach (var x in rows)
+        {
+            if (x.ConfirmStatus == "SUPP_PEND")
             {
-                EMPCD         = x.Empcd,
-                EMP_NAME      = x.EmpName,
-                DEPT_NAME     = x.DeptName,
-                LINE_NAME     = x.LineName,
-                WORK_NAME     = x.WorkName,
-                WORK_DATE     = x.WorkDate?.ToString("yyyy-MM-dd") ?? "",
-                OT_HOURS      = x.OtHours,
-                SUPP_DEADLINE = x.SuppRequestedDate!.Value.AddDays(3).ToString("yyyy-MM-dd")
-            })
-            .ToList();
+                // Vẫn chờ NV ký — chỉ hiện khi còn trong hạn 3 ngày, giống logic cũ.
+                if (!x.SuppRequestedDate.HasValue || now > x.SuppRequestedDate.Value.AddDays(3)) continue;
+                data.Add(new OtSuppPendingItem
+                {
+                    EMPCD = x.Empcd, EMP_NAME = x.EmpName, DEPT_NAME = x.DeptName,
+                    LINE_NAME = x.LineName, WORK_NAME = x.WorkName,
+                    WORK_DATE = x.WorkDate?.ToString("yyyy-MM-dd") ?? "",
+                    OT_HOURS = x.OtHours,
+                    SUPP_DEADLINE = x.SuppRequestedDate!.Value.AddDays(3).ToString("yyyy-MM-dd"),
+                    STATUS = "PENDING"
+                });
+            }
+            else if (x.ConfirmStatus == "CONFIRMED")
+            {
+                // NV đã tự bổ sung ký xong — vẫn cho thấy (yêu cầu 2026-10-01), không giới hạn 3 ngày
+                // vì việc đã xong rồi, chỉ cần biết lịch sử trong 30 ngày gần nhất.
+                data.Add(new OtSuppPendingItem
+                {
+                    EMPCD = x.Empcd, EMP_NAME = x.EmpName, DEPT_NAME = x.DeptName,
+                    LINE_NAME = x.LineName, WORK_NAME = x.WorkName,
+                    WORK_DATE = x.WorkDate?.ToString("yyyy-MM-dd") ?? "",
+                    OT_HOURS = x.OtHours,
+                    SUPP_DEADLINE = x.SuppRequestedDate!.Value.AddDays(3).ToString("yyyy-MM-dd"),
+                    STATUS = "DONE",
+                    CONFIRMED_DATE = x.ConfirmDate?.ToString("yyyy-MM-dd HH:mm")
+                });
+            }
+        }
 
         return new OtSuppPendingListResponse { success = true, data = data };
     }

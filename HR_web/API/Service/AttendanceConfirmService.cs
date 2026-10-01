@@ -35,11 +35,21 @@ public class AttendanceConfirmService
         catch (Exception ex) { return new AttendanceMissingListResponse { success = false, message = ex.Message }; }
     }
 
-    public async Task<OtSuppPendingListResponse> GetSuppPendingOtAsync(string callerEmpcd)
+    public async Task<OtSuppPendingListResponse> GetSuppPendingOtAsync(
+        string callerEmpcd, string? deptId = null, string? lineId = null, string? workId = null, string? search = null,
+        string? fromDate = null, string? toDate = null)
     {
         try
         {
-            var result = await _api.GetAsync<OtSuppPendingListResponse>("attendanceconfirm/supp-pending-ot", $"caller_empcd={callerEmpcd}");
+            var query = $"caller_empcd={callerEmpcd}";
+            if (!string.IsNullOrEmpty(deptId)) query += $"&dept_id={deptId}";
+            if (!string.IsNullOrEmpty(lineId)) query += $"&line_id={lineId}";
+            if (!string.IsNullOrEmpty(workId)) query += $"&work_id={workId}";
+            if (!string.IsNullOrEmpty(search)) query += $"&search={Uri.EscapeDataString(search)}";
+            if (!string.IsNullOrEmpty(fromDate)) query += $"&date_from={fromDate}";
+            if (!string.IsNullOrEmpty(toDate))   query += $"&date_to={toDate}";
+
+            var result = await _api.GetAsync<OtSuppPendingListResponse>("attendanceconfirm/supp-pending-ot", query);
             return result ?? new OtSuppPendingListResponse { success = false, message = "Lỗi kết nối server" };
         }
         catch (Exception ex) { return new OtSuppPendingListResponse { success = false, message = ex.Message }; }

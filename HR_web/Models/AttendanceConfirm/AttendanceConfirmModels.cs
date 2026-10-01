@@ -146,6 +146,8 @@ public class OtSuppPendingItem
     public string  WORK_DATE  { get; set; } = "";
     public decimal? OT_HOURS  { get; set; }
     public string  SUPP_DEADLINE { get; set; } = "";
+    public string  STATUS     { get; set; } = "PENDING";
+    public string? CONFIRMED_DATE { get; set; }
 }
 
 public class OtSuppPendingListResponse

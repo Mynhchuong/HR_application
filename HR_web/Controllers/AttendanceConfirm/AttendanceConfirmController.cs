@@ -69,10 +69,10 @@ public class AttendanceConfirmController : BaseController
     // GET: /AttendanceConfirm/GetSuppPendingOt — HR đã gửi "xác nhận bổ sung" tăng ca, Clerk/Supervisor/
     // Manager cần thấy trong đúng scope của mình để nhắc NV đăng nhập app tự xác nhận.
     [HttpGet]
-    public async Task<IActionResult> GetSuppPendingOt()
+    public async Task<IActionResult> GetSuppPendingOt(string? dept_id = null, string? line_id = null, string? work_id = null, string? search = null, string? date_from = null, string? date_to = null)
     {
         if (string.IsNullOrEmpty(CurrentUser?.EmpCd)) return Json(new { success = false, message = "Chưa đăng nhập" });
-        var result = await _svc.GetSuppPendingOtAsync(CurrentUser.EmpCd);
+        var result = await _svc.GetSuppPendingOtAsync(CurrentUser.EmpCd, dept_id, line_id, work_id, search, date_from, date_to);
         return Json(result);
     }
 

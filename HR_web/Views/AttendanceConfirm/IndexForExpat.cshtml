@@ -36,12 +36,12 @@
                     </button>
                     <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
                         <i class="bi bi-calendar3 text-success"></i>
-                        <input type="date" id="filterDateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateFrom" onchange="loadData(1)" />
+                        <input type="date" id="filterDateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateFrom" onchange="loadData(1); loadSuppPending();" />
                     </div>
                     <span class="text-white small">→</span>
                     <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
                         <i class="bi bi-calendar3 text-success"></i>
-                        <input type="date" id="filterDateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateTo" max="@maxDate" onchange="loadData(1)" />
+                        <input type="date" id="filterDateTo" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateTo" max="@maxDate" onchange="loadData(1); loadSuppPending();" />
                     </div>
                 </div>
             </div>
@@ -85,6 +85,8 @@
                     <option value="PENDING_MANAGER">Waiting for manager</option>
                     <option value="CONFIRMED">Confirmed</option>
                     <option value="REJECTED">Rejected</option>
+                    <option value="SUPP_OT">Pending Supplement OT Sign (from HR)</option>
+                    <option value="SUPP_DONE">Supplement OT Signed (by employee)</option>
                 </select>
             </div>
             <div style="min-width:160px;flex:1 1 160px;max-width:200px;">
@@ -185,6 +187,7 @@ const LIST_URL    = '@Url.Action("GetList", "AttendanceConfirm")';
 const SUBMIT_URL  = '@Url.Action("SubmitWorker", "AttendanceConfirm")';
 const CONFIRM_URL = '@Url.Action("ManagerConfirm", "AttendanceConfirm")';
 const REQUEST_URL = '@Url.Action("RequestConfirm", "AttendanceConfirm")';
+const SUPP_PENDING_URL = '@Url.Action("GetSuppPendingOt")';
 const CSRF_TOKEN  = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
@@ -203,7 +206,90 @@ const MISSING_COLOR = { IN: '#f59e0b', OUT: '#ef4444', BOTH: '#7c3aed' };
 function escHtml(str) { return String(str==null?'':str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatDate(s) { if(!s) return '-'; const p = s.split('-'); return p.length===3 ? `${p[2]}/${p[1]}/${p[0]}` : s; }
 
+// HR has sent a "supplement confirmation" OT request — merged INTO the same table as the missing-
+// attendance list (same pattern as the Vietnamese Index.cshtml) instead of a separate box, so
+// Expat gets the same feature parity as Clerk/Supervisor/Manager/HR.
+let suppPendingRows = [];
+let lastSummary = null;
+
+async function loadSuppPending() {
+    try {
+        // Same date range as the main grid — previously this ignored date_from/date_to entirely and
+        // always used its own 30-day window, causing the main summary chips to show 0 while the
+        // supplement-OT chips still showed numbers (bug reported 2026-10-01).
+        const res = await $.getJSON(SUPP_PENDING_URL, {
+            dept_id: $('#filterDept').val(), line_id: $('#filterLine').val(), work_id: $('#filterWork').val(),
+            search: ($('#searchEmpcd').val() || '').trim(),
+            date_from: $('#filterDateFrom').val(), date_to: $('#filterDateTo').val()
+        });
+        suppPendingRows = (res && res.data) || [];
+    } catch { suppPendingRows = []; }
+    renderSummaryBar(lastSummary);
+    if ($('#filterStatus').val() === 'SUPP_OT' || $('#filterStatus').val() === 'SUPP_DONE') { renderSuppOnlyTable(); return; }
+    if (currentPage === 1) renderTableFromCache();
+}
+
+function buildSuppRow(item, idx) {
+    const deptLine = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean).map(escHtml).join('<br>');
+    const isDone = item.STATUS === 'DONE';
+    const checkboxCell = isDone
+        ? `<td class="text-center text-secondary">-</td>`
+        : `<td class="text-center"><input type="checkbox" class="supp-chk" data-empcd="${escHtml(item.EMPCD)}" data-workdate="${escHtml(item.WORK_DATE)}" onchange="updateSelCount()"></td>`;
+    const statusCell = isDone
+        ? `<td><span class="att-status-badge" style="background:#10b98122;color:#10b981;"><i class="bi bi-check-circle"></i> Supplement OT Signed</span></td>`
+        : `<td><span class="att-status-badge" style="background:#3b82f622;color:#3b82f6;"><i class="bi bi-hourglass-split"></i> Pending Supplement OT Sign</span></td>`;
+    const deadlineCell = isDone
+        ? `<td class="text-xs text-success">Signed: ${item.CONFIRMED_DATE ? escHtml(item.CONFIRMED_DATE) : '-'}</td>`
+        : `<td class="text-xs text-danger">Due: ${formatDate(item.SUPP_DEADLINE)}</td>`;
+    const actionCell = isDone
+        ? `<td class="text-center text-secondary">-</td>`
+        : `<td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="remindSuppOt('${escHtml(item.EMPCD)}', '${item.WORK_DATE}', this)">
+                <i class="bi bi-bell me-1"></i>Remind
+            </button>
+        </td>`;
+    return `<tr style="background:${isDone ? '#f0fdf4' : '#eff6ff'};">
+        ${checkboxCell}
+        <td class="text-xs text-secondary">${idx}</td>
+        <td>
+            <div class="text-xs text-secondary">${escHtml(item.EMPCD)}</div>
+            <div class="text-sm vni-font fw-bold">${escHtml(item.EMP_NAME||'')}</div>
+        </td>
+        <td class="text-sm text-nowrap">${formatDate(item.WORK_DATE)}</td>
+        <td class="text-xxs vni-font text-secondary" style="line-height:1.3;">
+            <div style="max-width:170px;overflow-wrap:break-word;word-break:break-word;">${deptLine}</div>
+        </td>
+        <td class="text-xs">
+            <span class="badge bg-primary">OT ${item.OT_HOURS||0}h</span>
+            <div class="text-xxs text-secondary mt-1">${isDone ? 'HR had requested supplement sign' : 'HR requested supplement sign'}</div>
+        </td>
+        ${statusCell}
+        ${deadlineCell}
+        <td class="text-xxs text-secondary">-</td>
+        ${actionCell}
+    </tr>`;
+}
+
+function renderTableFromCache() {
+    if (!lastRenderedRows) return;
+    renderAttTable(lastRenderedRows, currentPage);
+}
+
+async function remindSuppOt(empcd, workDate, btn) {
+    const $btn = $(btn).prop('disabled', true);
+    try {
+        const res = await $.ajax({
+            url: '@Url.Action("RemindSuppOt")', type: 'POST', contentType: 'application/json',
+            headers: { 'RequestVerificationToken': CSRF_TOKEN },
+            data: JSON.stringify({ EMPCD: empcd, WORK_DATE: workDate })
+        });
+        showToast ? showToast(res.message || (res.success ? 'Reminded' : 'Error'), res.success ? 'success' : 'error') : null;
+    } catch { showToast ? showToast('Connection error', 'error') : null; }
+    finally { $btn.prop('disabled', false); }
+}
+
 function renderSummaryBar(summary) {
+    lastSummary = summary;
     const $bar = $('#summaryBar');
     if (!summary) { $bar.empty(); return; }
     const chips = [
@@ -211,6 +297,8 @@ function renderSummaryBar(summary) {
         { label: 'Waiting for employee', val: summary.PENDING_WORKER, color: STATUS_COLOR.PENDING_WORKER },
         { label: 'Waiting for manager', val: summary.PENDING_MANAGER, color: STATUS_COLOR.PENDING_MANAGER },
         { label: 'Confirmed', val: summary.CONFIRMED, color: STATUS_COLOR.CONFIRMED },
+        { label: 'Pending Supplement OT Sign', val: suppPendingRows.filter(r => r.STATUS !== 'DONE').length, color: '#3b82f6' },
+        { label: 'Supplement OT Signed', val: suppPendingRows.filter(r => r.STATUS === 'DONE').length, color: '#10b981' },
     ];
     $bar.html(chips.map(c => `<span class="att-status-badge" style="background:${c.color}22;color:${c.color};">${c.label}: <strong>${c.val || 0}</strong></span>`).join(''));
 }
@@ -374,26 +462,40 @@ async function doConfirm(status) {
 }
 
 function updateSelCount() {
-    const n = $('#attTableBody .att-save-chk:checked').length;
+    const n = $('#attTableBody .att-save-chk:checked').length + $('#attTableBody .supp-chk:checked').length;
     $('#requestBtn').prop('disabled', n === 0);
     $('#selCountBadge').toggle(n > 0).text(n);
 }
 
 $('#requestBtn').on('click', async function () {
-    const targets = $('#attTableBody .att-save-chk:checked').map((_, el) => ({ EMPCD: $(el).data('empcd'), WORK_DATE: $(el).data('workdate') })).get();
-    if (!targets.length) return;
+    const attTargets  = $('#attTableBody .att-save-chk:checked').map((_, el) => ({ EMPCD: $(el).data('empcd'), WORK_DATE: $(el).data('workdate') })).get();
+    const suppTargets = $('#attTableBody .supp-chk:checked').map((_, el) => ({ EMPCD: $(el).data('empcd'), WORK_DATE: $(el).data('workdate') })).get();
+    if (!attTargets.length && !suppTargets.length) return;
     const $btn = $(this).prop('disabled', true);
     try {
-        const res = await $.ajax({ url: REQUEST_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(targets) });
-        showToast(res.message || 'Done', res.failed > 0 ? 'warning' : 'success');
+        const tasks = [];
+        if (attTargets.length) {
+            tasks.push($.ajax({ url: REQUEST_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(attTargets) }));
+        }
+        suppTargets.forEach(t => {
+            tasks.push($.ajax({
+                url: '@Url.Action("RemindSuppOt")', type: 'POST', contentType: 'application/json',
+                headers: { 'RequestVerificationToken': CSRF_TOKEN },
+                data: JSON.stringify({ EMPCD: t.EMPCD, WORK_DATE: t.WORK_DATE })
+            }));
+        });
+        const results = await Promise.all(tasks);
+        const anyFailed = results.some(r => r && r.success === false);
+        showToast(`Processed ${attTargets.length} confirmation request(s) + ${suppTargets.length} supplement reminder(s)`, anyFailed ? 'warning' : 'success');
         loadData(currentPage);
+        loadSuppPending();
     } catch (e) { showToast('Connection error', 'error'); }
     finally { $btn.prop('disabled', false); }
 });
 
 $('#selectAllChk').on('change', function () {
     const checked = this.checked;
-    $('#attTableBody .att-save-chk:not(:disabled)').prop('checked', checked);
+    $('#attTableBody .att-save-chk:not(:disabled), #attTableBody .supp-chk').prop('checked', checked);
     updateSelCount();
 });
 
@@ -408,8 +510,47 @@ function getParams(page) {
     };
 }
 
+let lastRenderedRows = null;
+
+// Page 1 only: prepend "pending supplement OT sign" rows ahead of the normal list, same 10-column
+// layout as buildRow() — merged into one table instead of a separate box.
+function renderAttTable(rows, page) {
+    lastRenderedRows = rows;
+    // Only prepend while Status = All, and only PENDING rows — DONE rows are only shown via their
+    // own filter, not mixed into the default view.
+    const showSupp = !$('#filterStatus').val();
+    const pendingRows = suppPendingRows.filter(r => r.STATUS !== 'DONE');
+    const suppHtml = (page === 1 && showSupp && pendingRows.length)
+        ? pendingRows.map((r, i) => buildSuppRow(r, i + 1)).join('')
+        : '';
+    const normalHtml = rows.length
+        ? rows.map((r, i) => buildRow(r, (page - 1) * pageSize + i + 1)).join('')
+        : (suppHtml ? '' : `<tr><td colspan="10" class="text-center text-secondary py-4">No data</td></tr>`);
+    $('#attTableBody').html(suppHtml + normalHtml);
+    MobileTableHelper.refresh('attTableBody');
+    updateSelCount();
+}
+
+// "Pending"/"Signed" Supplement OT filters — this data is NOT part of the main paged list (different
+// source/pagination), so selecting either shows the matching group from suppPendingRows in full.
+function renderSuppOnlyTable() {
+    const wantDone = $('#filterStatus').val() === 'SUPP_DONE';
+    const rows = suppPendingRows.filter(r => (r.STATUS === 'DONE') === wantDone);
+    totalRecords = rows.length;
+    totalPages = 1;
+    canConfirmGlobal = false;
+    renderSummaryBar(lastSummary);
+    $('#attTableBody').html(rows.length
+        ? rows.map((r, i) => buildSuppRow(r, i + 1)).join('')
+        : `<tr><td colspan="10" class="text-center text-secondary py-4">${wantDone ? 'No supplement OT signed yet' : 'No one pending supplement OT sign'}</td></tr>`);
+    MobileTableHelper.refresh('attTableBody');
+    updateSelCount();
+    renderPagination();
+}
+
 function loadData(page = 1) {
     currentPage = page;
+    if ($('#filterStatus').val() === 'SUPP_OT' || $('#filterStatus').val() === 'SUPP_DONE') { renderSuppOnlyTable(); return; }
     $('#attTableBody').html(`<tr><td colspan="10" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
     MobileTableHelper.refresh('attTableBody');
     $.ajax({
@@ -423,15 +564,8 @@ function loadData(page = 1) {
             totalRecords = res.total || 0;
             totalPages   = res.total_pages || 0;
             canConfirmGlobal = !!res.can_confirm;
-            const rows   = res.data || [];
             renderSummaryBar(res.summary);
-            if (!rows.length) {
-                $('#attTableBody').html(`<tr><td colspan="10" class="text-center text-secondary py-4">No data</td></tr>`);
-            } else {
-                $('#attTableBody').html(rows.map((r,i) => buildRow(r,(page-1)*pageSize+i+1)).join(''));
-            }
-            MobileTableHelper.refresh('attTableBody');
-            updateSelCount();
+            renderAttTable(res.data || [], page);
             renderPagination();
         },
         error: function (xhr) {
@@ -457,11 +591,12 @@ function renderPagination() {
     $bar.append(mk('&rsaquo;', currentPage+1, currentPage>=totalPages));
 }
 
-$('#filterDept').on('change', function () { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });
-$('#filterLine').on('change', function () { $('#filterWork').val(null).trigger('change.select2'); loadData(1); });
-$('#filterWork, #filterStatus, #filterMissingType').on('change', () => loadData(1));
+$('#filterDept').on('change', function () { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); loadSuppPending(); });
+$('#filterLine').on('change', function () { $('#filterWork').val(null).trigger('change.select2'); loadData(1); loadSuppPending(); });
+$('#filterWork').on('change', () => { loadData(1); loadSuppPending(); });
+$('#filterStatus, #filterMissingType').on('change', () => loadData(1));
 let searchTimeout;
-$('#searchEmpcd').on('input', function () { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => loadData(1), 400); });
+$('#searchEmpcd').on('input', function () { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { loadData(1); loadSuppPending(); }, 400); });
 // "Clear filter" button auto-injected by list-page-helper.js (global, any page with .filter-bar).
 
 $('#exportBtn').on('click', async function () {
@@ -508,6 +643,7 @@ $(function () {
     TimePickerHelper.init('cfTimeIn');
     TimePickerHelper.init('cfTimeOut');
     loadData(1);
+    loadSuppPending();
 });
 </script>
 }

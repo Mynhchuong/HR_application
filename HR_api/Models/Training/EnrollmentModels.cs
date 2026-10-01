@@ -117,4 +117,7 @@ public class RemoveEnrollmentRequest
     public int    CLASS_ID { get; set; }
     public string EMPCD { get; set; } = "";
     public string LOGIN_USER { get; set; } = "";
+    // Xác nhận xóa học viên dù đã COMPLETED (đã chốt, có thể đã cấp chứng chỉ) — yêu cầu 2026-10-01.
+    // Mặc định false để giữ nguyên hành vi chặn cũ, chỉ bỏ qua khi FE xác nhận rõ qua popup riêng.
+    public bool   FORCE { get; set; }
 }

@@ -665,21 +665,40 @@ public class TrainingEnrollmentService
         if (string.IsNullOrWhiteSpace(req.EMPCD))
             throw new InvalidOperationException("Mã nhân viên không hợp lệ.");
 
-        // Không cho xóa nếu học viên đã hoàn thành/thi đạt
+        // Mặc định chặn xóa học viên đã hoàn thành/thi đạt (có thể đã cấp chứng chỉ) — chỉ bỏ qua
+        // khi FE gửi FORCE=true (đã xác nhận rõ qua popup riêng, yêu cầu 2026-10-01: "lớp chốt rồi
+        // vẫn muốn xóa được 1 số học viên").
         var exists = (await _db.ExecuteQueryAsync(
-            "SELECT STATUS FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID AND EMPCD = :EMP",
-            r => r["STATUS"]?.ToString() ?? "",
+            "SELECT STATUS, IS_CERTIFIED FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID AND EMPCD = :EMP",
+            r => new { Status = r["STATUS"]?.ToString() ?? "", IsCertified = Convert.ToInt32(r["IS_CERTIFIED"]) },
             new OracleParameter("CID", req.CLASS_ID),
             new OracleParameter("EMP", req.EMPCD))).FirstOrDefault();
 
         if (exists == null)
             throw new InvalidOperationException("Không tìm thấy học viên trong lớp.");
-        if (exists == "COMPLETED")
-            throw new InvalidOperationException("Không thể xóa học viên đã hoàn thành khóa học.");
+        if (exists.Status == "COMPLETED" && !req.FORCE)
+            throw new InvalidOperationException("Học viên đã hoàn thành khóa học (có thể đã cấp chứng chỉ) — xác nhận lại để xóa.");
 
         await _db.ExecuteNonQueryAsync(
             "DELETE FROM HRMS.HR_TRAINING_ENROLLMENT WHERE CLASS_ID = :CID AND EMPCD = :EMP",
             new OracleParameter("CID", req.CLASS_ID),
             new OracleParameter("EMP", req.EMPCD));
+
+        // Ghi audit riêng khi xóa học viên đã COMPLETED — hành động đáng chú ý (rút luôn chứng chỉ
+        // đã cấp nếu có), khác với xóa học viên ENROLLED/FAILED bình thường không cần audit thêm.
+        if (exists.Status == "COMPLETED")
+        {
+            await _db.ExecuteNonQueryAsync(@"
+                INSERT INTO HRMS.HR_TRAINING_AUDIT
+                    (ACTION, CLASS_ID, AFFECTED_COUNT, PAYLOAD, ACTOR_EMPCD)
+                VALUES ('FORCE_REMOVE_COMPLETED', :CID, 1, :PL, :USR)",
+                new OracleParameter("CID", req.CLASS_ID),
+                new OracleParameter("PL", System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    empcd = req.EMPCD,
+                    wasCertified = exists.IsCertified == 1,
+                })),
+                new OracleParameter("USR", req.LOGIN_USER));
+        }
     }
 }

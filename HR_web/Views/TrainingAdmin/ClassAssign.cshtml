@@ -1371,7 +1371,7 @@
                         <td>${stBadge}</td>
                         <td class="pe-3 text-end">
                             ${actionBtn}
-                            ${s.STATUS !== 'COMPLETED' ? `<button onclick="removeStudent('${s.EMPCD}', '${s.EMP_NAME || s.EMPCD}')" class="btn btn-xs btn-outline-danger fw-bold ms-1" title="Xóa khỏi lớp"><i class="bi bi-person-dash" style="font-size:1rem;"></i></button>` : ''}
+                            <button onclick="removeStudent('${s.EMPCD}', '${s.EMP_NAME || s.EMPCD}', ${s.STATUS === 'COMPLETED' ? 'true' : 'false'})" class="btn btn-xs btn-outline-danger fw-bold ms-1" title="${s.STATUS === 'COMPLETED' ? 'Xóa khỏi lớp (đã hoàn thành — sẽ rút luôn chứng chỉ nếu có)' : 'Xóa khỏi lớp'}"><i class="bi bi-person-dash" style="font-size:1rem;"></i></button>
                         </td>
                     </tr>
                 `;
@@ -1414,12 +1414,17 @@
             wrap.innerHTML += mkItem('»', studentsPage + 1, studentsPage === totalPages, false);
         }
 
-        function removeStudent(empcd, name) {
-            window.showConfirm(`Bạn có chắc muốn xóa học viên <strong>${name}</strong> (${empcd}) khỏi lớp học?`, () => {
+        function removeStudent(empcd, name, isCompleted) {
+            // Lớp đã chốt (COMPLETED) có thể đã cấp chứng chỉ — cảnh báo rõ hơn trước khi xóa, FORCE
+            // chỉ bật khi NGƯỜI DÙNG xác nhận ở đúng popup này (yêu cầu 2026-10-01).
+            const msg = isCompleted
+                ? `Học viên <strong>${name}</strong> (${empcd}) đã HOÀN THÀNH khóa học — xóa sẽ rút luôn chứng chỉ đã cấp (nếu có) và xóa khỏi lớp. Bạn chắc chắn chứ?`
+                : `Bạn có chắc muốn xóa học viên <strong>${name}</strong> (${empcd}) khỏi lớp học?`;
+            window.showConfirm(msg, () => {
                 fetch(window.TRAINING_URLS.removeStudent, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ CLASS_ID: selectedClassId, EMPCD: empcd })
+                    body: JSON.stringify({ CLASS_ID: selectedClassId, EMPCD: empcd, FORCE: isCompleted })
                 })
                 .then(r => r.json())
                 .then(res => {

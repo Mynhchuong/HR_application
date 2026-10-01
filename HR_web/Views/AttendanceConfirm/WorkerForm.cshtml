@@ -61,6 +61,18 @@
     .wf-date-picker input[type="date"]::-webkit-calendar-picker-indicator:hover {
         background: rgba(16,185,129,.12);
     }
+
+    /* Override style mặc định (gọn, cho layout nhiều cột) của time-picker.css — WorkerForm là form
+       1 cột, cần ô chọn giờ TO hơn, dễ bấm bằng ngón tay (cùng tinh thần với ô chọn ngày phía trên).
+       Ghi chú gốc ở time-picker.css đã nhắc override này nhưng trước giờ chưa ai thêm thật. */
+    .wf-card .time-picker select {
+        font-size: 1rem;
+        padding: .65rem .4rem;
+        border-radius: 10px;
+        border-width: 2px;
+    }
+    .wf-card .time-picker select.hour-select { padding-left: .55rem; }
+    .wf-card .time-colon { font-size: 1.3rem; }
 </style>
 }
 

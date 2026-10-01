@@ -442,6 +442,7 @@ public class RemoveEnrollmentWebRequest
 {
     public int CLASS_ID { get; set; }
     public string EMPCD { get; set; } = "";
+    public bool FORCE { get; set; }
 }
 
 // ── Certificate ─────────────────────────────────────────────

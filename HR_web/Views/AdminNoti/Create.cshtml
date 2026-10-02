@@ -363,7 +363,7 @@
 @Html.AntiForgeryToken()
 
 @section Scripts {
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="~/lib/xlsx/xlsx.full.min.js"></script>
 <script>
 const TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 

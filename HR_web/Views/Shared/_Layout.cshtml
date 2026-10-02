@@ -21,10 +21,13 @@
     <link rel="icon" type="image/png" href="~/assets/img/samho-logo.png" />
 
     <!-- Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded" rel="stylesheet" />
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+    <!-- Tự host (không còn gọi CDN công cộng) — "Mạng nội bộ Samho" (WiFi nhà máy) không có Internet
+         ra ngoài, trước đây các thẻ <link>/<script> trỏ CDN bị treo chờ timeout rất lâu, làm trang
+         kẹt loading (báo cáo 2026-10-02 "app load liên tục", đặc biệt rõ ở NV mới). -->
+    <link href="~/lib/googlefonts/inter.css" rel="stylesheet" asp-append-version="true" />
+    <link href="~/lib/googlefonts/material-symbols.css" rel="stylesheet" asp-append-version="true" />
+    <link href="~/lib/fontawesome/css/all.min.css" rel="stylesheet" asp-append-version="true" />
+    <link href="~/lib/bootstrap-icons/bootstrap-icons.css" rel="stylesheet" asp-append-version="true" />
 
     <!-- Material Dashboard CSS -->
     <link href="~/assets/css/nucleo-icons.css" rel="stylesheet" asp-append-version="true" />
@@ -32,7 +35,7 @@
     <link href="~/assets/css/material-dashboard.css?v=3.2.0" rel="stylesheet" asp-append-version="true" />
 
     <!-- Select2 CSS -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />
+    <link href="~/lib/select2/select2.min.css" rel="stylesheet" asp-append-version="true" />
     <!-- Site-wide utility classes (site.css) -->
     <link href="~/css/site.css" rel="stylesheet" asp-append-version="true" />
     <!-- Mobile Table Helper CSS -->
@@ -582,9 +585,10 @@
     </nav>
 
     <!-- Scripts -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/js/select2.min.js"></script>
+    <!-- Tự host (xem ghi chú ở phần <head>) — tránh treo trang khi app ở "Mạng nội bộ" không có Internet -->
+    <script src="~/lib/jquery/jquery-3.6.0.min.js" asp-append-version="true"></script>
+    <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
+    <script src="~/lib/select2/select2.min.js" asp-append-version="true"></script>
     <!-- Gift Gate — bắt 409 gift_pending từ mọi $.ajax, điều hướng sang trang xác nhận nhận quà -->
     <script src="~/js/app-gate.js" asp-append-version="true"></script>
     <!-- Alert Helper -->

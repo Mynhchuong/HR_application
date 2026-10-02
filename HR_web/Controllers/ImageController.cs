@@ -62,7 +62,11 @@ public class ImageController : BaseController
 
     // ── Ảnh nhân viên ───────────────────────────────────────────────────────
     // AllowAnonymous: trang Directory (xem thông tin đồng nghiệp) không cần login vẫn phải load được avatar.
+    // ResponseCache 1h — trước đây KHÔNG cache, mỗi lần mở trang Hồ sơ đều tải lại ảnh gốc từ
+    // network share dù ảnh không đổi, góp phần làm trang chậm/nặng trên máy yếu (yêu cầu 2026-10-02,
+    // video báo app "reload liên tục" — ảnh nặng + không cache kéo dài thời gian load mỗi lần).
     [HttpGet, AllowAnonymous]
+    [ResponseCache(Duration = 3600)]
     public IActionResult GetEmployeeImage(string empCd)
     {
         if (string.IsNullOrWhiteSpace(empCd)) return BadRequest();
@@ -71,7 +75,9 @@ public class ImageController : BaseController
     }
 
     // ── Chữ ký ──────────────────────────────────────────────────────────────
+    // Chữ ký gần như không đổi sau khi tạo — cache dài hơn avatar (86400 = 1 ngày).
     [HttpGet]
+    [ResponseCache(Duration = 86400)]
     public IActionResult GetSignature(string empCd)
     {
         if (string.IsNullOrWhiteSpace(empCd)) return BadRequest();
@@ -576,7 +582,9 @@ public class ImageController : BaseController
         return found;
     }
 
+    // HR cập nhật ảnh minh hoạ WorkCd không thường xuyên — cache 1 ngày như GetSignature.
     [HttpGet, AllowAnonymous]
+    [ResponseCache(Duration = 86400)]
     public IActionResult GetWorkCdImage(string interestCd)
     {
         if (string.IsNullOrWhiteSpace(interestCd) || !InterestCdPattern.IsMatch(interestCd))

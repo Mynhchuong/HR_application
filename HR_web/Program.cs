@@ -134,8 +134,15 @@ app.UseStatusCodePages(ctx =>
     var code = ctx.HttpContext.Response.StatusCode;
     if (HR_web.Helpers.MobileHelper.IsMobileApp(ctx.HttpContext) && (code == 404 || code >= 500))
     {
-        var pathBase = ctx.HttpContext.Request.PathBase.Value ?? "";
-        ctx.HttpContext.Response.Redirect(pathBase + "/Home/Index");
+        // Cùng chốt chặn với HomeController.Error() — nếu chính /Home/Index trả 404/500 (không qua
+        // exception) thì nhánh này sẽ redirect về chính nó, lặp vô hạn (báo cáo 2026-10-02 "app load
+        // liên tục"). Dùng chung cookie "MOBILE_ERR_RETRY" (15s) để chỉ redirect 1 lần.
+        if (!ctx.HttpContext.Request.Cookies.ContainsKey("MOBILE_ERR_RETRY"))
+        {
+            ctx.HttpContext.Response.Cookies.Append("MOBILE_ERR_RETRY", "1", new CookieOptions { MaxAge = TimeSpan.FromSeconds(15) });
+            var pathBase = ctx.HttpContext.Request.PathBase.Value ?? "";
+            ctx.HttpContext.Response.Redirect(pathBase + "/Home/Index");
+        }
     }
     return Task.CompletedTask;
 });

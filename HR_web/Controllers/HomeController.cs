@@ -206,7 +206,20 @@ public class HomeController : BaseController
     [AllowAnonymous]
     public IActionResult Error()
     {
-        if (MobileHelper.IsMobileApp(HttpContext)) return RedirectToAction("Index", "Home");
+        // Mobile app: Index lỗi (exception/404/500) -> Error -> redirect về Index -> lỗi lại -> Error ->...
+        // KHÔNG có chốt chặn trước đây — nếu Index cứ lỗi liên tục (bug data riêng 1 NV, API chập chờn...)
+        // thì app tự load lại vô hạn, không dùng được gì khác (báo cáo 2026-10-02 "app load liên tục").
+        // Dùng cookie tạm (15s) làm chốt "đã retry 1 lần" — không dùng query string vì query gốc của
+        // request lỗi không chắc còn giữ được khi UseExceptionHandler route sang đây.
+        if (MobileHelper.IsMobileApp(HttpContext))
+        {
+            bool alreadyRetried = Request.Cookies.ContainsKey("MOBILE_ERR_RETRY");
+            if (!alreadyRetried)
+            {
+                Response.Cookies.Append("MOBILE_ERR_RETRY", "1", new CookieOptions { MaxAge = TimeSpan.FromSeconds(15) });
+                return RedirectToAction("Index", "Home");
+            }
+        }
         return View();
     }
 }

@@ -91,7 +91,9 @@ function bubble(m){
     const t = m.senderType;
     const cls = (t === 'EMP' ? 'emp' : t === 'CSR' ? 'csr' : ('ai' + (m.aiFailed ? ' failed' : ''))) + (m.pending ? ' pending' : '');
     const av  = t === 'EMP' ? '🧑' : t === 'CSR' ? '🎧' : '🤖';
-    const who = t === 'EMP' ? '' : t === 'CSR' ? `<div class="who">${esc(m.senderName) || 'Hỗ trợ CSR'}</div>` : `<div class="who">AI SAMHO - CSR</div>`;
+    // Không hiện tên thật của CSR/HR cho công nhân thấy — luôn hiện nhãn chung "Hỗ trợ CSR"
+    // (yêu cầu 2026-10-02), dù senderName thật vẫn được lưu DB/thấy ở màn hình quản lý.
+    const who = t === 'EMP' ? '' : t === 'CSR' ? `<div class="who">Hỗ trợ CSR</div>` : `<div class="who">AI SAMHO - CSR</div>`;
     const content = t === 'CSR' ? safeHtml(m.content) : fmt(m.content);
     return `<div class="msg ${cls}">
         <div class="av">${av}</div>

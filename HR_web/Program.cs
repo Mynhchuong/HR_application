@@ -156,7 +156,22 @@ app.UseRequestLocalization(new RequestLocalizationOptions
     SupportedUICultures = supportedCultures
 });
 
-app.UseStaticFiles();
+// Trước đây KHÔNG set Cache-Control cho static files (chỉ có ETag) — mỗi lần vào trang đều phải hỏi
+// lại server cho từng file CSS/JS/font dù không đổi (round-trip 304, không nặng nhưng cộng dồn ~15
+// file lib/ mỗi trang vẫn tốn thời gian, rõ nhất ở lần tải đầu/app WebView cache rỗng — báo cáo
+// 2026-10-02 "load chậm, chưa kịp hiện menu dưới lúc đầu"). File trong wwwroot/lib đã gắn version
+// hash qua asp-append-version nên cache dài hạn (1 năm, immutable) an toàn tuyệt đối — đổi file là
+// đổi hash, không bao giờ trả nhầm bản cũ.
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        if (ctx.File.PhysicalPath?.Contains($"{Path.DirectorySeparatorChar}lib{Path.DirectorySeparatorChar}") == true)
+        {
+            ctx.Context.Response.Headers.CacheControl = "public,max-age=31536000,immutable";
+        }
+    }
+});
 
 app.UseRouting();
 

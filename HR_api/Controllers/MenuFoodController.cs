@@ -68,6 +68,33 @@ public class MenuFoodController : ControllerBase
             if (string.IsNullOrWhiteSpace(model.FOOD_NAME))
                 return Ok(new { success = false, message = "Vui lòng nhập tên món ăn" });
 
+            // Chuẩn hoá tên món — tránh hàng loạt case rác thật đã dọn tay 2026-10-02 (khoảng trắng kép,
+            // dấu phẩy/dấu + thừa đầu-cuối, "A + + B", "A +" cụt...), áp dụng cho cả thêm mới lẫn sửa:
+            //   1) gộp khoảng trắng kép -> 1
+            //   2) dấu phẩy (ngăn cách combo kiểu cũ) -> " + " cho đồng bộ 1 kiểu duy nhất
+            //   3) tách theo " + ", trim từng phần, bỏ phần rỗng (dấu + thừa/cụt), rồi nối lại
+            var name = System.Text.RegularExpressions.Regex.Replace(model.FOOD_NAME.Trim(), " +", " ");
+            name = System.Text.RegularExpressions.Regex.Replace(name, @"\s*,\s*", " + ");
+            name = System.Text.RegularExpressions.Regex.Replace(name, @"\s*\+\s*", " + ");
+            var parts = name.Split(" + ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            model.FOOD_NAME = string.Join(" + ", parts);
+
+            if (string.IsNullOrWhiteSpace(model.FOOD_NAME))
+                return Ok(new { success = false, message = "Vui lòng nhập tên món ăn" });
+
+            // Chặn trùng tên (không phân biệt hoa/thường, đã chuẩn hoá khoảng trắng ở trên) — sửa thì
+            // loại trừ chính dòng đang sửa.
+            const string dupSql = @"
+                SELECT COUNT(*) CNT FROM HRMS.HR_MENU_FOOD
+                WHERE UPPER(FOOD_NAME) = UPPER(:FOOD_NAME)
+                  AND (:ID IS NULL OR ID != :ID)";
+            var dupCount = (await _db.ExecuteQueryAsync(dupSql,
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("FOOD_NAME", model.FOOD_NAME),
+                new OracleParameter("ID", (object?)model.ID ?? DBNull.Value))).FirstOrDefault();
+            if (dupCount > 0)
+                return Ok(new { success = false, message = $"Món ăn \"{model.FOOD_NAME}\" đã tồn tại, vui lòng kiểm tra lại." });
+
             if (model.ID == null || model.ID == 0)
             {
                 const string sql = @"

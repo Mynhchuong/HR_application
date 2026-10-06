@@ -87,6 +87,12 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
+        // Bật remote debug cho WebView (chrome://inspect qua cáp USB) — cần để soi trực tiếp
+        // console/network lúc bug "load liên tục" xảy ra thật trên máy NV, thay vì đoán qua video
+        // (điều tra 2026-10-03). Không ảnh hưởng NV bình thường — chỉ dùng được khi cắm cáp USB vào
+        // máy tính đã bật USB debugging, không có cách nào kích hoạt từ xa/không cắm dây.
+        WebView.setWebContentsDebuggingEnabled(true);
+
         createNotificationChannel();
         requestNotificationPermission();
         checkAppVersion();
@@ -547,6 +553,14 @@ public class MainActivity extends AppCompatActivity {
                     photoFile);
             takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCameraPhotoUri);
             takePictureIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            // Chỉ cấp quyền GHI cho app Camera là chưa đủ — sau khi chụp xong, chính WebView (chạy ở
+            // process sandbox riêng) phải ĐỌC LẠI file này để upload (vd form chữ ký ở ProfileUser)
+            // nhưng không có quyền đọc content:// URI của FileProvider → đọc ra file rỗng/lỗi, upload
+            // thất bại âm thầm, NV bị đá về lại trang chữ ký liên tục không ký được (điều tra
+            // 2026-10-05 "NV mới load liên tục trang profile tới khi ký xong mới hết"). Cấp thêm
+            // quyền đọc tường minh cho chính app mình để WebView đọc lại được bình thường.
+            grantUriPermission(getPackageName(), mCameraPhotoUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             startActivityForResult(takePictureIntent, FILE_CHOOSER_RESULT_CODE);
         } else {
             cancelFileChooser();
@@ -571,6 +585,9 @@ public class MainActivity extends AppCompatActivity {
                     videoFile);
             takeVideoIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCameraPhotoUri);
             takeVideoIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            // Cùng lý do với launchCameraPhoto() — WebView cần quyền đọc lại file sau khi quay xong.
+            grantUriPermission(getPackageName(), mCameraPhotoUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             takeVideoIntent.putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 1);          // high
             takeVideoIntent.putExtra(MediaStore.EXTRA_DURATION_LIMIT, 60);        // max 60s
             takeVideoIntent.putExtra(MediaStore.EXTRA_SIZE_LIMIT, 50L * 1024 * 1024); // 50MB

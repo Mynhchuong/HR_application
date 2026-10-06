@@ -29,9 +29,15 @@ public class RequireUpdateProfileFilter : IAsyncActionFilter
             return;
         }
 
-        // Bỏ qua các controller không cần kiểm tra
+        // Bỏ qua các controller không cần kiểm tra. "notification" PHẢI có ở đây (giống
+        // AppGateRegistry.CommonWhitelist của Survey/Gift) — _Layout.cshtml tự fetch
+        // Notification/RegisterToken (đăng ký FCM token) ở MỌI trang đã login kể cả chính trang
+        // ProfileUser. Thiếu "notification" → request đó bị chặn 409 → app-gate.js (chỉ chạy trong
+        // app vì cần window.Android bridge) tự redirect về lại ProfileUser dù ĐANG Ở ĐÓ RỒI → mỗi
+        // lần trang load lại tự bắn lại request → lặp vô hạn, NV mới chưa ký không thao tác được gì
+        // (điều tra 2026-10-05 "load liên tục trang profile tới khi ký xong mới hết").
         var controllerName = (context.RouteData.Values["controller"]?.ToString() ?? "").ToLower();
-        if (controllerName is "account" or "profile" or "image")
+        if (controllerName is "account" or "profile" or "image" or "notification")
         {
             await next();
             return;

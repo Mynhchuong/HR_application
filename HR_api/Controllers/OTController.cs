@@ -1362,6 +1362,15 @@ public class OTController : ControllerBase
             if (string.IsNullOrWhiteSpace(workDateStr) || !DateTime.TryParse(workDateStr, out var workDate))
                 return Ok(new { success = false, message = "Ngày không hợp lệ" });
 
+            // "Nhắc NV tự ký" chỉ dành cho OT còn trong hạn xác nhận (chưa tới/qua giờ tăng ca) — nếu
+            // cho chọn ngày quá khứ, NV nhận thông báo xong bấm vào ConfirmOT sẽ LUÔN bị chặn bởi mốc
+            // khoá giờ (lockAt đã qua từ lâu) vì request này KHÔNG tạo bản ghi SUPP_PEND để bỏ qua mốc
+            // khoá đó — tạo ra thông báo "mời xác nhận" nhưng không bao giờ xác nhận được (bug thật
+            // 2026-10-06, NV 08012400 nhận nhắc ngày 7/9 lúc đã sang tháng 10, bấm xác nhận bị từ chối
+            // mãi). Ngày quá khứ phải dùng đúng tính năng "Yêu cầu xác nhận bổ sung" (tạo SUPP_PEND).
+            if (workDate.Date < DateTime.Today)
+                return Ok(new { success = false, message = "Ngày đã qua — vui lòng dùng tính năng \"Yêu cầu xác nhận bổ sung\" cho ngày quá khứ thay vì Nhắc ký (nhắc ký thường chỉ dành cho OT còn trong hạn xác nhận)." });
+
             var clerkFilter = Helpers.OTScopeFilterHelper.ForScopeByTuple(clerkEmpCd, prefix: "CK");
 
             string withSql = @"
@@ -1434,6 +1443,11 @@ public class OTController : ControllerBase
 
             if (string.IsNullOrWhiteSpace(workDateStr) || !DateTime.TryParse(workDateStr, out var workDate))
                 return Ok(new { success = false, message = "Ngày không hợp lệ" });
+
+            // Cùng lý do với RemindPendingOTSign ở trên — ngày quá khứ phải dùng "Yêu cầu xác nhận
+            // bổ sung", không dùng nhắc ký thường (sẽ tạo thông báo không bao giờ xác nhận được).
+            if (workDate.Date < DateTime.Today)
+                return Ok(new { success = false, message = "Ngày đã qua — vui lòng dùng tính năng \"Yêu cầu xác nhận bổ sung\" cho ngày quá khứ thay vì Nhắc ký (nhắc ký thường chỉ dành cho OT còn trong hạn xác nhận)." });
 
             string sqlPending = @"
                 WITH OT_BASE AS (

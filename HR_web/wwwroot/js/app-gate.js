@@ -18,7 +18,15 @@
     'use strict';
 
     function checkGateBlocked(json) {
-        if (json && json.gate && json.redirect_url) window.location.href = json.redirect_url;
+        if (!json || !json.gate || !json.redirect_url) return;
+        // Đang ở ĐÚNG trang đích rồi thì KHÔNG redirect nữa — nếu không, 1 request nền bị gate chặn
+        // ngay trên chính trang đích (vd fetch đăng ký FCM token ở _Layout chạy trên mọi trang kể cả
+        // trang đích) sẽ khiến window.location.href gán lại chính URL hiện tại → trang tự reload →
+        // load lại là lại bắn request đó → lại bị chặn → lặp vô hạn, không thao tác được gì (bug thật
+        // 2026-10-05, thiếu whitelist 1 controller ở backend gây ra, vá tận gốc rồi nhưng chặn thêm
+        // ở đây để các gate sau này lỡ thiếu whitelist cũng không bị lặp vô hạn như vậy nữa).
+        if (window.location.pathname.toLowerCase().indexOf(json.redirect_url.toLowerCase()) !== -1) return;
+        window.location.href = json.redirect_url;
     }
 
     var $ = window.jQuery;

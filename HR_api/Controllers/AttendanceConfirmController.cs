@@ -177,6 +177,21 @@ public class AttendanceConfirmController : ControllerBase
         }
     }
 
+    // POST /apiHR/AttendanceConfirm/hr-request-redo — HR/Admin yêu cầu làm lại 1 bản ghi ĐÃ CONFIRMED
+    [HttpPost("hr-request-redo")]
+    public async Task<IActionResult> HrRequestRedo([FromBody] HrRequestRedoRequest req)
+    {
+        try
+        {
+            var result = await _svc.HrRequestRedoAsync(req.CONFIRM_ID, req.ACTOR_EMPCD, req.NOTE);
+            return Ok(new { success = result.OK, message = result.MESSAGE });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     // POST /apiHR/AttendanceConfirm/request-confirm — Admin/HR/Clerk gửi yêu cầu (1 hoặc nhiều NV/ngày)
     [HttpPost("request-confirm")]
     public async Task<IActionResult> RequestConfirm([FromBody] RequestConfirmBulkRequest body)

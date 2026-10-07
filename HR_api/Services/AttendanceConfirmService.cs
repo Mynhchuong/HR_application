@@ -806,6 +806,51 @@ public class AttendanceConfirmService
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // HR/Admin yêu cầu làm lại 1 bản ghi ĐÃ CONFIRMED (NV khai sai hoặc quản lý xác nhận nhầm, phát
+    // hiện sau khi đã chốt) — tái dùng trạng thái REJECTED sẵn có (SubmitWorkerAsync chỉ chặn resubmit
+    // khi status = CONFIRMED, cho qua khi REJECTED), KHÔNG thêm trạng thái mới (yêu cầu HR 2026-10-07).
+    // NV tự khai lại từ đầu, quản lý PHẢI xác nhận lại qua đúng quy trình cũ — không tự CONFIRMED.
+    // ─────────────────────────────────────────────────────────────────────────
+    public async Task<AttendanceConfirmActionResult> HrRequestRedoAsync(int confirmId, string actorEmpcd, string note)
+    {
+        if (!await IsAdminOrHRAsync(actorEmpcd))
+            return Fail("", null, "Chỉ Admin/HR được yêu cầu làm lại");
+        if (string.IsNullOrWhiteSpace(note))
+            return Fail("", null, "Vui lòng nhập lý do yêu cầu làm lại");
+
+        var existing = (await _oracleService.ExecuteQueryAsync(
+            "SELECT ID, EMPCD, WORK_DATE, CONFIRM_STATUS FROM HRMS.HR_ATT_CONFIRM WHERE ID = :ID AND ROWNUM = 1",
+            r => new
+            {
+                EMPCD    = r["EMPCD"]?.ToString() ?? "",
+                WorkDate = Convert.ToDateTime(r["WORK_DATE"]),
+                STATUS   = r["CONFIRM_STATUS"]?.ToString()
+            },
+            new OracleParameter("ID", confirmId))).FirstOrDefault();
+
+        if (existing == null) return Fail("", null, "Không tìm thấy bản ghi");
+        if (existing.STATUS != "CONFIRMED") return Fail(existing.EMPCD, null, "Chỉ áp dụng cho bản ghi đã xác nhận");
+
+        await _oracleService.ExecuteNonQueryAsync(@"
+            UPDATE HRMS.HR_ATT_CONFIRM
+               SET CONFIRM_STATUS = 'REJECTED', NOTE = :NOTE, CONFIRMED_BY = :ACTOR, CONFIRMED_DATE = SYSDATE, UPDT_ID = :ACTOR2
+             WHERE ID = :ID",
+            new OracleParameter("NOTE", note), new OracleParameter("ACTOR", actorEmpcd),
+            new OracleParameter("ACTOR2", actorEmpcd), new OracleParameter("ID", confirmId));
+
+        _log.Log(AttendanceConfirmLogHelper.LogAction.HR_REOPEN, confirmId, existing.EMPCD, existing.WorkDate,
+            "CONFIRMED", "REJECTED", $"HR yêu cầu làm lại: {note}", actorEmpcd);
+
+        _notiSvc.AttendanceConfirmHrReopened(existing.EMPCD, actorEmpcd, existing.WorkDate, note);
+
+        return new AttendanceConfirmActionResult
+        {
+            EMPCD = existing.EMPCD, WORK_DATE = existing.WorkDate.ToString("yyyy-MM-dd"), OK = true,
+            MESSAGE = "Đã yêu cầu làm lại"
+        };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Admin/HR/Clerk gửi yêu cầu xác nhận tới 1 NV cho 1 ngày thiếu chấm công.
     // Mirror OTController.RequestSuppOneAsync — KHÔNG đụng ERP.
     // ─────────────────────────────────────────────────────────────────────────

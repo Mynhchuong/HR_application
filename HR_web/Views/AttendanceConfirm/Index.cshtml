@@ -179,6 +179,33 @@
     </div>
 </div>
 
+<!-- Modal HR yêu cầu làm lại (chỉ Admin/HR) -->
+<div class="modal fade" id="hrRedoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0"><i class="bi bi-arrow-counterclockwise me-1"></i> Yêu cầu làm lại</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="hrRedoConfirmId" />
+                <div id="hrRedoInfo" class="text-xs text-secondary mb-2"></div>
+                <div class="alert alert-warning py-2 px-2 mb-2 text-xs">
+                    Dòng này sẽ chuyển về "Bị từ chối" — nhân viên phải tự khai lại, quản lý phải xác nhận lại từ đầu.
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold">Lý do yêu cầu làm lại <span class="text-danger">*</span></label>
+                    <textarea id="hrRedoNote" class="form-control form-control-sm" rows="2" maxlength="500" placeholder="Bắt buộc — để nhân viên/quản lý biết vì sao phải làm lại"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-sm btn-warning" onclick="doHrRequestRedo()"><i class="bi bi-arrow-counterclockwise me-1"></i>Yêu cầu làm lại</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script src="~/js/vendor/xlsx.full.min.js" asp-append-version="true"></script>
 <script src="~/js/xlsx-export-helper.js" asp-append-version="true"></script>
@@ -188,8 +215,10 @@ const SUBMIT_URL  = '@Url.Action("SubmitWorker")';
 const CONFIRM_URL = '@Url.Action("ManagerConfirm")';
 const REQUEST_URL = '@Url.Action("RequestConfirm")';
 const SUPP_PENDING_URL = '@Url.Action("GetSuppPendingOt")';
+const HR_REDO_URL = '@Url.Action("HrRequestRedo")';
 const CSRF_TOKEN  = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
+const IS_ADMIN_OR_HR = @Html.Raw(ViewBag.IsAdminOrHr == true ? "true" : "false");
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 let canConfirmGlobal = false; // Admin/HR luôn false — chỉ quản lý đúng scope mới bấm Xác nhận được
@@ -347,7 +376,12 @@ function buildRow(item, idx) {
     } else if (status === 'PENDING_MANAGER') {
         actionHtml = `<span class="text-xs text-primary"><i class="bi bi-hourglass-split"></i> Đang chờ quản lý xác nhận</span>`;
     } else if (status === 'CONFIRMED') {
-        actionHtml = `<span class="text-xs text-success"><i class="bi bi-check-circle"></i> <span class="vni-font">${escHtml(item.CONFIRMED_BY_NAME || '')}</span> (${escHtml(item.CONFIRMED_BY || '')})</span>`;
+        const redoBtn = IS_ADMIN_OR_HR
+            ? `<button type="button" class="btn btn-xs btn-outline-warning ms-2 py-0 px-1" title="Yêu cầu làm lại"
+                    onclick="event.stopPropagation(); openHrRedoModal(${item.CONFIRM_ID}, '${escHtml(item.EMPCD)}', '${escHtml(item.WORK_DATE)}')">
+                    <i class="bi bi-arrow-counterclockwise"></i></button>`
+            : '';
+        actionHtml = `<span class="text-xs text-success"><i class="bi bi-check-circle"></i> <span class="vni-font">${escHtml(item.CONFIRMED_BY_NAME || '')}</span> (${escHtml(item.CONFIRMED_BY || '')})</span>${redoBtn}`;
     } else if (status === 'REJECTED') {
         actionHtml = `<span class="text-xs text-danger"><i class="bi bi-x-circle"></i> Đã từ chối</span>`;
     }
@@ -470,6 +504,31 @@ async function doConfirm(status) {
         if (res.success) {
             bootstrap.Modal.getInstance(document.getElementById('confirmModal'))?.hide();
             showToast(res.message || 'Đã cập nhật', 'success');
+            loadData(currentPage);
+        } else showToast(res.message || 'Lỗi', 'error');
+    } catch (e) { showToast('Lỗi kết nối', 'error'); }
+}
+
+function openHrRedoModal(confirmId, empcd, workDate) {
+    $('#hrRedoConfirmId').val(confirmId);
+    $('#hrRedoInfo').text(`NV ${empcd} — ngày ${workDate}`);
+    $('#hrRedoNote').val('');
+    new bootstrap.Modal(document.getElementById('hrRedoModal')).show();
+}
+
+async function doHrRequestRedo() {
+    const note = $('#hrRedoNote').val().trim();
+    if (!note) {
+        showToast('Vui lòng nhập lý do yêu cầu làm lại', 'warning');
+        $('#hrRedoNote').focus();
+        return;
+    }
+    const payload = { CONFIRM_ID: parseInt($('#hrRedoConfirmId').val()), NOTE: note };
+    try {
+        const res = await $.ajax({ url: HR_REDO_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(payload) });
+        if (res.success) {
+            bootstrap.Modal.getInstance(document.getElementById('hrRedoModal'))?.hide();
+            showToast(res.message || 'Đã yêu cầu làm lại', 'success');
             loadData(currentPage);
         } else showToast(res.message || 'Lỗi', 'error');
     } catch (e) { showToast('Lỗi kết nối', 'error'); }

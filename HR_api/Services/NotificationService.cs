@@ -217,6 +217,21 @@ public class NotificationService
             await _helper.SendNotificationAsync(Personal(empCd, actorEmpCd, title, body, "ATT_CONFIRM_WORKER", titleEn, bodyEn));
         });
 
+    // HR yêu cầu làm lại 1 bản ghi đã CONFIRMED (khai sai/xác nhận nhầm phát hiện sau khi chốt) —
+    // template riêng, KHÔNG dùng chung AttendanceConfirmResult (status "từ chối" dễ hiểu lầm là
+    // quản lý từ chối bình thường, không rõ là HR yêu cầu làm lại + không có lý do kèm).
+    public void AttendanceConfirmHrReopened(string empCd, string actorEmpCd, DateTime workDate, string reason)
+        => FireAndForget(async () =>
+        {
+            var ph = new Dictionary<string, string>
+            {
+                ["workDate"] = workDate.ToString("dd/MM/yyyy"),
+                ["reason"]   = reason,
+            };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("ATT_CONFIRM_HR_REOPEN", ph);
+            await _helper.SendNotificationAsync(Personal(empCd, actorEmpCd, title, body, "ATT_CONFIRM_WORKER", titleEn, bodyEn));
+        });
+
     // ═══════════════════════════════════════════════════════════════
     //  GIFT (Quản lý Quà)
     // ═══════════════════════════════════════════════════════════════

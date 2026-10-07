@@ -120,6 +120,21 @@ public class AttendanceConfirmService
         catch (Exception ex) { return new SimpleApiResponse { success = false, message = ex.Message }; }
     }
 
+    public async Task<SimpleApiResponse> HrRequestRedoAsync(HrRequestRedoRequest req)
+    {
+        try
+        {
+            var response = await _api.PostAsync("attendanceconfirm/hr-request-redo", req);
+            if (response != null)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<SimpleApiResponse>(json) ?? new SimpleApiResponse { success = false, message = "Lỗi parse response" };
+            }
+            return new SimpleApiResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new SimpleApiResponse { success = false, message = ex.Message }; }
+    }
+
     public async Task<AttendanceConfirmResponse> RequestConfirmAsync(RequestConfirmBulkRequest req)
     {
         try

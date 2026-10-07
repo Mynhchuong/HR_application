@@ -31,6 +31,9 @@ public class AttendanceConfirmController : BaseController
         // nút "Xác nhận" bình thường rồi mới báo lỗi. Truyền EMPCD hiện tại để JS tự ẩn nút ở dòng của
         // chính mình (audit 2026-09-24).
         ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
+        // Chỉ Admin/HR mới thấy nút "Yêu cầu làm lại" cho dòng đã CONFIRMED (yêu cầu HR 2026-10-07) —
+        // Clerk/Supervisor/Manager/Expat không có quyền này dù cùng vào được trang danh sách.
+        ViewBag.IsAdminOrHr = CurrentUser?.RoleName is "Admin" or "HR";
         return View();
     }
 
@@ -127,6 +130,25 @@ public class AttendanceConfirmController : BaseController
         req.ACTOR_EMPCD = CurrentUser.EmpCd;
         var result = await _svc.ManagerConfirmAsync(req);
         return Json(result);
+    }
+
+    // POST: /AttendanceConfirm/HrRequestRedo — HR/Admin yêu cầu làm lại 1 dòng ĐÃ CONFIRMED.
+    [HttpPost, ValidateAntiForgeryToken]
+    [Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> HrRequestRedo([FromBody] HrRequestRedoBody body)
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd)) return Json(new { success = false, message = "Chưa đăng nhập" });
+        var result = await _svc.HrRequestRedoAsync(new HrRequestRedoRequest
+        {
+            CONFIRM_ID = body.CONFIRM_ID, ACTOR_EMPCD = CurrentUser.EmpCd, NOTE = body.NOTE
+        });
+        return Json(result);
+    }
+
+    public class HrRequestRedoBody
+    {
+        public int    CONFIRM_ID { get; set; }
+        public string NOTE       { get; set; } = "";
     }
 
     [HttpPost, ValidateAntiForgeryToken]

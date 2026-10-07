@@ -129,6 +129,15 @@ public class ManagerConfirmRequest
     public string  STATUS        { get; set; } = "CONFIRMED"; // CONFIRMED | REJECTED
 }
 
+// HR/Admin yêu cầu làm lại 1 bản ghi ĐÃ CONFIRMED (NV/quản lý khai sai, phát hiện sau khi đã chốt) —
+// chuyển về REJECTED để NV tự khai lại, quản lý phải xác nhận lại từ đầu (không tự CONFIRMED).
+public class HrRequestRedoRequest
+{
+    public int    CONFIRM_ID  { get; set; }
+    public string ACTOR_EMPCD { get; set; } = "";
+    public string NOTE        { get; set; } = "";
+}
+
 // Admin/HR/Clerk chọn record ERP (chưa có row app) để gửi thông báo "yêu cầu xác nhận"
 public class RequestConfirmRequest
 {

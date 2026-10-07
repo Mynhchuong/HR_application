@@ -15,7 +15,7 @@ public class AttendanceConfirmLogHelper
         _oracleService = oracleService;
     }
 
-    public enum LogAction { REQUEST_SENT, WORKER_SUBMIT, MANAGER_CONFIRM, MANAGER_REJECT }
+    public enum LogAction { REQUEST_SENT, WORKER_SUBMIT, MANAGER_CONFIRM, MANAGER_REJECT, HR_REOPEN }
 
     public void Log(
         LogAction action,

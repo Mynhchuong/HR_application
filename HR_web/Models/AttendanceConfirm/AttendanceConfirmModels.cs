@@ -76,6 +76,14 @@ public class ManagerConfirmRequest
     public string  STATUS      { get; set; } = "CONFIRMED";
 }
 
+// HR/Admin yêu cầu làm lại 1 bản ghi ĐÃ CONFIRMED (khai sai/xác nhận nhầm phát hiện sau khi chốt).
+public class HrRequestRedoRequest
+{
+    public int    CONFIRM_ID  { get; set; }
+    public string ACTOR_EMPCD { get; set; } = "";
+    public string NOTE        { get; set; } = "";
+}
+
 public class RequestConfirmItem
 {
     public string EMPCD       { get; set; } = "";

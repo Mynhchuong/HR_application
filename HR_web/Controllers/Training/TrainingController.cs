@@ -2,6 +2,7 @@ using HR_web.API.Service;
 using HR_web.Models.Training;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace HR_web.Controllers.Training;
 
@@ -106,8 +107,34 @@ public class TrainingController : BaseController
         ViewBag.ClassId = classId;
         ViewBag.MaterialTitle = string.IsNullOrEmpty(title) ? "Tài liệu học tập" : title;
         ViewBag.FileType = fileType ?? "";
-        ViewBag.FileUrl = fileUrl ?? "";
+        ViewBag.FileUrl = NormalizeMaterialFileUrl(fileUrl);
         return View();
+    }
+
+    // FILE_URL được lưu lại nguyên 1 URL tuyệt đối tính SẴN tại lúc HR upload (Url.Action lúc đó),
+    // bao gồm cả PathBase (vd "/HR_Web") của site HR đang đứng upload. Nếu HR lỡ upload từ 1 site
+    // khác (vd site test "/HR_test" dùng chung code/DB) thì URL lưu DB mãi mãi mang PathBase sai đó
+    // — NV xem ở site chính "/HR_Web" sẽ load nhằm sang "/HR_test" và KHÔNG xem được video (bug thật
+    // 2026-10-07, material ID=7 lớp 91). Tự chữa tại đây: chỉ lấy lại đúng subFolder/fileName từ
+    // query string gốc rồi build lại URL bằng Url.Action với PathBase của CHÍNH request hiện tại —
+    // luôn đúng site đang xem, bất kể URL gốc lưu trong DB mang PathBase nào.
+    private string NormalizeMaterialFileUrl(string? fileUrl)
+    {
+        if (string.IsNullOrWhiteSpace(fileUrl)) return "";
+        try
+        {
+            var qIdx = fileUrl.IndexOf('?');
+            if (qIdx < 0 || !fileUrl.Contains("GetTrainingMaterial", StringComparison.OrdinalIgnoreCase))
+                return fileUrl;
+
+            var query = QueryHelpers.ParseQuery(fileUrl[(qIdx + 1)..]);
+            var subFolder = query.TryGetValue("subFolder", out var sf) ? sf.ToString() : null;
+            var fileName  = query.TryGetValue("fileName", out var fn) ? fn.ToString() : null;
+            if (string.IsNullOrEmpty(subFolder) || string.IsNullOrEmpty(fileName)) return fileUrl;
+
+            return Url.Action("GetTrainingMaterial", "File", new { subFolder, fileName }) ?? fileUrl;
+        }
+        catch { return fileUrl; }
     }
 
     // GET /Training/TestDo/{id}

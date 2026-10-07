@@ -403,6 +403,12 @@ public class TrainingAttemptService
         if (isGraded == 1 && passScore.HasValue)
             isPass = earned >= passScore.Value ? 1 : 0;
 
+        // Guard IN_PROGRESS: NV bấm Nộp bài đúng lúc batch auto-submit (TransitionTestsAsync, tick
+        // mỗi phút) cũng đang xử lý CÙNG attempt đã hết giờ — cả 2 gọi FinalizeAttemptAsync gần như
+        // đồng thời. Không có guard thì lần ghi SAU (dù là SUBMITTED hay AUTO_SUBMITTED) đè STATUS
+        // của lần ghi TRƯỚC, kết quả cuối không xác định (audit 2026-10-07). Điểm số tính ra giống
+        // nhau cả 2 lần (cùng data) nên không sai điểm, chỉ STATUS/SUBMIT_DT bị flip ngẫu nhiên —
+        // thêm điều kiện này để lần ghi ĐẦU TIÊN thắng, lần ghi SAU (ROWNUM=0 ảnh hưởng) tự bỏ qua.
         await _db.ExecuteNonQueryAsync(@"
             UPDATE HRMS.HR_TRAINING_TEST_ATTEMPT
                SET STATUS    = :ST,
@@ -411,7 +417,7 @@ public class TrainingAttemptService
                    MAX_SCORE = :MX,
                    IS_PASS   = :PS,
                    IS_GRADED = :GR
-             WHERE ID = :ID",
+             WHERE ID = :ID AND STATUS = 'IN_PROGRESS'",
             new OracleParameter("ST", status),
             new OracleParameter("SC", earned),
             new OracleParameter("MX", maxScore),
@@ -427,14 +433,21 @@ public class TrainingAttemptService
     // Teacher chấm 1 câu ESSAY. Nếu tất cả ESSAY đã chấm xong → IS_GRADED=1 + compute SCORE + IS_PASS.
     public async Task<(bool ok, string? error)> GradeAnswerAsync(GradeAnswerRequest req)
     {
-        // Verify teacher của Class có test này
+        // Verify teacher của Class có test này — PHẢI lọc theo GROUP_ID giống GetPendingGradeAsync:
+        // GV chỉ phụ trách 1 nhóm (row CLASS_TEACHER có GROUP_ID) thì không được chấm bài học viên
+        // nhóm khác, dù biết/đoán được ANSWER_ID (trước đây chỉ check EMPCD trùng, không check nhóm
+        // — audit 2026-10-07, có thể làm sai điểm/đậu-rớt của học viên ngoài nhóm mình phụ trách).
+        // GV có row GROUP_ID NULL (dạy cả lớp) thì vẫn qua được mọi nhóm.
         var ok = (await _db.ExecuteQueryAsync(@"
             SELECT COUNT(*) CNT
               FROM HRMS.HR_TRAINING_CLASS_TEACHER T
               JOIN HRMS.HR_TRAINING_TEST TS ON TS.CLASS_ID = T.CLASS_ID
               JOIN HRMS.HR_TRAINING_TEST_QUESTION Q ON Q.TEST_ID = TS.ID
               JOIN HRMS.HR_TRAINING_TEST_ANSWER AN ON AN.QUESTION_ID = Q.ID
-             WHERE AN.ID = :AID AND T.EMPCD = :EMP",
+              JOIN HRMS.HR_TRAINING_TEST_ATTEMPT A ON A.ID = AN.ATTEMPT_ID
+              LEFT JOIN HRMS.HR_TRAINING_ENROLLMENT E ON E.CLASS_ID = T.CLASS_ID AND E.EMPCD = A.EMPCD
+             WHERE AN.ID = :AID AND T.EMPCD = :EMP
+               AND (T.GROUP_ID IS NULL OR T.GROUP_ID = E.GROUP_ID)",
             r => Convert.ToInt32(r["CNT"]),
             new OracleParameter("AID", req.ANSWER_ID),
             new OracleParameter("EMP", req.LOGIN_USER))).First();

@@ -40,6 +40,15 @@ public class TrainingLifecycleService : BackgroundService
         }
     }
 
+    // Giờ DB (SYSDATE), không dùng giờ máy chạy app server — mọi query state-transition trong file
+    // này đã đúng chuẩn so SYSDATE, nhưng 3 cổng giờ "chạy từ Xh trở đi" (SessionRemindersAsync,
+    // TeacherConfirmRemindersAsync, AutoOpenRecurringAsync) lại dùng DateTime.Now.Hour — lệch múi
+    // giờ/đồng hồ máy app là nhắc nhở/tự mở lớp tháng chạy sai giờ mà không có triệu chứng gì để
+    // phát hiện (audit 2026-10-07, cùng loại bug với TestDo.cshtml dùng giờ thiết bị NV).
+    private static async Task<DateTime> GetDbNowAsync(OracleService db) =>
+        (await db.ExecuteQueryAsync("SELECT SYSDATE AS DB_NOW FROM DUAL",
+            r => Convert.ToDateTime(r["DB_NOW"]))).First();
+
     private async Task TickAsync(CancellationToken stop)
     {
         using var scope = _scopeFactory.CreateScope();
@@ -260,7 +269,7 @@ public class TrainingLifecycleService : BackgroundService
     {
         // TODAY reminder — chạy từ 8h sáng trở đi trong ngày. Idempotent qua AlreadyEnqueuedAsync
         // (dedup theo TEMPLATE_KEY + SESSION_ID). Server down lúc 8h vẫn catch up khi lên lại.
-        var now = DateTime.Now;
+        var now = await GetDbNowAsync(db);
         if (now.Hour >= 8)
         {
             var todaySessions = await db.ExecuteQueryAsync(@"
@@ -343,7 +352,7 @@ public class TrainingLifecycleService : BackgroundService
     private async Task TeacherConfirmRemindersAsync(
         OracleService db, TrainingNotificationService noti, CancellationToken stop)
     {
-        var now = DateTime.Now;
+        var now = await GetDbNowAsync(db);
         if (now.Hour < 18) return;
 
         var pendingSessions = await db.ExecuteQueryAsync(@"
@@ -424,7 +433,7 @@ public class TrainingLifecycleService : BackgroundService
     {
         // Chạy từ 6h sáng trở đi. Idempotent qua NOT EXISTS trong query — chỉ tạo Class 1 lần / tháng
         // cho mỗi Course. Server down lúc 6h vẫn catch up khi lên lại (trước 23:59 hôm đó).
-        var now = DateTime.Now;
+        var now = await GetDbNowAsync(db);
         if (now.Hour < 6) return;
 
         var courses = await db.ExecuteQueryAsync(@"

@@ -293,10 +293,17 @@ public class TrainingEnrollmentService
             if (meta == null) { await scope.RollbackAsync(); return (false, "Không tìm thấy Class"); }
             if (meta.ST != "OPEN_FOR_REGISTRATION") { await scope.RollbackAsync(); return (false, "Lớp không mở đăng ký"); }
             if (meta.MODE != "OPEN") { await scope.RollbackAsync(); return (false, "Lớp không hỗ trợ chế độ tự đăng ký"); }
-            if (meta.DEADLINE.HasValue && DateTime.Now > meta.DEADLINE.Value)
+            // Giờ DB, không dùng giờ máy app server — cùng loại bug với TestDo.cshtml (đồng hồ máy
+            // lệch khiến hạn đăng ký bị tính sai), audit 2026-10-07.
+            if (meta.DEADLINE.HasValue)
             {
-                await scope.RollbackAsync();
-                return (false, "Đã hết hạn đăng ký");
+                var dbNow = (await _db.ExecuteQueryAsync(scope, "SELECT SYSDATE AS DB_NOW FROM DUAL",
+                    r => Convert.ToDateTime(r["DB_NOW"]))).First();
+                if (dbNow > meta.DEADLINE.Value)
+                {
+                    await scope.RollbackAsync();
+                    return (false, "Đã hết hạn đăng ký");
+                }
             }
 
             // Đã đăng ký rồi? (double-click / gọi lại)

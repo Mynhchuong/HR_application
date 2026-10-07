@@ -147,16 +147,16 @@
 
                 attempt = res.data.attempt || res.data.ATTEMPT;
                 questions = res.data.questions || res.data.QUESTIONS || [];
-                
-                // Tính toán thời gian làm bài
+
+                // Tính toán thời gian làm bài — PHẢI dùng SECONDS_REMAINING do server tính sẵn (dựa
+                // giờ DB, cùng mốc với batch auto-submit), KHÔNG tự tính lại bằng giờ đồng hồ của máy
+                // NV. Trước đây tự tính (startDt từ server + duration) rồi so với `new Date()` của
+                // thiết bị — máy tính bảng dùng chung ở xưởng hay bị sai giờ/lệch múi giờ, lệch vài
+                // phút là dư để "ăn hết" cả bài test ngắn (1-5 phút), tự nộp bài ngay khi vừa bấm vào
+                // dù NV chưa làm gì (bug thật 2026-10-07, 3 NV bị nộp bài 0 điểm ngay giây bắt đầu).
                 const testMeta = res.data.test || res.data.TEST || {};
-                const durationMinutes = testMeta.DURATION_MINUTES || testMeta.durationMinutes || 45;
-                const startDtStr = ((attempt && (attempt.START_DT || attempt.startDt)) || '').toString().replace(' ', 'T');
-                const startDt = startDtStr ? new Date(startDtStr) : new Date();
-                const endDt = new Date(startDt.getTime() + durationMinutes * 60 * 1000);
-                const now = new Date();
-                
-                timeRemainingSeconds = Math.max(0, Math.floor((endDt.getTime() - now.getTime()) / 1000));
+                timeRemainingSeconds = Math.max(0, Math.floor(
+                    res.data.SECONDS_REMAINING ?? res.data.secondsRemaining ?? 0));
 
                 if (timeRemainingSeconds <= 0) {
                     submitQuiz(true);

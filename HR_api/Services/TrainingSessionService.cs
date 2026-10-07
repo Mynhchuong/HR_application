@@ -439,9 +439,14 @@ public class TrainingSessionService
         if (okEnroll == null)
             return (false, "Bạn không thuộc scope buổi học này");
 
-        // Compute check-in window
+        // Compute check-in window — PHẢI dùng giờ DB (SYSDATE), không dùng giờ máy app server: nếu
+        // đồng hồ/múi giờ máy chạy app lệch so với DB thì điểm danh hợp lệ bị từ chối oan ("Chưa đến
+        // giờ"/"Đã hết giờ") hoặc tính nhầm LATE/PRESENT (audit 2026-10-07, cùng loại bug với
+        // TestDo.cshtml dùng giờ thiết bị NV trước đó — TrainingAttemptService đã tự sửa bằng
+        // GetDbNowAsync(), chỗ này bị bỏ sót).
         var (startAt, endAt) = BuildSessionWindow(session);
-        var now = DateTime.Now;
+        var now = (await _db.ExecuteQueryAsync("SELECT SYSDATE AS DB_NOW FROM DUAL",
+            r => Convert.ToDateTime(r["DB_NOW"]))).First();
         var openFrom = startAt.AddMinutes(-15);
         var openTo   = endAt.AddMinutes(15);
         if (now < openFrom) return (false, "Chưa đến giờ điểm danh");
@@ -473,18 +478,32 @@ public class TrainingSessionService
         if (!IsValidAttendanceStatus(req.STATUS))
             throw new InvalidOperationException("STATUS phải PRESENT | LATE | ABSENT | EXCUSED");
 
-        var sessionStatus = (await _db.ExecuteQueryAsync(
-            "SELECT STATUS FROM HRMS.HR_TRAINING_SESSION WHERE ID = :SID",
-            r => r["STATUS"]?.ToString() ?? "",
+        var sessionInfo = (await _db.ExecuteQueryAsync(@"
+            SELECT S.STATUS, CL.DELIVERY_MODE
+              FROM HRMS.HR_TRAINING_SESSION S
+              JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = S.CLASS_ID
+             WHERE S.ID = :SID",
+            r => new
+            {
+                STATUS        = r["STATUS"]?.ToString() ?? "",
+                DELIVERY_MODE = r["DELIVERY_MODE"]?.ToString() ?? "OFFLINE",
+            },
             new OracleParameter("SID", req.SESSION_ID))).FirstOrDefault();
         // Trước đây so sánh với "FINISHED" — giá trị này không nằm trong CHK_TRS_STATUS
         // (UPCOMING|ONGOING|COMPLETED|CANCELLED) nên điều kiện luôn false, không chặn được gì
         // (đã phát hiện ở audit — dead code, khả năng gõ nhầm). Ý định đúng theo §5 rules: teacher
         // VẪN được sửa điểm danh sau khi session COMPLETED (VD đổi ABSENT ↔ EXCUSED khi có leave nộp
         // trễ) — chỉ chặn khi session đã CANCELLED (buổi học không diễn ra, không có gì để điểm danh).
-        if (sessionStatus == "CANCELLED")
+        if (sessionInfo?.STATUS == "CANCELLED")
         {
             throw new InvalidOperationException("Buổi học đã bị huỷ, không thể cập nhật điểm danh");
+        }
+        // Lớp ONLINE không có khái niệm điểm danh (giống CheckInAsync) — nhưng trước đây GV vẫn gọi
+        // thẳng được action này tạo ra dòng HR_TRAINING_ATTENDANCE "ảo" cho lớp online, làm sai lệch
+        // GetAbsentStatsAsync/báo cáo vắng của 1 lớp không hề có điểm danh (audit 2026-10-07).
+        if (sessionInfo?.DELIVERY_MODE == "ONLINE")
+        {
+            throw new InvalidOperationException("Lớp học online không có điểm danh");
         }
 
         await _db.ExecuteNonQueryAsync(@"

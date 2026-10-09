@@ -47,6 +47,7 @@ public class AiCsrService
         => await ReadAsync(await _api.GetAsync_Raw("AiCsr/thread-messages", $"chatId={chatId}&afterMsgId={afterMsgId}"));
 
     public Task<string> CsrReplyRawAsync(object payload)     => Post("AiCsr/csr-reply", payload);
+    public Task<string> CsrRecallRawAsync(object payload)    => Post("AiCsr/csr-recall", payload);
     public Task<string> CsrMarkReadRawAsync(object payload)  => Post("AiCsr/csr-mark-read", payload);
     public Task<string> SetStatusRawAsync(object payload)    => Post("AiCsr/set-status", payload);
 

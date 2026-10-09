@@ -83,7 +83,7 @@ public class AiCsrController : ControllerBase
                 WHERE ID = :ID",
                 new OracleParameter("ID", chatId));
 
-            var msgs = await LoadMessagesAsync(chatId, 0);
+            var msgs = await LoadMessagesAsync(chatId, 0, maskCsrIdentity: true);
             return Ok(new { success = true, chatId, aiOk = ok, messages = msgs });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
@@ -104,7 +104,7 @@ public class AiCsrController : ControllerBase
 
             decimal chatId = idRows[0];
             var head = await LoadHeadAsync(chatId);
-            var msgs = await LoadMessagesAsync(chatId, 0);
+            var msgs = await LoadMessagesAsync(chatId, 0, maskCsrIdentity: true);
             return Ok(new { success = true, thread = new { chatId, status = head?.Status, unreadEmp = head?.UnreadEmp ?? 0 }, messages = msgs });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
@@ -124,7 +124,7 @@ public class AiCsrController : ControllerBase
             if (!string.Equals(head.Empcd, empcd, StringComparison.OrdinalIgnoreCase))
                 return Ok(new { success = false, message = "Không có quyền xem đoạn chat này" });
 
-            var msgs = await LoadMessagesAsync(chatId, afterMsgId);
+            var msgs = await LoadMessagesAsync(chatId, afterMsgId, maskCsrIdentity: true);
             return Ok(new { success = true, status = head.Status, unreadEmp = head.UnreadEmp, messages = msgs });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
@@ -294,7 +294,7 @@ public class AiCsrController : ControllerBase
             var head = await LoadHeadAsync(chatId);
             if (head == null) return Ok(new { success = false, message = "Không tìm thấy đoạn chat" });
             var msgs = await LoadMessagesAsync(chatId, afterMsgId);
-            return Ok(new { success = true, status = head.Status, messages = msgs });
+            return Ok(new { success = true, status = head.Status, unreadEmp = head.UnreadEmp, messages = msgs });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }
@@ -326,6 +326,50 @@ public class AiCsrController : ControllerBase
 
             var msgs = await LoadMessagesAsync(body.ChatId, 0);
             return Ok(new { success = true, messages = msgs });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST apiHR/AiCsr/csr-recall  { msgId, actorEmpcd } — thu hồi tin CSR/Admin vừa gửi nhầm.
+    // HR_AI_CHAT_MSG không có cờ đọc theo từng tin (chỉ có UNREAD_EMP ở mức cả thread) nên dùng
+    // UNREAD_EMP = 1 làm điều kiện "NV chưa đọc", tương đương IS_READ_EMP = 0 ở HR_INQUIRY_MSG.
+    [HttpPost("csr-recall")]
+    public async Task<IActionResult> CsrRecall([FromBody] CsrRecallBody body)
+    {
+        try
+        {
+            if (body == null || body.MsgId <= 0 || string.IsNullOrWhiteSpace(body.ActorEmpcd))
+                return Ok(new { success = false, message = "Thiếu thông tin" });
+
+            var rows = await _db.ExecuteQueryAsync(@"
+                SELECT m.CHAT_ID, m.SENDER_TYPE, m.SENDER_CD, m.IS_DELETED, c.UNREAD_EMP
+                FROM HRMS.HR_AI_CHAT_MSG m
+                JOIN HRMS.HR_AI_CHAT c ON c.ID = m.CHAT_ID
+                WHERE m.ID = :MSG_ID",
+                r => new
+                {
+                    ChatId    = Convert.ToDecimal(r["CHAT_ID"]),
+                    SenderType = r["SENDER_TYPE"]?.ToString() ?? "",
+                    SenderCd  = r["SENDER_CD"]?.ToString(),
+                    IsDeleted = Convert.ToInt32(r["IS_DELETED"]),
+                    UnreadEmp = Convert.ToInt32(r["UNREAD_EMP"]),
+                },
+                new OracleParameter("MSG_ID", body.MsgId));
+
+            if (rows.Count == 0) return Ok(new { success = false, message = "Không tìm thấy tin nhắn" });
+            var m = rows[0];
+
+            if (m.IsDeleted == 1) return Ok(new { success = false, message = "Tin nhắn đã bị thu hồi" });
+            if (m.SenderType != "CSR" || m.SenderCd != body.ActorEmpcd)
+                return Ok(new { success = false, message = "Bạn chỉ có thể thu hồi tin nhắn của chính mình" });
+            if (m.UnreadEmp == 0)
+                return Ok(new { success = false, message = "Không thể thu hồi vì nhân viên đã đọc tin này" });
+
+            await _db.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_AI_CHAT_MSG SET IS_DELETED = 1 WHERE ID = :ID",
+                new OracleParameter("ID", body.MsgId));
+
+            return Ok(new { success = true });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }
@@ -581,22 +625,33 @@ public class AiCsrController : ControllerBase
         return rows.FirstOrDefault();
     }
 
-    private async Task<object> LoadMessagesAsync(decimal chatId, decimal afterMsgId)
+    // maskCsrIdentity: true cho các endpoint NV xem (my-thread/messages/ask) — ẨN hẳn empcd + tên
+    // thật của CSR/HR/Admin trả lời ngay ở tầng JSON trả về, không chỉ ẩn trên UI (yêu cầu
+    // 2026-10-02 vốn chỉ làm ở client JS — NV mở DevTools/network tab vẫn thấy tên thật, lỗ hổng
+    // phát hiện 2026-10-09). Endpoint nội bộ (list/thread/report/report-messages) KHÔNG mask vì
+    // CSR/Admin/HR cần biết ai đã trả lời.
+    private async Task<object> LoadMessagesAsync(decimal chatId, decimal afterMsgId, bool maskCsrIdentity = false)
     {
         return await _db.ExecuteQueryAsync(@"
-            SELECT ID, SENDER_TYPE, SENDER_CD, SENDER_NAME, CONTENT, AI_FAILED, SENT_DT
+            SELECT ID, SENDER_TYPE, SENDER_CD, SENDER_NAME, CONTENT, AI_FAILED, SENT_DT, IS_DELETED
             FROM HRMS.HR_AI_CHAT_MSG
             WHERE CHAT_ID = :ID AND ID > :AFTER
             ORDER BY ID",
-            r => new
+            r =>
             {
-                id         = Convert.ToDecimal(r["ID"]),
-                senderType = r["SENDER_TYPE"]?.ToString(),
-                senderCd   = r["SENDER_CD"]?.ToString(),
-                senderName = r["SENDER_NAME"]?.ToString(),
-                content    = r["CONTENT"]?.ToString(),
-                aiFailed   = r["AI_FAILED"] != DBNull.Value && Convert.ToInt32(r["AI_FAILED"]) == 1,
-                sentDt     = r["SENT_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SENT_DT"]),
+                string? senderType = r["SENDER_TYPE"]?.ToString();
+                bool isCsr = senderType == "CSR";
+                return new
+                {
+                    id         = Convert.ToDecimal(r["ID"]),
+                    senderType = senderType,
+                    senderCd   = (maskCsrIdentity && isCsr) ? null : r["SENDER_CD"]?.ToString(),
+                    senderName = (maskCsrIdentity && isCsr) ? "Hỗ trợ CSR" : r["SENDER_NAME"]?.ToString(),
+                    content    = r["CONTENT"]?.ToString(),
+                    aiFailed   = r["AI_FAILED"] != DBNull.Value && Convert.ToInt32(r["AI_FAILED"]) == 1,
+                    sentDt     = r["SENT_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SENT_DT"]),
+                    isDeleted  = r["IS_DELETED"] != DBNull.Value && Convert.ToInt32(r["IS_DELETED"]) == 1,
+                };
             },
             new OracleParameter("ID", chatId), new OracleParameter("AFTER", afterMsgId));
     }
@@ -619,4 +674,5 @@ public class AiCsrController : ControllerBase
     public class ChatIdBody   { public decimal ChatId { get; set; } }
     public class CsrReplyBody { public decimal ChatId { get; set; } public string? CsrEmpcd { get; set; } public string? CsrName { get; set; } public string? Content { get; set; } }
     public class SetStatusBody{ public decimal ChatId { get; set; } public string? ActorEmpcd { get; set; } public string Status { get; set; } = "CLOSED"; }
+    public class CsrRecallBody{ public decimal MsgId { get; set; } public string? ActorEmpcd { get; set; } }
 }

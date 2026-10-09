@@ -719,13 +719,17 @@ body.home-hero-popup-open { overflow: hidden; }
     font-size: .85rem; line-height: 1; display: inline-block;
 }
 
-/* ─── Grid ─── */
+/* ─── Grid ───
+   Dùng flexbox + width % (không dùng CSS Grid "repeat(7, 1fr)") vì một số
+   WebView Android cũ/lạ (báo lỗi thực tế 2026-10-09: mất hẳn cột T7, cả header
+   và lưới ngày đều ngắn 1 cột) không hỗ trợ đầy đủ CSS Grid track-sizing,
+   nhưng flexbox với width cố định theo % thì tương thích rộng hơn hẳn. */
 .home-mycal-grid {
-    display: grid; grid-template-columns: repeat(7, 1fr);
-    gap: 3px;
+    display: flex; flex-wrap: wrap;
     padding: 10px 12px 14px;
 }
 .home-mycal-grid .mycal-dow {
+    flex: 0 0 14.2857%; max-width: 14.2857%; box-sizing: border-box;
     text-align: center; font-size: .68rem; font-weight: 800;
     color: #9ca3af; letter-spacing: .06em;
     padding: 6px 0 8px;
@@ -733,6 +737,7 @@ body.home-hero-popup-open { overflow: hidden; }
 .home-mycal-grid .mycal-dow:first-child { color: #f87171; } /* CN */
 
 .mycal-cell {
+    flex: 0 0 14.2857%; max-width: 14.2857%; box-sizing: border-box;
     aspect-ratio: 1 / 1;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
@@ -741,6 +746,11 @@ body.home-hero-popup-open { overflow: hidden; }
     cursor: default;
     position: relative;
     transition: all .18s;
+}
+/* WebView không hỗ trợ aspect-ratio (rất cũ) → vẫn giữ layout 7 cột đúng,
+   chỉ không vuông hoàn hảo — chấp nhận được, còn hơn mất cột. */
+@supports not (aspect-ratio: 1 / 1) {
+    .mycal-cell { min-height: 42px; }
 }
 .mycal-cell.mycal-empty { visibility: hidden; }
 
@@ -903,7 +913,7 @@ body.home-hero-popup-open { overflow: hidden; }
         flex-shrink: 0; white-space: nowrap;
     }
 
-    .home-mycal-grid { padding: 8px 5px 12px; gap: 3px; }
+    .home-mycal-grid { padding: 8px 5px 12px; }
     .home-mycal-grid .mycal-dow { font-size: .66rem; padding: 4px 0 6px; }
 
     /* Phóng to + kéo cao ô ngày theo phản hồi công nhân (khó nhìn trên điện thoại) —
@@ -963,7 +973,7 @@ body.home-hero-popup-open { overflow: hidden; }
     .home-mycal-legend { padding: 8px 8px 4px; }
     .home-mycal-legend .lg-item { padding: 3px 7px; font-size: .66rem; }
     .home-mycal-legend .lg-dot { width: 6px; height: 6px; }
-    .home-mycal-grid { padding: 6px 3px 10px; gap: 2px; }
+    .home-mycal-grid { padding: 6px 3px 10px; }
     .home-mycal-grid .mycal-dow { font-size: .6rem; padding: 3px 0 5px; }
     .mycal-cell { aspect-ratio: 4 / 5; }
     .mycal-daynum { font-size: .86rem; }

@@ -243,7 +243,7 @@ InquiryChat.init({
     urls: {
         getMessages: '@(isAiSource ? Url.Action("AiGetMessages","AdminInquiry") : Url.Action("GetMessages","AdminInquiry"))',
         send:        '@(isAiSource ? Url.Action("AiSend","AdminInquiry") : Url.Action("Send","AdminInquiry"))',
-        recall:      '@Url.Action("Recall","AdminInquiry")',
+        recall:      '@(isAiSource ? Url.Action("AiRecall","AdminInquiry") : Url.Action("Recall","AdminInquiry"))',
         close:       '@(isAiSource ? Url.Action("AiClose","AdminInquiry") : Url.Action("Close","AdminInquiry"))',
         unlock:      '@Url.Action("Unlock","AdminInquiry")',
         getFile:     '@Url.Action("GetFile","AdminInquiry")',

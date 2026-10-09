@@ -259,7 +259,7 @@ InquiryChat.init({
     urls: {
         getMessages: '@(isAiSource ? Url.Action("AiGetMessages","HrInquiry") : Url.Action("GetMessages","HrInquiry"))',
         send:        '@(isAiSource ? Url.Action("AiSend","HrInquiry") : Url.Action("Send","HrInquiry"))',
-        recall:      '@Url.Action("Recall","HrInquiry")',
+        recall:      '@(isAiSource ? Url.Action("AiRecall","HrInquiry") : Url.Action("Recall","HrInquiry"))',
         close:       '@(isAiSource ? Url.Action("AiClose","HrInquiry") : Url.Action("Close","HrInquiry"))',
         getFile:     '@Url.Action("GetFile","HrInquiry")',
         uploadFile:  '@Url.Action("UploadFile","HrInquiry")',

@@ -116,15 +116,20 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
             MsgCount     = msgs.Count
         };
 
-        return new InquiryMessagesResponse { success = true, inquiry = inquiry, messages = MapAiMessages(msgs, id) };
+        bool unreadEmp = (head?["UnreadEmp"]?.Value<int>() ?? 0) > 0;
+        return new InquiryMessagesResponse { success = true, inquiry = inquiry, messages = MapAiMessages(msgs, id, unreadEmp) };
     }
 
-    private static List<InquiryMsgDto> MapAiMessages(JArray msgs, long inquiryId)
+    // unreadEmp: cờ ở MỨC CẢ THREAD (HR_AI_CHAT.UNREAD_EMP) — bảng HR_AI_CHAT_MSG không lưu cờ đọc
+    // theo từng tin, nên dùng chung cho mọi tin CSR/HR trong thread để quyết định còn thu hồi được
+    // không (đồng nhất với điều kiện check ở AiCsrController.CsrRecall).
+    private static List<InquiryMsgDto> MapAiMessages(JArray msgs, long inquiryId, bool unreadEmp)
     {
         return msgs.Select(m =>
         {
             string senderType = m["senderType"]?.Value<string>() ?? "EMP";
             string mapped = senderType switch { "CSR" => "HR", "AI" => "SYS", _ => "EMP" };
+            bool isDeleted = m["isDeleted"]?.Value<bool>() ?? false;
             return new InquiryMsgDto
             {
                 Id         = m["id"]?.Value<long>() ?? 0,
@@ -135,8 +140,8 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
                 MsgType    = "TEXT",
                 Content    = m["content"]?.Value<string>(),
                 IsReadHr   = true,
-                IsReadEmp  = true,
-                IsDeleted  = false,
+                IsReadEmp  = mapped == "HR" ? !unreadEmp : true,
+                IsDeleted  = isDeleted,
                 SentDt     = m["sentDt"]?.Value<DateTime?>() ?? DateTime.Now
             };
         }).ToList();
@@ -209,11 +214,12 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
             return Json(new { success = false, message = obj["message"]?.Value<string>() });
 
         var msgs = (obj["messages"] as JArray) ?? new JArray();
+        bool unreadEmp = (obj["unreadEmp"]?.Value<int>() ?? 0) > 0;
         return Json(new
         {
             success = true,
             inquiry = new { status = obj["status"]?.Value<string>() ?? "OPEN" },
-            messages = MapAiMessages(msgs, id)
+            messages = MapAiMessages(msgs, id, unreadEmp)
         });
     }
 
@@ -412,6 +418,19 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
         if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
         var result = await _inquiry.RecallAsync(req.Id, "HR", CurrentUser!.EmpCd, null);
         return Json(result);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Thu hồi tin nhắn HR/CSR đã gửi trong chat AI SAMHO - CSR (HR_AI_CHAT, nguồn riêng,
+    // không dùng chung InquiryService.RecallAsync của HR_INQUIRY).
+    // POST /HrInquiry/AiRecall
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AiRecall([FromBody] IdRequest req)
+    {
+        if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
+        var payload = new { msgId = req.Id, actorEmpcd = CurrentUser?.EmpCd };
+        return Content(await _aiCsr.CsrRecallRawAsync(payload), "application/json");
     }
 
     // ─────────────────────────────────────────────────────────────────────────

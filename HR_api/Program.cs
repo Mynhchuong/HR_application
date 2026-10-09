@@ -55,6 +55,7 @@ builder.Services.AddScoped<HR_api.Helpers.OtLogHelper>();
 builder.Services.AddScoped<HR_api.Services.ShiftLookupService>();
 builder.Services.AddScoped<HR_api.Helpers.AttendanceConfirmLogHelper>();
 builder.Services.AddScoped<HR_api.Services.AttendanceConfirmService>();
+builder.Services.AddScoped<HR_api.Services.PayslipService>();
 builder.Services.AddScoped<HR_api.Helpers.GiftLogHelper>();
 builder.Services.AddScoped<HR_api.Services.GiftService>();
 builder.Services.AddScoped<HR_api.Services.AppLinkService>();
@@ -75,6 +76,7 @@ builder.Services.AddScoped<HR_api.Services.SurveyScoreService>();
 builder.Services.AddScoped<HR_api.Services.SurveyExemptService>();
 builder.Services.AddScoped<HR_api.Services.SurveyReportService>();
 builder.Services.AddHostedService<HR_api.HostedServices.SurveyLifecycleService>();
+builder.Services.AddHostedService<HR_api.HostedServices.PayslipLifecycleService>();
 
 // ============================================================
 // Training — Course/Class/Enrollment/Session/Material/Q&A/Test (phase 1 + 2 + 3)

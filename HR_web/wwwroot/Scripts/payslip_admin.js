@@ -19,6 +19,14 @@ $(document).ready(function () {
     let currentPeriodId = null;
     let excelData = [];
 
+    // Mọi action đổi dữ liệu (tạo/xóa/sửa/upload/công bố kỳ lương) đã thêm [ValidateAntiForgeryToken]
+    // phía server nhưng JS trước đây KHÔNG gửi token gì cả — mọi request sẽ bị 400 (audit 2026-10-09,
+    // đây là trang admin DUY NHẤT trong code thiếu CSRF token, lỡ bị khai thác là xóa/sửa được dữ
+    // liệu lương qua trang giả mạo trong lúc HR đang đăng nhập). Set 1 lần cho mọi $.post/$.ajax sau
+    // đây trong trang, đúng tên header server đã quen đọc (xem inquiry-chat.js).
+    const csrfToken = $('input[name="__RequestVerificationToken"]').val() || '';
+    $.ajaxSetup({ headers: { 'RequestVerificationToken': csrfToken } });
+
     // Escape HTML — ITEM_NAME/TEXT_VALUE/tên nhân viên có thể chứa ký tự đặc biệt,
     // không escape thì render thẳng vào HTML sẽ mở đường cho XSS
     function escapeHtml(str) {
@@ -91,21 +99,25 @@ $(document).ready(function () {
         const start = $('#txtDateFrom').val();
         const end = $('#txtDateTo').val();
         const isAutoPublish = $('#chkAutoPublish').is(':checked') ? 1 : 0;
-        const publishDate = $('#txtPublishDate').val();
+        // Bỏ tick thì KHÔNG gửi ngày dù ô input còn giữ giá trị cũ (chỉ bị ẩn, không bị xóa) — tránh
+        // lưu PUBLISH_DATE rác vào DB trong khi IS_AUTO_PUBLISH=0 (audit 2026-10-09).
+        const publishDate = isAutoPublish ? $('#txtPublishDate').val() : null;
         const remark = $('#txtRemark').val();
 
         if (!name) { AlertHelper.warn('Vui lòng nhập tên kỳ lương'); return; }
         if (isAutoPublish && !publishDate) { AlertHelper.warn('Vui lòng chọn ngày giờ tự động công bố'); return; }
 
-        const payload = { 
-            periodName: name, 
-            start: start, 
-            end: end, 
-            isAutoPublish: isAutoPublish, 
+        const payload = {
+            periodName: name,
+            start: start,
+            end: end,
+            isAutoPublish: isAutoPublish,
             publishDate: publishDate,
-            remark: remark 
+            remark: remark
         };
 
+        // Chặn bấm 2 lần (double-click/mạng chậm) tạo ra 2 kỳ lương gần giống nhau (audit 2026-10-09).
+        const $btn = $(this).prop('disabled', true);
         $.post('CreatePeriod', payload, function (res) {
             if (res.success) {
                 AlertHelper.success('Tạo kỳ lương mới thành công');
@@ -113,7 +125,7 @@ $(document).ready(function () {
             } else {
                 AlertHelper.error(res.message);
             }
-        });
+        }).always(() => $btn.prop('disabled', false));
     });
 
     // 3. Cấu hình hiển thị
@@ -166,13 +178,14 @@ $(document).ready(function () {
             });
         });
 
+        const $btn = $(this).prop('disabled', true);
         $.ajax({
             url: 'UpdateItemsVisibility',
             type: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({ 
-                periodId: currentPeriodId, 
-                items: items 
+            data: JSON.stringify({
+                periodId: currentPeriodId,
+                items: items
             }),
             success: function (res) {
                 if (res.success) {
@@ -182,7 +195,7 @@ $(document).ready(function () {
                     AlertHelper.error(res.message);
                 }
             }
-        });
+        }).always(() => $btn.prop('disabled', false));
     });
 
     // Sửa tên kỳ lương
@@ -196,6 +209,7 @@ $(document).ready(function () {
         const newName = $('#txtEditPeriodName').val().trim();
         if (!newName) { AlertHelper.warn('Vui lòng nhập tên kỳ lương'); return; }
 
+        const $btn = $(this).prop('disabled', true);
         $.post('UpdatePeriodName', { id: currentPeriodId, periodName: newName }, function (res) {
             if (res.success) {
                 AlertHelper.success('Đã cập nhật tên kỳ lương');
@@ -205,13 +219,55 @@ $(document).ready(function () {
             } else {
                 AlertHelper.error(res.message);
             }
-        });
+        }).always(() => $btn.prop('disabled', false));
+    });
+
+    // Sửa giờ hẹn tự động công bố
+    $('#btnEditAutoPublish').on('click', function () {
+        const $opt = $('#selectPeriod').find(':selected');
+        const isAuto = $opt.data('autopublish') == 1;
+        const publishDate = $opt.data('publishdate') || '';
+
+        $('#chkEditAutoPublish').prop('checked', isAuto);
+        $('#txtEditPublishDate').val(publishDate);
+        $('#divEditPublishTime').toggle(isAuto);
+        $('#divEditPublishOff').toggle(!isAuto);
+        $('#modalEditAutoPublish').modal('show');
+    });
+
+    $('#chkEditAutoPublish').on('change', function () {
+        const checked = $(this).is(':checked');
+        $('#divEditPublishTime').toggle(checked);
+        $('#divEditPublishOff').toggle(!checked);
+    });
+
+    $('#btnSaveAutoPublish').on('click', function () {
+        const isAutoPublish = $('#chkEditAutoPublish').is(':checked') ? 1 : 0;
+        // Bỏ tick thì KHÔNG gửi ngày dù ô input còn giữ giá trị cũ (chỉ bị ẩn, không bị xóa) — tránh
+        // để lại PUBLISH_DATE cũ trong DB trong khi IS_AUTO_PUBLISH=0 (audit 2026-10-09).
+        const publishDate = isAutoPublish ? $('#txtEditPublishDate').val() : null;
+
+        if (isAutoPublish && !publishDate) { AlertHelper.warn('Vui lòng chọn ngày giờ tự động công bố'); return; }
+
+        const $btn = $(this).prop('disabled', true);
+        $.post('UpdateAutoPublish', { id: currentPeriodId, isAutoPublish: isAutoPublish, publishDate: publishDate }, function (res) {
+            if (res.success) {
+                AlertHelper.success('Đã cập nhật giờ hẹn công bố');
+                const $opt = $('#selectPeriod').find(':selected');
+                $opt.data('autopublish', isAutoPublish).data('publishdate', publishDate);
+                $('#modalEditAutoPublish').modal('hide');
+            } else {
+                AlertHelper.error(res.message);
+            }
+        }).always(() => $btn.prop('disabled', false));
     });
 
     // Xóa kỳ lương
     $('#btnDeletePeriod').on('click', function () {
         const name = $('#selectPeriod').find(':selected').data('name') || 'kỳ này';
+        const $btn = $(this);
         showConfirm(`Xóa kỳ lương "${name}"? Toàn bộ dữ liệu phiếu lương sẽ bị xóa vĩnh viễn!`, () => {
+            $btn.prop('disabled', true);
             $.post('DeletePeriod', { id: currentPeriodId }, function (res) {
                 if (res.success) {
                     AlertHelper.success('Đã xóa kỳ lương');
@@ -219,7 +275,7 @@ $(document).ready(function () {
                 } else {
                     AlertHelper.error(res.message);
                 }
-            });
+            }).always(() => $btn.prop('disabled', false));
         });
     });
 
@@ -527,13 +583,17 @@ $(document).ready(function () {
 
     // 7. Công bố
     $('#btnRelease').on('click', function () {
+        const $btn = $(this);
         showConfirm('Sau khi công bố, tất cả nhân viên sẽ thấy phiếu lương này. Bạn chắc chứ?', () => {
+            $btn.prop('disabled', true);
             $.post('ReleasePeriod', { id: currentPeriodId }, function (res) {
                 if (res.success) {
                     AlertHelper.success(res.message);
                     setTimeout(() => location.reload(), 1500);
+                } else {
+                    AlertHelper.error(res.message || 'Lỗi công bố kỳ lương');
                 }
-            });
+            }).always(() => $btn.prop('disabled', false));
         }, { title: 'Xác nhận công bố', okText: 'Công bố', okClass: 'btn-success', icon: 'publish', iconColor: '#16a34a', iconBg: '#dcfce7' });
     });
 

@@ -113,4 +113,12 @@ public class PayslipService
         return await ParseResponse<PayslipApiResponse<object>>(response)
                ?? new PayslipApiResponse<object> { success = false, message = "Lỗi server" };
     }
+
+    public async Task<PayslipApiResponse<object>> UpdateAutoPublishAsync(decimal id, int isAutoPublish, DateTime? publishDate, string updtId)
+    {
+        var response = await _api.PostAsync("payslip/update-auto-publish",
+            new { ID = id, IS_AUTO_PUBLISH = isAutoPublish, PUBLISH_DATE = publishDate, UPDT_ID = updtId });
+        return await ParseResponse<PayslipApiResponse<object>>(response)
+               ?? new PayslipApiResponse<object> { success = false, message = "Lỗi server" };
+    }
 }

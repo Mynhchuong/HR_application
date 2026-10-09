@@ -774,7 +774,7 @@ public class AccountController : ControllerBase
             string sql = @"
                 SELECT A.DEPTCD, A.LINECD, A.WORKCD,
                        B.DEPTNM, B.TEAMNM, B.WORKNM, A.CNAME, A.BIRTHDAT, A.SEXGB, A.MARRGB,
-                       A.HOMETEL AS PHONE, A.JUMINNO_PLACE AS HOMETOWN,
+                       A.HOMETEL AS PHONE, A.EMAIL, A.JUMINNO_PLACE AS HOMETOWN,
                        A.CONTRACT_TYPE, A.CONTRACT_DATE,
                        A.JUMINNO, A.JUMINNO_DATE, A.IGENTDAT,
                        A.ADDRESS_ETC, C.CODE_NAME1_N, C.CODE_NAME3_N,
@@ -813,6 +813,7 @@ public class AccountController : ControllerBase
                 Sex = reader["SEXGB"]?.ToString(),
                 MaritalStatus = reader["MARRGB"]?.ToString(),
                 Phone = reader["PHONE"]?.ToString(),
+                Email = reader["EMAIL"]?.ToString(),
                 Seniority = reader["SENIORITY_DESC"]?.ToString(),
                 HomeTown = reader["HOMETOWN"]?.ToString(),
                 ContractType = reader["CONTRACT_TYPE"]?.ToString(),

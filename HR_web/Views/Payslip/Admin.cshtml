@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "Quản lý Phiếu lương (HR)";
 }
+@Html.AntiForgeryToken()
 
 <div class="container-fluid py-4">
     <div class="row">
@@ -22,7 +23,9 @@
                                 {
                                     <option value="@p.ID.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                                             data-published="@p.IS_PUBLISHED"
-                                            data-name="@p.PERIOD_NAME">
+                                            data-name="@p.PERIOD_NAME"
+                                            data-autopublish="@p.IS_AUTO_PUBLISH"
+                                            data-publishdate="@(p.PUBLISH_DATE != null ? ((DateTime)p.PUBLISH_DATE).ToString("yyyy-MM-ddTHH:mm") : "")">
                                         @p.PERIOD_NAME @(p.IS_PUBLISHED == 1 ? "(Đã công bố)" : "(Nháp)")
                                     </option>
                                 }
@@ -30,6 +33,9 @@
                             <div id="divPeriodDraftActions" class="mt-2" style="display:none">
                                 <button id="btnEditPeriodName" class="btn btn-sm btn-outline-warning mb-0" title="Sửa tên kỳ lương">
                                     <i class="fas fa-edit me-1"></i> Sửa tên
+                                </button>
+                                <button id="btnEditAutoPublish" class="btn btn-sm btn-outline-primary mb-0 ms-1" title="Sửa giờ hẹn tự động công bố">
+                                    <i class="fas fa-clock me-1"></i> Sửa giờ hẹn
                                 </button>
                                 <button id="btnDeletePeriod" class="btn btn-sm btn-outline-danger mb-0 ms-1" title="Xóa kỳ lương này">
                                     <i class="fas fa-trash me-1"></i> Xóa kỳ
@@ -261,6 +267,38 @@
             <div class="modal-footer">
                 <button class="btn btn-outline-secondary btn-sm mb-0" data-bs-dismiss="modal">Hủy</button>
                 <button id="btnSavePeriodName" class="btn btn-warning btn-sm mb-0">
+                    <i class="fas fa-save me-1"></i> Lưu lại
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Sửa giờ hẹn tự động công bố -->
+<div class="modal fade" id="modalEditAutoPublish" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h6 class="modal-title fw-bold"><i class="fas fa-clock me-1"></i> Sửa giờ hẹn tự động công bố</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-check form-switch pb-2">
+                    <input class="form-check-input" type="checkbox" id="chkEditAutoPublish">
+                    <label class="form-check-label fw-bold" for="chkEditAutoPublish">Hẹn giờ tự động công bố</label>
+                </div>
+                <div id="divEditPublishTime" style="display:none;">
+                    <label class="form-label fw-bold text-primary">Thời gian tự động mở (Ngày &amp; Giờ)</label>
+                    <input type="datetime-local" id="txtEditPublishDate" class="form-control border ps-2">
+                    <small class="text-muted">Đúng thời điểm này nhân viên sẽ tự thấy phiếu lương.</small>
+                </div>
+                <div id="divEditPublishOff" class="text-xs text-secondary" style="display:none;">
+                    Tắt hẹn giờ — kỳ lương sẽ ở trạng thái Nháp cho tới khi bấm "Công bố" tay.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary btn-sm mb-0" data-bs-dismiss="modal">Hủy</button>
+                <button id="btnSaveAutoPublish" class="btn btn-primary btn-sm mb-0">
                     <i class="fas fa-save me-1"></i> Lưu lại
                 </button>
             </div>

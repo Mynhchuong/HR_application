@@ -235,6 +235,20 @@
                 <div class="item-description">@(Model.BirthDate?.ToString("dd/MM/yyyy") ?? "-")</div>
             </div>
         </div>
+        <div class="setting-item">
+            <div class="item-icon"><span class="material-symbols-rounded">call</span></div>
+            <div class="item-content">
+                <div class="item-label">Điện thoại</div>
+                <div class="item-description">@(string.IsNullOrWhiteSpace(Model.Phone) ? "-" : Model.Phone)</div>
+            </div>
+        </div>
+        <div class="setting-item">
+            <div class="item-icon"><span class="material-symbols-rounded">mail</span></div>
+            <div class="item-content">
+                <div class="item-label">Email</div>
+                <div class="item-description">@(string.IsNullOrWhiteSpace(Model.Email) ? "-" : Model.Email)</div>
+            </div>
+        </div>
         @{
             string juminnoDisplay = "-";
             if (!string.IsNullOrWhiteSpace(Model.JuminnoDate) && Model.JuminnoDate.Length == 8

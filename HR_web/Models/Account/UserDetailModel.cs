@@ -13,6 +13,7 @@ public class UserDetailModel
     public string? Sex { get; set; }
     public string? MaritalStatus { get; set; }
     public string? Phone { get; set; }
+    public string? Email { get; set; }   // ECM100.EMAIL — yêu cầu HR 2026-10-08
     public string? Seniority { get; set; }
     public string? HomeTown { get; set; }
     public string? ContractType { get; set; }

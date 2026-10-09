@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
-using Oracle.ManagedDataAccess.Types;
 using HR_api.Data;
 using HR_api.Models.Payslip;
 
@@ -12,11 +11,13 @@ public class PayslipController : ControllerBase
 {
     private readonly OracleService _oracleService;
     private readonly Helpers.NotificationHelper _notiHelper;
+    private readonly Services.PayslipService _payslipService;
 
-    public PayslipController(OracleService oracleService, Helpers.NotificationHelper notiHelper)
+    public PayslipController(OracleService oracleService, Helpers.NotificationHelper notiHelper, Services.PayslipService payslipService)
     {
         _oracleService = oracleService;
         _notiHelper = notiHelper;
+        _payslipService = payslipService;
     }
 
     [HttpGet("periods")]
@@ -161,9 +162,44 @@ public class PayslipController : ControllerBase
         }
     }
 
-    // NV phòng Office Staff nhận phiếu lương qua email riêng, không cần app nhắc nữa (yêu cầu HR
-    // 2026-09-10) — loại phòng này khỏi thông báo "công bố phiếu lương".
-    private const string OfficeStaffDeptName = "OFFICE STAFF";
+    // Sửa lại giờ/ngày hẹn tự động công bố (hoặc tắt hẳn hẹn giờ) cho kỳ CHƯA công bố — yêu cầu HR
+    // 2026-10-09: tạo kỳ xong mới phát hiện chọn sai giờ/ngày, trước đây không có cách sửa lại, phải
+    // xóa kỳ tạo lại từ đầu (mất luôn dữ liệu Excel đã upload).
+    [HttpPost("update-auto-publish")]
+    public async Task<IActionResult> UpdateAutoPublish([FromBody] dynamic model)
+    {
+        try
+        {
+            decimal id = model.ID;
+            int isAutoPublish = model.IS_AUTO_PUBLISH;
+            DateTime? publishDate = model.PUBLISH_DATE;
+            string updtId = model.UPDT_ID;
+
+            if (isAutoPublish == 1 && !publishDate.HasValue)
+                return Ok(new { success = false, message = "Vui lòng chọn ngày giờ tự động công bố" });
+
+            var check = await _oracleService.ExecuteQueryAsync(
+                "SELECT IS_PUBLISHED FROM HRMS.HR_PAYROLL_PERIOD WHERE ID = :ID",
+                r => Convert.ToInt32(r["IS_PUBLISHED"]),
+                new OracleParameter("ID", id));
+
+            if (check.Count == 0) return Ok(new { success = false, message = "Không tìm thấy kỳ lương" });
+            if (check[0] == 1) return Ok(new { success = false, message = "Kỳ đã công bố rồi, không thể sửa giờ hẹn" });
+
+            await _oracleService.ExecuteNonQueryAsync(
+                "UPDATE HRMS.HR_PAYROLL_PERIOD SET IS_AUTO_PUBLISH = :IS_AUTO_PUBLISH, PUBLISH_DATE = :PUBLISH_DATE, UPDT_ID = :UPDT_ID, UPDT_DT = SYSDATE WHERE ID = :ID",
+                new OracleParameter("IS_AUTO_PUBLISH", isAutoPublish),
+                new OracleParameter("PUBLISH_DATE", (object?)publishDate ?? DBNull.Value),
+                new OracleParameter("UPDT_ID", (object?)updtId ?? DBNull.Value),
+                new OracleParameter("ID", id));
+
+            return Ok(new { success = true, message = "Đã cập nhật giờ hẹn công bố" });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
 
     [HttpPost("release")]
     public async Task<IActionResult> ReleasePeriod([FromBody] dynamic model)
@@ -172,78 +208,14 @@ public class PayslipController : ControllerBase
         {
             decimal id = model.ID;
             string updtId = model.UPDT_ID;
-            string sql = "UPDATE HRMS.HR_PAYROLL_PERIOD SET IS_PUBLISHED = 1, UPDT_ID = :UPDT_ID, UPDT_DT = SYSDATE WHERE ID = :ID";
-            await _oracleService.ExecuteNonQueryAsync(sql,
-                new OracleParameter("UPDT_ID", (object?)updtId ?? DBNull.Value),
-                new OracleParameter("ID", id));
-
-            _ = Task.Run(() => NotifyPayslipReleasedAsync(updtId));
-
-            return Ok(new { success = true, message = "Đã công bố phiếu lương" });
+            bool released = await _payslipService.ReleasePeriodAsync(id, updtId);
+            return Ok(released
+                ? new { success = true, message = "Đã công bố phiếu lương" }
+                : new { success = false, message = "Kỳ lương này đã được công bố rồi" });
         }
         catch (Exception ex)
         {
             return Ok(new { success = false, message = ex.Message });
-        }
-    }
-
-    // Gửi thông báo "công bố phiếu lương" cho TOÀN CÔNG TY TRỪ phòng Office Staff (nhận lương qua
-    // email riêng rồi, không cần in-app notification nữa). Dùng NOTI_TYPE='MULTI' liệt kê mọi
-    // phòng ban CÒN LẠI thay vì 'COMPANY'/'ALL' như trước — tái sử dụng đúng cơ chế "gửi nhiều
-    // target" (HR_NOTIFICATION_TARGET) mà trang Admin gửi thông báo đã dùng sẵn, không cần thêm
-    // loại NOTI_TYPE hay đổi logic đọc thông báo ở NotificationController.
-    private async Task NotifyPayslipReleasedAsync(string? updtId)
-    {
-        try
-        {
-            var (title, body, titleEn, bodyEn) = await _notiHelper.GetTemplateAsync("PAYSLIP");
-
-            var deptRows = await _oracleService.ExecuteQueryAsync(
-                "SELECT DISTINCT DEPTCD FROM HRMS.EAM410 WHERE UPPER(TRIM(DEPTNM)) != :EXCLUDE_DEPT",
-                r => r["DEPTCD"]?.ToString() ?? "",
-                new OracleParameter("EXCLUDE_DEPT", OfficeStaffDeptName));
-            var targets = deptRows.Where(d => !string.IsNullOrEmpty(d)).Distinct()
-                .Select(d => new Models.Notification.NotificationTarget { TYPE = "DEPT", VAL = d })
-                .ToList();
-            if (targets.Count == 0) return; // an toàn — không dò được phòng ban nào thì thôi, khỏi gửi sai
-
-            string sqlInsert = @"
-                INSERT INTO HRMS.HR_NOTIFICATIONS (TITLE, BODY, TITLE_EN, BODY_EN, NOTI_TYPE, TARGET_VAL, LINK_ACTION, CREATED_BY, CREATED_DATE)
-                VALUES (:TITLE, :BODY, :TITLE_EN, :BODY_EN, 'MULTI', 'MULTI', :LINK_ACTION, :CREATED_BY, SYSDATE)
-                RETURNING ID INTO :OUT_ID";
-
-            var outIdParam = new OracleParameter("OUT_ID", OracleDbType.Decimal, System.Data.ParameterDirection.Output);
-            await _oracleService.ExecuteNonQueryAsync(sqlInsert,
-                new OracleParameter("TITLE",       title),
-                new OracleParameter("BODY",        body),
-                new OracleParameter("TITLE_EN",    (object?)titleEn ?? DBNull.Value),
-                new OracleParameter("BODY_EN",     (object?)bodyEn  ?? DBNull.Value),
-                new OracleParameter("LINK_ACTION", "PAYSLIP"),
-                new OracleParameter("CREATED_BY",  (object?)updtId  ?? DBNull.Value),
-                outIdParam);
-
-            decimal notiId = outIdParam.Value is OracleDecimal od && !od.IsNull ? od.Value : 0;
-            if (notiId <= 0) return;
-
-            foreach (var t in targets)
-            {
-                await _oracleService.ExecuteNonQueryAsync(@"
-                    INSERT INTO HRMS.HR_NOTIFICATION_TARGET (NOTI_ID, TARGET_TYPE, TARGET_VAL)
-                    VALUES (:NID, :TT, :TV)",
-                    new OracleParameter("NID", notiId),
-                    new OracleParameter("TT",  t.TYPE),
-                    new OracleParameter("TV",  t.VAL));
-            }
-
-            await _notiHelper.SendFcmForMultiAsync(notiId, new Models.Notification.SendMultiNotificationRequest
-            {
-                TITLE = title, BODY = body, TITLE_EN = titleEn, BODY_EN = bodyEn,
-                LINK_ACTION = "PAYSLIP", CREATED_BY = updtId, TARGETS = targets
-            });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[PayslipController] NotifyPayslipReleasedAsync error: {ex.Message}");
         }
     }
 
@@ -252,8 +224,13 @@ public class PayslipController : ControllerBase
     {
         try
         {
+            // ITEM_NAME lấy theo NVL(tên riêng của KỲ NÀY, tên chung) — trước đây sửa tên ở đây là
+            // UPDATE thẳng vào HR_PAYROLL_ITEMS (danh mục DÙNG CHUNG mọi kỳ), nên sửa tên ở 1 kỳ lại
+            // đổi theo cả các kỳ khác kể cả kỳ cũ đã công bố NV đang xem (bug thật, audit 2026-10-09).
+            // Giờ tên riêng theo kỳ lưu ở HR_PAYROLL_PERIOD_ITEMS.ITEM_NAME_OVERRIDE, không đụng danh
+            // mục chung nữa.
             string sql = @"
-                SELECT I.ID, I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, I.UNIT,
+                SELECT I.ID, I.ITEM_CODE, NVL(V.ITEM_NAME_OVERRIDE, I.ITEM_NAME) ITEM_NAME, I.ITEM_TYPE, I.UNIT,
                        NVL(V.IS_VISIBLE, I.IS_VISIBLE_DEFAULT) IS_VISIBLE,
                        NVL(V.DISPLAY_ORDER, I.DISPLAY_ORDER) DISPLAY_ORDER
                 FROM HRMS.HR_PAYROLL_ITEMS I
@@ -292,26 +269,22 @@ public class PayslipController : ControllerBase
             {
                 foreach (var item in items!)
                 {
+                    // ITEM_NAME_OVERRIDE lưu RIÊNG cho từng kỳ (PERIOD_ID, ITEM_ID) — trước đây
+                    // UPDATE thẳng HR_PAYROLL_ITEMS (danh mục dùng chung mọi kỳ), sửa tên ở 1 kỳ làm
+                    // đổi luôn tên ở các kỳ khác kể cả kỳ cũ đã công bố (bug thật, audit 2026-10-09).
                     string sql = @"
                         MERGE INTO HRMS.HR_PAYROLL_PERIOD_ITEMS T
                         USING (SELECT :PERIOD_ID PI, :ITEM_ID II FROM DUAL) S
                         ON (T.PERIOD_ID = S.PI AND T.ITEM_ID = S.II)
-                        WHEN MATCHED THEN UPDATE SET IS_VISIBLE = :IS_VISIBLE
-                        WHEN NOT MATCHED THEN INSERT (PERIOD_ID, ITEM_ID, IS_VISIBLE)
-                                              VALUES (:PERIOD_ID, :ITEM_ID, :IS_VISIBLE)";
+                        WHEN MATCHED THEN UPDATE SET IS_VISIBLE = :IS_VISIBLE, ITEM_NAME_OVERRIDE = :ITEM_NAME
+                        WHEN NOT MATCHED THEN INSERT (PERIOD_ID, ITEM_ID, IS_VISIBLE, ITEM_NAME_OVERRIDE)
+                                              VALUES (:PERIOD_ID, :ITEM_ID, :IS_VISIBLE, :ITEM_NAME)";
 
                     await _oracleService.ExecuteNonQueryAsync(scope, sql,
                         new OracleParameter("PERIOD_ID", periodId),
                         new OracleParameter("ITEM_ID", item.ID),
-                        new OracleParameter("IS_VISIBLE", item.IS_VISIBLE));
-
-                    if (!string.IsNullOrEmpty(item.ITEM_NAME))
-                    {
-                        string sqlUpdateName = "UPDATE HRMS.HR_PAYROLL_ITEMS SET ITEM_NAME = :ITEM_NAME WHERE ID = :ITEM_ID";
-                        await _oracleService.ExecuteNonQueryAsync(scope, sqlUpdateName,
-                            new OracleParameter("ITEM_NAME", item.ITEM_NAME),
-                            new OracleParameter("ITEM_ID", item.ID));
-                    }
+                        new OracleParameter("IS_VISIBLE", item.IS_VISIBLE),
+                        new OracleParameter("ITEM_NAME", string.IsNullOrEmpty(item.ITEM_NAME) ? (object)DBNull.Value : item.ITEM_NAME));
                 }
                 await scope.CommitAsync();
             }
@@ -502,8 +475,20 @@ public class PayslipController : ControllerBase
     {
         try
         {
+            // Endpoint tự xem phiếu lương của CHÍNH mình — PHẢI tự chặn lại bằng IS_PUBLISHED, không
+            // được tin tưởng màn hình danh sách đã lọc sẵn phía trên. PERIOD_ID là số tăng dần, NV
+            // đoán/gọi thẳng URL với periodId của kỳ CHƯA công bố vẫn xem được dữ liệu lương thật của
+            // chính mình — lỗ hổng thật, phát hiện lúc audit tính năng hẹn giờ công bố (2026-10-09).
+            var pub = await _oracleService.ExecuteQueryAsync(
+                "SELECT IS_PUBLISHED FROM HRMS.HR_PAYROLL_PERIOD WHERE ID = :ID",
+                r => Convert.ToInt32(r["IS_PUBLISHED"]),
+                new OracleParameter("ID", periodId));
+            if (pub.Count == 0 || pub[0] != 1)
+                return Ok(new { success = false, message = "Kỳ lương này chưa được công bố" });
+
+            // Tên cột lấy theo NVL(tên riêng của KỲ NÀY, tên chung) — xem ghi chú ở GetItemsVisibility.
             string sql = @"
-                SELECT I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, I.UNIT, D.AMOUNT, D.TEXT_VALUE,
+                SELECT I.ITEM_CODE, NVL(V.ITEM_NAME_OVERRIDE, I.ITEM_NAME) ITEM_NAME, I.ITEM_TYPE, I.UNIT, D.AMOUNT, D.TEXT_VALUE,
                        NVL(V.IS_VISIBLE, I.IS_VISIBLE_DEFAULT) IS_VISIBLE
                 FROM HRMS.HR_PAYROLL_ITEMS I
                 LEFT JOIN HRMS.HR_PAYROLL_DATA D ON D.ITEM_ID = I.ID AND D.PERIOD_ID = :PERIOD_ID AND D.EMPCD = :EMPCD
@@ -581,13 +566,14 @@ public class PayslipController : ControllerBase
             var empParams = emps.Select((e, i) => new OracleParameter($"EMP{i}", e.EMPCD)).ToList();
             var inClause  = string.Join(",", empParams.Select(p => ":" + p.ParameterName));
             string sqlAllDetails = $@"
-                SELECT D.EMPCD, I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, I.UNIT, D.AMOUNT, D.TEXT_VALUE
+                SELECT D.EMPCD, I.ITEM_CODE, NVL(V.ITEM_NAME_OVERRIDE, I.ITEM_NAME) ITEM_NAME, I.ITEM_TYPE, I.UNIT, D.AMOUNT, D.TEXT_VALUE
                 FROM HRMS.HR_PAYROLL_ITEMS I
                 LEFT JOIN HRMS.HR_PAYROLL_DATA D ON D.ITEM_ID = I.ID AND D.PERIOD_ID = :PERIOD_ID
+                LEFT JOIN HRMS.HR_PAYROLL_PERIOD_ITEMS V ON V.ITEM_ID = I.ID AND V.PERIOD_ID = :PERIOD_ID2
                 WHERE D.EMPCD IN ({inClause})
                 ORDER BY D.EMPCD, I.DISPLAY_ORDER";
 
-            var allParams = new List<OracleParameter> { new OracleParameter("PERIOD_ID", periodId) };
+            var allParams = new List<OracleParameter> { new OracleParameter("PERIOD_ID", periodId), new OracleParameter("PERIOD_ID2", periodId) };
             allParams.AddRange(empParams);
 
             var allDetails = await _oracleService.ExecuteQueryAsync(sqlAllDetails, r => new {
@@ -635,9 +621,10 @@ public class PayslipController : ControllerBase
             if (emps.Count == 0) return Ok(new { success = true, data = new List<object>() });
 
             string sqlAllDetails = @"
-                SELECT D.EMPCD, I.ITEM_CODE, I.ITEM_NAME, I.ITEM_TYPE, I.UNIT, D.AMOUNT, D.TEXT_VALUE
+                SELECT D.EMPCD, I.ITEM_CODE, NVL(V.ITEM_NAME_OVERRIDE, I.ITEM_NAME) ITEM_NAME, I.ITEM_TYPE, I.UNIT, D.AMOUNT, D.TEXT_VALUE
                 FROM HRMS.HR_PAYROLL_ITEMS I
                 LEFT JOIN HRMS.HR_PAYROLL_DATA D ON D.ITEM_ID = I.ID AND D.PERIOD_ID = :PERIOD_ID
+                LEFT JOIN HRMS.HR_PAYROLL_PERIOD_ITEMS V ON V.ITEM_ID = I.ID AND V.PERIOD_ID = :PERIOD_ID2
                 ORDER BY D.EMPCD, I.DISPLAY_ORDER";
 
             var allDetails = await _oracleService.ExecuteQueryAsync(sqlAllDetails, r => new {
@@ -651,7 +638,7 @@ public class PayslipController : ControllerBase
                     IS_VISIBLE = 1,
                     UNIT = r["UNIT"]?.ToString()
                 }
-            }, new OracleParameter("PERIOD_ID", periodId));
+            }, new OracleParameter("PERIOD_ID", periodId), new OracleParameter("PERIOD_ID2", periodId));
 
             var list = emps.Select(e => new PayslipAdminDetailModel {
                 EMPCD = e.EMPCD,

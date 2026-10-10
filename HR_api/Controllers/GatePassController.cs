@@ -525,6 +525,20 @@ public class GatePassController : ControllerBase
             if (model == null || string.IsNullOrEmpty(model.REQUEST_ID) || string.IsNullOrEmpty(model.APPROVER_EMPCD))
                 return Ok(new { success = false, message = "Thiếu thông tin duyệt" });
 
+            // Chặn duyệt trực tiếp nếu Gate Pass này do hệ thống tự tạo kèm 1 đơn Công tác (CT) —
+            // duyệt ở đây chỉ flip HR_GATEPASS_REQUEST/gọi SP_INSERT_GATE_PASS (ghi nhận ra/vào cổng
+            // thật), KHÔNG chạy SP_015_NEW để ghi nhận "vắng vì công tác" (logic đó chỉ có trong
+            // LeaveController.Approve()) — quản lý vào đây duyệt nhầm thì đơn CT coi như chưa duyệt
+            // dù phiếu ra cổng đã APPROVED (feedback HR thật, 2026-10-10). Cùng pattern đã áp dụng
+            // cho Delete()/AdminDeleteGp() bên dưới.
+            var ctLinkRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT COUNT(*) CNT FROM HRMS.HR_LEAVE_REQUEST
+                WHERE GP_REQUEST_ID = :REQUEST_ID OR GP_REQUEST_ID_RETURN = :REQUEST_ID",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
+            if (ctLinkRows.FirstOrDefault() > 0)
+                return Ok(new { success = false, message = "Gate Pass này tự động tạo theo đơn Công tác — vui lòng duyệt đơn Công tác trong mục Nghỉ phép, không duyệt trực tiếp ở đây." });
+
             // Phân cấp: Supervisor(2)→Worker(1), Manager(3)→Supervisor, Expat(4)→Manager, Admin(99)→tất cả
             var approverRoleRows = await _oracleService.ExecuteQueryAsync(@"
                 SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U
@@ -656,6 +670,16 @@ END;";
         {
             if (model == null || string.IsNullOrEmpty(model.REQUEST_ID) || string.IsNullOrEmpty(model.APPROVER_EMPCD))
                 return Ok(new { success = false, message = "Thiếu thông tin từ chối" });
+
+            // Chặn từ chối trực tiếp nếu Gate Pass này tự tạo theo đơn Công tác — xem comment ở
+            // Approve() phía trên, cùng lý do: xử lý ở đây không đồng bộ được với đơn CT.
+            var ctLinkRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT COUNT(*) CNT FROM HRMS.HR_LEAVE_REQUEST
+                WHERE GP_REQUEST_ID = :REQUEST_ID OR GP_REQUEST_ID_RETURN = :REQUEST_ID",
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("REQUEST_ID", model.REQUEST_ID));
+            if (ctLinkRows.FirstOrDefault() > 0)
+                return Ok(new { success = false, message = "Gate Pass này tự động tạo theo đơn Công tác — vui lòng xử lý đơn Công tác trong mục Nghỉ phép, không duyệt/từ chối trực tiếp ở đây." });
 
             // Phân cấp từ chối — cùng quy tắc như approve
             var rejectRoleRows = await _oracleService.ExecuteQueryAsync(@"

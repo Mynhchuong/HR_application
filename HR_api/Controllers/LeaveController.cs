@@ -3740,6 +3740,25 @@ END;";
 
             var idParams     = model.REQUEST_IDS.Select((id, i) => new OracleParameter($"ID{i}", id)).ToArray();
             var placeholders = string.Join(",", idParams.Select(p => $":{p.ParameterName}"));
+
+            // CT (Công tác): mỗi đơn có thể kéo theo 1-2 Gate Pass tự tạo (GP_REQUEST_ID = ngày đi,
+            // GP_REQUEST_ID_RETURN = ngày về) — lấy trước khi xoá đơn nghỉ, nếu không xoá theo thì
+            // Gate Pass auto này bị mồ côi, vẫn APPROVED/còn hiệu lực mà không ai biết thuộc đơn CT
+            // nào nữa (bug phát hiện 2026-10-10, cùng lớp với Delete() tự-xoá đã xử lý ở trên).
+            var gpIdRows = await _oracleService.ExecuteQueryAsync($@"
+                SELECT GP_REQUEST_ID, GP_REQUEST_ID_RETURN FROM HRMS.HR_LEAVE_REQUEST
+                WHERE REQUEST_ID IN ({placeholders})",
+                r => new {
+                    GpRequestId       = r["GP_REQUEST_ID"]?.ToString(),
+                    GpRequestIdReturn = r["GP_REQUEST_ID_RETURN"]?.ToString()
+                },
+                idParams);
+            var gpIds = gpIdRows
+                .SelectMany(x => new[] { x.GpRequestId, x.GpRequestIdReturn })
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Distinct()
+                .ToList();
+
             var deletedCount = new OracleParameter("DELETED_COUNT", OracleDbType.Int32) { Direction = System.Data.ParameterDirection.Output };
 
             await _oracleService.ExecuteNonQueryAsync($@"
@@ -3749,6 +3768,16 @@ END;";
                     :DELETED_COUNT := SQL%ROWCOUNT;
                     COMMIT;
                 END;", idParams.Append(deletedCount).ToArray());
+
+            foreach (var gpId in gpIds)
+            {
+                await _oracleService.ExecuteNonQueryAsync(
+                    "DELETE FROM HRMS.HR_GATEPASS_REQUEST WHERE REQUEST_ID = :REQUEST_ID",
+                    new OracleParameter("REQUEST_ID", gpId));
+                await _oracleService.ExecuteNonQueryAsync(
+                    "DELETE FROM HRMS.HR_REQUEST WHERE REQUEST_ID = :REQUEST_ID",
+                    new OracleParameter("REQUEST_ID", gpId));
+            }
 
             int total = int.Parse(deletedCount.Value?.ToString() ?? "0");
             return Ok(new { success = true, message = $"Đã xóa {total} đơn nghỉ phép khỏi hệ thống", total_deleted = total });

@@ -299,6 +299,12 @@ public class HomeSummaryService
             WHERE R.STATUS = 'PENDING'
               AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
               AND TRUNC(NVL(GP.OUT_TIME, GP.IN_TIME)) = TRUNC(SYSDATE)
+              -- Không đếm Gate Pass tự tạo theo đơn Công tác (CT) — phiếu này chỉ được duyệt đúng
+              -- qua đơn CT bên Nghỉ phép (GatePassController chặn duyệt trực tiếp), đếm vào đây sẽ
+              -- kêu quản lý vào nhầm trang duyệt (feedback HR thật, 2026-10-10).
+              AND NOT EXISTS (
+                  SELECT 1 FROM HRMS.HR_LEAVE_REQUEST L
+                  WHERE L.GP_REQUEST_ID = GP.REQUEST_ID OR L.GP_REQUEST_ID_RETURN = GP.REQUEST_ID)
               {scope.SqlClause}";
 
         var rows = await _oracleService.ExecuteQueryAsync(sql,

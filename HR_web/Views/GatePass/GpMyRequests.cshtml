@@ -1,6 +1,6 @@
 @{
     ViewData["Title"] = "Phiếu Ra Vào Của Tôi";
-    var today = DateTime.Today.ToString("yyyy-MM-dd");
+    var curMonth = DateTime.Today.ToString("yyyy-MM");
 }
 
 @section Styles {
@@ -20,12 +20,20 @@
     .sig-cell-img  { display:block; margin:0 auto; max-height:55px; max-width:110px; object-fit:contain; background:#fafafa; border-radius:4px; padding:2px; }
     .sig-cell-name { font-size:.65rem; color:#64748b; margin-top:2px; line-height:1.2; }
 
-    /* Date filter mobile */
+    /* Header gradient: always visible (KHÔNG mang class .filter-bar — list-page-helper.css ẩn hẳn
+       mọi .filter-bar trên mobile cho tới khi bấm "Bộ lọc", nên trước đây nút "Đăng Ký Mới" bị ẩn
+       theo luôn, phải bấm bộ lọc mới thấy — bug báo 2026-10-09). Chỉ bộ lọc tháng (thật sự là filter)
+       mới đặt trong .filter-bar riêng bên dưới, đúng quy ước chung với Leave/GatePass-Admin/OT. */
+    .gp-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
     @@media (max-width: 576px) {
-        .filter-bar { flex-direction: column; align-items: stretch !important; gap: 8px !important; }
-        .filter-bar .btn-light, .filter-bar .input-group { width: 100%; }
-        .filter-date-wrap { width: 100% !important; height: auto !important; padding: 8px 10px !important; }
-        .filter-date-wrap input[type=date] { width: 100% !important; }
+        .gp-header-row { flex-direction: column; align-items: stretch !important; }
+        .gp-header-row .btn-light { width: 100%; text-align: center; }
+    }
+    .gp-month-filter { display: flex; align-items: center; gap: 8px; }
+    @@media (max-width: 576px) {
+        .gp-month-filter { width: 100%; }
+        .gp-month-filter > div { flex: 1; width: 100%; }
+        .gp-month-filter input[type=month] { width: 100% !important; }
     }
 
     /* Mobile card layout */
@@ -49,17 +57,35 @@
     <div class="card my-4">
         <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
             <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 filter-bar">
+                <div class="gp-header-row">
                     <h6 class="text-white mb-0"><i class="bi bi-list-check me-1"></i> Phiếu Ra Vào Của Tôi</h6>
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <a href="@Url.Action("GpRequestForm", "GatePass")" class="btn btn-sm mb-0" style="background:#fff;color:#344767;font-weight:600;">
-                            <i class="bi bi-plus-circle me-1"></i> Đăng Ký Mới
-                        </a>
-                        <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
-                            <i class="bi bi-calendar3 text-warning"></i>
-                            <input type="date" id="filterDate" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:120px;" value="@today" onchange="loadData(1)" />
-                        </div>
-                    </div>
+                    <a href="@Url.Action("GpRequestForm", "GatePass")" class="btn btn-sm mb-0" style="background:#fff;color:#344767;font-weight:600;">
+                        <i class="bi bi-plus-circle me-1"></i> Đăng Ký Mới
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="px-3 pt-3 pb-2 d-flex align-items-center filter-bar" style="background:#f8fafc;border-bottom:1px solid #e9ecef;">
+            <div class="gp-month-filter">
+                <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;border:1px solid #e2e8f0;">
+                    <i class="bi bi-calendar3 text-warning"></i>
+                    @* Input type=month dùng lịch gốc trình duyệt, hiện theo NGÔN NGỮ HỆ ĐIỀU HÀNH máy
+                       (Jan/Feb/...) chứ không theo ngôn ngữ trang — công nhân không đọc được tiếng Anh
+                       (phản hồi thực tế 2026-10-09). Thay bằng 2 select Tháng/Năm tự làm, luôn tiếng Việt. *@
+                    <select id="filterMonthSel" class="form-select form-select-sm border-0 bg-transparent text-dark p-0" style="width:90px;" onchange="loadData(1)">
+                        @for (int m = 1; m <= 12; m++)
+                        {
+                            <option value="@m" selected="@(m == DateTime.Today.Month)">Tháng @m</option>
+                        }
+                    </select>
+                    <select id="filterYearSel" class="form-select form-select-sm border-0 bg-transparent text-dark p-0" style="width:80px;" onchange="loadData(1)">
+                        @{ int curYear = DateTime.Today.Year; }
+                        @for (int y = curYear - 2; y <= curYear; y++)
+                        {
+                            <option value="@y" selected="@(y == curYear)">@y</option>
+                        }
+                    </select>
                 </div>
             </div>
         </div>
@@ -267,14 +293,27 @@ function buildCard(item, idx) {
     </div>`;
 }
 
+// Tháng/năm chọn từ 2 select (#filterMonthSel/#filterYearSel) -> { from: "yyyy-MM-01", to: ngày
+// cuối tháng } gửi xuống API (vẫn dùng chung date_from/date_to sẵn có).
+function monthRange() {
+    const m = Number($('#filterMonthSel').val());
+    const y = Number($('#filterYearSel').val());
+    if (!y || !m) return { from: null, to: null };
+    const from = `${y}-${String(m).padStart(2,'0')}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const to = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+    return { from, to };
+}
+
 function loadData(page = 1) {
     currentPage = page;
     const spinner = `<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-warning" role="status"></div></td></tr>`;
     $('#gpTableBody').html(spinner);
     $('#gpCardList').html('<div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div></div>');
+    const range = monthRange();
     $.ajax({
         url: PAGE_URL, type: 'GET',
-        data: { page, page_size: pageSize, date_from: $('#filterDate').val(), date_to: $('#filterDate').val() },
+        data: { page, page_size: pageSize, date_from: range.from, date_to: range.to },
         success: function(res) {
             if (!res.success) {
                 const err = `<tr><td colspan="8" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`;
@@ -286,8 +325,8 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#gpTableBody').html(renderNoData('Không có phiếu ra vào nào trong ngày này.', 7));
-                $('#gpCardList').html(renderNoData('Không có phiếu ra vào nào trong ngày này.'));
+                $('#gpTableBody').html(renderNoData('Không có phiếu ra vào nào trong tháng này.', 7));
+                $('#gpCardList').html(renderNoData('Không có phiếu ra vào nào trong tháng này.'));
             } else {
                 $('#gpTableBody').html(data.map((item, i) => buildRow(item, (page-1)*pageSize+i+1)).join(''));
                 $('#gpCardList').html(data.map((item, i) => buildCard(item, (page-1)*pageSize+i+1)).join(''));

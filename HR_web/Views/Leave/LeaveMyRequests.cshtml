@@ -169,6 +169,29 @@
                     <label class="form-label fw-bold">Số ngày nghỉ <span class="text-danger">*</span></label>
                     <input type="number" id="createTotalDays" class="form-control bg-light" min="0.5" step="0.5" placeholder="Tự động tính" readonly />
                 </div>
+                <div class="row d-none" id="createCtTimeRow">
+                    <div class="col-12 mb-1">
+                        <div class="text-xs text-muted">Đi cả ngày thì để trống. Đi nhiều lần trong ngày thì ghi giờ từng lần.</div>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold mb-1">Giờ đi</label>
+                        <div class="input-group input-group-sm">
+                            <select id="createCtOutHour" class="form-select ct-hour-select"></select>
+                            <span class="input-group-text px-1">:</span>
+                            <select id="createCtOutMin" class="form-select ct-min-select"></select>
+                            <button type="button" class="btn btn-outline-secondary px-2" title="Xoá giờ" onclick="clearCtTime('createCtOut')">✕</button>
+                        </div>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold mb-1">Giờ về</label>
+                        <div class="input-group input-group-sm">
+                            <select id="createCtInHour" class="form-select ct-hour-select"></select>
+                            <span class="input-group-text px-1">:</span>
+                            <select id="createCtInMin" class="form-select ct-min-select"></select>
+                            <button type="button" class="btn btn-outline-secondary px-2" title="Xoá giờ" onclick="clearCtTime('createCtIn')">✕</button>
+                        </div>
+                    </div>
+                </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Lý do <span class="text-danger">*</span></label>
                     <textarea id="createReason" class="form-control" rows="2" maxlength="500" placeholder="Nhập lý do nghỉ phép..."></textarea>
@@ -263,6 +286,29 @@
                     <label class="form-label fw-bold">Số ngày nghỉ <span class="text-danger">*</span></label>
                     <input type="number" id="editTotalDays" class="form-control bg-light" min="0.5" step="0.5" readonly />
                 </div>
+                <div class="row d-none" id="editCtTimeRow">
+                    <div class="col-12 mb-1">
+                        <div class="text-xs text-muted">Đi cả ngày thì để trống. Đi nhiều lần trong ngày thì ghi giờ từng lần.</div>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold mb-1">Giờ đi</label>
+                        <div class="input-group input-group-sm">
+                            <select id="editCtOutHour" class="form-select ct-hour-select"></select>
+                            <span class="input-group-text px-1">:</span>
+                            <select id="editCtOutMin" class="form-select ct-min-select"></select>
+                            <button type="button" class="btn btn-outline-secondary px-2" title="Xoá giờ" onclick="clearCtTime('editCtOut')">✕</button>
+                        </div>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold mb-1">Giờ về</label>
+                        <div class="input-group input-group-sm">
+                            <select id="editCtInHour" class="form-select ct-hour-select"></select>
+                            <span class="input-group-text px-1">:</span>
+                            <select id="editCtInMin" class="form-select ct-min-select"></select>
+                            <button type="button" class="btn btn-outline-secondary px-2" title="Xoá giờ" onclick="clearCtTime('editCtIn')">✕</button>
+                        </div>
+                    </div>
+                </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Lý do</label>
                     <textarea id="editReason" class="form-control" rows="2" maxlength="500"></textarea>
@@ -294,6 +340,42 @@ const SIG_URL          = '@Url.Action("GetSignature",     "Image")';
 const CURRENT_EMPCD    = '@ViewBag.CurrentEmpCd';
 
 let myBalance = null; // { RECEIVE_NUM, USED_NUM, LEFT_NUM }
+
+// ─── Giờ công tác (CT): 2 select Giờ/Phút thay cho <input type="time"> — input type=time không
+// chắc tôn trọng step=5 phút trên mọi trình duyệt/thiết bị (phản hồi thực tế), dùng select đảm bảo
+// luôn tròn 5 phút (00,05,...,55) bất kể máy nào. prefix dùng để build id, VD "createCtOut" ->
+// #createCtOutHour/#createCtOutMin.
+function buildCtTimeSelects() {
+    document.querySelectorAll('.ct-hour-select').forEach(sel => {
+        if (sel.options.length) return;
+        let html = '<option value="">--</option>';
+        for (let h = 0; h < 24; h++) { const v = String(h).padStart(2, '0'); html += `<option value="${v}">${v}</option>`; }
+        sel.innerHTML = html;
+    });
+    document.querySelectorAll('.ct-min-select').forEach(sel => {
+        if (sel.options.length) return;
+        let html = '<option value="">--</option>';
+        for (let m = 0; m < 60; m += 5) { const v = String(m).padStart(2, '0'); html += `<option value="${v}">${v}</option>`; }
+        sel.innerHTML = html;
+    });
+}
+buildCtTimeSelects();
+
+function getCtTime(prefix) {
+    const h = $(`#${prefix}Hour`).val(), m = $(`#${prefix}Min`).val();
+    return (h && m) ? `${h}:${m}` : '';
+}
+function setCtTime(prefix, hhmm) {
+    if (!hhmm) { clearCtTime(prefix); return; }
+    const [h, m] = hhmm.split(':');
+    const roundedMin = String(Math.round(parseInt(m, 10) / 5) * 5 % 60).padStart(2, '0');
+    $(`#${prefix}Hour`).val(h);
+    $(`#${prefix}Min`).val(roundedMin);
+}
+function clearCtTime(prefix) {
+    $(`#${prefix}Hour`).val('');
+    $(`#${prefix}Min`).val('');
+}
 
 function loadBalance() {
     $.get(BALANCE_URL, function(res) {
@@ -548,6 +630,7 @@ function actionBtns(item) {
                     data-id="${item.REQUEST_ID}" data-type="${escHtml(item.LEAVE_TYPE||'AL')}"
                     data-from="${item.FROM_DATE||''}" data-to="${item.TO_DATE||''}"
                     data-days="${item.TOTAL_DAYS||1}" data-reason="${escHtml(item.REASON||'')}"
+                    data-ct-out="${item.CT_OUT_TIME||''}" data-ct-in="${item.CT_IN_TIME||''}"
                     onclick="openEditBtn(this)"><i class="bi bi-pencil"></i></button>
                 <button class="btn btn-xs btn-outline-danger" title="Xoá" onclick="confirmDelete('${item.REQUEST_ID}')"><i class="bi bi-trash"></i></button>`;
     }
@@ -824,7 +907,19 @@ function calcCreateDays() {
         const diff = countDaysNoSunday(f, tFinal, createLT);
         if (diff > 0) $('#createTotalDays').val(diff);
     }
+    updateCreateCtTimeVisibility();
 }
+
+// Ô giờ đi/giờ về chỉ có ý nghĩa với CT 1 ngày (cho phép khai nhiều lần/ngày, yêu cầu HR
+// 2026-10-10) — ẩn + xoá giá trị khi không còn thoả điều kiện để khỏi gửi nhầm giờ cũ.
+function updateCreateCtTimeVisibility() {
+    const lt = $('#createLeaveType').val() || 'AL';
+    const f = $('#createFromDate').val(), t = $('#createToDate').val();
+    const show = lt === 'CT' && f && t && f === t;
+    $('#createCtTimeRow').toggleClass('d-none', !show);
+    if (!show) { clearCtTime('createCtOut'); clearCtTime('createCtIn'); }
+}
+document.getElementById('createLeaveType')?.addEventListener('change', updateCreateCtTimeVisibility);
 
 // Popup xác nhận trước khi gửi đơn cho mọi loại nghỉ TRỪ AL và CT — mục đích tránh công nhân
 // chọn nhầm loại nghỉ mà không biết hậu quả. Dùng LẠI đúng phân loại ALWAYS_LOSE_TYPES/
@@ -917,6 +1012,20 @@ async function saveCreate() {
         }
     }
 
+    // Giờ công tác tùy chọn — chỉ CT 1 ngày. Thiếu 1 trong 2 = lỗi; đủ cả 2 thì validate đi < về.
+    const ctOutVal = getCtTime('createCtOut'), ctInVal = getCtTime('createCtIn');
+    if (createLT === 'CT' && from === to) {
+        if (!!ctOutVal !== !!ctInVal) {
+            $('#createError').removeClass('d-none').text('Vui lòng nhập đủ cả giờ đi và giờ về (hoặc để trống cả 2 nếu công tác cả ngày)');
+            return;
+        }
+        if (ctOutVal && ctOutVal >= ctInVal) {
+            $('#createError').removeClass('d-none').text('Giờ đi phải trước giờ về');
+            return;
+        }
+    }
+    const newIsSingleDayCt = createLT === 'CT' && from === to && !!ctOutVal && !!ctInVal;
+
     // Xác nhận hậu quả trước khi gửi — mọi loại trừ AL và CT (CT không mất chuyên cần/lương).
     if (createLT !== 'AL' && createLT !== 'CT') {
         const ok = await confirmLeaveWarning(createLT);
@@ -933,8 +1042,17 @@ async function saveCreate() {
                 const rFrom = (r.FROM_DATE || '').slice(0, 10);
                 const rTo   = (r.TO_DATE   || '').slice(0, 10);
                 if (!rFrom || !rTo || !datesOverlap(from, to, rFrom, rTo)) return false;
-                return (r.SOURCE !== 'ASSIGNED' && (r.STATUS === 'PENDING' || r.STATUS === 'APPROVED')) ||
-                       (r.SOURCE === 'ASSIGNED' && r.CONFIRM_STATUS === 'CONFIRMED');
+                const isDup = (r.SOURCE !== 'ASSIGNED' && (r.STATUS === 'PENDING' || r.STATUS === 'APPROVED')) ||
+                              (r.SOURCE === 'ASSIGNED' && r.CONFIRM_STATUS === 'CONFIRMED');
+                if (!isDup) return false;
+                // 2 CT 1 ngày cùng khai giờ cụ thể, không giao nhau — không coi là trùng (để server
+                // CheckSelfLeaveOverlapAsync là nguồn sự thật cuối, đây chỉ là UX pre-check).
+                if (newIsSingleDayCt && r.LEAVE_TYPE === 'CT' && rFrom === rTo && r.CT_OUT_TIME && r.CT_IN_TIME) {
+                    const rOut = toHHMM(r.CT_OUT_TIME), rIn = toHHMM(r.CT_IN_TIME);
+                    const timeOverlap = ctOutVal < rIn && rOut < ctInVal;
+                    if (!timeOverlap) return false;
+                }
+                return true;
             });
             if (conflict) {
                 const st = conflict.STATUS === 'APPROVED' ? 'đã được duyệt'
@@ -956,7 +1074,9 @@ async function saveCreate() {
             FROM_DATE:  from,
             TO_DATE:    to,
             TOTAL_DAYS: days,
-            REASON:     reason
+            REASON:     reason,
+            CT_OUT_TIME: ctOutVal || null,
+            CT_IN_TIME:  ctInVal  || null
         };
         const res = await $.ajax({ url: CREATE_URL, type: 'POST', contentType: 'application/json', data: JSON.stringify(payload) });
         if (res.success) {
@@ -1024,6 +1144,22 @@ function calcDays() {
         const diff = countDaysNoSunday(f, tFinal, editLT);
         if (diff > 0) $('#editTotalDays').val(diff);
     }
+    updateEditCtTimeVisibility();
+}
+
+function updateEditCtTimeVisibility() {
+    const lt = $('#editLeaveType').val() || 'AL';
+    const f = $('#editFromDate').val(), t = $('#editToDate').val();
+    const show = lt === 'CT' && f && t && f === t;
+    $('#editCtTimeRow').toggleClass('d-none', !show);
+    if (!show) { clearCtTime('editCtOut'); clearCtTime('editCtIn'); }
+}
+document.getElementById('editLeaveType')?.addEventListener('change', updateEditCtTimeVisibility);
+
+function toHHMM(isoOrNull) {
+    if (!isoOrNull) return '';
+    const m = String(isoOrNull).match(/T(\d{2}):(\d{2})/);
+    return m ? `${m[1]}:${m[2]}` : '';
 }
 
 function openEditBtn(btn) {
@@ -1038,7 +1174,9 @@ function openEditBtn(btn) {
     $('#editToDate').attr('min', fromStr || today).val(toStr);
     $('#editTotalDays').val($b.data('days'));
     $('#editReason').val($b.data('reason') || '');
-    $('#editLeaveType').trigger('change'); // tự gọi updateLTNote('edit') + updateEditDateMin() (set min theo giờ ca thật)
+    setCtTime('editCtOut', toHHMM($b.data('ct-out')));
+    setCtTime('editCtIn', toHHMM($b.data('ct-in')));
+    $('#editLeaveType').trigger('change'); // tự gọi updateLTNote('edit') + updateEditDateMin() + updateEditCtTimeVisibility()
     $('#editError').addClass('d-none').text('');
     new bootstrap.Modal('#editModal').show();
 }
@@ -1096,6 +1234,18 @@ async function saveEdit() {
         }
     }
 
+    const editCtOutVal = getCtTime('editCtOut'), editCtInVal = getCtTime('editCtIn');
+    if (editLT === 'CT' && from === to) {
+        if (!!editCtOutVal !== !!editCtInVal) {
+            $('#editError').removeClass('d-none').text('Vui lòng nhập đủ cả giờ đi và giờ về (hoặc để trống cả 2 nếu công tác cả ngày)');
+            return;
+        }
+        if (editCtOutVal && editCtOutVal >= editCtInVal) {
+            $('#editError').removeClass('d-none').text('Giờ đi phải trước giờ về');
+            return;
+        }
+    }
+
     const $btn = $('#saveEditBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...');
     try {
         const payload = {
@@ -1105,7 +1255,9 @@ async function saveEdit() {
             FROM_DATE:  from,
             TO_DATE:    to,
             TOTAL_DAYS: parseFloat($('#editTotalDays').val()) || 1,
-            REASON:     $('#editReason').val() || null
+            REASON:     $('#editReason').val() || null,
+            CT_OUT_TIME: editCtOutVal || null,
+            CT_IN_TIME:  editCtInVal  || null
         };
         const res = await $.ajax({ url: UPDATE_URL, type: 'POST', contentType: 'application/json', data: JSON.stringify(payload) });
         if (res.success) {

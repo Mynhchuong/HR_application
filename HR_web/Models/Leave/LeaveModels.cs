@@ -21,6 +21,8 @@ public class LeaveMyRequestModel
     public string?   ASSIGNED_BY    { get; set; }
     public string?   ASSIGNER_NAME  { get; set; }
     public string?   DOC_STATUS     { get; set; }
+    public DateTime? CT_OUT_TIME    { get; set; }
+    public DateTime? CT_IN_TIME     { get; set; }
 }
 
 public class LeaveMyRequestsPagedResponse
@@ -65,6 +67,8 @@ public class LeaveListModel
     public DateTime? DOC_SUBMITTED_DATE { get; set; }
     public string?   DOC_SUBMITTED_BY   { get; set; }
     public string?   DOC_REMARK         { get; set; }
+    public DateTime? CT_OUT_TIME        { get; set; }
+    public DateTime? CT_IN_TIME         { get; set; }
 }
 
 public class LeaveSummary
@@ -226,6 +230,8 @@ public class LeaveUpdateRequest
     public string  TO_DATE    { get; set; } = string.Empty;
     public decimal TOTAL_DAYS { get; set; }
     public string? REASON     { get; set; }
+    public string? CT_OUT_TIME { get; set; }
+    public string? CT_IN_TIME  { get; set; }
 }
 
 public class LeaveAssignRequest
@@ -237,6 +243,8 @@ public class LeaveAssignRequest
     public decimal      TOTAL_DAYS     { get; set; }
     public string?      REASON         { get; set; }
     public string       LEAVE_TYPE     { get; set; } = "AL";
+    public string?      CT_OUT_TIME    { get; set; }
+    public string?      CT_IN_TIME     { get; set; }
 }
 
 public class LeaveCreateRequest
@@ -247,6 +255,8 @@ public class LeaveCreateRequest
     public string  TO_DATE    { get; set; } = string.Empty;
     public decimal TOTAL_DAYS { get; set; }
     public string? REASON     { get; set; }
+    public string? CT_OUT_TIME { get; set; }
+    public string? CT_IN_TIME  { get; set; }
 }
 
 public class AdminEmpModel

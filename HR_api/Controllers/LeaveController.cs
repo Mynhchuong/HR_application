@@ -112,21 +112,35 @@ public class LeaveController : ControllerBase
     // đúng luật "trùng" y hệt FE: đơn PENDING/APPROVED (không phải ASSIGNED) HOẶC đơn ASSIGNED đã
     // CONFIRMED coi là trùng nếu khoảng ngày giao nhau. excludeRequestId dùng khi Update() (không
     // tự đụng chính đơn đang sửa).
-    private async Task<string?> CheckSelfLeaveOverlapAsync(string empcd, DateTime fromDate, DateTime toDate, string? excludeRequestId)
+    // Parse "HH:mm" (từ ô <input type="time">) thành DateTime cùng ngày FROM_DATE — dùng cho CT 1
+    // ngày. Trả null nếu rỗng/không hợp lệ (coi như không khai giờ = "cả ngày").
+    private static DateTime? ParseCtTime(DateTime date, string? hhmm)
+    {
+        if (string.IsNullOrWhiteSpace(hhmm)) return null;
+        return TimeSpan.TryParse(hhmm, out var ts) ? date.Date.Add(ts) : null;
+    }
+
+    // newLeaveType/newCtOut/newCtIn: cho phép loại trừ 1 ca đặc biệt — 2 đơn CT 1 ngày, cả hai đều
+    // có khai giờ cụ thể và không giao nhau (VD sáng công tác 1 tiếng, chiều công tác tiếp 40 phút)
+    // thì KHÔNG coi là trùng (yêu cầu HR thật, 2026-10-10: "1 người 1 ngày công tác 2 lần"). Mọi
+    // trường hợp khác (thiếu giờ ở 1 trong 2 bên = "cả ngày", khác loại nghỉ, hoặc nhiều ngày) vẫn
+    // chặn trùng theo NGÀY như cũ.
+    private async Task<string?> CheckSelfLeaveOverlapAsync(
+        string empcd, DateTime fromDate, DateTime toDate, string? excludeRequestId,
+        string? newLeaveType = null, DateTime? newCtOut = null, DateTime? newCtIn = null)
     {
         string excludeClause = string.IsNullOrEmpty(excludeRequestId) ? "" : "AND L.REQUEST_ID != :EXCLUDE_ID";
         string sql = $@"
-            SELECT * FROM (
-                SELECT R.STATUS, L.SOURCE, L.CONFIRM_STATUS, L.FROM_DATE, L.TO_DATE
-                FROM HRMS.HR_LEAVE_REQUEST L
-                JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
-                WHERE L.EMPCD = :EMPCD
-                  AND R.REQUEST_TYPE = 'LEAVE'
-                  AND L.FROM_DATE <= :TO_DATE AND L.TO_DATE >= :FROM_DATE
-                  AND ((L.SOURCE != 'ASSIGNED' AND R.STATUS IN ('PENDING','APPROVED'))
-                       OR (L.SOURCE = 'ASSIGNED' AND L.CONFIRM_STATUS = 'CONFIRMED'))
-                  {excludeClause}
-            ) WHERE ROWNUM = 1";
+            SELECT R.STATUS, L.SOURCE, L.CONFIRM_STATUS, L.FROM_DATE, L.TO_DATE,
+                   L.LEAVE_TYPE, L.CT_OUT_TIME, L.CT_IN_TIME
+            FROM HRMS.HR_LEAVE_REQUEST L
+            JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
+            WHERE L.EMPCD = :EMPCD
+              AND R.REQUEST_TYPE = 'LEAVE'
+              AND L.FROM_DATE <= :TO_DATE AND L.TO_DATE >= :FROM_DATE
+              AND ((L.SOURCE != 'ASSIGNED' AND R.STATUS IN ('PENDING','APPROVED'))
+                   OR (L.SOURCE = 'ASSIGNED' AND L.CONFIRM_STATUS = 'CONFIRMED'))
+              {excludeClause}";
 
         var pars = new List<OracleParameter>
         {
@@ -138,16 +152,31 @@ public class LeaveController : ControllerBase
 
         var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
         {
-            Status = r["STATUS"]?.ToString(),
-            FromDate = Convert.ToDateTime(r["FROM_DATE"]),
-            ToDate   = Convert.ToDateTime(r["TO_DATE"]),
+            Status    = r["STATUS"]?.ToString(),
+            FromDate  = Convert.ToDateTime(r["FROM_DATE"]),
+            ToDate    = Convert.ToDateTime(r["TO_DATE"]),
+            LeaveType = r["LEAVE_TYPE"]?.ToString(),
+            CtOut     = r["CT_OUT_TIME"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CT_OUT_TIME"]),
+            CtIn      = r["CT_IN_TIME"]  == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CT_IN_TIME"]),
         }, pars.ToArray());
 
-        var hit = rows.FirstOrDefault();
-        if (hit == null) return null;
+        bool newIsSingleDayCt = newLeaveType == "CT" && fromDate.Date == toDate.Date && newCtOut.HasValue && newCtIn.HasValue;
 
-        string statusText = hit.Status == "APPROVED" ? "đã được duyệt" : hit.Status == "PENDING" ? "đang chờ duyệt" : "đã xác nhận";
-        return $"Bạn đã có đơn nghỉ {statusText} trùng khoảng ngày này ({hit.FromDate:dd/MM/yyyy} – {hit.ToDate:dd/MM/yyyy}). Chỉ có thể tạo lại nếu đơn cũ bị từ chối.";
+        foreach (var hit in rows)
+        {
+            if (newIsSingleDayCt && hit.LeaveType == "CT" && hit.FromDate.Date == hit.ToDate.Date
+                && hit.CtOut.HasValue && hit.CtIn.HasValue)
+            {
+                bool timeOverlap = newCtOut!.Value.TimeOfDay < hit.CtIn.Value.TimeOfDay
+                                 && hit.CtOut.Value.TimeOfDay < newCtIn!.Value.TimeOfDay;
+                if (!timeOverlap) continue; // không giao giờ — bỏ qua, xét tiếp dòng khác
+            }
+
+            string statusText = hit.Status == "APPROVED" ? "đã được duyệt" : hit.Status == "PENDING" ? "đang chờ duyệt" : "đã xác nhận";
+            return $"Bạn đã có đơn nghỉ {statusText} trùng khoảng ngày này ({hit.FromDate:dd/MM/yyyy} – {hit.ToDate:dd/MM/yyyy}). Chỉ có thể tạo lại nếu đơn cũ bị từ chối.";
+        }
+
+        return null;
     }
 
     // Trước đây KHÔNG có chỗ nào (Submit/Update/Approve) check số ngày phép năm còn lại — chỉ FE tự
@@ -305,7 +334,8 @@ public class LeaveController : ControllerBase
     // 1 GP MID, lưu ở idNgayDi).
     private async Task<(string? outId, string? returnId)> CreateCtGatePassAsync(
         string empcd, string empName, DateTime fromDate, DateTime toDate,
-        string createdBy, string status, string? approver)
+        string createdBy, string status, string? approver,
+        DateTime? customOutTime = null, DateTime? customInTime = null)
     {
         async Task<string?> InsertOneAsync(string gpType, DateTime? outTime, DateTime? inTime, string reason)
         {
@@ -365,10 +395,15 @@ public class LeaveController : ControllerBase
         // thật 2026-09-21, xem thêm chặn xóa ở GatePassController.Delete/AdminDeleteGp).
         if (fromDate.Date == toDate.Date)
         {
-            var id = await InsertOneAsync("MID",
-                fromDate.Date.AddHours(7).AddMinutes(30),
-                fromDate.Date.AddHours(16).AddMinutes(30),
-                "Tự động từ MySamho - Công tác");
+            // customOutTime/customInTime: giờ thật NV khai (cho phép nhiều CT/ngày, không giao giờ —
+            // yêu cầu HR 2026-10-10). Thiếu 1 trong 2 → giữ hành vi cũ "cả ngày" 07:30-16:30.
+            bool hasCustom = customOutTime.HasValue && customInTime.HasValue;
+            var outTime = hasCustom ? fromDate.Date.Add(customOutTime!.Value.TimeOfDay) : fromDate.Date.AddHours(7).AddMinutes(30);
+            var inTime  = hasCustom ? fromDate.Date.Add(customInTime!.Value.TimeOfDay)  : fromDate.Date.AddHours(16).AddMinutes(30);
+            string reason = hasCustom
+                ? $"Tự động từ MySamho - Công tác ({outTime:HH:mm}–{inTime:HH:mm})"
+                : "Tự động từ MySamho - Công tác";
+            var id = await InsertOneAsync("MID", outTime, inTime, reason);
             return (id, null);
         }
 
@@ -461,6 +496,19 @@ END;";
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
 
+            // Giờ công tác tùy chọn (chỉ có ý nghĩa với CT 1 ngày) — cho phép khai nhiều CT/ngày
+            // không trùng giờ (yêu cầu HR 2026-10-10). Thiếu/rỗng = "cả ngày" như hành vi cũ.
+            DateTime? ctOutTime = null, ctInTime = null;
+            if (model.LEAVE_TYPE == "CT" && fromDate.Date == toDate.Date)
+            {
+                ctOutTime = ParseCtTime(fromDate, model.CT_OUT_TIME);
+                ctInTime  = ParseCtTime(fromDate, model.CT_IN_TIME);
+                if ((ctOutTime.HasValue) != (ctInTime.HasValue))
+                    return Ok(new { success = false, message = "Vui lòng nhập đủ cả giờ đi và giờ về (hoặc để trống cả 2 nếu công tác cả ngày)" });
+                if (ctOutTime.HasValue && ctOutTime >= ctInTime)
+                    return Ok(new { success = false, message = "Giờ đi phải trước giờ về" });
+            }
+
             // Báo trước theo loại: AL = theo giờ ca làm (-6h), DC/DS = trước 3 ngày lịch,
             // DT/VS/KT = trong ngày được nhưng phải trước khi hết ca hôm nay (việc đột xuất),
             // NL/SI = trong ngày được nhưng phải trước khi ca hôm nay BẮT ĐẦU (báo trước 2026-09-10:
@@ -472,7 +520,9 @@ END;";
 
             // Chặn trùng ngày với đơn khác đang PENDING/APPROVED (hoặc ASSIGNED đã CONFIRMED) —
             // trước đây chỉ FE tự check trước khi gửi, gọi thẳng API là bỏ qua được.
-            string? overlapError = await CheckSelfLeaveOverlapAsync(model.EMPCD, fromDate, toDate, excludeRequestId: null);
+            string? overlapError = await CheckSelfLeaveOverlapAsync(
+                model.EMPCD, fromDate, toDate, excludeRequestId: null,
+                newLeaveType: model.LEAVE_TYPE, newCtOut: ctOutTime, newCtIn: ctInTime);
             if (overlapError != null)
                 return Ok(new { success = false, message = overlapError });
 
@@ -516,15 +566,17 @@ END;";
 
             await _oracleService.ExecuteNonQueryAsync(@"
                 INSERT INTO HRMS.HR_LEAVE_REQUEST
-                    (REQUEST_ID, EMPCD, LEAVE_TYPE, FROM_DATE, TO_DATE, TOTAL_DAYS, REASON, CREATED_DATE, SOURCE)
-                VALUES (:REQUEST_ID, :EMPCD, :LEAVE_TYPE, :FROM_DATE, :TO_DATE, :TOTAL_DAYS, :REASON, SYSDATE, 'SELF')",
+                    (REQUEST_ID, EMPCD, LEAVE_TYPE, FROM_DATE, TO_DATE, TOTAL_DAYS, REASON, CREATED_DATE, SOURCE, CT_OUT_TIME, CT_IN_TIME)
+                VALUES (:REQUEST_ID, :EMPCD, :LEAVE_TYPE, :FROM_DATE, :TO_DATE, :TOTAL_DAYS, :REASON, SYSDATE, 'SELF', :CT_OUT, :CT_IN)",
                 new OracleParameter("REQUEST_ID", requestId),
                 new OracleParameter("EMPCD",      model.EMPCD),
                 new OracleParameter("LEAVE_TYPE", model.LEAVE_TYPE),
                 new OracleParameter("FROM_DATE",  fromDate),
                 new OracleParameter("TO_DATE",    toDate),
                 new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
-                new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
+                new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value),
+                new OracleParameter("CT_OUT",     (object?)ctOutTime ?? DBNull.Value),
+                new OracleParameter("CT_IN",      (object?)ctInTime  ?? DBNull.Value));
 
             // CT (công tác): tự động tạo kèm Gate Pass PENDING (1 ngày = 1 GP MID; nhiều ngày = 2 GP
             // OUT ngày đi + IN ngày về — xem CreateCtGatePassAsync). GP chỉ thật sự APPROVED + đồng
@@ -533,7 +585,8 @@ END;";
             if (model.LEAVE_TYPE == "CT")
             {
                 var (gpOutId, gpReturnId) = await CreateCtGatePassAsync(
-                    model.EMPCD, empName, fromDate, toDate, model.EMPCD, "PENDING", null);
+                    model.EMPCD, empName, fromDate, toDate, model.EMPCD, "PENDING", null,
+                    ctOutTime, ctInTime);
 
                 // Liên kết ngược lại đơn CT để Approve/Reject/Update/Delete xử lý cascade
                 await _oracleService.ExecuteNonQueryAsync(@"
@@ -619,7 +672,8 @@ END;";
                                L.REASON, L.SOURCE, L.CONFIRM_STATUS, L.CONFIRM_DATE,
                                R.STATUS, R.REMARK, L.CREATED_DATE,
                                R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE,
-                               R.CREATED_BY ASSIGNED_BY, ASN.CNAME ASSIGNER_NAME, L.DOC_STATUS
+                               R.CREATED_BY ASSIGNED_BY, ASN.CNAME ASSIGNER_NAME, L.DOC_STATUS,
+                               L.CT_OUT_TIME, L.CT_IN_TIME
                         FROM HRMS.HR_LEAVE_REQUEST L
                         JOIN HRMS.HR_REQUEST R    ON R.REQUEST_ID = L.REQUEST_ID
                         LEFT JOIN HRMS.ECM100 AP  ON AP.EMPCD     = R.FINAL_APPROVER
@@ -651,7 +705,9 @@ END;";
                 FINAL_DATE     = r["FINAL_DATE"]     == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
                 ASSIGNED_BY    = r["ASSIGNED_BY"]?.ToString(),
                 ASSIGNER_NAME  = r["ASSIGNER_NAME"]?.ToString(),
-                DOC_STATUS     = r["DOC_STATUS"]?.ToString()
+                DOC_STATUS     = r["DOC_STATUS"]?.ToString(),
+                CT_OUT_TIME    = r["CT_OUT_TIME"] == DBNull.Value ? null : Convert.ToDateTime(r["CT_OUT_TIME"]),
+                CT_IN_TIME     = r["CT_IN_TIME"]  == DBNull.Value ? null : Convert.ToDateTime(r["CT_IN_TIME"])
             },
             new OracleParameter("EMPCD1",    empcd),
             new OracleParameter("D_FROM1",   dfrom.Date),
@@ -732,9 +788,23 @@ END;";
             if (dateRuleError != null)
                 return Ok(new { success = false, message = dateRuleError });
 
+            // Giờ công tác tùy chọn — xem chú thích tương ứng ở Submit().
+            DateTime? ctOutTime = null, ctInTime = null;
+            if (effectiveType == "CT" && fromDate.Date == toDate.Date)
+            {
+                ctOutTime = ParseCtTime(fromDate, model.CT_OUT_TIME);
+                ctInTime  = ParseCtTime(fromDate, model.CT_IN_TIME);
+                if ((ctOutTime.HasValue) != (ctInTime.HasValue))
+                    return Ok(new { success = false, message = "Vui lòng nhập đủ cả giờ đi và giờ về (hoặc để trống cả 2 nếu công tác cả ngày)" });
+                if (ctOutTime.HasValue && ctOutTime >= ctInTime)
+                    return Ok(new { success = false, message = "Giờ đi phải trước giờ về" });
+            }
+
             // Chặn trùng ngày với đơn khác (loại trừ chính đơn đang sửa) + chặn vượt số ngày phép
             // năm còn lại — cùng lý do với Submit(): trước đây chỉ FE tự check, gọi thẳng API bỏ qua được.
-            string? overlapError = await CheckSelfLeaveOverlapAsync(model.EMPCD, fromDate, toDate, excludeRequestId: model.REQUEST_ID);
+            string? overlapError = await CheckSelfLeaveOverlapAsync(
+                model.EMPCD, fromDate, toDate, excludeRequestId: model.REQUEST_ID,
+                newLeaveType: effectiveType, newCtOut: ctOutTime, newCtIn: ctInTime);
             if (overlapError != null)
                 return Ok(new { success = false, message = overlapError });
 
@@ -749,6 +819,7 @@ END;";
                 UPDATE HRMS.HR_LEAVE_REQUEST
                 SET LEAVE_TYPE = :LEAVE_TYPE, FROM_DATE = :FROM_DATE, TO_DATE = :TO_DATE,
                     TOTAL_DAYS = :TOTAL_DAYS, REASON = :REASON,
+                    CT_OUT_TIME = :CT_OUT, CT_IN_TIME = :CT_IN,
                     UPDATED_BY = :UPDATED_BY, UPDATED_DATE = SYSDATE
                 WHERE REQUEST_ID = :REQUEST_ID AND EMPCD = :EMPCD",
                 new OracleParameter("LEAVE_TYPE",  effectiveType),
@@ -756,6 +827,8 @@ END;";
                 new OracleParameter("TO_DATE",     toDate),
                 new OracleParameter("TOTAL_DAYS",  model.TOTAL_DAYS),
                 new OracleParameter("REASON",      (object?)model.REASON ?? DBNull.Value),
+                new OracleParameter("CT_OUT",      (object?)ctOutTime ?? DBNull.Value),
+                new OracleParameter("CT_IN",       (object?)ctInTime  ?? DBNull.Value),
                 new OracleParameter("UPDATED_BY",  model.EMPCD),
                 new OracleParameter("REQUEST_ID",  model.REQUEST_ID),
                 new OracleParameter("EMPCD",       model.EMPCD));
@@ -789,7 +862,8 @@ END;";
             if (effectiveType == "CT")
             {
                 var (newOutId, newReturnId) = await CreateCtGatePassAsync(
-                    model.EMPCD, current.EmpName, fromDate, toDate, model.EMPCD, "PENDING", null);
+                    model.EMPCD, current.EmpName, fromDate, toDate, model.EMPCD, "PENDING", null,
+                    ctOutTime, ctInTime);
 
                 await _oracleService.ExecuteNonQueryAsync(@"
                     UPDATE HRMS.HR_LEAVE_REQUEST SET GP_REQUEST_ID = :GP_ID, GP_REQUEST_ID_RETURN = :GP_ID_RETURN
@@ -1078,7 +1152,8 @@ END;";
                                EC.WORKCD WORK_ID, B.WORKNM WORK_NAME,
                                L.LEAVE_TYPE, L.SOURCE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS, L.REASON,
                                R.STATUS, L.CONFIRM_STATUS, L.CREATED_DATE,
-                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK, RR.ROLE_NAME REQUESTER_ROLE
+                               R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK, RR.ROLE_NAME REQUESTER_ROLE,
+                               L.CT_OUT_TIME, L.CT_IN_TIME
                         {fromSql}{whereSql}
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -1111,7 +1186,9 @@ END;";
                 APPROVER_NAME  = r["APPROVER_NAME"]?.ToString(),
                 FINAL_DATE     = r["FINAL_DATE"]   == DBNull.Value ? null : Convert.ToDateTime(r["FINAL_DATE"]),
                 REMARK         = r["REMARK"]?.ToString(),
-                REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString()
+                REQUESTER_ROLE = r["REQUESTER_ROLE"]?.ToString(),
+                CT_OUT_TIME    = r["CT_OUT_TIME"] == DBNull.Value ? null : Convert.ToDateTime(r["CT_OUT_TIME"]),
+                CT_IN_TIME     = r["CT_IN_TIME"]  == DBNull.Value ? null : Convert.ToDateTime(r["CT_IN_TIME"])
             }, dataParams.ToArray());
 
             return Ok(new
@@ -2319,7 +2396,8 @@ END;";
                                R.FINAL_APPROVER, AP.CNAME APPROVER_NAME, R.FINAL_DATE, R.REMARK,
                                RR.ROLE_NAME REQUESTER_ROLE,
                                R.CREATED_BY ASSIGNED_BY, ASN.CNAME ASSIGNER_NAME,
-                               L.DOC_STATUS, L.DOC_SUBMITTED_DATE, L.DOC_SUBMITTED_BY, L.DOC_REMARK
+                               L.DOC_STATUS, L.DOC_SUBMITTED_DATE, L.DOC_SUBMITTED_BY, L.DOC_REMARK,
+                               L.CT_OUT_TIME, L.CT_IN_TIME
                         {fromSql}{whereSql}
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -2358,7 +2436,9 @@ END;";
                 DOC_STATUS         = r["DOC_STATUS"]?.ToString(),
                 DOC_SUBMITTED_DATE = r["DOC_SUBMITTED_DATE"] == DBNull.Value ? null : Convert.ToDateTime(r["DOC_SUBMITTED_DATE"]),
                 DOC_SUBMITTED_BY   = r["DOC_SUBMITTED_BY"]?.ToString(),
-                DOC_REMARK         = r["DOC_REMARK"]?.ToString()
+                DOC_REMARK         = r["DOC_REMARK"]?.ToString(),
+                CT_OUT_TIME        = r["CT_OUT_TIME"] == DBNull.Value ? null : Convert.ToDateTime(r["CT_OUT_TIME"]),
+                CT_IN_TIME         = r["CT_IN_TIME"]  == DBNull.Value ? null : Convert.ToDateTime(r["CT_IN_TIME"])
             }, dataParams.ToArray());
 
             return Ok(new
@@ -3370,6 +3450,19 @@ END;";
             if (model.LEAVE_TYPE != "AL" && string.IsNullOrWhiteSpace(model.REASON))
                 return Ok(new { success = false, message = "Vui lòng nhập lý do nghỉ" });
 
+            // Giờ công tác tùy chọn — xem chú thích tương ứng ở Submit(). Áp dụng chung cho mọi NV
+            // được chọn trong lượt sắp lịch này.
+            DateTime? ctOutTime = null, ctInTime = null;
+            if (model.LEAVE_TYPE == "CT" && fromDate.Date == toDate.Date)
+            {
+                ctOutTime = ParseCtTime(fromDate, model.CT_OUT_TIME);
+                ctInTime  = ParseCtTime(fromDate, model.CT_IN_TIME);
+                if ((ctOutTime.HasValue) != (ctInTime.HasValue))
+                    return Ok(new { success = false, message = "Vui lòng nhập đủ cả giờ đi và giờ về (hoặc để trống cả 2 nếu công tác cả ngày)" });
+                if (ctOutTime.HasValue && ctOutTime >= ctInTime)
+                    return Ok(new { success = false, message = "Giờ đi phải trước giờ về" });
+            }
+
             var assignerRoleRows = await _oracleService.ExecuteQueryAsync(@"
                 SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U
                 LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID
@@ -3410,21 +3503,46 @@ END;";
                     // Chặn sắp lịch trùng: NV đã có đơn nghỉ (bất kỳ nguồn nào, chưa bị từ chối)
                     // đè lên khoảng ngày này rồi thì báo lỗi thay vì tạo thêm 1 đơn ASSIGNED nữa —
                     // tránh trường hợp double-click/chạy sắp lịch 2 lần ra 2 đơn y hệt cho cùng 1 ngày.
+                    // Loại trừ: cả đơn đang sắp VÀ đơn cũ đều là CT 1 ngày có khai giờ cụ thể, không
+                    // giao nhau — cho phép Admin sắp CT lần 2 trong ngày (cùng tinh thần
+                    // CheckSelfLeaveOverlapAsync, nhưng query này tách riêng nên phải xử lý lại).
+                    bool newIsSingleDayCt = model.LEAVE_TYPE == "CT" && fromDate.Date == toDate.Date && ctOutTime.HasValue && ctInTime.HasValue;
                     var dupRows = await _oracleService.ExecuteQueryAsync(@"
-                        SELECT R.STATUS FROM HRMS.HR_REQUEST R
+                        SELECT R.STATUS, L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE, L.CT_OUT_TIME, L.CT_IN_TIME
+                        FROM HRMS.HR_REQUEST R
                         JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
                         WHERE L.EMPCD = :EMPCD AND R.REQUEST_TYPE = 'LEAVE' AND R.STATUS != 'REJECTED'
-                          AND L.FROM_DATE <= :TO_DATE AND L.TO_DATE >= :FROM_DATE
-                          AND ROWNUM = 1",
-                        r => r["STATUS"]?.ToString(),
+                          AND L.FROM_DATE <= :TO_DATE AND L.TO_DATE >= :FROM_DATE",
+                        r => new {
+                            Status    = r["STATUS"]?.ToString(),
+                            LeaveType = r["LEAVE_TYPE"]?.ToString(),
+                            FromDate  = Convert.ToDateTime(r["FROM_DATE"]),
+                            ToDate    = Convert.ToDateTime(r["TO_DATE"]),
+                            CtOut     = r["CT_OUT_TIME"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CT_OUT_TIME"]),
+                            CtIn      = r["CT_IN_TIME"]  == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CT_IN_TIME"]),
+                        },
                         new OracleParameter("EMPCD", targetEmpcd),
                         new OracleParameter("FROM_DATE", OracleDbType.Date) { Value = fromDate },
                         new OracleParameter("TO_DATE",   OracleDbType.Date) { Value = toDate });
 
-                    if (dupRows.Count > 0)
+                    string? realDup = null;
+                    foreach (var d in dupRows)
+                    {
+                        if (newIsSingleDayCt && d.LeaveType == "CT" && d.FromDate.Date == d.ToDate.Date
+                            && d.CtOut.HasValue && d.CtIn.HasValue)
+                        {
+                            bool timeOverlap = ctOutTime!.Value.TimeOfDay < d.CtIn.Value.TimeOfDay
+                                             && d.CtOut.Value.TimeOfDay < ctInTime!.Value.TimeOfDay;
+                            if (!timeOverlap) continue;
+                        }
+                        realDup = d.Status;
+                        break;
+                    }
+
+                    if (realDup != null)
                     {
                         results.Add(new { empcd = targetEmpcd, emp_name = empName, success = false,
-                            message = $"NV đã có đơn nghỉ trùng khoảng ngày này (trạng thái: {dupRows[0]}) — bỏ qua, không tạo thêm" });
+                            message = $"NV đã có đơn nghỉ trùng khoảng ngày này (trạng thái: {realDup}) — bỏ qua, không tạo thêm" });
                         continue;
                     }
 
@@ -3483,15 +3601,17 @@ END;";
 
                     await _oracleService.ExecuteNonQueryAsync(@"
                         INSERT INTO HRMS.HR_LEAVE_REQUEST
-                            (REQUEST_ID, EMPCD, LEAVE_TYPE, FROM_DATE, TO_DATE, TOTAL_DAYS, REASON, CREATED_DATE, SOURCE)
-                        VALUES (:REQUEST_ID, :EMPCD, :LEAVE_TYPE, :FROM_DATE, :TO_DATE, :TOTAL_DAYS, :REASON, SYSDATE, 'ASSIGNED')",
+                            (REQUEST_ID, EMPCD, LEAVE_TYPE, FROM_DATE, TO_DATE, TOTAL_DAYS, REASON, CREATED_DATE, SOURCE, CT_OUT_TIME, CT_IN_TIME)
+                        VALUES (:REQUEST_ID, :EMPCD, :LEAVE_TYPE, :FROM_DATE, :TO_DATE, :TOTAL_DAYS, :REASON, SYSDATE, 'ASSIGNED', :CT_OUT, :CT_IN)",
                         new OracleParameter("REQUEST_ID", requestId),
                         new OracleParameter("EMPCD",      targetEmpcd),
                         new OracleParameter("LEAVE_TYPE", model.LEAVE_TYPE),
                         new OracleParameter("FROM_DATE",  fromDate),
                         new OracleParameter("TO_DATE",    toDate),
                         new OracleParameter("TOTAL_DAYS", model.TOTAL_DAYS),
-                        new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value));
+                        new OracleParameter("REASON",     (object?)model.REASON ?? DBNull.Value),
+                        new OracleParameter("CT_OUT",     (object?)ctOutTime ?? DBNull.Value),
+                        new OracleParameter("CT_IN",      (object?)ctInTime  ?? DBNull.Value));
 
                     // CT (công tác) qua Admin "Sắp lịch": SOURCE='ASSIGNED' không đi qua Approve()
                     // (mãi mãi là ASSIGNED, không có bước duyệt riêng) nên phải tạo Gate Pass NGAY ở
@@ -3503,7 +3623,8 @@ END;";
                         try
                         {
                             var (gpOutId, gpReturnId) = await CreateCtGatePassAsync(
-                                targetEmpcd, empName, fromDate, toDate, model.ASSIGNER_EMPCD, "APPROVED", model.ASSIGNER_EMPCD);
+                                targetEmpcd, empName, fromDate, toDate, model.ASSIGNER_EMPCD, "APPROVED", model.ASSIGNER_EMPCD,
+                                ctOutTime, ctInTime);
 
                             await _oracleService.ExecuteNonQueryAsync(@"
                                 UPDATE HRMS.HR_LEAVE_REQUEST SET GP_REQUEST_ID = :GP_ID, GP_REQUEST_ID_RETURN = :GP_ID_RETURN

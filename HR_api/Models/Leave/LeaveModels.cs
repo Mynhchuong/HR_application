@@ -8,6 +8,10 @@ public class LeaveSubmitRequest
     public string  TO_DATE    { get; set; } = string.Empty; // yyyy-MM-dd
     public decimal TOTAL_DAYS { get; set; }
     public string? REASON     { get; set; }
+    // Chỉ dùng cho CT 1 ngày (FROM_DATE==TO_DATE), "HH:mm" — để trống = công tác cả
+    // ngày (hành vi cũ). Có giờ cho phép khai nhiều đơn CT/ngày miễn không trùng giờ.
+    public string? CT_OUT_TIME { get; set; }
+    public string? CT_IN_TIME  { get; set; }
 }
 
 public class LeaveUpdateRequest
@@ -19,6 +23,8 @@ public class LeaveUpdateRequest
     public string  TO_DATE    { get; set; } = string.Empty;
     public decimal TOTAL_DAYS { get; set; }
     public string? REASON     { get; set; }
+    public string? CT_OUT_TIME { get; set; }
+    public string? CT_IN_TIME  { get; set; }
 }
 
 public class LeaveApproveRequest
@@ -43,6 +49,8 @@ public class LeaveAssignRequest
     public decimal      TOTAL_DAYS     { get; set; }
     public string?      REASON         { get; set; }
     public string       LEAVE_TYPE     { get; set; } = "AL";
+    public string?       CT_OUT_TIME   { get; set; }
+    public string?       CT_IN_TIME    { get; set; }
 }
 
 public class AdminBulkDeleteRequest
@@ -107,6 +115,8 @@ public class LeaveMyRequestModel
     public string?   ASSIGNED_BY    { get; set; }
     public string?   ASSIGNER_NAME  { get; set; }
     public string?   DOC_STATUS     { get; set; }
+    public DateTime? CT_OUT_TIME    { get; set; }
+    public DateTime? CT_IN_TIME     { get; set; }
 }
 
 public class LeaveListModel
@@ -140,6 +150,8 @@ public class LeaveListModel
     public DateTime? DOC_SUBMITTED_DATE { get; set; }
     public string?   DOC_SUBMITTED_BY   { get; set; }
     public string?   DOC_REMARK         { get; set; }
+    public DateTime? CT_OUT_TIME        { get; set; }
+    public DateTime? CT_IN_TIME         { get; set; }
 }
 
 public class LeaveSummary

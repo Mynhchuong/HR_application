@@ -1145,8 +1145,13 @@ END;";
             if (roleRows.FirstOrDefault() != "Admin")
                 return Ok(new { success = false, message = "Chỉ Admin mới có quyền xóa" });
 
-            var idParams     = model.REQUEST_IDS.Select((id, i) => new OracleParameter($"ID{i}", id)).ToArray();
-            var placeholders = string.Join(",", idParams.Select(p => $":{p.ParameterName}"));
+            // Mỗi lần gọi ExecuteQueryAsync/ExecuteNonQueryAsync phải dùng OracleParameter MỚI —
+            // ODP.NET không cho 1 object OracleParameter tham gia 2 OracleCommand khác nhau (ném
+            // ORA-50030 "OracleParameter object is already contained in a collection"). Bug có sẵn
+            // từ trước (phát hiện 2026-10-13 khi soát lại lỗi y hệt ở Leave/AdminDeleteLeaves): dùng
+            // lại chung 1 mảng idParams cho cả SELECT lẫn DELETE bên dưới.
+            OracleParameter[] MakeIdParams() => model.REQUEST_IDS.Select((id, i) => new OracleParameter($"ID{i}", id)).ToArray();
+            var placeholders = string.Join(",", model.REQUEST_IDS.Select((_, i) => $":ID{i}"));
 
             // Chặn xoá Gate Pass đang bị 1 đơn Công tác (CT) tham chiếu — cùng lý do với Delete() tự
             // phục vụ phía trên (bug thật 2026-09-21). Admin muốn hủy phải hủy đơn Công tác.
@@ -1154,7 +1159,7 @@ END;";
                 SELECT COUNT(*) CNT FROM HRMS.HR_LEAVE_REQUEST
                 WHERE GP_REQUEST_ID IN ({placeholders}) OR GP_REQUEST_ID_RETURN IN ({placeholders})",
                 r => Convert.ToInt32(r["CNT"]),
-                idParams);
+                MakeIdParams());
             if (ctLinkedRows.FirstOrDefault() > 0)
                 return Ok(new { success = false, message = "Có phiếu đang tự động gắn với 1 đơn Công tác — muốn hủy vui lòng hủy đơn Công tác thay vì xóa trực tiếp ở đây." });
 
@@ -1166,7 +1171,7 @@ END;";
                     DELETE FROM HRMS.HR_REQUEST            WHERE REQUEST_ID IN ({placeholders}) AND REQUEST_TYPE = 'GATEPASS';
                     :DELETED_COUNT := SQL%ROWCOUNT;
                     COMMIT;
-                END;", idParams.Append(deletedCount).ToArray());
+                END;", MakeIdParams().Append(deletedCount).ToArray());
 
             int total = int.Parse(deletedCount.Value?.ToString() ?? "0");
             return Ok(new { success = true, message = $"Đã xóa {total} phiếu ra/vào cổng khỏi hệ thống", total_deleted = total });

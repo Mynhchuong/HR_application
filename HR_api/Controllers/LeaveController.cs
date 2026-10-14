@@ -3859,8 +3859,12 @@ END;";
             if (roleRows.FirstOrDefault() != "Admin")
                 return Ok(new { success = false, message = "Chỉ Admin mới có quyền xóa" });
 
-            var idParams     = model.REQUEST_IDS.Select((id, i) => new OracleParameter($"ID{i}", id)).ToArray();
-            var placeholders = string.Join(",", idParams.Select(p => $":{p.ParameterName}"));
+            // Mỗi lần gọi ExecuteQueryAsync/ExecuteNonQueryAsync phải dùng OracleParameter MỚI —
+            // ODP.NET không cho 1 object OracleParameter tham gia 2 OracleCommand khác nhau (ném
+            // ORA-50030 "OracleParameter object is already contained in a collection"). Bug thật
+            // 2026-10-13: dùng lại chung 1 mảng idParams cho cả SELECT lẫn DELETE bên dưới.
+            OracleParameter[] MakeIdParams() => model.REQUEST_IDS.Select((id, i) => new OracleParameter($"ID{i}", id)).ToArray();
+            var placeholders = string.Join(",", model.REQUEST_IDS.Select((_, i) => $":ID{i}"));
 
             // CT (Công tác): mỗi đơn có thể kéo theo 1-2 Gate Pass tự tạo (GP_REQUEST_ID = ngày đi,
             // GP_REQUEST_ID_RETURN = ngày về) — lấy trước khi xoá đơn nghỉ, nếu không xoá theo thì
@@ -3873,7 +3877,7 @@ END;";
                     GpRequestId       = r["GP_REQUEST_ID"]?.ToString(),
                     GpRequestIdReturn = r["GP_REQUEST_ID_RETURN"]?.ToString()
                 },
-                idParams);
+                MakeIdParams());
             var gpIds = gpIdRows
                 .SelectMany(x => new[] { x.GpRequestId, x.GpRequestIdReturn })
                 .Where(id => !string.IsNullOrEmpty(id))
@@ -3888,7 +3892,7 @@ END;";
                     DELETE FROM HRMS.HR_REQUEST        WHERE REQUEST_ID IN ({placeholders}) AND REQUEST_TYPE = 'LEAVE';
                     :DELETED_COUNT := SQL%ROWCOUNT;
                     COMMIT;
-                END;", idParams.Append(deletedCount).ToArray());
+                END;", MakeIdParams().Append(deletedCount).ToArray());
 
             foreach (var gpId in gpIds)
             {

@@ -38,178 +38,8 @@
     }
 }
 
-<style>
-    .menu-icon-shell,
-    .menu-child-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .menu-icon-shell {
-        width: 34px;
-        height: 34px;
-        border-radius: 12px;
-        margin-right: 0.65rem;
-        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.10);
-    }
-
-    .menu-icon-shell .material-symbols-rounded {
-        font-size: 1.1rem;
-        color: #fff;
-    }
-
-    .menu-child-icon {
-        width: 28px;
-        height: 28px;
-        border-radius: 10px;
-        margin-right: 0.6rem;
-        background: rgba(148, 163, 184, 0.14);
-    }
-
-    .menu-child-icon .material-symbols-rounded {
-        font-size: 1rem;
-    }
-
-    .nav-link:hover .menu-icon-shell,
-    .nav-link:hover .menu-child-icon {
-        transform: translateY(-1px);
-    }
-
-    /* Nhãn cụm màu trong 1 section dài (VD "Nhân sự") — mỗi cụm liền nhau + màu riêng cho lẹ mắt */
-    .menu-group-label {
-        display: flex;
-        align-items: center;
-        font-size: 0.66rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        padding: 10px 14px 4px 14px;
-        opacity: 0.85;
-    }
-    .menu-group-label:first-child {
-        padding-top: 2px;
-    }
-    .menu-group-dot {
-        display: inline-block;
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        margin-right: 6px;
-        flex-shrink: 0;
-    }
-
-    .menu-theme-personal > .nav-link .menu-icon-shell {
-        background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
-    }
-
-    .menu-theme-personal .menu-child-icon,
-    .menu-theme-personal .menu-child-icon .material-symbols-rounded {
-        color: #ea580c;
-    }
-
-    .menu-theme-clerk > .nav-link .menu-icon-shell {
-        background: linear-gradient(135deg, #06b6d4 0%, #2563eb 100%);
-    }
-
-    .menu-theme-clerk .menu-child-icon,
-    .menu-theme-clerk .menu-child-icon .material-symbols-rounded {
-        color: #0284c7;
-    }
-
-    .menu-theme-manager > .nav-link .menu-icon-shell {
-        background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
-    }
-
-    .menu-theme-manager .menu-child-icon,
-    .menu-theme-manager .menu-child-icon .material-symbols-rounded {
-        color: #7c3aed;
-    }
-
-    .menu-theme-hr > .nav-link .menu-icon-shell {
-        background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
-    }
-
-    .menu-theme-hr .menu-child-icon,
-    .menu-theme-hr .menu-child-icon .material-symbols-rounded {
-        color: #059669;
-    }
-
-    .nav-item {
-        margin-bottom: 4px;
-    }
-
-    .nav-link {
-        margin: 0.4rem 0.85rem;
-        padding: 0.85rem 1.1rem !important;
-        border-radius: 20px !important;
-        display: flex;
-        align-items: center;
-        text-decoration: none;
-        color: #64748b !important;
-        font-weight: 500;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        border: 1px solid transparent;
-    }
-
-    .nav-link:hover {
-        background-color: #f1f5f9;
-        color: #1e293b !important;
-        transform: translateX(5px);
-    }
-
-    .nav-link.active {
-        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
-        color: #fff !important;
-        font-weight: 700;
-        box-shadow: 0 12px 24px rgba(79, 70, 229, 0.25) !important;
-    }
-
-    .nav-link.active .menu-icon-shell {
-        background: rgba(255, 255, 255, 0.2) !important;
-        box-shadow: none;
-    }
-
-    .nav-link.active .material-symbols-rounded {
-        color: #fff !important;
-    }
-
-    .nav-link.active .nav-link-text {
-        color: #fff !important;
-    }
-
-    /* Tên chức năng dài (VD "Danh sách cấp Bánh cố định") bị cắt/tràn ở màn hẹp — cho xuống dòng
-     * thay vì cắt chữ. min-width:0 để item flex chịu co lại, không đẩy tràn ra ngoài. */
-    .menu-child-item .nav-link {
-        white-space: normal !important;
-        align-items: flex-start;
-        min-width: 0;
-    }
-    .menu-child-item .nav-link-text {
-        white-space: normal;
-        word-break: break-word;
-        line-height: 1.35;
-        padding-top: 0.15rem;
-    }
-    .menu-child-item .menu-child-icon {
-        flex-shrink: 0;
-    }
-    .menu-unread-badge {
-        background: #c00000;
-        color: #fff;
-        font-size: .65rem;
-        font-weight: 800;
-        border-radius: 20px;
-        padding: 1px 6px;
-        min-width: 16px;
-        text-align: center;
-        line-height: 1.4;
-        margin-left: 6px;
-        flex-shrink: 0;
-    }
-</style>
+<!-- CSS của sidenav đã chuyển sang wwwroot/assets/css/hr-nav.css (load ở _Layout.cshtml) — tách
+     riêng cho dễ sửa (yêu cầu 2026-10-13). -->
 
 <!-- ===== SIDENAV HEADER ===== -->
 <div class="sidenav-header">
@@ -232,8 +62,8 @@
 
 <hr class="horizontal dark mt-0 mb-2" />
 
-<!-- ===== SEARCH ===== -->
-<div class="px-3 pb-2">
+<!-- ===== SEARCH (sticky — luôn thấy được dù đang cuộn menu dài) ===== -->
+<div class="sidenav-search-wrap px-3 pb-2">
     <div style="position:relative;">
         <i class="material-symbols-rounded"
            style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:1.05rem;color:#94a3b8;pointer-events:none;">search</i>
@@ -241,9 +71,14 @@
                autocomplete="off"
                style="width:100%;height:38px;border:1.5px solid #e2e8f0;border-radius:12px;
                       padding:0 12px 0 34px;font-size:0.85rem;color:#1e293b;
-                      background:#f8fafc;outline:none;transition:all 0.2s;">
+                      background:#f8fafc;transition:all 0.2s;">
     </div>
 </div>
+
+<!-- ===== YÊU THÍCH (mục đã ghim — localStorage, JS tự đổ vào, rỗng thì tự ẩn) =====
+     Đây là lối tắt chính giúp menu không cảm giác "phình dài hơn" dù sau này có thêm bao nhiêu
+     role/chức năng nữa (yêu cầu 2026-10-13: thiết kế chịu được mở rộng). -->
+<div id="sidenavFavorites" class="d-none"></div>
 
 <!-- ===== SIDENAV MENU ===== -->
 <div class="navbar-collapse w-auto max-height-vh-100 h-100" id="sidenav-collapse-main">
@@ -299,17 +134,26 @@
                             }
 
                             <li class="nav-item menu-child-item" data-search="@item.Title.ToLower()">
-                                <a class="nav-link text-dark rounded px-2 py-1 @(active ? "active fw-bold bg-light" : "")"
-                                   href="@Url.Content(item.Url ?? "#")">
-                                    <span class="menu-child-icon" style="@(itemColor != null ? $"background:{itemColor}22;" : "")">
-                                        <i class="material-symbols-rounded" style="@(itemColor != null ? $"color:{itemColor};" : "")">@item.Icon</i>
-                                    </span>
-                                    <span class="nav-link-text">@item.Title</span>
-                                    @if (!string.IsNullOrEmpty(item.BadgeId))
+                                <div class="d-flex align-items-center">
+                                    <a class="nav-link text-dark rounded px-2 py-1 flex-grow-1 @(active ? "active fw-bold bg-light" : "")"
+                                       href="@Url.Content(item.Url ?? "#")">
+                                        <span class="menu-child-icon" style="@(itemColor != null ? $"background:{itemColor}22;" : "")">
+                                            <i class="material-symbols-rounded" style="@(itemColor != null ? $"color:{itemColor};" : "")">@item.Icon</i>
+                                        </span>
+                                        <span class="nav-link-text">@item.Title</span>
+                                        @if (!string.IsNullOrEmpty(item.BadgeId))
+                                        {
+                                            <span id="@item.BadgeId" class="menu-unread-badge" style="display:none;">0</span>
+                                        }
+                                    </a>
+                                    @if (!string.IsNullOrEmpty(item.Url))
                                     {
-                                        <span id="@item.BadgeId" class="menu-unread-badge" style="display:none;">0</span>
+                                        <button type="button" class="menu-pin-btn" title="Ghim vào Yêu thích"
+                                                data-pin-url="@Url.Content(item.Url)" data-pin-title="@item.Title" data-pin-icon="@item.Icon">
+                                            <i class="material-symbols-rounded">star_outline</i>
+                                        </button>
                                     }
-                                </a>
+                                </div>
                             </li>
                         }
                     </ul>
@@ -320,81 +164,4 @@
     </ul>
 </div>
 
-<script>
-(function () {
-    var input = document.getElementById('sidenavSearch');
-    if (!input) return;
-
-    input.addEventListener('focus', function () {
-        this.style.borderColor = '#6366f1';
-        this.style.background = '#fff';
-        this.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)';
-    });
-    input.addEventListener('blur', function () {
-        this.style.borderColor = '#e2e8f0';
-        this.style.background = '#f8fafc';
-        this.style.boxShadow = 'none';
-    });
-
-    // Nhãn cụm màu (.menu-group-label) không có data-search riêng — ẩn nhãn nào mà TOÀN BỘ mục bên
-    // dưới (tới nhãn kế tiếp) đều đang bị lọc ẩn, để khỏi còn nhãn "trơ" không có mục nào bên dưới.
-    function updateGroupLabels(sectionEl) {
-        var listEl = sectionEl.querySelector('.collapse > ul');
-        if (!listEl) return;
-        var lastLabel = null, anyVisible = false;
-        Array.prototype.forEach.call(listEl.children, function (li) {
-            if (li.classList.contains('menu-group-label')) {
-                if (lastLabel) lastLabel.style.display = anyVisible ? '' : 'none';
-                lastLabel = li;
-                anyVisible = false;
-            } else if (li.classList.contains('menu-child-item') && li.style.display !== 'none') {
-                anyVisible = true;
-            }
-        });
-        if (lastLabel) lastLabel.style.display = anyVisible ? '' : 'none';
-    }
-
-    input.addEventListener('input', function () {
-        var q = this.value.trim().toLowerCase();
-        var groups = document.querySelectorAll('#sidenav-collapse-main > ul > .nav-item');
-
-        groups.forEach(function (group) {
-            var collapseEl = group.querySelector('.collapse');
-            var children = group.querySelectorAll('.menu-child-item');
-            if (!children.length) return;
-
-            if (q === '') {
-                // Khôi phục trạng thái gốc
-                children.forEach(function (c) { c.style.display = ''; });
-                group.querySelectorAll('.menu-group-label').forEach(function (l) { l.style.display = ''; });
-                group.style.display = '';
-                if (collapseEl && !collapseEl.classList.contains('show')) {
-                    collapseEl.classList.remove('force-show');
-                    collapseEl.style.display = '';
-                }
-                return;
-            }
-
-            var matched = 0;
-            children.forEach(function (c) {
-                var title = c.getAttribute('data-search') || '';
-                if (title.includes(q)) {
-                    c.style.display = '';
-                    matched++;
-                } else {
-                    c.style.display = 'none';
-                }
-            });
-            updateGroupLabels(group);
-
-            if (matched > 0) {
-                group.style.display = '';
-                if (collapseEl) { collapseEl.style.display = 'block'; }
-            } else {
-                group.style.display = 'none';
-            }
-        });
-    });
-})();
-</script>
-
+<!-- JS tìm kiếm + ghim yêu thích đã chuyển sang wwwroot/js/hr-nav.js (load ở _Layout.cshtml). -->

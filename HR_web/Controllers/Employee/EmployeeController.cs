@@ -1,6 +1,7 @@
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc;
 using HR_web.API.Service;
+using HR_web.Models.Employee;
 
 namespace HR_web.Controllers.Employee;
 
@@ -20,35 +21,102 @@ public class EmployeeController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetMyTeamData(
         string? search = null, string? deptcd = null,
-        string? linecd = null, string? workcd = null)
+        string? linecd = null, string? workcd = null, string? shiftcd = null,
+        bool    no_login = false, int page = 1, int page_size = 50)
     {
         if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
         {
             var isExpat0 = CurrentUser?.RoleName == "Expat";
             return Json(new { success = false, message = isExpat0 ? "Not logged in" : "Chưa đăng nhập" });
         }
-        var result = await _svc.GetMyTeamAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd);
+        var result = await _svc.GetMyTeamAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, no_login, page, page_size);
+        return Json(result);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetMyTeamFilters()
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+        {
+            var isExpat0 = CurrentUser?.RoleName == "Expat";
+            return Json(new { success = false, message = isExpat0 ? "Not logged in" : "Chưa đăng nhập" });
+        }
+        var result = await _svc.GetMyTeamFiltersAsync(CurrentUser.EmpCd);
         return Json(result);
     }
 
     [HttpGet]
     public async Task<IActionResult> ExportExcel(
         string? search = null, string? deptcd = null,
-        string? linecd = null, string? workcd = null)
+        string? linecd = null, string? workcd = null, string? shiftcd = null,
+        bool    no_login = false)
     {
         if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
             return Unauthorized();
 
         var isExpat = CurrentUser?.RoleName == "Expat";
-        var result = await _svc.GetMyTeamAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd);
-        var data   = result.data ?? new();
+        var result = await _svc.GetMyTeamAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, no_login, all: true);
+        var fileName = isExpat ? $"EmployeeList_{DateTime.Now:yyyyMMdd}.xlsx" : $"DanhSachNhanVien_{DateTime.Now:yyyyMMdd}.xlsx";
+        return BuildTeamExcel(result.data ?? new(), isExpat, fileName);
+    }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // PAGE: Danh sách TOÀN CÔNG TY — chỉ HR/Admin, không giới hạn theo phạm vi phụ trách
+    // (yêu cầu 2026-10-16: "hr cũng cần 1 page lấy all danh sách công nhân").
+    // GET /Employee/AllEmployees
+    // ─────────────────────────────────────────────────────────────────────────
+    private bool IsHrOrAdmin => CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+
+    public IActionResult AllEmployees()
+    {
+        if (!IsHrOrAdmin) return Forbid();
+        return View();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAllEmployeesData(
+        string? search = null, string? deptcd = null,
+        string? linecd = null, string? workcd = null, string? shiftcd = null,
+        bool    no_login = false, int page = 1, int page_size = 50)
+    {
+        if (!IsHrOrAdmin || string.IsNullOrEmpty(CurrentUser?.EmpCd))
+            return Json(new { success = false, message = "Không có quyền" });
+        var result = await _svc.GetAllEmployeesAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, no_login, page, page_size);
+        return Json(result);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAllEmployeesFilters()
+    {
+        if (!IsHrOrAdmin || string.IsNullOrEmpty(CurrentUser?.EmpCd))
+            return Json(new { success = false, message = "Không có quyền" });
+        var result = await _svc.GetAllEmployeesFiltersAsync(CurrentUser.EmpCd);
+        return Json(result);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExportAllEmployeesExcel(
+        string? search = null, string? deptcd = null,
+        string? linecd = null, string? workcd = null, string? shiftcd = null,
+        bool    no_login = false)
+    {
+        if (!IsHrOrAdmin || string.IsNullOrEmpty(CurrentUser?.EmpCd))
+            return Unauthorized();
+
+        var result = await _svc.GetAllEmployeesAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, no_login, all: true);
+        return BuildTeamExcel(result.data ?? new(), isExpat: false, $"DanhSachToanBoNhanVien_{DateTime.Now:yyyyMMdd}.xlsx");
+    }
+
+    // Dùng chung cho ExportExcel (MyTeam) và ExportAllEmployeesExcel (AllEmployees) — cùng cấu trúc
+    // cột, chỉ khác nguồn dữ liệu (có/không giới hạn scope).
+    private IActionResult BuildTeamExcel(List<TeamMemberModel> data, bool isExpat, string fileName)
+    {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add(isExpat ? "Employee List" : "Danh sách nhân viên");
 
         string[] headers = isExpat
-            ? new[] { "No.", "Emp. Code", "Full Name", "Dept.", "Dept. Name", "Line", "Line Name", "Work Code", "Work Name", "OT Hours (Month)", "OT Hours (Year)" }
-            : new[] { "STT", "Mã NV", "Họ & Tên", "Bộ phận", "Tên Bộ phận", "Line", "Tên Line", "Nhóm việc", "Tên Nhóm việc", "Giờ TC tháng", "Giờ TC năm" };
+            ? new[] { "No.", "Emp. Code", "Full Name", "Dept.", "Dept. Name", "Line", "Line Name", "Work Code", "Work Name", "Phone", "Email", "OT Hours (Month)", "OT Hours (Year)", "Leave Left", "Shift" }
+            : new[] { "STT", "Mã NV", "Họ & Tên", "Bộ phận", "Tên Bộ phận", "Line", "Tên Line", "Nhóm việc", "Tên Nhóm việc", "Số điện thoại", "Email", "Giờ TC tháng", "Giờ TC năm", "Phép năm còn lại", "Ca làm việc" };
         for (int i = 0; i < headers.Length; i++)
         {
             var c = ws.Cell(1, i + 1);
@@ -72,13 +140,17 @@ public class EmployeeController : BaseController
             ws.Cell(row, 7).Value = d.LINE_NAME;
             ws.Cell(row, 8).Value = d.WORKCD;
             ws.Cell(row, 9).Value = d.WORK_NAME;
-            ws.Cell(row, 10).Value = d.SUM_MONTH;
-            ws.Cell(row, 11).Value = d.SUM_YEAR;
-            ws.Cell(row, 10).Style.NumberFormat.Format = "#,##0.0";
-            ws.Cell(row, 11).Style.NumberFormat.Format = "#,##0.0";
+            ws.Cell(row, 10).Value = d.PHONE;
+            ws.Cell(row, 11).Value = d.EMAIL;
+            ws.Cell(row, 12).Value = d.SUM_MONTH;
+            ws.Cell(row, 13).Value = d.SUM_YEAR;
+            ws.Cell(row, 14).Value = d.LEAVE_LEFT;
+            ws.Cell(row, 15).Value = string.IsNullOrEmpty(d.SHIFT_CD) ? "" : $"{d.SHIFT_CD} ({d.SHIFT_TIME})";
+            ws.Cell(row, 12).Style.NumberFormat.Format = "#,##0.0";
+            ws.Cell(row, 13).Style.NumberFormat.Format = "#,##0.0";
 
             if (i % 2 == 1)
-                ws.Row(row).Cells(1, 11).Style.Fill.BackgroundColor = XLColor.FromHtml("#f8fafc");
+                ws.Row(row).Cells(1, 15).Style.Fill.BackgroundColor = XLColor.FromHtml("#f8fafc");
         }
 
         ws.Range(1, 1, 1, headers.Length).SetAutoFilter();
@@ -86,7 +158,6 @@ public class EmployeeController : BaseController
 
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
-        var fileName = isExpat ? $"EmployeeList_{DateTime.Now:yyyyMMdd}.xlsx" : $"DanhSachNhanVien_{DateTime.Now:yyyyMMdd}.xlsx";
         return File(ms.ToArray(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             fileName);

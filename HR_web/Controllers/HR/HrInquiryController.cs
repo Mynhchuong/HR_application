@@ -466,6 +466,85 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // PAGE: Đóng hàng loạt — HR/CSR tự upload file Excel (1 cột ID chat) để gửi 1 tin nhắn
+    // rồi đóng hết, thay cho việc trước đây phải nhờ xử lý thủ công qua script ngoài.
+    // GET /HrInquiry/BulkClose
+    // ─────────────────────────────────────────────────────────────────────────
+    public IActionResult BulkClose()
+    {
+        if (!IsHr) return Forbid();
+        return View();
+    }
+
+    // GET /HrInquiry/BulkCloseTemplate — file mẫu Excel (1 cột "ID chat")
+    [HttpGet]
+    public IActionResult BulkCloseTemplate()
+    {
+        if (!IsHr) return Forbid();
+
+        using var wb = new ClosedXML.Excel.XLWorkbook();
+        var ws = wb.Worksheets.Add("ID chat");
+        var h = ws.Cell(1, 1);
+        h.Value = "ID chat";
+        h.Style.Font.Bold = true;
+        h.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#1d4ed8");
+        h.Style.Font.FontColor = ClosedXML.Excel.XLColor.White;
+        ws.Cell(2, 1).Value = "INQ-20261014-0001";
+        ws.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "MauDongHangLoat.xlsx");
+    }
+
+    // POST /HrInquiry/BulkCloseUpload — parse Excel (cột 1 = INQUIRY_NO), gửi nguyên danh sách +
+    // nội dung tin nhắn sang HR_api/Inquiry/bulk-close xử lý (giữ đúng luật lock/ownership hiện có,
+    // không bypass — HR/CSR chỉ đóng được hội thoại chưa ai nhận hoặc đang do chính mình phụ trách).
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> BulkCloseUpload(IFormFile file, [FromForm] string message)
+    {
+        if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
+        if (file == null || file.Length == 0)
+            return Json(new { success = false, message = "Vui lòng chọn file Excel" });
+        if (string.IsNullOrWhiteSpace(message))
+            return Json(new { success = false, message = "Vui lòng nhập nội dung tin nhắn" });
+
+        var inquiryNos = new List<string>();
+        try
+        {
+            using var stream = file.OpenReadStream();
+            using var wb = new ClosedXML.Excel.XLWorkbook(stream);
+            var ws = wb.Worksheet(1);
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
+            for (int r = 2; r <= lastRow; r++)
+            {
+                var v = ws.Cell(r, 1).GetString().Trim();
+                if (!string.IsNullOrEmpty(v)) inquiryNos.Add(v);
+            }
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "Không đọc được file Excel: " + ex.Message });
+        }
+
+        if (inquiryNos.Count == 0)
+            return Json(new { success = false, message = "File không có ID chat nào" });
+
+        var payload = new
+        {
+            inquiryNos,
+            empCd      = CurrentUser!.EmpCd,
+            closerName = CurrentUser.FullName,
+            closerType = CurrentUser.RoleName ?? "HR",
+            message
+        };
+        var raw = await _inquiry.BulkCloseRawAsync(payload);
+        return Content(raw, "application/json");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Inner request models (HR-specific)
     // ─────────────────────────────────────────────────────────────────────────
 

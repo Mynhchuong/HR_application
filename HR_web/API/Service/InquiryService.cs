@@ -209,6 +209,9 @@ public class InquiryService
         catch (Exception ex) { return new InquiryActionResponse { success = false, message = ex.Message }; }
     }
 
+    // POST /apiHR/Inquiry/bulk-close — HR/CSR tự đóng hàng loạt (upload Excel danh sách ID chat)
+    public Task<string> BulkCloseRawAsync(object payload) => PostInquiryRawAsync("Inquiry/bulk-close", payload);
+
     // POST /apiHR/Inquiry/unlock  — chỉ Admin
     public async Task<InquiryActionResponse> UnlockAsync(long inquiryId, string adminEmpCd, string adminName)
     {

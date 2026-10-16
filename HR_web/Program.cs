@@ -51,7 +51,10 @@ builder.Services.AddHttpClient("SamhoAPI", client =>
     var baseUrl = builder.Configuration["ApiSettings:BaseUrl"]
                   ?? "http://192.168.1.24/HR_api/apiHR/";
     client.BaseAddress = new Uri(baseUrl);
-    client.Timeout = TimeSpan.FromSeconds(60);
+    // 300s (không phải 60s) — chịu được các call bulk xử lý nhiều bản ghi trong 1 request
+    // (VD Inquiry/bulk-close đóng hàng loạt hàng ngàn hội thoại), không ảnh hưởng các call
+    // nhanh bình thường vì đây chỉ là giới hạn tối đa, không phải thời gian chờ cố định.
+    client.Timeout = TimeSpan.FromSeconds(300);
 
     var apiKey = builder.Configuration["ApiSettings:ApiKey"] ?? "";
     if (!string.IsNullOrEmpty(apiKey))

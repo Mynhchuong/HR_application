@@ -370,6 +370,84 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // PAGE: Đóng hàng loạt — CHỈ ADMIN (upload Excel 1 cột ID chat, gửi 1 tin nhắn rồi đóng hết).
+    // Admin đóng được BẤT KỲ hội thoại nào (closerType="ADMIN" bypass lock), khác bản HR/CSR ở
+    // HrInquiryController vẫn phải tôn trọng luật ai đang phụ trách.
+    // GET /AdminInquiry/BulkClose
+    // ─────────────────────────────────────────────────────────────────────────
+    public IActionResult BulkClose()
+    {
+        if (!IsAdmin) return Forbid();
+        return View();
+    }
+
+    // GET /AdminInquiry/BulkCloseTemplate — file mẫu Excel (1 cột "ID chat")
+    [HttpGet]
+    public IActionResult BulkCloseTemplate()
+    {
+        if (!IsAdmin) return Forbid();
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("ID chat");
+        var h = ws.Cell(1, 1);
+        h.Value = "ID chat";
+        h.Style.Font.Bold = true;
+        h.Style.Fill.BackgroundColor = XLColor.FromHtml("#1d4ed8");
+        h.Style.Font.FontColor = XLColor.White;
+        ws.Cell(2, 1).Value = "INQ-20261014-0001";
+        ws.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "MauDongHangLoat.xlsx");
+    }
+
+    // POST /AdminInquiry/BulkCloseUpload
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> BulkCloseUpload(IFormFile file, [FromForm] string message)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (file == null || file.Length == 0)
+            return Json(new { success = false, message = "Vui lòng chọn file Excel" });
+        if (string.IsNullOrWhiteSpace(message))
+            return Json(new { success = false, message = "Vui lòng nhập nội dung tin nhắn" });
+
+        var inquiryNos = new List<string>();
+        try
+        {
+            using var stream = file.OpenReadStream();
+            using var wb = new XLWorkbook(stream);
+            var ws = wb.Worksheet(1);
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
+            for (int r = 2; r <= lastRow; r++)
+            {
+                var v = ws.Cell(r, 1).GetString().Trim();
+                if (!string.IsNullOrEmpty(v)) inquiryNos.Add(v);
+            }
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "Không đọc được file Excel: " + ex.Message });
+        }
+
+        if (inquiryNos.Count == 0)
+            return Json(new { success = false, message = "File không có ID chat nào" });
+
+        var payload = new
+        {
+            inquiryNos,
+            empCd      = CurrentUser!.EmpCd,
+            closerName = CurrentUser.FullName,
+            closerType = "ADMIN",
+            message
+        };
+        var raw = await _inquiry.BulkCloseRawAsync(payload);
+        return Content(raw, "application/json");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // AJAX: Mở khóa conversation — CHỈ ADMIN
     // POST /AdminInquiry/Unlock
     // ─────────────────────────────────────────────────────────────────────────

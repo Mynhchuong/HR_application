@@ -1475,6 +1475,102 @@ public class InquiryController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Inquiry/bulk-close — HR/CSR tự đóng hàng loạt nhiều hội thoại
+    // (trước đây làm thủ công qua script ngoài, giờ build thành feature chính thức).
+    // Tái dùng nguyên action Send + Close ở trên cho từng ID (gọi trực tiếp trong process,
+    // không qua HTTP) để giữ đúng luật nghiệp vụ hiện có (lock/ownership/notification) —
+    // không có đường tắt bypass nào ở đây, CSR/HR vẫn chỉ đóng được hội thoại chưa ai nhận
+    // hoặc đang do chính mình phụ trách, giống hệt luồng đóng từng cái một.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("bulk-close")]
+    public async Task<IActionResult> BulkClose([FromBody] InquiryBulkCloseRequest req)
+    {
+        try
+        {
+            if (req.InquiryNos == null || req.InquiryNos.Count == 0)
+                return Ok(new { success = false, message = "Thiếu danh sách ID chat" });
+            if (string.IsNullOrWhiteSpace(req.EmpCd))
+                return Ok(new { success = false, message = "Thiếu mã nhân viên thực hiện" });
+            if (string.IsNullOrWhiteSpace(req.Message))
+                return Ok(new { success = false, message = "Thiếu nội dung tin nhắn" });
+
+            var noList = req.InquiryNos.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
+
+            // Resolve INQUIRY_NO → ID theo batch 1000 (giới hạn IN-list Oracle)
+            var idByNo = new Dictionary<string, long>();
+            for (int i = 0; i < noList.Count; i += 1000)
+            {
+                var batch = noList.Skip(i).Take(1000).ToList();
+                var inParams = batch.Select((no, j) => new OracleParameter($"N{j}", no)).ToArray();
+                var inList = string.Join(",", inParams.Select(p => $":{p.ParameterName}"));
+                var rows = await _db.ExecuteQueryAsync(
+                    $"SELECT ID, INQUIRY_NO FROM HRMS.HR_INQUIRY WHERE INQUIRY_NO IN ({inList})",
+                    r => new { Id = Convert.ToInt64(r["ID"]), No = r["INQUIRY_NO"]?.ToString() ?? "" },
+                    inParams);
+                foreach (var r in rows) idByNo[r.No] = r.Id;
+            }
+
+            var results = new List<InquiryBulkCloseItemResult>();
+            int okCount = 0;
+
+            // SenderType dùng cho bước gửi tin: "ADMIN" bypass lock hoàn toàn (giống Close bên dưới
+            // cũng cho ADMIN đóng bất kỳ); HR/CSR giữ "HR" (bảng HR_INQUIRY_MSG không có giá trị
+            // SENDER_TYPE riêng cho CSR, đúng như luồng gửi 1 tin đơn lẻ hiện có).
+            string sendSenderType = req.CloserType == "ADMIN" ? "ADMIN" : "HR";
+
+            foreach (var no in noList)
+            {
+                if (!idByNo.TryGetValue(no, out var id))
+                {
+                    results.Add(new InquiryBulkCloseItemResult { InquiryNo = no, Success = false, Message = "Không tìm thấy ID chat" });
+                    continue;
+                }
+
+                var sendResult = await Send(new InquirySendRequest
+                {
+                    InquiryId    = id,
+                    EmpCd        = req.EmpCd,
+                    SenderType   = sendSenderType,
+                    SenderName   = req.CloserName,
+                    AssignedName = req.CloserName,
+                    Content      = req.Message
+                });
+                dynamic sendVal = ((OkObjectResult)sendResult).Value!;
+                if (sendVal.success != true)
+                {
+                    results.Add(new InquiryBulkCloseItemResult { InquiryNo = no, Success = false, Message = (string?)sendVal.message ?? "Gửi tin thất bại" });
+                    continue;
+                }
+
+                // Đóng — CloserType giữ đúng role thật (HR/CSR) để báo cáo tách được.
+                var closeResult = await Close(new InquiryCloseRequest
+                {
+                    InquiryId  = id,
+                    EmpCd      = req.EmpCd,
+                    CloserType = req.CloserType,
+                    CloserName = req.CloserName,
+                    CloseNote  = "Đóng hàng loạt - đã phản hồi"
+                });
+                dynamic closeVal = ((OkObjectResult)closeResult).Value!;
+                if (closeVal.success != true)
+                {
+                    results.Add(new InquiryBulkCloseItemResult { InquiryNo = no, Success = false, Message = (string?)closeVal.message ?? "Đóng thất bại" });
+                    continue;
+                }
+
+                okCount++;
+                results.Add(new InquiryBulkCloseItemResult { InquiryNo = no, Success = true });
+            }
+
+            return Ok(new { success = true, total = noList.Count, okCount, failCount = noList.Count - okCount, results });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // POST /apiHR/Inquiry/unlock  — CHỈ ADMIN
     // ─────────────────────────────────────────────────────────────────────────
     [HttpPost("unlock")]

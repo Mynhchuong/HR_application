@@ -1,0 +1,142 @@
+@{
+    ViewData["Title"] = "Đóng hàng loạt";
+}
+@Html.AntiForgeryToken()
+
+@section Styles {
+<style>
+    .upload-drop { border:2px dashed #cbd5e1; border-radius:14px; padding:28px; text-align:center; cursor:pointer; transition:all .15s; background:#f8fafc; }
+    .upload-drop:hover { border-color:#3b82f6; background:#eff6ff; }
+    .upload-drop i { font-size:2.2rem; color:#94a3b8; }
+    .upload-drop.has-file { border-color:#16a34a; background:#f0fdf4; }
+    .file-name-badge { display:inline-flex; align-items:center; gap:6px; background:#eff6ff; color:#1d4ed8; font-size:.8rem; font-weight:700; padding:5px 12px; border-radius:20px; margin-top:8px; }
+    .result-row.ok   { color:#16a34a; }
+    .result-row.fail { color:#dc2626; }
+    #resultBox { max-height:320px; overflow-y:auto; font-size:.8rem; }
+</style>
+}
+
+<div class="container-fluid py-4">
+<div class="card">
+
+    <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+        <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="text-white mb-0"><i class="bi bi-chat-square-text me-1"></i> Đóng hội thoại hàng loạt (Admin)</h6>
+            <a class="btn btn-sm btn-white mb-0" href="@Url.Action("BulkCloseTemplate","AdminInquiry")">
+                <i class="bi bi-file-earmark-excel me-1"></i> Tải file mẫu
+            </a>
+        </div>
+    </div>
+
+    <div class="card-body pt-0 mt-3">
+        <p class="text-sm text-secondary">
+            Upload file Excel chứa 1 cột <strong>"ID chat"</strong> (mã dạng <code>INQ-YYYYMMDD-NNNN</code>).
+            Hệ thống sẽ gửi đúng tin nhắn bên dưới vào từng hội thoại rồi đóng lại. Với quyền Admin,
+            thao tác này đóng được <strong>bất kỳ</strong> hội thoại đang mở, không bị chặn bởi luật
+            ai đang phụ trách (khác bản HR/CSR).
+        </p>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label text-sm fw-bold">File Excel danh sách ID chat</label>
+                <div class="upload-drop" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                    <i class="bi bi-cloud-arrow-up"></i>
+                    <div class="text-sm text-secondary mt-1">Bấm để chọn file .xlsx</div>
+                    <div id="fileNameBox"></div>
+                </div>
+                <input type="file" id="fileInput" accept=".xlsx,.xls" class="d-none" onchange="onFileChosen(this.files[0])" />
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label text-sm fw-bold">Nội dung tin nhắn gửi trước khi đóng</label>
+                <textarea id="msgInput" class="form-control" rows="4">Phòng nhân sự cảm ơn thông tin của bạn.</textarea>
+            </div>
+        </div>
+
+        <button class="btn btn-primary" id="btnSubmit" onclick="submitBulkClose()" disabled>
+            <i class="bi bi-check2-circle me-1"></i> Gửi tin &amp; đóng hàng loạt
+        </button>
+        <span id="progressText" class="text-sm text-secondary ms-2"></span>
+
+        <div id="resultWrap" class="mt-4 d-none">
+            <h6 class="text-sm fw-bold" id="resultSummary"></h6>
+            <div id="resultBox" class="border rounded p-2 bg-light"></div>
+        </div>
+    </div>
+</div>
+</div>
+
+@section Scripts {
+<script>
+const AF_TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+let chosenFile = null;
+
+function onFileChosen(file) {
+    chosenFile = file || null;
+    const box  = document.getElementById('fileNameBox');
+    const zone = document.getElementById('dropZone');
+    const btn  = document.getElementById('btnSubmit');
+    if (chosenFile) {
+        box.innerHTML = `<div class="file-name-badge"><i class="bi bi-file-earmark-excel"></i>${chosenFile.name}</div>`;
+        zone.classList.add('has-file');
+        btn.disabled = false;
+    } else {
+        box.innerHTML = '';
+        zone.classList.remove('has-file');
+        btn.disabled = true;
+    }
+}
+
+async function submitBulkClose() {
+    if (!chosenFile) return;
+    const message = (document.getElementById('msgInput').value || '').trim();
+    if (!message) { showToast('Vui lòng nhập nội dung tin nhắn', 'error'); return; }
+
+    const btn = document.getElementById('btnSubmit');
+    btn.disabled = true;
+    document.getElementById('progressText').textContent = 'Đang xử lý, vui lòng đợi (có thể mất vài phút với file lớn)...';
+    document.getElementById('resultWrap').classList.add('d-none');
+
+    try {
+        const formData = new FormData();
+        formData.append('file', chosenFile);
+        formData.append('message', message);
+        const res = await fetch('@Url.Action("BulkCloseUpload","AdminInquiry")', {
+            method: 'POST',
+            headers: { 'RequestVerificationToken': AF_TOKEN },
+            body: formData
+        });
+        const data = await res.json();
+        document.getElementById('progressText').textContent = '';
+
+        if (!data.success) {
+            showToast(data.message || 'Thất bại', 'error');
+            btn.disabled = false;
+            return;
+        }
+
+        showToast(`Hoàn tất: ${data.okCount}/${data.total} đóng thành công`, data.failCount > 0 ? 'warning' : 'success');
+
+        document.getElementById('resultWrap').classList.remove('d-none');
+        document.getElementById('resultSummary').textContent =
+            `Tổng: ${data.total} — Thành công: ${data.okCount} — Thất bại: ${data.failCount}`;
+
+        const fails = (data.results || []).filter(r => !r.Success);
+        const box = document.getElementById('resultBox');
+        if (fails.length === 0) {
+            box.innerHTML = '<div class="result-row ok">Tất cả đã đóng thành công.</div>';
+        } else {
+            box.innerHTML = fails.map(r =>
+                `<div class="result-row fail">${r.InquiryNo}: ${r.Message || 'Lỗi không rõ'}</div>`
+            ).join('');
+        }
+
+        onFileChosen(null);
+        document.getElementById('fileInput').value = '';
+    } catch (e) {
+        document.getElementById('progressText').textContent = '';
+        showToast('Lỗi kết nối', 'error');
+        btn.disabled = false;
+    }
+}
+</script>
+}

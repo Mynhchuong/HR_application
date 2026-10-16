@@ -51,6 +51,22 @@ public class InquiryCloseRequest
     public string? CloseNote    { get; set; }
 }
 
+public class InquiryBulkCloseRequest
+{
+    public List<string> InquiryNos { get; set; } = new();
+    public string? EmpCd      { get; set; }
+    public string? CloserName { get; set; }
+    public string  CloserType { get; set; } = "HR";  // HR | CSR — dùng cho CLOSED_BY_TYPE để báo cáo tách ra
+    public string? Message    { get; set; }
+}
+
+public class InquiryBulkCloseItemResult
+{
+    public string  InquiryNo { get; set; } = "";
+    public bool    Success   { get; set; }
+    public string? Message   { get; set; }
+}
+
 public class InquiryUnlockRequest
 {
     public long   InquiryId  { get; set; }

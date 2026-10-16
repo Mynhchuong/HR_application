@@ -64,7 +64,7 @@ public static class SideMenuBuilder
                 Id = "Expat",
                 Title = "Expat",
                 Icon = "manage_accounts",
-                VisibleWhen = () => isExpat || isAdmin,
+                VisibleWhen = () => isExpat,
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Home",                Url = "~/Home/Index",                      Icon = "home"           },
@@ -85,7 +85,7 @@ public static class SideMenuBuilder
                 Id = "Clerk",
                 Title = "Thư ký",
                 Icon = "assignment",
-                VisibleWhen = () => isClerk || isAdmin,
+                VisibleWhen = () => isClerk,
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForClerk",          Icon = "view_list"     },
@@ -106,7 +106,7 @@ public static class SideMenuBuilder
                 Id = "Supervisor",
                 Title = "Giám sát",
                 Icon = "engineering",
-                VisibleWhen = () => isSupervisor || isAdmin,
+                VisibleWhen = () => isSupervisor,
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Danh sách Tăng ca",   Url = "~/OT/OtListForSupervisor",        Icon = "view_list"      },
@@ -169,11 +169,13 @@ public static class SideMenuBuilder
 
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum",                 Group = "chat" },
                     new SideMenuItem { Title = "Câu trả lời mẫu",       Url = "~/HrInquiry/CannedReplies",     Icon = "quickreply",            Group = "chat" },
+                    new SideMenuItem { Title = "Đóng hội thoại hàng loạt", Url = "~/HrInquiry/BulkClose",      Icon = "playlist_add_check",    Group = "chat" },
                     new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",              Group = "chat" },
 
                     new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",               Group = "system" },
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy",                 Group = "system" },
                     new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",            Icon = "manage_accounts",          Group = "system" },
+                    new SideMenuItem { Title = "Toàn bộ nhân viên",   Url = "~/Employee/AllEmployees",       Icon = "groups",                   Group = "system" },
                     new SideMenuItem { Title = "Hình minh hoạ Work Cd", Url = "~/WorkCdImage/Index",         Icon = "image",                   Group = "system" },
                     new SideMenuItem { Title = "Quản lý Phiếu lương",  Url = "~/Payslip/Admin",              Icon = "account_balance_wallet",   Group = "system" },
                     new SideMenuItem { Title = "Phân Quyền Phạm Vi",   Url = "~/UserDept/Index",              Icon = "shield",                  Group = "system" },
@@ -189,7 +191,7 @@ public static class SideMenuBuilder
                 Id = "CSR",
                 Title = "CSR",
                 Icon = "support_agent",
-                VisibleWhen = () => isCSR || isAdmin,
+                VisibleWhen = () => isCSR,
                 // Menu CSR cũng khá dài — gom cụm theo màu giống menu HR (yêu cầu 2026-09-15),
                 // dùng chung MenuGroupCatalog, mỗi cụm liền nhau + có nhãn màu riêng.
                 Children = new List<SideMenuItem>
@@ -201,6 +203,7 @@ public static class SideMenuBuilder
 
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",            Icon = "forum",           Group = "chat" },
                     new SideMenuItem { Title = "Câu trả lời mẫu",       Url = "~/HrInquiry/CannedReplies",    Icon = "quickreply",      Group = "chat" },
+                    new SideMenuItem { Title = "Đóng hội thoại hàng loạt", Url = "~/HrInquiry/BulkClose",     Icon = "playlist_add_check", Group = "chat" },
                     new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",       Group = "chat" },
 
                     new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",        Group = "system" },
@@ -227,7 +230,7 @@ public static class SideMenuBuilder
                 Id = "Canteen",
                 Title = "Nhà bếp",
                 Icon = "restaurant_menu",
-                VisibleWhen = () => isCanteen || isAdmin,
+                VisibleWhen = () => isCanteen,
                 Children = [
                     new() { Title = "Thực đơn hôm nay",  Url = "~/Menu/Today",      Icon = "today"         },
                     new() { Title = "Thực đơn tuần",     Url = "~/Menu/ThisWeek",   Icon = "date_range"    },
@@ -257,6 +260,7 @@ public static class SideMenuBuilder
                     new() { Title = "Quản lý hội thoại",     Url = "~/AdminInquiry/Index",        Icon = "forum",           Group = "chat" },
                     new() { Title = "Chủ đề hội thoại",      Url = "~/AdminInquiry/Topics",       Icon = "topic",           Group = "chat" },
                     new() { Title = "Câu trả lời mẫu",       Url = "~/AdminInquiry/CannedReplies", Icon = "quickreply",     Group = "chat" },
+                    new() { Title = "Đóng hội thoại hàng loạt", Url = "~/AdminInquiry/BulkClose", Icon = "playlist_add_check", Group = "chat" },
                     new() { Title = "Báo cáo hội thoại",    Url = "~/AdminInquiry/Report",       Icon = "bar_chart",       Group = "chat" },
 
                     new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",              Icon = "menu_book",       Group = "system" },

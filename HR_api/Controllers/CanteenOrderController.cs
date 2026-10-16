@@ -687,7 +687,12 @@ public class CanteenOrderController : ControllerBase
                 if (string.IsNullOrEmpty(empcd))
                 { errors.Add(new { row = excelRowNo, message = "Thiếu mã NV" }); continue; }
 
-                if (!DateTime.TryParse(row.Dat, out var dat))
+                // TryParse mặc định dùng culture máy chủ (không cấu hình culture cố định ở
+                // Program.cs) — "05/10/2026" có thể bị hiểu nhầm thành 10/5 (tháng 5 ngày 10) mà
+                // KHÔNG báo lỗi gì, âm thầm ghi sai ngày (bug thật 2026-10-15). Web đã chuẩn hoá gửi
+                // lên dạng ISO "yyyy-MM-dd" không mơ hồ — parse đúng 1 format đó, không TryParse chung chung.
+                if (!DateTime.TryParseExact(row.Dat, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out var dat))
                 { errors.Add(new { row = excelRowNo, empcd, message = $"Ngày không hợp lệ: {row.Dat}" }); continue; }
 
                 var typeMeal = (row.TypeMeal ?? "LUNCH").Trim().ToUpper();

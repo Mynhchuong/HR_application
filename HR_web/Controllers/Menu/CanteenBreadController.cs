@@ -353,17 +353,34 @@ public class CanteenBreadController : BaseController
 
             for (int r = 2; r <= lastRow; r++)
             {
-                var datCell  = ws.Cell(r, 1).GetString().Trim();
-                var empcd    = ws.Cell(r, 2).GetString().Trim();
-                var typeMeal = ws.Cell(r, 3).GetString().Trim();
-                var typeFood = ws.Cell(r, 4).GetString().Trim();
+                var dateCellObj = ws.Cell(r, 1);
+                var empcd       = ws.Cell(r, 2).GetString().Trim();
+                var typeMeal    = ws.Cell(r, 3).GetString().Trim();
+                var typeFood    = ws.Cell(r, 4).GetString().Trim();
+                var datRawText  = dateCellObj.GetString().Trim();
 
-                if (string.IsNullOrEmpty(datCell) && string.IsNullOrEmpty(empcd)) continue; // dòng trống bỏ qua
+                if (string.IsNullOrEmpty(datRawText) && string.IsNullOrEmpty(empcd)) continue; // dòng trống bỏ qua
 
                 if (string.IsNullOrEmpty(empcd))
                 { parseErrors.Add(new { row = r, message = "Thiếu mã NV" }); continue; }
 
-                rows.Add(new { empcd, dat = datCell, typeMeal, typeOfFood = typeFood });
+                // Cột ngày ghi mẫu là chữ "dd/MM/yyyy", nhưng Excel hay tự nhận diện lại thành ô
+                // DATE thật khi NV gõ/sửa tay — GetString() lúc đó trả theo định dạng hiển thị của
+                // Excel (có thể là m/d/yyyy kiểu Mỹ), không còn đúng dd/MM/yyyy nữa. Đọc đúng kiểu ô
+                // trước, rồi mới parse text theo ĐÚNG duy nhất "dd/MM/yyyy" (không TryParse mơ hồ) —
+                // tránh lỗi đảo ngày/tháng âm thầm (bug thật 2026-10-15, VD "05/10" bị hiểu nhầm
+                // thành 10/05 mà không báo lỗi gì).
+                DateTime? parsedDate = dateCellObj.DataType == XLDataType.DateTime
+                    ? dateCellObj.GetDateTime()
+                    : (DateTime.TryParseExact(datRawText, new[] { "dd/MM/yyyy", "d/M/yyyy" },
+                        System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var dExact)
+                        ? dExact : (DateTime?)null);
+
+                if (parsedDate == null)
+                { parseErrors.Add(new { row = r, empcd, message = $"Ngày không hợp lệ (phải theo dd/mm/yyyy): {datRawText}" }); continue; }
+
+                // Chuẩn hoá về ISO "yyyy-MM-dd" trước khi gửi API — không còn mơ hồ dd/mm hay mm/dd nữa.
+                rows.Add(new { empcd, dat = parsedDate.Value.ToString("yyyy-MM-dd"), typeMeal, typeOfFood = typeFood });
             }
         }
         catch (Exception ex)

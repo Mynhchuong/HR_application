@@ -19,6 +19,8 @@ public class TeamMemberModel
     public string SHIFT_CD   { get; set; } = "";
     public string SHIFT_TIME { get; set; } = "";
     public string SHIFT_TYPE { get; set; } = "";
+    public string POSITION_NAME { get; set; } = "";
+    public string HARDWORK_TEN  { get; set; } = "";
 }
 
 public class TeamMemberResponse
@@ -49,10 +51,24 @@ public class TeamShiftOptionModel
     public string SHIFT_TYPE { get; set; } = "";
 }
 
+public class TeamPositionOptionModel
+{
+    public string JIKWICD       { get; set; } = "";
+    public string POSITION_NAME { get; set; } = "";
+}
+
+public class TeamHardworkOptionModel
+{
+    public string INTEREST     { get; set; } = "";
+    public string HARDWORK_TEN { get; set; } = "";
+}
+
 public class TeamScopeFiltersResponse
 {
     public bool    success { get; set; }
     public string? message { get; set; }
-    public List<TeamScopeTupleModel>  data   { get; set; } = new();
-    public List<TeamShiftOptionModel> shifts { get; set; } = new();
+    public List<TeamScopeTupleModel>     data       { get; set; } = new();
+    public List<TeamShiftOptionModel>    shifts     { get; set; } = new();
+    public List<TeamPositionOptionModel> positions  { get; set; } = new();
+    public List<TeamHardworkOptionModel> hardworks  { get; set; } = new();
 }

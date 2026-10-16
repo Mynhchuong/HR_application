@@ -15,6 +15,8 @@ public class EmployeeService
         string? linecd    = null,
         string? workcd    = null,
         string? shiftcd   = null,
+        string? jikwicd   = null,
+        string? interest  = null,
         bool    noLogin   = false,
         int     page      = 1,
         int     pageSize  = 50,
@@ -26,6 +28,8 @@ public class EmployeeService
         if (!string.IsNullOrEmpty(linecd)) q.Add($"linecd={Uri.EscapeDataString(linecd)}");
         if (!string.IsNullOrEmpty(workcd)) q.Add($"workcd={Uri.EscapeDataString(workcd)}");
         if (!string.IsNullOrEmpty(shiftcd)) q.Add($"shiftcd={Uri.EscapeDataString(shiftcd)}");
+        if (!string.IsNullOrEmpty(jikwicd)) q.Add($"jikwicd={Uri.EscapeDataString(jikwicd)}");
+        if (!string.IsNullOrEmpty(interest)) q.Add($"interest={Uri.EscapeDataString(interest)}");
         if (noLogin) q.Add("no_login=true");
         if (all)
         {
@@ -82,6 +86,8 @@ public class EmployeeService
         string? linecd    = null,
         string? workcd    = null,
         string? shiftcd   = null,
+        string? jikwicd   = null,
+        string? interest  = null,
         bool    noLogin   = false,
         int     page      = 1,
         int     pageSize  = 50,
@@ -93,6 +99,8 @@ public class EmployeeService
         if (!string.IsNullOrEmpty(linecd)) q.Add($"linecd={Uri.EscapeDataString(linecd)}");
         if (!string.IsNullOrEmpty(workcd)) q.Add($"workcd={Uri.EscapeDataString(workcd)}");
         if (!string.IsNullOrEmpty(shiftcd)) q.Add($"shiftcd={Uri.EscapeDataString(shiftcd)}");
+        if (!string.IsNullOrEmpty(jikwicd)) q.Add($"jikwicd={Uri.EscapeDataString(jikwicd)}");
+        if (!string.IsNullOrEmpty(interest)) q.Add($"interest={Uri.EscapeDataString(interest)}");
         if (noLogin) q.Add("no_login=true");
         if (all)
         {

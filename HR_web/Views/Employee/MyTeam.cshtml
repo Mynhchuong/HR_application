@@ -53,6 +53,20 @@
     .mt-card .mt-badges-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
     .mt-card .mt-badge-item { display:inline-flex; padding:0; background:transparent; }
 
+    /* Combobox tìm kiếm riêng cho "Công việc thực hiện" — chữ VNI (font Vnitbi__) không hiện đúng
+       trong option của select gốc trên nhiều trình duyệt (popup native bỏ qua font-family của
+       trang), nên phải tự vẽ dropdown bằng div mới áp font được (yêu cầu 2026-10-17). */
+    .combo-wrap { position:relative; display:inline-block; }
+    .combo-display { height:34px; font-size:.8rem; border-radius:8px; border:1.5px solid #e2e8f0; padding:0 8px; outline:none; background:#fff; cursor:pointer; min-width:170px; }
+    .combo-display:focus { border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.12); }
+    .combo-panel { position:absolute; top:calc(100% + 4px); left:0; z-index:1050; background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12); width:280px; max-height:320px; display:flex; flex-direction:column; }
+    .combo-search { width:100%; box-sizing:border-box; padding:8px 10px; border:none; border-bottom:1px solid #f1f5f9; font-size:.8rem; outline:none; border-radius:10px 10px 0 0; }
+    .combo-options { overflow-y:auto; }
+    .combo-option { padding:7px 12px; font-size:.8rem; cursor:pointer; }
+    .combo-option:hover { background:#fef2f2; }
+    .combo-option.active { background:#fee2e2; font-weight:700; }
+    .combo-option.placeholder { color:#94a3b8; }
+
     @@media (max-width:576px) {
         .filter-bar { flex-wrap:wrap !important; }
         .search-input { width:120px; }
@@ -96,6 +110,18 @@
             <select id="shiftFilter" class="filter-select" onchange="onShiftChange()" style="min-width:140px;">
                 <option value="">-- Ca làm việc --</option>
             </select>
+            <select id="positionFilter" class="filter-select" onchange="onPositionChange()" style="min-width:140px;">
+                <option value="">-- Chức vụ --</option>
+            </select>
+            <div class="combo-wrap" id="hardworkCombo">
+                <input type="text" id="hardworkDisplay" class="combo-display" readonly
+                       placeholder="-- Công việc thực hiện --" onclick="toggleHardworkPanel()">
+                <input type="hidden" id="hardworkFilter" value="">
+                <div class="combo-panel d-none" id="hardworkPanel">
+                    <input type="text" id="hardworkSearch" class="combo-search" placeholder="Tìm công việc..." oninput="filterHardworkOptions()">
+                    <div class="combo-options" id="hardworkOptionsBox"></div>
+                </div>
+            </div>
             <label class="filter-toggle" id="noLoginToggleLabel" title="Chỉ hiện nhân viên chưa đăng nhập lần nào">
                 <input type="checkbox" id="noLoginToggle" onchange="onNoLoginToggle()">
                 <i class="bi bi-person-x"></i> Chưa đăng nhập lần đầu
@@ -113,6 +139,7 @@
                     <tr>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="hidden">#</th>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Nhân viên">Nhân viên</th>
+                        <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Công việc">Công việc</th>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Bộ phận / Line / Nhóm">Bộ phận / Line / Nhóm</th>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="SĐT">SĐT</th>
                         <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Email">Email</th>
@@ -144,6 +171,8 @@ const NO_DATA_IMG = '@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illus
 
 let scopeTuples = [];
 let shiftOptions = [];
+let positionOptions = [];
+let hardworkOptions = [];
 let page = 1, totalPages = 1, totalRows = 0;
 const PAGE_SIZE = 25;
 let searchTimer;
@@ -158,6 +187,14 @@ function shiftChip(d) {
     const isNight = (d.SHIFT_TIME||'').split('-').length===2 && d.SHIFT_TIME.split('-')[0] > d.SHIFT_TIME.split('-')[1];
     return `<span class="shift-chip ${isNight?'night':'day'}" title="${escHtml(d.SHIFT_TYPE)}"><i class="bi bi-${isNight?'moon-stars':'sun'}"></i>${escHtml(d.SHIFT_CD)} (${d.SHIFT_TIME})</span>`;
 }
+// Công việc thực hiện (HARDWORK_TEN) + Chức vụ (POSITION_NAME) gộp 1 cột — chức vụ hiện nhỏ, mờ
+// hơn trong dấu ngoặc (yêu cầu 2026-10-16: 2 field khác nhau nhưng hiện chung 1 cột cho gọn).
+function workCell(d) {
+    if (!d.HARDWORK_TEN && !d.POSITION_NAME) return '<span class="text-secondary">—</span>';
+    if (!d.HARDWORK_TEN) return escHtml(d.POSITION_NAME);
+    const posSuffix = d.POSITION_NAME ? ` <span class="text-secondary" style="font-size:.68rem">(${escHtml(d.POSITION_NAME)})</span>` : '';
+    return escHtml(d.HARDWORK_TEN) + posSuffix;
+}
 
 // ── Dropdowns (1 lần, dữ liệu nhỏ — không phụ thuộc tổng số NV trong scope) ──
 function loadFilters() {
@@ -165,10 +202,14 @@ function loadFilters() {
         url: FILTERS_URL, type: 'GET',
         success: function(res) {
             if (!res.success) return;
-            scopeTuples  = res.data   || [];
-            shiftOptions = res.shifts || [];
+            scopeTuples     = res.data      || [];
+            shiftOptions    = res.shifts    || [];
+            positionOptions = res.positions || [];
+            hardworkOptions = res.hardworks || [];
             buildDropdowns();
             buildShiftDropdown();
+            buildPositionDropdown();
+            buildHardworkDropdown();
         }
     });
 }
@@ -222,6 +263,64 @@ function buildShiftDropdown() {
     });
 }
 
+function buildPositionDropdown() {
+    const sel = document.getElementById('positionFilter');
+    sel.innerHTML = '<option value="">-- Chức vụ --</option>';
+    positionOptions.forEach(p => {
+        sel.innerHTML += `<option value="${escHtml(p.JIKWICD)}">${escHtml(p.POSITION_NAME || p.JIKWICD)}</option>`;
+    });
+}
+
+// Combobox "Công việc thực hiện" — tự vẽ (không dùng <select> gốc) vì font Vnitbi__ cho chữ VNI
+// không áp được vào <option> trên nhiều trình duyệt (popup native bỏ qua font-family của trang).
+function buildHardworkDropdown() {
+    renderHardworkOptionsBox(hardworkOptions);
+}
+
+function renderHardworkOptionsBox(list) {
+    const box = document.getElementById('hardworkOptionsBox');
+    const current = document.getElementById('hardworkFilter').value;
+    let html = `<div class="combo-option placeholder ${!current?'active':''}" onclick="selectHardwork('','')">-- Công việc thực hiện --</div>`;
+    list.forEach(h => {
+        const label = h.HARDWORK_TEN || h.INTEREST;
+        html += `<div class="combo-option vni-font ${current===h.INTEREST?'active':''}" onclick="selectHardwork('${h.INTEREST.replace(/'/g,"\\'")}', this.textContent)">${escHtml(label)}</div>`;
+    });
+    box.innerHTML = html;
+}
+
+function filterHardworkOptions() {
+    const q = (document.getElementById('hardworkSearch').value || '').trim().toUpperCase();
+    const list = q ? hardworkOptions.filter(h => (h.HARDWORK_TEN||'').toUpperCase().includes(q) || (h.INTEREST||'').toUpperCase().includes(q)) : hardworkOptions;
+    renderHardworkOptionsBox(list);
+}
+
+function selectHardwork(interest, label) {
+    document.getElementById('hardworkFilter').value = interest;
+    document.getElementById('hardworkDisplay').value = label || '';
+    document.getElementById('hardworkPanel').classList.add('d-none');
+    page = 1; loadData();
+}
+
+function toggleHardworkPanel() {
+    const panel = document.getElementById('hardworkPanel');
+    const opening = panel.classList.contains('d-none');
+    panel.classList.toggle('d-none');
+    if (opening) {
+        document.getElementById('hardworkSearch').value = '';
+        renderHardworkOptionsBox(hardworkOptions);
+        setTimeout(() => document.getElementById('hardworkSearch').focus(), 0);
+    }
+}
+
+document.addEventListener('click', function(e) {
+    const combo = document.getElementById('hardworkCombo');
+    if (combo && !combo.contains(e.target)) document.getElementById('hardworkPanel').classList.add('d-none');
+});
+
+function onPositionChange() {
+    page = 1; loadData();
+}
+
 function onDeptChange() {
     const dept = document.getElementById('deptFilter').value;
     buildLineDropdown(dept);
@@ -254,6 +353,9 @@ function resetFilters() {
     document.getElementById('lineFilter').value  = '';
     document.getElementById('workFilter').value  = '';
     document.getElementById('shiftFilter').value = '';
+    document.getElementById('positionFilter').value = '';
+    document.getElementById('hardworkFilter').value = '';
+    document.getElementById('hardworkDisplay').value = '';
     document.getElementById('noLoginToggle').checked = false;
     document.getElementById('noLoginToggleLabel').classList.remove('active');
     buildLineDropdown('');
@@ -274,6 +376,8 @@ function currentFilterParams() {
         linecd:   document.getElementById('lineFilter').value,
         workcd:   document.getElementById('workFilter').value,
         shiftcd:  document.getElementById('shiftFilter').value,
+        jikwicd:  document.getElementById('positionFilter').value,
+        interest: document.getElementById('hardworkFilter').value,
         no_login: document.getElementById('noLoginToggle').checked
     };
 }
@@ -281,17 +385,17 @@ function currentFilterParams() {
 // ── Load trang dữ liệu hiện tại (phân trang ở SQL) ───────────────────────
 function loadData() {
     document.getElementById('tableBody').innerHTML =
-        `<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
+        `<tr><td colspan="10" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`;
     MobileTableHelper.refresh('tableBody');
 
     const f = currentFilterParams();
     $.ajax({
         url: DATA_URL, type: 'GET',
-        data: { search: f.search, deptcd: f.deptcd, linecd: f.linecd, workcd: f.workcd, shiftcd: f.shiftcd, no_login: f.no_login, page, page_size: PAGE_SIZE },
+        data: { search: f.search, deptcd: f.deptcd, linecd: f.linecd, workcd: f.workcd, shiftcd: f.shiftcd, jikwicd: f.jikwicd, interest: f.interest, no_login: f.no_login, page, page_size: PAGE_SIZE },
         success: function(res) {
             if (!res.success) {
                 document.getElementById('tableBody').innerHTML =
-                    `<tr><td colspan="9" class="text-center text-danger py-4">${escHtml(res.message||'Lỗi')}</td></tr>`;
+                    `<tr><td colspan="10" class="text-center text-danger py-4">${escHtml(res.message||'Lỗi')}</td></tr>`;
                 MobileTableHelper.refresh('tableBody');
                 return;
             }
@@ -302,7 +406,7 @@ function loadData() {
         },
         error: function(xhr) {
             document.getElementById('tableBody').innerHTML =
-                `<tr><td colspan="9" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`;
+                `<tr><td colspan="10" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`;
             MobileTableHelper.refresh('tableBody');
         }
     });
@@ -316,7 +420,7 @@ function renderTable(pageData) {
 
     if (!pageData.length) {
         document.getElementById('tableBody').innerHTML =
-            `<tr><td colspan="9" class="text-center py-5">
+            `<tr><td colspan="10" class="text-center py-5">
                 <img src="${NO_DATA_IMG}" style="width:120px;opacity:.85;display:block;margin:0 auto 10px;">
                 <div class="text-muted text-sm">Không có nhân viên phù hợp</div>
             </td></tr>`;
@@ -333,6 +437,7 @@ function renderTable(pageData) {
             <div class="emp-name-row"><span class="vni-font" style="text-transform:uppercase;">${escHtml(d.EMP_NAME)}</span>${!d.LAST_LOGIN ? '<span class="badge-no-login" title="Chưa đăng nhập lần đầu lần nào"><i class="bi bi-person-x"></i>Chưa đăng nhập lần đầu</span>' : ''}</div>
             <div class="emp-meta">${escHtml(d.EMPCD)}</div>
         </td>
+        <td class="px-2 text-xs vni-font">${workCell(d)}</td>
         <td class="px-2 dept-line">
             <div><span class="lbl">BP:</span> ${d.DEPT_NAME ? `${escHtml(d.DEPTCD)} — ${escHtml(d.DEPT_NAME)}` : escHtml(d.DEPTCD)||'—'}</div>
             <div><span class="lbl">Line:</span> ${d.LINE_NAME ? `${escHtml(d.LINECD)} — ${escHtml(d.LINE_NAME)}` : escHtml(d.LINECD)||'—'}</div>
@@ -377,6 +482,8 @@ function exportExcel() {
     if (f.linecd)   params.append('linecd', f.linecd);
     if (f.workcd)   params.append('workcd', f.workcd);
     if (f.shiftcd)  params.append('shiftcd', f.shiftcd);
+    if (f.jikwicd)  params.append('jikwicd', f.jikwicd);
+    if (f.interest) params.append('interest', f.interest);
     if (f.no_login) params.append('no_login', 'true');
     const a = document.createElement('a');
     a.href = EXPORT_URL + (params.toString() ? '?' + params.toString() : '');

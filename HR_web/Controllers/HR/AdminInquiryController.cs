@@ -540,6 +540,125 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Danh sách hội thoại CHƯA XỬ LÝ (STATUS='OPEN') trong kỳ, có phân trang —
+    // yêu cầu 2026-10-16: "hiện thêm all dọn chat chưa dc sửa lí". Tái dùng GetReportRawAsync
+    // (đã có sẵn, trả toàn bộ hội thoại trong kỳ kèm STATUS) rồi lọc + phân trang ở C#, không cần
+    // thêm endpoint HR_api mới.
+    // GET /AdminInquiry/GetUnresolvedList?from=YYYY-MM-DD&to=YYYY-MM-DD&page=&pageSize=
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetUnresolvedList(string? from = null, string? to = null, int page = 1, int pageSize = 20)
+    {
+        if (!CanViewReport) return Json(new { success = false, message = "Không có quyền" });
+
+        var rawResult = await _inquiry.GetReportRawAsync(from, to);
+        if (!rawResult.success)
+            return Json(new { success = false, message = rawResult.message ?? "Không tải được dữ liệu" });
+
+        // Cũ nhất lên trước — chat chưa xử lý càng lâu càng cần ưu tiên.
+        var unresolved = rawResult.data.Where(d => d.status == "OPEN").OrderBy(d => d.instDt).ToList();
+
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        int total = unresolved.Count;
+        int totalPages = total == 0 ? 0 : (int)Math.Ceiling(total / (double)pageSize);
+
+        var data = unresolved
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(d => new
+            {
+                id           = d.id,
+                inquiryNo    = d.inquiryNo,
+                topicName    = d.topicName,
+                chatType     = d.chatType,
+                instDt       = d.instDt,
+                empCd        = d.empCd,
+                empDisplay   = d.empDisplay,
+                deptName     = d.deptName,
+                firstMsg     = StripHtml(d.firstMsg),
+                msgCount     = d.msgCount,
+                assignedName = d.assignedName ?? d.assignedTo
+            });
+
+        return Json(new { success = true, total, page, pageSize, totalPages, data });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Xuất Excel riêng danh sách hội thoại CHƯA XỬ LÝ (toàn bộ, không phân trang)
+    // GET /AdminInquiry/ExportUnresolved?from=YYYY-MM-DD&to=YYYY-MM-DD
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> ExportUnresolved(string? from = null, string? to = null)
+    {
+        if (!CanViewReport) return Forbid();
+
+        var rawResult = await _inquiry.GetReportRawAsync(from, to);
+        if (!rawResult.success)
+            return BadRequest(rawResult.message ?? "Không tải được dữ liệu");
+
+        var unresolved = rawResult.data.Where(d => d.status == "OPEN").OrderBy(d => d.instDt).ToList();
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Chưa xử lý");
+        string[] headers =
+        {
+            "STT", "ID chat", "Chủ đề", "Loại hội thoại", "Thời gian tạo",
+            "Mã NV", "Họ và tên", "Phòng ban", "Line", "Work",
+            "Tin nhắn đầu tiên", "Tổng số tin nhắn", "Người đang xử lý"
+        };
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var c = ws.Cell(1, i + 1);
+            c.Value = headers[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#dc2626");
+            c.Style.Font.FontColor = XLColor.White;
+            c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        int row = 2;
+        foreach (var rw in unresolved)
+        {
+            ws.Cell(row, 1).Value = row - 1;
+            ws.Cell(row, 2).Value = rw.inquiryNo;
+            ws.Cell(row, 3).Value = rw.topicName ?? "";
+            ws.Cell(row, 4).Value = rw.chatType == "ANON" ? "Ẩn danh" : "Trực tiếp";
+            if (rw.instDt.HasValue) ws.Cell(row, 5).Value = rw.instDt.Value; else ws.Cell(row, 5).Value = "—";
+            ws.Cell(row, 5).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+
+            ws.Cell(row, 6).Value = rw.empCd ?? "";
+            var nameCell = ws.Cell(row, 7);
+            nameCell.Value = rw.empDisplay ?? "";
+            nameCell.Style.Font.FontName = "Vnitbi__";
+            ws.Cell(row, 8).Value = rw.deptName ?? "";
+            ws.Cell(row, 9).Value = rw.lineName ?? "";
+            ws.Cell(row, 10).Value = rw.workName ?? "";
+            ws.Range(row, 8, row, 10).Style.Font.FontName = "Vnitbi__";
+
+            ws.Cell(row, 11).Value = StripHtml(rw.firstMsg);
+            ws.Cell(row, 12).Value = rw.msgCount;
+
+            var handlerCell = ws.Cell(row, 13);
+            handlerCell.Value = rw.assignedName ?? rw.assignedTo ?? "Chưa ai nhận";
+            handlerCell.Style.Font.FontName = "Vnitbi__";
+
+            row++;
+        }
+        if (unresolved.Count > 0)
+            ws.Range(1, 1, 1, headers.Length).SetAutoFilter();
+        ws.SheetView.FreezeRows(1);
+        ws.Columns().AdjustToContents();
+        ws.Column(11).Width = 60;
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"HoiThoaiChuaXuLy_{from}_{to}.xlsx");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // AJAX: Xuất Excel báo cáo
     // GET /AdminInquiry/ExportReport?from=YYYY-MM-DD&to=YYYY-MM-DD
     // ─────────────────────────────────────────────────────────────────────────
@@ -726,93 +845,11 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             wsHr.Range(1, 1, 1, hrHeaders.Length).SetAutoFilter();
         wsHr.Columns().AdjustToContents();
 
-        // ─── Sheet 4: Raw Data (chi tiết từng hội thoại) ─────────────────────
-        var wsRaw = wb.Worksheets.Add("Raw Data");
-        string[] rawHeaders =
-        {
-            "STT", "ID chat", "Chủ đề", "Loại hội thoại", "Trạng thái", "Thời gian tạo", "Ngày đóng",
-            "Người đóng", "Ghi chú đóng",
-            "Mã NV", "Họ và tên", "Phòng ban", "Line", "Work",
-            "Tin nhắn đầu tiên", "Tổng số tin nhắn", "Người xử lý", "Tin nhắn cuối (người xử lý)",
-            "TG phản hồi (phút)", "Đánh giá", "Ghi chú đánh giá"
-        };
-        for (int i = 0; i < rawHeaders.Length; i++)
-        {
-            var c = wsRaw.Cell(1, i + 1);
-            c.Value = rawHeaders[i];
-            c.Style.Font.Bold = true;
-            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#dc2626");
-            c.Style.Font.FontColor = XLColor.White;
-            c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        }
+        // Sheet "Raw Data" (chi tiết thô từng hội thoại) đã bỏ theo yêu cầu 2026-10-16 — dữ liệu
+        // thô giờ xem qua danh sách "Chưa xử lý" riêng (ExportUnresolved) + sheet "Nội dung chat"
+        // bên dưới, tránh file Excel phình to không cần thiết.
 
-        row = 2;
-        foreach (var rw in rawResult.data)
-        {
-            wsRaw.Cell(row, 1).Value = row - 1;
-            wsRaw.Cell(row, 2).Value = rw.inquiryNo;
-            wsRaw.Cell(row, 3).Value = rw.topicName ?? "";
-            wsRaw.Cell(row, 4).Value = rw.chatType == "ANON" ? "Ẩn danh" : "Trực tiếp";
-            wsRaw.Cell(row, 5).Value = rw.status == "OPEN" ? "Đang mở" : rw.status == "CLOSED" ? "Đã đóng" : rw.status;
-            if (rw.instDt.HasValue) wsRaw.Cell(row, 6).Value = rw.instDt.Value; else wsRaw.Cell(row, 6).Value = "—";
-            if (rw.closedDt.HasValue) wsRaw.Cell(row, 7).Value = rw.closedDt.Value; else wsRaw.Cell(row, 7).Value = "—";
-            wsRaw.Cell(row, 6).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
-            wsRaw.Cell(row, 7).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
-
-            string closedByLabel = rw.closedByType switch
-            {
-                "HR"    => "HR",
-                "CSR"   => "CSR",
-                "EMP"   => "NV tự đóng",
-                "ADMIN" => "Admin",
-                _       => ""
-            };
-            var closedByCell = wsRaw.Cell(row, 8);
-            closedByCell.Value = string.IsNullOrEmpty(rw.closedByName) ? closedByLabel : $"{rw.closedByName} ({closedByLabel})";
-            closedByCell.Style.Font.FontName = "Vnitbi__";
-            wsRaw.Cell(row, 9).Value = StripHtml(rw.closeNote);
-
-            wsRaw.Cell(row, 10).Value = rw.empCd ?? "";
-
-            var nameCell = wsRaw.Cell(row, 11);
-            nameCell.Value = rw.empDisplay ?? "";
-            nameCell.Style.Font.FontName = "Vnitbi__";
-
-            wsRaw.Cell(row, 12).Value = rw.deptName ?? "";
-            wsRaw.Cell(row, 13).Value = rw.lineName ?? "";
-            wsRaw.Cell(row, 14).Value = rw.workName ?? "";
-            wsRaw.Range(row, 12, row, 14).Style.Font.FontName = "Vnitbi__";
-
-            // Nội dung tin nhắn (chat content) là UTF-8 chuẩn — KHÔNG dùng font Vnitbi__ (chỉ áp cho tên/dept nguồn từ ECM100)
-            wsRaw.Cell(row, 15).Value = StripHtml(rw.firstMsg);
-
-            wsRaw.Cell(row, 16).Value = rw.msgCount;
-
-            var handlerCell = wsRaw.Cell(row, 17);
-            handlerCell.Value = (rw.assignedName ?? rw.assignedTo ?? "");
-            handlerCell.Style.Font.FontName = "Vnitbi__";
-
-            wsRaw.Cell(row, 18).Value = StripHtml(rw.lastHandlerMsg);
-
-            if (rw.responseMin.HasValue) wsRaw.Cell(row, 19).Value = Math.Round(rw.responseMin.Value, 1);
-            else                          wsRaw.Cell(row, 19).Value = "—";
-
-            wsRaw.Cell(row, 20).Value = rw.rating.HasValue ? $"{rw.rating.Value} sao" : "Chưa đánh giá";
-            wsRaw.Cell(row, 21).Value = StripHtml(rw.ratingNote);
-
-            row++;
-        }
-        if (rawResult.data.Count > 0)
-            wsRaw.Range(1, 1, 1, rawHeaders.Length).SetAutoFilter();
-        wsRaw.SheetView.FreezeRows(1);
-        wsRaw.Columns().AdjustToContents();
-        // Giới hạn độ rộng cột nội dung dài để tránh sheet quá khổ khi mở
-        wsRaw.Column(9).Width  = 40;
-        wsRaw.Column(15).Width = 60;
-        wsRaw.Column(18).Width = 60;
-        wsRaw.Column(21).Width = 40;
-
-        // ─── Sheet 5: Chi tiết đánh giá (chỉ hội thoại đã được NV đánh giá) ──
+        // ─── Sheet 4: Chi tiết đánh giá (chỉ hội thoại đã được NV đánh giá) ──
         var wsRating = wb.Worksheets.Add("Chi tiết đánh giá");
         string[] ratingHeaders =
         {
@@ -863,7 +900,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         wsRating.Columns().AdjustToContents();
         wsRating.Column(10).Width = 60;
 
-        // ─── Sheet 6: Nội dung chat (toàn bộ tin nhắn từng hội thoại — yêu cầu 2026-09-21,
+        // ─── Sheet 5: Nội dung chat (toàn bộ tin nhắn từng hội thoại — yêu cầu 2026-09-21,
         // HR/CSR cần xem lại NV nhắn gì, ai phản hồi lúc mấy giờ, ai bấm kết thúc) ─────
         var msgResult  = await _inquiry.GetReportMessagesAsync(from, to);
         var infoById   = rawResult.data.ToDictionary(d => d.id, d => d);
@@ -951,7 +988,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         wsChat.Columns().AdjustToContents();
         wsChat.Column(8).Width = 70;
 
-        // ─── Sheet 7: AI SAMHO - CSR (yêu cầu 2026-10-01: "báo cáo tính luôn AI, xuất Excel luôn
+        // ─── Sheet 6: AI SAMHO - CSR (yêu cầu 2026-10-01: "báo cáo tính luôn AI, xuất Excel luôn
         // AI") — nguồn HR_AI_CHAT tách hẳn khỏi HR_INQUIRY nên query/sheet riêng, không gộp chung
         // số liệu với các sheet trên để tránh sai lệch báo cáo cũ.
         JObject? aiReport = null;
@@ -1036,7 +1073,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             wsAi.Columns().AdjustToContents();
             wsAi.Column(7).Width = 45;
 
-            // ─── Sheet 8: Nội dung chat AI (toàn bộ tin nhắn từng đoạn — yêu cầu 2026-10-01, cùng
+            // ─── Sheet 7: Nội dung chat AI (toàn bộ tin nhắn từng đoạn — yêu cầu 2026-10-01, cùng
             // tinh thần sheet "Nội dung chat" của Inquiry phía trên) ─────────────────────────────
             JObject? aiMsgReport = null;
             try { aiMsgReport = JObject.Parse(await _aiCsr.ReportMessagesRawAsync(from, to)); } catch { }

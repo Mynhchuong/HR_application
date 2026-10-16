@@ -22,6 +22,7 @@ public class EmployeeController : BaseController
     public async Task<IActionResult> GetMyTeamData(
         string? search = null, string? deptcd = null,
         string? linecd = null, string? workcd = null, string? shiftcd = null,
+        string? jikwicd = null, string? interest = null,
         bool    no_login = false, int page = 1, int page_size = 50)
     {
         if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
@@ -29,7 +30,7 @@ public class EmployeeController : BaseController
             var isExpat0 = CurrentUser?.RoleName == "Expat";
             return Json(new { success = false, message = isExpat0 ? "Not logged in" : "Chưa đăng nhập" });
         }
-        var result = await _svc.GetMyTeamAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, no_login, page, page_size);
+        var result = await _svc.GetMyTeamAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, jikwicd, interest, no_login, page, page_size);
         return Json(result);
     }
 
@@ -49,13 +50,14 @@ public class EmployeeController : BaseController
     public async Task<IActionResult> ExportExcel(
         string? search = null, string? deptcd = null,
         string? linecd = null, string? workcd = null, string? shiftcd = null,
+        string? jikwicd = null, string? interest = null,
         bool    no_login = false)
     {
         if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
             return Unauthorized();
 
         var isExpat = CurrentUser?.RoleName == "Expat";
-        var result = await _svc.GetMyTeamAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, no_login, all: true);
+        var result = await _svc.GetMyTeamAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, jikwicd, interest, no_login, all: true);
         var fileName = isExpat ? $"EmployeeList_{DateTime.Now:yyyyMMdd}.xlsx" : $"DanhSachNhanVien_{DateTime.Now:yyyyMMdd}.xlsx";
         return BuildTeamExcel(result.data ?? new(), isExpat, fileName);
     }
@@ -77,11 +79,12 @@ public class EmployeeController : BaseController
     public async Task<IActionResult> GetAllEmployeesData(
         string? search = null, string? deptcd = null,
         string? linecd = null, string? workcd = null, string? shiftcd = null,
+        string? jikwicd = null, string? interest = null,
         bool    no_login = false, int page = 1, int page_size = 50)
     {
         if (!IsHrOrAdmin || string.IsNullOrEmpty(CurrentUser?.EmpCd))
             return Json(new { success = false, message = "Không có quyền" });
-        var result = await _svc.GetAllEmployeesAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, no_login, page, page_size);
+        var result = await _svc.GetAllEmployeesAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, jikwicd, interest, no_login, page, page_size);
         return Json(result);
     }
 
@@ -98,12 +101,13 @@ public class EmployeeController : BaseController
     public async Task<IActionResult> ExportAllEmployeesExcel(
         string? search = null, string? deptcd = null,
         string? linecd = null, string? workcd = null, string? shiftcd = null,
+        string? jikwicd = null, string? interest = null,
         bool    no_login = false)
     {
         if (!IsHrOrAdmin || string.IsNullOrEmpty(CurrentUser?.EmpCd))
             return Unauthorized();
 
-        var result = await _svc.GetAllEmployeesAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, no_login, all: true);
+        var result = await _svc.GetAllEmployeesAsync(CurrentUser.EmpCd, search, deptcd, linecd, workcd, shiftcd, jikwicd, interest, no_login, all: true);
         return BuildTeamExcel(result.data ?? new(), isExpat: false, $"DanhSachToanBoNhanVien_{DateTime.Now:yyyyMMdd}.xlsx");
     }
 
@@ -115,8 +119,8 @@ public class EmployeeController : BaseController
         var ws = wb.Worksheets.Add(isExpat ? "Employee List" : "Danh sách nhân viên");
 
         string[] headers = isExpat
-            ? new[] { "No.", "Emp. Code", "Full Name", "Dept.", "Dept. Name", "Line", "Line Name", "Work Code", "Work Name", "Phone", "Email", "OT Hours (Month)", "OT Hours (Year)", "Leave Left", "Shift" }
-            : new[] { "STT", "Mã NV", "Họ & Tên", "Bộ phận", "Tên Bộ phận", "Line", "Tên Line", "Nhóm việc", "Tên Nhóm việc", "Số điện thoại", "Email", "Giờ TC tháng", "Giờ TC năm", "Phép năm còn lại", "Ca làm việc" };
+            ? new[] { "No.", "Emp. Code", "Full Name", "Position", "Work performed", "Dept.", "Dept. Name", "Line", "Line Name", "Work Code", "Work Name", "Phone", "Email", "OT Hours (Month)", "OT Hours (Year)", "Leave Left", "Shift" }
+            : new[] { "STT", "Mã NV", "Họ & Tên", "Chức vụ", "Công việc thực hiện", "Bộ phận", "Tên Bộ phận", "Line", "Tên Line", "Nhóm việc", "Tên Nhóm việc", "Số điện thoại", "Email", "Giờ TC tháng", "Giờ TC năm", "Phép năm còn lại", "Ca làm việc" };
         for (int i = 0; i < headers.Length; i++)
         {
             var c = ws.Cell(1, i + 1);
@@ -134,23 +138,25 @@ public class EmployeeController : BaseController
             ws.Cell(row, 1).Value = i + 1;
             ws.Cell(row, 2).Value = d.EMPCD;
             ws.Cell(row, 3).Value = d.EMP_NAME;
-            ws.Cell(row, 4).Value = d.DEPTCD;
-            ws.Cell(row, 5).Value = d.DEPT_NAME;
-            ws.Cell(row, 6).Value = d.LINECD;
-            ws.Cell(row, 7).Value = d.LINE_NAME;
-            ws.Cell(row, 8).Value = d.WORKCD;
-            ws.Cell(row, 9).Value = d.WORK_NAME;
-            ws.Cell(row, 10).Value = d.PHONE;
-            ws.Cell(row, 11).Value = d.EMAIL;
-            ws.Cell(row, 12).Value = d.SUM_MONTH;
-            ws.Cell(row, 13).Value = d.SUM_YEAR;
-            ws.Cell(row, 14).Value = d.LEAVE_LEFT;
-            ws.Cell(row, 15).Value = string.IsNullOrEmpty(d.SHIFT_CD) ? "" : $"{d.SHIFT_CD} ({d.SHIFT_TIME})";
-            ws.Cell(row, 12).Style.NumberFormat.Format = "#,##0.0";
-            ws.Cell(row, 13).Style.NumberFormat.Format = "#,##0.0";
+            ws.Cell(row, 4).Value = d.POSITION_NAME;
+            ws.Cell(row, 5).Value = d.HARDWORK_TEN;
+            ws.Cell(row, 6).Value = d.DEPTCD;
+            ws.Cell(row, 7).Value = d.DEPT_NAME;
+            ws.Cell(row, 8).Value = d.LINECD;
+            ws.Cell(row, 9).Value = d.LINE_NAME;
+            ws.Cell(row, 10).Value = d.WORKCD;
+            ws.Cell(row, 11).Value = d.WORK_NAME;
+            ws.Cell(row, 12).Value = d.PHONE;
+            ws.Cell(row, 13).Value = d.EMAIL;
+            ws.Cell(row, 14).Value = d.SUM_MONTH;
+            ws.Cell(row, 15).Value = d.SUM_YEAR;
+            ws.Cell(row, 16).Value = d.LEAVE_LEFT;
+            ws.Cell(row, 17).Value = string.IsNullOrEmpty(d.SHIFT_CD) ? "" : $"{d.SHIFT_CD} ({d.SHIFT_TIME})";
+            ws.Cell(row, 14).Style.NumberFormat.Format = "#,##0.0";
+            ws.Cell(row, 15).Style.NumberFormat.Format = "#,##0.0";
 
             if (i % 2 == 1)
-                ws.Row(row).Cells(1, 15).Style.Fill.BackgroundColor = XLColor.FromHtml("#f8fafc");
+                ws.Row(row).Cells(1, 17).Style.Fill.BackgroundColor = XLColor.FromHtml("#f8fafc");
         }
 
         ws.Range(1, 1, 1, headers.Length).SetAutoFilter();

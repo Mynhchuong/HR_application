@@ -181,14 +181,18 @@
 <script src="~/lib/chartjs/chart.umd.min.js"></script>
 
 <script>
-const URL_REPORT        = '@Url.Action("GetReport","AdminInquiry")';
-const URL_EXPORT        = '@Url.Action("ExportReport","AdminInquiry")';
-const URL_RATING_DETAIL = '@Url.Action("GetRatingDetail","AdminInquiry")';
+const URL_REPORT          = '@Url.Action("GetReport","AdminInquiry")';
+const URL_EXPORT          = '@Url.Action("ExportReport","AdminInquiry")';
+const URL_RATING_DETAIL   = '@Url.Action("GetRatingDetail","AdminInquiry")';
+const URL_UNRESOLVED      = '@Url.Action("GetUnresolvedList","AdminInquiry")';
+const URL_EXPORT_UNRESOLVED = '@Url.Action("ExportUnresolved","AdminInquiry")';
 const URL_CHAT          = '@Url.Action("Chat","AdminInquiry")';
 const IS_ADMIN = @(((bool?)ViewBag.IsAdmin ?? false) ? "true" : "false");
 
 let chartTopic = null;
 let chartHr    = null;
+let unresolvedPage = 1;
+const UNRESOLVED_PAGE_SIZE = 20;
 
 function fmtDateISO(d) {
     const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
@@ -298,6 +302,8 @@ async function loadReport() {
         }
         renderReport(data);
         loadRatingDetail(f, t);
+        unresolvedPage = 1;
+        loadUnresolvedList(f, t, unresolvedPage);
     } catch (e) {
         document.getElementById('rptContent').innerHTML =
             `<div class="rpt-err">Lỗi kết nối: ${esc(e.message)}</div>`;
@@ -370,6 +376,110 @@ function renderRatingDetail(rows) {
     }
     html += `</tbody></table></div>`;
     box.innerHTML = html;
+}
+
+// Danh sách hội thoại CHƯA XỬ LÝ (STATUS='OPEN') trong kỳ — yêu cầu 2026-10-16. Có phân trang vì
+// hộp thư có thể tồn đọng hàng trăm/ngàn hội thoại mở, không thể render hết 1 lần.
+async function loadUnresolvedList(f, t, page) {
+    const box = document.getElementById('rptUnresolvedBox');
+    if (!box) return;
+    box.innerHTML = `<div class="rpt-loading" style="padding:1.2rem"><span class="material-symbols-rounded" style="font-size:1.4rem;color:#dc2626">hourglass_top</span></div>`;
+    try {
+        const url  = `${URL_UNRESOLVED}?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}&page=${page}&pageSize=${UNRESOLVED_PAGE_SIZE}`;
+        const res  = await fetch(url);
+        const data = await res.json();
+        if (!data.success) {
+            box.innerHTML = `<div class="rpt-empty">Lỗi: ${esc(data.message ?? 'Không tải được dữ liệu')}</div>`;
+            return;
+        }
+        unresolvedPage = data.page || 1;
+        renderUnresolvedList(data);
+    } catch (e) {
+        box.innerHTML = `<div class="rpt-empty">Lỗi kết nối: ${esc(e.message)}</div>`;
+    }
+}
+
+function renderUnresolvedList(data) {
+    const box  = document.getElementById('rptUnresolvedBox');
+    const rows = data.data ?? [];
+    if (!rows.length) {
+        box.innerHTML = `<div class="rpt-empty">Không có hội thoại chưa xử lý trong khoảng thời gian này 🎉</div>`;
+        const pg = document.getElementById('rptUnresolvedPaging');
+        if (pg) pg.innerHTML = '';
+        return;
+    }
+
+    let html = `<table class="rpt-table">
+        <thead><tr>
+            <th>Ngày tạo</th><th>Nhân viên</th><th>Phòng ban</th><th>Chủ đề</th>
+            <th>Tin nhắn đầu</th><th class="num">Số tin</th><th>Đang xử lý</th><th></th>
+        </tr></thead><tbody>`;
+    for (const r of rows) {
+        const chatBtn = IS_ADMIN
+            ? `<a class="rpt-chat-link" href="${URL_CHAT}?id=${r.id}" target="_blank" rel="noopener">
+                 <span class="material-symbols-rounded" style="font-size:1rem">chat</span> Xem chat
+               </a>`
+            : '';
+        html += `<tr>
+            <td style="white-space:nowrap;color:#64748b;font-size:.8rem">${fmtDateTime(r.instDt)}</td>
+            <td>${r.empDisplay ? `<span class="vni-font" style="font-weight:700;color:#1e293b">${esc(r.empDisplay)}</span><br><span style="font-size:.72rem;color:#94a3b8">${esc(r.empCd ?? '')}</span>` : '<span style="color:#94a3b8">Ẩn danh</span>'}</td>
+            <td class="vni-font" style="font-size:.8rem">${esc(r.deptName ?? '—')}</td>
+            <td style="font-size:.8rem">${esc(r.topicName ?? '—')}</td>
+            <td class="rpt-note-cell">${r.firstMsg ? esc(r.firstMsg) : `<span class="rpt-note-empty">—</span>`}</td>
+            <td class="num">${r.msgCount ?? 0}</td>
+            <td class="vni-font" style="font-size:.8rem">${r.assignedName ? esc(r.assignedName) : '<span style="color:#f59e0b;font-weight:700">Chưa ai nhận</span>'}</td>
+            <td>${chatBtn}</td>
+        </tr>`;
+    }
+    html += `</tbody></table>`;
+    box.innerHTML = html;
+
+    // Phân trang
+    const totalPages = data.totalPages || 1;
+    const pgBox = document.getElementById('rptUnresolvedPaging');
+    if (!pgBox) return;
+    if (totalPages <= 1) { pgBox.innerHTML = ''; return; }
+    let pg = `<span style="font-size:.78rem;color:#64748b;margin-right:.6rem">${data.total} hội thoại — trang ${data.page}/${totalPages}</span>`;
+    pg += `<button class="rpt-quick-btn" ${data.page<=1?'disabled':''} onclick="gotoUnresolvedPage(${data.page-1})">‹ Trước</button>`;
+    pg += `<button class="rpt-quick-btn" ${data.page>=totalPages?'disabled':''} onclick="gotoUnresolvedPage(${data.page+1})">Sau ›</button>`;
+    pgBox.innerHTML = pg;
+}
+
+function gotoUnresolvedPage(p) {
+    const f = document.getElementById('fldFrom').value;
+    const t = document.getElementById('fldTo').value;
+    loadUnresolvedList(f, t, p);
+}
+
+async function exportUnresolved() {
+    const f = document.getElementById('fldFrom').value;
+    const t = document.getElementById('fldTo').value;
+    const btn = document.getElementById('btnExportUnresolved');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="material-symbols-rounded rpt-spin" style="font-size:1rem;vertical-align:middle">progress_activity</span> Đang xuất...`;
+    try {
+        const url = `${URL_EXPORT_UNRESOLVED}?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(text || `Lỗi xuất (HTTP ${res.status})`);
+        }
+        const blob = await res.blob();
+        const disp = res.headers.get('content-disposition') || '';
+        const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disp);
+        const fileName = match ? decodeURIComponent(match[1]) : `HoiThoaiChuaXuLy_${f}_${t}.xlsx`;
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl; a.download = fileName;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+        alert('Xuất Excel thất bại: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
 }
 
 // "AI SAMHO - CSR" (HR_AI_CHAT) — khối riêng, tách hẳn khỏi phần Inquiry phía trên vì không có
@@ -521,6 +631,16 @@ function renderReport(data) {
         }
         html += `</tbody></table></div>`;
     }
+
+    // ─── Chưa xử lý (placeholder, load riêng có phân trang — yêu cầu 2026-10-16)
+    html += `<div class="rpt-section-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span><span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">report</span> Hội thoại chưa xử lý</span>
+        <button class="rpt-export-btn" id="btnExportUnresolved" onclick="exportUnresolved()" style="font-size:.72rem;padding:.3rem .7rem">
+            <span class="material-symbols-rounded" style="font-size:.95rem;vertical-align:middle">download</span> Xuất Excel
+        </button>
+    </div>`;
+    html += `<div class="rpt-table-wrap" id="rptUnresolvedBox"><div class="rpt-loading" style="padding:1.2rem"><span class="material-symbols-rounded" style="font-size:1.4rem;color:#dc2626">hourglass_top</span></div></div>`;
+    html += `<div id="rptUnresolvedPaging" style="text-align:right;margin:.4rem 0 1rem"></div>`;
 
     // ─── AI SAMHO - CSR (yêu cầu 2026-10-01: "báo cáo tính luôn AI") — nguồn tách hẳn khỏi
     // HR_INQUIRY nên render riêng khối này, không gộp vào các card/bảng Inquiry phía trên.

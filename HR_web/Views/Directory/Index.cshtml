@@ -1,9 +1,16 @@
 @model HR_web.Models.Directory.DirectoryPageModel
 @{
     Layout = null;
-    ViewData["Title"] = "Employee Lookup";
+    ViewData["Title"] = "Tra cứu nhân viên";
     var emp = Model.Employee;
     bool hasResult = !string.IsNullOrWhiteSpace(emp.CName);
+    // Trang này Layout=null (không có header/sidenav của app) nên luôn cần 1 đường quay lại, dù
+    // vào từ đâu (yêu cầu 2026-10-17): đã đăng nhập → về /Home/Index; CHƯA đăng nhập (vào từ nút ở
+    // trang Login, hoặc quét QR ẩn danh) → về lại /Account/Login — không được để trống, vì trước
+    // đây case chưa login không hiện nút back nào cả, chỉ còn cách bấm back của trình duyệt.
+    bool isLoggedIn = ViewBag.CurrentUser != null;
+    string backUrl  = isLoggedIn ? Url.Action("Index", "Home")! : Url.Action("Login", "Account")!;
+    string backText = isLoggedIn ? "Về Trang chủ / Back to Home" : "Về Đăng nhập / Back to Login";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -39,6 +46,12 @@
             padding: max(1.25rem, env(safe-area-inset-top)) 1rem calc(2.5rem + env(safe-area-inset-bottom));
         }
 
+        .dir-backbar {
+            display: flex; align-items: center; gap: 0.5rem;
+            margin-bottom: 1rem; text-decoration: none; color: #4f46e5; font-weight: 700; font-size: 0.9rem;
+        }
+        .dir-backbar .material-symbols-rounded { font-size: 1.3rem; }
+
         .dir-search {
             display: flex;
             gap: 0.5rem;
@@ -70,7 +83,44 @@
             font-weight: 700;
             font-size: 1rem;
             touch-action: manipulation;
+            display: flex; align-items: center; justify-content: center; gap: 4px;
         }
+        .dir-search .scan-btn {
+            background: #fff;
+            color: #4f46e5;
+            border: 1.5px solid #e0e7ff;
+            border-radius: 14px;
+            min-width: 46px; min-height: 46px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            touch-action: manipulation;
+        }
+
+        .dir-hint {
+            display: flex; align-items: flex-start; gap: 0.6rem;
+            background: #eff6ff; border: 1px solid #dbeafe; border-radius: 16px;
+            padding: 0.75rem 1rem; margin-bottom: 1.25rem;
+            color: #1e40af; font-size: 0.82rem; line-height: 1.4;
+        }
+        .dir-hint .material-symbols-rounded { font-size: 1.2rem; flex-shrink: 0; }
+
+        /* QR scan modal */
+        .qr-modal {
+            position: fixed; inset: 0; background: rgba(15,23,42,0.92); z-index: 2000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .qr-modal.d-none { display: none; }
+        .qr-modal-close {
+            position: absolute; top: max(1rem, env(safe-area-inset-top)); right: 1rem;
+            width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.15);
+            color: #fff; display: flex; align-items: center; justify-content: center; border: none;
+        }
+        #qr-reader { width: min(92vw, 380px); border-radius: 20px; overflow: hidden; background: #000; }
+        .qr-modal-hint {
+            color: #e2e8f0; font-size: 0.85rem; text-align: center; margin-top: 1rem; padding: 0 1.5rem;
+            max-width: 380px; line-height: 1.5;
+        }
+        .qr-modal-status { color: #fca5a5; font-size: 0.8rem; text-align: center; margin-top: 0.5rem; min-height: 1.2em; }
 
         .dir-hero { text-align: center; padding: 1.5rem 1rem; }
         .dir-avatar {
@@ -160,10 +210,26 @@
 </head>
 <body>
     <div class="dir-container">
+        <a class="dir-backbar" href="@backUrl">
+            <span class="material-symbols-rounded">arrow_back</span>
+            @backText
+        </a>
         <form class="dir-search" method="get" asp-action="Index">
-            <input type="text" name="empCd" value="@emp.EmpCd" placeholder="Enter employee ID (e.g. 24092522)" autocomplete="off" />
-            <button type="submit">Search</button>
+            <input type="text" name="empCd" value="@emp.EmpCd" placeholder="Nhập mã số NV (VD: 24092522) / Enter employee ID" autocomplete="off" />
+            <button type="submit">
+                <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle;">search</span>
+                Tìm
+            </button>
+            <button type="button" class="scan-btn" onclick="openQrScanner()" title="Quét mã QR / Scan QR code">
+                <span class="material-symbols-rounded">qr_code_scanner</span>
+            </button>
         </form>
+
+        <div class="dir-hint">
+            <span class="material-symbols-rounded">info</span>
+            <span>Bấm vào biểu tượng <b>quét QR</b> rồi đưa camera vào mã QR trên thẻ nhân viên để xem thông tin ngay — hoặc gõ mã số nhân viên vào ô trên rồi bấm <b>Tìm</b>.<br>
+            <span style="opacity:.75">Tap the scan icon and point your camera at the QR code on an employee ID badge — or type the employee ID above and press Search.</span></span>
+        </div>
 
         @if (hasResult)
         {
@@ -192,7 +258,7 @@
             @if (!string.IsNullOrWhiteSpace(emp.InterestCd))
             {
                 <div id="workcd-image-wrap" class="workcd-image-wrap">
-                    <div class="workcd-image-caption">Work Employee</div>
+                    <div class="workcd-image-caption">Hình ảnh công việc / Work Employee</div>
                     <div id="workcd-image-fallback" class="workcd-image-fallback">
                         <span class="material-symbols-rounded" style="font-size:1.8rem;">image</span>
                         <div>HR chưa cập nhật hình ảnh</div>
@@ -209,28 +275,28 @@
                 <div class="setting-item">
                     <div class="item-icon"><span class="material-symbols-rounded">badge</span></div>
                     <div class="item-body">
-                        <div class="item-label">Employee ID</div>
+                        <div class="item-label">Mã số NV / Employee ID</div>
                         <div class="item-value">@emp.EmpCd</div>
                     </div>
                 </div>
                 <div class="setting-item">
                     <div class="item-icon"><span class="material-symbols-rounded">category</span></div>
                     <div class="item-body">
-                        <div class="item-label">Department / Line / Work</div>
+                        <div class="item-label">Phòng ban / Line / Tổ — Department / Line / Work</div>
                         <div class="item-value"><span class="vni-font">@emp.LineName</span> · <span class="vni-font">@emp.WorkName</span></div>
                     </div>
                 </div>
                 <div class="setting-item">
                     <div class="item-icon"><span class="material-symbols-rounded">engineering</span></div>
                     <div class="item-body">
-                        <div class="item-label">Work Nature</div>
-                        <div class="item-value">@(emp.DirectYn == "Y" ? "Direct" : emp.DirectYn == "N" ? "Indirect" : "-")</div>
+                        <div class="item-label">Tính chất công việc / Work Nature</div>
+                        <div class="item-value">@(emp.DirectYn == "Y" ? "Trực tiếp / Direct" : emp.DirectYn == "N" ? "Gián tiếp / Indirect" : "-")</div>
                     </div>
                 </div>
                 <div class="setting-item">
                     <div class="item-icon"><span class="material-symbols-rounded">construction</span></div>
                     <div class="item-body">
-                        <div class="item-label">Work</div>
+                        <div class="item-label">Công việc / Work</div>
                     </div>
                     @if (!string.IsNullOrWhiteSpace(emp.InterestName))
                     {
@@ -242,33 +308,33 @@
                     }
                     else
                     {
-                        <div class="item-value" style="color:#94a3b8;font-weight:600;font-size:0.85rem;">HR hasn't updated yet</div>
+                        <div class="item-value" style="color:#94a3b8;font-weight:600;font-size:0.85rem;">HR chưa cập nhật / Not updated yet</div>
                     }
                 </div>
                 <div class="setting-item">
                     <div class="item-icon"><span class="material-symbols-rounded">work_history</span></div>
                     <div class="item-body">
-                        <div class="item-label">Hire Date</div>
+                        <div class="item-label">Ngày vào làm / Hire Date</div>
                         <div class="item-value">@(emp.HireDate?.ToString("dd/MM/yyyy") ?? "-")</div>
                     </div>
                 </div>
                 <div class="setting-item">
                     <div class="item-icon"><span class="material-symbols-rounded">calendar_today</span></div>
                     <div class="item-body">
-                        <div class="item-label">Date of Birth</div>
+                        <div class="item-label">Ngày sinh / Date of Birth</div>
                         <div class="item-value">@(emp.BirthDate?.ToString("dd/MM/yyyy") ?? "-")</div>
                     </div>
                 </div>
                 <div class="setting-item">
                     <div class="item-icon"><span class="material-symbols-rounded">wc</span></div>
                     <div class="item-body">
-                        <div class="item-label">Gender</div>
-                        <div class="item-value">@(emp.SexGb == "M" ? "Male" : emp.SexGb == "F" ? "Female" : "-")</div>
+                        <div class="item-label">Giới tính / Gender</div>
+                        <div class="item-value">@(emp.SexGb == "M" ? "Nam / Male" : emp.SexGb == "F" ? "Nữ / Female" : "-")</div>
                     </div>
                 </div>
             </div>
 
-            <div class="group-title">Department / Line / Work Change History</div>
+            <div class="group-title">Lịch sử thay đổi Phòng/Line/Tổ — Dept / Line / Work Change History</div>
             int historyTotalPages = Model.ChangeHistory.PageSize > 0
                 ? (int)Math.Ceiling(Model.ChangeHistory.Total / (double)Model.ChangeHistory.PageSize)
                 : 1;
@@ -281,13 +347,13 @@
                             <div class="history-date">@(h.Dat?.ToString("dd/MM/yyyy") ?? "-")</div>
                             <div class="history-row">
                                 <div class="history-side is-from">
-                                    <span class="history-tag is-from">FROM</span>
+                                    <span class="history-tag is-from">TRƯỚC / FROM</span>
                                     <b class="vni-font">@(string.IsNullOrWhiteSpace(h.OldDeptName) ? "-" : h.OldDeptName)</b>
                                     <span class="vni-font">@h.OldLineName</span> · <span class="vni-font">@h.OldWorkName</span>
                                 </div>
                                 <span class="material-symbols-rounded history-arrow">arrow_forward</span>
                                 <div class="history-side is-to">
-                                    <span class="history-tag is-to">TO</span>
+                                    <span class="history-tag is-to">SAU / TO</span>
                                     <b class="vni-font">@(string.IsNullOrWhiteSpace(h.NewDeptName) ? "-" : h.NewDeptName)</b>
                                     <span class="vni-font">@h.NewLineName</span> · <span class="vni-font">@h.NewWorkName</span>
                                 </div>
@@ -301,7 +367,7 @@
                 <div class="settings-group">
                     <div class="dir-empty" style="padding: 2rem 1rem;">
                         <span class="material-symbols-rounded" style="font-size:1.8rem;">history_toggle_off</span>
-                        <div class="mt-2" style="font-size:0.85rem;">No information yet</div>
+                        <div class="mt-2" style="font-size:0.85rem;">Chưa có thông tin / No information yet</div>
                     </div>
                 </div>
             }
@@ -313,20 +379,20 @@
                 <div class="dir-pagination">
                     @if (historyAtFirst)
                     {
-                        <span class="dir-page-btn is-disabled">‹ Prev</span>
+                        <span class="dir-page-btn is-disabled">‹ Trước</span>
                     }
                     else
                     {
-                        <a class="dir-page-btn" href="@Url.Action("Index", new { empCd = emp.EmpCd, historyPage = Model.ChangeHistory.Page - 1 })">‹ Prev</a>
+                        <a class="dir-page-btn" href="@Url.Action("Index", new { empCd = emp.EmpCd, historyPage = Model.ChangeHistory.Page - 1 })">‹ Trước</a>
                     }
-                    <span class="dir-page-current">Page @Model.ChangeHistory.Page / @historyTotalPages</span>
+                    <span class="dir-page-current">Trang @Model.ChangeHistory.Page / @historyTotalPages</span>
                     @if (historyAtLast)
                     {
-                        <span class="dir-page-btn is-disabled">Next ›</span>
+                        <span class="dir-page-btn is-disabled">Sau ›</span>
                     }
                     else
                     {
-                        <a class="dir-page-btn" href="@Url.Action("Index", new { empCd = emp.EmpCd, historyPage = Model.ChangeHistory.Page + 1 })">Next ›</a>
+                        <a class="dir-page-btn" href="@Url.Action("Index", new { empCd = emp.EmpCd, historyPage = Model.ChangeHistory.Page + 1 })">Sau ›</a>
                     }
                 </div>
             }
@@ -335,18 +401,88 @@
         {
             <div class="dir-empty">
                 <span class="material-symbols-rounded" style="font-size:2.5rem;">person_search</span>
-                <div class="mt-2">Employee "@emp.EmpCd" not found</div>
+                <div class="mt-2">Không tìm thấy mã NV "@emp.EmpCd" / Employee not found</div>
             </div>
         }
         else
         {
             <div class="dir-empty">
                 <span class="material-symbols-rounded" style="font-size:2.5rem;">badge</span>
-                <div class="mt-2">Enter an employee ID to look up employee information</div>
+                <div class="mt-2">Nhập mã số NV hoặc quét QR trên thẻ để tra cứu<br><span style="opacity:.7">Enter an employee ID or scan a badge QR code to look up information</span></div>
             </div>
         }
     </div>
 
     <footer class="dir-footer">© 2026 VietNam Samho Co., LTD · Powered by IT Team</footer>
+
+    <!-- QR scan modal — quét mã QR trên thẻ nhân viên để tra cứu nhanh (yêu cầu 2026-10-17) -->
+    <div class="qr-modal d-none" id="qrModal">
+        <button type="button" class="qr-modal-close" onclick="closeQrScanner()">
+            <span class="material-symbols-rounded">close</span>
+        </button>
+        <div id="qr-reader"></div>
+        <div class="qr-modal-hint">Đưa camera vào mã QR trên thẻ nhân viên.<br><span style="opacity:.7">Point the camera at the QR code on an employee ID badge.</span></div>
+        <div class="qr-modal-status" id="qrStatus"></div>
+    </div>
+
+    <script src="~/lib/html5-qrcode/html5-qrcode.min.js"></script>
+    <script>
+        var qrScanner = null;
+        var qrBusy = false;
+
+        function openQrScanner() {
+            document.getElementById('qrModal').classList.remove('d-none');
+            document.getElementById('qrStatus').textContent = '';
+            qrBusy = false;
+            qrScanner = new Html5Qrcode("qr-reader");
+            qrScanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 240, height: 240 } },
+                onQrScanSuccess,
+                function () { /* decode failure per frame — ignore, keeps scanning */ }
+            ).catch(function (err) {
+                document.getElementById('qrStatus').textContent =
+                    'Không mở được camera / Could not access camera: ' + (err && err.message ? err.message : err);
+            });
+        }
+
+        function closeQrScanner() {
+            document.getElementById('qrModal').classList.add('d-none');
+            if (qrScanner) {
+                qrScanner.stop().then(function () { qrScanner.clear(); }).catch(function () {});
+                qrScanner = null;
+            }
+        }
+
+        // QR trên thẻ NV là 1 link, mã NV nằm ở cuối (query param hoặc segment cuối) — thử parse
+        // như URL trước, fallback lấy nguyên chuỗi số/chữ cuối nếu không phải URL hợp lệ.
+        function extractEmpCd(text) {
+            text = (text || '').trim();
+            try {
+                var url = new URL(text);
+                var fromQuery = url.searchParams.get('empCd') || url.searchParams.get('empcd');
+                if (fromQuery) return fromQuery;
+                var segments = url.pathname.split('/').filter(Boolean);
+                if (segments.length) return segments[segments.length - 1];
+            } catch (e) { /* not a URL — dùng nguyên text */ }
+            return text;
+        }
+
+        function onQrScanSuccess(decodedText) {
+            if (qrBusy) return;
+            qrBusy = true;
+            var empCd = extractEmpCd(decodedText);
+            if (!empCd) {
+                document.getElementById('qrStatus').textContent = 'Mã QR không chứa mã số nhân viên / QR code did not contain an employee ID.';
+                qrBusy = false;
+                return;
+            }
+            document.getElementById('qrStatus').textContent = 'Đã tìm thấy / Found: ' + empCd + ' — đang tải / loading...';
+            var url = new URL(window.location.href);
+            url.searchParams.set('empCd', empCd);
+            url.searchParams.delete('historyPage');
+            window.location.href = url.toString();
+        }
+    </script>
 </body>
 </html>

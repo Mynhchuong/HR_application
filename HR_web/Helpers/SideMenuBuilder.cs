@@ -35,6 +35,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Bản tin",            Url = "~/Bulletin/Index",       Icon = "campaign"      },
                     new SideMenuItem { Title = "Quy định công ty",   Url = "~/Policy/Index",         Icon = "policy"        },
                     new SideMenuItem { Title = "Hướng dẫn sử dụng", Url = "~/Guide/Index",          Icon = "menu_book"     },
+                    new SideMenuItem { Title = "Quét/Tra cứu thông tin NV", Url = "~/Directory/Index", Icon = "qr_code_scanner" },
                 }
             },
             new SideMenuItem
@@ -77,6 +78,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Leave Approval",      Url = "~/Leave/LeaveApprovalForExpat",     Icon = "event_available"},
                     new SideMenuItem { Title = "Leave & Gate Calendar",          Url = "~/Leave/TeamCalendarForExpat",      Icon = "calendar_month" },
                     new SideMenuItem { Title = "My Team",                       Url = "~/Employee/MyTeamForExpat",         Icon = "groups"         },
+                    new SideMenuItem { Title = "Scan / Check Employee Info",     Url = "~/Directory/Index",                 Icon = "qr_code_scanner" },
                 }
             },
 

@@ -36,6 +36,8 @@ public class EmployeeController : ControllerBase
         string? linecd    = null,
         string? workcd    = null,
         string? shiftcd   = null,
+        string? jikwicd   = null,
+        string? interest  = null,
         bool    no_login  = false,
         int     page      = 1,
         int     page_size = 50,
@@ -58,7 +60,7 @@ public class EmployeeController : ControllerBase
 
             var result = await BuildTeamResultAsync(
                 scopeFilter.SqlClause, scopeFilter.Params,
-                search, deptcd, linecd, workcd, shiftcd, no_login, page, page_size, all);
+                search, deptcd, linecd, workcd, shiftcd, jikwicd, interest, no_login, page, page_size, all);
             return Ok(result);
         }
         catch (Exception ex)
@@ -80,6 +82,8 @@ public class EmployeeController : ControllerBase
         string? linecd    = null,
         string? workcd    = null,
         string? shiftcd   = null,
+        string? jikwicd   = null,
+        string? interest  = null,
         bool    no_login  = false,
         int     page      = 1,
         int     page_size = 50,
@@ -92,7 +96,7 @@ public class EmployeeController : ControllerBase
 
             var result = await BuildTeamResultAsync(
                 "", new List<OracleParameter>(),
-                search, deptcd, linecd, workcd, shiftcd, no_login, page, page_size, all);
+                search, deptcd, linecd, workcd, shiftcd, jikwicd, interest, no_login, page, page_size, all);
             return Ok(result);
         }
         catch (Exception ex)
@@ -104,25 +108,40 @@ public class EmployeeController : ControllerBase
     // Logic lõi dùng chung cho GetMyTeam (có scope) và GetAllEmployees (scopeSql="", không giới hạn).
     private async Task<object> BuildTeamResultAsync(
         string scopeSql, List<OracleParameter> scopeParams,
-        string? search, string? deptcd, string? linecd, string? workcd, string? shiftcd, bool no_login,
+        string? search, string? deptcd, string? linecd, string? workcd, string? shiftcd,
+        string? jikwicd, string? interest, bool no_login,
         int page, int page_size, bool all)
     {
-        var searchFilter  = string.IsNullOrWhiteSpace(search) ? "" :
+        var searchFilter   = string.IsNullOrWhiteSpace(search)   ? "" :
             "AND (UPPER(EC.EMPCD) LIKE :SEARCH OR UPPER(EC.CNAME) LIKE :SEARCH)";
-        var deptFilter    = string.IsNullOrWhiteSpace(deptcd)  ? "" : "AND EC.DEPTCD = :DEPTCD";
-        var lineFilter    = string.IsNullOrWhiteSpace(linecd)  ? "" : "AND EC.LINECD = :LINECD";
-        var workFilter    = string.IsNullOrWhiteSpace(workcd)  ? "" : "AND EC.WORKCD = :WORKCD";
-        var shiftFilter   = string.IsNullOrWhiteSpace(shiftcd) ? "" : "AND SH.SHIFTCD = :SHIFTCD";
-        var noLoginFilter = no_login ? "AND U.LASTED_LOGIN IS NULL" : "";
+        var deptFilter     = string.IsNullOrWhiteSpace(deptcd)   ? "" : "AND EC.DEPTCD = :DEPTCD";
+        var lineFilter     = string.IsNullOrWhiteSpace(linecd)   ? "" : "AND EC.LINECD = :LINECD";
+        var workFilter     = string.IsNullOrWhiteSpace(workcd)   ? "" : "AND EC.WORKCD = :WORKCD";
+        var shiftFilter    = string.IsNullOrWhiteSpace(shiftcd)  ? "" : "AND SH.SHIFTCD = :SHIFTCD";
+        var jikwicdFilter  = string.IsNullOrWhiteSpace(jikwicd)  ? "" : "AND EC.JIKWICD = :JIKWICD";
+        var interestFilter = string.IsNullOrWhiteSpace(interest) ? "" : "AND EC.INTEREST = :INTEREST";
+        var noLoginFilter  = no_login ? "AND U.LASTED_LOGIN IS NULL" : "";
 
         // Ca làm việc hôm nay JOIN ngay trong query chính (không batch sau) vì cần lọc theo SHIFTCD
         // trước khi phân trang/COUNT — khác OT/phép năm (chỉ hiển thị, không filter, vẫn batch sau).
+        // JIKWICD (mã chức vụ/công việc, danh mục SAD100 CODETP='E103') là khái niệm KHÁC HẲN
+        // WORKCD (mã tổ/nhóm trong cây phòng-line-tổ) — 1 NV có đúng 1 WORKCD (tổ đang làm) nhưng
+        // "công việc/chức vụ" (VD Worker/Team Leader/Manager) là field riêng, dễ nhầm với nhau
+        // (yêu cầu 2026-10-16: "công việc và workcd là 2 cái khác nhau nha").
         string baseFrom = @"
             FROM HRMS.ECM100 EC
             LEFT JOIN HRMS.EAM410 B ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
             LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = EC.EMPCD
             LEFT JOIN HRMS.EBM200 SH ON SH.EMPCD = EC.EMPCD AND SH.DAT = TRUNC(SYSDATE)
-            LEFT JOIN HRMS.EBM100 SC ON SC.SHIFTCD = SH.SHIFTCD";
+            LEFT JOIN HRMS.EBM100 SC ON SC.SHIFTCD = SH.SHIFTCD
+            LEFT JOIN HRMS.SAD100 JK ON JK.CODETP = 'E103' AND JK.CODEID = EC.JIKWICD
+            LEFT JOIN (
+                -- Công việc thực hiện (khác JIKWICD=chức vụ/role) — EC.INTEREST (mã STT) tra ra tên
+                -- công việc cụ thể, lấy bản ghi mới nhất theo MONTHID. Cùng pattern đã dùng ở
+                -- AccountController.GetUserDetail / Profile/ProfileUser (yêu cầu 2026-10-16).
+                SELECT STT, TEN, ROW_NUMBER() OVER (PARTITION BY STT ORDER BY MONTHID DESC) RN
+                FROM HRMS.EAM420 WHERE TEN IS NOT NULL
+            ) HW ON HW.STT = EC.INTEREST AND HW.RN = 1";
         string whereSql = $@"
             WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
               {scopeSql}
@@ -131,6 +150,8 @@ public class EmployeeController : ControllerBase
               {lineFilter}
               {workFilter}
               {shiftFilter}
+              {jikwicdFilter}
+              {interestFilter}
               {noLoginFilter}";
 
         OracleParameter[] MakeFilterParams()
@@ -146,6 +167,10 @@ public class EmployeeController : ControllerBase
                 p.Add(new OracleParameter("WORKCD", OracleDbType.Varchar2) { Value = workcd });
             if (!string.IsNullOrWhiteSpace(shiftcd))
                 p.Add(new OracleParameter("SHIFTCD", OracleDbType.Varchar2) { Value = shiftcd });
+            if (!string.IsNullOrWhiteSpace(jikwicd))
+                p.Add(new OracleParameter("JIKWICD", OracleDbType.Varchar2) { Value = jikwicd });
+            if (!string.IsNullOrWhiteSpace(interest))
+                p.Add(new OracleParameter("INTEREST", OracleDbType.Varchar2) { Value = interest });
             return p.ToArray();
         }
 
@@ -166,7 +191,9 @@ public class EmployeeController : ControllerBase
                    B.DEPTNM DEPT_NAME, B.TEAMNM LINE_NAME, B.WORKNM WORK_NAME,
                    EC.HOMETEL PHONE, EC.EMAIL,
                    U.LASTED_LOGIN LAST_LOGIN,
-                   SC.SHIFTCD SHIFTCD, SC.STIME STIME, SC.ETIME ETIME, SC.SHIFT_TYPE SHIFT_TYPE";
+                   SC.SHIFTCD SHIFTCD, SC.STIME STIME, SC.ETIME ETIME, SC.SHIFT_TYPE SHIFT_TYPE,
+                   NVL(JK.VNFNM, JK.ENGFNM) POSITION_NAME,
+                   HW.TEN HARDWORK_TEN";
 
         string pageSql;
         var pageParams = new List<OracleParameter>(MakeFilterParams());
@@ -210,6 +237,8 @@ public class EmployeeController : ControllerBase
             SHIFT_TIME_RAW_S = r["STIME"]?.ToString() ?? "",
             SHIFT_TIME_RAW_E = r["ETIME"]?.ToString() ?? "",
             SHIFT_TYPE = r["SHIFT_TYPE"]?.ToString() ?? "",
+            POSITION_NAME = r["POSITION_NAME"]?.ToString() ?? "",
+            HARDWORK_TEN  = r["HARDWORK_TEN"]?.ToString() ?? "",
         }, pageParams.ToArray());
 
         // (3) 1 query GROUP BY duy nhất lấy tổng giờ TC năm/tháng cho ĐÚNG các EMPCD vừa lấy —
@@ -284,7 +313,9 @@ public class EmployeeController : ControllerBase
                 LEAVE_LEFT = leaveLeft,
                 SHIFT_CD   = d.SHIFT_CD,
                 SHIFT_TIME = string.IsNullOrEmpty(d.SHIFT_CD) ? "" : $"{FmtHm(d.SHIFT_TIME_RAW_S)}-{FmtHm(d.SHIFT_TIME_RAW_E)}",
-                SHIFT_TYPE = d.SHIFT_TYPE
+                SHIFT_TYPE = d.SHIFT_TYPE,
+                d.POSITION_NAME,
+                d.HARDWORK_TEN
             };
         }).ToList();
 
@@ -351,7 +382,7 @@ public class EmployeeController : ControllerBase
             LINE_NAME = r["LINE_NAME"]?.ToString() ?? "",
             WORKCD    = r["WORKCD"]?.ToString()    ?? "",
             WORK_NAME = r["WORK_NAME"]?.ToString() ?? "",
-        }, scopeParams.ToArray());
+        }, scopeParams.Select(x => (OracleParameter)x.Clone()).ToArray());
 
         // Danh sách ca làm việc (master EBM100) — KHÔNG phụ thuộc scope, chung cho toàn công ty,
         // dùng cho dropdown lọc "Ca làm việc".
@@ -374,7 +405,41 @@ public class EmployeeController : ControllerBase
             SHIFT_TYPE = s.SHIFT_TYPE
         }).ToList();
 
-        return new { success = true, data, shifts };
+        // Danh sách Chức vụ (JIKWICD) VÀ Công việc thực hiện (INTEREST) — scoped theo đúng phạm vi
+        // (khác Ca làm việc ở trên — Chức vụ/Công việc gắn với NV cụ thể trong scope, không phải
+        // master data chung toàn công ty) — yêu cầu 2026-10-16.
+        string positionSql = $@"
+            SELECT DISTINCT EC.JIKWICD, NVL(JK.VNFNM, JK.ENGFNM) POSITION_NAME
+            FROM HRMS.ECM100 EC
+            LEFT JOIN HRMS.SAD100 JK ON JK.CODETP = 'E103' AND JK.CODEID = EC.JIKWICD
+            WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+              AND EC.JIKWICD IS NOT NULL
+              {scopeSql}
+            ORDER BY POSITION_NAME";
+        var positionRows = await _oracleService.ExecuteQueryAsync(positionSql, r => new
+        {
+            JIKWICD       = r["JIKWICD"]?.ToString()       ?? "",
+            POSITION_NAME = r["POSITION_NAME"]?.ToString() ?? "",
+        }, scopeParams.Select(x => (OracleParameter)x.Clone()).ToArray());
+
+        string hardworkSql = $@"
+            SELECT DISTINCT EC.INTEREST, HW.TEN HARDWORK_TEN
+            FROM HRMS.ECM100 EC
+            LEFT JOIN (
+                SELECT STT, TEN, ROW_NUMBER() OVER (PARTITION BY STT ORDER BY MONTHID DESC) RN
+                FROM HRMS.EAM420 WHERE TEN IS NOT NULL
+            ) HW ON HW.STT = EC.INTEREST AND HW.RN = 1
+            WHERE (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+              AND EC.INTEREST IS NOT NULL
+              {scopeSql}
+            ORDER BY HARDWORK_TEN";
+        var hardworkRows = await _oracleService.ExecuteQueryAsync(hardworkSql, r => new
+        {
+            INTEREST     = r["INTEREST"]?.ToString()     ?? "",
+            HARDWORK_TEN = r["HARDWORK_TEN"]?.ToString() ?? "",
+        }, scopeParams.Select(x => (OracleParameter)x.Clone()).ToArray());
+
+        return new { success = true, data, shifts, positions = positionRows, hardworks = hardworkRows };
     }
 
     // Role check cho all-team/all-team-filters — HR/Admin không cần có dòng trong HR_USERS_DEPT

@@ -229,6 +229,7 @@ public class InquiryReportRawRow
 {
     public long      id             { get; set; }
     public string    inquiryNo      { get; set; } = "";
+    public string?   subject        { get; set; }
     public string?   topicName      { get; set; }
     public string    chatType       { get; set; } = "";
     public string    status         { get; set; } = "";

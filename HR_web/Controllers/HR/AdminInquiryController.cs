@@ -924,7 +924,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         var wsChat     = wb.Worksheets.Add("Nội dung chat");
         string[] chatHeaders =
         {
-            "ID chat", "Chủ đề", "Mã NV", "Họ và tên",
+            "ID chat", "Tiêu đề trò chuyện", "Chủ đề", "Mã NV", "Họ và tên",
             "Thời gian", "Người gửi", "Tên người gửi", "Nội dung",
             "Người kết thúc", "TG kết thúc"
         };
@@ -949,15 +949,20 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
                 wsChat.Range(row, 1, row, chatHeaders.Length).Style.Border.TopBorder = XLBorderStyleValues.Medium;
 
             wsChat.Cell(row, 1).Value = info?.inquiryNo ?? m.inquiryId.ToString();
-            wsChat.Cell(row, 2).Value = info?.topicName ?? "";
-            wsChat.Cell(row, 3).Value = info?.empCd ?? "";
 
-            var nameCell = wsChat.Cell(row, 4);
+            var subjectCell = wsChat.Cell(row, 2);
+            subjectCell.Value = info?.subject ?? "";
+            subjectCell.Style.Font.FontName = "Vnitbi__";
+
+            wsChat.Cell(row, 3).Value = info?.topicName ?? "";
+            wsChat.Cell(row, 4).Value = info?.empCd ?? "";
+
+            var nameCell = wsChat.Cell(row, 5);
             nameCell.Value = info?.empDisplay ?? "";
             nameCell.Style.Font.FontName = "Vnitbi__";
 
-            if (m.sentDt.HasValue) wsChat.Cell(row, 5).Value = m.sentDt.Value; else wsChat.Cell(row, 5).Value = "—";
-            wsChat.Cell(row, 5).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+            if (m.sentDt.HasValue) wsChat.Cell(row, 6).Value = m.sentDt.Value; else wsChat.Cell(row, 6).Value = "—";
+            wsChat.Cell(row, 6).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
 
             string senderLabel = m.senderType switch
             {
@@ -966,13 +971,13 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
                 "SYS" => "Hệ thống",
                 _     => m.senderType
             };
-            wsChat.Cell(row, 6).Value = senderLabel;
+            wsChat.Cell(row, 7).Value = senderLabel;
 
-            var senderNameCell = wsChat.Cell(row, 7);
+            var senderNameCell = wsChat.Cell(row, 8);
             senderNameCell.Value = m.senderName ?? "";
             senderNameCell.Style.Font.FontName = "Vnitbi__";
 
-            var contentCell = wsChat.Cell(row, 8);
+            var contentCell = wsChat.Cell(row, 9);
             contentCell.Value = m.msgType switch
             {
                 "IMAGE" => "[Hình ảnh]",
@@ -989,12 +994,12 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
                 "ADMIN" => "Admin",
                 _       => ""
             };
-            var closedByCell = wsChat.Cell(row, 9);
+            var closedByCell = wsChat.Cell(row, 10);
             closedByCell.Value = string.IsNullOrEmpty(info?.closedByName) ? closedByLabel : $"{info!.closedByName} ({closedByLabel})";
             closedByCell.Style.Font.FontName = "Vnitbi__";
 
-            if (info?.closedDt != null) wsChat.Cell(row, 10).Value = info.closedDt.Value; else wsChat.Cell(row, 10).Value = "—";
-            wsChat.Cell(row, 10).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+            if (info?.closedDt != null) wsChat.Cell(row, 11).Value = info.closedDt.Value; else wsChat.Cell(row, 11).Value = "—";
+            wsChat.Cell(row, 11).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
 
             prevInquiryId = m.inquiryId;
             row++;
@@ -1003,7 +1008,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             wsChat.Range(1, 1, 1, chatHeaders.Length).SetAutoFilter();
         wsChat.SheetView.FreezeRows(1);
         wsChat.Columns().AdjustToContents();
-        wsChat.Column(8).Width = 70;
+        wsChat.Column(9).Width = 70;
 
         // ─── Sheet 6: AI SAMHO - CSR (yêu cầu 2026-10-01: "báo cáo tính luôn AI, xuất Excel luôn
         // AI") — nguồn HR_AI_CHAT tách hẳn khỏi HR_INQUIRY nên query/sheet riêng, không gộp chung

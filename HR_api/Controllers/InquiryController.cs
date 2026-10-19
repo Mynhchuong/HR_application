@@ -1964,7 +1964,7 @@ public class InquiryController : ControllerBase
             }
 
             var rows = await _db.ExecuteQueryAsync(@"
-                SELECT i.ID, i.INQUIRY_NO, t.TOPIC_NAME, i.STATUS, i.INST_DT, i.CLOSED_DT,
+                SELECT i.ID, i.INQUIRY_NO, i.SUBJECT, t.TOPIC_NAME, i.STATUS, i.INST_DT, i.CLOSED_DT,
                        i.CHAT_TYPE, i.EMPCD, i.EMP_NAME,
                        i.CLOSED_BY_NAME, i.CLOSED_BY_TYPE, i.CLOSE_NOTE,
                        i.MSG_COUNT, i.ASSIGNED_TO, i.ASSIGNED_NAME, i.RATING, i.RATING_NOTE,
@@ -2010,6 +2010,7 @@ public class InquiryController : ControllerBase
                     {
                         Id             = Convert.ToInt64(r["ID"]),
                         InquiryNo      = r["INQUIRY_NO"]?.ToString() ?? "",
+                        Subject        = S(r["SUBJECT"]),
                         TopicName      = S(r["TOPIC_NAME"]),
                         ChatType       = r["CHAT_TYPE"]?.ToString() ?? "",
                         Status         = r["STATUS"]?.ToString() ?? "",

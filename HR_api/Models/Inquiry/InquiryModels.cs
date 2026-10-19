@@ -240,6 +240,7 @@ public class InquiryReportRawRowDto
 {
     public long      Id             { get; set; }
     public string    InquiryNo      { get; set; } = "";
+    public string?   Subject        { get; set; }          // tiêu đề tuỳ chọn NV tự đặt (HR_INQUIRY.SUBJECT)
     public string?   TopicName      { get; set; }
     public string    ChatType       { get; set; } = "";   // DIRECT | ANON
     public string    Status         { get; set; } = "";

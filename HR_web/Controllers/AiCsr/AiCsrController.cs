@@ -18,11 +18,40 @@ public class AiCsrController : HR_web.Controllers.BaseController
     private string Lang     => CurrentUser?.RoleName == "Expat" ? "en" : "vi";
 
     // GET /AiCsr/Chat
-    public IActionResult Chat()
+    public async Task<IActionResult> Chat()
     {
+        // Chặn truy cập thẳng URL khi HR/CSR đã tắt tính năng (yêu cầu 2026-10-19) — không chỉ ẩn
+        // lối vào ở EmployeeInquiry, phòng NV đã bookmark/lưu link cũ.
+        if (!await IsEnabledAsync())
+        {
+            TempData["InfoMessage"] = "Tính năng Hỏi AI hiện đang tạm ngưng, vui lòng gửi câu hỏi qua Hộp thư phản ánh.";
+            return RedirectToAction("Index", "EmployeeInquiry");
+        }
         ViewBag.EmpCd   = Empcd;
         ViewBag.EmpName = EmpName;
         return View();
+    }
+
+    // GET /AiCsr/IsEnabled — dùng cho EmployeeInquiry Index/Create quyết định có hiện lối vào AI
+    // hay không, không cần tải cả trang Chat mới biết.
+    [HttpGet]
+    public async Task<IActionResult> IsEnabled()
+        => Content(await _svc.GetConfigRawAsync(), "application/json");
+
+    private async Task<bool> IsEnabledAsync()
+    {
+        try
+        {
+            var json = await _svc.GetConfigRawAsync();
+            var obj = Newtonsoft.Json.Linq.JObject.Parse(json);
+            // Chỉ khoá khi API trả về THẬT SỰ tắt (success=true, enabled=false) — API lỗi/mất kết
+            // nối (success=false) không được coi là "tắt" (bug thật phát hiện lúc review: trước
+            // đây `!success` cũng bị tính là tắt, khiến 1 lần API chập chờn là NV bị đá khỏi trang
+            // dù chưa ai bấm tắt gì cả).
+            if ((bool?)obj["success"] != true) return true;
+            return (bool?)obj["enabled"] != false;
+        }
+        catch { return true; } // lỗi đọc config -> mặc định không khoá nhầm
     }
 
     // GET /AiCsr/MyThread — đoạn chat OPEN hiện tại + tin nhắn

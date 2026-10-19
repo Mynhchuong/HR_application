@@ -284,6 +284,16 @@ function renderMergedList() {
 // 1 thẻ duy nhất (không nằm trong danh sách sort theo thời gian), có badge chưa đọc nếu có.
 async function renderAiCard() {
     const el = document.getElementById('aiCardWrap');
+    // HR/CSR có thể tắt tính năng Hỏi AI (yêu cầu 2026-10-19) — kiểm tra trước, tắt thì ẩn hẳn thẻ.
+    try {
+        const cfgRes = await fetch('@Url.Action("IsEnabled","AiCsr")');
+        const cfg = await cfgRes.json();
+        // Chỉ ẩn khi API trả về THẬT SỰ tắt (success=true, enabled=false) — lỗi kết nối/API down
+        // (success=false) vẫn hiện bình thường, tránh mất kết nối tạm thời làm biến mất tính năng
+        // (bug thật phát hiện lúc review: trước đây `!cfg.success` cũng bị coi là "tắt").
+        if (cfg.success === true && cfg.enabled === false) { el.innerHTML = ''; return; }
+    } catch { /* lỗi check config -> vẫn hiện bình thường, không khoá nhầm */ }
+
     let unread = 0;
     try {
         const res  = await fetch('@Url.Action("MyThread","AiCsr")');

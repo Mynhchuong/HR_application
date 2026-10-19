@@ -179,6 +179,32 @@
     </div>
 </div>
 
+<!-- Modal từ chối nhanh — không cần chỉnh giờ, chỉ nhập lý do rồi từ chối ngay, NV tự khai lại -->
+<div class="modal fade" id="quickRejectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0"><i class="bi bi-x-circle me-1"></i> Từ chối chấm công</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="qrConfirmId" />
+                <div class="alert alert-warning py-2 px-2 mb-2 text-xs">
+                    Dòng này sẽ chuyển về "Bị từ chối" — nhân viên phải khai lại giờ.
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold">Lý do từ chối <span class="text-danger">*</span></label>
+                    <textarea id="qrNote" class="form-control form-control-sm" rows="2" maxlength="500" placeholder="Bắt buộc — để nhân viên biết vì sao bị từ chối"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="doQuickReject()"><i class="bi bi-x-lg me-1"></i>Từ chối</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal HR yêu cầu làm lại (chỉ Admin/HR) -->
 <div class="modal fade" id="hrRedoModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -368,7 +394,10 @@ function buildRow(item, idx) {
                 data-is-night="${item.IS_NIGHT_SHIFT ? '1' : '0'}" data-shift-type="${escHtml(item.SHIFT_TYPE || '')}"
                 data-ot-before-hours="${item.OT_BEFORE_HOURS || ''}" data-ot-after-hours="${item.OT_AFTER_HOURS || ''}"
                 onclick="event.stopPropagation(); openConfirmModal(this)">
-            <i class="bi bi-check2-circle"></i> Xác nhận</button>`;
+            <i class="bi bi-check2-circle"></i> Xác nhận</button>
+            <button type="button" class="btn btn-sm btn-outline-danger ms-1" data-confirm-id="${item.CONFIRM_ID}"
+                onclick="event.stopPropagation(); openQuickReject(this)" title="Từ chối nhanh, không cần chỉnh giờ — NV sẽ khai lại">
+            <i class="bi bi-x-lg"></i> Từ chối</button>`;
     } else if (status === 'PENDING_WORKER') {
         actionHtml = `<span class="text-xs text-warning"><i class="bi bi-hourglass-split"></i> Đang chờ NV</span>`;
     } else if (status === 'PENDING_MANAGER' && isSelf) {
@@ -504,6 +533,30 @@ async function doConfirm(status) {
         if (res.success) {
             bootstrap.Modal.getInstance(document.getElementById('confirmModal'))?.hide();
             showToast(res.message || 'Đã cập nhật', 'success');
+            loadData(currentPage);
+        } else showToast(res.message || 'Lỗi', 'error');
+    } catch (e) { showToast('Lỗi kết nối', 'error'); }
+}
+
+function openQuickReject(btn) {
+    $('#qrConfirmId').val(btn.dataset.confirmId);
+    $('#qrNote').val('');
+    new bootstrap.Modal(document.getElementById('quickRejectModal')).show();
+}
+
+async function doQuickReject() {
+    const note = $('#qrNote').val().trim();
+    if (!note) {
+        showToast('Vui lòng nhập lý do từ chối để nhân viên biết', 'warning');
+        $('#qrNote').focus();
+        return;
+    }
+    const payload = { CONFIRM_ID: parseInt($('#qrConfirmId').val()), TIME_IN: '', TIME_OUT: '', NOTE: note, STATUS: 'REJECTED' };
+    try {
+        const res = await $.ajax({ url: CONFIRM_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(payload) });
+        if (res.success) {
+            bootstrap.Modal.getInstance(document.getElementById('quickRejectModal'))?.hide();
+            showToast(res.message || 'Đã từ chối', 'success');
             loadData(currentPage);
         } else showToast(res.message || 'Lỗi', 'error');
     } catch (e) { showToast('Lỗi kết nối', 'error'); }

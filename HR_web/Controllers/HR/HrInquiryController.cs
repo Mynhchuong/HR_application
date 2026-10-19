@@ -30,6 +30,22 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Công tắc bật/tắt "Hỏi AI" — HR/CSR tự điều khiển (yêu cầu 2026-10-19).
+    // GET /HrInquiry/GetAiConfig · POST /HrInquiry/SetAiConfig { enabled }
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetAiConfig()
+        => Content(await _aiCsr.GetConfigRawAsync(), "application/json");
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetAiConfig([FromBody] SetAiConfigRequest req)
+    {
+        if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
+        var payload = new { enabled = req?.Enabled ?? true, actorEmpCd = CurrentUser!.EmpCd };
+        return Content(await _aiCsr.SetConfigRawAsync(payload), "application/json");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // PAGE: Màn hình chat — dùng CHUNG cho cả hội thoại thường (HR_INQUIRY) và AI SAMHO - CSR
     // (HR_AI_CHAT, source=AI) — yêu cầu 2026-10-01: "cùng 1 cơ chế mà chia 2 page cực quá".
     // AI chat được map tạm sang đúng shape InquiryMessagesResponse (xem BuildAiChatResponseAsync)
@@ -561,5 +577,10 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
     {
         public long    InquiryId  { get; set; }
         public string? CloseNote  { get; set; }
+    }
+
+    public class SetAiConfigRequest
+    {
+        public bool Enabled { get; set; }
     }
 }

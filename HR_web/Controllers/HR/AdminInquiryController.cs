@@ -47,6 +47,23 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Công tắc bật/tắt "Hỏi AI" — Admin tự điều khiển (CSR dùng bản tương tự ở HrInquiry,
+    // yêu cầu 2026-10-19).
+    // GET /AdminInquiry/GetAiConfig · POST /AdminInquiry/SetAiConfig { enabled }
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetAiConfig()
+        => Content(await _aiCsr.GetConfigRawAsync(), "application/json");
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetAiConfig([FromBody] AdminSetAiConfigRequest req)
+    {
+        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        var payload = new { enabled = req?.Enabled ?? true, actorEmpCd = CurrentUser!.EmpCd };
+        return Content(await _aiCsr.SetConfigRawAsync(payload), "application/json");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // PAGE: Màn hình chat (có nút Unlock) — dùng CHUNG cho cả hội thoại thường và AI SAMHO - CSR
     // (source=AI), cùng cơ chế với HrInquiryController.Chat (yêu cầu 2026-10-01: "cùng 1 cơ chế
     // mà chia 2 page cực quá").
@@ -1318,5 +1335,10 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     {
         public long    InquiryId  { get; set; }
         public string? CloseNote  { get; set; }
+    }
+
+    public class AdminSetAiConfigRequest
+    {
+        public bool Enabled { get; set; }
     }
 }

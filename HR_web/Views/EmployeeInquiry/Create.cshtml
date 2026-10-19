@@ -207,7 +207,7 @@ textarea.input-modern { resize: none; min-height: 120px; }
                     <div class="tc-desc">Với nhân sự, CSR</div>
                 </div>
             </div>
-            <div class="type-card ai" onclick="selectType('AI', this)">
+            <div class="type-card ai" id="aiTypeCard" onclick="selectType('AI', this)">
                 <div class="tc-icon">🤖</div>
                 <div class="tc-text">
                     <div class="tc-title">Chat với AI</div>
@@ -536,5 +536,19 @@ async function submitCreate() {
         btn.innerHTML = '<span class="material-symbols-rounded me-1" style="font-size:1rem;vertical-align:middle;">send</span>Gửi';
     }
 }
+
+// HR/CSR có thể tắt tính năng Hỏi AI (yêu cầu 2026-10-19) — tắt thì ẩn hẳn thẻ loại "AI" ở Bước 1.
+(async function hideAiCardIfDisabled() {
+    try {
+        const res = await fetch('@Url.Action("IsEnabled","AiCsr")');
+        const cfg = await res.json();
+        // Chỉ ẩn khi API trả về THẬT SỰ tắt (success=true, enabled=false) — lỗi kết nối không
+        // được coi là "tắt" (bug thật phát hiện lúc review, cùng chỗ với EmployeeInquiry/Index).
+        if (cfg.success === true && cfg.enabled === false) {
+            const card = document.getElementById('aiTypeCard');
+            if (card) card.style.display = 'none';
+        }
+    } catch { /* lỗi check config -> vẫn hiện bình thường, không khoá nhầm */ }
+})();
 </script>
 }

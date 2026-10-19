@@ -36,6 +36,11 @@ public class AiCsrController : ControllerBase
             if (body == null || string.IsNullOrWhiteSpace(body.Empcd) || string.IsNullOrWhiteSpace(body.Question))
                 return Ok(new { success = false, message = "Thiếu mã NV hoặc câu hỏi" });
 
+            // Công tắc HR/CSR tự bật/tắt (yêu cầu 2026-10-19) — chặn ngay tại đây phòng trường hợp
+            // ai đó gọi thẳng API dù FE đã ẩn lối vào.
+            if (!await IsAiEnabledAsync())
+                return Ok(new { success = false, message = "Tính năng Hỏi AI hiện đang tạm ngưng, vui lòng gửi câu hỏi qua Hộp thư phản ánh." });
+
             string question = body.Question.Trim();
             if (question.Length > 4000) question = question.Substring(0, 4000);
 
@@ -591,6 +596,71 @@ public class AiCsrController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────
+    // Công tắc bật/tắt tính năng "Hỏi AI" — HR/CSR/Admin tự điều khiển runtime, không cần deploy
+    // lại code (yêu cầu 2026-10-19: AI thỉnh thoảng trả lời sai, muốn tắt/bật tuỳ lúc). Chỉ 1 dòng
+    // trong HRMS.HR_AI_CHAT_CONFIG (ID=1).
+    // ─────────────────────────────────────────────────────────────
+
+    // GET apiHR/AiCsr/config — public, trang nhân viên tự gọi để biết có hiện lối vào AI hay không.
+    [HttpGet("config")]
+    public async Task<IActionResult> GetConfig()
+    {
+        try
+        {
+            bool enabled = await IsAiEnabledAsync();
+            return Ok(new { success = true, enabled });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST apiHR/AiCsr/set-config  { enabled, actorEmpCd } — CHỈ Admin/HR/CSR.
+    [HttpPost("set-config")]
+    public async Task<IActionResult> SetConfig([FromBody] SetAiConfigBody body)
+    {
+        try
+        {
+            if (body == null || string.IsNullOrWhiteSpace(body.ActorEmpCd))
+                return Ok(new { success = false, message = "Thiếu mã NV thực hiện" });
+
+            if (!await IsAdminOrHrOrCsrAsync(body.ActorEmpCd))
+                return Ok(new { success = false, message = "Bạn không có quyền thực hiện thao tác này" });
+
+            // Bind param KHÔNG được đặt tên "BY" — trùng từ khoá reserved GROUP BY/ORDER BY của
+            // Oracle, gây ORA-01745 (lỗi thật đã gặp, xem feedback_oracle_bind_pitfalls).
+            await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_AI_CHAT_CONFIG
+                SET IS_ENABLED = :EN, UPDATED_BY = :UPDBY, UPDATED_DT = SYSDATE
+                WHERE ID = 1",
+                new OracleParameter("EN", body.Enabled ? 1 : 0),
+                new OracleParameter("UPDBY", body.ActorEmpCd));
+
+            return Ok(new { success = true, enabled = body.Enabled });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    private async Task<bool> IsAiEnabledAsync()
+    {
+        var rows = await _db.ExecuteQueryAsync(
+            "SELECT IS_ENABLED FROM HRMS.HR_AI_CHAT_CONFIG WHERE ID = 1",
+            r => r["IS_ENABLED"] == DBNull.Value ? 1 : Convert.ToInt32(r["IS_ENABLED"]));
+        // Không có dòng (lẽ ra luôn có 1 dòng seed sẵn) → mặc định BẬT, tránh khoá nhầm tính năng
+        // nếu bảng config có sự cố.
+        return rows.Count == 0 || rows[0] == 1;
+    }
+
+    private async Task<bool> IsAdminOrHrOrCsrAsync(string empCd)
+    {
+        var rows = await _db.ExecuteQueryAsync(@"
+            SELECT 1 FROM HRMS.HR_USERS U
+            JOIN HRMS.HR_ROLES R ON R.ID = U.ROLE_ID
+            WHERE U.EMPCD = :EMPCD AND R.ROLE_NAME IN ('Admin','HR','CSR') AND ROWNUM = 1",
+            r => 1,
+            new OracleParameter("EMPCD", empCd));
+        return rows.Count > 0;
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────
     private sealed class HeadRow
@@ -675,4 +745,5 @@ public class AiCsrController : ControllerBase
     public class CsrReplyBody { public decimal ChatId { get; set; } public string? CsrEmpcd { get; set; } public string? CsrName { get; set; } public string? Content { get; set; } }
     public class SetStatusBody{ public decimal ChatId { get; set; } public string? ActorEmpcd { get; set; } public string Status { get; set; } = "CLOSED"; }
     public class CsrRecallBody{ public decimal MsgId { get; set; } public string? ActorEmpcd { get; set; } }
+    public class SetAiConfigBody { public bool Enabled { get; set; } public string? ActorEmpCd { get; set; } }
 }

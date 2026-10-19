@@ -76,6 +76,13 @@
                     <span class="material-symbols-rounded me-1" style="font-size:1.1rem;vertical-align:middle">manage_accounts</span>
                     Danh sách hội thoại
                 </h6>
+                <div class="form-check form-switch mb-0" title="Khi tắt, nhân viên không thấy/không dùng được tính năng Hỏi AI nữa">
+                    <input class="form-check-input" type="checkbox" id="cbAiEnabled" onchange="toggleAiEnabled(this.checked)">
+                    <label class="form-check-label text-white text-sm" for="cbAiEnabled">
+                        <span class="material-symbols-rounded" style="font-size:.9rem;vertical-align:middle">smart_toy</span>
+                        Hỏi AI
+                    </label>
+                </div>
             </div>
         </div>
 
@@ -164,6 +171,8 @@ const CLOSE_URL    = '@Url.Action("Close","HrInquiry")';
 // CHUNG màn hình Chat?source=AI (yêu cầu 2026-10-01: "cùng 1 cơ chế mà chia 2 page cực quá") —
 // trang/controller AiCsrAdmin (Index lẫn Thread) đã bỏ hẳn.
 const AI_LIST_URL   = '@Url.Action("GetAiList","HrInquiry")';
+const GET_AI_CONFIG_URL = '@Url.Action("GetAiConfig","HrInquiry")';
+const SET_AI_CONFIG_URL = '@Url.Action("SetAiConfig","HrInquiry")';
 const TOKEN     = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 const MY_EMPCD  = '@(me?.EmpCd ?? "")';
 let pageSize    = 30;
@@ -552,6 +561,34 @@ async function loadTopics() {
 
     loadData(startPage);
     startAutoReload();
+    loadAiConfig();
 })();
+
+// ── Công tắc bật/tắt "Hỏi AI" (HR/CSR tự điều khiển — yêu cầu 2026-10-19) ─────────────────────
+async function loadAiConfig() {
+    try {
+        const res = await $.getJSON(GET_AI_CONFIG_URL);
+        if (res.success) $('#cbAiEnabled').prop('checked', !!res.enabled);
+    } catch {}
+}
+
+async function toggleAiEnabled(checked) {
+    try {
+        const res = await $.ajax({
+            url: SET_AI_CONFIG_URL, type: 'POST', contentType: 'application/json',
+            headers: { 'RequestVerificationToken': TOKEN },
+            data: JSON.stringify({ enabled: checked })
+        });
+        if (res.success) {
+            showToast(checked ? 'Đã BẬT tính năng Hỏi AI' : 'Đã TẮT tính năng Hỏi AI — nhân viên sẽ không thấy lối vào nữa', checked ? 'success' : 'warning');
+        } else {
+            $('#cbAiEnabled').prop('checked', !checked);
+            showToast(res.message || 'Lỗi', 'error');
+        }
+    } catch {
+        $('#cbAiEnabled').prop('checked', !checked);
+        showToast('Lỗi kết nối', 'error');
+    }
+}
 </script>
 }

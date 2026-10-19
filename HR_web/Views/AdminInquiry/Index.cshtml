@@ -95,7 +95,14 @@
                     <span class="material-symbols-rounded me-1" style="font-size:1.1rem;vertical-align:middle">admin_panel_settings</span>
                     Danh sách hội thoại
                 </h6>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 align-items-center">
+                    <div class="form-check form-switch mb-0" title="Khi tắt, nhân viên không thấy/không dùng được tính năng Hỏi AI nữa">
+                        <input class="form-check-input" type="checkbox" id="cbAiEnabled" onchange="toggleAiEnabled(this.checked)">
+                        <label class="form-check-label text-white text-sm" for="cbAiEnabled">
+                            <span class="material-symbols-rounded" style="font-size:.9rem;vertical-align:middle">smart_toy</span>
+                            Hỏi AI
+                        </label>
+                    </div>
                     <a href="@Url.Action("Topics","AdminInquiry")"
                        class="btn btn-sm btn-light d-flex align-items-center gap-1 py-1 px-2 mb-0"
                        style="font-size:.75rem;font-weight:700">
@@ -198,6 +205,8 @@ const DELETE_URL = '@Url.Action("Delete","AdminInquiry")';
 // cùng bảng qua filter "Loại hội thoại" riêng (yêu cầu 2026-10-01, cùng cơ chế HrInquiry/Index).
 // Xem chi tiết/trả lời dùng CHUNG màn hình Chat?source=AI — controller AiCsrAdmin đã bỏ hẳn.
 const AI_LIST_URL   = '@Url.Action("GetAiList","AdminInquiry")';
+const GET_AI_CONFIG_URL = '@Url.Action("GetAiConfig","AdminInquiry")';
+const SET_AI_CONFIG_URL = '@Url.Action("SetAiConfig","AdminInquiry")';
 const TOKEN      = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 let pageSize    = 30;
 let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false;
@@ -635,7 +644,35 @@ async function initPage() {
 
     loadData(savedPage);
     startAutoReload();
+    loadAiConfig();
 }
 initPage();
+
+// ── Công tắc bật/tắt "Hỏi AI" (Admin tự điều khiển — yêu cầu 2026-10-19) ──────────────────────
+async function loadAiConfig() {
+    try {
+        const res = await $.getJSON(GET_AI_CONFIG_URL);
+        if (res.success) $('#cbAiEnabled').prop('checked', !!res.enabled);
+    } catch {}
+}
+
+async function toggleAiEnabled(checked) {
+    try {
+        const res = await $.ajax({
+            url: SET_AI_CONFIG_URL, type: 'POST', contentType: 'application/json',
+            headers: { 'RequestVerificationToken': TOKEN },
+            data: JSON.stringify({ enabled: checked })
+        });
+        if (res.success) {
+            showToast(checked ? 'Đã BẬT tính năng Hỏi AI' : 'Đã TẮT tính năng Hỏi AI — nhân viên sẽ không thấy lối vào nữa', checked ? 'success' : 'warning');
+        } else {
+            $('#cbAiEnabled').prop('checked', !checked);
+            showToast(res.message || 'Lỗi', 'error');
+        }
+    } catch {
+        $('#cbAiEnabled').prop('checked', !checked);
+        showToast('Lỗi kết nối', 'error');
+    }
+}
 </script>
 }

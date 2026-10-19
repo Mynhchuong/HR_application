@@ -137,7 +137,12 @@
                         <i class="bi bi-send-check me-1"></i> Gửi khai báo
                     </button>
                 </div>
-                <div id="wfDoneNote" class="alert alert-info mt-3" style="display:none;font-size:.85rem;"></div>
+                <div id="wfDoneNote" class="alert alert-info mt-3" style="display:none;font-size:.85rem;">
+                    <div id="wfDoneNoteText"></div>
+                    <button type="button" id="wfEditBtn" class="btn btn-sm btn-outline-primary mt-2" style="display:none;" onclick="enableEditMode()">
+                        <i class="bi bi-pencil-square me-1"></i> Sửa lại giờ đã khai
+                    </button>
+                </div>
                 <div id="wfNoMissingHero" class="text-center py-2" style="display:none;">
                     <img src="~/assets/img/illustrations/finger.png" alt="" style="max-width:150px;width:100%;" />
                     <div id="wfNoMissingMsg" class="fw-bold text-success mt-2"></div>
@@ -263,9 +268,18 @@ async function loadDay() {
         // nhận vẫn thấy đủ cả 2 mốc giờ như trước, chỉ khác là công nhân không sửa được phía đúng rồi.
         setTimeFieldLocks(d.MISSING_TYPE || 'BOTH');
 
-        const canSubmit = status === 'MISSING' || status === 'PENDING_WORKER' || status === 'REJECTED';
+        // PENDING_MANAGER: NV đã nộp, quản lý CHƯA xác nhận — vẫn cho sửa lại nếu lỡ nhập sai (API
+        // submit-worker vốn đã là upsert, chỉ chặn khi CONFIRM_STATUS='CONFIRMED' — yêu cầu
+        // 2026-10-19: "lỡ công nhân nhập sai thì tự công nhân edit nếu quản lí chưa xác nhận").
+        // Form mặc định vẫn ẩn (tránh sửa nhầm ngoài ý muốn), chỉ hiện lại khi bấm nút "Sửa".
+        const canSubmit    = status === 'MISSING' || status === 'PENDING_WORKER' || status === 'REJECTED';
+        const canEditLater = status === 'PENDING_MANAGER';
         $('#wfFormArea').toggle(canSubmit);
-        $('#wfDoneNote').toggle(!canSubmit).text(!canSubmit ? (status === 'CONFIRMED' ? 'Ngày này đã được xác nhận xong.' : 'Đang chờ quản lý xác nhận, không thể sửa lúc này.') : '');
+        $('#wfDoneNote').toggle(!canSubmit);
+        $('#wfEditBtn').toggle(canEditLater);
+        $('#wfDoneNoteText').text(!canSubmit
+            ? (status === 'CONFIRMED' ? 'Ngày này đã được xác nhận xong, không thể sửa.' : 'Đã gửi, đang chờ quản lý xác nhận.')
+            : '');
     } catch (e) {
         $('#wfNoMissingHero').hide();
         $('#wfDoneNote').show().text('Lỗi tải dữ liệu');
@@ -273,6 +287,11 @@ async function loadDay() {
         $('#wfLoading').hide();
         $('#wfContent').show();
     }
+}
+
+function enableEditMode() {
+    $('#wfDoneNote').hide();
+    $('#wfFormArea').show();
 }
 
 async function submitDay() {

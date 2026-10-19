@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "Phiếu Ra Vào Của Tôi";
-    var curMonth = DateTime.Today.ToString("yyyy-MM");
+    int initMonth = DateTime.Today.Month;
+    int initYear  = DateTime.Today.Year;
 }
 
 @section Styles {
@@ -20,21 +21,18 @@
     .sig-cell-img  { display:block; margin:0 auto; max-height:55px; max-width:110px; object-fit:contain; background:#fafafa; border-radius:4px; padding:2px; }
     .sig-cell-name { font-size:.65rem; color:#64748b; margin-top:2px; line-height:1.2; }
 
-    /* Header gradient: always visible (KHÔNG mang class .filter-bar — list-page-helper.css ẩn hẳn
-       mọi .filter-bar trên mobile cho tới khi bấm "Bộ lọc", nên trước đây nút "Đăng Ký Mới" bị ẩn
-       theo luôn, phải bấm bộ lọc mới thấy — bug báo 2026-10-09). Chỉ bộ lọc tháng (thật sự là filter)
-       mới đặt trong .filter-bar riêng bên dưới, đúng quy ước chung với Leave/GatePass-Admin/OT. */
+    /* Chuyển sang kiểu chọn tháng mũi tên trái/phải giống Leave/LeaveMyRequests (yêu cầu 2026-10-19:
+       "khó sài cái chổ chọn tháng chọn năm" — bỏ hẳn select năm riêng, chỉ còn 1 label tháng/năm +
+       2 nút lùi/tới, năm tự cuộn theo khi qua tháng 1/12). */
     .gp-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
     @@media (max-width: 576px) {
         .gp-header-row { flex-direction: column; align-items: stretch !important; }
         .gp-header-row .btn-light { width: 100%; text-align: center; }
     }
-    .gp-month-filter { display: flex; align-items: center; gap: 8px; }
-    @@media (max-width: 576px) {
-        .gp-month-filter { width: 100%; }
-        .gp-month-filter > div { flex: 1; width: 100%; }
-        .gp-month-filter input[type=month] { width: 100% !important; }
-    }
+    .month-nav { display:flex; align-items:center; gap:6px; }
+    .month-nav button { border:none; background:rgba(255,255,255,.22); color:#fff; border-radius:6px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:.95rem; cursor:pointer; }
+    .month-nav button:hover { background:rgba(255,255,255,.38); }
+    .month-nav span { font-weight:700; font-size:.9rem; color:#fff; min-width:130px; text-align:center; }
 
     /* Mobile card layout */
     @@media (max-width: 768px) {
@@ -59,33 +57,16 @@
             <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3">
                 <div class="gp-header-row">
                     <h6 class="text-white mb-0"><i class="bi bi-list-check me-1"></i> Phiếu Ra Vào Của Tôi</h6>
-                    <a href="@Url.Action("GpRequestForm", "GatePass")" class="btn btn-sm mb-0" style="background:#fff;color:#344767;font-weight:600;">
-                        <i class="bi bi-plus-circle me-1"></i> Đăng Ký Mới
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <div class="px-3 pt-3 pb-2 d-flex align-items-center filter-bar" style="background:#f8fafc;border-bottom:1px solid #e9ecef;">
-            <div class="gp-month-filter">
-                <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;border:1px solid #e2e8f0;">
-                    <i class="bi bi-calendar3 text-warning"></i>
-                    @* Input type=month dùng lịch gốc trình duyệt, hiện theo NGÔN NGỮ HỆ ĐIỀU HÀNH máy
-                       (Jan/Feb/...) chứ không theo ngôn ngữ trang — công nhân không đọc được tiếng Anh
-                       (phản hồi thực tế 2026-10-09). Thay bằng 2 select Tháng/Năm tự làm, luôn tiếng Việt. *@
-                    <select id="filterMonthSel" class="form-select form-select-sm border-0 bg-transparent text-dark p-0" style="width:90px;" onchange="loadData(1)">
-                        @for (int m = 1; m <= 12; m++)
-                        {
-                            <option value="@m" selected="@(m == DateTime.Today.Month)">Tháng @m</option>
-                        }
-                    </select>
-                    <select id="filterYearSel" class="form-select form-select-sm border-0 bg-transparent text-dark p-0" style="width:80px;" onchange="loadData(1)">
-                        @{ int curYear = DateTime.Today.Year; }
-                        @for (int y = curYear - 2; y <= curYear; y++)
-                        {
-                            <option value="@y" selected="@(y == curYear)">@y</option>
-                        }
-                    </select>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="month-nav">
+                            <button onclick="changeMonth(-1)" title="Tháng trước"><i class="bi bi-chevron-left"></i></button>
+                            <span id="monthLabel"></span>
+                            <button onclick="changeMonth(1)"  title="Tháng sau"><i class="bi bi-chevron-right"></i></button>
+                        </div>
+                        <a href="@Url.Action("GpRequestForm", "GatePass")" class="btn btn-sm mb-0" style="background:#fff;color:#344767;font-weight:600;">
+                            <i class="bi bi-plus-circle me-1"></i> Đăng Ký Mới
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -171,6 +152,22 @@ const SIG_URL       = '@Url.Action("GetSignature",      "Image")';
 const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 20;
+let curMonth = @initMonth, curYear = @initYear;
+
+const MONTHS_VI = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                   'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+
+function updateMonthLabel() {
+    $('#monthLabel').text(MONTHS_VI[curMonth-1] + ' / ' + curYear);
+}
+
+function changeMonth(delta) {
+    curMonth += delta;
+    if (curMonth > 12) { curMonth = 1;  curYear++; }
+    if (curMonth < 1)  { curMonth = 12; curYear--; }
+    updateMonthLabel();
+    loadData(1);
+}
 
 const NO_DATA_IMGS = ['@Url.Content("~/assets/img/illustrations/Chi_nodata.png")', '@Url.Content("~/assets/img/illustrations/A_nodata.png")'];
 function renderNoData(subtitle, colspan) {
@@ -293,15 +290,12 @@ function buildCard(item, idx) {
     </div>`;
 }
 
-// Tháng/năm chọn từ 2 select (#filterMonthSel/#filterYearSel) -> { from: "yyyy-MM-01", to: ngày
+// curMonth/curYear điều hướng bằng 2 nút mũi tên trên header -> { from: "yyyy-MM-01", to: ngày
 // cuối tháng } gửi xuống API (vẫn dùng chung date_from/date_to sẵn có).
 function monthRange() {
-    const m = Number($('#filterMonthSel').val());
-    const y = Number($('#filterYearSel').val());
-    if (!y || !m) return { from: null, to: null };
-    const from = `${y}-${String(m).padStart(2,'0')}-01`;
-    const lastDay = new Date(y, m, 0).getDate();
-    const to = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+    const from = `${curYear}-${String(curMonth).padStart(2,'0')}-01`;
+    const lastDay = new Date(curYear, curMonth, 0).getDate();
+    const to = `${curYear}-${String(curMonth).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
     return { from, to };
 }
 
@@ -431,7 +425,7 @@ function formatTime(s) { const d = new Date(s); if (isNaN(d)) return s||''; retu
 function formatDate(s) { const d = new Date(s); if (isNaN(d)) return ''; return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
 function escHtml(str)  { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-$(document).ready(function() { loadData(1); });
+$(document).ready(function() { updateMonthLabel(); loadData(1); });
 </script>
 @Html.AntiForgeryToken()
 }

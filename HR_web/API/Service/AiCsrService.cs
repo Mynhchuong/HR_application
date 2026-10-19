@@ -14,6 +14,11 @@ public class AiCsrService
     private static async Task<string> ReadAsync(HttpResponseMessage? res)
         => res?.IsSuccessStatusCode == true ? await res.Content.ReadAsStringAsync() : Err;
 
+    // ── Công tắc bật/tắt (HR/CSR/Admin tự điều khiển) ──────────
+    public async Task<string> GetConfigRawAsync()
+        => await ReadAsync(await _api.GetAsync_Raw("AiCsr/config"));
+    public Task<string> SetConfigRawAsync(object payload) => Post("AiCsr/set-config", payload);
+
     // ── Nhân viên ──────────────────────────────────────────────
     public Task<string> AskRawAsync(object payload)          => Post("AiCsr/ask", payload);
     public Task<string> NewThreadRawAsync(object payload)    => Post("AiCsr/new-thread", payload);

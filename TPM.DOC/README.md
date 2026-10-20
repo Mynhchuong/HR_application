@@ -103,12 +103,22 @@ ngoài module: 1 dòng đăng ký ở `Program.cs`, 2 mục menu trong nhóm "C�
   chỉ deploy HR_web + HR_api. Đọc mã vạch 1D (CODE128) từ ảnh kém ổn định hơn quét trực tiếp — test với tem
   thật; nếu hụt nhiều thì quay lại phương án quét trực tiếp (xem mục dưới).
 - EMPCD luôn lấy từ session, HR_web không tin client. HR và Expat bị chặn ở HR_web và HR_api.
-- **Vỏ app Android/iOS: KHÔNG sửa gì** (chốt 2026-10-20). Các thay đổi thử nghiệm trước đó (Android
-  `onPermissionRequest`, iOS `requestMediaCapturePermissionFor`) đã hoàn lại. Camera quét chạy bằng
-  `getUserMedia` trong trang web nên chỉ hoạt động khi trang chạy HTTPS (`hr.esamho.com`) và vỏ app cho
-  WebView dùng camera; nếu trong app mở không được camera thì nhân viên **gõ tay** mã máy. Muốn quét
-  trực tiếp ổn định trong app Android thì phải thêm lại `onPermissionRequest` ở `WebChromeClient`
-  (cấp camera cho `*.esamho.com`, xin quyền CAMERA runtime) và phát hành bản mới.
+- **Quét gốc trong app (chốt 2026-10-20, theo ý sếp: nhanh hơn quét bằng thẻ HTML):** vỏ app có thêm lệnh
+  quét mã vạch gốc, trang web tự dùng khi app hỗ trợ.
+  - Web -> app: Android `window.Android.scanBarcode()` (`addJavascriptInterface` sẵn có), iOS
+    `window.webkit.messageHandlers.scanBarcode.postMessage(null)`.
+  - App -> web: `window.onNativeBarcode(code)` / `onNativeBarcodeCancel()` / `onNativeBarcodeError(msg)`
+    (`msg='camera_denied'` khi chưa cấp quyền camera).
+  - Android (`MainActivity.java`, `startNativeBarcodeScan`): **Google Code Scanner** (ML Kit,
+    `play-services-code-scanner:16.1.0`), chỉ CODE128, auto-zoom; manifest có meta-data tải sẵn module
+    `barcode_ui`. Máy không có Google Play Services -> báo lỗi -> trang tự rơi về quét trong trang.
+  - iOS (`BarcodeScannerViewController.swift` mới + `ViewController.swift`): **AVFoundation**
+    (`AVCaptureMetadataOutput`, `.code128`), Full HD, lấy nét liên tục + vùng gần, chỉ giải mã trong khung
+    hướng dẫn, rung khi quét được. `Info.plist` cập nhật mô tả quyền camera (nêu quét tem máy).
+  - **App cũ (chưa cập nhật)** không có bridge nên trang vẫn quét bằng html5-qrcode trong trang (cần HTTPS) và
+    gõ tay như trước — không hỏng.
+  - **Phải phát hành bản mới** cho cả Android và iOS thì mới có quét gốc. Cả hai đã biên dịch thành công,
+    **chưa chạy thử trên thiết bị thật**.
 
 ## Hiển thị cho bảo trì (TPM.Web)
 Trang `Broken/Index` hiện: máy (mã + tên), vị trí máy, người báo `Tên (mã NV)`, và dòng nhỏ

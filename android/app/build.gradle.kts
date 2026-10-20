@@ -11,8 +11,8 @@ android {
         applicationId = "com.samho.mysamho"
         minSdk = 24
         targetSdk = 36
-        versionCode = 10
-        versionName = "10.0"
+        versionCode = 11
+        versionName = "10.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -41,6 +41,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
+    implementation(libs.play.services.code.scanner) // Quét mã vạch tem máy (TPM) bằng Google Code Scanner
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)

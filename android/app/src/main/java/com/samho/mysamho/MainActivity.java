@@ -11,6 +11,10 @@ import android.os.Bundle;
 import android.provider.MediaStore;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import com.google.mlkit.vision.barcode.common.Barcode;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanner;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -757,6 +761,28 @@ public class MainActivity extends AppCompatActivity {
             .show();
     }
 
+    // Quét mã vạch tem máy (TPM) bằng Google Code Scanner (ML Kit): nhanh, tự lấy nét/zoom, không cần
+    // trang web mở camera (không phụ thuộc HTTPS). Kết quả trả về trang web qua
+    // window.onNativeBarcode(code) / onNativeBarcodeCancel() / onNativeBarcodeError(msg).
+    // Máy không có Google Play Services -> onNativeBarcodeError -> trang web tự rơi về quét trong trang.
+    void startNativeBarcodeScan() {
+        GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_CODE_128)
+                .enableAutoZoom()
+                .build();
+        GmsBarcodeScanner scanner = GmsBarcodeScanning.getClient(this, options);
+        scanner.startScan()
+                .addOnSuccessListener(barcode -> callWeb("onNativeBarcode", barcode.getRawValue()))
+                .addOnCanceledListener(() -> callWeb("onNativeBarcodeCancel", ""))
+                .addOnFailureListener(e -> callWeb("onNativeBarcodeError", e.getMessage()));
+    }
+
+    private void callWeb(String fn, String arg) {
+        if (webView == null || isFinishing() || isDestroyed()) return;
+        String js = "if(window." + fn + ")window." + fn + "(" + org.json.JSONObject.quote(arg == null ? "" : arg) + ");";
+        webView.evaluateJavascript(js, null);
+    }
+
     // JavaScript interface — web app gọi Android.getFcmToken() / clearNotifications()
     public static class WebAppInterface {
         private final Context mContext;
@@ -765,6 +791,15 @@ public class MainActivity extends AppCompatActivity {
         @android.webkit.JavascriptInterface
         public String getFcmToken() {
             return MySamhoFirebaseService.getSavedToken(mContext);
+        }
+
+        // Web gọi Android.scanBarcode() để mở màn hình quét mã vạch gốc (xem startNativeBarcodeScan).
+        @android.webkit.JavascriptInterface
+        public void scanBarcode() {
+            if (mContext instanceof MainActivity) {
+                MainActivity a = (MainActivity) mContext;
+                a.runOnUiThread(a::startNativeBarcodeScan);
+            }
         }
 
         // Gọi khi user logout — xoá hết noti FCM còn trong tray của thiết bị

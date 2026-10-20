@@ -194,7 +194,27 @@
         } catch (e) { btn.disabled = false; toast('Lỗi kết nối', 'error'); }
     }
 
-    $('btnLive').onclick = startLive;
+    // ── Quét gốc của app (Android: Google Code Scanner, iOS: AVFoundation) — nhanh, tự lấy nét, không cần HTTPS.
+    // App cũ không có bridge -> hasNative=false -> dùng quét trong trang (startLive) như trước.
+    const hasNativeScan = () =>
+        (window.Android && typeof window.Android.scanBarcode === 'function') ||
+        !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.scanBarcode);
+    let nativeBroken = false;   // native báo lỗi (vd máy Android không có Google Play Services) -> rơi về quét trong trang
+
+    function startNative() {
+        setMsg('Đang mở camera...');
+        if (window.Android && typeof window.Android.scanBarcode === 'function') window.Android.scanBarcode();
+        else window.webkit.messageHandlers.scanBarcode.postMessage(null);
+    }
+    window.onNativeBarcode = code => lookup(code);
+    window.onNativeBarcodeCancel = () => setMsg('');
+    window.onNativeBarcodeError = msg => {
+        nativeBroken = true;
+        if (msg === 'camera_denied') { setMsg('Chưa cấp quyền camera cho ứng dụng. Vào Cài đặt để bật, hoặc nhập mã máy bên dưới.', 'warn'); return; }
+        startLive();   // rơi về quét trong trang (nếu cũng không mở được sẽ báo gõ tay)
+    };
+
+    $('btnLive').onclick = () => (hasNativeScan() && !nativeBroken) ? startNative() : startLive();
     window.addEventListener('pagehide', stopLive);
     $('btnManual').onclick = () => lookup($('tpmManual').value);
     $('tpmManual').addEventListener('keydown', e => { if (e.key === 'Enter') lookup(e.target.value); });

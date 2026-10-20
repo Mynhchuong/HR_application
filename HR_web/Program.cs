@@ -110,6 +110,7 @@ builder.Services.AddScoped<HR_web.API.Service.NotificationService>();
 builder.Services.AddScoped<HR_web.API.Service.NotiTemplateService>();
 builder.Services.AddScoped<HR_web.API.Service.InquiryService>();
 builder.Services.AddScoped<HR_web.API.Service.AiCsrService>();
+builder.Services.AddScoped<HR_web.API.Service.TpmService>(); // Báo máy hư (TPM) cho công nhân sản xuất
 builder.Services.AddScoped<HR_web.API.Service.DirectoryService>();
 builder.Services.AddScoped<HR_web.API.Service.HomeApiService>();
 builder.Services.AddScoped<HR_web.API.Service.HomeAdminApiService>();

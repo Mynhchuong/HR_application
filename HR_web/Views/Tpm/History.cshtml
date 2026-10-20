@@ -1,0 +1,107 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Lịch sử báo hư máy";
+}
+
+@section Styles {
+<style>
+    .tpm-wrap { max-width: 640px; margin: 0 auto; padding-bottom: 4rem; }
+    .tpm-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:1rem; margin-bottom:.8rem; }
+    .tpm-hero { background:linear-gradient(135deg,#8b0000,#c00000); color:#fff; border:0; }
+    .tpm-hero h5 { margin:0; font-weight:800; }
+    .tpm-hero small { opacity:.9; }
+    .tpm-chips { display:flex; gap:.5rem; margin-bottom:1rem; flex-wrap:wrap; }
+    .tpm-chip { border:1.5px solid #e2e8f0; background:#fff; border-radius:999px; padding:.35rem .9rem; font-weight:700; font-size:.85rem; cursor:pointer; color:#475569; }
+    .tpm-chip.on { background:#c00000; border-color:#c00000; color:#fff; }
+    .tpm-top { display:flex; justify-content:space-between; align-items:flex-start; gap:.5rem; }
+    .tpm-code { font-weight:800; color:#0f172a; }
+    .tpm-name { color:#475569; font-size:.85rem; }
+    .tpm-badge { display:inline-block; padding:.15rem .6rem; border-radius:999px; font-size:.75rem; font-weight:700; white-space:nowrap; }
+    .tpm-kv { display:flex; justify-content:space-between; gap:1rem; padding:.3rem 0; font-size:.85rem; }
+    .tpm-kv span:first-child { color:#64748b; flex:0 0 auto; }
+    .tpm-kv span:last-child { text-align:right; font-weight:600; overflow-wrap:anywhere; }
+    .tpm-desc { background:#f8fafc; border-radius:10px; padding:.5rem .7rem; font-size:.88rem; margin:.5rem 0; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .tpm-empty { text-align:center; color:#94a3b8; padding:2.5rem 1rem; }
+    .tpm-link { display:block; text-align:center; margin-top:.5rem; font-weight:700; color:#c00000; }
+</style>
+}
+
+<div class="container-fluid py-4">
+<div class="tpm-wrap">
+    <div class="tpm-card tpm-hero">
+        <h5>Lịch sử báo hư máy</h5>
+        <small>Các máy bạn đã báo hư và tiến độ xử lý của bảo trì.</small>
+    </div>
+
+    <div class="tpm-chips" id="tpmChips">
+        <button type="button" class="tpm-chip on" data-f="all">Tất cả</button>
+        <button type="button" class="tpm-chip" data-f="open">Đang xử lý</button>
+        <button type="button" class="tpm-chip" data-f="done">Đã xong</button>
+    </div>
+
+    <div id="tpmList"><div class="tpm-empty">Đang tải...</div></div>
+
+    <a class="tpm-link" href="@Url.Action("Scan", "Tpm")">Quét mã máy / Báo hư mới</a>
+</div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const URL_DATA = '@Url.Action("HistoryData", "Tpm")';
+    const STATUS = {
+        REPORTED:    ['Chờ bảo trì',     '#fff7ed', '#9a3412'],
+        RECEIVED:    ['Bảo trì đã nhận', '#eff6ff', '#1d4ed8'],
+        NEEDS_PARTS: ['Chờ linh kiện',   '#fefce8', '#a16207'],
+        REPAIRED:    ['Đã sửa xong',     '#f0fdf4', '#166534'],
+        CANCELLED:   ['Đã hủy',          '#f1f5f9', '#475569']
+    };
+    const isDone = s => s === 'REPAIRED' || s === 'CANCELLED';
+
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const fmt = iso => { if (!iso) return ''; const d = new Date(iso); const p = n => String(n).padStart(2,'0');
+        return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+    const kv = (k, v) => v ? `<div class="tpm-kv"><span>${k}</span><span>${esc(v)}</span></div>` : '';
+
+    let items = [], filter = 'all';
+
+    function render() {
+        const rows = items.filter(i => filter === 'all' || (filter === 'done' ? isDone(i.Status) : !isDone(i.Status)));
+        if (!rows.length) { document.getElementById('tpmList').innerHTML = '<div class="tpm-empty">Chưa có phiếu báo hư nào.</div>'; return; }
+        document.getElementById('tpmList').innerHTML = rows.map(i => {
+            const st = STATUS[i.Status] || [i.Status, '#f1f5f9', '#475569'];
+            return `<div class="tpm-card">
+                <div class="tpm-top">
+                    <div><div class="tpm-code">${esc(i.ItemCode)}</div><div class="tpm-name">${esc(i.NameEn)}</div></div>
+                    <span class="tpm-badge" style="background:${st[1]};color:${st[2]}">${esc(st[0])}</span>
+                </div>
+                <div class="tpm-desc">${esc(i.Description)}</div>
+                ${kv('Vị trí', i.LocationPath)}
+                ${kv('Báo lúc', fmt(i.ReportedAt))}
+                ${kv('Bảo trì nhận', i.ReceivedByNm ? i.ReceivedByNm + (i.ReceivedAt ? ' · ' + fmt(i.ReceivedAt) : '') : '')}
+                ${kv('Cần linh kiện', i.PartsNote)}
+                ${kv('Loại lỗi', i.IssueVn)}
+                ${kv('Cách xử lý', i.SolveGroupVn)}
+                ${kv('Ghi chú sửa', i.RepairNote)}
+                ${kv('Sửa xong lúc', fmt(i.RepairedAt))}
+            </div>`;
+        }).join('');
+    }
+
+    document.getElementById('tpmChips').addEventListener('click', e => {
+        const b = e.target.closest('.tpm-chip'); if (!b) return;
+        document.querySelectorAll('.tpm-chip').forEach(c => c.classList.toggle('on', c === b));
+        filter = b.dataset.f; render();
+    });
+
+    (async function load() {
+        try {
+            const r = await fetch(URL_DATA);
+            const d = await r.json();
+            if (!d.success) { document.getElementById('tpmList').innerHTML = `<div class="tpm-empty">${esc(d.message || 'Không tải được dữ liệu.')}</div>`; return; }
+            items = d.items || []; render();
+        } catch (e) { document.getElementById('tpmList').innerHTML = '<div class="tpm-empty">Lỗi kết nối, vui lòng thử lại.</div>'; }
+    })();
+})();
+</script>
+}

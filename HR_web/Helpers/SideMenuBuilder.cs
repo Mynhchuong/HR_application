@@ -57,6 +57,9 @@ public static class SideMenuBuilder
                     // bỏ mục menu riêng, lối tắt AI giờ nằm ngay trong trang EmployeeInquiry/Index.
                     new SideMenuItem { Title = "Hộp thư phản ánh",             Url = "~/EmployeeInquiry/Index",           Icon = "forum",        BadgeId = "sideInqBadge" },
                     new SideMenuItem { Title = "Đào tạo cá nhân",     Url = "~/Training/Index",                  Icon = "school"        },
+                    // Báo máy hư (TPM) — công nhân sản xuất; HR/Expat không dùng (2026-10-20).
+                    new SideMenuItem { Title = "Quét mã máy / Báo hư", Url = "~/Tpm/Scan",    Icon = "qr_code_scanner", VisibleWhen = () => user.RoleName != "HR" },
+                    new SideMenuItem { Title = "Lịch sử báo hư máy",   Url = "~/Tpm/History", Icon = "build",           VisibleWhen = () => user.RoleName != "HR" },
                 }
             },
 

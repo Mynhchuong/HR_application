@@ -1,0 +1,203 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Quét mã máy / Báo hư";
+}
+
+@section Styles {
+<style>
+    .tpm-wrap { max-width: 640px; margin: 0 auto; padding-bottom: 4rem; }
+    .tpm-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:1rem; margin-bottom:1rem; }
+    .tpm-hero { background:linear-gradient(135deg,#8b0000,#c00000); color:#fff; border:0; }
+    .tpm-hero h5 { margin:0; font-weight:800; }
+    .tpm-hero small { opacity:.9; }
+    .tpm-btn { border:0; border-radius:12px; padding:.7rem 1rem; font-weight:700; font-size:.95rem; cursor:pointer; width:100%; }
+    .tpm-btn.primary { background:#c00000; color:#fff; }
+    .tpm-btn.light { background:#f1f5f9; color:#0f172a; border:1.5px solid #e2e8f0; }
+    .tpm-btn:disabled { opacity:.55; cursor:not-allowed; }
+    .tpm-row { display:flex; gap:.5rem; }
+    .tpm-row > * { flex:1; }
+    .tpm-input { width:100%; border:1.5px solid #e2e8f0; border-radius:12px; padding:.6rem .8rem; font-size:.95rem; outline:none; }
+    .tpm-input:focus { border-color:#c00000; }
+    #tpmReader { width:100%; border-radius:12px; overflow:hidden; margin-bottom:.75rem; }
+    .tpm-msg { font-size:.85rem; margin-top:.6rem; color:#475569; }
+    .tpm-msg.warn { color:#b45309; }
+    .tpm-msg.err { color:#b91c1c; }
+    .tpm-code { font-size:1.15rem; font-weight:800; color:#0f172a; }
+    .tpm-name { color:#475569; font-size:.9rem; }
+    .tpm-kv { display:flex; justify-content:space-between; gap:1rem; padding:.4rem 0; border-bottom:1px dashed #e2e8f0; font-size:.88rem; }
+    .tpm-kv:last-child { border-bottom:0; }
+    .tpm-kv span:first-child { color:#64748b; flex:0 0 auto; }
+    .tpm-kv span:last-child { text-align:right; font-weight:600; overflow-wrap:anywhere; }
+    .tpm-badge { display:inline-block; padding:.15rem .6rem; border-radius:999px; font-size:.75rem; font-weight:700; }
+    .tpm-notice { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:12px; padding:.7rem .9rem; font-size:.88rem; }
+    .tpm-ok { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; border-radius:12px; padding:.7rem .9rem; font-size:.88rem; }
+    textarea.tpm-input { resize:vertical; min-height:90px; }
+    .tpm-link { display:block; text-align:center; margin-top:.5rem; font-weight:700; color:#c00000; }
+</style>
+}
+
+<div class="container-fluid py-4">
+<div class="tpm-wrap">
+    @Html.AntiForgeryToken()
+
+    <div class="tpm-card tpm-hero">
+        <h5>Quét mã máy / Báo máy hư</h5>
+        <small>Quét mã vạch trên tem máy, xem thông tin và báo hư cho bảo trì.</small>
+    </div>
+
+    <div class="tpm-card">
+        <div id="tpmReader" class="d-none"></div>
+        <button type="button" class="tpm-btn primary" id="btnLive">Quét bằng camera</button>
+        <div class="mt-3">
+            <div class="tpm-row">
+                <input type="text" class="tpm-input" id="tpmManual" placeholder="Hoặc nhập mã máy (VD: MC26-00001)" autocomplete="off" autocapitalize="characters" />
+                <button type="button" class="tpm-btn light" id="btnManual" style="flex:0 0 auto;width:auto">Tra cứu</button>
+            </div>
+        </div>
+        <div class="tpm-msg" id="tpmMsg"></div>
+    </div>
+
+    <div id="tpmResult"></div>
+
+    <a class="tpm-link" href="@Url.Action("History", "Tpm")">Xem lịch sử báo hư của tôi</a>
+</div>
+</div>
+
+@section Scripts {
+<script src="~/lib/html5-qrcode/html5-qrcode.min.js"></script>
+<script>
+(function () {
+    const TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const URL_MACHINE = '@Url.Action("Machine", "Tpm")';
+    const URL_REPORT  = '@Url.Action("Report", "Tpm")';
+    const URL_HISTORY = '@Url.Action("History", "Tpm")';
+
+    const STATUS_LABEL = { REPORTED:'Chờ bảo trì', RECEIVED:'Bảo trì đã nhận', NEEDS_PARTS:'Chờ linh kiện', REPAIRED:'Đã sửa xong', CANCELLED:'Đã hủy' };
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const toast = (m, t) => (window.showToast ? window.showToast(m, t) : alert(m));
+    const fmt = iso => { if (!iso) return '-'; const d = new Date(iso); const p = n => String(n).padStart(2,'0');
+        return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+
+    function setMsg(text, cls) { const el = $('tpmMsg'); el.textContent = text || ''; el.className = 'tpm-msg' + (cls ? ' ' + cls : ''); }
+
+    // ── Đọc mã vạch (html5-qrcode)
+    const cfg = () => ({
+        // Tem máy chỉ in barcode CODE128 -> chỉ thử đúng 1 định dạng cho nhanh.
+        formatsToSupport: [Html5QrcodeSupportedFormats.CODE_128],
+        verbose: false,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+    });
+
+    // ── Camera trực tiếp (html5-qrcode, giống trang tra cứu NV). Mở không được -> báo và gợi ý gõ tay.
+    // Lưu ý: getUserMedia chỉ chạy trên HTTPS (hoặc localhost); mạng nội bộ HTTP thì chỉ gõ tay mã máy.
+    let scanner = null, busy = false;
+
+    async function stopLive() {
+        $('tpmReader').classList.add('d-none');
+        if (scanner) { try { await scanner.stop(); scanner.clear(); } catch (e) {} scanner = null; }
+    }
+
+    async function startLive() {
+        await stopLive();
+        busy = false;
+        setMsg('Giữ máy cách tem khoảng 15–20 cm, đợi hình nét rồi để mã vạch nằm gọn trong khung.');
+        $('tpmReader').classList.remove('d-none');
+        try {
+            scanner = new Html5Qrcode('tpmReader', cfg());
+            await scanner.start(
+                { facingMode: 'environment' },
+                {
+                    fps: 15,
+                    disableFlip: true,   // không thử thêm bản ảnh lật gương (tem không bị lật) -> nhẹ gấp đôi
+                    // Khung quét rộng ~90% bề ngang, thấp hơn (barcode là hình chữ nhật dẹt).
+                    qrbox: (vw, vh) => { const w = Math.floor(vw * 0.9); return { width: w, height: Math.max(60, Math.floor(Math.min(vh * 0.5, w * 0.4))) }; },
+                    // Mặc định camera chỉ ~640x480, vạch mã 1D mảnh bị nhòe -> xin Full HD. focusMode chỉ áp dụng
+                    // trên máy hỗ trợ (Android), iOS tự lấy nét và bỏ qua.
+                    videoConstraints: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] }
+                },
+                text => { if (busy) return; busy = true; stopLive(); lookup(text); }, () => {});
+            // Máy nào hỗ trợ thì ép lấy nét liên tục (Android Chrome).
+            try {
+                const caps = scanner.getRunningTrackCapabilities();
+                if (caps && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+                    await scanner.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] });
+                }
+            } catch (e) { /* không hỗ trợ -> bỏ qua */ }
+        } catch (e) {
+            await stopLive();
+            setMsg('Không mở được camera. Hãy nhập mã máy bên dưới.', 'warn');
+        }
+    }
+
+    // ── Tra cứu máy
+    async function lookup(raw) {
+        const code = String(raw || '').trim().toUpperCase();
+        if (!code) { setMsg('Vui lòng nhập mã máy.', 'err'); return; }
+        $('tpmManual').value = code;
+        setMsg('Đang tra cứu ' + code + '...');
+        $('tpmResult').innerHTML = '';
+        try {
+            const r = await fetch(URL_MACHINE + '?itemCode=' + encodeURIComponent(code));
+            const d = await r.json();
+            if (!d.success) { setMsg(d.code === 'MACHINE_NOT_FOUND' ? 'Không tìm thấy máy có mã "' + code + '".' : (d.message || 'Tra cứu thất bại.'), 'err'); return; }
+            setMsg('');
+            renderMachine(d.data);
+        } catch (e) { setMsg('Lỗi kết nối, vui lòng thử lại.', 'err'); }
+    }
+
+    function renderMachine(m) {
+        const open = m.OpenBroken;
+        const kv = (k, v) => v ? `<div class="tpm-kv"><span>${k}</span><span>${esc(v)}</span></div>` : '';
+        let action;
+        if (open) {
+            action = `<div class="tpm-notice">Máy này đang có phiếu báo hư: <b>${esc(STATUS_LABEL[open.Status] || open.Status)}</b> (báo lúc ${fmt(open.ReportedAt)}). Không cần báo lại.</div>`;
+        } else {
+            action = `<label class="mb-1" style="font-weight:700;font-size:.9rem">Mô tả lỗi</label>
+                <textarea class="tpm-input" id="tpmDesc" maxlength="250" placeholder="VD: máy không chạy, có tiếng kêu lạ..."></textarea>
+                <button type="button" class="tpm-btn primary mt-2" id="btnReport">Báo máy hư</button>`;
+        }
+        $('tpmResult').innerHTML = `<div class="tpm-card">
+            <div class="tpm-code">${esc(m.ItemCode)}</div>
+            <div class="tpm-name mb-2">${esc(m.NameEn)}</div>
+            ${kv('Trạng thái', m.StatusNmVn || m.StatusCd)}
+            ${kv('Vị trí', m.LocationPath)}
+            ${kv('Quy cách', m.Specification)}
+            ${kv('Số serial', m.SerialNo)}
+            ${kv('Mã tài sản', m.FaCode)}
+        </div><div class="tpm-card" id="tpmAction">${action}</div>`;
+        const btn = $('btnReport');
+        if (btn) btn.onclick = () => report(m.ItemCode);
+        $('tpmResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    async function report(itemCode) {
+        const desc = ($('tpmDesc').value || '').trim();
+        if (!desc) { toast('Vui lòng mô tả lỗi', 'error'); return; }
+        if (!confirm('Xác nhận báo máy ' + itemCode + ' bị hư?')) return;
+        const btn = $('btnReport'); btn.disabled = true;
+        try {
+            const r = await fetch(URL_REPORT, { method:'POST', headers:{'Content-Type':'application/json','RequestVerificationToken':TOKEN},
+                body: JSON.stringify({ itemCode, description: desc }) });
+            const d = await r.json();
+            if (!d.success) {
+                btn.disabled = false;
+                toast(d.code === 'BROKEN_ALREADY_OPEN' ? 'Máy này đang có báo hư chưa xử lý xong.' : (d.message || 'Báo hư thất bại'), 'error');
+                return;
+            }
+            const names = (d.suggestedAreaUserNms || []);
+            $('tpmAction').innerHTML = `<div class="tpm-ok"><b>Đã ghi nhận báo hư.</b> Bảo trì sẽ nhận và xử lý.` +
+                (names.length ? `<br>Có thể báo trực tiếp cho: ${esc(names.join(', '))}.` : '') +
+                `</div><a class="tpm-link" href="${URL_HISTORY}">Xem lịch sử báo hư</a>`;
+            toast('Đã ghi nhận báo hư', 'success');
+        } catch (e) { btn.disabled = false; toast('Lỗi kết nối', 'error'); }
+    }
+
+    $('btnLive').onclick = startLive;
+    window.addEventListener('pagehide', stopLive);
+    $('btnManual').onclick = () => lookup($('tpmManual').value);
+    $('tpmManual').addEventListener('keydown', e => { if (e.key === 'Enter') lookup(e.target.value); });
+})();
+</script>
+}

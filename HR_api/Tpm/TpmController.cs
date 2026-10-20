@@ -42,10 +42,11 @@ public class TpmController : ControllerBase
             ItemCode = body!.ItemCode,
             Description = body.Description,
             EmpCd = emp.EmpCd,
-            Name = emp.Name,
-            DeptCd = emp.DeptCd, DeptNm = emp.DeptNm,
-            LineCd = emp.LineCd, LineNm = emp.LineNm,
-            WorkCd = emp.WorkCd, WorkNm = emp.WorkNm,
+            // Tên/bộ phận trong HR lưu bảng mã VNI -> đổi sang Unicode cho TPM (không có font VNI).
+            Name = VniConverter.ToUnicode(emp.Name),
+            DeptCd = emp.DeptCd, DeptNm = VniConverter.ToUnicode(emp.DeptNm),
+            LineCd = emp.LineCd, LineNm = VniConverter.ToUnicode(emp.LineNm),
+            WorkCd = emp.WorkCd, WorkNm = VniConverter.ToUnicode(emp.WorkNm),
         }));
     }
 

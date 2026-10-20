@@ -188,7 +188,8 @@
             }
             const names = (d.suggestedAreaUserNms || []);
             $('tpmAction').innerHTML = `<div class="tpm-ok"><b>Đã ghi nhận báo hư.</b> Bảo trì sẽ nhận và xử lý.` +
-                (names.length ? `<br>Có thể báo trực tiếp cho: ${esc(names.join(', '))}.` : '') +
+                // Máy chưa gán người phụ trách khu vực thì API trả cả nhóm bảo trì chung (có thể >10 người) -> chỉ hiện 3 người đầu.
+                (names.length ? `<br>Có thể báo trực tiếp cho: ${esc(names.slice(0, 3).join(', '))}${names.length > 3 ? ' và ' + (names.length - 3) + ' người khác' : ''}.` : '') +
                 `</div><a class="tpm-link" href="${URL_HISTORY}">Xem lịch sử báo hư</a>`;
             toast('Đã ghi nhận báo hư', 'success');
         } catch (e) { btn.disabled = false; toast('Lỗi kết nối', 'error'); }

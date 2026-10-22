@@ -189,6 +189,10 @@ const CONFIRM_URL = '@Url.Action("ManagerConfirm", "AttendanceConfirm")';
 const REQUEST_URL = '@Url.Action("RequestConfirm", "AttendanceConfirm")';
 const SUPP_PENDING_URL = '@Url.Action("GetSuppPendingOt")';
 const CSRF_TOKEN  = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+window.ATT_LOG_URL = '@Url.Action("GetLog", "AttendanceConfirm")';
+$(document).on('click', '.att-log-btn', function () {
+    showAttLogPopup(this.dataset.empcd, this.dataset.workdate, this.dataset.empname);
+});
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 let canConfirmGlobal = false; // Admin/HR always false — only the manager in scope can Confirm
@@ -356,7 +360,9 @@ function buildRow(item, idx) {
             ${shiftInfo ? `<div class="text-xxs text-secondary">Shift: ${shiftInfo}</div>` : ''}
             ${otBadge ? `<div>${otBadge}</div>` : ''}
         </td>
-        <td><span class="att-status-badge" style="background:${STATUS_COLOR[status]}22;color:${STATUS_COLOR[status]};">${STATUS_LABEL[status] || status}</span></td>
+        <td><span class="att-status-badge" style="background:${STATUS_COLOR[status]}22;color:${STATUS_COLOR[status]};">${STATUS_LABEL[status] || status}</span>
+            ${status !== 'MISSING' ? `<button type="button" class="btn btn-xs btn-link p-0 ms-1 att-log-btn" data-empcd="${escHtml(item.EMPCD)}" data-workdate="${escHtml(item.WORK_DATE)}" data-empname="${escHtml(item.EMP_NAME)}" title="Change history" onclick="event.stopPropagation();"><i class="bi bi-clock-history"></i></button>` : ''}
+        </td>
         <td class="text-xs">
             ${item.WORKER_TIME_IN ? `Emp: ${item.WORKER_TIME_IN} → ${item.WORKER_TIME_OUT || '--:--'}<br>` : ''}
             ${item.CONFIRM_TIME_IN ? `<span class="text-success">Final: ${item.CONFIRM_TIME_IN} → ${item.CONFIRM_TIME_OUT || '--:--'}</span>` : ''}

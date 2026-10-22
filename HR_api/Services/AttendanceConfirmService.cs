@@ -1053,4 +1053,43 @@ public class AttendanceConfirmService
 
     private static AttendanceConfirmActionResult Fail(string empcd, string? workDate, string message)
         => new() { EMPCD = empcd, WORK_DATE = workDate, OK = false, MESSAGE = message };
+
+    // Lịch sử đổi CONFIRM_STATUS (HR_ATT_CONFIRM_LOG) cho 1 NV/1 ngày — mirror OTController.GetOtLog.
+    // callerEmpCd đã được xác định quyền (Admin/HR/Clerk đúng scope) ở controller trước khi gọi.
+    public async Task<List<AttConfirmLogEntry>> GetLogAsync(string empcd, DateTime workDate)
+    {
+        return await _oracleService.ExecuteQueryAsync(
+            @"SELECT L.ACTION, L.OLD_STATUS, L.NEW_STATUS, L.DETAIL, L.ACTOR_EMPCD, L.INST_DT,
+                     EC.CNAME ACTOR_NAME
+              FROM HRMS.HR_ATT_CONFIRM_LOG L
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = L.ACTOR_EMPCD
+              WHERE L.EMPCD = :EMPCD AND L.WORK_DATE = :WORK_DATE
+              ORDER BY L.INST_DT, L.ID",
+            r => new AttConfirmLogEntry
+            {
+                ACTION      = r["ACTION"]?.ToString() ?? "",
+                OLD_STATUS  = r["OLD_STATUS"] == DBNull.Value ? null : r["OLD_STATUS"]?.ToString(),
+                NEW_STATUS  = r["NEW_STATUS"] == DBNull.Value ? null : r["NEW_STATUS"]?.ToString(),
+                DETAIL      = r["DETAIL"] == DBNull.Value ? null : r["DETAIL"]?.ToString(),
+                ACTOR_EMPCD = r["ACTOR_EMPCD"] == DBNull.Value ? null : r["ACTOR_EMPCD"]?.ToString(),
+                ACTOR_NAME  = r["ACTOR_NAME"] == DBNull.Value ? null : r["ACTOR_NAME"]?.ToString(),
+                INST_DT     = Convert.ToDateTime(r["INST_DT"])
+            },
+            new OracleParameter("EMPCD", empcd),
+            new OracleParameter("WORK_DATE", workDate));
+    }
+
+    // Clerk/Supervisor/Manager chỉ xem log của NV thuộc đúng scope (DEPTCD,LINECD,WORKCD) của mình.
+    public async Task<bool> IsInCallerScopeAsync(string callerEmpCd, string targetEmpCd)
+    {
+        var scopeFilter = Helpers.OTScopeFilterHelper.ForScopeByTuple(callerEmpCd, prefix: "LOGSC");
+        var rows = await _oracleService.ExecuteQueryAsync(
+            $@"SELECT COUNT(*) CNT FROM HRMS.ECM100 EC
+              WHERE EC.EMPCD = :TARGET
+                {scopeFilter.SqlClause}
+                AND ROWNUM = 1",
+            r => Convert.ToInt32(r["CNT"]),
+            new[] { new OracleParameter("TARGET", targetEmpCd) }.Concat(scopeFilter.Params).ToArray());
+        return rows.FirstOrDefault() > 0;
+    }
 }

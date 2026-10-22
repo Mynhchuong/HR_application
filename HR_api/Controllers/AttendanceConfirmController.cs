@@ -211,4 +211,31 @@ public class AttendanceConfirmController : ControllerBase
             return Ok(new AttendanceConfirmResponse { success = false, message = ex.Message });
         }
     }
+
+    // GET /apiHR/AttendanceConfirm/log?empcd=&work_date=&caller_empcd= — lịch sử đổi
+    // CONFIRM_STATUS (HR_ATT_CONFIRM_LOG) cho 1 NV/1 ngày, mirror OTController.GetOtLog.
+    [HttpGet("log")]
+    public async Task<IActionResult> GetLog(string empcd, string work_date, string? caller_empcd = null)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd) ||
+                !DateTime.TryParseExact(work_date, "yyyy-MM-dd", null,
+                    System.Globalization.DateTimeStyles.None, out var workDate))
+                return Ok(new { success = false, message = "Thiếu empcd hoặc work_date không hợp lệ" });
+
+            bool allowed = await _svc.IsAdminOrHRAsync(caller_empcd);
+            if (!allowed && !string.IsNullOrEmpty(caller_empcd))
+                allowed = await _svc.IsInCallerScopeAsync(caller_empcd, empcd);
+            if (!allowed)
+                return Ok(new { success = false, message = "Bạn không có quyền xem lịch sử này" });
+
+            var list = await _svc.GetLogAsync(empcd, workDate);
+            return Ok(new { success = true, data = list });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
 }

@@ -90,6 +90,24 @@ public class AttendanceConfirmService
         catch (Exception ex) { return new MyDayResponse { success = false, message = ex.Message }; }
     }
 
+    public async Task<AttConfirmLogResponse> GetLogAsync(string empcd, string workDate, string? callerEmpcd = null)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(empcd) || string.IsNullOrEmpty(workDate))
+                return new AttConfirmLogResponse { success = false, message = "Thiếu empcd hoặc work_date" };
+
+            var q = $"empcd={Uri.EscapeDataString(empcd)}&work_date={Uri.EscapeDataString(workDate)}";
+            if (!string.IsNullOrEmpty(callerEmpcd)) q += $"&caller_empcd={Uri.EscapeDataString(callerEmpcd)}";
+            var result = await _api.GetAsync<AttConfirmLogResponse>("attendanceconfirm/log", q);
+            return result ?? new AttConfirmLogResponse { success = false, message = "Lỗi kết nối API" };
+        }
+        catch (Exception ex)
+        {
+            return new AttConfirmLogResponse { success = false, message = ex.Message };
+        }
+    }
+
     public async Task<SimpleApiResponse> SubmitWorkerAsync(WorkerSubmitRequest req)
     {
         try

@@ -973,6 +973,28 @@ public partial class TrainingAdminController
         }
     }
 
+    // GET /apiHR/TrainingAdmin/audit — xem lại HR_TRAINING_AUDIT (RECOVER_ENROLLMENT,
+    // FORCE_REMOVE_COMPLETED, ...), mirror HomeAdmin/AuditList.
+    [HttpGet("audit")]
+    public async Task<IActionResult> Audit(
+        string login_user, int page = 1, int page_size = 30,
+        string? action = null, string? actor_empcd = null, int? class_id = null,
+        string? date_from = null, string? date_to = null)
+    {
+        if (await RequireHrOrAdminAsync(login_user) is { } authFail) return authFail;
+        try
+        {
+            DateTime? df = DateTime.TryParseExact(date_from, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out var dfv) ? dfv : null;
+            DateTime? dt = DateTime.TryParseExact(date_to, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out var dtv) ? dtv : null;
+            var data = await _enroll.ListAuditAsync(page, page_size, action, actor_empcd, class_id, df, dt);
+            return Ok(new { success = true, data });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     // ─── §14 Reports ───────────────────────────────────────────
 
     // GET /apiHR/TrainingAdmin/report/class/{id} — §14.1

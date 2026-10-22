@@ -170,4 +170,15 @@ public class AttendanceConfirmController : BaseController
     }
 
     public class RequestConfirmTarget { public string EMPCD { get; set; } = ""; public string WORK_DATE { get; set; } = ""; }
+
+    // GET: /AttendanceConfirm/GetLog — lịch sử đổi ý xác nhận chấm công (popup), mirror OT/GetOtLog.
+    [HttpGet]
+    public async Task<IActionResult> GetLog(string empcd, string work_date)
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+            return Json(new { success = false, message = "Chưa đăng nhập" });
+
+        var result = await _svc.GetLogAsync(empcd, work_date, CurrentUser.EmpCd);
+        return Json(result);
+    }
 }

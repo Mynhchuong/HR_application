@@ -1,0 +1,157 @@
+@{
+    ViewData["Title"] = "Lịch sử thao tác đào tạo";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="@Url.Action("Index", "TrainingAdmin")" class="text-decoration-none small">← Quay lại</a>
+            <h4 class="mb-0 mt-1"><i class="bi bi-clock-history me-1"></i> Lịch sử thao tác đào tạo</h4>
+            <p class="text-muted small mb-0">Nhật ký các hành động "force" nhạy cảm — phục hồi học viên đã rời lớp, xóa học viên đã hoàn thành/đã cấp chứng chỉ.</p>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm p-3 mb-3" style="border-radius: 12px;">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold mb-0">Hành động</label>
+                <select id="fAction" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                    <option value="RECOVER_ENROLLMENT">Phục hồi học viên</option>
+                    <option value="FORCE_REMOVE_COMPLETED">Xóa học viên đã hoàn thành</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0">Mã NV thực hiện</label>
+                <input type="text" id="fActor" class="form-control form-control-sm" placeholder="EMPCD" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0">Class ID</label>
+                <input type="number" id="fClassId" class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0">Từ ngày</label>
+                <input type="date" id="fDateFrom" class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-0">Đến ngày</label>
+                <input type="date" id="fDateTo" class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-1">
+                <button type="button" id="btnFilter" class="btn btn-sm btn-dark w-100">Lọc</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm" style="border-radius: 12px;">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="text-xs text-secondary text-uppercase">Thời gian</th>
+                            <th class="text-xs text-secondary text-uppercase">Hành động</th>
+                            <th class="text-xs text-secondary text-uppercase">Lớp</th>
+                            <th class="text-xs text-secondary text-uppercase">Người thực hiện</th>
+                            <th class="text-xs text-secondary text-uppercase">Chi tiết</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditBody">
+                        <tr><td colspan="5" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center px-3 py-2">
+                <div id="auditCount" class="text-sm text-secondary"></div>
+                <nav><ul class="pagination pagination-sm mb-0" id="auditPager"></ul></nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const AUDIT_URL = '@Url.Action("GetAudit")';
+const ACTION_LABEL = {
+    RECOVER_ENROLLMENT: 'Phục hồi học viên (DROPPED → ENROLLED)',
+    FORCE_REMOVE_COMPLETED: 'Xóa học viên đã hoàn thành'
+};
+let page = 1;
+
+function escHtml(s) { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDt(s) { if (!s) return ''; const d = new Date(s); return isNaN(d) ? '' : d.toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
+
+function describe(item) {
+    let payload = {};
+    try { payload = JSON.parse(item.PAYLOAD || '{}'); } catch (e) {}
+    if (item.ACTION === 'RECOVER_ENROLLMENT') return `NV ${escHtml(payload.empcd || '')}`;
+    if (item.ACTION === 'FORCE_REMOVE_COMPLETED') return `NV ${escHtml(payload.empcd || '')}${payload.wasCertified ? ' <span class="badge bg-warning text-dark ms-1">Đã có chứng chỉ</span>' : ''}`;
+    return escHtml(item.PAYLOAD || '');
+}
+
+function load(p) {
+    page = p || 1;
+    const body = document.getElementById('auditBody');
+    body.innerHTML = '<tr><td colspan="5" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>';
+
+    const params = new URLSearchParams({ page, pageSize: 30 });
+    const action = document.getElementById('fAction').value;
+    const actor  = document.getElementById('fActor').value.trim();
+    const classId = document.getElementById('fClassId').value.trim();
+    const dateFrom = document.getElementById('fDateFrom').value;
+    const dateTo   = document.getElementById('fDateTo').value;
+    if (action) params.set('action', action);
+    if (actor)  params.set('actor', actor);
+    if (classId) params.set('classId', classId);
+    if (dateFrom) params.set('dateFrom', dateFrom);
+    if (dateTo)   params.set('dateTo', dateTo);
+
+    fetch(AUDIT_URL + '?' + params.toString())
+        .then(r => r.json())
+        .then(json => {
+            if (!json.success) {
+                body.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">${escHtml(json.message || 'Lỗi tải dữ liệu')}</td></tr>`;
+                document.getElementById('auditPager').innerHTML = '';
+                document.getElementById('auditCount').innerText = '';
+                return;
+            }
+            const data = json.data || {};
+            const items = data.DATA || [];
+            if (items.length === 0) {
+                body.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">Không có bản ghi nào</td></tr>';
+            } else {
+                body.innerHTML = items.map(item => `
+                    <tr>
+                        <td class="text-xs text-nowrap">${fmtDt(item.INST_DT)}</td>
+                        <td class="text-xs"><span class="badge bg-light text-dark border">${escHtml(ACTION_LABEL[item.ACTION] || item.ACTION)}</span></td>
+                        <td class="text-xs">${item.CLASS_NAME ? escHtml(item.CLASS_NAME) + ' (#' + item.CLASS_ID + ')' : (item.CLASS_ID || '-')}</td>
+                        <td class="text-xs"><span class="vni-font">${escHtml(item.ACTOR_NAME || '')}</span> (${escHtml(item.ACTOR_EMPCD || '')})</td>
+                        <td class="text-xs">${describe(item)}</td>
+                    </tr>`).join('');
+            }
+            document.getElementById('auditCount').innerText = `Tổng ${data.TOTAL || 0} bản ghi — trang ${data.PAGE || 1}/${data.TOTAL_PAGES || 1}`;
+            renderPager(data);
+        })
+        .catch(() => {
+            body.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Lỗi kết nối</td></tr>';
+        });
+}
+
+function renderPager(data) {
+    const total = data.TOTAL_PAGES || 1;
+    const cur = data.PAGE || 1;
+    const pager = document.getElementById('auditPager');
+    if (total <= 1) { pager.innerHTML = ''; return; }
+    let html = '';
+    html += `<li class="page-item ${cur<=1?'disabled':''}"><a class="page-link" href="javascript:void(0)" onclick="load(${cur-1})">‹</a></li>`;
+    const start = Math.max(1, cur-2), end = Math.min(total, cur+2);
+    for (let i = start; i <= end; i++)
+        html += `<li class="page-item ${i===cur?'active':''}"><a class="page-link" href="javascript:void(0)" onclick="load(${i})">${i}</a></li>`;
+    html += `<li class="page-item ${cur>=total?'disabled':''}"><a class="page-link" href="javascript:void(0)" onclick="load(${cur+1})">›</a></li>`;
+    pager.innerHTML = html;
+}
+
+document.getElementById('btnFilter').addEventListener('click', () => load(1));
+load(1);
+</script>
+}

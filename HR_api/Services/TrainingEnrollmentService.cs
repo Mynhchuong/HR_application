@@ -708,4 +708,96 @@ public class TrainingEnrollmentService
                 new OracleParameter("USR", req.LOGIN_USER));
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  AUDIT — xem lại lịch sử các hành động force (RECOVER_ENROLLMENT,
+    //  FORCE_REMOVE_COMPLETED, ...) ghi trong HR_TRAINING_AUDIT, mirror HomeAdminService.ListAuditAsync.
+    // ═══════════════════════════════════════════════════════════════
+    public async Task<TrainingAuditPage> ListAuditAsync(int page, int pageSize,
+        string? action = null, string? actorEmpcd = null, int? classId = null,
+        DateTime? dateFrom = null, DateTime? dateTo = null)
+    {
+        page     = page     <= 0 ? 1 : page;
+        pageSize = pageSize <= 0 ? 30 : Math.Min(pageSize, 200);
+        int offset = (page - 1) * pageSize;
+        int maxRn  = offset + pageSize;
+
+        string where = "WHERE 1=1";
+        var ps = new List<OracleParameter>();
+        if (!string.IsNullOrEmpty(action))
+        {
+            where += " AND A.ACTION = :ACTION";
+            ps.Add(new OracleParameter("ACTION", action));
+        }
+        if (!string.IsNullOrEmpty(actorEmpcd))
+        {
+            where += " AND A.ACTOR_EMPCD = :ACTOR_EMPCD";
+            ps.Add(new OracleParameter("ACTOR_EMPCD", actorEmpcd));
+        }
+        if (classId.HasValue)
+        {
+            where += " AND A.CLASS_ID = :CLASS_ID";
+            ps.Add(new OracleParameter("CLASS_ID", classId.Value));
+        }
+        if (dateFrom.HasValue)
+        {
+            where += " AND A.INST_DT >= :DATE_FROM";
+            ps.Add(new OracleParameter("DATE_FROM", dateFrom.Value));
+        }
+        if (dateTo.HasValue)
+        {
+            where += " AND A.INST_DT < :DATE_TO + 1";
+            ps.Add(new OracleParameter("DATE_TO", dateTo.Value));
+        }
+
+        string sqlCount = $"SELECT COUNT(*) CNT FROM HRMS.HR_TRAINING_AUDIT A {where}";
+        var totalRows = await _db.ExecuteQueryAsync(sqlCount,
+            r => Convert.ToInt32(r["CNT"]),
+            ps.Select(p => (OracleParameter)p.Clone()).ToArray());
+        int total = totalRows.FirstOrDefault();
+
+        if (total == 0)
+            return new TrainingAuditPage { PAGE = page, PAGE_SIZE = pageSize, TOTAL = 0, TOTAL_PAGES = 0 };
+
+        string sqlData = $@"
+            SELECT * FROM (
+                SELECT T.*, ROW_NUMBER() OVER (ORDER BY INST_DT DESC, ID DESC) RN
+                FROM (
+                    SELECT A.ID, A.ACTION, A.CLASS_ID, CL.CLASS_NAME, A.SESSION_ID, A.TEST_ID,
+                           A.AFFECTED_COUNT, A.PAYLOAD, A.ACTOR_EMPCD, EC.CNAME ACTOR_NAME, A.INST_DT
+                    FROM HRMS.HR_TRAINING_AUDIT A
+                    LEFT JOIN HRMS.HR_TRAINING_CLASS CL ON CL.ID = A.CLASS_ID
+                    LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = A.ACTOR_EMPCD
+                    {where}
+                ) T
+            ) WHERE RN > :OFFSET AND RN <= :MAX_RN";
+
+        var dataPs = ps.Select(p => (OracleParameter)p.Clone()).ToList();
+        dataPs.Add(new OracleParameter("OFFSET", offset));
+        dataPs.Add(new OracleParameter("MAX_RN", maxRn));
+
+        var list = await _db.ExecuteQueryAsync(sqlData, r => new TrainingAuditItem
+        {
+            ID             = Convert.ToInt32(r["ID"]),
+            ACTION         = r["ACTION"]?.ToString() ?? "",
+            CLASS_ID       = r["CLASS_ID"] == DBNull.Value ? null : Convert.ToInt32(r["CLASS_ID"]),
+            CLASS_NAME     = r["CLASS_NAME"] == DBNull.Value ? null : r["CLASS_NAME"]?.ToString(),
+            SESSION_ID     = r["SESSION_ID"] == DBNull.Value ? null : Convert.ToInt32(r["SESSION_ID"]),
+            TEST_ID        = r["TEST_ID"] == DBNull.Value ? null : Convert.ToInt32(r["TEST_ID"]),
+            AFFECTED_COUNT = r["AFFECTED_COUNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["AFFECTED_COUNT"]),
+            PAYLOAD        = r["PAYLOAD"] == DBNull.Value ? null : r["PAYLOAD"]?.ToString(),
+            ACTOR_EMPCD    = r["ACTOR_EMPCD"]?.ToString() ?? "",
+            ACTOR_NAME     = r["ACTOR_NAME"] == DBNull.Value ? null : r["ACTOR_NAME"]?.ToString(),
+            INST_DT        = Convert.ToDateTime(r["INST_DT"])
+        }, dataPs.ToArray());
+
+        return new TrainingAuditPage
+        {
+            DATA        = list,
+            TOTAL       = total,
+            PAGE        = page,
+            PAGE_SIZE   = pageSize,
+            TOTAL_PAGES = (int)Math.Ceiling(total / (double)pageSize)
+        };
+    }
 }

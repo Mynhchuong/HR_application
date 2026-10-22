@@ -177,3 +177,14 @@ public class AttendanceConfirmResponse
     public int     failed    { get; set; }
     public List<AttendanceConfirmActionResult> results { get; set; } = new();
 }
+
+public class AttConfirmLogEntry
+{
+    public string  ACTION      { get; set; } = string.Empty;
+    public string? OLD_STATUS  { get; set; }
+    public string? NEW_STATUS  { get; set; }
+    public string? DETAIL      { get; set; }
+    public string? ACTOR_EMPCD { get; set; }
+    public string? ACTOR_NAME  { get; set; }
+    public DateTime INST_DT    { get; set; }
+}

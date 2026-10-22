@@ -19,6 +19,8 @@ public class TrainingAdminController : BaseController
     // GET /TrainingAdmin/Index
     public IActionResult Index()
     {
+        // Chỉ Admin/HR thấy nút "Lịch sử thao tác" (HR_TRAINING_AUDIT) — CSR không có quyền vào Audit().
+        ViewBag.IsAdminOrHr = CurrentUser?.RoleName is "Admin" or "HR";
         return View();
     }
 
@@ -62,6 +64,31 @@ public class TrainingAdminController : BaseController
     public IActionResult Certificates()
     {
         return View();
+    }
+
+    // GET /TrainingAdmin/Audit — xem lịch sử các hành động force (RECOVER_ENROLLMENT,
+    // FORCE_REMOVE_COMPLETED, ...) trong HR_TRAINING_AUDIT, mirror HomeAdmin/Audit.
+    [Authorize(Roles = "Admin,HR")]
+    public IActionResult Audit()
+    {
+        return View();
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Admin,HR")]
+    public async Task<IActionResult> GetAudit(
+        int page = 1, int pageSize = 30, string? action = null, string? actor = null,
+        int? classId = null, string? dateFrom = null, string? dateTo = null)
+    {
+        var q = $"login_user={Uri.EscapeDataString(CurrentUser?.EmpCd ?? "")}&page={page}&page_size={pageSize}";
+        if (!string.IsNullOrEmpty(action))   q += $"&action={Uri.EscapeDataString(action)}";
+        if (!string.IsNullOrEmpty(actor))    q += $"&actor_empcd={Uri.EscapeDataString(actor)}";
+        if (classId.HasValue)                q += $"&class_id={classId.Value}";
+        if (!string.IsNullOrEmpty(dateFrom)) q += $"&date_from={dateFrom}";
+        if (!string.IsNullOrEmpty(dateTo))   q += $"&date_to={dateTo}";
+
+        var result = await _training.GetFromApiAsync<TrainingAuditResponse>("TrainingAdmin/audit", q);
+        return Json(result ?? new TrainingAuditResponse { success = false, message = "Lỗi kết nối API" });
     }
 
     // GET /TrainingAdmin/ClassAssign/{id}

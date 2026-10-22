@@ -2,6 +2,7 @@
     ViewData["Title"] = "Quản lý Đào tạo";
     Layout = "~/Views/Shared/_Layout.cshtml";
     var empCd = ViewBag.EmpCd as string;
+    var isAdminOrHr = ViewBag.IsAdminOrHr as bool? ?? false;
 }
 
 <div class="container-fluid py-4">
@@ -31,6 +32,15 @@
                                 Quản lý Khóa học
                             </button>
                         </li>
+                        @if (isAdminOrHr)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link py-3 fw-bold border-0 d-flex align-items-center justify-content-center gap-2 text-secondary" href="@Url.Action("Audit", "TrainingAdmin")">
+                                    <i class="bi bi-clock-history"></i>
+                                    Lịch sử thao tác
+                                </a>
+                            </li>
+                        }
                     </ul>
                 </div>
             </div>

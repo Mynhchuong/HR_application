@@ -245,6 +245,10 @@ const HR_REDO_URL = '@Url.Action("HrRequestRedo")';
 const CSRF_TOKEN  = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
 const IS_ADMIN_OR_HR = @Html.Raw(ViewBag.IsAdminOrHr == true ? "true" : "false");
+window.ATT_LOG_URL = '@Url.Action("GetLog")';
+$(document).on('click', '.att-log-btn', function () {
+    showAttLogPopup(this.dataset.empcd, this.dataset.workdate, this.dataset.empname);
+});
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 let canConfirmGlobal = false; // Admin/HR luôn false — chỉ quản lý đúng scope mới bấm Xác nhận được
@@ -432,7 +436,9 @@ function buildRow(item, idx) {
             ${shiftInfo ? `<div class="text-xxs text-secondary">Ca: ${shiftInfo}</div>` : ''}
             ${otBadge ? `<div>${otBadge}</div>` : ''}
         </td>
-        <td><span class="att-status-badge" style="background:${STATUS_COLOR[status]}22;color:${STATUS_COLOR[status]};">${STATUS_LABEL[status] || status}</span></td>
+        <td><span class="att-status-badge" style="background:${STATUS_COLOR[status]}22;color:${STATUS_COLOR[status]};">${STATUS_LABEL[status] || status}</span>
+            ${status !== 'MISSING' ? `<button type="button" class="btn btn-xs btn-link p-0 ms-1 att-log-btn" data-empcd="${escHtml(item.EMPCD)}" data-workdate="${escHtml(item.WORK_DATE)}" data-empname="${escHtml(item.EMP_NAME)}" title="Lịch sử đổi ý" onclick="event.stopPropagation();"><i class="bi bi-clock-history"></i></button>` : ''}
+        </td>
         <td class="text-xs">
             ${item.WORKER_TIME_IN ? `NV: ${item.WORKER_TIME_IN} → ${item.WORKER_TIME_OUT || '--:--'}<br>` : ''}
             ${item.CONFIRM_TIME_IN ? `<span class="text-success">Chốt: ${item.CONFIRM_TIME_IN} → ${item.CONFIRM_TIME_OUT || '--:--'}</span>` : ''}

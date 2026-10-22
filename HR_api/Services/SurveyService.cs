@@ -82,22 +82,28 @@ public class SurveyService
         if (respStatus is "SUBMITTED" or "AUTO_SUBMITTED" or "ILLITERATE_SKIP")
             return (survey, null, "Bạn đã hoàn thành survey này");
 
-        // Questions + options (KHÔNG trả IS_CORRECT cho user)
+        // Questions + options (KHÔNG trả IS_CORRECT cho user). LEFT JOIN HR_SURVEY_PERSONAL_DATA
+        // theo (SURVEY_ID, EMPCD, QUESTION_ID) để lấy giá trị RIÊNG của NV này cho câu
+        // CONFIRM_PERSONAL — null nếu HR quên điền (FE tự chuyển thành ô nhập tự do).
         const string sqlQ = @"
-            SELECT ID, SURVEY_ID, QUESTION_TEXT, QUESTION_TYPE, IS_REQUIRED, DISPLAY_ORDER, POINTS
-              FROM HRMS.HR_SURVEY_QUESTION
-             WHERE SURVEY_ID = :SID
-             ORDER BY DISPLAY_ORDER, ID";
+            SELECT Q.ID, Q.SURVEY_ID, Q.QUESTION_TEXT, Q.QUESTION_TYPE, Q.IS_REQUIRED, Q.DISPLAY_ORDER, Q.POINTS,
+                   PD.FIELD_VALUE AS PERSONAL_VALUE
+              FROM HRMS.HR_SURVEY_QUESTION Q
+              LEFT JOIN HRMS.HR_SURVEY_PERSONAL_DATA PD
+                     ON PD.SURVEY_ID = Q.SURVEY_ID AND PD.QUESTION_ID = Q.ID AND PD.EMPCD = :EMPCD
+             WHERE Q.SURVEY_ID = :SID
+             ORDER BY Q.DISPLAY_ORDER, Q.ID";
         var questions = await _db.ExecuteQueryAsync(sqlQ, r => new SurveyQuestionModel
         {
-            ID            = Convert.ToInt32(r["ID"]),
-            SURVEY_ID     = Convert.ToInt32(r["SURVEY_ID"]),
-            QUESTION_TEXT = r["QUESTION_TEXT"]?.ToString() ?? "",
-            QUESTION_TYPE = r["QUESTION_TYPE"]?.ToString() ?? "SINGLE",
-            IS_REQUIRED   = Convert.ToInt32(r["IS_REQUIRED"]),
-            DISPLAY_ORDER = Convert.ToInt32(r["DISPLAY_ORDER"]),
-            POINTS        = Convert.ToDecimal(r["POINTS"] is DBNull ? 0 : r["POINTS"]),
-        }, new OracleParameter("SID", surveyId));
+            ID             = Convert.ToInt32(r["ID"]),
+            SURVEY_ID      = Convert.ToInt32(r["SURVEY_ID"]),
+            QUESTION_TEXT  = r["QUESTION_TEXT"]?.ToString() ?? "",
+            QUESTION_TYPE  = r["QUESTION_TYPE"]?.ToString() ?? "SINGLE",
+            IS_REQUIRED    = Convert.ToInt32(r["IS_REQUIRED"]),
+            DISPLAY_ORDER  = Convert.ToInt32(r["DISPLAY_ORDER"]),
+            POINTS         = Convert.ToDecimal(r["POINTS"] is DBNull ? 0 : r["POINTS"]),
+            PERSONAL_VALUE = r["PERSONAL_VALUE"] is DBNull ? null : r["PERSONAL_VALUE"].ToString(),
+        }, new OracleParameter("EMPCD", empcd), new OracleParameter("SID", surveyId));
 
         const string sqlO = @"
             SELECT O.ID, O.QUESTION_ID, O.OPTION_TEXT, O.DISPLAY_ORDER

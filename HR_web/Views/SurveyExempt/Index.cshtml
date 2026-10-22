@@ -20,14 +20,14 @@
                 <i class="bi bi-person-x me-2"></i> Danh sách miễn làm Survey (mù chữ / không có smartphone)
             </span>
             <div class="d-flex gap-2">
-                <a href="@Url.Action("Template")" class="btn btn-outline-secondary">
+                <a href="@Url.Action("Template")" download class="btn btn-outline-secondary">
                     <i class="bi bi-file-earmark-arrow-down me-1"></i> Mẫu Excel
                 </a>
                 <button type="button" class="btn btn-outline-primary" id="btnImport">
                     <i class="bi bi-upload me-1"></i> Import
                 </button>
                 <a href="@Url.Action("Export", new { empcd = fEmpcd, type = fType, isActive = fActive, name = fName, deptcd = fDept })"
-                   class="btn btn-outline-success">
+                   download class="btn btn-outline-success">
                     <i class="bi bi-file-earmark-excel me-1"></i> Export
                 </a>
                 <button type="button" class="btn btn-primary" id="btnAdd">

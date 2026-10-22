@@ -254,7 +254,16 @@ public class SurveyAdminService
 
     private async Task ReplaceQuestionsAsync(int surveyId, List<SaveQuestionRequest> questions)
     {
-        // Xoá cũ (option xoá theo cascade thủ công vì không có ON DELETE CASCADE)
+        // Xoá cũ (option + personal-data xoá theo cascade thủ công vì không có ON DELETE CASCADE).
+        // HR_SURVEY_PERSONAL_DATA có FK vào HR_SURVEY_QUESTION (CONFIRM_PERSONAL) — phải xoá TRƯỚC
+        // khi xoá câu hỏi, nếu không sẽ vỡ FK ORA-02292 (lỗi thật gặp khi HR sửa lại survey DRAFT
+        // đã import Excel). HR chỉ sửa được câu hỏi khi còn DRAFT/SCHEDULED (chưa ai trả lời), nên
+        // mất personal-data ở đây là chấp nhận được — HR import lại Excel sau khi sửa xong.
+        await _db.ExecuteNonQueryAsync(@"
+            DELETE FROM HRMS.HR_SURVEY_PERSONAL_DATA
+             WHERE QUESTION_ID IN (SELECT ID FROM HRMS.HR_SURVEY_QUESTION WHERE SURVEY_ID = :SID)",
+            new OracleParameter("SID", surveyId));
+
         await _db.ExecuteNonQueryAsync(@"
             DELETE FROM HRMS.HR_SURVEY_OPTION
              WHERE QUESTION_ID IN (SELECT ID FROM HRMS.HR_SURVEY_QUESTION WHERE SURVEY_ID = :SID)",
@@ -359,6 +368,109 @@ public class SurveyAdminService
     }
 
     // ═══════════════════════════════════════════════════════════════
+    //  Kiểm tra mã NV có tồn tại/đang làm việc không — dùng để báo lại cho HR ngay sau khi đọc file
+    //  Excel "xác nhận thông tin cá nhân" (yêu cầu 2026-10-22): mã nào sai/nghỉ việc phải báo rõ,
+    //  không âm thầm bỏ qua. Chia batch 500 theo đúng pattern BulkDeleteResponseAsync.
+    // ═══════════════════════════════════════════════════════════════
+
+    public async Task<(List<string> Valid, List<string> Invalid)> ValidateEmpcdsAsync(List<string> empcds)
+    {
+        var distinct = empcds.Where(e => !string.IsNullOrWhiteSpace(e)).Select(e => e.Trim()).Distinct().ToList();
+        if (distinct.Count == 0) return (new(), new());
+
+        var found = new HashSet<string>();
+        const int chunkSize = 500;
+        foreach (var chunk in distinct.Chunk(chunkSize))
+        {
+            var inClause = string.Join(",", chunk.Select((_, idx) => $":E{idx}"));
+            var pars = chunk.Select((e, idx) => new OracleParameter($"E{idx}", e)).ToArray();
+            var rows = await _db.ExecuteQueryAsync(
+                $@"SELECT EMPCD FROM HRMS.ECM100
+                    WHERE EMPCD IN ({inClause})
+                      AND (RETDAT IS NULL OR RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))",
+                r => r["EMPCD"]?.ToString() ?? "",
+                pars);
+            foreach (var e in rows) found.Add(e);
+        }
+
+        var valid   = distinct.Where(e => found.Contains(e)).ToList();
+        var invalid = distinct.Where(e => !found.Contains(e)).ToList();
+        return (valid, invalid);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  IMPORT DỮ LIỆU "XÁC NHẬN THÔNG TIN CÁ NHÂN" (yêu cầu 2026-10-22)
+    //  FE đọc file Excel ngay trên trình duyệt, tự build QUESTIONS (1 câu/cột data,
+    //  QUESTION_TYPE=CONFIRM_PERSONAL) + SCOPES (EMPCD_LIST) rồi gọi SaveAsync như bình thường
+    //  (không đổi SaveAsync/ReplaceQuestionsAsync) — hàm này CHỈ lo phần còn lại: lưu giá trị
+    //  riêng từng NV cho từng câu CONFIRM_PERSONAL vừa được tạo, khớp theo DISPLAY_ORDER (values[]
+    //  gửi lên đúng thứ tự cột Excel = đúng thứ tự DISPLAY_ORDER câu hỏi mới tạo ở Save ngay trước).
+    // ═══════════════════════════════════════════════════════════════
+
+    public async Task<(bool ok, string? error, int savedRows)> ImportPersonalDataAsync(ImportPersonalDataRequest req)
+    {
+        // Chỉ cho import khi survey còn DRAFT/SCHEDULED — cùng rule với sửa câu hỏi (ReplaceQuestionsAsync),
+        // tránh ghi dữ liệu cá nhân vào survey đã ACTIVE (NV có thể đã thấy/trả lời câu hỏi đó rồi).
+        var existing = await GetStatusAndLangAsync(req.SURVEY_ID);
+        if (existing == null) return (false, "Không tìm thấy survey", 0);
+        if (existing.Status != "DRAFT" && existing.Status != "SCHEDULED")
+            return (false, $"Không import được dữ liệu cá nhân khi survey ở trạng thái {existing.Status}", 0);
+
+        // Lấy các câu hỏi CONFIRM_PERSONAL theo đúng DISPLAY_ORDER vừa tạo ở Save.
+        var questionIds = await _db.ExecuteQueryAsync(
+            "SELECT ID FROM HRMS.HR_SURVEY_QUESTION WHERE SURVEY_ID = :SID AND QUESTION_TYPE = 'CONFIRM_PERSONAL' ORDER BY DISPLAY_ORDER, ID",
+            r => Convert.ToInt32(r["ID"]),
+            new OracleParameter("SID", req.SURVEY_ID));
+        if (questionIds.Count == 0) return (false, "Survey chưa có câu hỏi CONFIRM_PERSONAL nào", 0);
+
+        // EMPCD phải thuộc scope của chính survey này (scope cũng vừa được build từ cùng file Excel).
+        var scopeEmpcds = (await _db.ExecuteQueryAsync(
+            "SELECT EMPCD FROM HRMS.HR_SURVEY_SCOPE WHERE SURVEY_ID = :SID AND SCOPE_TYPE = 'EMPCD'",
+            r => r["EMPCD"]?.ToString() ?? "",
+            new OracleParameter("SID", req.SURVEY_ID))).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        int saved = 0;
+        await using var scope = await _db.BeginTransactionAsync();
+        try
+        {
+            await _db.ExecuteNonQueryAsync(scope,
+                "DELETE FROM HRMS.HR_SURVEY_PERSONAL_DATA WHERE SURVEY_ID = :SID",
+                new OracleParameter("SID", req.SURVEY_ID));
+
+            foreach (var row in req.ROWS)
+            {
+                var empcd = row.EMPCD?.Trim();
+                if (string.IsNullOrEmpty(empcd) || !scopeEmpcds.Contains(empcd)) continue;
+
+                for (int i = 0; i < questionIds.Count && i < row.VALUES.Count; i++)
+                {
+                    var val = row.VALUES[i]?.Trim();
+                    if (string.IsNullOrEmpty(val)) continue;   // ô trống -> NV đó tự khai, không lưu gì
+
+                    const string sqlIns = @"
+                        INSERT INTO HRMS.HR_SURVEY_PERSONAL_DATA (SURVEY_ID, EMPCD, QUESTION_ID, FIELD_VALUE, INST_DT)
+                        VALUES (:SID, :EMP, :QID, :VAL, SYSDATE)";
+                    await _db.ExecuteNonQueryAsync(scope, sqlIns,
+                        new OracleParameter("SID", req.SURVEY_ID),
+                        new OracleParameter("EMP", empcd),
+                        new OracleParameter("QID", questionIds[i]),
+                        new OracleParameter("VAL", OracleDbType.NVarchar2) { Value = val });
+                    saved++;
+                }
+            }
+
+            await scope.CommitAsync();
+        }
+        catch
+        {
+            await scope.RollbackAsync();
+            throw;
+        }
+
+        return (true, null, saved);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     //  STATE MACHINE
     // ═══════════════════════════════════════════════════════════════
 
@@ -432,15 +544,16 @@ public class SurveyAdminService
         if (s.Type == "QUIZ" && s.PassScore == null) return "QUIZ cần nhập PASS_SCORE";
         if (s.Mode != "ALL" && s.ScCount == 0) return "Mode " + s.Mode + " nhưng chưa có scope row";
 
-        // QUIZ không được có câu hỏi tự luận (TEXT) hoặc rating vì không chấm điểm được.
+        // QUIZ không được có câu hỏi tự luận (TEXT), rating, hoặc xác nhận thông tin cá nhân —
+        // vì không chấm điểm được.
         if (s.Type == "QUIZ")
         {
             var badRows = await _db.ExecuteQueryAsync(
-                "SELECT COUNT(*) C FROM HRMS.HR_SURVEY_QUESTION WHERE SURVEY_ID = :ID AND QUESTION_TYPE IN ('TEXT','RATING')",
+                "SELECT COUNT(*) C FROM HRMS.HR_SURVEY_QUESTION WHERE SURVEY_ID = :ID AND QUESTION_TYPE IN ('TEXT','RATING','CONFIRM_PERSONAL')",
                 r => Convert.ToInt32(r["C"]),
                 new OracleParameter("ID", surveyId));
             if (badRows.FirstOrDefault() > 0)
-                return "QUIZ không cho phép câu hỏi loại TEXT (tự luận) hoặc RATING — vì không chấm điểm được";
+                return "QUIZ không cho phép câu hỏi loại TEXT (tự luận), RATING hoặc Xác nhận thông tin cá nhân — vì không chấm điểm được";
         }
         return null;
     }

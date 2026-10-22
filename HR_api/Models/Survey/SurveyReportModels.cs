@@ -146,3 +146,15 @@ public class SurveyFullAnswerRecordModel
     public int       QUESTION_ID { get; set; }
     public string?   ANSWER_TEXT { get; set; }
 }
+
+// Sheet "Cần cập nhật" — NV báo SAI thông tin cá nhân (câu CONFIRM_PERSONAL), hoặc tự khai do
+// HR quên điền dữ liệu gốc. Dùng cho ReportExport (yêu cầu 2026-10-22).
+public class SurveyPersonalDataUpdateModel
+{
+    public string  EMPCD         { get; set; } = "";
+    public string?  FULL_NAME    { get; set; }
+    public string  QUESTION_TEXT { get; set; } = "";
+    public string? OLD_VALUE     { get; set; }   // HR đã import từ Excel, null nếu thiếu
+    public string? NEW_VALUE     { get; set; }   // NV khai (sửa lại hoặc tự nhập)
+    public string  KIND          { get; set; } = "";   // "Báo sai" | "Tự khai do thiếu dữ liệu"
+}

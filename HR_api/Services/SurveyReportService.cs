@@ -660,4 +660,36 @@ public class SurveyReportService
             };
         }, new OracleParameter("SID", surveyId));
     }
+
+    // Sheet "Cần cập nhật" (yêu cầu 2026-10-22) — NV báo SAI thông tin cá nhân (ANSWER_NUMBER=2),
+    // hoặc tự khai do HR quên điền dữ liệu gốc (ANSWER_NUMBER=3). ANSWER_NUMBER=1 (xác nhận Đúng)
+    // không cần HR xử lý gì nên không liệt kê.
+    public async Task<List<SurveyPersonalDataUpdateModel>> GetPersonalDataUpdatesAsync(int surveyId)
+    {
+        const string sql = @"
+            SELECT R.EMPCD, EC.CNAME AS FULL_NAME, Q.QUESTION_TEXT,
+                   PD.FIELD_VALUE AS OLD_VALUE,
+                   DBMS_LOB.SUBSTR(A.ANSWER_TEXT, 4000, 1) AS NEW_VALUE,
+                   A.ANSWER_NUMBER
+              FROM HRMS.HR_SURVEY_RESPONSE R
+              JOIN HRMS.HR_SURVEY_ANSWER   A ON A.RESPONSE_ID = R.ID
+              JOIN HRMS.HR_SURVEY_QUESTION Q ON Q.ID = A.QUESTION_ID
+              LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = R.EMPCD
+              LEFT JOIN HRMS.HR_SURVEY_PERSONAL_DATA PD
+                     ON PD.SURVEY_ID = R.SURVEY_ID AND PD.EMPCD = R.EMPCD AND PD.QUESTION_ID = Q.ID
+             WHERE R.SURVEY_ID = :SID
+               AND Q.QUESTION_TYPE = 'CONFIRM_PERSONAL'
+               AND A.ANSWER_NUMBER IN (2, 3)
+             ORDER BY R.EMPCD, Q.DISPLAY_ORDER";
+
+        return await _db.ExecuteQueryAsync(sql, r => new SurveyPersonalDataUpdateModel
+        {
+            EMPCD         = r["EMPCD"]?.ToString() ?? "",
+            FULL_NAME     = r["FULL_NAME"] as string,
+            QUESTION_TEXT = r["QUESTION_TEXT"]?.ToString() ?? "",
+            OLD_VALUE     = r["OLD_VALUE"] as string,
+            NEW_VALUE     = r["NEW_VALUE"] is DBNull ? null : r["NEW_VALUE"].ToString(),
+            KIND          = Convert.ToInt32(r["ANSWER_NUMBER"]) == 2 ? "Báo sai" : "Tự khai do thiếu dữ liệu",
+        }, new OracleParameter("SID", surveyId));
+    }
 }

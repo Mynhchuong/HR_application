@@ -38,11 +38,14 @@ public class SurveyQuestionModel
     public int     ID            { get; set; }
     public int     SURVEY_ID     { get; set; }
     public string  QUESTION_TEXT { get; set; } = "";
-    public string  QUESTION_TYPE { get; set; } = "SINGLE";  // SINGLE|MULTI|YESNO|RATING|TEXT|DROPDOWN
+    public string  QUESTION_TYPE { get; set; } = "SINGLE";  // SINGLE|MULTI|YESNO|RATING|TEXT|DROPDOWN|CONFIRM_PERSONAL
     public int     IS_REQUIRED   { get; set; } = 1;
     public int     DISPLAY_ORDER { get; set; }
     public decimal POINTS        { get; set; }
     public List<SurveyOptionModel> OPTIONS { get; set; } = new();
+    // Chỉ dùng cho QUESTION_TYPE=CONFIRM_PERSONAL — giá trị RIÊNG của từng NV đang xem (từ
+    // HR_SURVEY_PERSONAL_DATA, HR import Excel). Null nếu HR quên điền cho NV đó.
+    public string? PERSONAL_VALUE { get; set; }
 }
 
 public class SurveyOptionModel
@@ -211,4 +214,23 @@ public class DeleteExemptRequest
     public string EMPCD       { get; set; } = "";
     public string EXEMPT_TYPE { get; set; } = "";
     public string? LOGIN_USER { get; set; }
+}
+
+// Import dữ liệu "xác nhận thông tin cá nhân" từ Excel — mỗi dòng 1 NV, values theo đúng thứ tự
+// cột (= thứ tự DISPLAY_ORDER của các câu hỏi CONFIRM_PERSONAL vừa được Save tạo ra).
+public class ImportPersonalDataRequest
+{
+    public int                         SURVEY_ID  { get; set; }
+    public List<PersonalDataRowRequest> ROWS      { get; set; } = new();
+}
+
+public class ValidateEmpcdsRequest
+{
+    public List<string> EMPCDS { get; set; } = new();
+}
+
+public class PersonalDataRowRequest
+{
+    public string       EMPCD  { get; set; } = "";
+    public List<string?> VALUES { get; set; } = new();
 }

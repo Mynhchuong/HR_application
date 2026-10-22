@@ -408,6 +408,22 @@ body {
 }
 .sv-char-count.warn { color: var(--sv-danger); }
 
+/* ─── Confirm personal (xác nhận thông tin cá nhân) ─── */
+.sv-confirm-value {
+    font-size: 1rem;
+    padding: .85rem 1rem;
+    border-radius: 10px;
+    background: #f5f5ff;
+    border: 2px solid var(--sv-border);
+    margin-bottom: 1rem;
+}
+.sv-confirm-missing-hint {
+    font-size: .85rem;
+    color: var(--sv-text-muted);
+    margin-bottom: .6rem;
+}
+.sv-confirm-input { margin-top: .75rem; }
+
 /* ─── Dropdown ─────────────────────────────── */
 .sv-dropdown {
     width: 100%;

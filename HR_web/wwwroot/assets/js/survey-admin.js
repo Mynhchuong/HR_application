@@ -23,6 +23,16 @@
         SCOPES:         (E.initial?.SCOPES    || []).map(s => ({ ...s })),
     };
 
+    // Survey đang sửa đã có câu hỏi CONFIRM_PERSONAL (từ lần import Excel trước) — Save() luôn
+    // REPLACE toàn bộ câu hỏi (ReplaceQuestionsAsync xoá/tạo lại ID mới), nên dữ liệu cá nhân cũ
+    // trong HR_SURVEY_PERSONAL_DATA sẽ mất theo FK cascade thủ công NẾU không chọn lại file Excel
+    // trong phiên sửa này — phải cảnh báo rõ trước khi lưu, tránh mất dữ liệu âm thầm.
+    const hasExistingPersonalData = state.QUESTIONS.some(q => q.QUESTION_TYPE === 'CONFIRM_PERSONAL');
+    // Survey dùng chế độ "xác nhận thông tin cá nhân" (import Excel) → phạm vi LUÔN LUÔN = đúng
+    // mã NV có trong file, không cho chỉnh tay ở Step 3 nữa (yêu cầu 2026-10-22: "chặn thao tác
+    // chỉnh phạm vi" — tránh HR sửa tay làm lệch với dữ liệu cá nhân đã import theo từng mã).
+    let usingPersonalDataImport = hasExistingPersonalData;
+
     function cloneQuestion(q) {
         return {
             ID:            q.ID,
@@ -46,8 +56,9 @@
     const $btnDraft = document.getElementById('btnSaveDraft');
     const $btnPub   = document.getElementById('btnPublish');
 
-    // EN survey → chỉ gửi toàn Expat, bỏ bước Phạm vi (step 3).
-    const isStepSkipped = (n) => n === 3 && state.LANG === 'EN';
+    // EN survey → chỉ gửi toàn Expat, bỏ bước Phạm vi (step 3). Survey "xác nhận thông tin cá
+    // nhân" (import Excel) cũng bỏ bước này luôn — phạm vi khoá cứng theo đúng mã NV trong file.
+    const isStepSkipped = (n) => n === 3 && (state.LANG === 'EN' || usingPersonalDataImport);
     function nextValidStep(n, dir) {
         let s = n + dir;
         while (s >= 1 && s <= totalSteps && isStepSkipped(s)) s += dir;
@@ -140,7 +151,143 @@
         });
     });
 
-    // ── Step 2 — Questions builder ─────────────
+    // ── Step 2 — Import Excel "Xác nhận thông tin cá nhân" (yêu cầu 2026-10-22) ─────────────
+    // 1 file Excel = câu hỏi (mỗi cột data = 1 câu CONFIRM_PERSONAL) + người nhận (cột EMPCD) +
+    // dữ liệu riêng từng NV (giá trị trong ô). Đọc file ngay trên trình duyệt bằng SheetJS (đã
+    // vendor sẵn ~/js/vendor/xlsx.full.min.js), KHÔNG cần upload server parse. Sau khi Save tạo
+    // xong các câu hỏi CONFIRM_PERSONAL, gửi riêng personalDataRows sang API import (khớp theo
+    // thứ tự cột = thứ tự DISPLAY_ORDER câu hỏi vừa tạo).
+    let personalDataRows = null;
+    const $fPersonalFile = document.getElementById('fPersonalDataFile');
+    if ($fPersonalFile) {
+        $fPersonalFile.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            confirmDialog(
+                'Nhập từ Excel sẽ THAY THẾ toàn bộ câu hỏi thủ công hiện có và đổi Đối tượng nhận thành danh sách mã NV trong file. Tiếp tục?',
+                { title: 'Nhập từ Excel', okText: 'Tiếp tục', okClass: 'btn-primary' },
+                () => importPersonalDataExcel(file)
+            );
+            e.target.value = ''; // cho chọn lại cùng file lần sau vẫn fire change
+        });
+    }
+
+    async function importPersonalDataExcel(file) {
+        const $info = document.getElementById('personalDataImportInfo');
+        try {
+            const buf = await file.arrayBuffer();
+            const wb = XLSX.read(buf, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            if (rows.length < 2) { toast('File rỗng hoặc thiếu dữ liệu', 'warning'); return; }
+
+            const headers = rows[0];
+            const questionHeaders = headers.slice(2).map(h => String(h || '').trim()).filter(h => h.length > 0);
+            if (questionHeaders.length === 0) { toast('File chưa có cột câu hỏi nào (từ cột C)', 'warning'); return; }
+            // Trùng tên cột câu hỏi (header) — không chặn (vẫn tạo 2 câu riêng) nhưng báo rõ để HR
+            // biết, tránh nhầm tưởng chỉ có 1 câu.
+            const dupHeaders = questionHeaders.filter((h, i) => questionHeaders.indexOf(h) !== i);
+
+            const empcdSeen = new Set();
+            const dupEmpcds = [];
+            const empcds = [];
+            const dataRows = [];
+            for (let i = 1; i < rows.length; i++) {
+                const r = rows[i];
+                const empcd = String(r[0] || '').trim();
+                if (!empcd) continue;
+                if (empcdSeen.has(empcd)) { dupEmpcds.push(empcd); continue; } // giữ dòng đầu, bỏ dòng trùng sau
+                empcdSeen.add(empcd);
+                empcds.push(empcd);
+                dataRows.push({
+                    EMPCD: empcd,
+                    VALUES: questionHeaders.map((_, qi) => String(r[2 + qi] ?? '').trim() || null),
+                });
+            }
+            if (empcds.length === 0) { toast('File chưa có mã NV (EMPCD) nào', 'warning'); return; }
+
+            // Check mã NV có tồn tại/đang làm việc không — báo rõ mã nào sai thay vì âm thầm bỏ qua
+            // (yêu cầu 2026-10-22: "báo luôn mã nào không có trong công ty").
+            $info.textContent = 'Đang kiểm tra mã NV...';
+            const vr = await post(URLS.validateEmpcds, empcds);
+            const invalidSet = new Set((vr && vr.success && vr.invalid) ? vr.invalid : []);
+            const validEmpcds = empcds.filter(e => !invalidSet.has(e));
+            const validDataRows = dataRows.filter(d => !invalidSet.has(d.EMPCD));
+
+            if (validEmpcds.length === 0) {
+                $info.textContent = '';
+                showImportResultModal({ total: empcds.length, validCount: 0, invalid: [...invalidSet], dupHeaders, dupEmpcds, questionCount: questionHeaders.length });
+                toast('Không có mã NV nào hợp lệ trong file — chưa nhập gì cả', 'error');
+                return;
+            }
+
+            // Thay thế toàn bộ câu hỏi thủ công bằng câu hỏi CONFIRM_PERSONAL từ file.
+            state.QUESTIONS = questionHeaders.map((h, idx) => ({
+                QUESTION_TEXT: h,
+                QUESTION_TYPE: 'CONFIRM_PERSONAL',
+                IS_REQUIRED: 1,
+                DISPLAY_ORDER: idx + 1,
+                POINTS: 0,
+                OPTIONS: [],
+            }));
+
+            // Đối tượng nhận = đúng danh sách mã NV HỢP LỆ có trong file — khoá cứng, không cho
+            // chỉnh tay ở Step 3 nữa (usingPersonalDataImport).
+            state.RECIPIENT_MODE = 'EMPCD_LIST';
+            state.SCOPES = validEmpcds.map(emp => ({ SCOPE_TYPE: 'EMPCD', EMPCD: emp }));
+            document.querySelectorAll('input[name="RECIPIENT_MODE"]').forEach(rr => {
+                rr.checked = rr.value === 'EMPCD_LIST';
+                rr.closest('.sa-radio-card').classList.toggle('active', rr.checked);
+            });
+            const $dlwList = document.getElementById('scopeDLWList');
+            const $empcdTa = document.getElementById('fEmpcdList');
+            if ($dlwList) { delete $dlwList.dataset.filled; $dlwList.innerHTML = ''; }
+            if ($empcdTa)  { delete $empcdTa.dataset.filled; }
+            scopeRendered = false;
+
+            usingPersonalDataImport = true;
+            showStep(currentStep); // cập nhật lại step-indicator (ẩn/khoá Step 3 ngay)
+
+            personalDataRows = validDataRows;
+            renderQuestions();
+            $info.textContent = `Đã nhập ${questionHeaders.length} câu hỏi, ${validEmpcds.length} nhân viên từ file.`;
+            showImportResultModal({
+                total: empcds.length, validCount: validEmpcds.length, invalid: [...invalidSet],
+                dupHeaders, dupEmpcds, questionCount: questionHeaders.length
+            });
+        } catch (err) {
+            toast('Lỗi đọc file Excel: ' + (err?.message || ''), 'error');
+        }
+    }
+
+    function showImportResultModal(r) {
+        const $sum = document.getElementById('pdImportSummary');
+        const $wrap = document.getElementById('pdImportInvalidWrap');
+        const $list = document.getElementById('pdImportInvalidList');
+        const lines = [];
+        lines.push(`Đã tạo <b>${r.questionCount}</b> câu hỏi.`);
+        lines.push(`Đọc được <b>${r.total}</b> mã NV trong file — <b class="text-success">${r.validCount}</b> mã hợp lệ đã đưa vào phạm vi khảo sát.`);
+        if (r.invalid.length > 0) lines.push(`<b class="text-danger">${r.invalid.length}</b> mã KHÔNG hợp lệ (xem danh sách bên dưới) — đã bỏ qua.`);
+        if (r.dupEmpcds.length > 0) lines.push(`<b class="text-warning">${r.dupEmpcds.length}</b> mã NV bị LẶP trong file — chỉ giữ dòng đầu tiên: ${r.dupEmpcds.slice(0, 20).join(', ')}${r.dupEmpcds.length > 20 ? '...' : ''}`);
+        if (r.dupHeaders.length > 0) lines.push(`<b class="text-warning">Trùng tên câu hỏi</b> (vẫn tạo riêng từng câu): ${r.dupHeaders.join(', ')}`);
+        $sum.innerHTML = lines.map(l => `<div class="mb-1">${l}</div>`).join('');
+
+        if (r.invalid.length > 0) {
+            $wrap.classList.remove('d-none');
+            $list.textContent = r.invalid.join(', ');
+        } else {
+            $wrap.classList.add('d-none');
+        }
+        new bootstrap.Modal(document.getElementById('personalDataImportResultModal')).show();
+    }
+
+    async function syncPersonalDataIfAny(surveyId) {
+        if (!personalDataRows || personalDataRows.length === 0) return { ok: true };
+        const r = await post(URLS.importPersonalData, { SURVEY_ID: surveyId, ROWS: personalDataRows });
+        if (!r || !r.success) return { ok: false, message: r?.message || 'Lưu dữ liệu cá nhân thất bại' };
+        return { ok: true };
+    }
+
     document.getElementById('btnAddQuestion').addEventListener('click', () => {
         state.QUESTIONS.push({
             QUESTION_TEXT: '',
@@ -188,6 +335,7 @@
             ['RATING',   'Rating 1-5'],
             ['TEXT',     'Text free'],
             ['DROPDOWN', 'Dropdown'],
+            ['CONFIRM_PERSONAL', 'Xác nhận thông tin cá nhân (từ Excel)'],
         ];
         // Nếu type hiện tại không hợp lệ khi QUIZ, ép về SINGLE + tạo 2 options mặc định
         if (isQuiz && !['SINGLE','MULTI','YESNO','DROPDOWN'].includes(q.QUESTION_TYPE)) {
@@ -269,7 +417,7 @@
                 q.QUESTION_TYPE = e.target.value;
                 if (['SINGLE','MULTI','YESNO','DROPDOWN'].includes(q.QUESTION_TYPE) && q.OPTIONS.length === 0) {
                     q.OPTIONS = [{OPTION_TEXT:'',DISPLAY_ORDER:1,IS_CORRECT:0},{OPTION_TEXT:'',DISPLAY_ORDER:2,IS_CORRECT:0}];
-                } else if (['RATING','TEXT'].includes(q.QUESTION_TYPE)) {
+                } else if (['RATING','TEXT','CONFIRM_PERSONAL'].includes(q.QUESTION_TYPE)) {
                     q.OPTIONS = [];
                 }
                 renderQuestions();
@@ -649,8 +797,22 @@
             const err = validateStep(s);
             if (err) { toast('Bước ' + s + ': ' + err, 'warning'); showStep(s); return; }
         }
+        if (hasExistingPersonalData && !personalDataRows && !E.isLimitedEdit) {
+            confirmDialog(
+                'Survey này có dữ liệu "Xác nhận thông tin cá nhân" đã import trước đó. Lưu lại BÂY GIỜ (không chọn lại file Excel) sẽ XOÁ dữ liệu đó. Vẫn muốn lưu?',
+                { title: 'Cảnh báo mất dữ liệu', okText: 'Vẫn lưu', okClass: 'btn-danger' },
+                () => doSaveDraft()
+            );
+            return;
+        }
+        await doSaveDraft();
+    });
+    async function doSaveDraft() {
         const r = await save();
         if (!r?.success) { toast(r?.message || 'Lưu thất bại', 'error'); return; }
+
+        const pd = await syncPersonalDataIfAny(r.id || E.id);
+        if (!pd.ok) { toast(pd.message, 'error'); return; }
 
         if (E.isLimitedEdit) {
             // Đối tượng nhận có thể đã đổi → resync HR_SURVEY_RECIPIENT ngay.
@@ -666,7 +828,7 @@
 
         toast('Đã lưu nháp', 'success');
         setTimeout(() => { location.href = URLS.editBase + '?id=' + (r.id || E.id); }, 600);
-    });
+    }
 
     // ── Publish (stream progress) ─────────────────
     $btnPub.addEventListener('click', async () => {
@@ -675,6 +837,17 @@
             const err = validateStep(s);
             if (err) { toast('Bước ' + s + ': ' + err, 'warning'); showStep(s); return; }
         }
+        if (hasExistingPersonalData && !personalDataRows && !E.isLimitedEdit) {
+            confirmDialog(
+                'Survey này có dữ liệu "Xác nhận thông tin cá nhân" đã import trước đó. Publish BÂY GIỜ (không chọn lại file Excel) sẽ XOÁ dữ liệu đó. Vẫn muốn tiếp tục?',
+                { title: 'Cảnh báo mất dữ liệu', okText: 'Vẫn tiếp tục', okClass: 'btn-danger' },
+                () => doPublish()
+            );
+            return;
+        }
+        doPublish();
+    });
+    function doPublish() {
         confirmDialog('Publish survey ngay? Danh sách người nhận sẽ được lưu vào hệ thống.', {
             title: 'Publish survey', okText: 'Publish', okClass: 'btn-primary',
             icon: 'cloud_upload', iconColor: '#4f46e5', iconBg: '#e0e7ff'
@@ -682,6 +855,9 @@
             const r = await save();
             if (!r?.success) { toast(r?.message || 'Lưu thất bại', 'error'); return; }
             const id = r.id || E.id;
+
+            const pd = await syncPersonalDataIfAny(id);
+            if (!pd.ok) { toast(pd.message, 'error'); return; }
 
             const rs = await resyncRecipients(id);
             if (rs.ok) {
@@ -691,7 +867,7 @@
                 toast(rs.message || 'Publish thất bại — data đã lưu nháp', 'error');
             }
         });
-    });
+    }
 
     function showPubModal() {
         const el = document.getElementById('pubProgressModal');

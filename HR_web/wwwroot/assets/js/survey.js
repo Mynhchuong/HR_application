@@ -61,6 +61,13 @@
     function hasAnswer(q) {
         const v = answers.get(q.ID);
         if (!v) return false;
+        // CONFIRM_PERSONAL: number=1 (đã xác nhận Đúng) luôn hợp lệ; number=2 (Sai) hoặc 3 (tự khai
+        // do thiếu dữ liệu gốc) BẮT BUỘC phải kèm text — chỉ chọn "Sai" mà chưa nhập gì thì chưa hợp lệ.
+        if (q.QUESTION_TYPE === 'CONFIRM_PERSONAL') {
+            if (v.number === 1) return true;
+            if ((v.number === 2 || v.number === 3) && v.text && v.text.trim().length > 0) return true;
+            return false;
+        }
         if (v.optionIds && v.optionIds.length > 0) return true;
         if (v.text && v.text.length > 0) return true;
         if (v.number != null) return true;
@@ -115,6 +122,9 @@
                 hintText = t.textHint;
                 bodyHtml = renderTextarea(q, v);
                 break;
+            case 'CONFIRM_PERSONAL':
+                bodyHtml = renderConfirmPersonal(q, v);
+                break;
         }
 
         $wrapper.innerHTML = `
@@ -165,6 +175,33 @@
             <textarea class="sv-textarea" maxlength="1000"
                       placeholder="${isEn ? 'Your answer...' : 'Câu trả lời của bạn...'}">${escapeHtml(text)}</textarea>
             <div class="sv-char-count"><span class="cur">${text.length}</span>/1000</div>`;
+    }
+
+    // "Xác nhận thông tin cá nhân" — mỗi NV thấy giá trị RIÊNG của mình (q.PERSONAL_VALUE, do HR
+    // import từ Excel). Thiếu dữ liệu (HR quên điền) → tự chuyển thành ô nhập tự do, không chặn NV.
+    function renderConfirmPersonal(q, v) {
+        const hasValue = q.PERSONAL_VALUE != null && q.PERSONAL_VALUE !== '';
+        if (!hasValue) {
+            const text = v.text || '';
+            return `
+                <div class="sv-confirm-missing-hint">${isEn ? 'Please fill in this information' : 'Vui lòng nhập thông tin này'}</div>
+                <textarea class="sv-textarea sv-confirm-input" maxlength="500"
+                          placeholder="${isEn ? 'Your answer...' : 'Câu trả lời của bạn...'}">${escapeHtml(text)}</textarea>`;
+        }
+        const choice = v.number;
+        const showCorrection = choice === 2;
+        return `
+            <div class="sv-confirm-value">${isEn ? 'Current info' : 'Thông tin hiện tại'}: <strong>${escapeHtml(q.PERSONAL_VALUE)}</strong></div>
+            <div class="sv-options">
+                <div class="sv-option ${choice === 1 ? 'active' : ''}" data-confirm-choice="1">
+                    <div class="sv-option-marker"></div><div class="sv-option-text">${isEn ? 'Correct' : 'Đúng'}</div>
+                </div>
+                <div class="sv-option ${choice === 2 ? 'active' : ''}" data-confirm-choice="2">
+                    <div class="sv-option-marker"></div><div class="sv-option-text">${isEn ? 'Incorrect' : 'Sai'}</div>
+                </div>
+            </div>
+            ${showCorrection ? `<textarea class="sv-textarea sv-confirm-input" maxlength="500"
+                      placeholder="${isEn ? 'What is the correct info?' : 'Vậy thông tin đúng là gì?'}">${escapeHtml(v.text || '')}</textarea>` : ''}`;
     }
 
     // ── Wire event handlers cho từng loại ─────────
@@ -223,6 +260,39 @@
                 else answers.delete(q.ID);
                 updateFooter();
             });
+        }
+        else if (type === 'CONFIRM_PERSONAL') {
+            const hasValue = q.PERSONAL_VALUE != null && q.PERSONAL_VALUE !== '';
+            if (!hasValue) {
+                const $ta = $wrapper.querySelector('.sv-confirm-input');
+                $ta.addEventListener('input', () => {
+                    const val = $ta.value;
+                    if (val.trim().length > 0) answers.set(q.ID, { text: val, number: 3 });
+                    else answers.delete(q.ID);
+                    updateFooter();
+                });
+            } else {
+                $wrapper.querySelectorAll('[data-confirm-choice]').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const choice = parseInt(el.dataset.confirmChoice, 10);
+                        if (choice === 1) {
+                            answers.set(q.ID, { text: q.PERSONAL_VALUE, number: 1 });
+                        } else {
+                            const v = answers.get(q.ID) || {};
+                            answers.set(q.ID, { number: 2, text: v.number === 2 ? v.text : '' });
+                        }
+                        render();
+                    });
+                });
+                const $ta = $wrapper.querySelector('.sv-confirm-input');
+                if ($ta) {
+                    $ta.addEventListener('input', () => {
+                        const val = $ta.value;
+                        answers.set(q.ID, { number: 2, text: val });
+                        updateFooter();
+                    });
+                }
+            }
         }
     }
 

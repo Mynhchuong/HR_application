@@ -43,6 +43,7 @@ public class SurveyQuestionModel
     public int     DISPLAY_ORDER { get; set; }
     public decimal POINTS        { get; set; }
     public List<SurveyOptionModel> OPTIONS { get; set; } = new();
+    public string? PERSONAL_VALUE { get; set; }   // chỉ có với QUESTION_TYPE=CONFIRM_PERSONAL
 }
 
 public class SurveyOptionModel

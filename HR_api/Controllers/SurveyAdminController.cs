@@ -85,6 +85,15 @@ public class SurveyAdminController : ControllerBase
         return Ok(new { success = true, data });
     }
 
+    // GET /apiHR/SurveyAdmin/report/personal-data-updates?id= — sheet "Cần cập nhật" (NV báo sai
+    // thông tin cá nhân CONFIRM_PERSONAL, hoặc tự khai do thiếu dữ liệu gốc).
+    [HttpGet("report/personal-data-updates")]
+    public async Task<IActionResult> ReportPersonalDataUpdates([FromQuery] int id)
+    {
+        var data = await _report.GetPersonalDataUpdatesAsync(id);
+        return Ok(new { success = true, data });
+    }
+
     // GET /apiHR/SurveyAdmin/report/all-answers?id=
     [HttpGet("report/all-answers")]
     public async Task<IActionResult> ReportAllAnswers([FromQuery] int id)
@@ -308,6 +317,24 @@ public class SurveyAdminController : ControllerBase
         if (string.IsNullOrWhiteSpace(csv)) return new();
         return csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                   .Where(s => int.TryParse(s, out _)).Select(int.Parse).ToHashSet();
+    }
+
+    // POST /apiHR/SurveyAdmin/validate-empcds — kiểm tra danh sách mã NV đọc từ Excel có tồn tại/
+    // đang làm việc không, để báo lại cho HR ngay (mã nào sai/nghỉ việc).
+    [HttpPost("validate-empcds")]
+    public async Task<IActionResult> ValidateEmpcds([FromBody] ValidateEmpcdsRequest req)
+    {
+        var (valid, invalid) = await _admin.ValidateEmpcdsAsync(req.EMPCDS ?? new());
+        return Ok(new { success = true, data = new { valid, invalid } });
+    }
+
+    // POST /apiHR/SurveyAdmin/personal-data/import — sau khi Save tạo xong câu hỏi CONFIRM_PERSONAL,
+    // FE gửi dữ liệu riêng từng NV (parse từ Excel ngay trên browser) để lưu vào HR_SURVEY_PERSONAL_DATA.
+    [HttpPost("personal-data/import")]
+    public async Task<IActionResult> ImportPersonalData([FromBody] ImportPersonalDataRequest req)
+    {
+        var (ok, err, savedRows) = await _admin.ImportPersonalDataAsync(req);
+        return Ok(new { success = ok, message = err, data = new { savedRows } });
     }
 
     // GET /apiHR/SurveyAdmin/scope-count?deptcd=X&linecd=Y&workcd=Z

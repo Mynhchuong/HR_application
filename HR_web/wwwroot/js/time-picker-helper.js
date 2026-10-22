@@ -164,7 +164,14 @@
         if (mm === 60) { mm = 0; h = (h + 1) % 24; }
         var hStr = String(h).padStart(2, '0'), mStr = String(mm).padStart(2, '0');
 
-        hourSel.value = hStr; minSel.value = mStr;
+        hourSel.value = hStr;
+        // BUG THẬT (2026-10-22): phải build lại options của ô Phút theo ĐÚNG giờ hStr trước khi gán
+        // giá trị — nếu không, minSel vẫn đang giữ options của giờ CŨ (VD giờ trung gian lúc
+        // setRange() chạy trước đó), gán minSel.value = mStr vào option KHÔNG TỒN TẠI sẽ bị trình
+        // duyệt âm thầm bỏ qua (giữ nguyên giá trị cũ) — case thật: ca N6 tăng ca sau 3h, chọn
+        // 19:10 nhưng ô Phút bị kẹt ở "55" (option duy nhất còn lại từ lúc setRange tính trần/sàn).
+        buildMinuteOptions(minSel, h, _ranges[prefix]);
+        minSel.value = mStr;
         if (hidden) hidden.value = exact ? hhmm : (hStr + ':' + mStr);
         hourSel.classList.toggle('auto-time', !!isAuto);
         minSel.classList.toggle('auto-time', !!isAuto);

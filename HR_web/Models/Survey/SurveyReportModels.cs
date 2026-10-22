@@ -214,3 +214,13 @@ public class SurveyFullAnswerRecordModel
     public int       QUESTION_ID { get; set; }
     public string?   ANSWER_TEXT { get; set; }
 }
+
+public class SurveyPersonalDataUpdateModel
+{
+    public string  EMPCD         { get; set; } = "";
+    public string? FULL_NAME     { get; set; }
+    public string  QUESTION_TEXT { get; set; } = "";
+    public string? OLD_VALUE     { get; set; }
+    public string? NEW_VALUE     { get; set; }
+    public string  KIND          { get; set; } = "";
+}

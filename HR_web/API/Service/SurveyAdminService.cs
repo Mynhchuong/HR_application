@@ -79,6 +79,24 @@ public class SurveyAdminService
         public List<string> notFound     { get; set; } = new();
     }
 
+    // ─── Personal data import ("xác nhận thông tin cá nhân") ──────────────────
+
+    public async Task<(List<string> Valid, List<string> Invalid)> ValidateEmpcdsAsync(List<string> empcds)
+    {
+        var r = await PostAsync<R<ValidateEmpcdsResult>>("SurveyAdmin/validate-empcds", new { EMPCDS = empcds });
+        if (r?.data == null) return (new(), new());
+        return (r.data.valid ?? new(), r.data.invalid ?? new());
+    }
+    private class ValidateEmpcdsResult { public List<string>? valid { get; set; } public List<string>? invalid { get; set; } }
+
+    public async Task<(bool ok, string? message, int savedRows)> ImportPersonalDataAsync(object payload)
+    {
+        var r = await PostAsync<R<ImportPersonalDataResult>>("SurveyAdmin/personal-data/import", payload);
+        if (r == null) return (false, "Không kết nối được server", 0);
+        return (r.success, r.message, r.data?.savedRows ?? 0);
+    }
+    private class ImportPersonalDataResult { public int savedRows { get; set; } }
+
     // ─── TestMode ──────────────────────────────────────
 
     public async Task<SurveySubmitResultModel?> TestSubmitAsync(object payload)

@@ -228,7 +228,6 @@ public class AttendanceConfirmService
             bool hasOtBefore = otBeforeFlag == "Y" || otBeforeHours > 0;
             bool hasOtAfter  = !hasOtBefore && (otAfterFlag == "Y" || otAfterHours > 0);
             string liveShiftType = hasOtBefore ? "OT_BEFORE" : hasOtAfter ? "OT_AFTER" : "REGULAR";
-            string? storedShiftType = r["SHIFT_TYPE"]?.ToString();
 
             // Gợi ý giờ mặc định = giờ ca + tăng ca thật (giống hệt công thức ở GetMyDayAsync) — để
             // FE (modal xác nhận) nới đúng trần/sàn thay vì chặn cứng ở giờ ca gốc.
@@ -278,7 +277,11 @@ public class AttendanceConfirmService
                 WORKER_TIME_OUT  = FmtTime(r["WORKER_TIME_OUT"]),
                 CONFIRM_TIME_IN  = FmtTime(r["CONFIRM_TIME_IN"]),
                 CONFIRM_TIME_OUT = FmtTime(r["CONFIRM_TIME_OUT"]),
-                SHIFT_TYPE       = !string.IsNullOrEmpty(storedShiftType) ? storedShiftType : liveShiftType,
+                // Luôn ưu tiên live detect (OT_BEFORE_HOURS/OT_AFTER_HOURS bên dưới cũng luôn live) —
+                // storedShiftType có thể lỗi thời nếu HR_ATT_CONFIRM được tạo (request-confirm) TRƯỚC
+                // khi log tăng ca được duyệt trên ERP, làm badge "Tăng ca" không hiện dù giờ đã có log
+                // (bug thật phát hiện 2026-10-22, case NV 26041602 21/10 — OT duyệt trễ 1 ngày).
+                SHIFT_TYPE       = liveShiftType,
                 OT_BEFORE_HOURS  = hasOtBefore ? otBeforeHours : (decimal?)null,
                 OT_AFTER_HOURS   = hasOtAfter  ? otAfterHours  : (decimal?)null,
                 WORKER_NOTE      = r["WORKER_NOTE"]?.ToString(),
@@ -526,11 +529,12 @@ public class AttendanceConfirmService
         var item = rows.FirstOrDefault();
         if (item == null) return null;
 
-        // Chưa từng khai (SHIFT_TYPE null) — auto-detect ngay từ ERP để WorkerForm hiện được luôn,
-        // không phải đợi tới lúc submit mới biết loại ca.
+        // Luôn auto-detect live từ ERP, KHÔNG giữ lại SHIFT_TYPE cũ trên HR_ATT_CONFIRM — record có
+        // thể được tạo (request-confirm) TRƯỚC khi log tăng ca được duyệt trên ERP, giữ giá trị cũ
+        // sẽ làm badge "Tăng ca" không hiện dù giờ ERP đã có log (bug thật 2026-10-22, case NV
+        // 26041602 21/10 — OT duyệt trễ 1 ngày, cùng gốc với GetMissingListAsync).
         var (shiftType, otBeforeHours, otAfterHours) = await GetShiftTypeInfoAsync(empcd, workDate);
-        if (string.IsNullOrEmpty(item.SHIFT_TYPE))
-            item.SHIFT_TYPE = shiftType;
+        item.SHIFT_TYPE = shiftType;
         // Số giờ tăng ca thật (yêu cầu 2026-09-22: hiện rõ "tăng ca mấy giờ" cho công nhân tự khai,
         // không chỉ quản lý/HR/Clerk/Expat/Admin bên list mới thấy).
         if (shiftType == "OT_BEFORE" && otBeforeHours > 0) item.OT_BEFORE_HOURS = otBeforeHours;

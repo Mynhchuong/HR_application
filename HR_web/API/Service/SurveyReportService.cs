@@ -80,4 +80,10 @@ public class SurveyReportService
         var r = await _api.GetAsync<R<List<SurveyFullAnswerRecordModel>>>("SurveyAdmin/report/all-answers", $"id={surveyId}");
         return r?.success == true ? r.data ?? new() : new();
     }
+
+    public async Task<List<SurveyPersonalDataUpdateModel>> GetPersonalDataUpdatesAsync(int surveyId)
+    {
+        var r = await _api.GetAsync<R<List<SurveyPersonalDataUpdateModel>>>("SurveyAdmin/report/personal-data-updates", $"id={surveyId}");
+        return r?.success == true ? r.data ?? new() : new();
+    }
 }

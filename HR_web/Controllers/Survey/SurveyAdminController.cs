@@ -101,6 +101,83 @@ public class SurveyAdminController : BaseController
         return Json(new { success = ok, message = msg });
     }
 
+    // ─────────────────────────────────────────────
+    // GET /SurveyAdmin/PersonalDataTemplate — file mẫu "xác nhận thông tin cá nhân" (yêu cầu
+    // 2026-10-22): file TRỐNG (không tải sẵn NV công ty — nặng, và phạm vi khảo sát thường chỉ vài
+    // chục/trăm NV chứ không phải cả công ty 8300+ người). HR tự gõ/dán đúng mã NV cần khảo sát —
+    // phạm vi tự động = đúng số NV có trong file (10 dòng thì phạm vi 10 người, dán cả công ty thì
+    // phạm vi cả công ty — không cần "check lại phạm vi" ở đâu khác, HR Excel là nguồn duy nhất).
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public IActionResult PersonalDataTemplate()
+    {
+        using var wb = new ClosedXML.Excel.XLWorkbook();
+        var ws = wb.Worksheets.Add("Import");
+
+        string[] headers = { "EMPCD", "Họ tên", "Câu hỏi 1 (đổi tên thành câu hỏi thật)", "Câu hỏi 2", "Câu hỏi 3" };
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var c = ws.Cell(1, i + 1);
+            c.Value = headers[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#4f46e5");
+            c.Style.Font.FontColor = ClosedXML.Excel.XLColor.White;
+            c.Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
+        }
+
+        // 1 dòng mẫu minh hoạ cách điền — HR xoá dòng này đi rồi tự gõ/dán danh sách mã NV thật
+        // (vd dán từ danh sách Excel lương/nhân sự của chính HR).
+        ws.Cell(2, 1).Value = "12345678";
+        ws.Cell(2, 2).Value = "(dòng mẫu — xoá đi rồi dán danh sách NV thật vào đây)";
+        ws.Cell(2, 3).Value = "0909xxxxxx";
+        ws.Cell(2, 4).Value = "12/05/2027";
+
+        int noteRow = 4;
+        ws.Cell(noteRow, 1).Value = "Hướng dẫn:";
+        ws.Cell(noteRow, 1).Style.Font.Italic = true;
+        ws.Cell(noteRow + 1, 1).Value = "- Cột A (EMPCD) quyết định PHẠM VI khảo sát — chỉ NV có mã trong cột này mới nhận được khảo sát. Dán 10 mã = 10 người, dán cả công ty = cả công ty.";
+        ws.Cell(noteRow + 2, 1).Value = "- Mỗi cột từ cột C là 1 câu hỏi — đổi tên cột (header) thành nội dung câu hỏi thật, thêm cột nếu cần hỏi nhiều hơn.";
+        ws.Cell(noteRow + 3, 1).Value = "- Giá trị trong ô là thông tin RIÊNG của nhân viên đó cho câu hỏi đó (VD số điện thoại, ngày hết hạn visa...).";
+        ws.Cell(noteRow + 4, 1).Value = "- Để trống 1 ô = nhân viên đó sẽ tự nhập thông tin khi làm khảo sát, không bị chặn.";
+        for (int r = noteRow + 1; r <= noteRow + 4; r++)
+        {
+            ws.Cell(r, 1).Style.Font.Italic = true;
+            ws.Cell(r, 1).Style.Font.FontColor = ClosedXML.Excel.XLColor.Gray;
+        }
+
+        ws.Range(1, 1, 1, headers.Length).SetAutoFilter();
+        ws.SheetView.FreezeRows(1);
+        ws.Columns().AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "MauKhaoSat_XacNhanThongTinCaNhan.xlsx");
+    }
+
+    // ─────────────────────────────────────────────
+    // POST /SurveyAdmin/ImportPersonalData — sau khi Save tạo xong câu hỏi CONFIRM_PERSONAL,
+    // FE gửi dữ liệu đã parse từ Excel (ngay trên trình duyệt) để lưu vào HR_SURVEY_PERSONAL_DATA.
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ImportPersonalData([FromBody] object payload)
+    {
+        var (ok, msg, savedRows) = await _admin.ImportPersonalDataAsync(payload);
+        return Json(new { success = ok, message = msg, savedRows });
+    }
+
+    // POST /SurveyAdmin/ValidateEmpcds — kiểm tra danh sách mã NV đọc từ Excel ngay sau khi chọn
+    // file, báo lại cho HR mã nào không tồn tại/đã nghỉ việc (yêu cầu 2026-10-22).
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ValidateEmpcds([FromBody] List<string> empcds)
+    {
+        var (valid, invalid) = await _admin.ValidateEmpcdsAsync(empcds ?? new());
+        return Json(new { success = true, valid, invalid });
+    }
+
     // POST /SurveyAdmin/PublishStream — proxy stream NDJSON từ API về browser
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -425,6 +502,13 @@ public class SurveyAdminController : BaseController
             if (quiz != null) BuildQuizSheet(wb, overview, quiz);
         }
 
+        // Sheet "Cần cập nhật" — chỉ thêm nếu survey có câu hỏi CONFIRM_PERSONAL (yêu cầu 2026-10-22).
+        if (overview.QUESTIONS.Any(q => q.QUESTION_TYPE == "CONFIRM_PERSONAL"))
+        {
+            var updates = await _report.GetPersonalDataUpdatesAsync(id);
+            BuildPersonalDataUpdateSheet(wb, updates);
+        }
+
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         return File(ms.ToArray(),
@@ -698,6 +782,40 @@ public class SurveyAdminController : BaseController
         int[] widths = { 6, 14, 26, 12, 12, 12, 8, 8, 12, 18 };
         for (int i = 0; i < widths.Length; i++)
             ws.Column(i + 1).Width = widths[i];
+    }
+
+    // Sheet "Cần cập nhật" (yêu cầu 2026-10-22) — NV báo SAI thông tin cá nhân (câu CONFIRM_PERSONAL)
+    // hoặc tự khai do HR quên điền dữ liệu gốc, để HR rà lại và cập nhật tay vào hệ thống của họ.
+    private static void BuildPersonalDataUpdateSheet(XLWorkbook wb, List<SurveyPersonalDataUpdateModel> updates)
+    {
+        var ws = wb.Worksheets.Add("Cần cập nhật");
+        string[] headers = { "Mã NV", "Họ tên", "Câu hỏi", "Giá trị cũ", "Giá trị NV khai mới", "Loại" };
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var c = ws.Cell(1, i + 1);
+            c.Value = headers[i];
+            c.Style.Font.Bold = true;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#dc2626");
+            c.Style.Font.FontColor = XLColor.White;
+            c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        }
+
+        int row = 2;
+        foreach (var u in updates)
+        {
+            ws.Cell(row, 1).Value = u.EMPCD;
+            ws.Cell(row, 2).Value = u.FULL_NAME ?? "";
+            ws.Cell(row, 3).Value = u.QUESTION_TEXT;
+            ws.Cell(row, 4).Value = u.OLD_VALUE ?? "(chưa có)";
+            ws.Cell(row, 5).Value = u.NEW_VALUE ?? "";
+            ws.Cell(row, 6).Value = u.KIND;
+            row++;
+        }
+
+        if (updates.Count > 0)
+            ws.Range(1, 1, 1, headers.Length).SetAutoFilter();
+        ws.SheetView.FreezeRows(1);
+        ws.Columns().AdjustToContents();
     }
 
     // ─── Request models ────────────────────────

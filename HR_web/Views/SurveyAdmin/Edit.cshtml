@@ -141,6 +141,28 @@
                     <button type="button" class="btn btn-outline-primary btn-sm w-100 mt-2 @(isLimitedEdit ? "d-none" : "")" id="btnAddQuestion">
                         <i class="bi bi-plus-lg"></i> Thêm câu hỏi
                     </button>
+
+                    @if (!isLimitedEdit)
+                    {
+                        <div class="sa-import-box mt-3 p-3 border rounded">
+                            <div class="fw-bold mb-1"><i class="bi bi-file-earmark-spreadsheet me-1"></i> Khảo sát "Xác nhận thông tin cá nhân"</div>
+                            <div class="text-muted small mb-2">
+                                Mỗi NV thấy giá trị RIÊNG của mình (VD số điện thoại, ngày hết hạn visa...) để xác nhận Đúng/Sai.
+                                Tải file mẫu, điền câu hỏi + dữ liệu từng NV, rồi chọn file đã điền — hệ thống tự tạo câu hỏi và
+                                đối tượng nhận (chính là các mã NV có trong file), <b>thay thế toàn bộ câu hỏi thủ công hiện có</b>.
+                            </div>
+                            <div class="d-flex gap-2 align-items-center flex-wrap">
+                                <a href="@Url.Action("PersonalDataTemplate", "SurveyAdmin")" download class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-download me-1"></i> Tải file mẫu
+                                </a>
+                                <label class="btn btn-sm btn-outline-primary mb-0">
+                                    <i class="bi bi-upload me-1"></i> Chọn file đã điền
+                                    <input type="file" id="fPersonalDataFile" accept=".xlsx" class="d-none" />
+                                </label>
+                                <span id="personalDataImportInfo" class="text-xs text-muted"></span>
+                            </div>
+                        </div>
+                    }
                 </div>
 
                 <!-- ── Step 3 ──────────────────────── -->
@@ -276,6 +298,28 @@
     </div>
 </div>
 
+<!-- Kết quả đọc file Excel "xác nhận thông tin cá nhân" (yêu cầu 2026-10-22) -->
+<div class="modal fade" id="personalDataImportResultModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0"><i class="bi bi-file-earmark-spreadsheet me-1"></i> Kết quả đọc file Excel</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <div id="pdImportSummary" class="mb-2"></div>
+                <div id="pdImportInvalidWrap" class="d-none">
+                    <div class="fw-bold text-danger small mb-1">Mã NV KHÔNG tồn tại / đã nghỉ việc (đã bỏ qua, không đưa vào phạm vi):</div>
+                    <div id="pdImportInvalidList" class="text-xs" style="max-height:200px;overflow-y:auto;background:#fff5f5;border:1px solid #fecaca;border-radius:8px;padding:8px;"></div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">Đã hiểu</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <form id="antiForgeryForm">@Html.AntiForgeryToken()</form>
 
 @section Scripts {
@@ -295,9 +339,12 @@
                 publishStream: '@Url.Action("PublishStream", "SurveyAdmin")',
                 editBase:      '@Url.Action("Edit", "SurveyAdmin")',
                 index:         '@Url.Action("Index", "SurveyAdmin")',
+                importPersonalData: '@Url.Action("ImportPersonalData", "SurveyAdmin")',
+                validateEmpcds: '@Url.Action("ValidateEmpcds", "SurveyAdmin")',
             }
         };
     </script>
+    <script src="~/js/vendor/xlsx.full.min.js" asp-append-version="true"></script>
     <script src="~/assets/js/survey-admin.js" asp-append-version="true"></script>
     <script>
         // Title char counter

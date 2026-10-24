@@ -16,14 +16,17 @@ public class GatePassController : ControllerBase
     private readonly NotificationService _notiSvc;
     private readonly ShiftLookupService _shiftLookup;
     private readonly HomeSummaryService _homeSummarySvc;
+    private readonly ApprovalConfigService _approvalConfig;
 
     public GatePassController(OracleService oracleService, NotificationService notiSvc,
-                              ShiftLookupService shiftLookup, HomeSummaryService homeSummarySvc)
+                              ShiftLookupService shiftLookup, HomeSummaryService homeSummarySvc,
+                              ApprovalConfigService approvalConfig)
     {
         _oracleService  = oracleService;
         _notiSvc        = notiSvc;
         _shiftLookup    = shiftLookup;
         _homeSummarySvc = homeSummarySvc;
+        _approvalConfig = approvalConfig;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -549,7 +552,7 @@ public class GatePassController : ControllerBase
 
             string? approverRole = approverRoleRows.FirstOrDefault();
 
-            if (!Helpers.RoleHierarchyHelper.HasApprovalPermission(approverRole))
+            if (!await _approvalConfig.HasApprovalPermissionAsync(approverRole))
                 return Ok(new { success = false, message = "Bạn không có quyền phê duyệt Gate Pass" });
 
             // Lấy EMPCD + role của người gửi phiếu
@@ -571,8 +574,8 @@ public class GatePassController : ControllerBase
                 return Ok(new { success = false, message = "Lời nhắn: Hãy liên hệ quản lý cấp cao hơn để được phê duyệt" });
 
             // Phân cấp: người duyệt phải ở cấp cao hơn người gửi
-            if (!Helpers.RoleHierarchyHelper.CanApprove(approverRole, requestInfo.Role))
-                return Ok(new { success = false, message = $"Phiếu này cần {Helpers.RoleHierarchyHelper.RequiredApproverName(requestInfo.Role)} phê duyệt." });
+            if (!await _approvalConfig.CanApproveAsync(approverRole, requestInfo.Role))
+                return Ok(new { success = false, message = $"Phiếu này cần {await _approvalConfig.RequiredApproverNameAsync(requestInfo.Role)} phê duyệt." });
 
             // Single PL/SQL block: UPDATE + SP_INSERT_GATE_PASS atomically.
             // If SP raises exception the whole block fails → no autocommit → UPDATE rolled back.
@@ -691,7 +694,7 @@ END;";
 
             string? rejectRole = rejectRoleRows.FirstOrDefault();
 
-            if (!Helpers.RoleHierarchyHelper.HasApprovalPermission(rejectRole))
+            if (!await _approvalConfig.HasApprovalPermissionAsync(rejectRole))
                 return Ok(new { success = false, message = "Bạn không có quyền từ chối Gate Pass" });
 
             var rejectInfoRows = await _oracleService.ExecuteQueryAsync(@"
@@ -710,8 +713,8 @@ END;";
             if (rejectInfo.Empcd == model.APPROVER_EMPCD)
                 return Ok(new { success = false, message = "Lời nhắn: Hãy liên hệ quản lý cấp cao hơn để được phê duyệt" });
 
-            if (!Helpers.RoleHierarchyHelper.CanApprove(rejectRole, rejectInfo.Role))
-                return Ok(new { success = false, message = $"Phiếu này cần {Helpers.RoleHierarchyHelper.RequiredApproverName(rejectInfo.Role)} xử lý." });
+            if (!await _approvalConfig.CanApproveAsync(rejectRole, rejectInfo.Role))
+                return Ok(new { success = false, message = $"Phiếu này cần {await _approvalConfig.RequiredApproverNameAsync(rejectInfo.Role)} xử lý." });
 
             int rows = await _oracleService.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_REQUEST

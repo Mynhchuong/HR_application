@@ -151,7 +151,13 @@ public class FileController : BaseController
                     ".jpg" or ".jpeg" => "image/jpeg",
                     _       => "application/octet-stream",
                 };
-                return File(bytes, mime);
+                // enableRangeProcessing: true — iOS Safari/WebKit BẮT BUỘC server trả 206 Partial
+                // Content theo Range header mới chịu phát <video>, không chấp nhận full 200 OK như
+                // Chrome/Edge desktop vẫn chịu được (báo lỗi thật 2026-10-24: video xem được trên máy
+                // tính, không xem được trên iPhone). Dữ liệu đã buffer đủ (bytes) nên set cờ này an
+                // toàn — không cần đổi sang streaming trực tiếp từ network share (rủi ro share bị
+                // NetworkShareHelper.Dispose() cắt kết nối giữa lúc response đang ghi dần).
+                return File(bytes, mime, enableRangeProcessing: true);
             }
         }
         catch { return NotFound(); }

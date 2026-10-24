@@ -33,19 +33,22 @@ public class AttendanceConfirmService
     private readonly NotificationService _notiSvc;
     private readonly NotificationHelper _notiHelper;
     private readonly AttendanceConfirmLogHelper _log;
+    private readonly ApprovalConfigService _approvalConfig;
 
     public AttendanceConfirmService(
         OracleService oracleService,
         ShiftLookupService shiftLookup,
         NotificationService notiSvc,
         NotificationHelper notiHelper,
-        AttendanceConfirmLogHelper log)
+        AttendanceConfirmLogHelper log,
+        ApprovalConfigService approvalConfig)
     {
         _oracleService = oracleService;
         _shiftLookup   = shiftLookup;
         _notiSvc       = notiSvc;
         _notiHelper    = notiHelper;
         _log           = log;
+        _approvalConfig = approvalConfig;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -65,7 +68,7 @@ public class AttendanceConfirmService
         if (toDate.Date > yesterday) toDate = yesterday;
         // Chỉ true khi caller là quản lý thật (Supervisor+), KHÔNG phải Admin/HR — Admin/HR chỉ xem/
         // xuất Excel/gửi nhắc, không tự bấm Xác nhận thay (yêu cầu HR 2026-09-18).
-        bool canConfirm = !isAdminOrHr && RoleHierarchyHelper.HasApprovalPermission(await GetRoleNameAsync(callerEmpCd));
+        bool canConfirm = !isAdminOrHr && await _approvalConfig.HasApprovalPermissionAsync(await GetRoleNameAsync(callerEmpCd));
 
         OTScopeFilterHelper.FilterResult? scopeFilter = null;
         if (!isAdminOrHr)
@@ -763,15 +766,15 @@ public class AttendanceConfirmService
         if (!inScope) return Fail(existing.EMPCD, null, "Bạn không thuộc phạm vi quản lý của nhân viên này");
 
         var actorRole = await GetRoleNameAsync(req.ACTOR_EMPCD);
-        if (!RoleHierarchyHelper.HasApprovalPermission(actorRole))
+        if (!await _approvalConfig.HasApprovalPermissionAsync(actorRole))
             return Fail(existing.EMPCD, null, "Bạn không có quyền xác nhận");
 
         // Áp cùng rule phân cấp role với Leave/GatePass (yêu cầu 2026-09-21) — trước đây chỉ check
         // scope dept + level ≥ Supervisor, KHÔNG so role người xác nhận với role NV, nên 1 Supervisor
         // cùng scope vẫn xác nhận được cho cả Manager dù đáng lẽ phải là Expat/Admin mới đúng.
         var requesterRole = await GetRoleNameAsync(existing.EMPCD);
-        if (!RoleHierarchyHelper.CanApprove(actorRole, requesterRole))
-            return Fail(existing.EMPCD, null, $"Yêu cầu này cần {RoleHierarchyHelper.RequiredApproverName(requesterRole)} xác nhận.");
+        if (!await _approvalConfig.CanApproveAsync(actorRole, requesterRole))
+            return Fail(existing.EMPCD, null, $"Yêu cầu này cần {await _approvalConfig.RequiredApproverNameAsync(requesterRole)} xác nhận.");
 
         string newStatus = req.STATUS == "REJECTED" ? "REJECTED" : "CONFIRMED";
 

@@ -143,3 +143,4 @@ HR_api/Scripts/create_ai_chat_config.sql
 # Tài liệu + SQL tích hợp TPM (giữ cục bộ, không đưa lên git)
 TPM.DOC/
 HR_api/Scripts/create_survey_personal_data.sql
+HR_api/Scripts/create_approval_config.sql

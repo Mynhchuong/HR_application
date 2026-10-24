@@ -16,15 +16,17 @@ public class OTController : ControllerBase
     private readonly OracleService _oracleService;
     private readonly NotificationService _notiSvc;
     private readonly OtLogHelper _otLog;
+    private readonly ApprovalConfigService _approvalConfig;
 
     // Khoá song song theo (EMPCD|WORK_DATE) chống double-click race khi ConfirmOT
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _confirmLocks = new();
 
-    public OTController(OracleService oracleService, NotificationService notiSvc, OtLogHelper otLog)
+    public OTController(OracleService oracleService, NotificationService notiSvc, OtLogHelper otLog, ApprovalConfigService approvalConfig)
     {
         _oracleService = oracleService;
         _notiSvc = notiSvc;
         _otLog = otLog;
+        _approvalConfig = approvalConfig;
     }
 
     // GET /apiHR/OT/pending-comp-time — NV mở OtConfirmForm mặc định chỉ thấy đúng 1 ngày (work_date,
@@ -2264,7 +2266,6 @@ public class OTController : ControllerBase
             new OracleParameter("EMPCD", empCd));
 
         var role = roleRows.FirstOrDefault();
-        return string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(role, "HR", StringComparison.OrdinalIgnoreCase);
+        return await _approvalConfig.IsRequestTypeRoleAllowedAsync("OT", role);
     }
 }

@@ -65,6 +65,7 @@ builder.Services.AddScoped<HR_api.Services.HomeSummaryService>();
 builder.Services.AddScoped<HR_api.Services.HomeService>();
 builder.Services.AddScoped<HR_api.Services.HomeMyCalendarService>();
 builder.Services.AddScoped<HR_api.Services.HomeAdminService>();
+builder.Services.AddScoped<HR_api.Services.ApprovalConfigService>();
 
 // ============================================================
 // Survey — HR gửi khảo sát / trắc nghiệm cho NV

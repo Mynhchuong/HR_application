@@ -16,13 +16,15 @@ public class LeaveController : ControllerBase
     private readonly NotificationService _notiSvc;
     private readonly HomeSummaryService _homeSummarySvc;
     private readonly ShiftLookupService _shiftLookup;
+    private readonly ApprovalConfigService _approvalConfig;
 
-    public LeaveController(OracleService oracleService, NotificationService notiSvc, HomeSummaryService homeSummarySvc, ShiftLookupService shiftLookup)
+    public LeaveController(OracleService oracleService, NotificationService notiSvc, HomeSummaryService homeSummarySvc, ShiftLookupService shiftLookup, ApprovalConfigService approvalConfig)
     {
         _oracleService  = oracleService;
         _notiSvc        = notiSvc;
         _homeSummarySvc = homeSummarySvc;
         _shiftLookup    = shiftLookup;
+        _approvalConfig = approvalConfig;
     }
 
 
@@ -250,13 +252,6 @@ public class LeaveController : ControllerBase
         ["VS"] = "Vợ sanh",  ["DS"] = "Dưỡng sức", ["KT"] = "Khám thai"
     };
 
-    // Công tác (CT) chỉ Manager/Expat/Admin được duyệt/từ chối — dùng chung cho GetApprovalList
-    // (lọc danh sách) VÀ Approve/Reject (chặn hành động thật, không chỉ ẩn ở UI).
-    private static bool CanApproveCT(string? approverRole) => approverRole switch
-    {
-        "Manager" or "Expat" or "Admin" => true,
-        _ => false
-    };
 
     // Remark ghi vào ERP. HRMS.EFM410.REMAR giới hạn 50 byte, NHƯNG SP_015_NEW insert qua bảng trung gian
     // HRMS.EFM410_WAIT trước — cột REMAR của bảng NÀY chỉ 30 byte (đã verify thật: ORA-12899 actual=33 max=30
@@ -1031,14 +1026,17 @@ END;";
             if (hasSvScope.FirstOrDefault() == 0)
                 return Ok(new { success = false, message = "Chưa được phân quyền bộ phận" });
 
-            // Công tác (CT) chỉ Manager/Expat/Admin được duyệt — lấy role của approver để filter
+            // Công tác (CT) chỉ Manager/Expat/Admin được duyệt — lấy role của approver để filter.
+            // Luôn tính ctAllowed (không chỉ khi filter leave_type=CT tường minh) — bind vào WHERE để
+            // loại đơn CT khỏi list ngay cả khi approver load trang mặc định không chọn loại nghỉ
+            // (bug cũ: trước đây chỉ chặn được ở nút Approve/Reject, list vẫn hiện đơn CT gây hiểu lầm).
             var approverRoles = await _oracleService.ExecuteQueryAsync(
                 "SELECT NVL(RR.ROLE_NAME, '') ROLE_NAME FROM HRMS.HR_USERS UR LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = UR.ROLE_ID WHERE UR.EMPCD = :EMPCD AND ROWNUM = 1",
                 r => r["ROLE_NAME"]?.ToString() ?? "",
                 new OracleParameter("EMPCD", approver_empcd));
             string approverRole = approverRoles.FirstOrDefault() ?? "";
-            // Nếu không phải Manager/Expat/Admin mà request filter CT, return empty ngay
-            if (leave_type == "CT" && !CanApproveCT(approverRole))
+            bool ctAllowed = await _approvalConfig.IsRequestTypeRoleAllowedAsync("LEAVE_CT", approverRole);
+            if (leave_type == "CT" && !ctAllowed)
                 return Ok(new { success = false, message = "Chỉ Manager, Expat hoặc Admin mới được duyệt công tác" });
 
             var scopeFilter = Helpers.OTScopeFilterHelper.ForScopeByTuple(approver_empcd, empAlias: "EC", prefix: "SV");
@@ -1074,6 +1072,7 @@ END;";
                      OR (R.STATUS  = 'PENDING' AND L.TO_DATE      >= TRUNC(SYSDATE))
                   )
                   " + scopeFilter.SqlClause + @"
+                  AND (L.LEAVE_TYPE != 'CT' OR :CT_ALLOWED = 1)
                   AND (:ST_FLAG   IS NULL OR R.STATUS       = :ST_VAL)
                   AND (:LT_FLAG   IS NULL OR L.LEAVE_TYPE    = :LT_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
@@ -1091,6 +1090,7 @@ END;";
                      OR (R.STATUS  = 'PENDING' AND L.TO_DATE      >= TRUNC(SYSDATE))
                   )
                   " + scopeFilter.SqlClause + @"
+                  AND (L.LEAVE_TYPE != 'CT' OR :CT_ALLOWED = 1)
                   AND (:LT_FLAG   IS NULL OR L.LEAVE_TYPE    = :LT_VAL)
                   AND (:SRCH_FLAG IS NULL OR UPPER(L.EMPCD) LIKE :SRCH_VAL)
                   AND (:DPT_FLAG  IS NULL OR EC.DEPTCD      = :DPT_VAL)
@@ -1099,6 +1099,7 @@ END;";
 
             var baseParams = new List<OracleParameter>
             {
+                new OracleParameter("CT_ALLOWED", OracleDbType.Int32)   { Value = ctAllowed ? 1 : 0 },
                 new OracleParameter("D_FROM",    OracleDbType.Date)     { Value = dfrom },
                 new OracleParameter("D_TO",      OracleDbType.Date)     { Value = dto },
                 new OracleParameter("ST_FLAG",   OracleDbType.Varchar2) { Value = (object?)(string.IsNullOrEmpty(status)  ? null : "Y") ?? DBNull.Value },
@@ -1228,7 +1229,7 @@ END;";
 
             string? approverRole = approverRoleRows.FirstOrDefault();
 
-            if (!Helpers.RoleHierarchyHelper.HasApprovalPermission(approverRole))
+            if (!await _approvalConfig.HasApprovalPermissionAsync(approverRole))
                 return Ok(new { success = false, message = "Bạn không có quyền phê duyệt nghỉ phép" });
 
             var requestInfoRows = await _oracleService.ExecuteQueryAsync(@"
@@ -1250,11 +1251,11 @@ END;";
             if (requestInfo.Empcd == model.APPROVER_EMPCD)
                 return Ok(new { success = false, message = "Không thể tự duyệt đơn của mình" });
 
-            if (!Helpers.RoleHierarchyHelper.CanApprove(approverRole, requestInfo.Role))
-                return Ok(new { success = false, message = $"Phiếu này cần {Helpers.RoleHierarchyHelper.RequiredApproverName(requestInfo.Role)} phê duyệt." });
+            if (!await _approvalConfig.CanApproveAsync(approverRole, requestInfo.Role))
+                return Ok(new { success = false, message = $"Phiếu này cần {await _approvalConfig.RequiredApproverNameAsync(requestInfo.Role)} phê duyệt." });
 
             // Công tác (CT) chỉ Manager/Expat/Admin được duyệt — chặn hành động thật, không chỉ ẩn ở UI/list.
-            if (requestInfo.LeaveType == "CT" && !CanApproveCT(approverRole))
+            if (requestInfo.LeaveType == "CT" && !await _approvalConfig.IsRequestTypeRoleAllowedAsync("LEAVE_CT", approverRole))
                 return Ok(new { success = false, message = "Đơn Công tác chỉ Manager, Expat hoặc Admin mới được duyệt" });
 
             // Chặn duyệt vượt số ngày phép năm còn lại — re-check ngay tại thời điểm DUYỆT (không chỉ
@@ -1510,7 +1511,7 @@ END;";
 
             string? rejectRole = rejectRoleRows.FirstOrDefault();
 
-            if (!Helpers.RoleHierarchyHelper.HasApprovalPermission(rejectRole))
+            if (!await _approvalConfig.HasApprovalPermissionAsync(rejectRole))
                 return Ok(new { success = false, message = "Bạn không có quyền từ chối nghỉ phép" });
 
             var rejectInfoRows = await _oracleService.ExecuteQueryAsync(@"
@@ -1535,11 +1536,11 @@ END;";
             if (rejectInfo.Empcd == model.APPROVER_EMPCD)
                 return Ok(new { success = false, message = "Không thể tự từ chối đơn của mình" });
 
-            if (!Helpers.RoleHierarchyHelper.CanApprove(rejectRole, rejectInfo.Role))
-                return Ok(new { success = false, message = $"Phiếu này cần {Helpers.RoleHierarchyHelper.RequiredApproverName(rejectInfo.Role)} xử lý." });
+            if (!await _approvalConfig.CanApproveAsync(rejectRole, rejectInfo.Role))
+                return Ok(new { success = false, message = $"Phiếu này cần {await _approvalConfig.RequiredApproverNameAsync(rejectInfo.Role)} xử lý." });
 
             // Công tác (CT) chỉ Manager/Expat/Admin được từ chối — chặn hành động thật.
-            if (rejectInfo.LeaveType == "CT" && !CanApproveCT(rejectRole))
+            if (rejectInfo.LeaveType == "CT" && !await _approvalConfig.IsRequestTypeRoleAllowedAsync("LEAVE_CT", rejectRole))
                 return Ok(new { success = false, message = "Đơn Công tác chỉ Manager, Expat hoặc Admin mới được xử lý" });
 
             int rows = await _oracleService.ExecuteNonQueryAsync(@"
@@ -1636,7 +1637,7 @@ END;";
 
             string? assignerRole = assignerRoleRows.FirstOrDefault();
 
-            if (!Helpers.RoleHierarchyHelper.HasApprovalPermission(assignerRole) ||
+            if (!await _approvalConfig.HasApprovalPermissionAsync(assignerRole) ||
                 string.Equals(assignerRole, "Expat", StringComparison.OrdinalIgnoreCase))
                 return Ok(new { success = false, message = "Bạn không có quyền sắp lịch nghỉ" });
 

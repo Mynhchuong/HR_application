@@ -1,8 +1,10 @@
 using HR_web.API.Service;
+using HR_web.Helpers;
 using HR_web.Models.Training;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Newtonsoft.Json.Linq;
 
 namespace HR_web.Controllers.Training;
 
@@ -10,10 +12,60 @@ namespace HR_web.Controllers.Training;
 public class TrainingController : BaseController
 {
     private readonly TrainingService _training;
+    private readonly IConfiguration _config;
 
-    public TrainingController(TrainingService training)
+    public TrainingController(TrainingService training, IConfiguration config)
     {
         _training = training;
+        _config   = config;
+    }
+
+    // Ký token cho mọi FILE_URL trỏ tới GetTrainingMaterial trong 1 JSON response (duyệt đệ quy —
+    // FILE_URL có thể nằm sâu trong object lồng nhau như classData.materials[]). Token hết hạn 24h,
+    // khớp thời hạn cookie session (Program.cs AddCookie ExpireTimeSpan=24h) để không gây trải nghiệm
+    // lệch nhau giữa 2 cơ chế auth. Xem MaterialUrlTokenHelper.cs để biết lý do cần token thay cookie.
+    private void SignMaterialUrls(JToken? node)
+    {
+        if (node == null) return;
+        if (node.Type == JTokenType.Object)
+        {
+            foreach (var prop in ((JObject)node).Properties().ToList())
+            {
+                if (prop.Name == "FILE_URL" && prop.Value.Type == JTokenType.String)
+                {
+                    var url = prop.Value.Value<string>();
+                    if (!string.IsNullOrEmpty(url))
+                        prop.Value = SignFileUrl(url);
+                }
+                else
+                {
+                    SignMaterialUrls(prop.Value);
+                }
+            }
+        }
+        else if (node.Type == JTokenType.Array)
+        {
+            foreach (var child in node) SignMaterialUrls(child);
+        }
+    }
+
+    private string SignFileUrl(string url)
+    {
+        if (!url.Contains("GetTrainingMaterial", StringComparison.OrdinalIgnoreCase)) return url;
+        var qIdx = url.IndexOf('?');
+        if (qIdx < 0) return url;
+
+        var query = QueryHelpers.ParseQuery(url[(qIdx + 1)..]);
+        var subFolder = query.TryGetValue("subFolder", out var sf) ? sf.ToString() : null;
+        var fileName  = query.TryGetValue("fileName", out var fn) ? fn.ToString() : null;
+        if (string.IsNullOrEmpty(subFolder) || string.IsNullOrEmpty(fileName)) return url;
+
+        var secret = _config["MaterialTokenSecret"];
+        if (string.IsNullOrEmpty(secret)) return url;
+
+        long exp = DateTimeOffset.UtcNow.AddHours(24).ToUnixTimeSeconds();
+        var sig  = MaterialUrlTokenHelper.Sign(subFolder, fileName, exp, secret);
+        return QueryHelpers.AddQueryString(url, new Dictionary<string, string?> { ["exp"] = exp.ToString(), ["sig"] = sig });
     }
 
     // GET /Training/MyClasses (or general entry index redirecting to MyClasses)
@@ -132,7 +184,8 @@ public class TrainingController : BaseController
             var fileName  = query.TryGetValue("fileName", out var fn) ? fn.ToString() : null;
             if (string.IsNullOrEmpty(subFolder) || string.IsNullOrEmpty(fileName)) return fileUrl;
 
-            return Url.Action("GetTrainingMaterial", "File", new { subFolder, fileName }) ?? fileUrl;
+            var rebuilt = Url.Action("GetTrainingMaterial", "File", new { subFolder, fileName }) ?? fileUrl;
+            return SignFileUrl(rebuilt);
         }
         catch { return fileUrl; }
     }
@@ -182,7 +235,8 @@ public class TrainingController : BaseController
     public async Task<IActionResult> GetClassDetail(int classId)
     {
         var empcd = CurrentUser?.EmpCd ?? "";
-        var res = await _training.GetFromApiAsync<object>($"Training/class/{classId}/detail", $"empcd={empcd}");
+        var res = await _training.GetFromApiAsync<JObject>($"Training/class/{classId}/detail", $"empcd={empcd}");
+        SignMaterialUrls(res);
         return Json(res);
     }
 
@@ -207,7 +261,8 @@ public class TrainingController : BaseController
     public async Task<IActionResult> GetSessionVideoMaterials(int sessionId)
     {
         var empcd = CurrentUser?.EmpCd ?? "";
-        var res = await _training.GetFromApiAsync<object>($"Training/session/{sessionId}/materials", $"empcd={empcd}");
+        var res = await _training.GetFromApiAsync<JObject>($"Training/session/{sessionId}/materials", $"empcd={empcd}");
+        SignMaterialUrls(res);
         return Json(res);
     }
 

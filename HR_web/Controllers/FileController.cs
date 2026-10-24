@@ -12,10 +12,12 @@ namespace HR_web.Controllers;
 public class FileController : BaseController
 {
     private readonly TrainingService _training;
+    private readonly IConfiguration _config;
 
-    public FileController(TrainingService training)
+    public FileController(TrainingService training, IConfiguration config)
     {
         _training = training;
+        _config   = config;
     }
 
     // Reuse cùng share credential với ImageController
@@ -115,10 +117,17 @@ public class FileController : BaseController
     }
 
     // ─────────────────────────────────────────────────────────────
-    // GET /File/GetTrainingMaterial?subFolder=CLASS_5&fileName=xxx.pdf
+    // GET /File/GetTrainingMaterial?subFolder=CLASS_5&fileName=xxx.pdf[&exp=&sig=]
+    // Chấp nhận HOẶC cookie session (như cũ) HOẶC token ký sẵn (exp+sig, xem MaterialUrlTokenHelper) —
+    // token cần thiết vì trình phát video native trong WKWebView (app My Samho iOS, có khả năng cả
+    // Android) không chắc mang theo cookie khi tự gọi mạng để stream, khiến [Authorize] redirect về
+    // trang Login thay vì trả video (báo lỗi thật 2026-10-24: chỉ app My Samho lỗi, trình duyệt mobile
+    // + desktop đều xem được — đúng dấu hiệu cookie không tới được trình phát). [AllowAnonymous] ở
+    // đây rồi tự check lại 1 trong 2 điều kiện, KHÔNG bỏ hẳn xác thực.
     // ─────────────────────────────────────────────────────────────
     [HttpGet]
-    public IActionResult GetTrainingMaterial(string subFolder, string fileName)
+    [AllowAnonymous]
+    public IActionResult GetTrainingMaterial(string subFolder, string fileName, long exp = 0, string? sig = null)
     {
         if (string.IsNullOrWhiteSpace(subFolder) || string.IsNullOrWhiteSpace(fileName))
             return BadRequest();
@@ -126,6 +135,11 @@ public class FileController : BaseController
             return NotFound();
         if (fileName.Contains("..") || fileName.Contains('/') || fileName.Contains('\\'))
             return NotFound();
+
+        bool hasValidToken = exp > 0 && !string.IsNullOrEmpty(sig)
+            && MaterialUrlTokenHelper.Verify(subFolder, fileName, exp, sig, _config["MaterialTokenSecret"] ?? "");
+        if (!hasValidToken && User.Identity?.IsAuthenticated != true)
+            return Unauthorized();
 
         var filePath = Path.Combine(TrainingFolder, subFolder, fileName);
         try

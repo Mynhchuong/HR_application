@@ -47,6 +47,8 @@ import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
@@ -66,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private LinearLayout layoutNoInternet;
+    private View layoutSplash;
     private Button btnRetry;
     private ProgressBar progressBar;
     private String selectedBaseUrl = "http://sa1-hanaro.esamho.com/hr_Web"; // Mặc định là mạng nội bộ
@@ -79,6 +82,13 @@ public class MainActivity extends AppCompatActivity {
     private String pendingLinkAction = null; // từ FCM notification tap
     private String pendingNotiId = null;
     private boolean pendingVideoCaptureAfterPermission = false;
+
+    // Đăng nhập vân tay/Face Unlock (xem BiometricCredentialHelper.java) — credentials từ Login.cshtml
+    // CHƯA chắc đúng (có thể login sai), chỉ lưu thật khi handleBiometricLoginState xác nhận điều
+    // hướng kế tiếp không còn là trang Login (= thành công). Chỉ tự thử sinh trắc học 1 lần/phiên app.
+    private String pendingCredEmpcd;
+    private String pendingCredPassword;
+    private boolean hasTriedBiometricLogin = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -103,6 +113,7 @@ public class MainActivity extends AppCompatActivity {
 
         webView = findViewById(R.id.webView);
         layoutNoInternet = findViewById(R.id.layoutNoInternet);
+        layoutSplash = findViewById(R.id.layoutSplash);
         btnRetry = findViewById(R.id.btnRetry);
         progressBar = findViewById(R.id.progressBar);
 
@@ -123,6 +134,9 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setTextZoom(100);
         webSettings.setUseWideViewPort(true);
         webSettings.setLoadWithOverviewMode(true);
+        webSettings.setSupportZoom(false);
+        webSettings.setBuiltInZoomControls(false);
+        webSettings.setDisplayZoomControls(false);
 
         // Lưu link_action + noti_id từ notification tap (nếu có)
         pendingLinkAction = getIntent().getStringExtra("link_action");
@@ -168,6 +182,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                dismissSplash();
                 // Nếu user tap notification khi app đang tắt → navigate tới trang thông báo sau khi load xong
                 if (pendingLinkAction != null && url != null && !url.contains("/Notification")) {
                     String notiUrl = selectedBaseUrl + "/Notification";
@@ -178,6 +193,7 @@ public class MainActivity extends AppCompatActivity {
                     pendingNotiId = null;
                     view.loadUrl(notiUrl);
                 }
+                handleBiometricLoginState(url);
             }
         });
         
@@ -400,6 +416,18 @@ public class MainActivity extends AppCompatActivity {
     private void showNoInternetLayout() {
         webView.setVisibility(View.GONE);
         layoutNoInternet.setVisibility(View.VISIBLE);
+        dismissSplash();
+    }
+
+    // Che khoảng trắng chớp giữa lúc WebView bắt đầu tải và trang Home vẽ xong lần đầu (yêu cầu tối
+    // ưu UX 2026-10-26, cùng cơ chế với iOS ViewController.showSplash/dismissSplash). Idempotent —
+    // gọi lại nhiều lần (onPageFinished bắn mỗi lần điều hướng) không sao vì đã GONE từ lần đầu.
+    private void dismissSplash() {
+        if (layoutSplash != null && layoutSplash.getVisibility() != View.GONE) {
+            layoutSplash.animate().alpha(0f).setDuration(250).withEndAction(() ->
+                layoutSplash.setVisibility(View.GONE)
+            ).start();
+        }
     }
 
     private boolean isNetworkAvailable() {
@@ -604,12 +632,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        activeInstance = this;
         if (webView != null) webView.onResume();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        if (activeInstance == this) activeInstance = null;
         if (webView != null) webView.onPause();
     }
 
@@ -628,6 +658,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (activeInstance == this) activeInstance = null;
         if (webView != null) {
             webView.stopLoading();
             webView.setWebViewClient(null);
@@ -636,6 +667,15 @@ public class MainActivity extends AppCompatActivity {
             webView = null;
         }
         super.onDestroy();
+    }
+
+    // Instance đang foreground (nullable) — MySamhoFirebaseService.onMessageReceived() chỉ chạy khi
+    // app đang mở, dùng để gọi ngược vào WebView báo web tự refresh badge (yêu cầu 2026-10-26: badge
+    // không tự cập nhật real-time, phải F5 mới thấy số mới).
+    private static MainActivity activeInstance;
+
+    static void notifyForegroundPush() {
+        if (activeInstance != null) activeInstance.callWeb("onNativeNotificationReceived", "");
     }
 
     private Bitmap loadScaledBitmap(int resId, int maxWidth, int maxHeight) {
@@ -766,8 +806,10 @@ public class MainActivity extends AppCompatActivity {
     // window.onNativeBarcode(code) / onNativeBarcodeCancel() / onNativeBarcodeError(msg).
     // Máy không có Google Play Services -> onNativeBarcodeError -> trang web tự rơi về quét trong trang.
     void startNativeBarcodeScan() {
+        // CODE_128 (tem máy TPM) + QR_CODE (tra cứu NV qua thẻ QR, Directory/Index — yêu cầu 2026-10-24:
+        // đồng bộ với iOS, dùng chung 1 màn quét native cho mọi nơi gọi window.Android.scanBarcode()).
         GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_CODE_128)
+                .setBarcodeFormats(Barcode.FORMAT_CODE_128, Barcode.FORMAT_QR_CODE)
                 .enableAutoZoom()
                 .build();
         GmsBarcodeScanner scanner = GmsBarcodeScanning.getClient(this, options);
@@ -781,6 +823,52 @@ public class MainActivity extends AppCompatActivity {
         if (webView == null || isFinishing() || isDestroyed()) return;
         String js = "if(window." + fn + ")window." + fn + "(" + org.json.JSONObject.quote(arg == null ? "" : arg) + ");";
         webView.evaluateJavascript(js, null);
+    }
+
+    // Đăng nhập vân tay/Face Unlock — tự xác nhận/huỷ pendingCredentials dựa vào trang vừa tải xong
+    // có còn là Login không, và tự kích hoạt sinh trắc học khi vừa landing lại trang Login (session
+    // hết hạn) mà đã có credentials lưu sẵn.
+    private void handleBiometricLoginState(String url) {
+        boolean isLoginPage = url != null && url.contains("/Account/Login");
+
+        if (pendingCredEmpcd != null) {
+            String empcd = pendingCredEmpcd, password = pendingCredPassword;
+            pendingCredEmpcd = null;
+            pendingCredPassword = null;
+            if (!isLoginPage) {
+                // Vừa submit xong, điều hướng sang trang khác Login -> đăng nhập đúng -> lưu thật.
+                BiometricCredentialHelper.save(this, empcd, password);
+            }
+            // Vẫn còn ở Login -> đăng nhập sai -> KHÔNG lưu (tránh lưu nhầm mật khẩu sai).
+            return;
+        }
+
+        if (!isLoginPage || hasTriedBiometricLogin || !BiometricCredentialHelper.hasStoredCredentials(this)) return;
+        if (BiometricManager.from(this).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                != BiometricManager.BIOMETRIC_SUCCESS) return;
+        hasTriedBiometricLogin = true;
+
+        BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Đăng nhập My Samho")
+                .setNegativeButtonText("Huỷ")
+                .build();
+        BiometricPrompt prompt = new BiometricPrompt(this, ContextCompat.getMainExecutor(this),
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                        String empcd = BiometricCredentialHelper.getEmpcd(MainActivity.this);
+                        String password = BiometricCredentialHelper.getPassword(MainActivity.this);
+                        if (empcd == null || password == null || webView == null) return;
+                        String js = "(function(){"
+                                + "var e=document.getElementById('EMPCD'), p=document.getElementById('passwordInput');"
+                                + "var f=document.querySelector('.login-body form');"
+                                + "if(e&&p&&f){ e.value=" + org.json.JSONObject.quote(empcd)
+                                + "; p.value=" + org.json.JSONObject.quote(password) + "; f.submit(); }"
+                                + "})();";
+                        webView.evaluateJavascript(js, null);
+                    }
+                });
+        prompt.authenticate(promptInfo);
     }
 
     // JavaScript interface — web app gọi Android.getFcmToken() / clearNotifications()
@@ -807,6 +895,30 @@ public class MainActivity extends AppCompatActivity {
         public void clearAllNotifications() {
             NotificationManager mgr = (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
             if (mgr != null) mgr.cancelAll();
+        }
+
+        // Web gọi lúc submit form Login (Login.cshtml) — CHƯA lưu thật ngay, chỉ giữ tạm; MainActivity
+        // tự xác nhận/huỷ ở onPageFinished (xem handleBiometricLoginState).
+        @android.webkit.JavascriptInterface
+        public void saveCredentials(String empcd, String password) {
+            if (mContext instanceof MainActivity && empcd != null && !empcd.isEmpty()
+                    && password != null && !password.isEmpty()) {
+                MainActivity a = (MainActivity) mContext;
+                a.runOnUiThread(() -> {
+                    a.pendingCredEmpcd = empcd;
+                    a.pendingCredPassword = password;
+                });
+            }
+        }
+
+        // Web gọi lúc đăng xuất chủ động (_Layout.cshtml logoutForm) — KHÔNG muốn tự đăng nhập lại nữa.
+        @android.webkit.JavascriptInterface
+        public void clearCredentials() {
+            BiometricCredentialHelper.clear(mContext);
+            if (mContext instanceof MainActivity) {
+                MainActivity a = (MainActivity) mContext;
+                a.runOnUiThread(() -> { a.pendingCredEmpcd = null; a.pendingCredPassword = null; });
+            }
         }
     }
 }

@@ -46,6 +46,10 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
         String linkAction = remoteMessage.getData().get("link_action");
         String notiId     = remoteMessage.getData().get("noti_id");
         showNotification(title, body, linkAction, notiId);
+
+        // App đang mở (chỉ lúc này onMessageReceived mới chạy) -> báo WebView tự refresh badge ngay,
+        // không cần NV F5/chuyển trang mới thấy số mới (yêu cầu 2026-10-26).
+        MainActivity.notifyForegroundPush();
     }
 
     private void showNotification(String title, String body, String linkAction, String notiId) {

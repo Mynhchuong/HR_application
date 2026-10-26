@@ -120,52 +120,48 @@ window.InquiryChat = (function () {
         updateCharCounter(getInputLength());
     }
 
-    // ─── Image lightbox ──────────────────────────────────────
+    // ─── Image lightbox — dùng chung MediaViewer (media-viewer.js): pinch-zoom, vuốt chuyển ảnh, vuốt
+    // xuống để đóng, nút Lưu ảnh. Gom hết ảnh trong CÙNG 1 tin nhắn thành 1 "album" để vuốt qua lại
+    // (yêu cầu 2026-10-26: xem ảnh mượt hơn, ưu tiên web trước — MediaViewer chạy thuần JS, không phụ
+    // thuộc app native).
     function onChatClick(e) {
+        const videoThumb = e.target.closest('.attach-video-thumb');
         const imgTarget = e.target.closest('img');
         const anchorTarget = e.target.closest('a');
 
         const img = imgTarget || anchorTarget?.querySelector('img');
-        if (!img) return;
+        if (!img && !videoThumb) return;
 
-        if (!img.closest('#chatMsgs, .msg-attachments, .msg-bubble, .msg-content')) return;
+        const anchorEl = videoThumb || img;
+        if (!anchorEl.closest('#chatMsgs, .msg-attachments, .msg-bubble, .msg-content')) return;
 
         e.preventDefault();
         e.stopPropagation();
 
-        const anchor = anchorTarget || img.closest('a');
-        const fullUrl = anchor?.getAttribute('href') || img.src;
-        if (fullUrl) {
-            openLightbox(fullUrl);
+        if (!window.MediaViewer) return;
+
+        // Gom chung ảnh + video trong cùng 1 tin nhắn thành 1 "album" để vuốt qua lại, đồng bộ cách
+        // xem (yêu cầu 2026-10-26: chat mobile chưa tối ưu — video giờ cũng mở qua chung MediaViewer).
+        const group = (videoThumb || img).closest('.msg-attachments');
+        let fullUrl, items, startIndex;
+        if (group) {
+            items = Array.from(group.children).map(child => {
+                if (child.matches('.attach-video-thumb')) {
+                    return { url: child.getAttribute('data-video-url'), type: 'video' };
+                }
+                const a = child.querySelector('img.attach-img') ? child : null;
+                const href = a?.getAttribute('href');
+                return href ? { url: href, type: 'image' } : null;
+            }).filter(Boolean);
+            fullUrl = videoThumb ? videoThumb.getAttribute('data-video-url') : (anchorTarget || img.closest('a'))?.getAttribute('href');
+            startIndex = Math.max(0, items.findIndex(it => it.url === fullUrl));
+        } else {
+            fullUrl = videoThumb ? videoThumb.getAttribute('data-video-url') : ((anchorTarget || img.closest('a'))?.getAttribute('href') || img.src);
+            items = [{ url: fullUrl, type: videoThumb ? 'video' : 'image' }];
+            startIndex = 0;
         }
-    }
-
-    function openLightbox(url) {
-        let lb = document.getElementById('imgLightbox');
-        if (!lb) {
-            lb = document.createElement('div');
-            lb.id = 'imgLightbox';
-            lb.className = 'img-lightbox';
-            lb.innerHTML = '<button class="lb-close" aria-label="Close">✕</button><img alt="">';
-            document.body.appendChild(lb);
-            lb.addEventListener('click', () => closeLightbox());
-            lb.querySelector('img').addEventListener('click', e => e.stopPropagation());
-        }
-        lb.querySelector('img').src = url;
-        lb.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
-        document.addEventListener('keydown', onLightboxKey);
-    }
-
-    function closeLightbox() {
-        const lb = document.getElementById('imgLightbox');
-        if (lb) lb.style.display = 'none';
-        document.body.style.overflow = '';
-        document.removeEventListener('keydown', onLightboxKey);
-    }
-
-    function onLightboxKey(e) {
-        if (e.key === 'Escape') closeLightbox();
+        if (!fullUrl) return;
+        window.MediaViewer.open(items, startIndex);
     }
 
     // ─── Append message ──────────────────────────────────────
@@ -183,13 +179,24 @@ window.InquiryChat = (function () {
         let attachHtml = '';
         if (m.attachments?.length > 0) {
             attachHtml = '<div class="msg-attachments">' + m.attachments.map(a => {
-                const fullUrl  = `${cfg.urls.getFile}?path=${encodeURIComponent(a.filePath)}`;
+                let fullUrl = `${cfg.urls.getFile}?path=${encodeURIComponent(a.filePath)}`;
                 if (a.fileType === 'IMAGE') {
                     const thumbUrl = `${cfg.urls.getFile}?path=${encodeURIComponent(a.thumbPath || a.filePath)}`;
                     return `<a class="no-loading" href="${fullUrl}"><img class="attach-img" src="${thumbUrl}" alt="${esc(a.fileName)}"></a>`;
                 }
                 if (a.fileType === 'VIDEO') {
-                    return `<video class="attach-video" controls preload="metadata" playsinline controlsList="nodownload" src="${fullUrl}"></video>`;
+                    // Token ký sẵn (InquiryService.SignVideoAttachments, HR_web) — video trong WKWebView
+                    // có thể bị trình phát native gọi mạng không mang cookie, cùng fix đã dùng cho
+                    // training video (yêu cầu 2026-10-26: xem clip mượt hơn, kể cả không có cookie).
+                    if (a.exp && a.sig) fullUrl += `&exp=${a.exp}&sig=${encodeURIComponent(a.sig)}`;
+                    // Chỉ hiện thumbnail nhỏ + nút play (giống attach-img), KHÔNG nhúng thẳng <video>
+                    // preload="metadata" cho mọi tin nhắn — trước đây mỗi video hiện nguyên khung đen to
+                    // (chưa có poster) ngay trong dòng chat, chiếm cả màn hình, lại tự tải metadata dù
+                    // chưa bấm xem (báo "chat mobile chưa tối ưu" 2026-10-26). Bấm vào mới phát qua
+                    // MediaViewer (media-viewer.js), đồng bộ 1 kiểu xem với ảnh.
+                    return `<div class="attach-video-thumb" data-video-url="${esc(fullUrl)}" role="button" aria-label="Xem video">
+                        <span class="material-symbols-rounded">play_arrow</span>
+                    </div>`;
                 }
                 return `<a class="attach-file" href="${fullUrl}" download="${esc(a.fileName)}"><span class="material-symbols-rounded" style="font-size:1.1rem">description</span>${esc(a.fileName)}</a>`;
             }).join('') + '</div>';

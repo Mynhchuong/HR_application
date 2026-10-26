@@ -96,6 +96,12 @@ public class InquiryAttachDto
     public string? MimeType  { get; set; }
     public long?   FileSize  { get; set; }
     public string? ThumbPath { get; set; }
+    // Token ký sẵn cho GetFile (chỉ VIDEO cần — xem InquiryService.GetMessagesAsync) — video <video> tag
+    // trong WKWebView có thể bị trình phát native (AVPlayer) gọi mạng riêng không mang cookie, cùng lớp
+    // lỗi đã gặp ở training video (xem MaterialUrlTokenHelper.cs). Null với ảnh/file khác — vẫn chạy
+    // qua cookie bình thường, không cần token.
+    public long?   Exp { get; set; }
+    public string? Sig { get; set; }
 }
 
 public class InquiryFileInfo

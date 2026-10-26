@@ -38,9 +38,11 @@ public abstract class InquiryBaseController : BaseController
         if (!isImg && !isVid && !isDoc)
             return Json(new { success = false, message = "Định dạng không hỗ trợ (jpg/png/gif/webp/mp4/webm/mov/pdf/doc/xls)" });
 
-        long maxBytes = isVid ? 50L * 1024 * 1024 : 10L * 1024 * 1024;
+        // Video chụp từ điện thoại ở 1080p/4K dễ vượt 50MB chỉ sau 30-60 giây — nâng lên 100MB cho đỡ
+        // chật (yêu cầu 2026-10-26: tối ưu upload ảnh/video/file từ điện thoại).
+        long maxBytes = isVid ? 100L * 1024 * 1024 : 10L * 1024 * 1024;
         if (file.Length > maxBytes)
-            return Json(new { success = false, message = isVid ? "Video vượt quá 50MB" : "File vượt quá 10MB" });
+            return Json(new { success = false, message = isVid ? "Video vượt quá 100MB" : "File vượt quá 10MB" });
 
         try
         {
@@ -55,26 +57,67 @@ public abstract class InquiryBaseController : BaseController
             using (new NetworkShareHelper(ImageController.ShareRoot, ImageController.ShareCred))
             {
                 Directory.CreateDirectory(fullDir);
-                await using (var fs = System.IO.File.Create(fullPath))
-                    await file.CopyToAsync(fs);
 
-                if (isImg)
+                // Ảnh chụp thẳng từ camera điện thoại (jpg/jpeg — png/gif/webp thường là screenshot,
+                // không có EXIF orientation nên giữ nguyên) lưu thô trước đây dễ bị NGHIÊNG/NGƯỢC khi
+                // xem bản gốc (zoom/full-size trong chat) — cùng bug đã fix ở UploadSignature. Trước
+                // đây chỉ thumbnail 200x200 được load qua ImageSharp (tự AutoOrient khi Load) nên đúng
+                // chiều, còn ảnh gốc thì không (yêu cầu 2026-10-26).
+                if (isImg && (ext == ".jpg" || ext == ".jpeg"))
                 {
+                    using var stream = file.OpenReadStream();
+                    using var img = await Image.LoadAsync(stream);
+                    img.Mutate(x => x.AutoOrient());
+
+                    int w = img.Width, h = img.Height;
+                    int maxSide = Math.Max(w, h);
+                    if (maxSide > 1600)
+                    {
+                        double scale = 1600.0 / maxSide;
+                        img.Mutate(x => x.Resize((int)Math.Round(w * scale), (int)Math.Round(h * scale)));
+                    }
+
+                    await using (var fs = System.IO.File.Create(fullPath))
+                        await img.SaveAsJpegAsync(fs, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 85 });
+
                     try
                     {
                         string thumbName = "thumb_" + safeFile;
                         string thumbFull = Path.Combine(fullDir, thumbName);
                         thumbRelPath     = Path.Combine(relDir, thumbName).Replace('\\', '/');
 
-                        using var img = await Image.LoadAsync(fullPath);
-                        img.Mutate(x => x.Resize(new ResizeOptions
+                        using var thumb = img.Clone(x => x.Resize(new ResizeOptions
                         {
                             Mode = ResizeMode.Max,
                             Size = new Size(200, 200)
                         }));
-                        await img.SaveAsync(thumbFull);
+                        await thumb.SaveAsync(thumbFull);
                     }
                     catch { thumbRelPath = null; }
+                }
+                else
+                {
+                    await using (var fs = System.IO.File.Create(fullPath))
+                        await file.CopyToAsync(fs);
+
+                    if (isImg)
+                    {
+                        try
+                        {
+                            string thumbName = "thumb_" + safeFile;
+                            string thumbFull = Path.Combine(fullDir, thumbName);
+                            thumbRelPath     = Path.Combine(relDir, thumbName).Replace('\\', '/');
+
+                            using var img = await Image.LoadAsync(fullPath);
+                            img.Mutate(x => x.Resize(new ResizeOptions
+                            {
+                                Mode = ResizeMode.Max,
+                                Size = new Size(200, 200)
+                            }));
+                            await img.SaveAsync(thumbFull);
+                        }
+                        catch { thumbRelPath = null; }
+                    }
                 }
             }
 
@@ -97,12 +140,22 @@ public abstract class InquiryBaseController : BaseController
 
     // ─────────────────────────────────────────────────────────────────────────
     // Phục vụ file từ network share
-    // GET /{controller}/GetFile?path=INQUIRY/2026/INQ-001/...
+    // GET /{controller}/GetFile?path=INQUIRY/2026/INQ-001/...[&exp=&sig=]
+    // Chấp nhận HOẶC cookie session (như cũ) HOẶC token ký sẵn (exp+sig, chỉ InquiryService ký cho
+    // attachment VIDEO — xem MaterialUrlTokenHelper, cùng lý do đã áp dụng cho training video: trình
+    // phát video native trong WKWebView không chắc mang theo cookie). [AllowAnonymous] rồi tự check
+    // lại 1 trong 2 điều kiện, KHÔNG bỏ hẳn xác thực.
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet]
-    public IActionResult GetFile(string path)
+    [AllowAnonymous]
+    public IActionResult GetFile(string path, [FromServices] IConfiguration config, long exp = 0, string? sig = null)
     {
         if (string.IsNullOrWhiteSpace(path) || path.Contains("..")) return NotFound();
+
+        bool hasValidToken = exp > 0 && !string.IsNullOrEmpty(sig)
+            && MaterialUrlTokenHelper.Verify(path, "", exp, sig, config?["MaterialTokenSecret"] ?? "");
+        if (!hasValidToken && User.Identity?.IsAuthenticated != true)
+            return Unauthorized();
 
         try
         {
@@ -130,7 +183,10 @@ public abstract class InquiryBaseController : BaseController
                     ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     _       => "image/jpeg"
                 };
-                return File(bytes, mime);
+                // enableRangeProcessing: true — video <video> tag trên iOS/Android WebView cần server
+                // trả 206 Partial Content theo byte-range mới phát được (cùng lỗi/cùng fix đã xác nhận
+                // thật ở training video, xem FileController.GetTrainingMaterial).
+                return File(bytes, mime, enableRangeProcessing: true);
             }
         }
         catch { return NotFound(); }

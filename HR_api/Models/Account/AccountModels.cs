@@ -48,6 +48,10 @@ public class LoginRequest
 {
     public string EmpCd { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+    // APP_IOS | APP_ANDROID | WEB_MOBILE | WEB_DESKTOP — HR_web tự phân loại từ User-Agent của trình
+    // duyệt thật (DeviceDetector.cs) trước khi gọi API này, lưu vào HR_USERS.LAST_DEVICE_TYPE để làm
+    // báo cáo "ai đã cài app / ai còn xài web" (yêu cầu 2026-10-26, xem AdminReport/DeviceUsage).
+    public string? DeviceType { get; set; }
 }
 
 public class ChangePasswordRequest

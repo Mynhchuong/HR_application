@@ -38,9 +38,9 @@ public class AccountService
     #endregion
 
     #region LOGIN
-    public async Task<UserInfoModel?> LoginAsync(string empcd, string password)
+    public async Task<UserInfoModel?> LoginAsync(string empcd, string password, string? deviceType = null)
     {
-        var payload = new { EmpCd = empcd, Password = password };
+        var payload = new { EmpCd = empcd, Password = password, DeviceType = deviceType };
         var response = await _api.PostAsync(LoginEndpoint, payload);
         var result = await ParseResponse<UserInfoModel>(response);
         return (result != null && result.success) ? result.data : null;

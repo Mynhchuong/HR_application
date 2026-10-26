@@ -42,6 +42,8 @@ dependencies {
     implementation(libs.activity)
     implementation(libs.constraintlayout)
     implementation(libs.play.services.code.scanner) // Quét mã vạch tem máy (TPM) bằng Google Code Scanner
+    implementation(libs.biometric)        // Đăng nhập lại bằng vân tay/Face Unlock
+    implementation(libs.security.crypto)  // EncryptedSharedPreferences — lưu mã NV/mật khẩu an toàn
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)

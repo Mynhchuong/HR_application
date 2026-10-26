@@ -16,7 +16,12 @@
 <html lang="vi">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- maximum-scale=1 + user-scalable=no — chặn hẳn auto-zoom của iOS Safari/WKWebView khi focus
+         input (không phụ thuộc cỡ chữ từng ô, chặn tại gốc luôn thay vì sửa từng input 1 — yêu cầu
+         tắt zoom 2026-10-26, đồng bộ với việc đã tắt pinch-zoom native Android/iOS). Không ảnh hưởng
+         MediaViewer (media-viewer.js) — zoom ảnh/video ở đó tự code bằng touch event JS riêng, độc
+         lập với thẻ viewport này. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>@ViewData["Title"] - My SAMHO</title>
     <link rel="icon" type="image/png" href="~/assets/img/samho-logo.png" />
 
@@ -791,6 +796,15 @@
                                 } catch (e) {}
                                 // Clear session flag để login lần sau vẫn thấy hero popup
                                 try { sessionStorage.removeItem('home_hero_popup_dismissed'); } catch (e) {}
+                                // Xoá tài khoản/mật khẩu đã lưu cho đăng nhập Face ID/vân tay (yêu cầu
+                                // 2026-10-26) — logout chủ động nghĩa là KHÔNG muốn tự đăng nhập lại nữa.
+                                try {
+                                    if (window.Android && typeof window.Android.clearCredentials === 'function')
+                                        window.Android.clearCredentials();
+                                    else if (window.webkit && window.webkit.messageHandlers
+                                        && window.webkit.messageHandlers.clearCredentials)
+                                        window.webkit.messageHandlers.clearCredentials.postMessage(null);
+                                } catch (e) {}
                                 // Không gọi preventDefault → form vẫn submit bình thường
                             });
                         })();
@@ -838,26 +852,30 @@
                 .catch(function() {});
         }
 
-        // Notification — bottom-nav mobile (#bellBadge) + sidebar desktop (#sideBellBadge)
-        loadBadge('@Url.Action("UnreadCount","Notification")', ['bellBadge', 'sideBellBadge']);
+        // Gom hết các loadBadge(...) vào 1 hàm gọi lại được — native (iOS/Android) gọi
+        // window.onNativeNotificationReceived() khi có push đến LÚC APP ĐANG MỞ (foreground) để badge
+        // tự cập nhật ngay, không cần NV F5/chuyển trang mới thấy số mới (trước đây chỉ 1 chiều: web
+        // lấy FCM token đăng ký, native xoá badge lúc logout — không có chiều ngược báo "có tin mới").
+        function refreshAllBadges() {
+            // Notification — bottom-nav mobile (#bellBadge) + sidebar desktop (#sideBellBadge)
+            loadBadge('@Url.Action("UnreadCount","Notification")', ['bellBadge', 'sideBellBadge']);
 
-        // Bulletin — số bài đang publish nhưng user chưa mở
-        loadBadge('@Url.Action("UnreadCount","Bulletin")', 'bulletinBadge');
+            // Bulletin — số bài đang publish nhưng user chưa mở
+            loadBadge('@Url.Action("UnreadCount","Bulletin")', 'bulletinBadge');
 
-        // OT need-confirm (sidebar "Xác nhận Tăng ca") — hiện "1" khi hôm nay có tăng ca đang chờ
-        // chính NV tự xác nhận (CONFIRM_STATUS='PENDING').
-        loadBadge('@Url.Action("GetTodayNeedConfirm","OT")', 'sideOtBadge', function(d) { return d.needConfirm ? 1 : 0; });
+            // OT need-confirm (sidebar "Xác nhận Tăng ca") — hiện "1" khi hôm nay có tăng ca đang chờ
+            // chính NV tự xác nhận (CONFIRM_STATUS='PENDING').
+            loadBadge('@Url.Action("GetTodayNeedConfirm","OT")', 'sideOtBadge', function(d) { return d.needConfirm ? 1 : 0; });
 
-        // Attendance Confirm (sidebar "Xác nhận chấm công") — số ngày NV còn cần tự khai/khai lại
-        // (MISSING/PENDING_WORKER/REJECTED), cùng pattern với sideOtBadge.
-        loadBadge('@Url.Action("GetMyPending","AttendanceConfirm")', 'sideAttBadge', function(d) { return d.count || 0; });
+            // Attendance Confirm (sidebar "Xác nhận chấm công") — số ngày NV còn cần tự khai/khai lại
+            // (MISSING/PENDING_WORKER/REJECTED), cùng pattern với sideOtBadge.
+            loadBadge('@Url.Action("GetMyPending","AttendanceConfirm")', 'sideAttBadge', function(d) { return d.count || 0; });
 
-        // Gift (sidebar "Xác nhận nhận quà") — số quà NV đang PENDING_CONFIRM, cùng pattern trên.
-        loadBadge('@Url.Action("GetMyPending","Gift")', 'sideGiftBadge', function(d) { return d.count || 0; });
+            // Gift (sidebar "Xác nhận nhận quà") — số quà NV đang PENDING_CONFIRM, cùng pattern trên.
+            loadBadge('@Url.Action("GetMyPending","Gift")', 'sideGiftBadge', function(d) { return d.count || 0; });
 
-        // Inquiry unread — bottom-nav mobile (#inqBadge) + sidebar desktop (#sideInqBadge, mục
-        // "Hộp thư phản ánh"). Nguồn số khác nhau theo role vì HR/Admin/NV dùng 3 controller riêng.
-        (function() {
+            // Inquiry unread — bottom-nav mobile (#inqBadge) + sidebar desktop (#sideInqBadge, mục
+            // "Hộp thư phản ánh"). Nguồn số khác nhau theo role vì HR/Admin/NV dùng 3 controller riêng.
             @if (mobileRole == "HR")
             {
                 <text>
@@ -879,7 +897,9 @@
                 function(d) { return (d.data || []).reduce(function(s, i) { return s + (i.unreadEmp || 0); }, 0); });
                 </text>
             }
-        })();
+        }
+        refreshAllBadges();
+        window.onNativeNotificationReceived = refreshAllBadges;
 
         // FCM token registration (native WebView bridge)
         (function tryRegisterToken(attempt) {
@@ -905,6 +925,16 @@
                 }).catch(() => {});
             } catch(e) {}
         })(0);
+
+        // Báo mã NV cho app native iOS (bridge setEmpcd) — iOS phân phối qua Apple Business Manager,
+        // không có App Store public, mỗi NV có 1 link redeem riêng (HR_APP_LINK). Lúc app kiểm tra
+        // version (AppVersionController.Check), cần biết đang là NV nào để trả đúng link ĐÃ GÁN cho
+        // họ làm nút "Cập nhật ngay" — mở lại đúng link cũ sẽ ra thẳng trang app trên App Store, không
+        // redeem lại (yêu cầu 2026-10-26: "xài lại link cũ để update iOS"). Android dùng Play Store
+        // public URL chung, không cần bridge này.
+        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.setEmpcd) {
+            try { window.webkit.messageHandlers.setEmpcd.postMessage(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(layoutUser?.EmpCd ?? ""))); } catch (e) {}
+        }
         </script>
     }
 </body>

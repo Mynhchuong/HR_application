@@ -288,8 +288,11 @@
         .material-card h6 { font-size: .82rem; }
         .material-card p.material-meta { font-size: .65rem; }
         .material-card p.material-meta .badge { font-size: .58rem; padding: .25rem .4rem; }
-        .material-actions .btn.rounded-circle { width: 32px; height: 32px; padding: 0 !important; }
-        .material-actions .btn.rounded-circle i { font-size: .9rem !important; }
+        /* Vùng chạm nút eye/download trước đây 32x32px, sát nhau — dễ bấm nhầm trên điện thoại NV
+           xưởng (chuẩn khuyến nghị tối thiểu ~40-44px, yêu cầu 2026-10-26). */
+        .material-actions.d-flex.gap-1 { gap: .4rem !important; }
+        .material-actions .btn.rounded-circle { width: 40px; height: 40px; padding: 0 !important; }
+        .material-actions .btn.rounded-circle i { font-size: 1rem !important; }
         .material-actions .btn.rounded-3 { padding: .3rem .5rem !important; font-size: .68rem; }
         .material-actions .btn.rounded-3 i { font-size: .8rem !important; }
 
@@ -302,16 +305,22 @@
     }
 </style>
 
-<!-- SESSION VIDEO PLAYER MODAL (đào tạo online) -->
+<!-- SESSION VIDEO PLAYER MODAL (đào tạo online) — fullscreen trên điện thoại (modal-fullscreen-sm-down,
+     Bootstrap 5 có sẵn) thay vì modal thu nhỏ giữa màn hình kiểu desktop, đỡ phí diện tích màn hình
+     nhỏ (yêu cầu 2026-10-26: NV xưởng 100% xem qua app). Giữ nguyên <video> gốc (không đổi qua
+     MediaViewer) vì còn gắn logic track tiến độ xem bắt buộc xem hết mới tính đã học — MediaViewer
+     chưa có khái niệm này. -->
 <div class="modal fade" id="sessionVideoPlayerModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
             <div class="modal-header border-bottom-0">
-                <h6 class="fw-bold modal-title" id="svp-title">Video bài học</h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h6 class="fw-bold modal-title text-truncate pe-2" id="svp-title">Video bài học</h6>
+                <button type="button" class="btn-close flex-shrink-0" data-bs-dismiss="modal"
+                        aria-label="Đóng"
+                        style="background-color:#e9ecef;border-radius:50%;width:32px;height:32px;padding:0;opacity:1;"></button>
             </div>
-            <div class="modal-body pt-0">
-                <video id="svp-video-el" controls style="width: 100%; border-radius: 12px; background: #000;"></video>
+            <div class="modal-body pt-0 d-flex flex-column justify-content-center">
+                <video id="svp-video-el" controls playsinline style="width: 100%; border-radius: 12px; background: #000;"></video>
                 <p class="text-muted small mt-2 mb-0"><i class="bi bi-info-circle me-1"></i>Xem hết video mới được tính đã học buổi này.</p>
             </div>
         </div>
@@ -639,17 +648,53 @@
                     document.getElementById('svp-title').textContent = `Buổi ${sessionNo}: ${video.TITLE}`;
                     const el = document.getElementById('svp-video-el');
                     el.src = video.FILE_URL;
-                    // Set currentTime sau khi metadata load xong — set ngay lúc gán src có thể bị bỏ qua ở 1 số trình duyệt.
-                    el.addEventListener('loadedmetadata', function onMeta() {
+
+                    // Quy tắc xem video lớp học online (yêu cầu 2026-10-26): KHÔNG cho tua tới/lui —
+                    // phải xem tuần tự mới tính đã học buổi này, không được bấm/kéo thanh tiến độ để
+                    // skip. lastAllowedTime chỉ tăng theo phát bình thường (timeupdate khi !el.seeking);
+                    // mọi lần 'seeked' lệch khỏi mốc đó (user kéo thanh) đều bị kéo ngược lại ngay.
+                    // suppressSeek dùng để KHÔNG chặn chính cú nhảy phục hồi vị trí đã xem dở ở trên.
+                    let suppressSeek = true;
+                    let lastAllowedTime = 0;
+                    function onMeta() {
                         el.currentTime = video.LAST_POSITION_SEC || 0;
+                        lastAllowedTime = el.currentTime;
+                        // Nếu currentTime đã trùng giá trị cũ (vd =0) thì trình duyệt không bắn sự kiện
+                        // 'seeked' — suppressSeek sẽ bị kẹt true mãi, khiến lần user tua ĐẦU TIÊN vô tình
+                        // lọt qua. Hẹn giờ ngắn để tự tắt cờ, không phụ thuộc việc 'seeked' có bắn hay không.
+                        setTimeout(() => { suppressSeek = false; }, 400);
                         el.removeEventListener('loadedmetadata', onMeta);
-                    });
+                    }
+                    function onTimeUpdate() {
+                        if (!el.seeking) lastAllowedTime = el.currentTime;
+                    }
+                    function onSeeked() {
+                        if (suppressSeek) { suppressSeek = false; lastAllowedTime = el.currentTime; return; }
+                        if (Math.abs(el.currentTime - lastAllowedTime) > 1) {
+                            suppressSeek = true;
+                            el.currentTime = lastAllowedTime;
+                            window.showToast && window.showToast('Không thể tua video — xem hết mới được tính đã học.', 'warning');
+                        }
+                    }
+                    // Báo tiến độ ngay khi video dừng (không chờ đủ 5s) — thoát/chuyển nền app thường tự
+                    // pause video trước khi OS đình chỉ tiến trình, nên bắt 'pause' là cách đáng tin cậy
+                    // nhất để không bị mất vài giây tiến độ cuối khi NV thoát app đột ngột (yêu cầu
+                    // 2026-10-26: thoát giữa chừng vô lại phải phục hồi đúng vị trí đã xem).
+                    function onPause() { reportVideoProgress(el, false); }
+                    el.addEventListener('loadedmetadata', onMeta);
+                    el.addEventListener('timeupdate', onTimeUpdate);
+                    el.addEventListener('seeked', onSeeked);
+                    el.addEventListener('pause', onPause);
+
                     new bootstrap.Modal(document.getElementById('sessionVideoPlayerModal')).show();
 
                     document.getElementById('sessionVideoPlayerModal').addEventListener('hidden.bs.modal', function onHide() {
                         el.pause();
                         el.removeAttribute('src');
                         el.load();
+                        el.removeEventListener('timeupdate', onTimeUpdate);
+                        el.removeEventListener('seeked', onSeeked);
+                        el.removeEventListener('pause', onPause);
                         if (videoProgressTimer) { clearInterval(videoProgressTimer); videoProgressTimer = null; }
                         refreshVideoWatchBadge(sessionId);
                         this.removeEventListener('hidden.bs.modal', onHide);

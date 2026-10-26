@@ -120,7 +120,9 @@
                                                 }
                                                 else if (a.FileType == "VIDEO")
                                                 {
-                                                    <video class="attach-video" controls preload="metadata" playsinline controlsList="nodownload" src="@Url.Action("GetFile","AdminInquiry")?path=@Uri.EscapeDataString(a.FilePath)"></video>
+                                                    <div class="attach-video-thumb" data-video-url="@Url.Action("GetFile","AdminInquiry")?path=@Uri.EscapeDataString(a.FilePath)" role="button" aria-label="Xem video">
+                                                        <span class="material-symbols-rounded">play_arrow</span>
+                                                    </div>
                                                 }
                                                 else
                                                 {
@@ -224,6 +226,7 @@
 @Html.AntiForgeryToken()
 
 @section Scripts {
+<script src="~/js/media-viewer.js" asp-append-version="true"></script>
 <script src="~/js/inquiry-chat.js" asp-append-version="true"></script>
 @if (!isClosed)
 {

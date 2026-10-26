@@ -158,9 +158,45 @@ public class TrainingController : BaseController
 
         ViewBag.ClassId = classId;
         ViewBag.MaterialTitle = string.IsNullOrEmpty(title) ? "Tài liệu học tập" : title;
-        ViewBag.FileType = fileType ?? "";
-        ViewBag.FileUrl = NormalizeMaterialFileUrl(fileUrl);
+
+        var (effectiveType, effectiveUrl) = ResolvePreviewFile(fileType ?? "", fileUrl);
+        ViewBag.FileType = effectiveType;
+        ViewBag.FileUrl = effectiveUrl;
         return View();
+    }
+
+    // Word/Excel/PowerPoint (FILE_TYPE="DOCX") đã được convert PDF song song lúc upload nếu server có
+    // LibreOffice (xem FileController.UploadTrainingMaterial + OfficeToPdfConverter). Nếu file PDF đó
+    // tồn tại, mở nó thay vì fallback "không xem trước được" — tái dùng NGUYÊN khung iframe PDF đã có,
+    // không phải sửa gì ở MaterialPreview.cshtml (yêu cầu 2026-10-26).
+    private (string fileType, string fileUrl) ResolvePreviewFile(string fileType, string? fileUrl)
+    {
+        var normalizedUrl = NormalizeMaterialFileUrl(fileUrl);
+        if (fileType != "DOCX" || string.IsNullOrWhiteSpace(fileUrl)) return (fileType, normalizedUrl);
+
+        try
+        {
+            var qIdx = fileUrl.IndexOf('?');
+            if (qIdx < 0) return (fileType, normalizedUrl);
+            var query = QueryHelpers.ParseQuery(fileUrl[(qIdx + 1)..]);
+            var subFolder = query.TryGetValue("subFolder", out var sf) ? sf.ToString() : null;
+            var fileName  = query.TryGetValue("fileName", out var fn) ? fn.ToString() : null;
+            if (string.IsNullOrEmpty(subFolder) || string.IsNullOrEmpty(fileName)) return (fileType, normalizedUrl);
+
+            var pdfFileName = Path.GetFileNameWithoutExtension(fileName) + ".pdf";
+            var shareRoot = HR_web.Controllers.FileController.ShareRoot;
+            var folder = Path.Combine(shareRoot, "TRAINING", subFolder);
+            var pdfPath = Path.Combine(folder, pdfFileName);
+
+            using (new HR_web.Helpers.NetworkShareHelper(shareRoot, HR_web.Controllers.FileController.ShareCred))
+            {
+                if (!System.IO.File.Exists(pdfPath)) return (fileType, normalizedUrl);
+            }
+
+            var pdfUrl = Url.Action("GetTrainingMaterial", "File", new { subFolder, fileName = pdfFileName }) ?? normalizedUrl;
+            return ("PDF", SignFileUrl(pdfUrl));
+        }
+        catch { return (fileType, normalizedUrl); }
     }
 
     // FILE_URL được lưu lại nguyên 1 URL tuyệt đối tính SẴN tại lúc HR upload (Url.Action lúc đó),

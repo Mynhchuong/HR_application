@@ -23,15 +23,22 @@
             }
             else if (fileType == "IMG")
             {
+                @* Bấm để xem full-screen pinch-zoom qua MediaViewer dùng chung (giống ảnh trong chat) —
+                   nhiều ảnh tài liệu là chụp màn hình quy định/hướng dẫn, cần phóng to mới đọc rõ chữ
+                   trên điện thoại (yêu cầu 2026-10-26: NV xưởng 100% xem qua app). *@
                 <div class="text-center">
-                    <img src="@fileUrl" alt="@title" style="max-width:100%;border-radius:12px;" />
+                    <img src="@fileUrl" alt="@title" class="mp-img-trigger" style="max-width:100%;border-radius:12px;cursor:zoom-in;" />
                 </div>
             }
             else if (fileType == "MP4")
             {
-                <video controls style="width:100%;border-radius:12px;background:#000;">
-                    <source src="@fileUrl" />
-                </video>
+                @* Thumbnail nhỏ + nút play thay vì nhúng thẳng <video controls> — trước đây hiện khung
+                   đen to gần hết màn hình vì chưa có poster, tự tải metadata ngay khi vào trang (cùng
+                   lỗi vừa fix ở Inquiry chat). Bấm mới phát qua MediaViewer, fullscreen đúng kiểu mobile. *@
+                <div class="mp-video-trigger" data-video-url="@fileUrl" role="button" aria-label="Xem video"
+                     style="width:100%;aspect-ratio:16/9;border-radius:12px;background:#000;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+                    <span class="material-symbols-rounded" style="font-size:3rem;color:#fff;opacity:.9;">play_arrow</span>
+                </div>
             }
             else
             {
@@ -49,3 +56,23 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script src="~/js/media-viewer.js" asp-append-version="true"></script>
+    <script>
+        (function () {
+            var imgTrigger = document.querySelector('.mp-img-trigger');
+            if (imgTrigger) {
+                imgTrigger.addEventListener('click', function () {
+                    window.MediaViewer && window.MediaViewer.open([{ url: imgTrigger.src, type: 'image' }], 0);
+                });
+            }
+            var videoTrigger = document.querySelector('.mp-video-trigger');
+            if (videoTrigger) {
+                videoTrigger.addEventListener('click', function () {
+                    window.MediaViewer && window.MediaViewer.open([{ url: videoTrigger.getAttribute('data-video-url'), type: 'video' }], 0);
+                });
+            }
+        })();
+    </script>
+}

@@ -188,6 +188,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",           Icon = "poll",                   Group = "system" },
                 //    new SideMenuItem { Title = "DS miễn làm Survey",    Url = "~/SurveyExempt/Index",          Icon = "person_off"             },
                     new SideMenuItem { Title = "Kho link cài app",      Url = "~/AppLinkAdmin/Index",          Icon = "phone_iphone",           Group = "system" },
+                    new SideMenuItem { Title = "Báo cáo thiết bị",      Url = "~/DeviceReport/Index",          Icon = "devices",                 Group = "system" },
                 }
             },
 
@@ -270,6 +271,7 @@ public static class SideMenuBuilder
 
                     new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",              Icon = "menu_book",       Group = "system" },
                     new() { Title = "Kho link cài app",      Url = "~/AppLinkAdmin/Index",        Icon = "phone_iphone",    Group = "system" },
+                    new() { Title = "Báo cáo thiết bị",      Url = "~/DeviceReport/Index",        Icon = "devices",         Group = "system" },
                     new() { Title = "Quản lý Mẫu thông báo",  Url = "~/NotiTemplate/Index",        Icon = "notifications",   Group = "system" },
                     //new() { Title = "Gửi thông báo",          Url = "~/AdminNoti/Create",          Icon = "edit_notifications" },
                     new() { Title = "Thông báo",       Url = "~/AdminNoti/Index",           Icon = "campaign",        Group = "system" },

@@ -96,8 +96,22 @@ public class FileController : BaseController
             using (new NetworkShareHelper(ShareRoot, ShareCred))
             {
                 Directory.CreateDirectory(folder);
-                await using var stream = new FileStream(savePath, FileMode.Create);
-                await file.CopyToAsync(stream);
+                await using (var stream = new FileStream(savePath, FileMode.Create))
+                    await file.CopyToAsync(stream);
+
+                // Convert Word/Excel/PowerPoint sang PDF ngay lúc upload (OfficeToPdfConverter) — để
+                // xem được trong app qua khung PDF có sẵn (MaterialPreview.cshtml), không cần máy công
+                // nhân cài Office (yêu cầu 2026-10-26). .pdf/.txt bỏ qua — pdf đã sẵn PDF, txt ít giá
+                // trị convert. Lỗi/chưa cài LibreOffice thì bỏ qua lặng lẽ, KHÔNG chặn việc lưu tài
+                // liệu gốc — vẫn tải về máy được như trước đây.
+                if (fileType == "DOCX" && ext != ".txt")
+                {
+                    var libreOfficePath = _config["LibreOfficePath"];
+                    if (!string.IsNullOrWhiteSpace(libreOfficePath))
+                    {
+                        await OfficeToPdfConverter.TryConvertAsync(savePath, folder, libreOfficePath, TimeSpan.FromSeconds(60));
+                    }
+                }
             }
             var url = Url.Action("GetTrainingMaterial", "File", new { subFolder, fileName = savedName });
             return Json(new

@@ -47,7 +47,8 @@ public class AccountController : Controller
         if (!ModelState.IsValid)
             return View(model);
 
-        var user = await _service.LoginAsync(model.EMPCD, model.Password);
+        var deviceType = DeviceDetector.Classify(Request.Headers.UserAgent.ToString());
+        var user = await _service.LoginAsync(model.EMPCD, model.Password, deviceType);
 
         if (user == null)
         {

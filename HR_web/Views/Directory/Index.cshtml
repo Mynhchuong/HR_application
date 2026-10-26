@@ -220,7 +220,7 @@
                 <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle;">search</span>
                 Tìm
             </button>
-            <button type="button" class="scan-btn" onclick="openQrScanner()" title="Quét mã QR / Scan QR code">
+            <button type="button" class="scan-btn" onclick="startQrScan()" title="Quét mã QR / Scan QR code">
                 <span class="material-symbols-rounded">qr_code_scanner</span>
             </button>
         </form>
@@ -426,9 +426,30 @@
     </div>
 
     <script src="~/lib/html5-qrcode/html5-qrcode.min.js"></script>
+    <script src="~/js/native-scanner.js" asp-append-version="true"></script>
     <script>
         var qrScanner = null;
         var qrBusy = false;
+
+        // Quét gốc của app (Android: Google Code Scanner, iOS: VisionKit) — nhanh, tự lấy nét, nhạy
+        // hơn hẳn quét trong trang bằng JS, nhất là với QR mật độ dày (thẻ NV thường mã hoá cả URL dài
+        // chứ không chỉ mã NV) — qua helper dùng chung native-scanner.js (yêu cầu 2026-10-26: trang
+        // mới cần quét chỉ cần gọi NativeScanner.scan(...), không cần sửa code iOS/Android nữa).
+        // Không có native -> rơi về quét trong trang (openQrScanner) như cũ.
+        function startQrScan() {
+            var started = window.NativeScanner.scan({
+                onResult: function (code) { handleQrCode(code); },
+                onCancel: function () {},
+                onError: function (msg) {
+                    if (msg === 'camera_denied') {
+                        alert('Chưa cấp quyền camera cho ứng dụng. Vào Cài đặt để bật.\nPlease allow camera access in Settings.');
+                        return;
+                    }
+                    openQrScanner();   // rơi về quét trong trang
+                }
+            });
+            if (!started) openQrScanner();
+        }
 
         function openQrScanner() {
             document.getElementById('qrModal').classList.remove('d-none');
@@ -471,13 +492,22 @@
         function onQrScanSuccess(decodedText) {
             if (qrBusy) return;
             qrBusy = true;
+            handleQrCode(decodedText);
+        }
+
+        // Dùng chung cho cả luồng quét trong trang (html5-qrcode) VÀ luồng native (Android/iOS) — xử lý
+        // xong thì điều hướng sang trang có kết quả tra cứu NV.
+        function handleQrCode(decodedText) {
             var empCd = extractEmpCd(decodedText);
             if (!empCd) {
-                document.getElementById('qrStatus').textContent = 'Mã QR không chứa mã số nhân viên / QR code did not contain an employee ID.';
+                var statusEl = document.getElementById('qrStatus');
+                if (statusEl) statusEl.textContent = 'Mã QR không chứa mã số nhân viên / QR code did not contain an employee ID.';
+                else alert('Mã QR không chứa mã số nhân viên / QR code did not contain an employee ID.');
                 qrBusy = false;
                 return;
             }
-            document.getElementById('qrStatus').textContent = 'Đã tìm thấy / Found: ' + empCd + ' — đang tải / loading...';
+            var statusEl = document.getElementById('qrStatus');
+            if (statusEl) statusEl.textContent = 'Đã tìm thấy / Found: ' + empCd + ' — đang tải / loading...';
             var url = new URL(window.location.href);
             url.searchParams.set('empCd', empCd);
             url.searchParams.delete('historyPage');

@@ -100,8 +100,9 @@ public class AccountController : ControllerBase
                 return Ok(new { success = false, message = "Tài khoản này đã nghỉ việc" });
 
             await _oracleService.ExecuteNonQueryAsync(
-                "UPDATE HRMS.HR_USERS SET LASTED_LOGIN = SYSDATE WHERE EMPCD = :EMPCD",
-                new OracleParameter("EMPCD", empcd));
+                "UPDATE HRMS.HR_USERS SET LASTED_LOGIN = SYSDATE, LAST_DEVICE_TYPE = :DEVICE, LAST_DEVICE_DT = SYSDATE WHERE EMPCD = :EMPCD",
+                new OracleParameter("EMPCD", empcd),
+                new OracleParameter("DEVICE", (object?)request.DeviceType ?? DBNull.Value));
 
             return Ok(new { success = true, data = new UserInfoModel {
                 Id = du.Id, EmpCd = du.EmpCd, FullName = du.FullName,
@@ -182,8 +183,10 @@ public class AccountController : ControllerBase
             };
         }
 
-        string updateSql = @"UPDATE HRMS.HR_USERS SET LASTED_LOGIN = SYSDATE WHERE EMPCD = :EMPCD";
-        await _oracleService.ExecuteNonQueryAsync(updateSql, new OracleParameter("EMPCD", empcd));
+        string updateSql = @"UPDATE HRMS.HR_USERS SET LASTED_LOGIN = SYSDATE, LAST_DEVICE_TYPE = :DEVICE, LAST_DEVICE_DT = SYSDATE WHERE EMPCD = :EMPCD";
+        await _oracleService.ExecuteNonQueryAsync(updateSql,
+            new OracleParameter("EMPCD", empcd),
+            new OracleParameter("DEVICE", (object?)request.DeviceType ?? DBNull.Value));
 
         // Populate filter codes 1 lần lúc login cho Supervisor / DeputyManager / Manager / Assistant
         var rolesNeedFilter = new[] { "Supervisor", "DeputyManager", "Manager", "Assistant" };

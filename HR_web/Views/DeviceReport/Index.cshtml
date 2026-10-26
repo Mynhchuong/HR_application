@@ -1,0 +1,193 @@
+@{
+    ViewData["Title"] = "Báo cáo thiết bị sử dụng";
+}
+
+<div class="container-fluid py-4">
+    <div class="card my-4">
+        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-dark shadow-dark border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="text-white mb-0"><i class="bi bi-phone me-1"></i> Báo cáo thiết bị sử dụng</h6>
+            </div>
+        </div>
+
+        <div class="card-body px-3 pt-0 pb-2 mt-3">
+            <div class="text-xs text-secondary mb-3">
+                Dựa vào lần đăng nhập gần nhất của từng nhân viên — biết ai đã cài app My Samho, ai còn
+                dùng trình duyệt web (desktop hoặc mobile) để nhắc tải app.
+            </div>
+
+            <div class="row g-2 mb-3">
+                <div class="col-6 col-md-2">
+                    <div class="card border filter-stat" data-device="" style="cursor:pointer;">
+                        <div class="card-body p-2 text-center">
+                            <div class="text-xs text-secondary">Tổng số</div>
+                            <div class="text-lg fw-bold" id="statTotal">—</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="card border filter-stat" data-device="APP_IOS" style="cursor:pointer;">
+                        <div class="card-body p-2 text-center">
+                            <div class="text-xs text-secondary">App iOS</div>
+                            <div class="text-lg fw-bold text-success" id="statAppIos">—</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="card border filter-stat" data-device="APP_ANDROID" style="cursor:pointer;">
+                        <div class="card-body p-2 text-center">
+                            <div class="text-xs text-secondary">App Android</div>
+                            <div class="text-lg fw-bold text-success" id="statAppAndroid">—</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="card border filter-stat" data-device="WEB_MOBILE" style="cursor:pointer;">
+                        <div class="card-body p-2 text-center">
+                            <div class="text-xs text-secondary">Web mobile (chưa cài app)</div>
+                            <div class="text-lg fw-bold text-warning" id="statWebMobile">—</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="card border filter-stat" data-device="WEB_DESKTOP" style="cursor:pointer;">
+                        <div class="card-body p-2 text-center">
+                            <div class="text-xs text-secondary">Web máy tính</div>
+                            <div class="text-lg fw-bold text-secondary" id="statWebDesktop">—</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="card border filter-stat" data-device="UNKNOWN" style="cursor:pointer;">
+                        <div class="card-body p-2 text-center">
+                            <div class="text-xs text-secondary">Chưa rõ (chưa login lại)</div>
+                            <div class="text-lg fw-bold text-secondary" id="statUnknown">—</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 align-items-end mb-3 filter-bar">
+                <div style="min-width:220px;">
+                    <label class="form-label small fw-bold mb-1">Tìm mã thẻ / tên</label>
+                    <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Mã thẻ hoặc tên nhân viên..." autocomplete="off" />
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table align-items-center mb-0 table-hover">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="text-xs text-secondary">Mã thẻ</th>
+                            <th class="text-xs text-secondary">Họ tên</th>
+                            <th class="text-xs text-secondary">Bộ phận</th>
+                            <th class="text-xs text-secondary">Chức vụ</th>
+                            <th class="text-xs text-secondary">Thiết bị</th>
+                            <th class="text-xs text-secondary">Lần đăng nhập gần nhất</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deviceTableBody"></tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
+                <div id="paginationCount"></div>
+                <ul class="pagination pagination-sm mb-0" id="paginationBar"></ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const STATS_URL = '@Url.Action("GetStats", "DeviceReport")';
+    const LIST_URL  = '@Url.Action("GetList", "DeviceReport")';
+    const pageSize = 50;
+    let currentPage = 1, totalRecords = 0, totalPages = 0, currentDevice = '';
+
+    function escHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function deviceBadge(type) {
+        if (type === 'APP_IOS')     return '<span class="badge bg-success-subtle text-success-emphasis">App iOS</span>';
+        if (type === 'APP_ANDROID') return '<span class="badge bg-success-subtle text-success-emphasis">App Android</span>';
+        if (type === 'WEB_MOBILE')  return '<span class="badge bg-warning-subtle text-warning-emphasis">Web mobile</span>';
+        if (type === 'WEB_DESKTOP') return '<span class="badge bg-secondary-subtle text-secondary-emphasis">Web máy tính</span>';
+        return '<span class="badge bg-light text-secondary">Chưa rõ</span>';
+    }
+
+    function loadStats() {
+        $.get(STATS_URL, function (res) {
+            if (!res.success) return;
+            $('#statTotal').text(res.total ?? 0);
+            $('#statAppIos').text(res.appIos ?? 0);
+            $('#statAppAndroid').text(res.appAndroid ?? 0);
+            $('#statWebMobile').text(res.webMobile ?? 0);
+            $('#statWebDesktop').text(res.webDesktop ?? 0);
+            $('#statUnknown').text(res.unknown ?? 0);
+        });
+    }
+
+    function buildRow(item) {
+        var dt = item.DeviceDt ? new Date(item.DeviceDt).toLocaleString('vi-VN') : '—';
+        return `<tr>
+            <td class="text-xs">${escHtml(item.EmpCd)}</td>
+            <td class="text-xs vni-font">${escHtml(item.FullName)}</td>
+            <td class="text-xs">${escHtml(item.DeptName || item.WorkName || '')}</td>
+            <td class="text-xs">${escHtml(item.RoleName)}</td>
+            <td>${deviceBadge(item.DeviceType)}</td>
+            <td class="text-xs">${dt}</td>
+        </tr>`;
+    }
+
+    function loadData(page) {
+        currentPage = page || 1;
+        $('#deviceTableBody').html('<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-dark"></div></td></tr>');
+        $.ajax({
+            url: LIST_URL, type: 'GET',
+            data: { deviceType: currentDevice, search: $('#searchInput').val(), page: currentPage, page_size: pageSize },
+            success: function (res) {
+                if (!res.success) {
+                    $('#deviceTableBody').html(`<tr><td colspan="6" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
+                    return;
+                }
+                totalRecords = res.total || 0;
+                totalPages   = res.total_pages || 0;
+                var rows = res.data || [];
+                $('#deviceTableBody').html(rows.length
+                    ? rows.map(buildRow).join('')
+                    : '<tr><td colspan="6" class="text-center text-secondary py-4">Không có nhân viên nào khớp bộ lọc</td></tr>');
+                renderPagination();
+            },
+            error: function (xhr) {
+                $('#deviceTableBody').html(`<tr><td colspan="6" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
+            }
+        });
+    }
+
+    function renderPagination() {
+        if (!totalRecords) { $('#paginationCount').text(''); $('#paginationBar').empty(); return; }
+        var s = (currentPage-1)*pageSize+1, e = Math.min(currentPage*pageSize, totalRecords);
+        $('#paginationCount').html(`<span class="text-xs">${s}-${e} / <strong>${totalRecords}</strong> nhân viên</span>`);
+        var $bar = $('#paginationBar').empty();
+        var mk = function(label, p, disabled, active) {
+            var li = $('<li class="page-item">').toggleClass('disabled', !!disabled).toggleClass('active', !!active);
+            $('<a class="page-link" href="javascript:;">').html(label).on('click', function () { if (!disabled && !active) loadData(p); }).appendTo(li);
+            return li;
+        };
+        $bar.append(mk('&lsaquo;', currentPage-1, currentPage<=1));
+        var from = Math.max(1, currentPage-2), to = Math.min(totalPages, currentPage+2);
+        for (var p = from; p <= to; p++) $bar.append(mk(p, p, false, p===currentPage));
+        $bar.append(mk('&rsaquo;', currentPage+1, currentPage>=totalPages));
+    }
+
+    $('.filter-stat').on('click', function () {
+        currentDevice = $(this).data('device') || '';
+        loadData(1);
+    });
+    let searchTimeout;
+    $('#searchInput').on('input', function () { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => loadData(1), 400); });
+
+    loadStats();
+    loadData(1);
+</script>
+}

@@ -328,6 +328,27 @@
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') closeGuide();
         });
+
+        // Gửi mã NV + mật khẩu cho app native lưu an toàn (Keychain/Keystore, gắn Face ID/vân tay) để
+        // tự đăng nhập lại lần sau khỏi gõ tay — session web hết hạn cứng sau 24h (Program.cs,
+        // SlidingExpiration=false) nên NV bị văng ra đăng nhập lại MỖI NGÀY (yêu cầu 2026-10-26).
+        // Không chặn submit dù bridge lỗi gì — đây chỉ là tiện ích phụ, đăng nhập thường vẫn phải chạy.
+        (function () {
+            var form = document.querySelector('.login-body form');
+            if (!form) return;
+            form.addEventListener('submit', function () {
+                try {
+                    var empcd = document.getElementById('EMPCD')?.value || '';
+                    var pwd   = document.getElementById('passwordInput')?.value || '';
+                    if (!empcd || !pwd) return;
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.saveCredentials) {
+                        window.webkit.messageHandlers.saveCredentials.postMessage({ empcd: empcd, password: pwd });
+                    } else if (window.Android && typeof window.Android.saveCredentials === 'function') {
+                        window.Android.saveCredentials(empcd, pwd);
+                    }
+                } catch (e) {}
+            });
+        })();
     </script>
 </body>
 </html>

@@ -116,14 +116,44 @@ public class ImageController : BaseController
             using (new NetworkShareHelper(ShareRoot, ShareCred))
             {
                 Directory.CreateDirectory(PolicyFolder);
-                await using var stream = new FileStream(savePath, FileMode.Create);
-                await file.CopyToAsync(stream);
+                await ResizeAndSaveImageAsync(file, ext, savePath);
             }
             return Json(new { success = true, url = Url.Action("GetPolicyImage", "Image", new { fileName }) });
         }
         catch (Exception ex)
         {
             return Json(new { success = false, message = $"Lỗi lưu file: {ex.Message}" });
+        }
+    }
+
+    // Ảnh chụp thẳng từ camera (jpg/jpeg) lưu nguyên khổ trước đây có thể vài MB, phục vụ y nguyên cho
+    // mọi NV xem trên mobile data — tốn băng thông/hao pin không cần thiết (yêu cầu tối ưu hiệu suất
+    // mobile 2026-10-26). AutoOrient + cap 1600px cạnh dài + nén JPEG q=85, CÙNG pattern đã dùng ở
+    // InquiryBaseController (ảnh chat) và UploadSignature. PNG/WebP/GIF giữ nguyên — thường là
+    // screenshot/ảnh có trong suốt/animation, không resize để tránh vỡ hình hoặc mất animation.
+    private static async Task ResizeAndSaveImageAsync(IFormFile file, string ext, string savePath)
+    {
+        if (ext == ".jpg" || ext == ".jpeg")
+        {
+            using var stream = file.OpenReadStream();
+            using var img = await SixLabors.ImageSharp.Image.LoadAsync(stream);
+            img.Mutate(x => x.AutoOrient());
+
+            int w = img.Width, h = img.Height;
+            int maxSide = Math.Max(w, h);
+            if (maxSide > 1600)
+            {
+                double scale = 1600.0 / maxSide;
+                img.Mutate(x => x.Resize((int)Math.Round(w * scale), (int)Math.Round(h * scale)));
+            }
+
+            await using var fs = new FileStream(savePath, FileMode.Create);
+            await img.SaveAsJpegAsync(fs, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 85 });
+        }
+        else
+        {
+            await using var fs = new FileStream(savePath, FileMode.Create);
+            await file.CopyToAsync(fs);
         }
     }
 
@@ -162,8 +192,7 @@ public class ImageController : BaseController
             using (new NetworkShareHelper(ShareRoot, ShareCred))
             {
                 Directory.CreateDirectory(BulletinFolder);
-                await using var stream = new FileStream(savePath, FileMode.Create);
-                await file.CopyToAsync(stream);
+                await ResizeAndSaveImageAsync(file, ext, savePath);
             }
             return Json(new { success = true, url = Url.Action("GetBulletinImage", "Image", new { fileName }) });
         }
@@ -211,8 +240,7 @@ public class ImageController : BaseController
             using (new NetworkShareHelper(ShareRoot, ShareCred))
             {
                 Directory.CreateDirectory(BulletinFolder);
-                await using var stream = new FileStream(savePath, FileMode.Create);
-                await file.CopyToAsync(stream);
+                await ResizeAndSaveImageAsync(file, ext, savePath);
             }
             return Json(new { success = true, url = Url.Action("GetBulletinImage", "Image", new { fileName }) });
         }
@@ -432,6 +460,18 @@ public class ImageController : BaseController
             using var stream = file.OpenReadStream();
             using var image  = await SixLabors.ImageSharp.Image.LoadAsync(stream);
             var savePath = Path.Combine(GiftFolder, itemId + ".jpg");
+
+            // Ảnh catalog quà — đã convert JPEG sẵn nhưng chưa từng cap kích thước, ảnh chụp camera
+            // thật (nhiều MB) vẫn bị phục vụ nguyên khổ cho mọi NV xem (tối ưu hiệu suất mobile
+            // 2026-10-26, cùng pattern UploadSignature/ResizeAndSaveImageAsync).
+            image.Mutate(x => x.AutoOrient());
+            int w = image.Width, h = image.Height;
+            int maxSide = Math.Max(w, h);
+            if (maxSide > 1000)
+            {
+                double scale = 1000.0 / maxSide;
+                image.Mutate(x => x.Resize((int)Math.Round(w * scale), (int)Math.Round(h * scale)));
+            }
 
             using (new NetworkShareHelper(ShareRoot, ShareCred))
             {
@@ -672,11 +712,29 @@ public class ImageController : BaseController
         {
             string savePath = Path.Combine(SignatureFolder, empCd + ".jpg");
 
-            using (new NetworkShareHelper(ShareRoot, ShareCred))
+            // Chụp bằng camera điện thoại (input capture="camera") lưu nguyên file thô — ảnh thường bị
+            // NGHIÊNG/NGƯỢC vì EXIF Orientation chỉ là metadata, pixel không tự xoay (ImageSharp không
+            // tự AutoOrient() khi Load — khác <img> trên trình duyệt vốn tự đọc EXIF để hiển thị đúng
+            // chiều, nên bug chỉ lộ ra khi xem ảnh ở nơi không đọc EXIF, vd in trực tiếp). Đồng thời
+            // ảnh chụp camera thật có thể vài MB, không cần giữ nguyên cho 1 tấm chữ ký — resize còn
+            // tối đa 1200px cạnh dài + nén JPEG q=85, theo đúng pattern UploadHomeBanner đã dùng.
+            using (var stream = file.OpenReadStream())
+            using (var image = await SixLabors.ImageSharp.Image.LoadAsync(stream))
             {
-                using (var stream = new FileStream(savePath, FileMode.Create))
+                image.Mutate(x => x.AutoOrient());
+
+                int w = image.Width, h = image.Height;
+                int maxSide = Math.Max(w, h);
+                if (maxSide > 1200)
                 {
-                    await file.CopyToAsync(stream);
+                    double scale = 1200.0 / maxSide;
+                    image.Mutate(x => x.Resize((int)Math.Round(w * scale), (int)Math.Round(h * scale)));
+                }
+
+                using (new NetworkShareHelper(ShareRoot, ShareCred))
+                {
+                    await using var fs = new FileStream(savePath, FileMode.Create);
+                    await image.SaveAsJpegAsync(fs, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 85 });
                 }
             }
 

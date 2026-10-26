@@ -65,6 +65,7 @@
 
 @section Scripts {
 <script src="~/lib/html5-qrcode/html5-qrcode.min.js"></script>
+<script src="~/js/native-scanner.js" asp-append-version="true"></script>
 <script>
 (function () {
     const TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
@@ -84,8 +85,9 @@
 
     // ── Đọc mã vạch (html5-qrcode)
     const cfg = () => ({
-        // Tem máy chỉ in barcode CODE128 -> chỉ thử đúng 1 định dạng cho nhanh.
-        formatsToSupport: [Html5QrcodeSupportedFormats.CODE_128],
+        // Tem máy hiện tại in CODE128, nhưng cho phép luôn QR_CODE để tương lai đổi loại tem không
+        // cần sửa code (yêu cầu 2026-10-24: hỗ trợ cả barcode lẫn QR code).
+        formatsToSupport: [Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.QR_CODE],
         verbose: false,
         experimentalFeatures: { useBarCodeDetectorIfSupported: true }
     });
@@ -195,27 +197,24 @@
         } catch (e) { btn.disabled = false; toast('Lỗi kết nối', 'error'); }
     }
 
-    // ── Quét gốc của app (Android: Google Code Scanner, iOS: AVFoundation) — nhanh, tự lấy nét, không cần HTTPS.
-    // App cũ không có bridge -> hasNative=false -> dùng quét trong trang (startLive) như trước.
-    const hasNativeScan = () =>
-        (window.Android && typeof window.Android.scanBarcode === 'function') ||
-        !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.scanBarcode);
-    let nativeBroken = false;   // native báo lỗi (vd máy Android không có Google Play Services) -> rơi về quét trong trang
-
+    // ── Quét gốc của app (Android: Google Code Scanner, iOS: VisionKit) — qua helper dùng chung
+    // native-scanner.js (yêu cầu 2026-10-26: trang mới cần quét chỉ cần include file này + gọi
+    // NativeScanner.scan(...), không cần sửa code iOS/Android nữa). Không có native -> rơi về quét
+    // trong trang (startLive) như trước.
     function startNative() {
         setMsg('Đang mở camera...');
-        if (window.Android && typeof window.Android.scanBarcode === 'function') window.Android.scanBarcode();
-        else window.webkit.messageHandlers.scanBarcode.postMessage(null);
+        var started = window.NativeScanner.scan({
+            onResult: code => lookup(code),
+            onCancel: () => setMsg(''),
+            onError: msg => {
+                if (msg === 'camera_denied') { setMsg('Chưa cấp quyền camera cho ứng dụng. Vào Cài đặt để bật, hoặc nhập mã máy bên dưới.', 'warn'); return; }
+                startLive();   // rơi về quét trong trang (nếu cũng không mở được sẽ báo gõ tay)
+            }
+        });
+        if (!started) startLive();   // máy cũ/đã báo lỗi 1 lần trước đó -> rơi về quét trong trang luôn
     }
-    window.onNativeBarcode = code => lookup(code);
-    window.onNativeBarcodeCancel = () => setMsg('');
-    window.onNativeBarcodeError = msg => {
-        nativeBroken = true;
-        if (msg === 'camera_denied') { setMsg('Chưa cấp quyền camera cho ứng dụng. Vào Cài đặt để bật, hoặc nhập mã máy bên dưới.', 'warn'); return; }
-        startLive();   // rơi về quét trong trang (nếu cũng không mở được sẽ báo gõ tay)
-    };
 
-    $('btnLive').onclick = () => (hasNativeScan() && !nativeBroken) ? startNative() : startLive();
+    $('btnLive').onclick = () => startNative();
     window.addEventListener('pagehide', stopLive);
     $('btnManual').onclick = () => lookup($('tpmManual').value);
     $('tpmManual').addEventListener('keydown', e => { if (e.key === 'Enter') lookup(e.target.value); });

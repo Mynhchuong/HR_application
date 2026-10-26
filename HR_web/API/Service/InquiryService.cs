@@ -1,3 +1,4 @@
+using HR_web.Helpers;
 using HR_web.Models.Inquiry;
 using Newtonsoft.Json;
 
@@ -6,10 +7,12 @@ namespace HR_web.API.Service;
 public class InquiryService
 {
     private readonly ApiService _api;
+    private readonly IConfiguration _config;
 
-    public InquiryService(ApiService api)
+    public InquiryService(ApiService api, IConfiguration config)
     {
         _api = api;
+        _config = config;
     }
 
     // GET /apiHR/Inquiry/topics
@@ -78,11 +81,34 @@ public class InquiryService
         {
             var res = await _api.GetAsync_Raw("Inquiry/messages", $"id={id}&afterMsgId={afterMsgId}");
             if (res?.IsSuccessStatusCode == true)
-                return JsonConvert.DeserializeObject<InquiryMessagesResponse>(await res.Content.ReadAsStringAsync())
-                       ?? new InquiryMessagesResponse { success = false };
+            {
+                var result = JsonConvert.DeserializeObject<InquiryMessagesResponse>(await res.Content.ReadAsStringAsync())
+                             ?? new InquiryMessagesResponse { success = false };
+                SignVideoAttachments(result);
+                return result;
+            }
             return new InquiryMessagesResponse { success = false, message = "Lỗi kết nối API" };
         }
         catch (Exception ex) { return new InquiryMessagesResponse { success = false, message = ex.Message }; }
+    }
+
+    // Ký token cho FilePath của mọi attachment VIDEO (24h, trùng pattern MaterialUrlTokenHelper đã
+    // dùng cho training video) — GetFile vẫn chạy qua cookie bình thường cho ảnh/file khác.
+    private void SignVideoAttachments(InquiryMessagesResponse result)
+    {
+        var secret = _config["MaterialTokenSecret"];
+        if (string.IsNullOrEmpty(secret)) return;
+
+        long exp = DateTimeOffset.UtcNow.AddHours(24).ToUnixTimeSeconds();
+        foreach (var msg in result.messages)
+        {
+            foreach (var att in msg.Attachments)
+            {
+                if (att.FileType != "VIDEO" || string.IsNullOrEmpty(att.FilePath)) continue;
+                att.Exp = exp;
+                att.Sig = MaterialUrlTokenHelper.Sign(att.FilePath, "", exp, secret);
+            }
+        }
     }
 
     // POST /apiHR/Inquiry/send

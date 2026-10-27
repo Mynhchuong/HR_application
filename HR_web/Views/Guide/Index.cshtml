@@ -231,6 +231,7 @@
     }
     .applink-choice-btns a:active, .applink-choice-btns button:active { transform: scale(.96); }
     .applink-choice-btns .material-symbols-rounded { font-size: 1.3rem; }
+    .applink-choice-btns small { font-size: .68rem; opacity: .85; }
     .applink-choice-btns .btn-update { color: var(--guide-dark); border-color: var(--guide-primary); background: #fff; }
     .applink-choice-btns .btn-newphone { color: #7c3aed; border-color: #ddd6fe; background: #faf5ff; }
 
@@ -381,7 +382,7 @@
                 <div class="applink-link-url">${linkUrl}</div>
                 <div class="applink-btn-row">
                     <a href="${linkUrl}" target="_blank" class="applink-btn-primary"><span class="material-symbols-rounded" style="font-size:1.05rem;">open_in_new</span>Mở link cài đặt</a>
-                    <button type="button" class="applink-btn-ghost" onclick="copyApplink('${linkUrl}')"><span class="material-symbols-rounded" style="font-size:1.05rem;">content_copy</span>Sao chép</button>
+                    <button type="button" class="applink-btn-ghost" data-link="${linkUrl}" onclick="copyApplink(this.dataset.link)"><span class="material-symbols-rounded" style="font-size:1.05rem;">content_copy</span>Sao chép</button>
                 </div>
             </div>`;
     }
@@ -400,7 +401,7 @@
                 <div class="applink-link-url">${escApplinkHtml(l.LINK_URL)}</div>
                 <div class="applink-btn-row">
                     <a href="${escApplinkHtml(l.LINK_URL)}" target="_blank" class="applink-btn-primary"><span class="material-symbols-rounded" style="font-size:1.05rem;">open_in_new</span>Thử link này</a>
-                    <button type="button" class="applink-btn-ghost" onclick="copyApplink('${l.LINK_URL.replace(/'/g, "\\'")}')"><span class="material-symbols-rounded" style="font-size:1.05rem;">content_copy</span>Sao chép</button>
+                    <button type="button" class="applink-btn-ghost" data-link="${escApplinkHtml(l.LINK_URL)}" onclick="copyApplink(this.dataset.link)"><span class="material-symbols-rounded" style="font-size:1.05rem;">content_copy</span>Sao chép</button>
                 </div>
             </div>`;
         }).join('');
@@ -410,10 +411,73 @@
             ${rows}`;
     }
 
-    function copyApplink(link) {
-        navigator.clipboard?.writeText(link);
-        if (typeof showToast === 'function') showToast('Đã sao chép link', 'success');
-        else alert('Đã sao chép link');
+    // Sao chép chạy được trên Windows/macOS/iOS/Android kể cả khi trang mở bằng http:// thường (navigator.clipboard chỉ có
+    // ở https/localhost) — không có thì dùng textarea + execCommand('copy'); vẫn không được thì hiện hộp thoại để copy tay.
+    async function copyText(text) {
+        try {
+            if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
+        } catch (e) { /* rơi xuống cách dự phòng */ }
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+    }
+
+    async function copyApplink(link) {
+        if (await copyText(link)) {
+            if (typeof showToast === 'function') showToast('Đã sao chép link', 'success');
+            else alert('Đã sao chép link');
+        } else {
+            window.prompt('Không tự sao chép được — giữ vào link rồi chọn Sao chép / Copy:', link);
+        }
+    }
+
+    // Mã thẻ đã nhận link rồi: hiện HẾT các link đã phát (mới nhất trước) + 2 nút: "Cập nhật app" (đã cài app rồi
+    // -> trang hướng dẫn Guide/Detail/11) và "Xin thêm link" (cấp link mới, thay link đang dùng; tối đa 3 lần/mã thẻ).
+    function renderApplinkIssued(data, empcd) {
+        const links = data.previousLinks && data.previousLinks.length
+            ? data.previousLinks
+            : [{ LINK_URL: data.linkUrl, STATUS: 'ASSIGNED', ASSIGNED_DT: data.assignedDt }];
+        const total = links.length;
+        const maxIssues = data.maxIssues || 3;
+        const remain = Math.max(0, maxIssues - (data.issuedCount || total));
+
+        const cards = links.map((l, idx) => {
+            const dt = l.ASSIGNED_DT ? new Date(l.ASSIGNED_DT).toLocaleDateString('vi-VN') : '';
+            const tag = l.STATUS === 'REPLACED'
+                ? ' <span class="text-secondary">(link cũ)</span>'
+                : ' <span style="color:#16a34a;">(đang dùng)</span>';
+            return `<div class="applink-link-card" style="margin-top:${idx===0?'0':'8px'};">
+                <div class="applink-link-label"><span class="material-symbols-rounded" style="font-size:1rem;">${l.STATUS === 'REPLACED' ? 'history' : 'check_circle'}</span>Link ${total - idx}${dt ? ' — ' + dt : ''}${tag}</div>
+                <div class="applink-link-url">${escApplinkHtml(l.LINK_URL)}</div>
+                <div class="applink-btn-row">
+                    <a href="${escApplinkHtml(l.LINK_URL)}" target="_blank" rel="noopener" class="applink-btn-primary"><span class="material-symbols-rounded" style="font-size:1.05rem;">open_in_new</span>Mở link</a>
+                    <button type="button" class="applink-btn-ghost" data-link="${escApplinkHtml(l.LINK_URL)}" onclick="copyApplink(this.dataset.link)"><span class="material-symbols-rounded" style="font-size:1.05rem;">content_copy</span>Sao chép</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        const moreBtn = remain > 0
+            ? `<button type="button" class="btn-newphone" data-empcd="${escApplinkHtml(empcd)}" onclick="reassignAppLink(this.dataset.empcd)"><span class="material-symbols-rounded">add_link</span>Xin thêm link<small style="font-weight:500;">Còn ${remain} lần</small></button>`
+            : '';
+        const noMore = remain > 0 ? '' : `<p style="margin:.7rem 0 0;font-size:.78rem;color:#b91c1c;">Mã thẻ này đã lấy đủ ${maxIssues} link, không xin thêm được. Vui lòng nhắn Nhân sự để được hỗ trợ.</p>`;
+
+        document.getElementById('applinkResult').innerHTML = `
+            ${cards}
+            <div class="applink-choice-card" style="margin-top:12px;">
+                <p>Mã thẻ này đã nhận <strong>${total}</strong> link. Bạn muốn:</p>
+                <div class="applink-choice-btns">
+                    <a href="${APPLINK_UPDATE_URL}" class="btn-update"><span class="material-symbols-rounded">system_update</span>Cập nhật app<small style="font-weight:500;">(đã cài app rồi)</small></a>
+                    ${moreBtn}
+                </div>
+                ${noMore}
+            </div>`;
     }
 
     async function requestAppLink() {
@@ -431,14 +495,7 @@
             } else if (!data.success) {
                 renderApplinkAlert(data.message || 'Có lỗi xảy ra', 'danger');
             } else if (data.alreadyAssigned) {
-                document.getElementById('applinkResult').innerHTML = `
-                    <div class="applink-choice-card">
-                        <p>Mã thẻ này đã nhận link trước đó rồi. Bạn muốn:</p>
-                        <div class="applink-choice-btns">
-                            <a href="${APPLINK_UPDATE_URL}" class="btn-update"><span class="material-symbols-rounded">system_update</span>Cập nhật app</a>
-                            <button type="button" class="btn-newphone" onclick="reassignAppLink('${empcd.replace(/'/g, "\\'")}')"><span class="material-symbols-rounded">phone_iphone</span>Đổi máy mới</button>
-                        </div>
-                    </div>`;
+                renderApplinkIssued(data, empcd);
             } else {
                 renderApplinkLink(data.linkUrl);
             }
@@ -450,10 +507,16 @@
     }
 
     async function reassignAppLink(empcd) {
+        if (!window.confirm('Xin link mới sẽ thay link đang dùng (link cũ vẫn xem lại được trong danh sách). Bạn có chắc không?')) return;
         renderApplinkAlert('Đang cấp link mới...', 'info');
         try {
             const data = await postApplink(APPLINK_REASSIGN_URL, empcd);
-            if (data.success) renderApplinkLink(data.linkUrl);
+            if (data.success) {
+                // Hiện lại toàn bộ danh sách (link mới nhất nằm trên cùng)
+                const again = await postApplink(APPLINK_REQUEST_URL, empcd);
+                if (again.success && again.alreadyAssigned) renderApplinkIssued(again, empcd);
+                else renderApplinkLink(data.linkUrl);
+            }
             else if (data.limitReached) renderApplinkLimitReached(data);
             else renderApplinkAlert(data.message || 'Có lỗi xảy ra', 'danger');
         } catch {

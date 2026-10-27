@@ -140,9 +140,33 @@ public class AppLinkService
             },
             new OracleParameter("E", empcd));
 
-        if (current.Count > 0) return current[0];
+        if (current.Count > 0)
+        {
+            // Trả kèm TOÀN BỘ link đã phát cho mã thẻ này (mới nhất trước) để công nhân thấy hết link của mình
+            // và tự chọn: dùng lại link cũ / cập nhật app / xin thêm link (yêu cầu 2026-10-28).
+            var hist = await GetIssuedLinksAsync(empcd);
+            current[0].previousLinks = hist;
+            current[0].issuedCount   = hist.Count;
+            current[0].maxIssues     = MaxIssuesPerEmpcd;
+            return current[0];
+        }
 
         return await AssignNewLinkAsync(empcd, bypassLimit);
+    }
+
+    private async Task<List<AppLinkHistoryItem>> GetIssuedLinksAsync(string empcd)
+    {
+        return await _oracleService.ExecuteQueryAsync(@"
+            SELECT LINK_URL, STATUS, ASSIGNED_DT FROM HRMS.HR_APP_LINK
+            WHERE ASSIGNED_EMPCD = :E
+            ORDER BY ASSIGNED_DT DESC",
+            r => new AppLinkHistoryItem
+            {
+                LINK_URL    = r["LINK_URL"]?.ToString() ?? "",
+                STATUS      = r["STATUS"]?.ToString() ?? "",
+                ASSIGNED_DT = r["ASSIGNED_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["ASSIGNED_DT"])
+            },
+            new OracleParameter("E", empcd));
     }
 
     public async Task<AppLinkResult> ReassignAsync(ReassignAppLinkRequest req, bool bypassLimit = false)
@@ -172,24 +196,16 @@ public class AppLinkService
     // thử lại link cũ (yêu cầu HR 2026-09-24: đỡ phải nhắn Nhân sự nếu link cũ còn dùng được).
     private async Task<AppLinkResult> BuildLimitReachedResultAsync(string empcd)
     {
-        var previous = await _oracleService.ExecuteQueryAsync(@"
-            SELECT LINK_URL, STATUS, ASSIGNED_DT FROM HRMS.HR_APP_LINK
-            WHERE ASSIGNED_EMPCD = :E
-            ORDER BY ASSIGNED_DT DESC",
-            r => new AppLinkHistoryItem
-            {
-                LINK_URL    = r["LINK_URL"]?.ToString() ?? "",
-                STATUS      = r["STATUS"]?.ToString() ?? "",
-                ASSIGNED_DT = r["ASSIGNED_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["ASSIGNED_DT"])
-            },
-            new OracleParameter("E", empcd));
+        var previous = await GetIssuedLinksAsync(empcd);
 
         return new AppLinkResult
         {
             success = false,
             limitReached = true,
             message = $"Mã thẻ này đã lấy link {MaxIssuesPerEmpcd} lần, không thể lấy thêm. Bạn có thể thử lại 1 trong các link cũ bên dưới, hoặc nhắn Nhân sự để được hỗ trợ.",
-            previousLinks = previous
+            previousLinks = previous,
+            issuedCount = previous.Count,
+            maxIssues = MaxIssuesPerEmpcd
         };
     }
 

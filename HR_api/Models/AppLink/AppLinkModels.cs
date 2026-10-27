@@ -51,6 +51,9 @@ public class AppLinkResult
     // (link ASSIGNED có thể còn dùng được, REPLACED là link cũ đã đóng khi đổi máy).
     public bool    limitReached { get; set; }
     public List<AppLinkHistoryItem>? previousLinks { get; set; }
+    // Số link đã phát cho mã thẻ này (mọi lần, kể cả đã đổi) và hạn mức tối đa — để web hiện "còn X lần xin thêm".
+    public int     issuedCount { get; set; }
+    public int     maxIssues { get; set; }
 }
 
 public class AppLinkHistoryItem

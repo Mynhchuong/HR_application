@@ -185,6 +185,14 @@ app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// "/Notification" (không có action) — app Android/iOS mở thẳng đường dẫn này khi nhân viên bấm vào thông báo đẩy.
+// Route mặc định bên dưới có action mặc định là Login nên trước đây /Notification trả 404 -> màn hình TRẮNG
+// (báo 2026-10-28). Phải đặt TRƯỚC route default.
+app.MapControllerRoute(
+    name: "notification-root",
+    pattern: "Notification",
+    defaults: new { controller = "Notification", action = "Index" });
+
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Account}/{action=Login}/{id?}");

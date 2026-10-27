@@ -152,9 +152,8 @@
         return '<span class="badge bg-secondary-subtle text-secondary-emphasis">Đã thay</span>';
     }
 
-    // Che bớt link trong bảng — tránh HR bôi đen copy tay gửi bừa (không qua khung "Lấy link cho
-    // nhân viên" ở trên thì không có kiểm soát 3 lần/mã thẻ, không ghi nhận ai đã cấp). Chỉ hiện vài
-    // ký tự cuối của code để đối chiếu, không đặt title/copy button để khỏi lộ nguyên link khi hover.
+    // Che bớt link trong bảng (không hiện nguyên link trên màn hình). Link ĐÃ PHÁT và ĐÃ THAY có nút "Sao chép"
+    // riêng (xem buildRow); link còn trong kho thì không copy được từ bảng.
     function maskLink(url) {
         var m = /code=([A-Z0-9]+)/i.exec(url || '');
         var code = m ? m[1] : '';
@@ -162,7 +161,15 @@
         return '••••••••' + escHtml(tail);
     }
 
+    // Link đầy đủ theo ID dòng — nút "Sao chép" lấy từ đây (không nhét link vào thuộc tính HTML).
+    var linkById = {};
+
     function buildRow(item) {
+        linkById[item.ID] = item.LINK_URL;
+        // Link ĐÃ PHÁT và link ĐÃ THAY: Admin/HR được sao chép lại (yêu cầu 2026-10-28). Link còn trong kho thì không.
+        var copyBtn = (item.STATUS === 'ASSIGNED' || item.STATUS === 'REPLACED')
+            ? ' <button type="button" class="btn btn-sm btn-outline-secondary py-0 ms-2" onclick="copyRowLink(' + item.ID + ')"><i class="bi bi-clipboard"></i> Sao chép</button>'
+            : '';
         var assigned = item.ASSIGNED_EMPCD
             ? escHtml(item.ASSIGNED_EMPCD) + ' <span class="text-secondary vni-font">— ' + escHtml(item.ASSIGNED_EMP_NAME || '') + '</span>'
             : '<span class="text-secondary">—</span>';
@@ -171,7 +178,7 @@
             <td class="text-xs">${item.ID}</td>
             <td class="text-xs" style="user-select:none;">
                 <span class="material-symbols-rounded text-secondary" style="font-size:.9rem;vertical-align:-2px;">lock</span>
-                ${maskLink(item.LINK_URL)}
+                ${maskLink(item.LINK_URL)}${copyBtn}
             </td>
             <td>${statusBadge(item.STATUS)}</td>
             <td class="text-xs">${assigned}</td>
@@ -250,15 +257,47 @@
                 <div class="text-xs mb-1">Link cho mã thẻ <strong>${empcd}</strong>:</div>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     <code class="text-xs" style="word-break:break-all;">${linkUrl}</code>
-                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="copyHrLink('${linkUrl}')"><i class="bi bi-clipboard"></i> Sao chép</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" data-link="${linkUrl}" onclick="copyHrLink(this.dataset.link)"><i class="bi bi-clipboard"></i> Sao chép</button>
                     <button type="button" class="btn btn-sm btn-outline-warning py-0" onclick="hrReassignLink('${empcd}')"><i class="bi bi-arrow-repeat"></i> Cấp lại link mới</button>
                 </div>
             </div>`;
     }
 
-    function copyHrLink(link) {
-        navigator.clipboard?.writeText(link);
-        if (typeof showToast === 'function') showToast('Đã sao chép link', 'success');
+    // Sao chép chạy được trên Windows + macOS (Chrome/Edge/Safari/Firefox), cả khi trang mở bằng http:// thường
+    // (VD http://192.168.1.24): navigator.clipboard CHỈ có ở https/localhost nên trước đây nút "Sao chép" im lặng
+    // không làm gì. Không có thì dùng textarea + execCommand('copy'); vẫn không được thì hiện hộp thoại để copy tay.
+    async function copyText(text) {
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+        } catch (e) { /* rơi xuống cách dự phòng */ }
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ta.setSelectionRange(0, text.length);   // Safari/iOS cần dòng này
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+    }
+
+    async function copyHrLink(link) {
+        if (await copyText(link)) {
+            if (typeof showToast === 'function') showToast('Đã sao chép link', 'success');
+        } else {
+            window.prompt('Không tự sao chép được — nhấn Ctrl+C (Windows) hoặc ⌘+C (Mac) để copy link:', link);
+        }
+    }
+
+    function copyRowLink(id) {
+        const link = linkById[id];
+        if (link) copyHrLink(link);
     }
 
     async function hrRequestLink() {

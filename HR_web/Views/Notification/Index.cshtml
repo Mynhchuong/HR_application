@@ -357,7 +357,17 @@ fetch(`@Url.Action("GetPage")?page=1&page_size=${PAGE_SIZE}`)
         if (openId) {
             const target = allItems.find(n => String(n.ID) === String(openId));
             if (target) onNotiClick(target);
+            else markReadById(openId);   // thông báo không nằm ở trang đầu: vẫn đánh dấu đã đọc trên server
         }
     });
+
+function markReadById(id) {
+    fetch('@Url.Action("MarkRead")', {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'RequestVerificationToken': token },
+        body: `notiId=${encodeURIComponent(id)}`
+    });
+}
 </script>
 }

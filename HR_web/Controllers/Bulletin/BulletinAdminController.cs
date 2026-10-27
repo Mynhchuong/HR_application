@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using HR_web.API.Service;
 using HR_web.Models.Bulletin;
 using Microsoft.AspNetCore.Authorization;
@@ -24,9 +25,21 @@ public class BulletinAdminController : BaseController
     // ─────────────────────────────────────────────
     public async Task<IActionResult> Manage()
     {
-        var list = await _service.GetAdminListAsync();
+        var list = await _service.GetAdminListAsync(CurrentUser?.EmpCd);
         return View(list);
     }
+
+    // ROLE TẠO: HR/Admin quản lý được mọi bản tin; Lean/CSR chỉ bản tin do role mình tạo (CREATED_ROLE do API suy ra
+    // từ role của người tạo). Bản tin không tồn tại -> cho qua để tầng dưới tự báo "không tìm thấy".
+    private async Task<bool> CanManageAsync(int id)
+    {
+        if (id <= 0 || CurrentUser.HasAnyRole("HR", "Admin")) return true;
+        var item = await _service.GetByIdAsync(id);
+        if (item == null || string.IsNullOrEmpty(item.CREATED_ROLE)) return true;
+        return CurrentUser.HasRole(item.CREATED_ROLE);
+    }
+
+    private const string NoScopeMsg = "Bản tin này do role khác tạo, bạn không có quyền.";
 
     // ─────────────────────────────────────────────
     // GET /BulletinAdmin/Edit/{id?}
@@ -46,6 +59,11 @@ public class BulletinAdminController : BaseController
         if (item == null)
         {
             TempData["ErrorMessage"] = "Không tìm thấy bản tin";
+            return RedirectToAction("Manage");
+        }
+        if (!await CanManageAsync(id.Value))
+        {
+            TempData["ErrorMessage"] = NoScopeMsg;
             return RedirectToAction("Manage");
         }
 
@@ -71,6 +89,11 @@ public class BulletinAdminController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(BulletinEditViewModel model)
     {
+        if (!await CanManageAsync(model.ID))
+        {
+            TempData["ErrorMessage"] = NoScopeMsg;
+            return RedirectToAction("Manage");
+        }
         if (string.IsNullOrWhiteSpace(model.TITLE) ||
             string.IsNullOrWhiteSpace(model.CONTENT))
         {
@@ -119,6 +142,8 @@ public class BulletinAdminController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveAjax(BulletinEditViewModel model)
     {
+        if (!await CanManageAsync(model.ID))
+            return Json(new { success = false, message = NoScopeMsg });
         if (string.IsNullOrWhiteSpace(model.TITLE) || string.IsNullOrWhiteSpace(model.CONTENT))
             return Json(new { success = false, message = "Vui lòng điền tiêu đề và nội dung trước khi upload video" });
 
@@ -154,6 +179,12 @@ public class BulletinAdminController : BaseController
             TempData["ErrorMessage"] = "Không tìm thấy bản tin";
             return RedirectToAction("Manage");
         }
+        if (!CurrentUser.HasAnyRole("HR", "Admin") && !string.IsNullOrEmpty(item.CREATED_ROLE) && !CurrentUser.HasRole(item.CREATED_ROLE))
+        {
+            TempData["ErrorMessage"] = NoScopeMsg;
+            return RedirectToAction("Manage");
+        }
+        item.CONTENT = HR_web.Helpers.BulletinContentHelper.FixClassRegisterLinks(item.CONTENT, Url);
         return View(item);
     }
 
@@ -165,6 +196,11 @@ public class BulletinAdminController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Publish(int id, string? returnUrl = null)
     {
+        if (!await CanManageAsync(id))
+        {
+            TempData["ErrorMessage"] = NoScopeMsg;
+            return RedirectToAction("Manage");
+        }
         var (ok, msg, fcm) = await _service.PublishAsync(id, CurrentUser?.EmpCd ?? "");
         TempData[ok ? "SuccessMessage" : "ErrorMessage"] = msg;
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
@@ -175,6 +211,11 @@ public class BulletinAdminController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Unpublish(int id)
     {
+        if (!await CanManageAsync(id))
+        {
+            TempData["ErrorMessage"] = NoScopeMsg;
+            return RedirectToAction("Manage");
+        }
         var (ok, msg) = await _service.UnpublishAsync(id, CurrentUser?.EmpCd ?? "");
         TempData[ok ? "SuccessMessage" : "ErrorMessage"] = msg;
         return RedirectToAction("Manage");
@@ -184,6 +225,11 @@ public class BulletinAdminController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> TogglePin(int id)
     {
+        if (!await CanManageAsync(id))
+        {
+            TempData["ErrorMessage"] = NoScopeMsg;
+            return RedirectToAction("Manage");
+        }
         var (ok, msg, _) = await _service.TogglePinAsync(id, CurrentUser?.EmpCd ?? "");
         TempData[ok ? "SuccessMessage" : "ErrorMessage"] = msg;
         return RedirectToAction("Manage");
@@ -193,6 +239,8 @@ public class BulletinAdminController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SetPinOrder(int id, int pinOrder)
     {
+        if (!await CanManageAsync(id))
+            return Json(new { success = false, message = NoScopeMsg });
         var (ok, msg) = await _service.SetPinOrderAsync(id, pinOrder, CurrentUser?.EmpCd ?? "");
         return Json(new { success = ok, message = msg });
     }
@@ -201,6 +249,11 @@ public class BulletinAdminController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
+        if (!await CanManageAsync(id))
+        {
+            TempData["ErrorMessage"] = NoScopeMsg;
+            return RedirectToAction("Manage");
+        }
         var (ok, msg) = await _service.DeleteAsync(id, CurrentUser?.EmpCd ?? "");
         TempData[ok ? "SuccessMessage" : "ErrorMessage"] = msg;
         return RedirectToAction("Manage");
@@ -218,6 +271,8 @@ public class BulletinAdminController : BaseController
     {
         if (bulletinId <= 0 || file == null || file.Length == 0)
             return Json(new { success = false, message = "Thiếu file hoặc bulletinId" });
+        if (!await CanManageAsync(bulletinId))
+            return Json(new { success = false, message = NoScopeMsg });
 
         // 1. Insert metadata — chỉ gửi ext, API tự build FILE_NAME = {ID}{ext}
         var ext = Path.GetExtension(file.FileName).ToLower();

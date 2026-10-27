@@ -20,6 +20,7 @@ public class BulletinModel
     public int       COMMENT_COUNT  { get; set; }              // computed
     public int       REACTION_COUNT { get; set; }              // computed — feed Index
     public string?   INST_ID        { get; set; }
+    public string?   CREATED_ROLE   { get; set; }              // HR | CSR | Lean — suy ra từ role của INST_ID (chỉ trả ở trang quản lý / chi tiết)
     public DateTime? INST_DT        { get; set; }
     public string?   UPDT_ID        { get; set; }
     public DateTime? UPDT_DT        { get; set; }

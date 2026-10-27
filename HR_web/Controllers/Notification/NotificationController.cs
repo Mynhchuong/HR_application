@@ -15,7 +15,9 @@ public class NotificationController : BaseController
     }
 
     // GET /Notification/Index
-    public IActionResult Index() => View();
+    // Expat vào bằng đường dẫn chung "/Notification" (app mở khi bấm thông báo đẩy) -> dùng bản tiếng Anh.
+    public IActionResult Index() =>
+        CurrentUser != null && CurrentUser.RoleName == "Expat" ? View("IndexForExpat") : View();
 
     // GET /Notification/IndexForExpat
     public IActionResult IndexForExpat() => View();

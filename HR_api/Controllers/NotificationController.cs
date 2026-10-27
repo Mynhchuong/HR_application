@@ -383,7 +383,7 @@ public class NotificationController : ControllerBase
                 ? od.Value : 0;
 
             // 2. Gửi FCM push
-            _ = Task.Run(() => _notiHelper.SendFcmPublicAsync(model));
+            _ = Task.Run(() => _notiHelper.SendFcmPublicAsync(model, notiId));
 
             return Ok(new { success = true, message = "Đã tạo thông báo", notification_id = notiId });
         }

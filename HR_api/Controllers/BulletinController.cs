@@ -118,10 +118,12 @@ public class BulletinController : ControllerBase
     // 2. ADMIN LIST  — HR: tất cả (draft + hết hạn + inactive)
     // ═════════════════════════════════════════════════════════════════════════
     [HttpGet("admin/list")]
-    public async Task<IActionResult> GetAdminList()
+    public async Task<IActionResult> GetAdminList([FromQuery] string? login_user = null)
     {
         try
         {
+            // Bản tin đã xóa (IS_ACTIVE=0) không hiện. Thứ tự: còn hạn trước (mới nhất -> cũ nhất theo ngày bắt đầu hiện),
+            // HẾT HẠN xuống cuối; KHÔNG ưu tiên bài ghim (thứ tự ghim chỉ áp dụng cho danh sách nhân viên xem).
             const string sql = @"
                 SELECT B.ID, B.TITLE, B.COVER_IMG,
                        B.PUBLISH_FROM, B.PUBLISH_TO,
@@ -131,10 +133,28 @@ public class BulletinController : ControllerBase
                        (SELECT COUNT(*) FROM HRMS.HR_BULLETIN_COMMENT C
                         WHERE C.BULLETIN_ID = B.ID AND C.IS_DELETED = 0) AS COMMENT_COUNT
                 FROM HRMS.HR_BULLETIN B
-                ORDER BY B.IS_PINNED DESC, B.PIN_ORDER ASC,
+                WHERE B.IS_ACTIVE = 1
+                ORDER BY CASE WHEN TRUNC(B.PUBLISH_TO) < TRUNC(SYSDATE) THEN 1 ELSE 0 END,
                          B.PUBLISH_FROM DESC, B.ID DESC";
 
             var result = await _oracleService.ExecuteQueryAsync(sql, MapLight);
+
+            // ROLE TẠO của từng bản tin (HR/CSR/Lean) theo role của người tạo (INST_ID) — mỗi người tạo tra 1 lần.
+            var roleByCreator = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var b in result)
+            {
+                var key = b.INST_ID ?? "";
+                if (!roleByCreator.TryGetValue(key, out var role))
+                    roleByCreator[key] = role = await TrainingScopeHelper.GetCreatorRoleAsync(_oracleService, key);
+                b.CREATED_ROLE = role;
+            }
+
+            // Lean/CSR chỉ thấy bản tin của role mình; HR/Admin thấy tất cả. Không truyền login_user -> không lọc.
+            if (!string.IsNullOrWhiteSpace(login_user))
+            {
+                var viewer = await TrainingScopeHelper.GetViewerRolesAsync(_oracleService, login_user);
+                if (viewer != null) result = result.Where(x => viewer.Contains(x.CREATED_ROLE ?? "HR")).ToList();
+            }
             return Ok(new { success = true, data = result });
         }
         catch (Exception ex)
@@ -143,9 +163,6 @@ public class BulletinController : ControllerBase
         }
     }
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // 3. DETAIL  — kèm CONTENT (NCLOB chunk) + media; tăng VIEW_COUNT (unique)
-    // ═════════════════════════════════════════════════════════════════════════
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id, [FromQuery] string? empcd)
     {
@@ -178,6 +195,8 @@ public class BulletinController : ControllerBase
 
             if (bulletin.IS_ACTIVE == 0)
                 return Ok(new { success = false, message = "Bản tin đã bị ẩn" });
+
+            bulletin.CREATED_ROLE = await TrainingScopeHelper.GetCreatorRoleAsync(_oracleService, bulletin.INST_ID);
 
             // Load media
             const string mediaSql = @"

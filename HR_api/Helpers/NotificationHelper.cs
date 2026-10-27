@@ -168,7 +168,7 @@ public class NotificationHelper
             decimal notiId = outIdParam.Value is Oracle.ManagedDataAccess.Types.OracleDecimal od && !od.IsNull
                 ? od.Value : 0;
 
-            _ = Task.Run(() => SendFcmAsync(model));
+            _ = Task.Run(() => SendFcmAsync(model, notiId));
 
             return notiId;
         }
@@ -207,7 +207,7 @@ public class NotificationHelper
         }
     }
 
-    public async Task SendFcmPublicAsync(SendNotificationRequest model) => await SendFcmAsync(model);
+    public async Task SendFcmPublicAsync(SendNotificationRequest model, decimal? notiId = null) => await SendFcmAsync(model, notiId);
 
     // ─── FCM cho admin MULTI-target ──────────────────────────────
     public async Task SendFcmForMultiAsync(decimal notiId, SendMultiNotificationRequest model)
@@ -301,7 +301,7 @@ public class NotificationHelper
         }
     }
 
-    private async Task SendFcmAsync(SendNotificationRequest model)
+    private async Task SendFcmAsync(SendNotificationRequest model, decimal? notiId = null)
     {
         if (!_firebaseInitialized) return;
         try
@@ -321,9 +321,13 @@ public class NotificationHelper
                 body  = model.BODY_EN ?? model.BODY;
             }
 
-            var data = string.IsNullOrEmpty(model.LINK_ACTION)
-                ? null
-                : new Dictionary<string, string> { { "link_action", model.LINK_ACTION } };
+            // noti_id để app mở đúng thông báo vừa bấm (/Notification?open={id}) — trước đây thiếu ở đường gửi đơn lẻ.
+            Dictionary<string, string>? data = null;
+            if (!string.IsNullOrEmpty(model.LINK_ACTION))
+            {
+                data = new Dictionary<string, string> { { "link_action", model.LINK_ACTION } };
+                if (notiId.HasValue && notiId.Value > 0) data["noti_id"] = notiId.Value.ToString();
+            }
 
             foreach (var batch in tokens.Chunk(500))
             {

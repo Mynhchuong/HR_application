@@ -69,6 +69,8 @@ public class BulletinController : BaseController
             return RedirectToAction("Index");
         }
 
+        item.CONTENT = HR_web.Helpers.BulletinContentHelper.FixClassRegisterLinks(item.CONTENT, Url);
+
         ViewBag.IsHrAdmin = IsHrAdmin();
         return View(item);
     }

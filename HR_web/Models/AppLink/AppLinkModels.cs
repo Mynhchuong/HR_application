@@ -41,6 +41,9 @@ public class AppLinkResult
     public DateTime? assignedDt { get; set; }
     public bool    limitReached { get; set; }
     public List<AppLinkHistoryItem>? previousLinks { get; set; }
+    // Số link đã phát cho mã thẻ này (mọi lần, kể cả đã đổi) và hạn mức tối đa — để web hiện "còn X lần xin thêm".
+    public int     issuedCount { get; set; }
+    public int     maxIssues { get; set; }
 }
 
 public class AppLinkHistoryItem

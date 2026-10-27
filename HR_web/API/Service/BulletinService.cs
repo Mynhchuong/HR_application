@@ -39,9 +39,13 @@ public class BulletinService
         return r?.success == true ? r.data ?? new() : new();
     }
 
-    public async Task<List<BulletinModel>> GetAdminListAsync()
+    public async Task<List<BulletinModel>> GetAdminListAsync(string? loginUser = null)
     {
-        var r = await _api.GetAsync<R<List<BulletinModel>>>("bulletin/admin/list");
+        // loginUser: API lọc theo ROLE TẠO (Lean/CSR chỉ thấy bản tin của role mình, HR/Admin thấy hết).
+        var url = string.IsNullOrWhiteSpace(loginUser)
+            ? "bulletin/admin/list"
+            : $"bulletin/admin/list?login_user={Uri.EscapeDataString(loginUser)}";
+        var r = await _api.GetAsync<R<List<BulletinModel>>>(url);
         return r?.success == true ? r.data ?? new() : new();
     }
 

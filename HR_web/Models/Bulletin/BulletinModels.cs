@@ -19,6 +19,7 @@ public class BulletinModel
     public int       COMMENT_COUNT  { get; set; }
     public int       REACTION_COUNT { get; set; }
     public string?   INST_ID        { get; set; }
+    public string?   CREATED_ROLE   { get; set; }
     public DateTime? INST_DT        { get; set; }
     public string?   UPDT_ID        { get; set; }
     public DateTime? UPDT_DT        { get; set; }

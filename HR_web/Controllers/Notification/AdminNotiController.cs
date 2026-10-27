@@ -1,4 +1,5 @@
 using HR_web.API.Service;
+using HR_web.Models.Account;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,7 +15,8 @@ public class AdminNotiController : BaseController
         _notiSvc = notiSvc;
     }
 
-    private bool IsAdmin() => CurrentUser?.RoleName == "Admin";
+    // Admin + HR (role chính hoặc role dept HR) — yêu cầu 2026-10-28: HR cũng gửi/quản lý thông báo.
+    private bool IsAdmin() => CurrentUser.HasAnyRole("Admin", "HR");
 
     private IActionResult Forbid403() =>
         Json(new { success = false, message = "Bạn không có quyền sử dụng chức năng này" });
@@ -51,7 +53,7 @@ public class AdminNotiController : BaseController
             LINK_ACTION = string.IsNullOrWhiteSpace(req.LinkAction) ? null : req.LinkAction!.Trim(),
             CREATED_BY  = CurrentUser?.EmpCd,
             PRIORITY    = (req.Priority == "HIGH") ? "HIGH" : "NORMAL",
-            SOURCE      = "ADMIN",
+            SOURCE      = CurrentUser.HasRole("Admin") ? "ADMIN" : "HR",   // danh sách "đã gửi" lấy cả ADMIN lẫn HR
             SEND_ALL_COMPANY = req.SendAllCompany,
             TARGETS     = targets.Select(t => new { TYPE = t.Type, VAL = t.Val }).ToList()
         };

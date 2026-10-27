@@ -1103,9 +1103,10 @@ public class TrainingAdminController : BaseController
     public async Task<IActionResult> PublishRegistration([FromBody] ChangeClassStatusRequest req)
     {
         req.LOGIN_USER = CurrentUser?.EmpCd ?? "";
-        // Build link "Đăng ký ngay" bằng Url.Action — tự động đúng PathBase/scheme/host của request
-        // hiện tại (VD /HR_Web nếu deploy dưới virtual path), không cần đoán/hardcode ở phía API.
-        req.REGISTER_URL = Url.Action("ClassRegister", "Training", new { id = req.ID }, Request.Scheme);
+        // Build link "Đăng ký ngay" bằng Url.Action dạng TƯƠNG ĐỐI (đúng PathBase, VD /HR_Web/Training/ClassRegister/5),
+        // KHÔNG kèm scheme/host: app mobile dùng host khác với máy HR bấm đăng (192.168.1.24 vs esamho.com) nên link
+        // tuyệt đối làm nhân viên bấm vào bị sang host lạ, không đăng nhập được / tải mãi không xong.
+        req.REGISTER_URL = Url.Action("ClassRegister", "Training", new { id = req.ID });
         var response = await _training.PostToApiAsync("TrainingAdmin/class/publish-registration", req);
         if (response == null) return Json(new { success = false, message = "Lỗi kết nối API" });
         var json = await response.Content.ReadAsStringAsync();

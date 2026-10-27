@@ -192,6 +192,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",              Group = "chat" },
 
                     new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",               Group = "system" },
+                    new SideMenuItem { Title = "Thông báo",             Url = "~/AdminNoti/Index",            Icon = "campaign",               Group = "system" },
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy",                 Group = "system" },
                     new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",            Icon = "manage_accounts",          Group = "system" },
                     new SideMenuItem { Title = "Toàn bộ nhân viên",   Url = "~/Employee/AllEmployees",       Icon = "groups",                   Group = "system" },
@@ -202,7 +203,6 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",           Icon = "poll",                   Group = "system" },
                 //    new SideMenuItem { Title = "DS miễn làm Survey",    Url = "~/SurveyExempt/Index",          Icon = "person_off"             },
                     new SideMenuItem { Title = "Kho link cài app",      Url = "~/AppLinkAdmin/Index",          Icon = "phone_iphone",           Group = "system" },
-                    new SideMenuItem { Title = "Báo cáo thiết bị",      Url = "~/DeviceReport/Index",          Icon = "devices",                 Group = "system" },
                 }
             },
 

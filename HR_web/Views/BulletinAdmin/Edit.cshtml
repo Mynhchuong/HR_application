@@ -508,7 +508,7 @@ window.ttUploadImage = async (input) => {
         const fd = new FormData();
         fd.append('file', file);
         const res = await fetch('@Url.Action("UploadBulletinImage","Image")', { method: 'POST', body: fd });
-        const data = await res.json();
+        const data = await readUploadJson(res);
         if (data.success) {
             editor.chain().focus().setImage({ src: data.url }).run();
         } else {
@@ -522,6 +522,18 @@ window.ttUploadImage = async (input) => {
     }
 };
 
+// Upload ảnh: nếu server trả HTML (hết phiên đăng nhập -> trang Login, hoặc không đủ quyền -> 403) thì báo rõ
+// nguyên nhân thay vì lỗi khó hiểu "Unexpected token '<'".
+async function readUploadJson(res) {
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('json')) {
+        if (res.status === 403) throw new Error('Tài khoản của bạn không có quyền tải ảnh lên');
+        if (res.redirected || res.status === 401 || res.status === 302) throw new Error('Phiên đăng nhập đã hết, vui lòng đăng nhập lại');
+        throw new Error('Máy chủ trả về dữ liệu không hợp lệ (HTTP ' + res.status + ')');
+    }
+    return res.json();
+}
+
 // ── Upload cover ──────────────────────────────────────
 window.uploadCover = async (input) => {
     const file = input.files[0];
@@ -531,7 +543,7 @@ window.uploadCover = async (input) => {
         const fd = new FormData();
         fd.append('file', file);
         const res = await fetch('@Url.Action("UploadBulletinImage","Image")', { method: 'POST', body: fd });
-        const data = await res.json();
+        const data = await readUploadJson(res);
         if (data.success) {
             const url = data.url;
             const fileName = new URL(url, location.origin).searchParams.get('fileName');

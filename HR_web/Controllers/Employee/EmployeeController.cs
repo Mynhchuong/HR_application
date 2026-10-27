@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc;
 using HR_web.API.Service;
@@ -67,7 +68,7 @@ public class EmployeeController : BaseController
     // (yêu cầu 2026-10-16: "hr cũng cần 1 page lấy all danh sách công nhân").
     // GET /Employee/AllEmployees
     // ─────────────────────────────────────────────────────────────────────────
-    private bool IsHrOrAdmin => CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+    private bool IsHrOrAdmin => CurrentUser.HasAnyRole("HR", "Admin");
 
     public IActionResult AllEmployees()
     {

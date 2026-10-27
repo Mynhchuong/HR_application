@@ -237,7 +237,7 @@ public class LeaveController : ControllerBase
     {
         ["NL"] = "VR"
     };
-    // Loại nghỉ bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — CT và DS (Dưỡng sức) theo
+    // Loại nghỉ bắt buộc nộp giấy tờ chứng minh (nhắc theo mốc: thứ Ba hàng tuần cho SI/VS/KT, ngày 3 hàng tháng cho DT/DC — xem LeaveDocReminderService) — CT và DS (Dưỡng sức) theo
     // yêu cầu (2026-09-15) đều KHÔNG cần nộp giấy tờ.
     private static readonly HashSet<string> DocRequiredTypes = new() { "SI", "DT", "DC", "VS", "KT" };
     // Trạng thái được coi là "đã chốt" để cho phép cập nhật giấy tờ — quản lý/Admin SẮP LỊCH
@@ -2669,7 +2669,7 @@ END;";
                 r => r["ROLE_NAME"]?.ToString(),
                 new OracleParameter("EMPCD", model.ACTOR_EMPCD));
             string? role = roleRows.FirstOrDefault();
-            if (role != "HR" && role != "Clerk" && role != "Admin")
+            if (role != "HR" && role != "Clerk" && role != "Admin" && !await DeptRoleHelper.HasAnyRoleAsync(_oracleService, model.ACTOR_EMPCD, "HR"))
                 return Ok(new { success = false, message = "Bạn không có quyền cập nhật giấy tờ" });
 
             var statusRows = await _oracleService.ExecuteQueryAsync(
@@ -2718,7 +2718,7 @@ END;";
                 r => r["ROLE_NAME"]?.ToString(),
                 new OracleParameter("EMPCD", model.ACTOR_EMPCD));
             string? role = roleRows.FirstOrDefault();
-            if (role != "HR" && role != "Clerk" && role != "Admin")
+            if (role != "HR" && role != "Clerk" && role != "Admin" && !await DeptRoleHelper.HasAnyRoleAsync(_oracleService, model.ACTOR_EMPCD, "HR"))
                 return Ok(new { success = false, message = "Bạn không có quyền yêu cầu nộp lại" });
 
             var infoRows = await _oracleService.ExecuteQueryAsync(@"
@@ -2835,7 +2835,7 @@ END;";
                 r => r["ROLE_NAME"]?.ToString(),
                 new OracleParameter("EMPCD", model.ACTOR_EMPCD));
             string? role = roleRows.FirstOrDefault();
-            if (role != "HR" && role != "Clerk" && role != "Admin")
+            if (role != "HR" && role != "Clerk" && role != "Admin" && !await DeptRoleHelper.HasAnyRoleAsync(_oracleService, model.ACTOR_EMPCD, "HR"))
                 return Ok(new { success = false, message = "Bạn không có quyền cập nhật giấy tờ" });
 
             var reqRows = await _oracleService.ExecuteQueryAsync(@"
@@ -3206,7 +3206,7 @@ END;";
                 new OracleParameter("EMPCD", model.ACTOR_EMPCD));
             string? role = roleRows.FirstOrDefault();
             // Chỉ HR/Admin — Thư ký (Clerk) KHÔNG được sửa Absent Code ERP (yêu cầu 2026-09-10).
-            if (role != "HR" && role != "Admin")
+            if (role != "HR" && role != "Admin" && !await DeptRoleHelper.HasAnyRoleAsync(_oracleService, model.ACTOR_EMPCD, "HR"))
                 return Ok(new { success = false, message = "Bạn không có quyền sửa" });
 
             var leavecd = model.LEAVECD.Trim().ToUpperInvariant();

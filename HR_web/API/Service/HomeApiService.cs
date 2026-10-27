@@ -10,12 +10,13 @@ public class HomeApiService
     // ============================================================
     // GET /apiHR/Home/init
     // ============================================================
-    public async Task<HomeInitData?> GetInitAsync(string empcd, string? roleName, string? fullName)
+    public async Task<HomeInitData?> GetInitAsync(string empcd, string? roleName, string? fullName, string? deptRoleName = null)
     {
         try
         {
             var q = $"empcd={Uri.EscapeDataString(empcd)}" +
                     (string.IsNullOrEmpty(roleName) ? "" : $"&role_name={Uri.EscapeDataString(roleName)}") +
+                    (string.IsNullOrEmpty(deptRoleName) ? "" : $"&dept_role_name={Uri.EscapeDataString(deptRoleName)}") +
                     (string.IsNullOrEmpty(fullName) ? "" : $"&full_name={Uri.EscapeDataString(fullName)}");
 
             var resp = await _api.GetAsync<HomeInitResponse>("home/init", q);
@@ -31,12 +32,13 @@ public class HomeApiService
     // ============================================================
     // GET /apiHR/Home/summary
     // ============================================================
-    public async Task<HomeSummaryData?> GetSummaryAsync(string empcd, string? roleName, bool force = false)
+    public async Task<HomeSummaryData?> GetSummaryAsync(string empcd, string? roleName, bool force = false, string? deptRoleName = null)
     {
         try
         {
             var q = $"empcd={Uri.EscapeDataString(empcd)}" +
                     (string.IsNullOrEmpty(roleName) ? "" : $"&role_name={Uri.EscapeDataString(roleName)}") +
+                    (string.IsNullOrEmpty(deptRoleName) ? "" : $"&dept_role_name={Uri.EscapeDataString(deptRoleName)}") +
                     (force ? "&force=1" : "");
 
             var resp = await _api.GetAsync<HomeSummaryResponse>("home/summary", q);
@@ -70,12 +72,13 @@ public class HomeApiService
     // ============================================================
     // GET /apiHR/Home/team-birthday
     // ============================================================
-    public async Task<List<TeamBirthdayItem>?> GetTeamBirthdayAsync(string empcd, string? roleName)
+    public async Task<List<TeamBirthdayItem>?> GetTeamBirthdayAsync(string empcd, string? roleName, string? deptRoleName = null)
     {
         try
         {
             var q = $"empcd={Uri.EscapeDataString(empcd)}" +
-                    (string.IsNullOrEmpty(roleName) ? "" : $"&role_name={Uri.EscapeDataString(roleName)}");
+                    (string.IsNullOrEmpty(roleName) ? "" : $"&role_name={Uri.EscapeDataString(roleName)}") +
+                    (string.IsNullOrEmpty(deptRoleName) ? "" : $"&dept_role_name={Uri.EscapeDataString(deptRoleName)}");
 
             var resp = await _api.GetAsync<TeamBirthdayResponse>("home/team-birthday", q);
             return resp?.success == true ? resp.data : null;
@@ -90,12 +93,13 @@ public class HomeApiService
     // ============================================================
     // GET /apiHR/Home/leave-doc-missing
     // ============================================================
-    public async Task<List<LeaveDocMissingItem>?> GetLeaveDocMissingAsync(string empcd, string? roleName)
+    public async Task<List<LeaveDocMissingItem>?> GetLeaveDocMissingAsync(string empcd, string? roleName, string? deptRoleName = null)
     {
         try
         {
             var q = $"empcd={Uri.EscapeDataString(empcd)}" +
-                    (string.IsNullOrEmpty(roleName) ? "" : $"&role_name={Uri.EscapeDataString(roleName)}");
+                    (string.IsNullOrEmpty(roleName) ? "" : $"&role_name={Uri.EscapeDataString(roleName)}") +
+                    (string.IsNullOrEmpty(deptRoleName) ? "" : $"&dept_role_name={Uri.EscapeDataString(deptRoleName)}");
 
             var resp = await _api.GetAsync<LeaveDocMissingResponse>("home/leave-doc-missing", q);
             return resp?.success == true ? resp.data : null;

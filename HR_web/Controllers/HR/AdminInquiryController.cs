@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using ClosedXML.Excel;
@@ -24,7 +25,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     private bool IsAdmin => CurrentUser?.RoleName == "Admin";
 
     // Report/GetReport/ExportReport (thống kê, read-only) mở thêm cho CSR xem — các action khác vẫn Admin-only
-    private bool CanViewReport => IsAdmin || CurrentUser?.RoleName == "CSR";
+    private bool CanViewReport => IsAdmin || CurrentUser.HasRole("CSR");
 
     // Tin nhắn phía HR/Admin gõ qua rich-text editor nên CONTENT lưu kèm thẻ HTML (<p>..</p>) —
     // bỏ thẻ cho dễ đọc khi xuất raw data ra Excel.

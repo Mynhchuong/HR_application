@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using HR_web.API.Service;
 using HR_web.Helpers;
 using Microsoft.AspNetCore.Authorization;
@@ -62,7 +63,7 @@ public class FileController : BaseController
         if (string.IsNullOrEmpty(empcd))
             return Json(new { success = false, message = "Chưa đăng nhập" });
 
-        bool isHrOrAdminOrCsr = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdminOrCsr = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdminOrCsr)
         {
             // Level COURSE chỉ HR/Admin/CSR (quản lý khóa học) — level CLASS/SESSION thì giáo viên

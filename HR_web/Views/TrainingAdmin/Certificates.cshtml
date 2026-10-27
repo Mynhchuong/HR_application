@@ -2,6 +2,8 @@
     ViewData["Title"] = "Quản lý Chứng chỉ";
     Layout = "~/Views/Shared/_Layout.cshtml";
     var empCd = ViewBag.EmpCd as string;
+    // ROLE TẠO (HR/CSR/Lean): HR/Admin thấy tất cả + có ô lọc và cột "Role tạo"; CSR/Lean chỉ thấy chứng chỉ của khóa thuộc role mình.
+    var canFilterRole = (ViewBag.CurrentUser as UserInfoModel).HasAnyRole("HR", "Admin");
 }
 
 <div class="container-fluid py-4">
@@ -65,6 +67,18 @@
                 <label class="form-label small fw-bold text-muted">Nhập Mã số NV</label>
                 <input type="text" id="filter-empcd" class="form-control" placeholder="Mã nhân viên..." style="border-radius: 8px;" />
             </div>
+            @if (canFilterRole)
+            {
+                <div class="col-6 col-lg-2">
+                    <label class="form-label small fw-bold text-muted">Role tạo</label>
+                    <select id="filter-role" class="form-select" onchange="onRoleChanged()" style="border-radius: 8px;">
+                        <option value="">-- Tất cả role --</option>
+                        <option value="HR">HR</option>
+                        <option value="CSR">CSR</option>
+                        <option value="Lean">Lean</option>
+                    </select>
+                </div>
+            }
             <div class="col-6 col-lg-2 d-flex align-items-end">
                 <button onclick="loadCertificates(1)" class="btn btn-success w-100 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-1" style="height: 38px; border-radius: 8px;">
                     <i class="bi bi-search" style="font-size: 1.1rem;"></i> Lọc dữ liệu
@@ -88,6 +102,7 @@
                     <tr class="text-muted small">
                         <th class="ps-3" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Học viên">Học viên</th>
                         <th data-mobile="primary" data-mobile-label="Khóa học">Khóa học</th>
+                        @if (canFilterRole) { <th data-mobile="detail" data-mobile-label="Role tạo">Role tạo</th> }
                         <th data-mobile="detail" data-mobile-label="Lớp học">Lớp học</th>
                         <th data-mobile="detail" data-mobile-label="Ngày hoàn thành">Ngày hoàn thành</th>
                         <th data-mobile="primary" data-mobile-label="Điểm thi cuối kỳ">Điểm thi cuối kỳ</th>
@@ -97,7 +112,7 @@
                 </thead>
                 <tbody id="certificates-tbody">
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-5">
+                        <td colspan="@(canFilterRole ? 8 : 7)" class="text-center text-muted py-5">
                             <div class="spinner-border text-success spinner-border-sm" role="status"></div>
                             <span class="ms-2">Đang tải dữ liệu...</span>
                         </td>
@@ -125,6 +140,38 @@
         };
 
         const currentLoginUser = '@empCd';
+        const CAN_FILTER_ROLE = @(canFilterRole ? "true" : "false");
+        const CERT_COLSPAN = CAN_FILTER_ROLE ? 8 : 7;
+
+        function roleBadge(role) {
+            if (!role) return '<span class="text-muted">-</span>';
+            const cls = role === 'HR' ? 'bg-primary-subtle text-primary-emphasis'
+                      : role === 'CSR' ? 'bg-info-subtle text-info-emphasis'
+                      : 'bg-warning-subtle text-warning-emphasis';
+            return `<span class="badge ${cls} px-2.5 py-1 fw-bold">${role}</span>`;
+        }
+        function currentRoleFilter() { return document.getElementById('filter-role')?.value || ''; }
+
+        // Đổi "Role tạo": nạp lại dropdown Khóa học/Lớp học cho đúng role rồi lọc lại chứng chỉ.
+        function onRoleChanged() {
+            loadCourseClassOptions();
+            loadCertificates(1);
+        }
+
+        function loadCourseClassOptions() {
+            const rq = encodeURIComponent(currentRoleFilter());
+            const mySeq = ++optReqSeq;
+            const courseSel = document.getElementById('filter-course');
+            const classSel = document.getElementById('filter-class');
+            courseSel.innerHTML = '<option value="">-- Tất cả khóa học --</option>';
+            classSel.innerHTML = '<option value="">-- Tất cả các lớp --</option>';
+            fetch(`${window.TRAINING_URLS.getCourses}?createdRole=${rq}`)
+                .then(r => r.json())
+                .then(res => { if (mySeq !== optReqSeq) return; (res.data || []).forEach(c => { courseSel.innerHTML += `<option value="${c.ID}">${c.TITLE}</option>`; }); });
+            fetch(`${window.TRAINING_URLS.getClassList}?createdRole=${rq}`)
+                .then(r => r.json())
+                .then(res => { if (mySeq !== optReqSeq) return; (res.data || []).forEach(c => { classSel.innerHTML += `<option value="${c.ID}">${c.CLASS_NAME}</option>`; }); });
+        }
         let deptList = [];
         let certList = [];
         let certPage = 1, certPageSize = 50, certTotal = 0, certTotalPages = 0;
@@ -136,25 +183,8 @@
         });
 
         function loadFilterOptions() {
-            // Load Courses
-            fetch(window.TRAINING_URLS.getCourses)
-                .then(r => r.json())
-                .then(res => {
-                    const select = document.getElementById('filter-course');
-                    (res.data || []).forEach(c => {
-                        select.innerHTML += `<option value="${c.ID}">${c.TITLE}</option>`;
-                    });
-                });
-
-            // Load Classes
-            fetch(`${window.TRAINING_URLS.getClassList}`)
-                .then(r => r.json())
-                .then(res => {
-                    const select = document.getElementById('filter-class');
-                    (res.data || []).forEach(c => {
-                        select.innerHTML += `<option value="${c.ID}">${c.CLASS_NAME}</option>`;
-                    });
-                });
+            // Load Courses + Classes (đã lọc theo role của người xem ở server; HR có thêm ô lọc Role tạo)
+            loadCourseClassOptions();
 
             // Load Depts
             fetch(window.TRAINING_URLS.getDept)
@@ -174,7 +204,7 @@
             const classSelect = document.getElementById('filter-class');
             classSelect.innerHTML = '<option value="">-- Tất cả các lớp --</option>';
 
-            const qs = courseId ? `?courseId=${courseId}` : '';
+            const qs = `?createdRole=${encodeURIComponent(currentRoleFilter())}` + (courseId ? `&courseId=${courseId}` : '');
             fetch(`${window.TRAINING_URLS.getClassList}${qs}`)
                 .then(r => r.json())
                 .then(res => {
@@ -213,15 +243,19 @@
             if (deptcd) qs += `&deptcd=${encodeURIComponent(deptcd)}`;
             if (linecd) qs += `&linecd=${encodeURIComponent(linecd)}`;
             if (empcd) qs += `&empcd=${encodeURIComponent(empcd)}`;
+            const role = currentRoleFilter();
+            if (role) qs += `&createdRole=${encodeURIComponent(role)}`;
             return qs;
         }
 
+        let certReqSeq = 0, optReqSeq = 0; // bỏ kết quả của request cũ khi người dùng đổi bộ lọc nhanh
         function loadCertificates(page = 1) {
             certPage = page;
+            const mySeq = ++certReqSeq;
             const tbody = document.getElementById('certificates-tbody');
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="text-center text-muted py-5">
+                    <td colspan="${CERT_COLSPAN}" class="text-center text-muted py-5">
                         <div class="spinner-border text-success spinner-border-sm" role="status"></div>
                         <span class="ms-2">Đang tải...</span>
                     </td>
@@ -233,8 +267,9 @@
             fetch(`${window.TRAINING_URLS.getCertificateList}?${qs}`)
                 .then(r => r.json())
                 .then(res => {
+                    if (mySeq !== certReqSeq) return;
                     if (!res.success || !res.data) {
-                        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Không tìm thấy chứng chỉ nào.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="' + CERT_COLSPAN + '" class="text-center text-muted py-4">Không tìm thấy chứng chỉ nào.</td></tr>';
                         certTotal = 0; certTotalPages = 0;
                         renderCertPagination();
                         return;
@@ -245,7 +280,7 @@
                     certTotal = res.total || 0;
                     certTotalPages = res.total_pages || 0;
                     if (list.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Không tìm thấy chứng chỉ nào.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="' + CERT_COLSPAN + '" class="text-center text-muted py-4">Không tìm thấy chứng chỉ nào.</td></tr>';
                         renderCertPagination();
                         return;
                     }
@@ -264,6 +299,7 @@
                                     <div class="text-muted cert-org-line" style="font-size:.7rem;">#${c.EMPCD} · ${orgLine}</div>
                                 </td>
                                 <td><div class="cert-wrap-cell" title="${c.COURSE_TITLE}">${c.COURSE_TITLE}</div></td>
+                                ${CAN_FILTER_ROLE ? `<td>${roleBadge(c.CREATED_ROLE)}</td>` : ''}
                                 <td><div class="cert-wrap-cell" title="${c.CLASS_NAME}">${c.CLASS_NAME}</div></td>
                                 <td>${dateStr}</td>
                                 <td><strong class="text-success">${scoreStr}</strong></td>
@@ -278,7 +314,7 @@
                     renderCertPagination();
                 })
                 .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">Lỗi kết nối hoặc không có quyền truy cập dữ liệu.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="' + CERT_COLSPAN + '" class="text-center text-danger py-4">Lỗi kết nối hoặc không có quyền truy cập dữ liệu.</td></tr>';
                 })
                 .finally(() => {
                     MobileTableHelper.refresh('certificates-tbody');

@@ -45,4 +45,6 @@ public class CertificateItem
     public decimal? FINAL_SCORE { get; set; }
     public decimal? MAX_SCORE { get; set; }
     public decimal? ATTENDANCE_PERCENT { get; set; }
+    /// <summary>Role tạo của KHÓA HỌC (HR/CSR/Lean) — chứng chỉ theo role của khóa. null nếu DB chưa có cột. Xem Helpers/TrainingScopeHelper.cs.</summary>
+    public string? CREATED_ROLE { get; set; }
 }

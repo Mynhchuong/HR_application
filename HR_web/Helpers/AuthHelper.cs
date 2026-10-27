@@ -27,6 +27,10 @@ public static class AuthHelper
             new Claim(UserInfoClaimType, userJson),
             new Claim(LastActiveCheckClaimType, DateTimeOffset.UtcNow.ToString("o"))
         };
+        // Role phòng ban (HR/CSR...) là MỘT role thứ hai trong cookie: các khóa trang kiểu
+        // [Authorize(Roles = "Admin,HR")] cho qua nếu có BẤT KỲ role nào khớp, nên không phải sửa từng controller.
+        if (!string.IsNullOrWhiteSpace(user.DeptRoleName) && user.DeptRoleName != user.RoleName)
+            claims.Add(new Claim(ClaimTypes.Role, user.DeptRoleName));
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         var principal = new ClaimsPrincipal(identity);

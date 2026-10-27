@@ -136,7 +136,13 @@
                                         <small class="text-muted">Line: @u.LineCd</small><br />
                                         <small class="text-muted">Work: @u.WorkCd</small>
                                     </td>
-                                    <td>@u.RoleName</td>
+                                    <td>
+                                        @u.RoleName
+                                        @if (!string.IsNullOrEmpty(u.DeptRoleName))
+                                        {
+                                            <span class="badge rounded-pill bg-info ms-1" title="Role phòng ban">@u.DeptRoleName</span>
+                                        }
+                                    </td>
                                     <td>
                                         @if (u.IsActive == 1)
                                         {
@@ -196,6 +202,10 @@
                                         <button type="button" class="btn btn-sm btn-info ms-1"
                                                 onclick="openEditRoleModal('@u.EmpCd', '@u.FullName', @(u.RoleId ?? 0))">
                                             <i class="fas fa-user-tag"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-info ms-1" title="Role phòng ban (HR/CSR...)"
+                                                onclick="openEditDeptRoleModal('@u.EmpCd', '@u.FullName', '@(u.DeptRoleName ?? "")')">
+                                            <i class="fas fa-building"></i>
                                         </button>
                                     </td>
                                 </tr>
@@ -421,6 +431,31 @@
     </div>
 </div>
 
+<!-- Modal Role phòng ban -->
+<div class="modal fade" id="editDeptRoleModal">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <form method="post" action="@Url.Action("UpdateDeptRole", "User")">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="editDeptRoleEmpCd" name="empCd" />
+                <div class="modal-header">
+                    <h6 class="modal-title">Role phòng ban &mdash; <span id="editDeptRoleEmpName" class="text-primary"></span></h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label text-xs fw-bold text-uppercase text-secondary mb-1">Role phòng ban</label>
+                    <select id="editDeptRoleSelect" name="deptRoleId" class="form-select"></select>
+                    <div class="form-text">Cộng thêm vào role chính (vd Manager + HR = thấy cả menu Quản lý lẫn Nhân sự). Chọn "Không có" để bỏ.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script>
         $(document).ready(function () {
@@ -446,6 +481,29 @@
                 <text>new bootstrap.Modal(document.getElementById('@TempData["OpenModal"]')).show();</text>
             }
         });
+
+        function openEditDeptRoleModal(empCd, fullName, currentName) {
+            document.getElementById('editDeptRoleEmpCd').value = empCd;
+            document.getElementById('editDeptRoleEmpName').textContent = fullName;
+
+            var sel = document.getElementById('editDeptRoleSelect');
+            sel.innerHTML = '<option value="">Đang tải...</option>';
+
+            fetch('@Url.Action("GetDeptRoles", "User")')
+                .then(r => r.json())
+                .then(res => {
+                    sel.innerHTML = '';
+                    sel.appendChild(new Option('Không có', ''));
+                    (res.data || []).forEach(function (role) {
+                        var opt = new Option(role.text, role.id);
+                        if (role.text === currentName) opt.selected = true;
+                        sel.appendChild(opt);
+                    });
+                    if (res.success === false) sel.insertAdjacentHTML('beforebegin', '<div class="text-danger small mb-1">' + (res.message || '') + '</div>');
+                });
+
+            new bootstrap.Modal(document.getElementById('editDeptRoleModal')).show();
+        }
 
         function openEditRoleModal(empCd, fullName, currentRoleId) {
             document.getElementById('editRoleEmpCd').value = empCd;

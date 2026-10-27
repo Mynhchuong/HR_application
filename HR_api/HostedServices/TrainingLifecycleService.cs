@@ -487,10 +487,12 @@ public class TrainingLifecycleService : BackgroundService
             _log.LogInformation("Auto-opened Class {Id} '{Name}' từ Course {CID}", newClassId, className, c.ID);
 
             // Noti tất cả HR/Admin đang active (HR_USERS.IS_ACTIVE=1 + ECM100.RETDAT chưa retire)
-            var hrs = await db.ExecuteQueryAsync(@"
+            // HR/Admin = role chính HR(5)/Admin(6) HOẶC role dept HR — xem Helpers/DeptRoleHelper.cs.
+            var hrRoleEmpcdSql = await HR_api.Helpers.DeptRoleHelper.EmpcdInRolesSqlAsync(db, "HR", "Admin");
+            var hrs = await db.ExecuteQueryAsync($@"
                 SELECT U.EMPCD FROM HRMS.HR_USERS U
                   LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = U.EMPCD
-                 WHERE U.ROLE_ID IN (5,6)
+                 WHERE U.EMPCD IN ({hrRoleEmpcdSql})
                    AND U.IS_ACTIVE = 1
                    AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))",
                 r => r["EMPCD"]?.ToString() ?? "");

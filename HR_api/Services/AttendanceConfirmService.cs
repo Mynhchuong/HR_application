@@ -957,9 +957,8 @@ public class AttendanceConfirmService
     // ─────────────────────────────────────────────────────────────────────────
     public async Task<bool> IsAdminOrHRAsync(string? empCd)
     {
-        var role = await GetRoleNameAsync(empCd);
-        return string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(role, "HR", StringComparison.OrdinalIgnoreCase);
+        // Role chính HOẶC role dept (HR/Admin) — sau khi đổi 9 người HR về Worker vẫn phải nhận là HR.
+        return await DeptRoleHelper.HasAnyRoleAsync(_oracleService, empCd, "Admin", "HR");
     }
 
     private async Task<string?> GetRoleNameAsync(string? empCd)

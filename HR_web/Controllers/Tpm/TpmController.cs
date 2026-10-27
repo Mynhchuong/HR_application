@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using HR_web.API.Service;
+using HR_web.Models.Account;
 
 namespace HR_web.Controllers.Tpm;
 
@@ -15,7 +16,7 @@ public class TpmController : HR_web.Controllers.BaseController
     public TpmController(TpmService svc) { _svc = svc; }
 
     private string Empcd => CurrentUser?.EmpCd ?? "";
-    private bool Allowed => CurrentUser?.RoleName is not ("HR" or "Expat");
+    private bool Allowed => !CurrentUser.HasAnyRole("HR", "Expat") && CurrentUser?.TpmBlocked != true;   // role chính HOẶC role dept; TpmBlocked = khối văn phòng
 
     // GET /Tpm/Scan
     public IActionResult Scan()

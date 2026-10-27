@@ -27,6 +27,9 @@ public class CourseModel
     public string? UPDT_ID { get; set; }
     public DateTime? UPDT_DT { get; set; }
 
+    /// <summary>Role TẠO (HR/CSR/Lean) — quyết định ai thấy khóa học này; null nếu DB chưa có cột. Xem Helpers/TrainingScopeHelper.cs.</summary>
+    public string? CREATED_ROLE { get; set; }
+
     // Computed cho UI list — không lưu DB
     public int? CLASS_COUNT { get; set; }
     public int? TEMPLATE_SESSION_COUNT { get; set; }

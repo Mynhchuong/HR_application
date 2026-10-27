@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using HR_web.API.Service;
 using HR_web.Models.Inquiry;
 using Microsoft.AspNetCore.Authorization;
@@ -17,7 +18,12 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
     private readonly AiCsrService _aiCsr;
     public HrInquiryController(InquiryService inquiry, AiCsrService aiCsr) : base(inquiry) { _aiCsr = aiCsr; }
 
-    private bool IsHr => CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "CSR";
+    private bool IsHr => CurrentUser.HasAnyRole("HR", "CSR");
+
+    // Vai trò xử lý hộp thư ("HR" | "CSR") — role chính HOẶC role dept. KHÔNG dùng RoleName thô: sau khi
+    // đổi role chính của HR về Worker, RoleName = "Worker" sẽ làm sai câu trả lời mẫu và vi phạm
+    // constraint CHK_INQUIRY_CLOSED_TYPE (chỉ nhận HR/CSR/ADMIN/EMP).
+    private string InquiryRole => CurrentUser.HasRole("HR") ? "HR" : CurrentUser.HasRole("CSR") ? "CSR" : "HR";
 
     // ─────────────────────────────────────────────────────────────────────────
     // PAGE: Danh sách tất cả inquiry
@@ -303,7 +309,7 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
     public async Task<IActionResult> GetCannedRepliesForPicker(string? q = null)
     {
         if (!IsHr) return Json(new { success = false, message = "Không có quyền" });
-        var json = await _inquiry.CannedRepliesRawAsync(q, CurrentUser?.RoleName);
+        var json = await _inquiry.CannedRepliesRawAsync(q, InquiryRole);
         return Content(json, "application/json");
     }
 
@@ -474,7 +480,7 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
             inquiryId:  req.InquiryId,
             empCd:      CurrentUser.EmpCd,
             anonToken:  null,
-            closerType: CurrentUser.RoleName ?? "HR",
+            closerType: InquiryRole,
             closerName: CurrentUser.FullName,
             closeNote:  req.CloseNote);
 
@@ -553,7 +559,7 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
             inquiryNos,
             empCd      = CurrentUser!.EmpCd,
             closerName = CurrentUser.FullName,
-            closerType = CurrentUser.RoleName ?? "HR",
+            closerType = InquiryRole,
             message
         };
         var raw = await _inquiry.BulkCloseRawAsync(payload);

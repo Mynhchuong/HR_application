@@ -5,7 +5,7 @@
     var role = Model.RoleName;
     var isManagerLike = role is "Supervisor" or "DeputyManager" or "Manager" or "Assistant";
     var isExpat       = role == "Expat";
-    var isHrAdmin     = role is "HR" or "Admin";
+    var isHrAdmin     = role is "HR" or "Admin" || Model.DeptRoleName is "HR";   // + role phòng ban
 
     string L(string vi, string en) => isEn ? en : vi;
 

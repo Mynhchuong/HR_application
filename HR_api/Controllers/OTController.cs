@@ -2266,6 +2266,9 @@ public class OTController : ControllerBase
             new OracleParameter("EMPCD", empCd));
 
         var role = roleRows.FirstOrDefault();
-        return await _approvalConfig.IsRequestTypeRoleAllowedAsync("OT", role);
+        if (await _approvalConfig.IsRequestTypeRoleAllowedAsync("OT", role)) return true;
+        // Role dept (vd HR) cũng được tính vào whitelist OT — xem Helpers/DeptRoleHelper.cs.
+        var deptRole = await DeptRoleHelper.GetDeptRoleNameAsync(_oracleService, empCd);
+        return !string.IsNullOrEmpty(deptRole) && await _approvalConfig.IsRequestTypeRoleAllowedAsync("OT", deptRole);
     }
 }

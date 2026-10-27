@@ -7,9 +7,11 @@ public class HomeIndexViewModel
     public string EmpCd     { get; set; } = "";
     public string FullName  { get; set; } = "";
     public string RoleName  { get; set; } = "Employee";
+    /// <summary>Role phòng ban (HR/CSR...) — nhân sự (dept HR) vẫn thấy ô tổng quan và không có thông tin ca như role HR trước đây.</summary>
+    public string? DeptRoleName { get; set; }
     public string Lang      => string.Equals(RoleName, "Expat", StringComparison.OrdinalIgnoreCase) ? "en" : "vi";
-    public bool   ShowSummary => RoleName is "Supervisor" or "DeputyManager" or "Manager" or "Assistant" or "Clerk" or "Expat" or "HR" or "Admin";
-    public bool   ShowShift   => RoleName is not ("HR" or "Admin");
+    public bool   ShowSummary => RoleName is "Supervisor" or "DeputyManager" or "Manager" or "Assistant" or "Clerk" or "Expat" or "HR" or "Admin" || DeptRoleName is "HR";
+    public bool   ShowShift   => RoleName is not ("HR" or "Admin") && DeptRoleName is not "HR";
 
     // Data từ /Home/init
     public HomeGreetingVm?           Greeting  { get; set; }

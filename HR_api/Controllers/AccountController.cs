@@ -3,6 +3,8 @@ using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
 using HR_api.Models.Account;
 
+using HR_api.Helpers;
+
 namespace HR_api.Controllers;
 
 [ApiController]
@@ -11,8 +13,11 @@ public class AccountController : ControllerBase
 {
     private readonly OracleService _oracleService;
 
-    public AccountController(OracleService oracleService)
+    private readonly IConfiguration _config;
+
+    public AccountController(OracleService oracleService, IConfiguration config)
     {
+        _config = config;
         _oracleService = oracleService;
     }
 
@@ -29,6 +34,7 @@ public class AccountController : ControllerBase
                 E.EMPCD AS ECM_EMPCD,
                 E.CNAME AS ECM_NAME,
                 E.JEAJIKGB,
+                E.DEPTCD AS ECM_DEPTCD,
                 U.ID,
                 U.EMPCD,
                 U.PASSWORD,
@@ -47,6 +53,7 @@ public class AccountController : ControllerBase
         {
             EcmEmpCd = reader["ECM_EMPCD"]?.ToString(),
             EcmName = reader["ECM_NAME"]?.ToString(),
+            EcmDeptCd = reader["ECM_DEPTCD"]?.ToString(),
             Jeajikgb = reader["JEAJIKGB"]?.ToString(),
             Id = reader["ID"] == DBNull.Value ? 0 : Convert.ToInt32(reader["ID"]),
             EmpCd = reader["EMPCD"]?.ToString(),
@@ -107,6 +114,7 @@ public class AccountController : ControllerBase
             return Ok(new { success = true, data = new UserInfoModel {
                 Id = du.Id, EmpCd = du.EmpCd, FullName = du.FullName,
                 RoleId = du.RoleId, RoleName = du.RoleName,
+                DeptRoleName = await DeptRoleHelper.GetDeptRoleNameAsync(_oracleService, du.EmpCd),
                 IsActive = du.IsActive, LastedLogin = du.LastedLogin,
                 SIGNATUREBLOB = du.SignatureBlob ?? "N"
             }});
@@ -147,6 +155,7 @@ public class AccountController : ControllerBase
                     FullName = userCheck.EcmName,
                     RoleId = 1,
                     RoleName = insertedUser?.RoleName ?? "Nhân viên",
+                    TpmBlocked = HR_api.Tpm.TpmAccess.IsDeptBlocked(_config, userCheck.EcmDeptCd),
                     IsActive = 1,
                     SIGNATUREBLOB = "N"
                 };
@@ -177,6 +186,8 @@ public class AccountController : ControllerBase
                 FullName = userCheck.FullName,
                 RoleId = userCheck.RoleId,
                 RoleName = userCheck.RoleName,
+                DeptRoleName = await DeptRoleHelper.GetDeptRoleNameAsync(_oracleService, userCheck.EmpCd),
+                TpmBlocked = HR_api.Tpm.TpmAccess.IsDeptBlocked(_config, userCheck.EcmDeptCd),
                 IsActive = userCheck.IsActive,
                 LastedLogin = userCheck.LastedLogin,
                 SIGNATUREBLOB = userCheck.SignatureBlob
@@ -553,6 +564,22 @@ public class AccountController : ControllerBase
                 LastedLogin  = reader["LASTED_LOGIN"]   == DBNull.Value ? null : (DateTime?)Convert.ToDateTime(reader["LASTED_LOGIN"]),
                 LastPwdReset = reader["LAST_PWD_RESET"] == DBNull.Value ? null : (DateTime?)Convert.ToDateTime(reader["LAST_PWD_RESET"])
             }, dataParams.ToArray());
+
+            // Gắn role phòng ban (HR/CSR...) cho các dòng trong danh sách — truy vấn riêng, chỉ khi DB đã có cột.
+            if (data.Count > 0 && await DeptRoleHelper.IsAvailableAsync(_oracleService))
+            {
+                try
+                {
+                    var deptMap = (await _oracleService.ExecuteQueryAsync(
+                        @"SELECT U.EMPCD, DR.ROLE_NAME FROM HRMS.HR_USERS U
+                            JOIN HRMS.HR_DEPT_ROLES DR ON DR.ID = U.DEPT_ROLE_ID
+                           WHERE U.DEPT_ROLE_ID IS NOT NULL",
+                        r => (Empcd: r["EMPCD"]?.ToString() ?? "", Name: r["ROLE_NAME"]?.ToString())))
+                        .ToDictionary(x => x.Empcd, x => x.Name);
+                    foreach (var u in data) if (deptMap.TryGetValue(u.EmpCd, out var dn)) u.DeptRoleName = dn;
+                }
+                catch { /* bỏ qua: danh sách vẫn hiện bình thường */ }
+            }
 
             return Ok(new { data, total, page, pageSize, totalPage = (int)Math.Ceiling((double)total / pageSize) });
         }
@@ -960,6 +987,49 @@ public class AccountController : ControllerBase
             return Ok(new { success = false, message = "User không tồn tại" });
 
         return Ok(new { success = true, message = $"Đã cập nhật role thành công" });
+    }
+
+    // ─────────────────────────────────────────────
+    // ROLE DEPT (role phòng ban): danh sách + gán cho từng người. Xem Helpers/DeptRoleHelper.cs.
+    // ─────────────────────────────────────────────
+    [HttpGet("dept-roles")]
+    public async Task<IActionResult> GetDeptRoles()
+    {
+        if (!await DeptRoleHelper.IsAvailableAsync(_oracleService))
+            return Ok(new { success = false, message = "Chưa bật role phòng ban (DB chưa chạy script create_dept_role.sql)", data = new List<object>() });
+
+        var rows = await _oracleService.ExecuteQueryAsync(
+            "SELECT ID, ROLE_NAME FROM HRMS.HR_DEPT_ROLES ORDER BY ID",
+            r => new { id = Convert.ToInt32(r["ID"]), text = r["ROLE_NAME"]?.ToString() ?? "" });
+        return Ok(new { success = true, data = rows });
+    }
+
+    [HttpPost("update-dept-role")]
+    public async Task<IActionResult> UpdateDeptRole([FromBody] UpdateDeptRoleRequest req)
+    {
+        if (req == null || string.IsNullOrWhiteSpace(req.EmpCd))
+            return BadRequest(new { success = false, message = "Dữ liệu không hợp lệ" });
+        if (!await DeptRoleHelper.IsAvailableAsync(_oracleService))
+            return Ok(new { success = false, message = "Chưa bật role phòng ban (DB chưa chạy script create_dept_role.sql)" });
+
+        object deptRoleId = DBNull.Value;
+        if (req.DeptRoleId is int id && id > 0)
+        {
+            var exists = await _oracleService.ExecuteQueryAsync(
+                "SELECT 1 FROM HRMS.HR_DEPT_ROLES WHERE ID = :ID",
+                r => 1, new OracleParameter("ID", id));
+            if (exists.Count == 0) return Ok(new { success = false, message = "Role phòng ban không tồn tại" });
+            deptRoleId = id;
+        }
+
+        int rows = await _oracleService.ExecuteNonQueryAsync(
+            "UPDATE HRMS.HR_USERS SET DEPT_ROLE_ID = :DR, UPDT_ID = :LOGIN_USER, UPDT_DT = SYSDATE WHERE EMPCD = :EMPCD",
+            new OracleParameter("DR", deptRoleId),
+            new OracleParameter("LOGIN_USER", string.IsNullOrEmpty(req.LoginUser) ? "SYSTEM" : req.LoginUser),
+            new OracleParameter("EMPCD", req.EmpCd.Trim()));
+
+        if (rows == 0) return Ok(new { success = false, message = "User không tồn tại" });
+        return Ok(new { success = true, message = "Đã cập nhật role phòng ban" });
     }
 
     [HttpPost("update-signature-flag")]

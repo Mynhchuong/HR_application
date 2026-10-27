@@ -4,8 +4,8 @@
     var isEn  = Model.Lang == "en";
     var role  = Model.RoleName;
     var isExpat   = role == "Expat";
-    var isHrAdmin = role is "HR" or "Admin";
-    var isCsr     = role == "CSR";
+    var isHrAdmin = role is "HR" or "Admin" || Model.DeptRoleName is "HR";   // + role phòng ban
+    var isCsr     = role == "CSR" || Model.DeptRoleName is "CSR";
     var isClerk   = role is "Clerk" or "CSR";
     // Clerk/CSR KHÔNG phải approver — ẩn 2 tile "Đơn phép cần ký" và "Ra vào cổng"
 
@@ -14,7 +14,7 @@
     // Admin dùng AdminInquiryController (Admin-only); HR/CSR dùng chung HrInquiryController
     // (đúng route menu sidebar đang trỏ) — trước đó lỡ gộp CSR vào nhánh Admin nên CSR bấm vào bị
     // "không có quyền" (AdminInquiryController.Index/GetList chỉ cho Admin dù class Authorize có CSR).
-    var inquiryCtrl = role is "HR" or "CSR" ? "HrInquiry" : "AdminInquiry";
+    var inquiryCtrl = role is "HR" or "CSR" || Model.DeptRoleName is "HR" or "CSR" ? "HrInquiry" : "AdminInquiry";
     var msgLabel    = isEn ? "New messages"       : "Tin nhắn mới";
     var inqLabel    = isEn ? "Unhandled inquiries" : "Tin nhắn chưa xử lý";
     var bullCmtLabel = isEn ? "Bulletins w/ new comments" : "Bản tin có bình luận mới";

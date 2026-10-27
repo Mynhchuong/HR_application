@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using HR_web.API.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,7 @@ public class MealLockController : BaseController
 
     private bool CanManage =>
            CurrentUser?.RoleName == "Admin"
-        || CurrentUser?.RoleName == "HR"
+        || CurrentUser.HasRole("HR")
         || CurrentUser?.RoleName == "Canteen";
 
     private IActionResult ForbidJson() =>

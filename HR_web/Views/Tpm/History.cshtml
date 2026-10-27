@@ -1,6 +1,6 @@
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "Lịch sử báo hư máy";
+    ViewData["Title"] = "Lịch sử báo máy";
 }
 
 @section Styles {
@@ -29,7 +29,7 @@
 <div class="container-fluid py-4">
 <div class="tpm-wrap">
     <div class="tpm-card tpm-hero">
-        <h5>Lịch sử báo hư máy</h5>
+        <h5>Lịch sử báo máy</h5>
         <small>Các máy bạn đã báo hư và tiến độ xử lý của bảo trì.</small>
     </div>
 
@@ -41,7 +41,7 @@
 
     <div id="tpmList"><div class="tpm-empty">Đang tải...</div></div>
 
-    <a class="tpm-link" href="@Url.Action("Scan", "Tpm")">Quét mã máy / Báo hư mới</a>
+    <a class="tpm-link" href="@Url.Action("Scan", "Tpm")">Báo máy sản xuất mới</a>
 </div>
 </div>
 

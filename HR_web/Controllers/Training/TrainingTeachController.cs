@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using HR_web.API.Service;
 using HR_web.Models.Training;
 using Microsoft.AspNetCore.Authorization;
@@ -21,7 +22,7 @@ public class TrainingTeachController : BaseController
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         bool isTeacher = await _training.IsActiveTeacherAsync(empcd);
         if (!isTeacher && !isHrOrAdmin) return Forbid();
 
@@ -35,7 +36,7 @@ public class TrainingTeachController : BaseController
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(id, empcd)) return Forbid();
 
         ViewBag.EmpCd = empcd;
@@ -52,7 +53,7 @@ public class TrainingTeachController : BaseController
         // CSR có quyền ngang HR trong toàn bộ module Đào tạo (xác nhận lại 2026-09-22, không chỉ
         // riêng điểm danh) — khớp với TrainingAdminController/TrainingTeachController phía API và
         // SideMenuBuilder đã cho CSR thấy trọn mục Đào tạo từ trước.
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckSessionAccessAsync(id, empcd)) return Forbid();
 
         ViewBag.EmpCd = empcd;
@@ -67,7 +68,7 @@ public class TrainingTeachController : BaseController
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(id, empcd)) return Forbid();
 
         ViewBag.EmpCd = empcd;
@@ -100,7 +101,7 @@ public class TrainingTeachController : BaseController
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckTestAccessAsync(id, empcd)) return Forbid();
 
         ViewBag.EmpCd = empcd;
@@ -121,7 +122,7 @@ public class TrainingTeachController : BaseController
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckTestAccessAsync(id, empcd)) return Forbid();
 
         ViewBag.EmpCd = empcd;
@@ -150,7 +151,7 @@ public class TrainingTeachController : BaseController
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(id, empcd)) return Forbid();
 
         ViewBag.EmpCd = empcd;
@@ -164,7 +165,7 @@ public class TrainingTeachController : BaseController
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(id, empcd)) return Forbid();
 
         ViewBag.EmpCd = empcd;
@@ -182,7 +183,7 @@ public class TrainingTeachController : BaseController
         var loginUser = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(loginUser)) return Forbid();
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && empcd != loginUser) return Forbid();
 
         var res = await _training.GetFromApiAsync<object>("TrainingTeach/my-classes", $"empcd={empcd}");
@@ -195,10 +196,15 @@ public class TrainingTeachController : BaseController
         var loginUser = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(loginUser)) return Forbid();
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(classId, loginUser)) return Forbid();
 
-        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/class/detail", $"id={classId}");
+        // HR/CSR/Lean bị giới hạn theo ROLE TẠO của khóa học (API kiểm tra qua login_user) — trừ khi chính họ là
+        // giảng viên của lớp này (quyền giảng dạy không phụ thuộc role tạo).
+        var qs = $"id={classId}";
+        if (isHrOrAdmin && !await _training.CheckClassAccessAsync(classId, loginUser))
+            qs += $"&login_user={Uri.EscapeDataString(loginUser)}";
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/class/detail", qs);
         return Json(res);
     }
 
@@ -208,7 +214,7 @@ public class TrainingTeachController : BaseController
         var loginUser = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(loginUser)) return Forbid();
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckSessionAccessAsync(sessionId, loginUser)) return Forbid();
 
         var res = await _training.GetFromApiAsync<object>($"TrainingTeach/session/{sessionId}/attendance", $"empcd={loginUser}");
@@ -295,7 +301,7 @@ public class TrainingTeachController : BaseController
         var loginUser = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(loginUser)) return Forbid();
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckClassAccessAsync(classId, loginUser)) return Forbid();
 
         var res = await _training.GetFromApiAsync<object>($"TrainingTeach/class/{classId}/absent-stats", $"empcd={loginUser}");
@@ -420,7 +426,7 @@ public class TrainingTeachController : BaseController
         var loginUser = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(loginUser)) return Forbid();
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckTestAccessAsync(id, loginUser)) return Forbid();
 
         var res = await _training.GetFromApiAsync<object>($"TrainingTeach/test/{id}/pending-grade", $"empcd={loginUser}");
@@ -463,7 +469,7 @@ public class TrainingTeachController : BaseController
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return RedirectToAction("Login", "Account");
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckTestAccessAsync(id, empcd)) return Forbid();
 
         ViewBag.EmpCd = empcd;
@@ -477,7 +483,7 @@ public class TrainingTeachController : BaseController
         var empcd = CurrentUser?.EmpCd;
         if (string.IsNullOrEmpty(empcd)) return Forbid();
 
-        bool isHrOrAdmin = CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+        bool isHrOrAdmin = CurrentUser.HasAnyRole("HR", "Admin", "CSR", "Lean");
         if (!isHrOrAdmin && !await _training.CheckTestAccessAsync(id, empcd)) return Forbid();
 
         var res = await _training.GetFromApiAsync<object>("TrainingAdmin/test/detail", $"id={id}");

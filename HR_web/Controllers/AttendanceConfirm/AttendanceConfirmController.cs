@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using HR_web.API.Service;
 using HR_web.Models.AttendanceConfirm;
 using Microsoft.AspNetCore.Authorization;
@@ -33,7 +34,7 @@ public class AttendanceConfirmController : BaseController
         ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
         // Chỉ Admin/HR mới thấy nút "Yêu cầu làm lại" cho dòng đã CONFIRMED (yêu cầu HR 2026-10-07) —
         // Clerk/Supervisor/Manager/Expat không có quyền này dù cùng vào được trang danh sách.
-        ViewBag.IsAdminOrHr = CurrentUser?.RoleName is "Admin" or "HR";
+        ViewBag.IsAdminOrHr = CurrentUser.HasAnyRole("Admin", "HR");
         return View();
     }
 

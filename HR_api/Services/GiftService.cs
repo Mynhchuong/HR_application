@@ -846,7 +846,8 @@ public class GiftService
     {
         var role = await GetRoleNameAsync(empCd);
         return string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(role, "HR", StringComparison.OrdinalIgnoreCase);
+            || string.Equals(role, "HR", StringComparison.OrdinalIgnoreCase)
+            || await DeptRoleHelper.HasAnyRoleAsync(_oracleService, empCd, "HR");   // role dept HR
     }
 
     // ═══════════════════════════════════════════════════════════════

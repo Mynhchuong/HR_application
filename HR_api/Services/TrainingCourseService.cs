@@ -98,41 +98,50 @@ public class TrainingCourseService
 
         if (req.ID == null)
         {
-            // INSERT — dùng RETURNING để lấy ID.
-            const string sqlIns = @"
+            // INSERT — dùng RETURNING để lấy ID. ROLE TẠO (HR/CSR/Lean) ghi cùng câu INSERT để khóa học
+            // không bao giờ tồn tại với role sai (chỉ khi DB đã có cột — xem TrainingScopeHelper).
+            var withRole = await HR_api.Helpers.TrainingScopeHelper.IsAvailableAsync(_db);
+            var sqlIns = $@"
                 INSERT INTO HRMS.HR_TRAINING_COURSE
                     (TITLE, DESCRIPTION, OBJECTIVES, CATEGORY,
                      COURSE_MODE, DEFAULT_DURATION_MIN,
                      AUTO_OPEN_MONTHLY, AUTO_OPEN_DAY,
                      DEFAULT_PASS_SCORE, DEFAULT_MIN_ATTEND_PCT,
-                     IS_ACTIVE, INST_ID)
+                     IS_ACTIVE, INST_ID{(withRole ? ", CREATED_ROLE" : "")})
                 VALUES
                     (:TITLE, :DESCRIPTION, :OBJECTIVES, :CATEGORY,
                      :COURSE_MODE, :DEFAULT_DURATION_MIN,
                      :AUTO_OPEN_MONTHLY, :AUTO_OPEN_DAY,
                      :DEFAULT_PASS_SCORE, :DEFAULT_MIN_ATTEND_PCT,
-                     1, :LOGIN_USER)
+                     1, :LOGIN_USER{(withRole ? ", :CREATED_ROLE" : "")})
                 RETURNING ID INTO :NEW_ID";
 
             var idParam = new OracleParameter("NEW_ID", OracleDbType.Int32)
             {
                 Direction = System.Data.ParameterDirection.Output
             };
-            await _db.ExecuteNonQueryAsync(sqlIns,
-                new OracleParameter("TITLE",                  req.TITLE),
-                new OracleParameter("DESCRIPTION",            (object?)req.DESCRIPTION ?? DBNull.Value),
-                new OracleParameter("OBJECTIVES",             (object?)req.OBJECTIVES  ?? DBNull.Value),
-                new OracleParameter("CATEGORY",               (object?)req.CATEGORY    ?? DBNull.Value),
-                new OracleParameter("COURSE_MODE",            req.COURSE_MODE),
-                new OracleParameter("DEFAULT_DURATION_MIN",   (object?)req.DEFAULT_DURATION_MIN ?? DBNull.Value),
-                new OracleParameter("AUTO_OPEN_MONTHLY",      req.AUTO_OPEN_MONTHLY),
-                new OracleParameter("AUTO_OPEN_DAY",          (object?)req.AUTO_OPEN_DAY ?? DBNull.Value),
-                new OracleParameter("DEFAULT_PASS_SCORE",     (object?)req.DEFAULT_PASS_SCORE ?? DBNull.Value),
-                new OracleParameter("DEFAULT_MIN_ATTEND_PCT", (object?)req.DEFAULT_MIN_ATTEND_PCT ?? DBNull.Value),
-                new OracleParameter("LOGIN_USER",             req.LOGIN_USER),
-                idParam);
+            var insParams = new List<OracleParameter>
+            {
+                new("TITLE",                  req.TITLE),
+                new("DESCRIPTION",            (object?)req.DESCRIPTION ?? DBNull.Value),
+                new("OBJECTIVES",             (object?)req.OBJECTIVES  ?? DBNull.Value),
+                new("CATEGORY",               (object?)req.CATEGORY    ?? DBNull.Value),
+                new("COURSE_MODE",            req.COURSE_MODE),
+                new("DEFAULT_DURATION_MIN",   (object?)req.DEFAULT_DURATION_MIN ?? DBNull.Value),
+                new("AUTO_OPEN_MONTHLY",      req.AUTO_OPEN_MONTHLY),
+                new("AUTO_OPEN_DAY",          (object?)req.AUTO_OPEN_DAY ?? DBNull.Value),
+                new("DEFAULT_PASS_SCORE",     (object?)req.DEFAULT_PASS_SCORE ?? DBNull.Value),
+                new("DEFAULT_MIN_ATTEND_PCT", (object?)req.DEFAULT_MIN_ATTEND_PCT ?? DBNull.Value),
+                new("LOGIN_USER",             req.LOGIN_USER),
+            };
+            if (withRole)
+                insParams.Add(new OracleParameter("CREATED_ROLE",
+                    await HR_api.Helpers.TrainingScopeHelper.GetCreatorRoleAsync(_db, req.LOGIN_USER)));
+            insParams.Add(idParam);
+            await _db.ExecuteNonQueryAsync(sqlIns, insParams.ToArray());
 
-            return OracleService.ConvertToInt(idParam.Value);
+            var newId = OracleService.ConvertToInt(idParam.Value);
+            return newId;
         }
         else
         {

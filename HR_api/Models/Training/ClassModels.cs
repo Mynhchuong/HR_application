@@ -37,6 +37,9 @@ public class ClassModel
 
     public string? INST_ID { get; set; }
     public DateTime? INST_DT { get; set; }
+    /// <summary>Role tạo của KHÓA HỌC chứa lớp này (HR/CSR/Lean) — lớp theo role của khóa học. null nếu DB chưa có cột.</summary>
+    public string? CREATED_ROLE { get; set; }
+
     public string? UPDT_ID { get; set; }
     public DateTime? UPDT_DT { get; set; }
 

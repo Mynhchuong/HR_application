@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using ClosedXML.Excel;
 using HR_web.API.Service;
 using HR_web.Models.Training;
@@ -6,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers.Training;
 
-[Authorize(Roles = "Admin,HR,CSR")]
+[Authorize(Roles = "Admin,HR,CSR,Lean")]
 public class TrainingAdminController : BaseController
 {
     private readonly TrainingService _training;
@@ -20,7 +21,7 @@ public class TrainingAdminController : BaseController
     public IActionResult Index()
     {
         // Chỉ Admin/HR thấy nút "Lịch sử thao tác" (HR_TRAINING_AUDIT) — CSR không có quyền vào Audit().
-        ViewBag.IsAdminOrHr = CurrentUser?.RoleName is "Admin" or "HR";
+        ViewBag.IsAdminOrHr = CurrentUser.HasAnyRole("Admin", "HR");
         return View();
     }
 
@@ -551,17 +552,19 @@ public class TrainingAdminController : BaseController
     // ═══════════════════════════════════════════════════════════════
 
     [HttpGet]
-    public async Task<IActionResult> GetClassList(string? status = null, string? search = null, int? courseId = null)
+    public async Task<IActionResult> GetClassList(string? status = null, string? search = null, int? courseId = null, string? createdRole = null)
     {
-        var qs = $"status={status}&search={Uri.EscapeDataString(search ?? "")}&courseId={courseId}";
+        // login_user + created_role: lọc theo ROLE TẠO (Lean/CSR chỉ thấy của role mình, HR/Admin thấy tất cả + ô lọc).
+        var qs = $"status={status}&search={Uri.EscapeDataString(search ?? "")}&courseId={courseId}" +
+                 $"&login_user={Uri.EscapeDataString(CurrentUser?.EmpCd ?? "")}&created_role={Uri.EscapeDataString(createdRole ?? "")}";
         var res = await _training.GetFromApiAsync<object>("TrainingAdmin/class/list", qs);
         return Json(res);
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetCourses(string? mode = null, int? active = null, string? search = null)
+    public async Task<IActionResult> GetCourses(string? mode = null, int? active = null, string? search = null, string? createdRole = null)
     {
-        var qs = "";
+        var qs = $"login_user={Uri.EscapeDataString(CurrentUser?.EmpCd ?? "")}&created_role={Uri.EscapeDataString(createdRole ?? "")}&";
         if (!string.IsNullOrEmpty(mode)) qs += $"mode={mode}&";
         if (active.HasValue)             qs += $"active={active.Value}&";
         if (!string.IsNullOrEmpty(search)) qs += $"search={Uri.EscapeDataString(search)}&";
@@ -593,7 +596,7 @@ public class TrainingAdminController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetClassDetailAdmin(int classId)
     {
-        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/class/detail", $"id={classId}");
+        var res = await _training.GetFromApiAsync<object>("TrainingAdmin/class/detail", $"id={classId}&login_user={Uri.EscapeDataString(CurrentUser?.EmpCd ?? "")}");
         return Json(res);
     }
 
@@ -1272,10 +1275,11 @@ public class TrainingAdminController : BaseController
     public async Task<IActionResult> GetCertificateList(
         int? classId = null, int? courseId = null, string? empcd = null, string? deptcd = null,
         string? linecd = null, string? workcd = null, DateTime? from = null, DateTime? to = null,
-        int page = 1, int page_size = 50)
+        int page = 1, int page_size = 50, string? createdRole = null)
     {
         var loginUser = CurrentUser?.EmpCd ?? "";
         var qs = $"loginUser={loginUser}&page={page}&page_size={page_size}";
+        if (!string.IsNullOrEmpty(createdRole)) qs += $"&created_role={Uri.EscapeDataString(createdRole)}";   // ô lọc Role tạo (chỉ HR/Admin có tác dụng)
         if (classId.HasValue)             qs += $"&classId={classId.Value}";
         if (courseId.HasValue)            qs += $"&courseId={courseId.Value}";
         if (!string.IsNullOrEmpty(empcd))  qs += $"&empcd={empcd}";

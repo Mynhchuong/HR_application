@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using Oracle.ManagedDataAccess.Types;
 using HR_api.Data;
+using HR_api.Helpers;
 using HR_api.Services;
 
 namespace HR_api.Controllers;
@@ -651,13 +652,8 @@ public class AiCsrController : ControllerBase
 
     private async Task<bool> IsAdminOrHrOrCsrAsync(string empCd)
     {
-        var rows = await _db.ExecuteQueryAsync(@"
-            SELECT 1 FROM HRMS.HR_USERS U
-            JOIN HRMS.HR_ROLES R ON R.ID = U.ROLE_ID
-            WHERE U.EMPCD = :EMPCD AND R.ROLE_NAME IN ('Admin','HR','CSR') AND ROWNUM = 1",
-            r => 1,
-            new OracleParameter("EMPCD", empCd));
-        return rows.Count > 0;
+        // Role chính HOẶC role dept (HR/CSR) — xem Helpers/DeptRoleHelper.cs.
+        return await DeptRoleHelper.HasAnyRoleAsync(_db, empCd, "Admin", "HR", "CSR");
     }
 
     // ─────────────────────────────────────────────────────────────

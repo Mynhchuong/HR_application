@@ -59,7 +59,7 @@ public class HomeSummaryService
         // thấy KPI toàn công ty — coi Admin như luôn "có scope", các query bên dưới sẽ tự bỏ điều
         // kiện lọc phòng ban khi role là Admin (xem CountLeaveDocMissingAsync/GetLeaveDocMissingListAsync).
         bool isAdmin  = string.Equals(user.ROLENAME, "Admin", StringComparison.OrdinalIgnoreCase);
-        bool isHrCsr  = user.ROLENAME is "HR" or "Admin" or "CSR";
+        bool isHrCsr  = user.ROLENAME is "HR" or "Admin" or "CSR" || user.DEPTROLENAME is "HR" or "CSR";
         var hasScope = isAdmin || await HasScopeAsync(user.EMPCD);
         if (!hasScope)
         {

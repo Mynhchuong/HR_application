@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using HR_web.API.Service;
 using HR_web.Controllers;
 using Microsoft.AspNetCore.Authorization;
@@ -16,7 +17,7 @@ public class HomeAdminController : BaseController
 
     public HomeAdminController(HomeAdminApiService api) { _api = api; }
 
-    private bool IsHrOrAdmin() => CurrentUser?.RoleName is "HR" or "Admin" or "CSR";
+    private bool IsHrOrAdmin() => CurrentUser.HasAnyRole("HR", "Admin", "CSR");
     private bool IsAdmin()     => CurrentUser?.RoleName == "Admin";
 
     private IActionResult Forbid403() =>

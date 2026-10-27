@@ -425,10 +425,14 @@ public class TrainingCompletionService
         int offset = (page - 1) * pageSize;
         int maxRn  = offset + pageSize;
 
+        // Role tạo của khóa học (chỉ khi DB đã có cột — xem TrainingScopeHelper); chưa có cột thì trả NULL.
+        string roleExpr = await HR_api.Helpers.TrainingScopeHelper.IsAvailableAsync(_db)
+            ? "NVL(CO.CREATED_ROLE,'HR')" : "CAST(NULL AS VARCHAR2(20))";
+
         string dataSql = $@"
             SELECT * FROM (
                 SELECT A.*, ROWNUM RN FROM (
-                    SELECT E.CLASS_ID, CL.CLASS_NAME, CO.TITLE COURSE_TITLE,
+                    SELECT E.CLASS_ID, CL.CLASS_NAME, CO.TITLE COURSE_TITLE, {roleExpr} AS CREATED_ROLE,
                            E.EMPCD, EC.CNAME EMP_NAME,
                            EC.DEPTCD, EC.LINECD, EC.WORKCD,
                            B.DEPTNM, B.TEAMNM LINE_NAME, B.WORKNM,
@@ -461,6 +465,7 @@ public class TrainingCompletionService
             FINAL_SCORE        = r["FINAL_SCORE"]        is DBNull ? null : Convert.ToDecimal(r["FINAL_SCORE"]),
             MAX_SCORE          = r["MAX_SCORE"]           is DBNull ? null : Convert.ToDecimal(r["MAX_SCORE"]),
             ATTENDANCE_PERCENT = r["ATTENDANCE_PERCENT"] is DBNull ? null : Convert.ToDecimal(r["ATTENDANCE_PERCENT"]),
+            CREATED_ROLE       = r["CREATED_ROLE"] as string,
         }, dataPs.ToArray());
 
         return (total, data);

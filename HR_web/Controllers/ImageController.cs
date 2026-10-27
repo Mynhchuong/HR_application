@@ -169,7 +169,7 @@ public class ImageController : BaseController
 
     // ── Ảnh Bulletin (cover + ảnh trong nội dung TipTap) ────────────────────
     [HttpPost]
-    [Authorize(Roles = "Admin,HR")]
+    [Authorize(Roles = "Admin,HR,CSR,Lean")]
     [IgnoreAntiforgeryToken]
     [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadBulletinImage(IFormFile? file)
@@ -295,9 +295,8 @@ public class ImageController : BaseController
     [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadHomeBanner(IFormFile? file)
     {
-        // Role gate
-        var role = CurrentUser?.RoleName;
-        if (role is not ("HR" or "Admin"))
+        // Role gate (role chính hoặc role dept)
+        if (!CurrentUser.HasAnyRole("HR", "Admin"))
             return Json(new { success = false, message = "Bạn không có quyền upload banner" });
 
         if (file == null || file.Length == 0)
@@ -359,8 +358,7 @@ public class ImageController : BaseController
     [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadHomeBannerVideo(IFormFile? file)
     {
-        var role = CurrentUser?.RoleName;
-        if (role is not ("HR" or "Admin"))
+        if (!CurrentUser.HasAnyRole("HR", "Admin"))
             return Json(new { success = false, message = "Bạn không có quyền upload banner" });
 
         if (file == null || file.Length == 0)

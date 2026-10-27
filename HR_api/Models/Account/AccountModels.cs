@@ -13,6 +13,10 @@ public class UserInfoModel
     public string? WorkCd { get; set; }
     public int? RoleId { get; set; }
     public string? RoleName { get; set; }
+    /// <summary>Role phòng ban (HR/CSR/...) — xem HR_USERS.DEPT_ROLE_ID, Helpers/DeptRoleHelper.cs. null = không có.</summary>
+    public string? DeptRoleName { get; set; }
+    /// <summary>true nếu phòng ban của NV bị chặn khỏi "Báo máy sản xuất" (TPM) — xem Tpm/TpmAccess.cs. HR_web dùng để ẩn menu Bảo trì.</summary>
+    public bool TpmBlocked { get; set; }
     public int IsActive { get; set; }
     public DateTime? LastedLogin { get; set; }
     public DateTime? LastPwdReset { get; set; }
@@ -135,6 +139,14 @@ public class UpdateRoleRequest
 {
     public string EmpCd { get; set; } = string.Empty;
     public int RoleId { get; set; }
+    public string LoginUser { get; set; } = string.Empty;
+}
+
+public class UpdateDeptRoleRequest
+{
+    public string EmpCd { get; set; } = string.Empty;
+    /// <summary>ID trong HR_DEPT_ROLES; null/0 = bỏ role phòng ban.</summary>
+    public int? DeptRoleId { get; set; }
     public string LoginUser { get; set; } = string.Empty;
 }
 

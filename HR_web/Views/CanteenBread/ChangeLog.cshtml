@@ -1,10 +1,11 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Log Đổi Món";
-    var role = (ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel)?.RoleName;
+    var curUser = ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel;
+    var role = curUser?.RoleName;
     var isClerk = role == "Clerk";
     // Xoá / đổi món hàng loạt: chỉ Admin/HR (khớp CanBulkEditLog phía Controller).
-    var canBulkEdit = role == "Admin" || role == "HR";
+    var canBulkEdit = curUser.HasAnyRole("Admin", "HR");   // role chính HOẶC role phòng ban
     var colCount = canBulkEdit ? 10 : 9;
 }
 

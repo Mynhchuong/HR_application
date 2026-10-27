@@ -3,6 +3,8 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     var empCd = ViewBag.EmpCd as string;
     var isAdminOrHr = ViewBag.IsAdminOrHr as bool? ?? false;
+    // ROLE TẠO (HR/CSR/Lean): HR/Admin thấy tất cả + có ô lọc; CSR/Lean chỉ thấy của role mình nên không cần ô lọc/cột.
+    var canFilterRole = (ViewBag.CurrentUser as UserInfoModel).HasAnyRole("HR", "Admin");
 }
 
 <div class="container-fluid py-4">
@@ -131,6 +133,17 @@
                             <option value="">-- Tất cả khóa học --</option>
                         </select>
                     </div>
+                    @if (canFilterRole)
+                    {
+                        <div class="col-md-2">
+                            <select id="class-filter-role" class="form-select form-select-sm" onchange="onRoleFilterChange(this.value)" style="border-radius: 8px;" title="Lọc theo role tạo">
+                                <option value="">-- Tất cả role --</option>
+                                <option value="HR">HR</option>
+                                <option value="CSR">CSR</option>
+                                <option value="Lean">Lean</option>
+                            </select>
+                        </div>
+                    }
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0 text-nowrap">
@@ -138,6 +151,7 @@
                             <tr>
                                 <th class="ps-4" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Tên lớp học">Tên lớp học</th>
                                 <th data-mobile="detail" data-mobile-label="Khóa học">Khóa học</th>
+                                @if (canFilterRole) { <th data-mobile="detail" data-mobile-label="Role tạo">Role tạo</th> }
                                 <th data-mobile="detail" data-mobile-label="Ngày học">Ngày học</th>
                                 <th data-mobile="detail" data-mobile-label="Chế độ">Chế độ</th>
                                 <th data-mobile="detail" data-mobile-label="Đăng ký">Đăng ký</th>
@@ -182,6 +196,17 @@
                             <option value="0">Đã lưu trữ</option>
                         </select>
                     </div>
+                    @if (canFilterRole)
+                    {
+                        <div class="col-md-2">
+                            <select id="course-filter-role" class="form-select form-select-sm" onchange="onRoleFilterChange(this.value)" style="border-radius: 8px;" title="Lọc theo role tạo">
+                                <option value="">-- Tất cả role --</option>
+                                <option value="HR">HR</option>
+                                <option value="CSR">CSR</option>
+                                <option value="Lean">Lean</option>
+                            </select>
+                        </div>
+                    }
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0 text-nowrap">
@@ -189,6 +214,7 @@
                             <tr>
                                 <th class="ps-4" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã Khóa học">Mã Khóa học</th>
                                 <th data-mobile="primary" data-mobile-slot="name" data-mobile-label="Tên Khóa học">Tên Khóa học</th>
+                                @if (canFilterRole) { <th data-mobile="detail" data-mobile-label="Role tạo">Role tạo</th> }
                                 <th data-mobile="detail" data-mobile-label="Mô tả tóm tắt">Mô tả tóm tắt</th>
                                 <th data-mobile="primary" data-mobile-label="Trạng thái">Trạng thái</th>
                                 <th class="pe-4 text-end" data-mobile="detail" data-mobile-label="Thao tác">Thao tác</th>
@@ -319,6 +345,25 @@
         let courseList = [];
         let classList = [];
         let editingCourseId = null;
+        // ROLE TẠO: chỉ HR/Admin thấy cột + ô lọc (Lean/CSR chỉ thấy của chính role mình nên không cần).
+        const CAN_FILTER_ROLE = @(canFilterRole ? "true" : "false");
+        let createdRoleFilter = '';
+
+        function roleBadge(role) {
+            if (!role) return '<span class="text-muted">-</span>';
+            const cls = role === 'HR' ? 'bg-primary-subtle text-primary-emphasis'
+                      : role === 'CSR' ? 'bg-info-subtle text-info-emphasis'
+                      : 'bg-warning-subtle text-warning-emphasis';
+            return `<span class="badge ${cls} px-2.5 py-1 fw-bold">${role}</span>`;
+        }
+
+        // Một ô lọc role dùng chung cho cả tab Lớp học và Khóa học (đồng bộ 2 ô).
+        function onRoleFilterChange(v) {
+            createdRoleFilter = v || '';
+            ['class-filter-role', 'course-filter-role'].forEach(id => { const el = document.getElementById(id); if (el) el.value = createdRoleFilter; });
+            loadCourses();
+            loadClasses();
+        }
 
         window.TRAINING_URLS = {
             getCourses: '@Url.Action("GetCourses", "TrainingAdmin")',
@@ -349,7 +394,7 @@
             const search = document.getElementById('course-filter-search')?.value || '';
             const active = document.getElementById('course-filter-active')?.value || '';
             
-            const url = `${window.TRAINING_URLS.getCourses}?search=${encodeURIComponent(search)}&active=${active}`;
+            const url = `${window.TRAINING_URLS.getCourses}?search=${encodeURIComponent(search)}&active=${active}&createdRole=${encodeURIComponent(createdRoleFilter)}`;
             fetch(url)
                 .then(r => r.json())
                 .then(res => {
@@ -370,6 +415,7 @@
                             <tr>
                                 <td class="ps-4 fw-bold text-dark">CRS${String(c.ID).padStart(3, '0')}</td>
                                 <td>${c.TITLE}</td>
+                                ${CAN_FILTER_ROLE ? `<td>${roleBadge(c.CREATED_ROLE)}</td>` : ''}
                                 <td class="text-truncate" style="max-width: 300px;">${c.DESCRIPTION || '-'}</td>
                                 <td>${statusBadge}</td>
                                 <td class="pe-4 text-end">${actionBtn}</td>
@@ -481,7 +527,7 @@
             const search = document.getElementById('class-filter-search')?.value || '';
             const courseId = document.getElementById('class-filter-course')?.value || '';
 
-            const url = `${window.TRAINING_URLS.getClassList}?search=${encodeURIComponent(search)}&courseId=${courseId}`;
+            const url = `${window.TRAINING_URLS.getClassList}?search=${encodeURIComponent(search)}&courseId=${courseId}&createdRole=${encodeURIComponent(createdRoleFilter)}`;
             fetch(url)
                 .then(r => r.json())
                 .then(res => {
@@ -570,6 +616,7 @@
                             <tr id="class_row_${c.ID}">
                                 <td class="ps-4 fw-bold text-dark">${c.CLASS_NAME}</td>
                                 <td class="text-truncate" style="max-width: 200px;">${c.COURSE_TITLE}</td>
+                                ${CAN_FILTER_ROLE ? `<td>${roleBadge(c.CREATED_ROLE)}</td>` : ''}
                                 <td>${start} - ${end}</td>
                                 <td>${badgeMode}</td>
                                 <td>${badgeReg}</td>
@@ -583,7 +630,7 @@
                     });
 
                     if (filteredList.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-3 text-muted small">Không có lớp học nào phù hợp.</td></tr>`;
+                        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-3 text-muted small">Không có lớp học nào phù hợp.</td></tr>`;
                     }
 
                     document.getElementById('class-list-summary').textContent = filteredList.length === 0

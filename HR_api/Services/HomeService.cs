@@ -151,7 +151,8 @@ public class HomeService
     private async Task<Models.GatePass.GpShiftInfoModel?> GetShiftIfApplicableAsync(HomeUserContext user)
     {
         if (string.Equals(user.ROLENAME, "HR",    StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(user.ROLENAME, "Admin", StringComparison.OrdinalIgnoreCase))
+            string.Equals(user.ROLENAME, "Admin", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(user.DEPTROLENAME, "HR", StringComparison.OrdinalIgnoreCase))   // nhân sự (role dept) = văn phòng, không có ca
             return null;
 
         string cacheKey = $"home:shift:{user.EMPCD}:{DateTime.Today:yyyyMMdd}";

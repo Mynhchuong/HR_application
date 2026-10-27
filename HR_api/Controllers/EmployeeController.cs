@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
+using HR_api.Helpers;
 
 namespace HR_api.Controllers;
 
@@ -447,12 +448,6 @@ public class EmployeeController : ControllerBase
     private async Task<bool> IsHrOrAdminAsync(string? empCd)
     {
         if (string.IsNullOrEmpty(empCd)) return false;
-        var rows = await _oracleService.ExecuteQueryAsync(@"
-            SELECT 1 FROM HRMS.HR_USERS U
-            JOIN HRMS.HR_ROLES R ON R.ID = U.ROLE_ID
-            WHERE U.EMPCD = :EMPCD AND R.ROLE_NAME IN ('Admin','HR') AND ROWNUM = 1",
-            r => 1,
-            new OracleParameter("EMPCD", empCd));
-        return rows.Count > 0;
+        return await DeptRoleHelper.HasAnyRoleAsync(_oracleService, empCd, "Admin", "HR");
     }
 }

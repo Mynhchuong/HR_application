@@ -9,11 +9,14 @@ namespace HR_api.HostedServices;
 //      Absent Code / remark trên ERP (EFM410) đúng như bảng quy ước chưa — nếu khớp thì tự đánh dấu
 //      DOC_STATUS='SUBMITTED', không cần HR bấm tay trên MySamho nữa. Áp dụng luôn cho các đơn CŨ
 //      đã có sẵn từ trước (backfill) lẫn đơn mới phát sinh sau này.
-//   2) NHẮC NHỞ: nhân viên nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai/Bệnh có giấy (DT/DC/VS/KT/SI)
-//      đã qua TO_DATE + 3 ngày mà chưa nộp giấy tờ (sau bước 1 vẫn chưa SUBMITTED). Dưỡng sức (DS)
-//      KHÔNG cần nộp giấy tờ nữa (yêu cầu 2026-09-15), đã bỏ khỏi cả 2 bước trên.
-// Chỉ quét sau 9h sáng (gate theo giờ, tránh chạy nhiều lần vô ích khi tick mỗi phút). Nhắc lặp lại
-// mỗi 3 ngày (dedupe qua DOC_REMINDED_DATE) cho tới khi DOC_STATUS='SUBMITTED'.
+//   2) NHẮC NHỞ theo 2 MỐC cố định (HR cập nhật bảng quy ước 2026-10-27, thay cho quy tắc cũ "TO_DATE + 3 ngày, lặp 3 ngày/lần"):
+//        • THỨ BA hàng tuần  → Bệnh có giấy (SI), Vợ sanh (VS), Khám thai (KT): nhắc nộp TẤT CẢ giấy chưa nộp của các
+//          TUẦN PHÍA TRƯỚC (đơn có TO_DATE trước thứ Hai của tuần hiện tại).
+//        • NGÀY 3 hàng tháng → Đám tang (DT), Đám cưới (DC): nhắc nộp TẤT CẢ giấy chưa nộp của các THÁNG PHÍA TRƯỚC
+//          (đơn có TO_DATE trước ngày 1 của tháng hiện tại).
+//      Mỗi đơn nhắc tối đa 1 lần/ngày (dedupe DOC_REMINDED_DATE) và chỉ khi sau bước 1 vẫn chưa SUBMITTED.
+//      Dưỡng sức (DS) KHÔNG cần nộp giấy tờ (yêu cầu 2026-09-15).
+// Chỉ quét sau 9h sáng (gate theo giờ, tránh chạy nhiều lần vô ích khi tick mỗi phút).
 public class LeaveDocReminderService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
@@ -126,27 +129,19 @@ public class LeaveDocReminderService : BackgroundService
         };
     }
 
-    // ── 2) Nhắc nhở đơn quá hạn vẫn chưa nộp ────────────────────────────────
+    // ── 2) Nhắc nhở theo mốc: thứ Ba hàng tuần (SI/VS/KT) + ngày 3 hàng tháng (DT/DC) ──────────────
+    // Loại nhắc theo TUẦN (thứ Ba) và theo THÁNG (ngày 3) — bảng quy ước HR 2026-10-27.
+    private static readonly string[] WeeklyTypes  = { "SI", "VS", "KT" };
+    private static readonly string[] MonthlyTypes = { "DT", "DC" };
+
+    public record DueReminder(string RequestId, string Empcd, string LeaveType, DateTime FromDate, DateTime ToDate);
+
     private async Task SendOverdueRemindersAsync(OracleService db, NotificationService noti, CancellationToken stop)
     {
-        var rows = await db.ExecuteQueryAsync(@"
-            SELECT L.REQUEST_ID, L.EMPCD, L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE
-            FROM HRMS.HR_LEAVE_REQUEST L
-            JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
-            WHERE L.LEAVE_TYPE IN ('DT','DC','VS','KT','SI')
-              AND R.STATUS IN ('APPROVED','ASSIGNED')
-              AND (L.SOURCE = 'SELF' OR NVL(L.CONFIRM_STATUS,'X') != 'WORKER_REJECTED')
-              AND L.TO_DATE < TRUNC(SYSDATE) - 3
-              AND NVL(L.DOC_STATUS,'X') != 'SUBMITTED'
-              AND (L.DOC_REMINDED_DATE IS NULL OR L.DOC_REMINDED_DATE < TRUNC(SYSDATE) - 3)",
-            r => new
-            {
-                RequestId = r["REQUEST_ID"]?.ToString() ?? "",
-                Empcd     = r["EMPCD"]?.ToString() ?? "",
-                LeaveType = r["LEAVE_TYPE"]?.ToString() ?? "",
-                FromDate  = Convert.ToDateTime(r["FROM_DATE"]),
-                ToDate    = Convert.ToDateTime(r["TO_DATE"])
-            });
+        var (weekly, monthly) = await GetTodaySchedulesAsync(db);
+        if (!weekly && !monthly) return;   // hôm nay không phải thứ Ba cũng không phải ngày 3 → không có gì để nhắc
+
+        var rows = await GetDueRemindersAsync(db, weekly, monthly);
 
         foreach (var row in rows)
         {
@@ -158,5 +153,40 @@ public class LeaveDocReminderService : BackgroundService
                 "UPDATE HRMS.HR_LEAVE_REQUEST SET DOC_REMINDED_DATE = TRUNC(SYSDATE) WHERE REQUEST_ID = :ID",
                 new OracleParameter("ID", row.RequestId));
         }
+    }
+
+    /// <summary>Hôm nay (giờ DB, cùng nguồn với TRUNC(SYSDATE) bên dưới) có phải thứ Ba / ngày 3 không.</summary>
+    public static async Task<(bool weekly, bool monthly)> GetTodaySchedulesAsync(OracleService db)
+    {
+        var d = (await db.ExecuteQueryAsync(
+            "SELECT TO_CHAR(SYSDATE,'DY','NLS_DATE_LANGUAGE=ENGLISH') AS DOW, TO_NUMBER(TO_CHAR(SYSDATE,'DD')) AS DOM FROM DUAL",
+            r => (Dow: r["DOW"]?.ToString() ?? "", Dom: Convert.ToInt32(r["DOM"])))).First();
+        return (string.Equals(d.Dow.Trim(), "TUE", StringComparison.OrdinalIgnoreCase), d.Dom == 3);
+    }
+
+    /// <summary>Các đơn đến hạn nhắc: chưa SUBMITTED, đã duyệt, chưa được nhắc trong ngày hôm nay, và thuộc tuần/tháng phía trước.
+    /// Public static để test được (dry-run) mà không phải gửi thông báo.</summary>
+    public static async Task<List<DueReminder>> GetDueRemindersAsync(OracleService db, bool weekly, bool monthly)
+    {
+        var branches = new List<string>();
+        if (weekly)  branches.Add($"(L.LEAVE_TYPE IN ({string.Join(",", WeeklyTypes.Select(t => "'" + t + "'"))}) AND L.TO_DATE < TRUNC(SYSDATE,'IW'))");   // IW = thứ Hai đầu tuần
+        if (monthly) branches.Add($"(L.LEAVE_TYPE IN ({string.Join(",", MonthlyTypes.Select(t => "'" + t + "'"))}) AND L.TO_DATE < TRUNC(SYSDATE,'MM'))");  // MM = ngày 1 của tháng
+        if (branches.Count == 0) return new List<DueReminder>();
+
+        return await db.ExecuteQueryAsync($@"
+            SELECT L.REQUEST_ID, L.EMPCD, L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE
+            FROM HRMS.HR_LEAVE_REQUEST L
+            JOIN HRMS.HR_REQUEST R ON R.REQUEST_ID = L.REQUEST_ID
+            WHERE R.STATUS IN ('APPROVED','ASSIGNED')
+              AND (L.SOURCE = 'SELF' OR NVL(L.CONFIRM_STATUS,'X') != 'WORKER_REJECTED')
+              AND NVL(L.DOC_STATUS,'X') != 'SUBMITTED'
+              AND (L.DOC_REMINDED_DATE IS NULL OR L.DOC_REMINDED_DATE < TRUNC(SYSDATE))
+              AND ({string.Join(" OR ", branches)})",
+            r => new DueReminder(
+                r["REQUEST_ID"]?.ToString() ?? "",
+                r["EMPCD"]?.ToString() ?? "",
+                r["LEAVE_TYPE"]?.ToString() ?? "",
+                Convert.ToDateTime(r["FROM_DATE"]),
+                Convert.ToDateTime(r["TO_DATE"])));
     }
 }

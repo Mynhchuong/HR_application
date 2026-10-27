@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using HR_web.API.Service;
 using HR_web.Models.Payslip;
 using Microsoft.AspNetCore.Authorization;
@@ -55,7 +56,7 @@ public class PayslipController : BaseController
         {
             string targetEmpCd = CurrentUser.EmpCd;
             if (!string.IsNullOrEmpty(empcd) &&
-                (CurrentUser.RoleName == "HR" || CurrentUser.RoleName == "Admin"))
+                (CurrentUser.HasAnyRole("HR", "Admin")))
             {
                 targetEmpCd = empcd;
             }
@@ -76,7 +77,7 @@ public class PayslipController : BaseController
     {
         // Kiểm tra quyền HR hoặc Admin
         if (CurrentUser == null ||
-            (CurrentUser.RoleName != "HR" && CurrentUser.RoleName != "Admin"))
+            (!CurrentUser.HasAnyRole("HR", "Admin")))
             return RedirectToAction("Index", "Home");
 
         var periods = await _payslipService.GetPeriodsAsync();
@@ -92,7 +93,7 @@ public class PayslipController : BaseController
     {
         // Chỉ cấu hình cột (tên/ẩn-hiện), không phải số liệu lương — nhưng vẫn là thao tác quản trị
         // chỉ HR/Admin được dùng (đồng bộ guard với mọi action admin khác trong file này).
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Admin"))
             return Json(new { success = false, message = "Từ chối truy cập" });
 
         var items = await _payslipService.GetItemsVisibilityAsync(periodId);
@@ -103,7 +104,7 @@ public class PayslipController : BaseController
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateItemsVisibility([FromBody] VisibilityUpdateRequest model)
     {
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Admin"))
             return Json(new { success = false, message = "Từ chối truy cập" });
 
         if (model == null) return Json(new { success = false, message = "Invalid request" });
@@ -119,7 +120,7 @@ public class PayslipController : BaseController
         try
         {
             if (CurrentUser == null ||
-                (CurrentUser.RoleName != "HR" && CurrentUser.RoleName != "Admin"))
+                (!CurrentUser.HasAnyRole("HR", "Admin")))
                 return Json(new { success = false, message = "Từ chối truy cập" });
 
             if (model == null || model.Data == null || model.Data.Count == 0)
@@ -139,7 +140,7 @@ public class PayslipController : BaseController
     public async Task<IActionResult> FinalizeUpload([FromBody] FinalizeUploadRequest model)
     {
         if (CurrentUser == null ||
-            (CurrentUser.RoleName != "HR" && CurrentUser.RoleName != "Admin"))
+            (!CurrentUser.HasAnyRole("HR", "Admin")))
             return Json(new { success = false, message = "Từ chối truy cập" });
 
         if (model == null || model.EmpCds == null)
@@ -156,7 +157,7 @@ public class PayslipController : BaseController
     public async Task<IActionResult> CreatePeriod(string periodName, DateTime? start, DateTime? end,
         DateTime? publishDate, int isAutoPublish, string remark)
     {
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Admin"))
             return Json(new { success = false, message = "Từ chối truy cập" });
 
         var result = await _payslipService.CreatePeriodAsync(
@@ -167,7 +168,7 @@ public class PayslipController : BaseController
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> DeletePeriod(decimal id)
     {
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Admin"))
             return Json(new { success = false, message = "Từ chối truy cập" });
         var result = await _payslipService.DeletePeriodAsync(id, CurrentUser!.EmpCd);
         return Json(result);
@@ -176,7 +177,7 @@ public class PayslipController : BaseController
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdatePeriodName(decimal id, string periodName)
     {
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Admin"))
             return Json(new { success = false, message = "Từ chối truy cập" });
         var result = await _payslipService.UpdatePeriodNameAsync(id, periodName, CurrentUser!.EmpCd);
         return Json(result);
@@ -186,7 +187,7 @@ public class PayslipController : BaseController
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateAutoPublish(decimal id, int isAutoPublish, DateTime? publishDate)
     {
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Admin"))
             return Json(new { success = false, message = "Từ chối truy cập" });
         var result = await _payslipService.UpdateAutoPublishAsync(id, isAutoPublish, publishDate, CurrentUser!.EmpCd);
         return Json(result);
@@ -198,7 +199,7 @@ public class PayslipController : BaseController
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ReleasePeriod(decimal id)
     {
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Admin"))
             return Json(new { success = false, message = "Từ chối truy cập" });
 
         var result = await _payslipService.ReleasePeriodAsync(id, CurrentUser!.EmpCd);
@@ -215,7 +216,7 @@ public class PayslipController : BaseController
         // CHI TIẾT lương (từng dòng, số tiền) của MỌI nhân viên trong kỳ, kể cả kỳ CHƯA công bố. NV
         // thường gọi thẳng URL vẫn lấy được lương của TOÀN CÔNG TY, không chỉ của riêng mình như
         // GetMyPayslip — nghiêm trọng hơn hẳn, phải chặn giống mọi action admin khác trong file này.
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Admin"))
             return Json(new { success = false, message = "Từ chối truy cập" });
 
         var result = await _payslipService.GetAdminListAsync(periodId, search, page, pageSize);
@@ -230,7 +231,7 @@ public class PayslipController : BaseController
     {
         // Cùng lỗ hổng với GetAdminList — export trả TOÀN BỘ chi tiết lương mọi nhân viên, không có
         // check quyền gì cả.
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Admin"))
             return Json(new { success = false, message = "Từ chối truy cập" });
 
         var result = await _payslipService.GetExportDataAsync(periodId);

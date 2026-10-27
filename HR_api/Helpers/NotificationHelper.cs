@@ -392,13 +392,8 @@ public class NotificationHelper
         if (string.IsNullOrEmpty(empCd)) return false;
         try
         {
-            var rows = await _oracleService.ExecuteQueryAsync(
-                @"SELECT 1 FROM HRMS.HR_USERS U
-                  JOIN HRMS.HR_ROLES R ON R.ID = U.ROLE_ID
-                  WHERE U.EMPCD = :EMPCD AND R.ROLE_NAME IN ('Admin','CSR','HR') AND ROWNUM = 1",
-                r => 1,
-                new OracleParameter("EMPCD", empCd));
-            return rows.Count > 0;
+            // Role chính HOẶC role dept (HR/CSR) — xem Helpers/DeptRoleHelper.cs.
+            return await DeptRoleHelper.HasAnyRoleAsync(_oracleService, empCd, "Admin", "CSR", "HR");
         }
         catch { return false; }
     }
@@ -412,9 +407,8 @@ public class NotificationHelper
             // Admin/CSR/HR không nhận push kể cả thông báo broadcast (yêu cầu 2026-09-12) — dòng
             // HR_NOTIFICATIONS vẫn giữ 1 dòng chung cho cả công ty (không phình DB), chỉ loại token
             // của 3 role này ra khỏi danh sách push thực tế.
-            const string noNotiRoleSql = @"EMPCD NOT IN (
-                SELECT U.EMPCD FROM HRMS.HR_USERS U JOIN HRMS.HR_ROLES R ON R.ID = U.ROLE_ID
-                WHERE R.ROLE_NAME IN ('Admin','CSR','HR'))";
+            // Tính cả người có role dept HR/CSR (không chỉ role chính).
+            string noNotiRoleSql = $"EMPCD NOT IN ({await DeptRoleHelper.EmpcdInRolesSqlAsync(_oracleService, "Admin", "CSR", "HR")})";
 
             return notiType switch
             {

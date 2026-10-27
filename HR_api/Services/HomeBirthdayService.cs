@@ -139,7 +139,7 @@ public class HomeBirthdayService
     private async Task<List<TeamBirthdayItem>> LoadTeamBirthdayAsync(HomeUserContext user)
     {
         // HR/Admin thấy toàn công ty. Expat + các role khác dùng scope HR_USERS_DEPT.
-        bool isCompanyWide = user.ROLENAME is "HR" or "Admin";
+        bool isCompanyWide = user.ROLENAME is "HR" or "Admin" || user.DEPTROLENAME is "HR";
 
         string sql;
         var    parameters = new List<OracleParameter>();

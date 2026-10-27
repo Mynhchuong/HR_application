@@ -137,6 +137,8 @@ public class HomeUserContext
 {
     public string  EMPCD    { get; set; } = "";
     public string  ROLENAME { get; set; } = "Employee";
+    /// <summary>Role phòng ban (HR/CSR...) nếu có — xem Helpers/DeptRoleHelper.cs. HR_web gửi kèm (dept_role_name).</summary>
+    public string? DEPTROLENAME { get; set; }
     public string? FULLNAME { get; set; }
     public string  LANG     => string.Equals(ROLENAME, "Expat", StringComparison.OrdinalIgnoreCase) ? "en" : "vi";
 }

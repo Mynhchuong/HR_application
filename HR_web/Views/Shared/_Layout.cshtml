@@ -358,6 +358,8 @@
     <!-- Mobile Bottom Navigation -->
     @{
         var mobileRole  = layoutUser?.RoleName ?? "";
+        // Hộp thư HR dành cho người có role HR (chính HOẶC role phòng ban) — Manager thuộc nhân sự cũng vào được.
+        bool mobIsHr    = layoutUser.HasRole("HR");
         bool isMobExpat = mobileRole == "Expat";
 
         string notiUrl  = isMobExpat ? "~/Notification/IndexForExpat" : "~/Notification/Index";
@@ -376,7 +378,7 @@
         }
         else
         {
-            inqUrl      = mobileRole == "HR"    ? "~/HrInquiry/Index"
+            inqUrl      = mobIsHr               ? "~/HrInquiry/Index"
                         : mobileRole == "Admin" ? "~/AdminInquiry/Index"
                         :                         "~/EmployeeInquiry/Index";
             slot4Active = Context.Request.Path.Value?.Contains("/HrInquiry") == true
@@ -876,7 +878,7 @@
 
             // Inquiry unread — bottom-nav mobile (#inqBadge) + sidebar desktop (#sideInqBadge, mục
             // "Hộp thư phản ánh"). Nguồn số khác nhau theo role vì HR/Admin/NV dùng 3 controller riêng.
-            @if (mobileRole == "HR")
+            @if (mobIsHr)
             {
                 <text>
             loadBadge('@Url.Action("GetList","HrInquiry")?status=OPEN&pageSize=100', ['inqBadge', 'sideInqBadge'],

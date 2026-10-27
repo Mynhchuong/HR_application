@@ -11,13 +11,14 @@ public static class SideMenuBuilder
 
         bool isAdmin         = !isMobileApp && user.RoleName == "Admin";
         bool isClerk         = user.RoleName == "Clerk";
-        bool isHR            = !isMobileApp && user.RoleName == "HR";
+        bool isHR            = !isMobileApp && user.HasRole("HR");        // role chính HOẶC role dept (HR_USERS.DEPT_ROLE_ID)
         bool isSupervisor    = user.RoleName == "Supervisor";
         bool isDeputyManager = user.RoleName == "DeputyManager";
         bool isManager       = user.RoleName == "Manager";
         bool isExpat         = user.RoleName == "Expat";
         bool isCanteen       = !isMobileApp && user.RoleName == "Canteen";
-        bool isCSR           = user.RoleName == "CSR";
+        bool isCSR           = user.HasRole("CSR");                       // role chính HOẶC role dept
+        bool isLean          = user.HasRole("Lean");                      // role phòng ban Lean (Bản tin + khóa học)
 
         return new List<SideMenuItem>
         {
@@ -57,9 +58,22 @@ public static class SideMenuBuilder
                     // bỏ mục menu riêng, lối tắt AI giờ nằm ngay trong trang EmployeeInquiry/Index.
                     new SideMenuItem { Title = "Hộp thư phản ánh",             Url = "~/EmployeeInquiry/Index",           Icon = "forum",        BadgeId = "sideInqBadge" },
                     new SideMenuItem { Title = "Đào tạo cá nhân",     Url = "~/Training/Index",                  Icon = "school"        },
-                    // Báo máy hư (TPM) — công nhân sản xuất; HR/Expat không dùng (2026-10-20).
-                    new SideMenuItem { Title = "Quét mã máy / Báo hư", Url = "~/Tpm/Scan",    Icon = "qr_code_scanner", VisibleWhen = () => user.RoleName != "HR" },
-                    new SideMenuItem { Title = "Lịch sử báo hư máy",   Url = "~/Tpm/History", Icon = "build",           VisibleWhen = () => user.RoleName != "HR" },
+                }
+            },
+
+            // Bảo trì — báo máy sản xuất bị hư (TPM). Đa số người dùng là công nhân; HR/Expat không dùng
+            // (Expat vốn không thấy nhóm "Cá nhân"/"Trang chủ", HR bị chặn ở đây + HR_web + HR_api). Tách khỏi
+            // "Cá nhân" theo yêu cầu 2026-10-27.
+            new SideMenuItem
+            {
+                Id = "Maintenance",
+                Title = "Bảo trì",
+                Icon = "build",
+                VisibleWhen = () => !isExpat && !isCanteen && !user.HasRole("HR") && !user.TpmBlocked,   // TpmBlocked: phòng ban OFFICE STAFF (khối văn phòng)
+                Children = new List<SideMenuItem>
+                {
+                    new SideMenuItem { Title = "Báo máy sản xuất", Url = "~/Tpm/Scan",    Icon = "qr_code_scanner" },
+                    new SideMenuItem { Title = "Lịch sử báo máy",  Url = "~/Tpm/History", Icon = "history"         },
                 }
             },
 
@@ -216,6 +230,21 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy",          Group = "system" },
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",          Icon = "poll",            Group = "system" },
                     new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",            Icon = "home_app_logo",   Group = "system" },
+                }
+            },
+
+            // Lean (role phòng ban, 2026-10-27): Quản lý Bản tin + Quản lý khóa học + Chứng chỉ đào tạo (quyền như CSR ở 2 module này).
+            new SideMenuItem
+            {
+                Id = "Lean",
+                Title = "Lean",
+                Icon = "lightbulb",
+                VisibleWhen = () => isLean,
+                Children = new List<SideMenuItem>
+                {
+                    new SideMenuItem { Title = "Quản lý Bản tin",  Url = "~/BulletinAdmin/Manage", Icon = "campaign" },
+                    new SideMenuItem { Title = "Quản lý Đào tạo",  Url = "~/TrainingAdmin/Index",  Icon = "school"   },
+                    new SideMenuItem { Title = "Chứng chỉ Đào tạo", Url = "~/TrainingAdmin/Certificates", Icon = "card_membership" },
                 }
             },
 

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using HR_api.Data;
+using HR_api.Helpers;
 using Oracle.ManagedDataAccess.Client;
 
 namespace HR_api.Tpm;
@@ -14,6 +15,7 @@ public class TpmService
     private static readonly HashSet<int> BlockedRoleIds = new() { 5, 7 };
 
     private readonly OracleService _db;
+    private readonly IConfiguration _cfg;
     private readonly IHttpClientFactory _httpFactory;
     private readonly string _baseUrl;
     private readonly string _key;
@@ -22,6 +24,7 @@ public class TpmService
     public TpmService(OracleService db, IHttpClientFactory httpFactory, IConfiguration cfg)
     {
         _db = db;
+        _cfg = cfg;
         _httpFactory = httpFactory;
         _baseUrl = (cfg["Tpm:BaseUrl"] ?? "").TrimEnd('/');
         _key = cfg["Tpm:InternalKey"] ?? "";
@@ -60,6 +63,15 @@ public class TpmService
         var u = rows.FirstOrDefault();
         if (u == null || u.Jeajikgb != "Y" || u.IsActive == 0) return (null, "Tài khoản không hợp lệ.");
         if (u.RoleId.HasValue && BlockedRoleIds.Contains(u.RoleId.Value))
+            return (null, "Chức năng này dành cho công nhân sản xuất.");
+
+        // Phòng ban bị chặn (mặc định OFFICE STAFF = A01001, khối văn phòng) — xem TpmAccess.cs (2026-10-27).
+        if (TpmAccess.IsDeptBlocked(_cfg, u.DeptCd))
+            return (null, "Chức năng này không dành cho khối văn phòng.");
+
+        // Role dept HR (người thuộc phòng nhân sự dù role chính là Manager/Supervisor/Worker...) cũng bị chặn
+        // (chốt 2026-10-27, xem Helpers/DeptRoleHelper.cs).
+        if (string.Equals(await DeptRoleHelper.GetDeptRoleNameAsync(_db, empcd), "HR", StringComparison.OrdinalIgnoreCase))
             return (null, "Chức năng này dành cho công nhân sản xuất.");
 
         return (new TpmEmployee

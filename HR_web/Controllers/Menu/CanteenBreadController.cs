@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using ClosedXML.Excel;
 using HR_web.API.Service;
 using Microsoft.AspNetCore.Authorization;
@@ -13,7 +14,7 @@ public class CanteenBreadController : BaseController
 
     private bool CanManage =>
            CurrentUser?.RoleName == "Admin"
-        || CurrentUser?.RoleName == "HR"
+        || CurrentUser.HasRole("HR")
         || CurrentUser?.RoleName == "Canteen";
 
     // Danh sách cố định (roster) cấp Bánh cả tuần — chỉ Admin thao tác, không mở cho HR/Canteen.
@@ -21,16 +22,16 @@ public class CanteenBreadController : BaseController
 
     private bool CanViewLog =>
            CurrentUser?.RoleName == "Admin"
-        || CurrentUser?.RoleName == "HR"
+        || CurrentUser.HasRole("HR")
         || CurrentUser?.RoleName == "Canteen"
         || CurrentUser?.RoleName == "Clerk"
-        || CurrentUser?.RoleName == "CSR";
+        || CurrentUser.HasRole("CSR");
 
     // Xoá / đổi món hàng loạt trên trang ChangeLog — CHỈ Admin/HR (yêu cầu 2026-09-10), khác
     // CanViewLog (rộng hơn, cho cả Canteen/Clerk/CSR xem log nhưng KHÔNG được sửa/xoá dữ liệu).
     private bool CanBulkEditLog =>
            CurrentUser?.RoleName == "Admin"
-        || CurrentUser?.RoleName == "HR";
+        || CurrentUser.HasRole("HR");
 
     private IActionResult ForbidJson() =>
         Json(new { success = false, message = "Bạn không có quyền thao tác chức năng này" });

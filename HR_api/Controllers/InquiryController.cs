@@ -676,13 +676,7 @@ public class InquiryController : ControllerBase
     private async Task<bool> IsAdminOrHrAsync(string? empCd)
     {
         if (string.IsNullOrEmpty(empCd)) return false;
-        var rows = await _db.ExecuteQueryAsync(@"
-            SELECT 1 FROM HRMS.HR_USERS U
-            JOIN HRMS.HR_ROLES R ON R.ID = U.ROLE_ID
-            WHERE U.EMPCD = :EMPCD AND R.ROLE_NAME IN ('Admin','HR','CSR') AND ROWNUM = 1",
-            r => 1,
-            new OracleParameter("EMPCD", empCd));
-        return rows.Count > 0;
+        return await DeptRoleHelper.HasAnyRoleAsync(_db, empCd, "Admin", "HR", "CSR");
     }
 
     // CSV role dùng chung mẫu (yêu cầu 2026-09-21) — rỗng/trống = dùng chung cho cả Admin/HR/CSR,
@@ -2226,10 +2220,10 @@ public class InquiryController : ControllerBase
     {
         try
         {
-            return await _db.ExecuteQueryAsync(@"
+            var inRoles = await DeptRoleHelper.EmpcdInRolesSqlAsync(_db, "HR", "Admin");
+            return await _db.ExecuteQueryAsync($@"
                 SELECT U.EMPCD FROM HRMS.HR_USERS U
-                JOIN HRMS.HR_ROLES R ON R.ID = U.ROLE_ID
-                WHERE R.ROLE_NAME IN ('HR', 'Admin') AND U.IS_ACTIVE = 1",
+                WHERE U.IS_ACTIVE = 1 AND U.EMPCD IN ({inRoles})",
                 r => r["EMPCD"]?.ToString() ?? "");
         }
         catch { return new(); }

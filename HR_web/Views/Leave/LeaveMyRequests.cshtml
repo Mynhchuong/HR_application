@@ -439,7 +439,7 @@ function leaveBadge(t) {
     return `<span class="badge bg-${LEAVE_COLOR[t]||'secondary'}">${LEAVE_LABEL[t]||t||'-'}</span>`;
 }
 
-// Loại bắt buộc nộp giấy tờ chứng minh (nhắc sau 3 ngày) — khớp DocRequiredTypes phía API. CT và DS
+// Loại bắt buộc nộp giấy tờ chứng minh (nhắc theo mốc: thứ Ba hàng tuần SI/VS/KT, ngày 3 hàng tháng DT/DC) — khớp DocRequiredTypes phía API. CT và DS
 // (Dưỡng sức) KHÔNG cần nộp giấy tờ (yêu cầu 2026-09-15).
 const DOC_REQUIRED_TYPES = ['SI', 'DT', 'DC', 'VS', 'KT'];
 // NL/SI/DS: cảnh báo mất chuyên cần + ngày công LUÔN LUÔN (không phụ thuộc có nộp giấy hay không — NL/DS không có

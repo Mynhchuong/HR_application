@@ -215,19 +215,20 @@ public class TrainingAuthHelper
         return rows.Any();
     }
 
-    // Check user là HR/Admin/CSR (truy vấn từ database) — CSR có quyền ngang HR cho module Đào tạo.
+    public OracleService Db => _db;
+    public Task<Dictionary<int, string>> GetCourseRolesAsync() => TrainingScopeHelper.GetCourseRolesAsync(_db);
+    public Task<string[]?> GetViewerRolesAsync(string? empcd)  => TrainingScopeHelper.GetViewerRolesAsync(_db, empcd);
+
+    // Quyền xem/sửa 1 khóa học / lớp theo ROLE TẠO — xem TrainingScopeHelper.
+    public Task<bool> CanAccessCourseAsync(string? empcd, int courseId) => TrainingScopeHelper.CanAccessCourseAsync(_db, empcd, courseId);
+    public Task<bool> CanAccessClassAsync(string? empcd, int classId)   => TrainingScopeHelper.CanAccessClassAsync(_db, empcd, classId);
+    public Task<bool> CanAccessEntityAsync(string? empcd, string kind, int id) => TrainingScopeHelper.CanAccessEntityAsync(_db, empcd, kind, id);
+
+    // Check user là HR/Admin/CSR/Lean (truy vấn từ database) — CSR và Lean (role phòng ban) có quyền ngang HR cho module Đào tạo.
     public async Task<bool> IsHrOrAdminAsync(string empcd)
     {
         if (string.IsNullOrWhiteSpace(empcd)) return false;
-        var rows = await _db.ExecuteQueryAsync(@"
-            SELECT 1 FROM HRMS.HR_USERS U
-              JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID
-             WHERE U.EMPCD = :EMPCD
-               AND RR.ROLE_NAME IN ('HR', 'Admin', 'CSR')
-               AND ROWNUM = 1",
-            r => 1,
-            new OracleParameter("EMPCD", empcd));
-        return rows.Any();
+        return await DeptRoleHelper.HasAnyRoleAsync(_db, empcd, "HR", "Admin", "CSR", "Lean");
     }
 
     // Check user hiện đang là teacher của BẤT KỲ Class active nào

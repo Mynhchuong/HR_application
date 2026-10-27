@@ -186,6 +186,29 @@ public class UserController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // Role phòng ban (HR/CSR...): danh sách cho dropdown + gán cho từng người
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetDeptRoles()
+        => Content(await _service.GetDeptRolesRawAsync(), "application/json");
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateDeptRole(string empCd, int? deptRoleId)
+    {
+        try
+        {
+            var (success, message) = await _service.UpdateDeptRoleAsync(empCd, deptRoleId, CurrentUser!.EmpCd);
+            TempData[success ? "SuccessMessage" : "ErrorMessage"] = message;
+        }
+        catch (Exception ex)
+        {
+            TempData["ErrorMessage"] = "Có lỗi xảy ra: " + ex.Message;
+        }
+        return RedirectToAction("UserManager");
+    }
+
+    // ─────────────────────────────────────────────
     // GET: /User/ExportExcel
     // ─────────────────────────────────────────────
     [HttpGet]

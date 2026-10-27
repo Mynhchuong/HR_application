@@ -26,7 +26,13 @@ public class HomeController : BaseController
             return RedirectToAction("Login", "Account");
 
         var role = user.RoleName ?? "Employee";
-        var vm   = await BuildViewModelAsync(user.EmpCd, role, user.FullName);
+        var vm   = await BuildViewModelAsync(user.EmpCd, role, user.FullName, user.DeptRoleName);
+
+        // Role phòng ban (HR/CSR): người KHÔNG có vai trò duyệt (Worker/Clerk...) giữ trang chủ như khi HR/CSR còn là role chính
+        // (HR -> trang Admin, CSR -> trang Manager có Summary Card). Supervisor/Manager/... vẫn dùng trang theo vai trò của họ.
+        bool noApproverRole = role is not ("Supervisor" or "DeputyManager" or "Manager" or "Assistant" or "Expat" or "Admin");
+        if (noApproverRole && user.DeptRoleName == "HR")  return View("Admin",   vm);
+        if (noApproverRole && user.DeptRoleName == "CSR") return View("Manager", vm);
 
         // Dispatcher: chọn view theo role
         if (role is "HR" or "Admin")     return View("Admin",    vm);
@@ -46,7 +52,7 @@ public class HomeController : BaseController
     {
         if (CurrentUser?.EmpCd == null) return Json(new { success = false });
 
-        var data = await _homeApi.GetSummaryAsync(CurrentUser.EmpCd, CurrentUser.RoleName, force == 1);
+        var data = await _homeApi.GetSummaryAsync(CurrentUser.EmpCd, CurrentUser.RoleName, force == 1, CurrentUser.DeptRoleName);
         return Json(new { success = data != null, data });
     }
 
@@ -58,7 +64,7 @@ public class HomeController : BaseController
     {
         if (CurrentUser?.EmpCd == null) return Json(new { success = false });
 
-        var data = await _homeApi.GetTeamBirthdayAsync(CurrentUser.EmpCd, CurrentUser.RoleName);
+        var data = await _homeApi.GetTeamBirthdayAsync(CurrentUser.EmpCd, CurrentUser.RoleName, CurrentUser.DeptRoleName);
         return Json(new { success = data != null, data });
     }
 
@@ -70,7 +76,7 @@ public class HomeController : BaseController
     {
         if (CurrentUser?.EmpCd == null) return Json(new { success = false });
 
-        var data = await _homeApi.GetLeaveDocMissingAsync(CurrentUser.EmpCd, CurrentUser.RoleName);
+        var data = await _homeApi.GetLeaveDocMissingAsync(CurrentUser.EmpCd, CurrentUser.RoleName, CurrentUser.DeptRoleName);
         return Json(new { success = data != null, data });
     }
 
@@ -96,16 +102,17 @@ public class HomeController : BaseController
     // ============================================================
     // Build VM từ API response — map DTO → VM
     // ============================================================
-    private async Task<HomeIndexViewModel> BuildViewModelAsync(string empCd, string roleName, string? fullName)
+    private async Task<HomeIndexViewModel> BuildViewModelAsync(string empCd, string roleName, string? fullName, string? deptRoleName = null)
     {
         var vm = new HomeIndexViewModel
         {
             EmpCd    = empCd,
             RoleName = roleName,
+            DeptRoleName = deptRoleName,
             FullName = fullName ?? ""
         };
 
-        var data = await _homeApi.GetInitAsync(empCd, roleName, fullName);
+        var data = await _homeApi.GetInitAsync(empCd, roleName, fullName, deptRoleName);
         if (data == null) return vm;   // API fail → view render với data trống
 
         if (data.Greeting != null)

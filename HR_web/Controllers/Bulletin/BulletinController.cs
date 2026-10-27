@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using HR_web.API.Service;
 using HR_web.Models.Bulletin;
 using Microsoft.AspNetCore.Authorization;
@@ -18,7 +19,7 @@ public class BulletinController : BaseController
     // Codebase chuẩn dùng RoleName ("Admin"/"HR"/"Expat") — không phải RoleId.
     // [Authorize(Roles="Admin,HR")] cũng so với RoleName.
     private bool IsHrAdmin() =>
-        CurrentUser?.RoleName == "HR" || CurrentUser?.RoleName == "Admin";
+        CurrentUser.HasAnyRole("HR", "Admin");
 
     // ─────────────────────────────────────────────
     // GET /Bulletin  — list bản tin đang hiển thị

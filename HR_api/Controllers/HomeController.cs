@@ -30,7 +30,7 @@ public class HomeController : ControllerBase
     // Trả gộp: greeting + birthday + payday + shift + banner + pinned
     // ============================================================
     [HttpGet("init")]
-    public async Task<IActionResult> Init(string empcd, string? role_name = null, string? full_name = null)
+    public async Task<IActionResult> Init(string empcd, string? role_name = null, string? full_name = null, string? dept_role_name = null)
     {
         try
         {
@@ -41,6 +41,7 @@ public class HomeController : ControllerBase
             {
                 EMPCD    = empcd,
                 ROLENAME = string.IsNullOrEmpty(role_name) ? "Employee" : role_name,
+                DEPTROLENAME = string.IsNullOrEmpty(dept_role_name) ? null : dept_role_name,
                 FULLNAME = full_name
             };
 
@@ -59,7 +60,7 @@ public class HomeController : ControllerBase
     // Cache 30s/EMPCD; force=1 bypass cache
     // ============================================================
     [HttpGet("summary")]
-    public async Task<IActionResult> Summary(string empcd, string? role_name = null, int force = 0)
+    public async Task<IActionResult> Summary(string empcd, string? role_name = null, int force = 0, string? dept_role_name = null)
     {
         try
         {
@@ -69,7 +70,8 @@ public class HomeController : ControllerBase
             var user = new HomeUserContext
             {
                 EMPCD    = empcd,
-                ROLENAME = string.IsNullOrEmpty(role_name) ? "Employee" : role_name
+                ROLENAME = string.IsNullOrEmpty(role_name) ? "Employee" : role_name,
+                DEPTROLENAME = string.IsNullOrEmpty(dept_role_name) ? null : dept_role_name
             };
 
             var data = await _summarySvc.GetAsync(user, force: force == 1);
@@ -87,7 +89,7 @@ public class HomeController : ControllerBase
     // Frontend gọi khi click chip trong Summary Card
     // ============================================================
     [HttpGet("team-birthday")]
-    public async Task<IActionResult> TeamBirthday(string empcd, string? role_name = null)
+    public async Task<IActionResult> TeamBirthday(string empcd, string? role_name = null, string? dept_role_name = null)
     {
         try
         {
@@ -97,7 +99,8 @@ public class HomeController : ControllerBase
             var user = new HomeUserContext
             {
                 EMPCD    = empcd,
-                ROLENAME = string.IsNullOrEmpty(role_name) ? "Employee" : role_name
+                ROLENAME = string.IsNullOrEmpty(role_name) ? "Employee" : role_name,
+                DEPTROLENAME = string.IsNullOrEmpty(dept_role_name) ? null : dept_role_name
             };
 
             var data = await _birthdaySvc.GetTeamBirthdayAsync(user);
@@ -114,7 +117,7 @@ public class HomeController : ControllerBase
     // Danh sách đơn nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai tháng này chưa nộp giấy tờ
     // ============================================================
     [HttpGet("leave-doc-missing")]
-    public async Task<IActionResult> LeaveDocMissing(string empcd, string? role_name = null)
+    public async Task<IActionResult> LeaveDocMissing(string empcd, string? role_name = null, string? dept_role_name = null)
     {
         try
         {
@@ -124,7 +127,8 @@ public class HomeController : ControllerBase
             var user = new HomeUserContext
             {
                 EMPCD    = empcd,
-                ROLENAME = string.IsNullOrEmpty(role_name) ? "Employee" : role_name
+                ROLENAME = string.IsNullOrEmpty(role_name) ? "Employee" : role_name,
+                DEPTROLENAME = string.IsNullOrEmpty(dept_role_name) ? null : dept_role_name
             };
 
             var data = await _summarySvc.GetLeaveDocMissingListAsync(user);

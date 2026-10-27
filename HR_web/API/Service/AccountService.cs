@@ -185,6 +185,21 @@ public class AccountService
         return (result.success, result.message ?? string.Empty);
     }
 
+    // ROLE DEPT (role phòng ban) — xem HR_api/Helpers/DeptRoleHelper.cs
+    public async Task<string> GetDeptRolesRawAsync()
+    {
+        var res = await _api.GetAsync_Raw("Account/dept-roles");
+        return res?.IsSuccessStatusCode == true ? await res.Content.ReadAsStringAsync() : "{\"success\":false,\"data\":[]}";
+    }
+
+    public async Task<(bool success, string message)> UpdateDeptRoleAsync(string empCd, int? deptRoleId, string loginUser)
+    {
+        var response = await _api.PostAsync("Account/update-dept-role", new { EmpCd = empCd, DeptRoleId = deptRoleId, LoginUser = loginUser });
+        var result = await ParseResponse<object>(response);
+        if (result == null) return (false, "Không nhận được phản hồi từ server");
+        return (result.success, result.message ?? string.Empty);
+    }
+
     public async Task<bool> UpdateSignatureFlagAsync(string empCd, bool hasSignature, string loginUser)
     {
         var response = await _api.PostAsync(UpdateSignatureEndpoint, new

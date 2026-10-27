@@ -513,7 +513,8 @@ public class TrainingTeachController : ControllerBase
         if (string.IsNullOrWhiteSpace(empcd))
             return Ok(new { success = false, message = "empcd required" });
 
-        var hasAccess = await _auth.IsTeacherAsync(empcd, id) || await _auth.IsHrOrAdminAsync(empcd);
+        var hasAccess = await _auth.IsTeacherAsync(empcd, id)
+                        || (await _auth.IsHrOrAdminAsync(empcd) && await _auth.CanAccessClassAsync(empcd, id));
         return Ok(new { success = true, data = hasAccess });
     }
 
@@ -524,7 +525,8 @@ public class TrainingTeachController : ControllerBase
         if (string.IsNullOrWhiteSpace(empcd))
             return Ok(new { success = false, message = "empcd required" });
 
-        var hasAccess = await _auth.IsTeacherOfSessionAsync(empcd, id) || await _auth.IsHrOrAdminAsync(empcd);
+        var hasAccess = await _auth.IsTeacherOfSessionAsync(empcd, id)
+                        || (await _auth.IsHrOrAdminAsync(empcd) && await _auth.CanAccessEntityAsync(empcd, "SESSION", id));
         return Ok(new { success = true, data = hasAccess });
     }
 
@@ -535,7 +537,8 @@ public class TrainingTeachController : ControllerBase
         if (string.IsNullOrWhiteSpace(empcd))
             return Ok(new { success = false, message = "empcd required" });
 
-        var hasAccess = await _auth.IsTeacherOfTestAsync(empcd, id) || await _auth.IsHrOrAdminAsync(empcd);
+        var hasAccess = await _auth.IsTeacherOfTestAsync(empcd, id)
+                        || (await _auth.IsHrOrAdminAsync(empcd) && await _auth.CanAccessEntityAsync(empcd, "TEST", id));
         return Ok(new { success = true, data = hasAccess });
     }
 

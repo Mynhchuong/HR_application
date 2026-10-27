@@ -1,3 +1,4 @@
+using HR_web.Models.Account;
 using HR_web.API.Service;
 using HR_web.Models.Leave;
 using Microsoft.AspNetCore.Authorization;
@@ -558,7 +559,7 @@ public class LeaveController : BaseController
     [HttpPost]
     public async Task<IActionResult> MarkDocSubmitted(string requestId)
     {
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Clerk" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Clerk", "Admin"))
             return Json(new { success = false, message = "Không có quyền" });
         var result = await _leaveService.MarkDocSubmittedAsync(requestId, CurrentUser.EmpCd ?? "");
         return Json(result);
@@ -570,7 +571,7 @@ public class LeaveController : BaseController
     [HttpPost]
     public async Task<IActionResult> RequestDocResubmit(string requestId, string? remark)
     {
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Clerk" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Clerk", "Admin"))
             return Json(new { success = false, message = "Không có quyền" });
         var result = await _leaveService.RequestDocResubmitAsync(requestId, CurrentUser.EmpCd ?? "", remark);
         return Json(result);
@@ -592,8 +593,7 @@ public class LeaveController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetDocDayList(string requestId)
     {
-        var role = CurrentUser?.RoleName;
-        bool isStaffView = DocEditRoles.Contains(role) || DocViewRoles.Contains(role);
+        bool isStaffView = CurrentUser.HasAnyRole(DocEditRoles) || CurrentUser.HasAnyRole(DocViewRoles);
         var raw = await _leaveService.GetDocDayListRawAsync(requestId);
         if (!isStaffView)
         {
@@ -616,7 +616,7 @@ public class LeaveController : BaseController
     [HttpPost]
     public async Task<IActionResult> ConfirmDocDays([FromBody] LeaveDocConfirmDaysBody body)
     {
-        if (CurrentUser?.RoleName != "HR" && CurrentUser?.RoleName != "Clerk" && CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("HR", "Clerk", "Admin"))
             return Json(new { success = false, message = "Không có quyền" });
         var payload = new { REQUEST_ID = body.RequestId, ACTOR_EMPCD = CurrentUser.EmpCd ?? "", DAYS = body.Days };
         var raw = await _leaveService.ConfirmDocDaysRawAsync(payload);
@@ -629,7 +629,7 @@ public class LeaveController : BaseController
     // ─────────────────────────────────────────────
     public IActionResult ErpAbsentManage()
     {
-        if (!ErpAbsentRoles.Contains(CurrentUser?.RoleName)) return Forbid();
+        if (!CurrentUser.HasAnyRole(ErpAbsentRoles)) return Forbid();
         var today = DateTime.Today;
         ViewBag.DateFrom = today.ToString("yyyy-MM-dd");
         ViewBag.DateTo   = today.ToString("yyyy-MM-dd");
@@ -643,7 +643,7 @@ public class LeaveController : BaseController
         string? ms_status = null, string? ms_leave_type = null,
         string? doc_status = null, string? remark = null, int page = 1, int page_size = 100)
     {
-        if (!ErpAbsentRoles.Contains(CurrentUser?.RoleName)) return Json(new { success = false, message = "Không có quyền" });
+        if (!CurrentUser.HasAnyRole(ErpAbsentRoles)) return Json(new { success = false, message = "Không có quyền" });
         var raw = await _leaveService.GetErpAbsentListRawAsync(date_from, date_to, empcd, deptcd, linecd, workcd, leavecd, ms_status, ms_leave_type, doc_status, remark, page, page_size);
         return Content(raw, "application/json");
     }
@@ -651,7 +651,7 @@ public class LeaveController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetAbsentCodeList()
     {
-        if (!ErpAbsentRoles.Contains(CurrentUser?.RoleName)) return Json(new { success = false, message = "Không có quyền" });
+        if (!CurrentUser.HasAnyRole(ErpAbsentRoles)) return Json(new { success = false, message = "Không có quyền" });
         var raw = await _leaveService.GetAbsentCodeListRawAsync();
         return Content(raw, "application/json");
     }
@@ -659,7 +659,7 @@ public class LeaveController : BaseController
     [HttpPost]
     public async Task<IActionResult> ErpAbsentUpdate([FromBody] ErpAbsentUpdateBody body)
     {
-        if (!ErpAbsentRoles.Contains(CurrentUser?.RoleName)) return Json(new { success = false, message = "Không có quyền" });
+        if (!CurrentUser.HasAnyRole(ErpAbsentRoles)) return Json(new { success = false, message = "Không có quyền" });
         var payload = new {
             EMPCD = body.Empcd, FR_DATE = body.FrDate, LEAVECD = body.Leavecd,
             REMARK = body.Remark, ACTOR_EMPCD = CurrentUser?.EmpCd ?? ""

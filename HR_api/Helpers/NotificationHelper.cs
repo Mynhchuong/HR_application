@@ -253,6 +253,9 @@ public class NotificationHelper
 
             if (empCds.Count == 0) return;
 
+            // Người đã tắt nhận thông báo đẩy thì bỏ qua, TRỪ thông báo ưu tiên CAO (vẫn đẩy).
+            var mutedFilter = await MutedFilterAsync(model.PRIORITY, "EMPCD");
+
             // Lấy tokens cho EMPCDs (batch IN clause Oracle giới hạn 1000 → chia chunk)
             var tokens = new List<string>();
             foreach (var batch in empCds.Chunk(900))
@@ -260,7 +263,7 @@ public class NotificationHelper
                 var inClause = string.Join(",", batch.Select((_, i) => $":E{i}"));
                 var parms = batch.Select((e, i) => new OracleParameter($"E{i}", e)).ToArray();
                 var ts = await _oracleService.ExecuteQueryAsync(
-                    $"SELECT TOKEN FROM HRMS.HR_USER_TOKENS WHERE EMPCD IN ({inClause})",
+                    $"SELECT TOKEN FROM HRMS.HR_USER_TOKENS WHERE EMPCD IN ({inClause}){mutedFilter}",
                     r => r["TOKEN"]?.ToString() ?? "",
                     parms);
                 tokens.AddRange(ts.Where(t => !string.IsNullOrEmpty(t)));
@@ -306,7 +309,7 @@ public class NotificationHelper
         if (!_firebaseInitialized) return;
         try
         {
-            var tokens = await GetTokensForTargetAsync(model.NOTI_TYPE, model.TARGET_VAL);
+            var tokens = await GetTokensForTargetAsync(model.NOTI_TYPE, model.TARGET_VAL, model.PRIORITY);
             if (tokens.Count == 0) return;
 
             // Dùng EN nếu người nhận là Expat và EN content có sẵn
@@ -402,7 +405,16 @@ public class NotificationHelper
         catch { return false; }
     }
 
-    private async Task<List<string>> GetTokensForTargetAsync(string? notiType, string? targetVal)
+    // Điều kiện loại người đã tắt nhận push, dạng " AND <cột> NOT IN (...)"; rỗng nếu là thông báo ưu tiên CAO
+    // hoặc DB chưa có cột PUSH_MUTED. column: tên cột EMPCD (có thể kèm alias, VD "T.EMPCD").
+    private async Task<string> MutedFilterAsync(string? priority, string column)
+    {
+        if (string.Equals(priority, "HIGH", StringComparison.OrdinalIgnoreCase)) return "";
+        var muted = await PushPrefHelper.MutedEmpcdSqlAsync(_oracleService);
+        return muted == null ? "" : $" AND {column} NOT IN ({muted})";
+    }
+
+    private async Task<List<string>> GetTokensForTargetAsync(string? notiType, string? targetVal, string? priority = null)
     {
         if (string.IsNullOrEmpty(notiType)) return new();
 
@@ -412,12 +424,14 @@ public class NotificationHelper
             // HR_NOTIFICATIONS vẫn giữ 1 dòng chung cho cả công ty (không phình DB), chỉ loại token
             // của 3 role này ra khỏi danh sách push thực tế.
             // Tính cả người có role dept HR/CSR (không chỉ role chính).
+            var mf  = await MutedFilterAsync(priority, "EMPCD");     // dùng khi câu SQL không có alias
+            var mfT = await MutedFilterAsync(priority, "T.EMPCD");   // dùng khi bảng token có alias T
             string noNotiRoleSql = $"EMPCD NOT IN ({await DeptRoleHelper.EmpcdInRolesSqlAsync(_oracleService, "Admin", "CSR", "HR")})";
 
             return notiType switch
             {
                 "COMPANY" => await _oracleService.ExecuteQueryAsync(
-                    $"SELECT TOKEN FROM HRMS.HR_USER_TOKENS WHERE {noNotiRoleSql}",
+                    $"SELECT TOKEN FROM HRMS.HR_USER_TOKENS WHERE {noNotiRoleSql}{mf}",
                     r => r["TOKEN"]?.ToString() ?? ""),
 
                 "DEPT" when !string.IsNullOrEmpty(targetVal) => await _oracleService.ExecuteQueryAsync($@"
@@ -425,22 +439,22 @@ public class NotificationHelper
                     JOIN HRMS.ECM100 EC ON EC.EMPCD = T.EMPCD
                     WHERE EC.DEPTCD = :VAL
                       AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
-                      AND T.{noNotiRoleSql}",
+                      AND T.{noNotiRoleSql}{mfT}",
                     r => r["TOKEN"]?.ToString() ?? "",
                     new OracleParameter("VAL", targetVal)),
 
                 "EMPCD" when !string.IsNullOrEmpty(targetVal) => await _oracleService.ExecuteQueryAsync(
-                    "SELECT TOKEN FROM HRMS.HR_USER_TOKENS WHERE EMPCD = :VAL",
+                    $"SELECT TOKEN FROM HRMS.HR_USER_TOKENS WHERE EMPCD = :VAL{mf}",
                     r => r["TOKEN"]?.ToString() ?? "",
                     new OracleParameter("VAL", targetVal)),
 
                 // SURVEY: chỉ push tới người trong HR_SURVEY_RECIPIENT snapshot
                 "SURVEY" when !string.IsNullOrEmpty(targetVal) && int.TryParse(targetVal, out var sid)
-                    => await _oracleService.ExecuteQueryAsync(@"
+                    => await _oracleService.ExecuteQueryAsync($@"
                     SELECT T.TOKEN
                       FROM HRMS.HR_USER_TOKENS T
                       JOIN HRMS.HR_SURVEY_RECIPIENT R ON R.EMPCD = T.EMPCD
-                     WHERE R.SURVEY_ID = :VAL",
+                     WHERE R.SURVEY_ID = :VAL{mfT}",
                     r => r["TOKEN"]?.ToString() ?? "",
                     new OracleParameter("VAL", sid)),
 

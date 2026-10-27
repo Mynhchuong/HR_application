@@ -57,6 +57,29 @@ public class NotificationService
         catch { return false; }
     }
 
+    // Tùy chọn "tắt nhận thông báo đẩy" — trả nguyên JSON của HR_api ({success, available, muted}).
+    public async Task<string> GetPushSettingRawAsync(string empCd)
+    {
+        try
+        {
+            var r = await _api.GetAsync_Raw("Notification/push-setting", $"empcd={Uri.EscapeDataString(empCd)}");
+            if (r == null || !r.IsSuccessStatusCode) return "{\"success\":false}";
+            return await r.Content.ReadAsStringAsync();
+        }
+        catch { return "{\"success\":false}"; }
+    }
+
+    public async Task<string> SetPushSettingRawAsync(string empCd, bool muted)
+    {
+        try
+        {
+            var r = await _api.PostAsync("Notification/push-setting", new { EMPCD = empCd, MUTED = muted });
+            if (r == null || !r.IsSuccessStatusCode) return "{\"success\":false,\"message\":\"Lỗi kết nối API\"}";
+            return await r.Content.ReadAsStringAsync();
+        }
+        catch { return "{\"success\":false,\"message\":\"Lỗi kết nối API\"}"; }
+    }
+
     public async Task<bool> RegisterTokenAsync(string empCd, string token, string osType)
     {
         try

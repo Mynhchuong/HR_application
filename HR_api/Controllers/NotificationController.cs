@@ -102,6 +102,39 @@ public class NotificationController : ControllerBase
     }
 
     // ============================================================
+    // 1c. TÙY CHỌN "TẮT NHẬN THÔNG BÁO ĐẨY" (HR_USERS.PUSH_MUTED)
+    // GET  /apiHR/Notification/push-setting?empcd=   -> { success, available, muted }
+    // POST /apiHR/Notification/push-setting          { EMPCD, MUTED }
+    // Tắt chỉ chặn push lên điện thoại; thông báo ưu tiên CAO vẫn đẩy (xem PushPrefHelper).
+    // ============================================================
+    [HttpGet("push-setting")]
+    public async Task<IActionResult> GetPushSetting(string empcd)
+    {
+        try
+        {
+            var available = await PushPrefHelper.IsAvailableAsync(_oracleService);
+            var muted = available && await PushPrefHelper.IsMutedAsync(_oracleService, empcd);
+            return Ok(new { success = true, available, muted });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    [HttpPost("push-setting")]
+    public async Task<IActionResult> SetPushSetting([FromBody] PushSettingRequest model)
+    {
+        try
+        {
+            if (model == null || string.IsNullOrWhiteSpace(model.EMPCD))
+                return Ok(new { success = false, message = "Thiếu mã nhân viên" });
+            if (!await PushPrefHelper.IsAvailableAsync(_oracleService))
+                return Ok(new { success = false, message = "Chức năng chưa được bật trên hệ thống" });
+            var ok = await PushPrefHelper.SetMutedAsync(_oracleService, model.EMPCD, model.MUTED);
+            return Ok(new { success = ok, muted = model.MUTED });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ============================================================
     // 2. GET MY NOTIFICATIONS (For Mobile App)
     // ============================================================
     [HttpGet("my")]

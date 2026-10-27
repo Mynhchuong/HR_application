@@ -78,3 +78,9 @@ public class OrgLookupItem
     public string NAME { get; set; } = string.Empty;
     public int    EMP_COUNT { get; set; }
 }
+
+public class PushSettingRequest
+{
+    public string EMPCD { get; set; } = string.Empty;
+    public bool   MUTED { get; set; }
+}

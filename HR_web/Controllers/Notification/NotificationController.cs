@@ -71,6 +71,24 @@ public class NotificationController : BaseController
         return Json(new { success = ok });
     }
 
+    // GET /Notification/PushSetting  (AJAX) — trạng thái "tắt nhận thông báo đẩy" của chính người đăng nhập
+    [HttpGet]
+    public async Task<IActionResult> PushSetting()
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd)) return Json(new { success = false });
+        var raw = await _notiSvc.GetPushSettingRawAsync(CurrentUser.EmpCd);
+        return Content(raw, "application/json");
+    }
+
+    // POST /Notification/SetPushSetting?muted=true|false  (AJAX) — chỉ đổi được của CHÍNH MÌNH
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetPushSetting(bool muted)
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd)) return Json(new { success = false });
+        var raw = await _notiSvc.SetPushSettingRawAsync(CurrentUser.EmpCd, muted);
+        return Content(raw, "application/json");
+    }
+
     // POST /Notification/RegisterToken  (gọi từ mobile app qua JS bridge)
     [HttpPost]
     public async Task<IActionResult> RegisterToken([FromBody] TokenRegistrationBody body)

@@ -14,6 +14,19 @@
     .noti-hero small { font-size: .75rem; opacity: .8; color: #fff !important; }
     .noti-hero-icon  { font-size: 2.2rem; line-height: 1; }
 
+    /* Push setting */
+    .noti-push { display: none; align-items: center; justify-content: space-between; gap: .8rem;
+        background: white; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: .7rem .9rem; margin-bottom: .6rem; }
+    .noti-push strong { display: block; font-size: .88rem; color: #1e293b; }
+    .noti-push small  { display: block; font-size: .72rem; color: #64748b; line-height: 1.35; margin-top: 2px; }
+    .ps-switch { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
+    .ps-switch input { opacity: 0; width: 0; height: 0; }
+    .ps-switch span { position: absolute; inset: 0; background: #cbd5e1; border-radius: 26px; transition: .2s; cursor: pointer; }
+    .ps-switch span::before { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px;
+        background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+    .ps-switch input:checked + span { background: #22c55e; }
+    .ps-switch input:checked + span::before { transform: translateX(20px); }
+    .ps-switch input:disabled + span { opacity: .6; cursor: default; }
     .noti-mark-all { display: flex; align-items: center; justify-content: flex-end; margin-bottom: .6rem; }
     .btn-mark-all {
         font-size: .8rem; font-weight: 700; color: #64748b;
@@ -89,6 +102,14 @@
             <small id="unreadLabel">Loading...</small>
         </div>
         <span class="noti-hero-icon">🔔</span>
+    </div>
+
+    <div class="noti-push" id="pushSettingBox">
+        <div>
+            <strong>Push notifications</strong>
+            <small>When off, your phone will not show new notifications (you can still see them in this list). Important (high priority) notifications are always sent.</small>
+        </div>
+        <label class="ps-switch"><input type="checkbox" id="pushToggle" checked onchange="setPush(this.checked)"><span></span></label>
     </div>
 
     <div class="noti-mark-all">
@@ -241,6 +262,31 @@ function markAllRead() {
         allItems.forEach(n => n.IS_READ = 1);
         updateUnreadBadge(-unreadCount);
     });
+}
+
+// ── Tắt/bật nhận thông báo đẩy (thông báo ưu tiên CAO vẫn luôn gửi) ──
+fetch('@Url.Action("PushSetting")')
+    .then(r => r.json())
+    .then(d => {
+        if (!d.success || !d.available) return;      // DB chưa bật chức năng -> ẩn hẳn ô này
+        document.getElementById('pushToggle').checked = !d.muted;
+        document.getElementById('pushSettingBox').style.display = 'flex';
+    })
+    .catch(() => {});
+
+function setPush(on) {
+    const el = document.getElementById('pushToggle');
+    el.disabled = true;
+    fetch('@Url.Action("SetPushSetting")?muted=' + (on ? 'false' : 'true'), {
+        method: 'POST',
+        headers: { 'RequestVerificationToken': token }
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (!d.success) { el.checked = !on; if (typeof showToast === 'function') showToast(d.message || 'Could not save, please try again', 'error'); }
+    })
+    .catch(() => { el.checked = !on; if (typeof showToast === 'function') showToast('Could not save, please try again', 'error'); })
+    .finally(() => { el.disabled = false; });
 }
 
 function loadMore() {

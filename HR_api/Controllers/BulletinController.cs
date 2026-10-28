@@ -58,7 +58,7 @@ public class BulletinController : ControllerBase
                 FROM HRMS.HR_BULLETIN B
                 WHERE B.IS_PUBLISHED = 1
                   AND B.IS_ACTIVE    = 1
-                  AND SYSDATE BETWEEN B.PUBLISH_FROM AND B.PUBLISH_TO
+                  AND SYSDATE >= B.PUBLISH_FROM AND SYSDATE < TRUNC(B.PUBLISH_TO) + 1   -- ngày kết thúc còn hiệu lực HẾT ngày đó (PUBLISH_TO lưu 00:00)
                   AND NOT EXISTS (
                       SELECT 1 FROM HRMS.HR_BULLETIN_VIEW V
                       WHERE V.BULLETIN_ID = B.ID AND V.EMPCD = :EMPCD
@@ -100,7 +100,7 @@ public class BulletinController : ControllerBase
                 FROM HRMS.HR_BULLETIN B
                 WHERE B.IS_PUBLISHED = 1
                   AND B.IS_ACTIVE    = 1
-                  AND SYSDATE BETWEEN B.PUBLISH_FROM AND B.PUBLISH_TO
+                  AND SYSDATE >= B.PUBLISH_FROM AND SYSDATE < TRUNC(B.PUBLISH_TO) + 1   -- ngày kết thúc còn hiệu lực HẾT ngày đó (PUBLISH_TO lưu 00:00)
                 ORDER BY B.IS_PINNED DESC, B.PIN_ORDER ASC,
                          B.PUBLISH_FROM DESC, B.ID DESC";
 
@@ -575,7 +575,7 @@ public class BulletinController : ControllerBase
                 return Ok(new { success = false, message = "Bản tin chưa được đăng" });
 
             var now = DateTime.Now;
-            if (now < b.PublishFrom || now > b.PublishTo)
+            if (now < b.PublishFrom || now >= b.PublishTo.Date.AddDays(1))
                 return Ok(new { success = false, message = "Bản tin đã hết hạn, không thể bình luận" });
 
             // Rate limit: 5 comment/phút/empcd
@@ -723,7 +723,7 @@ public class BulletinController : ControllerBase
             if (blt[0].IsActive == 0 || blt[0].IsPublished == 0)
                 return Ok(new { success = false, message = "Bản tin chưa hiển thị" });
             var now = DateTime.Now;
-            if (now < blt[0].PublishFrom || now > blt[0].PublishTo)
+            if (now < blt[0].PublishFrom || now >= blt[0].PublishTo.Date.AddDays(1))
                 return Ok(new { success = false, message = "Bản tin đã hết hạn" });
 
             const string getSql = @"

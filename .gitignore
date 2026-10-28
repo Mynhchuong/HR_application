@@ -146,3 +146,8 @@ HR_api/Scripts/create_survey_personal_data.sql
 HR_api/Scripts/create_approval_config.sql
 HR_api/Scripts/alter_training_course_created_role.sql
 HR_api/Scripts/create_dept_role.sql
+HR_api/Scripts/create_kaizen.sql
+
+# Keystore files (ký app Android/iOS — KHONG BAO GIO duoc len git)
+*.jks
+*.keystore

@@ -5,6 +5,12 @@
 <style>
 .inq-page { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
 
+.kaizen-btn {
+    display: flex; align-items: center; gap: .5rem; margin-bottom: .6rem; padding: .7rem 1rem;
+    background: #ecfdf5; border: 1.5px solid #6ee7b7; border-radius: 14px;
+    color: #047857 !important; font-weight: 800; font-size: .9rem; text-decoration: none !important;
+}
+.kaizen-btn:active { transform: scale(.98); }
 .inq-hero {
     background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
     border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
@@ -161,6 +167,7 @@
 }
 </style>
 
+@{ var isExpatInq = (ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel)?.RoleName == "Expat"; }
 <div class="inq-page px-2 py-2">
     <div class="inq-hero">
         <div>
@@ -169,6 +176,12 @@
         </div>
         <span class="material-symbols-rounded inq-hero-icon">forum</span>
     </div>
+
+    <a href="@Url.Action("Index", "Kaizen")" class="kaizen-btn">
+        <span class="material-symbols-rounded">tips_and_updates</span>
+        <span>@(isExpatInq ? "Register Kaizen idea" : "Đăng ký Kaizen")</span>
+        <span class="material-symbols-rounded" style="margin-left:auto;">chevron_right</span>
+    </a>
 
     <div id="rateBannerWrap" class="rate-banner-wrap" style="display:none"></div>
 

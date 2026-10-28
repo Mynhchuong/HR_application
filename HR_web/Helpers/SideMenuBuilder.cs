@@ -87,8 +87,9 @@ public static class SideMenuBuilder
                 {
                     new SideMenuItem { Title = "Home",                Url = "~/Home/Index",                      Icon = "home"           },
                     new SideMenuItem { Title = "User Guide", Url = "~/Guide/Index",                    Icon = "menu_book"      },
+                    new SideMenuItem { Title = "Kaizen",     Url = "~/Kaizen/Index",                   Icon = "tips_and_updates" },
                     //new SideMenuItem { Title = "Notifications",       Url = "~/Notification/IndexForExpat",      Icon = "notifications"  },
-                   // new SideMenuItem { Title = "Bulletin",            Url = "~/Bulletin/Index",                  Icon = "campaign"       },
+                    new SideMenuItem { Title = "Bulletin",            Url = "~/Bulletin/Index",                  Icon = "campaign"       },
                     new SideMenuItem { Title = "OT List",            Url = "~/OT/OtListForExpat",               Icon = "view_list"      },
                     new SideMenuItem { Title = "Attendance Confirm", Url = "~/AttendanceConfirm/IndexForExpat", Icon = "schedule"       },
                     new SideMenuItem { Title = "Gate Pass Approval",  Url = "~/GatePass/GpListForExpat",         Icon = "door_front"     },
@@ -245,6 +246,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý Bản tin",  Url = "~/BulletinAdmin/Manage", Icon = "campaign" },
                     new SideMenuItem { Title = "Quản lý Đào tạo",  Url = "~/TrainingAdmin/Index",  Icon = "school"   },
                     new SideMenuItem { Title = "Chứng chỉ Đào tạo", Url = "~/TrainingAdmin/Certificates", Icon = "card_membership" },
+                    new SideMenuItem { Title = "Quản lý Kaizen",    Url = "~/KaizenAdmin/Index",     Icon = "tips_and_updates" },
                 }
             },
 
@@ -304,6 +306,7 @@ public static class SideMenuBuilder
                     new() { Title = "Quản lý Mẫu thông báo",  Url = "~/NotiTemplate/Index",        Icon = "notifications",   Group = "system" },
                     //new() { Title = "Gửi thông báo",          Url = "~/AdminNoti/Create",          Icon = "edit_notifications" },
                     new() { Title = "Thông báo",       Url = "~/AdminNoti/Index",           Icon = "campaign",        Group = "system" },
+                    new() { Title = "Quản lý Kaizen",  Url = "~/KaizenAdmin/Index",         Icon = "tips_and_updates", Group = "system" },
                     new() { Title = "Tra cứu Danh bạ NV",    Url = "~/Directory/Index",           Icon = "contact_page",    Group = "system" },
                 ]
             },

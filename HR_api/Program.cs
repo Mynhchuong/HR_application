@@ -60,6 +60,7 @@ builder.Services.AddScoped<HR_api.Services.PayslipService>();
 builder.Services.AddScoped<HR_api.Helpers.GiftLogHelper>();
 builder.Services.AddScoped<HR_api.Services.GiftService>();
 builder.Services.AddScoped<HR_api.Services.AppLinkService>();
+builder.Services.AddScoped<HR_api.Services.KaizenMailService>();
 builder.Services.AddScoped<HR_api.Services.HomeBirthdayService>();
 builder.Services.AddScoped<HR_api.Services.HomeSummaryService>();
 builder.Services.AddScoped<HR_api.Services.HomeService>();
@@ -103,6 +104,7 @@ builder.Services.AddHostedService<HR_api.HostedServices.TrainingNotificationWork
 
 // Leave — nhắc nộp giấy tờ (Đám tang/Đám cưới/Vợ sanh/Khám thai)
 builder.Services.AddHostedService<HR_api.HostedServices.LeaveDocReminderService>();
+builder.Services.AddHostedService<HR_api.HostedServices.KaizenWeeklyMailService>();
 
 builder.Services.AddCors(options =>
 {

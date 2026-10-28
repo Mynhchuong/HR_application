@@ -45,6 +45,11 @@
         }
         <a href="@Url.Action("Index", "Policy")" class="home-tile"><span class="home-tile-icon">📖</span><span class="home-tile-label">@L("Nội quy", "Policy")</span></a>
         <a href="@Url.Action("Index", "Guide")" class="home-tile"><span class="home-tile-icon">❓</span><span class="home-tile-label">@L("Hướng dẫn", "Guide")</span></a>
+        @* Expat không có "Hộp thư" ở thanh dưới (slot 4 là Lịch nhóm) nên không vào được nút Kaizen trong Hộp thư -> có tile riêng *@
+        @if (isExpat)
+        {
+            <a href="@Url.Action("Index", "Kaizen")" class="home-tile"><span class="home-tile-icon">💡</span><span class="home-tile-label">@L("Đăng ký Kaizen", "Kaizen")</span></a>
+        }
 
         @* HR/Admin KHÔNG hiện các tile duyệt — họ có HR Tools section riêng ở dưới *@
         @if (isManagerLike || isExpat)

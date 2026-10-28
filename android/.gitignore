@@ -30,6 +30,8 @@ obj/
 # Keystore files
 *.jks
 *.keystore
+keystore.properties
+KEYSTORE_HANDOVER.md
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild

@@ -304,7 +304,7 @@ public class HomeService
                     WHERE B.IS_PUBLISHED = 1
                       AND B.IS_ACTIVE    = 1
                       AND B.IS_PINNED    = 1
-                      AND SYSDATE BETWEEN B.PUBLISH_FROM AND B.PUBLISH_TO
+                      AND SYSDATE >= B.PUBLISH_FROM AND SYSDATE < TRUNC(B.PUBLISH_TO) + 1
                     ORDER BY B.PIN_ORDER ASC, B.PUBLISH_FROM DESC
                 ) WHERE ROWNUM <= 2";
 

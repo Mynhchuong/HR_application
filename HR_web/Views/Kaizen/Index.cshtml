@@ -1,0 +1,183 @@
+@{
+    var isEn = (ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel)?.RoleName == "Expat";
+    string L(string vi, string en) => isEn ? en : vi;
+    ViewData["Title"] = L("Đăng ký Kaizen", "Kaizen registration");
+}
+
+<style>
+    .kz-page { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
+    .kz-hero {
+        background: linear-gradient(135deg, #065f46 0%, #10b981 100%);
+        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
+        color: #fff; display: flex; align-items: center; justify-content: space-between;
+    }
+    .kz-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
+    .kz-hero small { font-size: .75rem; opacity: .85; color: #fff !important; }
+    .kz-hero-icon  { font-size: 2.2rem; line-height: 1; }
+    .kz-back { display: inline-flex; align-items: center; gap: 4px; font-size: .82rem; font-weight: 700; color: #475569;
+        text-decoration: none; margin-bottom: .6rem; }
+    .kz-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 1rem; margin-bottom: .8rem; }
+    .kz-card label { display: block; font-size: .8rem; font-weight: 700; color: #334155; margin-bottom: .3rem; }
+    .kz-card .kz-hint { font-size: .72rem; color: #94a3b8; margin-top: .25rem; }
+    .kz-input, .kz-textarea {
+        width: 100%; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: .6rem .8rem; font-size: .92rem;
+        outline: none; background: #f8fafc; font-family: inherit;
+    }
+    .kz-textarea { min-height: 140px; resize: vertical; line-height: 1.45; }
+    .kz-input:focus, .kz-textarea:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.15); background: #fff; }
+    .kz-field + .kz-field { margin-top: .85rem; }
+    .kz-count { text-align: right; font-size: .7rem; color: #94a3b8; }
+    .kz-submit {
+        width: 100%; margin-top: 1rem; border: none; border-radius: 14px; padding: .8rem; font-weight: 800; font-size: .95rem;
+        background: #10b981; color: #fff; box-shadow: 0 4px 12px rgba(16,185,129,.3);
+    }
+    .kz-submit:disabled { background: #a7f3d0; box-shadow: none; }
+    .kz-error { color: #b91c1c; font-size: .8rem; margin-top: .6rem; display: none; }
+    .kz-done { text-align: center; padding: 1.4rem .8rem; }
+    .kz-done .ico { font-size: 3rem; color: #10b981; }
+    .kz-done h6 { font-weight: 800; color: #065f46; margin: .3rem 0; }
+    .kz-done p  { font-size: .88rem; color: #475569; margin: 0 0 .9rem; }
+    .kz-again { border: 1.5px solid #10b981; color: #047857; background: #fff; border-radius: 12px; padding: .5rem 1.2rem; font-weight: 700; }
+    .kz-month { font-size: .8rem; font-weight: 800; color: #047857; margin: 1rem 0 .4rem; }
+    .kz-item { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: .7rem .85rem; margin-bottom: .5rem; }
+    .kz-item .meta { display: flex; justify-content: space-between; gap: .5rem; font-size: .72rem; color: #94a3b8; margin-bottom: .3rem; }
+    .kz-item .idea { font-size: .88rem; color: #1e293b; white-space: pre-wrap; word-break: break-word; }
+    .kz-empty { text-align: center; color: #94a3b8; font-size: .85rem; padding: 1.2rem 0; }
+</style>
+
+<div class="kz-page px-2 py-2">
+    @* Expat không có Hộp thư trên thanh điều hướng -> quay về Trang chủ *@
+    <a href="@(isEn ? Url.Action("Index", "Home") : Url.Action("Index", "EmployeeInquiry"))" class="kz-back"><span class="material-symbols-rounded" style="font-size:1.1rem;">arrow_back</span>@L("Quay lại Hộp thư", "Back to Home")</a>
+
+    <div class="kz-hero">
+        <div>
+            <h5>@L("Đăng ký Kaizen", "Kaizen registration")</h5>
+            <small>@L("Gửi ý tưởng cải tiến — bộ phận Lean sẽ liên lạc lại", "Share your improvement idea — the Lean team will contact you")</small>
+        </div>
+        <span class="material-symbols-rounded kz-hero-icon">tips_and_updates</span>
+    </div>
+
+    <div class="kz-card" id="kzFormCard">
+        <div class="kz-field">
+            <label for="kzPhone">@L("Số điện thoại / Zalo (để Lean liên lạc)", "Phone / Zalo (for the Lean team to contact you)") <span style="color:#dc2626">*</span></label>
+            <input type="tel" inputmode="tel" id="kzPhone" class="kz-input" maxlength="20" autocomplete="tel"
+                   placeholder="@L("VD: 0901234567", "e.g. 0901234567")" />
+        </div>
+        <div class="kz-field">
+            <label for="kzIdea">@L("Mô tả ý tưởng Kaizen", "Describe your Kaizen idea") <span style="color:#dc2626">*</span></label>
+            <textarea id="kzIdea" class="kz-textarea" maxlength="2000"
+                      placeholder="@L("Bạn muốn cải tiến điều gì? Hiện tại đang gặp vấn đề gì, đề xuất cách làm ra sao...", "What would you like to improve? What is the current problem and what do you suggest...")"></textarea>
+            <div class="kz-count"><span id="kzCount">0</span>/2000</div>
+        </div>
+        <div class="kz-error" id="kzError"></div>
+        <button type="button" class="kz-submit" id="kzSubmit" onclick="submitKaizen()">@L("Gửi đăng ký", "Submit")</button>
+    </div>
+
+    <div class="kz-card kz-done" id="kzDoneCard" style="display:none;">
+        <span class="material-symbols-rounded ico">check_circle</span>
+        <h6>@L("Đã đăng ký Kaizen", "Kaizen registered")</h6>
+        <p>@L("Bộ phận Lean sẽ liên lạc với bạn sau.", "The Lean team will contact you later.")</p>
+        <button type="button" class="kz-again" onclick="showForm()">@L("Đăng ký thêm ý tưởng", "Register another idea")</button>
+    </div>
+
+    <div class="kz-card kz-empty" id="kzNotReady" style="display:none;">@L("Chức năng Kaizen chưa được bật. Vui lòng liên hệ bộ phận Lean / HR.", "Kaizen is not enabled yet. Please contact the Lean / HR team.")</div>
+
+    <h6 style="font-weight:800;color:#334155;margin:1rem 0 .2rem;font-size:.9rem;">@L("Lịch sử đã nộp", "Your submissions")</h6>
+    <div id="kzHistory"><div class="kz-empty">@L("Đang tải...", "Loading...")</div></div>
+</div>
+
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+const KZ_TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+const KZ_TXT = {
+    needPhone: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(L("Vui lòng nhập số điện thoại / Zalo", "Please enter your phone / Zalo"))),
+    needIdea:  @Html.Raw(System.Text.Json.JsonSerializer.Serialize(L("Vui lòng mô tả ý tưởng (ít nhất 10 ký tự)", "Please describe your idea (at least 10 characters)"))),
+    netErr:    @Html.Raw(System.Text.Json.JsonSerializer.Serialize(L("Không kết nối được máy chủ, vui lòng thử lại", "Cannot reach the server, please try again"))),
+    monthLbl:  @Html.Raw(System.Text.Json.JsonSerializer.Serialize(L("Tháng", "Month"))),
+    none:      @Html.Raw(System.Text.Json.JsonSerializer.Serialize(L("Bạn chưa đăng ký ý tưởng nào", "You have not submitted any idea yet")))
+};
+
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+document.getElementById('kzIdea').addEventListener('input', function () {
+    document.getElementById('kzCount').textContent = this.value.length;
+});
+
+function showError(msg) { const e = document.getElementById('kzError'); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
+function showForm() {
+    document.getElementById('kzDoneCard').style.display = 'none';
+    document.getElementById('kzFormCard').style.display = 'block';
+    document.getElementById('kzIdea').value = '';
+    document.getElementById('kzCount').textContent = '0';
+    showError('');
+}
+
+async function submitKaizen() {
+    const phone = document.getElementById('kzPhone').value.trim();
+    const idea  = document.getElementById('kzIdea').value.trim();
+    showError('');
+    if (!phone) { showError(KZ_TXT.needPhone); return; }
+    if (idea.length < 10) { showError(KZ_TXT.needIdea); return; }
+
+    const btn = document.getElementById('kzSubmit');
+    btn.disabled = true;
+    try {
+        const res = await fetch('@Url.Action("Submit", "Kaizen")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': KZ_TOKEN },
+            body: JSON.stringify({ phone: phone, idea: idea })
+        });
+        const d = await res.json();
+        if (d.success) {
+            document.getElementById('kzFormCard').style.display = 'none';
+            document.getElementById('kzDoneCard').style.display = 'block';
+            loadHistory();
+        } else {
+            showError(d.message || KZ_TXT.netErr);
+        }
+    } catch (e) {
+        showError(KZ_TXT.netErr);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function fmtMonth(m) { const p = (m || '').split('-'); return p.length === 2 ? p[1] + '/' + p[0] : (m || ''); }
+function fmtDt(s) {
+    const d = new Date(s); if (isNaN(d)) return '';
+    const p = n => String(n).padStart(2, '0');
+    return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function loadHistory() {
+    fetch('@Url.Action("GetMy", "Kaizen")')
+        .then(r => r.json())
+        .then(d => {
+            const wrap = document.getElementById('kzHistory');
+            if (d.available === false) {
+                document.getElementById('kzFormCard').style.display = 'none';
+                document.getElementById('kzNotReady').style.display = 'block';
+                wrap.innerHTML = '';
+                return;
+            }
+            if (!d.success) { wrap.innerHTML = '<div class="kz-empty">' + esc(d.message || '') + '</div>'; return; }
+            const list = d.data || [];
+            if (!list.length) { wrap.innerHTML = '<div class="kz-empty">' + esc(KZ_TXT.none) + '</div>'; return; }
+            // Gom theo THÁNG nộp (danh sách đã sắp mới nhất trước)
+            let html = '', cur = null;
+            const counts = {};
+            list.forEach(x => counts[x.month] = (counts[x.month] || 0) + 1);
+            list.forEach(x => {
+                if (x.month !== cur) { cur = x.month; html += '<div class="kz-month">' + esc(KZ_TXT.monthLbl) + ' ' + esc(fmtMonth(x.month)) + ' (' + counts[x.month] + ')</div>'; }
+                html += '<div class="kz-item"><div class="meta"><span>' + esc(fmtDt(x.submitDt)) + '</span><span>' + esc(x.phone) + '</span></div>' +
+                        '<div class="idea">' + esc(x.idea) + '</div></div>';
+            });
+            wrap.innerHTML = html;
+        })
+        .catch(() => { document.getElementById('kzHistory').innerHTML = '<div class="kz-empty">' + esc(KZ_TXT.netErr) + '</div>'; });
+}
+loadHistory();
+</script>
+}

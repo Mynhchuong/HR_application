@@ -67,7 +67,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Máy chưa có internet, cần connect mạng hoặc wifi á."
+            android:text="Không kết nối được máy chủ. Vui lòng kiểm tra internet/wifi rồi thử lại.\nCannot connect. Please check your connection and try again."
             android:textSize="18sp"
             android:textStyle="bold"
             android:textAlignment="center"

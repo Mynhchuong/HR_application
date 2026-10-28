@@ -729,24 +729,19 @@
     }
 
     // ── Download image (mọi ảnh trong nội dung) ──
-    async function downloadImg(src, filename) {
-        try {
-            const res = await fetch(src, { credentials: 'same-origin' });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename || ('bulletin-' + BULLETIN_ID + '.jpg');
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-        } catch (e) {
-            // Fallback: điều hướng cùng tab tới ảnh để user long-press lưu — KHÔNG mở tab mới
-            // (ảnh này cần cookie đăng nhập, mở "cửa sổ mới" dễ rớt session trên WebView mobile).
-            window.location.href = src;
-        }
+    // Trước đây fetch() ảnh → convert blob → URL.createObjectURL() để ép tên file tải về — nhưng
+    // Safari/WKWebView hay lỗi "WebKitBlobResource error 1" âm thầm khi click tải blob: URL (giới hạn
+    // đã biết của WebKit với blob download, không bắt được bằng try/catch vì lỗi xảy ra ở tầng network
+    // nội bộ trình duyệt, không phải JS exception — báo lỗi thật 2026-10-28, Bulletin/Detail/23). Bỏ
+    // hẳn bước blob, dùng thẳng <a href download> trỏ URL gốc — để OS/WebView tự xử lý tải file (đã
+    // có sẵn WKDownloadDelegate/DownloadListener, không cần JS tự làm lại, đúng NATIVE_HELPER_RULES).
+    function downloadImg(src, filename) {
+        const a = document.createElement('a');
+        a.href = src;
+        a.download = filename || ('bulletin-' + BULLETIN_ID + '.jpg');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     }
 
     // Tự động chèn nút tải dưới mỗi ảnh trong nội dung

@@ -24,6 +24,10 @@ import android.content.DialogInterface;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
+import android.webkit.WebResourceResponse;
 import android.net.NetworkInfo;
 import android.view.View;
 import android.widget.Button;
@@ -71,7 +75,12 @@ public class MainActivity extends AppCompatActivity {
     private View layoutSplash;
     private Button btnRetry;
     private ProgressBar progressBar;
-    private String selectedBaseUrl = "http://sa1-hanaro.esamho.com/hr_Web"; // Mặc định là mạng nội bộ
+    private static final String INTERNAL_BASE_URL = "http://sa1-hanaro.esamho.com/hr_Web";
+    private static final String EXTERNAL_BASE_URL = "https://hr.esamho.com/hr_Web";
+    private String selectedBaseUrl = INTERNAL_BASE_URL; // Mặc định là mạng nội bộ; thật sự chọn bằng autoSelectNetworkAndStart()
+    private ConnectivityManager.NetworkCallback networkCallback;   // tự tải lại khi có mạng trở lại
+    private volatile boolean autoSelecting = false;                // chặn chạy chồng nhiều lần dò mạng
+    private boolean reloadOnRetry = true;                          // false sau lỗi HTTP (404/502/504): thử lại phải về trang chủ, không reload trang lỗi
     private ValueCallback<Uri[]> mFilePathCallback;
     private WebChromeClient.FileChooserParams mPendingChooserParams;
     private Uri mCameraPhotoUri;
@@ -123,6 +132,7 @@ public class MainActivity extends AppCompatActivity {
                 checkNetworkAndLoadUrl();
             }
         });
+        registerNetworkRecovery();
         
         // Cấu hình WebView
         WebSettings webSettings = webView.getSettings();
@@ -159,7 +169,23 @@ public class MainActivity extends AppCompatActivity {
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 super.onReceivedError(view, request, error);
                 if (request.isForMainFrame() && !isFinishing() && !isDestroyed()) {
+                    reloadOnRetry = true;
                     runOnUiThread(() -> showNoInternetLayout());
+                }
+            }
+
+            // Trang chính trả 404/502/504 (server/route lỗi) -> WebView chỉ hiện TRẮNG, không có lỗi mạng nên
+            // onReceivedError không bắn. Hiện màn thử lại thay vì để NV nhìn trang trắng. KHÔNG xử lý 503 (trang
+            // "Đang bảo trì" có nội dung riêng) và 500 (trang lỗi của app).
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
+                super.onReceivedHttpError(view, request, errorResponse);
+                if (request.isForMainFrame() && errorResponse != null && !isFinishing() && !isDestroyed()) {
+                    int sc = errorResponse.getStatusCode();
+                    if (sc == 404 || sc == 502 || sc == 504) {
+                        reloadOnRetry = false;
+                        runOnUiThread(() -> showNoInternetLayout());
+                    }
                 }
             }
 
@@ -279,7 +305,7 @@ public class MainActivity extends AppCompatActivity {
             layoutNoInternet.setVisibility(View.GONE);
             webView.setVisibility(View.VISIBLE);
         } else if (isNetworkAvailable()) {
-            showNetworkSelectionDialog();
+            autoSelectNetworkAndStart(false);
         } else {
             showNoInternetLayout();
         }
@@ -312,84 +338,80 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Nút "Thử lại" và tự động khi có mạng trở lại: dò lại mạng nội bộ/ngoài (đổi wifi công ty <-> 4G thì chọn lại
+    // đúng địa chỉ), rồi tải lại. Lỗi mạng giữa chừng thì reload đúng trang đang xem; lỗi HTTP thì về trang chủ.
     private void checkNetworkAndLoadUrl() {
         if (isNetworkAvailable()) {
-            layoutNoInternet.setVisibility(View.GONE);
-            webView.setVisibility(View.VISIBLE);
-            if (webView.getUrl() == null || webView.getUrl().startsWith("file://") || webView.getUrl().startsWith("data:")) {
-                webView.loadUrl(selectedBaseUrl);
-            } else {
-                webView.reload();
-            }
+            autoSelectNetworkAndStart(reloadOnRetry);
         } else {
             showNoInternetLayout();
         }
     }
 
-    private void showNetworkSelectionDialog() {
-        View dialogView = getLayoutInflater().inflate(R.layout.dialog_network_selection, null);
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setView(dialogView);
-        builder.setCancelable(false);
-
-        AlertDialog dialog = builder.create();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-        }
-
-        ImageView dialogImage = dialogView.findViewById(R.id.dialogImage);
-        Button btnInternal = dialogView.findViewById(R.id.btnInternal);
-        Button btnExternal = dialogView.findViewById(R.id.btnExternal);
-
-        // Hiển thị hình ngẫu nhiên (downsample để tránh OOM/canvas crash)
-        int[] images = {R.drawable.a_hoi, R.drawable.chi};
-        int randomImageId = images[new Random().nextInt(images.length)];
-        Bitmap scaled = loadScaledBitmap(randomImageId, 800, 800);
-        if (scaled != null) {
-            dialogImage.setImageBitmap(scaled);
-        } else {
-            dialogImage.setImageResource(randomImageId);
-        }
-
-        btnInternal.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                btnInternal.setEnabled(false);
-                btnExternal.setEnabled(false);
-                btnInternal.setText("Đang kiểm tra... / Checking...");
-                new Thread(() -> {
-                    boolean ok = checkInternalNetwork();
-                    runOnUiThread(() -> {
-                        if (ok) {
-                            selectedBaseUrl = "http://sa1-hanaro.esamho.com/hr_Web";
-                            startApp();
-                            dialog.dismiss();
-                        } else {
-                            btnInternal.setEnabled(true);
-                            btnExternal.setEnabled(true);
-                            btnInternal.setText("Mạng nội bộ Samho / Company Network");
-                            new AlertDialog.Builder(MainActivity.this)
-                                .setTitle("Không kết nối được mạng nội bộ / Cannot reach company network")
-                                .setMessage("Vui lòng kết nối vào một trong hai mạng WiFi của công ty:\n\n• Juniper_Secured\n• Pluto_Secured\n\n" +
-                                        "Please connect to one of the company Wi-Fi networks:\n\n• Juniper_Secured\n• Pluto_Secured")
-                                .setPositiveButton("OK", null)
-                                .show();
-                        }
-                    });
-                }).start();
+    // Thay cho hộp thoại bắt NV chọn "Mạng nội bộ / Mạng ngoài" mỗi lần mở app: tự dò. Đang dùng 4G/5G thì chắc chắn là
+    // mạng ngoài (khỏi chờ); đang wifi/mạng khác thì thử chạm địa chỉ nội bộ (tối đa 3 giây), được thì dùng nội bộ,
+    // không thì dùng mạng ngoài. KHÔNG ghi nhớ lâu dài vì NV hay đổi qua lại giữa wifi công ty và mạng nhà.
+    private void autoSelectNetworkAndStart(final boolean keepPageIfSame) {
+        if (autoSelecting) return;
+        autoSelecting = true;
+        new Thread(() -> {
+            boolean internal;
+            try {
+                internal = !isOnMobileData() && checkInternalNetwork();
+            } catch (Exception e) {
+                internal = false;
             }
-        });
+            final String base = internal ? INTERNAL_BASE_URL : EXTERNAL_BASE_URL;
+            runOnUiThread(() -> {
+                autoSelecting = false;
+                if (isFinishing() || isDestroyed() || webView == null) return;
+                boolean changed = !base.equals(selectedBaseUrl);
+                selectedBaseUrl = base;
+                layoutNoInternet.setVisibility(View.GONE);
+                webView.setVisibility(View.VISIBLE);
+                String cur = webView.getUrl();
+                boolean hasPage = cur != null && cur.startsWith("http");
+                if (keepPageIfSame && !changed && hasPage) {
+                    webView.reload();
+                } else {
+                    webView.loadUrl(selectedBaseUrl);
+                }
+            });
+        }).start();
+    }
 
-        btnExternal.setOnClickListener(new View.OnClickListener() {
+    private boolean isOnMobileData() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return false;
+        Network n = cm.getActiveNetwork();
+        if (n == null) return false;
+        NetworkCapabilities caps = cm.getNetworkCapabilities(n);
+        return caps != null
+                && caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                && !caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                && !caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
+    }
+
+    // Có mạng trở lại lúc đang hiện màn "không kết nối" -> tự tải lại, không bắt NV bấm "Thử lại".
+    private void registerNetworkRecovery() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return;
+        networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
-            public void onClick(View v) {
-                selectedBaseUrl = "https://hr.esamho.com/hr_Web";
-                startApp();
-                dialog.dismiss();
+            public void onAvailable(Network network) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed() || layoutNoInternet == null) return;
+                    if (layoutNoInternet.getVisibility() == View.VISIBLE) checkNetworkAndLoadUrl();
+                });
             }
-        });
-
-        dialog.show();
+        };
+        try {
+            cm.registerNetworkCallback(
+                    new NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(),
+                    networkCallback);
+        } catch (Exception e) {
+            networkCallback = null;   // không đăng ký được thì vẫn còn nút "Thử lại" thủ công
+        }
     }
 
     private boolean checkInternalNetwork() {
@@ -659,6 +681,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         if (activeInstance == this) activeInstance = null;
+        if (networkCallback != null) {
+            try {
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm != null) cm.unregisterNetworkCallback(networkCallback);
+            } catch (Exception ignored) { }
+            networkCallback = null;
+        }
         if (webView != null) {
             webView.stopLoading();
             webView.setWebViewClient(null);

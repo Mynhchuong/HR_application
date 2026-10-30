@@ -75,8 +75,12 @@ public class MainActivity extends AppCompatActivity {
     private View layoutSplash;
     private Button btnRetry;
     private ProgressBar progressBar;
+    // 2 domain khác nhau, path case KHÁC NHAU (xác nhận thật 2026-10-30) — sa1-hanaro (wifi nội bộ
+    // công ty) dùng "hr_Web" (h thường, W hoa); hr.esamho.com (4G/wifi ngoài) dùng "HR_Web" (hoa hết).
+    // Apache phía server phân biệt hoa/thường, sai case là "Forbidden" ngay — ĐỪNG tự ý đồng bộ 2 cái
+    // này về cùng 1 kiểu case, chúng CỐ Ý khác nhau.
     private static final String INTERNAL_BASE_URL = "http://sa1-hanaro.esamho.com/hr_Web";
-    private static final String EXTERNAL_BASE_URL = "https://hr.esamho.com/hr_Web";
+    private static final String EXTERNAL_BASE_URL = "https://hr.esamho.com/HR_Web";
     private String selectedBaseUrl = INTERNAL_BASE_URL; // Mặc định là mạng nội bộ; thật sự chọn bằng autoSelectNetworkAndStart()
     private ConnectivityManager.NetworkCallback networkCallback;   // tự tải lại khi có mạng trở lại
     private volatile boolean autoSelecting = false;                // chặn chạy chồng nhiều lần dò mạng
@@ -140,6 +144,11 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setDomStorageEnabled(true);
         webSettings.setMediaPlaybackRequiresUserGesture(false);
         webSettings.setAllowFileAccess(true);
+        // 2026-10-30: đã thử đổi sang "giữ UA gốc + nối hậu tố" (nghi ngờ UA thay hẳn bị 1 WAF chặn),
+        // nhưng test thật cho kết quả NGƯỢC LẠI — bản 10.1/10.2 (UA thay hẳn, như dòng dưới) chạy ổn
+        // định trên wifi ngoài, còn bản UA-nối-thêm mới bị "Forbidden" trên đúng wifi đó. Hoàn tác về
+        // UA gốc đã xác nhận ổn định — KHÔNG đổi lại thành nối thêm nữa trừ khi có bằng chứng mới rõ
+        // ràng hơn (xem lịch sử chat 2026-10-30 nếu cần tra lại).
         webSettings.setUserAgentString("MySamhoMobile/Android");
         webSettings.setTextZoom(100);
         webSettings.setUseWideViewPort(true);
@@ -416,14 +425,20 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean checkInternalNetwork() {
         try {
-            java.net.URL url = new java.net.URL("http://sa1-hanaro.esamho.com/hr_Web");
+            java.net.URL url = new java.net.URL(INTERNAL_BASE_URL);
             java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
             conn.setConnectTimeout(3000);
             conn.setReadTimeout(3000);
             conn.setRequestMethod("HEAD");
             int code = conn.getResponseCode();
             conn.disconnect();
-            return code < 500;
+            // TRƯỚC ĐÂY "code < 500" coi cả 403/404 là "đang ở mạng nội bộ" — nếu sa1-hanaro.esamho.com
+            // vẫn with tới được từ bên ngoài (chỉ bị server từ chối 403) thì app chọn NHẦM sang mạng
+            // nội bộ, tải trang đó từ ngoài công ty -> bị chính server từ chối -> hiện "Forbidden" (bug
+            // thật 2026-10-30: wifi cá nhân đôi khi dính, 4G luôn OK vì bỏ qua hẳn bước check này; tùy
+            // wifi with tới sa1-hanaro hay không mà lúc dính lúc không). Chỉ coi là nội bộ thật khi
+            // server trả lời THÀNH CÔNG (2xx) — 403/404/301... đều KHÔNG tính.
+            return code >= 200 && code < 300;
         } catch (Exception e) {
             return false;
         }
@@ -785,15 +800,24 @@ public class MainActivity extends AppCompatActivity {
                             .getPackageInfo(getPackageName(), 0).versionName;
                 } catch (PackageManager.NameNotFoundException e) { currentVersion = "0.0"; }
 
-                // /hr_Web → /HR_api/apiHR
-                String apiBase = selectedBaseUrl.replace("/hr_Web", "/HR_api/apiHR");
+                // selectedBaseUrl có thể là "/hr_Web" (nội bộ) hoặc "/HR_Web" (ngoài) — 2 case khác
+                // nhau tuỳ domain (xác nhận thật 2026-10-30), .replace() thường phân biệt hoa/thường
+                // nên phải thay bằng regex (?i) mới khớp được cả 2, không được hardcode đúng 1 case.
+                String apiBase = selectedBaseUrl.replaceFirst("(?i)/hr_web", "/HR_api/apiHR");
                 String urlStr  = apiBase + "/AppVersion/check?platform=android&version=" + currentVersion;
 
                 HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("X-Api-Key", "ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9");
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
+                // Gọi thẳng bằng HttpURLConnection (không qua WebView) nên KHÔNG tự mang UA đã sửa ở
+                // onCreate() — vẫn là UA mặc định Java/Dalvik, nghi bị chặn/treo bởi cùng WAF rule đã
+                // phát hiện 2026-10-30 (bên iOS log thật AppVersion/check timeout -1001 lúc khởi động).
+                // Gắn UA dạng trình duyệt + hậu tố riêng, đồng bộ WebView. Tăng timeout 5s->10s vì
+                // request này chạy ngay lúc app khởi động, máy còn đang tải nặng các tiến trình khác.
+                conn.setRequestProperty("User-Agent",
+                        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36 MySamhoMobile/Android");
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(10000);
 
                 StringBuilder sb = new StringBuilder();
                 try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {

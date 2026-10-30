@@ -809,17 +809,29 @@ public class AccountController : ControllerBase
                        A.JUMINNO, A.JUMINNO_DATE, A.IGENTDAT,
                        A.ADDRESS_ETC, C.CODE_NAME1_N, C.CODE_NAME3_N,
                        A.INTEREST AS HARDWORK_STT, E.TEN AS HARDWORK_TEN,
-                       FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(
-                           CASE WHEN TO_NUMBER(SUBSTR(A.EMPCD,1,2)) > TO_NUMBER(TO_CHAR(SYSDATE,'YY'))
-                                THEN '19' ELSE '20' END || SUBSTR(A.EMPCD,1,4) || '01', 'YYYYMMDD'
-                       )) / 12) || ' năm ' ||
-                       MOD(FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(
-                           CASE WHEN TO_NUMBER(SUBSTR(A.EMPCD,1,2)) > TO_NUMBER(TO_CHAR(SYSDATE,'YY'))
-                                THEN '19' ELSE '20' END || SUBSTR(A.EMPCD,1,4) || '01', 'YYYYMMDD'
-                       ))), 12) || ' tháng' AS SENIORITY_DESC
+                       -- TRƯỚC ĐÂY suy ngày vào làm từ 4 ký tự đầu EMPCD (vd 9804 ra 1998-04-01) — sai
+                       -- ngày chính xác dù đúng năm/tháng (báo lỗi thật 2026-10-30). Thử A.IN_DATE
+                       -- trước nhưng SAI hẳn (NV 98040014: IN_DATE ra 2008-07-01, user xác nhận ngày
+                       -- vào làm thật là 3/4/1998). Dùng đúng A.IGENTDAT (VARCHAR2 dạng YYYYMMDD,
+                       -- NV 98040014 = 19980403 = 3/4/1998, khớp user xác nhận) — cột này đã có sẵn
+                       -- trong SELECT nên không cần sửa gì ở câu JOIN.
+                       FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(A.IGENTDAT, 'YYYYMMDD')) / 12) || ' năm ' ||
+                       MOD(FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(A.IGENTDAT, 'YYYYMMDD'))), 12) || ' tháng' AS SENIORITY_DESC
                 FROM HRMS.ECM100 A
                 JOIN HRMS.EAM410 B ON A.DEPTCD = B.DEPTCD AND A.LINECD = B.LINECD AND A.WORKCD = B.WORKCD AND B.USEYN = 'Y'
-                LEFT JOIN HRMS.EAM510 C ON A.BONADDR3 = C.CODE1 AND A.BONADDR1 = C.CODE3
+                -- TRƯỚC ĐÂY join theo CODE1/CODE3 (mã ĐỊA GIỚI CŨ) — nhưng ECM100.BONADDR1/BONADDR3
+                -- (mục Home Add New trên ERP) đang lưu mã MỚI (sau sáp nhập tỉnh/xã 2025), nên không
+                -- khớp được dòng nào, tên tỉnh/xã ra NULL, Địa chỉ trên app chỉ còn phần chi tiết (báo
+                -- lỗi thật 2026-10-30, NV 24073106: ERP ra 91 Tỉnh An Giang, 30538 Xã Núi Cấm, Tổ 8,
+                -- Ấp An Hòa, nhưng app chỉ hiện Tổ 8, Ấp An Hòa). Join đúng theo CODE1_N/CODE3_N.
+                -- Nhiều mã CŨ có thể gộp chung về 1 mã MỚI (nhiều dòng cùng CODE1_N+CODE3_N) nên phải
+                -- dedup bằng ROW_NUMBER, không join thẳng kẻo nhân dòng kết quả.
+                LEFT JOIN (
+                    SELECT CODE1_N, CODE3_N, CODE_NAME1_N, CODE_NAME3_N,
+                           ROW_NUMBER() OVER (PARTITION BY CODE1_N, CODE3_N ORDER BY CODE3) RN
+                    FROM HRMS.EAM510
+                    WHERE CODE1_N IS NOT NULL AND CODE3_N IS NOT NULL
+                ) C ON A.BONADDR3 = C.CODE1_N AND A.BONADDR1 = C.CODE3_N AND C.RN = 1
                 LEFT JOIN (
                     -- Bảng danh mục: mỗi mã STT (= ECM100.INTEREST, VD Y80) có 1 dòng gốc chứa TEN
                     -- (tên công việc nặng nhọc, VD QUÉT KEO) -> join theo STT, KHÔNG theo EMPCD.

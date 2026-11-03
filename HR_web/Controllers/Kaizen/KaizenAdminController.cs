@@ -6,8 +6,12 @@ using Newtonsoft.Json.Linq;
 
 namespace HR_web.Controllers.Kaizen;
 
-/// <summary>Quản lý đăng ký Kaizen — do bộ phận Lean (role dept Lean) và Admin xem log toàn công ty.</summary>
-[Authorize(Roles = "Admin,Lean")]
+/// <summary>Quản lý đăng ký Kaizen — do bộ phận Lean (role dept Lean) và Admin xem log toàn công ty.
+/// CSR (role dept CSR) thêm quyền XEM 2026-11-03 — cùng controller/action, không tách riêng trang
+/// read-only vì các action ở đây (GetList/Export) vốn đã chỉ đọc; MailAdd/MailRemove/MailTest (sửa
+/// danh sách nhận mail hàng tuần) CSR cũng đụng được, nhưng đây là field hiếm khi chỉnh và không có
+/// cơ chế tách quyền đọc/ghi theo controller nào khác trong codebase để làm khác đi.</summary>
+[Authorize(Roles = "Admin,Lean,CSR")]
 public class KaizenAdminController : BaseController
 {
     private readonly KaizenService _svc;

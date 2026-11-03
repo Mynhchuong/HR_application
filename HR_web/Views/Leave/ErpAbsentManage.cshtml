@@ -30,6 +30,9 @@
                     <button type="button" id="exportBtn" class="btn btn-sm mb-0" style="background:#fff;color:#344767;font-weight:600;height:34px;">
                         <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel
                     </button>
+                    <button type="button" id="checkMissingBtn" class="btn btn-sm mb-0" style="background:#fff;color:#b45309;font-weight:600;height:34px;" title="Tìm đơn Đã duyệt trên MySamho nhưng chưa có dòng ERP tương ứng">
+                        <i class="bi bi-search me-1"></i> Kiểm tra thiếu ERP
+                    </button>
                     <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
                         <i class="bi bi-calendar3 text-success"></i>
                         <input type="date" id="filterDateFrom" class="form-control form-control-sm border-0 bg-transparent text-dark p-0" style="width:115px;" value="@dateFrom" onchange="loadData(1)" />
@@ -126,6 +129,43 @@
             </div>
         </div>
 
+        <!-- Panel "thiếu ERP" — ẩn mặc định, bấm nút "Kiểm tra thiếu ERP" mới gọi + hiện (2026-11-02,
+             phát hiện bug thật: đơn Đã duyệt trên MySamho nhưng SP_015_NEW không ghi được vào EFM410,
+             erp-absent-list cũ đọc TỪ EFM410 làm gốc nên không bao giờ thấy được case này). -->
+        <div id="missingErpPanel" class="mx-3 mb-3" style="display:none;border:1px solid #fde68a;background:#fffbeb;border-radius:12px;">
+            <div class="d-flex justify-content-between align-items-center px-3 py-2" style="border-bottom:1px solid #fde68a;">
+                <div class="text-sm fw-bold text-warning-emphasis">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    Đơn Đã duyệt/Sắp lịch nhưng chưa có ERP — <span id="missingErpCount">0</span> dòng (theo đúng khoảng ngày đang lọc)
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" id="syncSelectedMissingBtn" class="btn btn-sm mb-0" style="background:#16a34a;color:#fff;font-weight:600;height:32px;" disabled>
+                        <i class="bi bi-cloud-upload me-1"></i> Đồng bộ đã chọn
+                    </button>
+                    <button type="button" id="syncAllMissingBtn" class="btn btn-sm mb-0" style="background:#b45309;color:#fff;font-weight:600;height:32px;">
+                        <i class="bi bi-cloud-upload-fill me-1"></i> Đồng bộ tất cả
+                    </button>
+                    <button type="button" class="btn btn-sm mb-0" style="background:#fff;color:#64748b;height:32px;" onclick="$('#missingErpPanel').slideUp(150)">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="table-responsive px-3" style="max-height:280px;overflow-y:auto;">
+                <table class="table table-sm align-items-center mb-0">
+                    <thead>
+                        <tr>
+                            <th class="text-center" style="width:36px;"><input type="checkbox" id="selectAllMissingChk"></th>
+                            <th class="text-xs text-secondary">Mã NV</th>
+                            <th class="text-xs text-secondary">Ngày</th>
+                            <th class="text-xs text-secondary">Loại nghỉ</th>
+                            <th class="text-xs text-secondary">Người duyệt</th>
+                        </tr>
+                    </thead>
+                    <tbody id="missingErpTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="card-body px-0 pb-2">
             <div class="table-responsive px-3">
                 <table class="table table-sm align-items-center mb-0">
@@ -160,6 +200,9 @@
 const PAGE_URL       = '@Url.Action("GetErpAbsentList", "Leave")';
 const CODE_LIST_URL  = '@Url.Action("GetAbsentCodeList", "Leave")';
 const UPDATE_URL     = '@Url.Action("ErpAbsentUpdate", "Leave")';
+const MISSING_LIST_URL   = '@Url.Action("GetErpMissingList", "Leave")';
+const MISSING_INSERT_URL = '@Url.Action("InsertErpMissing", "Leave")';
+let MISSING_ROWS = []; // dòng thiếu ERP đang hiện trong panel
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 let ABSENT_CODES = []; // [{Code, Name, Pay}]
@@ -419,6 +462,86 @@ $('#exportBtn').on('click', async function () {
     } catch (err) { showToast('Lỗi xuất file: ' + err.message, 'error'); }
     finally { $btn.prop('disabled', false).html(orig); }
 });
+
+// ───────────── Panel "thiếu ERP" (2026-11-02) ─────────────
+function missingRowHtml(m, idx) {
+    return `<tr data-idx="${idx}">
+        <td class="text-center"><input type="checkbox" class="missing-erp-chk" checked onchange="updateSyncSelectedState()"></td>
+        <td class="text-xs">${escHtml(m.Empcd)}${m.EmpName ? `<div class="text-xxs vni-font text-secondary">${escHtml(m.EmpName)}</div>` : ''}</td>
+        <td class="text-sm text-nowrap">${formatDate(m.Day)}</td>
+        <td class="text-xs">${escHtml(MS_LEAVE_LABEL[m.LeaveType] || m.LeaveType)} <span class="text-xxs text-secondary">(${escHtml(m.ErpCd)})</span></td>
+        <td class="text-xs">${escHtml(m.Approver || '-')}</td>
+    </tr>`;
+}
+
+function updateSyncSelectedState() {
+    const n = $('#missingErpTableBody .missing-erp-chk:checked').length;
+    $('#syncSelectedMissingBtn').prop('disabled', n === 0).html(`<i class="bi bi-cloud-upload me-1"></i> Đồng bộ đã chọn${n ? ' (' + n + ')' : ''}`);
+}
+
+async function checkMissingErp() {
+    const dateFrom = $('#filterDateFrom').val(), dateTo = $('#filterDateTo').val();
+    if (!dateFrom || !dateTo) return;
+    const $btn = $('#checkMissingBtn').prop('disabled', true);
+    const oldHtml = $btn.html();
+    $btn.html('<span class="spinner-border spinner-border-sm me-1"></span> Đang kiểm tra...');
+    try {
+        const empcd = ($('#searchEmpcd').val() || '').trim();
+        const res = await $.get(MISSING_LIST_URL, { date_from: dateFrom, date_to: dateTo, empcd });
+        if (!res.success) { showToast('Lỗi: ' + (res.message || ''), 'error'); return; }
+        MISSING_ROWS = res.data || [];
+        $('#missingErpCount').text(MISSING_ROWS.length);
+        $('#missingErpTableBody').html(
+            MISSING_ROWS.length
+                ? MISSING_ROWS.map((m, i) => missingRowHtml(m, i)).join('')
+                : `<tr><td colspan="5" class="text-center text-secondary py-3">Không có dòng nào bị thiếu trong khoảng ngày này 🎉</td></tr>`
+        );
+        $('#selectAllMissingChk').prop('checked', true);
+        updateSyncSelectedState();
+        $('#missingErpPanel').slideDown(150);
+    } catch (e) {
+        showToast('Lỗi kết nối khi kiểm tra', 'error');
+    } finally {
+        $btn.prop('disabled', false).html(oldHtml);
+    }
+}
+$('#checkMissingBtn').on('click', checkMissingErp);
+
+$('#selectAllMissingChk').on('change', function () {
+    $('#missingErpTableBody .missing-erp-chk').prop('checked', this.checked);
+    updateSyncSelectedState();
+});
+
+async function syncMissingErp(selectedOnly) {
+    if (!MISSING_ROWS.length) return;
+    let rows = null;
+    if (selectedOnly) {
+        const idxs = [];
+        $('#missingErpTableBody tr').each(function () {
+            if ($(this).find('.missing-erp-chk').is(':checked')) idxs.push(parseInt($(this).data('idx')));
+        });
+        if (!idxs.length) return;
+        rows = idxs.map(i => ({ Empcd: MISSING_ROWS[i].Empcd, RequestId: MISSING_ROWS[i].RequestId, Day: MISSING_ROWS[i].Day }));
+    }
+    const $btns = $('#syncSelectedMissingBtn, #syncAllMissingBtn').prop('disabled', true);
+    const oldHtmls = $btns.map((_, b) => $(b).html()).get();
+    $btns.html('<span class="spinner-border spinner-border-sm me-1"></span> Đang đồng bộ...');
+    try {
+        const res = await $.ajax({
+            url: MISSING_INSERT_URL, type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ DateFrom: $('#filterDateFrom').val(), DateTo: $('#filterDateTo').val(), Rows: rows })
+        });
+        showToast(res.message || (res.success ? 'Đã đồng bộ' : 'Có lỗi xảy ra'), res.success ? 'success' : 'warning');
+        await checkMissingErp(); // load lại panel — dòng đã bù xong sẽ tự biến mất khỏi danh sách
+        loadData(currentPage);   // bảng chính cũng load lại để thấy dòng ERP mới
+    } catch (e) {
+        showToast('Lỗi kết nối khi đồng bộ', 'error');
+    } finally {
+        $btns.each((i, b) => $(b).prop('disabled', false).html(oldHtmls[i]));
+    }
+}
+$('#syncSelectedMissingBtn').on('click', () => syncMissingErp(true));
+$('#syncAllMissingBtn').on('click', () => syncMissingErp(false));
 
 $(async function () {
     if (typeof Select2Helper !== 'undefined') Select2Helper.init();

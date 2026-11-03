@@ -4,8 +4,10 @@
     var dateTo   = (string)(ViewBag.DateTo   ?? DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"));
     // Dữ liệu ADD_TIME hôm nay chưa chốt (bên chấm công tự thêm vân tay tạm để kịp báo cáo 10h,
     // sáng hôm sau mới đồng bộ lại vân tay thật) — chặn chọn hôm nay/tương lai, backend cũng tự
-    // ép trần này (yêu cầu HR 2026-09-22).
-    var maxDate  = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd");
+    // ép trần này (yêu cầu HR 2026-09-22). Đúng mùng 1 thì trần là hôm nay (controller tự tính,
+    // xem GetDefaultAttendanceConfirmRange) — không hardcode "hôm qua" cố định nữa, tránh lại lật
+    // ngược From>To như bug cũ.
+    var maxDate  = (string)(ViewBag.MaxDate ?? DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"));
 }
 
 @section Styles {

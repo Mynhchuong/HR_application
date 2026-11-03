@@ -20,6 +20,15 @@ builder.Services.AddControllersWithViews(options =>
     options.SerializerSettings.ContractResolver = new Newtonsoft.Json.Serialization.DefaultContractResolver();
 });
 
+// Các trang AJAX gửi JSON (vd Survey admin wizard) đính token qua header "RequestVerificationToken"
+// thay vì form field — mặc định [ValidateAntiForgeryToken] chỉ tìm token trong Request.Form, không
+// biết nhìn header nào nên luôn 400 trước khi action chạy (xác nhận thật qua SurveyAdmin/Save
+// 2026-11-02). Khai báo đúng tên header JS đang dùng để server đọc được.
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "RequestVerificationToken";
+});
+
 builder.Services.AddMemoryCache();
     
 // Persist keys to filesystem to prevent logout on app restart/idle

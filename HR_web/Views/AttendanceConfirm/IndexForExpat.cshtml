@@ -5,7 +5,7 @@
     // Today's ADD_TIME data isn't finalized yet (timekeeping team adds a temporary fingerprint for
     // late-arrivals/forgotten swipes to close the 10am report, then re-syncs the real data the next
     // morning) — block picking today/future here, backend also enforces the same cap.
-    var maxDate  = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd");
+    var maxDate  = (string)(ViewBag.MaxDate ?? DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"));
 }
 
 @section Styles {

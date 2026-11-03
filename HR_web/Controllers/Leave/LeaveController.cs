@@ -668,6 +668,25 @@ public class LeaveController : BaseController
         return Content(raw, "application/json");
     }
 
+    // Phát hiện đơn Đã duyệt/Sắp lịch trên MySamho nhưng chưa có dòng ERP (bug thật 2026-11-02) +
+    // nút tự bù ngay trên trang ErpAbsentManage — cùng quyền với sửa Absent Code (HR/Admin).
+    [HttpGet]
+    public async Task<IActionResult> GetErpMissingList(string date_from, string date_to, string? empcd = null)
+    {
+        if (!CurrentUser.HasAnyRole(ErpAbsentRoles)) return Json(new { success = false, message = "Không có quyền" });
+        var raw = await _leaveService.GetErpMissingListRawAsync(date_from, date_to, empcd);
+        return Content(raw, "application/json");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> InsertErpMissing([FromBody] ErpMissingInsertBody body)
+    {
+        if (!CurrentUser.HasAnyRole(ErpAbsentRoles)) return Json(new { success = false, message = "Không có quyền" });
+        var payload = new { DATE_FROM = body.DateFrom, DATE_TO = body.DateTo, ACTOR_EMPCD = CurrentUser?.EmpCd ?? "", ROWS = body.Rows };
+        var raw = await _leaveService.InsertErpMissingRawAsync(payload);
+        return Content(raw, "application/json");
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAdminConfirmedGp(
         string? dept_id = null, string? line_id = null, string? work_id = null,

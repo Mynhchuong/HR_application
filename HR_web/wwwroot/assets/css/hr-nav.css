@@ -70,6 +70,10 @@ body.hr-menu-hidden .main-content {
         transform: translateX(-100%) !important;
         visibility: hidden;
         pointer-events: none;
+        /* Trước đây cố định 250px — trên màn ~380-430px dư quá nhiều khoảng tối bên phải, chữ
+           tên chức năng dài bị xuống dòng không cần thiết (phản hồi 2026-11-02: "dọn cho đẹp
+           hơn"). Rộng hơn theo % màn hình, chừa đủ chỗ chạm để đóng bằng backdrop. */
+        width: min(84vw, 340px) !important;
     }
     .main-content {
         margin-left: 0 !important;
@@ -103,6 +107,28 @@ body.hr-menu-hidden .main-content {
         border-radius: 8px;
         background: transparent;
         color: var(--header-subtle);
+    }
+
+    /* Mỗi dòng mục menu đang khá cao (padding rộng vốn để tối ưu vùng chạm desktop) — thu gọn lại
+       trên mobile để đỡ phải cuộn nhiều khi 1 nhóm (vd "Trang chủ") có 7-8 mục (phản hồi 2026-11-02).
+       Vẫn giữ >= 40px chiều cao để không hụt vùng chạm. */
+    .menu-child-item .nav-link {
+        padding: 0.55rem 0.75rem !important;
+        margin: 0.15rem 0.5rem;
+    }
+    .menu-child-icon {
+        width: 26px;
+        height: 26px;
+        margin-right: 0.5rem;
+    }
+    .menu-child-icon .material-symbols-rounded {
+        font-size: 0.95rem;
+    }
+    .menu-child-item .nav-link-text {
+        font-size: 0.85rem;
+    }
+    .nav-link {
+        margin: 0.25rem 0.6rem;
     }
 }
 

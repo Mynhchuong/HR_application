@@ -11,8 +11,8 @@ android {
         applicationId = "com.samho.mysamho"
         minSdk = 24
         targetSdk = 36
-        versionCode = 15
-        versionName = "10.5"
+        versionCode = 17
+        versionName = "10.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -44,6 +44,7 @@ dependencies {
     implementation(libs.play.services.code.scanner) // Quét mã vạch tem máy (TPM) bằng Google Code Scanner
     implementation(libs.biometric)        // Đăng nhập lại bằng vân tay/Face Unlock
     implementation(libs.security.crypto)  // EncryptedSharedPreferences — lưu mã NV/mật khẩu an toàn
+    implementation(libs.exifinterface)    // Đọc EXIF orientation khi re-encode ảnh chụp camera sang JPEG thật
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)

@@ -9,6 +9,7 @@
   <ItemGroup>
     <!-- Authentication -->
     <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="15.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
 
     <!-- JSON -->

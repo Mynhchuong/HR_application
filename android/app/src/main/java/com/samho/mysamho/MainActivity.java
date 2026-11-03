@@ -46,6 +46,8 @@ import android.webkit.URLUtil;
 import android.webkit.CookieManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import androidx.exifinterface.media.ExifInterface;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
@@ -64,6 +66,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import org.json.JSONObject;
@@ -88,6 +91,7 @@ public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> mFilePathCallback;
     private WebChromeClient.FileChooserParams mPendingChooserParams;
     private Uri mCameraPhotoUri;
+    private boolean mCameraCaptureIsPhoto;
     private static final int FILE_CHOOSER_RESULT_CODE = 100;
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 101;
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 102;
@@ -429,15 +433,21 @@ public class MainActivity extends AppCompatActivity {
             java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
             conn.setConnectTimeout(3000);
             conn.setReadTimeout(3000);
-            conn.setRequestMethod("HEAD");
+            // TRƯỚC ĐÂY dùng HEAD — server IIS này CHẶN HẲN method HEAD cho route /hr_Web (trả về 405
+            // Method Not Allowed, xác nhận thật qua curl 2026-10-30: "Allow: GET, POST"). Cùng lúc với
+            // fix "code < 500" -> "chỉ nhận 2xx" (sửa trước đó trong ngày), 405 bị coi là thất bại ->
+            // app tưởng KHÔNG ở mạng nội bộ dù đang đứng đúng wifi công ty, chuyển nhầm sang link ngoài
+            // hr.esamho.com -> domain đó không phải lúc nào cũng phân giải được trên wifi nội bộ -> ra
+            // "Không kết nối được máy chủ" (bug thật 2026-10-30, tự gây ra bởi lần sửa HEAD->chỉ nhận
+            // 2xx trước đó, chưa biết server chặn HEAD). Đổi sang GET — xác nhận GET trả 200 OK bình
+            // thường qua curl.
+            conn.setRequestMethod("GET");
             int code = conn.getResponseCode();
             conn.disconnect();
             // TRƯỚC ĐÂY "code < 500" coi cả 403/404 là "đang ở mạng nội bộ" — nếu sa1-hanaro.esamho.com
             // vẫn with tới được từ bên ngoài (chỉ bị server từ chối 403) thì app chọn NHẦM sang mạng
-            // nội bộ, tải trang đó từ ngoài công ty -> bị chính server từ chối -> hiện "Forbidden" (bug
-            // thật 2026-10-30: wifi cá nhân đôi khi dính, 4G luôn OK vì bỏ qua hẳn bước check này; tùy
-            // wifi with tới sa1-hanaro hay không mà lúc dính lúc không). Chỉ coi là nội bộ thật khi
-            // server trả lời THÀNH CÔNG (2xx) — 403/404/301... đều KHÔNG tính.
+            // nội bộ, tải trang đó từ ngoài công ty -> bị chính server từ chối -> hiện "Forbidden". Chỉ
+            // coi là nội bộ thật khi server trả lời THÀNH CÔNG (2xx) — 403/404/301... đều KHÔNG tính.
             return code >= 200 && code < 300;
         } catch (Exception e) {
             return false;
@@ -630,9 +640,55 @@ public class MainActivity extends AppCompatActivity {
             // quyền đọc tường minh cho chính app mình để WebView đọc lại được bình thường.
             grantUriPermission(getPackageName(), mCameraPhotoUri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            mCameraCaptureIsPhoto = true;
             startActivityForResult(takePictureIntent, FILE_CHOOSER_RESULT_CODE);
         } else {
             cancelFileChooser();
+        }
+    }
+
+    // Nhiều máy Samsung bật sẵn "Ảnh hiệu suất cao (HEIF)" trong Cài đặt Camera -> ACTION_IMAGE_CAPTURE
+    // vẫn ghi file HEIC thật vào đúng Uri .jpg mình chỉ định qua EXTRA_OUTPUT (máy phớt lờ đuôi file),
+    // server (ImageSharp) không đọc được HEIC -> lỗi "Image cannot be loaded" khi NV cập nhật chữ ký
+    // (xác nhận thật 2026-11-02). Android OS tự giải mã được cả JPEG lẫn HEIC qua BitmapFactory (dùng
+    // chung codec hệ thống với app Camera), nên decode lại rồi ép ghi đè thành JPEG thật trước khi đưa
+    // cho WebView upload — đảm bảo server luôn nhận đúng JPEG bất kể máy chụp ra định dạng gì.
+    private void reencodeCameraPhotoToJpeg(Uri photoUri) {
+        try {
+            int orientation = ExifInterface.ORIENTATION_NORMAL;
+            try (InputStream exifStream = getContentResolver().openInputStream(photoUri)) {
+                if (exifStream != null) {
+                    orientation = new ExifInterface(exifStream).getAttributeInt(
+                            ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+                }
+            } catch (Exception ignored) { }
+
+            Bitmap bitmap;
+            try (InputStream in = getContentResolver().openInputStream(photoUri)) {
+                if (in == null) return;
+                bitmap = BitmapFactory.decodeStream(in);
+            }
+            if (bitmap == null) return; // không decode được thì thôi, giữ nguyên file gốc như cũ
+
+            Matrix matrix = new Matrix();
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90:  matrix.postRotate(90);  break;
+                case ExifInterface.ORIENTATION_ROTATE_180: matrix.postRotate(180); break;
+                case ExifInterface.ORIENTATION_ROTATE_270: matrix.postRotate(270); break;
+                default: break; // NORMAL hoặc flip hiếm gặp từ camera thật — bỏ qua
+            }
+            if (!matrix.isIdentity()) {
+                Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+                if (rotated != bitmap) bitmap.recycle();
+                bitmap = rotated;
+            }
+
+            try (OutputStream out = getContentResolver().openOutputStream(photoUri, "wt")) {
+                if (out != null) bitmap.compress(Bitmap.CompressFormat.JPEG, 92, out);
+            }
+            bitmap.recycle();
+        } catch (Exception ignored) {
+            // Lỗi re-encode (hiếm) -> giữ nguyên file gốc, để server tự báo lỗi như cũ thay vì crash app
         }
     }
 
@@ -660,6 +716,7 @@ public class MainActivity extends AppCompatActivity {
             takeVideoIntent.putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 1);          // high
             takeVideoIntent.putExtra(MediaStore.EXTRA_DURATION_LIMIT, 60);        // max 60s
             takeVideoIntent.putExtra(MediaStore.EXTRA_SIZE_LIMIT, 50L * 1024 * 1024); // 50MB
+            mCameraCaptureIsPhoto = false;
             startActivityForResult(takeVideoIntent, FILE_CHOOSER_RESULT_CODE);
         } else {
             cancelFileChooser();
@@ -760,6 +817,7 @@ public class MainActivity extends AppCompatActivity {
             if (resultCode == RESULT_OK) {
                 if (data == null || data.getData() == null) {
                     if (mCameraPhotoUri != null) {
+                        if (mCameraCaptureIsPhoto) reencodeCameraPhotoToJpeg(mCameraPhotoUri);
                         results = new Uri[]{mCameraPhotoUri};
                     }
                 } else {

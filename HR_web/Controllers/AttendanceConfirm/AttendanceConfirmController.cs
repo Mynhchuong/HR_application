@@ -16,6 +16,18 @@ public class AttendanceConfirmController : BaseController
         _svc = svc;
     }
 
+    // Mặc định "đầu tháng hiện tại -> hôm qua" bị lật ngược (From > To) đúng ngày mùng 1 — đầu tháng
+    // hiện tại = hôm nay, nhưng hôm qua lại là ngày CUỐI tháng TRƯỚC (báo lỗi thật 2026-11-02, màn
+    // hình hiện "01/11 -> 01/11" vì FE tự kẹp lại khi thấy From>To). Đúng mùng 1 thì lùi về nguyên
+    // tháng trước (đầu tháng trước -> đầu tháng này) thay vì tháng hiện tại rỗng.
+    private static (string From, string To, string Max) GetDefaultAttendanceConfirmRange()
+    {
+        var firstOfThisMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        if (DateTime.Today.Day == 1)
+            return (firstOfThisMonth.AddMonths(-1).ToString("yyyy-MM-dd"), firstOfThisMonth.ToString("yyyy-MM-dd"), firstOfThisMonth.ToString("yyyy-MM-dd"));
+        return (firstOfThisMonth.ToString("yyyy-MM-dd"), DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"), DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"));
+    }
+
     // GET: /AttendanceConfirm/Index — quản lý (scope dept/line/work) + Admin/HR/Clerk (toàn bộ)
     [Authorize(Roles = "Admin,HR,Clerk,Supervisor,DeputyManager,Manager,Expat")]
     public IActionResult Index()
@@ -25,8 +37,7 @@ public class AttendanceConfirmController : BaseController
         // Chặn tới hôm qua, KHÔNG lấy hôm nay — dữ liệu ADD_TIME hôm nay chưa chốt (bên chấm công tự
         // thêm vân tay tạm cho người vào trễ/quên thật để kịp báo cáo 10h, sáng hôm sau mới đồng bộ
         // lại vân tay thật), backend cũng tự ép trần này (yêu cầu HR 2026-09-22).
-        ViewBag.DateFrom = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).ToString("yyyy-MM-dd");
-        ViewBag.DateTo   = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd");
+        (ViewBag.DateFrom, ViewBag.DateTo, ViewBag.MaxDate) = GetDefaultAttendanceConfirmRange();
         // Backend (ManagerConfirmAsync) đã chặn tự xác nhận phiếu của chính mình (role level so với
         // chính nó luôn bằng nhau nên CanApprove trả false) — nhưng UI chưa ẩn nút, bấm vào vẫn hiện
         // nút "Xác nhận" bình thường rồi mới báo lỗi. Truyền EMPCD hiện tại để JS tự ẩn nút ở dòng của
@@ -44,8 +55,7 @@ public class AttendanceConfirmController : BaseController
     // action, chỉ khác view + menu trỏ vào đây.
     public IActionResult IndexForExpat()
     {
-        ViewBag.DateFrom     = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).ToString("yyyy-MM-dd");
-        ViewBag.DateTo       = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd");
+        (ViewBag.DateFrom, ViewBag.DateTo, ViewBag.MaxDate) = GetDefaultAttendanceConfirmRange();
         ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
         ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
         return View();

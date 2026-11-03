@@ -94,6 +94,23 @@ public class ErpAbsentUpdateRequest
     public string  ACTOR_EMPCD { get; set; } = string.Empty;
 }
 
+// Bù dòng ERP (EFM410) còn thiếu cho đơn đã Đã duyệt/Sắp lịch (phát hiện qua erp-missing-list) —
+// ROWS rỗng/null = bù HẾT các dòng thiếu trong khoảng ngày; có ROWS = chỉ bù đúng dòng HR tick chọn.
+public class ErpMissingInsertRow
+{
+    public string EMPCD      { get; set; } = string.Empty;
+    public string REQUEST_ID { get; set; } = string.Empty;
+    public string DAY        { get; set; } = string.Empty; // yyyy-MM-dd
+}
+
+public class ErpMissingInsertRequest
+{
+    public string DATE_FROM   { get; set; } = string.Empty;
+    public string DATE_TO     { get; set; } = string.Empty;
+    public string ACTOR_EMPCD { get; set; } = string.Empty;
+    public List<ErpMissingInsertRow>? ROWS { get; set; }
+}
+
 public class LeaveMyRequestModel
 {
     public string    REQUEST_ID     { get; set; } = string.Empty;

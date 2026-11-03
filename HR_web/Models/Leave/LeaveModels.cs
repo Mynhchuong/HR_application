@@ -347,6 +347,22 @@ public class ErpAbsentUpdateBody
     public string? Remark  { get; set; }
 }
 
+// Bù dòng ERP còn thiếu phát hiện qua GetErpMissingList — Rows rỗng/null = bù hết, có Rows = chỉ
+// bù đúng dòng HR tick chọn trên UI.
+public class ErpMissingInsertRowBody
+{
+    public string Empcd     { get; set; } = string.Empty;
+    public string RequestId { get; set; } = string.Empty;
+    public string Day       { get; set; } = string.Empty; // yyyy-MM-dd
+}
+
+public class ErpMissingInsertBody
+{
+    public string DateFrom { get; set; } = string.Empty;
+    public string DateTo   { get; set; } = string.Empty;
+    public List<ErpMissingInsertRowBody>? Rows { get; set; }
+}
+
 public class AdminBulkDeleteResponse
 {
     public bool   success       { get; set; }

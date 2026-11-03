@@ -1,6 +1,7 @@
 using HR_web.API.Service;
 using HR_web.Helpers;
 using HR_web.Models.Account;
+using ImageMagick;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SixLabors.ImageSharp;
@@ -687,6 +688,41 @@ public class ImageController : BaseController
         return (matched.Count, matched, skipped);
     }
 
+    // Ảnh chụp bằng camera (hay gặp ở Samsung) có thể là HEIC dù đuôi file .jpg — do máy bật sẵn
+    // "Ảnh hiệu suất cao (HEIF)" trong Cài đặt Camera, NV không biết để tự tắt. ImageSharp không
+    // decode được HEIC nên fallback qua Magick.NET (có libheif built-in) convert sang JPEG trước,
+    // rồi load lại bằng ImageSharp để các bước sau (AutoOrient/Resize/SaveAsJpeg) dùng chung 1 API.
+    private static async Task<SixLabors.ImageSharp.Image> LoadImageWithHeicFallbackAsync(Stream stream)
+    {
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        ms.Position = 0;
+
+        try
+        {
+            return await SixLabors.ImageSharp.Image.LoadAsync(ms);
+        }
+        catch (SixLabors.ImageSharp.UnknownImageFormatException unknownFormatEx)
+        {
+            try
+            {
+                ms.Position = 0;
+                using var magickImage = new MagickImage(ms);
+                magickImage.Format = MagickFormat.Jpeg;
+                using var jpegStream = new MemoryStream();
+                await magickImage.WriteAsync(jpegStream);
+                jpegStream.Position = 0;
+                return await SixLabors.ImageSharp.Image.LoadAsync(jpegStream);
+            }
+            catch
+            {
+                // Magick.NET cũng bó tay (file hỏng thật/định dạng lạ khác) — ném lại lỗi gốc để NV
+                // vẫn thấy đúng thông báo hướng dẫn tắt HEIF (nguyên nhân khả dĩ nhất trong thực tế).
+                throw unknownFormatEx;
+            }
+        }
+    }
+
     // ── Chữ ký ──────────────────────────────────────────────────────────────
     [HttpPost]
     public async Task<IActionResult> UploadSignature(string empCd, IFormFile? file)
@@ -717,7 +753,7 @@ public class ImageController : BaseController
             // ảnh chụp camera thật có thể vài MB, không cần giữ nguyên cho 1 tấm chữ ký — resize còn
             // tối đa 1200px cạnh dài + nén JPEG q=85, theo đúng pattern UploadHomeBanner đã dùng.
             using (var stream = file.OpenReadStream())
-            using (var image = await SixLabors.ImageSharp.Image.LoadAsync(stream))
+            using (var image = await LoadImageWithHeicFallbackAsync(stream))
             {
                 image.Mutate(x => x.AutoOrient());
 
@@ -747,6 +783,15 @@ public class ImageController : BaseController
             }
 
             TempData["SuccessMessage"] = isExpat ? "Signature updated successfully!" : "Cập nhật chữ ký thành công!";
+        }
+        catch (SixLabors.ImageSharp.UnknownImageFormatException)
+        {
+            // Thường gặp khi máy (hay gặp ở Samsung) đang bật "Ảnh hiệu suất cao/HEIF" trong Cài đặt
+            // Camera — file vẫn được đặt tên .jpg nhưng nội dung thật là HEIC, ImageSharp không đọc
+            // được. Thông báo rõ nguyên nhân thay vì ném thẳng message kỹ thuật tiếng Anh ra cho NV.
+            TempData["ErrorMessage"] = isExpat
+                ? "Cannot read this photo. On Samsung phones, turn off \"High efficiency pictures (HEIF)\" in Camera settings, then try taking the photo again."
+                : "Không đọc được ảnh vừa chụp. Nếu máy Samsung, vào Cài đặt Camera tắt \"Ảnh hiệu suất cao (HEIF)\" rồi chụp lại.";
         }
         catch (Exception ex)
         {

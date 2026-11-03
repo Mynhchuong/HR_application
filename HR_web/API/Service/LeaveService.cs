@@ -588,6 +588,40 @@ public class LeaveService
         }
     }
 
+    // Phát hiện đơn Đã duyệt/Sắp lịch trên MySamho nhưng chưa có dòng ERP (EFM410) tương ứng — bug
+    // thật phát hiện 2026-11-02 (SP_015_NEW lúc Approve chạy xong không lỗi nhưng không ghi được).
+    public async Task<string> GetErpMissingListRawAsync(string dateFrom, string dateTo, string? empcd)
+    {
+        try
+        {
+            var q = new List<string> { $"date_from={Uri.EscapeDataString(dateFrom)}", $"date_to={Uri.EscapeDataString(dateTo)}" };
+            if (!string.IsNullOrEmpty(empcd)) q.Add($"empcd={Uri.EscapeDataString(empcd)}");
+            var response = await _api.GetAsync_Raw("leave/erp-missing-list", string.Join("&", q));
+            if (response != null && response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối API\"}";
+        }
+        catch (Exception ex)
+        {
+            return "{\"success\":false,\"message\":" + JsonConvert.SerializeObject(ex.Message) + "}";
+        }
+    }
+
+    public async Task<string> InsertErpMissingRawAsync(object payload)
+    {
+        try
+        {
+            var response = await _api.PostAsync("leave/erp-missing-insert", payload);
+            if (response != null && response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối API\"}";
+        }
+        catch (Exception ex)
+        {
+            return "{\"success\":false,\"message\":" + JsonConvert.SerializeObject(ex.Message) + "}";
+        }
+    }
+
     public async Task<bool> CheckSundayAllowedAsync(string empCd)
     {
         try

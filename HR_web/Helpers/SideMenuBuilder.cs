@@ -48,16 +48,22 @@ public static class SideMenuBuilder
                 Children = new List<SideMenuItem>
                 {
                     //new SideMenuItem { Title = "Lịch cá nhân",        Url = "~/Calendar/MyCalendar",     Icon = "calendar_month" },
-                    new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",                Icon = "fact_check",   BadgeId = "sideOtBadge" },
-                    new SideMenuItem { Title = "Xác nhận chấm công", Url = "~/AttendanceConfirm/WorkerForm",    Icon = "schedule",     BadgeId = "sideAttBadge" },
+                    // Gom cụm theo màu giống menu HR/Admin (2026-11-02) — "Cá nhân" đang là mục nhiều
+                    // chức năng nhất của NV thường (8 mục), dễ nhầm lẫn nếu để rời rạc không phân nhóm.
+                    new SideMenuItem { Title = "Xác nhận Tăng ca",   Url = "~/OT/OtConfirmForm",                Icon = "fact_check",   BadgeId = "sideOtBadge",  Group = "attendance" },
+                    new SideMenuItem { Title = "Xác nhận chấm công", Url = "~/AttendanceConfirm/WorkerForm",    Icon = "schedule",     BadgeId = "sideAttBadge", Group = "attendance" },
                    // new SideMenuItem { Title = "Xác nhận nhận quà",  Url = "~/Gift/MyGifts",                     Icon = "card_giftcard", BadgeId = "sideGiftBadge" },
+
+                    new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",           Icon = "door_front",   Group = "leave" },
+                    new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",           Icon = "event_busy",   Group = "leave" },
+
+                    new SideMenuItem { Title = "Đào tạo cá nhân",     Url = "~/Training/Index",                  Icon = "school",             Group = "training" },
+                    new SideMenuItem { Title = "Kaizen",              Url = "~/Kaizen/Index",                    Icon = "tips_and_updates",   Group = "training" },
+
                     new SideMenuItem { Title = "Phiếu lương",         Url = "~/Payslip/Index",                   Icon = "payments"      },
-                    new SideMenuItem { Title = "Đăng ký ra vào cổng", Url = "~/GatePass/GpMyRequests",           Icon = "door_front"    },
-                    new SideMenuItem { Title = "Đơn nghỉ phép",       Url = "~/Leave/LeaveMyRequests",           Icon = "event_busy"    },
                     // "AI SAMHO - CSR" đã gộp vào trong Hộp thư phản ánh (yêu cầu 2026-09-16, gọn menu) —
                     // bỏ mục menu riêng, lối tắt AI giờ nằm ngay trong trang EmployeeInquiry/Index.
                     new SideMenuItem { Title = "Hộp thư phản ánh",             Url = "~/EmployeeInquiry/Index",           Icon = "forum",        BadgeId = "sideInqBadge" },
-                    new SideMenuItem { Title = "Đào tạo cá nhân",     Url = "~/Training/Index",                  Icon = "school"        },
                 }
             },
 
@@ -231,6 +237,8 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy",          Group = "system" },
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",          Icon = "poll",            Group = "system" },
                     new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",            Icon = "home_app_logo",   Group = "system" },
+                    // Xem Kaizen (yêu cầu 2026-11-03) — CSR được thêm quyền vào thẳng KaizenAdminController.
+                    new SideMenuItem { Title = "Xem Kaizen",            Url = "~/KaizenAdmin/Index",          Icon = "tips_and_updates", Group = "system" },
                 }
             },
 

@@ -3320,6 +3320,196 @@ END;";
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Leave/erp-missing-list — đơn MySamho đã Đã duyệt/Sắp lịch NHƯNG chưa có dòng tương
+    // ứng trong EFM410 (ERP) — phát hiện đúng bug "duyệt xong mà ERP không thấy" (xác nhận thật
+    // 2026-11-02, case EMPCD 26073008 ngày 2/11/2026: STATUS=APPROVED nhưng EFM410 trống, nguyên
+    // nhân chưa rõ 100% — nghi SP_015_NEW lỗi/timeout tạm thời lúc Approve chạy, chạy tay lại thì
+    // thành công bình thường). erp-absent-list cũ chỉ đọc TỪ EFM410 làm gốc nên không bao giờ thấy
+    // được case này (EFM410 trống thì không có gì để LEFT JOIN ra).
+    // ─────────────────────────────────────────────────────────────────────────
+    // Sinh từng ngày trong khoảng mỗi đơn bằng cross join với 1 bảng sinh số độc lập (SELECT LEVEL
+    // FROM DUAL CONNECT BY...) — tương thích Oracle 10g+, không phải kỹ thuật bị cấm như FETCH
+    // FIRST/LATERAL/JSON_TABLE. ĐÃ THỬ CONNECT BY trực tiếp trên HR_LEAVE_REQUEST trước (dùng mẹo
+    // "PRIOR SYS_GUID() IS NOT NULL") nhưng dính ORA-01436 (CONNECT BY loop) ngay cả không có điều
+    // kiện PRIOR cột nào — xác nhận thật qua test query 2026-11-02, đổi sang cross join cho chắc,
+    // giới hạn tối đa 400 ngày/đơn (dư sức, đơn nghỉ thật không bao giờ dài vậy). Điều kiện "còn
+    // thiếu ERP" mirror đúng logic skip trong Approve(): bỏ qua đúng ngày lễ (EAM800), trừ khi rơi
+    // vào Chủ Nhật mà NV được phép nghỉ CN (loại DS hoặc trong whitelist HR_SUNDAY_LEAVE_ALLOWED).
+    [HttpGet("erp-missing-list")]
+    public async Task<IActionResult> GetErpMissingList(string date_from, string date_to, string? empcd = null)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(date_from) || string.IsNullOrEmpty(date_to))
+                return Ok(new { success = false, message = "Thiếu khoảng ngày" });
+            if (!DateTime.TryParse(date_from, out var frDate) || !DateTime.TryParse(date_to, out var toDate))
+                return Ok(new { success = false, message = "Ngày không hợp lệ" });
+
+            var empcdP = string.IsNullOrWhiteSpace(empcd) ? "%" : $"%{empcd.Trim()}%";
+
+            var rows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT D.EMPCD, D.LEAVE_TYPE, D.REQUEST_ID, D.APPROVER, D.DAY, EC.CNAME AS EMP_NAME
+                FROM (
+                    SELECT ML.EMPCD, ML.LEAVE_TYPE, ML.REQUEST_ID, MR.FINAL_APPROVER AS APPROVER,
+                           ML.FROM_DATE + N.LVL - 1 AS DAY
+                    FROM HRMS.HR_LEAVE_REQUEST ML
+                    JOIN HRMS.HR_REQUEST MR ON MR.REQUEST_ID = ML.REQUEST_ID
+                    JOIN (SELECT LEVEL AS LVL FROM DUAL CONNECT BY LEVEL <= 400) N
+                      ON N.LVL <= (ML.TO_DATE - ML.FROM_DATE + 1)
+                    WHERE MR.STATUS IN ('APPROVED','ASSIGNED')
+                      AND ML.EMPCD LIKE :EMPCD
+                      AND ML.FROM_DATE <= :TO_DATE AND ML.TO_DATE >= :FR_DATE
+                ) D
+                LEFT JOIN HRMS.ECM100 EC ON EC.EMPCD = D.EMPCD
+                WHERE D.DAY BETWEEN :FR_DATE AND :TO_DATE
+                  AND NOT EXISTS (SELECT 1 FROM HRMS.EFM410 E WHERE E.EMPCD = D.EMPCD AND E.FR_DAT = D.DAY)
+                  AND NOT EXISTS (SELECT 1 FROM HRMS.EFM410_WAIT W WHERE W.EMPCD = D.EMPCD AND W.FR_DAT = D.DAY AND W.FLAG_APPROVE = 'N')
+                  AND (
+                        NOT EXISTS (SELECT 1 FROM HRMS.EAM800 H WHERE TRUNC(H.HUILDAY) = TRUNC(D.DAY))
+                        OR (
+                              TO_CHAR(D.DAY,'D') = '1'
+                              AND (D.LEAVE_TYPE = 'DS' OR EXISTS (
+                                     SELECT 1 FROM HRMS.HR_SUNDAY_LEAVE_ALLOWED S
+                                     WHERE S.EMPCD = D.EMPCD AND S.IS_ACTIVE = 1))
+                           )
+                      )
+                ORDER BY D.DAY, D.EMPCD",
+                r => new {
+                    Empcd     = r["EMPCD"]?.ToString() ?? "",
+                    EmpName   = r["EMP_NAME"] == DBNull.Value ? null : r["EMP_NAME"]?.ToString(),
+                    LeaveType = r["LEAVE_TYPE"]?.ToString() ?? "",
+                    RequestId = r["REQUEST_ID"]?.ToString() ?? "",
+                    Approver  = r["APPROVER"] == DBNull.Value ? null : r["APPROVER"]?.ToString(),
+                    Day       = Convert.ToDateTime(r["DAY"]).ToString("yyyy-MM-dd")
+                },
+                new OracleParameter("EMPCD", empcdP),
+                new OracleParameter("FR_DATE", OracleDbType.Date) { Value = frDate.Date },
+                new OracleParameter("TO_DATE", OracleDbType.Date) { Value = toDate.Date });
+
+            var data = rows.Select(x => new {
+                x.Empcd, x.EmpName, x.RequestId, x.Day, x.LeaveType, x.Approver,
+                ErpCd = x.LeaveType switch { "AL" => "PN", "CL" => "BH", "CT" => "CT", _ => "CP" }
+            });
+
+            return Ok(new { success = true, total = rows.Count, data });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Leave/erp-missing-insert — tự bù các dòng phát hiện ở erp-missing-list, gọi LẠI
+    // ĐÚNG stored procedure ERP vẫn dùng lúc Approve() (SP_015_NEW/SP_015_FORHRAPP) — không tạo cơ
+    // chế ghi EFM410 riêng. ROWS rỗng/null = bù HẾT trong khoảng ngày; có ROWS = chỉ bù đúng dòng HR
+    // tick chọn trên UI. Re-detect lại từ DB (không tin nguyên list client gửi lên) rồi mới lọc
+    // theo ROWS, tránh bù nhầm dòng đã có ERP từ lúc list tới lúc bấm nút.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("erp-missing-insert")]
+    public async Task<IActionResult> InsertErpMissing([FromBody] ErpMissingInsertRequest model)
+    {
+        try
+        {
+            if (model == null || string.IsNullOrEmpty(model.DATE_FROM) || string.IsNullOrEmpty(model.DATE_TO) || string.IsNullOrEmpty(model.ACTOR_EMPCD))
+                return Ok(new { success = false, message = "Thiếu thông tin" });
+            if (!DateTime.TryParse(model.DATE_FROM, out var frDate) || !DateTime.TryParse(model.DATE_TO, out var toDate))
+                return Ok(new { success = false, message = "Ngày không hợp lệ" });
+
+            var roleRows = await _oracleService.ExecuteQueryAsync(
+                "SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => r["ROLE_NAME"]?.ToString(),
+                new OracleParameter("EMPCD", model.ACTOR_EMPCD));
+            string? role = roleRows.FirstOrDefault();
+            if (role != "HR" && role != "Admin" && !await DeptRoleHelper.HasAnyRoleAsync(_oracleService, model.ACTOR_EMPCD, "HR"))
+                return Ok(new { success = false, message = "Bạn không có quyền" });
+
+            var missingRows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT D.EMPCD, D.LEAVE_TYPE, D.REQUEST_ID, D.APPROVER, D.DAY, D.REASON
+                FROM (
+                    SELECT ML.EMPCD, ML.LEAVE_TYPE, ML.REQUEST_ID, ML.REASON, MR.FINAL_APPROVER AS APPROVER,
+                           ML.FROM_DATE + N.LVL - 1 AS DAY
+                    FROM HRMS.HR_LEAVE_REQUEST ML
+                    JOIN HRMS.HR_REQUEST MR ON MR.REQUEST_ID = ML.REQUEST_ID
+                    JOIN (SELECT LEVEL AS LVL FROM DUAL CONNECT BY LEVEL <= 400) N
+                      ON N.LVL <= (ML.TO_DATE - ML.FROM_DATE + 1)
+                    WHERE MR.STATUS IN ('APPROVED','ASSIGNED')
+                      AND ML.FROM_DATE <= :TO_DATE AND ML.TO_DATE >= :FR_DATE
+                ) D
+                WHERE D.DAY BETWEEN :FR_DATE AND :TO_DATE
+                  AND NOT EXISTS (SELECT 1 FROM HRMS.EFM410 E WHERE E.EMPCD = D.EMPCD AND E.FR_DAT = D.DAY)
+                  AND NOT EXISTS (SELECT 1 FROM HRMS.EFM410_WAIT W WHERE W.EMPCD = D.EMPCD AND W.FR_DAT = D.DAY AND W.FLAG_APPROVE = 'N')
+                  AND (
+                        NOT EXISTS (SELECT 1 FROM HRMS.EAM800 H WHERE TRUNC(H.HUILDAY) = TRUNC(D.DAY))
+                        OR (
+                              TO_CHAR(D.DAY,'D') = '1'
+                              AND (D.LEAVE_TYPE = 'DS' OR EXISTS (
+                                     SELECT 1 FROM HRMS.HR_SUNDAY_LEAVE_ALLOWED S
+                                     WHERE S.EMPCD = D.EMPCD AND S.IS_ACTIVE = 1))
+                           )
+                      )",
+                r => new {
+                    Empcd     = r["EMPCD"]?.ToString() ?? "",
+                    LeaveType = r["LEAVE_TYPE"]?.ToString() ?? "",
+                    RequestId = r["REQUEST_ID"]?.ToString() ?? "",
+                    Approver  = r["APPROVER"] == DBNull.Value ? null : r["APPROVER"]?.ToString(),
+                    Reason    = r["REASON"] == DBNull.Value ? null : r["REASON"]?.ToString(),
+                    Day       = Convert.ToDateTime(r["DAY"]).Date
+                },
+                new OracleParameter("FR_DATE", OracleDbType.Date) { Value = frDate.Date },
+                new OracleParameter("TO_DATE", OracleDbType.Date) { Value = toDate.Date });
+
+            var targets = (model.ROWS != null && model.ROWS.Count > 0)
+                ? missingRows.Where(m => model.ROWS.Any(x =>
+                    x.EMPCD == m.Empcd && x.REQUEST_ID == m.RequestId && x.DAY == m.Day.ToString("yyyy-MM-dd"))).ToList()
+                : missingRows;
+
+            int okCount = 0;
+            var errors = new List<string>();
+            foreach (var m in targets)
+            {
+                try
+                {
+                    string erpCd = m.LeaveType switch { "AL" => "PN", "CL" => "BH", "CT" => "CT", _ => "CP" };
+                    bool isSundayAllowed = m.LeaveType == "DS" || (await _oracleService.ExecuteQueryAsync(
+                        "SELECT 1 AS X FROM HRMS.HR_SUNDAY_LEAVE_ALLOWED WHERE EMPCD = :EMPCD AND IS_ACTIVE = 1",
+                        r => 1, new OracleParameter("EMPCD", m.Empcd))).Any();
+                    bool isSunday = m.Day.DayOfWeek == DayOfWeek.Sunday;
+                    string spName = (isSunday && isSundayAllowed) ? "HRMS.SP_015_FORHRAPP" : "HRMS.SP_015_NEW";
+                    string approver = !string.IsNullOrEmpty(m.Approver) ? m.Approver! : model.ACTOR_EMPCD;
+                    string erpRemark = await BuildErpRemarkAsync(m.LeaveType, m.Reason, isAssignFlow: false);
+
+                    await _oracleService.ExecuteProcedureAsync(spName,
+                        new OracleParameter("AS_EMPCD",   m.Empcd),
+                        new OracleParameter("AS_LEAVECD", erpCd),
+                        new OracleParameter { ParameterName = "AD_ST_DAT", OracleDbType = OracleDbType.Date, Value = m.Day },
+                        new OracleParameter { ParameterName = "AD_ED_DAT", OracleDbType = OracleDbType.Date, Value = m.Day },
+                        new OracleParameter("AS_IN_ID",   approver),
+                        new OracleParameter("AS_REMAR",   erpRemark));
+
+                    await _oracleService.ExecuteNonQueryAsync(
+                        "UPDATE HRMS.EFM410 SET APPROVED_BY = :APPROVED_BY WHERE EMPCD = :EMPCD AND FR_DAT = :FR_DAT",
+                        new OracleParameter("APPROVED_BY", approver),
+                        new OracleParameter("EMPCD", m.Empcd),
+                        new OracleParameter { ParameterName = "FR_DAT", OracleDbType = OracleDbType.Date, Value = m.Day });
+
+                    okCount++;
+                }
+                catch (Exception exRow)
+                {
+                    errors.Add($"{m.Empcd} {m.Day:dd/MM/yyyy}: {exRow.Message}");
+                }
+            }
+
+            return Ok(new {
+                success = errors.Count == 0,
+                message = errors.Count == 0
+                    ? $"Đã bù {okCount} dòng ERP"
+                    : $"Bù được {okCount}/{targets.Count} dòng, còn lỗi: " + string.Join("; ", errors),
+                inserted = okCount
+            });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // GET /apiHR/Leave/admin-emp-list — Toàn bộ NV + phép năm còn lại (Admin)
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet("admin-emp-list")]

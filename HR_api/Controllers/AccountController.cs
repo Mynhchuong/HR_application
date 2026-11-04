@@ -865,9 +865,10 @@ public class AccountController : ControllerBase
                 HireDate     = SafeToDate(reader["IGENTDAT"]),
                 HardworkStt  = reader["HARDWORK_STT"]?.ToString(),
                 HardworkTen  = reader["HARDWORK_TEN"]?.ToString(),
+                // ADDRESS_ETC (số nhà/tên đường chi tiết) KHÔNG hiện trên app nữa (yêu cầu 2026-11-03)
+                // — chỉ còn tên Xã + Tỉnh, vẫn lấy ADDRESS_ETC trong SELECT phía trên vì không cần sửa gì.
                 Address = string.Join(", ",
                     new[] {
-                        reader["ADDRESS_ETC"]?.ToString()?.Trim(),
                         reader["CODE_NAME3_N"]?.ToString()?.Trim(),
                         reader["CODE_NAME1_N"]?.ToString()?.Trim()
                     }.Where(s => !string.IsNullOrEmpty(s)))

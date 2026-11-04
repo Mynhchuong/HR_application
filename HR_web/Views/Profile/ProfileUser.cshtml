@@ -266,7 +266,7 @@
             </div>
             <div class="item-value">@(string.IsNullOrWhiteSpace(Model.Juminno) ? "-" : Model.Juminno)</div>
         </div>
-        <div class="setting-item" style="display:none">
+        <div class="setting-item">
             <div class="item-icon"><span class="material-symbols-rounded">location_on</span></div>
             <div class="item-content">
                 <div class="item-label">Địa chỉ</div>
@@ -369,7 +369,7 @@
         <div class="signature-card">
             @if (Model.HasSignature)
             {
-                <img src="@Url.Action("GetSignature", "Image", new { empCd = Model.EmpCd })" class="signature-img" />
+                <img src="@Model.SignatureUrl" class="signature-img" />
             }
             else
             {

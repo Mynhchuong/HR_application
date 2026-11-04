@@ -37,6 +37,26 @@ public class ProfileController : BaseController
 
             model.EmpCd        = CurrentUser!.EmpCd;
             model.HasSignature = CurrentUser.SIGNATUREBLOB == "Y";
+            // Ảnh chữ ký cache 1 ngày (GetSignature ResponseCache Duration=86400) — cùng 1 URL nên
+            // sau khi NV upload chữ ký mới, trình duyệt vẫn trả ảnh CŨ từ cache tới hết 1 ngày, NV
+            // tưởng lưu không thành công (bug thật báo 2026-11-03, test trên iPhone). Gắn thêm query
+            // "v=<LastWriteTime file thật>" — ảnh không đổi thì URL giống hệt (vẫn hưởng cache), ảnh
+            // vừa ghi đè thì URL đổi theo, trình duyệt tự tải lại.
+            if (model.HasSignature)
+            {
+                long version = 0;
+                try
+                {
+                    using (new HR_web.Helpers.NetworkShareHelper(ImageController.ShareRoot, ImageController.ShareCred))
+                    {
+                        var sigPath = Path.Combine(ImageController.SignatureFolder, model.EmpCd + ".jpg");
+                        if (System.IO.File.Exists(sigPath))
+                            version = System.IO.File.GetLastWriteTimeUtc(sigPath).Ticks;
+                    }
+                }
+                catch { /* lỗi đọc network share -> vẫn hiện ảnh, chỉ mất tác dụng cache-bust lần này */ }
+                model.SignatureUrl = Url.Action("GetSignature", "Image", new { empCd = model.EmpCd, v = version });
+            }
 
             if (CurrentUser.RoleName == "Expat")
                 return View("ProfileUserExpat", model);

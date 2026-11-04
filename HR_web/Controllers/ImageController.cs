@@ -22,7 +22,7 @@ public class ImageController : BaseController
 
     // ── Thư mục từng loại ảnh ───────────────────────────────────────────────
     private const string EmployeeFolder = ShareRoot + @"\VSHRMS";
-    private const string SignatureFolder = ShareRoot + @"\WRK_SIGN";
+    internal const string SignatureFolder = ShareRoot + @"\WRK_SIGN"; // ProfileController cần đọc LastWriteTime để cache-bust ảnh chữ ký
     private const string CantinFolder   = ShareRoot + @"\MY_SAMHO_CANTIN";
     private const string PolicyFolder   = ShareRoot + @"\POLICY";
     private const string BulletinFolder = ShareRoot + @"\BULLETIN\IMG";

@@ -43,6 +43,56 @@
     .kz-item .meta { display: flex; justify-content: space-between; gap: .5rem; font-size: .72rem; color: #94a3b8; margin-bottom: .3rem; }
     .kz-item .idea { font-size: .88rem; color: #1e293b; white-space: pre-wrap; word-break: break-word; }
     .kz-empty { text-align: center; color: #94a3b8; font-size: .85rem; padding: 1.2rem 0; }
+
+    /* Cơ cấu giải thưởng — card dọc cho mobile thay vì bảng ngang (yêu cầu 2026-11-03, Kaizen chủ
+       yếu dùng trên điện thoại, bảng Excel gốc 8 cột không đọc được trên màn hẹp). */
+    /* Banner luôn hiện ngay dưới hero — không giấu trong card phải bấm mới thấy (yêu cầu 2026-11-03:
+       công nhân cần thấy ngay mức thưởng cao nhất để có động lực bấm vào xem chi tiết). */
+    .kz-reward-highlight {
+        width: 100%; display: flex; align-items: center; gap: .7rem; cursor: pointer; text-align: left;
+        border: none; border-radius: 16px; padding: .85rem 1rem; margin-bottom: .75rem;
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        box-shadow: 0 3px 10px rgba(217,119,6,.15);
+    }
+    .kz-reward-highlight-ico { font-size: 1.8rem; line-height: 1; flex-shrink: 0; }
+    .kz-reward-highlight-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+    .kz-reward-highlight-text b { font-size: .98rem; font-weight: 800; color: #92400e; }
+    .kz-reward-highlight-text span { font-size: .72rem; color: #b45309; }
+    .kz-reward-highlight .chevron { margin-left: auto; transition: transform .2s ease; color: #b45309; flex-shrink: 0; }
+    .kz-reward-highlight[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+    .kz-reward-body { margin-top: .8rem; }
+    .kz-reward-group + .kz-reward-group { margin-top: .9rem; }
+    .kz-reward-group-title {
+        font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .4px;
+        color: #047857; margin-bottom: .4rem; display: flex; align-items: center; gap: 5px;
+    }
+    .kz-reward-group-title .dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; flex-shrink: 0; }
+    .kz-prize-row {
+        display: flex; align-items: center; gap: .6rem; padding: .55rem 0;
+        border-bottom: 1px dashed #e2e8f0;
+    }
+    .kz-prize-row:last-child { border-bottom: none; }
+    .kz-prize-badge {
+        flex-shrink: 0; width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center;
+        justify-content: center; font-size: .68rem; font-weight: 800; color: #fff; background: #10b981;
+    }
+    .kz-prize-badge.team { background: #0ea5e9; }
+    .kz-prize-info { flex: 1; min-width: 0; }
+    .kz-prize-name { font-size: .83rem; font-weight: 700; color: #1e293b; line-height: 1.3; }
+    .kz-prize-sub { font-size: .68rem; color: #94a3b8; margin-top: 1px; }
+    .kz-prize-amount { text-align: right; flex-shrink: 0; }
+    .kz-prize-amount .total { font-size: .85rem; font-weight: 800; color: #047857; white-space: nowrap; }
+    .kz-prize-amount .qty { font-size: .66rem; color: #94a3b8; }
+    .kz-reward-total {
+        display: flex; justify-content: space-between; align-items: center; margin-top: .9rem;
+        padding-top: .8rem; border-top: 1.5px solid #d1fae5; font-size: .85rem;
+    }
+    .kz-reward-total b { color: #047857; font-size: 1rem; }
+    .kz-reward-funders { display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap; }
+    .kz-funder-chip {
+        font-size: .68rem; font-weight: 700; padding: .3rem .6rem; border-radius: 999px;
+        background: #f0fdf4; color: #047857; border: 1px solid #d1fae5;
+    }
 </style>
 
 <div class="kz-page px-2 py-2">
@@ -55,6 +105,102 @@
             <small>@L("Gửi ý tưởng cải tiến — bộ phận Lean sẽ liên lạc lại", "Share your improvement idea — the Lean team will contact you")</small>
         </div>
         <span class="material-symbols-rounded kz-hero-icon">tips_and_updates</span>
+    </div>
+
+    <button type="button" class="kz-reward-highlight" id="kzRewardToggle" aria-expanded="false" onclick="toggleReward()">
+        <span class="kz-reward-highlight-ico">🏆</span>
+        <span class="kz-reward-highlight-text">
+            <b>@L("Giải thưởng lên đến", "Prize up to") 15.000.000đ</b>
+            <span>@L("Bấm xem chi tiết các mức thưởng", "Tap to see all reward tiers")</span>
+        </span>
+        <span class="material-symbols-rounded chevron">expand_more</span>
+    </button>
+
+    <div class="kz-card" id="kzRewardCard" style="display:none;">
+        <div class="kz-reward-body" id="kzRewardBody">
+            <div class="kz-reward-group">
+                <div class="kz-reward-group-title"><span class="dot"></span>@L("Giải năm", "Yearly prizes")</div>
+                <div class="kz-prize-row">
+                    <div class="kz-prize-badge team">Y1</div>
+                    <div class="kz-prize-info">
+                        <div class="kz-prize-name">@L("Giải nhất năm", "1st Prize (Yearly)")</div>
+                        <div class="kz-prize-sub">@L("Tập thể", "Team")</div>
+                    </div>
+                    <div class="kz-prize-amount"><div class="total">15,000,000đ</div><div class="qty">x1</div></div>
+                </div>
+                <div class="kz-prize-row">
+                    <div class="kz-prize-badge team">Y2</div>
+                    <div class="kz-prize-info">
+                        <div class="kz-prize-name">@L("Giải nhì năm", "2nd Prize (Yearly)")</div>
+                        <div class="kz-prize-sub">@L("Tập thể", "Team")</div>
+                    </div>
+                    <div class="kz-prize-amount"><div class="total">12,000,000đ</div><div class="qty">x1</div></div>
+                </div>
+                <div class="kz-prize-row">
+                    <div class="kz-prize-badge">Y3</div>
+                    <div class="kz-prize-info">
+                        <div class="kz-prize-name">@L("Vua Kaizen", "King of Kaizen")</div>
+                        <div class="kz-prize-sub">@L("Cá nhân", "Individual")</div>
+                    </div>
+                    <div class="kz-prize-amount"><div class="total">5,000,000đ</div><div class="qty">x1</div></div>
+                </div>
+            </div>
+
+            <div class="kz-reward-group">
+                <div class="kz-reward-group-title"><span class="dot"></span>@L("Giải tháng — Cá nhân", "Monthly prizes — Individual")</div>
+                <div class="kz-prize-row">
+                    <div class="kz-prize-badge">M1</div>
+                    <div class="kz-prize-info"><div class="kz-prize-name">@L("Giải nhất tháng", "1st Prize")</div></div>
+                    <div class="kz-prize-amount"><div class="total">3,000,000đ</div><div class="qty">x1</div></div>
+                </div>
+                <div class="kz-prize-row">
+                    <div class="kz-prize-badge">M2</div>
+                    <div class="kz-prize-info"><div class="kz-prize-name">@L("Giải nhì tháng", "2nd Prize")</div></div>
+                    <div class="kz-prize-amount"><div class="total">2,000,000đ</div><div class="qty">x2</div></div>
+                </div>
+                <div class="kz-prize-row">
+                    <div class="kz-prize-badge">M3</div>
+                    <div class="kz-prize-info"><div class="kz-prize-name">@L("Giải ba tháng", "3rd Prize")</div></div>
+                    <div class="kz-prize-amount"><div class="total">1,000,000đ</div><div class="qty">x2</div></div>
+                </div>
+                <div class="kz-prize-row">
+                    <div class="kz-prize-badge">M4</div>
+                    <div class="kz-prize-info"><div class="kz-prize-name">@L("Giải khuyến khích", "Encouragement prize")</div></div>
+                    <div class="kz-prize-amount"><div class="total">500,000đ</div><div class="qty">x10</div></div>
+                </div>
+                <div class="kz-prize-row">
+                    <div class="kz-prize-badge">M5</div>
+                    <div class="kz-prize-info">
+                        <div class="kz-prize-name">@L("Trao thưởng cho mọi ý tưởng gửi", "Reward for every idea submitted")</div>
+                        <div class="kz-prize-sub">@L("Mỗi ý tưởng hợp lệ", "Per valid idea")</div>
+                    </div>
+                    <div class="kz-prize-amount"><div class="total">20,000đ</div><div class="qty">/@L("ý tưởng", "idea")</div></div>
+                </div>
+            </div>
+
+            <div class="kz-reward-group">
+                <div class="kz-reward-group-title"><span class="dot"></span>@L("Giải tháng — Tập thể", "Monthly prizes — Team")</div>
+                <div class="kz-prize-row">
+                    <div class="kz-prize-badge team">M6</div>
+                    <div class="kz-prize-info"><div class="kz-prize-name">@L("Giải nhất tháng", "1st Prize")</div></div>
+                    <div class="kz-prize-amount"><div class="total">3,500,000đ</div><div class="qty">x1</div></div>
+                </div>
+                <div class="kz-prize-row">
+                    <div class="kz-prize-badge team">M7</div>
+                    <div class="kz-prize-info"><div class="kz-prize-name">@L("Giải nhì tháng", "2nd Prize")</div></div>
+                    <div class="kz-prize-amount"><div class="total">2,500,000đ</div><div class="qty">x1</div></div>
+                </div>
+            </div>
+
+            <div class="kz-reward-total">
+                <span>@L("Tổng quỹ thưởng/năm", "Total yearly reward fund")</span>
+                <b>296,600,000đ</b>
+            </div>
+            <div class="kz-reward-funders">
+                <span class="kz-funder-chip">💼 SAMHO 231,600,000đ</span>
+                <span class="kz-funder-chip">🤝 @L("Công đoàn", "Trade Union") 65,000,000đ</span>
+            </div>
+        </div>
     </div>
 
     <div class="kz-card" id="kzFormCard">
@@ -104,6 +250,15 @@ function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replac
 document.getElementById('kzIdea').addEventListener('input', function () {
     document.getElementById('kzCount').textContent = this.value.length;
 });
+
+function toggleReward() {
+    const card = document.getElementById('kzRewardCard');
+    const btn = document.getElementById('kzRewardToggle');
+    const show = card.style.display === 'none';
+    card.style.display = show ? 'block' : 'none';
+    btn.setAttribute('aria-expanded', show ? 'true' : 'false');
+    if (show) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
 function showError(msg) { const e = document.getElementById('kzError'); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
 function showForm() {

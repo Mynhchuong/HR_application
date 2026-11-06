@@ -1058,18 +1058,19 @@ END;";
 
             // Filter logic:
             //  - Non-PENDING (APPROVED/REJECTED): filter theo CREATED_DATE trong khoảng tháng
-            //  - PENDING + TO_DATE >= hôm nay (đơn còn hiệu lực, kể cả nhiều ngày đang diễn ra dở):
-            //    LUÔN hiện (tránh sếp quên khi req tạo trước nhiều tháng, hoặc bỏ sót đơn nhiều ngày
-            //    có FROM_DATE đã qua nhưng TO_DATE chưa tới — bug thật 2026-09-11: đơn CT 9 ngày bị
-            //    ẩn khỏi list duyệt dù đang diễn ra, vì trước đó lọc theo FROM_DATE thay vì TO_DATE)
-            //  - PENDING + TO_DATE đã qua hẳn: bỏ hoàn toàn (không cần duyệt nữa)
+            //  - PENDING: LUÔN hiện bất kể FROM_DATE/TO_DATE đã qua hay chưa — đơn chưa được
+            //    duyệt/từ chối vẫn cần ai đó xử lý, không được tự ẩn khỏi list (bug thật 2026-11-06:
+            //    đơn CT đã qua ngày đi công tác nhưng chưa ai duyệt bị biến mất vĩnh viễn khỏi list
+            //    vì điều kiện cũ "L.TO_DATE >= TRUNC(SYSDATE)" loại nó ra ngay khi quá hạn; ORDER BY
+            //    bên dưới vốn đã có sẵn nhóm "PENDING quá hạn" (FROM_DATE < SYSDATE THEN 2) nhưng
+            //    chưa bao giờ có dữ liệu tới được vì bị WHERE này chặn trước)
             string whereSql = @"
                 WHERE R.REQUEST_TYPE = 'LEAVE'
                   AND L.SOURCE = 'SELF'
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND (
                         (R.STATUS <> 'PENDING' AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1)
-                     OR (R.STATUS  = 'PENDING' AND L.TO_DATE      >= TRUNC(SYSDATE))
+                     OR (R.STATUS  = 'PENDING')
                   )
                   " + scopeFilter.SqlClause + @"
                   AND (L.LEAVE_TYPE != 'CT' OR :CT_ALLOWED = 1)
@@ -1087,7 +1088,7 @@ END;";
                   AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
                   AND (
                         (R.STATUS <> 'PENDING' AND R.CREATED_DATE >= :D_FROM AND R.CREATED_DATE < :D_TO + 1)
-                     OR (R.STATUS  = 'PENDING' AND L.TO_DATE      >= TRUNC(SYSDATE))
+                     OR (R.STATUS  = 'PENDING')
                   )
                   " + scopeFilter.SqlClause + @"
                   AND (L.LEAVE_TYPE != 'CT' OR :CT_ALLOWED = 1)

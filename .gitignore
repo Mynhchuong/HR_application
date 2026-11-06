@@ -151,3 +151,5 @@ HR_api/Scripts/create_kaizen.sql
 # Keystore files (ký app Android/iOS — KHONG BAO GIO duoc len git)
 *.jks
 *.keystore
+HR_api/Scripts/alter_inquiry_access_code.sql
+Grievance app - summary.xlsx

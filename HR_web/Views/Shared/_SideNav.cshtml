@@ -121,8 +121,9 @@
                             if (!string.IsNullOrEmpty(item.Group) && item.Group != lastGroup
                                 && MenuGroupCatalog.Styles.TryGetValue(item.Group, out var groupStyle))
                             {
+                                string groupLabel = menu.Id == "Expat" ? groupStyle.LabelEn : groupStyle.Label;
                                 <li class="menu-group-label" style="color:@groupStyle.Color;">
-                                    <span class="menu-group-dot" style="background:@groupStyle.Color;"></span>@groupStyle.Label
+                                    <span class="menu-group-dot" style="background:@groupStyle.Color;"></span>@groupLabel
                                 </li>
                             }
                             lastGroup = item.Group;

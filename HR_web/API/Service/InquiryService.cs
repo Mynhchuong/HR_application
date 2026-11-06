@@ -46,6 +46,21 @@ public class InquiryService
         catch (Exception ex) { return new InquiryCreateResponse { success = false, message = ex.Message }; }
     }
 
+    // POST /apiHR/Inquiry/lookup-by-code — tra cứu hội thoại ẩn danh bằng mã, không cần đúng
+    // thiết bị/trình duyệt đã gửi, không dùng EMPCD đăng nhập để xác định (yêu cầu khách hàng 2026-11-04).
+    public async Task<InquiryLookupByCodeResponse> LookupByCodeAsync(string code)
+    {
+        try
+        {
+            var res = await _api.PostAsync("Inquiry/lookup-by-code", new { code });
+            if (res?.IsSuccessStatusCode == true)
+                return JsonConvert.DeserializeObject<InquiryLookupByCodeResponse>(await res.Content.ReadAsStringAsync())
+                       ?? new InquiryLookupByCodeResponse { success = false, message = "Lỗi parse response" };
+            return new InquiryLookupByCodeResponse { success = false, message = "Lỗi kết nối server" };
+        }
+        catch (Exception ex) { return new InquiryLookupByCodeResponse { success = false, message = ex.Message }; }
+    }
+
     // GET /apiHR/Inquiry/my?empCd=
     public async Task<InquiryListResponse> GetMyListAsync(string empCd)
     {

@@ -45,6 +45,22 @@ public class EmployeeInquiryController : InquiryBaseController
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // AJAX: Tra cứu hội thoại ẩn danh bằng mã — KHÔNG cần đúng thiết bị/trình duyệt đã gửi,
+    // KHÔNG dùng EMPCD của người đang tra cứu để xác định chủ hội thoại (yêu cầu khách hàng
+    // 2026-11-04: hệ thống không được dùng thông tin tài khoản đăng nhập/thiết bị để xác định
+    // người gửi ẩn danh — nhiều NV dùng chung 1 máy vẫn không tạo ra liên kết danh tính nào).
+    // POST /EmployeeInquiry/LookupByCode
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> LookupByCode([FromBody] LookupByCodeRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Code))
+            return Json(new { success = false, message = "Vui lòng nhập mã tra cứu" });
+        var result = await _inquiry.LookupByCodeAsync(req.Code.Trim());
+        return Json(result);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // PAGE: Màn hình tạo conversation mới (chọn loại + topic + nội dung đầu tiên)
     // GET /EmployeeInquiry/Create
     // ─────────────────────────────────────────────────────────────────────────
@@ -136,12 +152,28 @@ public class EmployeeInquiryController : InquiryBaseController
     // GET /EmployeeInquiry/GetMessages?id=&afterMsgId=
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet]
-    public async Task<IActionResult> GetMessages(long id, long afterMsgId = 0)
+    public async Task<IActionResult> GetMessages(long id, long afterMsgId = 0, string? anonToken = null)
     {
         if (id <= 0) return Json(new { success = false, message = "Thiếu ID" });
         var result = await _inquiry.GetMessagesAsync(id, afterMsgId);
-        // Không trả token về client để tránh lộ qua AJAX polling
-        if (result.inquiry != null) result.inquiry.AnonToken = null;
+
+        // Bug thật phát hiện 2026-11-04 (code review): endpoint AJAX polling này KHÔNG hề kiểm tra
+        // chủ sở hữu — khác hẳn Chat() ngay bên trên có đủ 2 check (EmpCd cho DIRECT, AnonToken cho
+        // ANON). Vì ID tăng dần đoán được, bất kỳ NV đăng nhập nào gọi thẳng URL này với 1 id bất kỳ
+        // là đọc được toàn bộ nội dung chat (kể cả phản ánh nhạy cảm) của người khác. Thêm đúng 2
+        // check y hệt Chat() trước khi trả dữ liệu.
+        if (result.inquiry != null)
+        {
+            bool isAnon = result.inquiry.ChatType == "ANON";
+            bool denied = isAnon
+                ? result.inquiry.AnonToken != anonToken
+                : result.inquiry.EmpCd != CurrentUser!.EmpCd;
+            if (denied)
+                return Json(new { success = false, message = "Bạn không có quyền xem hội thoại này" });
+
+            // Không trả token về client để tránh lộ qua AJAX polling
+            result.inquiry.AnonToken = null;
+        }
         return Json(result);
     }
 
@@ -264,6 +296,11 @@ public class EmployeeInquiryController : InquiryBaseController
         public string? Subject   { get; set; }
         public string? AnonToken { get; set; }
         public string  Content   { get; set; } = "";
+    }
+
+    public class LookupByCodeRequest
+    {
+        public string Code { get; set; } = "";
     }
 
     public class EmpSendRequest

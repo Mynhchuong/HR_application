@@ -280,7 +280,10 @@ window.InquiryChat = (function () {
         if (refreshing) return;
         refreshing = true;
         try {
-            const res = await fetch(`${cfg.urls.getMessages}?id=${cfg.inquiryId}&afterMsgId=${lastMsgId}`);
+            // anonToken bắt buộc gửi kèm với hội thoại ANON — server dùng để xác minh chủ sở hữu
+            // trước khi trả nội dung chat (sửa cùng lúc với lỗ hổng IDOR phát hiện 2026-11-04).
+            const anonQs = cfg.isAnon ? `&anonToken=${encodeURIComponent(cfg.anonToken)}` : '';
+            const res = await fetch(`${cfg.urls.getMessages}?id=${cfg.inquiryId}&afterMsgId=${lastMsgId}${anonQs}`);
             const data = await res.json();
             if (data.success && data.messages?.length > 0) {
                 const newFromOther = data.messages.filter(m =>

@@ -23,6 +23,30 @@ public class InquiryController : ControllerBase
         _scopeFactory = scopeFactory;
     }
 
+    // Mã tra cứu hội thoại ẩn danh — KHÔNG dùng INQUIRY_NO (dạng INQ-20260626-0038, đoán được vì
+    // tăng dần theo ngày) — sinh ngẫu nhiên thật (RandomNumberGenerator, không phải Random thường).
+    // Định dạng (yêu cầu 2026-11-06, công nhân không phân biệt được chữ hoa/chữ thường): 6 ký tự gồm SỐ + CHỮ IN HOA
+    // (bỏ 0/O, 1/I/L dễ nhầm) và THÊM 1 ký tự đặc biệt ở vị trí ngẫu nhiên => 7 ký tự, vd "K7#M2P9".
+    // Tra cứu KHÔNG phân biệt hoa/thường (xem LookupByCode). Không gian mã = 31^6 x 4 x 7 ≈ 25 tỷ, không thấp hơn
+    // định dạng cũ (6 ký tự hoa+thường, ≈ 22 tỷ) nên không làm yếu việc đoán mã.
+    private const string AccessCodeAlphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+    private const string AccessCodeSpecials = "#@*!";
+
+    private static string GenerateAccessCode()
+    {
+        var chars = new List<char>(7);
+        for (int i = 0; i < 6; i++)
+            chars.Add(AccessCodeAlphabet[System.Security.Cryptography.RandomNumberGenerator.GetInt32(AccessCodeAlphabet.Length)]);
+        chars.Insert(System.Security.Cryptography.RandomNumberGenerator.GetInt32(7),
+                     AccessCodeSpecials[System.Security.Cryptography.RandomNumberGenerator.GetInt32(AccessCodeSpecials.Length)]);
+        return new string(chars.ToArray());
+    }
+
+    // Chuẩn hóa mã NV gõ vào: bỏ khoảng trắng, viết hoa (mã mới chỉ có chữ in hoa; mã cũ lẫn hoa/thường vẫn tra được
+    // vì so sánh bằng UPPER ở cả hai phía).
+    private static string NormalizeAccessCode(string? raw) =>
+        new string((raw ?? "").Where(c => !char.IsWhiteSpace(c)).ToArray()).ToUpperInvariant();
+
     // ─────────────────────────────────────────────────────────────────────────
     // GET /apiHR/Inquiry/topics
     // ─────────────────────────────────────────────────────────────────────────
@@ -353,25 +377,40 @@ public class InquiryController : ControllerBase
 
             // Tạo ANON_DISPLAY từ 4 ký tự cuối token
             string? anonDisplay = null;
+            string? accessCode  = null;
             if (req.ChatType == "ANON" && !string.IsNullOrWhiteSpace(req.AnonToken))
             {
                 string tok = req.AnonToken.Replace("-", "");
                 anonDisplay = "Ẩn danh #" + tok[^Math.Min(4, tok.Length)..].ToUpper();
+
+                // Thử tối đa 5 lần nếu trùng mã (xác suất cực thấp với không gian ~25 tỷ mã,
+                // nhưng vẫn kiểm tra UNIQUE thật thay vì tin suông vào xác suất).
+                for (int attempt = 0; attempt < 5; attempt++)
+                {
+                    string candidate = GenerateAccessCode();
+                    var dup = await _db.ExecuteQueryAsync(
+                        "SELECT 1 AS X FROM HRMS.HR_INQUIRY WHERE UPPER(ACCESS_CODE) = :CODE AND ROWNUM = 1",
+                        r => 1, new OracleParameter("CODE", candidate));
+                    if (dup.Count == 0) { accessCode = candidate; break; }
+                }
+                if (accessCode == null)
+                    return Ok(new { success = false, message = "Không sinh được mã tra cứu, vui lòng thử lại" });
             }
 
             // Insert HR_INQUIRY (trigger tự set ID + INQUIRY_NO)
             await _db.ExecuteNonQueryAsync(@"
                 INSERT INTO HRMS.HR_INQUIRY
-                    (CHAT_TYPE, EMPCD, EMP_NAME, ANON_TOKEN, ANON_DISPLAY,
+                    (CHAT_TYPE, EMPCD, EMP_NAME, ANON_TOKEN, ANON_DISPLAY, ACCESS_CODE,
                      TOPIC_CD, SUBJECT, STATUS, UNREAD_HR, UNREAD_EMP, MSG_COUNT, INST_DT)
                 VALUES
-                    (:CHAT_TYPE, :EMPCD, :EMP_NAME, :ANON_TOKEN, :ANON_DISPLAY,
+                    (:CHAT_TYPE, :EMPCD, :EMP_NAME, :ANON_TOKEN, :ANON_DISPLAY, :ACCESS_CODE,
                      :TOPIC_CD, :SUBJECT, 'OPEN', 0, 0, 0, SYSDATE)",
                 new OracleParameter("CHAT_TYPE",    req.ChatType),
                 new OracleParameter("EMPCD",        (object?)req.EmpCd     ?? DBNull.Value),
                 new OracleParameter("EMP_NAME",     string.IsNullOrEmpty(empName) ? (object)DBNull.Value : empName),
                 new OracleParameter("ANON_TOKEN",   (object?)req.AnonToken ?? DBNull.Value),
                 new OracleParameter("ANON_DISPLAY", (object?)anonDisplay   ?? DBNull.Value),
+                new OracleParameter("ACCESS_CODE",  (object?)accessCode    ?? DBNull.Value),
                 new OracleParameter("TOPIC_CD",     req.TopicCd),
                 new OracleParameter("SUBJECT",      (object?)req.Subject   ?? DBNull.Value));
 
@@ -427,7 +466,40 @@ public class InquiryController : ControllerBase
                 WHERE ID = :ID",
                 new OracleParameter("ID", inquiryId));
 
-            return Ok(new { success = true, inquiryId, inquiryNo });
+            return Ok(new { success = true, inquiryId, inquiryNo, accessCode });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /apiHR/Inquiry/lookup-by-code — tra cứu hội thoại ẩn danh bằng mã, trả lại đúng
+    // AnonToken gốc để FE lưu vào localStorage máy đang tra cứu. KHÔNG dùng EMPCD/tài khoản đăng
+    // nhập của người gọi API này để xác định hay ghi nhận gì cả — chỉ dựa đúng vào ACCESS_CODE
+    // khớp hay không (yêu cầu khách hàng 2026-11-04, xem chính sách gốc trong memory
+    // project_inquiry_anon_policy — không liên kết thiết bị/tài khoản với hồ sơ ẩn danh).
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPost("lookup-by-code")]
+    public async Task<IActionResult> LookupByCode([FromBody] InquiryLookupByCodeRequest req)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(req.Code))
+                return Ok(new { success = false, message = "Vui lòng nhập mã tra cứu" });
+
+            var rows = await _db.ExecuteQueryAsync(@"
+                SELECT ID, ANON_TOKEN FROM HRMS.HR_INQUIRY
+                WHERE UPPER(ACCESS_CODE) = :CODE AND ROWNUM = 1",
+                r => new { Id = Convert.ToInt64(r["ID"]), AnonToken = r["ANON_TOKEN"]?.ToString() },
+                new OracleParameter("CODE", NormalizeAccessCode(req.Code)));
+
+            var hit = rows.FirstOrDefault();
+            if (hit == null || string.IsNullOrEmpty(hit.AnonToken))
+                return Ok(new { success = false, message = "Mã tra cứu không đúng hoặc không tồn tại" });
+
+            return Ok(new { success = true, inquiryId = hit.Id, anonToken = hit.AnonToken });
         }
         catch (Exception ex)
         {

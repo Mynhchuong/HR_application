@@ -12,6 +12,11 @@ public class InquiryCreateRequest
     public string  Content    { get; set; } = "";       // tin nhắn đầu tiên bắt buộc
 }
 
+public class InquiryLookupByCodeRequest
+{
+    public string Code { get; set; } = "";
+}
+
 public class InquirySendRequest
 {
     public long    InquiryId  { get; set; }

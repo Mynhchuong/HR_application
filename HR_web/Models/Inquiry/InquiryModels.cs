@@ -159,6 +159,23 @@ public class InquiryCreateResponse
     public string? message    { get; set; }
     public long    inquiryId  { get; set; }
     public string? inquiryNo  { get; set; }
+    // Chỉ có giá trị khi ChatType=ANON — mã tra cứu ngắn (KHÔNG phải INQUIRY_NO, vì INQUIRY_NO
+    // dạng INQ-20260626-0038 đoán được) để NV xem lại hội thoại từ MÁY/TÀI KHOẢN BẤT KỲ, không cần
+    // đúng thiết bị đã gửi (yêu cầu khách hàng 2026-11-04 — không liên kết thiết bị/tài khoản đăng
+    // nhập với hồ sơ ẩn danh). Xem [[InquiryLookupByCodeResponse]].
+    public string? accessCode { get; set; }
+}
+
+// Tra cứu hội thoại ẩn danh bằng mã (KHÔNG cần đúng thiết bị/trình duyệt đã gửi, KHÔNG dùng
+// EMPCD/tài khoản đăng nhập để xác định — đúng yêu cầu khách hàng). Trả lại đúng AnonToken gốc để
+// FE tự lưu vào localStorage máy đang tra cứu, từ đó toàn bộ luồng Chat/GetMessages/Rate/Close
+// hiện có chạy y hệt như trên máy gốc, không cần sửa gì thêm ở các chỗ đó.
+public class InquiryLookupByCodeResponse
+{
+    public bool    success    { get; set; }
+    public string? message    { get; set; }
+    public long    inquiryId  { get; set; }
+    public string? anonToken  { get; set; }
 }
 
 public class InquirySendResponse

@@ -183,6 +183,24 @@
         <span class="material-symbols-rounded" style="margin-left:auto;">chevron_right</span>
     </a>
 
+    <!-- Tra cứu hội thoại ẩn danh bằng mã (yêu cầu khách hàng 2026-11-04) — NV gửi ẩn danh ở máy
+         khác/đã xoá localStorage vẫn xem lại được, không cần đúng thiết bị đã gửi. -->
+    <button type="button" class="kaizen-btn" style="background:#f1f5f9;border-color:#cbd5e1;color:#475569 !important;width:100%;border:1.5px solid #cbd5e1;cursor:pointer;" onclick="toggleLookupBox()">
+        <span class="material-symbols-rounded">pin</span>
+        <span>Tra cứu hội thoại ẩn danh bằng mã</span>
+        <span class="material-symbols-rounded" id="lookupChevron" style="margin-left:auto;">expand_more</span>
+    </button>
+    <div id="lookupBox" style="display:none;background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:.85rem 1rem;margin-bottom:.6rem;">
+        <div style="font-size:.78rem;color:#64748b;margin-bottom:.5rem;">Nhập mã bạn nhận được lúc gửi phản ánh ẩn danh (vd: 9aZ577) — xem được từ bất kỳ máy/tài khoản nào.</div>
+        <div style="display:flex;gap:.5rem;">
+            <input type="text" id="lookupCodeInput" maxlength="10" placeholder="Nhập mã tra cứu (VD: K7#M2P9)" autocapitalize="characters" autocomplete="off"
+                   autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
+                   style="flex:1;border:1.5px solid #e2e8f0;border-radius:10px;padding:.5rem .75rem;font-size:.9rem;text-transform:uppercase;" onkeydown="if(event.key==='Enter')doLookupByCode()">
+            <button type="button" onclick="doLookupByCode()" style="border:none;border-radius:10px;padding:.5rem 1.1rem;background:#4f46e5;color:#fff;font-weight:700;font-size:.85rem;">Xem</button>
+        </div>
+        <div id="lookupError" style="display:none;color:#dc2626;font-size:.78rem;margin-top:.4rem;"></div>
+    </div>
+
     <div id="rateBannerWrap" class="rate-banner-wrap" style="display:none"></div>
 
     <div class="inq-filter">
@@ -212,19 +230,47 @@
 
 @section Scripts {
 <script>
-const ANON_KEY = 'anon_chat_token';
 
-function getAnonToken() {
-    let t = localStorage.getItem(ANON_KEY);
-    if (!t) {
-        t = 'anon-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem(ANON_KEY, t);
-    }
-    return t;
-}
+// Không còn dấu nhận diện lưu theo thiết bị. (Chỉ còn các nhánh ẩn danh cũ trong danh sách, hiện không bao giờ chạy vì
+// danh sách không liệt kê hội thoại ẩn danh.)
+function getAnonToken() { return ''; }
 
 function esc(s) {
     return (s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toggleLookupBox() {
+    const box = document.getElementById('lookupBox');
+    const chevron = document.getElementById('lookupChevron');
+    const show = box.style.display === 'none';
+    box.style.display = show ? 'block' : 'none';
+    chevron.style.transform = show ? 'rotate(180deg)' : 'none';
+    if (show) document.getElementById('lookupCodeInput').focus();
+}
+
+async function doLookupByCode() {
+    const code = (document.getElementById('lookupCodeInput').value || '').trim();
+    const errEl = document.getElementById('lookupError');
+    errEl.style.display = 'none';
+    if (!code) { errEl.textContent = 'Vui lòng nhập mã'; errEl.style.display = 'block'; return; }
+
+    const antiToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+    try {
+        const res = await fetch('@Url.Action("LookupByCode", "EmployeeInquiry")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiToken },
+            body: JSON.stringify({ code })
+        });
+        const data = await res.json();
+        if (!data.success) { errEl.textContent = data.message || 'Không tìm thấy'; errEl.style.display = 'block'; return; }
+
+        // KHÔNG lưu AnonToken vào trình duyệt/thiết bị (ẩn danh không gắn với máy nào): ai có mã thì mở được, mở xong là hết —
+        // trang chat nhận dấu nhận diện qua địa chỉ trang, lần sau muốn xem lại phải nhập mã lại.
+        window.location.href = '@Url.Action("Chat", "EmployeeInquiry")?id=' + data.inquiryId + '&anonToken=' + encodeURIComponent(data.anonToken);
+    } catch {
+        errEl.textContent = 'Lỗi kết nối, vui lòng thử lại';
+        errEl.style.display = 'block';
+    }
 }
 
 function fmtTime(ds) {
@@ -534,6 +580,7 @@ async function loadAnon() {
 
 renderAiCard();
 loadDirect();
-loadAnon();
+// KHÔNG gọi loadAnon(): hội thoại ẩn danh không hiện trong danh sách (kể cả trên máy đã gửi) — chỉ xem lại bằng "Tra cứu hội thoại
+// ẩn danh bằng mã" (yêu cầu 2026-11-06; máy dùng chung thì người khác sẽ thấy hội thoại ẩn danh của người trước).
 </script>
 }

@@ -89,20 +89,26 @@ public static class SideMenuBuilder
                 Title = "Expat",
                 Icon = "manage_accounts",
                 VisibleWhen = () => isExpat,
+                // Gom cụm theo màu giống menu HR/CSR (yêu cầu 2026-11-06, Expat trước đó là 1 list
+                // phẳng không phân nhóm, khó lướt mắt) — ưu tiên các mục duyệt/xử lý lên đầu, mục
+                // tra cứu/tham khảo xuống cuối.
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Home",                Url = "~/Home/Index",                      Icon = "home"           },
-                    new SideMenuItem { Title = "User Guide", Url = "~/Guide/Index",                    Icon = "menu_book"      },
-                    new SideMenuItem { Title = "Kaizen",     Url = "~/Kaizen/Index",                   Icon = "tips_and_updates" },
-                    //new SideMenuItem { Title = "Notifications",       Url = "~/Notification/IndexForExpat",      Icon = "notifications"  },
-                    new SideMenuItem { Title = "Bulletin",            Url = "~/Bulletin/Index",                  Icon = "campaign"       },
-                    new SideMenuItem { Title = "OT List",            Url = "~/OT/OtListForExpat",               Icon = "view_list"      },
-                    new SideMenuItem { Title = "Attendance Confirm", Url = "~/AttendanceConfirm/IndexForExpat", Icon = "schedule"       },
-                    new SideMenuItem { Title = "Gate Pass Approval",  Url = "~/GatePass/GpListForExpat",         Icon = "door_front"     },
-                    new SideMenuItem { Title = "Leave Approval",      Url = "~/Leave/LeaveApprovalForExpat",     Icon = "event_available"},
-                    new SideMenuItem { Title = "Leave & Gate Calendar",          Url = "~/Leave/TeamCalendarForExpat",      Icon = "calendar_month" },
-                    new SideMenuItem { Title = "My Team",                       Url = "~/Employee/MyTeamForExpat",         Icon = "groups"         },
-                    new SideMenuItem { Title = "Scan / Check Employee Info",     Url = "~/Directory/Index",                 Icon = "qr_code_scanner" },
+                    new SideMenuItem { Title = "Home", Url = "~/Home/Index", Icon = "home" },
+
+                    new SideMenuItem { Title = "OT List",            Url = "~/OT/OtListForExpat",               Icon = "view_list",       Group = "attendance" },
+                    new SideMenuItem { Title = "Attendance Confirm", Url = "~/AttendanceConfirm/IndexForExpat", Icon = "schedule",        Group = "attendance" },
+                    new SideMenuItem { Title = "Gate Pass Approval", Url = "~/GatePass/GpListForExpat",         Icon = "door_front",      Group = "attendance" },
+
+                    new SideMenuItem { Title = "Leave Approval",         Url = "~/Leave/LeaveApprovalForExpat",  Icon = "event_available", Group = "leave" },
+                    new SideMenuItem { Title = "Leave & Gate Calendar",  Url = "~/Leave/TeamCalendarForExpat",   Icon = "calendar_month",  Group = "leave" },
+
+                    new SideMenuItem { Title = "My Team",                   Url = "~/Employee/MyTeamForExpat", Icon = "groups",           Group = "system" },
+                    new SideMenuItem { Title = "Scan / Check Employee Info", Url = "~/Directory/Index",        Icon = "qr_code_scanner",  Group = "system" },
+                    new SideMenuItem { Title = "Bulletin",                  Url = "~/Bulletin/Index",          Icon = "campaign",          Group = "system" },
+                    new SideMenuItem { Title = "User Guide",                Url = "~/Guide/Index",             Icon = "menu_book",         Group = "system" },
+
+                    new SideMenuItem { Title = "Kaizen", Url = "~/Kaizen/Index", Icon = "tips_and_updates", Group = "training" },
                 }
             },
 

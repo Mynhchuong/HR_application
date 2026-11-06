@@ -225,6 +225,10 @@ textarea.input-modern { resize: none; min-height: 120px; }
                         Tin nhắn ẩn danh <strong>không được lưu trữ lâu dài</strong> và sẽ tự động xóa sau một khoảng thời gian.
                         Nếu cần giữ lại thông tin, hãy chọn hình thức <strong>Trực tiếp</strong>.
                     </div>
+                    <div style="font-size:.8rem;color:#78350f;line-height:1.5;margin-top:.45rem;padding-top:.45rem;border-top:1px dashed #fde047">
+                        <strong>Hãy nhớ mã tra cứu:</strong> sau khi gửi, hệ thống cho bạn một <strong>mã tra cứu</strong>.
+                        Lần sau bạn cần mã này để <strong>xem lại câu trả lời</strong> và chat tiếp ẩn danh. Hãy chép lại, quên mã thì không tra lại được.
+                    </div>
                 </div>
             </div>
         </div>
@@ -294,6 +298,7 @@ textarea.input-modern { resize: none; min-height: 120px; }
         <div id="anonReminder" style="display:none;background:#fefce8;border:1.5px solid #fde047;border-radius:10px;padding:.6rem .85rem;margin-bottom:.75rem;font-size:.78rem;color:#92400e">
             <span class="material-symbols-rounded" style="font-size:.95rem;vertical-align:middle;color:#ca8a04">warning</span>
             Tin nhắn ẩn danh sẽ <strong>không được lưu lâu dài</strong> — sẽ tự xóa sau một thời gian.
+            Sau khi gửi bạn sẽ nhận <strong>mã tra cứu</strong>: <strong>hãy nhớ/chép lại mã này</strong> để lần sau xem lại câu trả lời.
         </div>
 
         <div class="nav-btns">
@@ -310,18 +315,80 @@ textarea.input-modern { resize: none; min-height: 120px; }
 
 @section Scripts {
 <script>
-const ANON_KEY  = 'anon_chat_token';
 const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 
 let selectedType  = '';
 let selectedTopic = '';
 let uploadedFiles = [];
 
-function getAnonToken() {
-    let t = localStorage.getItem(ANON_KEY);
-    if (!t) { t = 'anon-' + Date.now() + '-' + Math.random().toString(36).substr(2,9); localStorage.setItem(ANON_KEY, t); }
-    return t;
+// Modal bắt buộc NV xác nhận đã lưu mã tra cứu ẩn danh trước khi tiếp tục — Promise chỉ resolve
+// khi bấm "Tôi đã ghi nhớ mã này" (không có nút đóng/tắt khác, tránh NV bỏ qua rồi mất mã).
+function showAccessCodeModal(code) {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+        overlay.innerHTML = `
+            <div style="background:#fff;border-radius:18px;padding:1.5rem 1.25rem;max-width:360px;width:100%;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.3);">
+                <span class="material-symbols-rounded" style="font-size:2.2rem;color:#4f46e5;">pin</span>
+                <div style="font-weight:800;font-size:1.05rem;color:#1e293b;margin:.5rem 0 .25rem;">Mã tra cứu của bạn</div>
+                <div style="font-size:.82rem;color:#64748b;margin-bottom:1rem;line-height:1.5;">
+                    <strong style="color:#b91c1c">Hãy nhớ mã này!</strong> Lần sau bạn cần mã này để <strong>xem lại câu trả lời</strong>
+                    (nhập ở ô <em>"Nhập mã tra cứu"</em> trong Hộp thư). Quên mã thì <strong>không tra lại được</strong>.
+                    <div style="margin-top:.4rem;color:#475569">Khi nhập lại, gõ chữ hoa hay chữ thường đều được.</div>
+                </div>
+                <div id="accessCodeText" style="font-family:monospace;font-size:1.8rem;font-weight:800;letter-spacing:.1em;color:#4f46e5;background:#eef2ff;border-radius:12px;padding:.6rem;margin-bottom:.5rem;user-select:all;-webkit-user-select:all;">${esc(code)}</div>
+                <button type="button" id="accessCodeCopyBtn" style="width:100%;border:1.5px solid #c7d2fe;border-radius:12px;padding:.6rem;background:#fff;color:#4f46e5;font-weight:800;font-size:.9rem;cursor:pointer;margin-bottom:.75rem;display:flex;align-items:center;justify-content:center;gap:.4rem;">
+                    <span class="material-symbols-rounded" style="font-size:1.15rem;">content_copy</span><span id="accessCodeCopyLbl">Sao chép mã</span>
+                </button>
+                <button type="button" id="accessCodeOkBtn" style="width:100%;border:none;border-radius:12px;padding:.75rem;background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);color:#fff;font-weight:800;font-size:.92rem;cursor:pointer;">
+                    Tôi đã ghi nhớ mã này
+                </button>
+            </div>`;
+        document.body.appendChild(overlay);
+        document.getElementById('accessCodeCopyBtn').onclick = async () => {
+            const lbl = document.getElementById('accessCodeCopyLbl');
+            if (await copyAccessCode(code)) {
+                lbl.textContent = 'Đã sao chép ✓';
+            } else {
+                // Không sao chép tự động được: chọn sẵn cả mã để NV giữ vào mã rồi chọn Sao chép / Copy
+                const el = document.getElementById('accessCodeText');
+                const range = document.createRange(); range.selectNodeContents(el);
+                const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+                lbl.textContent = 'Giữ vào mã rồi chọn "Sao chép"';
+            }
+            setTimeout(() => { if (document.body.contains(overlay)) lbl.textContent = 'Sao chép mã'; }, 3000);
+        };
+        document.getElementById('accessCodeOkBtn').onclick = () => { overlay.remove(); resolve(); };
+    });
 }
+// Sao chép mã — chạy trên iOS, Android, macOS, Windows (kể cả trong app My Samho/WebView và khi trang mở bằng http thường:
+// navigator.clipboard CHỈ có ở https/localhost nên cần cách dự phòng textarea + execCommand('copy'), phải gọi ngay trong
+// lúc bấm nút (iOS yêu cầu). Trả false nếu không sao chép được -> hiện hướng dẫn chọn mã bằng tay.
+async function copyAccessCode(text) {
+    try {
+        if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
+    } catch (e) { /* rơi xuống cách dự phòng */ }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);   // iOS Safari/WKWebView cần setSelectionRange
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+}
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Mỗi hội thoại ẩn danh dùng 1 dấu nhận diện NGẪU NHIÊN riêng, KHÔNG lưu vào trình duyệt: trước đây cả máy dùng chung 1 dấu nên
+// mọi hội thoại ẩn danh gửi từ máy đó đều bị nối với nhau và hiện lại trong Hộp thư cho bất kỳ ai dùng chung máy.
+function newAnonToken() {
+    const a = new Uint8Array(12);
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    return 'anon-' + Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+}
+
 
 function goStep(n) {
     [1,2,3].forEach(i => document.getElementById(`step${i}`).style.display = i === n ? '' : 'none');
@@ -396,7 +463,8 @@ function renderFilePreviews() {
         const thumb = f.thumbPath
             ? `<img src="@Url.Action("GetFile","EmployeeInquiry")?path=${encodeURIComponent(f.thumbPath)}" alt="">`
             : `<span class="material-symbols-rounded" style="font-size:1.4rem;color:#64748b;">description</span>`;
-        return `<div class="file-chip">${thumb}<span>${f.fileName.length > 15 ? f.fileName.substr(0,12)+'...' : f.fileName}</span><span class="fc-remove" onclick="removeFile(${i})">✕</span></div>`;
+        const shortName = f.fileName.length > 15 ? f.fileName.substr(0,12)+'...' : f.fileName;
+        return `<div class="file-chip">${thumb}<span>${esc(shortName)}</span><span class="fc-remove" onclick="removeFile(${i})">✕</span></div>`;
     }).join('');
 }
 
@@ -419,19 +487,7 @@ async function loadExistingConversations() {
             });
         }
     } catch {}
-    try {
-        const tok = localStorage.getItem(ANON_KEY);
-        if (tok) {
-            const r2 = await fetch(`@Url.Action("GetAnonList","EmployeeInquiry")?token=${encodeURIComponent(tok)}`);
-            const d2 = await r2.json();
-            if (d2.success) {
-                openAnonTopics = {};
-                (d2.data || []).filter(i => i.status === 'OPEN').forEach(i => {
-                    openAnonTopics[i.topicCd] = { id: i.id, inquiryNo: i.inquiryNo };
-                });
-            }
-        }
-    } catch {}
+    // Hội thoại ẩn danh KHÔNG dò theo trình duyệt/thiết bị nữa (chỉ tra cứu bằng mã) — mỗi lần gửi ẩn danh là 1 hội thoại mới.
 }
 
 function checkExistingTopic(cd) {
@@ -440,10 +496,7 @@ function checkExistingTopic(cd) {
     const map = selectedType === 'ANON' ? openAnonTopics : openDirectTopics;
     const existing = map[cd];
     if (existing) {
-        const tok = localStorage.getItem(ANON_KEY) || '';
-        const href = selectedType === 'ANON'
-            ? `@Url.Action("Chat","EmployeeInquiry")?id=${existing.id}&anonToken=${encodeURIComponent(tok)}`
-            : `@Url.Action("Chat","EmployeeInquiry")?id=${existing.id}`;
+        const href = `@Url.Action("Chat","EmployeeInquiry")?id=${existing.id}`;   // chỉ có hội thoại TRỰC TIẾP; ẩn danh không dò theo thiết bị
         warn.style.display = '';
         warn.innerHTML = `⚠️ Bạn đang có hội thoại <strong>${existing.inquiryNo}</strong> đang mở về chủ đề này. <a href="${href}" class="fw-bold">Xem hội thoại cũ →</a>`;
     } else {
@@ -486,11 +539,12 @@ async function submitCreate() {
     const btn = document.getElementById('btnSubmit');
     btn.disabled = true; btn.textContent = 'Đang gửi...';
 
+    const anonTok = selectedType === 'ANON' ? newAnonToken() : null;
     const body = {
         chatType:  selectedType,
         topicCd:   selectedTopic,
         subject:   document.getElementById('subjectInput').value.trim() || null,
-        anonToken: selectedType === 'ANON' ? getAnonToken() : null,
+        anonToken: anonTok,
         content:   content
     };
 
@@ -506,15 +560,22 @@ async function submitCreate() {
         // If there are files, send them in a follow-up message via the chat
         // Navigate to chat page
         const chatUrl = selectedType === 'ANON'
-            ? `@Url.Action("Chat","EmployeeInquiry")?id=${data.inquiryId}&anonToken=${encodeURIComponent(getAnonToken())}`
+            ? `@Url.Action("Chat","EmployeeInquiry")?id=${data.inquiryId}&anonToken=${encodeURIComponent(anonTok)}`
             : `@Url.Action("Chat","EmployeeInquiry")?id=${data.inquiryId}`;
+
+        // Ẩn danh: bắt NV xác nhận đã lưu mã tra cứu trước khi rời trang — mã này là CÁCH DUY NHẤT
+        // xem lại hội thoại từ máy/tài khoản khác (yêu cầu khách hàng 2026-11-04). Chặn navigate
+        // cho tới khi bấm "Tôi đã ghi nhớ mã này".
+        if (selectedType === 'ANON' && data.accessCode) {
+            await showAccessCodeModal(data.accessCode);
+        }
 
         // Send files as separate message if any
         if (uploadedFiles.length > 0) {
             const sendBody = {
                 inquiryId:  data.inquiryId,
                 inquiryNo:  data.inquiryNo,
-                anonToken:  selectedType === 'ANON' ? getAnonToken() : null,
+                anonToken:  anonTok,
                 content:    null,
                 files:      uploadedFiles
             };

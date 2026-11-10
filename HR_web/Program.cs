@@ -31,9 +31,21 @@ builder.Services.AddAntiforgery(options =>
 
 builder.Services.AddMemoryCache();
     
-// Persist keys to filesystem to prevent logout on app restart/idle
+// Persist keys ra thư mục CỐ ĐỊNH ngoài vùng deploy (yêu cầu 2026-11-10: trước đây lưu trong
+// ContentRootPath/DataProtectionKeys — mỗi lần deploy (xoá sạch rồi copy code mới) thư mục này mất
+// theo, toàn bộ user đang đăng nhập (kể cả app Android/iOS, vốn chỉ là WebView dùng chung cookie web)
+// bị logout ngầm cùng lúc, kéo theo hệ quả phụ: token FCM chỉ đăng ký lại được lúc đang đăng nhập,
+// nên nếu Firebase cấp token mới đúng lúc đang bị logout thì NV mất noti cho tới khi đăng nhập lại.
+// C:\ProgramData không nằm trong physical path của site IIS nên không bao giờ bị xoá khi deploy —
+// cần đảm bảo IIS App Pool Identity có quyền ghi vào thư mục này trên server trước khi deploy bản này.
+// Chỉ áp dụng path cố định này khi chạy Production trên Windows/IIS — giữ nguyên hành vi cũ
+// (ContentRootPath) lúc dev local trên máy Mac/Linux để không vỡ `dotnet run` hằng ngày.
+var dataProtectionKeyPath = (!builder.Environment.IsDevelopment() && OperatingSystem.IsWindows())
+    ? @"D:\SharedKeys\HR_Web\DataProtectionKeys"
+    : Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys");
 builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys")));
+    .SetApplicationName("HR_Web")
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyPath));
 
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

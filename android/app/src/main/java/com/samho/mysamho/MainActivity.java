@@ -919,15 +919,23 @@ public class MainActivity extends AppCompatActivity {
     void startNativeBarcodeScan() {
         // CODE_128 (tem máy TPM) + QR_CODE (tra cứu NV qua thẻ QR, Directory/Index — yêu cầu 2026-10-24:
         // đồng bộ với iOS, dùng chung 1 màn quét native cho mọi nơi gọi window.Android.scanBarcode()).
-        GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_CODE_128, Barcode.FORMAT_QR_CODE)
-                .enableAutoZoom()
-                .build();
-        GmsBarcodeScanner scanner = GmsBarcodeScanning.getClient(this, options);
-        scanner.startScan()
-                .addOnSuccessListener(barcode -> callWeb("onNativeBarcode", barcode.getRawValue()))
-                .addOnCanceledListener(() -> callWeb("onNativeBarcodeCancel", ""))
-                .addOnFailureListener(e -> callWeb("onNativeBarcodeError", e.getMessage()));
+        try {
+            GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder()
+                    .setBarcodeFormats(Barcode.FORMAT_CODE_128, Barcode.FORMAT_QR_CODE)
+                    .enableAutoZoom()
+                    .build();
+            GmsBarcodeScanner scanner = GmsBarcodeScanning.getClient(this, options);
+            scanner.startScan()
+                    .addOnSuccessListener(barcode -> callWeb("onNativeBarcode", barcode.getRawValue()))
+                    .addOnCanceledListener(() -> callWeb("onNativeBarcodeCancel", ""))
+                    .addOnFailureListener(e -> callWeb("onNativeBarcodeError", e.getMessage()));
+        } catch (Exception e) {
+            // Máy không có / Google Play Services lỗi, outdated — getClient()/startScan() có thể ném lỗi
+            // NGAY LẬP TỨC (đồng bộ), không đi qua addOnFailureListener ở trên (bug thật 2026-11-10: app
+            // crash/out ngay khi bấm quét, trước khi camera kịp mở). Bắt ở đây để rơi về đúng y như lỗi
+            // async — web tự fallback sang quét trong trang (html5-qrcode), không crash cả app.
+            callWeb("onNativeBarcodeError", e.getMessage());
+        }
     }
 
     private void callWeb(String fn, String arg) {

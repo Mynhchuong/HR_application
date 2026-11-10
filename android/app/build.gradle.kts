@@ -11,8 +11,8 @@ android {
         applicationId = "com.samho.mysamho"
         minSdk = 24
         targetSdk = 36
-        versionCode = 17
-        versionName = "10.7"
+        versionCode = 18
+        versionName = "10.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

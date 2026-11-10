@@ -153,3 +153,11 @@ HR_api/Scripts/create_kaizen.sql
 *.keystore
 HR_api/Scripts/alter_inquiry_access_code.sql
 Grievance app - summary.xlsx
+HR_api/Scripts/alter_inquiry_catalog_fields.sql
+HR_api/Scripts/alter_inquiry_csr_confirm.sql
+HR_api/Scripts/create_inquiry_draft.sql
+HR_api/Scripts/create_inquiry_remind_log.sql
+HR_api/Scripts/create_inquiry_remind_to.sql
+HR_api/Scripts/inquiry_pic_backfill_and_ga.sql
+HR_api/Scripts/go_live_inquiry_catalog.sql
+HR_api/Scripts/inquiry_catalog_plan.md

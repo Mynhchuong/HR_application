@@ -21,6 +21,7 @@
     .stars { display: flex; gap: .25rem; justify-content: center; margin: .5rem 0; }
     .star  { font-size: 1.8rem; cursor: pointer; color: #e2e8f0; transition: color .15s; }
     .star.active { color: #f59e0b; }
+    .star-hint { text-align: center; font-size: .8rem; font-weight: 800; min-height: 1.2rem; }
     .rate-modal-overlay { position: fixed; inset: 0; z-index: 1050; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
     .rate-modal-sheet   { background: white; border-radius: 24px 24px 0 0; padding: 1.5rem 1.25rem; width: 100%; max-width: 480px; animation: slideUp .25s ease; }
     @@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -225,6 +226,7 @@
             <div class="stars" id="modalStarRow">
                 @for (int s = 1; s <= 5; s++) { <span class="star" data-val="@s" onclick="setRating(@s)">★</span> }
             </div>
+            <div class="star-hint" id="starHint"></div>
             <input type="text" id="ratingNote" class="form-control form-control-sm mt-3"
                    placeholder="Nhận xét (không bắt buộc)" maxlength="300">
             <div class="d-flex gap-2 mt-3">
@@ -291,14 +293,21 @@ function setRating(val) {
     document.querySelectorAll('#modalStarRow .star').forEach(s => {
         s.classList.toggle('active', parseInt(s.dataset.val) <= val);
     });
+    // 4–5 sao = Hài lòng · 3 = Bình thường · 1–2 = Không hài lòng (phải nêu lý do)
+    const lv = val >= 4 ? ['Hài lòng', '#16a34a'] : val === 3 ? ['Bình thường', '#d97706'] : ['Không hài lòng', '#dc2626'];
+    const h = document.getElementById('starHint'); if (h) { h.textContent = lv[0]; h.style.color = lv[1]; }
+    const n = document.getElementById('ratingNote');
+    if (n) n.placeholder = val <= 2 ? 'Vui lòng cho biết lý do (bắt buộc)' : 'Nhận xét (không bắt buộc)';
 }
 async function submitRate() {
     if (selectedRating === 0) { showToast('Vui lòng chọn số sao', 'warning'); return; }
+    const noteVal = document.getElementById('ratingNote')?.value.trim() || '';
+    if (selectedRating <= 2 && noteVal.length < 3) { showToast('Vui lòng cho biết lý do không hài lòng', 'warning'); document.getElementById('ratingNote')?.focus(); return; }
     const body = {
         inquiryId:  INQUIRY_ID,
         anonToken:  IS_ANON ? ANON_TOKEN : null,
         rating:     selectedRating,
-        ratingNote: document.getElementById('ratingNote')?.value.trim() || null
+        ratingNote: noteVal || null
     };
     const res  = await fetch('@Url.Action("Rate","EmployeeInquiry")', {
         method: 'POST',

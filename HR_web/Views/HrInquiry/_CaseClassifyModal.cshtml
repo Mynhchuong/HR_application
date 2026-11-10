@@ -1,0 +1,179 @@
+@model long
+@* Popup "Phân loại" trong khung chat HR/CSR: sửa Loại báo cáo / Chủ đề / Mức độ / PIC / Hạn phản hồi của 1 hội thoại.
+   Dữ liệu qua HrInquiryController.CaseInfo + CaseCatalogs, lưu qua UpdateCaseInfo (cần @@Html.AntiForgeryToken() ở trang chứa). *@
+
+<style>
+    .cc-back { position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 1rem; }
+    .cc-back.show { display: flex; }
+    .cc-modal { background: #fff; border-radius: 18px; width: 100%; max-width: 520px; max-height: 92vh; overflow: auto; box-shadow: 0 20px 50px rgba(0,0,0,.3); }
+    .cc-hd { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.2rem .4rem; }
+    .cc-hd h5 { margin: 0; font-weight: 800; font-size: 1.05rem; color: #1e293b; }
+    .cc-x { border: 0; background: none; font-size: 1.6rem; line-height: 1; color: #64748b; cursor: pointer; }
+    .cc-sub { padding: 0 1.2rem .6rem; font-size: .78rem; color: #94a3b8; }
+    .cc-bd { padding: .4rem 1.2rem 1rem; }
+    .cc-row { margin-bottom: .85rem; }
+    .cc-row label { display: block; font-size: .8rem; font-weight: 700; color: #334155; margin-bottom: .3rem; }
+    .cc-row select, .cc-row input[type=date] { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: .55rem .75rem; font-size: .92rem; background: #fff; }
+    .cc-row select:focus, .cc-row input:focus { outline: none; border-color: #4f46e5; }
+    .cc-hint { font-size: .73rem; color: #94a3b8; margin-top: .25rem; line-height: 1.4; }
+    .cc-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+    @@media (max-width: 480px) { .cc-grid2 { grid-template-columns: 1fr; } }
+    .cc-link { font-size: .76rem; font-weight: 700; color: #4f46e5; cursor: pointer; background: none; border: 0; padding: 0; }
+    .cc-ft { display: flex; justify-content: flex-end; align-items: center; gap: .6rem; padding: .8rem 1.2rem 1.1rem; border-top: 1px solid #f1f5f9; }
+    .cc-btn { border: 0; border-radius: 12px; padding: .6rem 1.3rem; font-weight: 800; font-size: .88rem; cursor: pointer; }
+    .cc-btn.sec { background: #f1f5f9; color: #475569; }
+    .cc-btn.pri { background: #4f46e5; color: #fff; }
+    .cc-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .cc-msg { padding: 0 1.2rem; font-size: .83rem; color: #b91c1c; display: none; }
+    .cc-due { display: inline-block; margin-left: .4rem; font-size: .7rem; font-weight: 800; padding: .06rem .5rem; border-radius: 999px; }
+    .cc-due.over { background: #fee2e2; color: #b91c1c; }
+    .cc-due.soon { background: #fef3c7; color: #92400e; }
+    .cc-loading { padding: 2rem; text-align: center; color: #94a3b8; }
+</style>
+
+<div class="cc-back" id="ccBack" onclick="if(event.target===this)CaseClassify.close()">
+    <div class="cc-modal">
+        <div class="cc-hd">
+            <h5>Phân loại case</h5>
+            <button type="button" class="cc-x" onclick="CaseClassify.close()" aria-label="Đóng">&times;</button>
+        </div>
+        <div class="cc-sub" id="ccSub"></div>
+        <div id="ccLoading" class="cc-loading">Đang tải...</div>
+        <div class="cc-bd" id="ccBody" style="display:none">
+            <div class="cc-row">
+                <label for="ccReportType">Loại báo cáo</label>
+                <select id="ccReportType">
+                    <option value="">— Chưa phân loại —</option>
+                    <option value="GRIEVANCE">Kiến nghị</option>
+                    <option value="OPINION">Ý kiến</option>
+                </select>
+            </div>
+            <div class="cc-row">
+                <label for="ccTopic">Chủ đề</label>
+                <select id="ccTopic"></select>
+                <div class="cc-hint">Đổi chủ đề KHÔNG tự đổi mức độ, PIC hay hạn.</div>
+            </div>
+            <div class="cc-grid2">
+                <div class="cc-row">
+                    <label for="ccSeverity">Mức độ</label>
+                    <select id="ccSeverity"></select>
+                </div>
+                <div class="cc-row">
+                    <label for="ccPic">PIC (phòng ban phụ trách)</label>
+                    <select id="ccPic"></select>
+                </div>
+            </div>
+            <div class="cc-row">
+                <label for="ccDeadline">Hạn phản hồi <span id="ccDue"></span></label>
+                <input type="date" id="ccDeadline">
+                <div class="cc-hint">
+                    Đổi mức độ KHÔNG tự đổi hạn.
+                    <button type="button" class="cc-link" onclick="CaseClassify.resetDeadline()">Đặt hạn theo mức độ (ngày tạo + số ngày)</button>
+                </div>
+            </div>
+        </div>
+        <div class="cc-msg" id="ccMsg"></div>
+        <div class="cc-ft">
+            <button type="button" class="cc-btn sec" onclick="CaseClassify.close()">Hủy</button>
+            <button type="button" class="cc-btn pri" id="ccSave" onclick="CaseClassify.save()" disabled>Lưu phân loại</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const CaseClassify = (function () {
+    const INQ_ID = @Model;
+    const URL_INFO = '@Url.Action("CaseInfo", "HrInquiry")';
+    const URL_CAT  = '@Url.Action("CaseCatalogs", "HrInquiry")';
+    const URL_SAVE = '@Url.Action("UpdateCaseInfo", "HrInquiry")';
+    let info = null, severities = [];
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const pad = n => String(n).padStart(2, '0');
+    const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+    function msg(t) { const e = $('ccMsg'); e.textContent = t || ''; e.style.display = t ? 'block' : 'none'; }
+    function toast(t, type) { if (window.showToast) window.showToast(t, type); }
+
+    function updateDue() {
+        const el = $('ccDue'); el.innerHTML = '';
+        const v = $('ccDeadline').value;
+        if (!v || (info && info.status === 'CLOSED')) return;
+        const d = new Date(v + 'T00:00:00'), today = new Date(); today.setHours(0, 0, 0, 0);
+        const diff = Math.round((d - today) / 86400000);
+        if (diff < 0) el.innerHTML = '<span class="cc-due over">Quá hạn ' + (-diff) + ' ngày</span>';
+        else if (diff <= 1) el.innerHTML = '<span class="cc-due soon">' + (diff === 0 ? 'Hết hạn hôm nay' : 'Còn 1 ngày') + '</span>';
+    }
+
+    function resetDeadline() {
+        const sev = severities.find(x => x.severityCd === $('ccSeverity').value);
+        if (!sev || !info || !info.createdDt) return;
+        const d = new Date(info.createdDt); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + sev.responseDays);
+        $('ccDeadline').value = ymd(d); updateDue();
+    }
+
+    async function open() {
+        $('ccBack').classList.add('show');
+        $('ccBody').style.display = 'none'; $('ccLoading').style.display = ''; $('ccLoading').textContent = 'Đang tải...';
+        $('ccSave').disabled = true; msg('');
+        try {
+            const [ri, rc] = await Promise.all([fetch(URL_INFO + '?id=' + INQ_ID), fetch(URL_CAT)]);
+            const di = await ri.json(), dc = await rc.json();
+            if (!di.success) { $('ccLoading').textContent = di.message || 'Không tải được'; return; }
+            info = di.data; severities = dc.severities || [];
+
+            // anonDisplay đã có sẵn chữ "Ẩn danh #xxxx" — không ghép thêm "Ẩn danh" nữa
+            $('ccSub').innerHTML = esc(info.inquiryNo) + ' · ' + (info.chatType === 'ANON'
+                ? esc(info.anonDisplay || 'Ẩn danh')
+                : '<span class="vni-font">' + esc(info.empName || '') + '</span>');
+
+            const topics = (dc.topics || []).filter(t => t.isActive || t.topicCd === info.topicCd);
+            $('ccTopic').innerHTML = topics.map(t => '<option value="' + esc(t.topicCd) + '">' + esc(t.topicName) + (t.isActive ? '' : ' (đã ẩn)') + '</option>').join('');
+            $('ccSeverity').innerHTML = '<option value="">— Chưa có —</option>' + severities.map(x =>
+                '<option value="' + esc(x.severityCd) + '">' + esc(x.nameVi) + ' — ' + x.responseDays + ' ngày</option>').join('');
+            $('ccPic').innerHTML = '<option value="">— Chưa gán —</option>' + (dc.picRoles || []).map(x =>
+                '<option value="' + x.id + '">' + esc(x.name) + '</option>').join('');
+
+            $('ccReportType').value = info.reportType || '';
+            $('ccTopic').value      = info.topicCd || '';
+            $('ccSeverity').value   = info.severityCd || '';
+            $('ccPic').value        = info.picDeptRoleId ? String(info.picDeptRoleId) : '';
+            $('ccDeadline').value   = info.deadlineDt ? ymd(new Date(info.deadlineDt)) : '';
+            $('ccDeadline').oninput = updateDue;
+            updateDue();
+            $('ccLoading').style.display = 'none'; $('ccBody').style.display = ''; $('ccSave').disabled = false;
+        } catch (e) { $('ccLoading').textContent = 'Lỗi kết nối, vui lòng thử lại'; }
+    }
+
+    function close() { $('ccBack').classList.remove('show'); }
+
+    async function save() {
+        const topicCd = $('ccTopic').value;
+        if (!topicCd) { msg('Vui lòng chọn chủ đề'); return; }
+        const btn = $('ccSave'); btn.disabled = true; msg('');
+        try {
+            const dl = $('ccDeadline').value;
+            const res = await fetch(URL_SAVE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token() },
+                body: JSON.stringify({
+                    id: INQ_ID,
+                    reportType:    $('ccReportType').value || null,
+                    topicCd:       topicCd,
+                    severityCd:    $('ccSeverity').value || null,
+                    picDeptRoleId: $('ccPic').value ? parseInt($('ccPic').value, 10) : null,
+                    deadlineDt:    dl ? dl + 'T00:00:00' : null
+                })
+            });
+            const d = await res.json();
+            if (d.success) { close(); toast('Đã lưu phân loại', 'success'); }
+            else msg(d.message || 'Lưu thất bại');
+        } catch (e) { msg('Lỗi kết nối, vui lòng thử lại'); }
+        finally { btn.disabled = false; }
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    return { open, close, save, resetDeadline };
+})();
+</script>

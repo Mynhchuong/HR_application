@@ -90,6 +90,11 @@ public class EmployeeInquiryController : InquiryBaseController
             return Json(new { success = false, message = "Loại chat không hợp lệ" });
         if (req.ChatType == "ANON" && string.IsNullOrWhiteSpace(req.AnonToken))
             return Json(new { success = false, message = "Thiếu token ẩn danh" });
+        // Loại báo cáo bắt buộc (bước chọn "Kiến nghị / Ý kiến" ở form tạo mới)
+        var reportType = (req.ReportType ?? "").Trim().ToUpperInvariant();
+        if (string.Equals(req.TopicCd, "COMPLAINT", StringComparison.OrdinalIgnoreCase)) reportType = "OPINION";   // phản ánh từ trang Hồ sơ = Góp ý
+        if (reportType != "GRIEVANCE" && reportType != "OPINION")
+            return Json(new { success = false, message = "Vui lòng chọn Loại báo cáo (Kiến nghị / Ý kiến)" });
 
         string? empCd     = req.ChatType == "DIRECT" ? CurrentUser!.EmpCd : null;
         string? anonToken = req.ChatType == "ANON"   ? req.AnonToken       : null;
@@ -100,7 +105,8 @@ public class EmployeeInquiryController : InquiryBaseController
             subject:   req.Subject,
             empCd:     empCd,
             anonToken: anonToken,
-            content:   req.Content);
+            content:   req.Content,
+            reportType: reportType);
 
         return Json(result);
     }
@@ -277,6 +283,9 @@ public class EmployeeInquiryController : InquiryBaseController
         if (req.InquiryId <= 0) return Json(new { success = false, message = "Thiếu ID hội thoại" });
         if (req.Rating < 1 || req.Rating > 5)
             return Json(new { success = false, message = "Đánh giá phải từ 1 đến 5 sao" });
+        // 1–2 sao (= Không hài lòng) → bắt buộc nêu lý do (Phase 4). Kiểm ở web để HR_api vẫn nhận được client cũ.
+        if (req.Rating <= 2 && (req.RatingNote?.Trim().Length ?? 0) < 3)
+            return Json(new { success = false, message = "Vui lòng cho biết lý do chưa hài lòng" });
 
         string? empCd     = string.IsNullOrEmpty(req.AnonToken) ? CurrentUser!.EmpCd : null;
         string? anonToken = req.AnonToken;
@@ -296,6 +305,7 @@ public class EmployeeInquiryController : InquiryBaseController
         public string? Subject   { get; set; }
         public string? AnonToken { get; set; }
         public string  Content   { get; set; } = "";
+        public string? ReportType { get; set; }          // GRIEVANCE (Kiến nghị) | OPINION (Ý kiến)
     }
 
     public class LookupByCodeRequest

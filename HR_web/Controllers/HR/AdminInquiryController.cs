@@ -1,4 +1,5 @@
 using HR_web.Models.Account;
+using HR_web.Helpers;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using ClosedXML.Excel;
@@ -25,7 +26,195 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     private bool IsAdmin => CurrentUser?.RoleName == "Admin";
 
     // Report/GetReport/ExportReport (thống kê, read-only) mở thêm cho CSR xem — các action khác vẫn Admin-only
+    // Sheet "Dữ liệu biểu đồ" (bảng số) + sheet "Biểu đồ" (biểu đồ Excel thật) — giống các biểu đồ trên trang Báo cáo.
+    private static void BuildChartSheets(XLWorkbook wb, JObject dj, InquiryReportResponse result, List<ExcelChartBuilder.Spec> specs)
+    {
+        static int I(JToken? t) => t == null || t.Type == JTokenType.Null ? 0 : t.Value<int>();
+        const string DS = "'Dữ liệu biểu đồ'";
+        var chartWs = wb.Worksheets.Add("Biểu đồ", 3);
+        var ds = wb.Worksheets.Add("Dữ liệu biểu đồ");
+        chartWs.Cell(1, 1).Value = "Biểu đồ hộp thư phản ánh"; chartWs.Cell(1, 1).Style.Font.Bold = true; chartWs.Cell(1, 1).Style.Font.FontSize = 14;
+        chartWs.Cell(2, 1).Value = "Kỳ: " + (dj["from"]?.Value<string>() ?? "") + " → " + (dj["to"]?.Value<string>() ?? "") + " · số liệu nằm ở sheet \"Dữ liệu biểu đồ\"";
+        chartWs.ShowGridLines = false;
+
+        string ColName(int c0) => XLHelper.GetColumnLetterFromNumber(c0);
+        // Ghi 1 bảng bắt đầu ở cột c0 (1-based); trả về tham chiếu cột (theo số cột trong bảng) hoặc null nếu bảng rỗng
+        Func<int, string>? Table(int c0, string[] heads, List<object[]> rows)
+        {
+            for (int j = 0; j < heads.Length; j++)
+            {
+                var h = ds.Cell(1, c0 + j); h.Value = heads[j]; h.Style.Font.Bold = true; h.Style.Fill.BackgroundColor = XLColor.FromHtml("#f1f5f9");
+            }
+            for (int i = 0; i < rows.Count; i++)
+                for (int j = 0; j < heads.Length; j++)
+                {
+                    var v = rows[i][j];
+                    if (v is int iv) ds.Cell(2 + i, c0 + j).Value = iv;
+                    else if (v is double dv) ds.Cell(2 + i, c0 + j).Value = dv;
+                    else ds.Cell(2 + i, c0 + j).Value = v?.ToString() ?? "";
+                }
+            if (rows.Count == 0) return null;
+            return j => $"{DS}!${ColName(c0 + j)}$2:${ColName(c0 + j)}${rows.Count + 1}";
+        }
+
+        int slot = 0;
+        void Place(ExcelChartBuilder.Spec sp)
+        {
+            sp.Col = (slot % 2) * 10; sp.Row = 3 + (slot / 2) * 20; sp.ColSpan = 9; sp.RowSpan = 19; slot++;
+            specs.Add(sp);
+        }
+        static string Pct(int a, int b) => b > 0 ? Math.Round(a * 100.0 / b, 1) + "%" : "—";
+
+        // ── Theo ngày ──
+        var from = DateTime.Parse(dj["from"]!.Value<string>()!); var to = DateTime.Parse(dj["to"]!.Value<string>()!);
+        var sr = dj["series"]!; var byType = (sr["byType"] as JArray) ?? new JArray();
+        var msgs = ((dj["dailyMsgs"] as JArray) ?? new JArray()).ToDictionary(x => x["date"]!.Value<string>()!, x => I(x["count"]));
+        var newC = ((sr["newContacts"] as JArray) ?? new JArray()).ToDictionary(x => x["bucket"]!.Value<string>()!, x => I(x["count"]));
+        var dayRows = new List<object[]>(); int cum = 0;
+        for (var d = from; d <= to; d = d.AddDays(1))
+        {
+            string k = d.ToString("yyyy-MM-dd");
+            int G(string key) => byType.Where(x => x["bucket"]?.Value<string>() == k && x["key"]?.Value<string>() == key).Sum(x => I(x["count"]));
+            cum += newC.TryGetValue(k, out var nc) ? nc : 0;
+            dayRows.Add(new object[] { d.ToString("dd/MM"), G("GRIEVANCE"), G("OPINION"), G("NONE"), msgs.TryGetValue(k, out var m) ? m : 0, cum });
+        }
+        var tDay = Table(1, new[] { "Ngày", "Kiến nghị", "Ý kiến", "Chưa phân loại", "Tin nhắn công nhân", "Số người liên hệ (cộng dồn)" }, dayRows);
+        if (tDay != null)
+        {
+            Place(new ExcelChartBuilder.Spec { Title = "Diễn biến theo ngày", Kind = ExcelChartBuilder.Kind.ColStacked, CatRef = tDay(0), Series = {
+                new() { Name = "Kiến nghị", ValRef = tDay(1), Color = "DC2626" }, new() { Name = "Ý kiến", ValRef = tDay(2), Color = "6366F1" },
+                new() { Name = "Chưa phân loại (đơn cũ)", ValRef = tDay(3), Color = "CBD5E1" }, new() { Name = "Tin nhắn công nhân", ValRef = tDay(4), Color = "F59E0B", AsLine = true } } });
+            Place(new ExcelChartBuilder.Spec { Title = "Số người liên hệ (cộng dồn)", Kind = ExcelChartBuilder.Kind.Line, CatRef = tDay(0), Series = { new() { Name = "Số người", ValRef = tDay(5), Color = "0F172A" } } });
+        }
+
+        // ── Chủ đề theo thời gian (top 5, theo ngày) ──
+        var topT = ((sr["topTopics"] as JArray) ?? new JArray()).Select(x => (cd: x["topicCd"]!.Value<string>()!, nm: x["topicName"]?.Value<string>() ?? x["topicCd"]!.Value<string>()!)).ToList();
+        var byTopic = (sr["byTopic"] as JArray) ?? new JArray();
+        var topicRows = new List<object[]>();
+        for (var d = from; d <= to; d = d.AddDays(1))
+        {
+            string k = d.ToString("yyyy-MM-dd"); var row = new object[1 + topT.Count]; row[0] = d.ToString("dd/MM");
+            for (int j = 0; j < topT.Count; j++)
+                row[j + 1] = byTopic.Where(x => x["bucket"]?.Value<string>() == k && x["topicCd"]?.Value<string>() == topT[j].cd).Sum(x => I(x["count"]));
+            topicRows.Add(row);
+        }
+        var tTopic = topT.Count == 0 ? null : Table(8, new[] { "Ngày" }.Concat(topT.Select(t => t.nm)).ToArray(), topicRows);
+        if (tTopic != null)
+        {
+            var sp = new ExcelChartBuilder.Spec { Title = "Chủ đề theo thời gian", Kind = ExcelChartBuilder.Kind.Line, CatRef = tTopic(0) };
+            for (int j = 0; j < topT.Count; j++) sp.Series.Add(new() { Name = topT[j].nm, ValRef = tTopic(j + 1), Color = ExcelChartBuilder.Palette[(j + 1) % 5] });
+            Place(sp);
+        }
+
+        // ── Theo tháng: nhận / đã giải quyết / còn tồn ──
+        var mo = dj["monthly"]!; var recv = ((mo["received"] as JArray) ?? new JArray()).ToDictionary(x => x["bucket"]!.Value<string>()!, x => I(x["count"]));
+        var done = ((mo["resolved"] as JArray) ?? new JArray()).ToDictionary(x => x["bucket"]!.Value<string>()!, x => I(x["count"]));
+        var monthRows = new List<object[]>(); int bal = I(mo["openAtStart"]);
+        for (var d = new DateTime(from.Year, from.Month, 1); d <= to; d = d.AddMonths(1))
+        {
+            string k = d.ToString("yyyy-MM"); int r = recv.TryGetValue(k, out var rv) ? rv : 0, dn = done.TryGetValue(k, out var dv2) ? dv2 : 0; bal += r - dn;
+            monthRows.Add(new object[] { d.ToString("MM/yyyy"), r, dn, bal });
+        }
+        var tMonth = Table(15, new[] { "Tháng", "Nhận mới", "Đã giải quyết", "Còn tồn cuối tháng" }, monthRows);
+        if (tMonth != null)
+        {
+            Place(new ExcelChartBuilder.Spec { Title = "Theo tháng: nhận mới / đã giải quyết", Kind = ExcelChartBuilder.Kind.Col, CatRef = tMonth(0), Series = {
+                new() { Name = "Nhận mới", ValRef = tMonth(1), Color = "6366F1", Labels = true }, new() { Name = "Đã giải quyết", ValRef = tMonth(2), Color = "16A34A", Labels = true } } });
+            Place(new ExcelChartBuilder.Spec { Title = "Còn tồn cuối tháng", Kind = ExcelChartBuilder.Kind.Line, CatRef = tMonth(0), Series = { new() { Name = "Còn tồn", ValRef = tMonth(3), Color = "DC2626", Labels = true } } });
+        }
+
+        // ── Công khai / Ẩn danh ──
+        int cd = result.summary?.cntDirect ?? 0, ca = result.summary?.cntAnon ?? 0;
+        var tPub = Table(20, new[] { "Loại", "Số hội thoại" }, new List<object[]> { new object[] { "Công khai", cd }, new object[] { "Ẩn danh", ca } });
+        if (tPub != null) Place(new ExcelChartBuilder.Spec { Title = "Công khai / Ẩn danh", Kind = ExcelChartBuilder.Kind.Doughnut, CatRef = tPub(0), Series = { new() { Name = "Hội thoại", ValRef = tPub(1) } }, PointColors = new[] { "6366F1", "475569" } });
+
+        // ── Giới tính ──
+        var sx = ((dj["activeBySex"] as JArray) ?? new JArray()).ToDictionary(x => x["sex"]!.Value<string>()!, x => I(x["count"]));
+        var sexRows = new List<object[]>(); var sexColors = new List<string>();
+        foreach (var (k, nm, col) in new[] { ("F", "Nữ", "EC4899"), ("M", "Nam", "3B82F6"), ("?", "Không rõ", "94A3B8") })
+            if (sx.TryGetValue(k, out var sv) && (sv > 0 || k != "?")) { sexRows.Add(new object[] { nm, sv }); sexColors.Add(col); }
+        var tSex = Table(23, new[] { "Giới tính", "Số người" }, sexRows);
+        if (tSex != null) Place(new ExcelChartBuilder.Spec { Title = "Giới tính người liên hệ", Kind = ExcelChartBuilder.Kind.Doughnut, CatRef = tSex(0), Series = { new() { Name = "Người", ValRef = tSex(1) } }, PointColors = sexColors.ToArray() });
+
+        // ── Thiết bị ──
+        var devMap = new Dictionary<string, string> { ["APP_ANDROID"] = "App Android", ["APP_IOS"] = "App iOS", ["WEB_MOBILE"] = "Web trên điện thoại", ["WEB_DESKTOP"] = "Web máy tính", ["UNKNOWN"] = "Không rõ" };
+        var devRows = ((dj["devices"] as JArray) ?? new JArray()).Select(x => new object[] { devMap.TryGetValue(x["device"]?.Value<string>() ?? "", out var nm) ? nm : x["device"]?.Value<string>() ?? "", I(x["count"]) }).ToList();
+        var tDev = Table(26, new[] { "Thiết bị", "Số người" }, devRows);
+        if (tDev != null) Place(new ExcelChartBuilder.Spec { Title = "Thiết bị người dùng", Kind = ExcelChartBuilder.Kind.Bar, CatRef = tDev(0), Series = { new() { Name = "Số người", ValRef = tDev(1), Color = "6366F1", Labels = true } } });
+
+        // ── Thời gian giải quyết ──
+        var bk = (dj["resolve"]?["buckets"] as JArray) ?? new JArray(); string[] bl = { "Dưới 1 giờ", "1 – 4 giờ", "4 – 24 giờ", "1 – 3 ngày", "Trên 3 ngày" };
+        var resRows = Enumerable.Range(0, Math.Min(bl.Length, bk.Count)).Select(i => new object[] { bl[i], bk[i].Value<int>() }).ToList();
+        var tRes = Table(29, new[] { "Khoảng", "Số hội thoại" }, resRows);
+        if (tRes != null) Place(new ExcelChartBuilder.Spec { Title = "Thời gian giải quyết", Kind = ExcelChartBuilder.Kind.Col, CatRef = tRes(0), Series = { new() { Name = "Hội thoại", ValRef = tRes(1), Color = "10B981", Labels = true } } });
+
+        // ── Loại báo cáo / Mức độ ──
+        var typeMap = new Dictionary<string, (string nm, string col)> { ["GRIEVANCE"] = ("Kiến nghị", "DC2626"), ["OPINION"] = ("Ý kiến", "6366F1"), ["NONE"] = ("Chưa phân loại (đơn cũ)", "CBD5E1") };
+        var tRows = ((dj["byType"] as JArray) ?? new JArray()).Select(x => (nm: typeMap.TryGetValue(x["key"]?.Value<string>() ?? "", out var v) ? v : (x["key"]?.Value<string>() ?? "", "94A3B8"), n: I(x["count"]))).ToList();
+        var tType = Table(32, new[] { "Loại báo cáo", "Số hội thoại" }, tRows.Select(x => new object[] { x.nm.Item1, x.n }).ToList());
+        if (tType != null) Place(new ExcelChartBuilder.Spec { Title = "Loại báo cáo", Kind = ExcelChartBuilder.Kind.Pie, CatRef = tType(0), Series = { new() { Name = "Hội thoại", ValRef = tType(1) } }, PointColors = tRows.Select(x => x.nm.Item2).ToArray() });
+
+        var sevCol = new Dictionary<string, string> { ["LOW"] = "6366F1", ["HIGH"] = "F59E0B", ["ZT"] = "DC2626", ["NONE"] = "94A3B8" };
+        var sRows = ((dj["bySeverity"] as JArray) ?? new JArray()).Select(x => (nm: x["name"]?.Value<string>() ?? (x["key"]?.Value<string>() == "NONE" ? "Chưa phân loại (đơn cũ)" : x["key"]?.Value<string>() ?? ""), col: sevCol.TryGetValue(x["key"]?.Value<string>() ?? "", out var cc) ? cc : "94A3B8", n: I(x["count"]))).ToList();
+        var tSev = Table(35, new[] { "Mức độ", "Số hội thoại" }, sRows.Select(x => new object[] { x.nm, x.n }).ToList());
+        if (tSev != null) Place(new ExcelChartBuilder.Spec { Title = "Mức độ", Kind = ExcelChartBuilder.Kind.Pie, CatRef = tSev(0), Series = { new() { Name = "Hội thoại", ValRef = tSev(1) } }, PointColors = sRows.Select(x => x.col).ToArray() });
+
+        // ── Theo chủ đề (top 10) ──
+        var topicTop = result.byTopic.OrderByDescending(x => x.total).Take(10).Select(x => new object[] { x.topicName ?? x.topicCd, x.total, x.cntClosed }).ToList();
+        var tTop = Table(38, new[] { "Chủ đề", "Tổng", "Đã đóng" }, topicTop);
+        if (tTop != null) Place(new ExcelChartBuilder.Spec { Title = "Hội thoại theo chủ đề (top 10)", Kind = ExcelChartBuilder.Kind.Bar, CatRef = tTop(0), Series = {
+            new() { Name = "Tổng", ValRef = tTop(1), Color = "6366F1", Labels = true }, new() { Name = "Đã đóng", ValRef = tTop(2), Color = "16A34A" } } });
+
+        // ── Người tham gia xử lý (top 10, nhãn = mã nhân sự vì tên dùng font riêng không hiện được trong biểu đồ) ──
+        var hrTop = result.byHr.OrderByDescending(x => x.handled).Take(10).Select(x => new object[] { x.hrCd ?? "", x.handled, x.cntClosed }).ToList();
+        var tHr = Table(42, new[] { "Mã NS", "Tham gia", "Đã đóng" }, hrTop);
+        if (tHr != null) Place(new ExcelChartBuilder.Spec { Title = "Người tham gia xử lý (top 10)", Kind = ExcelChartBuilder.Kind.Bar, CatRef = tHr(0), Series = {
+            new() { Name = "Tham gia", ValRef = tHr(1), Color = "6366F1", Labels = true }, new() { Name = "Đã đóng", ValRef = tHr(2), Color = "16A34A" } } });
+
+        ds.Columns().AdjustToContents();
+        ds.SheetView.FreezeRows(1);
+    }
+
+    // Cắt danh sách dòng (mỗi tin 1 dòng) thành các khối ≤ max ký tự, cắt ở ranh giới tin; tin dài hơn max thì cắt cứng.
+    private static List<string> SplitChatLines(IEnumerable<string> lines, int max)
+    {
+        var chunks = new List<string>(); var cur = new System.Text.StringBuilder();
+        void Flush() { if (cur.Length > 0) { chunks.Add(cur.ToString()); cur.Clear(); } }
+        foreach (var raw in lines)
+        {
+            var line = raw;
+            while (line.Length > max) { Flush(); chunks.Add(line.Substring(0, max)); line = line.Substring(max); }
+            if (cur.Length > 0 && cur.Length + 1 + line.Length > max) Flush();
+            if (cur.Length > 0) cur.Append('\n');
+            cur.Append(line);
+        }
+        Flush();
+        if (chunks.Count == 0) chunks.Add("");
+        return chunks;
+    }
+
+    // Đánh giá 3 mức (Phase 4): tỷ lệ hài lòng = (Hài lòng + chưa đánh giá) / tổng đã đóng — chưa đánh giá tính Hài lòng (quy tắc khách)
+    private static double? SatRate(int satisfied, int unrated, int closed) => closed > 0 ? (satisfied + unrated) * 100.0 / closed : (double?)null;
+    private static string SatText(int satisfied, int normal, int notSatisfied, int unrated, int closed, double? avg = null)
+        => closed <= 0 ? "—" : $"{(avg.HasValue ? "★" + Math.Round(avg.Value, 1) + " · " : "")}{Math.Round((satisfied + unrated) * 100.0 / closed)}% (Hài lòng {satisfied} + chưa đánh giá {unrated} · Bình thường {normal} · Không hài lòng {notSatisfied})";
+
+    // 6 cột đánh giá: Sao TB (/5), số lượt chấm, Hài lòng, Bình thường, Không hài lòng, Chưa đánh giá, % hài lòng
+    private static void RatingCols(IXLWorksheet ws, int row, int col, double? avg, int sat, int normal, int notSat, int unrated, int closed)
+    {
+        if (avg.HasValue) ws.Cell(row, col).Value = Math.Round(avg.Value, 2); else ws.Cell(row, col).Value = "—";
+        ws.Cell(row, col + 1).Value = sat + normal + notSat;
+        ws.Cell(row, col + 2).Value = sat;
+        ws.Cell(row, col + 3).Value = normal;
+        ws.Cell(row, col + 4).Value = notSat;
+        ws.Cell(row, col + 5).Value = unrated;
+        var sr = SatRate(sat, unrated, closed);
+        if (sr.HasValue) ws.Cell(row, col + 6).Value = Math.Round(sr.Value, 1) + "%"; else ws.Cell(row, col + 6).Value = "—";
+    }
+
     private bool CanViewReport => IsAdmin || CurrentUser.HasRole("CSR");
+
+    // Catalog loại kiến nghị (Topics): Admin + CSR (khách yêu cầu CSR tự chỉnh mức độ / PIC của từng loại, 2026-11-06)
+    private bool CanManageTopics => IsAdmin || CurrentUser.HasRole("CSR");
 
     // Tin nhắn phía HR/Admin gõ qua rich-text editor nên CONTENT lưu kèm thẻ HTML (<p>..</p>) —
     // bỏ thẻ cho dễ đọc khi xuất raw data ra Excel.
@@ -574,7 +763,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             return Json(new { success = false, message = rawResult.message ?? "Không tải được dữ liệu" });
 
         // Cũ nhất lên trước — chat chưa xử lý càng lâu càng cần ưu tiên.
-        var unresolved = rawResult.data.Where(d => d.status == "OPEN").OrderBy(d => d.instDt).ToList();
+        var unresolved = rawResult.data.Where(d => d.status == "OPEN" && d.hrMsgCount == 0).OrderBy(d => d.instDt).ToList();   // chưa ai phản hồi (đã có tin trả lời thì không còn "chưa xử lý")
 
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 20;
@@ -596,7 +785,10 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
                 deptName     = d.deptName,
                 firstMsg     = StripHtml(d.firstMsg),
                 msgCount     = d.msgCount,
-                assignedName = d.assignedName ?? d.assignedTo
+                assignedName = d.assignedName ?? d.assignedTo,
+                picName      = d.picName,
+                deadlineDt   = d.deadlineDt,
+                draftPending = d.draftPending
             });
 
         return Json(new { success = true, total, page, pageSize, totalPages, data });
@@ -615,7 +807,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         if (!rawResult.success)
             return BadRequest(rawResult.message ?? "Không tải được dữ liệu");
 
-        var unresolved = rawResult.data.Where(d => d.status == "OPEN").OrderBy(d => d.instDt).ToList();
+        var unresolved = rawResult.data.Where(d => d.status == "OPEN" && d.hrMsgCount == 0).OrderBy(d => d.instDt).ToList();   // chưa ai phản hồi (đã có tin trả lời thì không còn "chưa xử lý")
 
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Chưa xử lý");
@@ -623,7 +815,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         {
             "STT", "ID chat", "Chủ đề", "Loại hội thoại", "Thời gian tạo",
             "Mã NV", "Họ và tên", "Phòng ban", "Line", "Work",
-            "Tin nhắn đầu tiên", "Tổng số tin nhắn", "Người đang xử lý"
+            "Tin nhắn đầu tiên", "Tổng số tin nhắn", "Người đang xử lý", "PIC", "Hạn phản hồi", "Nháp chờ duyệt"
         };
         for (int i = 0; i < headers.Length; i++)
         {
@@ -660,6 +852,9 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             var handlerCell = ws.Cell(row, 13);
             handlerCell.Value = rw.assignedName ?? rw.assignedTo ?? "Chưa ai nhận";
             handlerCell.Style.Font.FontName = "Vnitbi__";
+            ws.Cell(row, 14).Value = rw.picName ?? "";
+            if (rw.deadlineDt.HasValue) { ws.Cell(row, 15).Value = rw.deadlineDt.Value; ws.Cell(row, 15).Style.DateFormat.Format = "dd/MM/yyyy"; } else ws.Cell(row, 15).Value = "";
+            ws.Cell(row, 16).Value = rw.draftPending > 0 ? "Có" : "";
 
             row++;
         }
@@ -729,7 +924,17 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         AddRowInt("Đã đóng",             s.cntClosed);
         AddRowInt("Hội thoại trực tiếp", s.cntDirect);
         AddRowInt("Hội thoại ẩn danh",   s.cntAnon);
-        AddRowOpt("Đánh giá TB",         s.avgRating,    2);
+        AddRowOpt("Đánh giá TB (sao)",   s.avgRating,    2);
+        wsSum.Cell(r, 1).Value = "Hài lòng 4–5★ (gồm chưa đánh giá)"; wsSum.Cell(r, 2).Value = s.cntSatisfied + s.cntUnrated; r++;
+        wsSum.Cell(r, 1).Value = "   trong đó chưa đánh giá";    wsSum.Cell(r, 2).Value = s.cntUnrated;                r++;
+        wsSum.Cell(r, 1).Value = "Bình thường 3★";                 wsSum.Cell(r, 2).Value = s.cntNormal;                 r++;
+        wsSum.Cell(r, 1).Value = "Không hài lòng 1–2★";                 wsSum.Cell(r, 2).Value = s.cntNotSatisfied;           r++;
+        {
+            var sr = SatRate(s.cntSatisfied, s.cntUnrated, s.cntClosed);
+            wsSum.Cell(r, 1).Value = "Tỷ lệ hài lòng";
+            if (sr.HasValue) wsSum.Cell(r, 2).Value = Math.Round(sr.Value, 1) + "%"; else wsSum.Cell(r, 2).Value = "—";
+            r++;
+        }
         AddRowOpt("Tin nhắn TB/HT",      s.avgMsg,       1);
         AddRowOpt("TG xử lý TB (phút)",  s.avgHandleMin, 1);
 
@@ -756,13 +961,13 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         wsSum.Cell(r, 1).Value = "Tổng đã đóng";   wsSum.Cell(r, 2).Value = tc;                                     r++;
 
         // ─── Section: Đánh giá cao nhất / thấp nhất ───────────────────────
-        var rated = result.byHr.Where(h => h.avgRating.HasValue)
-                              .OrderByDescending(h => h.avgRating!.Value).ToList();
+        var rated = result.byHr.Where(h => h.cntClosed >= 5)
+                              .OrderByDescending(h => SatRate(h.cntSatisfied, h.cntUnrated, h.cntClosed)!.Value).ToList();
         var topRated    = rated.FirstOrDefault();
         var bottomRated = rated.Count > 1 ? rated.Last() : null;
 
         r++;
-        wsSum.Cell(r, 1).Value = "── TOP ĐÁNH GIÁ ──";
+        wsSum.Cell(r, 1).Value = "── TOP HÀI LÒNG ──";
         wsSum.Cell(r, 1).Style.Font.Bold = true;
         wsSum.Cell(r, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#1e293b");
         wsSum.Cell(r, 1).Style.Font.FontColor = XLColor.White;
@@ -772,7 +977,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         if (topRated != null)
         {
             wsSum.Cell(r, 1).Value = "🏆 Cao nhất";
-            wsSum.Cell(r, 2).Value = $"{topRated.hrName} ({topRated.hrCd}) — ★ {Math.Round(topRated.avgRating!.Value, 2)} / {topRated.handled} hội thoại";
+            wsSum.Cell(r, 2).Value = $"{topRated.hrName} ({topRated.hrCd}) — hài lòng {Math.Round(SatRate(topRated.cntSatisfied, topRated.cntUnrated, topRated.cntClosed)!.Value)}% / {topRated.handled} hội thoại";
             wsSum.Cell(r, 2).Style.Font.FontName = "Vnitbi__";
             wsSum.Cell(r, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#dcfce7");
             r++;
@@ -786,7 +991,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         if (bottomRated != null)
         {
             wsSum.Cell(r, 1).Value = "📉 Thấp nhất";
-            wsSum.Cell(r, 2).Value = $"{bottomRated.hrName} ({bottomRated.hrCd}) — ★ {Math.Round(bottomRated.avgRating!.Value, 2)} / {bottomRated.handled} hội thoại";
+            wsSum.Cell(r, 2).Value = $"{bottomRated.hrName} ({bottomRated.hrCd}) — hài lòng {Math.Round(SatRate(bottomRated.cntSatisfied, bottomRated.cntUnrated, bottomRated.cntClosed)!.Value)}% / {bottomRated.handled} hội thoại";
             wsSum.Cell(r, 2).Style.Font.FontName = "Vnitbi__";
             wsSum.Cell(r, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#fee2e2");
             r++;
@@ -794,16 +999,177 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         else
         {
             wsSum.Cell(r, 1).Value = "📉 Thấp nhất";
-            wsSum.Cell(r, 2).Value = "Chưa đủ dữ liệu (cần ≥ 2 HR có đánh giá)";
+            wsSum.Cell(r, 2).Value = "Chưa đủ dữ liệu (cần ≥ 2 HR, mỗi người ≥ 5 hội thoại đã đóng)";
             r++;
         }
 
         wsSum.Column(1).Width = 30;
         wsSum.Column(2).Width = 55;
 
+        var chartSpecs = new List<ExcelChartBuilder.Spec>();
+        // ─── Sheet Dashboard (gộp chung báo cáo + dashboard): hoạt động, thời gian giải quyết, thiết bị, case lặp lại, theo ngày ───
+        try
+        {
+            var dj = JObject.Parse(await _inquiry.GetDashboardRawAsync(from, to));
+            if (dj["success"]?.Value<bool>() == true)
+            {
+                var wsDash = wb.Worksheets.Add("Dashboard");
+                int dr = 1;
+                wsDash.Cell(dr, 1).Value = "Dashboard hộp thư phản ánh"; wsDash.Cell(dr, 1).Style.Font.Bold = true; wsDash.Cell(dr, 1).Style.Font.FontSize = 14; dr++;
+                wsDash.Cell(dr, 1).Value = "Kỳ báo cáo: " + periodLabel; dr += 2;
+
+                void Section(string title)
+                {
+                    var h = wsDash.Cell(dr, 1);
+                    h.Value = title; h.Style.Font.Bold = true; h.Style.Font.FontColor = XLColor.White;
+                    h.Style.Fill.BackgroundColor = XLColor.FromHtml("#dc2626");
+                    wsDash.Range(dr, 1, dr, 3).Merge(); dr++;
+                }
+                void Row(string label, object? value, string? note = null)
+                {
+                    wsDash.Cell(dr, 1).Value = label;
+                    if (value is int iv) wsDash.Cell(dr, 2).Value = iv;
+                    else if (value is double dv) wsDash.Cell(dr, 2).Value = Math.Round(dv, 1);
+                    else wsDash.Cell(dr, 2).Value = value?.ToString() ?? "—";
+                    wsDash.Cell(dr, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                    if (note != null) wsDash.Cell(dr, 3).Value = note;
+                    dr++;
+                }
+                static int I(JToken? t) => t?.Type == JTokenType.Null || t == null ? 0 : t.Value<int>();
+                static double? D(JToken? t) => t == null || t.Type == JTokenType.Null ? null : t.Value<double>();
+                static string Hrs(double? h) => h == null ? "—" : h < 1 ? $"{Math.Round(h.Value * 60)} phút" : h < 48 ? $"{Math.Round(h.Value, 1)} giờ" : $"{Math.Round(h.Value / 24, 1)} ngày";
+
+                var ov = dj["overview"]!; var rs = dj["resolve"]!; var fr = dj["firstResponse"]!;
+                Section("Hoạt động");
+                Row("Người dùng hoạt động", I(dj["activeUsers"]));
+                Row("Lượt liên hệ (tin nhắn công nhân gửi)", I(ov["empMsgs"]));
+                Row("Hội thoại mới", I(ov["newConv"]), $"{I(ov["newDirect"])} công khai ({Math.Round(I(ov["newDirect"]) * 100.0 / Math.Max(1, I(ov["newConv"])), 1)}%) · {I(ov["newAnon"])} ẩn danh ({Math.Round(I(ov["newAnon"]) * 100.0 / Math.Max(1, I(ov["newConv"])), 1)}%)");
+                Row("Hội thoại đang mở (hiện tại)", I(ov["openNow"]));
+                Row("Quá hạn phản hồi đang mở (hiện tại)", I(ov["overdueNow"]));
+                dr++;
+
+                var pop = dj["population"]!; var cst = dj["caseStats"]!;
+                string P(int a, int b) => b > 0 ? $"{Math.Round(a * 100.0 / b, 1)}%" : "—";
+                Section("Mức độ sử dụng My Samho");
+                int hc = I(pop["headcount"]);
+                Row("Nhân viên đang làm việc", hc);
+                Row("Đã liên hệ hộp thư trong kỳ", I(dj["activeUsers"]), P(I(dj["activeUsers"]), hc));
+                Row("Đã dùng My Samho (đã đăng nhập)", I(pop["loggedIn"]), P(I(pop["loggedIn"]), hc));
+                Row("Nhân viên mới vào làm (trong kỳ)", I(dj["accounts"]?["hired"]), $"{I(dj["accounts"]?["hiredUsed"])} người đã dùng My Samho");
+                Row("Nghỉ việc (trong kỳ)", I(dj["accounts"]?["resigned"]), $"{I(dj["accounts"]?["resignedLocked"])} người đã khóa My Samho");
+                Row("Dùng trên điện thoại (app hoặc web điện thoại)", I(pop["onMobile"]), P(I(pop["onMobile"]), hc));
+                Row("Đã đăng ký app (nhận thông báo)", I(pop["appRegistered"]), P(I(pop["appRegistered"]), hc));
+                dr++;
+
+                Section("Hội thoại tạo trong kỳ");
+                int nCases = I(cst["cases"]);
+                Row("Số hội thoại", nCases);
+                Row("Hội thoại / người", I(dj["activeUsers"]) > 0 ? Math.Round(I(ov["newDirect"]) / (double)I(dj["activeUsers"]), 2) : (object)"—");
+                Row("Tin nhắn / hội thoại", D(cst["avgMsgPerCase"]) ?? (object)"—");
+                Row("Mới (chưa ai nhận)", I(cst["open"]), P(I(cst["open"]), nCases));
+                Row("Đang xử lý (đã có người phụ trách)", I(cst["inProgress"]), P(I(cst["inProgress"]), nCases));
+                Row("Đã đóng", I(cst["resolved"]), P(I(cst["resolved"]), nCases));
+                dr++;
+
+                Section("Chủ đề nhiều nhất");
+                foreach (var t in (dj["topBottom"]?["top"] as JArray) ?? new JArray()) Row(t["topicName"]?.Value<string>() ?? t["topicCd"]?.Value<string>(), I(t["count"]));
+                Section("Chủ đề ít nhất (trong số chủ đề có phát sinh)");
+                foreach (var t in (dj["topBottom"]?["bottom"] as JArray) ?? new JArray()) Row(t["topicName"]?.Value<string>() ?? t["topicCd"]?.Value<string>(), I(t["count"]));
+                dr++;
+
+                Section("Giới tính người liên hệ (chỉ hội thoại công khai)");
+                {
+                    var asx = ((dj["activeBySex"] as JArray) ?? new JArray()).ToDictionary(x => x["sex"]!.Value<string>()!, x => I(x["count"]));
+                    var hsx = ((dj["headBySex"] as JArray) ?? new JArray()).ToDictionary(x => x["sex"]!.Value<string>()!, x => I(x["count"]));
+                    int aTot = I(dj["activeUsers"]), hTot2 = hsx.Values.Sum();
+                    foreach (var (k, nm) in new[] { ("F", "Nữ"), ("M", "Nam"), ("?", "Không rõ") })
+                        if (asx.ContainsKey(k) || k != "?")
+                            Row(nm, asx.TryGetValue(k, out var av) ? av : 0, $"{P(asx.TryGetValue(k, out var av2) ? av2 : 0, aTot)} người liên hệ · toàn bộ nhân viên {P(hsx.TryGetValue(k, out var hv) ? hv : 0, hTot2)}");
+                }
+                dr++;
+
+                Section("Thời gian xử lý");
+                Row("Thời gian giải quyết TB", Hrs(D(rs["avgHours"])), $"{I(rs["closed"])} hội thoại đóng trong kỳ");
+                Row("Thời gian giải quyết trung vị", Hrs(D(rs["medianHours"])));
+                Row("Thời gian phản hồi đầu TB", Hrs(D(fr["avgHours"])), $"{I(fr["answered"])} hội thoại đã có phản hồi");
+                Row("Thời gian phản hồi đầu trung vị", Hrs(D(fr["medianHours"])));
+                var bk = rs["buckets"] as JArray ?? new JArray();
+                string[] bl = { "Giải quyết dưới 1 giờ", "Giải quyết 1 – 4 giờ", "Giải quyết 4 – 24 giờ", "Giải quyết 1 – 3 ngày", "Giải quyết trên 3 ngày" };
+                for (int i = 0; i < bl.Length && i < bk.Count; i++) Row(bl[i], bk[i].Value<int>());
+                int wd = I(rs["withDeadline"]);
+                Row("Đúng hạn phản hồi", wd > 0 ? $"{Math.Round(I(rs["onTime"]) * 100.0 / wd)}%" : "—", wd > 0 ? $"{I(rs["onTime"])}/{wd} hội thoại có hạn" : "Chưa có hội thoại có hạn đã đóng");
+                foreach (var o in (dj["overdueByPic"] as JArray) ?? new JArray())
+                    Row("Quá hạn đang mở — " + o["pic"]?.Value<string>(), I(o["count"]));
+                dr++;
+
+                Section("Thiết bị của người dùng hoạt động (chỉ hội thoại công khai)");
+                var devMap = new Dictionary<string, string> { ["APP_ANDROID"] = "App Android", ["APP_IOS"] = "App iOS", ["WEB_MOBILE"] = "Web trên điện thoại", ["WEB_DESKTOP"] = "Web máy tính", ["UNKNOWN"] = "Không rõ" };
+                var devs = (dj["devices"] as JArray) ?? new JArray();
+                int devTotal = devs.Sum(x => I(x["count"]));
+                foreach (var dv in devs)
+                {
+                    var k = dv["device"]?.Value<string>() ?? "";
+                    Row(devMap.TryGetValue(k, out var nm) ? nm : k, I(dv["count"]), devTotal > 0 ? $"{Math.Round(I(dv["count"]) * 100.0 / devTotal)}%" : null);
+                }
+                dr++;
+
+                Section("Case lặp lại (cùng nhân viên, cùng chủ đề, từ 2 hội thoại — chỉ công khai)");
+                Row("Số người", I(dj["repeat"]?["employees"])); Row("Số hội thoại", I(dj["repeat"]?["cases"]));
+                foreach (var t in (dj["repeat"]?["topics"] as JArray) ?? new JArray())
+                    Row("   " + (t["topicName"]?.Value<string>() ?? t["topicCd"]?.Value<string>()), I(t["cases"]), $"{I(t["employees"])} người");
+                dr++;
+
+                Section("Loại báo cáo");
+                var typeMap = new Dictionary<string, string> { ["GRIEVANCE"] = "Kiến nghị", ["OPINION"] = "Ý kiến", ["NONE"] = "Chưa phân loại (đơn cũ)" };
+                foreach (var t in (dj["byType"] as JArray) ?? new JArray())
+                    Row(typeMap.TryGetValue(t["key"]?.Value<string>() ?? "", out var tn) ? tn : t["key"]?.Value<string>(), I(t["count"]));
+                dr++;
+                Section("Mức độ");
+                foreach (var t in (dj["bySeverity"] as JArray) ?? new JArray())
+                    Row(t["name"]?.Value<string>() ?? ((t["key"]?.Value<string>() == "NONE") ? "Chưa phân loại (đơn cũ)" : t["key"]?.Value<string>()), I(t["count"]));
+                dr++;
+
+                Section("Theo ngày");
+                wsDash.Cell(dr, 1).Value = "Ngày"; wsDash.Cell(dr, 2).Value = "Hội thoại mới"; wsDash.Cell(dr, 3).Value = "Tin nhắn công nhân";
+                wsDash.Range(dr, 1, dr, 3).Style.Font.Bold = true; dr++;
+                var dailyA = ((dj["daily"] as JArray) ?? new JArray()).ToDictionary(x => x["date"]!.Value<string>()!, x => I(x["count"]));
+                var dailyB = ((dj["dailyMsgs"] as JArray) ?? new JArray()).ToDictionary(x => x["date"]!.Value<string>()!, x => I(x["count"]));
+                foreach (var day in dailyA.Keys.Union(dailyB.Keys).OrderBy(x => x))
+                {
+                    wsDash.Cell(dr, 1).Value = day;
+                    wsDash.Cell(dr, 2).Value = dailyA.TryGetValue(day, out var a1) ? a1 : 0;
+                    wsDash.Cell(dr, 3).Value = dailyB.TryGetValue(day, out var b1) ? b1 : 0;
+                    dr++;
+                }
+                // Chuỗi theo tuần/tháng: loại báo cáo + người liên hệ mới / cộng dồn
+                {
+                    var sr = dj["series"]!; string gr = sr["granularity"]?.Value<string>() ?? "week";
+                    dr++; Section("Theo " + (gr == "month" ? "tháng" : gr == "day" ? "ngày" : "tuần") + " — loại báo cáo và người liên hệ");
+                    string[] sh = { gr == "month" ? "Tháng" : gr == "day" ? "Ngày" : "Tuần (từ thứ Hai)", "Kiến nghị", "Ý kiến", "Chưa phân loại", "Người liên hệ mới", "Cộng dồn" };
+                    for (int i = 0; i < sh.Length; i++) wsDash.Cell(dr, i + 1).Value = sh[i];
+                    wsDash.Range(dr, 1, dr, sh.Length).Style.Font.Bold = true; dr++;
+                    var byType = (sr["byType"] as JArray) ?? new JArray();
+                    var newC = (sr["newContacts"] as JArray) ?? new JArray();
+                    var buckets = byType.Select(x => x["bucket"]!.Value<string>()!).Union(newC.Select(x => x["bucket"]!.Value<string>()!)).Distinct().OrderBy(x => x).ToList();
+                    int cum = 0;
+                    foreach (var bkt in buckets)
+                    {
+                        int G(string key) => byType.Where(x => x["bucket"]?.Value<string>() == bkt && x["key"]?.Value<string>() == key).Sum(x => I(x["count"]));
+                        int nc = newC.Where(x => x["bucket"]?.Value<string>() == bkt).Sum(x => I(x["count"])); cum += nc;
+                        wsDash.Cell(dr, 1).Value = bkt; wsDash.Cell(dr, 2).Value = G("GRIEVANCE"); wsDash.Cell(dr, 3).Value = G("OPINION");
+                        wsDash.Cell(dr, 4).Value = G("NONE"); wsDash.Cell(dr, 5).Value = nc; wsDash.Cell(dr, 6).Value = cum; dr++;
+                    }
+                }
+                wsDash.Column(4).Width = 16; wsDash.Column(5).Width = 18; wsDash.Column(6).Width = 12;
+                BuildChartSheets(wb, dj, result, chartSpecs);
+                wsDash.Column(1).Width = 44; wsDash.Column(2).Width = 18; wsDash.Column(3).Width = 52;
+            }
+        }
+        catch { /* Dashboard lỗi không được làm hỏng cả file báo cáo */ }
+
         // ─── Sheet 2: Theo chủ đề ────────────────────────────────────────────
         var wsTopic = wb.Worksheets.Add("Theo chủ đề");
-        string[] topicHeaders = { "STT", "Chủ đề", "Tổng", "Đang mở", "Đã đóng", "Đánh giá TB" };
+        string[] topicHeaders = { "STT", "Chủ đề", "Tổng", "Đang mở", "Đã đóng", "Sao TB (/5)", "Số lượt chấm", "Hài lòng (4-5 sao)", "Bình thường (3 sao)", "Không hài lòng (1-2 sao)", "Chưa đánh giá", "% hài lòng" };
         for (int i = 0; i < topicHeaders.Length; i++)
         {
             var c = wsTopic.Cell(1, i + 1);
@@ -822,8 +1188,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             wsTopic.Cell(row, 3).Value = t.total;
             wsTopic.Cell(row, 4).Value = t.cntOpen;
             wsTopic.Cell(row, 5).Value = t.cntClosed;
-            if (t.avgRating.HasValue) wsTopic.Cell(row, 6).Value = Math.Round(t.avgRating.Value, 2);
-            else                       wsTopic.Cell(row, 6).Value = "—";
+            RatingCols(wsTopic, row, 6, t.avgRating, t.cntSatisfied, t.cntNormal, t.cntNotSatisfied, t.cntUnrated, t.cntClosed);
             row++;
         }
         if (result.byTopic.Count > 0)
@@ -831,8 +1196,8 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         wsTopic.Columns().AdjustToContents();
 
         // ─── Sheet 3: Workload ────────────────────────────────────────────
-        var wsHr = wb.Worksheets.Add("Workload");
-        string[] hrHeaders = { "STT", "Mã NS", "Họ và tên", "Tiếp nhận", "Đã đóng", "Đánh giá TB", "TG xử lý TB (phút)" };
+        var wsHr = wb.Worksheets.Add("Người xử lý");
+        string[] hrHeaders = { "STT", "Mã NS", "Họ và tên", "Tham gia", "Đã đóng", "Sao TB (/5)", "Số lượt chấm", "Hài lòng (4-5 sao)", "Bình thường (3 sao)", "Không hài lòng (1-2 sao)", "Chưa đánh giá", "% hài lòng", "TG xử lý TB (phút)" };
         for (int i = 0; i < hrHeaders.Length; i++)
         {
             var c = wsHr.Cell(1, i + 1);
@@ -853,10 +1218,9 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             nameCell.Style.Font.FontName = "Vnitbi__";
             wsHr.Cell(row, 4).Value = h.handled;
             wsHr.Cell(row, 5).Value = h.cntClosed;
-            if (h.avgRating.HasValue)    wsHr.Cell(row, 6).Value = Math.Round(h.avgRating.Value, 2);
-            else                          wsHr.Cell(row, 6).Value = "—";
-            if (h.avgHandleMin.HasValue) wsHr.Cell(row, 7).Value = Math.Round(h.avgHandleMin.Value, 1);
-            else                          wsHr.Cell(row, 7).Value = "—";
+            RatingCols(wsHr, row, 6, h.avgRating, h.cntSatisfied, h.cntNormal, h.cntNotSatisfied, h.cntUnrated, h.cntClosed);
+            if (h.avgHandleMin.HasValue) wsHr.Cell(row, 13).Value = Math.Round(h.avgHandleMin.Value, 1);
+            else                          wsHr.Cell(row, 13).Value = "—";
             row++;
         }
         if (result.byHr.Count > 0)
@@ -873,7 +1237,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         {
             "STT", "ID chat", "Ngày đóng", "Chủ đề",
             "Mã NV", "Họ và tên", "Phòng ban", "Người xử lý",
-            "Số sao", "Nội dung đánh giá"
+            "Số sao", "Lý do / nhận xét"
         };
         for (int i = 0; i < ratingHeaders.Length; i++)
         {
@@ -906,7 +1270,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             handlerCell.Value = rw.assignedName ?? rw.assignedTo ?? "";
             handlerCell.Style.Font.FontName = "Vnitbi__";
 
-            wsRating.Cell(row, 9).Value = rw.rating!.Value;
+            wsRating.Cell(row, 9).Value = $"{rw.rating} sao — {HR_web.Helpers.InquiryRatingHelper.Label(rw.rating)}";
             wsRating.Cell(row, 9).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             wsRating.Cell(row, 10).Value = StripHtml(rw.ratingNote);
 
@@ -922,11 +1286,12 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         // HR/CSR cần xem lại NV nhắn gì, ai phản hồi lúc mấy giờ, ai bấm kết thúc) ─────
         var msgResult  = await _inquiry.GetReportMessagesAsync(from, to);
         var infoById   = rawResult.data.ToDictionary(d => d.id, d => d);
+        // Mỗi ID chat = 1 DÒNG: toàn bộ nội dung trong 1 ô, tên người gửi trong 1 ô (yêu cầu CSR 2026-11-09)
         var wsChat     = wb.Worksheets.Add("Nội dung chat");
         string[] chatHeaders =
         {
-            "ID chat", "Tiêu đề trò chuyện", "Chủ đề", "Mã NV", "Họ và tên",
-            "Thời gian", "Người gửi", "Tên người gửi", "Nội dung",
+            "ID chat", "Tiêu đề trò chuyện", "Chủ đề", "Mã NV", "Họ và tên", "Giới tính",
+            "Thời gian tạo", "Số tin", "Tên người gửi (HR/CSR)", "Nội dung",
             "Người kết thúc", "TG kết thúc"
         };
         for (int i = 0; i < chatHeaders.Length; i++)
@@ -939,17 +1304,14 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             c.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         }
 
+        const int CellMax = 32000;   // giới hạn 32.767 ký tự / ô của Excel
         row = 2;
-        long? prevInquiryId = null;
-        foreach (var m in msgResult.data.OrderBy(x => x.inquiryId).ThenBy(x => x.sentDt))
+        foreach (var grp in msgResult.data.GroupBy(x => x.inquiryId).OrderBy(g => infoById.TryGetValue(g.Key, out var ii) ? ii.instDt : null).ThenBy(g => g.Key))
         {
-            infoById.TryGetValue(m.inquiryId, out var info);
+            infoById.TryGetValue(grp.Key, out var info);
+            var msgsOfChat = grp.OrderBy(x => x.sentDt).ToList();
 
-            // Kẻ viền đậm phía trên khi sang hội thoại khác — thay cho gộp ô cho đơn giản
-            if (prevInquiryId.HasValue && prevInquiryId.Value != m.inquiryId)
-                wsChat.Range(row, 1, row, chatHeaders.Length).Style.Border.TopBorder = XLBorderStyleValues.Medium;
-
-            wsChat.Cell(row, 1).Value = info?.inquiryNo ?? m.inquiryId.ToString();
+            wsChat.Cell(row, 1).Value = info?.inquiryNo ?? grp.Key.ToString();
 
             var subjectCell = wsChat.Cell(row, 2);
             subjectCell.Value = info?.subject ?? "";
@@ -962,30 +1324,29 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             nameCell.Value = info?.empDisplay ?? "";
             nameCell.Style.Font.FontName = "Vnitbi__";
 
-            if (m.sentDt.HasValue) wsChat.Cell(row, 6).Value = m.sentDt.Value; else wsChat.Cell(row, 6).Value = "—";
-            wsChat.Cell(row, 6).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+            wsChat.Cell(row, 6).Value = info?.sex == "F" ? "Nữ" : info?.sex == "M" ? "Nam" : "";
 
-            string senderLabel = m.senderType switch
+            if (info?.instDt != null) { wsChat.Cell(row, 7).Value = info.instDt.Value; wsChat.Cell(row, 7).Style.DateFormat.Format = "dd/MM/yyyy HH:mm"; }
+            wsChat.Cell(row, 8).Value = msgsOfChat.Count;
+
+            // Tên người gửi phía HR/CSR (font riêng Vnitbi__ nên để ô riêng, không trộn vào nội dung)
+            var staff = msgsOfChat.Where(x => x.senderType == "HR" && !string.IsNullOrWhiteSpace(x.senderName)).Select(x => x.senderName!.Trim()).Distinct().ToList();
+            var senderNamesCell = wsChat.Cell(row, 9);
+            senderNamesCell.Value = string.Join("\n", staff);
+            senderNamesCell.Style.Font.FontName = "Vnitbi__";
+
+            // Nội dung: mỗi tin 1 dòng "[dd/MM HH:mm] Nhân viên|HR/CSR|Hệ thống: nội dung"; quá giới hạn ô thì sang DÒNG TIẾP THEO (cùng ID chat)
+            var lines = msgsOfChat.Select(m =>
             {
-                "EMP" => "Nhân viên",
-                "HR"  => "HR/CSR",
-                "SYS" => "Hệ thống",
-                _     => m.senderType
-            };
-            wsChat.Cell(row, 7).Value = senderLabel;
-
-            var senderNameCell = wsChat.Cell(row, 8);
-            senderNameCell.Value = m.senderName ?? "";
-            senderNameCell.Style.Font.FontName = "Vnitbi__";
-
-            var contentCell = wsChat.Cell(row, 9);
-            contentCell.Value = m.msgType switch
-            {
-                "IMAGE" => "[Hình ảnh]",
-                "FILE"  => "[Tệp đính kèm]",
-                _       => StripHtml(m.content)
-            };
-            if (m.senderType == "SYS") contentCell.Style.Font.Italic = true;
+                string who = m.senderType switch { "EMP" => "Nhân viên", "HR" => "HR/CSR", "SYS" => "Hệ thống", _ => m.senderType };
+                string body = m.msgType switch { "IMAGE" => "[Hình ảnh]", "FILE" => "[Tệp đính kèm]", _ => StripHtml(m.content) };
+                return $"[{(m.sentDt?.ToString("dd/MM HH:mm") ?? "—")}] {who}: {body}";
+            });
+            var chunks = SplitChatLines(lines, CellMax);
+            var contentCell = wsChat.Cell(row, 10);
+            contentCell.Value = chunks[0];
+            contentCell.Style.Alignment.WrapText = true;
+            senderNamesCell.Style.Alignment.WrapText = true;
 
             string closedByLabel = info?.closedByType switch
             {
@@ -995,21 +1356,32 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
                 "ADMIN" => "Admin",
                 _       => ""
             };
-            var closedByCell = wsChat.Cell(row, 10);
+            var closedByCell = wsChat.Cell(row, 11);
             closedByCell.Value = string.IsNullOrEmpty(info?.closedByName) ? closedByLabel : $"{info!.closedByName} ({closedByLabel})";
             closedByCell.Style.Font.FontName = "Vnitbi__";
 
-            if (info?.closedDt != null) wsChat.Cell(row, 11).Value = info.closedDt.Value; else wsChat.Cell(row, 11).Value = "—";
-            wsChat.Cell(row, 11).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+            if (info?.closedDt != null) { wsChat.Cell(row, 12).Value = info.closedDt.Value; wsChat.Cell(row, 12).Style.DateFormat.Format = "dd/MM/yyyy HH:mm"; }
+            else wsChat.Cell(row, 12).Value = "—";
 
-            prevInquiryId = m.inquiryId;
+            wsChat.Range(row, 1, row, chatHeaders.Length).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
             row++;
+            for (int k = 1; k < chunks.Count; k++)   // phần nội dung tiếp theo: lặp ID chat + ghi chú, các cột khác để trống
+            {
+                wsChat.Cell(row, 1).Value = info?.inquiryNo ?? grp.Key.ToString();
+                wsChat.Cell(row, 2).Value = $"(nội dung tiếp theo, phần {k + 1}/{chunks.Count})";
+                wsChat.Cell(row, 2).Style.Font.Italic = true;
+                var cc = wsChat.Cell(row, 10); cc.Value = chunks[k]; cc.Style.Alignment.WrapText = true;
+                wsChat.Range(row, 1, row, chatHeaders.Length).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                row++;
+            }
         }
         if (msgResult.data.Count > 0)
             wsChat.Range(1, 1, 1, chatHeaders.Length).SetAutoFilter();
         wsChat.SheetView.FreezeRows(1);
         wsChat.Columns().AdjustToContents();
-        wsChat.Column(9).Width = 70;
+        wsChat.Column(2).Width = 30;
+        wsChat.Column(9).Width = 28;
+        wsChat.Column(10).Width = 90;
 
         // ─── Sheet 6: AI SAMHO - CSR (yêu cầu 2026-10-01: "báo cáo tính luôn AI, xuất Excel luôn
         // AI") — nguồn HR_AI_CHAT tách hẳn khỏi HR_INQUIRY nên query/sheet riêng, không gộp chung
@@ -1103,8 +1475,9 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
 
             if (aiMsgReport?["success"]?.Value<bool>() == true)
             {
+                // Mỗi đoạn chat AI = 1 DÒNG: toàn bộ nội dung 1 ô, tên người gửi (CSR/HR) 1 ô (yêu cầu CSR 2026-11-09)
                 var wsAiChat = wb.Worksheets.Add("Nội dung chat AI");
-                string[] aiChatHeaders = { "ID đoạn chat", "Câu hỏi đầu", "Mã NV", "Họ và tên", "Thời gian", "Người gửi", "Tên người gửi", "Nội dung" };
+                string[] aiChatHeaders = { "ID đoạn chat", "Câu hỏi đầu", "Mã NV", "Họ và tên", "Giới tính", "Thời gian tạo", "Số tin", "Tên người gửi (CSR/HR)", "Nội dung" };
                 for (int i = 0; i < aiChatHeaders.Length; i++)
                 {
                     var c = wsAiChat.Cell(1, i + 1);
@@ -1114,51 +1487,73 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
                 }
 
                 int acRow = 2;
-                decimal? prevChatId = null;
-                foreach (var m in (aiMsgReport["data"] as JArray) ?? new JArray())
+                const int AiCellMax = 32000;
+                var aiGroups = ((aiMsgReport["data"] as JArray) ?? new JArray()).GroupBy(x => x["chatId"]?.Value<decimal>() ?? 0).OrderBy(g => g.Key);
+                foreach (var grp in aiGroups)
                 {
-                    decimal chatId = m["chatId"]?.Value<decimal>() ?? 0;
-                    if (prevChatId.HasValue && prevChatId.Value != chatId)
-                        wsAiChat.Range(acRow, 1, acRow, aiChatHeaders.Length).Style.Border.TopBorder = XLBorderStyleValues.Medium;
+                    var list = grp.OrderBy(x => x["sentDt"]?.Value<DateTime?>() ?? DateTime.MinValue).ToList();
+                    var first = list[0];
 
-                    wsAiChat.Cell(acRow, 1).Value = chatId.ToString();
-                    wsAiChat.Cell(acRow, 2).Value = m["title"]?.Value<string>() ?? "";
-                    wsAiChat.Cell(acRow, 3).Value = m["empcd"]?.Value<string>() ?? "";
-                    var nameCell = wsAiChat.Cell(acRow, 4); nameCell.Value = m["empName"]?.Value<string>() ?? ""; nameCell.Style.Font.FontName = "Vnitbi__";
+                    wsAiChat.Cell(acRow, 1).Value = grp.Key.ToString();
+                    wsAiChat.Cell(acRow, 2).Value = first["title"]?.Value<string>() ?? "";
+                    wsAiChat.Cell(acRow, 3).Value = first["empcd"]?.Value<string>() ?? "";
+                    var nameCell = wsAiChat.Cell(acRow, 4); nameCell.Value = first["empName"]?.Value<string>() ?? ""; nameCell.Style.Font.FontName = "Vnitbi__";
+                    string sx = first["sex"]?.Value<string>() ?? "";
+                    wsAiChat.Cell(acRow, 5).Value = sx == "F" ? "Nữ" : sx == "M" ? "Nam" : "";
 
-                    var sentDt = m["sentDt"]?.Value<DateTime?>();
-                    if (sentDt.HasValue) { wsAiChat.Cell(acRow, 5).Value = sentDt.Value; wsAiChat.Cell(acRow, 5).Style.DateFormat.Format = "dd/MM/yyyy HH:mm"; }
-                    else wsAiChat.Cell(acRow, 5).Value = "—";
+                    var created = first["sentDt"]?.Value<DateTime?>();
+                    if (created.HasValue) { wsAiChat.Cell(acRow, 6).Value = created.Value; wsAiChat.Cell(acRow, 6).Style.DateFormat.Format = "dd/MM/yyyy HH:mm"; }
+                    else wsAiChat.Cell(acRow, 6).Value = "—";
+                    wsAiChat.Cell(acRow, 7).Value = list.Count;
 
-                    string senderType = m["senderType"]?.Value<string>() ?? "";
-                    string senderLabel = senderType switch { "EMP" => "Nhân viên", "CSR" => "CSR/HR", "AI" => "AI", _ => senderType };
-                    wsAiChat.Cell(acRow, 6).Value = senderLabel;
+                    var staff = list.Where(x => x["senderType"]?.Value<string>() == "CSR" && !string.IsNullOrWhiteSpace(x["senderName"]?.Value<string>()))
+                                    .Select(x => x["senderName"]!.Value<string>()!.Trim()).Distinct().ToList();
+                    var staffCell = wsAiChat.Cell(acRow, 8); staffCell.Value = string.Join("\n", staff); staffCell.Style.Font.FontName = "Vnitbi__"; staffCell.Style.Alignment.WrapText = true;
 
-                    var senderNameCell = wsAiChat.Cell(acRow, 7);
-                    senderNameCell.Value = m["senderName"]?.Value<string>() ?? "";
-                    senderNameCell.Style.Font.FontName = "Vnitbi__";
+                    var aiLines = list.Select(m =>
+                    {
+                        string st = m["senderType"]?.Value<string>() ?? "";
+                        string who = st switch { "EMP" => "Nhân viên", "CSR" => "CSR/HR", "AI" => "AI", _ => st };
+                        bool failed = st == "AI" && m["aiFailed"]?.Value<bool>() == true;
+                        return $"[{(m["sentDt"]?.Value<DateTime?>()?.ToString("dd/MM HH:mm") ?? "—")}] {who}{(failed ? " (lỗi)" : "")}: {StripHtml(m["content"]?.Value<string>())}";
+                    });
+                    var aiChunks = SplitChatLines(aiLines, AiCellMax);
+                    var contentCell = wsAiChat.Cell(acRow, 9); contentCell.Value = aiChunks[0]; contentCell.Style.Alignment.WrapText = true;
 
-                    var contentCell = wsAiChat.Cell(acRow, 8);
-                    contentCell.Value = StripHtml(m["content"]?.Value<string>());
-                    if (senderType == "AI" && m["aiFailed"]?.Value<bool>() == true) contentCell.Style.Font.Italic = true;
-
-                    prevChatId = chatId;
+                    wsAiChat.Range(acRow, 1, acRow, aiChatHeaders.Length).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
                     acRow++;
+                    for (int k = 1; k < aiChunks.Count; k++)   // nội dung quá giới hạn ô → dòng tiếp theo (cùng ID đoạn chat)
+                    {
+                        wsAiChat.Cell(acRow, 1).Value = grp.Key.ToString();
+                        wsAiChat.Cell(acRow, 2).Value = $"(nội dung tiếp theo, phần {k + 1}/{aiChunks.Count})";
+                        wsAiChat.Cell(acRow, 2).Style.Font.Italic = true;
+                        var cc = wsAiChat.Cell(acRow, 9); cc.Value = aiChunks[k]; cc.Style.Alignment.WrapText = true;
+                        wsAiChat.Range(acRow, 1, acRow, aiChatHeaders.Length).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                        acRow++;
+                    }
                 }
                 if (acRow > 2) wsAiChat.Range(1, 1, 1, aiChatHeaders.Length).SetAutoFilter();
                 wsAiChat.SheetView.FreezeRows(1);
                 wsAiChat.Columns().AdjustToContents();
                 wsAiChat.Column(2).Width = 40;
-                wsAiChat.Column(8).Width = 70;
+                wsAiChat.Column(8).Width = 28;
+                wsAiChat.Column(9).Width = 90;
             }
         }
 
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
+        byte[] xlsxBytes = ms.ToArray();
+        // Biểu đồ Excel thật (ClosedXML không có) — lỗi thì vẫn trả file không biểu đồ, không làm hỏng báo cáo
+        if (chartSpecs.Count > 0)
+        {
+            try { xlsxBytes = ExcelChartBuilder.AddCharts(xlsxBytes, "Biểu đồ", chartSpecs); }
+            catch { }
+        }
 
         string fileName = $"BaoCaoHoiThoai_{result.from ?? "tu"}_{result.to ?? "den"}.xlsx";
 
-        return File(ms.ToArray(),
+        return File(xlsxBytes,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             fileName);
     }
@@ -1169,22 +1564,90 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     // ─────────────────────────────────────────────────────────────────────────
     public IActionResult Topics()
     {
-        if (!IsAdmin) return Forbid();
+        if (!CanManageTopics) return Forbid();
         return View();
+    }
+
+    // /AdminInquiry/Dashboard: đã gộp chung vào trang Báo cáo (user 2026-11-06) — giữ đường dẫn cũ để bookmark không gãy.
+    public IActionResult Dashboard() => RedirectToAction("Report");
+
+    [HttpGet]
+    public async Task<IActionResult> GetRepeatDetail(string? from = null, string? to = null)
+    {
+        if (!CanViewReport) return Json(new { success = false, message = "Không có quyền" });
+        return Content(await _inquiry.GetRepeatDetailRawAsync(from, to), "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetDashboard(string? from = null, string? to = null)
+    {
+        if (!CanViewReport) return Json(new { success = false, message = "Không có quyền" });
+        return Content(await _inquiry.GetDashboardRawAsync(from, to), "application/json");
+    }
+
+    // GET /AdminInquiry/RemindEmails — trang CSR/Admin cài người nhận email nhắc hạn theo chủ đề / phòng
+    public IActionResult RemindEmails()
+    {
+        if (!CanManageTopics) return Forbid();
+        return View();
+    }
+
+    // Xem trước hôm nay email nhắc hạn sẽ gửi cho ai (không gửi gì)
+    [HttpGet]
+    public async Task<IActionResult> GetReminderPreview()
+    {
+        if (!CanManageTopics) return Json(new { success = false, message = "Không có quyền" });
+        return Content(await _inquiry.GetReminderPreviewRawAsync(), "application/json");
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAdminTopics()
     {
-        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (!CanManageTopics) return Json(new { success = false, message = "Không có quyền" });
         var result = await _inquiry.GetAdminTopicsAsync();
         return Json(result);
+    }
+
+    // Danh sách mức độ (Low/High/ZT) và phòng ban (PIC) để đổ dropdown ở modal chủ đề
+    [HttpGet]
+    public async Task<IActionResult> GetSeverities()
+    {
+        if (!CanManageTopics) return Json(new { success = false, message = "Không có quyền" });
+        return Content(await _inquiry.GetSeveritiesRawAsync(), "application/json");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetPicDeptRoles()
+    {
+        if (!CanManageTopics) return Json(new { success = false, message = "Không có quyền" });
+        return Content(await _inquiry.GetPicDeptRolesRawAsync(), "application/json");
+    }
+
+    // Người nhận email nhắc hạn phản hồi (theo chủ đề / theo phòng PIC) — CSR/Admin tự sửa
+    [HttpGet]
+    public async Task<IActionResult> GetRemindTo()
+    {
+        if (!CanManageTopics) return Json(new { success = false, message = "Không có quyền" });
+        return Content(await _inquiry.GetRemindToRawAsync(), "application/json");
+    }
+
+    public class RemindToSaveRequest { public string? ScopeType { get; set; } public string? ScopeKey { get; set; } public string? Emails { get; set; } }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveRemindTo([FromBody] RemindToSaveRequest req)
+    {
+        if (!CanManageTopics) return Json(new { success = false, message = "Không có quyền" });
+        if (req == null) return Json(new { success = false, message = "Dữ liệu rỗng" });
+        return Content(await _inquiry.SaveRemindToRawAsync(new
+        {
+            scopeType = req.ScopeType, scopeKey = req.ScopeKey, emails = req.Emails, updtId = CurrentUser?.EmpCd
+        }), "application/json");
     }
 
     [HttpPost]
     public async Task<IActionResult> SaveTopic([FromBody] AdminTopicSaveRequest req)
     {
-        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (!CanManageTopics) return Json(new { success = false, message = "Không có quyền" });
         if (req == null) return Json(new { success = false, message = "Dữ liệu rỗng" });
 
         var payload = new
@@ -1196,6 +1659,8 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             color       = req.Color,
             sortOrder   = req.SortOrder,
             isActive    = req.IsActive,
+            severityCd    = req.SeverityCd,
+            picDeptRoleId = req.PicDeptRoleId,
             updtId      = CurrentUser?.EmpCd
         };
         var raw = await _inquiry.SaveTopicRawAsync(payload, req.IsEdit ? req.TopicCd : null);
@@ -1205,7 +1670,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     [HttpPost]
     public async Task<IActionResult> ToggleTopic([FromBody] AdminTopicToggleRequest req)
     {
-        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (!CanManageTopics) return Json(new { success = false, message = "Không có quyền" });
         if (req == null || string.IsNullOrWhiteSpace(req.TopicCd))
             return Json(new { success = false, message = "Thiếu mã chủ đề" });
 
@@ -1216,7 +1681,7 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     [HttpPost]
     public async Task<IActionResult> DeleteTopic([FromBody] AdminTopicDeleteRequest req)
     {
-        if (!IsAdmin) return Json(new { success = false, message = "Không có quyền" });
+        if (!CanManageTopics) return Json(new { success = false, message = "Không có quyền" });
         if (req == null || string.IsNullOrWhiteSpace(req.TopicCd))
             return Json(new { success = false, message = "Thiếu mã chủ đề" });
 
@@ -1315,6 +1780,8 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         public string? Color       { get; set; }
         public int     SortOrder   { get; set; }
         public bool    IsActive    { get; set; } = true;
+        public string? SeverityCd  { get; set; }
+        public int?    PicDeptRoleId { get; set; }
     }
 
     public class AdminTopicToggleRequest

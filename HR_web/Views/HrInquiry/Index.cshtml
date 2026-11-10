@@ -97,7 +97,10 @@
                 <option value="">Trực tiếp &amp; Ẩn danh</option>
                 <option value="DIRECT">Trực tiếp</option>
                 <option value="ANON">Ẩn danh</option>
-                <option value="AI">🤖 AI SAMHO - CSR</option>
+                @if (ViewBag.IsCsr is true)
+                {
+                    <option value="AI">🤖 AI SAMHO - CSR</option>
+                }
             </select>
             <select class="form-select form-select-sm" id="fTopic" style="width:auto;min-width:130px" onchange="loadData(1)">
                 <option value="">Tất cả chủ đề</option>
@@ -106,6 +109,10 @@
                 <option value="">Tất cả phụ trách</option>
                 <option value="@(me?.EmpCd ?? "")">Của tôi</option>
                 <option value="UNASSIGNED">Chưa phụ trách</option>
+            </select>
+            <select class="form-select form-select-sm" id="fDraft" style="width:auto" onchange="loadData(1)" title="Bản nháp trả lời của HR/GA chờ CSR duyệt">
+                <option value="">Mọi bản nháp</option>
+                <option value="1">✍ Có bản nháp chờ duyệt</option>
             </select>
             <select class="form-select form-select-sm" id="fSort" style="width:auto" onchange="loadData(1)">
                 <option value="newest">Mới nhất trước</option>
@@ -193,6 +200,7 @@ function saveListState() {
             fTopic:    document.getElementById('fTopic').value,
             fAssigned: document.getElementById('fAssigned').value,
             fSort:     document.getElementById('fSort').value,
+            fDraft:    document.getElementById('fDraft').value,
             fSearch:   document.getElementById('fSearch').value
         }));
     } catch {}
@@ -250,6 +258,7 @@ function buildUrl(page) {
     if (a === 'UNASSIGNED') url += '&assignedTo=UNASSIGNED';
     else if (a) url += `&assignedTo=${encodeURIComponent(a)}`;
     if (q)  url += `&search=${encodeURIComponent(q)}`;
+    if (document.getElementById('fDraft')?.value === '1') url += '&draftPending=1';
     return url;
 }
 
@@ -328,6 +337,7 @@ async function loadNormalData(page = 1, silent = false) {
                         <div class="inq-no">${esc(i.inquiryNo)}</div>
                         <span class="inq-subj">${esc(i.subject||i.topicName||'Hội thoại')}</span>
                         ${i.topicName ? `<span class="topic-chip" style="${topicStyle}">${esc(i.topicName)}</span>` : ''}
+                        ${i.draftPending > 0 ? `<span class="topic-chip" style="background:#fef3c7;color:#92400e" title="Bản nháp trả lời đang chờ CSR duyệt">✍ ${i.draftPending} nháp chờ duyệt</span>` : ''}
                     </td>
                     <td class="px-2 text-sm">${empDisplay}</td>
                     <td class="px-2 d-none d-md-table-cell">${assigned}</td>
@@ -549,6 +559,7 @@ async function loadTopics() {
             setSelectValue('fTopic',    st.fTopic);
             setSelectValue('fAssigned', st.fAssigned);
             setSelectValue('fSort',     st.fSort);
+            setSelectValue('fDraft',    st.fDraft);
             setSelectValue('fSearch',   st.fSearch);
             startPage = st.page || 1;
         }

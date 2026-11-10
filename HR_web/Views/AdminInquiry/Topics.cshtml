@@ -139,7 +139,7 @@
         Icon = "topic",
         Title = "Quản lý chủ đề hội thoại",
         SubtitleHtml = "Ẩn chủ đề sẽ không ảnh hưởng đến hội thoại đang dùng — chỉ ngăn người dùng tạo mới.",
-        ActionHtml = "<button class=\"tp-btn-new\" onclick=\"openCreate()\"><span class=\"material-symbols-rounded\" style=\"font-size:1.1rem;vertical-align:middle\">add</span> Thêm chủ đề</button>"
+        ActionHtml = "<a class=\"tp-btn-new me-2\" href=\"" + Url.Action("RemindEmails","AdminInquiry") + "\" style=\"text-decoration:none\"><span class=\"material-symbols-rounded\" style=\"font-size:1.1rem;vertical-align:middle\">forward_to_inbox</span> Email nhắc hạn</a><button class=\"tp-btn-new\" onclick=\"openCreate()\"><span class=\"material-symbols-rounded\" style=\"font-size:1.1rem;vertical-align:middle\">add</span> Thêm chủ đề</button>"
     })
 
     <div class="tp-table-wrap">
@@ -148,6 +148,8 @@
                 <tr>
                     <th>Chủ đề</th>
                     <th>Mã</th>
+                    <th class="center">Mức độ · Hạn</th>
+                    <th>PIC</th>
                     <th class="center">Thứ tự</th>
                     <th class="center">Đang dùng</th>
                     <th class="center">Trạng thái</th>
@@ -155,7 +157,7 @@
                 </tr>
             </thead>
             <tbody id="tpBody">
-                <tr><td colspan="6"><div class="tp-loading">Đang tải...</div></td></tr>
+                <tr><td colspan="8"><div class="tp-loading">Đang tải...</div></td></tr>
             </tbody>
         </table>
     </div>
@@ -204,6 +206,19 @@
             <div class="tp-form-row">
                 <div class="row2">
                     <div>
+                        <label>Mức độ (hạn phản hồi)</label>
+                        <select id="fldSeverity"></select>
+                    </div>
+                    <div>
+                        <label>PIC (phòng ban phụ trách)</label>
+                        <select id="fldPic"></select>
+                    </div>
+                </div>
+                <div class="hint">Mức độ quyết định hạn phản hồi (sửa số ngày ở bảng cấu hình mức độ). PIC chỉ để điều phối nội bộ — công nhân không thấy.</div>
+            </div>
+            <div class="tp-form-row">
+                <div class="row2">
+                    <div>
                         <label>Thứ tự sắp xếp</label>
                         <input type="number" id="fldSort" min="0" max="999" value="0">
                     </div>
@@ -237,6 +252,9 @@ const URL_LIST   = '@Url.Action("GetAdminTopics","AdminInquiry")';
 const URL_SAVE   = '@Url.Action("SaveTopic","AdminInquiry")';
 const URL_TOGGLE = '@Url.Action("ToggleTopic","AdminInquiry")';
 const URL_DELETE = '@Url.Action("DeleteTopic","AdminInquiry")';
+const URL_SEV    = '@Url.Action("GetSeverities","AdminInquiry")';
+const URL_PIC    = '@Url.Action("GetPicDeptRoles","AdminInquiry")';
+let severities = [], picRoles = [];
 const TOKEN      = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 
 let topics    = [];
@@ -300,27 +318,27 @@ function onColorPickerChange() {
 
 async function loadTopics() {
     document.getElementById('tpBody').innerHTML =
-        '<tr><td colspan="6"><div class="tp-loading"><div class="spinner-border text-danger" role="status"></div><div style="margin-top:.5rem">Đang tải...</div></div></td></tr>';
+        '<tr><td colspan="8"><div class="tp-loading"><div class="spinner-border text-danger" role="status"></div><div style="margin-top:.5rem">Đang tải...</div></div></td></tr>';
     try {
         const res  = await fetch(URL_LIST);
         const data = await res.json();
         if (!data.success) {
             document.getElementById('tpBody').innerHTML =
-                `<tr><td colspan="6"><div class="tp-empty">Lỗi: ${esc(data.message||'Không tải được')}</div></td></tr>`;
+                `<tr><td colspan="8"><div class="tp-empty">Lỗi: ${esc(data.message||'Không tải được')}</div></td></tr>`;
             return;
         }
         topics = data.data || [];
         renderTable();
     } catch (e) {
         document.getElementById('tpBody').innerHTML =
-            `<tr><td colspan="6"><div class="tp-empty">Lỗi kết nối: ${esc(e.message)}</div></td></tr>`;
+            `<tr><td colspan="8"><div class="tp-empty">Lỗi kết nối: ${esc(e.message)}</div></td></tr>`;
     }
 }
 
 function renderTable() {
     if (!topics.length) {
         document.getElementById('tpBody').innerHTML =
-            '<tr><td colspan="6"><div class="tp-empty"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Chưa có chủ đề nào</div></td></tr>';
+            '<tr><td colspan="8"><div class="tp-empty"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />Chưa có chủ đề nào</div></td></tr>';
         return;
     }
     const rows = topics.map(t => {
@@ -342,6 +360,8 @@ function renderTable() {
                 ${t.topicNameEn ? `<div class="topic-meta">EN: ${esc(t.topicNameEn)}</div>` : ''}
             </td>
             <td><span class="topic-cd">${esc(t.topicCd)}</span></td>
+            <td class="center">${t.severityName ? `<span style="display:inline-block;padding:.1rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:${esc(t.severityColor||'#6366f1')}22;color:${esc(t.severityColor||'#6366f1')}">${esc(t.severityName)}</span><div class="topic-meta">${t.responseDays ?? '?'} ngày</div>` : '—'}</td>
+            <td>${t.picDeptName ? `<span class="pill-active" style="background:#eef2ff;color:#4338ca">${esc(t.picDeptName)}</span>` : '<span class="topic-meta">Chưa gán</span>'}</td>
             <td class="center">${t.sortOrder}</td>
             <td class="center"><span class="usage-badge">${t.usageCount ?? 0}</span></td>
             <td class="center">${status}</td>
@@ -364,6 +384,15 @@ function renderTable() {
 }
 
 // ─── Modal handling ─────────────────────────────────────────────────────────
+function fillSeverityPic(sevCd, picId) {
+    document.getElementById('fldSeverity').innerHTML = severities.map(x =>
+        `<option value="${esc(x.severityCd)}">${esc(x.nameVi)} — ${x.responseDays} ngày</option>`).join('');
+    document.getElementById('fldPic').innerHTML = '<option value="">— Chưa gán —</option>' + picRoles.map(x =>
+        `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+    document.getElementById('fldSeverity').value = sevCd || (severities[0] ? severities[0].severityCd : '');
+    document.getElementById('fldPic').value = picId ? String(picId) : '';
+}
+
 function openCreate() {
     editingCd = null;
     document.getElementById('tpModalTitle').textContent = 'Thêm chủ đề';
@@ -376,6 +405,7 @@ function openCreate() {
     document.getElementById('fldColorPicker').value = '#94a3b8';
     document.getElementById('fldSort').value     = (topics.length ? Math.max(...topics.map(x=>x.sortOrder||0)) + 1 : 0);
     document.getElementById('fldActive').checked = true;
+    fillSeverityPic('LOW', null);
     updateIconPreview();
     renderIconGrid();
     updateColorPreview();
@@ -396,6 +426,7 @@ function openEdit(topicCd) {
     document.getElementById('fldColorPicker').value = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(t.color||'') ? t.color : '#94a3b8';
     document.getElementById('fldSort').value       = t.sortOrder  || 0;
     document.getElementById('fldActive').checked   = !!t.isActive;
+    fillSeverityPic(t.severityCd, t.picDeptRoleId);
     updateIconPreview();
     renderIconGrid();
     updateColorPreview();
@@ -432,7 +463,9 @@ async function saveTopic() {
     try {
         const payload = {
             isEdit: !!editingCd,
-            topicCd, topicName, topicNameEn, icon, color, sortOrder, isActive
+            topicCd, topicName, topicNameEn, icon, color, sortOrder, isActive,
+            severityCd:    document.getElementById('fldSeverity').value || 'LOW',
+            picDeptRoleId: document.getElementById('fldPic').value ? parseInt(document.getElementById('fldPic').value, 10) : null
         };
         const res = await fetch(URL_SAVE, {
             method: 'POST',
@@ -494,6 +527,10 @@ async function deleteTopic(topicCd, usage) {
     } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
 }
 
-loadTopics();
+// Nạp danh sách mức độ + phòng ban (PIC) trước khi dùng modal; lỗi thì modal vẫn mở được với ô trống
+Promise.all([
+    fetch(URL_SEV).then(r => r.json()).then(d => { if (d.success) severities = d.data || []; }).catch(() => {}),
+    fetch(URL_PIC).then(r => r.json()).then(d => { if (d.success) picRoles = d.data || []; }).catch(() => {})
+]).finally(() => loadTopics());
 </script>
 }

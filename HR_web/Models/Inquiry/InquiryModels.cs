@@ -16,6 +16,13 @@ public class InquiryTopicDto
     public int     SortOrder   { get; set; }
     public bool    IsActive    { get; set; } = true;
     public int     UsageCount  { get; set; }
+    // Catalog Grievance: mức độ + số ngày phản hồi (công nhân thấy); PIC chỉ có ở trang quản lý topic (HR_api không trả cho công nhân)
+    public string  SeverityCd    { get; set; } = "LOW";
+    public string? SeverityName  { get; set; }
+    public string? SeverityColor { get; set; }
+    public int?    ResponseDays  { get; set; }
+    public int?    PicDeptRoleId { get; set; }
+    public string? PicDeptName   { get; set; }
 }
 
 [JsonObject(NamingStrategyType = typeof(CamelCaseNamingStrategy))]
@@ -51,6 +58,7 @@ public class InquiryListItemDto
     public DateTime? LockedDt     { get; set; }
     public int?      Rating       { get; set; }
     public string?   RatingNote   { get; set; }
+    public int       DraftPending { get; set; }
 }
 
 [JsonObject(NamingStrategyType = typeof(CamelCaseNamingStrategy))]
@@ -203,6 +211,10 @@ public class InquiryReportSummary
     public int     cntClosed     { get; set; }
     public int     cntDirect     { get; set; }
     public int     cntAnon       { get; set; }
+    public int     cntSatisfied    { get; set; }
+    public int     cntNormal       { get; set; }
+    public int     cntNotSatisfied { get; set; }
+    public int     cntUnrated      { get; set; }
     public double? avgRating     { get; set; }
     public double? avgMsg        { get; set; }
     public int     closedByHr    { get; set; }
@@ -222,6 +234,10 @@ public class InquiryReportTopicRow
     public int     total     { get; set; }
     public int     cntOpen   { get; set; }
     public int     cntClosed { get; set; }
+    public int     cntSatisfied    { get; set; }
+    public int     cntNormal       { get; set; }
+    public int     cntNotSatisfied { get; set; }
+    public int     cntUnrated      { get; set; }
     public double? avgRating { get; set; }
 }
 
@@ -232,6 +248,10 @@ public class InquiryReportHrRow
     public string? hrName       { get; set; }
     public int     handled      { get; set; }
     public int     cntClosed    { get; set; }
+    public int     cntSatisfied    { get; set; }
+    public int     cntNormal       { get; set; }
+    public int     cntNotSatisfied { get; set; }
+    public int     cntUnrated      { get; set; }
     public double? avgRating    { get; set; }
     public double? avgHandleMin { get; set; }
 }
@@ -274,6 +294,11 @@ public class InquiryReportRawRow
     public double?   responseMin    { get; set; }
     public int?      rating         { get; set; }
     public string?   ratingNote     { get; set; }
+    public int       hrMsgCount     { get; set; }
+    public DateTime? deadlineDt     { get; set; }
+    public string?   picName        { get; set; }
+    public int       draftPending   { get; set; }
+    public string?   sex            { get; set; }
 }
 
 public class InquiryReportRawResponse

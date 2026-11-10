@@ -32,11 +32,11 @@ public class InquiryService
     // POST /apiHR/Inquiry/create
     public async Task<InquiryCreateResponse> CreateAsync(
         string  chatType,  string  topicCd,  string? subject,
-        string? empCd,     string? anonToken, string  content)
+        string? empCd,     string? anonToken, string  content, string? reportType = null)
     {
         try
         {
-            var payload = new { chatType, topicCd, subject, empCd, anonToken, content };
+            var payload = new { chatType, topicCd, subject, empCd, anonToken, content, reportType };
             var res = await _api.PostAsync("Inquiry/create", payload);
             if (res?.IsSuccessStatusCode == true)
                 return JsonConvert.DeserializeObject<InquiryCreateResponse>(await res.Content.ReadAsStringAsync())
@@ -132,14 +132,15 @@ public class InquiryService
         string  senderType, string? senderName,  string? content,
         List<InquiryFileInfo>? files = null,
         List<InquiryRefInfo>?  refs  = null,
-        string? assignedName = null)
+        string? assignedName = null,
+        bool    skipLockCheck = false)
     {
         try
         {
             var payload = new
             {
                 inquiryId, empCd, anonToken,
-                senderType, senderName, assignedName, content,
+                senderType, senderName, assignedName, content, skipLockCheck,
                 files = files ?? new List<InquiryFileInfo>(),
                 refs  = refs  ?? new List<InquiryRefInfo>()
             };
@@ -280,11 +281,15 @@ public class InquiryService
         string? sort       = null,
         string? viewerEmpcd = null,
         int     page       = 1,
-        int     pageSize   = 30)
+        int     pageSize   = 30,
+        string? picRoles   = null,
+        string? draftPending = null)
     {
         try
         {
             var q = new List<string>();
+            if (draftPending == "1")                q.Add("draftPending=1");
+            if (picRoles != null)                   q.Add($"picRoles={Uri.EscapeDataString(picRoles.Length == 0 ? "-" : picRoles)}");   // rỗng → "-" (không phòng nào) để API không hiểu nhầm là "không giới hạn"
             if (!string.IsNullOrEmpty(status))      q.Add($"status={Uri.EscapeDataString(status)}");
             if (!string.IsNullOrEmpty(topicCd))     q.Add($"topicCd={Uri.EscapeDataString(topicCd)}");
             if (!string.IsNullOrEmpty(chatType))    q.Add($"chatType={Uri.EscapeDataString(chatType)}");
@@ -409,6 +414,66 @@ public class InquiryService
             var res = await _api.PostAsync($"Inquiry/admin/topics/{Uri.EscapeDataString(topicCd)}/toggle", payload);
             if (res?.IsSuccessStatusCode == true)
                 return await res.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
+    }
+
+    // ── Catalog Grievance: danh sách mức độ, phòng ban PIC, chi tiết/phân loại case (CSR) ──
+    private async Task<string> GetRawOrFailAsync(string path, string? query = null)
+    {
+        try
+        {
+            var res = await _api.GetAsync_Raw(path, query ?? "");
+            if (res?.IsSuccessStatusCode == true) return await res.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
+    }
+
+    public Task<string> GetSeveritiesRawAsync()          => GetRawOrFailAsync("Inquiry/admin/severities");
+    public Task<string> GetPicDeptRolesRawAsync()        => GetRawOrFailAsync("Inquiry/admin/dept-roles");
+    public Task<string> GetCaseInfoRawAsync(long id)     => GetRawOrFailAsync($"Inquiry/{id}/case-info");
+    public Task<string> GetRemindToRawAsync()            => GetRawOrFailAsync("Inquiry/admin/remind-to");
+    public Task<string> GetReminderPreviewRawAsync()     => GetRawOrFailAsync("Inquiry/admin/reminder/preview");
+    public Task<string> GetTriageQueueRawAsync(string query) => GetRawOrFailAsync("Inquiry/triage/queue", query);
+    public Task<string> TriageConfirmRawAsync(object payload) => DraftPostRawAsync("Inquiry/triage/confirm", payload);
+    public Task<string> GetRepeatDetailRawAsync(string? from, string? to)
+        => GetRawOrFailAsync("Inquiry/dashboard/repeat", $"from={Uri.EscapeDataString(from ?? "")}&to={Uri.EscapeDataString(to ?? "")}");
+    public Task<string> GetDashboardRawAsync(string? from, string? to)
+        => GetRawOrFailAsync("Inquiry/dashboard", $"from={Uri.EscapeDataString(from ?? "")}&to={Uri.EscapeDataString(to ?? "")}");
+
+    public async Task<string> SaveRemindToRawAsync(object payload)
+    {
+        try
+        {
+            var res = await _api.PutAsync_Raw("Inquiry/admin/remind-to", payload);
+            if (res?.IsSuccessStatusCode == true) return await res.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
+    }
+
+    public async Task<string> UpdateCaseInfoRawAsync(long id, object payload)
+    {
+        try
+        {
+            var res = await _api.PutAsync_Raw($"Inquiry/{id}/case-info", payload);
+            if (res?.IsSuccessStatusCode == true) return await res.Content.ReadAsStringAsync();
+            return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+        }
+        catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }
+    }
+
+    // ── Bản nháp trả lời HR/GA chờ CSR duyệt (API: Inquiry/draft/*) ──────────────────────────
+    public Task<string> GetDraftsRawAsync(long inquiryId) => GetRawOrFailAsync($"Inquiry/{inquiryId}/drafts");
+
+    public async Task<string> DraftPostRawAsync(string path, object payload)
+    {
+        try
+        {
+            var res = await _api.PostAsync(path, payload);
+            if (res?.IsSuccessStatusCode == true) return await res.Content.ReadAsStringAsync();
             return "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
         }
         catch (Exception ex) { return "{\"success\":false,\"message\":\"" + ex.Message.Replace("\"","'") + "\"}"; }

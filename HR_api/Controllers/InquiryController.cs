@@ -55,11 +55,14 @@ public class InquiryController : ControllerBase
     {
         try
         {
+            // Công nhân: có mức độ + số ngày phản hồi để gợi ý hạn; KHÔNG trả PIC (thông tin điều phối nội bộ).
             var rows = await _db.ExecuteQueryAsync(@"
-                SELECT TOPIC_CD, TOPIC_NAME, TOPIC_NAME_EN, ICON, COLOR, SORT_ORDER
-                FROM HRMS.HR_INQUIRY_TOPIC
-                WHERE IS_ACTIVE = 1
-                ORDER BY SORT_ORDER",
+                SELECT T.TOPIC_CD, T.TOPIC_NAME, T.TOPIC_NAME_EN, T.ICON, T.COLOR, T.SORT_ORDER,
+                       T.SEVERITY_CD, S.NAME_VI AS SEV_NAME, S.COLOR AS SEV_COLOR, S.RESPONSE_DAYS
+                FROM HRMS.HR_INQUIRY_TOPIC T
+                LEFT JOIN HRMS.HR_INQUIRY_SEVERITY S ON S.SEVERITY_CD = T.SEVERITY_CD
+                WHERE T.IS_ACTIVE = 1
+                ORDER BY T.SORT_ORDER",
                 r => new InquiryTopicDto
                 {
                     TopicCd     = r["TOPIC_CD"]?.ToString()    ?? "",
@@ -67,7 +70,11 @@ public class InquiryController : ControllerBase
                     TopicNameEn = r["TOPIC_NAME_EN"]?.ToString(),
                     Icon        = r["ICON"]?.ToString(),
                     Color       = r["COLOR"]?.ToString(),
-                    SortOrder   = r["SORT_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["SORT_ORDER"])
+                    SortOrder   = r["SORT_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["SORT_ORDER"]),
+                    SeverityCd     = r["SEVERITY_CD"]?.ToString() ?? "LOW",
+                    SeverityName   = r["SEV_NAME"]?.ToString(),
+                    SeverityColor  = r["SEV_COLOR"]?.ToString(),
+                    ResponseDays   = r["RESPONSE_DAYS"] == DBNull.Value ? null : Convert.ToInt32(r["RESPONSE_DAYS"])
                 });
 
             return Ok(new { success = true, data = rows });
@@ -89,8 +96,12 @@ public class InquiryController : ControllerBase
             var rows = await _db.ExecuteQueryAsync(@"
                 SELECT t.TOPIC_CD, t.TOPIC_NAME, t.TOPIC_NAME_EN, t.ICON, t.COLOR,
                        t.SORT_ORDER, t.IS_ACTIVE,
+                       t.SEVERITY_CD, s.NAME_VI AS SEV_NAME, s.COLOR AS SEV_COLOR, s.RESPONSE_DAYS,
+                       t.PIC_DEPT_ROLE_ID, dr.ROLE_NAME AS PIC_NAME,
                        (SELECT COUNT(*) FROM HRMS.HR_INQUIRY i WHERE i.TOPIC_CD = t.TOPIC_CD) AS USAGE_COUNT
                 FROM HRMS.HR_INQUIRY_TOPIC t
+                LEFT JOIN HRMS.HR_INQUIRY_SEVERITY s ON s.SEVERITY_CD = t.SEVERITY_CD
+                LEFT JOIN HRMS.HR_DEPT_ROLES dr ON dr.ID = t.PIC_DEPT_ROLE_ID
                 ORDER BY t.SORT_ORDER, t.TOPIC_CD",
                 r => new InquiryTopicDto
                 {
@@ -101,7 +112,13 @@ public class InquiryController : ControllerBase
                     Color       = r["COLOR"]?.ToString(),
                     SortOrder   = r["SORT_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["SORT_ORDER"]),
                     IsActive    = r["IS_ACTIVE"]  == DBNull.Value ? true : Convert.ToInt32(r["IS_ACTIVE"]) == 1,
-                    UsageCount  = r["USAGE_COUNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["USAGE_COUNT"])
+                    UsageCount  = r["USAGE_COUNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["USAGE_COUNT"]),
+                    SeverityCd     = r["SEVERITY_CD"]?.ToString() ?? "LOW",
+                    SeverityName   = r["SEV_NAME"]?.ToString(),
+                    SeverityColor  = r["SEV_COLOR"]?.ToString(),
+                    ResponseDays   = r["RESPONSE_DAYS"] == DBNull.Value ? null : Convert.ToInt32(r["RESPONSE_DAYS"]),
+                    PicDeptRoleId  = r["PIC_DEPT_ROLE_ID"] == DBNull.Value ? null : Convert.ToInt32(r["PIC_DEPT_ROLE_ID"]),
+                    PicDeptName    = r["PIC_NAME"]?.ToString()
                 });
             return Ok(new { success = true, data = rows });
         }
@@ -109,6 +126,62 @@ public class InquiryController : ControllerBase
         {
             return Ok(new { success = false, message = ex.Message });
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Inquiry/admin/severities  — danh sách mức độ (Low/High/ZT + số ngày) để đổ dropdown
+    // GET /apiHR/Inquiry/admin/dept-roles  — danh sách phòng ban (HR_DEPT_ROLES) làm PIC
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("admin/severities")]
+    public async Task<IActionResult> GetSeverities()
+    {
+        try
+        {
+            var rows = await _db.ExecuteQueryAsync(@"
+                SELECT SEVERITY_CD, NAME_VI, NAME_EN, RESPONSE_DAYS, COLOR
+                FROM HRMS.HR_INQUIRY_SEVERITY ORDER BY SORT_ORDER",
+                r => new
+                {
+                    severityCd   = r["SEVERITY_CD"]?.ToString() ?? "",
+                    nameVi       = r["NAME_VI"]?.ToString(),
+                    nameEn       = r["NAME_EN"]?.ToString(),
+                    responseDays = Convert.ToInt32(r["RESPONSE_DAYS"]),
+                    color        = r["COLOR"]?.ToString()
+                });
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    [HttpGet("admin/dept-roles")]
+    public async Task<IActionResult> GetPicDeptRoles()
+    {
+        try
+        {
+            var rows = await _db.ExecuteQueryAsync(
+                "SELECT ID, ROLE_NAME FROM HRMS.HR_DEPT_ROLES ORDER BY ID",
+                r => new { id = Convert.ToInt32(r["ID"]), name = r["ROLE_NAME"]?.ToString() ?? "" });
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // Kiểm tra mức độ / PIC hợp lệ trước khi ghi topic hoặc case. Trả null nếu hợp lệ, ngược lại là thông báo lỗi.
+    private async Task<string?> ValidateSeverityPicAsync(string? severityCd, int? picDeptRoleId)
+    {
+        if (!string.IsNullOrWhiteSpace(severityCd))
+        {
+            var ok = await _db.ExecuteQueryAsync("SELECT 1 FROM HRMS.HR_INQUIRY_SEVERITY WHERE SEVERITY_CD = :S AND ROWNUM = 1",
+                r => 1, new OracleParameter("S", severityCd.Trim().ToUpperInvariant()));
+            if (ok.Count == 0) return "Mức độ không hợp lệ";
+        }
+        if (picDeptRoleId.HasValue)
+        {
+            var ok = await _db.ExecuteQueryAsync("SELECT 1 FROM HRMS.HR_DEPT_ROLES WHERE ID = :I AND ROWNUM = 1",
+                r => 1, new OracleParameter("I", picDeptRoleId.Value));
+            if (ok.Count == 0) return "Phòng ban phụ trách (PIC) không hợp lệ";
+        }
+        return null;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -135,11 +208,14 @@ public class InquiryController : ControllerBase
             if (existing.Count > 0)
                 return Ok(new { success = false, message = "Mã chủ đề đã tồn tại" });
 
+            var sevErr = await ValidateSeverityPicAsync(req.SeverityCd, req.PicDeptRoleId);
+            if (sevErr != null) return Ok(new { success = false, message = sevErr });
+
             await _db.ExecuteNonQueryAsync(@"
                 INSERT INTO HRMS.HR_INQUIRY_TOPIC
-                    (TOPIC_CD, TOPIC_NAME, TOPIC_NAME_EN, ICON, COLOR, SORT_ORDER, IS_ACTIVE, INST_ID, INST_DT)
+                    (TOPIC_CD, TOPIC_NAME, TOPIC_NAME_EN, ICON, COLOR, SORT_ORDER, IS_ACTIVE, SEVERITY_CD, PIC_DEPT_ROLE_ID, INST_ID, INST_DT)
                 VALUES
-                    (:CD, :NAME, :NAME_EN, :ICON, :COLOR, :SORT, :ACTIVE, :INST, SYSDATE)",
+                    (:CD, :NAME, :NAME_EN, :ICON, :COLOR, :SORT, :ACTIVE, :SEVERITY, :PIC, :INST, SYSDATE)",
                 new OracleParameter("CD",      topicCd),
                 new OracleParameter("NAME",    req.TopicName.Trim()),
                 new OracleParameter("NAME_EN", (object?)req.TopicNameEn?.Trim() ?? DBNull.Value),
@@ -147,6 +223,8 @@ public class InquiryController : ControllerBase
                 new OracleParameter("COLOR",   (object?)req.Color?.Trim()       ?? DBNull.Value),
                 new OracleParameter("SORT",    req.SortOrder),
                 new OracleParameter("ACTIVE",  req.IsActive ? 1 : 0),
+                new OracleParameter("SEVERITY", string.IsNullOrWhiteSpace(req.SeverityCd) ? "LOW" : req.SeverityCd.Trim().ToUpperInvariant()),
+                new OracleParameter("PIC",      (object?)req.PicDeptRoleId ?? DBNull.Value),
                 new OracleParameter("INST",    (object?)req.UpdtId ?? DBNull.Value));
 
             return Ok(new { success = true, topicCd });
@@ -170,6 +248,9 @@ public class InquiryController : ControllerBase
             if (string.IsNullOrWhiteSpace(req.TopicName))
                 return Ok(new { success = false, message = "Thiếu tên chủ đề" });
 
+            var sevErr = await ValidateSeverityPicAsync(req.SeverityCd, req.PicDeptRoleId);
+            if (sevErr != null) return Ok(new { success = false, message = sevErr });
+
             int rows = await _db.ExecuteNonQueryAsync(@"
                 UPDATE HRMS.HR_INQUIRY_TOPIC
                 SET TOPIC_NAME    = :NAME,
@@ -178,6 +259,8 @@ public class InquiryController : ControllerBase
                     COLOR         = :COLOR,
                     SORT_ORDER    = :SORT,
                     IS_ACTIVE     = :ACTIVE,
+                    SEVERITY_CD   = NVL(:SEVERITY, SEVERITY_CD),
+                    PIC_DEPT_ROLE_ID = CASE WHEN :SEV_SET = 1 THEN :PIC ELSE PIC_DEPT_ROLE_ID END,
                     UPDT_ID       = :UPDT,
                     UPDT_DT       = SYSDATE
                 WHERE TOPIC_CD = :CD",
@@ -187,6 +270,11 @@ public class InquiryController : ControllerBase
                 new OracleParameter("COLOR",   (object?)req.Color?.Trim()       ?? DBNull.Value),
                 new OracleParameter("SORT",    req.SortOrder),
                 new OracleParameter("ACTIVE",  req.IsActive ? 1 : 0),
+                // Client CŨ (trang Chủ đề bản trước, không gửi severityCd) -> GIỮ NGUYÊN mức độ + PIC đã cấu hình, không reset về LOW/NULL.
+                // Khai báo KIỂU tham số rõ ràng: NVL(:SEVERITY, ...) / CASE ... THEN :PIC với DBNull không tự suy ra được kiểu (ORA-00932)
+                new OracleParameter("SEVERITY", OracleDbType.Varchar2) { Value = string.IsNullOrWhiteSpace(req.SeverityCd) ? DBNull.Value : req.SeverityCd.Trim().ToUpperInvariant() },
+                new OracleParameter("SEV_SET",  string.IsNullOrWhiteSpace(req.SeverityCd) ? 0 : 1),
+                new OracleParameter("PIC",      OracleDbType.Int32) { Value = req.PicDeptRoleId.HasValue ? req.PicDeptRoleId.Value : DBNull.Value },
                 new OracleParameter("UPDT",    (object?)req.UpdtId ?? DBNull.Value),
                 new OracleParameter("CD",      topicCd.Trim().ToUpperInvariant()));
 
@@ -340,6 +428,40 @@ public class InquiryController : ControllerBase
             if (req.ChatType == "ANON" && string.IsNullOrWhiteSpace(req.AnonToken))
                 return Ok(new { success = false, message = "Thiếu token ẩn danh" });
 
+            // Loại báo cáo: GRIEVANCE (Kiến nghị) | OPINION (Ý kiến). Không gửi (web bản cũ lúc đang deploy) -> lưu NULL;
+            // đã gửi mà sai giá trị thì từ chối.
+            string? reportType = string.IsNullOrWhiteSpace(req.ReportType) ? null : req.ReportType.Trim().ToUpperInvariant();
+            if (reportType != null && reportType != "GRIEVANCE" && reportType != "OPINION")
+                return Ok(new { success = false, message = "Loại báo cáo không hợp lệ" });
+
+            // Phản ánh sai thông tin cá nhân (link ở trang Hồ sơ → topic COMPLAINT): luôn là Góp ý, PIC = Nhân sự,
+            // không có mức độ/hạn; vẫn nhận kể cả khi COMPLAINT đã bị tắt khỏi danh sách chủ đề sau go-live.
+            bool isProfileFeedback = string.Equals(req.TopicCd, "COMPLAINT", StringComparison.OrdinalIgnoreCase);
+            if (isProfileFeedback) reportType = "OPINION";
+
+            // Mức độ + PIC + số ngày phản hồi lấy từ catalog Topic lúc tạo (CSR sửa được sau ở trang Chi tiết case).
+            // Hạn = hết ngày (TRUNC(SYSDATE) + số ngày) — ngày hạn còn hiệu lực hết ngày đó. Topic không có trong catalog -> để trống.
+            var topicInfo = (await _db.ExecuteQueryAsync(@"
+                SELECT T.SEVERITY_CD, T.PIC_DEPT_ROLE_ID, S.RESPONSE_DAYS, T.IS_ACTIVE
+                FROM HRMS.HR_INQUIRY_TOPIC T
+                LEFT JOIN HRMS.HR_INQUIRY_SEVERITY S ON S.SEVERITY_CD = T.SEVERITY_CD
+                WHERE T.TOPIC_CD = :CD AND ROWNUM = 1",
+                r => new
+                {
+                    Severity = r["SEVERITY_CD"]?.ToString(),
+                    Pic      = r["PIC_DEPT_ROLE_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["PIC_DEPT_ROLE_ID"]),
+                    Days     = r["RESPONSE_DAYS"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["RESPONSE_DAYS"]),
+                    Active   = r["IS_ACTIVE"] == DBNull.Value || Convert.ToInt32(r["IS_ACTIVE"]) == 1
+                },
+                new OracleParameter("CD", req.TopicCd))).FirstOrDefault();
+
+            // Chủ đề phải tồn tại và đang bật: UI công nhân chỉ liệt kê chủ đề đang bật, nhưng gọi thẳng API vẫn tạo được chủ đề đã tắt
+            // (đặc biệt sau go-live, khi 11 chủ đề cũ bị tắt) → chặn ở đây.
+            // Lối tắt từ trang Phiếu lương (G01) cũng nhận được trước khi go-live bật catalog.
+            bool isQuickEntry = isProfileFeedback || string.Equals(req.TopicCd, "G01", StringComparison.OrdinalIgnoreCase);
+            if (topicInfo == null || (!isQuickEntry && !topicInfo.Active))
+                return Ok(new { success = false, message = "Chủ đề này không tồn tại hoặc đã ngừng sử dụng. Vui lòng chọn chủ đề khác." });
+
             // Kiểm tra đã có conversation OPEN cho topic này chưa
             if (req.ChatType == "DIRECT")
             {
@@ -401,10 +523,12 @@ public class InquiryController : ControllerBase
             await _db.ExecuteNonQueryAsync(@"
                 INSERT INTO HRMS.HR_INQUIRY
                     (CHAT_TYPE, EMPCD, EMP_NAME, ANON_TOKEN, ANON_DISPLAY, ACCESS_CODE,
-                     TOPIC_CD, SUBJECT, STATUS, UNREAD_HR, UNREAD_EMP, MSG_COUNT, INST_DT)
+                     TOPIC_CD, SUBJECT, REPORT_TYPE, SEVERITY_CD, PIC_DEPT_ROLE_ID, DEADLINE_DT,
+                     STATUS, UNREAD_HR, UNREAD_EMP, MSG_COUNT, INST_DT)
                 VALUES
                     (:CHAT_TYPE, :EMPCD, :EMP_NAME, :ANON_TOKEN, :ANON_DISPLAY, :ACCESS_CODE,
-                     :TOPIC_CD, :SUBJECT, 'OPEN', 0, 0, 0, SYSDATE)",
+                     :TOPIC_CD, :SUBJECT, :REPORT_TYPE, :SEVERITY, :PIC, :DEADLINE,
+                     'OPEN', 0, 0, 0, SYSDATE)",
                 new OracleParameter("CHAT_TYPE",    req.ChatType),
                 new OracleParameter("EMPCD",        (object?)req.EmpCd     ?? DBNull.Value),
                 new OracleParameter("EMP_NAME",     string.IsNullOrEmpty(empName) ? (object)DBNull.Value : empName),
@@ -412,7 +536,11 @@ public class InquiryController : ControllerBase
                 new OracleParameter("ANON_DISPLAY", (object?)anonDisplay   ?? DBNull.Value),
                 new OracleParameter("ACCESS_CODE",  (object?)accessCode    ?? DBNull.Value),
                 new OracleParameter("TOPIC_CD",     req.TopicCd),
-                new OracleParameter("SUBJECT",      (object?)req.Subject   ?? DBNull.Value));
+                new OracleParameter("SUBJECT",      (object?)req.Subject   ?? DBNull.Value),
+                new OracleParameter("REPORT_TYPE",  (object?)reportType    ?? DBNull.Value),
+                new OracleParameter("SEVERITY",     (object?)(isProfileFeedback ? null : topicInfo?.Severity) ?? DBNull.Value),
+                new OracleParameter("PIC",          isProfileFeedback ? 1 : (object?)topicInfo?.Pic ?? DBNull.Value),
+                new OracleParameter("DEADLINE",     OracleDbType.Date) { Value = !isProfileFeedback && topicInfo?.Days is int d ? DateTime.Today.AddDays(d) : DBNull.Value });
 
             // Lấy ID vừa tạo — filter theo EMPCD/TOKEN + TOPIC_CD + STATUS='OPEN'
             // (an toàn hơn TRUNC(SYSDATE) vì không bị lỗi nửa đêm)
@@ -472,6 +600,108 @@ public class InquiryController : ControllerBase
         {
             return Ok(new { success = false, message = ex.Message });
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /apiHR/Inquiry/{id}/case-info — trang "Chi tiết case" của CSR: phân loại hiện tại của 1 hội thoại.
+    // Đơn ẨN DANH: chỉ trả nhãn "Ẩn danh #xxxx" (không có EMPCD/tên — vốn không được lưu).
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("{id:long}/case-info")]
+    public async Task<IActionResult> GetCaseInfo(long id)
+    {
+        try
+        {
+            var c = (await _db.ExecuteQueryAsync(@"
+                SELECT I.ID, I.INQUIRY_NO, I.CHAT_TYPE, I.EMPCD, I.EMP_NAME, I.ANON_DISPLAY, I.TOPIC_CD, T.TOPIC_NAME,
+                       I.SUBJECT, I.STATUS, I.REPORT_TYPE, I.SEVERITY_CD, I.PIC_DEPT_ROLE_ID, DR.ROLE_NAME AS PIC_NAME,
+                       I.DEADLINE_DT, I.INST_DT, I.CLOSED_DT
+                FROM HRMS.HR_INQUIRY I
+                LEFT JOIN HRMS.HR_INQUIRY_TOPIC T ON T.TOPIC_CD = I.TOPIC_CD
+                LEFT JOIN HRMS.HR_DEPT_ROLES DR ON DR.ID = I.PIC_DEPT_ROLE_ID
+                WHERE I.ID = :ID",
+                r =>
+                {
+                    bool anon = r["CHAT_TYPE"]?.ToString() == "ANON";
+                    return new
+                    {
+                        id           = Convert.ToInt64(r["ID"]),
+                        inquiryNo    = r["INQUIRY_NO"]?.ToString(),
+                        chatType     = r["CHAT_TYPE"]?.ToString(),
+                        empCd        = anon ? null : r["EMPCD"]?.ToString(),
+                        empName      = anon ? null : r["EMP_NAME"]?.ToString(),
+                        anonDisplay  = anon ? r["ANON_DISPLAY"]?.ToString() : null,
+                        topicCd      = r["TOPIC_CD"]?.ToString(),
+                        topicName    = r["TOPIC_NAME"]?.ToString(),
+                        subject      = r["SUBJECT"]?.ToString(),
+                        status       = r["STATUS"]?.ToString(),
+                        reportType   = r["REPORT_TYPE"]?.ToString(),
+                        severityCd   = r["SEVERITY_CD"]?.ToString(),
+                        picDeptRoleId = r["PIC_DEPT_ROLE_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["PIC_DEPT_ROLE_ID"]),
+                        picDeptName  = r["PIC_NAME"]?.ToString(),
+                        deadlineDt   = r["DEADLINE_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["DEADLINE_DT"]),
+                        createdDt    = r["INST_DT"]     == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["INST_DT"]),
+                        closedDt     = r["CLOSED_DT"]   == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CLOSED_DT"])
+                    };
+                },
+                new OracleParameter("ID", id))).FirstOrDefault();
+            if (c == null) return Ok(new { success = false, message = "Không tìm thấy hội thoại" });
+            return Ok(new { success = true, data = c });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PUT /apiHR/Inquiry/{id}/case-info — CSR sửa Loại báo cáo / Topic / Mức độ / PIC / Hạn.
+    // KHÔNG tự tính lại hạn khi đổi mức độ (tránh ghi đè hạn CSR đã chỉnh tay); muốn đổi hạn thì sửa ô Hạn.
+    // Role-gate nằm ở web layer (HrInquiryController, HR/CSR) theo đúng pattern của file này.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpPut("{id:long}/case-info")]
+    public async Task<IActionResult> UpdateCaseInfo(long id, [FromBody] InquiryCaseInfoUpdateRequest req)
+    {
+        try
+        {
+            string? reportType = string.IsNullOrWhiteSpace(req.ReportType) ? null : req.ReportType.Trim().ToUpperInvariant();
+            if (reportType != null && reportType != "GRIEVANCE" && reportType != "OPINION")
+                return Ok(new { success = false, message = "Loại báo cáo không hợp lệ" });
+
+            if (string.IsNullOrWhiteSpace(req.TopicCd))
+                return Ok(new { success = false, message = "Vui lòng chọn chủ đề" });
+            var topicOk = await _db.ExecuteQueryAsync("SELECT 1 FROM HRMS.HR_INQUIRY_TOPIC WHERE TOPIC_CD = :CD AND ROWNUM = 1",
+                r => 1, new OracleParameter("CD", req.TopicCd.Trim()));
+            if (topicOk.Count == 0) return Ok(new { success = false, message = "Chủ đề không tồn tại" });
+
+            var err = await ValidateSeverityPicAsync(req.SeverityCd, req.PicDeptRoleId);
+            if (err != null) return Ok(new { success = false, message = err });
+
+            int rows = await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_INQUIRY
+                SET REPORT_TYPE      = :RT,
+                    TOPIC_CD         = :TOPIC,
+                    SEVERITY_CD      = :SEV,
+                    PIC_DEPT_ROLE_ID = :PIC,
+                    DEADLINE_DT      = :DL,
+                    UPDT_ID          = :UPDT,
+                    UPDT_DT          = SYSDATE
+                WHERE ID = :ID",
+                new OracleParameter("RT",    (object?)reportType ?? DBNull.Value),
+                new OracleParameter("TOPIC", req.TopicCd.Trim()),
+                new OracleParameter("SEV",   string.IsNullOrWhiteSpace(req.SeverityCd) ? DBNull.Value : req.SeverityCd.Trim().ToUpperInvariant()),
+                new OracleParameter("PIC",   (object?)req.PicDeptRoleId ?? DBNull.Value),
+                new OracleParameter("DL",    OracleDbType.Date) { Value = req.DeadlineDt.HasValue ? req.DeadlineDt.Value.Date : DBNull.Value },
+                new OracleParameter("UPDT",  (object?)req.UpdtId ?? DBNull.Value),
+                new OracleParameter("ID",    id));
+            // CSR đã phân loại bằng popup = đã xác nhận (rời hàng đợi "Phân loại nhanh")
+            if (rows > 0 && await ConfirmColsAsync())
+                await _db.ExecuteNonQueryAsync("UPDATE HRMS.HR_INQUIRY SET CSR_CONFIRM_DT = SYSDATE, CSR_CONFIRM_BY = :U WHERE ID = :ID",
+                    new OracleParameter("U", (object?)req.UpdtId ?? DBNull.Value), new OracleParameter("ID", id));
+            return Ok(new { success = rows > 0, message = rows > 0 ? null : "Không tìm thấy hội thoại" });
+        }
+        catch (OracleException ex) when (ex.Number == 1)
+        {
+            // UQ_INQUIRY_DIRECT_OPEN / UQ_INQUIRY_ANON_OPEN: mỗi người chỉ có 1 hội thoại ĐANG MỞ cho mỗi chủ đề
+            return Ok(new { success = false, message = "Không đổi chủ đề được: người gửi đã có một hội thoại đang mở ở chủ đề này. Hãy đóng hội thoại kia trước." });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -748,7 +978,7 @@ public class InquiryController : ControllerBase
     private async Task<bool> IsAdminOrHrAsync(string? empCd)
     {
         if (string.IsNullOrEmpty(empCd)) return false;
-        return await DeptRoleHelper.HasAnyRoleAsync(_db, empCd, "Admin", "HR", "CSR");
+        return await DeptRoleHelper.HasAnyRoleAsync(_db, empCd, "Admin", "HR", "CSR", "GA");
     }
 
     // CSV role dùng chung mẫu (yêu cầu 2026-09-21) — rỗng/trống = dùng chung cho cả Admin/HR/CSR,
@@ -757,7 +987,7 @@ public class InquiryController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(csv)) return null;
         var roles = csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        .Where(r => r is "Admin" or "HR" or "CSR")
+                        .Where(r => r is "Admin" or "HR" or "CSR" or "GA")
                         .Distinct()
                         .ToArray();
         return roles.Length == 0 ? null : string.Join(",", roles);
@@ -1007,7 +1237,9 @@ public class InquiryController : ControllerBase
                 if (isHr)
                 {
                     // HR chỉ gửi được nếu chưa có ai lock, hoặc lock là chính mình
-                    bool lockedByOther = !string.IsNullOrEmpty(conv.AssignedTo)
+                    // (SkipLockCheck: CSR duyệt bản nháp của HR/GA — gửi thay người soạn, không đòi lock)
+                    bool lockedByOther = !req.SkipLockCheck
+                                        && !string.IsNullOrEmpty(conv.AssignedTo)
                                         && conv.AssignedTo != req.EmpCd;
                     if (lockedByOther)
                         return Ok(new
@@ -1056,7 +1288,7 @@ public class InquiryController : ControllerBase
                     });
                 }
             }
-            else if ((isHr || isAdmin) && conv.AssignedTo != req.EmpCd)
+            else if ((isHr || isAdmin) && conv.AssignedTo != req.EmpCd && !req.SkipLockCheck)
             {
                 // Admin gửi vào lock của HR khác → chuyển lock sang Admin
                 await _db.ExecuteNonQueryAsync(@"
@@ -1214,7 +1446,7 @@ public class InquiryController : ControllerBase
                         }
                         else
                         {
-                            foreach (var empCd in await GetHrAdminEmpCdsAsync())
+                            foreach (var empCd in await GetInquiryNotifyEmpCdsAsync(capInquiryId))
                                 await notiHelper.SendNotificationAsync(new SendNotificationRequest
                                 {
                                     TITLE = tVi, BODY = bVi, TITLE_EN = tEn, BODY_EN = bEn,
@@ -1700,6 +1932,8 @@ public class InquiryController : ControllerBase
         string? search     = null,
         string? sort       = null,   // newest (default) | oldest
         string? viewerEmpcd = null,  // mã NV người đang xem — tính "chưa đọc" riêng cho người này
+        string? draftPending = null, // "1" → chỉ hội thoại có bản nháp trả lời chờ CSR duyệt
+        string? picRoles   = null,   // CSV tên phòng (HR,GA...) — chỉ trả hội thoại có PIC thuộc các phòng này (người xem KHÔNG phải CSR)
         int     page       = 1,
         int     pageSize   = 30)
     {
@@ -1718,6 +1952,21 @@ public class InquiryController : ControllerBase
                                         ? "AND i.ASSIGNED_TO IS NULL"
                                         : "AND i.ASSIGNED_TO = :ASSIGNED";
             string whereEmpCd    = string.IsNullOrEmpty(empCd)     ? "" : "AND i.EMPCD LIKE :EMPCD";
+            // Phạm vi theo phòng (2026-11-06): HR/GA... chỉ thấy hội thoại CSR đã phân loại cho phòng mình.
+            // picRoles == null → không giới hạn (CSR). Có giá trị → chỉ PIC thuộc các phòng đó; chưa phân loại (PIC NULL) bị ẩn.
+            var picNames = picRoles == null ? null
+                : picRoles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct().Take(10).ToArray();
+            string wherePic = picNames == null ? ""
+                : picNames.Length == 0 ? "AND 1 = 0"
+                : "AND i.PIC_DEPT_ROLE_ID IN (SELECT ID FROM HRMS.HR_DEPT_ROLES WHERE ROLE_NAME IN ("
+                  + string.Join(",", picNames.Select((_, k) => ":PICR" + k)) + "))";
+            bool draftOk = await DraftTableAvailableAsync();
+            string draftSel = draftOk
+                ? ", (SELECT COUNT(*) FROM HRMS.HR_INQUIRY_DRAFT dd WHERE dd.INQUIRY_ID = i.ID AND dd.STATUS = 'PENDING') AS DRAFT_PENDING"
+                : "";
+            string whereDraft = draftOk && draftPending == "1"
+                ? "AND EXISTS (SELECT 1 FROM HRMS.HR_INQUIRY_DRAFT dd WHERE dd.INQUIRY_ID = i.ID AND dd.STATUS = 'PENDING')"
+                : "";
             string whereSearch   = string.IsNullOrEmpty(search)
                                     ? ""
                                     : "AND (i.INQUIRY_NO LIKE :SEARCH OR i.EMP_NAME LIKE :SEARCH2 OR i.ANON_DISPLAY LIKE :SEARCH3 OR i.SUBJECT LIKE :SEARCH4 OR i.EMPCD LIKE :SEARCH5)";
@@ -1754,7 +2003,7 @@ public class InquiryController : ControllerBase
                                i.ASSIGNED_TO, i.ASSIGNED_NAME,
                                {unreadHrExpr} UNREAD_HR,
                                i.UNREAD_EMP, i.MSG_COUNT, i.LAST_MSG_DT, i.INST_DT,
-                               i.CLOSED_DT, i.CLOSED_BY_NAME, i.CLOSED_BY_TYPE, i.RATING
+                               i.CLOSED_DT, i.CLOSED_BY_NAME, i.CLOSED_BY_TYPE, i.RATING{draftSel}
                         FROM HRMS.HR_INQUIRY i
                         LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = i.TOPIC_CD
                         LEFT JOIN HRMS.HR_INQUIRY_READER rd ON rd.INQUIRY_ID = i.ID AND rd.VIEWER_EMPCD = :VIEWER_EMPCD
@@ -1766,6 +2015,8 @@ public class InquiryController : ControllerBase
                         {whereChatType}
                         {whereAssign}
                         {whereEmpCd}
+                        {wherePic}
+                        {whereDraft}
                         {whereSearch}
                         {orderClause}
                     ) q WHERE ROWNUM <= :MAXRN
@@ -1784,6 +2035,8 @@ public class InquiryController : ControllerBase
             if (!string.IsNullOrEmpty(assignedTo) && assignedTo != "UNASSIGNED")
                                                     parameters.Add(new OracleParameter("ASSIGNED",  assignedTo));
             if (!string.IsNullOrEmpty(empCd))      parameters.Add(new OracleParameter("EMPCD",     "%" + empCd + "%"));
+            if (picNames is { Length: > 0 })
+                for (int k = 0; k < picNames.Length; k++) parameters.Add(new OracleParameter("PICR" + k, picNames[k]));
             if (!string.IsNullOrEmpty(search))
             {
                 string like = "%" + search + "%";
@@ -1812,6 +2065,8 @@ public class InquiryController : ControllerBase
                 {whereChatType}
                 {whereAssign}
                 {whereEmpCd}
+                {wherePic}
+                {whereDraft}
                 {whereSearch}";
 
             var countParams = new List<OracleParameter> { new("VIEWER_EMPCD", (object?)viewerEmpcd ?? DBNull.Value) };
@@ -1821,6 +2076,8 @@ public class InquiryController : ControllerBase
             if (!string.IsNullOrEmpty(assignedTo) && assignedTo != "UNASSIGNED")
                                                     countParams.Add(new OracleParameter("ASSIGNED",  assignedTo));
             if (!string.IsNullOrEmpty(empCd))      countParams.Add(new OracleParameter("EMPCD",     "%" + empCd + "%"));
+            if (picNames is { Length: > 0 })
+                for (int k = 0; k < picNames.Length; k++) countParams.Add(new OracleParameter("PICR" + k, picNames[k]));
             if (!string.IsNullOrEmpty(search))
             {
                 string like = "%" + search + "%";
@@ -1889,6 +2146,10 @@ public class InquiryController : ControllerBase
                     SUM(CASE WHEN STATUS = 'CLOSED' THEN 1 ELSE 0 END) AS CNT_CLOSED,
                     SUM(CASE WHEN CHAT_TYPE = 'DIRECT' THEN 1 ELSE 0 END) AS CNT_DIRECT,
                     SUM(CASE WHEN CHAT_TYPE = 'ANON'   THEN 1 ELSE 0 END) AS CNT_ANON,
+                    SUM(CASE WHEN RATING >= 4 THEN 1 ELSE 0 END) AS CNT_SATISFIED,
+                       SUM(CASE WHEN RATING = 3 THEN 1 ELSE 0 END) AS CNT_NORMAL,
+                       SUM(CASE WHEN RATING IS NOT NULL AND RATING <= 2 THEN 1 ELSE 0 END) AS CNT_NOT_SATISFIED,
+                       SUM(CASE WHEN STATUS = 'CLOSED' AND RATING IS NULL THEN 1 ELSE 0 END) AS CNT_UNRATED,
                     ROUND(AVG(RATING), 1)    AS AVG_RATING,
                     ROUND(AVG(MSG_COUNT), 1) AS AVG_MSG,
                     SUM(CASE WHEN CLOSED_BY_TYPE = 'HR'    THEN 1 ELSE 0 END) AS CLOSED_BY_HR,
@@ -1913,6 +2174,10 @@ public class InquiryController : ControllerBase
                         CntClosed     = I(r["CNT_CLOSED"]),
                         CntDirect     = I(r["CNT_DIRECT"]),
                         CntAnon       = I(r["CNT_ANON"]),
+                        CntSatisfied    = I(r["CNT_SATISFIED"]),
+                        CntNormal       = I(r["CNT_NORMAL"]),
+                        CntNotSatisfied = I(r["CNT_NOT_SATISFIED"]),
+                        CntUnrated      = I(r["CNT_UNRATED"]),
                         AvgRating     = D(r["AVG_RATING"]),
                         AvgMsg        = D(r["AVG_MSG"]),
                         ClosedByHr    = I(r["CLOSED_BY_HR"]),
@@ -1931,6 +2196,10 @@ public class InquiryController : ControllerBase
                        COUNT(*) AS TOTAL,
                        SUM(CASE WHEN i.STATUS = 'OPEN'   THEN 1 ELSE 0 END) AS CNT_OPEN,
                        SUM(CASE WHEN i.STATUS = 'CLOSED' THEN 1 ELSE 0 END) AS CNT_CLOSED,
+                       SUM(CASE WHEN i.RATING >= 4 THEN 1 ELSE 0 END) AS CNT_SATISFIED,
+                       SUM(CASE WHEN i.RATING = 3 THEN 1 ELSE 0 END) AS CNT_NORMAL,
+                       SUM(CASE WHEN i.RATING IS NOT NULL AND i.RATING <= 2 THEN 1 ELSE 0 END) AS CNT_NOT_SATISFIED,
+                       SUM(CASE WHEN i.STATUS = 'CLOSED' AND i.RATING IS NULL THEN 1 ELSE 0 END) AS CNT_UNRATED,
                        ROUND(AVG(i.RATING), 1) AS AVG_RATING
                 FROM HRMS.HR_INQUIRY i
                 LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = i.TOPIC_CD
@@ -1950,27 +2219,44 @@ public class InquiryController : ControllerBase
                         Total     = Convert.ToInt32(r["TOTAL"]),
                         CntOpen   = Convert.ToInt32(r["CNT_OPEN"]),
                         CntClosed = Convert.ToInt32(r["CNT_CLOSED"]),
+                        CntSatisfied    = Convert.ToInt32(r["CNT_SATISFIED"]),
+                        CntNormal       = Convert.ToInt32(r["CNT_NORMAL"]),
+                        CntNotSatisfied = Convert.ToInt32(r["CNT_NOT_SATISFIED"]),
+                        CntUnrated      = Convert.ToInt32(r["CNT_UNRATED"]),
                         AvgRating = D(r["AVG_RATING"])
                     };
                 },
                 new OracleParameter("START_DT", startDt.Date),
                 new OracleParameter("END_DT",   endDt.Date));
 
-            // ── 3. Workload HR ──────────────────────────────────────────────
-            var byHr = await _db.ExecuteQueryAsync(@"
-                SELECT i.ASSIGNED_TO AS HR_CD, i.ASSIGNED_NAME AS HR_NAME,
+            // ── 3. Người tham gia xử lý (yêu cầu 2026-11-06: "all người tham gia xử lý", không chỉ người được giao) ──
+            // Tham gia = đã trả lời (tin nhắn HR/GA/CSR) | soạn hoặc duyệt bản nháp | là người phụ trách. Mỗi người đếm 1 lần cho mỗi hội thoại.
+            bool draftOkRpt = await DraftTableAvailableAsync();
+            string draftUnion = draftOkRpt ? @"
+                    UNION SELECT INQUIRY_ID, AUTHOR_CD   FROM HRMS.HR_INQUIRY_DRAFT WHERE AUTHOR_CD IS NOT NULL
+                    UNION SELECT INQUIRY_ID, REVIEWER_CD FROM HRMS.HR_INQUIRY_DRAFT WHERE REVIEWER_CD IS NOT NULL" : "";
+            var byHr = await _db.ExecuteQueryAsync($@"
+                SELECT p.CD AS HR_CD, NVL(MAX(u.FULL_NAME), p.CD) AS HR_NAME,
                        COUNT(*) AS HANDLED,
                        SUM(CASE WHEN i.STATUS = 'CLOSED' THEN 1 ELSE 0 END) AS CNT_CLOSED,
+                       SUM(CASE WHEN i.RATING >= 4 THEN 1 ELSE 0 END) AS CNT_SATISFIED,
+                       SUM(CASE WHEN i.RATING = 3 THEN 1 ELSE 0 END) AS CNT_NORMAL,
+                       SUM(CASE WHEN i.RATING IS NOT NULL AND i.RATING <= 2 THEN 1 ELSE 0 END) AS CNT_NOT_SATISFIED,
+                       SUM(CASE WHEN i.STATUS = 'CLOSED' AND i.RATING IS NULL THEN 1 ELSE 0 END) AS CNT_UNRATED,
                        ROUND(AVG(i.RATING), 1) AS AVG_RATING,
                        ROUND(AVG(
                            CASE WHEN i.CLOSED_DT IS NOT NULL AND i.LOCKED_DT IS NOT NULL
                                 THEN (i.CLOSED_DT - i.LOCKED_DT) * 24 * 60
                            END
                        ), 0) AS AVG_HANDLE_MIN
-                FROM HRMS.HR_INQUIRY i
+                FROM (
+                    SELECT INQUIRY_ID, SENDER_CD AS CD FROM HRMS.HR_INQUIRY_MSG WHERE SENDER_TYPE = 'HR' AND IS_DELETED = 0 AND SENDER_CD IS NOT NULL
+                    UNION SELECT ID, ASSIGNED_TO FROM HRMS.HR_INQUIRY WHERE ASSIGNED_TO IS NOT NULL{draftUnion}
+                ) p
+                JOIN HRMS.HR_INQUIRY i ON i.ID = p.INQUIRY_ID
+                LEFT JOIN HRMS.HR_USERS u ON u.EMPCD = p.CD
                 WHERE TRUNC(i.INST_DT) >= :START_DT AND TRUNC(i.INST_DT) < :END_DT
-                  AND i.ASSIGNED_TO IS NOT NULL
-                GROUP BY i.ASSIGNED_TO, i.ASSIGNED_NAME
+                GROUP BY p.CD
                 ORDER BY COUNT(*) DESC",
                 r =>
                 {
@@ -1982,6 +2268,10 @@ public class InquiryController : ControllerBase
                         HrName      = S(r["HR_NAME"]),
                         Handled     = Convert.ToInt32(r["HANDLED"]),
                         CntClosed   = Convert.ToInt32(r["CNT_CLOSED"]),
+                        CntSatisfied    = Convert.ToInt32(r["CNT_SATISFIED"]),
+                        CntNormal       = Convert.ToInt32(r["CNT_NORMAL"]),
+                        CntNotSatisfied = Convert.ToInt32(r["CNT_NOT_SATISFIED"]),
+                        CntUnrated      = Convert.ToInt32(r["CNT_UNRATED"]),
                         AvgRating   = D(r["AVG_RATING"]),
                         AvgHandleMin= D(r["AVG_HANDLE_MIN"])
                     };
@@ -2029,7 +2319,11 @@ public class InquiryController : ControllerBase
                 endDt   = startDt.AddDays(7);
             }
 
-            var rows = await _db.ExecuteQueryAsync(@"
+            bool draftOkRaw = await DraftTableAvailableAsync();
+            string draftSelRaw = draftOkRaw
+                ? ", (SELECT COUNT(*) FROM HRMS.HR_INQUIRY_DRAFT dd WHERE dd.INQUIRY_ID = i.ID AND dd.STATUS = 'PENDING') AS DRAFT_PENDING"
+                : ", 0 AS DRAFT_PENDING";
+            var rows = await _db.ExecuteQueryAsync($@"
                 SELECT i.ID, i.INQUIRY_NO, i.SUBJECT, t.TOPIC_NAME, i.STATUS, i.INST_DT, i.CLOSED_DT,
                        i.CHAT_TYPE, i.EMPCD, i.EMP_NAME,
                        i.CLOSED_BY_NAME, i.CLOSED_BY_TYPE, i.CLOSE_NOTE,
@@ -2047,8 +2341,12 @@ public class InquiryController : ControllerBase
                           ON B.DEPTCD = EC.DEPTCD AND B.LINECD = EC.LINECD AND B.WORKCD = EC.WORKCD
                         WHERE EC.EMPCD = i.EMPCD AND ROWNUM = 1) AS WORK_NAME,
                        fm.CONTENT AS FIRST_MSG,
-                       lm.CONTENT AS LAST_HANDLER_MSG
+                       lm.CONTENT AS LAST_HANDLER_MSG,
+                       (SELECT COUNT(*) FROM HRMS.HR_INQUIRY_MSG hm WHERE hm.INQUIRY_ID = i.ID AND hm.SENDER_TYPE = 'HR' AND hm.IS_DELETED = 0) AS HR_MSGS,
+                       i.DEADLINE_DT, pr.ROLE_NAME AS PIC_NAME,
+                       (SELECT EC.SEXGB FROM HRMS.ECM100 EC WHERE EC.EMPCD = i.EMPCD AND ROWNUM = 1) AS SEXGB{draftSelRaw}
                 FROM HRMS.HR_INQUIRY i
+                LEFT JOIN HRMS.HR_DEPT_ROLES pr ON pr.ID = i.PIC_DEPT_ROLE_ID
                 LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = i.TOPIC_CD
                 LEFT JOIN (
                     SELECT INQUIRY_ID, CONTENT FROM (
@@ -2097,7 +2395,12 @@ public class InquiryController : ControllerBase
                         LastHandlerMsg = S(r["LAST_HANDLER_MSG"]),
                         ResponseMin    = D(r["RESPONSE_MIN"]),
                         Rating         = N(r["RATING"]),
-                        RatingNote     = S(r["RATING_NOTE"])
+                        RatingNote     = S(r["RATING_NOTE"]),
+                        HrMsgCount     = N(r["HR_MSGS"]) ?? 0,
+                        DeadlineDt     = Dt(r["DEADLINE_DT"]),
+                        PicName        = S(r["PIC_NAME"]),
+                        DraftPending   = N(r["DRAFT_PENDING"]) ?? 0,
+                        Sex            = r["CHAT_TYPE"]?.ToString() == "ANON" ? null : S(r["SEXGB"])
                     };
                 },
                 new OracleParameter("START_DT", startDt.Date),
@@ -2271,7 +2574,8 @@ public class InquiryController : ControllerBase
             ClosedDt     = D(r["CLOSED_DT"]),
             ClosedByName = S(r["CLOSED_BY_NAME"]),
             ClosedByType = S(r["CLOSED_BY_TYPE"]),
-            Rating       = N(r["RATING"])
+            Rating       = N(r["RATING"]),
+            DraftPending = HasCol(r, "DRAFT_PENDING") ? I(r["DRAFT_PENDING"]) : 0
             // CloseNote, LockedDt, RatingNote chỉ có trong GetMessages (không có trong list queries)
         };
     }
@@ -2288,11 +2592,838 @@ public class InquiryController : ControllerBase
         return dto;
     }
 
-    private async Task<List<string>> GetHrAdminEmpCdsAsync()
+
+
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // DASHBOARD hộp thư (Phase 5 — yêu cầu khách #7): người dùng hoạt động, thiết bị, lượt liên hệ,
+    // thời gian giải quyết, đúng/quá hạn, case lặp lại.
+    // GET /apiHR/Inquiry/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD   (mặc định 30 ngày gần nhất)
+    // CHÍNH SÁCH ẨN DANH: hội thoại ẩn danh chỉ được ĐẾM (số hội thoại / số tin); KHÔNG đếm người, KHÔNG thống kê thiết bị,
+    // KHÔNG tính "case lặp lại" — nên các chỉ số về NGƯỜI (người dùng hoạt động, thiết bị, lặp lại) chỉ dựa trên hội thoại công khai.
+    // ═════════════════════════════════════════════════════════════════════════
+    [HttpGet("dashboard")]
+    public async Task<IActionResult> Dashboard(string? from = null, string? to = null)
     {
         try
         {
-            var inRoles = await DeptRoleHelper.EmpcdInRolesSqlAsync(_db, "HR", "Admin");
+            DateTime endDay   = DateTime.TryParse(to,   out var e) ? e.Date : DateTime.Today;
+            DateTime startDay = DateTime.TryParse(from, out var s) ? s.Date : endDay.AddDays(-29);
+            if (startDay > endDay) (startDay, endDay) = (endDay, startDay);
+            if ((endDay - startDay).TotalDays > 400) startDay = endDay.AddDays(-400);
+            DateTime endEx = endDay.AddDays(1);
+
+            OracleParameter[] P() => new[] { new OracleParameter("START_DT", startDay), new OracleParameter("END_DT", endEx) };
+            static int I(object v) => v == DBNull.Value ? 0 : Convert.ToInt32(v);
+            static double? D(object v) => v == DBNull.Value ? null : (double?)Math.Round(Convert.ToDouble(v), 1);
+
+            // 1) Tổng quan
+            var overview = (await _db.ExecuteQueryAsync(@"
+                SELECT
+                  (SELECT COUNT(*) FROM HRMS.HR_INQUIRY WHERE INST_DT >= :START_DT AND INST_DT < :END_DT) AS NEW_CONV,
+                  (SELECT COUNT(*) FROM HRMS.HR_INQUIRY WHERE INST_DT >= :START_DT AND INST_DT < :END_DT AND CHAT_TYPE = 'DIRECT') AS NEW_DIRECT,
+                  (SELECT COUNT(*) FROM HRMS.HR_INQUIRY WHERE INST_DT >= :START_DT AND INST_DT < :END_DT AND CHAT_TYPE = 'ANON') AS NEW_ANON,
+                  (SELECT COUNT(*) FROM HRMS.HR_INQUIRY_MSG WHERE SENDER_TYPE = 'EMP' AND IS_DELETED = 0 AND SENT_DT >= :START_DT AND SENT_DT < :END_DT) AS EMP_MSGS,
+                  (SELECT COUNT(*) FROM HRMS.HR_INQUIRY WHERE STATUS = 'OPEN') AS OPEN_NOW,
+                  (SELECT COUNT(*) FROM HRMS.HR_INQUIRY WHERE STATUS = 'OPEN' AND DEADLINE_DT IS NOT NULL AND DEADLINE_DT < TRUNC(SYSDATE)) AS OVERDUE_NOW
+                FROM DUAL",
+                r => new
+                {
+                    newConv = I(r["NEW_CONV"]), newDirect = I(r["NEW_DIRECT"]), newAnon = I(r["NEW_ANON"]),
+                    empMsgs = I(r["EMP_MSGS"]), openNow = I(r["OPEN_NOW"]), overdueNow = I(r["OVERDUE_NOW"])
+                }, P())).First();
+
+            // 2) Người dùng hoạt động (công khai): tạo hội thoại HOẶC nhắn tin trong kỳ
+            const string activeSql = @"
+                SELECT i.EMPCD FROM HRMS.HR_INQUIRY i
+                 WHERE i.CHAT_TYPE = 'DIRECT' AND i.EMPCD IS NOT NULL AND i.INST_DT >= :START_DT AND i.INST_DT < :END_DT
+                UNION
+                SELECT i.EMPCD FROM HRMS.HR_INQUIRY_MSG m JOIN HRMS.HR_INQUIRY i ON i.ID = m.INQUIRY_ID
+                 WHERE i.CHAT_TYPE = 'DIRECT' AND i.EMPCD IS NOT NULL AND m.SENDER_TYPE = 'EMP' AND m.IS_DELETED = 0
+                   AND m.SENT_DT >= :START_DT AND m.SENT_DT < :END_DT";
+            int activeUsers = (await _db.ExecuteQueryAsync($"SELECT COUNT(*) AS C FROM ({activeSql})", r => I(r["C"]), P())).First();
+
+            // 3) Loại thiết bị của người dùng hoạt động (lần đăng nhập gần nhất) — chỉ hội thoại công khai
+            var devices = await _db.ExecuteQueryAsync($@"
+                SELECT NVL(u.LAST_DEVICE_TYPE, 'UNKNOWN') AS DEV, COUNT(*) AS C
+                FROM ({activeSql}) a LEFT JOIN HRMS.HR_USERS u ON u.EMPCD = a.EMPCD
+                GROUP BY NVL(u.LAST_DEVICE_TYPE, 'UNKNOWN') ORDER BY COUNT(*) DESC",
+                r => new { device = r["DEV"]?.ToString(), count = I(r["C"]) }, P());
+
+            // 4) Thời gian giải quyết (đóng trong kỳ) + phân bố
+            var resolve = (await _db.ExecuteQueryAsync(@"
+                SELECT COUNT(*) AS C,
+                       ROUND(AVG((CLOSED_DT - INST_DT) * 24), 1)    AS AVG_H,
+                       ROUND(MEDIAN((CLOSED_DT - INST_DT) * 24), 1) AS MED_H,
+                       SUM(CASE WHEN (CLOSED_DT - INST_DT) * 24 <  1 THEN 1 ELSE 0 END) AS B1,
+                       SUM(CASE WHEN (CLOSED_DT - INST_DT) * 24 >= 1  AND (CLOSED_DT - INST_DT) * 24 < 4  THEN 1 ELSE 0 END) AS B2,
+                       SUM(CASE WHEN (CLOSED_DT - INST_DT) * 24 >= 4  AND (CLOSED_DT - INST_DT) * 24 < 24 THEN 1 ELSE 0 END) AS B3,
+                       SUM(CASE WHEN (CLOSED_DT - INST_DT) * 24 >= 24 AND (CLOSED_DT - INST_DT) * 24 < 72 THEN 1 ELSE 0 END) AS B4,
+                       SUM(CASE WHEN (CLOSED_DT - INST_DT) * 24 >= 72 THEN 1 ELSE 0 END) AS B5,
+                       SUM(CASE WHEN DEADLINE_DT IS NOT NULL THEN 1 ELSE 0 END) AS WITH_DL,
+                       SUM(CASE WHEN DEADLINE_DT IS NOT NULL AND TRUNC(CLOSED_DT) <= DEADLINE_DT THEN 1 ELSE 0 END) AS ON_TIME
+                FROM HRMS.HR_INQUIRY
+                WHERE STATUS = 'CLOSED' AND CLOSED_DT IS NOT NULL AND CLOSED_DT >= :START_DT AND CLOSED_DT < :END_DT",
+                r => new
+                {
+                    closed = I(r["C"]), avgHours = D(r["AVG_H"]), medianHours = D(r["MED_H"]),
+                    buckets = new[] { I(r["B1"]), I(r["B2"]), I(r["B3"]), I(r["B4"]), I(r["B5"]) },
+                    withDeadline = I(r["WITH_DL"]), onTime = I(r["ON_TIME"])
+                }, P())).First();
+
+            // 5) Thời gian phản hồi đầu tiên (hội thoại tạo trong kỳ đã có tin trả lời)
+            var firstResp = (await _db.ExecuteQueryAsync(@"
+                SELECT COUNT(*) AS C, ROUND(AVG((f.FIRST_DT - i.INST_DT) * 24), 1) AS AVG_H, ROUND(MEDIAN((f.FIRST_DT - i.INST_DT) * 24), 1) AS MED_H
+                FROM HRMS.HR_INQUIRY i
+                JOIN (SELECT INQUIRY_ID, MIN(SENT_DT) AS FIRST_DT FROM HRMS.HR_INQUIRY_MSG
+                       WHERE SENDER_TYPE = 'HR' AND IS_DELETED = 0 GROUP BY INQUIRY_ID) f ON f.INQUIRY_ID = i.ID
+                WHERE i.INST_DT >= :START_DT AND i.INST_DT < :END_DT",
+                r => new { answered = I(r["C"]), avgHours = D(r["AVG_H"]), medianHours = D(r["MED_H"]) }, P())).First();
+
+            // 6) Quá hạn đang mở theo PIC
+            var overdueByPic = await _db.ExecuteQueryAsync(@"
+                SELECT NVL(dr.ROLE_NAME, '(chưa gán)') AS PIC, COUNT(*) AS C
+                FROM HRMS.HR_INQUIRY i LEFT JOIN HRMS.HR_DEPT_ROLES dr ON dr.ID = i.PIC_DEPT_ROLE_ID
+                WHERE i.STATUS = 'OPEN' AND i.DEADLINE_DT IS NOT NULL AND i.DEADLINE_DT < TRUNC(SYSDATE)
+                GROUP BY NVL(dr.ROLE_NAME, '(chưa gán)') ORDER BY COUNT(*) DESC",
+                r => new { pic = r["PIC"]?.ToString(), count = I(r["C"]) });
+
+            // 7) Case lặp lại: cùng 1 nhân viên, cùng chủ đề, ≥ 2 hội thoại trong kỳ (CHỈ hội thoại công khai)
+            var repeatTopics = await _db.ExecuteQueryAsync(@"
+                SELECT x.TOPIC_CD, t.TOPIC_NAME, COUNT(*) AS EMPS, SUM(x.C) AS CASES
+                FROM (SELECT EMPCD, TOPIC_CD, COUNT(*) AS C FROM HRMS.HR_INQUIRY
+                       WHERE CHAT_TYPE = 'DIRECT' AND EMPCD IS NOT NULL AND INST_DT >= :START_DT AND INST_DT < :END_DT
+                       GROUP BY EMPCD, TOPIC_CD HAVING COUNT(*) >= 2) x
+                LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = x.TOPIC_CD
+                GROUP BY x.TOPIC_CD, t.TOPIC_NAME ORDER BY SUM(x.C) DESC",
+                r => new { topicCd = r["TOPIC_CD"]?.ToString(), topicName = r["TOPIC_NAME"] == DBNull.Value ? null : r["TOPIC_NAME"].ToString(), employees = I(r["EMPS"]), cases = I(r["CASES"]) }, P());
+
+            // 8) Theo chủ đề / loại báo cáo / mức độ
+            var byTopic = await _db.ExecuteQueryAsync(@"
+                SELECT * FROM (
+                    SELECT i.TOPIC_CD, t.TOPIC_NAME, t.COLOR, COUNT(*) AS C
+                    FROM HRMS.HR_INQUIRY i LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = i.TOPIC_CD
+                    WHERE i.INST_DT >= :START_DT AND i.INST_DT < :END_DT
+                    GROUP BY i.TOPIC_CD, t.TOPIC_NAME, t.COLOR ORDER BY COUNT(*) DESC) WHERE ROWNUM <= 10",
+                r => new { topicCd = r["TOPIC_CD"]?.ToString(), topicName = r["TOPIC_NAME"] == DBNull.Value ? null : r["TOPIC_NAME"].ToString(),
+                           color = r["COLOR"] == DBNull.Value ? null : r["COLOR"].ToString(), count = I(r["C"]) }, P());
+
+            var byType = await _db.ExecuteQueryAsync(@"
+                SELECT NVL(REPORT_TYPE, 'NONE') AS K, COUNT(*) AS C FROM HRMS.HR_INQUIRY
+                WHERE INST_DT >= :START_DT AND INST_DT < :END_DT GROUP BY NVL(REPORT_TYPE, 'NONE')",
+                r => new { key = r["K"]?.ToString(), count = I(r["C"]) }, P());
+
+            var bySeverity = await _db.ExecuteQueryAsync(@"
+                SELECT NVL(i.SEVERITY_CD, 'NONE') AS K, MAX(s.NAME_VI) AS N, COUNT(*) AS C
+                FROM HRMS.HR_INQUIRY i LEFT JOIN HRMS.HR_INQUIRY_SEVERITY s ON s.SEVERITY_CD = i.SEVERITY_CD
+                WHERE i.INST_DT >= :START_DT AND i.INST_DT < :END_DT GROUP BY NVL(i.SEVERITY_CD, 'NONE')",
+                r => new { key = r["K"]?.ToString(), name = r["N"] == DBNull.Value ? null : r["N"].ToString(), count = I(r["C"]) }, P());
+
+            // 9) Theo ngày
+            var daily = await _db.ExecuteQueryAsync(@"
+                SELECT TRUNC(INST_DT) AS D, COUNT(*) AS C FROM HRMS.HR_INQUIRY
+                WHERE INST_DT >= :START_DT AND INST_DT < :END_DT GROUP BY TRUNC(INST_DT) ORDER BY 1",
+                r => new { date = Convert.ToDateTime(r["D"]).ToString("yyyy-MM-dd"), count = I(r["C"]) }, P());
+            var dailyMsgs = await _db.ExecuteQueryAsync(@"
+                SELECT TRUNC(SENT_DT) AS D, COUNT(*) AS C FROM HRMS.HR_INQUIRY_MSG
+                WHERE SENDER_TYPE = 'EMP' AND IS_DELETED = 0 AND SENT_DT >= :START_DT AND SENT_DT < :END_DT GROUP BY TRUNC(SENT_DT) ORDER BY 1",
+                r => new { date = Convert.ToDateTime(r["D"]).ToString("yyyy-MM-dd"), count = I(r["C"]) }, P());
+
+            // 10) Dân số nhân viên + mức độ dùng My Samho (tham chiếu báo cáo WOVO của khách: Contacts / Registered on App / Active users...)
+            var population = (await _db.ExecuteQueryAsync(@"
+                SELECT
+                  (SELECT COUNT(*) FROM HRMS.ECM100 WHERE JEAJIKGB = 'Y') AS HEADCOUNT,
+                  (SELECT COUNT(*) FROM HRMS.HR_USERS u JOIN HRMS.ECM100 e ON e.EMPCD = u.EMPCD AND e.JEAJIKGB = 'Y'
+                    WHERE u.IS_ACTIVE = 1 AND u.LASTED_LOGIN IS NOT NULL) AS LOGGED_IN,
+                  (SELECT COUNT(*) FROM HRMS.HR_USERS u JOIN HRMS.ECM100 e ON e.EMPCD = u.EMPCD AND e.JEAJIKGB = 'Y'
+                    WHERE u.IS_ACTIVE = 1 AND u.LAST_DEVICE_TYPE IN ('APP_ANDROID', 'APP_IOS', 'WEB_MOBILE')) AS ON_MOBILE,
+                  (SELECT COUNT(DISTINCT t.EMPCD) FROM HRMS.HR_USER_TOKENS t JOIN HRMS.ECM100 e ON e.EMPCD = t.EMPCD AND e.JEAJIKGB = 'Y') AS APP_REGISTERED
+                FROM DUAL",
+                r => new { headcount = I(r["HEADCOUNT"]), loggedIn = I(r["LOGGED_IN"]), onMobile = I(r["ON_MOBILE"]), appRegistered = I(r["APP_REGISTERED"]) })).First();
+
+            // 10a) Nhân viên MỚI VÀO LÀM trong kỳ (user chốt 2026-11-09: người mới vào làm thì mới tải My Samho) + nhân viên NGHỈ VIỆC trong kỳ.
+            //   • Ngày vào làm = ECM100.IGENTDAT (VARCHAR2 yyyyMMdd) — đúng cột AccountController dùng cho "ngày vào làm", KHÔNG dùng IN_DATE (sai).
+            //   • Nghỉ việc = ECM100.RETDAT trong kỳ — đúng điều kiện báo cáo nghỉ việc của ERP (user gửi 2026-11-09: A.RETDAT BETWEEN ngày-từ AND ngày-đến,
+            //     join EAM410 theo DEPTCD/LINECD/WORKCD). KHÔNG dùng ngày khóa tài khoản My Samho (UPDT_DT) vì đợt đồng bộ khóa hàng loạt 27/10 gom cả
+            //     người nghỉ từ trước.  "Đã khóa" = số người trong nhóm đó đã bị IS_ACTIVE = 0 ở My Samho.
+            var acct = (await _db.ExecuteQueryAsync(@"
+                SELECT
+                  (SELECT COUNT(*) FROM HRMS.ECM100 e WHERE e.IGENTDAT >= :S8 AND e.IGENTDAT <= :E8) AS HIRED,
+                  (SELECT COUNT(*) FROM HRMS.ECM100 e WHERE e.IGENTDAT >= :S8 AND e.IGENTDAT <= :E8
+                      AND EXISTS (SELECT 1 FROM HRMS.HR_USERS u WHERE u.EMPCD = e.EMPCD AND u.LASTED_LOGIN IS NOT NULL)) AS HIRED_USED,
+                  (SELECT COUNT(DISTINCT A.EMPCD) FROM HRMS.ECM100 A, HRMS.EAM410 B
+                    WHERE A.DEPTCD = B.DEPTCD AND A.LINECD = B.LINECD AND A.WORKCD = B.WORKCD
+                      AND A.RETDAT BETWEEN :S8 AND :E8) AS RESIGNED,
+                  (SELECT COUNT(DISTINCT A.EMPCD) FROM HRMS.ECM100 A, HRMS.EAM410 B
+                    WHERE A.DEPTCD = B.DEPTCD AND A.LINECD = B.LINECD AND A.WORKCD = B.WORKCD
+                      AND A.RETDAT BETWEEN :S8 AND :E8
+                      AND EXISTS (SELECT 1 FROM HRMS.HR_USERS u WHERE u.EMPCD = A.EMPCD AND u.IS_ACTIVE = 0)) AS RESIGNED_LOCKED
+                FROM DUAL",
+                r => new { hired = I(r["HIRED"]), hiredUsed = I(r["HIRED_USED"]), resigned = I(r["RESIGNED"]), resignedLocked = I(r["RESIGNED_LOCKED"]) },
+                new[] { new OracleParameter("S8", startDay.ToString("yyyyMMdd")), new OracleParameter("E8", endDay.ToString("yyyyMMdd")) })).First();
+
+            // 10b) Giới tính người liên hệ (công khai) + toàn bộ nhân viên để so sánh
+            var activeBySex = await _db.ExecuteQueryAsync($@"
+                SELECT NVL(ec.SEXGB, '?') AS SX, COUNT(*) AS N
+                FROM ({activeSql}) a LEFT JOIN HRMS.ECM100 ec ON ec.EMPCD = a.EMPCD GROUP BY NVL(ec.SEXGB, '?')",
+                r => new { sex = r["SX"]?.ToString(), count = I(r["N"]) }, P());
+            var headBySex = await _db.ExecuteQueryAsync(@"
+                SELECT NVL(SEXGB, '?') AS SX, COUNT(*) AS N FROM HRMS.ECM100 WHERE JEAJIKGB = 'Y' GROUP BY NVL(SEXGB, '?')",
+                r => new { sex = r["SX"]?.ToString(), count = I(r["N"]) });
+
+            // 10c) Theo tháng: nhận / đã giải quyết / còn tồn cuối tháng (yêu cầu #7 của khách: số kiến nghị nhận mỗi tháng, đã xử lý, còn tồn)
+            var recvM = await _db.ExecuteQueryAsync(@"
+                SELECT TO_CHAR(INST_DT, 'YYYY-MM') AS B, COUNT(*) AS C FROM HRMS.HR_INQUIRY
+                WHERE INST_DT >= :START_DT AND INST_DT < :END_DT GROUP BY TO_CHAR(INST_DT, 'YYYY-MM')",
+                r => new { bucket = r["B"]?.ToString(), count = I(r["C"]) }, P());
+            var doneM = await _db.ExecuteQueryAsync(@"
+                SELECT TO_CHAR(CLOSED_DT, 'YYYY-MM') AS B, COUNT(*) AS C FROM HRMS.HR_INQUIRY
+                WHERE STATUS = 'CLOSED' AND CLOSED_DT >= :START_DT AND CLOSED_DT < :END_DT GROUP BY TO_CHAR(CLOSED_DT, 'YYYY-MM')",
+                r => new { bucket = r["B"]?.ToString(), count = I(r["C"]) }, P());
+            int openAtStart = (await _db.ExecuteQueryAsync(@"
+                SELECT COUNT(*) AS C FROM HRMS.HR_INQUIRY WHERE INST_DT < :START_DT AND (CLOSED_DT IS NULL OR CLOSED_DT >= :START_DT)",
+                r => I(r["C"]), new OracleParameter("START_DT", startDay))).First();
+
+            // 11) Hội thoại tạo trong kỳ: số tin TB / hội thoại + trạng thái (Mở chưa ai nhận / Đang xử lý / Đã đóng)
+            var caseStats = (await _db.ExecuteQueryAsync(@"
+                SELECT COUNT(*) AS C, ROUND(AVG(MSG_COUNT), 1) AS AVG_MSG,
+                       SUM(CASE WHEN STATUS = 'OPEN' AND ASSIGNED_TO IS NULL THEN 1 ELSE 0 END) AS ST_OPEN,
+                       SUM(CASE WHEN STATUS = 'OPEN' AND ASSIGNED_TO IS NOT NULL THEN 1 ELSE 0 END) AS ST_PROGRESS,
+                       SUM(CASE WHEN STATUS = 'CLOSED' THEN 1 ELSE 0 END) AS ST_RESOLVED
+                FROM HRMS.HR_INQUIRY WHERE INST_DT >= :START_DT AND INST_DT < :END_DT",
+                r => new { cases = I(r["C"]), avgMsgPerCase = D(r["AVG_MSG"]), open = I(r["ST_OPEN"]), inProgress = I(r["ST_PROGRESS"]), resolved = I(r["ST_RESOLVED"]) }, P())).First();
+
+            // 12) Chủ đề nhiều nhất / ít nhất (chỉ chủ đề có phát sinh trong kỳ)
+            var topicAll = await _db.ExecuteQueryAsync(@"
+                SELECT i.TOPIC_CD, t.TOPIC_NAME, COUNT(*) AS C
+                FROM HRMS.HR_INQUIRY i LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = i.TOPIC_CD
+                WHERE i.INST_DT >= :START_DT AND i.INST_DT < :END_DT
+                GROUP BY i.TOPIC_CD, t.TOPIC_NAME ORDER BY COUNT(*) DESC, i.TOPIC_CD",
+                r => new { topicCd = r["TOPIC_CD"]?.ToString(), topicName = r["TOPIC_NAME"] == DBNull.Value ? null : r["TOPIC_NAME"].ToString(), count = I(r["C"]) }, P());
+
+            // 13) Chuỗi theo thời gian: kỳ ≤ 31 ngày theo NGÀY, ≤ 150 ngày theo TUẦN, dài hơn theo THÁNG — loại báo cáo, top 5 chủ đề, người liên hệ mới
+            // Luôn theo NGÀY để trục thời gian của biểu đồ khớp đúng từ ngày → đến ngày của bộ lọc
+            const string gran = "day";
+            const string bucketExpr = "TO_CHAR(TRUNC(INST_DT), 'YYYY-MM-DD')";
+            var seriesType = await _db.ExecuteQueryAsync($@"
+                SELECT {bucketExpr} AS B, NVL(REPORT_TYPE, 'NONE') AS K, COUNT(*) AS C FROM HRMS.HR_INQUIRY
+                WHERE INST_DT >= :START_DT AND INST_DT < :END_DT GROUP BY {bucketExpr}, NVL(REPORT_TYPE, 'NONE') ORDER BY 1",
+                r => new { bucket = r["B"]?.ToString(), key = r["K"]?.ToString(), count = I(r["C"]) }, P());
+            var top5 = topicAll.Take(5).Select(x => x.topicCd).ToList();
+            var seriesTopic = top5.Count == 0 ? new List<dynamic>() : (await _db.ExecuteQueryAsync($@"
+                SELECT {bucketExpr} AS B, TOPIC_CD AS K, COUNT(*) AS C FROM HRMS.HR_INQUIRY
+                WHERE INST_DT >= :START_DT AND INST_DT < :END_DT AND TOPIC_CD IN ({string.Join(",", top5.Select((_, k) => ":T" + k))})
+                GROUP BY {bucketExpr}, TOPIC_CD ORDER BY 1",
+                r => (dynamic)new { bucket = r["B"]?.ToString(), topicCd = r["K"]?.ToString(), count = I(r["C"]) },
+                P().Concat(top5.Select((t, k) => new OracleParameter("T" + k, t))).ToArray()));
+            // Người liên hệ MỚI trong kỳ theo bucket (mỗi nhân viên tính ở lần liên hệ đầu tiên trong kỳ) → web cộng dồn thành đường "Số người liên hệ"
+            const string firstBucket = "TO_CHAR(TRUNC(F), 'YYYY-MM-DD')";
+            var newContacts = await _db.ExecuteQueryAsync($@"
+                SELECT {firstBucket} AS B, COUNT(*) AS C FROM (
+                    SELECT EMPCD, MIN(INST_DT) AS F FROM HRMS.HR_INQUIRY
+                    WHERE CHAT_TYPE = 'DIRECT' AND EMPCD IS NOT NULL AND INST_DT >= :START_DT AND INST_DT < :END_DT GROUP BY EMPCD)
+                GROUP BY {firstBucket} ORDER BY 1",
+                r => new { bucket = r["B"]?.ToString(), count = I(r["C"]) }, P());
+
+            return Ok(new
+            {
+                success = true, from = startDay.ToString("yyyy-MM-dd"), to = endDay.ToString("yyyy-MM-dd"),
+                population, accounts = acct, caseStats, activeBySex, headBySex,
+                monthly = new { openAtStart, received = recvM, resolved = doneM },
+                topBottom = new { top = topicAll.Take(3), bottom = topicAll.AsEnumerable().Reverse().Take(3) },
+                series = new { granularity = gran, byType = seriesType, byTopic = seriesTopic, topTopics = topicAll.Take(5), newContacts },
+                overview, activeUsers, devices, resolve, firstResponse = firstResp, overdueByPic,
+                repeat = new { employees = repeatTopics.Sum(x => x.employees), cases = repeatTopics.Sum(x => x.cases), topics = repeatTopics },
+                byTopic, byType, bySeverity, daily, dailyMsgs
+            });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+
+    // GET /apiHR/Inquiry/dashboard/repeat?from&to — chi tiết "người lặp lại": cùng nhân viên, cùng chủ đề, từ 2 hội thoại trong kỳ.
+    // CHỈ hội thoại công khai (ẩn danh không nối với người). Tóm tắt theo giới tính (so với toàn bộ nhân viên) + loại báo cáo, kèm danh sách.
+    [HttpGet("dashboard/repeat")]
+    public async Task<IActionResult> DashboardRepeat(string? from = null, string? to = null)
+    {
+        try
+        {
+            DateTime endDay   = DateTime.TryParse(to,   out var e) ? e.Date : DateTime.Today;
+            DateTime startDay = DateTime.TryParse(from, out var s) ? s.Date : endDay.AddDays(-29);
+            if (startDay > endDay) (startDay, endDay) = (endDay, startDay);
+            if ((endDay - startDay).TotalDays > 400) startDay = endDay.AddDays(-400);
+            OracleParameter[] P() => new[] { new OracleParameter("START_DT", startDay), new OracleParameter("END_DT", endDay.AddDays(1)) };
+            static int I(object v) => v == DBNull.Value ? 0 : Convert.ToInt32(v);
+
+            const string pairs = @"
+                SELECT EMPCD, TOPIC_CD, COUNT(*) AS C, MAX(INST_DT) AS LAST_DT, MAX(EMP_NAME) AS EMP_NAME,
+                       SUM(CASE WHEN REPORT_TYPE = 'GRIEVANCE' THEN 1 ELSE 0 END) AS NG,
+                       SUM(CASE WHEN REPORT_TYPE = 'OPINION'   THEN 1 ELSE 0 END) AS NO_,
+                       SUM(CASE WHEN REPORT_TYPE IS NULL       THEN 1 ELSE 0 END) AS NN
+                FROM HRMS.HR_INQUIRY
+                WHERE CHAT_TYPE = 'DIRECT' AND EMPCD IS NOT NULL AND INST_DT >= :START_DT AND INST_DT < :END_DT
+                GROUP BY EMPCD, TOPIC_CD HAVING COUNT(*) >= 2";
+
+            var types = (await _db.ExecuteQueryAsync($@"
+                SELECT COUNT(DISTINCT EMPCD) AS PEOPLE, NVL(SUM(C), 0) AS CASES, NVL(SUM(NG), 0) AS NG, NVL(SUM(NO_), 0) AS NOP, NVL(SUM(NN), 0) AS NN FROM ({pairs})",
+                r => new { people = I(r["PEOPLE"]), cases = I(r["CASES"]), grievance = I(r["NG"]), opinion = I(r["NOP"]), unclassified = I(r["NN"]) }, P())).First();
+
+            var bySex = await _db.ExecuteQueryAsync($@"
+                SELECT NVL(ec.SEXGB, '?') AS SX, COUNT(DISTINCT x.EMPCD) AS PEOPLE, SUM(x.C) AS CASES
+                FROM ({pairs}) x LEFT JOIN HRMS.ECM100 ec ON ec.EMPCD = x.EMPCD GROUP BY NVL(ec.SEXGB, '?')",
+                r => new { sex = r["SX"]?.ToString(), people = I(r["PEOPLE"]), cases = I(r["CASES"]) }, P());
+
+            var baseline = await _db.ExecuteQueryAsync(@"
+                SELECT NVL(SEXGB, '?') AS SX, COUNT(*) AS N FROM HRMS.ECM100 WHERE JEAJIKGB = 'Y' GROUP BY NVL(SEXGB, '?')",
+                r => new { sex = r["SX"]?.ToString(), count = I(r["N"]) });
+
+            var rows = await _db.ExecuteQueryAsync($@"
+                SELECT y.*, ec.SEXGB,
+                       (SELECT B.DEPTNM FROM HRMS.EAM410 B WHERE B.DEPTCD = ec.DEPTCD AND B.LINECD = ec.LINECD AND B.WORKCD = ec.WORKCD AND ROWNUM = 1) AS DEPT_NAME,
+                       t.TOPIC_NAME
+                FROM (SELECT * FROM ({pairs}) ORDER BY C DESC, EMPCD) y
+                LEFT JOIN HRMS.ECM100 ec ON ec.EMPCD = y.EMPCD
+                LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = y.TOPIC_CD
+                WHERE ROWNUM <= 300",
+                r => new
+                {
+                    empCd = r["EMPCD"]?.ToString(), empName = r["EMP_NAME"] == DBNull.Value ? null : r["EMP_NAME"].ToString(),
+                    sex = r["SEXGB"] == DBNull.Value ? null : r["SEXGB"].ToString(),
+                    dept = r["DEPT_NAME"] == DBNull.Value ? null : r["DEPT_NAME"].ToString(),
+                    topicCd = r["TOPIC_CD"]?.ToString(), topicName = r["TOPIC_NAME"] == DBNull.Value ? null : r["TOPIC_NAME"].ToString(),
+                    cases = I(r["C"]), lastDt = Convert.ToDateTime(r["LAST_DT"]),
+                    grievance = I(r["NG"]), opinion = I(r["NO_"]), unclassified = I(r["NN"])
+                }, P());
+
+            return Ok(new { success = true, from = startDay.ToString("yyyy-MM-dd"), to = endDay.ToString("yyyy-MM-dd"), summary = types, bySex, baseline, rows });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // PHÂN LOẠI NHANH (CSR) — hàng đợi hội thoại chưa được CSR xác nhận + gán hàng loạt. Script: Scripts/alter_inquiry_csr_confirm.sql
+    // ═════════════════════════════════════════════════════════════════════════
+    private static volatile bool _confirmCols;
+    private static DateTime _confirmNextProbeUtc = DateTime.MinValue;
+    private async Task<bool> ConfirmColsAsync()
+    {
+        if (_confirmCols) return true;
+        if (DateTime.UtcNow < _confirmNextProbeUtc) return false;
+        bool ok;
+        try
+        {
+            var n = await _db.ExecuteQueryAsync("SELECT COUNT(*) AS C FROM ALL_TAB_COLUMNS WHERE OWNER = 'HRMS' AND TABLE_NAME = 'HR_INQUIRY' AND COLUMN_NAME = 'CSR_CONFIRM_DT'",
+                r => Convert.ToInt32(r["C"]));
+            ok = n.FirstOrDefault() > 0;
+        }
+        catch { ok = false; }
+        if (ok) _confirmCols = true; else _confirmNextProbeUtc = DateTime.UtcNow.AddSeconds(60);
+        return ok;
+    }
+
+    // GET /apiHR/Inquiry/triage/queue?scope=open|all|done&chatType=&noPic=&topicCd=&page=&pageSize=
+    [HttpGet("triage/queue")]
+    public async Task<IActionResult> TriageQueue(string scope = "open", string? chatType = null, bool noPic = false, string? topicCd = null, string? from = null, string? to = null, int page = 1, int pageSize = 30)
+    {
+        try
+        {
+            if (!await ConfirmColsAsync())
+                return Ok(new { success = false, needDdl = true, message = "Chưa chạy script alter_inquiry_csr_confirm.sql (thêm cột CSR_CONFIRM_DT/BY)" });
+            if (page < 1) page = 1; if (pageSize < 1 || pageSize > 100) pageSize = 30;
+
+            var where = new List<string>(); var ps = new List<OracleParameter>();
+            if (scope == "done") where.Add("i.CSR_CONFIRM_DT IS NOT NULL");
+            else if (scope == "all") where.Add("i.CSR_CONFIRM_DT IS NULL");
+            else where.Add("i.STATUS = 'OPEN' AND i.CSR_CONFIRM_DT IS NULL");
+            if (chatType == "ANON" || chatType == "DIRECT") { where.Add("i.CHAT_TYPE = :CT"); ps.Add(new OracleParameter("CT", chatType)); }
+            if (noPic) where.Add("i.PIC_DEPT_ROLE_ID IS NULL");
+            if (!string.IsNullOrWhiteSpace(topicCd)) { where.Add("i.TOPIC_CD = :TC"); ps.Add(new OracleParameter("TC", topicCd.Trim())); }
+            // Lọc theo NGÀY TẠO hội thoại (từ ngày → đến ngày, gồm cả hai đầu); để trống = không giới hạn
+            if (DateTime.TryParse(from, out var fromDt)) { where.Add("i.INST_DT >= :D_FROM"); ps.Add(new OracleParameter("D_FROM", OracleDbType.Date) { Value = fromDt.Date }); }
+            if (DateTime.TryParse(to, out var toDt))     { where.Add("i.INST_DT < :D_TO");    ps.Add(new OracleParameter("D_TO", OracleDbType.Date) { Value = toDt.Date.AddDays(1) }); }
+            string whereSql = string.Join(" AND ", where);
+            string order = scope == "done" ? "i.CSR_CONFIRM_DT DESC, i.ID DESC"
+                : "CASE i.SEVERITY_CD WHEN 'ZT' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END, i.INST_DT ASC, i.ID ASC";
+
+            int total = (await _db.ExecuteQueryAsync($"SELECT COUNT(*) AS C FROM HRMS.HR_INQUIRY i WHERE {whereSql}", r => Convert.ToInt32(r["C"]), ps.ToArray())).First();
+
+            var qps = ps.Select(x => new OracleParameter(x.ParameterName, x.OracleDbType, x.Value, System.Data.ParameterDirection.Input)).ToList();
+            qps.Add(new OracleParameter("MAXN", page * pageSize)); qps.Add(new OracleParameter("OFFSET", (page - 1) * pageSize));
+            var rows = await _db.ExecuteQueryAsync($@"
+                SELECT * FROM (
+                    SELECT q.*, ROWNUM AS RN FROM (
+                        SELECT i.ID, i.INQUIRY_NO, i.CHAT_TYPE, i.TOPIC_CD, t.TOPIC_NAME, i.REPORT_TYPE, i.SEVERITY_CD, i.PIC_DEPT_ROLE_ID,
+                               dr.ROLE_NAME AS PIC_NAME, i.DEADLINE_DT, i.INST_DT, i.STATUS, i.MSG_COUNT, i.ANON_DISPLAY, i.EMP_NAME,
+                               i.CSR_CONFIRM_DT, i.SUBJECT, fm.CONTENT AS FIRST_MSG
+                        FROM HRMS.HR_INQUIRY i
+                        LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = i.TOPIC_CD
+                        LEFT JOIN HRMS.HR_DEPT_ROLES dr ON dr.ID = i.PIC_DEPT_ROLE_ID
+                        LEFT JOIN (
+                            SELECT INQUIRY_ID, CONTENT FROM (
+                                SELECT INQUIRY_ID, CONTENT, ROW_NUMBER() OVER (PARTITION BY INQUIRY_ID ORDER BY SENT_DT ASC) RN
+                                FROM HRMS.HR_INQUIRY_MSG WHERE SENDER_TYPE = 'EMP' AND IS_DELETED = 0
+                            ) WHERE RN = 1
+                        ) fm ON fm.INQUIRY_ID = i.ID
+                        WHERE {whereSql}
+                        ORDER BY {order}
+                    ) q WHERE ROWNUM <= :MAXN
+                ) WHERE RN > :OFFSET",
+                r => new
+                {
+                    id = Convert.ToInt64(r["ID"]), inquiryNo = r["INQUIRY_NO"]?.ToString(), chatType = r["CHAT_TYPE"]?.ToString(),
+                    topicCd = r["TOPIC_CD"]?.ToString(), topicName = r["TOPIC_NAME"] == DBNull.Value ? null : r["TOPIC_NAME"].ToString(),
+                    reportType = r["REPORT_TYPE"] == DBNull.Value ? null : r["REPORT_TYPE"].ToString(),
+                    severityCd = r["SEVERITY_CD"] == DBNull.Value ? null : r["SEVERITY_CD"].ToString(),
+                    picDeptRoleId = r["PIC_DEPT_ROLE_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["PIC_DEPT_ROLE_ID"]),
+                    picName = r["PIC_NAME"] == DBNull.Value ? null : r["PIC_NAME"].ToString(),
+                    deadlineDt = r["DEADLINE_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["DEADLINE_DT"]),
+                    instDt = Convert.ToDateTime(r["INST_DT"]), status = r["STATUS"]?.ToString(), msgCount = r["MSG_COUNT"] == DBNull.Value ? 0 : Convert.ToInt32(r["MSG_COUNT"]),
+                    sender = r["CHAT_TYPE"]?.ToString() == "ANON" ? (r["ANON_DISPLAY"] == DBNull.Value ? "Ẩn danh" : r["ANON_DISPLAY"].ToString()) : (r["EMP_NAME"] == DBNull.Value ? null : r["EMP_NAME"].ToString()),
+                    confirmDt = r["CSR_CONFIRM_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["CSR_CONFIRM_DT"]),
+                    subject = r["SUBJECT"] == DBNull.Value ? null : r["SUBJECT"].ToString(),
+                    firstMsg = r["FIRST_MSG"] == DBNull.Value ? null : r["FIRST_MSG"].ToString()
+                }, qps.ToArray());
+
+            // Chủ đề + mức độ + PIC + số ngày hạn (để dựng gợi ý)
+            var topics = (await _db.ExecuteQueryAsync(@"
+                SELECT T.TOPIC_CD, T.TOPIC_NAME, T.SEVERITY_CD, T.PIC_DEPT_ROLE_ID, DR.ROLE_NAME AS PIC_NAME, S.RESPONSE_DAYS, S.NAME_VI AS SEV_NAME
+                FROM HRMS.HR_INQUIRY_TOPIC T
+                LEFT JOIN HRMS.HR_DEPT_ROLES DR ON DR.ID = T.PIC_DEPT_ROLE_ID
+                LEFT JOIN HRMS.HR_INQUIRY_SEVERITY S ON S.SEVERITY_CD = T.SEVERITY_CD",
+                r => new
+                {
+                    cd = r["TOPIC_CD"]?.ToString() ?? "", name = r["TOPIC_NAME"]?.ToString(), sev = r["SEVERITY_CD"]?.ToString(), sevName = r["SEV_NAME"] == DBNull.Value ? null : r["SEV_NAME"].ToString(),
+                    pic = r["PIC_DEPT_ROLE_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["PIC_DEPT_ROLE_ID"]), picName = r["PIC_NAME"] == DBNull.Value ? null : r["PIC_NAME"].ToString(),
+                    days = r["RESPONSE_DAYS"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["RESPONSE_DAYS"])
+                })).ToDictionary(x => x.cd, StringComparer.OrdinalIgnoreCase);
+
+            static string? Snip(string? html) { if (html == null) return null; var t = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " "); t = System.Text.RegularExpressions.Regex.Replace(t, @"\s+", " ").Trim(); return t.Length > 320 ? t[..320] + "…" : t; }
+            var data = rows.Select(x =>
+            {
+                var sg = HR_api.Helpers.InquiryTopicSuggester.Suggest((x.subject ?? "") + " " + (x.firstMsg ?? ""), x.topicCd);
+                topics.TryGetValue(sg.TopicCd, out var ti);
+                return new
+                {
+                    x.id, x.inquiryNo, x.chatType, x.topicCd, x.topicName, x.reportType, x.severityCd, x.picDeptRoleId, x.picName, x.deadlineDt, x.instDt, x.status, x.msgCount, x.sender, x.confirmDt, x.subject,
+                    firstMsg = Snip(x.firstMsg),
+                    suggest = new
+                    {
+                        topicCd = sg.TopicCd, topicName = ti?.name, severityCd = ti?.sev, severityName = ti?.sevName, picDeptRoleId = ti?.pic, picName = ti?.picName, responseDays = ti?.days,
+                        confidence = sg.Confidence, reason = sg.Reason
+                    }
+                };
+            }).ToList();
+
+            var counts = (await _db.ExecuteQueryAsync(@"
+                SELECT (SELECT COUNT(*) FROM HRMS.HR_INQUIRY WHERE STATUS = 'OPEN' AND CSR_CONFIRM_DT IS NULL) AS PENDING_OPEN,
+                       (SELECT COUNT(*) FROM HRMS.HR_INQUIRY WHERE CSR_CONFIRM_DT IS NULL) AS PENDING_ALL,
+                       (SELECT COUNT(*) FROM HRMS.HR_INQUIRY WHERE CSR_CONFIRM_DT >= TRUNC(SYSDATE)) AS DONE_TODAY
+                FROM DUAL",
+                r => new { pendingOpen = Convert.ToInt32(r["PENDING_OPEN"]), pendingAll = Convert.ToInt32(r["PENDING_ALL"]), doneToday = Convert.ToInt32(r["DONE_TODAY"]) })).First();
+
+            return Ok(new { success = true, total, page, pageSize, totalPages = (int)Math.Ceiling(total / (double)pageSize), counts, data });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST /apiHR/Inquiry/triage/confirm — xác nhận phân loại cho 1 hoặc nhiều hội thoại (null = giữ nguyên field đó)
+    [HttpPost("triage/confirm")]
+    public async Task<IActionResult> TriageConfirm([FromBody] TriageConfirmRequest req)
+    {
+        try
+        {
+            if (!await ConfirmColsAsync()) return Ok(new { success = false, needDdl = true, message = "Chưa chạy script alter_inquiry_csr_confirm.sql" });
+            var ids = (req.Ids ?? new()).Where(x => x > 0).Distinct().ToList();
+            if (ids.Count == 0) return Ok(new { success = false, message = "Chưa chọn hội thoại" });
+            if (ids.Count > 200) return Ok(new { success = false, message = "Tối đa 200 hội thoại mỗi lần" });
+
+            string? rt = string.IsNullOrWhiteSpace(req.ReportType) ? null : req.ReportType.Trim().ToUpperInvariant();
+            if (rt != null && rt != "GRIEVANCE" && rt != "OPINION") return Ok(new { success = false, message = "Loại báo cáo không hợp lệ" });
+            string? tc = string.IsNullOrWhiteSpace(req.TopicCd) ? null : req.TopicCd.Trim();
+            if (tc != null && (await _db.ExecuteQueryAsync("SELECT 1 FROM HRMS.HR_INQUIRY_TOPIC WHERE TOPIC_CD = :C AND ROWNUM = 1", r => 1, new OracleParameter("C", tc))).Count == 0)
+                return Ok(new { success = false, message = "Chủ đề không tồn tại" });
+            string? sev = string.IsNullOrWhiteSpace(req.SeverityCd) ? null : req.SeverityCd.Trim().ToUpperInvariant();
+            var err = await ValidateSeverityPicAsync(sev, req.PicDeptRoleId);
+            if (err != null) return Ok(new { success = false, message = err });
+            string mode = req.DeadlineMode is "created" or "today" ? req.DeadlineMode : "keep";
+            bool setPic = req.SetPic && req.PicDeptRoleId.HasValue;
+
+            int ok = 0; var failed = new List<object>();
+            foreach (var id in ids)
+            {
+                try
+                {
+                    int n = await _db.ExecuteNonQueryAsync(@"
+                        UPDATE HRMS.HR_INQUIRY SET
+                            REPORT_TYPE      = NVL(:RT, REPORT_TYPE),
+                            TOPIC_CD         = NVL(:TC, TOPIC_CD),
+                            SEVERITY_CD      = NVL(:SEV, SEVERITY_CD),
+                            PIC_DEPT_ROLE_ID = CASE WHEN :PIC_SET = 1 THEN :PIC ELSE PIC_DEPT_ROLE_ID END,
+                            DEADLINE_DT      = CASE :DL_MODE
+                                                 WHEN 'created' THEN NVL(TRUNC(INST_DT) + (SELECT S.RESPONSE_DAYS FROM HRMS.HR_INQUIRY_SEVERITY S WHERE S.SEVERITY_CD = NVL(:SEV, SEVERITY_CD)), DEADLINE_DT)
+                                                 WHEN 'today'   THEN NVL(TRUNC(SYSDATE) + (SELECT S.RESPONSE_DAYS FROM HRMS.HR_INQUIRY_SEVERITY S WHERE S.SEVERITY_CD = NVL(:SEV, SEVERITY_CD)), DEADLINE_DT)
+                                                 ELSE DEADLINE_DT END,
+                            CSR_CONFIRM_DT = SYSDATE, CSR_CONFIRM_BY = :UPDT, UPDT_ID = :UPDT, UPDT_DT = SYSDATE
+                        WHERE ID = :ID",
+                        new OracleParameter("RT",  OracleDbType.Varchar2) { Value = (object?)rt ?? DBNull.Value },
+                        new OracleParameter("TC",  OracleDbType.Varchar2) { Value = (object?)tc ?? DBNull.Value },
+                        new OracleParameter("SEV", OracleDbType.Varchar2) { Value = (object?)sev ?? DBNull.Value },
+                        new OracleParameter("PIC_SET", OracleDbType.Int32) { Value = setPic ? 1 : 0 },
+                        new OracleParameter("PIC", OracleDbType.Int32) { Value = setPic ? req.PicDeptRoleId!.Value : DBNull.Value },
+                        new OracleParameter("DL_MODE", OracleDbType.Varchar2) { Value = mode },
+                        new OracleParameter("UPDT", OracleDbType.Varchar2) { Value = (object?)req.UpdtId ?? DBNull.Value },
+                        new OracleParameter("ID", OracleDbType.Int64) { Value = id });
+                    if (n > 0) ok++; else failed.Add(new { id, message = "Không tìm thấy hội thoại" });
+                }
+                catch (OracleException ex) when (ex.Number == 1)
+                {
+                    failed.Add(new { id, message = "Người gửi đã có hội thoại đang mở ở chủ đề này — đóng hội thoại kia trước" });
+                }
+            }
+            return Ok(new { success = ok > 0 || failed.Count == 0, confirmed = ok, failed });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ── Email nhắc hạn phản hồi (Phase 2) ─────────────────────────────────────────────────────
+    // GET /apiHR/Inquiry/admin/reminder/preview — ai sẽ nhận email nào (KHÔNG gửi, email che bớt)
+    [HttpGet("admin/reminder/preview")]
+    public async Task<IActionResult> ReminderPreview()
+    {
+        try
+        {
+            var svc = HttpContext.RequestServices.GetRequiredService<HR_api.Services.InquiryReminderService>();
+            return Ok(new { success = true, data = await svc.PreviewAsync() });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST /apiHR/Inquiry/admin/reminder/send-test { email } — gửi thử 1 email tổng hợp tới đúng địa chỉ đó (không ghi nhật ký)
+    [HttpPost("admin/reminder/send-test")]
+    public async Task<IActionResult> ReminderSendTest([FromBody] ReminderTestRequest req)
+    {
+        try
+        {
+            var mail = (req?.Email ?? "").Trim();
+            if (!mail.Contains('@') || mail.Contains(' ') || mail.Length > 200) return Ok(new { success = false, message = "Email không hợp lệ" });
+            var svc = HttpContext.RequestServices.GetRequiredService<HR_api.Services.InquiryReminderService>();
+            int n = await svc.SendTestAsync(mail);
+            return Ok(new { success = true, cases = n });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.InnerException?.Message ?? ex.Message }); }
+    }
+
+
+    // GET /apiHR/Inquiry/admin/remind-to — danh sách người nhận email nhắc hạn (theo chủ đề / theo phòng PIC)
+    [HttpGet("admin/remind-to")]
+    public async Task<IActionResult> GetRemindTo()
+    {
+        try
+        {
+            var rows = await _db.ExecuteQueryAsync("SELECT SCOPE_TYPE, SCOPE_KEY, EMAILS FROM HRMS.HR_INQUIRY_REMIND_TO ORDER BY SCOPE_TYPE, SCOPE_KEY",
+                r => new { scopeType = r["SCOPE_TYPE"]?.ToString(), scopeKey = r["SCOPE_KEY"]?.ToString(), emails = r["EMAILS"] == DBNull.Value ? "" : r["EMAILS"].ToString() });
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = "Chưa có bảng người nhận email nhắc hạn (chạy create_inquiry_remind_to.sql): " + ex.Message }); }
+    }
+
+    // PUT /apiHR/Inquiry/admin/remind-to { scopeType: TOPIC|PIC, scopeKey, emails, updtId } — emails trống = xoá cấu hình
+    [HttpPut("admin/remind-to")]
+    public async Task<IActionResult> SaveRemindTo([FromBody] RemindToSaveRequest req)
+    {
+        try
+        {
+            var type = (req.ScopeType ?? "").Trim().ToUpperInvariant();
+            var key  = (req.ScopeKey ?? "").Trim();
+            if ((type != "TOPIC" && type != "PIC") || key.Length == 0 || key.Length > 40)
+                return Ok(new { success = false, message = "Thiếu hoặc sai phạm vi (chủ đề/phòng)" });
+
+            bool exists = type == "TOPIC"
+                ? (await _db.ExecuteQueryAsync("SELECT 1 FROM HRMS.HR_INQUIRY_TOPIC WHERE TOPIC_CD = :K AND ROWNUM = 1", r => 1, new OracleParameter("K", key))).Any()
+                : (await _db.ExecuteQueryAsync("SELECT 1 FROM HRMS.HR_DEPT_ROLES WHERE ROLE_NAME = :K AND ROWNUM = 1", r => 1, new OracleParameter("K", key))).Any();
+            if (!exists) return Ok(new { success = false, message = type == "TOPIC" ? "Chủ đề không tồn tại" : "Phòng không tồn tại" });
+
+            var tokens = (req.Emails ?? "").Split(new[] { ';', ',', '\n', '\r', ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            var valid  = HR_api.Services.InquiryReminderService.ParseEmails(req.Emails);
+            if (tokens.Select(t => t.Trim().ToLowerInvariant()).Distinct().Count() != valid.Count)
+                return Ok(new { success = false, message = "Có email không hợp lệ, vui lòng kiểm tra lại" });
+            if (valid.Count > 20) return Ok(new { success = false, message = "Tối đa 20 email cho mỗi mục" });
+
+            if (valid.Count == 0)
+            {
+                await _db.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_INQUIRY_REMIND_TO WHERE SCOPE_TYPE = :T AND SCOPE_KEY = :K",
+                    new OracleParameter("T", type), new OracleParameter("K", key));
+                return Ok(new { success = true });
+            }
+            var joined = string.Join(";", valid);
+            int n = await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_INQUIRY_REMIND_TO SET EMAILS = :E, UPDT_ID = :U, UPDT_DT = SYSDATE WHERE SCOPE_TYPE = :T AND SCOPE_KEY = :K",
+                new OracleParameter("E", OracleDbType.NVarchar2) { Value = joined }, new OracleParameter("U", (object?)req.UpdtId ?? DBNull.Value),
+                new OracleParameter("T", type), new OracleParameter("K", key));
+            if (n == 0)
+                await _db.ExecuteNonQueryAsync(@"
+                    INSERT INTO HRMS.HR_INQUIRY_REMIND_TO (SCOPE_TYPE, SCOPE_KEY, EMAILS, UPDT_ID, UPDT_DT) VALUES (:T, :K, :E, :U, SYSDATE)",
+                    new OracleParameter("T", type), new OracleParameter("K", key),
+                    new OracleParameter("E", OracleDbType.NVarchar2) { Value = joined }, new OracleParameter("U", (object?)req.UpdtId ?? DBNull.Value));
+            return Ok(new { success = true, emails = joined });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // BẢN NHÁP TRẢ LỜI (HR/GA soạn → CSR duyệt/sửa → gửi cho công nhân) — bảng HR_INQUIRY_DRAFT
+    // Script: Scripts/create_inquiry_draft.sql. Web điều phối: tạo nháp → claim → gửi tin thật (api send) → finalize.
+    // ═════════════════════════════════════════════════════════════════════════
+    private static volatile bool _draftTable;
+    private static DateTime _draftNextProbeUtc = DateTime.MinValue;
+
+    // Bảng có thể chưa tạo khi HR_api deploy trước DDL → danh sách hội thoại KHÔNG được gãy.
+    private async Task<bool> DraftTableAvailableAsync()
+    {
+        if (_draftTable) return true;
+        if (DateTime.UtcNow < _draftNextProbeUtc) return false;
+        bool ok;
+        try
+        {
+            var n = await _db.ExecuteQueryAsync(
+                "SELECT COUNT(*) AS C FROM ALL_TABLES WHERE OWNER = 'HRMS' AND TABLE_NAME = 'HR_INQUIRY_DRAFT'",
+                r => Convert.ToInt32(r["C"]));
+            ok = n.FirstOrDefault() > 0;
+        }
+        catch { ok = false; }
+        if (ok) _draftTable = true; else _draftNextProbeUtc = DateTime.UtcNow.AddSeconds(60);
+        return ok;
+    }
+
+    private const string DraftCols = @"ID, INQUIRY_ID, AUTHOR_CD, AUTHOR_NAME, AUTHOR_ROLE, CONTENT, FILES_JSON, REFS_JSON, STATUS,
+                       FINAL_CONTENT, REVIEWER_CD, REVIEWER_NAME, REVIEW_NOTE, FINAL_MSG_ID, CREATED_DT, REVIEWED_DT";
+
+    private static object MapDraft(OracleDataReader r) => new
+    {
+        id           = Convert.ToInt64(r["ID"]),
+        inquiryId    = Convert.ToInt64(r["INQUIRY_ID"]),
+        authorCd     = r["AUTHOR_CD"]?.ToString(),
+        authorName   = r["AUTHOR_NAME"] == DBNull.Value ? null : r["AUTHOR_NAME"].ToString(),
+        authorRole   = r["AUTHOR_ROLE"] == DBNull.Value ? null : r["AUTHOR_ROLE"].ToString(),
+        content      = r["CONTENT"] == DBNull.Value ? null : r["CONTENT"].ToString(),
+        filesJson    = r["FILES_JSON"] == DBNull.Value ? null : r["FILES_JSON"].ToString(),
+        refsJson     = r["REFS_JSON"] == DBNull.Value ? null : r["REFS_JSON"].ToString(),
+        status       = r["STATUS"]?.ToString(),
+        finalContent = r["FINAL_CONTENT"] == DBNull.Value ? null : r["FINAL_CONTENT"].ToString(),
+        reviewerCd   = r["REVIEWER_CD"] == DBNull.Value ? null : r["REVIEWER_CD"].ToString(),
+        reviewerName = r["REVIEWER_NAME"] == DBNull.Value ? null : r["REVIEWER_NAME"].ToString(),
+        reviewNote   = r["REVIEW_NOTE"] == DBNull.Value ? null : r["REVIEW_NOTE"].ToString(),
+        createdDt    = Convert.ToDateTime(r["CREATED_DT"]),
+        reviewedDt   = r["REVIEWED_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["REVIEWED_DT"])
+    };
+
+    private async Task<object?> GetDraftByIdAsync(long draftId)
+        => (await _db.ExecuteQueryAsync($"SELECT {DraftCols} FROM HRMS.HR_INQUIRY_DRAFT WHERE ID = :ID",
+            r => MapDraft(r), new OracleParameter("ID", draftId))).FirstOrDefault();
+
+    // POST /apiHR/Inquiry/draft/create
+    [HttpPost("draft/create")]
+    public async Task<IActionResult> CreateDraft([FromBody] InquiryDraftCreateRequest req)
+    {
+        try
+        {
+            if (!await DraftTableAvailableAsync()) return Ok(new { success = false, message = "Chức năng duyệt trả lời chưa sẵn sàng (thiếu bảng)" });
+            if (req.InquiryId <= 0 || string.IsNullOrWhiteSpace(req.AuthorCd))
+                return Ok(new { success = false, message = "Thiếu thông tin" });
+            bool hasContent = !string.IsNullOrWhiteSpace(req.Content);
+            if (!hasContent && string.IsNullOrWhiteSpace(req.FilesJson) && string.IsNullOrWhiteSpace(req.RefsJson))
+                return Ok(new { success = false, message = "Nội dung không được để trống" });
+            if ((req.Content?.Length ?? 0) > 4000 || (req.FilesJson?.Length ?? 0) > 4000 || (req.RefsJson?.Length ?? 0) > 2000)
+                return Ok(new { success = false, message = "Nội dung hoặc đính kèm quá dài" });
+
+            var inq = (await _db.ExecuteQueryAsync("SELECT STATUS, INQUIRY_NO FROM HRMS.HR_INQUIRY WHERE ID = :ID",
+                r => new { Status = r["STATUS"]?.ToString(), No = r["INQUIRY_NO"]?.ToString() ?? "" },
+                new OracleParameter("ID", req.InquiryId))).FirstOrDefault();
+            if (inq == null) return Ok(new { success = false, message = "Không tìm thấy hội thoại" });
+            if (inq.Status != "OPEN") return Ok(new { success = false, message = "Hội thoại đã đóng, không thể gửi tin" });
+
+            long id = (await _db.ExecuteQueryAsync("SELECT HRMS.SEQ_HR_INQUIRY_DRAFT.NEXTVAL AS ID FROM DUAL",
+                r => Convert.ToInt64(r["ID"]))).First();
+            await _db.ExecuteNonQueryAsync(@"
+                INSERT INTO HRMS.HR_INQUIRY_DRAFT
+                    (ID, INQUIRY_ID, AUTHOR_CD, AUTHOR_NAME, AUTHOR_ROLE, CONTENT, FILES_JSON, REFS_JSON, STATUS, CREATED_DT)
+                VALUES (:ID, :INQ, :CD, :NM, :RL, :CT, :FJ, :RJ, 'PENDING', SYSDATE)",
+                new OracleParameter("ID",  id),
+                new OracleParameter("INQ", req.InquiryId),
+                new OracleParameter("CD",  req.AuthorCd.Trim()),
+                new OracleParameter("NM",  OracleDbType.NVarchar2) { Value = (object?)req.AuthorName ?? DBNull.Value },
+                new OracleParameter("RL",  (object?)req.AuthorRole ?? DBNull.Value),
+                new OracleParameter("CT",  OracleDbType.NVarchar2) { Value = (object?)req.Content ?? DBNull.Value },
+                new OracleParameter("FJ",  OracleDbType.NVarchar2) { Value = string.IsNullOrWhiteSpace(req.FilesJson) ? DBNull.Value : req.FilesJson },
+                new OracleParameter("RJ",  OracleDbType.NVarchar2) { Value = string.IsNullOrWhiteSpace(req.RefsJson)  ? DBNull.Value : req.RefsJson });
+
+            // Báo CSR bằng EMAIL gom đợt (InquiryReminderService.TryRunDraftDigestAsync) — push trong app không dùng được vì
+            // Admin/CSR/HR bị chặn thông báo cá nhân (NotificationHelper.IsNoNotiRoleAsync, quy tắc 2026-09-12).
+
+            return Ok(new { success = true, draftId = id });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // GET /apiHR/Inquiry/{id}/drafts — bản nháp còn hiệu lực (PENDING + RETURNED) của 1 hội thoại
+    [HttpGet("{id:long}/drafts")]
+    public async Task<IActionResult> GetDrafts(long id)
+    {
+        try
+        {
+            if (!await DraftTableAvailableAsync()) return Ok(new { success = true, data = Array.Empty<object>() });
+            var rows = await _db.ExecuteQueryAsync($@"
+                SELECT {DraftCols} FROM HRMS.HR_INQUIRY_DRAFT
+                WHERE INQUIRY_ID = :ID AND STATUS IN ('PENDING','RETURNED')
+                ORDER BY CREATED_DT, ID", r => MapDraft(r), new OracleParameter("ID", id));
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // GET /apiHR/Inquiry/draft/{draftId}
+    [HttpGet("draft/{draftId:long}")]
+    public async Task<IActionResult> GetDraft(long draftId)
+    {
+        try
+        {
+            if (!await DraftTableAvailableAsync()) return Ok(new { success = false, message = "Chưa có bảng bản nháp" });
+            var d = await GetDraftByIdAsync(draftId);
+            return d == null ? Ok(new { success = false, message = "Không tìm thấy bản nháp" }) : Ok(new { success = true, data = d });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST draft/{id}/claim — CSR "chốt" duyệt: PENDING → APPROVED nguyên tử (chống 2 CSR bấm cùng lúc), lưu bản đã sửa.
+    // Web gửi tin thật rồi gọi finalize; gửi lỗi thì gọi revert.
+    [HttpPost("draft/{draftId:long}/claim")]
+    public async Task<IActionResult> ClaimDraft(long draftId, [FromBody] InquiryDraftReviewRequest req)
+    {
+        try
+        {
+            if ((req.Content?.Length ?? 0) > 4000) return Ok(new { success = false, message = "Nội dung vượt quá 4000 ký tự" });
+            int n = await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_INQUIRY_DRAFT
+                   SET STATUS = 'APPROVED', REVIEWER_CD = :RCD, REVIEWER_NAME = :RNM, REVIEWED_DT = SYSDATE,
+                       FINAL_CONTENT = NVL(:FC, CONTENT)
+                 WHERE ID = :ID AND STATUS = 'PENDING'",
+                new OracleParameter("RCD", (object?)req.ReviewerCd ?? DBNull.Value),
+                new OracleParameter("RNM", OracleDbType.NVarchar2) { Value = (object?)req.ReviewerName ?? DBNull.Value },
+                new OracleParameter("FC",  OracleDbType.NVarchar2) { Value = string.IsNullOrWhiteSpace(req.Content) ? DBNull.Value : req.Content },
+                new OracleParameter("ID",  draftId));
+            if (n == 0) return Ok(new { success = false, message = "Bản nháp đã được xử lý (duyệt/trả lại/thu hồi) bởi người khác" });
+            return Ok(new { success = true, data = await GetDraftByIdAsync(draftId) });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST draft/{id}/revert — gửi tin thật thất bại → trả về PENDING để CSR thử lại
+    [HttpPost("draft/{draftId:long}/revert")]
+    public async Task<IActionResult> RevertDraft(long draftId)
+    {
+        try
+        {
+            await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_INQUIRY_DRAFT SET STATUS = 'PENDING', REVIEWER_CD = NULL, REVIEWER_NAME = NULL, REVIEWED_DT = NULL, FINAL_CONTENT = NULL
+                 WHERE ID = :ID AND STATUS = 'APPROVED' AND FINAL_MSG_ID IS NULL", new OracleParameter("ID", draftId));
+            return Ok(new { success = true });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST draft/{id}/finalize { msgId }
+    [HttpPost("draft/{draftId:long}/finalize")]
+    public async Task<IActionResult> FinalizeDraft(long draftId, [FromBody] InquiryDraftReviewRequest req)
+    {
+        try
+        {
+            await _db.ExecuteNonQueryAsync("UPDATE HRMS.HR_INQUIRY_DRAFT SET FINAL_MSG_ID = :M WHERE ID = :ID AND STATUS = 'APPROVED'",
+                new OracleParameter("M", (object?)req.MsgId ?? DBNull.Value), new OracleParameter("ID", draftId));
+            return Ok(new { success = true });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST draft/{id}/return { reviewerCd, reviewerName, note } — CSR trả lại kèm góp ý (bắt buộc có góp ý)
+    [HttpPost("draft/{draftId:long}/return")]
+    public async Task<IActionResult> ReturnDraft(long draftId, [FromBody] InquiryDraftReviewRequest req)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(req.Note)) return Ok(new { success = false, message = "Vui lòng nhập góp ý để người soạn chỉnh lại" });
+            if (req.Note.Length > 1000) return Ok(new { success = false, message = "Góp ý tối đa 1000 ký tự" });
+            int n = await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_INQUIRY_DRAFT
+                   SET STATUS = 'RETURNED', REVIEWER_CD = :RCD, REVIEWER_NAME = :RNM, REVIEW_NOTE = :NT, REVIEWED_DT = SYSDATE
+                 WHERE ID = :ID AND STATUS = 'PENDING'",
+                new OracleParameter("RCD", (object?)req.ReviewerCd ?? DBNull.Value),
+                new OracleParameter("RNM", OracleDbType.NVarchar2) { Value = (object?)req.ReviewerName ?? DBNull.Value },
+                new OracleParameter("NT",  OracleDbType.NVarchar2) { Value = req.Note.Trim() },
+                new OracleParameter("ID",  draftId));
+            if (n == 0) return Ok(new { success = false, message = "Bản nháp đã được xử lý bởi người khác" });
+
+            var d = await _db.ExecuteQueryAsync(@"
+                SELECT D.AUTHOR_CD, I.INQUIRY_NO, D.INQUIRY_ID FROM HRMS.HR_INQUIRY_DRAFT D
+                JOIN HRMS.HR_INQUIRY I ON I.ID = D.INQUIRY_ID WHERE D.ID = :ID",
+                r => new { Cd = r["AUTHOR_CD"]?.ToString(), No = r["INQUIRY_NO"]?.ToString() ?? "", Inq = Convert.ToInt64(r["INQUIRY_ID"]) },
+                new OracleParameter("ID", draftId));
+            var a = d.FirstOrDefault();
+            if (a != null && !string.IsNullOrEmpty(a.Cd))
+            {
+                string capBy = req.ReviewerCd ?? ""; var capA = a;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var scope = _scopeFactory.CreateScope();
+                        var noti = scope.ServiceProvider.GetRequiredService<NotificationHelper>();
+                        await noti.SendNotificationAsync(new SendNotificationRequest
+                        {
+                            TITLE = "Bản nháp bị trả lại", BODY = $"CSR đã trả lại bản nháp trả lời ở hội thoại {capA.No}, vui lòng xem góp ý.",
+                            TITLE_EN = "Reply draft returned", BODY_EN = $"CSR returned your reply draft in conversation {capA.No}. Please check the feedback.",
+                            NOTI_TYPE = "EMPCD", TARGET_VAL = capA.Cd, LINK_ACTION = $"inquiry/{capA.Inq}", CREATED_BY = capBy
+                        });
+                    }
+                    catch { }
+                });
+            }
+            return Ok(new { success = true });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST draft/{id}/dismiss { actorCd } — người soạn thu hồi bản nháp đang chờ / bỏ bản đã bị trả lại
+    [HttpPost("draft/{draftId:long}/dismiss")]
+    public async Task<IActionResult> DismissDraft(long draftId, [FromBody] InquiryDraftReviewRequest req)
+    {
+        try
+        {
+            int n = await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_INQUIRY_DRAFT SET STATUS = 'DISMISSED'
+                 WHERE ID = :ID AND STATUS IN ('PENDING','RETURNED') AND AUTHOR_CD = :CD",
+                new OracleParameter("ID", draftId), new OracleParameter("CD", (object?)req.ActorCd ?? DBNull.Value));
+            return n == 0 ? Ok(new { success = false, message = "Không thể thu hồi (đã được xử lý hoặc không phải bản nháp của bạn)" }) : Ok(new { success = true });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // Người nhận thông báo khi NV nhắn vào hội thoại chưa có người phụ trách (2026-11-06): Admin + CSR (người phân loại)
+    // + phòng PIC của hội thoại (HR/GA...). Phòng khác KHÔNG nhận vì không được xem hội thoại đó.
+    private async Task<List<string>> GetInquiryNotifyEmpCdsAsync(long inquiryId)
+    {
+        try
+        {
+            var pic = (await _db.ExecuteQueryAsync(@"
+                SELECT DR.ROLE_NAME FROM HRMS.HR_INQUIRY I
+                JOIN HRMS.HR_DEPT_ROLES DR ON DR.ID = I.PIC_DEPT_ROLE_ID
+                WHERE I.ID = :ID", r => r["ROLE_NAME"]?.ToString(),
+                new OracleParameter("ID", inquiryId))).FirstOrDefault();
+
+            var roles = new List<string> { "Admin", "CSR" };
+            if (!string.IsNullOrEmpty(pic) && !roles.Contains(pic)) roles.Add(pic);
+
+            var inRoles = await DeptRoleHelper.EmpcdInRolesSqlAsync(_db, roles.ToArray());
             return await _db.ExecuteQueryAsync($@"
                 SELECT U.EMPCD FROM HRMS.HR_USERS U
                 WHERE U.IS_ACTIVE = 1 AND U.EMPCD IN ({inRoles})",
@@ -2303,6 +3434,10 @@ public class InquiryController : ControllerBase
 }
 
 // ─── Extra request models (chỉ dùng nội bộ controller này) ──────────────────
+
+public class RemindToSaveRequest { public string? ScopeType { get; set; } public string? ScopeKey { get; set; } public string? Emails { get; set; } public string? UpdtId { get; set; } }
+
+public class ReminderTestRequest { public string? Email { get; set; } }
 
 public class RecallRequest
 {

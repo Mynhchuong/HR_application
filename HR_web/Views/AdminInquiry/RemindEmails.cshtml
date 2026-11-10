@@ -1,0 +1,229 @@
+@{
+    ViewData["Title"] = "Email nhắc hạn phản hồi";
+}
+
+@section Styles {
+<style>
+    .rm-page { max-width: 1100px; margin: 0 auto; padding-bottom: 3rem; }
+    .rm-card { background: white; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06); padding: 1rem 1.1rem; margin-bottom: 1.1rem; }
+    .rm-card h6 { font-weight: 800; color: #1e293b; margin: 0 0 .15rem; }
+    .rm-sub { font-size: .78rem; color: #64748b; margin-bottom: .8rem; line-height: 1.45; }
+    .rm-btn-new { background: white; color: #dc2626; border: none; border-radius: 10px; padding: .5rem .9rem; font-weight: 800; font-size: .85rem;
+                  cursor: pointer; display: inline-flex; align-items: center; gap: .25rem; box-shadow: 0 1px 4px rgba(0,0,0,.1); text-decoration: none; }
+    .rm-btn-new:hover { background: #fef2f2; }
+    .rm-ta { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .4rem .6rem; font-size: .85rem; outline: none; resize: vertical; min-height: 38px; }
+    .rm-ta:focus { border-color: #dc2626; }
+    .rm-ta.dirty { border-color: #f59e0b; background: #fffbeb; }
+    .rm-save { border: 0; background: #dc2626; color: #fff; border-radius: 9px; padding: .35rem .85rem; font-weight: 800; font-size: .78rem; cursor: pointer; white-space: nowrap; }
+    .rm-save:disabled { background: #e2e8f0; color: #94a3b8; cursor: default; }
+    .rm-pic-row { display: flex; gap: .7rem; align-items: flex-start; margin-bottom: .6rem; flex-wrap: wrap; }
+    .rm-pic-name { width: 70px; font-weight: 800; color: #4f46e5; padding-top: .45rem; }
+    .rm-pic-row .rm-ta { flex: 1; min-width: 220px; }
+    .rm-table { width: 100%; border-collapse: collapse; }
+    .rm-table th { padding: .6rem .8rem; font-size: .72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .04em;
+                   background: #f8fafc; border-bottom: 1px solid #f1f5f9; text-align: left; white-space: nowrap; }
+    .rm-table td { padding: .6rem .8rem; border-bottom: 1px solid #f8fafc; font-size: .85rem; vertical-align: top; }
+    .rm-table tr.hidden-topic td { background: #fafafa; color: #94a3b8; }
+    .rm-code { font-family: monospace; font-size: .72rem; color: #94a3b8; }
+    .rm-pill { display: inline-block; border-radius: 999px; padding: .05rem .55rem; font-size: .68rem; font-weight: 800; }
+    .rm-pill.own  { background: #dcfce7; color: #166534; }
+    .rm-pill.pic  { background: #e0e7ff; color: #3730a3; }
+    .rm-pill.csr  { background: #fef3c7; color: #92400e; }
+    .rm-tools { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin-bottom: .7rem; }
+    .rm-tools input[type=text] { border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .4rem .7rem; font-size: .85rem; min-width: 220px; outline: none; }
+    .rm-preview { background: #f8fafc; border-radius: 10px; padding: .7rem .9rem; font-size: .82rem; margin-top: .6rem; white-space: pre-wrap; }
+    @@media (max-width: 760px) { .rm-table th:nth-child(4), .rm-table td:nth-child(4) { display: none; } }
+</style>
+}
+
+<div class="rm-page px-2 py-2">
+
+    @await Html.PartialAsync("_AdminHeroBar", new AdminHeroBarVM
+    {
+        Icon = "forward_to_inbox",
+        Title = "Email nhắc hạn phản hồi",
+        SubtitleHtml = "Hệ thống gửi 1 email tổng hợp trước hạn phản hồi 1 ngày cho các hội thoại CHƯA có trả lời. Email không kèm tên/nội dung người phản ánh.",
+        ActionHtml = "<a class=\"rm-btn-new\" href=\"" + Url.Action("Topics","AdminInquiry") + "\"><span class=\"material-symbols-rounded\" style=\"font-size:1.1rem;vertical-align:middle\">topic</span> Chủ đề hội thoại</a>"
+    })
+
+    <div class="rm-card">
+        <h6>Thứ tự chọn người nhận</h6>
+        <div class="rm-sub">
+            <b>1.</b> Email riêng của <b>chủ đề</b> (bảng bên dưới) &nbsp;→&nbsp;
+            <b>2.</b> nếu trống: email của <b>phòng phụ trách (PIC)</b> &nbsp;→&nbsp;
+            <b>3.</b> nếu vẫn trống: gửi tất cả <b>CSR</b> (dự phòng để không bỏ sót).
+            Nhiều email ngăn cách bằng dấu <b>;</b> hoặc xuống dòng. Để trống rồi Lưu = xoá cấu hình.
+        </div>
+        <button class="rm-btn-new" style="border:1.5px solid #e2e8f0" onclick="loadPreview()">
+            <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle">visibility</span> Xem hôm nay ai sẽ nhận
+        </button>
+        <div id="rmPreview" class="rm-preview" style="display:none"></div>
+    </div>
+
+    <div class="rm-card">
+        <h6>Theo phòng phụ trách (PIC)</h6>
+        <div class="rm-sub">Áp dụng cho chủ đề không có email riêng. Ví dụ GA: một danh sách dùng cho toàn bộ vấn đề GA.</div>
+        <div id="rmPicList"><div class="rm-sub">Đang tải...</div></div>
+    </div>
+
+    <div class="rm-card">
+        <h6>Theo chủ đề</h6>
+        <div class="rm-sub">Chỉ cần điền cho chủ đề muốn gửi riêng; chủ đề để trống sẽ dùng danh sách của phòng PIC.</div>
+        <div class="rm-tools">
+            <input type="text" id="rmSearch" placeholder="Tìm chủ đề / mã..." oninput="renderTopics()">
+            <label style="font-size:.82rem;display:inline-flex;gap:.35rem;align-items:center;margin:0">
+                <input type="checkbox" id="rmOnlyActive" onchange="renderTopics()"> Chỉ chủ đề đang dùng
+            </label>
+            <button class="rm-save" id="rmSaveAll" onclick="saveAll()" disabled>Lưu tất cả thay đổi</button>
+        </div>
+        <div style="overflow-x:auto">
+            <table class="rm-table">
+                <thead><tr><th>Chủ đề</th><th>PIC</th><th style="width:42%">Email riêng của chủ đề</th><th>Người nhận thực tế</th><th></th></tr></thead>
+                <tbody id="rmBody"><tr><td colspan="5" class="rm-sub">Đang tải...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+const URL_TOPICS  = '@Url.Action("GetAdminTopics","AdminInquiry")';
+const URL_PIC     = '@Url.Action("GetPicDeptRoles","AdminInquiry")';
+const URL_GET     = '@Url.Action("GetRemindTo","AdminInquiry")';
+const URL_SAVE    = '@Url.Action("SaveRemindTo","AdminInquiry")';
+const URL_PREVIEW = '@Url.Action("GetReminderPreview","AdminInquiry")';
+const TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+let topics = [], picRoles = [], saved = {};   // saved["TOPIC:G04"] = "a;b"
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const norm = v => (v || '').split(/[;,\s]+/).map(x => x.trim().toLowerCase()).filter(Boolean).join(';');
+const pretty = v => (v || '').split(';').filter(Boolean).join('; ');
+const countMails = v => norm(v) ? norm(v).split(';').length : 0;
+
+async function loadAll() {
+    try {
+        const [t, p, g] = await Promise.all([
+            fetch(URL_TOPICS).then(r => r.json()), fetch(URL_PIC).then(r => r.json()), fetch(URL_GET).then(r => r.json())
+        ]);
+        if (t.success) topics = t.data || [];
+        if (p.success) picRoles = p.data || [];
+        saved = {};
+        if (g.success) (g.data || []).forEach(x => saved[x.scopeType + ':' + x.scopeKey] = x.emails || '');
+        else showToast(g.message || 'Không tải được danh sách email', 'error');
+    } catch (e) { showToast('Lỗi tải dữ liệu: ' + e.message, 'error'); }
+    renderPic(); renderTopics();
+}
+
+function recipientInfo(t) {
+    const own = norm(saved['TOPIC:' + t.topicCd]);
+    if (own) return `<span class="rm-pill own">Riêng · ${own.split(';').length} email</span>`;
+    const pic = t.picDeptName ? norm(saved['PIC:' + t.picDeptName]) : '';
+    if (pic) return `<span class="rm-pill pic">Phòng ${esc(t.picDeptName)} · ${pic.split(';').length} email</span>`;
+    return '<span class="rm-pill csr">CSR (dự phòng)</span>';
+}
+
+function renderPic() {
+    document.getElementById('rmPicList').innerHTML = picRoles.map(r => {
+        const v = pretty(saved['PIC:' + r.name]);
+        return `<div class="rm-pic-row">
+            <div class="rm-pic-name">${esc(r.name)}</div>
+            <textarea class="rm-ta" rows="1" id="pic_${r.id}" data-type="PIC" data-key="${esc(r.name)}" data-orig="${esc(norm(saved['PIC:' + r.name]))}"
+                      oninput="markDirty(this)" placeholder="a@esamho.com; b@esamho.com">${esc(v)}</textarea>
+            <button class="rm-save" id="btn_pic_${r.id}" onclick="saveOne('pic_${r.id}')" disabled>Lưu</button>
+        </div>`;
+    }).join('') || '<div class="rm-sub">Không có phòng nào.</div>';
+}
+
+function renderTopics() {
+    const q = (document.getElementById('rmSearch').value || '').trim().toLowerCase();
+    const onlyActive = document.getElementById('rmOnlyActive').checked;
+    // Giữ lại các ô đang sửa dở khi lọc/vẽ lại
+    const pending = {};
+    document.querySelectorAll('#rmBody textarea.dirty').forEach(el => pending[el.dataset.key] = el.value);
+
+    const rows = topics.filter(t => (!onlyActive || t.isActive) &&
+        (!q || (t.topicName || '').toLowerCase().includes(q) || (t.topicCd || '').toLowerCase().includes(q)));
+    document.getElementById('rmBody').innerHTML = rows.map(t => {
+        const orig = norm(saved['TOPIC:' + t.topicCd]);
+        const has = Object.prototype.hasOwnProperty.call(pending, t.topicCd);
+        const val = has ? pending[t.topicCd] : pretty(saved['TOPIC:' + t.topicCd]);
+        const dirty = has && norm(val) !== orig;
+        return `<tr class="${t.isActive ? '' : 'hidden-topic'}">
+            <td><div style="font-weight:700">${esc(t.topicName)}</div><div class="rm-code">${esc(t.topicCd)}${t.isActive ? '' : ' · đang ẩn'}</div></td>
+            <td>${t.picDeptName ? esc(t.picDeptName) : '<span class="rm-code">Chưa gán</span>'}</td>
+            <td><textarea class="rm-ta ${dirty ? 'dirty' : ''}" rows="1" id="tp_${esc(t.topicCd)}" data-type="TOPIC" data-key="${esc(t.topicCd)}" data-orig="${esc(orig)}"
+                          oninput="markDirty(this)" placeholder="(trống = dùng danh sách của phòng)">${esc(val)}</textarea></td>
+            <td id="info_${esc(t.topicCd)}">${recipientInfo(t)}</td>
+            <td><button class="rm-save" id="btn_tp_${esc(t.topicCd)}" onclick="saveOne('tp_${esc(t.topicCd)}')" ${dirty ? '' : 'disabled'}>Lưu</button></td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="5" class="rm-sub">Không có chủ đề phù hợp.</td></tr>';
+    updateSaveAll();
+}
+
+function markDirty(el) {
+    const dirty = norm(el.value) !== (el.dataset.orig || '');
+    el.classList.toggle('dirty', dirty);
+    const btn = document.getElementById('btn_' + el.id);
+    if (btn) btn.disabled = !dirty;
+    updateSaveAll();
+}
+function updateSaveAll() {
+    document.getElementById('rmSaveAll').disabled = !document.querySelector('textarea.dirty');
+}
+
+async function post(body) {
+    const res = await fetch(URL_SAVE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': TOKEN }, body: JSON.stringify(body) });
+    return res.json();
+}
+
+async function saveEl(el) {
+    const type = el.dataset.type, key = el.dataset.key;
+    const d = await post({ scopeType: type, scopeKey: key, emails: el.value.trim() });
+    if (!d.success) { showToast(`${key}: ${d.message || 'Lưu thất bại'}`, 'error'); return false; }
+    saved[type + ':' + key] = d.emails || '';
+    el.dataset.orig = norm(d.emails || '');
+    el.value = pretty(d.emails || '');
+    markDirty(el);
+    return true;
+}
+
+async function saveOne(id) {
+    const el = document.getElementById(id); if (!el) return;
+    const btn = document.getElementById('btn_' + id); if (btn) btn.disabled = true;
+    if (await saveEl(el)) { showToast('Đã lưu', 'success'); refreshInfo(); }
+    else markDirty(el);
+}
+
+async function saveAll() {
+    const els = [...document.querySelectorAll('textarea.dirty')];
+    let ok = 0;
+    for (const el of els) { if (await saveEl(el)) ok++; else break; }
+    if (ok) showToast(`Đã lưu ${ok} mục`, 'success');
+    refreshInfo();
+}
+
+// Cập nhật cột "Người nhận thực tế" sau khi lưu (cả khi sửa email của phòng)
+function refreshInfo() {
+    topics.forEach(t => { const c = document.getElementById('info_' + t.topicCd); if (c) c.innerHTML = recipientInfo(t); });
+}
+
+async function loadPreview() {
+    const box = document.getElementById('rmPreview');
+    box.style.display = ''; box.textContent = 'Đang tải...';
+    try {
+        const d = await (await fetch(URL_PREVIEW)).json();
+        if (!d.success) { box.textContent = d.message || 'Không xem được'; return; }
+        const x = d.data;
+        if (!x.cases.length) { box.textContent = 'Hiện chưa có hội thoại nào sắp đến hạn (hôm nay/ngày mai) mà chưa được trả lời.'; return; }
+        box.textContent = `Có ${x.cases.length} hội thoại sắp đến hạn:\n`
+            + x.cases.map(c => `• ${c.No} — ${c.Topic} — hạn ${String(c.deadline).slice(0, 10)} — PIC: ${c.pic || 'chưa gán'}`).join('\n')
+            + `\n\nSẽ gửi tới ${x.recipients.length} người: ` + x.recipients.map(r => `${r.email} (${r.cases})`).join(', ')
+            + (x.tableReady ? '' : '\n\n⚠ Chưa có bảng nhật ký nhắc hạn — hệ thống sẽ chưa gửi.');
+    } catch (e) { box.textContent = 'Lỗi: ' + e.message; }
+}
+
+loadAll();
+</script>
+}

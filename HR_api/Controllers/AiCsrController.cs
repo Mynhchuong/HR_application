@@ -570,7 +570,8 @@ public class AiCsrController : ControllerBase
 
             var rows = await _db.ExecuteQueryAsync(@"
                 SELECT m.CHAT_ID, c.TITLE, c.EMPCD, c.EMP_NAME, c.STATUS,
-                       m.SENDER_TYPE, m.SENDER_CD, m.SENDER_NAME, m.CONTENT, m.AI_FAILED, m.SENT_DT
+                       m.SENDER_TYPE, m.SENDER_CD, m.SENDER_NAME, m.CONTENT, m.AI_FAILED, m.SENT_DT,
+                       (SELECT EC.SEXGB FROM HRMS.ECM100 EC WHERE EC.EMPCD = c.EMPCD AND ROWNUM = 1) AS SEXGB
                 FROM HRMS.HR_AI_CHAT_MSG m
                 JOIN HRMS.HR_AI_CHAT c ON c.ID = m.CHAT_ID
                 WHERE TRUNC(c.INST_DT) >= :START_DT AND TRUNC(c.INST_DT) < :END_DT
@@ -588,6 +589,7 @@ public class AiCsrController : ControllerBase
                     content    = r["CONTENT"]?.ToString(),
                     aiFailed   = r["AI_FAILED"] != DBNull.Value && Convert.ToInt32(r["AI_FAILED"]) == 1,
                     sentDt     = r["SENT_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SENT_DT"]),
+                    sex        = r["SEXGB"] == DBNull.Value ? null : r["SEXGB"]?.ToString(),
                 },
                 new OracleParameter("START_DT", startDt), new OracleParameter("END_DT", endDt));
 

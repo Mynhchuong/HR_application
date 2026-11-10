@@ -460,6 +460,9 @@ window.InquiryChat = (function () {
                     : null
             };
             if (cfg.isAnon) body.anonToken = cfg.anonToken;
+            // CSR đang sửa bản nháp của HR/GA → gửi kèm draftId để duyệt bản đã sửa
+            const editingDraft = window.InquiryDrafts ? window.InquiryDrafts.editingId() : 0;
+            if (editingDraft) body.draftId = editingDraft;
 
             try {
                 const res = await fetch(cfg.urls.send, {
@@ -470,14 +473,22 @@ window.InquiryChat = (function () {
                 const data = await res.json();
                 if (!data.success) {
                     showToast(data.message || 'Gửi thất bại', 'error');
+                    if (editingDraft && window.InquiryDrafts) window.InquiryDrafts.refresh();
                 } else {
                     clearInput();
                     uploadedFiles = [];
                     renderFilePreviews();
                     selectedRefs = [];
                     renderRefChips();
-                    await refreshMessages();
-                    if (cfg.reloadOnLock && data.justLocked) location.reload();
+                    if (data.draft) {
+                        // HR/GA: tin chưa tới công nhân, đang chờ CSR duyệt
+                        showToast('Đã gửi CSR duyệt — công nhân sẽ nhận sau khi CSR duyệt', 'success');
+                        if (window.InquiryDrafts) window.InquiryDrafts.refresh();
+                    } else {
+                        if (editingDraft && window.InquiryDrafts) window.InquiryDrafts.done();
+                        await refreshMessages();
+                        if (cfg.reloadOnLock && data.justLocked) location.reload();
+                    }
                 }
             } catch { showToast('Lỗi kết nối', 'error'); }
             finally {

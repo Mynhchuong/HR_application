@@ -18,6 +18,7 @@ public static class SideMenuBuilder
         bool isExpat         = user.RoleName == "Expat";
         bool isCanteen       = !isMobileApp && user.RoleName == "Canteen";
         bool isCSR           = user.HasRole("CSR");                       // role chính HOẶC role dept
+        bool isGA            = user.HasRole("GA");                        // role phòng ban GA (hội thoại được CSR giao)
         bool isLean          = user.HasRole("Lean");                      // role phòng ban Lean (Bản tin + khóa học)
 
         return new List<SideMenuItem>
@@ -201,8 +202,7 @@ public static class SideMenuBuilder
 
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum",                 Group = "chat" },
                     new SideMenuItem { Title = "Câu trả lời mẫu",       Url = "~/HrInquiry/CannedReplies",     Icon = "quickreply",            Group = "chat" },
-                    new SideMenuItem { Title = "Đóng hội thoại hàng loạt", Url = "~/HrInquiry/BulkClose",      Icon = "playlist_add_check",    Group = "chat" },
-                    new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",              Group = "chat" },
+                    new SideMenuItem { Title = "Báo cáo & Dashboard",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",              Group = "chat" },
 
                     new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",               Group = "system" },
                     new SideMenuItem { Title = "Thông báo",             Url = "~/AdminNoti/Index",            Icon = "campaign",               Group = "system" },
@@ -234,10 +234,13 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Chứng chỉ Đào tạo",     Url = "~/TrainingAdmin/Certificates", Icon = "card_membership", Group = "training" },
                     new SideMenuItem { Title = "Quản lý Đào tạo",       Url = "~/TrainingAdmin/Index",        Icon = "school",          Group = "training" },
 
+                    new SideMenuItem { Title = "Phân loại nhanh",       Url = "~/HrInquiry/Triage",           Icon = "bolt",            Group = "chat" },
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",            Icon = "forum",           Group = "chat" },
+                    new SideMenuItem { Title = "Chủ đề hội thoại",      Url = "~/AdminInquiry/Topics",        Icon = "topic",           Group = "chat" },
+                    new SideMenuItem { Title = "Email nhắc hạn",        Url = "~/AdminInquiry/RemindEmails",  Icon = "forward_to_inbox", Group = "chat" },
                     new SideMenuItem { Title = "Câu trả lời mẫu",       Url = "~/HrInquiry/CannedReplies",    Icon = "quickreply",      Group = "chat" },
                     new SideMenuItem { Title = "Đóng hội thoại hàng loạt", Url = "~/HrInquiry/BulkClose",     Icon = "playlist_add_check", Group = "chat" },
-                    new SideMenuItem { Title = "Báo cáo hội thoại",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",       Group = "chat" },
+                    new SideMenuItem { Title = "Báo cáo & Dashboard",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",       Group = "chat" },
 
                     new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",        Group = "system" },
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy",          Group = "system" },
@@ -261,6 +264,20 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý Đào tạo",  Url = "~/TrainingAdmin/Index",  Icon = "school"   },
                     new SideMenuItem { Title = "Chứng chỉ Đào tạo", Url = "~/TrainingAdmin/Certificates", Icon = "card_membership" },
                     new SideMenuItem { Title = "Quản lý Kaizen",    Url = "~/KaizenAdmin/Index",     Icon = "tips_and_updates" },
+                }
+            },
+
+            // GA (role phòng ban, 2026-11-06): chỉ thấy hội thoại CSR đã giao cho phòng GA (xem HrInquiryController.ScopePicRoles).
+            new SideMenuItem
+            {
+                Id = "GA",
+                Title = "GA",
+                Icon = "business_center",
+                VisibleWhen = () => isGA && !isMobileApp,
+                Children = new List<SideMenuItem>
+                {
+                    new SideMenuItem { Title = "Hội thoại của phòng",  Url = "~/HrInquiry/Index",         Icon = "forum"      },
+                    new SideMenuItem { Title = "Câu trả lời mẫu",      Url = "~/HrInquiry/CannedReplies", Icon = "quickreply" },
                 }
             },
 
@@ -310,9 +327,10 @@ public static class SideMenuBuilder
 
                     new() { Title = "Quản lý hội thoại",     Url = "~/AdminInquiry/Index",        Icon = "forum",           Group = "chat" },
                     new() { Title = "Chủ đề hội thoại",      Url = "~/AdminInquiry/Topics",       Icon = "topic",           Group = "chat" },
+                    new() { Title = "Email nhắc hạn",        Url = "~/AdminInquiry/RemindEmails", Icon = "forward_to_inbox", Group = "chat" },
                     new() { Title = "Câu trả lời mẫu",       Url = "~/AdminInquiry/CannedReplies", Icon = "quickreply",     Group = "chat" },
                     new() { Title = "Đóng hội thoại hàng loạt", Url = "~/AdminInquiry/BulkClose", Icon = "playlist_add_check", Group = "chat" },
-                    new() { Title = "Báo cáo hội thoại",    Url = "~/AdminInquiry/Report",       Icon = "bar_chart",       Group = "chat" },
+                    new() { Title = "Báo cáo & Dashboard",    Url = "~/AdminInquiry/Report",       Icon = "bar_chart",       Group = "chat" },
 
                     new() { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",              Icon = "menu_book",       Group = "system" },
                     new() { Title = "Kho link cài app",      Url = "~/AppLinkAdmin/Index",        Icon = "phone_iphone",    Group = "system" },

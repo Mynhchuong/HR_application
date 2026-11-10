@@ -116,6 +116,15 @@
 .topic-card.active { border-color: #4f46e5; background: #f0f0ff; }
 .topic-card .tpc-icon  { font-size: 1.6rem; margin-bottom: .3rem; }
 .topic-card .tpc-name  { font-size: .8rem; font-weight: 700; color: #1e293b; }
+.topic-card .tpc-sev   { margin-top: .3rem; font-size: .66rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: .25rem; color: #64748b; }
+.topic-card .tpc-sev i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.rt-cards { display: flex; gap: .6rem; margin-bottom: 1rem; }
+.rt-card { flex: 1; border: 2px solid #e2e8f0; border-radius: 14px; padding: .75rem .8rem; background: #fff; cursor: pointer; transition: all .15s; }
+.rt-card:hover { border-color: #c7d2fe; }
+.rt-card.active { border-color: #4f46e5; background: #f0f0ff; }
+.rt-card .rt-title { font-weight: 800; font-size: .92rem; color: #1e293b; }
+.rt-card .rt-desc  { font-size: .72rem; color: #64748b; margin-top: .15rem; line-height: 1.35; }
+.topic-hint { display: none; margin: .6rem 0 .2rem; padding: .55rem .8rem; border-radius: 12px; background: #f8fafc; border: 1.5px solid #e2e8f0; font-size: .8rem; color: #334155; }
 
 /* Form */
 .form-card { background: white; border-radius: 16px; padding: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,.07); margin-bottom: 1rem; }
@@ -242,17 +251,34 @@ textarea.input-modern { resize: none; min-height: 120px; }
     <div id="step2" style="display:none">
         <div class="step-header">
             <div class="step-label">Bước 2 / 3</div>
-            <div class="step-title">Chọn chủ đề</div>
+            <div class="step-title">Loại báo cáo &amp; chủ đề</div>
         </div>
+        <div class="form-label-sm mb-1">Loại báo cáo <span class="text-danger">*</span></div>
+        <div class="rt-cards" id="reportTypeCards">
+            <div class="rt-card" data-rt="GRIEVANCE" onclick="selectReportType('GRIEVANCE', this)">
+                <div class="rt-title">Kiến nghị</div>
+                <div class="rt-desc">Phản ánh vấn đề cần được giải quyết</div>
+            </div>
+            <div class="rt-card" data-rt="OPINION" onclick="selectReportType('OPINION', this)">
+                <div class="rt-title">Ý kiến</div>
+                <div class="rt-desc">Góp ý, đề xuất cải thiện</div>
+            </div>
+        </div>
+        <div class="form-label-sm mb-1">Chủ đề <span class="text-danger">*</span></div>
         <div class="topic-grid" id="topicGrid">
             @foreach (var t in (Model?.data ?? new()))
             {
                 <div class="topic-card" data-topic-cd="@t.TopicCd" onclick="selectTopic('@t.TopicCd', '@(t.TopicName.Replace("'","&#39;"))', this)">
                     <div class="tpc-icon"><span class="material-symbols-rounded" style="color:@(t.Color ?? "#4f46e5")">@(t.Icon ?? "chat")</span></div>
                     <div class="tpc-name">@t.TopicName</div>
+                    @if (t.ResponseDays.HasValue)
+                    {
+                        <div class="tpc-sev"><i style="background:@(t.SeverityColor ?? "#6366f1")"></i>Phản hồi trong @t.ResponseDays ngày</div>
+                    }
                 </div>
             }
         </div>
+        <div id="topicHint" class="topic-hint"></div>
         <div id="topicWarning" style="display:none;border-radius:12px" class="alert alert-warning py-2 px-3 mt-1 mb-2 small"></div>
         <div class="nav-btns">
             <button class="btn-back-step" onclick="goStep(1)">Quay lại</button>
@@ -319,7 +345,12 @@ const token = document.querySelector('input[name="__RequestVerificationToken"]')
 
 let selectedType  = '';
 let selectedTopic = '';
+let selectedReportType = '';   // GRIEVANCE | OPINION — bắt buộc chọn ở Bước 2
 let uploadedFiles = [];
+
+// Thông tin mức độ / số ngày phản hồi theo topic (từ catalog) để gợi ý cho công nhân
+const TOPIC_INFO = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+    (Model?.data ?? new()).ToDictionary(t => t.TopicCd, t => new { sev = t.SeverityName, days = t.ResponseDays, color = t.SeverityColor })));
 
 // Modal bắt buộc NV xác nhận đã lưu mã tra cứu ẩn danh trước khi tiếp tục — Promise chỉ resolve
 // khi bấm "Tôi đã ghi nhớ mã này" (không có nút đóng/tắt khác, tránh NV bỏ qua rồi mất mã).
@@ -421,12 +452,30 @@ function selectType(type, el) {
     }
 }
 
+function updateNext2() {
+    document.getElementById('btnNext2').disabled = !(selectedTopic && selectedReportType);
+}
+
+function selectReportType(rt, el) {
+    selectedReportType = rt;
+    document.querySelectorAll('.rt-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    updateNext2();
+}
+
 function selectTopic(cd, name, el) {
     selectedTopic = cd;
     document.querySelectorAll('.topic-card').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
-    document.getElementById('btnNext2').disabled = false;
+    updateNext2();
     checkExistingTopic(cd);
+    // Gợi ý mức độ + hạn phản hồi dự kiến của chủ đề đã chọn
+    const info = TOPIC_INFO[cd], hint = document.getElementById('topicHint');
+    if (info && info.days) {
+        hint.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (info.color || '#6366f1') + ';margin-right:.4rem"></span>'
+                       + 'Mức độ: <strong>' + esc(info.sev || '') + '</strong> · Dự kiến được phản hồi trong <strong>' + info.days + ' ngày</strong>';
+        hint.style.display = 'block';
+    } else { hint.style.display = 'none'; }
 }
 
 function updateCharCount() {
@@ -522,9 +571,14 @@ function tryAutoStart() {
     typeCard.click();
     goStep(2);
 
+    // Lối tắt: Hồ sơ ("Mọi thông tin sai vui lòng phản ánh phòng Nhân sự") = Góp ý gửi Nhân sự; nhảy thẳng tới Bước 3.
+    // Từ trang Phiếu lương: Kiến nghị về Lương (G01, Nhân sự, mức Thấp 3 ngày).
+    const QUICK = { COMPLAINT: 'OPINION', G01: 'GRIEVANCE' };
+    if (QUICK[cd]) { selectedTopic = cd; selectedReportType = QUICK[cd]; checkExistingTopic(cd); goStep(3); return; }
+
     if (cd) {
         const topicCard = document.querySelector(`.topic-card[data-topic-cd="${cd}"]`);
-        if (topicCard) { topicCard.click(); goStep(3); }
+        if (topicCard) { topicCard.click(); }   // vẫn ở Bước 2: công nhân còn phải chọn Loại báo cáo
     }
 }
 
@@ -535,6 +589,7 @@ async function submitCreate() {
     const content = document.getElementById('contentInput').value.trim();
     if (!content) { showToast('Vui lòng nhập nội dung', 'warning'); return; }
     if (!selectedTopic) { showToast('Vui lòng chọn chủ đề', 'warning'); return; }
+    if (!selectedReportType) { showToast('Vui lòng chọn Loại báo cáo (Kiến nghị / Ý kiến)', 'warning'); goStep(2); return; }
 
     const btn = document.getElementById('btnSubmit');
     btn.disabled = true; btn.textContent = 'Đang gửi...';
@@ -543,6 +598,7 @@ async function submitCreate() {
     const body = {
         chatType:  selectedType,
         topicCd:   selectedTopic,
+        reportType: selectedReportType,
         subject:   document.getElementById('subjectInput').value.trim() || null,
         anonToken: anonTok,
         content:   content

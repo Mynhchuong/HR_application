@@ -13,6 +13,14 @@
     // đính kèm file/trích dẫn thật (bảng gốc không lưu) — ẩn 2 nút đó, và Send/Close/GetMessages
     // phải trỏ qua endpoint Ai* riêng (xem cuối trang) thay vì endpoint Inquiry thường.
     bool isAiSource = ViewBag.IsAiSource is true;
+    bool canClassify = ViewBag.CanClassify is true && !isAiSource;
+    // HR/GA không gửi thẳng cho công nhân mà soạn BẢN NHÁP chờ CSR duyệt (2026-11-06) → luật "đang có người phụ trách"
+    // chỉ chặn ô soạn của CSR / chat AI; HR/GA vẫn soạn được (CSR duyệt mới là cổng gửi thật).
+    bool isCsrView   = ViewBag.IsCsr is true;
+    // CSR là cổng duyệt nên KHÔNG bị khóa ô soạn khi chat đang do người soạn (HR/GA) phụ trách: CSR vẫn phải sửa được bản nháp.
+    // Gửi tin trực tiếp (không qua bản nháp) khi chat đang do người khác giữ vẫn bị API từ chối như cũ.
+    bool lockedForMe = isLocked && isAiSource;
+    bool draftMode   = !isCsrView && !isAiSource;
 
     string Cls(string st)    => st == "SYS" ? "sys" : (st == "HR" ? "mine" : "theirs");
     string AvCls(string st)  => st == "HR" ? "av-mine" : "av-theirs";
@@ -21,6 +29,32 @@
 <link href="~/css/inquiry-chat.css" rel="stylesheet" asp-append-version="true" />
 <style>
     .chat-wrap { --chat-accent: #2563eb; --chat-accent-2: #3b82f6; }
+    /* Bản nháp trả lời chờ CSR duyệt */
+    .dr-panel { border-top: 1px solid #e2e8f0; background: #fffbeb; padding: .6rem .9rem; max-height: 38vh; overflow: auto; }
+    .dr-title { font-weight: 800; font-size: .8rem; color: #92400e; display: flex; align-items: center; gap: .3rem; margin-bottom: .4rem; }
+    .dr-title .material-symbols-rounded { font-size: 1.05rem; }
+    .dr-card { background: #fff; border: 1px solid #fde68a; border-radius: 12px; padding: .6rem .75rem; margin-bottom: .5rem; }
+    .dr-card.returned { border-color: #fecaca; background: #fff7f7; }
+    .dr-head { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; font-size: .75rem; color: #64748b; margin-bottom: .3rem; }
+    .dr-by b { color: #1e293b; }
+    .dr-time { margin-left: auto; }
+    .dr-badge { font-weight: 800; border-radius: 999px; padding: .05rem .55rem; font-size: .68rem; }
+    .dr-badge.p { background: #fef3c7; color: #92400e; }
+    .dr-badge.r { background: #fee2e2; color: #b91c1c; }
+    .dr-body { font-size: .88rem; color: #1e293b; word-break: break-word; }
+    .dr-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; }
+    .dr-chip { display: inline-flex; align-items: center; gap: .2rem; background: #f1f5f9; border-radius: 8px; padding: .1rem .5rem; font-size: .72rem; color: #475569; }
+    .dr-chip .material-symbols-rounded { font-size: .85rem; }
+    .dr-note { margin-top: .4rem; font-size: .8rem; color: #b91c1c; background: #fef2f2; border-radius: 8px; padding: .35rem .55rem; }
+    .dr-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+    .dr-btn { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 9px; padding: .25rem .7rem; font-size: .76rem; font-weight: 700; cursor: pointer; }
+    .dr-btn.ok { background: #16a34a; border-color: #16a34a; color: #fff; }
+    .dr-btn.warn { color: #b91c1c; border-color: #fecaca; }
+    .dr-return { margin-top: .45rem; display: flex; flex-wrap: wrap; gap: .4rem; align-items: flex-start; }
+    .dr-return textarea { flex: 1 1 100%; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .4rem .6rem; font-size: .85rem; }
+    .dr-edit-banner { background: #eff6ff; border-top: 1px solid #bfdbfe; color: #1d4ed8; font-size: .8rem; padding: .4rem .9rem; display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+    .dr-edit-banner .material-symbols-rounded { font-size: 1rem; }
+    .dr-edit-banner button { margin-left: auto; border: 0; background: #dbeafe; color: #1d4ed8; border-radius: 8px; padding: .15rem .6rem; font-weight: 700; font-size: .75rem; }
 </style>
 
 <div class="chat-wrap">
@@ -44,6 +78,12 @@
                 }
             </div>
         </div>
+        @if (canClassify)
+        {
+            <button type="button" class="btn btn-sm btn-outline-secondary" style="border-radius:10px;font-size:.78rem;font-weight:700" onclick="CaseClassify.open()" title="Phân loại case">
+                <span class="material-symbols-rounded me-1" style="font-size:.85rem;vertical-align:middle">tune</span>Phân loại
+            </button>
+        }
         @if (canClose)
         {
             <button class="btn btn-sm btn-outline-danger" style="border-radius:10px;font-size:.78rem;font-weight:700" onclick="InquiryChat.confirmClose()">
@@ -57,7 +97,10 @@
     {
         <div class="lock-banner">
             <span class="material-symbols-rounded">lock</span>
-            Đang phụ trách bởi <strong class="ms-1 vni-font">@inq.AssignedName</strong> — Bạn chỉ có thể đọc.
+            Đang phụ trách bởi <strong class="ms-1 vni-font">@inq.AssignedName</strong> —
+            @if (isAiSource) { <text>Bạn chỉ có thể đọc.</text> }
+            else if (isCsrView) { <text>bạn vẫn duyệt/sửa được bản nháp; nhắn trực tiếp cần người phụ trách nhả quyền.</text> }
+            else { <text>tin bạn soạn sẽ thành bản nháp chờ CSR duyệt.</text> }
         </div>
     }
     else if (isMyConv)
@@ -170,6 +213,17 @@
         }
     </div>
 
+    <!-- Bản nháp trả lời HR/GA chờ CSR duyệt (luôn hiện khi hội thoại còn mở, kể cả CSR bị khóa ô soạn) -->
+    @if (!isClosed && !isAiSource)
+    {
+        <div id="draftPanel" class="dr-panel" style="display:none"></div>
+        <div id="draftEditBanner" class="dr-edit-banner" style="display:none">
+            <span class="material-symbols-rounded">edit</span>
+            Đang sửa bản nháp của <b class="who vni-font"></b> — bấm <b>Gửi</b> để duyệt &amp; gửi bản đã sửa cho công nhân.
+            <button type="button" onclick="InquiryDrafts.cancelEdit()">Hủy sửa</button>
+        </div>
+    }
+
     <!-- Input or Closed bar or Locked bar -->
     @if (isClosed)
     {
@@ -179,11 +233,11 @@
             @if (!string.IsNullOrEmpty(inq.CloseNote)) { <span class="text-muted"> — @inq.CloseNote</span> }
             @if (inq.Rating != null)
             {
-                <div class="mt-1 text-warning small fw-bold">@string.Concat(Enumerable.Repeat("★", (int)inq.Rating)) Nhân viên đánh giá @inq.Rating/5 @(inq.RatingNote != null ? $"— {inq.RatingNote}" : "")</div>
+                <div class="mt-1 small fw-bold" style="color:#d97706">@string.Concat(Enumerable.Repeat("★", (int)inq.Rating)) Nhân viên đánh giá @inq.Rating/5 · <span style="color:@InquiryRatingHelper.Color(inq.Rating)">@InquiryRatingHelper.Label(inq.Rating)</span> @(inq.RatingNote != null ? $"— {inq.RatingNote}" : "")</div>
             }
         </div>
     }
-    else if (isLocked)
+    else if (lockedForMe)
     {
         <div class="chat-locked-bar">
             <span class="material-symbols-rounded" style="font-size:.9rem;vertical-align:middle">lock</span>
@@ -230,7 +284,7 @@
                         <span id="charCounter" class="char-counter">0/2000</span>
                     </div>
                 </div>
-                <button class="btn-send" id="btnSend" onclick="InquiryChat.sendMessage()">
+                <button class="btn-send" id="btnSend" onclick="InquiryChat.sendMessage()" title="@(draftMode ? "Gửi CSR duyệt" : "Gửi")">
                     <span class="material-symbols-rounded" style="font-size:1.2rem">send</span>
                 </button>
             </div>
@@ -240,11 +294,19 @@
 </div>
 
 @Html.AntiForgeryToken()
+@if (canClassify)
+{
+    <partial name="_CaseClassifyModal" model="inq.Id" />
+}
 
 @section Scripts {
 <script src="~/js/media-viewer.js" asp-append-version="true"></script>
 <script src="~/js/inquiry-chat.js" asp-append-version="true"></script>
-@if (!isClosed && !isLocked)
+@if (!isAiSource)
+{
+    <script src="~/js/inquiry-drafts.js" asp-append-version="true"></script>
+}
+@if (!isClosed && !lockedForMe)
 {
     <script type="module" src="~/js/inquiry-chat-editor.js" asp-append-version="true"></script>
 }
@@ -273,5 +335,19 @@ InquiryChat.init({
         cannedReplies: '@Url.Action("GetCannedRepliesForPicker","HrInquiry")'
     }
 });
+@if (!isAiSource)
+{
+<text>
+if (window.InquiryDrafts) InquiryDrafts.init({
+    inquiryId: @inq.Id,
+    urls: {
+        list:    '@Url.Action("Drafts","HrInquiry")',
+        approve: '@Url.Action("ApproveDraft","HrInquiry")',
+        ret:     '@Url.Action("ReturnDraft","HrInquiry")',
+        dismiss: '@Url.Action("DismissDraft","HrInquiry")'
+    }
+});
+</text>
+}
 </script>
 }

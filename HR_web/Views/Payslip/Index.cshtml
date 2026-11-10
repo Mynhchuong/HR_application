@@ -235,7 +235,12 @@
         </div>
         
         <div class="text-center pb-4">
-            <p class="text-xs text-muted">Mọi thắc mắc liên hệ phòng Nhân sự.Xin cảm ơn</p>
+            <p class="text-xs text-muted mb-2">Mọi thắc mắc liên hệ phòng Nhân sự.Xin cảm ơn</p>
+            <a href="@Url.Action("Create","EmployeeInquiry", new { topicCd = "G01", chatType = "DIRECT" })"
+               class="d-inline-flex align-items-center text-decoration-none px-3 py-2 fw-bold"
+               style="font-size:.85rem;color:#4f46e5;background:#eef2ff;border-radius:12px;">
+                <span class="material-symbols-rounded me-1" style="font-size:1.1rem;">rate_review</span> Phản ánh về lương
+            </a>
         </div>
     </div>
 

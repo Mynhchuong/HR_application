@@ -108,6 +108,9 @@
 }
 .rate-star:hover { transform: scale(1.15); color: #fbbf24; }
 .rate-star.on    { color: #f59e0b; }
+.rate-reason { display: none; gap: .4rem; align-items: center; }
+.rate-reason input { flex: 1; border: 1.5px solid #fbbf24; border-radius: 10px; padding: .35rem .6rem; font-size: .82rem; }
+.rate-reason button { border: 0; background: #dc2626; color: #fff; border-radius: 10px; padding: .38rem .8rem; font-size: .8rem; font-weight: 800; }
 .rate-banner-skip {
     background: transparent; border: none; color: #92400e; font-size: .78rem;
     font-weight: 700; padding: 4px 8px; cursor: pointer; border-radius: 8px;
@@ -493,29 +496,42 @@ function renderRateBanners(items) {
         <div class="rate-banner" data-inq-id="${i.id}" data-anon="${isAnon ? 1 : 0}">
             <div class="rate-banner-msg">
                 <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle;color:#d97706">stars</span>
-                Có vẻ bạn quên đánh giá hội thoại <b>${esc(topic)}</b>${anonChip}
+                Bạn cảm thấy thế nào về hội thoại <b>${esc(topic)}</b>${anonChip}
                 ${inqNo ? `<span style="color:#a16207;font-family:monospace;font-size:.72rem">(${esc(inqNo)})</span>` : ''}
-                do <b class="vni-font">${esc(who)}</b> phụ trách. Bạn cảm thấy như nào?
+                do <b class="vni-font">${esc(who)}</b> phụ trách?
             </div>
             <div class="rate-banner-row">
                 <div class="rate-banner-stars" data-inq-id="${i.id}">
-                    ${[1,2,3,4,5].map(s => `<span class="rate-star" data-val="${s}" onclick="submitRating(${i.id}, ${s}, this, ${isAnon ? 1 : 0})">★</span>`).join('')}
+                    ${[1,2,3,4,5].map(n => `<span class="rate-star" data-val="${n}" onclick="pickStar(${i.id}, ${n}, this, ${isAnon ? 1 : 0})">★</span>`).join('')}
                 </div>
                 <button class="rate-banner-skip" onclick="skipRating(${i.id})">Để sau</button>
+            </div>
+            <div class="rate-reason" id="reason_${i.id}">
+                <input type="text" id="reasonTx_${i.id}" maxlength="300" placeholder="Vui lòng cho biết lý do chưa hài lòng (bắt buộc)">
+                <button onclick="sendRating(${i.id}, parseInt(this.closest('.rate-banner').dataset.stars || '1', 10), ${isAnon ? 1 : 0}, document.getElementById('reasonTx_${i.id}').value)">Gửi</button>
             </div>
         </div>`;
     }).join('');
 }
 
-async function submitRating(inqId, stars, starEl, isAnon) {
-    // visually highlight stars 1..stars
-    const row = starEl.parentElement;
-    row.querySelectorAll('.rate-star').forEach((s, idx) => s.classList.toggle('on', idx < stars));
+// Chọn sao: 3–5 sao gửi ngay; 1–2 sao (Không hài lòng) phải nhập lý do rồi mới gửi
+function pickStar(inqId, val, el, isAnon) {
+    el.parentElement.querySelectorAll('.rate-star').forEach((st, idx) => st.classList.toggle('on', idx < val));
+    const banner = document.querySelector(`.rate-banner[data-inq-id="${inqId}"]`);
+    if (banner) banner.dataset.stars = val;
+    const box = document.getElementById('reason_' + inqId);
+    if (val <= 2) { if (box) { box.style.display = 'flex'; document.getElementById('reasonTx_' + inqId)?.focus(); } return; }
+    if (box) box.style.display = 'none';
+    sendRating(inqId, val, isAnon, null);
+}
 
+async function sendRating(inqId, stars, isAnon, note) {
+    note = (note || '').trim() || null;
+    if (stars <= 2 && (!note || note.length < 3)) { if (window.showToast) showToast('Vui lòng cho biết lý do không hài lòng', 'warning'); return; }
     const banner = document.querySelector(`.rate-banner[data-inq-id="${inqId}"]`);
     try {
         const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
-        const body  = { inquiryId: inqId, rating: stars, ratingNote: null };
+        const body  = { inquiryId: inqId, rating: stars, ratingNote: note };
         if (isAnon) body.anonToken = getAnonToken();
         const res = await fetch('@Url.Action("Rate","EmployeeInquiry")', {
             method: 'POST',

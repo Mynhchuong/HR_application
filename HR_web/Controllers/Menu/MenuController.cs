@@ -32,13 +32,6 @@ public class MenuController : BaseController
         { 3, "MAN" }, { 4, "DU_KIEN" }, { 5, "NHE" }, { 6, "CHAY" }, { 7, "BANH" }
     };
 
-    private static readonly Dictionary<string, string> MealLabel = new()
-    {
-        { "MAN", "Món mặn" }, { "DU_KIEN", "Món dự kiến" },
-        { "NHE", "Món nhẹ" }, { "CHAY", "Món chay" }, { "BANH", "Món bánh (2 món)" }
-    };
-
-    private static readonly string[] DayLabels = { "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7" };
 
     public MenuController(MenuService svc, IWebHostEnvironment env)
     {
@@ -183,9 +176,10 @@ public class MenuController : BaseController
         ws.Cell("F2").Style.DateFormat.Format = "DD/MM/YYYY";
         ws.Row(2).Height = 22;
 
-        // Row 3: hướng dẫn
+        // Row 3: hướng dẫn — gõ TÊN là chính (yêu cầu 2026-11-10: trước đây để "nhập ID ... hoặc tên"
+        // khiến HR hiểu lầm phải tra ID trước, đổi thứ tự + ghi rõ món mới tự thêm vào danh mục).
         ws.Range("A3:G3").Merge().Value =
-            "👉  Ô món: nhập ID số (tra sheet DANH MỤC MÓN) hoặc tên tự do.  " +
+            "👉  Ô món: gõ THẲNG TÊN MÓN (món mới sẽ tự thêm vào danh mục, không cần tạo trước) — hoặc nhập ID số nếu muốn (tra sheet DANH MỤC MÓN).  " +
             "Nhiều món trong 1 ô (ví dụ 2 món bánh): Alt+Enter hoặc phân cách bởi +, /.  Ngày nghỉ: để trống ô đó.";
         StyleCell(ws.Cell("A3"), colorNote, 9);
         ws.Cell("A3").Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Left);
@@ -222,6 +216,7 @@ public class MenuController : BaseController
         var guide = new[]
         {
             ("Ô màu vàng",        "Nhập dữ liệu vào đây"),
+            ("Ô món ăn",          "Gõ thẳng TÊN món là đủ — không cần tra ID. Tên chưa có trong danh mục sẽ TỰ ĐỘNG được thêm mới, không cần vào trang Món ăn tạo trước. Tên gần giống món đã có sẽ được hỏi lại trước khi lưu."),
             ("Ngày",              "Định dạng DD/MM/YYYY, ví dụ: 02/06/2026"),
             ("Nhiều món / 1 ô",   "Gõ Alt+Enter để xuống dòng trong 1 ô"),
             ("Ngày nghỉ lễ",      "Để trống toàn bộ hàng của ngày đó"),
@@ -306,7 +301,6 @@ public class MenuController : BaseController
                     {
                         int row    = dataStart + dayOffset;
                         int dayNo  = dayOffset + 2;                // 2=T2 … 7=T7
-                        string day = DayLabels[dayOffset];
 
                         foreach (var (col, mealType) in MealCols)
                         {
@@ -365,7 +359,7 @@ public class MenuController : BaseController
                                         continue;
                                     }
 
-                                    // Không trùng tuyệt đối — thử tìm tên gần giống trước khi báo lỗi cứng.
+                                    // Không trùng tuyệt đối — thử tìm tên gần giống trước khi coi là món hoàn toàn mới.
                                     var similar = FoodNameMatcher.FindSimilar(line, null, foods);
                                     if (similar != null)
                                     {
@@ -378,10 +372,16 @@ public class MenuController : BaseController
                                         continue;
                                     }
 
-                                    errors.Add(new()
+                                    // Không giống món nào cả (món hoàn toàn mới) — trước đây báo lỗi cứng, chặn
+                                    // cả file, bắt HR qua trang Quản lý Món ăn tạo món trước rồi upload lại (yêu
+                                    // cầu 2026-11-10: giảm thao tác). Giờ đẩy vào pending với MatchedId=0 (không
+                                    // có ứng viên) — FE sẽ KHÔNG hiện popup hỏi cho case này (chỉ popup khi có
+                                    // ứng viên gần giống thật sự, xem resolveSimilarFoodQueue), tự động tạo món
+                                    // mới luôn trong FinalizeWeekImport — y hệt cách ImportFoodExcel đã làm.
+                                    pending.Add(new WeekImportPendingItem
                                     {
-                                        Location = $"{shift} — {day} — {MealLabel[mealType]}",
-                                        Message  = $"Không tìm thấy \"{line}\" trong danh mục. Nhập ID số hoặc thêm món vào danh mục trước."
+                                        Shift = shift, DayNo = dayNo, MealType = mealType, DisplayOrder = displayOrder++,
+                                        TypedName = line, MatchedId = 0, MatchedName = "", MatchedHasImage = false
                                     });
                                 }
                             }
@@ -422,6 +422,14 @@ public class MenuController : BaseController
         try
         {
             var items = new List<SaveDetailItem>(req.Items ?? new());
+            int newFoodCount = 0;
+
+            // Cùng 1 tên món hoàn toàn mới có thể xuất hiện ở NHIỀU ô trong cùng 1 file (vd cùng món
+            // nấu 2 ngày khác nhau trong tuần) — món mới tự tạo "không hỏi" (xem ImportExcel 2026-11-10)
+            // xử lý từng dòng độc lập, nếu không track lại sẽ gọi SaveFoodAsync 2 lần cho cùng 1 tên,
+            // lần 2 bị chặn bởi dup-check ở HR_api (trùng tên) làm fail cả import. Track theo tên đã
+            // chuẩn hoá (trim+upper, khớp cách HR_api so trùng) để lần sau dùng lại đúng ID vừa tạo.
+            var createdInThisRequest = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var r in req.Resolved ?? new())
             {
@@ -430,8 +438,13 @@ public class MenuController : BaseController
                 {
                     foodId = r.MatchedId;
                 }
+                else if (createdInThisRequest.TryGetValue(r.TypedName.Trim(), out var reuseId))
+                {
+                    foodId = reuseId;
+                }
                 else
                 {
+                    newFoodCount++;
                     // Danh mục món dùng chung FOOD_TYPE='MAN' cho cả cột "Món mặn" lẫn "Món dự kiến"
                     // (xem FOOD_TYPE_MAP ở EditWeek.cshtml) — món mới tạo từ cột DU_KIEN cũng phải
                     // lưu type MAN để lần sau hiện đúng trong danh sách chọn của cột đó.
@@ -445,6 +458,7 @@ public class MenuController : BaseController
                     });
                     if (!ok) return Json(new { success = false, message = $"Không tạo được món \"{r.TypedName}\": {createMsg}" });
                     foodId = newId;
+                    createdInThisRequest[r.TypedName.Trim()] = foodId;
                     if (r.Decision == "createNewCopyImage")
                         await CopyFoodImageAsync(r.MatchedId, foodId);
                 }
@@ -485,12 +499,22 @@ public class MenuController : BaseController
                 LOGIN_USER = CurrentUser!.EmpCd
             });
 
-            return Json(new
+            if (!success)
+                return Json(new { success = false, message = msg, weekId = week.ID });
+
+            string message = $"Import thành công {items.Count} món cho tuần {week.WEEK_NAME}!";
+            if (newFoodCount > 0)
+                message += $" (trong đó tự tạo mới {newFoodCount} món)";
+
+            // Đăng ngay nếu HR tick chọn (yêu cầu 2026-11-10) — lỗi publish KHÔNG làm fail cả import,
+            // dữ liệu tuần đã lưu xong, chỉ là chưa đăng được, HR tự đăng tay sau ở trang Manage.
+            if (req.AutoPublish)
             {
-                success,
-                message = success ? $"Import thành công {items.Count} món cho tuần {week.WEEK_NAME}!" : msg,
-                weekId  = week.ID
-            });
+                var (pubOk, pubMsg) = await _svc.PublishAsync(week.ID, CurrentUser!.EmpCd);
+                message += pubOk ? " Đã đăng cho công nhân thấy." : $" (Đăng thất bại: {pubMsg})";
+            }
+
+            return Json(new { success = true, message, weekId = week.ID });
         }
         catch (Exception ex)
         {

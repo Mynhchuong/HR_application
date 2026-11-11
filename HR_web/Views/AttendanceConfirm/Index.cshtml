@@ -442,8 +442,8 @@ function buildRow(item, idx) {
             ${status !== 'MISSING' ? `<button type="button" class="btn btn-xs btn-link p-0 ms-1 att-log-btn" data-empcd="${escHtml(item.EMPCD)}" data-workdate="${escHtml(item.WORK_DATE)}" data-empname="${escHtml(item.EMP_NAME)}" title="Lịch sử đổi ý" onclick="event.stopPropagation();"><i class="bi bi-clock-history"></i></button>` : ''}
         </td>
         <td class="text-xs">
-            ${item.WORKER_TIME_IN ? `NV: ${item.WORKER_TIME_IN} → ${item.WORKER_TIME_OUT || '--:--'}<br>` : ''}
-            ${item.CONFIRM_TIME_IN ? `<span class="text-success">Chốt: ${item.CONFIRM_TIME_IN} → ${item.CONFIRM_TIME_OUT || '--:--'}</span>` : ''}
+            ${item.WORKER_TIME_IN ? `NV: ${item.WORKER_TIME_IN} → ${item.WORKER_TIME_OUT || '--:--'}${item.REQUESTED_DATE ? ` <span class="text-xxs text-secondary">(${escHtml(item.REQUESTED_DATE)})</span>` : ''}<br>` : ''}
+            ${item.CONFIRM_TIME_IN ? `<span class="text-success">Chốt: ${item.CONFIRM_TIME_IN} → ${item.CONFIRM_TIME_OUT || '--:--'}</span>${item.CONFIRMED_DATE ? ` <span class="text-xxs text-secondary">(${escHtml(item.CONFIRMED_DATE)})</span>` : ''}` : ''}
         </td>
         <td class="text-xxs text-secondary">
             <div style="max-width:150px;overflow-wrap:break-word;word-break:break-word;white-space:normal;">

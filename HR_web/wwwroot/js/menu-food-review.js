@@ -59,10 +59,18 @@ function showSimilarFoodModal(item, onChoose) {
 
 // Chạy tuần tự popup cho từng item trong 1 danh sách pending, gọi callback(results) khi xong hết.
 // results: mảng cùng thứ tự items, mỗi phần tử { ...item, decision }
+// Item không có ứng viên gần giống (matchedId rỗng/0 — món hoàn toàn mới, xem ImportExcel 2026-11-10)
+// thì KHÔNG hiện popup hỏi, tự động coi như "tạo món mới" luôn — chỉ hỏi khi thật sự có ứng viên
+// gần giống (tránh thao tác thừa, giữ nguyên hành vi cũ cho case có ứng viên).
 function resolveSimilarFoodQueue(items, onDone) {
     const results = [];
     function next(i) {
         if (i >= items.length) { onDone(results); return; }
+        if (!items[i].matchedId) {
+            results.push({ ...items[i], decision: 'createNew' });
+            next(i + 1);
+            return;
+        }
         showSimilarFoodModal(items[i], (decision) => {
             results.push({ ...items[i], decision });
             next(i + 1);

@@ -1657,6 +1657,30 @@ END;";
                         continue;
                     }
 
+                    // Chặn sắp lịch trùng (bug thật 2026-11-11: bấm Sắp lịch nhiều lần cho cùng NV/
+                    // cùng ngày tạo ra nhiều đơn ASSIGNED chồng nhau — ERP chỉ nhận được lần đầu, các
+                    // lần sau bị SP_015_NEW từ chối âm thầm vì trùng ngày, MySamho/ERP lệch dữ liệu).
+                    // Port y hệt logic đã có sẵn ở AdminAssign (dòng ~3695) để 2 endpoint nhất quán.
+                    var dupRows = await _oracleService.ExecuteQueryAsync(@"
+                        SELECT R.STATUS, L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE
+                        FROM HRMS.HR_REQUEST R
+                        JOIN HRMS.HR_LEAVE_REQUEST L ON L.REQUEST_ID = R.REQUEST_ID
+                        WHERE L.EMPCD = :EMPCD AND R.REQUEST_TYPE = 'LEAVE' AND R.STATUS != 'REJECTED'
+                          AND L.FROM_DATE <= :TO_DATE AND L.TO_DATE >= :FROM_DATE",
+                        r => new { Status = r["STATUS"]?.ToString(),
+                                   FromDate = Convert.ToDateTime(r["FROM_DATE"]), ToDate = Convert.ToDateTime(r["TO_DATE"]) },
+                        new OracleParameter("EMPCD", targetEmpcd),
+                        new OracleParameter("FROM_DATE", OracleDbType.Date) { Value = fromDate },
+                        new OracleParameter("TO_DATE",   OracleDbType.Date) { Value = toDate });
+
+                    var dup = dupRows.FirstOrDefault();
+                    if (dup != null)
+                    {
+                        results.Add(new { empcd = targetEmpcd, success = false,
+                            message = $"NV đã có đơn nghỉ trùng khoảng ngày này (trạng thái: {dup.Status}) — bỏ qua, không tạo thêm" });
+                        continue;
+                    }
+
                     var empRows = await _oracleService.ExecuteQueryAsync(
                         "SELECT CNAME FROM HRMS.ECM100 WHERE EMPCD = :EMPCD AND ROWNUM = 1",
                         r => r["CNAME"]?.ToString(),
@@ -1719,6 +1743,7 @@ END;";
                         r => 1,
                         new OracleParameter("EMPCD", targetEmpcd)
                     )).Any();
+                    string? erpSyncError;
                     try
                     {
                         for (var day = fromDate.Date; day <= toDate.Date; day = day.AddDays(1))
@@ -1747,13 +1772,24 @@ END;";
                             new OracleParameter("EMPCD",       targetEmpcd),
                             new OracleParameter { ParameterName = "FR_DAT", OracleDbType = OracleDbType.Date, Value = fromDate },
                             new OracleParameter { ParameterName = "TO_DAT", OracleDbType = OracleDbType.Date, Value = toDate });
+                        erpSyncError = null;
                     }
-                    catch { /* ERP failure không block assign */ }
+                    catch (Exception erpEx)
+                    {
+                        // TRƯỚC ĐÂY nuốt lỗi hoàn toàn (catch rỗng) — đơn vẫn tạo "thành công" trong app
+                        // nhưng ERP âm thầm không có, không ai biết cho tới khi NV/HR phát hiện lệch dữ
+                        // liệu (bug thật 2026-11-11). Giờ vẫn KHÔNG rollback đơn app (đồng bộ ERP chỉ là
+                        // phụ trợ, đơn vẫn có giá trị để quản lý theo dõi/sắp lịch), nhưng phải báo rõ
+                        // cho người sắp lịch biết để tự xử lý tay bên ERP nếu cần.
+                        erpSyncError = erpEx.Message;
+                    }
 
                     string leaveTypeName = NewLeaveTypeNames.GetValueOrDefault(model.LEAVE_TYPE, model.LEAVE_TYPE);
                     _notiSvc.LeaveAssigned(targetEmpcd, model.ASSIGNER_EMPCD, leaveTypeName, fromDate, toDate);
 
-                    results.Add(new { empcd = targetEmpcd, success = true, request_id = requestId });
+                    results.Add(erpSyncError == null
+                        ? new { empcd = targetEmpcd, success = true, request_id = requestId, message = (string?)null }
+                        : new { empcd = targetEmpcd, success = true, request_id = requestId, message = (string?)$"Đã sắp lịch nhưng đồng bộ ERP thất bại: {erpSyncError} — cần tự cập nhật ERP tay." });
                     successCt++;
                 }
                 catch (Exception ex)
@@ -3843,6 +3879,7 @@ END;";
                         r => 1,
                         new OracleParameter("EMPCD", targetEmpcd)
                     )).Any();
+                    string? erpSyncError;
                     try
                     {
                         for (var day = fromDate.Date; day <= toDate.Date; day = day.AddDays(1))
@@ -3903,12 +3940,20 @@ END;";
                             new OracleParameter("EMPCD",       targetEmpcd),
                             new OracleParameter { ParameterName = "FR_DAT", OracleDbType = OracleDbType.Date, Value = fromDate },
                             new OracleParameter { ParameterName = "TO_DAT", OracleDbType = OracleDbType.Date, Value = toDate });
+                        erpSyncError = null;
                     }
-                    catch { /* ERP failure không block assign */ }
+                    catch (Exception erpEx)
+                    {
+                        // Trước đây nuốt lỗi hoàn toàn — xem chú thích tương ứng ở Assign() (bug thật
+                        // 2026-11-11). Không rollback đơn app, chỉ báo rõ cho Admin biết để tự xử lý ERP.
+                        erpSyncError = erpEx.Message;
+                    }
 
                     _notiSvc.LeaveAssigned(targetEmpcd, model.ASSIGNER_EMPCD, leaveTypeName, fromDate, toDate);
 
-                    results.Add(new { empcd = targetEmpcd, success = true, request_id = requestId });
+                    results.Add(erpSyncError == null
+                        ? new { empcd = targetEmpcd, success = true, request_id = requestId, message = (string?)null }
+                        : new { empcd = targetEmpcd, success = true, request_id = requestId, message = (string?)$"Đã sắp lịch nhưng đồng bộ ERP thất bại: {erpSyncError} — cần tự cập nhật ERP tay." });
                     successCt++;
                 }
                 catch (Exception ex)

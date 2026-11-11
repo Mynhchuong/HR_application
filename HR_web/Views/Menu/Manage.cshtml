@@ -272,6 +272,13 @@
                         <input type="file" id="importFile" name="file" accept=".xlsx" required style="display:none;" />
                         <div class="form-text text-xs mt-1">Chỉ nhận file .xlsx. Ngày bắt đầu/kết thúc lấy từ ô C2 và F2 trong file.</div>
                     </div>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="chkAutoPublish">
+                        <label class="form-check-label text-sm" for="chkAutoPublish">
+                            Đăng ngay cho công nhân thấy sau khi import
+                        </label>
+                        <div class="form-text text-xs">Sẽ tự tắt thực đơn tuần khác đang hiện (nếu có) — chỉ 1 tuần được đăng cùng lúc.</div>
+                    </div>
                     <div id="importWeekResult" class="mt-3"></div>
                 </div>
                 <div class="modal-footer">
@@ -391,10 +398,11 @@ function renderImportErrors(errors) {
 
 async function finalizeWeekImport(fromDate, toDate, items, resolved) {
     const resultEl = document.getElementById('importWeekResult');
+    const autoPublish = document.getElementById('chkAutoPublish').checked;
     const res  = await fetch('@Url.Action("FinalizeWeekImport")', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgery },
-        body: JSON.stringify({ FromDate: fromDate, ToDate: toDate, Items: items, Resolved: resolved })
+        body: JSON.stringify({ FromDate: fromDate, ToDate: toDate, Items: items, Resolved: resolved, AutoPublish: autoPublish })
     });
     const data = await res.json();
     if (data.success) {

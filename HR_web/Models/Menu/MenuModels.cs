@@ -128,6 +128,7 @@ public class FinalizeWeekImportRequest
     public DateTime ToDate   { get; set; }
     public List<SaveDetailItem>        Items    { get; set; } = new();
     public List<WeekImportResolvedItem> Resolved { get; set; } = new();
+    public bool AutoPublish { get; set; }
 }
 
 public class UserTodayMealModel

@@ -285,15 +285,23 @@ public class NotificationService
     // ═══════════════════════════════════════════════════════════════
 
     // Broadcast cho TẤT CẢ token khi HR publish bản tin LẦN ĐẦU
-    public void BulletinPublished(int bulletinId, string title, string createdBy)
+    public void BulletinPublished(int bulletinId, string title, string? titleEnOfBulletin, string createdBy)
         => FireAndForget(async () =>
         {
             // Cắt title nếu dài quá 50 ký tự để giữ notification ngắn
-            string shortTitle = title.Length > 50 ? title.Substring(0, 50) + "…" : title;
-            var ph = new Dictionary<string, string> { ["title"] = shortTitle };
+            static string Short(string t) => t.Length > 50 ? t.Substring(0, 50) + "…" : t;
+
+            var ph = new Dictionary<string, string> { ["title"] = Short(title) };
+            // Bản EN nhét TIÊU ĐỀ TIẾNG ANH của bản tin, không phải tiêu đề tiếng Việt — nếu không
+            // NV nước ngoài nhận câu tiếng Anh kèm tên bài tiếng Việt. Bài cũ chưa có bản dịch thì
+            // vẫn dùng tiêu đề tiếng Việt (còn hơn để trống).
+            var phEn = new Dictionary<string, string>
+            {
+                ["title"] = Short(string.IsNullOrWhiteSpace(titleEnOfBulletin) ? title : titleEnOfBulletin!)
+            };
 
             var (titleVi, bodyVi, titleEn, bodyEn) =
-                await _helper.GetTemplateAsync("BULLETIN_NEW", ph);
+                await _helper.GetTemplateAsync("BULLETIN_NEW", ph, phEn);
 
             await _helper.SendNotificationAsync(new SendNotificationRequest
             {

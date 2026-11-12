@@ -54,6 +54,8 @@ public class HomePinnedBulletinModel
 {
     public int     ID         { get; set; }
     public string  TITLE      { get; set; } = "";
+    /// <summary>Tiêu đề tiếng Anh — NV nước ngoài đọc bản này (null ở bài cũ).</summary>
+    public string? TITLE_EN   { get; set; }
     public string? COVER_IMG  { get; set; }
     public int     PIN_ORDER  { get; set; }
 }

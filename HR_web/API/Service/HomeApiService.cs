@@ -179,6 +179,7 @@ public class HomePinnedDto
 {
     public int     ID         { get; set; }
     public string  TITLE      { get; set; } = "";
+    public string? TITLE_EN   { get; set; }
     public string? COVER_IMG  { get; set; }
     public int     PIN_ORDER  { get; set; }
 }

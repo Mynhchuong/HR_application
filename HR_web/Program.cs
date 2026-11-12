@@ -14,6 +14,9 @@ builder.Services.AddControllersWithViews(options =>
     options.Filters.Add<RequireUpdateProfileFilter>();
     options.Filters.Add<HR_web.Filters.SurveyBlockerFilter>();
     options.Filters.Add<HR_web.Filters.GiftGateFilter>();
+    // Phiên hết hạn -> token chống giả mạo không khớp -> mặc định là trang 400 trắng.
+    // Filter này đổi thành: cho đăng xuất / trả JSON cho AJAX / về Login kèm thông báo.
+    options.Filters.Add<HR_web.Filters.AntiforgeryExpiredFilter>();
 }).AddNewtonsoftJson(options =>
 {
 

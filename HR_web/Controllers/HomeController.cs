@@ -181,7 +181,8 @@ public class HomeController : BaseController
         vm.Pinned = (data.Pinned ?? new()).Select(p => new HomePinnedItemVm
         {
             Id       = p.ID,
-            Title    = p.TITLE,
+            // NV nước ngoài đọc tiêu đề tiếng Anh; bài cũ chưa có bản dịch thì giữ tiếng Việt.
+            Title    = vm.Lang != "vi" && !string.IsNullOrWhiteSpace(p.TITLE_EN) ? p.TITLE_EN! : p.TITLE,
             CoverImg = p.COVER_IMG
         }).ToList();
 

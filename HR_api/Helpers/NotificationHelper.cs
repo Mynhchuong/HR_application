@@ -98,8 +98,15 @@ public class NotificationHelper
     }
 
     // Lấy template theo key, điền placeholder, trả (titleVI, bodyVI, titleEN, bodyEN)
+    //
+    // placeholdersEn: bộ giá trị RIÊNG cho bản tiếng Anh. Để null thì bản EN dùng chung
+    // placeholders như trước (mọi chỗ gọi cũ không phải sửa). Cần cho trường hợp giá trị nhúng
+    // vào template vốn là tiếng Việt — vd tên bản tin: bản EN phải nhét TITLE_EN, nếu không
+    // NV nước ngoài nhận câu tiếng Anh nhưng tên bài vẫn tiếng Việt (2026-11-12).
     public async Task<(string titleVi, string bodyVi, string? titleEn, string? bodyEn)>
-        GetTemplateAsync(string key, Dictionary<string, string>? placeholders = null)
+        GetTemplateAsync(string key,
+                         Dictionary<string, string>? placeholders = null,
+                         Dictionary<string, string>? placeholdersEn = null)
     {
         var cache = await GetTemplateCacheAsync();
         if (!cache.TryGetValue(key, out var tmpl))
@@ -114,10 +121,18 @@ public class NotificationHelper
         {
             foreach (var (ph, val) in placeholders)
             {
-                titleVi  = titleVi.Replace($"{{{ph}}}", val);
-                bodyVi   = bodyVi.Replace($"{{{ph}}}", val);
-                titleEn  = titleEn?.Replace($"{{{ph}}}", val);
-                bodyEn   = bodyEn?.Replace($"{{{ph}}}", val);
+                titleVi = titleVi.Replace($"{{{ph}}}", val);
+                bodyVi  = bodyVi.Replace($"{{{ph}}}", val);
+            }
+        }
+
+        var phEn = placeholdersEn ?? placeholders;
+        if (phEn != null)
+        {
+            foreach (var (ph, val) in phEn)
+            {
+                titleEn = titleEn?.Replace($"{{{ph}}}", val);
+                bodyEn  = bodyEn?.Replace($"{{{ph}}}", val);
             }
         }
         return (titleVi, bodyVi, titleEn, bodyEn);

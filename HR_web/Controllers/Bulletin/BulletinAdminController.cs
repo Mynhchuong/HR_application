@@ -101,6 +101,14 @@ public class BulletinAdminController : BaseController
             return View(model);
         }
 
+        // Bắt buộc có bản tiếng Anh (yêu cầu 2026-11-12). API cũng chặn lần nữa, nhưng chặn sớm
+        // ở đây để HR thấy lỗi mà KHÔNG mất nội dung đang gõ (return View giữ nguyên model).
+        if (string.IsNullOrWhiteSpace(model.TITLE_EN) || IsHtmlEmpty(model.CONTENT_EN))
+        {
+            TempData["ErrorMessage"] = "Bản tin bắt buộc phải có tiêu đề và nội dung tiếng Anh";
+            return View(model);
+        }
+
         if (!model.PUBLISH_FROM.HasValue || !model.PUBLISH_TO.HasValue)
         {
             TempData["ErrorMessage"] = "Vui lòng chọn ngày đăng và ngày kết thúc";
@@ -112,6 +120,8 @@ public class BulletinAdminController : BaseController
             ID           = model.ID == 0 ? null : model.ID,
             TITLE        = model.TITLE.Trim(),
             CONTENT      = model.CONTENT,
+            TITLE_EN     = model.TITLE_EN?.Trim(),
+            CONTENT_EN   = model.CONTENT_EN,
             COVER_IMG    = string.IsNullOrWhiteSpace(model.COVER_IMG) ? null : model.COVER_IMG.Trim(),
             PUBLISH_FROM = model.PUBLISH_FROM.Value,
             PUBLISH_TO   = model.PUBLISH_TO.Value,
@@ -147,6 +157,10 @@ public class BulletinAdminController : BaseController
         if (string.IsNullOrWhiteSpace(model.TITLE) || string.IsNullOrWhiteSpace(model.CONTENT))
             return Json(new { success = false, message = "Vui lòng điền tiêu đề và nội dung trước khi upload video" });
 
+        // CỐ Ý không ép tiếng Anh ở đây: đây là auto-save nháp do JS gọi để lấy ID trước khi upload
+        // video, HR có thể chưa gõ xong bản dịch. Ràng buộc bắt buộc nằm ở nút Lưu (action Edit)
+        // và ở BulletinService — bài vẫn chưa đăng được nếu thiếu tiếng Anh.
+
         if (!model.PUBLISH_FROM.HasValue || !model.PUBLISH_TO.HasValue)
             return Json(new { success = false, message = "Vui lòng chọn ngày đăng và ngày kết thúc" });
 
@@ -155,6 +169,8 @@ public class BulletinAdminController : BaseController
             ID           = model.ID == 0 ? null : model.ID,
             TITLE        = model.TITLE.Trim(),
             CONTENT      = model.CONTENT,
+            TITLE_EN     = model.TITLE_EN?.Trim(),
+            CONTENT_EN   = model.CONTENT_EN,
             COVER_IMG    = string.IsNullOrWhiteSpace(model.COVER_IMG) ? null : model.COVER_IMG.Trim(),
             PUBLISH_FROM = model.PUBLISH_FROM.Value,
             PUBLISH_TO   = model.PUBLISH_TO.Value,
@@ -166,6 +182,18 @@ public class BulletinAdminController : BaseController
 
         var (ok, msg, newId) = await _service.SaveAsync(req);
         return Json(new { success = ok, message = msg, id = newId > 0 ? newId : model.ID });
+    }
+
+    /// <summary>
+    /// Editor TipTap khi rỗng vẫn trả "&lt;p&gt;&lt;/p&gt;" nên IsNullOrWhiteSpace không bắt được.
+    /// Bỏ thẻ + &amp;nbsp; rồi mới xét. Trùng logic với BulletinService phía API (chặn 2 tầng).
+    /// </summary>
+    private static bool IsHtmlEmpty(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html)) return true;
+        var text = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]*>", "");
+        text = text.Replace("&nbsp;", " ").Replace("\u00A0", " ");
+        return string.IsNullOrWhiteSpace(text);
     }
 
     // ─────────────────────────────────────────────

@@ -49,6 +49,14 @@ public class BulletinService
         if (string.IsNullOrWhiteSpace(model.TITLE) || string.IsNullOrWhiteSpace(model.CONTENT))
             return (false, "Vui lòng điền đầy đủ tiêu đề và nội dung", 0);
 
+        // Bắt buộc có bản tiếng Anh (yêu cầu 2026-11-12) — NV nước ngoài không đọc được tiếng Việt.
+        // Chỉ áp cho bài tạo mới / sửa từ nay; bài cũ trong DB vẫn để NULL, không ép sửa ngược.
+        // IsHtmlEmpty: editor TipTap khi rỗng vẫn trả "<p></p>" nên không dùng IsNullOrWhiteSpace được.
+        if (string.IsNullOrWhiteSpace(model.TITLE_EN))
+            return (false, "Vui lòng nhập tiêu đề tiếng Anh (bắt buộc)", 0);
+        if (IsHtmlEmpty(model.CONTENT_EN))
+            return (false, "Vui lòng nhập nội dung tiếng Anh (bắt buộc)", 0);
+
         // Fix B25: chống DateTime.MinValue khi JSON bỏ sót ngày
         if (model.PUBLISH_FROM == default || model.PUBLISH_TO == default ||
             model.PUBLISH_FROM.Year < 2000 || model.PUBLISH_TO.Year < 2000)
@@ -69,18 +77,20 @@ public class BulletinService
         }
 
         // Oracle 10g không chấp nhận null byte trong NCLOB
-        var content = model.CONTENT.Replace("\0", "");
+        var content   = model.CONTENT.Replace("\0", "");
+        var contentEn = (model.CONTENT_EN ?? "").Replace("\0", "");
+        var titleEn   = model.TITLE_EN?.Trim();
 
         if (model.ID == null || model.ID == 0)
         {
             // INSERT — return ID để web upload media
             const string sqlInsert = @"
                 INSERT INTO HRMS.HR_BULLETIN
-                    (TITLE, CONTENT, COVER_IMG, PUBLISH_FROM, PUBLISH_TO,
+                    (TITLE, CONTENT, TITLE_EN, CONTENT_EN, COVER_IMG, PUBLISH_FROM, PUBLISH_TO,
                      IS_PINNED, PIN_ORDER, IS_PUBLISHED, IS_ACTIVE,
                      INST_ID, INST_DT)
                 VALUES
-                    (:TITLE, :CONTENT, :COVER_IMG, :PUBLISH_FROM, :PUBLISH_TO,
+                    (:TITLE, :CONTENT, :TITLE_EN, :CONTENT_EN, :COVER_IMG, :PUBLISH_FROM, :PUBLISH_TO,
                      :IS_PINNED, :PIN_ORDER, 0, 1,
                      :INST_ID, SYSDATE)
                 RETURNING ID INTO :OUT_ID";
@@ -91,6 +101,8 @@ public class BulletinService
             await _db.ExecuteNonQueryAsync(sqlInsert,
                 new OracleParameter("TITLE",        model.TITLE),
                 new OracleParameter("CONTENT",      OracleDbType.NClob) { Value = content },
+                new OracleParameter("TITLE_EN",     (object?)titleEn ?? DBNull.Value),
+                new OracleParameter("CONTENT_EN",   OracleDbType.NClob) { Value = contentEn },
                 new OracleParameter("COVER_IMG",    (object?)coverImg ?? DBNull.Value),
                 new OracleParameter("PUBLISH_FROM", model.PUBLISH_FROM),
                 new OracleParameter("PUBLISH_TO",   model.PUBLISH_TO),
@@ -111,6 +123,8 @@ public class BulletinService
                 UPDATE HRMS.HR_BULLETIN
                 SET TITLE         = :TITLE,
                     CONTENT       = :CONTENT,
+                    TITLE_EN      = :TITLE_EN,
+                    CONTENT_EN    = :CONTENT_EN,
                     COVER_IMG     = :COVER_IMG,
                     PUBLISH_FROM  = :PUBLISH_FROM,
                     PUBLISH_TO    = :PUBLISH_TO,
@@ -124,6 +138,8 @@ public class BulletinService
             int rows = await _db.ExecuteNonQueryAsync(sqlUpdate,
                 new OracleParameter("TITLE",        model.TITLE),
                 new OracleParameter("CONTENT",      OracleDbType.NClob) { Value = content },
+                new OracleParameter("TITLE_EN",     (object?)titleEn ?? DBNull.Value),
+                new OracleParameter("CONTENT_EN",   OracleDbType.NClob) { Value = contentEn },
                 new OracleParameter("COVER_IMG",    (object?)coverImg ?? DBNull.Value),
                 new OracleParameter("PUBLISH_FROM", model.PUBLISH_FROM),
                 new OracleParameter("PUBLISH_TO",   model.PUBLISH_TO),
@@ -145,7 +161,7 @@ public class BulletinService
     public async Task<(bool success, string message, bool fcmSent)> PublishAsync(int id, string? loginUser)
     {
         const string getSql = @"
-            SELECT IS_PUBLISHED, PUBLISHED_DT, TITLE, PUBLISH_FROM, PUBLISH_TO
+            SELECT IS_PUBLISHED, PUBLISHED_DT, TITLE, TITLE_EN, PUBLISH_FROM, PUBLISH_TO
             FROM HRMS.HR_BULLETIN
             WHERE ID = :ID AND IS_ACTIVE = 1";
 
@@ -155,6 +171,7 @@ public class BulletinService
                 IsPublished  = Convert.ToInt32(r["IS_PUBLISHED"]),
                 PublishedDt  = r["PUBLISHED_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["PUBLISHED_DT"]),
                 Title        = r["TITLE"]?.ToString() ?? "",
+                TitleEn      = r["TITLE_EN"] == DBNull.Value ? null : r["TITLE_EN"].ToString(),
                 PublishFrom  = Convert.ToDateTime(r["PUBLISH_FROM"]),
                 PublishTo    = Convert.ToDateTime(r["PUBLISH_TO"])
             },
@@ -195,7 +212,7 @@ public class BulletinService
                 NotificationHelper.InvalidateTemplateCache();
 
             // Gửi FCM broadcast (fire-and-forget)
-            _notificationService.BulletinPublished(id, row.Title, loginUser ?? "");
+            _notificationService.BulletinPublished(id, row.Title, row.TitleEn, loginUser ?? "");
         }
         else
         {
@@ -229,5 +246,18 @@ public class BulletinService
 
         if (rows > 0) InvalidateHomePinnedCache();
         return (rows > 0, rows > 0 ? "Đã rút bài" : "Không tìm thấy");
+    }
+
+    /// <summary>
+    /// Nội dung từ editor TipTap: khi người dùng xoá hết chữ, editor VẪN trả về "&lt;p&gt;&lt;/p&gt;"
+    /// (hoặc "&lt;p&gt;&lt;br&gt;&lt;/p&gt;"), nên <c>IsNullOrWhiteSpace</c> không bắt được ô rỗng.
+    /// Hàm này bỏ hết thẻ + &amp;nbsp; rồi mới xét còn chữ nào không.
+    /// </summary>
+    private static bool IsHtmlEmpty(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html)) return true;
+        var text = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]*>", "");
+        text = text.Replace("&nbsp;", " ").Replace("\u00A0", " ");
+        return string.IsNullOrWhiteSpace(text);
     }
 }

@@ -8,6 +8,10 @@ public class BulletinModel
     public int       ID             { get; set; }
     public string    TITLE          { get; set; } = "";
     public string?   CONTENT        { get; set; }              // NCLOB, null khi list nhẹ
+    /// <summary>Tiêu đề tiếng Anh — NV nước ngoài đọc bản này. Bắt buộc khi tạo/sửa (2026-11-12).</summary>
+    public string?   TITLE_EN       { get; set; }
+    /// <summary>Nội dung tiếng Anh (HTML). Null ở các bài đăng TRƯỚC khi có tính năng này.</summary>
+    public string?   CONTENT_EN     { get; set; }
     public string?   COVER_IMG      { get; set; }
     public DateTime  PUBLISH_FROM   { get; set; }
     public DateTime  PUBLISH_TO     { get; set; }
@@ -78,6 +82,8 @@ public class SaveBulletinRequest
     public int?     ID            { get; set; }                // null/0 = insert
     public string   TITLE         { get; set; } = "";
     public string   CONTENT       { get; set; } = "";          // HTML
+    public string?  TITLE_EN      { get; set; }                // bắt buộc (validate ở BulletinService)
+    public string?  CONTENT_EN    { get; set; }                // HTML tiếng Anh, bắt buộc
     public string?  COVER_IMG     { get; set; }
     public DateTime PUBLISH_FROM  { get; set; }
     public DateTime PUBLISH_TO    { get; set; }

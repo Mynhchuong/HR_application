@@ -86,7 +86,7 @@ public class BulletinController : ControllerBase
         {
             // REACTION_COUNT + MY_REACTION phục vụ feed kiểu Facebook ở Bulletin/Index
             const string sql = @"
-                SELECT B.ID, B.TITLE, B.COVER_IMG,
+                SELECT B.ID, B.TITLE, B.TITLE_EN, B.COVER_IMG,
                        B.PUBLISH_FROM, B.PUBLISH_TO,
                        B.IS_PINNED, B.PIN_ORDER, B.IS_PUBLISHED, B.PUBLISHED_DT,
                        B.IS_ACTIVE, B.VIEW_COUNT,
@@ -125,7 +125,7 @@ public class BulletinController : ControllerBase
             // Bản tin đã xóa (IS_ACTIVE=0) không hiện. Thứ tự: còn hạn trước (mới nhất -> cũ nhất theo ngày bắt đầu hiện),
             // HẾT HẠN xuống cuối; KHÔNG ưu tiên bài ghim (thứ tự ghim chỉ áp dụng cho danh sách nhân viên xem).
             const string sql = @"
-                SELECT B.ID, B.TITLE, B.COVER_IMG,
+                SELECT B.ID, B.TITLE, B.TITLE_EN, B.COVER_IMG,
                        B.PUBLISH_FROM, B.PUBLISH_TO,
                        B.IS_PINNED, B.PIN_ORDER, B.IS_PUBLISHED, B.PUBLISHED_DT,
                        B.IS_ACTIVE, B.VIEW_COUNT,
@@ -169,12 +169,19 @@ public class BulletinController : ControllerBase
         try
         {
             const string sql = @"
-                SELECT B.ID, B.TITLE,
+                SELECT B.ID, B.TITLE, B.TITLE_EN,
                        DBMS_LOB.SUBSTR(B.CONTENT, 2000, 1)    AS C1,
                        DBMS_LOB.SUBSTR(B.CONTENT, 2000, 2001) AS C2,
                        DBMS_LOB.SUBSTR(B.CONTENT, 2000, 4001) AS C3,
                        DBMS_LOB.SUBSTR(B.CONTENT, 2000, 6001) AS C4,
                        DBMS_LOB.SUBSTR(B.CONTENT, 2000, 8001) AS C5,
+                       -- Bản tiếng Anh cũng phải cắt 5 khúc 2000 ký tự y như CONTENT:
+                       -- Oracle 10g không trả thẳng NCLOB qua reader được (xem C1..C5 ở trên).
+                       DBMS_LOB.SUBSTR(B.CONTENT_EN, 2000, 1)    AS EC1,
+                       DBMS_LOB.SUBSTR(B.CONTENT_EN, 2000, 2001) AS EC2,
+                       DBMS_LOB.SUBSTR(B.CONTENT_EN, 2000, 4001) AS EC3,
+                       DBMS_LOB.SUBSTR(B.CONTENT_EN, 2000, 6001) AS EC4,
+                       DBMS_LOB.SUBSTR(B.CONTENT_EN, 2000, 8001) AS EC5,
                        B.COVER_IMG,
                        B.PUBLISH_FROM, B.PUBLISH_TO,
                        B.IS_PINNED, B.PIN_ORDER, B.IS_PUBLISHED, B.PUBLISHED_DT,
@@ -865,6 +872,7 @@ public class BulletinController : ControllerBase
     {
         ID             = Convert.ToInt32(r["ID"]),
         TITLE          = r["TITLE"]?.ToString() ?? "",
+        TITLE_EN       = HasColumn(r, "TITLE_EN") && r["TITLE_EN"] != DBNull.Value ? r["TITLE_EN"].ToString() : null,
         COVER_IMG      = r["COVER_IMG"]?.ToString(),
         PUBLISH_FROM   = Convert.ToDateTime(r["PUBLISH_FROM"]),
         PUBLISH_TO     = Convert.ToDateTime(r["PUBLISH_TO"]),
@@ -889,9 +897,15 @@ public class BulletinController : ControllerBase
     {
         ID             = Convert.ToInt32(r["ID"]),
         TITLE          = r["TITLE"]?.ToString() ?? "",
+        TITLE_EN       = HasColumn(r, "TITLE_EN") && r["TITLE_EN"] != DBNull.Value ? r["TITLE_EN"].ToString() : null,
         CONTENT        = (r["C1"]?.ToString() ?? "") + (r["C2"]?.ToString() ?? "") +
                          (r["C3"]?.ToString() ?? "") + (r["C4"]?.ToString() ?? "") +
                          (r["C5"]?.ToString() ?? ""),
+        CONTENT_EN     = HasColumn(r, "EC1")
+                         ? (r["EC1"]?.ToString() ?? "") + (r["EC2"]?.ToString() ?? "") +
+                           (r["EC3"]?.ToString() ?? "") + (r["EC4"]?.ToString() ?? "") +
+                           (r["EC5"]?.ToString() ?? "")
+                         : null,
         COVER_IMG      = r["COVER_IMG"]?.ToString(),
         PUBLISH_FROM   = Convert.ToDateTime(r["PUBLISH_FROM"]),
         PUBLISH_TO     = Convert.ToDateTime(r["PUBLISH_TO"]),

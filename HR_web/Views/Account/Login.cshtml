@@ -231,6 +231,17 @@
                         </div>
                     </div>
 
+                    @* Thông báo đẩy từ nơi khác sang (vd phiên hết hạn -> AntiforgeryExpiredFilter).
+                       Trước đây TempData không được hiện ở trang này nên NV bị đá về Login mà
+                       không hiểu vì sao (2026-11-12). *@
+                    @if (TempData["ErrorMessage"] is string loginNotice && !string.IsNullOrWhiteSpace(loginNotice))
+                    {
+                        <div class="error-message">
+                            <span class="material-symbols-rounded align-middle me-1" style="font-size: 1.1rem;">info</span>
+                            @loginNotice
+                        </div>
+                    }
+
                     @if (!ViewData.ModelState.IsValid)
                     {
                         <div class="error-message">

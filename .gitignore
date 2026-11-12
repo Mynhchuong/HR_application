@@ -162,3 +162,5 @@ HR_api/Scripts/inquiry_pic_backfill_and_ga.sql
 HR_api/Scripts/go_live_inquiry_catalog.sql
 HR_api/Scripts/inquiry_catalog_plan.md
 HR_api/Scripts/alter_hr_users_lang_pref.sql
+HR_api/Scripts/alter_bulletin_english.sql
+HR_api/Scripts/update_bulletin_english_data.sql

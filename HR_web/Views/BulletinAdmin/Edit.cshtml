@@ -173,11 +173,21 @@
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="ID" />
 
-                    <!-- Row 1: Tiêu đề -->
-                    <div class="mb-3">
-                        <label class="ep-label">Tiêu đề <span class="text-danger">*</span></label>
-                        <input asp-for="TITLE" class="form-control ep-input" maxlength="300"
-                               placeholder="VD: Thông báo nghỉ Lễ 30/4 - 1/5" />
+                    <!-- Row 1: Tiêu đề (bắt buộc cả 2 ngôn ngữ — NV nước ngoài đọc bản tiếng Anh) -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="ep-label">Tiêu đề (Tiếng Việt) <span class="text-danger">*</span></label>
+                            <input asp-for="TITLE" class="form-control ep-input" maxlength="300"
+                                   placeholder="VD: Thông báo nghỉ Lễ 30/4 - 1/5" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="ep-label">
+                                Tiêu đề (English) <span class="text-danger">*</span>
+                                <span class="badge bg-warning text-dark ms-1" style="font-size:.62rem;">Bắt buộc</span>
+                            </label>
+                            <input asp-for="TITLE_EN" class="form-control ep-input" maxlength="300"
+                                   placeholder="e.g. Holiday notice: 30 Apr - 1 May" />
+                        </div>
                     </div>
 
                     <!-- Row 2: Date range + Pin -->
@@ -232,10 +242,25 @@
                         </div>
                     </div>
 
-                    <!-- Editor -->
+                    <!-- Editor — 2 ngôn ngữ, CHUNG 1 thanh công cụ.
+                         Không nhân đôi toolbar (mấy chục nút, dễ lệch khi sửa): thay vào đó
+                         window._tt luôn trỏ tới editor của tab đang mở, nên mọi nút vẫn chạy đúng. -->
                     <div class="mb-4">
                         <label class="ep-label mb-2">Nội dung <span class="text-danger">*</span></label>
+
+                        <ul class="nav nav-tabs mb-0" id="ttLangTabs" style="border-bottom:1.5px solid #e2e8f0;">
+                            <li class="nav-item">
+                                <button type="button" class="nav-link active" data-tt-lang="vi">Tiếng Việt</button>
+                            </li>
+                            <li class="nav-item">
+                                <button type="button" class="nav-link" data-tt-lang="en">
+                                    English <span class="text-danger">*</span>
+                                </button>
+                            </li>
+                        </ul>
+
                         <input type="hidden" asp-for="CONTENT" id="tt-val" />
+                        <input type="hidden" asp-for="CONTENT_EN" id="tt-val-en" />
                         <div class="tiptap-wrap">
                             <div class="tt-toolbar">
                                 <button type="button" class="tt-btn" id="tt-bold"      title="Đậm"        onclick="window._tt.chain().focus().toggleBold().run()"><i class="bi bi-type-bold"></i></button>
@@ -297,6 +322,7 @@
                                 <button type="button" class="tt-btn text-danger" title="Xóa bảng" onclick="window._tt.chain().focus().deleteTable().run()"><i class="bi bi-trash3 me-1"></i>Xóa bảng</button>
                             </div>
                             <div id="tiptap-editor"></div>
+                            <div id="tiptap-editor-en" style="display:none;"></div>
                             <div class="tt-footer"><span id="tt-wordcount">0 từ · 0 ký tự</span></div>
                         </div>
                     </div>
@@ -378,25 +404,59 @@ function stripBad(editor) {
     _stripping = false;
 }
 
-const editor = new Editor({
-    element: document.getElementById('tiptap-editor'),
-    extensions: [
+// Hai editor dùng CHUNG bộ extension + chung thanh công cụ. Tách hàm để khỏi chép 2 lần
+// danh sách extension — thêm/bớt extension sau này chỉ sửa 1 chỗ.
+function _ttExtensions(placeholder) {
+    return [
         StarterKit,
         Underline, TextStyle, Color,
         Highlight.configure({ multicolor: true }),
         TextAlign.configure({ types: ['heading', 'paragraph'] }),
         Link.configure({ openOnClick: false }),
-        Placeholder.configure({ placeholder: 'Nhập nội dung bản tin...' }),
+        Placeholder.configure({ placeholder }),
         Table.configure({ resizable: false }),
         TableRow, TableCell, TableHeader,
         Image.configure({ inline: false, allowBase64: false }),
-    ],
-    content: val.value || '',
-    onUpdate({ editor })           { stripBad(editor); val.value = editor.getHTML(); _updateWordCount(editor); },
-    onSelectionUpdate({ editor })  { _sync(editor); },
-    onTransaction({ editor })      { _sync(editor); },
+    ];
+}
+
+const valEn = document.getElementById('tt-val-en');
+
+function _mkEditor(elId, hidden, placeholder) {
+    return new Editor({
+        element: document.getElementById(elId),
+        extensions: _ttExtensions(placeholder),
+        content: hidden.value || '',
+        onUpdate({ editor })          { stripBad(editor); hidden.value = editor.getHTML(); _updateWordCount(editor); },
+        onSelectionUpdate({ editor }) { _sync(editor); },
+        onTransaction({ editor })     { _sync(editor); },
+        // Bấm thẳng vào vùng soạn thảo cũng phải đổi editor đích của toolbar, không chỉ khi bấm tab.
+        onFocus({ editor })           { window._tt = editor; _sync(editor); _updateWordCount(editor); },
+    });
+}
+
+const editor   = _mkEditor('tiptap-editor',    val,   'Nhập nội dung bản tin...');
+const editorEn = _mkEditor('tiptap-editor-en', valEn, 'Enter the bulletin content in English...');
+window._tt   = editor;
+window._ttVi = editor;
+window._ttEn = editorEn;
+
+// ── Chuyển tab Tiếng Việt / English ──────────────────
+// Toolbar chỉ có 1 bộ nên window._tt phải trỏ đúng editor đang hiện, nếu không các nút
+// (đậm, bảng, link...) sẽ tác động nhầm sang bài tiếng Việt khi đang gõ bản tiếng Anh.
+document.querySelectorAll('#ttLangTabs [data-tt-lang]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        const isEn = btn.dataset.ttLang === 'en';
+        document.querySelectorAll('#ttLangTabs .nav-link').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tiptap-editor').style.display    = isEn ? 'none' : '';
+        document.getElementById('tiptap-editor-en').style.display = isEn ? '' : 'none';
+        window._tt = isEn ? editorEn : editor;
+        window._tt.commands.focus();
+        _sync(window._tt);
+        _updateWordCount(window._tt);
+    });
 });
-window._tt = editor;
 
 function _sync(e) {
     const map = {

@@ -7,6 +7,23 @@ public class BulletinModel
     public int       ID             { get; set; }
     public string    TITLE          { get; set; } = "";
     public string?   CONTENT        { get; set; }
+    /// <summary>Tiêu đề tiếng Anh — NV nước ngoài đọc bản này (null ở bài đăng trước 2026-11-12).</summary>
+    public string?   TITLE_EN       { get; set; }
+    /// <summary>Nội dung tiếng Anh (HTML) — xem <see cref="TITLE_EN"/>.</summary>
+    public string?   CONTENT_EN     { get; set; }
+
+    /// <summary>
+    /// Tiêu đề hiển thị theo ngôn ngữ giao diện (UserInfoModel.UiLang).
+    /// NV nước ngoài ("en"/"ko") đọc bản tiếng Anh — chưa có bản tiếng Hàn cho NỘI DUNG bản tin,
+    /// nên tiếng Hàn cũng dùng chung bản EN. Bài đăng trước 2026-11-12 chưa có TITLE_EN thì rơi
+    /// về tiếng Việt thay vì hiện ô trống.
+    /// </summary>
+    public string TitleFor(string? lang)
+        => lang != "vi" && !string.IsNullOrWhiteSpace(TITLE_EN) ? TITLE_EN! : TITLE;
+
+    /// <summary>Nội dung hiển thị theo ngôn ngữ — xem <see cref="TitleFor"/>.</summary>
+    public string? ContentFor(string? lang)
+        => lang != "vi" && !string.IsNullOrWhiteSpace(CONTENT_EN) ? CONTENT_EN : CONTENT;
     public string?   COVER_IMG      { get; set; }
     public DateTime  PUBLISH_FROM   { get; set; }
     public DateTime  PUBLISH_TO     { get; set; }
@@ -77,6 +94,10 @@ public class BulletinEditViewModel
     public int       ID            { get; set; }
     public string    TITLE         { get; set; } = "";
     public string    CONTENT       { get; set; } = "";
+    /// <summary>Tiêu đề tiếng Anh — BẮT BUỘC khi lưu (yêu cầu 2026-11-12).</summary>
+    public string?   TITLE_EN      { get; set; }
+    /// <summary>Nội dung tiếng Anh (HTML từ editor TipTap thứ 2) — BẮT BUỘC khi lưu.</summary>
+    public string?   CONTENT_EN    { get; set; }
     public string?   COVER_IMG     { get; set; }
 
     // [DataType(DataType.Date)] để asp-for + type="date" render "yyyy-MM-dd"
@@ -95,6 +116,8 @@ public class SaveBulletinRequest
     public int?     ID            { get; set; }
     public string   TITLE         { get; set; } = "";
     public string   CONTENT       { get; set; } = "";
+    public string?  TITLE_EN      { get; set; }
+    public string?  CONTENT_EN    { get; set; }
     public string?  COVER_IMG     { get; set; }
     public DateTime PUBLISH_FROM  { get; set; }
     public DateTime PUBLISH_TO    { get; set; }

@@ -299,7 +299,7 @@ public class HomeService
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2);
             const string sql = @"
                 SELECT * FROM (
-                    SELECT B.ID, B.TITLE, B.COVER_IMG, B.PIN_ORDER
+                    SELECT B.ID, B.TITLE, B.TITLE_EN, B.COVER_IMG, B.PIN_ORDER
                     FROM HRMS.HR_BULLETIN B
                     WHERE B.IS_PUBLISHED = 1
                       AND B.IS_ACTIVE    = 1
@@ -312,6 +312,7 @@ public class HomeService
             {
                 ID        = Convert.ToInt32(r["ID"]),
                 TITLE     = r["TITLE"]?.ToString() ?? "",
+                TITLE_EN  = r["TITLE_EN"] == DBNull.Value ? null : r["TITLE_EN"].ToString(),
                 COVER_IMG = r["COVER_IMG"]?.ToString(),
                 PIN_ORDER = r["PIN_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["PIN_ORDER"])
             });

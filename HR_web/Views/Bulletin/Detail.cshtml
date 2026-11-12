@@ -1,8 +1,16 @@
 @model HR_web.Models.Bulletin.BulletinModel
 @{
-    ViewData["Title"] = Model.TITLE;
     bool isHrAdmin = ViewBag.IsHrAdmin is bool b && b;
     var user      = ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel;
+    // NV nước ngoài đọc bản tiếng Anh (TITLE_EN/CONTENT_EN) — xem BulletinModel.TitleFor.
+    var bLang     = user?.UiLang ?? "vi";
+    // D(vi, en): NV nước ngoài thấy tiếng của họ, NV Việt giữ nguyên tiếng Việt như cũ.
+    // DJ(...) dùng TRONG <script> — xuất ra JSON literal nên an toàn với dấu nháy/& .
+    Func<string, string, string> D = (vi, en) => HR_web.Helpers.ExpatText.Dual(bLang, vi, en);
+    Func<string, string, Microsoft.AspNetCore.Html.IHtmlContent> DJ = (vi, en) =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            System.Text.Json.JsonSerializer.Serialize(HR_web.Helpers.ExpatText.Dual(bLang, vi, en)));
+    ViewData["Title"] = Model.TitleFor(bLang);
     bool isUpdated = Model.UPDT_DT.HasValue && Model.INST_DT.HasValue
                    && (Model.UPDT_DT.Value - Model.INST_DT.Value).TotalMinutes > 1;
     var videos = Model.MEDIA.Where(m => m.MEDIA_TYPE == "VIDEO").OrderBy(m => m.DISPLAY_ORDER).ToList();
@@ -276,7 +284,7 @@
 @Html.AntiForgeryToken()
 
 <div class="bd-back-row">
-    <a href="@Url.Action("Index", "Bulletin")" class="bd-back-btn" title="Quay lại bản tin">
+    <a href="@Url.Action("Index", "Bulletin")" class="bd-back-btn" title="@D("Quay lại bản tin", "Back to bulletins")">
         <span class="material-symbols-rounded">arrow_back</span>
     </a>
 </div>
@@ -289,22 +297,22 @@
                         : Url.Action("GetBulletinImage", "Image", new { fileName = Model.COVER_IMG }))"
                  class="bd-cover" alt="cover" />
 
-            <h1 class="bd-title">@Model.TITLE</h1>
+            <h1 class="bd-title">@Model.TitleFor(bLang)</h1>
             <div class="bd-meta">
-                <span><i class="bi bi-calendar3 me-1"></i>đến hết @Model.PUBLISH_TO.ToString("dd/MM/yyyy")</span>
-                <span><i class="bi bi-eye me-1"></i>@Model.VIEW_COUNT lượt xem</span>
+                <span><i class="bi bi-calendar3 me-1"></i>@D("đến hết", "until") @Model.PUBLISH_TO.ToString("dd/MM/yyyy")</span>
+                <span><i class="bi bi-eye me-1"></i>@Model.VIEW_COUNT @D("lượt xem", "views")</span>
             </div>
 
             @if (isUpdated && !string.IsNullOrEmpty(Model.UPDT_FULL_NAME))
             {
                 <div class="bd-updated-banner">
                     <i class="bi bi-pencil-square"></i>
-                    Được cập nhật bởi <strong>@Model.UPDT_FULL_NAME</strong> lúc @Model.UPDT_DT?.ToString("HH:mm dd/MM/yyyy")
+                    @D("Được cập nhật bởi", "Updated by") <strong>@Model.UPDT_FULL_NAME</strong> @D("lúc", "at") @Model.UPDT_DT?.ToString("HH:mm dd/MM/yyyy")
                 </div>
             }
 
             <div class="bd-content">
-                @Html.Raw(Model.CONTENT)
+                @Html.Raw(Model.ContentFor(bLang))
             </div>
 
             @foreach (var v in videos)
@@ -335,16 +343,16 @@
                 <div class="cmt-header-row">
                     <div class="cmt-heading">
                         <i class="bi bi-chat-square-text me-1"></i>
-                        Bình luận (<span id="cmtCount">@Model.COMMENT_COUNT</span>)
+                        @D("Bình luận", "Comments") (<span id="cmtCount">@Model.COMMENT_COUNT</span>)
                     </div>
                     <select id="cmtSortSelect" class="cmt-sort-select" onchange="renderSortedComments(true)">
-                        <option value="all">Tất cả</option>
+                        <option value="all">@D("Tất cả", "All")</option>
                         <option value="newest">Mới nhất</option>
-                        <option value="interacted">Tương tác nhiều nhất</option>
+                        <option value="interacted">@D("Tương tác nhiều nhất", "Most reactions")</option>
                     </select>
                 </div>
                 <div id="cmtList">
-                    <div class="cmt-empty"><i class="bi bi-hourglass-split"></i> Đang tải...</div>
+                    <div class="cmt-empty"><i class="bi bi-hourglass-split"></i> @D("Đang tải...", "Loading...")</div>
                 </div>
             </div>
 
@@ -353,7 +361,7 @@
                 <button type="button" class="emoji-btn" onclick="toggleEmojiPop('cmtInput', this)" title="Emoji">
                     <i class="bi bi-emoji-smile"></i>
                 </button>
-                <textarea id="cmtInput" class="cmt-input" placeholder="Viết bình luận..." maxlength="1000" rows="1"
+                <textarea id="cmtInput" class="cmt-input" placeholder="@D("Viết bình luận...", "Write a comment...")" maxlength="1000" rows="1"
                           oninput="autoResize(this)"></textarea>
                 <button id="cmtSendBtn" class="cmt-send-btn" onclick="sendComment()" title="Gửi">
                     <i class="bi bi-send-fill"></i>
@@ -365,6 +373,16 @@
 
 @section Scripts {
 <script>
+// Nhãn tiếng Việt/Anh cho phần bình luận dựng bằng JS. Gom 1 chỗ thay vì nhét lời gọi Razor vào
+// giữa template literal (khó đọc, dễ sai dấu nháy). NV Việt vẫn thấy y như cũ.
+const LBL = {
+    del:          @DJ("Xóa", "Delete"),
+    reply:        @DJ("Trả lời", "Reply"),
+    writeReply:   @DJ("Viết trả lời...", "Write a reply..."),
+    moreReplies:  @DJ("Xem thêm {n} phản hồi", "Show {n} more replies"),
+    moreComments: @DJ("Xem hết {n} bình luận còn lại", "Show the remaining {n} comments")
+};
+
     const BULLETIN_ID = @Model.ID;
     const CURRENT_EMPCD = '@(user?.EmpCd ?? "")';
     const IS_HR_ADMIN = @(isHrAdmin ? "true" : "false");
@@ -443,7 +461,7 @@
             const data = await res.json();
             renderComments(data.data || [], isInitial);
         } catch (e) {
-            document.getElementById('cmtList').innerHTML = '<div class="cmt-empty">Không tải được bình luận.</div>';
+            document.getElementById('cmtList').innerHTML = '<div class="cmt-empty">' + @DJ("Không tải được bình luận.", "Could not load comments.") + '</div>';
         }
     }
 
@@ -459,9 +477,9 @@
         const isMine = c.EMPCD === CURRENT_EMPCD;
         return `
             <div class="cmt-item${isMine ? ' cmt-mine' : ''}" data-id="${c.ID}">
-                ${canDelete ? `<button class="cmt-delete" onclick="deleteComment(${c.ID})" title="Xóa"><i class="bi bi-trash"></i></button>` : ''}
+                ${canDelete ? `<button class="cmt-delete" onclick="deleteComment(${c.ID})" title="${LBL.del}"><i class="bi bi-trash"></i></button>` : ''}
                 <div class="cmt-header">
-                    <span class="cmt-name vni-font">${escapeHtml(displayName)}${isMine ? '<span class="cmt-mine-tag">Bạn</span>' : ''}</span>
+                    <span class="cmt-name vni-font">${escapeHtml(displayName)}${isMine ? '<span class="cmt-mine-tag">' + @DJ("Bạn", "You") + '</span>' : ''}</span>
                     <span class="cmt-header-sub">
                         <span class="cmt-empcd">#${escapeHtml(c.EMPCD)}</span>
                         ${meta ? `<span class="cmt-meta">${escapeHtml(meta)}</span>` : ''}
@@ -472,7 +490,7 @@
                 ${!isReply ? `
                 <div class="cmt-actions">
                     <button class="cmt-action-btn" onclick="openReply(${c.ID})">
-                        <i class="bi bi-reply-fill"></i> Trả lời
+                        <i class="bi bi-reply-fill"></i> ${LBL.reply}
                     </button>
                 </div>` : ''}
             </div>`;
@@ -490,7 +508,7 @@
         const list = document.getElementById('cmtList');
         document.getElementById('cmtCount').textContent = _allComments.length;
         if (_allComments.length === 0) {
-            list.innerHTML = '<div class="cmt-empty">Chưa có bình luận. Hãy là người đầu tiên!</div>';
+            list.innerHTML = '<div class="cmt-empty">' + @DJ("Chưa có bình luận. Hãy là người đầu tiên!", "No comments yet. Be the first!") + '</div>';
             _sortedRootIds = null;
             _expandedThreadIds.clear();
             return;
@@ -569,7 +587,7 @@
                             </div>
                             <div id="moreBtnContainer-${c.ID}" class="more-replies-btn-wrap">
                                 <button class="more-replies-btn" onclick="showAllReplies(${c.ID})">
-                                    <i class="bi bi-arrow-return-right me-1"></i> Xem thêm ${repliesArray.length - 2} phản hồi
+                                    <i class="bi bi-arrow-return-right me-1"></i> ${LBL.moreReplies.replace('{n}', repliesArray.length - 2)}
                                 </button>
                             </div>
                         </div>`;
@@ -587,7 +605,7 @@
             list.innerHTML += `
                 <div class="cmt-show-all-wrap">
                     <button type="button" class="cmt-show-all-btn" onclick="showAllComments()">
-                        <i class="bi bi-chat-dots"></i> Xem hết ${hiddenCount} bình luận còn lại
+                        <i class="bi bi-chat-dots"></i> ${LBL.moreComments.replace('{n}', hiddenCount)}
                     </button>
                 </div>`;
         }
@@ -618,7 +636,7 @@
                 <button type="button" class="emoji-btn" onclick="toggleEmojiPop('replyInput-${parentId}', this)" title="Emoji">
                     <i class="bi bi-emoji-smile"></i>
                 </button>
-                <textarea id="replyInput-${parentId}" placeholder="Viết trả lời..." rows="1" maxlength="1000"></textarea>
+                <textarea id="replyInput-${parentId}" placeholder="${LBL.writeReply}" rows="1" maxlength="1000"></textarea>
                 <button onclick="sendReply(${parentId})" title="Gửi"><i class="bi bi-send-fill"></i></button>
             </div>`;
         document.getElementById('replyInput-' + parentId)?.focus();
@@ -640,7 +658,7 @@
                 _expandedThreadIds.add(parentId);
                 await loadComments();
             } else {
-                showToast(data.message || 'Lỗi gửi trả lời', 'error');
+                showToast(data.message || @DJ("Lỗi gửi trả lời", "Failed to send reply"), 'error');
             }
         } catch (e) {
             showToast('Lỗi kết nối: ' + e.message, 'error');
@@ -666,7 +684,7 @@
                 autoResize(input);
                 await loadComments();
             } else {
-                showToast(data.message || 'Lỗi gửi bình luận', 'error');
+                showToast(data.message || @DJ("Lỗi gửi bình luận", "Failed to send comment"), 'error');
             }
         } catch (e) {
             showToast('Lỗi kết nối: ' + e.message, 'error');
@@ -677,7 +695,7 @@
 
     // ── Delete comment ──
     async function deleteComment(id) {
-        showConfirm('Xóa bình luận này?', async () => {
+        showConfirm(@DJ("Xóa bình luận này?", "Delete this comment?"), async () => {
             const fd = new FormData();
             fd.append('id', id);
             fd.append('__RequestVerificationToken', token);
@@ -685,11 +703,11 @@
             const data = await res.json();
             if (data.success) {
                 await loadComments();
-                showToast('Đã xóa bình luận', 'success');
+                showToast(@DJ("Đã xóa bình luận", "Comment deleted"), 'success');
             } else {
-                showToast(data.message || 'Lỗi xóa', 'error');
+                showToast(data.message || @DJ("Lỗi xóa", "Delete failed"), 'error');
             }
-        }, { okText: 'Xóa', okClass: 'btn-danger', icon: 'delete', iconColor: '#dc2626', iconBg: '#fee2e2' });
+        }, { okText: LBL.del, okClass: 'btn-danger', icon: 'delete', iconColor: '#dc2626', iconBg: '#fee2e2' });
     }
 
     // ── React ──
@@ -749,7 +767,7 @@
         const btn = document.createElement('a');
         btn.href = '#';
         btn.className = 'img-dl-btn';
-        btn.innerHTML = '<i class="bi bi-download"></i> Tải ảnh';
+        btn.innerHTML = '<i class="bi bi-download"></i> @D("Tải ảnh", "Download image")';
         btn.onclick = (e) => {
             e.preventDefault();
             const url = img.getAttribute('src');

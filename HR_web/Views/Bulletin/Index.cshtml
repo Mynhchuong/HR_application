@@ -1,7 +1,14 @@
 @model List<HR_web.Models.Bulletin.BulletinModel>
 @{
-    ViewData["Title"] = "Bản tin";
     var user = ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel;
+    // NV nước ngoài đọc tiêu đề/nội dung bản tiếng Anh (xem BulletinModel.TitleFor).
+    var bLang = user?.UiLang ?? "vi";
+    ViewData["Title"] = HR_web.Helpers.ExpatText.Dual(bLang, "Bản tin", "Bulletin");
+    // D(vi, en) cho HTML, DJ(...) cho chuỗi dựng trong <script> — xem Views/Bulletin/Detail.cshtml.
+    Func<string, string, string> D = (vi, en) => HR_web.Helpers.ExpatText.Dual(bLang, vi, en);
+    Func<string, string, Microsoft.AspNetCore.Html.IHtmlContent> DJ = (vi, en) =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            System.Text.Json.JsonSerializer.Serialize(HR_web.Helpers.ExpatText.Dual(bLang, vi, en)));
 }
 
 @section Styles {
@@ -117,7 +124,7 @@
 
 <div class="blt-page-header">
     <i class="bi bi-megaphone-fill"></i>
-    <span>Bản tin nội bộ</span>
+    <span>@D("Bản tin nội bộ", "Internal bulletin")</span>
 </div>
 
 @if (TempData["ErrorMessage"] != null)
@@ -129,7 +136,7 @@
 {
     <div class="blt-empty">
         <img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:150px;display:block;margin:0 auto 12px;opacity:.9;" />
-        <p>Chưa có bản tin nào.</p>
+        <p>@D("Chưa có bản tin nào.", "No bulletins yet.")</p>
     </div>
 }
 else
@@ -148,32 +155,32 @@ else
                             : Url.Action("GetBulletinImage", "Image", new { fileName = item.COVER_IMG }))"
                      class="fb-cover" alt="cover" onclick="location.href='@detailUrl'" />
                 <div class="fb-body">
-                    <div class="fb-title" onclick="location.href='@detailUrl'">@item.TITLE</div>
+                    <div class="fb-title" onclick="location.href='@detailUrl'">@item.TitleFor(bLang)</div>
                     <div class="fb-meta">
-                        <span><i class="bi bi-calendar3 me-1"></i>đến hết @item.PUBLISH_TO.ToString("dd/MM/yyyy")</span>
+                        <span><i class="bi bi-calendar3 me-1"></i>@D("đến hết", "until") @item.PUBLISH_TO.ToString("dd/MM/yyyy")</span>
                         <span><i class="bi bi-eye me-1"></i>@item.VIEW_COUNT</span>
                     </div>
                 </div>
                 <div class="fb-counts">
                     <span class="rx">👍❤️ <span id="rxCount-@item.ID">@item.REACTION_COUNT</span></span>
-                    <span><span id="cmtCount-@item.ID">@item.COMMENT_COUNT</span> bình luận</span>
+                    <span><span id="cmtCount-@item.ID">@item.COMMENT_COUNT</span> @D("bình luận", "comments")</span>
                 </div>
                 <div class="fb-actions">
                     <button type="button" class="fb-action-btn @(item.MY_REACTION != null ? "liked" : "")"
                             id="likeBtn-@item.ID" onclick="quickLike(@item.ID)">
-                        <i class="bi @(item.MY_REACTION != null ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i> Thích
+                        <i class="bi @(item.MY_REACTION != null ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i> @D("Thích", "Like")
                     </button>
                     <button type="button" class="fb-action-btn" onclick="toggleComments(@item.ID)">
-                        <i class="bi bi-chat"></i> Bình luận
+                        <i class="bi bi-chat"></i> @D("Bình luận", "Comment")
                     </button>
                     <button type="button" class="fb-action-btn" onclick="location.href='@detailUrl'">
-                        <i class="bi bi-book"></i> Xem bài
+                        <i class="bi bi-book"></i> @D("Xem bài", "View post")
                     </button>
                 </div>
                 <div class="fb-cmt-area" id="cmtArea-@item.ID">
-                    <div id="cmtPreview-@item.ID"><div class="fb-cmt-empty">Đang tải...</div></div>
+                    <div id="cmtPreview-@item.ID"><div class="fb-cmt-empty">@D("Đang tải...", "Loading...")</div></div>
                     <div class="fb-cmt-input-row">
-                        <textarea id="cmtInput-@item.ID" placeholder="Viết bình luận..." maxlength="1000" rows="1"></textarea>
+                        <textarea id="cmtInput-@item.ID" placeholder="@D("Viết bình luận...", "Write a comment...")" maxlength="1000" rows="1"></textarea>
                         <button type="button" id="cmtSend-@item.ID" onclick="sendFeedComment(@item.ID)" title="Gửi">
                             <i class="bi bi-send-fill"></i>
                         </button>
@@ -186,6 +193,9 @@ else
 
 @section Scripts {
 <script>
+// Nhãn cho chuỗi dựng trong template literal — gom 1 chỗ cho dễ đọc (xem Detail.cshtml).
+const FB_LBL = { viewAll: @DJ("Xem tất cả {n} bình luận trong bài viết →", "View all {n} comments in the post →") };
+
     const CURRENT_EMPCD = '@(user?.EmpCd ?? "")';
     const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
     const commentsBase = '@Url.Action("Comments", "Bulletin")';
@@ -242,7 +252,7 @@ else
             _loadedCmt.add(id);
             renderFeedComments(id, items);
         } catch (e) {
-            wrap.innerHTML = '<div class="fb-cmt-empty">Không tải được bình luận.</div>';
+            wrap.innerHTML = '<div class="fb-cmt-empty">' + @DJ("Không tải được bình luận.", "Could not load comments.") + '</div>';
         }
     }
 
@@ -250,7 +260,7 @@ else
         const wrap = document.getElementById('cmtPreview-' + id);
         document.getElementById('cmtCount-' + id).textContent = items.length;
         if (items.length === 0) {
-            wrap.innerHTML = '<div class="fb-cmt-empty">Chưa có bình luận. Hãy là người đầu tiên!</div>';
+            wrap.innerHTML = '<div class="fb-cmt-empty">' + @DJ("Chưa có bình luận. Hãy là người đầu tiên!", "No comments yet. Be the first!") + '</div>';
             return;
         }
         // Ưu tiên bình luận của mình, sau đó mới nhất — hiện tối đa 3
@@ -271,7 +281,7 @@ else
                     </div>`;
         }).join('');
         if (items.length > top.length) {
-            html += `<a class="fb-cmt-more" href="${detailBase}/${id}">Xem tất cả ${items.length} bình luận trong bài viết →</a>`;
+            html += `<a class="fb-cmt-more" href="${detailBase}/${id}">${FB_LBL.viewAll.replace('{n}', items.length)}</a>`;
         }
         wrap.innerHTML = html;
     }
@@ -293,7 +303,7 @@ else
                 input.value = '';
                 await loadFeedComments(id);
             } else {
-                showToast(data.message || 'Lỗi gửi bình luận', 'error');
+                showToast(data.message || @DJ("Lỗi gửi bình luận", "Failed to send comment"), 'error');
             }
         } catch (e) {
             showToast('Lỗi kết nối: ' + e.message, 'error');

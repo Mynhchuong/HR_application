@@ -1,5 +1,7 @@
 @using HR_web.Helpers
 @{
+    // Layout của NV thường — thuần tiếng Việt. NV nước ngoài (role Expat) dùng _LayoutExpat.cshtml
+    // riêng (Anh/Hàn), xem Views/Expat/_ViewStart.cshtml — KHÔNG thêm nhánh ngôn ngữ vào file này.
     var layoutUser = AuthHelper.GetCurrentUser(User);
     var rawName = layoutUser?.FullName ?? layoutUser?.EmpCd ?? "User";
     var displayName = rawName;

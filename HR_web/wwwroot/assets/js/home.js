@@ -197,9 +197,12 @@
             try {
                 const d = new Date(iso);
                 const lang = card.dataset.lang || 'vi';
-                const isEn = lang === 'en';
-                const locale = isEn ? 'en-US' : 'vi-VN';
-                const prefix = isEn ? 'Updated ' : 'Cập nhật ';
+                // lang có thể là 'ko' (NV Hàn) — coi mọi giá trị khác 'vi' là ngoại ngữ rồi tra
+                // window.trExpat() (từ điển do _LayoutExpat đổ xuống từ ExpatText.cs).
+                const isEn = lang !== 'vi';
+                const tr = window.trExpat || (x => x);
+                const locale = lang === 'ko' ? 'ko-KR' : isEn ? 'en-US' : 'vi-VN';
+                const prefix = isEn ? tr('Updated ') : 'Cập nhật ';
                 return prefix + d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             } catch { return ''; }
         }
@@ -303,22 +306,23 @@
         const modalBody = $('[data-modal-body]', modal);
         const card      = $('#homeSummaryCard');
         const lang      = card ? (card.dataset.lang || 'vi') : 'vi';
-        const isEn      = lang === 'en';
-        const emptyLbl  = isEn ? 'No pending documents' : 'Không có đơn nào chưa nộp giấy tờ';
+        const isEn      = lang !== 'vi';   // 'ko' cũng là ngoại ngữ — xem ghi chú ở formatAsOf
+        const tr        = window.trExpat || (x => x);
+        const emptyLbl  = isEn ? tr('No pending documents') : 'Không có đơn nào chưa nộp giấy tờ';
         const errorLbl  = card ? (card.dataset.labelError || 'Không tải được danh sách') : 'Không tải được danh sách';
         // Danh sách này phải khớp LEAVE_TYPE IN (...) trong HomeSummaryService.CountLeaveDocMissingAsync/
         // GetLeaveDocMissingListAsync (6 loại: DT,DC,VS,KT,SI,DS) — thiếu SI/DS ở đây khiến 2 loại đó
         // hiện thẳng mã "SI"/"DS" thay vì tên đầy đủ (phát hiện khi rà lại toàn bộ các file liên quan
         // tính năng nộp giấy tờ, 2026-09-10).
         const leaveTypeNames = isEn
-            ? { DT: 'Funeral', DC: 'Wedding', VS: 'Childbirth', KT: 'Prenatal checkup', SI: 'Sick leave (with certificate)', DS: 'Postnatal recovery' }
+            ? { DT: tr('Funeral'), DC: tr('Wedding'), VS: tr('Childbirth'), KT: tr('Prenatal checkup'), SI: tr('Sick leave (with certificate)'), DS: tr('Postnatal recovery') }
             : { DT: 'Đám tang', DC: 'Đám cưới', VS: 'Vợ sanh', KT: 'Khám thai', SI: 'Bệnh có giấy', DS: 'Dưỡng sức' };
         // PARTIALLY_SUBMITTED (thêm 2026-09-10, xem LeaveListForHR/LeaveListForClerk) trước đây rớt vào
         // nhánh mặc định "Chưa nộp" — sai vì đơn đã nộp một phần rồi, không phải chưa nộp gì cả.
         const docStatusLabel = isEn
-            ? { RESUBMIT_REQUESTED: 'Resubmit requested', PARTIALLY_SUBMITTED: 'Partially submitted' }
+            ? { RESUBMIT_REQUESTED: tr('Resubmit requested'), PARTIALLY_SUBMITTED: tr('Partially submitted') }
             : { RESUBMIT_REQUESTED: 'Yêu cầu nộp lại', PARTIALLY_SUBMITTED: 'Nộp 1 phần' };
-        const docStatusDefault = isEn ? 'Not submitted' : 'Chưa nộp';
+        const docStatusDefault = isEn ? tr('Not submitted') : 'Chưa nộp';
 
         function openModal() {
             modal.hidden = false;

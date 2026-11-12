@@ -2,6 +2,7 @@ using HR_web.API.Service;
 using HR_web.Models.GatePass;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HR_web.Helpers;
 
 namespace HR_web.Controllers.GatePass;
 
@@ -296,7 +297,7 @@ public class GatePassController : BaseController
         ViewBag.DateTo       = DateTime.Today.ToString("yyyy-MM-dd");
         ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
         ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
-        return View();
+        return View(ExpatViews.GatePass);
     }
 
     // ─────────────────────────────────────────────

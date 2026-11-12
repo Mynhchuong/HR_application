@@ -2,8 +2,8 @@
 
 @{
     if (Model.Pinned == null || Model.Pinned.Count == 0) { return; }
-    var isEn = Model.Lang == "en";
-    var stripLabel = isEn ? "Pinned bulletins" : "Bản tin ghim";
+    var isEn = Model.Lang != "vi";
+    var stripLabel = isEn ? ExpatText.T(Model.Lang, "Pinned bulletins") : "Bản tin ghim";
 }
 
 <section class="home-pinned-strip">

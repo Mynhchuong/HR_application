@@ -17,6 +17,9 @@ public class UserInfoModel
     public string? DeptRoleName { get; set; }
     /// <summary>true nếu phòng ban của NV bị chặn khỏi "Báo máy sản xuất" (TPM) — xem Tpm/TpmAccess.cs. HR_web dùng để ẩn menu Bảo trì.</summary>
     public bool TpmBlocked { get; set; }
+    /// <summary>Ngôn ngữ giao diện: "vi" (mặc định mọi role) | "en" | "ko" (chỉ role Expat — suy từ ECM100.NATION
+    /// lúc login, NV tự đổi được thì lưu HR_USERS.LANG_PREF). Xem Helpers/LangPrefHelper.cs.</summary>
+    public string Lang { get; set; } = "vi";
     public int IsActive { get; set; }
     public DateTime? LastedLogin { get; set; }
     public DateTime? LastPwdReset { get; set; }
@@ -71,6 +74,13 @@ public class DisableUserRequest
     public string LoginUser { get; set; } = string.Empty;
 }
 
+/// <summary>NV nước ngoài tự đổi ngôn ngữ giao diện — Lang: "en" | "ko" (xem Helpers/LangPrefHelper.cs).</summary>
+public class SetLangPrefRequest
+{
+    public string EmpCd { get; set; } = string.Empty;
+    public string Lang  { get; set; } = string.Empty;
+}
+
 public class ForgotPasswordRequest
 {
     public string Empcd       { get; set; } = string.Empty;
@@ -93,7 +103,12 @@ public class UserDetailModel
     public string? MaritalStatus { get; set; }
     public string? Phone { get; set; }
     public string? Email { get; set; }   // ECM100.EMAIL — yêu cầu HR 2026-10-08, hiện thêm SĐT + Gmail ở Hồ sơ
+    /// <summary>Thâm niên đã ghép sẵn tiếng Việt ("3 năm 2 tháng") — dùng cho giao diện tiếng Việt.</summary>
     public string? Seniority { get; set; }
+    /// <summary>Số năm thâm niên (thuần số) — giao diện NV nước ngoài tự ghép câu Anh/Hàn.</summary>
+    public int? SeniorityYears { get; set; }
+    /// <summary>Số tháng lẻ thâm niên (0-11) — xem <see cref="SeniorityYears"/>.</summary>
+    public int? SeniorityMonths { get; set; }
     public string? HomeTown { get; set; }
     public string? ContractType { get; set; }
     public DateTime? ContractDate { get; set; }

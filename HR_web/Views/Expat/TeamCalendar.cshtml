@@ -1,5 +1,16 @@
 @{
-    ViewData["Title"] = "Team calendar";
+    // Ngôn ngữ giao diện (en/ko) — từ điển ở HR_web/Helpers/ExpatText.cs, không rải chuỗi Hàn trong view.
+    // ?? "en": view này chỉ Expat vào, nhưng GetCurrentUser có thể null (cookie hỏng) — rơi về
+    // tiếng Anh thay vì null, vì null sẽ bị các partial hiểu nhầm thành "không phải tiếng Việt"
+    // một cách tình cờ và làm cảnh báo nullable khi truyền vào model của filter bar.
+    var vLang = AuthHelper.GetCurrentUser(User)?.UiLang ?? "en";
+    Func<string, string> T = en => ExpatText.T(vLang, en);
+    // TJ: dùng TRONG JavaScript — xuất ra 1 JSON string literal (đã có nháy kép), nên tự an toàn
+    // với dấu nháy/& ; @T(...) bị HTML-encode nên KHÔNG dùng được trong script.
+    Func<string, Microsoft.AspNetCore.Html.IHtmlContent> TJ = en =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            System.Text.Json.JsonSerializer.Serialize(ExpatText.T(vLang, en)));
+    ViewData["Title"] = T("Team calendar");
     int curMonth = (int)(ViewBag.CurrentMonth ?? DateTime.Today.Month);
     int curYear  = (int)(ViewBag.CurrentYear  ?? DateTime.Today.Year);
     string currentRole = ViewBag.CurrentRole ?? "";
@@ -92,11 +103,11 @@
         <!-- Header -->
         <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
             <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center">
-                <h6 class="text-white mb-0"><i class="bi bi-calendar3-range me-1"></i> Team Schedule</h6>
+                <h6 class="text-white mb-0"><i class="bi bi-calendar3-range me-1"></i> @T("Team Schedule")</h6>
                 <div class="month-nav">
-                    <button onclick="changeMonth(-1)" title="Previous"><i class="bi bi-chevron-left"></i></button>
+                    <button onclick="changeMonth(-1)" title='@T("Previous")'><i class="bi bi-chevron-left"></i></button>
                     <span class="month-label-display"></span>
-                    <button onclick="changeMonth(1)" title="Next"><i class="bi bi-chevron-right"></i></button>
+                    <button onclick="changeMonth(1)" title='@T("Next")'><i class="bi bi-chevron-right"></i></button>
                 </div>
             </div>
         </div>
@@ -107,20 +118,20 @@
             <div class="cal-wrap">
                 <div class="d-flex align-items-center justify-content-between mb-2 px-2">
                     <span class="text-xs text-uppercase text-secondary fw-bold" style="letter-spacing:.05em;">
-                        <i class="bi bi-calendar3 me-1"></i>Leaves &amp; gate passes per day
+                        <i class="bi bi-calendar3 me-1"></i>@T("Leaves & gate passes per day")
                     </span>
                     <button class="btn btn-link btn-sm p-0 text-secondary text-xs" id="calToggleBtn" onclick="toggleCalendar()">
-                        <i class="bi bi-chevron-up"></i> Collapse
+                        <i class="bi bi-chevron-up"></i> @T("Collapse")
                     </button>
                 </div>
                 <div id="calWrapInner">
                     <div class="cal-grid" id="calGrid"></div>
                     <div class="text-xs text-muted mt-1 px-1" id="calLegend" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                        <span><span class="cal-count" style="background:#2563eb;">1-3</span> few</span>
-                        <span><span class="cal-count" style="background:#d97706;">4-7</span> moderate</span>
-                        <span><span class="cal-count" style="background:#dc2626;">8+</span> many</span>
-                        <span><span class="cal-gp-count">N</span> gate pass</span>
-                        <span><span class="cal-tr-count">N</span> training</span>
+                        <span><span class="cal-count" style="background:#2563eb;">1-3</span> @T("few")</span>
+                        <span><span class="cal-count" style="background:#d97706;">4-7</span> @T("moderate")</span>
+                        <span><span class="cal-count" style="background:#dc2626;">8+</span> @T("many")</span>
+                        <span><span class="cal-gp-count">N</span> @T("gate pass")</span>
+                        <span><span class="cal-tr-count">N</span> @T("training")</span>
                     </div>
                 </div>
             </div>
@@ -134,7 +145,7 @@
                 </span>
                 <button id="viewAllBtn" class="btn btn-outline-secondary btn-sm d-none"
                         style="font-size:.78rem;height:28px;border-radius:20px;" onclick="clearCalDay()">
-                    <i class="bi bi-grid3x3 me-1"></i>View all
+                    <i class="bi bi-grid3x3 me-1"></i>@T("View all")
                 </button>
             </div>
 
@@ -142,19 +153,19 @@
             <ul class="nav mb-0 px-3" id="tableTabs">
                 <li class="nav-item">
                     <button class="nav-link active" id="pillLeave" data-bs-toggle="pill" data-bs-target="#tabLeave">
-                        <i class="bi bi-calendar3-range me-1"></i>Leave
+                        <i class="bi bi-calendar3-range me-1"></i>@T("Leave")
                         <span class="badge bg-primary ms-1" id="leaveCountBadge" style="font-size:.65rem;display:none;"></span>
                     </button>
                 </li>
                 <li class="nav-item">
                     <button class="nav-link" id="pillGp" data-bs-toggle="pill" data-bs-target="#tabGp">
-                        <i class="bi bi-door-open me-1"></i>Gate Pass
+                        <i class="bi bi-door-open me-1"></i>@T("Gate Pass")
                         <span class="badge ms-1" id="gpCountBadge" style="font-size:.65rem;background:#0ea5e9;display:none;"></span>
                     </button>
                 </li>
                 <li class="nav-item">
                     <button class="nav-link" id="pillTraining" data-bs-toggle="pill" data-bs-target="#tabTraining">
-                        <i class="bi bi-mortarboard me-1"></i>Training
+                        <i class="bi bi-mortarboard me-1"></i>@T("Training")
                         <span class="badge bg-success ms-1" id="trainingCountBadge" style="font-size:.65rem;display:none;"></span>
                     </button>
                 </li>
@@ -167,7 +178,7 @@
                     <div class="px-4 pt-2 pb-2 d-flex align-items-center gap-2 flex-wrap">
                         <div class="empcd-wrap">
                             <i class="bi bi-search"></i>
-                            <input type="text" id="scheduleEmpFilter" class="empcd-filter" placeholder="Emp ID..."
+                            <input type="text" id="scheduleEmpFilter" class="empcd-filter" placeholder='@T("Emp ID...")'
                                    oninput="schPage=1;renderSchedule()">
                         </div>
                     </div>
@@ -176,14 +187,14 @@
                             <thead class="bg-light">
                                 <tr>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="hidden">#</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Emp Code">Emp Code</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Full Name">Full Name</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Type">Type</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Source">Source</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="From">From</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="To">To</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Days">Days</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Handled by">Handled by</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Emp Code">@T("Emp Code")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Full Name">@T("Full Name")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Type">@T("Type")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Source">@T("Source")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="From">@T("From")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="To">@T("To")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Days">@T("Days")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Handled by">@T("Handled by")</th>
                                 </tr>
                             </thead>
                             <tbody id="scheduleBody"></tbody>
@@ -200,7 +211,7 @@
                     <div id="gpFilterRow" class="px-4 pt-2 pb-2 d-flex align-items-center gap-2 flex-wrap">
                         <div class="empcd-wrap">
                             <i class="bi bi-search"></i>
-                            <input type="text" id="gpSearch" class="empcd-filter" placeholder="Emp ID..."
+                            <input type="text" id="gpSearch" class="empcd-filter" placeholder='@T("Emp ID...")'
                                    oninput="onGpSearchInput()">
                         </div>
                     </div>
@@ -209,12 +220,12 @@
                             <thead class="bg-light">
                                 <tr>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="hidden">#</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Emp Code">Emp Code</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Full Name">Full Name</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Type">Type</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Out">Out Time</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="In">In Time</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Reason">Reason</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Emp Code">@T("Emp Code")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Full Name">@T("Full Name")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Type">@T("Type")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Out">@T("Out Time")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="In">@T("In Time")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Reason">@T("Reason")</th>
                                 </tr>
                             </thead>
                             <tbody id="gpBody"></tbody>
@@ -231,7 +242,7 @@
                     <div class="px-4 pt-2 pb-2 d-flex align-items-center gap-2 flex-wrap">
                         <div class="empcd-wrap">
                             <i class="bi bi-search"></i>
-                            <input type="text" id="trainingEmpFilter" class="empcd-filter" placeholder="Emp ID..."
+                            <input type="text" id="trainingEmpFilter" class="empcd-filter" placeholder='@T("Emp ID...")'
                                    oninput="renderTraining()">
                         </div>
                     </div>
@@ -240,13 +251,13 @@
                             <thead class="bg-light">
                                 <tr>
                                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="hidden">#</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Emp Code">Emp Code</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Full Name">Full Name</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Class / Course">Class / Course</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Session">Session</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Date">Date</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Time">Time</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Location">Location</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Emp Code">@T("Emp Code")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Full Name">@T("Full Name")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Class / Course">@T("Class / Course")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Session">@T("Session")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Date">@T("Date")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Time">@T("Time")</th>
+                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2" data-mobile="detail" data-mobile-label="Location">@T("Location")</th>
                                 </tr>
                             </thead>
                             <tbody id="trainingBody"></tbody>
@@ -279,11 +290,11 @@ function emptyRow(msg, cols) {
 const SCHEDULE_URL = '@Url.Action("GetTeamSchedulePage","Leave")';
 const GP_URL       = '@Url.Action(gpEndpoint,"GatePass")';
 const TRAINING_URL = '@Url.Action("GetTeamTrainingSchedule","Leave")';
-const MONTHS_EN    = ['January','February','March','April','May','June',
-                      'July','August','September','October','November','December'];
-const LEAVE_LABEL  = { AL:'Annual', CL:'Social Ins.', SL:'Sick', NPL:'Unpaid', OTH:'Other', NL:'Unpaid leave', SI:'Sick (certified)', DT:'Funeral', DC:'Wedding', CT:'Business trip', VS:'Childbirth', DS:'Recovery leave', KT:'Prenatal checkup' };
+const MONTHS_EN    = [@TJ("January"),@TJ("February"),@TJ("March"),@TJ("April"),@TJ("May"),@TJ("June"),
+                      @TJ("July"),@TJ("August"),@TJ("September"),@TJ("October"),@TJ("November"),@TJ("December")];
+const LEAVE_LABEL  = { AL:@TJ("Annual"), CL:@TJ("Social Ins."), SL:@TJ("Sick"), NPL:@TJ("Unpaid"), OTH:@TJ("Other"), NL:@TJ("Unpaid leave"), SI:@TJ("Sick (certified)"), DT:@TJ("Funeral"), DC:@TJ("Wedding"), CT:@TJ("Business trip"), VS:@TJ("Childbirth"), DS:@TJ("Recovery leave"), KT:@TJ("Prenatal checkup") };
 const LEAVE_COLOR  = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', NL:'secondary', SI:'danger', DT:'dark', DC:'danger', CT:'info', VS:'primary', DS:'warning', KT:'warning' };
-const GP_TYPE_LABEL = { OUT:'Early Leave', IN:'Late Arrival', MID:'Out & In' };
+const GP_TYPE_LABEL = { OUT:@TJ("Early Leave"), IN:@TJ("Late Arrival"), MID:@TJ("Out & In") };
 const GP_TYPE_COLOR = { OUT:'warning', IN:'info', MID:'primary' };
 
 let curMonth = @curMonth, curYear = @curYear;
@@ -362,7 +373,7 @@ function buildCalendar(data) {
     const firstDay    = new Date(curYear, curMonth-1, 1);
     const daysInMonth = new Date(curYear, curMonth, 0).getDate();
     const startDow    = (firstDay.getDay() + 6) % 7;
-    const hdrs = ['Mo','Tu','We','Th','Fr','Sa','Su'].map(h => `<div class="cal-hdr">${h}</div>`).join('');
+    const hdrs = [@TJ("Mo"),@TJ("Tu"),@TJ("We"),@TJ("Th"),@TJ("Fr"),@TJ("Sa"),@TJ("Su")].map(h => `<div class="cal-hdr">${h}</div>`).join('');
     let cells = '';
     for (let i = 0; i < startDow; i++) cells += `<div class="cal-cell cal-empty"></div>`;
     for (let day = 1; day <= daysInMonth; day++) {
@@ -483,15 +494,15 @@ function buildScheduleRow(item, idx, today) {
     const ltLabel  = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
     const ltColor  = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
     const srcBadge = item.SOURCE === 'ASSIGNED'
-        ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:.7rem;">Scheduled</span>`
-        : `<span class="badge bg-light text-dark border" style="font-size:.7rem;">Self-filed</span>`;
+        ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:.7rem;">@T("Scheduled")</span>`
+        : `<span class="badge bg-light text-dark border" style="font-size:.7rem;">@T("Self-filed")</span>`;
     const from = item.FROM_DATE ? new Date(item.FROM_DATE) : null;
     const to   = item.TO_DATE   ? new Date(item.TO_DATE)   : null;
     const isPast   = to   && to   < today;
     const isActive = from && to && from <= today && to >= today;
     const rowClass = isPast ? 'sch-past' : isActive ? 'sch-active' : '';
     const activeBadge = isActive
-        ? `<i class="bi bi-circle-fill text-success ms-1" style="font-size:.5rem;vertical-align:middle;" title="Currently on leave"></i>` : '';
+        ? `<i class="bi bi-circle-fill text-success ms-1" style="font-size:.5rem;vertical-align:middle;" title="@T("Currently on leave")"></i>` : '';
     const deptParts = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean);
     const deptLine  = deptParts.length
         ? `<div class="text-xs text-secondary mt-0" style="line-height:1.2;">${deptParts.map(escHtml).join(' / ')}</div>`
@@ -593,7 +604,7 @@ function renderSchedule() {
     const pageData = filtered.slice(start, start + schPageSize);
 
     if (!pageData.length) {
-        const msg = selectedCalDay ? 'No leave on this day' : (q ? `No result for "<strong>${q}</strong>"` : 'No approved leaves this month');
+        const msg = selectedCalDay ? @TJ("No leave on this day") : (q ? `No result for "<strong>${q}</strong>"` : @TJ("No approved leaves this month"));
         document.getElementById('scheduleBody').innerHTML = emptyRow(msg, 9);
     } else {
         document.getElementById('scheduleBody').innerHTML =
@@ -604,7 +615,7 @@ function renderSchedule() {
     if (total > 0) {
         const s = start + 1, e = Math.min(start + schPageSize, total);
         document.getElementById('scheduleCount').innerHTML =
-            `<span class="text-xs">${s}-${e} / <strong>${total}</strong> leaves</span>`;
+            `<span class="text-xs">${s}-${e} / <strong>${total}</strong> @T("leaves")</span>`;
         $badge.textContent = total; $badge.style.display = '';
     } else {
         document.getElementById('scheduleCount').textContent = '';
@@ -677,7 +688,7 @@ function loadGatePass() {
             gpTotalPages = res.total_pages || 0;
 
             if (!data.length) {
-                document.getElementById('gpBody').innerHTML = emptyRow('No approved gate passes', 7);
+                document.getElementById('gpBody').innerHTML = emptyRow(@TJ("No approved gate passes"), 7);
             } else {
                 document.getElementById('gpBody').innerHTML =
                     data.map((item, i) => buildGpRow(item, (gpPage-1)*GP_PAGE_SZ + i + 1)).join('');
@@ -689,7 +700,7 @@ function loadGatePass() {
             if (gpTotal > 0) {
                 const s = (gpPage-1)*GP_PAGE_SZ + 1, e = Math.min(gpPage*GP_PAGE_SZ, gpTotal);
                 document.getElementById('gpCount').innerHTML =
-                    `<span class="text-xs">${s}-${e} / <strong>${gpTotal}</strong> gate passes</span>`;
+                    `<span class="text-xs">${s}-${e} / <strong>${gpTotal}</strong> @T("gate passes")</span>`;
                 $badge.textContent = gpTotal; $badge.style.display = '';
             } else {
                 $badge.style.display = 'none';
@@ -718,7 +729,7 @@ function loadTrainingForCalendar() {
         },
         error: function() {
             document.getElementById('trainingBody').innerHTML =
-                `<tr><td colspan="8" class="text-center text-danger py-4">Error loading training schedule</td></tr>`;
+                `<tr><td colspan="8" class="text-center text-danger py-4">@T("Error loading training schedule")</td></tr>`;
             MobileTableHelper.refresh('trainingBody');
         }
     });
@@ -743,7 +754,7 @@ function renderTraining() {
     tbody.innerHTML = '';
 
     if (filtered.length === 0) {
-        tbody.innerHTML = emptyRow('No training sessions found', 8);
+        tbody.innerHTML = emptyRow(@TJ("No training sessions found"), 8);
         MobileTableHelper.refresh('trainingBody');
         document.getElementById('trainingCount').textContent = '';
         document.getElementById('trainingCountBadge').style.display = 'none';
@@ -811,7 +822,7 @@ $(document).ready(function() {
     window.addEventListener('scroll', hideCalHover, { passive:true });
     document.addEventListener('touchmove', hideCalHover, { passive:true });
 
-    // Deep-link ?tab=training|gp|leave — used by "In training today" tile on Home dashboard
+    // Deep-link ?tab=training|gp|leave — used by @TJ("In training today") tile on Home dashboard
     const tabParam = new URLSearchParams(window.location.search).get('tab');
     const pillMap = { training: 'pillTraining', gp: 'pillGp', leave: 'pillLeave' };
     if (tabParam && pillMap[tabParam]) {

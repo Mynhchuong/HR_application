@@ -1,7 +1,7 @@
 @model HR_web.ViewModels.Home.HomeIndexViewModel
 
 @{
-    var isEn  = Model.Lang == "en";
+    var isEn  = Model.Lang != "vi";
     var role  = Model.RoleName;
     var isExpat   = role == "Expat";
     var isHrAdmin = role is "HR" or "Admin" || Model.DeptRoleName is "HR";   // + role phòng ban
@@ -15,26 +15,26 @@
     // (đúng route menu sidebar đang trỏ) — trước đó lỡ gộp CSR vào nhánh Admin nên CSR bấm vào bị
     // "không có quyền" (AdminInquiryController.Index/GetList chỉ cho Admin dù class Authorize có CSR).
     var inquiryCtrl = role is "HR" or "CSR" || Model.DeptRoleName is "HR" or "CSR" ? "HrInquiry" : "AdminInquiry";
-    var msgLabel    = isEn ? "New messages"       : "Tin nhắn mới";
-    var inqLabel    = isEn ? "Unhandled inquiries" : "Tin nhắn chưa xử lý";
-    var bullCmtLabel = isEn ? "Bulletins w/ new comments" : "Bản tin có bình luận mới";
+    var msgLabel    = isEn ? ExpatText.T(Model.Lang, "New messages") : "Tin nhắn mới";
+    var inqLabel    = isEn ? ExpatText.T(Model.Lang, "Unhandled inquiries") : "Tin nhắn chưa xử lý";
+    var bullCmtLabel = isEn ? ExpatText.T(Model.Lang, "Bulletins w/ new comments") : "Bản tin có bình luận mới";
 
-    var title = isEn ? "Today at a glance" : "Tổng quan hôm nay";
-    var leaveLabel   = isEn ? "Leave to sign"     : "Đơn phép cần ký";
-    var gpLabel      = isEn ? "Gate pass to sign" : "Ra vào cổng cần ký";
-    var otLabel      = isEn ? "OT status"         : "Tăng ca";
-    var leaveTodayLabel = isEn ? "On leave today" : "Nghỉ hôm nay";
-    var gpTodayLabel    = isEn ? "Gate pass today" : "Ra cổng hôm nay";
-    var trainingTodayLabel = isEn ? "In training today" : "Đang học hôm nay";
-    var otSubNeed    = isEn ? "need sign"         : "cần ký";
-    var otSubSigned  = isEn ? "signed"            : "đã ký";
-    var otSubTotal   = isEn ? "total"             : "tổng";
-    var bdLabel      = isEn ? "Team birthdays"    : "SN đồng nghiệp";
-    var docMissingLabel = isEn ? "Docs not submitted" : "Chưa nộp giấy tờ";
-    var refreshLabel = isEn ? "Refresh"           : "Làm mới";
-    var loadingLabel = isEn ? "Loading…"          : "Đang tải…";
-    var emptyLabel   = isEn ? "No birthdays today" : "Không có SN nào hôm nay";
-    var errorLabel   = isEn ? "Failed to load list" : "Không tải được danh sách";
+    var title = isEn ? ExpatText.T(Model.Lang, "Today at a glance") : "Tổng quan hôm nay";
+    var leaveLabel   = isEn ? ExpatText.T(Model.Lang, "Leave to sign") : "Đơn phép cần ký";
+    var gpLabel      = isEn ? ExpatText.T(Model.Lang, "Gate pass to sign") : "Ra vào cổng cần ký";
+    var otLabel      = isEn ? ExpatText.T(Model.Lang, "OT status") : "Tăng ca";
+    var leaveTodayLabel = isEn ? ExpatText.T(Model.Lang, "On leave today") : "Nghỉ hôm nay";
+    var gpTodayLabel    = isEn ? ExpatText.T(Model.Lang, "Gate pass today") : "Ra cổng hôm nay";
+    var trainingTodayLabel = isEn ? ExpatText.T(Model.Lang, "In training today") : "Đang học hôm nay";
+    var otSubNeed    = isEn ? ExpatText.T(Model.Lang, "need sign") : "cần ký";
+    var otSubSigned  = isEn ? ExpatText.T(Model.Lang, "signed") : "đã ký";
+    var otSubTotal   = isEn ? ExpatText.T(Model.Lang, "total") : "tổng";
+    var bdLabel      = isEn ? ExpatText.T(Model.Lang, "Team birthdays") : "SN đồng nghiệp";
+    var docMissingLabel = isEn ? ExpatText.T(Model.Lang, "Docs not submitted") : "Chưa nộp giấy tờ";
+    var refreshLabel = isEn ? ExpatText.T(Model.Lang, "Refresh") : "Làm mới";
+    var loadingLabel = isEn ? ExpatText.T(Model.Lang, "Loading…") : "Đang tải…";
+    var emptyLabel   = isEn ? ExpatText.T(Model.Lang, "No birthdays today") : "Không có SN nào hôm nay";
+    var errorLabel   = isEn ? ExpatText.T(Model.Lang, "Failed to load list") : "Không tải được danh sách";
 
     // Route KPI — role-specific
     // Trang Training/TeamSchedule riêng đã bỏ — trỏ sang tab "Lịch Học"/"Training" trong TeamCalendar.
@@ -148,7 +148,7 @@
     <div class="home-modal-panel">
         <div class="home-modal-header">
             <div class="home-modal-title">🎂 @bdLabel</div>
-            <button type="button" class="home-modal-close" data-close="team-birthday" aria-label="@(isEn ? "Close" : "Đóng")">×</button>
+            <button type="button" class="home-modal-close" data-close="team-birthday" aria-label="@(isEn ? ExpatText.T(Model.Lang, "Close") : "Đóng")">×</button>
         </div>
         <div class="home-modal-body" data-modal-body>
             <div class="home-modal-loading">@loadingLabel</div>
@@ -161,7 +161,7 @@
     <div class="home-modal-panel">
         <div class="home-modal-header">
             <div class="home-modal-title">📋 @docMissingLabel</div>
-            <button type="button" class="home-modal-close" data-close="leave-doc-missing" aria-label="@(isEn ? "Close" : "Đóng")">×</button>
+            <button type="button" class="home-modal-close" data-close="leave-doc-missing" aria-label="@(isEn ? ExpatText.T(Model.Lang, "Close") : "Đóng")">×</button>
         </div>
         <div class="home-modal-body" data-modal-body>
             <div class="home-modal-loading">@loadingLabel</div>

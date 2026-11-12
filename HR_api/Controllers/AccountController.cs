@@ -35,6 +35,7 @@ public class AccountController : ControllerBase
                 E.CNAME AS ECM_NAME,
                 E.JEAJIKGB,
                 E.DEPTCD AS ECM_DEPTCD,
+                E.NATION AS ECM_NATION,
                 U.ID,
                 U.EMPCD,
                 U.PASSWORD,
@@ -54,6 +55,7 @@ public class AccountController : ControllerBase
             EcmEmpCd = reader["ECM_EMPCD"]?.ToString(),
             EcmName = reader["ECM_NAME"]?.ToString(),
             EcmDeptCd = reader["ECM_DEPTCD"]?.ToString(),
+            EcmNation = reader["ECM_NATION"] == DBNull.Value ? null : reader["ECM_NATION"].ToString(),
             Jeajikgb = reader["JEAJIKGB"]?.ToString(),
             Id = reader["ID"] == DBNull.Value ? 0 : Convert.ToInt32(reader["ID"]),
             EmpCd = reader["EMPCD"]?.ToString(),
@@ -111,12 +113,22 @@ public class AccountController : ControllerBase
                 new OracleParameter("EMPCD", empcd),
                 new OracleParameter("DEVICE", (object?)request.DeviceType ?? DBNull.Value));
 
+            // Nhánh tài khoản hệ thống (không có trong ECM100) nên KHÔNG có NATION để suy ngôn ngữ —
+            // nếu là Expat thì mặc định tiếng Anh, vẫn tôn trọng LANG_PREF nếu NV từng đổi tay.
+            string duLang = LangPrefHelper.Vi;
+            if (string.Equals(du.RoleName, "Expat", StringComparison.OrdinalIgnoreCase))
+            {
+                var duSaved = await LangPrefHelper.GetAsync(_oracleService, du.EmpCd);
+                duLang = LangPrefHelper.IsSupported(duSaved) && duSaved != LangPrefHelper.Vi ? duSaved! : LangPrefHelper.En;
+            }
+
             return Ok(new { success = true, data = new UserInfoModel {
                 Id = du.Id, EmpCd = du.EmpCd, FullName = du.FullName,
                 RoleId = du.RoleId, RoleName = du.RoleName,
                 DeptRoleName = await DeptRoleHelper.GetDeptRoleNameAsync(_oracleService, du.EmpCd),
                 IsActive = du.IsActive, LastedLogin = du.LastedLogin,
-                SIGNATUREBLOB = du.SignatureBlob ?? "N"
+                SIGNATUREBLOB = du.SignatureBlob ?? "N",
+                Lang = duLang
             }});
         }
 
@@ -190,8 +202,21 @@ public class AccountController : ControllerBase
                 TpmBlocked = HR_api.Tpm.TpmAccess.IsDeptBlocked(_config, userCheck.EcmDeptCd),
                 IsActive = userCheck.IsActive,
                 LastedLogin = userCheck.LastedLogin,
-                SIGNATUREBLOB = userCheck.SignatureBlob
+                SIGNATUREBLOB = userCheck.SignatureBlob,
+                Lang = string.Equals(userCheck.RoleName, "Expat", StringComparison.OrdinalIgnoreCase)
+                     ? LangPrefHelper.DetectFromNation(userCheck.EcmNation)
+                     : LangPrefHelper.Vi
             };
+        }
+
+        // NV đã tự đổi ngôn ngữ (HR_USERS.LANG_PREF) thì lựa chọn đó ĐÈ lên mặc định suy từ quốc tịch.
+        // Đặt chung 1 chỗ ở đây để áp cho MỌI nhánh bên trên (có/không có trong ECM100, vừa auto-tạo
+        // tài khoản...). Chỉ áp cho Expat — role thường luôn tiếng Việt, không cho đổi.
+        if (string.Equals(result.RoleName, "Expat", StringComparison.OrdinalIgnoreCase))
+        {
+            var saved = await LangPrefHelper.GetAsync(_oracleService, result.EmpCd);
+            if (LangPrefHelper.IsSupported(saved)) result.Lang = saved!;
+            if (result.Lang == LangPrefHelper.Vi) result.Lang = LangPrefHelper.En;  // Expat không dùng tiếng Việt
         }
 
         string updateSql = @"UPDATE HRMS.HR_USERS SET LASTED_LOGIN = SYSDATE, LAST_DEVICE_TYPE = :DEVICE, LAST_DEVICE_DT = SYSDATE WHERE EMPCD = :EMPCD";
@@ -268,6 +293,23 @@ public class AccountController : ControllerBase
             new OracleParameter("LOGIN_USER", model.LoginUser));
 
         return Ok(new { success = rows > 0 });
+    }
+
+    // POST /apiHR/Account/set-lang-pref — NV nước ngoài (Expat) tự đổi ngôn ngữ giao diện (en/ko).
+    // Lưu vào HR_USERS.LANG_PREF, lần đăng nhập sau sẽ ưu tiên giá trị này thay vì suy từ quốc tịch.
+    [HttpPost("set-lang-pref")]
+    public async Task<IActionResult> SetLangPref([FromBody] SetLangPrefRequest req)
+    {
+        // Chỉ nhận en/ko. KHÔNG nhận "vi": lưu "vi" sẽ đè mất mặc định theo quốc tịch (người Hàn
+        // bị ép sang tiếng Anh ở lần đăng nhập sau) vì nhánh login coi mọi giá trị đã lưu là ý NV.
+        if (req == null || string.IsNullOrWhiteSpace(req.EmpCd)
+            || (req.Lang != LangPrefHelper.En && req.Lang != LangPrefHelper.Ko))
+            return Ok(new { success = false, message = "Thiếu mã NV hoặc mã ngôn ngữ không hợp lệ (chỉ en/ko)" });
+
+        bool ok = await LangPrefHelper.SetAsync(_oracleService, req.EmpCd, req.Lang);
+        return Ok(ok
+            ? new { success = true,  message = "Đã lưu ngôn ngữ" }
+            : new { success = false, message = "Không lưu được (DB chưa chạy alter_hr_users_lang_pref.sql hoặc không có NV này)" });
     }
 
     [HttpPost("reset-password")]
@@ -816,7 +858,11 @@ public class AccountController : ControllerBase
                        -- NV 98040014 = 19980403 = 3/4/1998, khớp user xác nhận) — cột này đã có sẵn
                        -- trong SELECT nên không cần sửa gì ở câu JOIN.
                        FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(A.IGENTDAT, 'YYYYMMDD')) / 12) || ' năm ' ||
-                       MOD(FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(A.IGENTDAT, 'YYYYMMDD'))), 12) || ' tháng' AS SENIORITY_DESC
+                       MOD(FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(A.IGENTDAT, 'YYYYMMDD'))), 12) || ' tháng' AS SENIORITY_DESC,
+                       -- Trả thêm số thuần để giao diện NV nước ngoài tự ghép câu theo tiếng Anh/Hàn.
+                       -- SENIORITY_DESC ở trên ghép sẵn tiếng Việt nên không dùng lại được (2026-11-12).
+                       FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(A.IGENTDAT, 'YYYYMMDD')) / 12) AS SENIORITY_YEARS,
+                       MOD(FLOOR(MONTHS_BETWEEN(SYSDATE, TO_DATE(A.IGENTDAT, 'YYYYMMDD'))), 12) AS SENIORITY_MONTHS
                 FROM HRMS.ECM100 A
                 JOIN HRMS.EAM410 B ON A.DEPTCD = B.DEPTCD AND A.LINECD = B.LINECD AND A.WORKCD = B.WORKCD AND B.USEYN = 'Y'
                 -- TRƯỚC ĐÂY join theo CODE1/CODE3 (mã ĐỊA GIỚI CŨ) — nhưng ECM100.BONADDR1/BONADDR3
@@ -857,6 +903,8 @@ public class AccountController : ControllerBase
                 Phone = reader["PHONE"]?.ToString(),
                 Email = reader["EMAIL"]?.ToString(),
                 Seniority = reader["SENIORITY_DESC"]?.ToString(),
+                SeniorityYears  = reader["SENIORITY_YEARS"]  == DBNull.Value ? null : Convert.ToInt32(reader["SENIORITY_YEARS"]),
+                SeniorityMonths = reader["SENIORITY_MONTHS"] == DBNull.Value ? null : Convert.ToInt32(reader["SENIORITY_MONTHS"]),
                 HomeTown = reader["HOMETOWN"]?.ToString(),
                 ContractType = reader["CONTRACT_TYPE"]?.ToString(),
                 ContractDate = SafeToDate(reader["CONTRACT_DATE"]),

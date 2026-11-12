@@ -121,7 +121,7 @@
                             if (!string.IsNullOrEmpty(item.Group) && item.Group != lastGroup
                                 && MenuGroupCatalog.Styles.TryGetValue(item.Group, out var groupStyle))
                             {
-                                string groupLabel = menu.Id == "Expat" ? groupStyle.LabelEn : groupStyle.Label;
+                                string groupLabel = groupStyle.Label;   // sidebar NV thường: luôn tiếng Việt (Expat dùng _SideNavExpat)
                                 <li class="menu-group-label" style="color:@groupStyle.Color;">
                                     <span class="menu-group-dot" style="background:@groupStyle.Color;"></span>@groupLabel
                                 </li>

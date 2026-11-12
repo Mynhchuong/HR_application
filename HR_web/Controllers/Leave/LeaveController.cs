@@ -3,6 +3,7 @@ using HR_web.API.Service;
 using HR_web.Models.Leave;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HR_web.Helpers;
 
 namespace HR_web.Controllers.Leave;
 
@@ -156,7 +157,7 @@ public class LeaveController : BaseController
         ViewBag.DateTo       = DateTime.Today.AddMonths(2).ToString("yyyy-MM-dd");
         ViewBag.CurrentEmpCd = CurrentUser?.EmpCd  ?? "";
         ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
-        return View();
+        return View(ExpatViews.LeaveApproval);
     }
 
     // ─────────────────────────────────────────────
@@ -255,7 +256,7 @@ public class LeaveController : BaseController
         ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
         ViewBag.CurrentMonth = DateTime.Today.Month;
         ViewBag.CurrentYear  = DateTime.Today.Year;
-        return View();
+        return View(ExpatViews.TeamCalendar);
     }
 
     // ─────────────────────────────────────────────

@@ -1,6 +1,7 @@
 using HR_web.API.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HR_web.Helpers;
 
 namespace HR_web.Controllers.Notification;
 
@@ -17,10 +18,10 @@ public class NotificationController : BaseController
     // GET /Notification/Index
     // Expat vào bằng đường dẫn chung "/Notification" (app mở khi bấm thông báo đẩy) -> dùng bản tiếng Anh.
     public IActionResult Index() =>
-        CurrentUser != null && CurrentUser.RoleName == "Expat" ? View("IndexForExpat") : View();
+        CurrentUser != null && CurrentUser.RoleName == "Expat" ? View(ExpatViews.Notification) : View();
 
     // GET /Notification/IndexForExpat
-    public IActionResult IndexForExpat() => View();
+    public IActionResult IndexForExpat() => View(ExpatViews.Notification);
 
     // GET /Notification/GetPage  (AJAX)
     [HttpGet]

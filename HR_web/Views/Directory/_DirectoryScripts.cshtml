@@ -1,0 +1,101 @@
+@*
+    JS trang tra cứu NV — xem ghi chú ở _DirectoryContent.cshtml.
+*@
+@{
+    // Cùng quy tắc ngôn ngữ với _DirectoryContent: NV nước ngoài chỉ thấy tiếng của họ,
+    // NV Việt giữ chuỗi song ngữ cũ. DJ(...) xuất ra JSON literal nên an toàn trong JS
+    // (chuỗi tiếng Việt có dấu nháy/& sẽ không phá cú pháp) — xem ExpatText.Dual.
+    var jsLang = AuthHelper.GetCurrentUser(User)?.UiLang ?? "vi";
+    Func<string, string, Microsoft.AspNetCore.Html.IHtmlContent> DJ = (viEn, en) =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            System.Text.Json.JsonSerializer.Serialize(ExpatText.Dual(jsLang, viEn, en)));
+}
+    <script src="~/lib/html5-qrcode/html5-qrcode.min.js"></script>
+    <script src="~/js/native-scanner.js" asp-append-version="true"></script>
+    <script>
+        var qrScanner = null;
+        var qrBusy = false;
+
+        // Quét gốc của app (Android: Google Code Scanner, iOS: VisionKit) — nhanh, tự lấy nét, nhạy
+        // hơn hẳn quét trong trang bằng JS, nhất là với QR mật độ dày (thẻ NV thường mã hoá cả URL dài
+        // chứ không chỉ mã NV) — qua helper dùng chung native-scanner.js (yêu cầu 2026-10-26: trang
+        // mới cần quét chỉ cần gọi NativeScanner.scan(...), không cần sửa code iOS/Android nữa).
+        // Không có native -> rơi về quét trong trang (openQrScanner) như cũ.
+        function startQrScan() {
+            var started = window.NativeScanner.scan({
+                onResult: function (code) { handleQrCode(code); },
+                onCancel: function () {},
+                onError: function (msg) {
+                    if (msg === 'camera_denied') {
+                        alert('Chưa cấp quyền camera cho ứng dụng. Vào Cài đặt để bật.\nPlease allow camera access in Settings.');
+                        return;
+                    }
+                    openQrScanner();   // rơi về quét trong trang
+                }
+            });
+            if (!started) openQrScanner();
+        }
+
+        function openQrScanner() {
+            document.getElementById('qrModal').classList.remove('d-none');
+            document.getElementById('qrStatus').textContent = '';
+            qrBusy = false;
+            qrScanner = new Html5Qrcode("qr-reader");
+            qrScanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 240, height: 240 } },
+                onQrScanSuccess,
+                function () { /* decode failure per frame — ignore, keeps scanning */ }
+            ).catch(function (err) {
+                document.getElementById('qrStatus').textContent =
+                    @DJ("Không mở được camera / Could not access camera: ", "Could not access camera: ") + (err && err.message ? err.message : err);
+            });
+        }
+
+        function closeQrScanner() {
+            document.getElementById('qrModal').classList.add('d-none');
+            if (qrScanner) {
+                qrScanner.stop().then(function () { qrScanner.clear(); }).catch(function () {});
+                qrScanner = null;
+            }
+        }
+
+        // QR trên thẻ NV là 1 link, mã NV nằm ở cuối (query param hoặc segment cuối) — thử parse
+        // như URL trước, fallback lấy nguyên chuỗi số/chữ cuối nếu không phải URL hợp lệ.
+        function extractEmpCd(text) {
+            text = (text || '').trim();
+            try {
+                var url = new URL(text);
+                var fromQuery = url.searchParams.get('empCd') || url.searchParams.get('empcd');
+                if (fromQuery) return fromQuery;
+                var segments = url.pathname.split('/').filter(Boolean);
+                if (segments.length) return segments[segments.length - 1];
+            } catch (e) { /* not a URL — dùng nguyên text */ }
+            return text;
+        }
+
+        function onQrScanSuccess(decodedText) {
+            if (qrBusy) return;
+            qrBusy = true;
+            handleQrCode(decodedText);
+        }
+
+        // Dùng chung cho cả luồng quét trong trang (html5-qrcode) VÀ luồng native (Android/iOS) — xử lý
+        // xong thì điều hướng sang trang có kết quả tra cứu NV.
+        function handleQrCode(decodedText) {
+            var empCd = extractEmpCd(decodedText);
+            if (!empCd) {
+                var statusEl = document.getElementById('qrStatus');
+                if (statusEl) statusEl.textContent = @DJ("Mã QR không chứa mã số nhân viên / QR code did not contain an employee ID.", "QR code did not contain an employee ID.");
+                else alert(@DJ("Mã QR không chứa mã số nhân viên / QR code did not contain an employee ID.", "QR code did not contain an employee ID."));
+                qrBusy = false;
+                return;
+            }
+            var statusEl = document.getElementById('qrStatus');
+            if (statusEl) statusEl.textContent = @DJ("Đã tìm thấy / Found: ", "Found: ") + empCd + @DJ(" — đang tải / loading...", " — loading...");
+            var url = new URL(window.location.href);
+            url.searchParams.set('empCd', empCd);
+            url.searchParams.delete('historyPage');
+            window.location.href = url.toString();
+        }
+    </script>

@@ -3,6 +3,7 @@ using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc;
 using HR_web.API.Service;
 using HR_web.Models.Employee;
+using HR_web.Helpers;
 
 namespace HR_web.Controllers.Employee;
 
@@ -17,7 +18,7 @@ public class EmployeeController : BaseController
     // GET: /Employee/MyTeamForExpat — bản tiếng Anh cho role Expat, cùng pattern
     // OtListForExpat/GpListForExpat/LeaveApprovalForExpat (dùng chung data/export endpoint,
     // chỉ khác view hiển thị + header Excel theo CurrentUser.RoleName == "Expat").
-    public IActionResult MyTeamForExpat() => View();
+    public IActionResult MyTeamForExpat() => View(ExpatViews.MyTeam);
 
     [HttpGet]
     public async Task<IActionResult> GetMyTeamData(

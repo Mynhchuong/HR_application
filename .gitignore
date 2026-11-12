@@ -161,3 +161,4 @@ HR_api/Scripts/create_inquiry_remind_to.sql
 HR_api/Scripts/inquiry_pic_backfill_and_ga.sql
 HR_api/Scripts/go_live_inquiry_catalog.sql
 HR_api/Scripts/inquiry_catalog_plan.md
+HR_api/Scripts/alter_hr_users_lang_pref.sql

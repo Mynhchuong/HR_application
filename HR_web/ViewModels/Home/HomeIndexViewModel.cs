@@ -9,7 +9,19 @@ public class HomeIndexViewModel
     public string RoleName  { get; set; } = "Employee";
     /// <summary>Role phòng ban (HR/CSR...) — nhân sự (dept HR) vẫn thấy ô tổng quan và không có thông tin ca như role HR trước đây.</summary>
     public string? DeptRoleName { get; set; }
-    public string Lang      => string.Equals(RoleName, "Expat", StringComparison.OrdinalIgnoreCase) ? "en" : "vi";
+    /// <summary>
+    /// Ngôn ngữ đã chọn của NV nước ngoài ("en"/"ko") — HomeController gán từ <c>UserInfoModel.Lang</c>.
+    /// Để null thì Expat mặc định "en" (giữ đúng hành vi trước khi có tiếng Hàn).
+    /// </summary>
+    public string? UserLang { get; set; }
+
+    /// <summary>
+    /// "vi" cho NV thường, "en"/"ko" cho Expat. Các partial trang chủ đọc field này; chúng coi
+    /// "khác vi" là ngoại ngữ rồi tra tiếp từ điển <c>ExpatText</c> để ra tiếng Hàn khi cần.
+    /// </summary>
+    public string Lang      => string.Equals(RoleName, "Expat", StringComparison.OrdinalIgnoreCase)
+                                ? (UserLang == "ko" ? "ko" : "en")
+                                : "vi";
     public bool   ShowSummary => RoleName is "Supervisor" or "DeputyManager" or "Manager" or "Assistant" or "Clerk" or "Expat" or "HR" or "Admin" || DeptRoleName is "HR";
     public bool   ShowShift   => RoleName is not ("HR" or "Admin") && DeptRoleName is not "HR";
 

@@ -1,6 +1,9 @@
 @{
-    var isEn = (ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel)?.RoleName == "Expat";
-    string L(string vi, string en) => isEn ? en : vi;
+    // NV nước ngoài: "en" hoặc "ko" (UiLang đã chuẩn hoá theo role + quốc tịch); NV Việt: "vi".
+    // L(vi, en) -> Expat tra tiếp ExpatText để ra tiếng Hàn khi cần, NV Việt giữ nguyên tiếng Việt.
+    var kzLang = AuthHelper.GetCurrentUser(User)?.UiLang ?? "vi";
+    var isEn = kzLang != "vi";
+    string L(string vi, string en) => isEn ? HR_web.Helpers.ExpatText.T(kzLang, en) : vi;
     ViewData["Title"] = L("Đăng ký Kaizen", "Kaizen registration");
 }
 

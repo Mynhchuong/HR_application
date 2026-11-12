@@ -21,12 +21,24 @@
 
     var _ranges = {}; // prefix -> {min, max} đang áp dụng — cần nhớ lại để lọc phút mỗi khi đổi giờ
 
+    // Nhãn buổi trong ngày theo ngôn ngữ giao diện. NV nước ngoài (Expat) thấy Anh/Hàn —
+    // window.UI_LANG do _LayoutExpat đặt trước mọi script; layout tiếng Việt không đặt nên mặc định 'vi'.
+    var _BAND_LABELS = {
+        vi: ['Đêm', 'Sáng', 'Trưa', 'Chiều', 'Tối'],
+        en: ['Night', 'Morning', 'Noon', 'Afternoon', 'Evening'],
+        ko: ['새벽', '오전', '정오', '오후', '저녁']
+    };
+    function bandLabel(i) {
+        var set = _BAND_LABELS[window.UI_LANG] || _BAND_LABELS.vi;
+        return set[i];
+    }
+
     function hourBand(h) {
-        if (h <= 4)  return { icon: '🌙', label: 'Đêm',   color: '#4c1d95' };
-        if (h <= 10) return { icon: '🌅', label: 'Sáng',  color: '#c2410c' };
-        if (h <= 12) return { icon: '☀️', label: 'Trưa',  color: '#b45309' };
-        if (h <= 17) return { icon: '🌤️', label: 'Chiều', color: '#0369a1' };
-        return             { icon: '🌆', label: 'Tối',   color: '#1e293b' };
+        if (h <= 4)  return { icon: '🌙', label: bandLabel(0), color: '#4c1d95' };
+        if (h <= 10) return { icon: '🌅', label: bandLabel(1), color: '#c2410c' };
+        if (h <= 12) return { icon: '☀️', label: bandLabel(2), color: '#b45309' };
+        if (h <= 17) return { icon: '🌤️', label: bandLabel(3), color: '#0369a1' };
+        return             { icon: '🌆', label: bandLabel(4), color: '#1e293b' };
     }
 
     function makeHourOption(h) {

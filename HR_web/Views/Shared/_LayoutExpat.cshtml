@@ -1,0 +1,944 @@
+@using HR_web.Helpers
+@{
+    // ════════════════════════════════════════════════════════════════════════════════
+    // LAYOUT RIÊNG CHO NV NƯỚC NGOÀI (role Expat) — tách khỏi _Layout.cshtml (tiếng Việt)
+    // theo yêu cầu 2026-11-11, để tối ưu giao diện mobile + web desktop độc lập, không
+    // ảnh hưởng NV thường. Ngôn ngữ: "ko" (người Hàn, mặc định theo ECM100.NATION) hoặc
+    // "en" (quốc tịch khác). NV tự đổi được -> lưu HR_USERS.LANG_PREF (xem LangPrefHelper).
+    //
+    // LƯU Ý khi sửa: phần plumbing bên dưới (CSS/JS, FCM, gate, bridge native, modal dùng
+    // chung) hiện ĐANG TRÙNG với _Layout.cshtml — sửa lỗi plumbing phải nhớ sửa cả 2 file.
+    // ════════════════════════════════════════════════════════════════════════════════
+    var layoutUser = AuthHelper.GetCurrentUser(User);
+    var lang = layoutUser?.UiLang == "ko" ? "ko" : "en";   // chuẩn hoá ở UserInfoModel.UiLang
+    var isKo = lang == "ko";
+    // T("tiếng Anh", "tiếng Hàn") — gom chuỗi hiển thị về 1 chỗ cho dễ đọc, khỏi lồng ternary.
+    Func<string, string, string> T = (en, ko) => isKo ? ko : en;
+    // Đổ nguyên từ điển ExpatText xuống JS (window.EXPAT_TR) cho các file .js dùng chung tự tra;
+    // tiếng Anh thì rỗng để trExpat() fallback về chính chuỗi tiếng Anh, khỏi tải vài KB vô ích.
+    var expatTrJson = isKo ? ExpatText.KoJson : "{}";   // serialize 1 lần, cache tĩnh
+    var rawName = layoutUser?.FullName ?? layoutUser?.EmpCd ?? "User";
+    var displayName = rawName;
+    if (!string.IsNullOrEmpty(rawName))
+    {
+        var nameParts = rawName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (nameParts.Length >= 3)
+        {
+            displayName = nameParts[0] + " ... " + nameParts[nameParts.Length - 1];
+        }
+    }
+}
+<!DOCTYPE html>
+<html lang="@lang">
+<head>
+    <meta charset="utf-8" />
+    <!-- maximum-scale=1 + user-scalable=no — chặn hẳn auto-zoom của iOS Safari/WKWebView khi focus
+         input (không phụ thuộc cỡ chữ từng ô, chặn tại gốc luôn thay vì sửa từng input 1 — yêu cầu
+         tắt zoom 2026-10-26, đồng bộ với việc đã tắt pinch-zoom native Android/iOS). Không ảnh hưởng
+         MediaViewer (media-viewer.js) — zoom ảnh/video ở đó tự code bằng touch event JS riêng, độc
+         lập với thẻ viewport này. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>@ViewData["Title"] - My SAMHO</title>
+    <link rel="icon" type="image/png" href="~/assets/img/samho-logo.png" />
+
+    <!-- Fonts & Icons -->
+    <!-- Tự host (không còn gọi CDN công cộng) — "Mạng nội bộ Samho" (WiFi nhà máy) không có Internet
+         ra ngoài, trước đây các thẻ <link>/<script> trỏ CDN bị treo chờ timeout rất lâu, làm trang
+         kẹt loading (báo cáo 2026-10-02 "app load liên tục", đặc biệt rõ ở NV mới). -->
+    <link href="~/lib/googlefonts/inter.css" rel="stylesheet" asp-append-version="true" />
+    <link href="~/lib/googlefonts/material-symbols.css" rel="stylesheet" asp-append-version="true" />
+    <link href="~/lib/fontawesome/css/all.min.css" rel="stylesheet" asp-append-version="true" />
+    <link href="~/lib/bootstrap-icons/bootstrap-icons.css" rel="stylesheet" asp-append-version="true" />
+
+    <!-- Material Dashboard CSS -->
+    <link href="~/assets/css/nucleo-icons.css" rel="stylesheet" asp-append-version="true" />
+    <link href="~/assets/css/nucleo-svg.css" rel="stylesheet" asp-append-version="true" />
+    <link href="~/assets/css/material-dashboard.css?v=3.2.0" rel="stylesheet" asp-append-version="true" />
+
+    <!-- Select2 CSS -->
+    <link href="~/lib/select2/select2.min.css" rel="stylesheet" asp-append-version="true" />
+    <!-- Site-wide utility classes (site.css) -->
+    <link href="~/css/site.css" rel="stylesheet" asp-append-version="true" />
+    <!-- Mobile Table Helper CSS -->
+    <link href="~/css/mobile-table.css" rel="stylesheet" asp-append-version="true" />
+    <!-- List Page Helper CSS (stats + filter bar + header, mobile) -->
+    <link href="~/css/list-page-helper.css" rel="stylesheet" asp-append-version="true" />
+    <!-- Time Picker Helper CSS (dropdown chọn giờ kiểu Gate Pass, dùng chung nhiều trang) -->
+    <link href="~/css/time-picker.css" rel="stylesheet" asp-append-version="true" />
+    <!-- Video Fullscreen Helper CSS -->
+    <link href="~/assets/css/video-fullscreen.css" rel="stylesheet" asp-append-version="true" />
+    <!-- Menu điều hướng (sidebar + hamburger + mobile bottom-nav) — tách riêng 2026-10-13 cho dễ sửa -->
+    <link href="~/assets/css/hr-nav.css" rel="stylesheet" asp-append-version="true" />
+
+    @RenderSection("Styles", required: false)
+
+    <style>
+        @@font-face {
+            font-family: 'Vnitbi__';
+            src: url('@Url.Content("~/fonts/Vnitbi__.ttf")') format('truetype');
+            font-display: block;
+        }
+        .vni-font, .vni-font * {
+            font-family: 'Vnitbi__', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        }
+        :root {
+            --header-height: 64px;
+            --header-accent: linear-gradient(135deg, #1f2937 0%, #334155 45%, #2563eb 100%);
+            --header-surface: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            --header-border: rgba(148, 163, 184, 0.22);
+            --header-title: #334155;
+            --header-subtle: #64748b;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Premium Toast Styling */
+        .alert-toast {
+            border-radius: 16px !important;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2) !important;
+            margin-bottom: 1rem;
+            animation: toastSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            overflow: hidden;
+        }
+
+        .alert-toast.text-bg-success { background: rgba(45, 206, 137, 0.85) !important; }
+        .alert-toast.text-bg-danger { background: rgba(245, 54, 88, 0.85) !important; }
+        .alert-toast.text-bg-warning { background: rgba(251, 99, 64, 0.85) !important; color: #fff !important; }
+        .alert-toast.text-bg-info { background: rgba(17, 205, 239, 0.85) !important; }
+
+        @@keyframes toastSlideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .main-body {
+            flex: 1;
+            padding: 1rem;
+        }
+
+        .main-header {
+            position: sticky;
+            top: 0;
+            z-index: 1025;
+            padding: 0 1.5rem;
+            background: var(--header-surface);
+            border-bottom: 1px solid var(--header-border);
+            display: flex;
+            align-items: center;
+            min-height: 74px;
+        }
+
+        .main-header-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 0;
+            background: transparent;
+        }
+
+        .main-header-left,
+        .main-header-right {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .main-header-left {
+            gap: 0.75rem;
+            flex: 1;
+        }
+
+        .main-header-right {
+            flex-shrink: 0;
+        }
+
+        .header-title-wrap {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .header-title {
+            display: block;
+            max-width: 100%;
+            color: var(--header-title);
+            font-size: 1.1rem;
+            font-weight: 800;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            letter-spacing: -0.02em;
+        }
+
+        .header-user-toggle {
+            max-width: 250px;
+            padding: 0.45rem 0.8rem !important;
+            border-radius: 50px !important;
+            border: 1.5px solid rgba(99,102,241,0.25) !important;
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+            color: #ffffff !important;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+        }
+
+        .header-user-toggle:hover {
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+            box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+        }
+
+        .header-user-toggle::after {
+            margin-left: 0.45rem;
+            color: #ffffff !important;
+        }
+
+        .header-user-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.2) !important;
+            color: #ffffff !important;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .header-user-name {
+            display: inline-block;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #ffffff !important;
+        }
+
+        .app-footer {
+            font-size: 10.5px;
+            padding: 15px 0;
+            color: #9aa0a6;
+            text-align: center;
+            opacity: 0.85;
+            background: #f8f9fa;
+        }
+
+        /* Loading Overlay */
+        #pageLoadingOverlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        #pageLoadingOverlay.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .loading-spinner-ring {
+            width: 56px;
+            height: 56px;
+            border: 5px solid #e0e7ff;
+            border-top-color: #5e72e4;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @@media (max-width: 991.98px) {
+            .main-header {
+                padding: 0 0.75rem;
+                min-height: 56px;
+            }
+
+            .main-header-bar {
+                padding: 0;
+            }
+
+            .header-title {
+                font-size: 0.9rem;
+            }
+
+            .header-user-icon {
+                width: 22px;
+                height: 22px;
+                font-size: 0.85rem;
+            }
+
+            .header-user-toggle {
+                border: none;
+                box-shadow: none;
+                padding: 0.2rem 0.4rem !important;
+            }
+
+            .header-user-name {
+                display: none;
+            }
+
+            .header-user-toggle::after {
+                display: none;
+            }
+        }
+
+        @@keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+
+    @* ── NGÔN NGỮ GIAO DIỆN ──────────────────────────────────────────────────────────
+       Đặt trong <head>, TRƯỚC mọi thứ khác. Lý do: các file .js dùng chung (list-page-helper.js,
+       hr-nav.js, time-picker-helper.js) dựng bảng nhãn ngay lúc tải, và home.js được nhúng thẳng
+       trong thân trang nên chạy TRƯỚC khối <script> ở cuối body. Khai báo muộn hơn thì
+       window.UI_LANG còn undefined và nhãn rơi hết về tiếng Việt. *@
+    <script>
+        window.UI_LANG = '@lang';
+        var IS_KO_UI = window.UI_LANG === 'ko';   // dùng lại ở modal xác nhận cuối body
+        // Từ điển Anh → Hàn cho chuỗi dựng trong file .js dùng chung — nguồn là
+        // HR_web/Helpers/ExpatText.cs, không gõ lại bản dịch ở JS. Tiếng Anh thì rỗng (fallback).
+        window.EXPAT_TR = @Html.Raw(expatTrJson);
+        window.trExpat = function (s) { return (window.EXPAT_TR && window.EXPAT_TR[s]) || s; };
+        // list-page-helper.js đọc nhãn này lúc tải — lấy qua từ điển để chỉ có 1 bản dịch duy nhất.
+        window.CLEAR_FILTER_LABEL = window.trExpat('Clear filters');
+    </script>
+
+</head>
+<body class="bg-gray-100">
+
+    <!-- Sidenav Backdrop for mobile -->
+    <div class="hr-backdrop"></div>
+
+    <!-- Loading Overlay -->
+    <div id="pageLoadingOverlay">
+        <div class="loading-spinner-ring"></div>
+        <div class="fw-bold text-primary">@T("Loading...", "불러오는 중...")</div>
+    </div>
+
+    <!-- Toast Alerts Container -->
+    <div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index: 9998;">
+        @Html.RenderAlerts()
+    </div>
+
+
+    <!-- Sidebar (hr_web) -->
+    <aside id="hr-sidebar" class="sidenav navbar navbar-vertical navbar-expand-xs border-0 fixed-start bg-white">
+        @await Html.PartialAsync("_SideNavExpat")
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <div class="main-header shadow-sm">
+            <div class="main-header-bar">
+            <div class="main-header-left">
+                <button id="hr-btnToggle" class="btn btn-link border-0 shadow-none header-toggle-btn" type="button" aria-label="Toggle menu" aria-expanded="false">
+                    <span class="material-symbols-rounded" style="font-size: 1.35rem;">menu</span>
+                </button>
+                <div class="header-title-wrap ms-1">
+                    <span class="header-title" title="@ViewData["Title"]">@ViewData["Title"]</span>
+                </div>
+            </div>
+
+            <div class="main-header-right">
+                <div class="dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center gap-2 header-user-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <span class="header-user-icon">
+                            <span class="material-symbols-rounded">person</span>
+                        </span>
+                        <span class="header-user-name vni-font" title="@rawName">@displayName</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg" style="border-radius: 16px;">
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center gap-2 py-2" asp-controller="Profile" asp-action="ProfileUser">
+                                <span class="material-symbols-rounded text-primary" style="font-size: 1.2rem;">account_circle</span> @T("Profile", "프로필")
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        @* Đổi ngôn ngữ: mặc định theo quốc tịch (ECM100.NATION), bấm đây để tự đổi —
+                           lưu HR_USERS.LANG_PREF nên lần đăng nhập sau vẫn giữ (xem AccountController.SetLanguage). *@
+                        <li>
+                            <form method="post" asp-controller="Account" asp-action="SetLanguage" class="m-0">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="lang" value="@(isKo ? "en" : "ko")" />
+                                <input type="hidden" name="returnUrl" value="@(Context.Request.PathBase + Context.Request.Path + Context.Request.QueryString)" />
+                                <button type="submit" class="dropdown-item d-flex align-items-center gap-2 py-2">
+                                    <span class="material-symbols-rounded text-success" style="font-size: 1.2rem;">language</span>
+                                    @(isKo ? "Switch to English" : "한국어로 전환")
+                                </button>
+                            </form>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item text-danger d-flex align-items-center gap-2 py-2" href="javascript:;" data-bs-toggle="modal" data-bs-target="#logoutModal">
+                                <span class="material-symbols-rounded" style="font-size: 1.2rem;">logout</span> @T("Logout", "로그아웃")
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Body -->
+        <section class="main-body">
+            @RenderBody()
+        </section>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            © 2026 VietNam Samho Co., LTD · Powered by IT Team
+        </footer>
+    </main>
+
+    <!-- Mobile Bottom Navigation — bản Expat: chỉ 1 nhánh, không cần phân role như _Layout -->
+    @{
+        string notiUrl    = "~/Notification/IndexForExpat";
+        string inqUrl     = "~/Leave/TeamCalendarForExpat";
+        bool   slot4Active = Context.Request.Path.Value?.Contains("/Leave/TeamCalendar") == true;
+    }
+    <nav class="mobile-bottom-nav">
+        <a href="@Url.Content("~/Home/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Home") == true ? "active" : "")">
+            <div class="icon-wrap">
+                <span class="material-symbols-rounded">home</span>
+            </div>
+            <span class="nav-text">@T("Home", "홈")</span>
+        </a>
+        <a href="@Url.Content("~/Bulletin/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Bulletin") == true ? "active" : "")">
+            <div class="icon-wrap" style="position:relative;">
+                <span class="material-symbols-rounded">campaign</span>
+                <span id="bulletinBadge" style="display:none;position:absolute;top:-4px;right:-6px;background:#c00000;color:white;font-size:.6rem;font-weight:800;border-radius:20px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;"></span>
+            </div>
+            <span class="nav-text">@T("Bulletin", "공지")</span>
+        </a>
+        <a href="@Url.Content(notiUrl)" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Notification") == true ? "active" : "")" id="navBell">
+            <div class="icon-wrap" style="position:relative;">
+                <span class="material-symbols-rounded">notifications</span>
+                <span id="bellBadge" style="display:none;position:absolute;top:-4px;right:-6px;background:#c00000;color:white;font-size:.6rem;font-weight:800;border-radius:20px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;"></span>
+            </div>
+            <span class="nav-text">@T("Notice", "알림")</span>
+        </a>
+        <a href="@Url.Content(inqUrl)" class="nav-item-mobile @(slot4Active ? "active" : "")">
+            <div class="icon-wrap" style="position:relative;">
+                <span class="material-symbols-rounded">calendar_month</span>
+            </div>
+            <span class="nav-text">@T("Calendar", "일정")</span>
+        </a>
+        <!-- Nối thẳng vào sidebar đầy đủ — trước đây bottom-nav mobile chỉ có 4 lối tắt cố định,
+             tách biệt hẳn với sidebar (muốn vào chức năng khác phải mở hamburger ở header, xa tầm
+             tay ngón cái) — hợp nhất 2 đường điều hướng lại (yêu cầu 2026-10-13). -->
+        <button type="button" class="nav-item-mobile" onclick="window.hrToggleSidebar && window.hrToggleSidebar()">
+            <div class="icon-wrap">
+                <span class="material-symbols-rounded">menu</span>
+            </div>
+            <span class="nav-text">@T("Menu", "메뉴")</span>
+        </button>
+    </nav>
+
+    <!-- Scripts -->
+
+
+    <!-- Tự host (xem ghi chú ở phần <head>) — tránh treo trang khi app ở "Mạng nội bộ" không có Internet -->
+    <script src="~/lib/jquery/jquery-3.6.0.min.js" asp-append-version="true"></script>
+    <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
+    <!-- Menu điều hướng (đóng/mở sidebar, tìm kiếm, ghim yêu thích) — tách riêng 2026-10-13 -->
+    <script src="~/js/hr-nav.js" asp-append-version="true"></script>
+    <script src="~/lib/select2/select2.min.js" asp-append-version="true"></script>
+    <!-- Gift Gate — bắt 409 gift_pending từ mọi $.ajax, điều hướng sang trang xác nhận nhận quà -->
+    <script src="~/js/app-gate.js" asp-append-version="true"></script>
+    <!-- Alert Helper -->
+    <script src="~/Scripts/alert-helper.js" asp-append-version="true"></script>
+    <!-- Select2 Helper -->
+    <script src="~/assets/js/select2-helper.js" asp-append-version="true"></script>
+    <!-- Mobile Table Helper -->
+    <script src="~/js/mobile-table.js" asp-append-version="true"></script>
+    <!-- Time Picker Helper (dropdown chọn giờ kiểu Gate Pass, dùng chung nhiều trang) -->
+    <script src="~/js/time-picker-helper.js" asp-append-version="true"></script>
+    <script src="~/js/list-page-helper.js" asp-append-version="true"></script>
+    <script src="~/assets/js/video-fullscreen.js" asp-append-version="true"></script>
+
+    <!-- Material Dashboard JS -->
+    <script src="~/assets/js/plugins/perfect-scrollbar.min.js" asp-append-version="true"></script>
+    <script src="~/assets/js/material-dashboard.min.js?v=3.2.0" asp-append-version="true"></script>
+
+    <script>
+    // Fix: Material Dashboard 3 ripple cleanup crashes when element is removed from DOM
+    // before the animation setTimeout fires (e.g. Bootstrap modal close).
+    (function () {
+        const _orig = Node.prototype.removeChild;
+        Node.prototype.removeChild = function (child) {
+            if (child && this.contains(child)) return _orig.call(this, child);
+        };
+    })();
+    </script>
+
+    <script>
+        window.showLoading = function () {
+            document.getElementById('pageLoadingOverlay')?.classList.add('show');
+        };
+
+        window.hideLoading = function () {
+            document.getElementById('pageLoadingOverlay')?.classList.remove('show');
+        };
+
+        $(document).ready(function () {
+            $('a').not('[target="_blank"]').not('[href^="#"]').not('[data-bs-toggle]').not('[download]').not('.no-loading, [data-no-loading]').on('click', function(e) {
+                if (e.isDefaultPrevented()) return;
+                if (!$(this).hasClass('dropdown-toggle')) {
+                    window.showLoading();
+                }
+            });
+        });
+
+        // Hide on normal load
+        window.addEventListener('load', function () {
+            window.hideLoading();
+        });
+
+        // Hide when page is restored from bfcache (browser back/forward button)
+        window.addEventListener('pageshow', function (e) {
+            if (e.persisted) window.hideLoading();
+        });
+
+        // Hide on popstate (mobile hardware back, history navigation)
+        window.addEventListener('popstate', function () {
+            window.hideLoading();
+        });
+
+        // Chặn "thoát" 1 gate bắt buộc (survey chưa làm, quà chưa xác nhận, ...) qua nút back cứng
+        // Android: khi WebView phục hồi trang TRƯỚC ĐÓ từ back-forward cache, request KHÔNG đi qua
+        // server nên AppGateFilterBase (Survey/Gift/...) không chạy lại được. Ở đây re-check thủ
+        // công bằng AJAX ngay khi trang được phục hồi, theo ĐÚNG thứ tự ưu tiên các gate đăng ký
+        // trong Program.cs — còn pending gate nào thì đẩy sang gate đó, không cho dùng tiếp app.
+        // Thêm gate mới (vd Banner): chỉ cần thêm 1 dòng vào GATES, không viết IIFE riêng.
+        (function () {
+            var GATES = [
+                { checkUrl: '@Url.Action("CheckPending", "Survey")', pathRe: /\/survey(\/|$)/i },
+                { checkUrl: '@Url.Action("CheckPending", "Gift")',   pathRe: /\/gift(\/|$)/i },
+            ];
+            var checking = false;
+            function tryGate(i) {
+                if (i >= GATES.length) { checking = false; return; }
+                var gate = GATES[i];
+                if (gate.pathRe.test(window.location.pathname)) { tryGate(i + 1); return; } // đang ở trang gate đó rồi, khỏi check
+                fetch(gate.checkUrl, { credentials: 'same-origin' })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (res) {
+                        if (res && res.redirect_url) window.location.href = res.redirect_url;
+                        else tryGate(i + 1);
+                    })
+                    .catch(function () { tryGate(i + 1); /* im lặng bỏ qua — không phá luồng back bình thường */ });
+            }
+            function recheckAppGates() {
+                if (checking) return;
+                checking = true;
+                tryGate(0);
+            }
+            window.addEventListener('pageshow', function (e) { if (e.persisted) recheckAppGates(); });
+            window.addEventListener('popstate', recheckAppGates);
+        })();
+    </script>
+
+    <!-- Global Confirm Modal — z-index cao hơn Bootstrap modal mặc định (1055) để luôn hiện
+         TRÊN mọi modal khác đang mở (vd bấm "Sao chép" bên trong modal "Chọn đề thi"). -->
+    <div class="modal fade" id="globalConfirmModal" tabindex="-1" aria-hidden="true" style="z-index: 1080;">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 28px;">
+                <div class="modal-body p-4 text-center">
+                    <div class="mb-3">
+                        <div id="globalConfirmIconWrap" class="rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 70px; height: 70px; background: #fee2e2;">
+                            <span class="material-symbols-rounded" id="globalConfirmIcon" style="font-size: 2.5rem; color: #dc2626;">delete</span>
+                        </div>
+                    </div>
+                    <h5 class="fw-bold mb-2" id="globalConfirmTitle">@T("Confirm", "확인")</h5>
+                    <p class="text-muted small mb-4" id="globalConfirmMessage"></p>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-light w-100 py-2 rounded-3 fw-bold" data-bs-dismiss="modal">@T("Cancel", "취소")</button>
+                        <button type="button" class="btn btn-danger w-100 py-2 rounded-3 fw-bold" id="globalConfirmOk">@T("Delete", "삭제")</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- OT change-history popup — dùng chung OtListForAdmin/OtListForHR/OtListForClerk -->
+    <div class="modal fade" id="otLogModal" tabindex="-1" aria-hidden="true" style="z-index: 1080;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+                <div class="modal-header border-0 pb-0">
+                    <h6 class="fw-bold mb-0"><span class="material-symbols-rounded align-middle me-1" style="font-size:1.1rem;">history</span>@T("OT confirmation history", "연장근무 확인 이력")</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body pt-2" id="otLogModalBody">
+                    <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        window.showOtLogPopup = async function(empcd, workDate, empName) {
+            const UI_LANG = '@lang';  const IS_KO = UI_LANG === 'ko';
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const fmtDt = s => { if (!s) return ''; const d = new Date(s); return isNaN(d) ? '' : d.toLocaleString(IS_KO ? 'ko-KR' : 'en-GB', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); };
+            // Khớp đủ mọi CONFIRM_STATUS/ACTION thực tế ghi vào HR_OT_LOG (OtLogHelper.LogAction) —
+            // trước đây thiếu SUPP_PEND/SUPP_REQ nên popup hiện thẳng mã code thô, HR đọc không hiểu
+            // (báo cáo 2026-09-30: "SUPP_REQ — → SUPP_PEND", "SUPP_PEND → Đồng ý").
+            const statusLabel = s => (IS_KO ? {
+                CONFIRMED: '승인', REJECTED: '거부', PENDING: '서명 대기',
+                SUPP_PEND: '추가 서명 대기 (인사팀 요청)',
+            } : {
+                CONFIRMED: 'Confirmed', REJECTED: 'Rejected', PENDING: 'Pending signature',
+                SUPP_PEND: 'Pending supplemental signature (HR requested)',
+            })[s] || (s || '—');
+            const actionLabel = a => (IS_KO ? {
+                INS: '최초 서명', UPD: '변경', DEL: '삭제',
+                SUPP_REQ: '인사팀 추가 서명 요청', PLAN_CHG: 'ERP 근무계획 변경',
+            } : {
+                INS: 'First signature', UPD: 'Changed', DEL: 'Deleted',
+                SUPP_REQ: 'HR requested supplemental signature', PLAN_CHG: 'ERP changed shift plan',
+            })[a] || (a || '');
+
+            const modalEl = document.getElementById('otLogModal');
+            const modal   = new bootstrap.Modal(modalEl);
+            const body    = document.getElementById('otLogModalBody');
+            body.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+            modal.show();
+
+            try {
+                const url = `${window.OT_LOG_URL || '/OT/GetOtLog'}?empcd=${encodeURIComponent(empcd)}&work_date=${encodeURIComponent(workDate)}`;
+                const res  = await fetch(url);
+                const json = await res.json();
+                if (!json.success) {
+                    body.innerHTML = `<div class="text-center text-danger py-3">${esc(json.message || (IS_KO ? '이력을 불러오지 못했습니다' : 'Failed to load history'))}</div>`;
+                    return;
+                }
+                const rows = json.data || [];
+                if (!rows.length) {
+                    body.innerHTML = `<div class="text-center text-muted py-3">${IS_KO ? '이력 없음' : 'No history'}</div>`;
+                    return;
+                }
+                body.innerHTML =
+                    `<div class="small text-muted mb-2">${empName ? `<span class="vni-font" style="text-transform:uppercase;">${esc(empName)}</span> — ` : ''}${esc(empcd)}</div>` +
+                    '<ul class="list-unstyled mb-0">' +
+                    rows.map(e => {
+                        const hoursChanged = e.OLD_HOURS != null && e.NEW_HOURS != null && Number(e.OLD_HOURS) !== Number(e.NEW_HOURS);
+                        const actorLabel = e.ACTOR_NAME ? `<span class="vni-font">${esc(e.ACTOR_NAME)}</span> (${esc(e.ACTOR_EMPCD || '')})` : esc(e.ACTOR_EMPCD || '');
+                        // PLAN_CHG: ERP tự đổi số giờ OT sau khi NV đã ký (không phải NV/HR đổi ý
+                        // trạng thái) — không có OLD_STATUS/NEW_STATUS nên hiện riêng, tránh in "— → —"
+                        // vô nghĩa. Không có ACTOR_EMPCD vì đây là hệ thống tự phát hiện, không phải ai
+                        // bấm (yêu cầu HR 2026-09-30: "để ý người ta hay đổi quá").
+                        if (e.ACTION === 'PLAN_CHG') {
+                            return `<li class="d-flex justify-content-between align-items-start border-bottom py-2">
+                        <div>
+                            <span class="badge bg-warning text-dark me-1">${actionLabel(e.ACTION)}</span>
+                            ${IS_KO ? '연장근무 시간' : 'OT hours'}: ${e.OLD_HOURS}h &rarr; <strong>${e.NEW_HOURS}h</strong>
+                            <div class="text-xs text-muted">${IS_KO ? '기존 서명 내역과 불일치가 자동 감지됨' : 'System auto-detected a mismatch with the previously signed record'}</div>
+                        </div>
+                        <div class="text-xs text-muted text-end" style="white-space:nowrap;">${fmtDt(e.INST_DT)}</div>
+                    </li>`;
+                        }
+                        return `<li class="d-flex justify-content-between align-items-start border-bottom py-2">
+                        <div>
+                            <span class="badge bg-light text-dark border me-1">${actionLabel(e.ACTION)}</span>
+                            ${statusLabel(e.OLD_STATUS)} &rarr; <strong>${statusLabel(e.NEW_STATUS)}</strong>
+                            ${hoursChanged ? `<div class="text-xs text-muted">${IS_KO ? '시간' : 'Hours'}: ${e.OLD_HOURS}h &rarr; ${e.NEW_HOURS}h</div>` : ''}
+                            ${e.ACTOR_EMPCD ? `<div class="text-xs text-muted">${IS_KO ? '처리자:' : 'by'} ${actorLabel}</div>` : ''}
+                        </div>
+                        <div class="text-xs text-muted text-end" style="white-space:nowrap;">${fmtDt(e.INST_DT)}</div>
+                    </li>`;
+                    }).join('') +
+                    '</ul>';
+            } catch (err) {
+                body.innerHTML = `<div class="text-center text-danger py-3">${IS_KO ? '연결 오류' : 'Connection error'}</div>`;
+            }
+        };
+    </script>
+    <!-- Attendance Confirm change-history popup — dùng chung Index/IndexForExpat -->
+    <div class="modal fade" id="attLogModal" tabindex="-1" aria-hidden="true" style="z-index: 1080;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+                <div class="modal-header border-0 pb-0">
+                    <h6 class="fw-bold mb-0"><span class="material-symbols-rounded align-middle me-1" style="font-size:1.1rem;">history</span>@T("Attendance confirmation history", "근태 확인 이력")</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body pt-2" id="attLogModalBody">
+                    <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        window.showAttLogPopup = async function(empcd, workDate, empName) {
+            const UI_LANG = '@lang';  const IS_KO = UI_LANG === 'ko';
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const fmtDt = s => { if (!s) return ''; const d = new Date(s); return isNaN(d) ? '' : d.toLocaleString(IS_KO ? 'ko-KR' : 'en-GB', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); };
+            const statusLabel = s => (IS_KO ? {
+                MISSING: '미제출', PENDING_WORKER: '직원 신고 대기', PENDING_MANAGER: '관리자 확인 대기',
+                CONFIRMED: '확인 완료', REJECTED: '거부됨',
+            } : {
+                MISSING: 'Not submitted', PENDING_WORKER: 'Pending worker declaration', PENDING_MANAGER: 'Pending manager confirmation',
+                CONFIRMED: 'Confirmed', REJECTED: 'Rejected',
+            })[s] || (s || '—');
+            const actionLabel = a => (IS_KO ? {
+                REQUEST_SENT: '신고 요청 발송', WORKER_SUBMIT: '직원 근무시간 신고',
+                MANAGER_CONFIRM: '관리자 확인', MANAGER_REJECT: '관리자 거부', HR_REOPEN: '인사팀 재작성 요청',
+            } : {
+                REQUEST_SENT: 'Request sent', WORKER_SUBMIT: 'Worker declared time',
+                MANAGER_CONFIRM: 'Manager confirmed', MANAGER_REJECT: 'Manager rejected', HR_REOPEN: 'HR reopened',
+            })[a] || (a || '');
+
+            const modalEl = document.getElementById('attLogModal');
+            const modal   = new bootstrap.Modal(modalEl);
+            const body    = document.getElementById('attLogModalBody');
+            body.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+            modal.show();
+
+            try {
+                const url = `${window.ATT_LOG_URL || '/AttendanceConfirm/GetLog'}?empcd=${encodeURIComponent(empcd)}&work_date=${encodeURIComponent(workDate)}`;
+                const res  = await fetch(url);
+                const json = await res.json();
+                if (!json.success) {
+                    body.innerHTML = `<div class="text-center text-danger py-3">${esc(json.message || (IS_KO ? '이력을 불러오지 못했습니다' : 'Failed to load history'))}</div>`;
+                    return;
+                }
+                const rows = json.data || [];
+                if (!rows.length) {
+                    body.innerHTML = `<div class="text-center text-muted py-3">${IS_KO ? '이력 없음' : 'No history'}</div>`;
+                    return;
+                }
+                body.innerHTML =
+                    `<div class="small text-muted mb-2">${empName ? `<span class="vni-font" style="text-transform:uppercase;">${esc(empName)}</span> — ` : ''}${esc(empcd)}</div>` +
+                    '<ul class="list-unstyled mb-0">' +
+                    rows.map(e => {
+                        const actorLabel = e.ACTOR_NAME ? `<span class="vni-font">${esc(e.ACTOR_NAME)}</span> (${esc(e.ACTOR_EMPCD || '')})` : esc(e.ACTOR_EMPCD || '');
+                        return `<li class="d-flex justify-content-between align-items-start border-bottom py-2">
+                        <div>
+                            <span class="badge bg-light text-dark border me-1">${actionLabel(e.ACTION)}</span>
+                            ${statusLabel(e.OLD_STATUS)} &rarr; <strong>${statusLabel(e.NEW_STATUS)}</strong>
+                            ${e.DETAIL ? `<div class="text-xs text-muted">${esc(e.DETAIL)}</div>` : ''}
+                            ${e.ACTOR_EMPCD ? `<div class="text-xs text-muted">${IS_KO ? '처리자:' : 'by'} ${actorLabel}</div>` : ''}
+                        </div>
+                        <div class="text-xs text-muted text-end" style="white-space:nowrap;">${fmtDt(e.INST_DT)}</div>
+                    </li>`;
+                    }).join('') +
+                    '</ul>';
+            } catch (err) {
+                body.innerHTML = `<div class="text-center text-danger py-3">${IS_KO ? '연결 오류' : 'Connection error'}</div>`;
+            }
+        };
+    </script>
+    <script>
+        window.showToast = function(message, type) {
+            const colors = { success: 'text-bg-success', error: 'text-bg-danger', warning: 'text-bg-warning', info: 'text-bg-info' };
+            const icons  = { success: 'check_circle', error: 'error', warning: 'warning', info: 'info' };
+            const cls = colors[type||'success'] || colors.success;
+            const ico = icons[type||'success']  || icons.success;
+            const div = document.createElement('div');
+            div.className = `toast align-items-center ${cls} border-0 alert-toast show`;
+            div.setAttribute('role','alert');
+            div.innerHTML = `<div class="d-flex align-items-center"><div class="toast-body flex-fill"><span class="material-symbols-rounded me-2">${ico}</span>${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+            document.getElementById('toast-container').appendChild(div);
+            setTimeout(() => { div.classList.remove('show'); setTimeout(() => div.remove(), 400); }, 3500);
+        };
+        window.showConfirm = function(message, onConfirm, options) {
+            const opts = options || {};
+            document.getElementById('globalConfirmTitle').textContent   = opts.title   || (IS_KO_UI ? '확인' : 'Confirm');
+            document.getElementById('globalConfirmMessage').textContent = message;
+            document.getElementById('globalConfirmOk').textContent      = opts.okText  || (IS_KO_UI ? '삭제' : 'Delete');
+            document.getElementById('globalConfirmOk').className        = 'btn w-100 py-2 rounded-3 fw-bold ' + (opts.okClass || 'btn-danger');
+            // Icon tuỳ chỉnh
+            const iconEl   = document.getElementById('globalConfirmIcon');
+            const iconWrap = document.getElementById('globalConfirmIconWrap');
+            iconEl.textContent           = opts.icon      || 'delete';
+            iconEl.style.color           = opts.iconColor || '#dc2626';
+            iconWrap.style.background    = opts.iconBg    || '#fee2e2';
+            const modalEl = document.getElementById('globalConfirmModal');
+            const modal   = new bootstrap.Modal(modalEl);
+            const okBtn   = document.getElementById('globalConfirmOk');
+            const handler = function() { modal.hide(); onConfirm(); };
+            okBtn.addEventListener('click', handler, { once: true });
+            modalEl.addEventListener('hidden.bs.modal', function() {
+                okBtn.removeEventListener('click', handler);
+            }, { once: true });
+            modal.show();
+            // Backdrop mới nhất (của confirm modal này) cũng cần z-index cao hơn backdrop của
+            // modal bên dưới (nếu có), không thì confirm bị che khuất khi mở lồng trong modal khác.
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            const lastBackdrop = backdrops[backdrops.length - 1];
+            if (lastBackdrop) lastBackdrop.style.zIndex = '1079';
+        };
+    </script>
+
+    <!-- Logout Modal -->
+    <div class="modal fade" id="logoutModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 28px;">
+                <div class="modal-body p-4 text-center">
+                    <div class="mb-3">
+                        <div class="bg-soft-orange rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
+                            <span class="material-symbols-rounded text-warning" style="font-size: 2.5rem;">logout</span>
+                        </div>
+                    </div>
+                    <h5 class="fw-bold mb-2">@T("Log out?", "로그아웃 하시겠습니까?")</h5>
+                    <p class="text-muted small mb-4">@T("Are you sure you want to log out?", "시스템에서 로그아웃 하시겠습니까?")</p>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-light w-100 py-2 rounded-3 fw-bold" data-bs-dismiss="modal">@T("Cancel", "취소")</button>
+                        <form asp-controller="Account" asp-action="Logout" method="post" class="w-100" id="logoutForm">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-danger w-100 py-2 rounded-3 fw-bold">@T("Log out", "로그아웃")</button>
+                        </form>
+                        <script>
+                        // Trước khi submit form logout: cố gắng unregister FCM token + clear noti tray.
+                        // KHÔNG block form submit dù có lỗi gì.
+                        (function(){
+                            var f = document.getElementById('logoutForm');
+                            if (!f) return;
+                            f.addEventListener('submit', function () {
+                                var bridge = window.MysamhoBridge || window.Android;
+                                var token = null;
+                                try {
+                                    if (bridge && typeof bridge.getFcmToken === 'function')
+                                        token = bridge.getFcmToken();
+                                } catch (e) {}
+                                if (!token) {
+                                    try { token = localStorage.getItem('FCM_TOKEN'); } catch (e) {}
+                                }
+                                if (token) {
+                                    try {
+                                        navigator.sendBeacon(
+                                            '@Url.Action("UnregisterToken","Notification")',
+                                            new Blob([JSON.stringify({ Token: token })], { type: 'application/json' })
+                                        );
+                                    } catch (e) {}
+                                }
+                                try {
+                                    if (bridge && typeof bridge.clearAllNotifications === 'function')
+                                        bridge.clearAllNotifications();
+                                    else if (window.webkit && window.webkit.messageHandlers
+                                        && window.webkit.messageHandlers.clearNotifications)
+                                        window.webkit.messageHandlers.clearNotifications.postMessage(null);
+                                } catch (e) {}
+                                // Clear session flag để login lần sau vẫn thấy hero popup
+                                try { sessionStorage.removeItem('home_hero_popup_dismissed'); } catch (e) {}
+                                // Xoá tài khoản/mật khẩu đã lưu cho đăng nhập Face ID/vân tay (yêu cầu
+                                // 2026-10-26) — logout chủ động nghĩa là KHÔNG muốn tự đăng nhập lại nữa.
+                                try {
+                                    if (window.Android && typeof window.Android.clearCredentials === 'function')
+                                        window.Android.clearCredentials();
+                                    else if (window.webkit && window.webkit.messageHandlers
+                                        && window.webkit.messageHandlers.clearCredentials)
+                                        window.webkit.messageHandlers.clearCredentials.postMessage(null);
+                                } catch (e) {}
+                                // Không gọi preventDefault → form vẫn submit bình thường
+                            });
+                        })();
+                        </script>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @await RenderSectionAsync("Scripts", required: false)
+
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <script>
+        // ── Helper dùng chung cho MỌI badge số trên menu (bottom-nav mobile + sidebar desktop) ──
+        // Sau này thêm badge mới chỉ cần gọi loadBadge(...), khỏi viết lại fetch/set từng chỗ.
+        //   ids   : 1 id hoặc mảng id các <span> badge (element không tồn tại trên trang thì bỏ qua)
+        //   value : số > 0 mới hiện badge; 0/undefined thì ẩn (giữ nguyên style disp mặc định)
+        function setMenuBadge(ids, value) {
+            (Array.isArray(ids) ? ids : [ids]).forEach(function(id) {
+                var b = document.getElementById(id);
+                if (!b || !(value > 0)) return;
+                b.textContent = value > 99 ? '99+' : value;
+                b.style.display = 'inline-block';
+            });
+        }
+        // url        : endpoint AJAX trả JSON
+        // ids        : id badge (xem setMenuBadge)
+        // extractFn  : (json) => number — lấy số ra từ response, mặc định đọc field "count"
+        function loadBadge(url, ids, extractFn) {
+            // Trang đích của 1 "app gate" bắt buộc (Survey/Gift/bắt đổi mật khẩu.../...) phải bỏ
+            // qua mọi badge — nếu không, badge gọi sang controller KHÔNG nằm trong whitelist của
+            // gate đó (OT, AttendanceConfirm, Inquiry...) sẽ bị chính gate chặn (409), app-gate.js
+            // lại tự redirect NGAY VỀ TRANG NÀY → tải lại trang → gọi badge lại → lặp vô hạn, NV
+            // không bao giờ hoàn thành nổi (bug thật 2026-09-23 — trước đó chỉ vá path "gift", bỏ
+            // sót "survey"; "profile" thêm vào khi RequireUpdateProfileFilter được chuẩn hoá trả
+            // 409 JSON giống AppGateFilterBase, nếu không sẽ dính lại đúng bug này khi NV đang bị
+            // bắt buộc đổi mật khẩu/chữ ký). Thêm gate mới có trang đích riêng thì PHẢI thêm route
+            // vào đây — không có cách nào tự suy ra từ AppGateRegistry phía server.
+            if (/\/(gift|survey|profile)(\/|$)/i.test(window.location.pathname)) return;
+            fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(d) { setMenuBadge(ids, (extractFn || function(d){ return d.count; })(d)); })
+                .catch(function() {});
+        }
+
+        // Gom hết các loadBadge(...) vào 1 hàm gọi lại được — native (iOS/Android) gọi
+        // window.onNativeNotificationReceived() khi có push đến LÚC APP ĐANG MỞ (foreground) để badge
+        // tự cập nhật ngay, không cần NV F5/chuyển trang mới thấy số mới (trước đây chỉ 1 chiều: web
+        // lấy FCM token đăng ký, native xoá badge lúc logout — không có chiều ngược báo "có tin mới").
+        function refreshAllBadges() {
+            // Notification — bottom-nav mobile (#bellBadge) + sidebar desktop (#sideBellBadge)
+            loadBadge('@Url.Action("UnreadCount","Notification")', ['bellBadge', 'sideBellBadge']);
+
+            // Bulletin — số bài đang publish nhưng user chưa mở
+            loadBadge('@Url.Action("UnreadCount","Bulletin")', 'bulletinBadge');
+
+            // Expat KHÔNG có các mục "Xác nhận Tăng ca"/"Xác nhận chấm công"/"Nhận quà"/"Hộp thư
+            // phản ánh" trong menu (xem SideMenuBuilder, nhánh Id="Expat") nên bỏ hẳn các badge đó —
+            // gọi cũng không có phần tử nào để gắn số, chỉ tốn request mỗi lần tải trang.
+        }
+        refreshAllBadges();
+        window.onNativeNotificationReceived = refreshAllBadges;
+
+        // FCM token registration (native WebView bridge)
+        (function tryRegisterToken(attempt) {
+            if (attempt > 10) return;
+            var bridge = window.MysamhoBridge || window.Android;
+            if (!bridge || typeof bridge.getFcmToken !== 'function') {
+                setTimeout(function() { tryRegisterToken(attempt + 1); }, 500);
+                return;
+            }
+            try {
+                var fcmToken = bridge.getFcmToken();
+                if (!fcmToken) {
+                    setTimeout(function() { tryRegisterToken(attempt + 1); }, 500);
+                    return;
+                }
+                var osType = (typeof window.webkit !== 'undefined') ? 'IOS' : 'ANDROID';
+                var antiForgery = document.querySelector('input[name="__RequestVerificationToken"]');
+                var aft = antiForgery ? antiForgery.value : '';
+                fetch('@Url.Action("RegisterToken","Notification")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': aft },
+                    body: JSON.stringify({ token: fcmToken, osType: osType })
+                }).catch(() => {});
+            } catch(e) {}
+        })(0);
+
+        // Báo mã NV cho app native iOS (bridge setEmpcd) — iOS phân phối qua Apple Business Manager,
+        // không có App Store public, mỗi NV có 1 link redeem riêng (HR_APP_LINK). Lúc app kiểm tra
+        // version (AppVersionController.Check), cần biết đang là NV nào để trả đúng link ĐÃ GÁN cho
+        // họ làm nút "Cập nhật ngay" — mở lại đúng link cũ sẽ ra thẳng trang app trên App Store, không
+        // redeem lại (yêu cầu 2026-10-26: "xài lại link cũ để update iOS"). Android dùng Play Store
+        // public URL chung, không cần bridge này.
+        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.setEmpcd) {
+            try { window.webkit.messageHandlers.setEmpcd.postMessage(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(layoutUser?.EmpCd ?? ""))); } catch (e) {}
+        }
+        </script>
+    }
+</body>
+</html>

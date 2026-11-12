@@ -9,10 +9,12 @@ namespace HR_web.Controllers;
 public class AccountController : Controller
 {
     private readonly AccountService _service;
+    private readonly ILogger<AccountController> _logger;
 
-    public AccountController(AccountService service)
+    public AccountController(AccountService service, ILogger<AccountController> logger)
     {
         _service = service;
+        _logger  = logger;
     }
 
     // ─────────────────────────────────────────────
@@ -109,6 +111,41 @@ public class AccountController : Controller
 
         return RedirectToAction("Login");
     }
+
+    // ─────────────────────────────────────────────
+    // POST: /Account/SetLanguage — NV nước ngoài (Expat) tự đổi ngôn ngữ giao diện (en ⇄ ko).
+    // Lưu HR_USERS.LANG_PREF qua API rồi ký lại cookie để Lang mới có hiệu lực NGAY, không cần
+    // đăng nhập lại (Lang nằm trong claim JSON của UserInfoModel — xem AuthHelper.SignInAsync).
+    // ─────────────────────────────────────────────
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetLanguage(string lang, string? returnUrl = null)
+    {
+        var user = AuthHelper.GetCurrentUser(User);
+        // Chỉ Expat mới có khái niệm đổi ngôn ngữ; role thường luôn tiếng Việt.
+        if (user == null || !string.Equals(user.RoleName, "Expat", StringComparison.OrdinalIgnoreCase)
+            || (lang != "en" && lang != "ko"))
+            return RedirectToLocalOrHome(returnUrl);
+
+        bool saved = await _service.SetLangPrefAsync(user.EmpCd, lang);
+        if (!saved)
+        {
+            // Không đổi cookie nếu DB không lưu được: nếu đổi, NV tưởng đã xong nhưng lần đăng nhập
+            // sau lại quay về ngôn ngữ cũ — khó hiểu hơn là thấy nút không ăn và báo IT.
+            _logger.LogWarning("SetLanguage: không lưu được LANG_PREF cho {EmpCd} -> {Lang}", user.EmpCd, lang);
+            return RedirectToLocalOrHome(returnUrl);
+        }
+
+        user.Lang = lang;
+        await AuthHelper.UpdateUserSessionAsync(HttpContext, user);
+
+        return RedirectToLocalOrHome(returnUrl);
+    }
+
+    private IActionResult RedirectToLocalOrHome(string? returnUrl)
+        => !string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)
+            ? Redirect(returnUrl)
+            : RedirectToAction("Index", "Home");
 
     // ─────────────────────────────────────────────
     // GET: /Account/ForgotPassword — form quên mật khẩu

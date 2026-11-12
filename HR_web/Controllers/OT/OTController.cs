@@ -4,6 +4,7 @@ using HR_web.API.Service;
 using HR_web.Models.OT;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HR_web.Helpers;
 
 namespace HR_web.Controllers.OT;
 
@@ -150,7 +151,7 @@ public class OTController : BaseController
         ViewBag.FilterType      = CurrentUser?.FilterType      ?? "";
         ViewBag.FilterCodes     = CurrentUser?.FilterCodes     ?? new List<string>();
         ViewBag.FilterLineCodes = CurrentUser?.FilterLineCodes ?? new List<string>();
-        return View();
+        return View(ExpatViews.OtList);
     }
 
     // ─────────────────────────────────────────────

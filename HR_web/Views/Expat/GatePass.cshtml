@@ -1,5 +1,16 @@
 @{
-    ViewData["Title"] = "Gate Pass Approval";
+    // Ngôn ngữ giao diện (en/ko) — từ điển ở HR_web/Helpers/ExpatText.cs, không rải chuỗi Hàn trong view.
+    // ?? "en": view này chỉ Expat vào, nhưng GetCurrentUser có thể null (cookie hỏng) — rơi về
+    // tiếng Anh thay vì null, vì null sẽ bị các partial hiểu nhầm thành "không phải tiếng Việt"
+    // một cách tình cờ và làm cảnh báo nullable khi truyền vào model của filter bar.
+    var vLang = AuthHelper.GetCurrentUser(User)?.UiLang ?? "en";
+    Func<string, string> T = en => ExpatText.T(vLang, en);
+    // TJ: dùng TRONG JavaScript — xuất ra 1 JSON string literal (đã có nháy kép), nên tự an toàn
+    // với dấu nháy/& ; @T(...) bị HTML-encode nên KHÔNG dùng được trong script.
+    Func<string, Microsoft.AspNetCore.Html.IHtmlContent> TJ = en =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            System.Text.Json.JsonSerializer.Serialize(ExpatText.T(vLang, en)));
+    ViewData["Title"] = T("Gate Pass Approval");
     var filterDate = DateTime.Today.ToString("yyyy-MM-dd");
 }
 
@@ -25,23 +36,23 @@
 <div class="container-fluid py-4">
     <div class="row mb-4">
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status=""><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-secondary">Total</p><h5 class="font-weight-bolder mb-0" id="summaryTotal">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-info text-white shadow-info ms-auto"><i class="bi bi-door-open fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status=""><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-secondary">@T("Total")</p><h5 class="font-weight-bolder mb-0" id="summaryTotal">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-info text-white shadow-info ms-auto"><i class="bi bi-door-open fs-4"></i></div></div></div></div></div>
         </div>
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status="PENDING"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-warning">Pending</p><h5 class="font-weight-bolder mb-0" id="summaryPending">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-warning text-white shadow-warning ms-auto"><i class="bi bi-hourglass-split fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status="PENDING"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-warning">@T("Pending")</p><h5 class="font-weight-bolder mb-0" id="summaryPending">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-warning text-white shadow-warning ms-auto"><i class="bi bi-hourglass-split fs-4"></i></div></div></div></div></div>
         </div>
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status="APPROVED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-success">Approved</p><h5 class="font-weight-bolder mb-0" id="summaryApproved">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-success text-white shadow-success ms-auto"><i class="bi bi-check-circle-fill fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status="APPROVED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-success">@T("Approved")</p><h5 class="font-weight-bolder mb-0" id="summaryApproved">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-success text-white shadow-success ms-auto"><i class="bi bi-check-circle-fill fs-4"></i></div></div></div></div></div>
         </div>
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status="REJECTED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-danger">Rejected</p><h5 class="font-weight-bolder mb-0" id="summaryRejected">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-danger text-white shadow-danger ms-auto"><i class="bi bi-x-circle-fill fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status="REJECTED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-danger">@T("Rejected")</p><h5 class="font-weight-bolder mb-0" id="summaryRejected">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-danger text-white shadow-danger ms-auto"><i class="bi bi-x-circle-fill fs-4"></i></div></div></div></div></div>
         </div>
     </div>
 
     <div class="card my-4">
         <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
             <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h6 class="text-white mb-0"><i class="bi bi-shield-check me-1"></i> Gate Pass Approval</h6>
+                <h6 class="text-white mb-0"><i class="bi bi-shield-check me-1"></i> @T("Gate Pass Approval")</h6>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
                         <i class="bi bi-calendar3 text-primary"></i>
@@ -56,7 +67,7 @@
             DeptUrl = Url.Action("GetDeptByScope", "Dropdown")!,
             LineUrl = Url.Action("GetLineByScope", "Dropdown")!,
             WorkUrl = Url.Action("GetWorkByScope", "Dropdown")!,
-            Lang    = "en"
+            Lang    = vLang
         })
 
         <div class="card-body px-0 pt-0 pb-2 mt-1">
@@ -67,27 +78,27 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                 data-mobile="hidden">#</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="name" data-mobile-label="Employee Info">Employee Info</th>
+                                data-mobile="primary" data-mobile-slot="name" data-mobile-label="Employee Info">@T("Employee Info")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Type">Type</th>
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Type">@T("Type")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Date">Date</th>
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Date">@T("Date")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="Out Time">Out Time</th>
+                                data-mobile="detail" data-mobile-label="Out Time">@T("Out Time")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="In Time">In Time</th>
+                                data-mobile="detail" data-mobile-label="In Time">@T("In Time")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="Reason">Reason</th>
+                                data-mobile="detail" data-mobile-label="Reason">@T("Reason")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="Remark">Remark</th>
+                                data-mobile="detail" data-mobile-label="Remark">@T("Remark")</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Status">Status</th>
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Status">@T("Status")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="Approved By">Approved By</th>
+                                data-mobile="detail" data-mobile-label="Approved By">@T("Approved By")</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                data-mobile="detail" data-mobile-label="Signature">Signature</th>
+                                data-mobile="detail" data-mobile-label="Signature">@T("Signature")</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Action">Action</th>
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Action">@T("Action")</th>
                         </tr>
                     </thead>
                     <tbody id="gpTableBody"></tbody>
@@ -111,15 +122,15 @@
                 <input type="hidden" id="actionRequestId" />
                 <input type="hidden" id="actionType" />
                 <div class="mb-2">
-                    <label class="form-label small fw-bold">Remark (optional)</label>
+                    <label class="form-label small fw-bold">@T("Remark (optional)")</label>
                     <textarea id="actionComment" class="form-control form-control-sm" rows="2" maxlength="200" oninput="$('#commentCount').text(this.value.length+'/200')"></textarea>
                     <div class="text-end text-xxs text-secondary mt-1"><span id="commentCount">0/200</span></div>
                 </div>
                 <div id="actionError" class="alert alert-danger d-none py-1 px-2 text-sm"></div>
             </div>
             <div class="modal-footer py-2">
-                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-sm text-white" id="confirmActionBtn" onclick="submitAction()">Confirm</button>
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">@T("Cancel")</button>
+                <button class="btn btn-sm text-white" id="confirmActionBtn" onclick="submitAction()">@T("Confirm")</button>
             </div>
         </div>
     </div>
@@ -145,7 +156,7 @@ function canApproveRole(requesterRole) {
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 
-const GP_TYPE_LABEL = { IN: 'Late Arrival', OUT: 'Early Leave', MID: 'Out & In During Work' };
+const GP_TYPE_LABEL = { IN: @TJ("Late Arrival"), OUT: @TJ("Early Leave"), MID: @TJ("Out & In During Work") };
 
 function buildRow(item, idx) {
     const dateStr = formatDate(item.OUT_TIME || item.IN_TIME);
@@ -153,9 +164,9 @@ function buildRow(item, idx) {
     const inStr   = item.IN_TIME  ? formatTime(item.IN_TIME)  : '-';
     const gpLabel = GP_TYPE_LABEL[item.GP_TYPE] || item.GP_TYPE || '-';
 
-    let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Pending</span>`;
-    if (item.STATUS === 'APPROVED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Approved</span>`;
-    if (item.STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>`;
+    let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>@T("Pending")</span>`;
+    if (item.STATUS === 'APPROVED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>@T("Approved")</span>`;
+    if (item.STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>@T("Rejected")</span>`;
 
     let remarkHtml = '<span class="text-muted text-xs">-</span>';
     if (item.REMARK && item.STATUS !== 'PENDING') {
@@ -184,17 +195,17 @@ function buildRow(item, idx) {
         : approveOk
             ? `<button class="btn btn-xs btn-success me-1" onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','approve')"><i class="bi bi-check-lg"></i></button>
                <button class="btn btn-xs btn-danger"  onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','reject')"><i class="bi bi-x-lg"></i></button>`
-            : `<span class="text-warning text-xxs d-inline-block lh-sm" title="Please contact a higher-level manager for approval"><i class="bi bi-exclamation-triangle-fill me-1"></i>Need senior<br>approval</span>`;
+            : `<span class="text-warning text-xxs d-inline-block lh-sm" title="@T("Please contact a higher-level manager for approval")"><i class="bi bi-exclamation-triangle-fill me-1"></i>@T("Need senior")<br>@T("approval")</span>`;
 
     const reqSig = item.EMPCD
         ? `<div class="sig-cell-item">
-               <div class="sig-cell-lbl">Requester</div>
-               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.EMPCD)}" class="sig-cell-img" onerror="this.remove()" alt="Signature"/>
+               <div class="sig-cell-lbl">@T("Requester")</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.EMPCD)}" class="sig-cell-img" onerror="this.remove()" alt="@T("Signature")"/>
            </div>` : '';
     const apSig = (item.STATUS !== 'PENDING' && item.FINAL_APPROVER)
         ? `<div class="sig-cell-item">
-               <div class="sig-cell-lbl">Approver</div>
-               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.FINAL_APPROVER)}" class="sig-cell-img" onerror="this.remove()" alt="Signature"/>
+               <div class="sig-cell-lbl">@T("Approver")</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.FINAL_APPROVER)}" class="sig-cell-img" onerror="this.remove()" alt="@T("Signature")"/>
                ${item.APPROVER_NAME ? `<div class="sig-cell-name vni-font">${escHtml(item.APPROVER_NAME)}</div>` : ''}
            </div>` : '';
     const sigCell = `<div class="sig-cell">${reqSig}${apSig}</div>`;
@@ -241,7 +252,7 @@ function getParams(page) {
 
 function loadData(page = 1) {
     currentPage = page;
-    $('#gpTableBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Loading...</div></td></tr>`);
+    $('#gpTableBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">@T("Loading...")</div></td></tr>`);
     MobileTableHelper.refresh('gpTableBody');
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),
@@ -260,7 +271,7 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#gpTableBody').html(`<tr><td colspan="12" class="text-center text-muted py-4"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />No data found</td></tr>`);
+                $('#gpTableBody').html(`<tr><td colspan="12" class="text-center text-muted py-4"><img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:140px;display:block;margin:0 auto .5rem;opacity:.9;" />@T("No data found")</td></tr>`);
             } else {
                 $('#gpTableBody').html(data.map((item,i) => buildRow(item,(page-1)*pageSize+i+1)).join(''));
             }
@@ -277,7 +288,7 @@ function loadData(page = 1) {
 function renderPagination() {
     if (!totalRecords) { $('#paginationCount').text(''); $('#paginationBar').empty(); return; }
     const s=(currentPage-1)*pageSize+1, e=Math.min(currentPage*pageSize,totalRecords);
-    $('#paginationCount').html(`<span class="text-xs">${s}–${e} / <strong>${totalRecords}</strong> requests</span>`);
+    $('#paginationCount').html(`<span class="text-xs">${s}–${e} / <strong>${totalRecords}</strong> @T("requests")</span>`);
     const $bar=$('#paginationBar').empty();
     const mk=(label,p,disabled,active)=>{const li=$('<li class="page-item">').toggleClass('disabled',!!disabled).toggleClass('active',!!active);$('<a class="page-link">').html(label).on('click',()=>{if(!disabled&&!active)loadData(p);}).appendTo(li);return li;};
     $bar.append(mk('&lsaquo;',currentPage-1,currentPage<=1));
@@ -290,7 +301,7 @@ function openAction(id, type) {
     $('#actionRequestId').val(id); $('#actionType').val(type); $('#actionComment').val(''); $('#actionError').addClass('d-none').text('');
     const isApprove = type === 'approve';
     $('#actionModalHeader').removeClass('bg-success bg-danger').addClass(isApprove ? 'bg-success text-white' : 'bg-danger text-white');
-    $('#actionModalTitle').text(isApprove ? 'Approve Gate Pass' : 'Reject Gate Pass');
+    $('#actionModalTitle').text(isApprove ? @TJ("Approve Gate Pass") : @TJ("Reject Gate Pass"));
     $('#confirmActionBtn').removeClass('btn-success btn-danger').addClass(isApprove ? 'btn-success' : 'btn-danger');
     new bootstrap.Modal('#actionModal').show();
 }
@@ -305,13 +316,13 @@ async function submitAction() {
         const res = await $.ajax({ url, type: 'POST', data: { request_id: id, comment } });
         if (res.success) {
             bootstrap.Modal.getInstance('#actionModal').hide();
-            showToast(type === 'approve' ? 'Gate pass approved successfully' : 'Gate pass rejected', type === 'approve' ? 'success' : 'warning');
+            showToast(type === 'approve' ? @TJ("Gate pass approved successfully") : @TJ("Gate pass rejected"), type === 'approve' ? 'success' : 'warning');
             loadData(currentPage);
         } else {
-            $('#actionError').removeClass('d-none').text(res.message || 'Processing error');
+            $('#actionError').removeClass('d-none').text(res.message || @TJ("Processing error"));
         }
-    } catch { $('#actionError').removeClass('d-none').text('Connection error'); }
-    finally  { $btn.prop('disabled', false).text('Confirm'); }
+    } catch { $('#actionError').removeClass('d-none').text(@TJ("Connection error")); }
+    finally  { $btn.prop('disabled', false).text(@TJ("Confirm")); }
 }
 
 $('#filterDept').on('change', function() { $('#filterLine, #filterWork').val(null).trigger('change.select2'); loadData(1); });

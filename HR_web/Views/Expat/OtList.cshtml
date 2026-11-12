@@ -1,5 +1,16 @@
 @{
-    ViewData["Title"] = "OT List";
+    // Ngôn ngữ giao diện (en/ko) — từ điển ở HR_web/Helpers/ExpatText.cs, không rải chuỗi Hàn trong view.
+    // ?? "en": view này chỉ Expat vào, nhưng GetCurrentUser có thể null (cookie hỏng) — rơi về
+    // tiếng Anh thay vì null, vì null sẽ bị các partial hiểu nhầm thành "không phải tiếng Việt"
+    // một cách tình cờ và làm cảnh báo nullable khi truyền vào model của filter bar.
+    var vLang = AuthHelper.GetCurrentUser(User)?.UiLang ?? "en";
+    Func<string, string> T = en => ExpatText.T(vLang, en);
+    // TJ: dùng TRONG JavaScript — xuất ra 1 JSON string literal (đã có nháy kép), nên tự an toàn
+    // với dấu nháy/& ; @T(...) bị HTML-encode nên KHÔNG dùng được trong script.
+    Func<string, Microsoft.AspNetCore.Html.IHtmlContent> TJ = en =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            System.Text.Json.JsonSerializer.Serialize(ExpatText.T(vLang, en)));
+    ViewData["Title"] = T("OT List");
     var workDate        = ViewBag.WorkDate    as string;
     var filterType      = ViewBag.FilterType  as string ?? "";
     var filterCodes     = ViewBag.FilterCodes     as List<string> ?? new List<string>();
@@ -32,29 +43,29 @@
 
     <div class="row mb-4">
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status=""><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-secondary">Total</p><h5 class="font-weight-bolder mb-0" id="summaryTotal">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-info text-white shadow-info ms-auto"><i class="bi bi-people-fill fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status=""><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-secondary">@T("Total")</p><h5 class="font-weight-bolder mb-0" id="summaryTotal">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-info text-white shadow-info ms-auto"><i class="bi bi-people-fill fs-4"></i></div></div></div></div></div>
         </div>
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status="PENDING"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-warning">Pending</p><h5 class="font-weight-bolder mb-0" id="summaryPending">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-warning text-white shadow-warning ms-auto"><i class="bi bi-hourglass-split fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status="PENDING"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-warning">@T("Pending")</p><h5 class="font-weight-bolder mb-0" id="summaryPending">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-warning text-white shadow-warning ms-auto"><i class="bi bi-hourglass-split fs-4"></i></div></div></div></div></div>
         </div>
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status="CONFIRMED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-success">Confirmed</p><h5 class="font-weight-bolder mb-0" id="summaryConfirmed">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-success text-white shadow-success ms-auto"><i class="bi bi-check-circle-fill fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status="CONFIRMED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-success">@T("Confirmed")</p><h5 class="font-weight-bolder mb-0" id="summaryConfirmed">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-success text-white shadow-success ms-auto"><i class="bi bi-check-circle-fill fs-4"></i></div></div></div></div></div>
         </div>
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status="REJECTED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-danger">Rejected</p><h5 class="font-weight-bolder mb-0" id="summaryRejected">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-danger text-white shadow-danger ms-auto"><i class="bi bi-x-circle-fill fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status="REJECTED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-danger">@T("Rejected")</p><h5 class="font-weight-bolder mb-0" id="summaryRejected">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-danger text-white shadow-danger ms-auto"><i class="bi bi-x-circle-fill fs-4"></i></div></div></div></div></div>
         </div>
     </div>
 
     <div class="card my-4 mb-4">
         <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
             <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h6 class="text-white text-capitalize mb-0"><i class="fas fa-users me-1"></i> Overtime List</h6>
+                <h6 class="text-white text-capitalize mb-0"><i class="fas fa-users me-1"></i> @T("Overtime List")</h6>
                 <form method="get" action="@Url.Action("OtListForExpat", "OT")" class="d-flex align-items-center m-0 flex-wrap gap-2">
                     <button type="button" id="exportExcelBtn" class="btn btn-sm btn-success mb-0 text-nowrap d-flex align-items-center" style="height:36px;">
-                        <i class="bi bi-file-earmark-excel me-1 fs-6"></i> Export Excel
+                        <i class="bi bi-file-earmark-excel me-1 fs-6"></i> @T("Export Excel")
                     </button>
                     <div class="input-group input-group-sm bg-white border-radius-md px-2 py-1 align-items-center shadow-sm" style="min-height:36px;height:36px;">
-                        <label class="mb-0 text-dark fw-bold me-2 text-nowrap"><i class="bi bi-calendar3 text-primary me-1"></i> Date:</label>
+                        <label class="mb-0 text-dark fw-bold me-2 text-nowrap"><i class="bi bi-calendar3 text-primary me-1"></i> @T("Date:")</label>
                         <input type="date" name="work_date" class="form-control form-control-sm border-0 bg-transparent text-dark p-0"
                                style="width:120px;outline:none!important;box-shadow:none!important;"
                                value="@workDate" onchange="this.form.submit()" />
@@ -69,7 +80,7 @@
             LineUrl        = Url.Action("GetLineByScope", "Dropdown")!,
             WorkUrl        = Url.Action("GetWorkByScope", "Dropdown")!,
             DeptSelectedId = isDept ? firstCode : "",
-            Lang           = "en"
+            Lang           = vLang
         })
 
         <div class="card-body px-0 pt-0 pb-2 mt-1">
@@ -80,17 +91,17 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                 data-mobile="hidden">#</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="code" data-mobile-label="Emp Code">Emp Code</th>
+                                data-mobile="primary" data-mobile-slot="code" data-mobile-label="Emp Code">@T("Emp Code")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="name" data-mobile-label="Full Name">Full Name</th>
+                                data-mobile="primary" data-mobile-slot="name" data-mobile-label="Full Name">@T("Full Name")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="Line">Line</th>
+                                data-mobile="detail" data-mobile-label="Line">@T("Line")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="Work Group">Work Group</th>
+                                data-mobile="detail" data-mobile-label="Work Group">@T("Work Group")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 text-center"
-                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Overtime">Overtime</th>
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Overtime">@T("Overtime")</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Status">Status</th>
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Status">@T("Status")</th>
                         </tr>
                     </thead>
                     <tbody id="otTableBody"></tbody>
@@ -123,13 +134,13 @@ let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false, pageSi
 function buildRow(item, idx) {
     // ERP might have OT hours entered without the before/after shift flag set — show a
     // neutral "OT" label instead of blank (avoids a badge reading ": 1h").
-    const otType = item.OT_AFTER === 'Y' ? 'After' : (item.OT_BEFORE === 'Y' ? 'Before' : 'OT');
+    const otType = item.OT_AFTER === 'Y' ? @TJ("After") : (item.OT_BEFORE === 'Y' ? @TJ("Before") : 'OT');
 
-    let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Pending</span>`;
+    let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>@T("Pending")</span>`;
     if (item.CONFIRM_STATUS === 'CONFIRMED')
-        statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Confirmed</span>${item.CONFIRM_DATE ? `<div class="text-xs text-muted mt-1">${formatDateTime(item.CONFIRM_DATE)}</div>` : ''}`;
+        statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>@T("Confirmed")</span>${item.CONFIRM_DATE ? `<div class="text-xs text-muted mt-1">${formatDateTime(item.CONFIRM_DATE)}</div>` : ''}`;
     else if (item.CONFIRM_STATUS === 'REJECTED')
-        statusHtml = `<span class="badge bg-danger">Rejected</span>${item.CONFIRM_DATE ? `<div class="text-xs text-muted mt-1">${formatDateTime(item.CONFIRM_DATE)}</div>` : ''}`;
+        statusHtml = `<span class="badge bg-danger">@T("Rejected")</span>${item.CONFIRM_DATE ? `<div class="text-xs text-muted mt-1">${formatDateTime(item.CONFIRM_DATE)}</div>` : ''}`;
     if (item.CHANGE_COUNT > 0) {
         statusHtml += `<div class="mt-1"><a href="javascript:void(0)" class="badge bg-light text-dark border ot-log-btn" data-empcd="${escHtml(item.EMPCD||'')}" data-workdate="${escHtml(WORK_DATE)}" data-empname="${escHtml(item.EMP_NAME||'')}"><i class="bi bi-clock-history me-1"></i>Changed ${item.CHANGE_COUNT}x</a></div>`;
     }
@@ -154,7 +165,7 @@ function loadData(page = 1) {
           lineId = $('#filterLine').val(),
           workId = $('#filterWork').val();
 
-    $('#otTableBody').html(`<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Loading data...</div></td></tr>`);
+    $('#otTableBody').html(`<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">@T("Loading data...")</div></td></tr>`);
     MobileTableHelper.refresh('otTableBody');
     $.ajax({
         url: PAGE_URL, type: 'GET',
@@ -196,11 +207,11 @@ function loadData(page = 1) {
 
 function renderPagination() {
     if (totalRecords === 0) {
-        $('#paginationCount').html(`Page <strong>0</strong> / 0`);
+        $('#paginationCount').html(`@T("Page") <strong>0</strong> / 0`);
         $('#paginationBar').empty(); return;
     }
     const start = (currentPage-1)*pageSize+1, end = Math.min(currentPage*pageSize, totalRecords);
-    $('#paginationCount').html(`Page <strong>${currentPage}</strong> / ${totalPages} &nbsp;(${start.toLocaleString()}–${end.toLocaleString()} of ${totalRecords.toLocaleString()})`);
+    $('#paginationCount').html(`@T("Page") <strong>${currentPage}</strong> / ${totalPages} &nbsp;(${start.toLocaleString()}–${end.toLocaleString()} of ${totalRecords.toLocaleString()})`);
     const $bar = $('#paginationBar').empty();
     const mkBtn = (label, p, disabled, active) => {
         const li = $('<li class="page-item">').toggleClass('disabled',!!disabled).toggleClass('active',!!active);
@@ -234,18 +245,18 @@ $('#exportExcelBtn').on('click', async function() {
             $btn.html(`<span class="spinner-border spinner-border-sm me-1"></span> ${exportRows.length.toLocaleString()}…`);
             pg++;
         } while(pg<=pgTotal);
-        if(!exportRows.length){showToast('No data to export', 'warning');return;}
-        const headers=['#','Emp Code','Full Name','Line','Work Group','OT Type','OT Hours','Start Time','End Time','Status','Sign Date'];
+        if(!exportRows.length){showToast(@TJ("No data to export"), 'warning');return;}
+        const headers=['#',@TJ("Emp Code"),@TJ("Full Name"),@TJ("Line"),@TJ("Work Group"),@TJ("OT Type"),@TJ("OT Hours"),@TJ("Start Time"),@TJ("End Time"),@TJ("Status"),@TJ("Sign Date")];
         let html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8" /></head><body>';
         html+='<table border="1"><thead><tr>'+headers.map(h=>`<th style="background:#d9ead3;font-weight:bold">${h}</th>`).join('')+'</tr></thead><tbody>';
         exportRows.forEach((r,i)=>{
-            const s=r.CONFIRM_STATUS==='CONFIRMED'?'Confirmed':(r.CONFIRM_STATUS==='REJECTED'?'Rejected':'Pending');
-            const otType=r.OT_AFTER==='Y'?'After':(r.OT_BEFORE==='Y'?'Before':'OT');
+            const s=r.CONFIRM_STATUS==='CONFIRMED'?@TJ("Confirmed"):(r.CONFIRM_STATUS==='REJECTED'?@TJ("Rejected"):@TJ("Pending"));
+            const otType=r.OT_AFTER==='Y'?@TJ("After"):(r.OT_BEFORE==='Y'?@TJ("Before"):'OT');
             html+=`<tr><td>${i+1}</td><td data-t="s">${escHtml(r.EMPCD||'')}</td><td>${escHtml(r.EMP_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${escHtml(r.WORK_NAME||'')}</td><td>${otType}</td><td>${r.OT_HOURS||0}</td><td>${r.START_OT?formatTime(r.START_OT):''}</td><td>${r.END_OT?formatTime(r.END_OT):''}</td><td>${s}</td><td>${r.CONFIRM_DATE?formatDateTime(r.CONFIRM_DATE):''}</td></tr>`;
         });
         html+='</tbody></table></body></html>';
         exportHtmlTableToXlsx(html, `OT_Export_${WORK_DATE}.xlsx`);
-    } catch(err){showToast('Export error: '+err.message, 'error');}
+    } catch(err){showToast(@TJ("Export error: ")+err.message, 'error');}
     finally{$btn.prop('disabled',false).html(originalHtml);}
 });
 

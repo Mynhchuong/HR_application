@@ -1,0 +1,185 @@
+@*
+    CSS trang tra cứu NV — xem ghi chú ở _DirectoryContent.cshtml.
+    Bản in-app nhét khối này vào @@section Styles, bản đứng một mình nhét thẳng vào <head>.
+*@
+    <style>
+        @@font-face {
+            font-family: 'Vnitbi__';
+            src: url('@Url.Content("~/fonts/Vnitbi__.ttf")') format('truetype');
+            font-display: block;
+        }
+        .vni-font, .vni-font * {
+            font-family: 'Vnitbi__', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        }
+
+        @* Reset toàn cục (* , html, body) ĐÃ CHUYỂN sang Index.cshtml — bản đứng một mình.
+           KHÔNG để ở đây: bản in-app nhét file này vào <head> của layout app, mà các rule đó đổi
+           font + background + margin của <body> nên sẽ đè vỡ sidenav/header. Trong layout app thì
+           font/nền đã do layout lo, trang này chỉ cần các class .dir-* bên dưới. *@
+
+        .dir-container {
+            max-width: 600px; margin: 0 auto;
+            padding: max(1.25rem, env(safe-area-inset-top)) 1rem calc(2.5rem + env(safe-area-inset-bottom));
+        }
+
+        .dir-backbar {
+            display: flex; align-items: center; gap: 0.5rem;
+            margin-bottom: 1rem; text-decoration: none; color: #4f46e5; font-weight: 700; font-size: 0.9rem;
+        }
+        .dir-backbar .material-symbols-rounded { font-size: 1.3rem; }
+
+        .dir-search {
+            display: flex;
+            gap: 0.5rem;
+            padding: 1rem;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+            border: 1px solid rgba(0,0,0,0.04);
+            margin-bottom: 1.5rem;
+        }
+        .dir-search input {
+            flex: 1;
+            min-width: 0;
+            min-height: 46px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 0.65rem 1rem;
+            background: #f8fafc;
+            font-size: 16px;
+        }
+        .dir-search input:focus { border-color: #4f46e5; outline: none; background: #fff; }
+        .dir-search button {
+            background: #4f46e5;
+            color: #fff;
+            border: none;
+            border-radius: 14px;
+            padding: 0.65rem 1.25rem;
+            min-height: 46px;
+            font-weight: 700;
+            font-size: 1rem;
+            touch-action: manipulation;
+            display: flex; align-items: center; justify-content: center; gap: 4px;
+        }
+        .dir-search .scan-btn {
+            background: #fff;
+            color: #4f46e5;
+            border: 1.5px solid #e0e7ff;
+            border-radius: 14px;
+            min-width: 46px; min-height: 46px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            touch-action: manipulation;
+        }
+
+        .dir-hint {
+            display: flex; align-items: flex-start; gap: 0.6rem;
+            background: #eff6ff; border: 1px solid #dbeafe; border-radius: 16px;
+            padding: 0.75rem 1rem; margin-bottom: 1.25rem;
+            color: #1e40af; font-size: 0.82rem; line-height: 1.4;
+        }
+        .dir-hint .material-symbols-rounded { font-size: 1.2rem; flex-shrink: 0; }
+
+        /* QR scan modal */
+        .qr-modal {
+            position: fixed; inset: 0; background: rgba(15,23,42,0.92); z-index: 2000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .qr-modal.d-none { display: none; }
+        .qr-modal-close {
+            position: absolute; top: max(1rem, env(safe-area-inset-top)); right: 1rem;
+            width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.15);
+            color: #fff; display: flex; align-items: center; justify-content: center; border: none;
+        }
+        #qr-reader { width: min(92vw, 380px); border-radius: 20px; overflow: hidden; background: #000; }
+        .qr-modal-hint {
+            color: #e2e8f0; font-size: 0.85rem; text-align: center; margin-top: 1rem; padding: 0 1.5rem;
+            max-width: 380px; line-height: 1.5;
+        }
+        .qr-modal-status { color: #fca5a5; font-size: 0.8rem; text-align: center; margin-top: 0.5rem; min-height: 1.2em; }
+
+        .dir-hero { text-align: center; padding: 1.5rem 1rem; }
+        .dir-avatar {
+            width: 110px; height: 110px; border-radius: 36px; object-fit: cover;
+            border: 4px solid #fff; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .dir-name { font-size: 1.4rem; font-weight: 800; color: #1e293b; margin: 0.75rem 0 0.25rem; text-transform: uppercase; }
+        .dir-role { font-size: 0.9rem; color: #64748b; font-weight: 600; }
+
+        .dept-badges { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+        .dept-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #f1f5f9; color: #64748b; font-size: 0.75rem; font-weight: 600;
+            padding: 0.3rem 0.7rem; border-radius: 999px;
+        }
+        .dept-badge .material-symbols-rounded { font-size: 0.9rem; }
+
+        .workcd-image-wrap {
+            border-radius: 20px; overflow: hidden; margin-bottom: 1rem; background: #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.04);
+        }
+        .workcd-image-caption {
+            font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #64748b;
+            padding: 0.75rem 1.25rem 0.5rem; letter-spacing: 0.05em;
+        }
+        .workcd-image-wrap img { display: block; width: 100%; max-height: 280px; object-fit: contain; background: #f8fafc; }
+        .workcd-image-fallback {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem;
+            padding: 2rem 1rem; color: #94a3b8; font-size: 0.85rem; font-weight: 600;
+        }
+
+        .dir-pagination {
+            display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+            margin: 0.75rem 0 1rem; flex-wrap: wrap;
+        }
+        .dir-page-btn {
+            display: inline-block; padding: 0.4rem 0.9rem; border-radius: 10px;
+            border: 1px solid #e2e8f0; color: #4f46e5; font-weight: 600; font-size: 0.85rem;
+            text-decoration: none; background: #fff;
+        }
+        .dir-page-btn.is-disabled { color: #cbd5e1; background: #f8fafc; pointer-events: none; }
+        .dir-page-current { font-size: 0.8rem; font-weight: 700; color: #64748b; }
+
+        .group-title { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #64748b; padding: 1rem 1.25rem 0.5rem; letter-spacing: 0.05em; }
+
+        .settings-group {
+            background: #fff; border-radius: 24px; overflow: hidden;
+            margin-bottom: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+        .setting-item { display: flex; align-items: flex-start; gap: 0.9rem; padding: 0.9rem 1.25rem; border-bottom: 1px solid #f8fafc; }
+        .setting-item:last-child { border-bottom: none; }
+        .item-icon {
+            width: 34px; height: 34px; border-radius: 10px; background: #f1f5f9;
+            display: flex; align-items: center; justify-content: center; color: #4f46e5;
+            flex-shrink: 0;
+        }
+        .item-body { flex: 1; min-width: 0; }
+        .item-label { font-size: 0.8rem; font-weight: 600; color: #64748b; }
+        .item-value { font-size: 0.95rem; font-weight: 700; color: #4f46e5; margin-top: 2px; word-break: break-word; }
+
+        .history-item { padding: 0.9rem 1.25rem; border-bottom: 1px solid #f8fafc; }
+        .history-item:last-child { border-bottom: none; }
+        .history-date { font-size: 0.75rem; font-weight: 700; color: #94a3b8; margin-bottom: 0.5rem; }
+        .history-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+        .history-side { flex: 1; min-width: 0; word-break: break-word; }
+        .history-side.is-from { color: #94a3b8; }
+        .history-side.is-to { color: #334155; }
+        .history-side b { display: block; font-weight: 700; margin-bottom: 2px; }
+        .history-side.is-from b { color: #94a3b8; }
+        .history-side.is-to b { color: #16a34a; }
+        .history-tag {
+            display: block; width: fit-content; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.05em;
+            padding: 2px 8px; border-radius: 999px; margin-bottom: 6px;
+        }
+        .history-tag.is-from { background: #f1f5f9; color: #64748b; }
+        .history-tag.is-to { background: #dcfce7; color: #16a34a; }
+        .history-arrow { color: #4f46e5; font-size: 1.1rem; flex-shrink: 0; }
+
+        .dir-empty { text-align: center; color: #94a3b8; padding: 3rem 1rem; }
+
+        .dir-footer {
+            font-size: 10.5px; padding: 15px 0 calc(15px + env(safe-area-inset-bottom));
+            color: #9aa0a6; text-align: center; opacity: 0.85; background: #f8f9fa;
+        }
+    </style>

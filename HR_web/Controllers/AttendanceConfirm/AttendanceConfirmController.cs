@@ -3,6 +3,7 @@ using HR_web.API.Service;
 using HR_web.Models.AttendanceConfirm;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HR_web.Helpers;
 
 namespace HR_web.Controllers.AttendanceConfirm;
 
@@ -58,7 +59,7 @@ public class AttendanceConfirmController : BaseController
         (ViewBag.DateFrom, ViewBag.DateTo, ViewBag.MaxDate) = GetDefaultAttendanceConfirmRange();
         ViewBag.CurrentEmpCd = CurrentUser?.EmpCd ?? "";
         ViewBag.CurrentRole  = CurrentUser?.RoleName ?? "";
-        return View();
+        return View(ExpatViews.AttendanceConfirm);
     }
 
     // GET: /AttendanceConfirm/WorkerForm?date=yyyy-MM-dd — công nhân khai giờ vào/ra 1 ngày.

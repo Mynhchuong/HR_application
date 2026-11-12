@@ -18,6 +18,27 @@ public class UserInfoModel
     public string? DeptRoleName { get; set; }
     /// <summary>true = phòng ban bị chặn khỏi "Báo máy sản xuất" (TPM) — HR_api tính lúc đăng nhập (Tpm:BlockedDeptCodes, mặc định OFFICE STAFF).</summary>
     public bool TpmBlocked { get; set; }
+    /// <summary>Ngôn ngữ giao diện: "vi" (mọi role thường) | "en" | "ko" (chỉ Expat). HR_api tính lúc đăng nhập từ
+    /// ECM100.NATION, NV bấm đổi tay thì lưu HR_USERS.LANG_PREF. Dùng để chọn _LayoutExpat + chuỗi hiển thị.</summary>
+    public string Lang { get; set; } = "vi";
+
+    /// <summary>
+    /// Ngôn ngữ giao diện ĐÃ CHUẨN HOÁ — mọi view/layout/controller chỉ đọc field này, không tự suy từ Lang.
+    /// Quy tắc: role Expat → "ko" nếu Lang=="ko", còn lại "en" (kể cả cookie cũ phát hành trước khi có
+    /// claim lang, lúc đó Lang rơi về "vi"); role khác → luôn "vi".
+    /// [JsonIgnore]: property tính toán, không ghi vào claim cookie (AuthHelper serialize cả object).
+    /// </summary>
+    [Newtonsoft.Json.JsonIgnore]
+    public string UiLang =>
+        string.Equals(RoleName, "Expat", StringComparison.OrdinalIgnoreCase)
+            ? (Lang == "ko" ? "ko" : "en")
+            : "vi";
+    /// <summary>true khi đang dùng bộ giao diện riêng của Expat (_LayoutExpat, Anh/Hàn).</summary>
+    [Newtonsoft.Json.JsonIgnore]
+    public bool IsExpatUi => UiLang != "vi";
+    /// <summary>true khi đang hiển thị tiếng Hàn.</summary>
+    [Newtonsoft.Json.JsonIgnore]
+    public bool IsKo => UiLang == "ko";
     public int IsActive { get; set; }
     public DateTime? LastedLogin { get; set; }
     public DateTime? LastPwdReset { get; set; }

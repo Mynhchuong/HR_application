@@ -88,6 +88,7 @@ public static class SideMenuBuilder
             {
                 Id = "Expat",
                 Title = "Expat",
+                TitleKo = "주재원",
                 Icon = "manage_accounts",
                 VisibleWhen = () => isExpat,
                 // Gom cụm theo màu giống menu HR/CSR (yêu cầu 2026-11-06, Expat trước đó là 1 list
@@ -95,21 +96,21 @@ public static class SideMenuBuilder
                 // tra cứu/tham khảo xuống cuối.
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Home", Url = "~/Home/Index", Icon = "home" },
+                    new SideMenuItem { Title = "Home", TitleKo = "홈", Url = "~/Home/Index", Icon = "home" },
 
-                    new SideMenuItem { Title = "OT List",            Url = "~/OT/OtListForExpat",               Icon = "view_list",       Group = "attendance" },
-                    new SideMenuItem { Title = "Attendance Confirm", Url = "~/AttendanceConfirm/IndexForExpat", Icon = "schedule",        Group = "attendance" },
-                    new SideMenuItem { Title = "Gate Pass Approval", Url = "~/GatePass/GpListForExpat",         Icon = "door_front",      Group = "attendance" },
+                    new SideMenuItem { Title = "OT List",            TitleKo = "연장근무 목록",     Url = "~/OT/OtListForExpat",               Icon = "view_list",       Group = "attendance" },
+                    new SideMenuItem { Title = "Attendance Confirm", TitleKo = "근태 확인",         Url = "~/AttendanceConfirm/IndexForExpat", Icon = "schedule",        Group = "attendance" },
+                    new SideMenuItem { Title = "Gate Pass Approval", TitleKo = "출입증 승인",       Url = "~/GatePass/GpListForExpat",         Icon = "door_front",      Group = "attendance" },
 
-                    new SideMenuItem { Title = "Leave Approval",         Url = "~/Leave/LeaveApprovalForExpat",  Icon = "event_available", Group = "leave" },
-                    new SideMenuItem { Title = "Leave & Gate Calendar",  Url = "~/Leave/TeamCalendarForExpat",   Icon = "calendar_month",  Group = "leave" },
+                    new SideMenuItem { Title = "Leave Approval",         TitleKo = "휴가 승인",     Url = "~/Leave/LeaveApprovalForExpat",  Icon = "event_available", Group = "leave" },
+                    new SideMenuItem { Title = "Leave & Gate Calendar",  TitleKo = "휴가·출입 일정", Url = "~/Leave/TeamCalendarForExpat",   Icon = "calendar_month",  Group = "leave" },
 
-                    new SideMenuItem { Title = "My Team",                   Url = "~/Employee/MyTeamForExpat", Icon = "groups",           Group = "system" },
-                    new SideMenuItem { Title = "Scan / Check Employee Info", Url = "~/Directory/Index",        Icon = "qr_code_scanner",  Group = "system" },
-                    new SideMenuItem { Title = "Bulletin",                  Url = "~/Bulletin/Index",          Icon = "campaign",          Group = "system" },
-                    new SideMenuItem { Title = "User Guide",                Url = "~/Guide/Index",             Icon = "menu_book",         Group = "system" },
+                    new SideMenuItem { Title = "My Team",                   TitleKo = "우리 팀",    Url = "~/Employee/MyTeamForExpat", Icon = "groups",           Group = "system" },
+                    new SideMenuItem { Title = "Scan / Check Employee Info", TitleKo = "직원 정보 조회", Url = "~/Directory/Index",        Icon = "qr_code_scanner",  Group = "system" },
+                    new SideMenuItem { Title = "Bulletin",                  TitleKo = "공지사항",   Url = "~/Bulletin/Index",          Icon = "campaign",          Group = "system" },
+                    new SideMenuItem { Title = "User Guide",                TitleKo = "사용 안내",  Url = "~/Guide/Index",             Icon = "menu_book",         Group = "system" },
 
-                    new SideMenuItem { Title = "Kaizen", Url = "~/Kaizen/Index", Icon = "tips_and_updates", Group = "training" },
+                    new SideMenuItem { Title = "Kaizen", TitleKo = "카이젠", Url = "~/Kaizen/Index", Icon = "tips_and_updates", Group = "training" },
                 }
             },
 

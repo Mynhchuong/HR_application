@@ -14,7 +14,12 @@ public class UserDetailModel
     public string? MaritalStatus { get; set; }
     public string? Phone { get; set; }
     public string? Email { get; set; }   // ECM100.EMAIL — yêu cầu HR 2026-10-08
+    /// <summary>Thâm niên đã ghép sẵn tiếng Việt ("3 năm 2 tháng") — dùng cho giao diện tiếng Việt.</summary>
     public string? Seniority { get; set; }
+    /// <summary>Số năm thâm niên (thuần số) — giao diện NV nước ngoài tự ghép câu Anh/Hàn.</summary>
+    public int? SeniorityYears { get; set; }
+    /// <summary>Số tháng lẻ thâm niên (0-11) — xem <see cref="SeniorityYears"/>.</summary>
+    public int? SeniorityMonths { get; set; }
     public string? HomeTown { get; set; }
     public string? ContractType { get; set; }
     public DateTime? ContractDate { get; set; }

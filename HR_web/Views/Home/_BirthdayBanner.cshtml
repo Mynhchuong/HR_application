@@ -25,8 +25,8 @@
         <div class="home-birthday-message">@Html.Raw(bd.Message)</div>
         @if (isBoth)
         {
-            <div class="home-birthday-sub">@(Model.Lang == "en" ? "🎊 Also celebrating your work anniversary!" : "🎊 Kỷ niệm ngày vào công ty nữa nè!")</div>
+            <div class="home-birthday-sub">@(Model.Lang != "vi" ? ExpatText.T(Model.Lang, "🎊 Also celebrating your work anniversary!") : "🎊 Kỷ niệm ngày vào công ty nữa nè!")</div>
         }
     </div>
-    <button type="button" class="home-birthday-close" aria-label="@(Model.Lang == "en" ? "Close" : "Đóng")" data-dismiss="birthday">×</button>
+    <button type="button" class="home-birthday-close" aria-label="@(Model.Lang != "vi" ? ExpatText.T(Model.Lang, "Close") : "Đóng")" data-dismiss="birthday">×</button>
 </div>

@@ -3,11 +3,11 @@
 @{
     var s = Model.Shift;
     if (s == null || string.IsNullOrEmpty(s.ShiftCd)) { return; }
-    var isEn = Model.Lang == "en";
-    var label = isEn ? "Today" : "Hôm nay";
-    var shiftWord = isEn ? "Shift" : "Ca";
-    var nextDayHint = isEn ? " (next day)" : " (hôm sau)";
-    var openTitle = isEn ? "Open my gate pass requests" : "Mở đơn ra vào cổng của tôi";
+    var isEn = Model.Lang != "vi";
+    var label = isEn ? ExpatText.T(Model.Lang, "Today") : "Hôm nay";
+    var shiftWord = isEn ? ExpatText.T(Model.Lang, "Shift") : "Ca";
+    var nextDayHint = isEn ? ExpatText.T(Model.Lang, " (next day)") : " (hôm sau)";
+    var openTitle = isEn ? ExpatText.T(Model.Lang, "Open my gate pass requests") : "Mở đơn ra vào cổng của tôi";
     var chipExtraClass = s.IsNightShift ? "home-shift-chip-night" : "";
 }
 

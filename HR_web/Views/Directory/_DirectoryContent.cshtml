@@ -1,0 +1,262 @@
+@model HR_web.Models.Directory.DirectoryPageModel
+@*
+    Tách từ Views/Directory/Index.cshtml (2026-11-11) để dùng chung cho 2 bản:
+      - Index.cshtml       : CHƯA đăng nhập — trang đứng một mình, Layout = null.
+      - IndexInApp.cshtml  : ĐÃ đăng nhập  — nằm trong layout của app nên có sidenav/header
+                             (NV nước ngoài tự được _LayoutExpat qua Views/_ViewStart.cshtml).
+    Sửa nội dung thì sửa ở đây, KHÔNG chép sang 2 bản kia.
+*@
+@{
+    // true = đang nằm trong layout của app (đã đăng nhập) -> đã có sidenav/header nên KHÔNG
+    // hiện thanh "Về Trang chủ" nữa. ViewData tự chảy từ view cha xuống partial.
+    bool inApp = ViewData["DirectoryInApp"] as bool? ?? false;
+
+    var emp = Model.Employee;
+    bool hasResult = !string.IsNullOrWhiteSpace(emp.CName);
+
+    // Ngôn ngữ hiển thị: NV nước ngoài (Expat) chỉ thấy tiếng của họ (Anh/Hàn); NV Việt giữ
+    // nguyên chuỗi song ngữ Việt–Anh như cũ. D("Việt / English", "English") -> xem ExpatText.Dual.
+    var dirLang = AuthHelper.GetCurrentUser(User)?.UiLang ?? "vi";
+    Func<string, string, string> D = (viEn, en) => ExpatText.Dual(dirLang, viEn, en);
+
+    bool isLoggedIn = ViewBag.CurrentUser != null;
+    string backUrl  = isLoggedIn ? Url.Action("Index", "Home")! : Url.Action("Login", "Account")!;
+    string backText = isLoggedIn ? "Về Trang chủ / Back to Home" : "Về Đăng nhập / Back to Login";
+}
+    <div class="dir-container">
+        @if (!inApp)
+        {
+            @* Bản đứng một mình không có sidenav/header -> bắt buộc có đường quay lại, nếu không
+               NV chỉ còn cách bấm back của trình duyệt (yêu cầu 2026-10-17). Bản in-app đã có menu
+               nên bỏ thanh này đi cho đỡ thừa. *@
+            <a class="dir-backbar" href="@backUrl">
+                <span class="material-symbols-rounded">arrow_back</span>
+                @backText
+            </a>
+        }
+        <form class="dir-search" method="get" asp-action="Index">
+            <input type="text" name="empCd" value="@emp.EmpCd" placeholder="@D("Nhập mã số NV (VD: 24092522) / Enter employee ID", "Enter employee ID (e.g. 24092522)")" autocomplete="off" />
+            <button type="submit">
+                <span class="material-symbols-rounded" style="font-size:1.1rem;vertical-align:middle;">search</span>
+                @D("Tìm", "Search")
+            </button>
+            <button type="button" class="scan-btn" onclick="startQrScan()" title="@D("Quét mã QR / Scan QR code", "Scan QR code")">
+                <span class="material-symbols-rounded">qr_code_scanner</span>
+            </button>
+        </form>
+
+        <div class="dir-hint">
+            <span class="material-symbols-rounded">info</span>
+            @if (dirLang == "vi")
+            {
+                <span>Bấm vào biểu tượng <b>quét QR</b> rồi đưa camera vào mã QR trên thẻ nhân viên để xem thông tin ngay — hoặc gõ mã số nhân viên vào ô trên rồi bấm <b>Tìm</b>.<br>
+                <span style="opacity:.75">Tap the scan icon and point your camera at the QR code on an employee ID badge — or type the employee ID above and press Search.</span></span>
+            }
+            else
+            {
+                <span>@ExpatText.T(dirLang, "Tap the scan icon and point your camera at the QR code on an employee ID badge — or type the employee ID above and press Search.")</span>
+            }
+        </div>
+
+        @if (hasResult)
+        {
+            <div class="dir-hero">
+                <img src="@Url.Action("GetEmployeeImage", "Image", new { empCd = emp.EmpCd })" class="dir-avatar" />
+                <div class="dir-name vni-font">@emp.CName</div>
+                <div class="dir-role vni-font">@emp.DeptName</div>
+                <div class="dept-badges">
+                    @if (!string.IsNullOrWhiteSpace(emp.LineName))
+                    {
+                        <span class="dept-badge">
+                            <span class="material-symbols-rounded">view_column</span>
+                            <span class="vni-font">@emp.LineName</span>
+                        </span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(emp.WorkName))
+                    {
+                        <span class="dept-badge">
+                            <span class="material-symbols-rounded">work</span>
+                            <span class="vni-font">@emp.WorkName</span>
+                        </span>
+                    }
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(emp.InterestCd))
+            {
+                <div id="workcd-image-wrap" class="workcd-image-wrap">
+                    <div class="workcd-image-caption">@D("Hình ảnh công việc / Work Employee", "Work photo")</div>
+                    <div id="workcd-image-fallback" class="workcd-image-fallback">
+                        <span class="material-symbols-rounded" style="font-size:1.8rem;">image</span>
+                        <div>@D("HR chưa cập nhật hình ảnh", "HR has not uploaded a photo yet")</div>
+                    </div>
+                    <img id="workcd-image" style="display:none;"
+                         src="@Url.Action("GetWorkCdImage", "Image", new { interestCd = emp.InterestCd })"
+                         alt="Work Employee"
+                         onload="this.style.display='block';document.getElementById('workcd-image-fallback').style.display='none';"
+                         onerror="this.style.display='none';" />
+                </div>
+            }
+
+            <div class="settings-group">
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">badge</span></div>
+                    <div class="item-body">
+                        <div class="item-label">@D("Mã số NV / Employee ID", "Employee ID")</div>
+                        <div class="item-value">@emp.EmpCd</div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">category</span></div>
+                    <div class="item-body">
+                        <div class="item-label">@D("Phòng ban / Line / Tổ — Department / Line / Work", "Department / Line / Work")</div>
+                        <div class="item-value"><span class="vni-font">@emp.LineName</span> · <span class="vni-font">@emp.WorkName</span></div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">engineering</span></div>
+                    <div class="item-body">
+                        <div class="item-label">@D("Tính chất công việc / Work Nature", "Work Nature")</div>
+                        <div class="item-value">@(emp.DirectYn == "Y" ? D("Trực tiếp / Direct", "Direct") : emp.DirectYn == "N" ? D("Gián tiếp / Indirect", "Indirect") : "-")</div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">construction</span></div>
+                    <div class="item-body">
+                        <div class="item-label">@D("Công việc / Work", "Work performed")</div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(emp.InterestName))
+                    {
+                        <div class="item-value vni-font">@emp.InterestName</div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(emp.InterestCd))
+                    {
+                        <div class="item-value">@emp.InterestCd</div>
+                    }
+                    else
+                    {
+                        <div class="item-value" style="color:#94a3b8;font-weight:600;font-size:0.85rem;">@D("HR chưa cập nhật / Not updated yet", "Not updated yet")</div>
+                    }
+                </div>
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">work_history</span></div>
+                    <div class="item-body">
+                        <div class="item-label">@D("Ngày vào làm / Hire Date", "Hire Date")</div>
+                        <div class="item-value">@(emp.HireDate?.ToString("dd/MM/yyyy") ?? "-")</div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">calendar_today</span></div>
+                    <div class="item-body">
+                        <div class="item-label">@D("Ngày sinh / Date of Birth", "Date of Birth")</div>
+                        <div class="item-value">@(emp.BirthDate?.ToString("dd/MM/yyyy") ?? "-")</div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="item-icon"><span class="material-symbols-rounded">wc</span></div>
+                    <div class="item-body">
+                        <div class="item-label">@D("Giới tính / Gender", "Gender")</div>
+                        <div class="item-value">@(emp.SexGb == "M" ? D("Nam / Male", "Male") : emp.SexGb == "F" ? D("Nữ / Female", "Female") : "-")</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="group-title">@D("Lịch sử thay đổi Phòng/Line/Tổ — Dept / Line / Work Change History", "Dept / Line / Work Change History")</div>
+            int historyTotalPages = Model.ChangeHistory.PageSize > 0
+                ? (int)Math.Ceiling(Model.ChangeHistory.Total / (double)Model.ChangeHistory.PageSize)
+                : 1;
+            @if (Model.ChangeHistory.Items.Any())
+            {
+                <div class="settings-group">
+                    @foreach (var h in Model.ChangeHistory.Items)
+                    {
+                        <div class="history-item">
+                            <div class="history-date">@(h.Dat?.ToString("dd/MM/yyyy") ?? "-")</div>
+                            <div class="history-row">
+                                <div class="history-side is-from">
+                                    <span class="history-tag is-from">@D("TRƯỚC / FROM", "FROM")</span>
+                                    <b class="vni-font">@(string.IsNullOrWhiteSpace(h.OldDeptName) ? "-" : h.OldDeptName)</b>
+                                    <span class="vni-font">@h.OldLineName</span> · <span class="vni-font">@h.OldWorkName</span>
+                                </div>
+                                <span class="material-symbols-rounded history-arrow">arrow_forward</span>
+                                <div class="history-side is-to">
+                                    <span class="history-tag is-to">@D("SAU / TO", "TO")</span>
+                                    <b class="vni-font">@(string.IsNullOrWhiteSpace(h.NewDeptName) ? "-" : h.NewDeptName)</b>
+                                    <span class="vni-font">@h.NewLineName</span> · <span class="vni-font">@h.NewWorkName</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="settings-group">
+                    <div class="dir-empty" style="padding: 2rem 1rem;">
+                        <span class="material-symbols-rounded" style="font-size:1.8rem;">history_toggle_off</span>
+                        <div class="mt-2" style="font-size:0.85rem;">@D("Chưa có thông tin / No information yet", "No information yet")</div>
+                    </div>
+                </div>
+            }
+
+            @if (historyTotalPages > 1)
+            {
+                bool historyAtFirst = Model.ChangeHistory.Page <= 1;
+                bool historyAtLast  = Model.ChangeHistory.Page >= historyTotalPages;
+                <div class="dir-pagination">
+                    @if (historyAtFirst)
+                    {
+                        <span class="dir-page-btn is-disabled">@D("‹ Trước", "‹ Prev")</span>
+                    }
+                    else
+                    {
+                        <a class="dir-page-btn" href="@Url.Action("Index", new { empCd = emp.EmpCd, historyPage = Model.ChangeHistory.Page - 1 })">‹ Trước</a>
+                    }
+                    <span class="dir-page-current">@D("Trang", "Page") @Model.ChangeHistory.Page / @historyTotalPages</span>
+                    @if (historyAtLast)
+                    {
+                        <span class="dir-page-btn is-disabled">@D("Sau ›", "Next ›")</span>
+                    }
+                    else
+                    {
+                        <a class="dir-page-btn" href="@Url.Action("Index", new { empCd = emp.EmpCd, historyPage = Model.ChangeHistory.Page + 1 })">Sau ›</a>
+                    }
+                </div>
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(emp.EmpCd))
+        {
+            <div class="dir-empty">
+                <span class="material-symbols-rounded" style="font-size:2.5rem;">person_search</span>
+                <div class="mt-2">@D($"Không tìm thấy mã NV \"{emp.EmpCd}\" / Employee not found", "Employee not found")</div>
+            </div>
+        }
+        else
+        {
+            <div class="dir-empty">
+                <span class="material-symbols-rounded" style="font-size:2.5rem;">badge</span>
+                <div class="mt-2">
+                    @if (dirLang == "vi")
+                    {
+                        <text>Nhập mã số NV hoặc quét QR trên thẻ để tra cứu<br><span style="opacity:.7">Enter an employee ID or scan a badge QR code to look up information</span></text>
+                    }
+                    else
+                    {
+                        @ExpatText.T(dirLang, "Enter an employee ID or scan a badge QR code to look up information")
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <footer class="dir-footer">© 2026 VietNam Samho Co., LTD · Powered by IT Team</footer>
+
+    <!-- QR scan modal — quét mã QR trên thẻ nhân viên để tra cứu nhanh (yêu cầu 2026-10-17) -->
+    <div class="qr-modal d-none" id="qrModal">
+        <button type="button" class="qr-modal-close" onclick="closeQrScanner()">
+            <span class="material-symbols-rounded">close</span>
+        </button>
+        <div id="qr-reader"></div>
+        <div class="qr-modal-hint">@D("Đưa camera vào mã QR trên thẻ nhân viên.", "Point the camera at the QR code on an employee ID badge.")@if (dirLang == "vi") { <br><span style="opacity:.7">Point the camera at the QR code on an employee ID badge.</span> }</div>
+        <div class="qr-modal-status" id="qrStatus"></div>
+    </div>

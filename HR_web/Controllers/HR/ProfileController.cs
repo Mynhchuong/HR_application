@@ -59,7 +59,7 @@ public class ProfileController : BaseController
             }
 
             if (CurrentUser.RoleName == "Expat")
-                return View("ProfileUserExpat", model);
+                return View(ExpatViews.Profile, model);
 
             return View(model);
         }

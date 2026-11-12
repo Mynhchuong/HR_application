@@ -1,0 +1,28 @@
+@model HR_web.Models.Directory.DirectoryPageModel
+@{
+    // ════════════════════════════════════════════════════════════════════════════════
+    // BẢN ĐÃ ĐĂNG NHẬP — chạy trong layout của app nên CÓ sidenav + header.
+    // Trước đây mọi trường hợp đều dùng Index.cshtml (Layout = null), NV đang đăng nhập bấm
+    // "Quét / tra cứu thông tin NV" thì mất sạch menu và tưởng app lỗi (phản ánh 2026-11-11).
+    //
+    // KHÔNG khai báo Layout ở đây: Views/_ViewStart.cshtml tự chọn
+    //   - NV nước ngoài (Expat) -> _LayoutExpat  (menu Anh/Hàn)
+    //   - role còn lại          -> _Layout       (menu tiếng Việt)
+    // nên chỉ cần 1 file này là đủ cho mọi role, không phải nhân đôi 500 dòng view.
+    //
+    // Nội dung/CSS/JS dùng chung với bản chưa đăng nhập qua 3 partial _Directory*.cshtml.
+    // ════════════════════════════════════════════════════════════════════════════════
+    ViewData["Title"] = HR_web.Helpers.ExpatText.Dual(
+        AuthHelper.GetCurrentUser(User)?.UiLang, "Tra cứu nhân viên", "Employee lookup");
+    ViewData["DirectoryInApp"] = true;
+}
+
+@section Styles {
+    <partial name="_DirectoryStyles" />
+}
+
+<partial name="_DirectoryContent" model="Model" />
+
+@section Scripts {
+    <partial name="_DirectoryScripts" />
+}

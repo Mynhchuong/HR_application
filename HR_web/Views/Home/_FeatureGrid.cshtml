@@ -1,13 +1,13 @@
 @model HR_web.ViewModels.Home.HomeIndexViewModel
 
 @{
-    var isEn = Model.Lang == "en";
+    var isEn = Model.Lang != "vi";
     var role = Model.RoleName;
     var isManagerLike = role is "Supervisor" or "DeputyManager" or "Manager" or "Assistant";
     var isExpat       = role == "Expat";
     var isHrAdmin     = role is "HR" or "Admin" || Model.DeptRoleName is "HR";   // + role phòng ban
 
-    string L(string vi, string en) => isEn ? en : vi;
+    string L(string vi, string en) => isEn ? ExpatText.T(Model.Lang, en) : vi;
 
     // Route "Duyệt phép" — Expat có endpoint riêng
     string approveLeaveUrl = isExpat

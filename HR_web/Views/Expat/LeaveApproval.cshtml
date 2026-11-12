@@ -1,5 +1,16 @@
 @{
-    ViewData["Title"] = "Leave Approval";
+    // Ngôn ngữ giao diện (en/ko) — từ điển ở HR_web/Helpers/ExpatText.cs, không rải chuỗi Hàn trong view.
+    // ?? "en": view này chỉ Expat vào, nhưng GetCurrentUser có thể null (cookie hỏng) — rơi về
+    // tiếng Anh thay vì null, vì null sẽ bị các partial hiểu nhầm thành "không phải tiếng Việt"
+    // một cách tình cờ và làm cảnh báo nullable khi truyền vào model của filter bar.
+    var vLang = AuthHelper.GetCurrentUser(User)?.UiLang ?? "en";
+    Func<string, string> T = en => ExpatText.T(vLang, en);
+    // TJ: dùng TRONG JavaScript — xuất ra 1 JSON string literal (đã có nháy kép), nên tự an toàn
+    // với dấu nháy/& ; @T(...) bị HTML-encode nên KHÔNG dùng được trong script.
+    Func<string, Microsoft.AspNetCore.Html.IHtmlContent> TJ = en =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            System.Text.Json.JsonSerializer.Serialize(ExpatText.T(vLang, en)));
+    ViewData["Title"] = T("Leave Approval");
     var currentMonth = DateTime.Today.ToString("yyyy-MM");
 }
 
@@ -41,23 +52,23 @@
     <!-- Stats cards -->
     <div class="row mb-4">
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status=""><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-secondary">Total</p><h5 class="font-weight-bolder mb-0" id="summaryTotal">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-info text-white shadow-info ms-auto"><i class="bi bi-calendar-check fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status=""><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-secondary">@T("Total")</p><h5 class="font-weight-bolder mb-0" id="summaryTotal">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-info text-white shadow-info ms-auto"><i class="bi bi-calendar-check fs-4"></i></div></div></div></div></div>
         </div>
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status="PENDING"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-warning">Pending</p><h5 class="font-weight-bolder mb-0" id="summaryPending">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-warning text-white shadow-warning ms-auto"><i class="bi bi-hourglass-split fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status="PENDING"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-warning">@T("Pending")</p><h5 class="font-weight-bolder mb-0" id="summaryPending">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-warning text-white shadow-warning ms-auto"><i class="bi bi-hourglass-split fs-4"></i></div></div></div></div></div>
         </div>
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status="APPROVED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-success">Approved</p><h5 class="font-weight-bolder mb-0" id="summaryApproved">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-success text-white shadow-success ms-auto"><i class="bi bi-check-circle-fill fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status="APPROVED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-success">@T("Approved")</p><h5 class="font-weight-bolder mb-0" id="summaryApproved">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-success text-white shadow-success ms-auto"><i class="bi bi-check-circle-fill fs-4"></i></div></div></div></div></div>
         </div>
         <div class="col-6 col-xl-3 mb-xl-0 mb-3">
-            <div class="card stats-card" data-filter-status="REJECTED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-danger">Rejected</p><h5 class="font-weight-bolder mb-0" id="summaryRejected">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-danger text-white shadow-danger ms-auto"><i class="bi bi-x-circle-fill fs-4"></i></div></div></div></div></div>
+            <div class="card stats-card" data-filter-status="REJECTED"><div class="card-body p-3"><div class="row"><div class="col-8"><p class="text-sm mb-0 text-uppercase font-weight-bold text-danger">@T("Rejected")</p><h5 class="font-weight-bolder mb-0" id="summaryRejected">-</h5></div><div class="col-4 text-end"><div class="icon bg-gradient-danger text-white shadow-danger ms-auto"><i class="bi bi-x-circle-fill fs-4"></i></div></div></div></div></div>
         </div>
     </div>
 
     <div class="card my-4">
         <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
             <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center gap-2">
-                <h6 class="text-white mb-0"><i class="bi bi-shield-check me-1"></i> Leave Approval</h6>
+                <h6 class="text-white mb-0"><i class="bi bi-shield-check me-1"></i> @T("Leave Approval")</h6>
                 <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
                     <i class="bi bi-calendar3 text-primary"></i>
                     <input type="month" id="filterMonth" class="form-control form-control-sm border-0 bg-transparent text-dark p-0"
@@ -69,59 +80,59 @@
         <!-- Filter bar -->
         <div class="px-3 pt-3 pb-2 d-flex flex-wrap align-items-end gap-2 filter-bar" style="background:#f8fafc;border-bottom:1px solid #e9ecef;">
             <div style="min-width:140px;flex:1 1 140px;max-width:180px;">
-                <label class="form-label small fw-bold mb-1 text-primary">Employee ID</label>
-                <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="🔍 Search emp ID..." />
+                <label class="form-label small fw-bold mb-1 text-primary">@T("Employee ID")</label>
+                <input type="text" id="searchInput" class="form-control form-control-sm" placeholder='@T("🔍 Search emp ID...")' />
             </div>
             <div style="min-width:130px;flex:1 1 130px;max-width:170px;">
-                <label class="form-label small fw-bold mb-1 text-primary">Status</label>
+                <label class="form-label small fw-bold mb-1 text-primary">@T("Status")</label>
                 <select id="filterStatus" class="form-select form-select-sm">
-                    <option value="">All</option>
-                    <option value="PENDING">Pending</option>
-                    <option value="APPROVED">Approved</option>
-                    <option value="REJECTED">Rejected</option>
+                    <option value="">@T("All")</option>
+                    <option value="PENDING">@T("Pending")</option>
+                    <option value="APPROVED">@T("Approved")</option>
+                    <option value="REJECTED">@T("Rejected")</option>
                 </select>
             </div>
             <div style="min-width:150px;flex:1 1 150px;max-width:200px;">
-                <label class="form-label small fw-bold mb-1 text-primary">Leave Type</label>
+                <label class="form-label small fw-bold mb-1 text-primary">@T("Leave Type")</label>
                 <select id="filterLeaveType" class="form-select form-select-sm">
-                    <option value="">All</option>
-                    <option value="AL">Annual (AL)</option>
-                    <option value="NL">Unpaid leave (NL)</option>
-                    <option value="SI">Sick - certified (SI)</option>
-                    <option value="DT">Funeral (DT)</option>
-                    <option value="DC">Wedding (DC)</option>
-                    <option value="CT">Business trip (CT)</option>
-                    <option value="VS">Childbirth (VS)</option>
-                    <option value="DS">Recovery leave (DS)</option>
-                    <option value="KT">Prenatal checkup (KT)</option>
+                    <option value="">@T("All")</option>
+                    <option value="AL">@T("Annual (AL)")</option>
+                    <option value="NL">@T("Unpaid leave (NL)")</option>
+                    <option value="SI">@T("Sick - certified (SI)")</option>
+                    <option value="DT">@T("Funeral (DT)")</option>
+                    <option value="DC">@T("Wedding (DC)")</option>
+                    <option value="CT">@T("Business trip (CT)")</option>
+                    <option value="VS">@T("Childbirth (VS)")</option>
+                    <option value="DS">@T("Recovery leave (DS)")</option>
+                    <option value="KT">@T("Prenatal checkup (KT)")</option>
                 </select>
             </div>
             <div style="min-width:150px;flex:2 1 150px;max-width:220px;">
-                <label class="form-label small fw-bold mb-1 text-primary">Department</label>
+                <label class="form-label small fw-bold mb-1 text-primary">@T("Department")</label>
                 <select id="filterDept" class="select2 form-control"
                         data-url="@Url.Action("GetDeptByScope", "Dropdown")"
-                        data-placeholder="All"></select>
+                        data-placeholder='@T("All")'></select>
             </div>
             <div style="min-width:140px;flex:2 1 140px;max-width:200px;">
-                <label class="form-label small fw-bold mb-1 text-primary">Line</label>
+                <label class="form-label small fw-bold mb-1 text-primary">@T("Line")</label>
                 <select id="filterLine" class="select2 form-control"
                         data-url="@Url.Action("GetLineByScope", "Dropdown")"
                         data-parent="#filterDept"
-                        data-placeholder="All"></select>
+                        data-placeholder='@T("All")'></select>
             </div>
             <div style="min-width:140px;flex:2 1 140px;max-width:200px;">
-                <label class="form-label small fw-bold mb-1 text-primary">Work Group</label>
+                <label class="form-label small fw-bold mb-1 text-primary">@T("Work Group")</label>
                 <select id="filterWork" class="select2 form-control"
                         data-url="@Url.Action("GetWorkByScope", "Dropdown")"
                         data-parent="#filterLine"
                         data-parent-key="lineCd"
                         data-parent2="#filterDept"
                         data-parent2-key="deptCd"
-                        data-placeholder="All"></select>
+                        data-placeholder='@T("All")'></select>
             </div>
             <div class="d-flex align-items-end ms-auto">
                 <div>
-                    <label class="form-label small fw-bold mb-1 text-secondary">Show</label>
+                    <label class="form-label small fw-bold mb-1 text-secondary">@T("Show")</label>
                     <select id="pageSizeSelect" class="form-select form-select-sm" style="width:80px;">
                         <option value="50" selected>50</option>
                         <option value="100">100</option>
@@ -139,27 +150,27 @@
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
                                 data-mobile="hidden">#</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="name" data-mobile-label="Employee Info">Employee Info</th>
+                                data-mobile="primary" data-mobile-slot="name" data-mobile-label="Employee Info">@T("Employee Info")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Leave Type">Leave Type</th>
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Leave Type">@T("Leave Type")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="From">From</th>
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="From">@T("From")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="detail" data-mobile-label="To">To</th>
+                                data-mobile="detail" data-mobile-label="To">@T("To")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Days">Days</th>
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Days">@T("Days")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="Reason">Reason</th>
+                                data-mobile="detail" data-mobile-label="Reason">@T("Reason")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="Created">Created</th>
+                                data-mobile="detail" data-mobile-label="Created">@T("Created")</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Status">Status</th>
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Status">@T("Status")</th>
                             <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2 d-none d-md-table-cell"
-                                data-mobile="detail" data-mobile-label="Approved By">Approved By</th>
+                                data-mobile="detail" data-mobile-label="Approved By">@T("Approved By")</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                data-mobile="detail" data-mobile-label="Signature">Signature</th>
+                                data-mobile="detail" data-mobile-label="Signature">@T("Signature")</th>
                             <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Action">Action</th>
+                                data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Action">@T("Action")</th>
                         </tr>
                     </thead>
                     <tbody id="lvTableBody"></tbody>
@@ -184,7 +195,7 @@
                 <input type="hidden" id="actionRequestId" />
                 <input type="hidden" id="actionType" />
                 <div class="mb-2">
-                    <label class="form-label small fw-bold">Note (optional)</label>
+                    <label class="form-label small fw-bold">@T("Note (optional)")</label>
                     <textarea id="actionComment" class="form-control form-control-sm" rows="2" maxlength="200"
                               oninput="$('#commentCount').text(this.value.length+'/200')"></textarea>
                     <div class="text-end text-xxs text-secondary mt-1"><span id="commentCount">0/200</span></div>
@@ -192,8 +203,8 @@
                 <div id="actionError" class="alert alert-danger d-none py-1 px-2 text-sm"></div>
             </div>
             <div class="modal-footer py-2">
-                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-sm text-white" id="confirmActionBtn" onclick="submitAction()">Confirm</button>
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">@T("Cancel")</button>
+                <button class="btn btn-sm text-white" id="confirmActionBtn" onclick="submitAction()">@T("Confirm")</button>
             </div>
         </div>
     </div>
@@ -210,8 +221,8 @@
                 <p class="mb-0 text-sm" id="ctGpReminderBody"></p>
             </div>
             <div class="modal-footer py-2">
-                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
-                <a class="btn btn-sm btn-warning text-white" id="ctGpReminderLink" target="_blank">Go Approve Gate Pass</a>
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">@T("Close")</button>
+                <a class="btn btn-sm btn-warning text-white" id="ctGpReminderLink" target="_blank">@T("Go Approve Gate Pass")</a>
             </div>
         </div>
     </div>
@@ -236,7 +247,7 @@ function canApproveRole(requesterRole) {
 
 let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 
-const LEAVE_LABEL = { AL:'Annual', CL:'Social Ins.', SL:'Sick', NPL:'Unpaid', OTH:'Other', NL:'Unpaid leave', SI:'Sick (certified)', DT:'Funeral', DC:'Wedding', CT:'Business trip', VS:'Childbirth', DS:'Recovery leave', KT:'Prenatal checkup' };
+const LEAVE_LABEL = { AL:@TJ("Annual"), CL:@TJ("Social Ins."), SL:@TJ("Sick"), NPL:@TJ("Unpaid"), OTH:@TJ("Other"), NL:@TJ("Unpaid leave"), SI:@TJ("Sick (certified)"), DT:@TJ("Funeral"), DC:@TJ("Wedding"), CT:@TJ("Business trip"), VS:@TJ("Childbirth"), DS:@TJ("Recovery leave"), KT:@TJ("Prenatal checkup") };
 const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH:'warning', NL:'secondary', SI:'danger', DT:'dark', DC:'danger', CT:'info', VS:'primary', DS:'warning', KT:'warning' };
 
 function getMonthRange(ym) {
@@ -256,12 +267,12 @@ function buildRow(item, idx) {
         isStale = pendingDays >= 15;
     }
 
-    let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Pending</span>`;
+    let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>@T("Pending")</span>`;
     if (item.STATUS === 'PENDING' && pendingDays > 0) {
         statusHtml += `<div class="pending-age ${isStale ? 'stale' : ''}"><i class="bi bi-alarm me-1"></i>Waiting ${pendingDays} days</div>`;
     }
-    if (item.STATUS === 'APPROVED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Approved</span>`;
-    if (item.STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>`;
+    if (item.STATUS === 'APPROVED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>@T("Approved")</span>`;
+    if (item.STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>@T("Rejected")</span>`;
 
     let remarkDiv = '';
     if (item.STATUS !== 'PENDING' && item.REMARK) {
@@ -288,17 +299,17 @@ function buildRow(item, idx) {
         : approveOk
             ? `<button class="btn btn-xs btn-success me-1" onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','approve')"><i class="bi bi-check-lg"></i></button>
                <button class="btn btn-xs btn-danger"  onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','reject')"><i class="bi bi-x-lg"></i></button>`
-            : `<span class="text-warning text-xxs d-inline-block lh-sm"><i class="bi bi-exclamation-triangle-fill me-1"></i>Higher level<br>required</span>`;
+            : `<span class="text-warning text-xxs d-inline-block lh-sm"><i class="bi bi-exclamation-triangle-fill me-1"></i>@T("Higher level")<br>@T("required")</span>`;
 
     const reqSig = item.EMPCD
         ? `<div class="sig-cell-item">
-               <div class="sig-cell-lbl">Requester</div>
-               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.EMPCD)}" class="sig-cell-img" onerror="this.remove()" alt="Signature"/>
+               <div class="sig-cell-lbl">@T("Requester")</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.EMPCD)}" class="sig-cell-img" onerror="this.remove()" alt="@T("Signature")"/>
            </div>` : '';
     const apSig = (item.STATUS !== 'PENDING' && item.FINAL_APPROVER)
         ? `<div class="sig-cell-item">
-               <div class="sig-cell-lbl">Approver</div>
-               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.FINAL_APPROVER)}" class="sig-cell-img" onerror="this.remove()" alt="Signature"/>
+               <div class="sig-cell-lbl">@T("Approver")</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.FINAL_APPROVER)}" class="sig-cell-img" onerror="this.remove()" alt="@T("Signature")"/>
                ${item.APPROVER_NAME ? `<div class="sig-cell-name vni-font">${escHtml(item.APPROVER_NAME)}</div>` : ''}
            </div>` : '';
     const sigCell = `<div class="sig-cell">${reqSig}${apSig}</div>`;
@@ -346,7 +357,7 @@ function getParams(page) {
 
 function loadData(page = 1) {
     currentPage = page;
-    $('#lvTableBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">Loading...</div></td></tr>`);
+    $('#lvTableBody').html(`<tr><td colspan="12" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-sm text-secondary">@T("Loading...")</div></td></tr>`);
     MobileTableHelper.refresh('lvTableBody');
     $.ajax({
         url: PAGE_URL, type: 'GET', data: getParams(page),
@@ -365,7 +376,7 @@ function loadData(page = 1) {
             totalPages   = res.total_pages || 0;
             const data   = res.data || [];
             if (!data.length) {
-                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-muted py-4">No records found</td></tr>`);
+                $('#lvTableBody').html(`<tr><td colspan="12" class="text-center text-muted py-4">@T("No records found")</td></tr>`);
             } else {
                 $('#lvTableBody').html(data.map((item,i) => buildRow(item,(page-1)*pageSize+i+1)).join(''));
             }
@@ -382,7 +393,7 @@ function loadData(page = 1) {
 function renderPagination() {
     if (!totalRecords) { $('#paginationCount').text(''); $('#paginationBar').empty(); return; }
     const s=(currentPage-1)*pageSize+1, e=Math.min(currentPage*pageSize,totalRecords);
-    $('#paginationCount').html(`<span class="text-xs">${s}-${e} / <strong>${totalRecords}</strong> records</span>`);
+    $('#paginationCount').html(`<span class="text-xs">${s}-${e} / <strong>${totalRecords}</strong> @T("records")</span>`);
     const $bar=$('#paginationBar').empty();
     const mk=(label,p,disabled,active)=>{const li=$('<li class="page-item">').toggleClass('disabled',!!disabled).toggleClass('active',!!active);$('<a class="page-link">').html(label).on('click',()=>{if(!disabled&&!active)loadData(p);}).appendTo(li);return li;};
     $bar.append(mk('&lsaquo;',currentPage-1,currentPage<=1));
@@ -397,7 +408,7 @@ function openAction(id, type) {
     $('#commentCount').text('0/200');
     const isApprove = type === 'approve';
     $('#actionModalHeader').removeClass('bg-success bg-danger').addClass(isApprove ? 'bg-success text-white' : 'bg-danger text-white');
-    $('#actionModalTitle').text(isApprove ? 'Approve Leave Request' : 'Reject Leave Request');
+    $('#actionModalTitle').text(isApprove ? @TJ("Approve Leave Request") : @TJ("Reject Leave Request"));
     $('#confirmActionBtn').removeClass('btn-success btn-danger').addClass(isApprove ? 'btn-success' : 'btn-danger');
     new bootstrap.Modal('#actionModal').show();
 }
@@ -412,14 +423,14 @@ async function submitAction() {
         const res = await $.ajax({ url, type: 'POST', data: { request_id: id, comment } });
         if (res.success) {
             bootstrap.Modal.getInstance('#actionModal').hide();
-            showToast(type === 'approve' ? 'Leave request approved' : 'Leave request rejected', type === 'approve' ? 'success' : 'warning');
+            showToast(type === 'approve' ? @TJ("Leave request approved") : @TJ("Leave request rejected"), type === 'approve' ? 'success' : 'warning');
             if (type === 'approve' && res.is_ct) showCtGpReminder(res.ct_gate_pass_ok);
             loadData(currentPage);
         } else {
-            $('#actionError').removeClass('d-none').text(res.message || 'Processing error');
+            $('#actionError').removeClass('d-none').text(res.message || @TJ("Processing error"));
         }
-    } catch { $('#actionError').removeClass('d-none').text('Connection error'); }
-    finally  { $btn.prop('disabled', false).text('Confirm'); }
+    } catch { $('#actionError').removeClass('d-none').text(@TJ("Connection error")); }
+    finally  { $btn.prop('disabled', false).text(@TJ("Confirm")); }
 }
 
 // Linked Gate Pass is already auto-approved by the backend in the same Approve() call on the
@@ -430,13 +441,13 @@ function showCtGpReminder(gpOk) {
     const $hd = $('#ctGpReminderHeader').removeClass('bg-success bg-warning text-white');
     if (gpOk) {
         $hd.addClass('bg-success text-white');
-        $('#ctGpReminderTitle').text('Gate Pass auto-approved');
-        $('#ctGpReminderBody').text('The Business Trip request is approved, and its Gate Pass was automatically approved and synced to ERP as well — the employee can exit the gate normally.');
+        $('#ctGpReminderTitle').text(@TJ("Gate Pass auto-approved"));
+        $('#ctGpReminderBody').text(@TJ("CT_GP_OK_BODY"));
         $('#ctGpReminderLink').hide();
     } else {
         $hd.addClass('bg-warning text-white');
-        $('#ctGpReminderTitle').text('Gate Pass needs manual approval');
-        $('#ctGpReminderBody').text('The Business Trip request is approved, but its linked Gate Pass could not be auto-approved (possible ERP sync error or the Gate Pass was deleted). Please approve it manually so the employee can exit the gate for the trip.');
+        $('#ctGpReminderTitle').text(@TJ("Gate Pass needs manual approval"));
+        $('#ctGpReminderBody').text(@TJ("CT_GP_FAIL_BODY"));
         $('#ctGpReminderLink').attr('href', GP_LIST_URL).show();
     }
     new bootstrap.Modal('#ctGpReminderModal').show();

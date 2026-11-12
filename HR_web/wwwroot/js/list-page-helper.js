@@ -41,6 +41,18 @@
         return count;
     }
 
+    /* Nhãn hiển thị — mặc định tiếng Việt. Layout của NV nước ngoài (_LayoutExpat.cshtml) đặt
+       sẵn window.CLEAR_FILTER_LABEL + window.UI_LANG trước khi file này chạy, nên các trang
+       Expat tự có nhãn Anh/Hàn mà không phải sửa từng trang (yêu cầu 2026-11-11). */
+    var LBL = (function () {
+        var ko = window.UI_LANG === 'ko';
+        var en = window.UI_LANG === 'en';
+        return {
+            filter: ko ? '필터' : en ? 'Filters' : 'Bộ lọc',
+            clear : window.CLEAR_FILTER_LABEL || (ko ? '필터 지우기' : en ? 'Clear filters' : 'Xóa bộ lọc')
+        };
+    })();
+
     function initFilterToggle(bar) {
         if (bar.dataset.lpInit) return;
         bar.dataset.lpInit = '1';
@@ -48,7 +60,7 @@
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'lp-filter-toggle';
-        btn.innerHTML = '<i class="bi bi-funnel"></i> <span class="lp-label">Bộ lọc</span> <span class="lp-badge" style="display:none;"></span>';
+        btn.innerHTML = '<i class="bi bi-funnel"></i> <span class="lp-label">' + LBL.filter + '</span> <span class="lp-badge" style="display:none;"></span>';
         bar.parentNode.insertBefore(btn, bar);
 
         var updateBadge = debounce(function () {
@@ -154,7 +166,7 @@
         btn.type = 'button';
         btn.className = 'btn btn-sm btn-outline-secondary mb-0 lp-clear-filter';
         btn.setAttribute('data-clear-filter', '');
-        btn.title = 'Xóa bộ lọc';
+        btn.title = LBL.clear;
         btn.innerHTML = '<i class="bi bi-x-circle"></i>';
         btn.addEventListener('click', function () { clearFilterBar(bar); });
 

@@ -27,6 +27,7 @@ public class HomeController : BaseController
 
         var role = user.RoleName ?? "Employee";
         var vm   = await BuildViewModelAsync(user.EmpCd, role, user.FullName, user.DeptRoleName);
+        vm.UserLang = user.UiLang;   // "vi" | "en" | "ko" đã chuẩn hoá — các partial trang chủ dùng để chọn ngôn ngữ
 
         // Role phòng ban (HR/CSR): người KHÔNG có vai trò duyệt (Worker/Clerk...) giữ trang chủ như khi HR/CSR còn là role chính
         // (HR -> trang Admin, CSR -> trang Manager có Summary Card). Supervisor/Manager/... vẫn dùng trang theo vai trò của họ.
@@ -36,7 +37,7 @@ public class HomeController : BaseController
 
         // Dispatcher: chọn view theo role
         if (role is "HR" or "Admin")     return View("Admin",    vm);
-        if (role == "Expat")             return View("Expat",    vm);
+        if (role == "Expat")             return View(ExpatViews.Home, vm);
         // Clerk/CSR: không phải approver, chỉ theo dõi tổng số hôm nay — cùng view Manager có Summary Card
         if (role is "Supervisor" or "DeputyManager" or "Manager" or "Assistant" or "Clerk" or "CSR")
                                           return View("Manager",  vm);

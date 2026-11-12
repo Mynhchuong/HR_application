@@ -4,6 +4,9 @@ public class SideMenuItem
 {
     public string Id { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
+    /// <summary>Tên mục tiếng Hàn — chỉ dùng cho section Expat khi NV chọn tiếng Hàn (xem _SideNavExpat.cshtml).
+    /// Bỏ trống thì rơi về Title (tiếng Anh/Việt).</summary>
+    public string? TitleKo { get; set; }
     public string Icon { get; set; } = string.Empty;
     public string? Url { get; set; }
     public List<SideMenuItem> Children { get; set; } = new();
@@ -26,14 +29,20 @@ public class SideMenuItem
 // phải theo tiếng Anh ở section đó, không dùng chung nhãn Việt (bug phát hiện 2026-11-06).
 public static class MenuGroupCatalog
 {
-    public static readonly Dictionary<string, (string Label, string Color, string LabelEn)> Styles = new()
+    public static readonly Dictionary<string, (string Label, string Color, string LabelEn, string LabelKo)> Styles = new()
     {
-        ["leave"]      = ("Nghỉ phép",            "#10b981", "Leave"),              // xanh lá
-        ["attendance"] = ("Tăng ca / Ra vào cổng", "#f97316", "Overtime / Gate Pass"), // cam
-        ["gift"]       = ("Quà",                   "#db2777", "Gifts"),             // hồng
-        ["canteen"]    = ("Ăn uống",               "#0ea5e9", "Canteen"),           // xanh dương
-        ["training"]   = ("Đào tạo",               "#8b5cf6", "Training"),         // tím
-        ["chat"]       = ("Hội thoại",             "#eab308", "Chat"),             // vàng
-        ["system"]     = ("Tài khoản & Hệ thống",  "#64748b", "Account & System"), // xám
+        ["leave"]      = ("Nghỉ phép",            "#10b981", "Leave",                "휴가"),           // xanh lá
+        ["attendance"] = ("Tăng ca / Ra vào cổng", "#f97316", "Overtime / Gate Pass", "연장근무 / 출입"), // cam
+        ["gift"]       = ("Quà",                   "#db2777", "Gifts",                "선물"),           // hồng
+        ["canteen"]    = ("Ăn uống",               "#0ea5e9", "Canteen",              "식당"),           // xanh dương
+        ["training"]   = ("Đào tạo",               "#8b5cf6", "Training",             "교육"),           // tím
+        ["chat"]       = ("Hội thoại",             "#eab308", "Chat",                 "문의"),           // vàng
+        ["system"]     = ("Tài khoản & Hệ thống",  "#64748b", "Account & System",     "계정 및 시스템"), // xám
     };
+
+    /// <summary>Nhãn cụm theo ngôn ngữ giao diện ("vi" | "en" | "ko" — xem UserInfoModel.Lang).</summary>
+    public static string LabelFor(string key, string lang)
+        => Styles.TryGetValue(key, out var s)
+            ? (lang == "ko" ? s.LabelKo : lang == "en" ? s.LabelEn : s.Label)
+            : key;
 }

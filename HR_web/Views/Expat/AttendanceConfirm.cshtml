@@ -1,5 +1,16 @@
 @{
-    ViewData["Title"] = "Attendance Confirmation";
+    // Ngôn ngữ giao diện (en/ko) — từ điển ở HR_web/Helpers/ExpatText.cs, không rải chuỗi Hàn trong view.
+    // ?? "en": view này chỉ Expat vào, nhưng GetCurrentUser có thể null (cookie hỏng) — rơi về
+    // tiếng Anh thay vì null, vì null sẽ bị các partial hiểu nhầm thành "không phải tiếng Việt"
+    // một cách tình cờ và làm cảnh báo nullable khi truyền vào model của filter bar.
+    var vLang = AuthHelper.GetCurrentUser(User)?.UiLang ?? "en";
+    Func<string, string> T = en => ExpatText.T(vLang, en);
+    // TJ: dùng TRONG JavaScript — xuất ra 1 JSON string literal (đã có nháy kép), nên tự an toàn
+    // với dấu nháy/& ; @T(...) bị HTML-encode nên KHÔNG dùng được trong script.
+    Func<string, Microsoft.AspNetCore.Html.IHtmlContent> TJ = en =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            System.Text.Json.JsonSerializer.Serialize(ExpatText.T(vLang, en)));
+    ViewData["Title"] = T("Attendance Confirmation");
     var dateFrom = (string)(ViewBag.DateFrom ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd"));
     var dateTo   = (string)(ViewBag.DateTo   ?? DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"));
     // Today's ADD_TIME data isn't finalized yet (timekeeping team adds a temporary fingerprint for
@@ -26,13 +37,13 @@
     <div class="card my-4">
         <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
             <div class="bg-gradient-success shadow-success border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h6 class="text-white mb-0"><i class="bi bi-clock-history me-1"></i> Attendance Confirmation</h6>
+                <h6 class="text-white mb-0"><i class="bi bi-clock-history me-1"></i> @T("Attendance Confirmation")</h6>
                 <div class="d-flex align-items-center flex-wrap gap-2">
                     <button type="button" id="requestBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#166534;font-weight:600;height:34px;" disabled>
-                        <i class="bi bi-bell me-1"></i> Send Confirmation Request<span id="selCountBadge" class="badge bg-danger ms-1" style="display:none;">0</span>
+                        <i class="bi bi-bell me-1"></i> @T("Send Confirmation Request")<span id="selCountBadge" class="badge bg-danger ms-1" style="display:none;">0</span>
                     </button>
                     <button type="button" id="exportBtn" class="btn btn-sm mb-0 text-nowrap" style="background:#fff;color:#344767;font-weight:600;height:34px;">
-                        <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
+                        <i class="bi bi-file-earmark-excel me-1"></i> @T("Export Excel")
                     </button>
                     <div class="d-flex align-items-center bg-white border-radius-md px-2 shadow-sm" style="height:34px;gap:4px;">
                         <i class="bi bi-calendar3 text-success"></i>
@@ -50,52 +61,52 @@
         <!-- Filter bar -->
         <div class="px-3 pt-3 pb-2 d-flex flex-wrap align-items-end gap-2 filter-bar" style="background:#f8fafc;border-bottom:1px solid #e9ecef;">
             <div style="min-width:140px;flex:1 1 140px;max-width:180px;">
-                <label class="form-label small fw-bold mb-1 text-primary">Emp Code</label>
-                <input type="text" id="searchEmpcd" class="form-control form-control-sm" placeholder="🔍 Search emp code..." />
+                <label class="form-label small fw-bold mb-1 text-primary">@T("Emp Code")</label>
+                <input type="text" id="searchEmpcd" class="form-control form-control-sm" placeholder='@T("🔍 Search emp code...")' />
             </div>
             <div style="min-width:150px;flex:2 1 150px;max-width:220px;">
-                <label class="form-label small fw-bold mb-1 text-primary">Department</label>
+                <label class="form-label small fw-bold mb-1 text-primary">@T("Department")</label>
                 <select id="filterDept" class="select2 form-control"
                         data-url="@Url.Action("GetDept", "Dropdown")"
-                        data-placeholder="All"></select>
+                        data-placeholder='@T("All")'></select>
             </div>
             <div style="min-width:140px;flex:2 1 140px;max-width:200px;">
-                <label class="form-label small fw-bold mb-1 text-primary">Line</label>
+                <label class="form-label small fw-bold mb-1 text-primary">@T("Line")</label>
                 <select id="filterLine" class="select2 form-control"
                         data-url="@Url.Action("GetLine", "Dropdown")"
                         data-parent="#filterDept"
-                        data-placeholder="All"></select>
+                        data-placeholder='@T("All")'></select>
             </div>
             <div style="min-width:140px;flex:2 1 140px;max-width:200px;">
-                <label class="form-label small fw-bold mb-1 text-primary">Work Group</label>
+                <label class="form-label small fw-bold mb-1 text-primary">@T("Work Group")</label>
                 <select id="filterWork" class="select2 form-control"
                         data-url="@Url.Action("GetWork", "Dropdown")"
                         data-parent="#filterLine"
                         data-parent-key="lineCd"
                         data-parent2="#filterDept"
                         data-parent2-key="deptCd"
-                        data-placeholder="All"></select>
+                        data-placeholder='@T("All")'></select>
             </div>
             <div style="min-width:170px;flex:1 1 170px;max-width:210px;">
-                <label class="form-label small fw-bold mb-1 text-primary">Status</label>
+                <label class="form-label small fw-bold mb-1 text-primary">@T("Status")</label>
                 <select id="filterStatus" class="form-select form-select-sm">
-                    <option value="">All</option>
-                    <option value="MISSING">Not requested</option>
-                    <option value="PENDING_WORKER">Waiting for employee</option>
-                    <option value="PENDING_MANAGER">Waiting for manager</option>
-                    <option value="CONFIRMED">Confirmed</option>
-                    <option value="REJECTED">Rejected</option>
-                    <option value="SUPP_OT">Pending Supplement OT Sign (from HR)</option>
-                    <option value="SUPP_DONE">Supplement OT Signed (by employee)</option>
+                    <option value="">@T("All")</option>
+                    <option value="MISSING">@T("Not requested")</option>
+                    <option value="PENDING_WORKER">@T("Waiting for employee")</option>
+                    <option value="PENDING_MANAGER">@T("Waiting for manager")</option>
+                    <option value="CONFIRMED">@T("Confirmed")</option>
+                    <option value="REJECTED">@T("Rejected")</option>
+                    <option value="SUPP_OT">@T("Pending Supplement OT Sign (from HR)")</option>
+                    <option value="SUPP_DONE">@T("Supplement OT Signed (by employee)")</option>
                 </select>
             </div>
             <div style="min-width:160px;flex:1 1 160px;max-width:200px;">
-                <label class="form-label small fw-bold mb-1 text-primary">ERP Missing</label>
+                <label class="form-label small fw-bold mb-1 text-primary">@T("ERP Missing")</label>
                 <select id="filterMissingType" class="form-select form-select-sm">
-                    <option value="">All</option>
-                    <option value="IN">Not Time In</option>
-                    <option value="OUT">Not Time Out</option>
-                    <option value="BOTH">Not In &amp; Out</option>
+                    <option value="">@T("All")</option>
+                    <option value="IN">@T("Not Time In")</option>
+                    <option value="OUT">@T("Not Time Out")</option>
+                    <option value="BOTH">@T("Not In & Out")</option>
                 </select>
             </div>
             <div class="ms-auto"></div>
@@ -107,16 +118,16 @@
                 <table class="table table-sm align-items-center mb-0">
                     <thead>
                         <tr>
-                            <th class="text-center" style="width:36px;" data-mobile="hidden"><input type="checkbox" id="selectAllChk" title="Select all on this page"></th>
+                            <th class="text-center" style="width:36px;" data-mobile="hidden"><input type="checkbox" id="selectAllChk" title='@T("Select all on this page")'></th>
                             <th class="text-xs text-secondary" data-mobile="hidden">#</th>
-                            <th class="text-xs text-secondary" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Emp Code / Name">Emp Code / Name</th>
-                            <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="Date">Date</th>
-                            <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Dept/Line/Work">Department / Line / Work Group</th>
-                            <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="ERP Missing">ERP Missing</th>
-                            <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="Status">Status</th>
-                            <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Declared/Confirmed">Employee Declared / Confirmed</th>
-                            <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Note">Note</th>
-                            <th class="text-xs text-secondary text-center" data-mobile="primary" data-mobile-label="Action">Action</th>
+                            <th class="text-xs text-secondary" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Emp Code / Name">@T("Emp Code / Name")</th>
+                            <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="Date">@T("Date")</th>
+                            <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Dept/Line/Work">@T("Department / Line / Work Group")</th>
+                            <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="ERP Missing">@T("ERP Missing")</th>
+                            <th class="text-xs text-secondary" data-mobile="primary" data-mobile-label="Status">@T("Status")</th>
+                            <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Declared/Confirmed">@T("Employee Declared / Confirmed")</th>
+                            <th class="text-xs text-secondary" data-mobile="detail" data-mobile-label="Note">@T("Note")</th>
+                            <th class="text-xs text-secondary text-center" data-mobile="primary" data-mobile-label="Action">@T("Action")</th>
                         </tr>
                     </thead>
                     <tbody id="attTableBody"></tbody>
@@ -135,19 +146,19 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header py-2">
-                <h6 class="modal-title mb-0"><i class="bi bi-check2-circle me-1"></i> Confirm Attendance</h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h6 class="modal-title mb-0"><i class="bi bi-check2-circle me-1"></i> @T("Confirm Attendance")</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label='@T("Close")'></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="cfConfirmId" />
                 <div id="cfShiftInfo" class="text-xs text-secondary mb-2"></div>
                 <div id="cfOtWarning" class="alert alert-warning py-2 px-2 mb-2 text-xs" style="display:none;"></div>
                 <div class="text-xxs text-secondary mb-2">
-                    <i class="bi bi-info-circle"></i> Re-select the time if your employee declared it incorrectly.
+                    <i class="bi bi-info-circle"></i> @T("Re-select the time if your employee declared it incorrectly.")
                 </div>
                 <div class="row g-2 mb-2">
                     <div class="col-6" id="cfTimeInCol">
-                        <label class="form-label small fw-bold">Time In</label>
+                        <label class="form-label small fw-bold">@T("Time In")</label>
                         <div class="time-picker">
                             <select id="cfTimeInHour" class="hour-select"></select>
                             <span class="time-colon">:</span>
@@ -156,7 +167,7 @@
                         <input type="hidden" id="cfTimeIn" />
                     </div>
                     <div class="col-6" id="cfTimeOutCol">
-                        <label class="form-label small fw-bold">Time Out</label>
+                        <label class="form-label small fw-bold">@T("Time Out")</label>
                         <div class="time-picker">
                             <select id="cfTimeOutHour" class="hour-select"></select>
                             <span class="time-colon">:</span>
@@ -166,14 +177,14 @@
                     </div>
                 </div>
                 <div class="mb-2">
-                    <label class="form-label small fw-bold">Note</label>
-                    <textarea id="cfNote" class="form-control form-control-sm" rows="2" maxlength="500" placeholder="Note (required if rejecting, so the employee knows why)"></textarea>
+                    <label class="form-label small fw-bold">@T("Note")</label>
+                    <textarea id="cfNote" class="form-control form-control-sm" rows="2" maxlength="500" placeholder='@T("Note (required if rejecting, so the employee knows why)")'></textarea>
                 </div>
             </div>
             <div class="modal-footer py-2">
-                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="doConfirm('REJECTED')"><i class="bi bi-x-lg me-1"></i>Reject</button>
-                <button type="button" class="btn btn-sm btn-success" onclick="doConfirm('CONFIRMED')"><i class="bi bi-check-lg me-1"></i>Confirm</button>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">@T("Close")</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="doConfirm('REJECTED')"><i class="bi bi-x-lg me-1"></i>@T("Reject")</button>
+                <button type="button" class="btn btn-sm btn-success" onclick="doConfirm('CONFIRMED')"><i class="bi bi-check-lg me-1"></i>@T("Confirm")</button>
             </div>
         </div>
     </div>
@@ -198,19 +209,19 @@ let currentPage = 1, totalPages = 1, totalRecords = 0, pageSize = 50;
 let canConfirmGlobal = false; // Admin/HR always false — only the manager in scope can Confirm
 
 const STATUS_LABEL = {
-    MISSING: 'Not requested', PENDING_WORKER: 'Waiting for employee',
-    PENDING_MANAGER: 'Waiting for manager', CONFIRMED: 'Confirmed', REJECTED: 'Rejected'
+    MISSING: @TJ("Not requested"), PENDING_WORKER: @TJ("Waiting for employee"),
+    PENDING_MANAGER: @TJ("Waiting for manager"), CONFIRMED: @TJ("Confirmed"), REJECTED: @TJ("Rejected")
 };
 const STATUS_COLOR = {
     MISSING: '#94a3b8', PENDING_WORKER: '#f59e0b', PENDING_MANAGER: '#3b82f6', CONFIRMED: '#10b981', REJECTED: '#ef4444'
 };
-const MISSING_LABEL = { IN: 'Missing Time In', OUT: 'Missing Time Out', BOTH: 'Missing both In/Out' };
+const MISSING_LABEL = { IN: @TJ("Missing Time In"), OUT: @TJ("Missing Time Out"), BOTH: @TJ("Missing both In/Out") };
 const MISSING_COLOR = { IN: '#f59e0b', OUT: '#ef4444', BOTH: '#7c3aed' };
 
 function escHtml(str) { return String(str==null?'':str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function formatDate(s) { if(!s) return '-'; const p = s.split('-'); return p.length===3 ? `${p[2]}/${p[1]}/${p[0]}` : s; }
 
-// HR has sent a "supplement confirmation" OT request — merged INTO the same table as the missing-
+// HR has sent a @TJ("supplement confirmation") OT request — merged INTO the same table as the missing-
 // attendance list (same pattern as the Vietnamese Index.cshtml) instead of a separate box, so
 // Expat gets the same feature parity as Clerk/Supervisor/Manager/HR.
 let suppPendingRows = [];
@@ -240,8 +251,8 @@ function buildSuppRow(item, idx) {
         ? `<td class="text-center text-secondary">-</td>`
         : `<td class="text-center"><input type="checkbox" class="supp-chk" data-empcd="${escHtml(item.EMPCD)}" data-workdate="${escHtml(item.WORK_DATE)}" onchange="updateSelCount()"></td>`;
     const statusCell = isDone
-        ? `<td><span class="att-status-badge" style="background:#10b98122;color:#10b981;"><i class="bi bi-check-circle"></i> Supplement OT Signed</span></td>`
-        : `<td><span class="att-status-badge" style="background:#3b82f622;color:#3b82f6;"><i class="bi bi-hourglass-split"></i> Pending Supplement OT Sign</span></td>`;
+        ? `<td><span class="att-status-badge" style="background:#10b98122;color:#10b981;"><i class="bi bi-check-circle"></i> @T("Supplement OT Signed")</span></td>`
+        : `<td><span class="att-status-badge" style="background:#3b82f622;color:#3b82f6;"><i class="bi bi-hourglass-split"></i> @T("Pending Supplement OT Sign")</span></td>`;
     const deadlineCell = isDone
         ? `<td class="text-xs text-success">Signed: ${item.CONFIRMED_DATE ? escHtml(item.CONFIRMED_DATE) : '-'}</td>`
         : `<td class="text-xs text-danger">Due: ${formatDate(item.SUPP_DEADLINE)}</td>`;
@@ -249,7 +260,7 @@ function buildSuppRow(item, idx) {
         ? `<td class="text-center text-secondary">-</td>`
         : `<td class="text-center">
             <button type="button" class="btn btn-sm btn-outline-primary" onclick="remindSuppOt('${escHtml(item.EMPCD)}', '${item.WORK_DATE}', this)">
-                <i class="bi bi-bell me-1"></i>Remind
+                <i class="bi bi-bell me-1"></i>@T("Remind")
             </button>
         </td>`;
     return `<tr style="background:${isDone ? '#f0fdf4' : '#eff6ff'};">
@@ -265,7 +276,7 @@ function buildSuppRow(item, idx) {
         </td>
         <td class="text-xs">
             <span class="badge bg-primary">OT ${item.OT_HOURS||0}h</span>
-            <div class="text-xxs text-secondary mt-1">${isDone ? 'HR had requested supplement sign' : 'HR requested supplement sign'}</div>
+            <div class="text-xxs text-secondary mt-1">${isDone ? @TJ("HR had requested supplement sign") : @TJ("HR requested supplement sign")}</div>
         </td>
         ${statusCell}
         ${deadlineCell}
@@ -287,8 +298,8 @@ async function remindSuppOt(empcd, workDate, btn) {
             headers: { 'RequestVerificationToken': CSRF_TOKEN },
             data: JSON.stringify({ EMPCD: empcd, WORK_DATE: workDate })
         });
-        showToast ? showToast(res.message || (res.success ? 'Reminded' : 'Error'), res.success ? 'success' : 'error') : null;
-    } catch { showToast ? showToast('Connection error', 'error') : null; }
+        showToast ? showToast(res.message || (res.success ? @TJ("Reminded") : @TJ("Error")), res.success ? 'success' : 'error') : null;
+    } catch { showToast ? showToast(@TJ("Connection error"), 'error') : null; }
     finally { $btn.prop('disabled', false); }
 }
 
@@ -297,12 +308,12 @@ function renderSummaryBar(summary) {
     const $bar = $('#summaryBar');
     if (!summary) { $bar.empty(); return; }
     const chips = [
-        { label: 'Not requested', val: summary.MISSING, color: STATUS_COLOR.MISSING },
-        { label: 'Waiting for employee', val: summary.PENDING_WORKER, color: STATUS_COLOR.PENDING_WORKER },
-        { label: 'Waiting for manager', val: summary.PENDING_MANAGER, color: STATUS_COLOR.PENDING_MANAGER },
-        { label: 'Confirmed', val: summary.CONFIRMED, color: STATUS_COLOR.CONFIRMED },
-        { label: 'Pending Supplement OT Sign', val: suppPendingRows.filter(r => r.STATUS !== 'DONE').length, color: '#3b82f6' },
-        { label: 'Supplement OT Signed', val: suppPendingRows.filter(r => r.STATUS === 'DONE').length, color: '#10b981' },
+        { label: @TJ("Not requested"), val: summary.MISSING, color: STATUS_COLOR.MISSING },
+        { label: @TJ("Waiting for employee"), val: summary.PENDING_WORKER, color: STATUS_COLOR.PENDING_WORKER },
+        { label: @TJ("Waiting for manager"), val: summary.PENDING_MANAGER, color: STATUS_COLOR.PENDING_MANAGER },
+        { label: @TJ("Confirmed"), val: summary.CONFIRMED, color: STATUS_COLOR.CONFIRMED },
+        { label: @TJ("Pending Supplement OT Sign"), val: suppPendingRows.filter(r => r.STATUS !== 'DONE').length, color: '#3b82f6' },
+        { label: @TJ("Supplement OT Signed"), val: suppPendingRows.filter(r => r.STATUS === 'DONE').length, color: '#10b981' },
     ];
     $bar.html(chips.map(c => `<span class="att-status-badge" style="background:${c.color}22;color:${c.color};">${c.label}: <strong>${c.val || 0}</strong></span>`).join(''));
 }
@@ -332,15 +343,15 @@ function buildRow(item, idx) {
                 data-is-night="${item.IS_NIGHT_SHIFT ? '1' : '0'}" data-shift-type="${escHtml(item.SHIFT_TYPE || '')}"
                 data-ot-before-hours="${item.OT_BEFORE_HOURS || ''}" data-ot-after-hours="${item.OT_AFTER_HOURS || ''}"
                 onclick="event.stopPropagation(); openConfirmModal(this)">
-            <i class="bi bi-check2-circle"></i> Confirm</button>`;
+            <i class="bi bi-check2-circle"></i> @T("Confirm")</button>`;
     } else if (status === 'PENDING_WORKER') {
-        actionHtml = `<span class="text-xs text-warning"><i class="bi bi-hourglass-split"></i> Waiting for employee</span>`;
+        actionHtml = `<span class="text-xs text-warning"><i class="bi bi-hourglass-split"></i> @T("Waiting for employee")</span>`;
     } else if (status === 'PENDING_MANAGER') {
-        actionHtml = `<span class="text-xs text-primary"><i class="bi bi-hourglass-split"></i> Waiting for manager</span>`;
+        actionHtml = `<span class="text-xs text-primary"><i class="bi bi-hourglass-split"></i> @T("Waiting for manager")</span>`;
     } else if (status === 'CONFIRMED') {
         actionHtml = `<span class="text-xs text-success"><i class="bi bi-check-circle"></i> <span class="vni-font">${escHtml(item.CONFIRMED_BY_NAME || '')}</span> (${escHtml(item.CONFIRMED_BY || '')})</span>`;
     } else if (status === 'REJECTED') {
-        actionHtml = `<span class="text-xs text-danger"><i class="bi bi-x-circle"></i> Rejected</span>`;
+        actionHtml = `<span class="text-xs text-danger"><i class="bi bi-x-circle"></i> @T("Rejected")</span>`;
     }
 
     return `<tr data-row-key="${escHtml(rowKey)}">
@@ -357,19 +368,19 @@ function buildRow(item, idx) {
         <td class="text-xs">
             <span class="badge" style="background:${MISSING_COLOR[item.MISSING_TYPE] || '#ef4444'};">${MISSING_LABEL[item.MISSING_TYPE] || item.MISSING_TYPE}</span>
             <div class="text-xxs text-secondary mt-1">ERP: ${item.ERP_TIME_IN || '--:--'} → ${item.ERP_TIME_OUT || '--:--'}</div>
-            ${shiftInfo ? `<div class="text-xxs text-secondary">Shift: ${shiftInfo}</div>` : ''}
+            ${shiftInfo ? `<div class="text-xxs text-secondary">@T("Shift:") ${shiftInfo}</div>` : ''}
             ${otBadge ? `<div>${otBadge}</div>` : ''}
         </td>
         <td><span class="att-status-badge" style="background:${STATUS_COLOR[status]}22;color:${STATUS_COLOR[status]};">${STATUS_LABEL[status] || status}</span>
-            ${status !== 'MISSING' ? `<button type="button" class="btn btn-xs btn-link p-0 ms-1 att-log-btn" data-empcd="${escHtml(item.EMPCD)}" data-workdate="${escHtml(item.WORK_DATE)}" data-empname="${escHtml(item.EMP_NAME)}" title="Change history" onclick="event.stopPropagation();"><i class="bi bi-clock-history"></i></button>` : ''}
+            ${status !== 'MISSING' ? `<button type="button" class="btn btn-xs btn-link p-0 ms-1 att-log-btn" data-empcd="${escHtml(item.EMPCD)}" data-workdate="${escHtml(item.WORK_DATE)}" data-empname="${escHtml(item.EMP_NAME)}" title="@T("Change history")" onclick="event.stopPropagation();"><i class="bi bi-clock-history"></i></button>` : ''}
         </td>
         <td class="text-xs">
-            ${item.WORKER_TIME_IN ? `Emp: ${item.WORKER_TIME_IN} → ${item.WORKER_TIME_OUT || '--:--'}<br>` : ''}
-            ${item.CONFIRM_TIME_IN ? `<span class="text-success">Final: ${item.CONFIRM_TIME_IN} → ${item.CONFIRM_TIME_OUT || '--:--'}</span>` : ''}
+            ${item.WORKER_TIME_IN ? `@T("Emp:") ${item.WORKER_TIME_IN} → ${item.WORKER_TIME_OUT || '--:--'}<br>` : ''}
+            ${item.CONFIRM_TIME_IN ? `<span class="text-success">@T("Final:") ${item.CONFIRM_TIME_IN} → ${item.CONFIRM_TIME_OUT || '--:--'}</span>` : ''}
         </td>
         <td class="text-xxs text-secondary">
             <div style="max-width:150px;overflow-wrap:break-word;word-break:break-word;white-space:normal;">
-                ${item.WORKER_NOTE ? `<div>Emp: ${escHtml(item.WORKER_NOTE)}</div>` : ''}
+                ${item.WORKER_NOTE ? `<div>@T("Emp:") ${escHtml(item.WORKER_NOTE)}</div>` : ''}
                 ${item.NOTE ? `<div class="text-success">Mgr: ${escHtml(item.NOTE)}</div>` : ''}
             </div>
         </td>
@@ -417,9 +428,9 @@ function applyOtWarning(btn) {
     const otAfter   = parseFloat(btn.dataset.otAfterHours  || '0');
     const $box = $('#cfOtWarning');
     if (shiftType === 'OT_BEFORE' && otBefore > 0) {
-        $box.show().html(`<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Note:</strong> This employee has <strong>${otBefore}h overtime before shift</strong> not yet fully clocked — remember to subtract the OT hours when setting "Time In".`);
+        $box.show().html('<i class="bi bi-exclamation-triangle-fill me-1"></i>' + escHtml(@(TJ("OT_WARN_BEFORE")).replace('{h}', otBefore)));
     } else if (shiftType === 'OT_AFTER' && otAfter > 0) {
-        $box.show().html(`<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Note:</strong> This employee has <strong>${otAfter}h overtime after shift</strong> not yet fully clocked — remember to add the OT hours when setting "Time Out".`);
+        $box.show().html('<i class="bi bi-exclamation-triangle-fill me-1"></i>' + escHtml(@(TJ("OT_WARN_AFTER")).replace('{h}', otAfter)));
     } else {
         $box.hide().empty();
     }
@@ -436,7 +447,7 @@ function openConfirmModal(btn) {
     TimePickerHelper.setValue('cfTimeOut', btn.dataset.timeOut || '', false, cfMissingType === 'IN');
     applyConfirmTimeVisibility(btn.dataset.missingType || 'BOTH');
     $('#cfNote').val('');
-    let infoHtml = btn.dataset.shiftInfo ? `<i class="bi bi-clock"></i> Shift: ${escHtml(btn.dataset.shiftInfo)}` : '';
+    let infoHtml = btn.dataset.shiftInfo ? `<i class="bi bi-clock"></i> @T("Shift:") ${escHtml(btn.dataset.shiftInfo)}` : '';
     if (btn.dataset.workerNote) infoHtml += `<div class="mt-1"><i class="bi bi-chat-left-text"></i> Employee note: ${escHtml(btn.dataset.workerNote)}</div>`;
     $('#cfShiftInfo').html(infoHtml);
     new bootstrap.Modal(document.getElementById('confirmModal')).show();
@@ -446,7 +457,7 @@ async function doConfirm(status) {
     const note = $('#cfNote').val().trim();
     // Rejecting requires a reason so the employee knows why — backend also enforces this.
     if (status === 'REJECTED' && !note) {
-        showToast('Please enter a reason for rejection so the employee knows why', 'warning');
+        showToast(@TJ("Please enter a reason for rejection so the employee knows why"), 'warning');
         $('#cfNote').focus();
         return;
     }
@@ -461,10 +472,10 @@ async function doConfirm(status) {
         const res = await $.ajax({ url: CONFIRM_URL, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': CSRF_TOKEN }, data: JSON.stringify(payload) });
         if (res.success) {
             bootstrap.Modal.getInstance(document.getElementById('confirmModal'))?.hide();
-            showToast(status === 'CONFIRMED' ? 'Confirmed' : 'Rejected', 'success');
+            showToast(status === 'CONFIRMED' ? @TJ("Confirmed") : @TJ("Rejected"), 'success');
             loadData(currentPage);
-        } else showToast(res.message || 'Error', 'error');
-    } catch (e) { showToast('Connection error', 'error'); }
+        } else showToast(res.message || @TJ("Error"), 'error');
+    } catch (e) { showToast(@TJ("Connection error"), 'error'); }
 }
 
 function updateSelCount() {
@@ -495,7 +506,7 @@ $('#requestBtn').on('click', async function () {
         showToast(`Processed ${attTargets.length} confirmation request(s) + ${suppTargets.length} supplement reminder(s)`, anyFailed ? 'warning' : 'success');
         loadData(currentPage);
         loadSuppPending();
-    } catch (e) { showToast('Connection error', 'error'); }
+    } catch (e) { showToast(@TJ("Connection error"), 'error'); }
     finally { $btn.prop('disabled', false); }
 });
 
@@ -518,7 +529,7 @@ function getParams(page) {
 
 let lastRenderedRows = null;
 
-// Page 1 only: prepend "pending supplement OT sign" rows ahead of the normal list, same 10-column
+// Page 1 only: prepend pending-supplement-OT-sign rows ahead of the normal list, same 10-column
 // layout as buildRow() — merged into one table instead of a separate box.
 function renderAttTable(rows, page) {
     lastRenderedRows = rows;
@@ -531,13 +542,13 @@ function renderAttTable(rows, page) {
         : '';
     const normalHtml = rows.length
         ? rows.map((r, i) => buildRow(r, (page - 1) * pageSize + i + 1)).join('')
-        : (suppHtml ? '' : `<tr><td colspan="10" class="text-center text-secondary py-4">No data</td></tr>`);
+        : (suppHtml ? '' : `<tr><td colspan="10" class="text-center text-secondary py-4">@T("No data")</td></tr>`);
     $('#attTableBody').html(suppHtml + normalHtml);
     MobileTableHelper.refresh('attTableBody');
     updateSelCount();
 }
 
-// "Pending"/"Signed" Supplement OT filters — this data is NOT part of the main paged list (different
+// @TJ("Pending")/@TJ("Signed") Supplement OT filters — this data is NOT part of the main paged list (different
 // source/pagination), so selecting either shows the matching group from suppPendingRows in full.
 function renderSuppOnlyTable() {
     const wantDone = $('#filterStatus').val() === 'SUPP_DONE';
@@ -548,7 +559,7 @@ function renderSuppOnlyTable() {
     renderSummaryBar(lastSummary);
     $('#attTableBody').html(rows.length
         ? rows.map((r, i) => buildSuppRow(r, i + 1)).join('')
-        : `<tr><td colspan="10" class="text-center text-secondary py-4">${wantDone ? 'No supplement OT signed yet' : 'No one pending supplement OT sign'}</td></tr>`);
+        : `<tr><td colspan="10" class="text-center text-secondary py-4">${wantDone ? @TJ("No supplement OT signed yet") : @TJ("No one pending supplement OT sign")}</td></tr>`);
     MobileTableHelper.refresh('attTableBody');
     updateSelCount();
     renderPagination();
@@ -584,7 +595,7 @@ function loadData(page = 1) {
 function renderPagination() {
     if (!totalRecords) { $('#paginationCount').text(''); $('#paginationBar').empty(); return; }
     const s = (currentPage-1)*pageSize+1, e = Math.min(currentPage*pageSize, totalRecords);
-    $('#paginationCount').html(`<span class="text-xs">${s}-${e} / <strong>${totalRecords}</strong> rows</span>`);
+    $('#paginationCount').html(`<span class="text-xs">${s}-${e} / <strong>${totalRecords}</strong> @T("rows")</span>`);
     const $bar = $('#paginationBar').empty();
     const mk = (label,p,disabled,active) => {
         const li = $('<li class="page-item">').toggleClass('disabled', !!disabled).toggleClass('active', !!active);
@@ -603,7 +614,7 @@ $('#filterWork').on('change', () => { loadData(1); loadSuppPending(); });
 $('#filterStatus, #filterMissingType').on('change', () => loadData(1));
 let searchTimeout;
 $('#searchEmpcd').on('input', function () { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { loadData(1); loadSuppPending(); }, 400); });
-// "Clear filter" button auto-injected by list-page-helper.js (global, any page with .filter-bar).
+// @TJ("Clear filter") button auto-injected by list-page-helper.js (global, any page with .filter-bar).
 
 $('#exportBtn').on('click', async function () {
     const $btn = $(this), orig = $btn.html();
@@ -617,21 +628,21 @@ $('#exportBtn').on('click', async function () {
             pgTotal = res.total_pages; rows = rows.concat(res.data || []);
             pg++;
         } while (pg <= pgTotal);
-        if (!rows.length) { showToast('No data to export', 'warning'); return; }
-        const headers = ['No.', 'Emp Code', 'Full Name', 'Date', 'Department', 'Line', 'Work Group', 'ERP Time In', 'ERP Time Out',
-            'Has OT', 'OT Before/After', 'OT Hours',
-            'Status', 'Emp Declared In', 'Emp Declared Out', 'Final Time In', 'Final Time Out',
-            'Employee Reason', 'Manager Note', 'Confirmed By', 'Confirmed Date'];
+        if (!rows.length) { showToast(@TJ("No data to export"), 'warning'); return; }
+        const headers = [@TJ("No."), @TJ("Emp Code"), @TJ("Full Name"), @TJ("Date"), @TJ("Department"), @TJ("Line"), @TJ("Work Group"), @TJ("ERP Time In"), @TJ("ERP Time Out"),
+            @TJ("Has OT"), @TJ("OT Before/After"), @TJ("OT Hours"),
+            @TJ("Status"), @TJ("Emp Declared In"), @TJ("Emp Declared Out"), @TJ("Final Time In"), @TJ("Final Time Out"),
+            @TJ("Employee Reason"), @TJ("Manager Note"), @TJ("Confirmed By"), @TJ("Confirmed Date")];
         let html = '<html><head><meta charset="utf-8"/></head><body><table border="1"><thead><tr>';
         html += headers.map(h => `<th style="background:#bbf7d0;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
         rows.forEach((r, i) => {
             const hasOt      = r.SHIFT_TYPE === 'OT_BEFORE' || r.SHIFT_TYPE === 'OT_AFTER';
-            const otTypeText = r.SHIFT_TYPE === 'OT_BEFORE' ? 'Before shift' : r.SHIFT_TYPE === 'OT_AFTER' ? 'After shift' : '';
+            const otTypeText = r.SHIFT_TYPE === 'OT_BEFORE' ? @TJ("Before shift") : r.SHIFT_TYPE === 'OT_AFTER' ? @TJ("After shift") : '';
             const otHours    = r.SHIFT_TYPE === 'OT_BEFORE' ? (r.OT_BEFORE_HOURS || '') : r.SHIFT_TYPE === 'OT_AFTER' ? (r.OT_AFTER_HOURS || '') : '';
             html += `<tr><td>${i + 1}</td><td data-t="s">${escHtml(r.EMPCD)}</td><td>${escHtml(r.EMP_NAME||'')}</td><td data-t="s">${formatDate(r.WORK_DATE)}</td>` +
                 `<td>${escHtml(r.DEPT_NAME||'')}</td><td>${escHtml(r.LINE_NAME||'')}</td><td>${escHtml(r.WORK_NAME||'')}</td>` +
                 `<td>${escHtml(r.ERP_TIME_IN||'')}</td><td>${escHtml(r.ERP_TIME_OUT||'')}</td>` +
-                `<td>${hasOt ? 'Yes' : 'No'}</td><td>${escHtml(otTypeText)}</td><td>${escHtml(String(otHours))}</td>` +
+                `<td>${hasOt ? @TJ("Yes") : @TJ("No")}</td><td>${escHtml(otTypeText)}</td><td>${escHtml(String(otHours))}</td>` +
                 `<td>${escHtml(STATUS_LABEL[r.CONFIRM_STATUS||'MISSING']||'')}</td>` +
                 `<td>${escHtml(r.WORKER_TIME_IN||'')}</td><td>${escHtml(r.WORKER_TIME_OUT||'')}</td>` +
                 `<td>${escHtml(r.CONFIRM_TIME_IN||'')}</td><td>${escHtml(r.CONFIRM_TIME_OUT||'')}</td>` +
@@ -639,7 +650,7 @@ $('#exportBtn').on('click', async function () {
         });
         html += '</tbody></table></body></html>';
         exportHtmlTableToXlsx(html, `AttendanceConfirm_${$('#filterDateFrom').val()}_${$('#filterDateTo').val()}.xlsx`);
-    } catch (err) { showToast('Export error: ' + err.message, 'error'); }
+    } catch (err) { showToast(@TJ("Export error: ") + err.message, 'error'); }
     finally { $btn.prop('disabled', false).html(orig); }
 });
 

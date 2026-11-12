@@ -9,6 +9,18 @@
 (function () {
     'use strict';
 
+    /* Nhãn hiển thị — mặc định tiếng Việt. Layout NV nước ngoài (_LayoutExpat.cshtml) đặt
+       window.UI_LANG = 'en'|'ko' trước khi file này chạy (yêu cầu 2026-11-11). */
+    var NAV_LBL = (function () {
+        var ko = window.UI_LANG === 'ko', en = window.UI_LANG === 'en';
+        return {
+            pin    : ko ? '즐겨찾기에 추가' : en ? 'Pin to favourites' : 'Ghim vào Yêu thích',
+            unpin  : ko ? '즐겨찾기 해제'   : en ? 'Unpin'             : 'Bỏ ghim',
+            favs   : ko ? '즐겨찾기'        : en ? 'Favourites'        : 'Yêu thích'
+        };
+    })();
+
+
     // ───────────────────── Đóng/mở sidebar (desktop + mobile) ─────────────────────
     var body, btnToggle, btnCloseSidebar, backdrop;
 
@@ -103,7 +115,7 @@
             var url = btn.getAttribute('data-pin-url');
             var pinned = pins.some(function (p) { return p.url === url; });
             btn.classList.toggle('pinned', pinned);
-            btn.title = pinned ? 'Bỏ ghim' : 'Ghim vào Yêu thích';
+            btn.title = pinned ? NAV_LBL.unpin : NAV_LBL.pin;
             var icon = btn.querySelector('.material-symbols-rounded');
             if (icon) icon.textContent = pinned ? 'star' : 'star_outline';
         });
@@ -123,7 +135,7 @@
         wrap.classList.remove('d-none');
 
         var html = '<div class="menu-group-label" style="color:#f59e0b;">' +
-                        '<span class="menu-group-dot" style="background:#f59e0b;"></span>Yêu thích' +
+                        '<span class="menu-group-dot" style="background:#f59e0b;"></span>' + NAV_LBL.favs +
                     '</div><ul class="navbar-nav">';
         pins.forEach(function (p) {
             html += '<li class="nav-item menu-child-item" data-search="' + escHtml((p.title || '').toLowerCase()) + '">' +
@@ -132,7 +144,7 @@
                                 '<span class="menu-child-icon"><i class="material-symbols-rounded">' + escHtml(p.icon || 'star') + '</i></span>' +
                                 '<span class="nav-link-text">' + escHtml(p.title) + '</span>' +
                             '</a>' +
-                            '<button type="button" class="menu-pin-btn pinned" data-pin-url="' + escHtml(p.url) + '" data-pin-title="' + escHtml(p.title) + '" data-pin-icon="' + escHtml(p.icon || '') + '" title="Bỏ ghim">' +
+                            '<button type="button" class="menu-pin-btn pinned" data-pin-url="' + escHtml(p.url) + '" data-pin-title="' + escHtml(p.title) + '" data-pin-icon="' + escHtml(p.icon || '') + '" title="' + NAV_LBL.unpin + '">' +
                                 '<i class="material-symbols-rounded">star</i>' +
                             '</button>' +
                         '</div>' +

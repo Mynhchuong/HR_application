@@ -1,11 +1,22 @@
 @model HR_web.ViewModels.Home.HomeIndexViewModel
 @{
-    ViewData["Title"] = "Home";
+    // Ngôn ngữ giao diện (en/ko) — từ điển ở HR_web/Helpers/ExpatText.cs, không rải chuỗi Hàn trong view.
+    // ?? "en": view này chỉ Expat vào, nhưng GetCurrentUser có thể null (cookie hỏng) — rơi về
+    // tiếng Anh thay vì null, vì null sẽ bị các partial hiểu nhầm thành "không phải tiếng Việt"
+    // một cách tình cờ và làm cảnh báo nullable khi truyền vào model của filter bar.
+    var vLang = AuthHelper.GetCurrentUser(User)?.UiLang ?? "en";
+    Func<string, string> T = en => ExpatText.T(vLang, en);
+    // TJ: dùng TRONG JavaScript — xuất ra 1 JSON string literal (đã có nháy kép), nên tự an toàn
+    // với dấu nháy/& ; @T(...) bị HTML-encode nên KHÔNG dùng được trong script.
+    Func<string, Microsoft.AspNetCore.Html.IHtmlContent> TJ = en =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            System.Text.Json.JsonSerializer.Serialize(ExpatText.T(vLang, en)));
+    ViewData["Title"] = T("Home");
 }
 
 <link rel="stylesheet" href="~/assets/css/home.css" asp-append-version="true" />
 
-<div class="home-page" data-role="Expat" data-lang="en">
+<div class="home-page" data-role="Expat" data-lang="@Model.Lang">
     <partial name="_BirthdayBanner" model="Model" />
     @* Payday KHÔNG include cho Expat — Expat không nhận lương chu kỳ ngày 10 *@
     <partial name="_GreetingBar"    model="Model" />

@@ -2,8 +2,8 @@
 
 @{
     var greeting = Model.Greeting;
-    var isEn = Model.Lang == "en";
-    var hello = isEn ? "Hello" : "Xin chào";
+    var isEn = Model.Lang != "vi";
+    var hello = isEn ? ExpatText.T(Model.Lang, "Hello") : "Xin chào";
     var displayName = string.IsNullOrEmpty(Model.FullName) ? Model.EmpCd : Model.FullName;
 }
 

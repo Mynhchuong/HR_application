@@ -1,5 +1,16 @@
 @{
-    ViewData["Title"] = "Notifications";
+    // Ngôn ngữ giao diện (en/ko) — từ điển ở HR_web/Helpers/ExpatText.cs, không rải chuỗi Hàn trong view.
+    // ?? "en": view này chỉ Expat vào, nhưng GetCurrentUser có thể null (cookie hỏng) — rơi về
+    // tiếng Anh thay vì null, vì null sẽ bị các partial hiểu nhầm thành "không phải tiếng Việt"
+    // một cách tình cờ và làm cảnh báo nullable khi truyền vào model của filter bar.
+    var vLang = AuthHelper.GetCurrentUser(User)?.UiLang ?? "en";
+    Func<string, string> T = en => ExpatText.T(vLang, en);
+    // TJ: dùng TRONG JavaScript — xuất ra 1 JSON string literal (đã có nháy kép), nên tự an toàn
+    // với dấu nháy/& ; @T(...) bị HTML-encode nên KHÔNG dùng được trong script.
+    Func<string, Microsoft.AspNetCore.Html.IHtmlContent> TJ = en =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            System.Text.Json.JsonSerializer.Serialize(ExpatText.T(vLang, en)));
+    ViewData["Title"] = T("Notifications");
 }
 
 <style>
@@ -98,30 +109,30 @@
 
     <div class="noti-hero">
         <div>
-            <h5>Notifications</h5>
-            <small id="unreadLabel">Loading...</small>
+            <h5>@T("Notifications")</h5>
+            <small id="unreadLabel">@T("Loading...")</small>
         </div>
         <span class="noti-hero-icon">🔔</span>
     </div>
 
     <div class="noti-push" id="pushSettingBox">
         <div>
-            <strong>Push notifications</strong>
-            <small>When off, your phone will not show new notifications (you can still see them in this list). Important (high priority) notifications are always sent.</small>
+            <strong>@T("Push notifications")</strong>
+            <small>@T("When off, your phone will not show new notifications (you can still see them in this list). Important (high priority) notifications are always sent.")</small>
         </div>
         <label class="ps-switch"><input type="checkbox" id="pushToggle" checked onchange="setPush(this.checked)"><span></span></label>
     </div>
 
     <div class="noti-mark-all">
-        <button class="btn-mark-all" id="btnMarkAll" onclick="markAllRead()">✓ Mark all as read</button>
+        <button class="btn-mark-all" id="btnMarkAll" onclick="markAllRead()">@T("✓ Mark all as read")</button>
     </div>
 
     <div class="noti-list" id="notiList">
-        <div class="noti-empty"><span class="ei">⏳</span><p>Loading notifications...</p></div>
+        <div class="noti-empty"><span class="ei">⏳</span><p>@T("Loading notifications...")</p></div>
     </div>
 
     <div class="noti-load-more" id="loadMoreWrap" style="display:none;">
-        <button class="btn-load-more" onclick="loadMore()">Load more</button>
+        <button class="btn-load-more" onclick="loadMore()">@T("Load more")</button>
     </div>
 
 </div>
@@ -158,7 +169,7 @@ function timeAgo(dateStr) {
     const d = new Date(dateStr);
     const diff = Math.floor((Date.now() - d) / 1000);
     const hhmm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-    if (diff < 60)    return 'Just now';
+    if (diff < 60)    return @TJ("Just now");
     if (diff < 3600)  return Math.floor(diff/60) + ' min ago';
     if (diff < 86400) return Math.floor(diff/3600) + ' hr ago • ' + hhmm;
     if (diff < 604800)return Math.floor(diff/86400) + ' days ago • ' + hhmm;
@@ -181,7 +192,7 @@ function renderItems(items, append = false) {
     if (!append) list.innerHTML = '';
 
     if (items.length === 0 && !append) {
-        list.innerHTML = '<div class="noti-empty"><span class="ei">🔔</span><p>No notifications yet.</p></div>';
+        list.innerHTML = '<div class="noti-empty"><span class="ei">🔔</span><p>@T("No notifications yet.")</p></div>';
         return;
     }
 
@@ -200,7 +211,7 @@ function renderItems(items, append = false) {
                 <div class="noti-title">${esc(title)}</div>
                 <div class="noti-body">${esc(body)}</div>
                 ${(n.LINK_ACTION && /^https?:\/\//i.test(n.LINK_ACTION))
-                    ? `<div class="noti-link-hint"><span class="material-symbols-rounded" style="font-size:.95rem;vertical-align:-3px;">open_in_new</span> Click to view</div>`
+                    ? `<div class="noti-link-hint"><span class="material-symbols-rounded" style="font-size:.95rem;vertical-align:-3px;">open_in_new</span> @T("Click to view")</div>`
                     : ''}
                 <div class="noti-footer">
                     <span class="noti-time">${timeAgo(n.CREATED_DATE)}</span>
@@ -245,7 +256,7 @@ let unreadCount = 0;
 function updateUnreadBadge(delta) {
     unreadCount = Math.max(0, unreadCount + delta);
     const label = document.getElementById('unreadLabel');
-    if (label) label.textContent = unreadCount > 0 ? `${unreadCount} unread` : 'All caught up';
+    if (label) label.textContent = unreadCount > 0 ? @(TJ("{n} unread")).replace('{n}', unreadCount) : @TJ("All caught up");
     const bell = document.getElementById('bellBadge');
     if (bell) {
         if (unreadCount > 0) { bell.textContent = unreadCount > 99 ? '99+' : unreadCount; bell.style.display = 'block'; }
@@ -283,9 +294,9 @@ function setPush(on) {
     })
     .then(r => r.json())
     .then(d => {
-        if (!d.success) { el.checked = !on; if (typeof showToast === 'function') showToast(d.message || 'Could not save, please try again', 'error'); }
+        if (!d.success) { el.checked = !on; if (typeof showToast === 'function') showToast(d.message || @TJ("Could not save, please try again"), 'error'); }
     })
-    .catch(() => { el.checked = !on; if (typeof showToast === 'function') showToast('Could not save, please try again', 'error'); })
+    .catch(() => { el.checked = !on; if (typeof showToast === 'function') showToast(@TJ("Could not save, please try again"), 'error'); })
     .finally(() => { el.disabled = false; });
 }
 
@@ -318,7 +329,7 @@ fetch(`@Url.Action("GetPage")?page=1&page_size=${PAGE_SIZE}`)
 
         unreadCount = d.unread ?? 0;
         const label = document.getElementById('unreadLabel');
-        if (label) label.textContent = unreadCount > 0 ? `${unreadCount} unread` : 'All caught up';
+        if (label) label.textContent = unreadCount > 0 ? @(TJ("{n} unread")).replace('{n}', unreadCount) : @TJ("All caught up");
 
         if (d.data.length >= PAGE_SIZE)
             document.getElementById('loadMoreWrap').style.display = 'block';

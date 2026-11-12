@@ -1,7 +1,18 @@
 @model HR_web.Models.Account.UserDetailModel
 @{
-    Layout = "~/Views/Shared/_Layout.cshtml";
-    ViewData["Title"] = "Profile";
+    // Ngôn ngữ giao diện (en/ko) — từ điển ở HR_web/Helpers/ExpatText.cs, không rải chuỗi Hàn trong view.
+    // ?? "en": view này chỉ Expat vào, nhưng GetCurrentUser có thể null (cookie hỏng) — rơi về
+    // tiếng Anh thay vì null, vì null sẽ bị các partial hiểu nhầm thành "không phải tiếng Việt"
+    // một cách tình cờ và làm cảnh báo nullable khi truyền vào model của filter bar.
+    var vLang = AuthHelper.GetCurrentUser(User)?.UiLang ?? "en";
+    Func<string, string> T = en => ExpatText.T(vLang, en);
+    // TJ: dùng TRONG JavaScript — xuất ra 1 JSON string literal (đã có nháy kép), nên tự an toàn
+    // với dấu nháy/& ; @T(...) bị HTML-encode nên KHÔNG dùng được trong script.
+    Func<string, Microsoft.AspNetCore.Html.IHtmlContent> TJ = en =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            System.Text.Json.JsonSerializer.Serialize(ExpatText.T(vLang, en)));
+    // Layout lấy từ Views/Expat/_ViewStart.cshtml (_LayoutExpat) — bỏ khai báo cứng _Layout cũ.
+    ViewData["Title"] = T("Profile");
 }
 
 <style>
@@ -174,7 +185,7 @@
         <div id="workcd-image-wrap" style="border-radius:20px;overflow:hidden;margin-bottom:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.04);background:#fff;">
             <div id="workcd-image-fallback" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem;padding:2rem 1rem;color:#94a3b8;font-size:.85rem;font-weight:600;">
                 <span class="material-symbols-rounded" style="font-size:1.8rem;">image</span>
-                <div>HR has not uploaded a photo yet</div>
+                <div>@T("HR has not uploaded a photo yet")</div>
             </div>
             <img id="workcd-image" style="display:none;width:100%;max-height:280px;object-fit:contain;background:#f8fafc;"
                  src="@Url.Action("GetWorkCdImage", "Image", new { interestCd = Model.HardworkStt })"
@@ -185,73 +196,89 @@
     }
 
     <!-- Employee Information -->
-    <div class="group-title">Employee Information</div>
+    <div class="group-title">@T("Employee Information")</div>
     <div class="settings-group">
         <div class="setting-item">
             <div class="item-icon"><span class="material-symbols-rounded">badge</span></div>
             <div class="item-content">
-                <div class="item-label">Employee ID</div>
-                <div class="item-description">System identifier</div>
+                <div class="item-label">@T("Employee ID")</div>
+                <div class="item-description">@T("System identifier")</div>
             </div>
             <div class="item-value">@Model.EmpCd</div>
         </div>
         <div class="setting-item">
             <div class="item-icon"><span class="material-symbols-rounded">category</span></div>
             <div class="item-content">
-                <div class="item-label">Position</div>
+                <div class="item-label">@T("Position")</div>
                 <div class="item-description">@Model.LineName · @Model.WorkName</div>
             </div>
         </div>
         <div class="setting-item">
             <div class="item-icon"><span class="material-symbols-rounded">calendar_today</span></div>
             <div class="item-content">
-                <div class="item-label">Date of Birth</div>
+                <div class="item-label">@T("Date of Birth")</div>
                 <div class="item-description">@(Model.BirthDate?.ToString("dd/MM/yyyy") ?? "-")</div>
             </div>
         </div>
         <div class="setting-item">
             <div class="item-icon"><span class="material-symbols-rounded">call</span></div>
             <div class="item-content">
-                <div class="item-label">Phone</div>
+                <div class="item-label">@T("Phone")</div>
                 <div class="item-description">@(string.IsNullOrWhiteSpace(Model.Phone) ? "-" : Model.Phone)</div>
             </div>
         </div>
         <div class="setting-item">
             <div class="item-icon"><span class="material-symbols-rounded">mail</span></div>
             <div class="item-content">
-                <div class="item-label">Email</div>
+                <div class="item-label">@T("Email")</div>
                 <div class="item-description">@(string.IsNullOrWhiteSpace(Model.Email) ? "-" : Model.Email)</div>
             </div>
         </div>
         <div class="setting-item">
             <div class="item-icon"><span class="material-symbols-rounded">location_on</span></div>
             <div class="item-content">
-                <div class="item-label">Address</div>
+                <div class="item-label">@T("Address")</div>
                 <div class="item-description">@(string.IsNullOrWhiteSpace(Model.Address) ? "-" : Model.Address)</div>
             </div>
         </div>
         <div class="setting-item">
             <div class="item-icon"><span class="material-symbols-rounded">history</span></div>
             <div class="item-content">
-                <div class="item-label">Seniority</div>
-                <div class="item-description">Time working at Samho</div>
+                <div class="item-label">@T("Seniority")</div>
+                <div class="item-description">@T("Time working at Samho")</div>
             </div>
             <div class="item-value">
-                @(string.IsNullOrWhiteSpace(Model.Seniority) ? "-" : Model.Seniority)
+                @{
+                    // Model.Seniority là chuỗi ghép sẵn TIẾNG VIỆT ("0 năm 10 tháng") nên không dùng
+                    // được ở đây; ghép lại từ 2 số thuần. API cũ chưa có 2 số -> quay về chuỗi cũ.
+                    string seniorityText;
+                    if (Model.SeniorityYears.HasValue || Model.SeniorityMonths.HasValue)
+                    {
+                        int sy = Model.SeniorityYears ?? 0, sm = Model.SeniorityMonths ?? 0;
+                        seniorityText = vLang == "ko"
+                            ? $"{sy}년 {sm}개월"
+                            : $"{sy} {(sy == 1 ? "year" : "years")} {sm} {(sm == 1 ? "month" : "months")}";
+                    }
+                    else
+                    {
+                        seniorityText = string.IsNullOrWhiteSpace(Model.Seniority) ? "-" : Model.Seniority!;
+                    }
+                }
+                @seniorityText
             </div>
         </div>
         <div class="setting-item">
             <div class="item-icon"><span class="material-symbols-rounded">work_history</span></div>
             <div class="item-content">
-                <div class="item-label">Date of Joining</div>
-                <div class="item-description">First working day</div>
+                <div class="item-label">@T("Date of Joining")</div>
+                <div class="item-description">@T("First working day")</div>
             </div>
             <div class="item-value">@(Model.HireDate?.ToString("dd/MM/yyyy") ?? "-")</div>
         </div>
         <div class="setting-item">
             <div class="item-icon"><span class="material-symbols-rounded">construction</span></div>
             <div class="item-content">
-                <div class="item-label">Work</div>
+                <div class="item-label">@T("Work performed")</div>
             </div>
             @if (!string.IsNullOrWhiteSpace(Model.HardworkTen))
             {
@@ -263,13 +290,13 @@
             }
             else
             {
-                <div class="item-value" style="color:#94a3b8;font-weight:600;font-size:0.85rem;">HR has not updated yet</div>
+                <div class="item-value" style="color:#94a3b8;font-weight:600;font-size:0.85rem;">@T("HR has not updated yet")</div>
             }
         </div>
     </div>
 
     <!-- Security & Signature -->
-    <div class="group-title">Security &amp; Signature</div>
+    <div class="group-title">@T("Security & Signature")</div>
     <div class="settings-group p-3">
         <div class="signature-card">
             @if (Model.HasSignature)
@@ -280,7 +307,7 @@
             {
                 <div class="signature-img d-flex align-items-center justify-content-center text-muted" style="background:#f8fafc; border-radius:16px; height:120px; margin-bottom:1rem;">
                     <span class="material-symbols-rounded me-1" style="font-size:1.2rem;">draw</span>
-                    <span style="font-size:0.85rem;">No signature yet</span>
+                    <span style="font-size:0.85rem;">@T("No signature yet")</span>
                 </div>
             }
 
@@ -288,12 +315,12 @@
                 <input type="hidden" name="empCd" value="@Model.EmpCd" />
                 <input type="file" id="fileInput" name="file" accept="image/jpeg" capture="camera" style="display:none;" onchange="document.getElementById('sigForm').submit()" />
                 <button type="button" onclick="document.getElementById('fileInput').click()" class="btn-signature mb-2">
-                    <span class="material-symbols-rounded align-middle me-1">signature</span> Update Signature
+                    <span class="material-symbols-rounded align-middle me-1">signature</span> @T("Update Signature")
                 </button>
             </form>
 
             <button type="button" class="btn-password" data-bs-toggle="modal" data-bs-target="#changePassModal">
-                <span class="material-symbols-rounded align-middle me-1">lock_reset</span> Change Password
+                <span class="material-symbols-rounded align-middle me-1">lock_reset</span> @T("Change Password")
             </button>
         </div>
     </div>
@@ -304,35 +331,35 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-lg" style="border-radius: 28px; border: 1px solid rgba(0,0,0,0.1);">
             <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold">Change Password</h5>
+                <h5 class="modal-title fw-bold">@T("Change Password")</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
                 <form asp-controller="Profile" asp-action="ChangePassword" method="post" id="changePassForm" novalidate>
                     @Html.AntiForgeryToken()
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">CURRENT PASSWORD</label>
+                        <label class="form-label fw-bold small text-muted">@T("CURRENT PASSWORD")</label>
                         <input type="password" name="oldPassword" id="oldPassword"
                                class="form-control rounded-4 py-3" required autocomplete="current-password" />
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">NEW PASSWORD</label>
+                        <label class="form-label fw-bold small text-muted">@T("NEW PASSWORD")</label>
                         <input type="password" name="newPassword" id="newPassword"
                                class="form-control rounded-4 py-3" required autocomplete="new-password" />
                         <div id="passRules" class="mt-2 ps-1" style="font-size:0.8rem; line-height:1.8;">
-                            <div id="rule-len"  class="text-muted"><span class="me-1">○</span>At least 6 characters</div>
-                            <div id="rule-def"  class="text-muted"><span class="me-1">○</span>Cannot use default password (123456)</div>
+                            <div id="rule-len"  class="text-muted"><span class="me-1">○</span>@T("At least 6 characters")</div>
+                            <div id="rule-def"  class="text-muted"><span class="me-1">○</span>@T("Cannot use default password (123456)")</div>
                             <div id="rule-char" class="text-muted"><span class="me-1">○</span>Letters, numbers and: @@ # ! . - _</div>
                         </div>
                     </div>
                     <div class="mb-4">
-                        <label class="form-label fw-bold small text-muted">CONFIRM NEW PASSWORD</label>
+                        <label class="form-label fw-bold small text-muted">@T("CONFIRM NEW PASSWORD")</label>
                         <input type="password" name="confirmPassword" id="confirmPassword"
                                class="form-control rounded-4 py-3" required autocomplete="new-password" />
                         <div id="confirmMsg" class="mt-1 ps-1" style="font-size:0.8rem; display:none;"></div>
                     </div>
                     <button type="submit" id="btnSavePass" class="btn btn-primary w-100 py-3 rounded-4 fw-bold" disabled>
-                        Save New Password
+                        @T("Save New Password")
                     </button>
                 </form>
             </div>
@@ -374,9 +401,9 @@
         if (cp.length > 0) {
             msg.style.display = 'block';
             if (np === cp) {
-                msg.innerHTML = '<span class="text-success fw-semibold">✓ Passwords match</span>';
+                msg.innerHTML = '<span class="text-success fw-semibold">@T("✓ Passwords match")</span>';
             } else {
-                msg.innerHTML = '<span class="text-danger fw-semibold">✗ Passwords do not match</span>';
+                msg.innerHTML = '<span class="text-danger fw-semibold">@T("✗ Passwords do not match")</span>';
             }
         } else {
             msg.style.display = 'none';

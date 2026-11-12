@@ -131,6 +131,14 @@ public class AccountService
         return result != null && result.success;
     }
 
+    /// <summary>NV nước ngoài (Expat) tự đổi ngôn ngữ giao diện — lưu HR_USERS.LANG_PREF để lần sau vẫn giữ.</summary>
+    public async Task<bool> SetLangPrefAsync(string empCd, string lang)
+    {
+        var response = await _api.PostAsync("Account/set-lang-pref", new { EmpCd = empCd, Lang = lang });
+        var result = await ParseResponse<object>(response);
+        return result != null && result.success;
+    }
+
     public async Task<bool> DisableUserAsync(string empCd, string loginUser)
     {
         var response = await _api.PostAsync("Account/disable-user", new Dictionary<string, string> { { "empcd", empCd }, { "loginUser", loginUser } });

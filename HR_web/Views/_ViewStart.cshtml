@@ -1,3 +1,13 @@
+@using HR_web.Helpers
 @{
-    Layout = "_Layout";
+    // NV nước ngoài (role Expat) dùng layout riêng _LayoutExpat (Anh/Hàn) cho MỌI trang, kể cả các
+    // trang dùng chung với NV thường (Kaizen, Bản tin...). Chọn ở đây thay vì sửa từng view: view
+    // dùng chung không phải biết gì về Expat, và trang mới thêm sau cũng tự đúng ngôn ngữ.
+    //
+    // Views/Expat/_ViewStart.cshtml vẫn giữ (ghi đè cấp thư mục) để 9 trang riêng không phụ thuộc
+    // vào logic này. Trang nào tự đặt Layout (vd Guide dùng _LayoutPublic, Directory đặt null) thì
+    // khai báo trong chính view sẽ thắng dòng dưới.
+    // IsExpatUi xét theo RoleName (không chỉ theo claim lang) nên Expat đang đăng nhập sẵn bằng
+    // cookie cũ phát hành trước bản deploy này vẫn thấy layout đúng, không cần đăng nhập lại.
+    Layout = AuthHelper.GetCurrentUser(User)?.IsExpatUi == true ? "_LayoutExpat" : "_Layout";
 }

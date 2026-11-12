@@ -13,10 +13,10 @@
     var isVideo     = b.IsVideo;
 
     var dayKey  = DateTime.Today.ToString("yyyyMMdd");
-    var isVi    = Model.Lang != "en";
-    var closeAria = isVi ? "Đóng" : "Close";
-    var replayText = isVi ? "Xem lại" : "Replay";
-    var closeText  = isVi ? "Đóng"    : "Close";
+    var isVi    = Model.Lang == "vi";
+    var closeAria = isVi ? "Đóng" : HR_web.Helpers.ExpatText.T(Model.Lang, "Close");
+    var replayText = isVi ? "Xem lại" : HR_web.Helpers.ExpatText.T(Model.Lang, "Replay");
+    var closeText  = isVi ? "Đóng"    : HR_web.Helpers.ExpatText.T(Model.Lang, "Close");
 }
 
 <div id="homeHeroPopup"

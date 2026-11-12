@@ -108,6 +108,30 @@
 
 /* Topic grid */
 .topic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem; margin-bottom: 1rem; }
+
+/* Ô tìm chủ đề — 22 chủ đề mà xếp card thì điện thoại phải cuộn ~3 màn hình (yêu cầu 2026-11-12).
+   Gõ vài chữ là lọc còn 1-2 lựa chọn. */
+.topic-search { position: relative; margin-bottom: .6rem; }
+.topic-search input {
+    width: 100%; height: 42px; border: 1.5px solid #e2e8f0; border-radius: 12px;
+    padding: 0 2.2rem 0 2.2rem; font-size: .9rem; background: #f8fafc; outline: none;
+}
+.topic-search input:focus { border-color: #4f46e5; background: #fff; }
+.topic-search .ts-ico { position: absolute; left: .6rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.1rem; pointer-events: none; }
+.topic-search .ts-clear { position: absolute; right: .4rem; top: 50%; transform: translateY(-50%); border: none; background: none; color: #94a3b8; cursor: pointer; display: none; padding: .2rem; }
+.topic-empty { text-align: center; color: #94a3b8; font-size: .85rem; padding: 1rem 0; display: none; }
+
+/* ĐIỆN THOẠI: đổi hẳn sang danh sách 1 dòng/chủ đề — thấp hơn card vuông ~60%,
+   lướt nhanh hơn nhiều và chữ không bị cắt dòng. */
+@@media (max-width: 575.98px) {
+    .topic-grid { grid-template-columns: 1fr; gap: .35rem; }
+    .topic-card {
+        display: flex; align-items: center; gap: .6rem;
+        text-align: left !important; padding: .55rem .7rem !important;
+    }
+    .topic-card .tpc-icon { margin-bottom: 0 !important; font-size: 1.25rem; line-height: 1; }
+    .topic-card .tpc-name { font-size: .88rem; }
+}
 .topic-card {
     background: white; border: 2px solid #e2e8f0; border-radius: 14px;
     padding: .85rem .75rem; cursor: pointer; transition: all .15s; text-align: center;
@@ -116,8 +140,6 @@
 .topic-card.active { border-color: #4f46e5; background: #f0f0ff; }
 .topic-card .tpc-icon  { font-size: 1.6rem; margin-bottom: .3rem; }
 .topic-card .tpc-name  { font-size: .8rem; font-weight: 700; color: #1e293b; }
-.topic-card .tpc-sev   { margin-top: .3rem; font-size: .66rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: .25rem; color: #64748b; }
-.topic-card .tpc-sev i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 .rt-cards { display: flex; gap: .6rem; margin-bottom: 1rem; }
 .rt-card { flex: 1; border: 2px solid #e2e8f0; border-radius: 14px; padding: .75rem .8rem; background: #fff; cursor: pointer; transition: all .15s; }
 .rt-card:hover { border-color: #c7d2fe; }
@@ -185,7 +207,7 @@ textarea.input-modern { resize: none; min-height: 120px; }
     <!-- Step 1: Chọn loại -->
     <div id="step1">
         <div class="step-header">
-            <div class="step-label">Bước 1 / 3</div>
+            <div class="step-label">Bước 1 / 2</div>
             <div class="step-title">Chọn hình thức hội thoại</div>
         </div>
 
@@ -250,7 +272,7 @@ textarea.input-modern { resize: none; min-height: 120px; }
     <!-- Step 2: Chọn chủ đề -->
     <div id="step2" style="display:none">
         <div class="step-header">
-            <div class="step-label">Bước 2 / 3</div>
+            <div class="step-label">Bước 2 / 2</div>
             <div class="step-title">Loại báo cáo &amp; chủ đề</div>
         </div>
         <div class="form-label-sm mb-1">Loại báo cáo <span class="text-danger">*</span></div>
@@ -265,76 +287,45 @@ textarea.input-modern { resize: none; min-height: 120px; }
             </div>
         </div>
         <div class="form-label-sm mb-1">Chủ đề <span class="text-danger">*</span></div>
+        <div class="topic-search">
+            <span class="material-symbols-rounded ts-ico">search</span>
+            <input type="text" id="topicSearch" placeholder="Tìm chủ đề..." autocomplete="off"
+                   autocorrect="off" spellcheck="false" oninput="filterTopics()">
+            <button type="button" class="ts-clear" id="topicSearchClear" onclick="clearTopicSearch()" aria-label="Xoá">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
         <div class="topic-grid" id="topicGrid">
             @foreach (var t in (Model?.data ?? new()))
             {
                 <div class="topic-card" data-topic-cd="@t.TopicCd" onclick="selectTopic('@t.TopicCd', '@(t.TopicName.Replace("'","&#39;"))', this)">
                     <div class="tpc-icon"><span class="material-symbols-rounded" style="color:@(t.Color ?? "#4f46e5")">@(t.Icon ?? "chat")</span></div>
                     <div class="tpc-name">@t.TopicName</div>
-                    @if (t.ResponseDays.HasValue)
-                    {
-                        <div class="tpc-sev"><i style="background:@(t.SeverityColor ?? "#6366f1")"></i>Phản hồi trong @t.ResponseDays ngày</div>
-                    }
+                    @* Đã bỏ dòng mức độ + số ngày phản hồi: thông tin nội bộ, công nhân không cần
+                       thấy (yêu cầu 2026-11-12). Bỏ đi card cũng thấp hơn, đỡ cuộn trên điện thoại. *@
                 </div>
             }
         </div>
+        <div class="topic-empty" id="topicEmpty">Không có chủ đề nào khớp</div>
         <div id="topicHint" class="topic-hint"></div>
         <div id="topicWarning" style="display:none;border-radius:12px" class="alert alert-warning py-2 px-3 mt-1 mb-2 small"></div>
-        <div class="nav-btns">
-            <button class="btn-back-step" onclick="goStep(1)">Quay lại</button>
-            <button class="btn-next-step" id="btnNext2" onclick="goStep(3)" disabled>Tiếp theo</button>
-        </div>
-    </div>
 
-    <!-- Step 3: Nội dung -->
-    <div id="step3" style="display:none">
-        <div class="step-header">
-            <div class="step-label">Bước 3 / 3</div>
-            <div class="step-title">Nội dung</div>
-        </div>
-
-        <div class="form-card">
-            <div class="mb-3">
-                <div class="form-label-sm">Tiêu đề <span class="text-muted fw-normal">(không bắt buộc)</span></div>
-                <input type="text" id="subjectInput" class="input-modern" placeholder="Nhập tiêu đề ngắn..." maxlength="200">
-            </div>
-
-            <div class="mb-3">
-                <div class="form-label-sm">Nội dung <span class="text-danger">*</span></div>
-                <textarea id="contentInput" class="input-modern" placeholder="Nhập câu hỏi hoặc nội dung cần trao đổi..." maxlength="4000"
-                          oninput="updateCharCount()"></textarea>
-                <div class="char-count"><span id="charCount">0</span>/4000</div>
-            </div>
-
-            <div id="fileAttachSection">
-                <div class="form-label-sm">Đính kèm ảnh, video, file <span class="text-muted fw-normal">(tối đa 5 file, 10MB/file)</span></div>
-                <div class="file-attach-btn" onclick="document.getElementById('fileInput').click()">
-                    <span class="material-symbols-rounded" style="font-size:1.1rem;">attach_file</span>
-                    Chèn ảnh, video hoặc file
-                </div>
-                <input type="file" id="fileInput" style="display:none" multiple accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx" onchange="handleFiles(this.files)">
-                <div id="filePreviewStrip" class="file-preview-strip"></div>
-            </div>
-            <div id="fileAttachAnonNotice" style="display:none;font-size:.8rem;color:#94a3b8;align-items:center;gap:.4rem">
-                <span class="material-symbols-rounded" style="font-size:1.1rem">block</span>
-                Hội thoại ẩn danh không hỗ trợ đính kèm ảnh/video/file — chọn <strong>Trực tiếp</strong> nếu cần gửi kèm hình ảnh.
-            </div>
-        </div>
-
+        @* Cảnh báo ẩn danh chuyển từ bước 3 cũ lên đây — bước 3 đã bỏ (yêu cầu 2026-11-12). *@
         <div id="anonReminder" style="display:none;background:#fefce8;border:1.5px solid #fde047;border-radius:10px;padding:.6rem .85rem;margin-bottom:.75rem;font-size:.78rem;color:#92400e">
             <span class="material-symbols-rounded" style="font-size:.95rem;vertical-align:middle;color:#ca8a04">warning</span>
-            Tin nhắn ẩn danh sẽ <strong>không được lưu lâu dài</strong> — sẽ tự xóa sau một thời gian.
-            Sau khi gửi bạn sẽ nhận <strong>mã tra cứu</strong>: <strong>hãy nhớ/chép lại mã này</strong> để lần sau xem lại câu trả lời.
+            Tin nhắn ẩn danh <strong>sẽ tự xoá sau một thời gian</strong>.
+            Gửi xong bạn nhận <strong>mã tra cứu</strong> — hãy chép lại để xem trả lời sau này.
         </div>
 
         <div class="nav-btns">
-            <button class="btn-back-step" onclick="goStep(2)">Quay lại</button>
-            <button class="btn-next-step" id="btnSubmit" onclick="submitCreate()">
-                <span class="material-symbols-rounded me-1" style="font-size:1rem;vertical-align:middle;">send</span>
-                Gửi
+            <button class="btn-back-step" onclick="goStep(1)">Quay lại</button>
+            <button class="btn-next-step" id="btnNext2" onclick="submitCreate()" disabled>
+                <span class="material-symbols-rounded me-1" style="font-size:1rem;vertical-align:middle;">forum</span>
+                Bắt đầu trao đổi
             </button>
         </div>
     </div>
+
 </div>
 
 @Html.AntiForgeryToken()
@@ -346,11 +337,9 @@ const token = document.querySelector('input[name="__RequestVerificationToken"]')
 let selectedType  = '';
 let selectedTopic = '';
 let selectedReportType = '';   // GRIEVANCE | OPINION — bắt buộc chọn ở Bước 2
-let uploadedFiles = [];
 
-// Thông tin mức độ / số ngày phản hồi theo topic (từ catalog) để gợi ý cho công nhân
-const TOPIC_INFO = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-    (Model?.data ?? new()).ToDictionary(t => t.TopicCd, t => new { sev = t.SeverityName, days = t.ResponseDays, color = t.SeverityColor })));
+// ĐÃ BỎ TOPIC_INFO (mức độ / số ngày phản hồi theo chủ đề): từ 2026-11-12 không hiện mức độ
+// cho công nhân nữa nên không còn ai đọc, và cũng không nên đẩy phân loại nội bộ xuống client.
 
 // Modal bắt buộc NV xác nhận đã lưu mã tra cứu ẩn danh trước khi tiếp tục — Promise chỉ resolve
 // khi bấm "Tôi đã ghi nhớ mã này" (không có nút đóng/tắt khác, tránh NV bỏ qua rồi mất mã).
@@ -422,7 +411,7 @@ function newAnonToken() {
 
 
 function goStep(n) {
-    [1,2,3].forEach(i => document.getElementById(`step${i}`).style.display = i === n ? '' : 'none');
+    [1, 2].forEach(i => document.getElementById(`step${i}`).style.display = i === n ? '' : 'none');
     if (n === 2) { tryAutoSelectTopic(); if (selectedTopic) checkExistingTopic(selectedTopic); }
 }
 
@@ -441,15 +430,6 @@ function selectType(type, el) {
     document.getElementById('anonNotice').style.display   = isAnon ? '' : 'none';
     document.getElementById('anonReminder').style.display = isAnon ? '' : 'none';
 
-    // Ẩn danh không cho đính kèm ảnh/video/file (yêu cầu 2026-09-16) — nếu NV đã chọn Trực tiếp,
-    // đính file rồi quay lại đổi sang Ẩn danh thì xoá luôn file đã chọn cho khỏi gửi nhầm.
-    document.getElementById('fileAttachSection').style.display    = isAnon ? 'none' : '';
-    document.getElementById('fileAttachAnonNotice').style.display = isAnon ? 'flex' : 'none';
-    if (isAnon && uploadedFiles.length > 0) {
-        uploadedFiles = [];
-        renderFilePreviews();
-        showToast('Đã bỏ file đính kèm vì hội thoại ẩn danh không hỗ trợ', 'warning');
-    }
 }
 
 function updateNext2() {
@@ -463,6 +443,27 @@ function selectReportType(rt, el) {
     updateNext2();
 }
 
+// Bỏ dấu + thường hoá: công nhân gõ "luong"/"nghi phep" phải ra "Lương"/"Nghỉ phép".
+function noAccent(str) {
+    return (str || '').toLowerCase().normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+}
+function filterTopics() {
+    const q = noAccent(document.getElementById('topicSearch').value.trim());
+    document.getElementById('topicSearchClear').style.display = q ? 'block' : 'none';
+    let shown = 0;
+    document.querySelectorAll('#topicGrid .topic-card').forEach(c => {
+        const hit = !q || noAccent(c.querySelector('.tpc-name')?.textContent).includes(q);
+        c.style.display = hit ? '' : 'none';
+        if (hit) shown++;
+    });
+    document.getElementById('topicEmpty').style.display = shown ? 'none' : 'block';
+}
+function clearTopicSearch() {
+    const i = document.getElementById('topicSearch');
+    i.value = ''; filterTopics(); i.focus();
+}
+
 function selectTopic(cd, name, el) {
     selectedTopic = cd;
     document.querySelectorAll('.topic-card').forEach(c => c.classList.remove('active'));
@@ -470,57 +471,20 @@ function selectTopic(cd, name, el) {
     updateNext2();
     checkExistingTopic(cd);
     // Gợi ý mức độ + hạn phản hồi dự kiến của chủ đề đã chọn
-    const info = TOPIC_INFO[cd], hint = document.getElementById('topicHint');
-    if (info && info.days) {
-        hint.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (info.color || '#6366f1') + ';margin-right:.4rem"></span>'
-                       + 'Mức độ: <strong>' + esc(info.sev || '') + '</strong> · Dự kiến được phản hồi trong <strong>' + info.days + ' ngày</strong>';
-        hint.style.display = 'block';
-    } else { hint.style.display = 'none'; }
+    // Luôn ghi rõ ĐÃ CHỌN GÌ: khi đang lọc, card vừa chọn có thể bị ẩn khỏi danh sách
+    // nên công nhân sẽ không còn thấy lựa chọn của mình ở đâu cả.
+    //
+    // KHÔNG hiện mức độ / hạn phản hồi (yêu cầu 2026-11-12): đó là thông tin điều phối nội bộ
+    // của CSR. Công nhân thấy chủ đề của mình bị xếp "Thấp" thì dễ tự ái, còn số ngày thì nghe
+    // như một lời hứa mà hệ thống không đảm bảo được.
+    const hint = document.getElementById('topicHint');
+    hint.innerHTML = 'Đã chọn: <strong>' + esc(name) + '</strong>';
+    hint.style.display = 'block';
 }
 
-function updateCharCount() {
-    document.getElementById('charCount').textContent = document.getElementById('contentInput').value.length;
-}
-
-// File upload
-async function handleFiles(fileList) {
-    if (uploadedFiles.length + fileList.length > 5) {
-        showToast('Tối đa 5 file mỗi lần gửi', 'error'); return;
-    }
-    for (const file of fileList) {
-        if (file.size > 10 * 1024 * 1024) { showToast(`File "${file.name}" vượt 10MB`, 'error'); continue; }
-        const fd = new FormData();
-        fd.append('file', file);
-        try {
-            const res = await fetch('@Url.Action("UploadFile","EmployeeInquiry")', {
-                method: 'POST',
-                headers: { 'RequestVerificationToken': token },
-                body: fd
-            });
-            const d = await res.json();
-            if (!d.success) { showToast(d.message || 'Upload thất bại', 'error'); continue; }
-            uploadedFiles.push(d);
-            renderFilePreviews();
-        } catch { showToast('Lỗi upload', 'error'); }
-    }
-    document.getElementById('fileInput').value = '';
-}
-
-function renderFilePreviews() {
-    const strip = document.getElementById('filePreviewStrip');
-    strip.innerHTML = uploadedFiles.map((f, i) => {
-        const thumb = f.thumbPath
-            ? `<img src="@Url.Action("GetFile","EmployeeInquiry")?path=${encodeURIComponent(f.thumbPath)}" alt="">`
-            : `<span class="material-symbols-rounded" style="font-size:1.4rem;color:#64748b;">description</span>`;
-        const shortName = f.fileName.length > 15 ? f.fileName.substr(0,12)+'...' : f.fileName;
-        return `<div class="file-chip">${thumb}<span>${esc(shortName)}</span><span class="fc-remove" onclick="removeFile(${i})">✕</span></div>`;
-    }).join('');
-}
-
-function removeFile(i) {
-    uploadedFiles.splice(i, 1);
-    renderFilePreviews();
-}
+// ĐÃ BỎ bước nhập nội dung/đính kèm (2026-11-12): hội thoại tạo rỗng rồi vào thẳng chat,
+// công nhân gõ tin và gửi file ngay trong khung chat. Các hàm updateCharCount / handleFiles /
+// renderFilePreviews / removeFile theo đó cũng bỏ luôn vì không còn phần tử nào để bám.
 
 let openDirectTopics = {};
 let openAnonTopics   = {};
@@ -571,10 +535,18 @@ function tryAutoStart() {
     typeCard.click();
     goStep(2);
 
-    // Lối tắt: Hồ sơ ("Mọi thông tin sai vui lòng phản ánh phòng Nhân sự") = Góp ý gửi Nhân sự; nhảy thẳng tới Bước 3.
+    // Lối tắt: Hồ sơ ("Mọi thông tin sai vui lòng phản ánh phòng Nhân sự") = Góp ý gửi Nhân sự.
     // Từ trang Phiếu lương: Kiến nghị về Lương (G01, Nhân sự, mức Thấp 3 ngày).
+    // Bước 3 đã bỏ (2026-11-12) nên chỉ chọn sẵn rồi DỪNG ở bước 2 — không tự tạo hội thoại,
+    // công nhân phải tự bấm "Bắt đầu trao đổi" để xác nhận.
     const QUICK = { COMPLAINT: 'OPINION', G01: 'GRIEVANCE' };
-    if (QUICK[cd]) { selectedTopic = cd; selectedReportType = QUICK[cd]; checkExistingTopic(cd); goStep(3); return; }
+    if (QUICK[cd]) {
+        selectedTopic = cd; selectedReportType = QUICK[cd];
+        document.querySelector(`.topic-card[data-topic-cd="${cd}"]`)?.classList.add('active');
+        document.querySelector(`.rt-card[data-rt="${QUICK[cd]}"]`)?.classList.add('active');
+        checkExistingTopic(cd); updateNext2();
+        return;
+    }
 
     if (cd) {
         const topicCard = document.querySelector(`.topic-card[data-topic-cd="${cd}"]`);
@@ -585,23 +557,23 @@ function tryAutoStart() {
 loadExistingConversations();
 tryAutoStart();
 
+// Tạo hội thoại RỖNG rồi vào thẳng khung chat (yêu cầu 2026-11-12: bỏ bước nhập tiêu đề/nội dung).
+// Công nhân gõ tin đầu tiên ngay trong chat — bớt 1 bước, và CSR nói không cần tiêu đề.
 async function submitCreate() {
-    const content = document.getElementById('contentInput').value.trim();
-    if (!content) { showToast('Vui lòng nhập nội dung', 'warning'); return; }
     if (!selectedTopic) { showToast('Vui lòng chọn chủ đề', 'warning'); return; }
-    if (!selectedReportType) { showToast('Vui lòng chọn Loại báo cáo (Kiến nghị / Ý kiến)', 'warning'); goStep(2); return; }
+    if (!selectedReportType) { showToast('Vui lòng chọn Loại báo cáo (Kiến nghị / Ý kiến)', 'warning'); return; }
 
-    const btn = document.getElementById('btnSubmit');
-    btn.disabled = true; btn.textContent = 'Đang gửi...';
+    const btn = document.getElementById('btnNext2');
+    btn.disabled = true; btn.textContent = 'Đang tạo...';
 
     const anonTok = selectedType === 'ANON' ? newAnonToken() : null;
     const body = {
         chatType:  selectedType,
         topicCd:   selectedTopic,
         reportType: selectedReportType,
-        subject:   document.getElementById('subjectInput').value.trim() || null,
+        subject:   null,
         anonToken: anonTok,
-        content:   content
+        content:   null
     };
 
     try {
@@ -626,25 +598,6 @@ async function submitCreate() {
             await showAccessCodeModal(data.accessCode);
         }
 
-        // Send files as separate message if any
-        if (uploadedFiles.length > 0) {
-            const sendBody = {
-                inquiryId:  data.inquiryId,
-                inquiryNo:  data.inquiryNo,
-                anonToken:  anonTok,
-                content:    null,
-                files:      uploadedFiles
-            };
-            try {
-                const sendRes  = await fetch('@Url.Action("Send","EmployeeInquiry")', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
-                    body: JSON.stringify(sendBody)
-                });
-                const sendData = await sendRes.json();
-                if (!sendData.success) showToast(sendData.message || 'Gửi file thất bại — hội thoại đã tạo, bạn có thể gửi lại trong chat', 'warning');
-            } catch { showToast('Lỗi gửi file — hội thoại đã tạo, bạn có thể gửi lại trong chat', 'warning'); }
-        }
 
         window.location.href = chatUrl;
     } catch {

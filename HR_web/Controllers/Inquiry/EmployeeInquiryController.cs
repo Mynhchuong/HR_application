@@ -81,9 +81,9 @@ public class EmployeeInquiryController : InquiryBaseController
     {
         if (string.IsNullOrWhiteSpace(req.TopicCd))
             return Json(new { success = false, message = "Vui lòng chọn chủ đề" });
-        if (string.IsNullOrWhiteSpace(req.Content))
-            return Json(new { success = false, message = "Nội dung không được để trống" });
-        if (req.Content.Length > 4000)
+        // Nội dung KHÔNG còn bắt buộc (2026-11-12): bước nhập tiêu đề/nội dung đã bỏ, hội thoại
+        // tạo rỗng rồi công nhân gõ tin đầu tiên ngay trong khung chat.
+        if (req.Content?.Length > 4000)
             return Json(new { success = false, message = "Nội dung vượt quá 4000 ký tự" });
 
         if (req.ChatType != "DIRECT" && req.ChatType != "ANON")
@@ -304,7 +304,7 @@ public class EmployeeInquiryController : InquiryBaseController
         public string  TopicCd   { get; set; } = "";
         public string? Subject   { get; set; }
         public string? AnonToken { get; set; }
-        public string  Content   { get; set; } = "";
+        public string? Content   { get; set; }        // null = tạo hội thoại rỗng, gõ tin trong chat
         public string? ReportType { get; set; }          // GRIEVANCE (Kiến nghị) | OPINION (Ý kiến)
     }
 

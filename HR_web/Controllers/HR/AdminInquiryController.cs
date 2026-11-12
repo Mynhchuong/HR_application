@@ -1050,13 +1050,21 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
 
                 var pop = dj["population"]!; var cst = dj["caseStats"]!;
                 string P(int a, int b) => b > 0 ? $"{Math.Round(a * 100.0 / b, 1)}%" : "—";
+                // Khớp đúng khối trên web (yêu cầu CSR 2026-11-12): Đã dùng + Nghỉ việc trong kỳ + Chưa dùng = Tổng nhân viên.
+                // "Mới vào làm" để riêng, KHÔNG nằm trong phép cộng vì đã thuộc nhóm đang làm.
                 Section("Mức độ sử dụng My Samho");
-                int hc = I(pop["headcount"]);
-                Row("Nhân viên đang làm việc", hc);
+                int hc       = I(pop["headcount"]);
+                int used     = I(pop["loggedIn"]);
+                int notUsed  = Math.Max(0, hc - used);
+                int resigned = I(dj["accounts"]?["resigned"]);
+                int popTotal = hc + resigned;
+                Row("TỔNG NHÂN VIÊN", popTotal, $"{hc} đang làm + {resigned} nghỉ việc trong kỳ");
+                Row("Đã dùng My Samho (đã đăng nhập)", used, P(used, popTotal));
+                Row("Nghỉ việc (trong kỳ)", resigned, $"{P(resigned, popTotal)} · {I(dj["accounts"]?["resignedLocked"])} người đã khóa My Samho");
+                Row("Chưa dùng (đang làm)", notUsed, $"{P(notUsed, popTotal)} · {I(pop["noAccount"])} chưa có tài khoản, {I(pop["acctLocked"])} đang khóa, {I(pop["neverLogin"])} chưa đăng nhập lần nào");
+                Row("Cộng kiểm tra", used + resigned + notUsed, used + resigned + notUsed == popTotal ? "Khớp tổng nhân viên" : "LỆCH — cần kiểm tra");
+                Row("Nhân viên mới vào làm (trong kỳ)", I(dj["accounts"]?["hired"]), $"{I(dj["accounts"]?["hiredUsed"])} người đã dùng My Samho · đã nằm trong nhóm đang làm");
                 Row("Đã liên hệ hộp thư trong kỳ", I(dj["activeUsers"]), P(I(dj["activeUsers"]), hc));
-                Row("Đã dùng My Samho (đã đăng nhập)", I(pop["loggedIn"]), P(I(pop["loggedIn"]), hc));
-                Row("Nhân viên mới vào làm (trong kỳ)", I(dj["accounts"]?["hired"]), $"{I(dj["accounts"]?["hiredUsed"])} người đã dùng My Samho");
-                Row("Nghỉ việc (trong kỳ)", I(dj["accounts"]?["resigned"]), $"{I(dj["accounts"]?["resignedLocked"])} người đã khóa My Samho");
                 Row("Dùng trên điện thoại (app hoặc web điện thoại)", I(pop["onMobile"]), P(I(pop["onMobile"]), hc));
                 Row("Đã đăng ký app (nhận thông báo)", I(pop["appRegistered"]), P(I(pop["appRegistered"]), hc));
                 dr++;
@@ -1122,7 +1130,12 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
                 Section("Loại báo cáo");
                 var typeMap = new Dictionary<string, string> { ["GRIEVANCE"] = "Kiến nghị", ["OPINION"] = "Ý kiến", ["NONE"] = "Chưa phân loại (đơn cũ)" };
                 foreach (var t in (dj["byType"] as JArray) ?? new JArray())
-                    Row(typeMap.TryGetValue(t["key"]?.Value<string>() ?? "", out var tn) ? tn : t["key"]?.Value<string>(), I(t["count"]));
+                {
+                    // Kèm % đã đóng riêng từng loại (yêu cầu CSR 2026-11-12)
+                    int nAll = I(t["count"]), nClosed = I(t["closed"]);
+                    Row(typeMap.TryGetValue(t["key"]?.Value<string>() ?? "", out var tn) ? tn : t["key"]?.Value<string>(), nAll,
+                        nAll > 0 ? $"đã đóng {P(nClosed, nAll)} ({nClosed}/{nAll})" : null);
+                }
                 dr++;
                 Section("Mức độ");
                 foreach (var t in (dj["bySeverity"] as JArray) ?? new JArray())

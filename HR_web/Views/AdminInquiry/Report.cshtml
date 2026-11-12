@@ -677,9 +677,28 @@ function renderPage(data, d, f, t) {
     const SEXN = { F: 'Nữ', M: 'Nam', '?': 'Không rõ' }, SEXC = { F: '#ec4899', M: '#3b82f6', '?': '#94a3b8' };
     const aSex = {}, hSex = {}; let hTot = 0; (d.activeBySex || []).forEach(x => aSex[x.sex] = x.count); (d.headBySex || []).forEach(x => { hSex[x.sex] = x.count; hTot += x.count; });
     const sexItems = ['F', 'M', '?'].filter(k => aSex[k] || (k === 'F' || k === 'M')).map(k => ({ name: SEXN[k], value: aSex[k] || 0, color: SEXC[k], note: k === '?' ? '' : `(toàn NV ${dashPct(hSex[k] || 0, hTot)})` }));
+    // % đã đóng riêng cho Kiến nghị / Ý kiến (yêu cầu CSR 2026-11-12)
+    const closedByType = d.byType.filter(x => x.key !== 'NONE' && x.count > 0)
+        .map(x => `${esc(DASH_TYPES[x.key] || x.key)} <b style="color:#16a34a">${dashPct(x.closed ?? 0, x.count)}</b> (${dashN(x.closed ?? 0)}/${dashN(x.count)})`).join(' · ');
     const typeItems = d.byType.map(x => ({ name: DASH_TYPES[x.key] || x.key, value: x.count, color: { GRIEVANCE: '#dc2626', OPINION: '#6366f1', NONE: '#cbd5e1' }[x.key] || '#94a3b8' }));
     const sevItems = d.bySeverity.map(x => ({ name: x.name || (x.key === 'NONE' ? 'Chưa phân loại (đơn cũ)' : x.key), value: x.count, color: DASH_SEV_COLOR[x.key] || '#94a3b8' }));
-    const stat = (v, l, sub, col) => `<div class="db-stat"><div class="v"${col ? ` style="color:${col}"` : ''}>${v}</div><div class="l">${l}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+    // Mức độ sử dụng My Samho (yêu cầu CSR 2026-11-12).
+    // Tổng NV = người đang làm (ECM100.JEAJIKGB='Y') + người nghỉ việc trong kỳ (RETDAT trong kỳ — đã rời nhóm đang làm nên không trùng).
+    // Chốt lại 2026-11-12: khối này hiện 4 ô Tổng / Đã dùng / Nghỉ việc / NV mới và KHÔNG in dòng phép cộng nữa.
+    //   → "NV mới vào làm" đã nằm sẵn trong nhóm đang làm, nên 4 ô này KHÔNG cộng ra Tổng. Phần đối chiếu cộng khớp
+    //     (ô "Chưa dùng" + dòng "Cộng kiểm tra") vẫn còn trong bản xuất Excel ở AdminInquiryController.
+    // Yêu cầu 2026-11-12: "ĐÃ DÙNG MY SAMHO + NGHỈ VIỆC TRONG KỲ = TỔNG NHÂN VIÊN" phải khớp.
+    //   → ô "Đã dùng" lấy TRỌN nhóm đang làm (headcount), không trừ ra 14 người chưa đăng nhập, để phép cộng đúng.
+    //   → Số đăng nhập THẬT vẫn giữ ở useLoggedIn và hiện ở phụ đề + tooltip, đừng xoá: báo cáo này gửi khách,
+    //     nói "đã dùng" mà gồm cả người chưa từng đăng nhập thì phải có chỗ tra lại cho đúng.
+    //     (Đã kiểm 2026-11-12: 14 người này KHÔNG phải NV mới — vào làm từ 2007 đến 07/2026.)
+    const useLoggedIn = pop.loggedIn ?? 0;
+    const useUsed     = pop.headcount ?? 0;
+    const useNotLogged= Math.max(0, useUsed - useLoggedIn);
+    const useResigned = d.accounts.resigned ?? 0;
+    const useHired    = d.accounts.hired ?? 0;
+    const useTotal    = (pop.headcount ?? 0) + useResigned;
+    const stat = (v, l, sub, col, tip) => `<div class="db-stat"${tip ? ` title="${esc(tip)}"` : ''}><div class="v"${col ? ` style="color:${col}"` : ''}>${v}</div><div class="l">${l}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
     html += `<div class="db-grid">
         <div class="db-box"><h6>Thiết bị người dùng</h6>
             ${dashBars(d.devices, x => DASH_DEV[x.device] || x.device, x => x.count, null, x => `${dashN(x.count)} · ${dashPct(x.count, devTotal)}`)}</div>
@@ -689,10 +708,11 @@ function renderPage(data, d, f, t) {
             ${dashStack(sexItems, d.activeUsers)}</div>
         <div class="db-box"><h6>Mức độ sử dụng My Samho</h6>
             <div class="db-stats" style="margin-top:.4rem">
-                ${stat(dashN(pop.headcount), 'Tổng nhân viên', '')}
-                ${stat(dashN(pop.loggedIn), 'Đã dùng My Samho', dashPct(pop.loggedIn, pop.headcount), '#4f46e5')}
-                ${stat(dashN(d.accounts.hired), 'Mới vào làm', `${dashN(d.accounts.hiredUsed)} đã dùng · trong kỳ`, '#16a34a')}
-                ${stat(dashN(d.accounts.resigned), 'Nghỉ việc', `${dashN(d.accounts.resignedLocked)} đã khóa · trong kỳ`, '#dc2626')}
+                ${stat(dashN(useTotal), 'Tổng nhân viên', 'đang làm + nghỉ việc trong kỳ')}
+                ${stat(dashN(useUsed), 'Đã dùng My Samho', `${dashPct(useUsed, useTotal)}${useNotLogged ? ` · ${dashN(useNotLogged)} chưa đăng nhập` : ''}`, '#4f46e5',
+                    useNotLogged ? `Tính trọn ${dashN(useUsed)} nhân viên đang làm để cộng khớp Tổng nhân viên. Thực tế có ${dashN(useLoggedIn)} người đã đăng nhập My Samho, còn ${dashN(useNotLogged)} người chưa đăng nhập lần nào.` : null)}
+                ${stat(dashN(useResigned), 'Nghỉ việc trong kỳ', `${dashN(d.accounts.resignedLocked)} đã khóa tài khoản`, '#dc2626')}
+                ${stat(dashN(useHired), 'NV mới vào làm', `${dashN(d.accounts.hiredUsed)} đã dùng · trong kỳ`, '#16a34a')}
             </div></div>
         <div class="db-box"><h6>Thời gian giải quyết</h6>
             ${dashBars([['Dưới 1 giờ', r.buckets[0]], ['1 – 4 giờ', r.buckets[1]], ['4 – 24 giờ', r.buckets[2]], ['1 – 3 ngày', r.buckets[3]], ['Trên 3 ngày', r.buckets[4]]], x => x[0], x => x[1])}
@@ -700,6 +720,7 @@ function renderPage(data, d, f, t) {
             ${d.overdueByPic.length ? `<div class="db-note"><b>Quá hạn theo phòng:</b> ${d.overdueByPic.map(x => esc(x.pic) + ' (' + x.count + ')').join(' · ')}</div>` : ''}</div>
         <div class="db-box"><h6>Phân loại</h6>
             <div class="db-sub-h" style="margin-top:.3rem">Loại báo cáo</div>${dashStack(typeItems)}
+            ${closedByType ? `<div class="db-note" style="margin:.35rem 0 .2rem">Đã đóng: ${closedByType}</div>` : ''}
             <div class="db-sub-h">Mức độ</div>${dashStack(sevItems)}</div>
     </div>`;
 
@@ -742,7 +763,18 @@ function renderPage(data, d, f, t) {
                 <td class="num" style="color:#0ea5e9">${fmtMinutes(h.avgHandleMin)}</td>
             </tr>`;
         }
-        html += `</tbody></table></div>`;
+        // Dòng tổng: % hài lòng của TẤT CẢ nhân viên (yêu cầu CSR 2026-11-12).
+        // Lấy từ summary toàn kỳ, KHÔNG cộng các dòng trên — cộng dòng sẽ sai theo cả 2 chiều:
+        //   • thiếu: hội thoại nhân viên tự đóng, không ai trong HR/CSR tham gia thì không có dòng nào chứa nó;
+        //   • trùng: 1 hội thoại nhiều người cùng xử lý thì bị đếm ở nhiều dòng.
+        html += `</tbody><tfoot><tr style="background:#f8fafc;border-top:2px solid #e2e8f0;font-weight:800">
+                <td style="font-weight:800;color:#1e293b">TẤT CẢ nhân viên</td>
+                <td><b>${dashN(total)}</b> <span style="font-size:.72rem;color:#94a3b8;font-weight:600">hội thoại</span></td>
+                <td class="num" style="color:#64748b">${dashN(closed)}</td>
+                ${ratingCells(s)}
+                <td class="num" style="color:#0ea5e9">${fmtMinutes(s.avgHandleMin)}</td>
+            </tr></tfoot></table></div>`;
+        html += `<div class="db-note" style="margin-top:.4rem">Dòng <b>TẤT CẢ nhân viên</b> tính trên toàn bộ ${dashN(total)} hội thoại trong kỳ (gồm cả hội thoại nhân viên tự đóng, không ai trong HR/CSR tham gia), nên không bằng tổng các dòng ở trên.</div>`;
     }
 
     // ─── Chưa có phản hồi (tải riêng, có phân trang)

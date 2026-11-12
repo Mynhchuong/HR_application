@@ -421,8 +421,14 @@ public class InquiryController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(req.TopicCd))
                 return Ok(new { success = false, message = "Thiếu chủ đề" });
-            if (string.IsNullOrWhiteSpace(req.Content))
-                return Ok(new { success = false, message = "Tin nhắn không được để trống" });
+
+            // Web hiện tạo hội thoại rỗng (content = null) rồi mới chat, nhưng app/bản cũ vẫn có
+            // thể gửi kèm nội dung ngay — áp cùng luật "tin đầu phải nói thẳng vấn đề" cho khỏi lọt.
+            if (!string.IsNullOrWhiteSpace(req.Content))
+            {
+                var rejectFirst = HR_api.Helpers.FirstMessageGuard.Reject(req.Content);
+                if (rejectFirst != null) return Ok(new { success = false, message = rejectFirst });
+            }
             if (req.ChatType == "DIRECT" && string.IsNullOrWhiteSpace(req.EmpCd))
                 return Ok(new { success = false, message = "Thiếu mã nhân viên" });
             if (req.ChatType == "ANON" && string.IsNullOrWhiteSpace(req.AnonToken))
@@ -576,23 +582,28 @@ public class InquiryController : ControllerBase
             long inquiryId  = ids[0].Id;
             string inquiryNo = ids[0].No;
 
-            // Insert tin nhắn đầu tiên
-            await _db.ExecuteNonQueryAsync(@"
-                INSERT INTO HRMS.HR_INQUIRY_MSG
-                    (INQUIRY_ID, SENDER_TYPE, SENDER_CD, SENDER_NAME, MSG_TYPE, CONTENT, IS_READ_HR, IS_READ_EMP, SENT_DT)
-                VALUES
-                    (:INQ_ID, 'EMP', :SENDER_CD, :SENDER_NAME, 'TEXT', :CONTENT, 0, 1, SYSDATE)",
-                new OracleParameter("INQ_ID",      inquiryId),
-                new OracleParameter("SENDER_CD",   (object?)req.EmpCd  ?? DBNull.Value),
-                new OracleParameter("SENDER_NAME", string.IsNullOrEmpty(empName) ? (object)DBNull.Value : empName),
-                new OracleParameter("CONTENT",     req.Content));
+            // Tin nhắn đầu tiên — CHỈ khi có nội dung. Từ 2026-11-12 trang tạo bỏ ô nhập nội dung,
+            // hội thoại sinh ra rỗng (MSG_COUNT = 0, UNREAD_HR = 0) rồi công nhân gõ tin ngay trong
+            // chat; lúc gửi tin đó endpoint Send mới bật UNREAD_HR. Nhờ vậy CSR không bị báo đỏ
+            // cho một hội thoại chưa có chữ nào.
+            if (!string.IsNullOrWhiteSpace(req.Content))
+            {
+                await _db.ExecuteNonQueryAsync(@"
+                    INSERT INTO HRMS.HR_INQUIRY_MSG
+                        (INQUIRY_ID, SENDER_TYPE, SENDER_CD, SENDER_NAME, MSG_TYPE, CONTENT, IS_READ_HR, IS_READ_EMP, SENT_DT)
+                    VALUES
+                        (:INQ_ID, 'EMP', :SENDER_CD, :SENDER_NAME, 'TEXT', :CONTENT, 0, 1, SYSDATE)",
+                    new OracleParameter("INQ_ID",      inquiryId),
+                    new OracleParameter("SENDER_CD",   (object?)req.EmpCd  ?? DBNull.Value),
+                    new OracleParameter("SENDER_NAME", string.IsNullOrEmpty(empName) ? (object)DBNull.Value : empName),
+                    new OracleParameter("CONTENT",     req.Content));
 
-            // Update stats trên HR_INQUIRY
-            await _db.ExecuteNonQueryAsync(@"
-                UPDATE HRMS.HR_INQUIRY
-                SET LAST_MSG_DT = SYSDATE, MSG_COUNT = 1, UNREAD_HR = 1
-                WHERE ID = :ID",
-                new OracleParameter("ID", inquiryId));
+                await _db.ExecuteNonQueryAsync(@"
+                    UPDATE HRMS.HR_INQUIRY
+                    SET LAST_MSG_DT = SYSDATE, MSG_COUNT = 1, UNREAD_HR = 1
+                    WHERE ID = :ID",
+                    new OracleParameter("ID", inquiryId));
+            }
 
             return Ok(new { success = true, inquiryId, inquiryNo, accessCode });
         }
@@ -1216,7 +1227,8 @@ public class InquiryController : ControllerBase
 
             // Lấy thông tin conversation hiện tại
             var convRows = await _db.ExecuteQueryAsync(@"
-                SELECT STATUS, ASSIGNED_TO, ASSIGNED_NAME, EMPCD, ANON_TOKEN, INQUIRY_NO
+                SELECT STATUS, ASSIGNED_TO, ASSIGNED_NAME, EMPCD, ANON_TOKEN, INQUIRY_NO,
+                       NVL(MSG_COUNT, 0) AS MSG_COUNT
                 FROM HRMS.HR_INQUIRY WHERE ID = :ID",
                 r => new
                 {
@@ -1225,7 +1237,8 @@ public class InquiryController : ControllerBase
                     AssignedName = r["ASSIGNED_NAME"]?.ToString(),
                     EmpCd        = r["EMPCD"]?.ToString(),
                     AnonToken    = r["ANON_TOKEN"]?.ToString(),
-                    InquiryNo    = r["INQUIRY_NO"]?.ToString()    ?? ""
+                    InquiryNo    = r["INQUIRY_NO"]?.ToString()    ?? "",
+                    MsgCount     = Convert.ToInt32(r["MSG_COUNT"])
                 },
                 new OracleParameter("ID", req.InquiryId));
 
@@ -1236,6 +1249,15 @@ public class InquiryController : ControllerBase
 
             if (conv.Status != "OPEN")
                 return Ok(new { success = false, message = "Hội thoại đã đóng, không thể gửi tin" });
+
+            // TIN ĐẦU TIÊN của CÔNG NHÂN phải nói thẳng vấn đề, không phải "hi admin" / "123456"
+            // (CSR yêu cầu 2026-11-12 — xem FirstMessageGuard). Chỉ chặn khi hội thoại chưa có
+            // tin nào VÀ người gửi là công nhân; tin có kèm file thì bỏ qua (ảnh đã nói thay lời).
+            if (conv.MsgCount == 0 && req.SenderType == "EMP" && !hasFiles)
+            {
+                var reject = HR_api.Helpers.FirstMessageGuard.Reject(req.Content);
+                if (reject != null) return Ok(new { success = false, message = reject });
+            }
 
             // Kiểm tra quyền gửi
             bool isHr    = req.SenderType == "HR";
@@ -2717,10 +2739,13 @@ public class InquiryController : ControllerBase
                 r => new { topicCd = r["TOPIC_CD"]?.ToString(), topicName = r["TOPIC_NAME"] == DBNull.Value ? null : r["TOPIC_NAME"].ToString(),
                            color = r["COLOR"] == DBNull.Value ? null : r["COLOR"].ToString(), count = I(r["C"]) }, P());
 
+            // CLOSED để web hiện "% đã đóng" riêng cho Kiến nghị / Ý kiến (yêu cầu CSR 2026-11-12)
             var byType = await _db.ExecuteQueryAsync(@"
-                SELECT NVL(REPORT_TYPE, 'NONE') AS K, COUNT(*) AS C FROM HRMS.HR_INQUIRY
+                SELECT NVL(REPORT_TYPE, 'NONE') AS K, COUNT(*) AS C,
+                       SUM(CASE WHEN STATUS = 'CLOSED' THEN 1 ELSE 0 END) AS CC
+                FROM HRMS.HR_INQUIRY
                 WHERE INST_DT >= :START_DT AND INST_DT < :END_DT GROUP BY NVL(REPORT_TYPE, 'NONE')",
-                r => new { key = r["K"]?.ToString(), count = I(r["C"]) }, P());
+                r => new { key = r["K"]?.ToString(), count = I(r["C"]), closed = I(r["CC"]) }, P());
 
             var bySeverity = await _db.ExecuteQueryAsync(@"
                 SELECT NVL(i.SEVERITY_CD, 'NONE') AS K, MAX(s.NAME_VI) AS N, COUNT(*) AS C
@@ -2746,9 +2771,18 @@ public class InquiryController : ControllerBase
                     WHERE u.IS_ACTIVE = 1 AND u.LASTED_LOGIN IS NOT NULL) AS LOGGED_IN,
                   (SELECT COUNT(*) FROM HRMS.HR_USERS u JOIN HRMS.ECM100 e ON e.EMPCD = u.EMPCD AND e.JEAJIKGB = 'Y'
                     WHERE u.IS_ACTIVE = 1 AND u.LAST_DEVICE_TYPE IN ('APP_ANDROID', 'APP_IOS', 'WEB_MOBILE')) AS ON_MOBILE,
-                  (SELECT COUNT(DISTINCT t.EMPCD) FROM HRMS.HR_USER_TOKENS t JOIN HRMS.ECM100 e ON e.EMPCD = t.EMPCD AND e.JEAJIKGB = 'Y') AS APP_REGISTERED
+                  (SELECT COUNT(DISTINCT t.EMPCD) FROM HRMS.HR_USER_TOKENS t JOIN HRMS.ECM100 e ON e.EMPCD = t.EMPCD AND e.JEAJIKGB = 'Y') AS APP_REGISTERED,
+                  -- Vì sao còn người đang làm mà chưa dùng My Samho (yêu cầu CSR 2026-11-12: khối Muc do su dung phai cong khop Tong NV).
+                  -- 3 nhóm dưới đây rời nhau và cộng đúng bằng HEADCOUNT - LOGGED_IN, vì LOGGED_IN đã lọc IS_ACTIVE = 1 AND LASTED_LOGIN IS NOT NULL.
+                  (SELECT COUNT(*) FROM HRMS.ECM100 e WHERE e.JEAJIKGB = 'Y'
+                    AND NOT EXISTS (SELECT 1 FROM HRMS.HR_USERS u WHERE u.EMPCD = e.EMPCD)) AS NO_ACCOUNT,
+                  (SELECT COUNT(*) FROM HRMS.ECM100 e JOIN HRMS.HR_USERS u ON u.EMPCD = e.EMPCD
+                    WHERE e.JEAJIKGB = 'Y' AND u.IS_ACTIVE = 0) AS ACCT_LOCKED,
+                  (SELECT COUNT(*) FROM HRMS.ECM100 e JOIN HRMS.HR_USERS u ON u.EMPCD = e.EMPCD
+                    WHERE e.JEAJIKGB = 'Y' AND u.IS_ACTIVE = 1 AND u.LASTED_LOGIN IS NULL) AS NEVER_LOGIN
                 FROM DUAL",
-                r => new { headcount = I(r["HEADCOUNT"]), loggedIn = I(r["LOGGED_IN"]), onMobile = I(r["ON_MOBILE"]), appRegistered = I(r["APP_REGISTERED"]) })).First();
+                r => new { headcount = I(r["HEADCOUNT"]), loggedIn = I(r["LOGGED_IN"]), onMobile = I(r["ON_MOBILE"]), appRegistered = I(r["APP_REGISTERED"]),
+                           noAccount = I(r["NO_ACCOUNT"]), acctLocked = I(r["ACCT_LOCKED"]), neverLogin = I(r["NEVER_LOGIN"]) })).First();
 
             // 10a) Nhân viên MỚI VÀO LÀM trong kỳ (user chốt 2026-11-09: người mới vào làm thì mới tải My Samho) + nhân viên NGHỈ VIỆC trong kỳ.
             //   • Ngày vào làm = ECM100.IGENTDAT (VARCHAR2 yyyyMMdd) — đúng cột AccountController dùng cho "ngày vào làm", KHÔNG dùng IN_DATE (sai).
@@ -2942,6 +2976,10 @@ public class InquiryController : ControllerBase
             if (page < 1) page = 1; if (pageSize < 1 || pageSize > 100) pageSize = 30;
 
             var where = new List<string>(); var ps = new List<OracleParameter>();
+            // Bỏ qua hội thoại CHƯA CÓ TIN NHẮN NÀO: từ 2026-11-12 công nhân tạo hội thoại rỗng
+            // rồi mới gõ tin trong chat, nên hàng đợi sẽ lẫn những chat trống không có gì để
+            // phân loại. Khi nào công nhân gửi tin đầu tiên thì nó tự xuất hiện lại.
+            where.Add("NVL(i.MSG_COUNT, 0) > 0");
             if (scope == "done") where.Add("i.CSR_CONFIRM_DT IS NOT NULL");
             else if (scope == "all") where.Add("i.CSR_CONFIRM_DT IS NULL");
             else where.Add("i.STATUS = 'OPEN' AND i.CSR_CONFIRM_DT IS NULL");

@@ -9,7 +9,8 @@ public class InquiryCreateRequest
     public string? Subject    { get; set; }
     public string? EmpCd      { get; set; }             // DIRECT: empcd; ANON: null
     public string? AnonToken  { get; set; }             // ANON: UUID từ localStorage
-    public string  Content    { get; set; } = "";       // tin nhắn đầu tiên bắt buộc
+    public string? Content    { get; set; }             // tin nhắn đầu tiên — CÓ THỂ NULL từ
+                                                        // 2026-11-12 (tạo hội thoại rỗng rồi chat)
     public string? ReportType { get; set; }             // GRIEVANCE (Kiến nghị) | OPINION (Ý kiến); null = web bản cũ chưa gửi
 }
 

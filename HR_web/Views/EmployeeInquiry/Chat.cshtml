@@ -178,6 +178,15 @@
     else
     {
         <div class="chat-input-wrap">
+            @* Hội thoại chưa có tin nào = công nhân vừa tạo xong, đang gõ tin ĐẦU TIÊN.
+               Nhắc trước để khỏi bị FirstMessageGuard chặn rồi mới biết (yêu cầu CSR 2026-11-12). *@
+            @if ((Model.messages?.Count(m => m.SenderType != "SYS") ?? 0) == 0)
+            {
+                <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:.5rem .7rem;margin-bottom:.5rem;font-size:.8rem;color:#1e40af;">
+                    <span class="material-symbols-rounded" style="font-size:1rem;vertical-align:middle;">lightbulb</span>
+                    Nhắn thẳng vấn đề, không cần chào hỏi — để được trả lời nhanh hơn.
+                </div>
+            }
             <div class="file-preview-strip" id="filePreviewStrip"></div>
             <div class="chat-input-row">
                 <button class="btn-attach" onclick="document.getElementById('fileInput').click()" title="Đính kèm file">

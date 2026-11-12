@@ -1080,9 +1080,16 @@ public class InquiryController : ControllerBase
                        a.FILE_TYPE   AS ATCH_FILE_TYPE,
                        a.MIME_TYPE,
                        a.FILE_SIZE,
-                       a.THUMB_PATH
+                       a.THUMB_PATH,
+                       -- Chức vụ người trả lời (HR / CSR / GA...). SENDER_TYPE trong DB chỉ có
+                       -- EMP/HR/SYS — CSR và Admin đều lưu là 'HR' nên không phân biệt được từ đó,
+                       -- phải tra role phòng ban theo SENDER_CD (yêu cầu 2026-11-12).
+                       -- LEFT JOIN nên DB chưa chạy script dept-role thì chỉ ra NULL, không vỡ.
+                       dr.ROLE_NAME AS SENDER_ROLE
                 FROM HRMS.HR_INQUIRY_MSG m
                 LEFT JOIN HRMS.HR_INQUIRY_ATTACH a ON a.MSG_ID = m.ID
+                LEFT JOIN HRMS.HR_USERS su      ON su.EMPCD = m.SENDER_CD
+                LEFT JOIN HRMS.HR_DEPT_ROLES dr ON dr.ID = su.DEPT_ROLE_ID
                 WHERE m.INQUIRY_ID = :ID
                   AND (:AFTER = 0 OR m.ID > :AFTER2)
                 ORDER BY m.ID ASC",
@@ -1093,6 +1100,7 @@ public class InquiryController : ControllerBase
                     SenderType = r["SENDER_TYPE"]?.ToString() ?? "",
                     SenderCd   = r["SENDER_CD"]?.ToString(),
                     SenderName = r["SENDER_NAME"]?.ToString(),
+                    SenderRole = r["SENDER_ROLE"] == DBNull.Value ? null : r["SENDER_ROLE"].ToString(),
                     MsgType    = r["MSG_TYPE"]?.ToString()    ?? "TEXT",
                     Content    = r["CONTENT"]?.ToString(),
                     IsReadHr   = r["IS_READ_HR"]  != DBNull.Value && Convert.ToInt32(r["IS_READ_HR"])  == 1,
@@ -1157,6 +1165,7 @@ public class InquiryController : ControllerBase
                         SenderType = first.SenderType,
                         SenderCd   = first.SenderCd,
                         SenderName = first.SenderName,
+                        SenderRole = first.SenderRole,
                         MsgType    = first.MsgType,
                         Content    = first.Content,
                         IsReadHr   = first.IsReadHr,
@@ -3046,7 +3055,11 @@ public class InquiryController : ControllerBase
             string? sev = string.IsNullOrWhiteSpace(req.SeverityCd) ? null : req.SeverityCd.Trim().ToUpperInvariant();
             var err = await ValidateSeverityPicAsync(sev, req.PicDeptRoleId);
             if (err != null) return Ok(new { success = false, message = err });
-            string mode = req.DeadlineMode is "created" or "today" ? req.DeadlineMode : "keep";
+            // "auto" (mặc định mới 2026-11-12): chat còn trong hạn thì tính từ NGÀY TẠO (đúng luật),
+            // chat đã quá hạn thì tính từ HÔM NAY. Lý do: hàng đợi tồn đọng rất cũ (có case 86 ngày,
+            // trung bình 29 ngày) nên nếu luôn lấy ngày tạo + 3 ngày thì vừa xác nhận xong đã quá hạn
+            // và email nhắc hạn bắn liên tục. CSR vẫn đổi tay sang created/today/keep được.
+            string mode = req.DeadlineMode is "created" or "today" or "auto" ? req.DeadlineMode : "keep";
             bool setPic = req.SetPic && req.PicDeptRoleId.HasValue;
 
             int ok = 0; var failed = new List<object>();
@@ -3063,6 +3076,12 @@ public class InquiryController : ControllerBase
                             DEADLINE_DT      = CASE :DL_MODE
                                                  WHEN 'created' THEN NVL(TRUNC(INST_DT) + (SELECT S.RESPONSE_DAYS FROM HRMS.HR_INQUIRY_SEVERITY S WHERE S.SEVERITY_CD = NVL(:SEV, SEVERITY_CD)), DEADLINE_DT)
                                                  WHEN 'today'   THEN NVL(TRUNC(SYSDATE) + (SELECT S.RESPONSE_DAYS FROM HRMS.HR_INQUIRY_SEVERITY S WHERE S.SEVERITY_CD = NVL(:SEV, SEVERITY_CD)), DEADLINE_DT)
+                                                 -- auto: còn kịp thì giữ mốc ngày tạo, đã trễ thì cho hạn mới từ hôm nay
+                                                 WHEN 'auto'    THEN NVL(
+                                                        CASE WHEN TRUNC(INST_DT) + (SELECT S.RESPONSE_DAYS FROM HRMS.HR_INQUIRY_SEVERITY S WHERE S.SEVERITY_CD = NVL(:SEV, SEVERITY_CD)) >= TRUNC(SYSDATE)
+                                                             THEN TRUNC(INST_DT) + (SELECT S.RESPONSE_DAYS FROM HRMS.HR_INQUIRY_SEVERITY S WHERE S.SEVERITY_CD = NVL(:SEV, SEVERITY_CD))
+                                                             ELSE TRUNC(SYSDATE) + (SELECT S.RESPONSE_DAYS FROM HRMS.HR_INQUIRY_SEVERITY S WHERE S.SEVERITY_CD = NVL(:SEV, SEVERITY_CD))
+                                                        END, DEADLINE_DT)
                                                  ELSE DEADLINE_DT END,
                             CSR_CONFIRM_DT = SYSDATE, CSR_CONFIRM_BY = :UPDT, UPDT_ID = :UPDT, UPDT_DT = SYSDATE
                         WHERE ID = :ID",

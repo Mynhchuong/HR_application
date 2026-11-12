@@ -185,6 +185,9 @@ public class InquiryMsgDto
     public string  SenderType  { get; set; } = "";
     public string? SenderCd    { get; set; }
     public string? SenderName  { get; set; }
+    /// <summary>Chức vụ người gửi (HR | CSR | GA...) — tra từ HR_USERS.DEPT_ROLE_ID theo SENDER_CD.
+    /// null khi người gửi là công nhân, tin hệ thống, hoặc DB chưa có cột dept role.</summary>
+    public string? SenderRole  { get; set; }
     public string  MsgType     { get; set; } = "TEXT";
     public string? Content     { get; set; }
     public bool    IsReadHr    { get; set; }

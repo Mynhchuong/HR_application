@@ -71,9 +71,6 @@
         <input type="date" id="fFrom" onchange="loadQueue(true)" style="border:1.5px solid #e2e8f0;border-radius:10px;padding:.35rem .6rem;font-size:.82rem">
         <span style="color:#94a3b8">→</span>
         <input type="date" id="fTo" onchange="loadQueue(true)" style="border:1.5px solid #e2e8f0;border-radius:10px;padding:.35rem .6rem;font-size:.82rem">
-        <button type="button" class="tg-btn sec" style="padding:.3rem .7rem;font-size:.76rem" onclick="quickDate(7)">7 ngày</button>
-        <button type="button" class="tg-btn sec" style="padding:.3rem .7rem;font-size:.76rem" onclick="quickDate(30)">30 ngày</button>
-        <button type="button" class="tg-btn sec" style="padding:.3rem .7rem;font-size:.76rem" onclick="quickDate(0)">Tất cả ngày</button>
     </div>
 
     <div class="tg-grid">
@@ -87,7 +84,7 @@
                 <div style="font-weight:800;font-size:.8rem;margin-bottom:.35rem">Gán một lần cho <span id="bulkN">0</span> chat <span style="font-weight:400;color:#94a3b8">(để trống = giữ nguyên)</span></div>
                 <select id="bType"><option value="">Loại báo cáo —</option><option value="GRIEVANCE">Kiến nghị</option><option value="OPINION">Ý kiến</option></select>
                 <select id="bTopic"></select><select id="bSev"></select><select id="bPic"></select>
-                <select id="bDl"><option value="created">Hạn: ngày tạo + số ngày</option><option value="today">Hạn: từ hôm nay</option><option value="keep">Hạn: giữ nguyên</option></select>
+                <select id="bDl" title="Mức độ quyết định SỐ NGÀY; ô này quyết định đếm số ngày đó từ mốc nào"><option value="auto">Hạn: tự động (trễ thì đếm lại từ hôm nay)</option><option value="created">Hạn: đếm từ ngày công nhân gửi</option><option value="today">Hạn: đếm từ hôm nay</option><option value="keep">Hạn: không đổi</option></select>
                 <button class="tg-btn warn" style="padding:.4rem 1rem;font-size:.8rem" onclick="bulkApply()" id="bulkBtn">Gán &amp; xác nhận</button>
             </div>
         </div>
@@ -116,11 +113,16 @@ function ago(iso) {
     return h < 1 ? Math.max(1, Math.round(h * 60)) + ' phút' : h < 48 ? Math.round(h) + ' giờ' : Math.round(h / 24) + ' ngày';
 }
 function fmt(iso) { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
-function quickDate(days) {
-    const f = document.getElementById('fFrom'), t = document.getElementById('fTo');
-    if (!days) { f.value = ''; t.value = ''; }
-    else { const e = new Date(), b = new Date(); b.setDate(b.getDate() - (days - 1)); const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; f.value = iso(b); t.value = iso(e); }
-    loadQueue(true);
+// Mặc định mở trang = TUẦN NÀY (thứ 2 → hôm nay). Trước đây để trống nên load cả 9.000 chat
+// tồn đọng từ nhiều tháng, CSR phải tự gõ ngày mỗi lần vào (yêu cầu 2026-11-12).
+// Muốn xem rộng hơn thì sửa trực tiếp 2 ô ngày; xoá trắng cả 2 = xem tất cả.
+function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function setDefaultWeek() {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const mon = new Date(today);
+    mon.setDate(mon.getDate() - ((today.getDay() + 6) % 7));   // getDay(): 0=CN -> lùi về thứ 2
+    document.getElementById('fFrom').value = isoDate(mon);
+    document.getElementById('fTo').value   = isoDate(today);
 }
 function toast(m, t) { if (window.showToast) window.showToast(m, t); }
 function sevChip(cd) { if (!cd) return ''; const s = cat.severities.find(x => x.severityCd === cd); return `<span class="tg-chip sev-${esc(cd)}">${esc(s ? s.nameVi : cd)}</span>`; }
@@ -190,7 +192,7 @@ async function select(i) {
         <div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap">
             <div><span class="no" style="font-family:monospace;color:#94a3b8">${esc(x.inquiryNo)}</span>
             <span style="font-weight:800;margin-left:.4rem" class="vni-font">${x.chatType === 'ANON' ? 'Ẩn danh' : esc(x.sender || '')}</span>
-            <span style="color:#94a3b8;font-size:.78rem"> · ${fmt(x.instDt)} · ${x.msgCount} tin · công nhân chọn: ${esc(x.topicName || x.topicCd)}</span></div>
+            <span style="color:#94a3b8;font-size:.78rem"> · ${fmt(x.instDt)} · ${x.msgCount} tin</span></div>
             <a href="${URL_CHAT}?id=${x.id}" target="_blank" rel="noopener" style="font-size:.78rem;font-weight:700">Mở chat ↗</a>
         </div>
         <div class="tg-msgs" id="msgs"><div style="color:#94a3b8">Đang tải nội dung...</div></div>
@@ -200,7 +202,10 @@ async function select(i) {
             <div><label>Chủ đề</label><select id="dTopic" onchange="onTopicChange()"></select></div>
             <div><label>Mức độ</label><select id="dSev"></select></div>
             <div><label>Phòng phụ trách (PIC)</label><select id="dPic"></select></div>
-            <div class="full"><label>Hạn phản hồi</label><select id="dDl"><option value="created">Ngày tạo + số ngày theo mức độ</option><option value="today">Từ hôm nay + số ngày</option><option value="keep">Giữ nguyên hạn hiện tại</option></select></div>
+            <div class="full"><label>Hạn phản hồi</label>
+                <select id="dDl" onchange="showDeadline()"></select>
+                <div id="dDlInfo" style="font-size:.76rem;color:#64748b;margin-top:.25rem"></div>
+            </div>
         </div>
         <div class="tg-actions">
             <button class="tg-btn pri" id="btnAccept" onclick="acceptCur()">${useSug ? 'Chấp nhận' : 'Lưu'} &amp; tiếp (Enter)</button>
@@ -210,12 +215,65 @@ async function select(i) {
     const topicOpts = cat.topics.filter(t => t.isActive || t.topicCd === topicCd || t.topicCd === x.topicCd).map(t => `<option value="${esc(t.topicCd)}">${esc(t.topicName)}${t.isActive ? '' : ' (ẩn)'}</option>`).join('');
     document.getElementById('dTopic').innerHTML = topicOpts;
     document.getElementById('dSev').innerHTML = '<option value="">— Chưa có —</option>' + cat.severities.map(s => `<option value="${esc(s.severityCd)}">${esc(s.nameVi)} — ${s.responseDays} ngày</option>`).join('');
+    document.getElementById('dSev').onchange = showDeadline;
     document.getElementById('dPic').innerHTML = '<option value="">— Giữ nguyên / chưa gán —</option>' + cat.picRoles.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
     document.getElementById('dType').value = x.reportType || 'GRIEVANCE';
     document.getElementById('dTopic').value = topicCd || '';
     document.getElementById('dSev').value = sevCd || '';
     document.getElementById('dPic').value = picId ? String(picId) : '';
+    showDeadline();
     loadMsgs(x.id);
+}
+
+// ── Ô "Hạn phản hồi" ────────────────────────────────────────────────────────────
+// Mức độ cho biết SỐ NGÀY (Thấp=3), ô này cho biết đếm số ngày đó TỪ MỐC NÀO.
+// Nhãn cũ ("Từ hôm nay + số ngày") quá trừu tượng, chính người làm hệ thống còn không hiểu
+// (phản ánh 2026-11-12) -> ghi thẳng NGÀY RA KẾT QUẢ vào từng lựa chọn, khỏi phải nhẩm.
+function dlDates() {
+    const x = items[sel]; if (!x) return null;
+    const sev  = cat.severities.find(s => s.severityCd === document.getElementById('dSev').value);
+    const days = sev ? (sev.responseDays || 0) : null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const created = new Date(x.instDt); created.setHours(0, 0, 0, 0);
+    const dd = n => { const d = new Date(today); d.setDate(d.getDate() + n); return d; };
+    const fromCreated = days == null ? null : (() => { const d = new Date(created); d.setDate(d.getDate() + days); return d; })();
+    return { x, days, today, created, fromCreated, fromToday: days == null ? null : dd(days),
+             keep: x.deadlineDt ? new Date(x.deadlineDt) : null };
+}
+const vnd = d => d ? d.toLocaleDateString('vi-VN') : '—';
+
+function renderDeadlineOptions() {
+    const sel0 = document.getElementById('dDl'); if (!sel0) return;
+    const keepVal = sel0.value || 'auto';
+    const g = dlDates();
+    if (!g) { sel0.innerHTML = '<option value="auto">Tự động</option>'; return; }
+    const late = g.fromCreated && g.fromCreated < g.today;
+    sel0.innerHTML = [
+        `<option value="auto">Tự động — hạn ${vnd(late ? g.fromToday : g.fromCreated)}</option>`,
+        `<option value="created">Đếm từ ngày công nhân gửi (${vnd(g.created)}) — hạn ${vnd(g.fromCreated)}${late ? ' ⚠ đã trôi qua' : ''}</option>`,
+        `<option value="today">Đếm từ hôm nay (${vnd(g.today)}) — hạn ${vnd(g.fromToday)}</option>`,
+        `<option value="keep">Không đổi hạn — ${g.keep ? 'giữ ' + vnd(g.keep) : 'hiện chưa có hạn'}</option>`
+    ].join('');
+    sel0.value = keepVal;
+}
+
+function showDeadline() {
+    renderDeadlineOptions();
+    const box = document.getElementById('dDlInfo'); if (!box) return;
+    const g = dlDates(); if (!g) { box.textContent = ''; return; }
+    const mode = document.getElementById('dDl').value;
+    if (mode === 'keep' || g.days == null) {
+        box.textContent = g.keep ? 'Giữ nguyên hạn: ' + vnd(g.keep) : 'Chat này chưa có hạn phản hồi';
+        box.style.color = '#64748b'; return;
+    }
+    const late = g.fromCreated < g.today;
+    let d, note = '';
+    if (mode === 'created') { d = g.fromCreated; if (late) note = ' ⚠ ĐÃ QUÁ HẠN ngay khi lưu'; }
+    else if (mode === 'today') { d = g.fromToday; note = ` (bỏ qua ${Math.round((g.today - g.created) / 86400000)} ngày chat đã nằm chờ)`; }
+    else { d = late ? g.fromToday : g.fromCreated;
+           note = late ? ' (chat đã trễ → cấp hạn mới từ hôm nay)' : ' (còn trong hạn → giữ mốc ngày gửi)'; }
+    box.textContent = `Hạn phản hồi sẽ là ${vnd(d)} — còn ${Math.round((d - g.today) / 86400000)} ngày${note}`;
+    box.style.color = note.includes('QUÁ HẠN') ? '#dc2626' : '#64748b';
 }
 
 function onTopicChange() {
@@ -223,12 +281,23 @@ function onTopicChange() {
     if (t) { document.getElementById('dSev').value = t.severityCd || ''; document.getElementById('dPic').value = t.picDeptRoleId ? String(t.picDeptRoleId) : ''; }
 }
 
+// Ai gửi tin: TÊN + CHỨC VỤ thay vì chỉ "HR/CSR" (yêu cầu 2026-11-12) — CSR cần biết đích danh
+// ai đã trả lời. Tên lưu font VNI nên phải bọc .vni-font, nếu không chữ tiếng Việt hiện sai dấu.
+// Thiếu tên hoặc thiếu chức vụ thì rơi về nhãn cũ chứ không hiện khoảng trống.
+function msgWho(m) {
+    if (m.senderType === 'EMP') return 'Công nhân';
+    const name = (m.senderName || '').trim();
+    const role = (m.senderRole || '').trim();
+    if (!name) return role || 'HR/CSR';
+    return `<span class="vni-font" style="font-weight:700">${esc(name)}</span>` + (role ? ` · ${esc(role)}` : '');
+}
+
 async function loadMsgs(id) {
     try {
         const d = await (await fetch(`${URL_MSGS}?id=${id}`)).json();
         const box = document.getElementById('msgs'); if (!box || items[sel]?.id !== id) return;
         const ms = (d.messages || []).filter(m => !m.isDeleted && m.senderType !== 'SYS').slice(-10);
-        box.innerHTML = ms.map(m => `<div class="tg-msg ${m.senderType === 'EMP' ? 'emp' : 'hr'}"><div class="h">${m.senderType === 'EMP' ? 'Công nhân' : 'HR/CSR'} · ${fmt(m.sentDt)}</div><div class="b">${(window.InquiryChat && InquiryChat.safeHtml) ? InquiryChat.safeHtml(m.content || '') : esc((m.content || '').replace(/<[^>]+>/g, ' '))}</div></div>`).join('')
+        box.innerHTML = ms.map(m => `<div class="tg-msg ${m.senderType === 'EMP' ? 'emp' : 'hr'}"><div class="h">${msgWho(m)} · ${fmt(m.sentDt)}</div><div class="b">${(window.InquiryChat && InquiryChat.safeHtml) ? InquiryChat.safeHtml(m.content || '') : esc((m.content || '').replace(/<[^>]+>/g, ' '))}</div></div>`).join('')
             || '<div style="color:#94a3b8">Chưa có nội dung</div>';
     } catch { /* bỏ qua */ }
 }
@@ -248,7 +317,19 @@ async function acceptCur() {
     if (!d.success || (d.failed && d.failed.length)) { toast((d.failed && d.failed[0]?.message) || d.message || 'Lưu thất bại', 'error'); return; }
     toast('Đã xác nhận ' + x.inquiryNo, 'success');
     removeItems([x.id], true);
-    const c = document.getElementById('cntPending'); c.textContent = Math.max(0, parseInt(c.textContent.replace(/\D/g, '') || '0', 10) - 1).toLocaleString('vi-VN');
+    bumpCounts(1);
+}
+
+// Cập nhật tại chỗ CẢ HAI ô đếm sau khi xác nhận n hội thoại.
+// Trước đây nút "Chấp nhận & tiếp" chỉ trừ ô "chưa xác nhận" mà KHÔNG cộng ô "hôm nay đã xác nhận"
+// -> CSR bấm cả chục lần vẫn thấy số đứng yên và tưởng hệ thống không lưu (phản ánh 2026-11-12;
+// kiểm DB thì các bản ghi đều đã lưu đúng). Cập nhật tại chỗ thay vì gọi lại loadQueue để không
+// làm giật danh sách giữa lúc CSR đang bấm liên tục.
+function bumpCounts(n) {
+    const num = el => parseInt((el.textContent || '').replace(/\D/g, '') || '0', 10);
+    const p = document.getElementById('cntPending'), d = document.getElementById('cntDone');
+    p.textContent = Math.max(0, num(p) - n).toLocaleString('vi-VN');
+    d.textContent = (num(d) + n).toLocaleString('vi-VN');
 }
 
 function removeItems(ids, advance) {
@@ -273,7 +354,9 @@ async function bulkApply() {
     toast(`Đã xác nhận ${d.confirmed} chat` + (failedIds.length ? ` · ${failedIds.length} lỗi (${d.failed[0].message})` : ''), failedIds.length ? 'warning' : 'success');
     ['bType', 'bTopic', 'bSev', 'bPic'].forEach(i => document.getElementById(i).value = '');
     removeItems(okIds, false);
-    loadQueue(false);   // làm mới số đếm
+    // KHÔNG gọi loadQueue(false) ở đây: reset=false nghĩa là "tải thêm", nó fetch lại ĐÚNG trang
+    // hiện tại rồi items.concat(...) -> danh sách bị lặp. Chỉ cần cộng/trừ số đếm tại chỗ.
+    bumpCounts(d.confirmed || okIds.length);
 }
 
 document.addEventListener('keydown', e => {
@@ -292,6 +375,6 @@ document.addEventListener('keydown', e => {
     }
 });
 
-(async function init() { await loadCatalogs(); await loadQueue(true); })();
+(async function init() { setDefaultWeek(); await loadCatalogs(); await loadQueue(true); })();
 </script>
 }

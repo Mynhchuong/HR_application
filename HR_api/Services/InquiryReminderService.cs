@@ -103,35 +103,45 @@ public class InquiryReminderService
         return map;
     }
 
-    private async Task<List<string>> CsrEmailsAsync()
-    {
-        var inRoles = await DeptRoleHelper.EmpcdInRolesSqlAsync(_db, "CSR");
-        var rows = await _db.ExecuteQueryAsync($@"
-            SELECT CASE WHEN INSTR(e.EMAIL, '@') > 0 THEN TRIM(e.EMAIL) ELSE TRIM(e.EMAIL_VS) END AS MAIL
-            FROM HRMS.HR_USERS u JOIN HRMS.ECM100 e ON e.EMPCD = u.EMPCD
-            WHERE u.IS_ACTIVE = 1 AND u.EMPCD IN ({inRoles})",
-            r => r["MAIL"] == DBNull.Value ? "" : r["MAIL"].ToString()!);
-        return ParseEmails(string.Join(";", rows));
-    }
+    // ĐÃ BỎ CsrEmailsAsync(): trước đây lấy EMAIL/EMAIL_VS trong ECM100 của mọi tài khoản CSR để
+    // làm địa chỉ dự phòng. Hệ quả: NV nhận mail công việc vào hộp thư cá nhân (kể cả Gmail riêng)
+    // dù không hề khai ở AdminInquiry/RemindEmails, và không tắt được từ giao diện.
+    // Từ 2026-11-12 chỉ gửi tới địa chỉ khai tường minh ở trang đó. ĐỪNG thêm lại nhánh này.
 
-    /// <summary>email → các case người đó cần xử lý. Chủ đề → phòng PIC → CSR (dự phòng).</summary>
+    /// <summary>
+    /// email → các case người đó cần xử lý. Thứ tự: email theo CHỦ ĐỀ → email theo PHÒNG (PIC).
+    ///
+    /// CHỈ gửi tới địa chỉ đã khai ở trang AdminInquiry/RemindEmails (yêu cầu 2026-11-12).
+    /// TRƯỚC ĐÂY còn nhánh dự phòng lấy email cá nhân của từng tài khoản CSR trong ECM100 —
+    /// bỏ hẳn: NV nhận mail công việc vào hộp thư CÁ NHÂN (có cả Gmail riêng) mà không hiểu vì sao,
+    /// và không có cách nào tắt từ giao diện. Chủ đề/phòng chưa khai email thì KHÔNG gửi,
+    /// nhưng có ghi log cảnh báo để HR biết mà vào khai.
+    /// </summary>
     public async Task<Dictionary<string, List<DueCase>>> BuildDigestsAsync(List<DueCase> cases)
     {
         var map = new Dictionary<string, List<DueCase>>(StringComparer.OrdinalIgnoreCase);
         var cfg = await LoadConfigAsync();
-        List<string>? csr = null;
+        var skipped = new List<string>();
         foreach (var c in cases)
         {
-            List<string> to;
+            List<string>? to = null;
             if (cfg.TryGetValue("TOPIC:" + c.TopicCd, out var t) && t.Count > 0) to = t;
             else if (!string.IsNullOrEmpty(c.PicName) && cfg.TryGetValue("PIC:" + c.PicName, out var p) && p.Count > 0) to = p;
-            else to = csr ??= await CsrEmailsAsync();
+
+            if (to == null || to.Count == 0)
+            {
+                skipped.Add($"{c.TopicCd}/{c.PicName ?? "—"}");
+                continue;
+            }
             foreach (var m in to)
             {
                 if (!map.TryGetValue(m, out var l)) map[m] = l = new List<DueCase>();
                 l.Add(c);
             }
         }
+        if (skipped.Count > 0)
+            _log.LogWarning("InquiryReminder: bỏ qua {N} case vì chủ đề/phòng chưa khai email ở RemindEmails ({List})",
+                            skipped.Count, string.Join(", ", skipped.Distinct().Take(10)));
         return map;
     }
 
@@ -253,8 +263,10 @@ public class InquiryReminderService
 
     private async Task<List<string>> CsrRecipientsAsync()
     {
+        // CHỈ dùng email khai ở AdminInquiry/RemindEmails (ô "CSR"). Bỏ nhánh dự phòng lấy email
+        // cá nhân của tài khoản CSR — xem ghi chú ở BuildDigestsAsync (yêu cầu 2026-11-12).
         var cfg = await LoadConfigAsync();
-        return cfg.TryGetValue("PIC:CSR", out var l) && l.Count > 0 ? l : await CsrEmailsAsync();
+        return cfg.TryGetValue("PIC:CSR", out var l) && l.Count > 0 ? l : new List<string>();
     }
 
     private static string DraftBody(List<DraftDue> list, int totalPending)
@@ -283,7 +295,11 @@ public class InquiryReminderService
         var due = await FindDraftsToNotifyAsync(includeNotified: false);
         if (due.Count == 0) return;
         var to = await CsrRecipientsAsync();
-        if (to.Count == 0) { _log.LogWarning("InquiryReminder: có {N} bản nháp chờ duyệt nhưng không có email CSR", due.Count); return; }
+        if (to.Count == 0)
+        {
+            _log.LogWarning("InquiryReminder: có {N} bản nháp chờ duyệt nhưng ô email CSR ở AdminInquiry/RemindEmails đang trống -> KHÔNG gửi cho ai", due.Count);
+            return;
+        }
 
         int total = (await _db.ExecuteQueryAsync("SELECT COUNT(*) AS C FROM HRMS.HR_INQUIRY_DRAFT WHERE STATUS = 'PENDING'", r => Convert.ToInt32(r["C"]))).First();
         int ok = 0;

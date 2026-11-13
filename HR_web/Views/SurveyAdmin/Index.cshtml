@@ -114,6 +114,22 @@
                                     <td class="text-secondary small">#@s.ID</td>
                                     <td>
                                         <div class="sa-title-cell" title="@s.TITLE">@s.TITLE</div>
+                                        @{
+                                            // Người tạo survey (yêu cầu 2026-11-13). Tên lấy từ HR_USERS.FULL_NAME nên có thể
+                                            // là font VNI -> phải có class vni-font, không thì hiện ra chữ loạn.
+                                            var byName = !string.IsNullOrWhiteSpace(s.INST_NAME) ? s.INST_NAME : s.INST_ID;
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(byName))
+                                        {
+                                            <div class="sa-title-by" title="@s.INST_ID">
+                                                <i class="bi bi-person"></i>
+                                                <span class="vni-font">@byName</span>
+                                                @if (s.INST_DT.HasValue)
+                                                {
+                                                    <span>· @s.INST_DT.Value.ToString("dd/MM/yyyy")</span>
+                                                }
+                                            </div>
+                                        }
                                     </td>
                                     <td>
                                         <span class="badge bg-@(s.SURVEY_TYPE == "QUIZ" ? "info" : "secondary")">@s.SURVEY_TYPE</span>

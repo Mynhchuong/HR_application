@@ -1,3 +1,4 @@
+using System.Linq;
 namespace HR_web.Helpers;
 
 /// <summary>
@@ -17,6 +18,73 @@ public static class ExpatText
     /// NV nước ngoài ("en"/"ko") → chỉ hiện tiếng của họ; NV Việt → giữ nguyên chuỗi song ngữ cũ,
     /// nên không đụng gì tới trải nghiệm hiện tại của NV thường.
     /// </summary>
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Thông báo hệ thống trả về từ API đang viết bằng tiếng Việt (API không biết người dùng là ai).
+    // Bảng này dịch câu tiếng Việt -> tiếng Anh, rồi T() lo tiếp phần tiếng Hàn.
+    // KHÔNG sửa từng chỗ gọi: ExpatMessageFilter tự dịch mọi JSON/TempData trả về cho Expat.
+    // Thêm câu mới: chỉ cần thêm 1 dòng ở đây + 1 dòng tiếng Hàn trong Ko ở trên.
+    // Câu chưa có trong bảng sẽ GIỮ NGUYÊN tiếng Việt — thà chưa dịch còn hơn mất thông tin.
+    // ─────────────────────────────────────────────────────────────────────────
+    private static readonly Dictionary<string, string> ViToEn = new(StringComparer.Ordinal)
+    {
+        ["Bạn không có quyền phê duyệt Gate Pass"] = "You are not allowed to approve gate passes.",
+        ["Bạn không có quyền phê duyệt nghỉ phép"] = "You are not allowed to approve leave requests.",
+        ["Bạn không có quyền từ chối Gate Pass"] = "You are not allowed to reject gate passes.",
+        ["Bạn không có quyền từ chối nghỉ phép"] = "You are not allowed to reject leave requests.",
+        ["Bạn không có quyền xem danh sách này"] = "You are not allowed to view this list.",
+        ["Chưa đăng nhập"] = "You are not signed in.",
+        ["Chưa được phân quyền bộ phận"] = "Your department permission has not been set up.",
+        ["Chỉ Manager, Expat hoặc Admin mới được duyệt công tác"] = "Only a Manager, Expat or Admin can approve business trips.",
+        ["Chức năng chưa được bật trên hệ thống"] = "This feature is not enabled on the system.",
+        ["Gate Pass này tự động tạo theo đơn Công tác — vui lòng duyệt đơn Công tác trong mục Nghỉ phép, không duyệt trực tiếp ở đây."] = "This gate pass was created automatically from a business trip request. Please approve the business trip under Leave instead of approving it here.",
+        ["Gate Pass này tự động tạo theo đơn Công tác — vui lòng xử lý đơn Công tác trong mục Nghỉ phép, không duyệt/từ chối trực tiếp ở đây."] = "This gate pass was created automatically from a business trip request. Please handle the business trip under Leave instead of approving or rejecting it here.",
+        ["Insert ERP thất bại, phiếu đã trả về PENDING. Chi tiết: "] = "Could not send to ERP; the request was set back to PENDING. Details: ",
+        ["Không có kế hoạch tăng ca trong ngày này"] = "There is no overtime plan for this day.",
+        ["Không thể tự duyệt đơn của mình"] = "You cannot approve your own request.",
+        ["Không thể tự từ chối đơn của mình"] = "You cannot reject your own request.",
+        ["Không thể xác nhận tăng ca cho ngày này"] = "Overtime cannot be confirmed for this day.",
+        ["Không tìm thấy hoặc đã được xử lý rồi"] = "Not found, or it has already been handled.",
+        ["Không tìm thấy thông báo"] = "Notification not found.",
+        ["Không tìm thấy yêu cầu"] = "Request not found.",
+        ["Lỗi hệ thống, vui lòng thử lại."] = "System error, please try again.",
+        ["Lời nhắn: Hãy liên hệ quản lý cấp cao hơn để được phê duyệt"] = "Note: please contact a higher-level manager for approval.",
+        ["Thiếu ID"] = "Missing ID.",
+        ["Thiếu Token"] = "Missing token.",
+        ["Thiếu mã nhân viên"] = "Missing employee code.",
+        ["Thiếu mã nhân viên hoặc Token"] = "Missing employee code or token.",
+        ["Thiếu thông tin duyệt"] = "Missing approval information.",
+        ["Thiếu thông tin từ chối"] = "Missing rejection information.",
+        ["Thiếu tiêu đề hoặc nội dung"] = "Missing title or content.",
+        ["Trạng thái không hợp lệ"] = "Invalid status.",
+        ["Xoá không thành công"] = "Delete failed.",
+        ["Yêu cầu xác nhận bổ sung chỉ có thể Đồng ý, không thể Từ chối"] = "An additional confirmation request can only be accepted, not rejected.",
+        ["Đã duyệt Gate Pass"] = "Gate pass approved.",
+        ["Đã duyệt đơn nghỉ phép"] = "Leave request approved.",
+        ["Đã gửi thông báo"] = "Notification sent.",
+        ["Đã tạo thông báo"] = "Notification created.",
+        ["Đã từ chối Gate Pass"] = "Gate pass rejected.",
+        ["Đã từ chối đơn nghỉ phép"] = "Leave request rejected.",
+        ["Đăng ký Token thành công"] = "Token registered successfully.",
+        ["Đơn Công tác chỉ Manager, Expat hoặc Admin mới được duyệt"] = "Only a Manager, Expat or Admin can approve a business trip request.",
+        ["Đơn Công tác chỉ Manager, Expat hoặc Admin mới được xử lý"] = "Only a Manager, Expat or Admin can handle a business trip request.",
+    };
+
+    // Câu ghép thêm chi tiết phía sau (kết thúc bằng ": ") -> khớp theo phần đầu, giữ nguyên phần đuôi.
+    private static readonly Lazy<string[]> _prefixKeys = new(() =>
+        ViToEn.Keys.Where(k => k.EndsWith(": ", StringComparison.Ordinal)).ToArray());
+
+    public static string Msg(string? lang, string? vi)
+    {
+        if (string.IsNullOrWhiteSpace(vi) || lang is null or "vi") return vi ?? "";
+        var key = vi.Trim();
+        if (ViToEn.TryGetValue(key, out var en)) return T(lang, en);
+        foreach (var p in _prefixKeys.Value)
+            if (vi.StartsWith(p, StringComparison.Ordinal))
+                return T(lang, ViToEn[p]) + vi.Substring(p.Length);
+        return vi;
+    }
+
     public static string Dual(string? lang, string viEn, string en)
         => lang == "en" || lang == "ko" ? T(lang, en) : viEn;
 
@@ -495,6 +563,47 @@ public static class ExpatText
         ["Bulletin not found."] = "공지사항을 찾을 수 없습니다.",
         ["This bulletin has not been published yet."] = "아직 게시되지 않은 공지사항입니다.",
         ["This bulletin has been hidden."] = "숨김 처리된 공지사항입니다.",
+        // ── Thông báo hệ thống / API (dùng qua ExpatMsg, xem ViToEn bên dưới) ──
+        ["You are not allowed to approve gate passes."] = "게이트패스를 승인할 권한이 없습니다.",
+        ["You are not allowed to approve leave requests."] = "휴가 신청을 승인할 권한이 없습니다.",
+        ["You are not allowed to reject gate passes."] = "게이트패스를 반려할 권한이 없습니다.",
+        ["You are not allowed to reject leave requests."] = "휴가 신청을 반려할 권한이 없습니다.",
+        ["You are not allowed to view this list."] = "이 목록을 볼 권한이 없습니다.",
+        ["You are not signed in."] = "로그인되어 있지 않습니다.",
+        ["Your department permission has not been set up."] = "부서 권한이 설정되지 않았습니다.",
+        ["Only a Manager, Expat or Admin can approve business trips."] = "출장 신청은 매니저, 주재원 또는 관리자만 승인할 수 있습니다.",
+        ["This feature is not enabled on the system."] = "시스템에서 활성화되지 않은 기능입니다.",
+        ["This gate pass was created automatically from a business trip request. Please approve the business trip under Leave instead of approving it here."] = "이 게이트패스는 출장 신청에서 자동 생성되었습니다. 여기서 승인하지 마시고 휴가 메뉴에서 출장 신청을 승인해 주세요.",
+        ["This gate pass was created automatically from a business trip request. Please handle the business trip under Leave instead of approving or rejecting it here."] = "이 게이트패스는 출장 신청에서 자동 생성되었습니다. 여기서 승인/반려하지 마시고 휴가 메뉴에서 출장 신청을 처리해 주세요.",
+        ["Could not send to ERP; the request was set back to PENDING. Details: "] = "ERP 전송에 실패하여 신청이 대기 상태로 되돌아갔습니다. 상세: ",
+        ["There is no overtime plan for this day."] = "해당 일자에는 연장근무 계획이 없습니다.",
+        ["You cannot approve your own request."] = "본인의 신청은 승인할 수 없습니다.",
+        ["You cannot reject your own request."] = "본인의 신청은 반려할 수 없습니다.",
+        ["Overtime cannot be confirmed for this day."] = "해당 일자의 연장근무는 확인할 수 없습니다.",
+        ["Not found, or it has already been handled."] = "찾을 수 없거나 이미 처리되었습니다.",
+        ["Notification not found."] = "알림을 찾을 수 없습니다.",
+        ["Request not found."] = "신청을 찾을 수 없습니다.",
+        ["System error, please try again."] = "시스템 오류입니다. 다시 시도해 주세요.",
+        ["Note: please contact a higher-level manager for approval."] = "안내: 승인을 위해 상위 관리자에게 문의해 주세요.",
+        ["Missing ID."] = "ID가 없습니다.",
+        ["Missing token."] = "토큰이 없습니다.",
+        ["Missing employee code."] = "사번이 없습니다.",
+        ["Missing employee code or token."] = "사번 또는 토큰이 없습니다.",
+        ["Missing approval information."] = "승인 정보가 없습니다.",
+        ["Missing rejection information."] = "반려 정보가 없습니다.",
+        ["Missing title or content."] = "제목 또는 내용이 없습니다.",
+        ["Invalid status."] = "유효하지 않은 상태입니다.",
+        ["Delete failed."] = "삭제하지 못했습니다.",
+        ["An additional confirmation request can only be accepted, not rejected."] = "추가 확인 요청은 승인만 가능하며 반려할 수 없습니다.",
+        ["Gate pass approved."] = "게이트패스를 승인했습니다.",
+        ["Leave request approved."] = "휴가 신청을 승인했습니다.",
+        ["Notification sent."] = "알림을 보냈습니다.",
+        ["Notification created."] = "알림을 생성했습니다.",
+        ["Gate pass rejected."] = "게이트패스를 반려했습니다.",
+        ["Leave request rejected."] = "휴가 신청을 반려했습니다.",
+        ["Token registered successfully."] = "토큰이 등록되었습니다.",
+        ["Only a Manager, Expat or Admin can approve a business trip request."] = "출장 신청은 매니저, 주재원 또는 관리자만 승인할 수 있습니다.",
+        ["Only a Manager, Expat or Admin can handle a business trip request."] = "출장 신청은 매니저, 주재원 또는 관리자만 처리할 수 있습니다.",
         // Thông báo bảo mật sau đăng nhập + đổi mật khẩu ở trang Hồ sơ (bổ sung 2026-11-13)
         ["Security: please change your password to protect your account."] = "보안 안내: 계정 보호를 위해 비밀번호를 변경해 주세요.",
         ["Security: please upload your signature image to continue."] = "보안 안내: 계속 진행하려면 서명 이미지를 등록해 주세요.",

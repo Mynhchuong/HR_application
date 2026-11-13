@@ -25,6 +25,7 @@ public class SurveyAdminService
                    S.START_DATE, S.END_DATE, S.RECIPIENT_MODE, S.PASS_SCORE,
                    S.PUBLISHED_DT, S.PUBLISHED_BY,
                    S.INST_ID, S.INST_DT, S.UPDT_ID, S.UPDT_DT,
+                   (SELECT U.FULL_NAME FROM HRMS.HR_USERS U WHERE U.EMPCD = S.INST_ID AND ROWNUM = 1) AS INST_NAME,
                    (SELECT COUNT(*) FROM HRMS.HR_SURVEY_QUESTION Q  WHERE Q.SURVEY_ID = S.ID) AS QUESTION_COUNT,
                    CASE WHEN S.RECIPIENT_MODE = 'ALL' THEN
                         (SELECT COUNT(*) FROM HRMS.ECM100 EC
@@ -59,7 +60,8 @@ public class SurveyAdminService
             SELECT ID, TITLE, DESCRIPTION, SURVEY_TYPE, LANG, STATUS,
                    START_DATE, END_DATE, RECIPIENT_MODE, PASS_SCORE,
                    PUBLISHED_DT, PUBLISHED_BY,
-                   INST_ID, INST_DT, UPDT_ID, UPDT_DT
+                   INST_ID, INST_DT, UPDT_ID, UPDT_DT,
+                   (SELECT U.FULL_NAME FROM HRMS.HR_USERS U WHERE U.EMPCD = HRMS.HR_SURVEY.INST_ID AND ROWNUM = 1) AS INST_NAME
               FROM HRMS.HR_SURVEY
              WHERE ID = :ID";
 
@@ -672,6 +674,7 @@ public class SurveyAdminService
             PUBLISHED_DT   = r["PUBLISHED_DT"] as DateTime?,
             PUBLISHED_BY   = r["PUBLISHED_BY"] as string,
             INST_ID        = r["INST_ID"] as string,
+            INST_NAME      = HasCol(r, "INST_NAME") ? r["INST_NAME"] as string : null,
             INST_DT        = r["INST_DT"] as DateTime?,
             UPDT_ID        = r["UPDT_ID"] as string,
             UPDT_DT        = r["UPDT_DT"] as DateTime?,

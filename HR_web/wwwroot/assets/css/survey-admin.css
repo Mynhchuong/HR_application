@@ -92,9 +92,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
+/* Dòng "người tạo" ngay dưới tiêu đề */
+.sa-title-by {
+    display: flex; align-items: center; gap: 4px;
+    margin-top: 2px; font-size: .74rem; color: #94a3b8; font-weight: 500;
+    max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sa-title-by i { font-size: .8rem; }
+
 @media (max-width: 1200px) {
     .sa-actions .btn span { display: none; }
-    .sa-title-cell { max-width: 220px; }
+    .sa-title-cell, .sa-title-by { max-width: 220px; }
 }
 
 /* ─── Publish progress modal ─────────────────── */

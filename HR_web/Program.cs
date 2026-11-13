@@ -17,6 +17,8 @@ builder.Services.AddControllersWithViews(options =>
     // Phiên hết hạn -> token chống giả mạo không khớp -> mặc định là trang 400 trắng.
     // Filter này đổi thành: cho đăng xuất / trả JSON cho AJAX / về Login kèm thông báo.
     options.Filters.Add<HR_web.Filters.AntiforgeryExpiredFilter>();
+    // Dịch thông báo (JSON + TempData) sang Anh/Hàn cho Expat — xem ExpatMessageFilter.
+    options.Filters.Add<HR_web.Filters.ExpatMessageFilter>();
 }).AddNewtonsoftJson(options =>
 {
 

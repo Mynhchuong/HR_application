@@ -18,6 +18,10 @@ public class SurveyModel
     public int       RECIPIENT_COUNT { get; set; }
     public int       SUBMITTED_COUNT { get; set; }
     public int       QUESTION_COUNT  { get; set; }
+    // Người tạo survey — hiện dưới tiêu đề ở trang SurveyAdmin/Index
+    public string?   INST_ID         { get; set; }
+    public string?   INST_NAME       { get; set; }
+    public DateTime? INST_DT         { get; set; }
     public List<SurveyQuestionModel> QUESTIONS { get; set; } = new();
     public List<SurveyScopeModel>    SCOPES    { get; set; } = new();
 }

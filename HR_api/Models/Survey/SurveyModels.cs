@@ -19,6 +19,7 @@ public class SurveyModel
     public DateTime? PUBLISHED_DT    { get; set; }
     public string?   PUBLISHED_BY    { get; set; }
     public string?   INST_ID         { get; set; }
+    public string?   INST_NAME       { get; set; }   // tên người tạo, lấy từ HR_USERS.FULL_NAME (có thể là font VNI)
     public DateTime? INST_DT         { get; set; }
     public string?   UPDT_ID         { get; set; }
     public DateTime? UPDT_DT         { get; set; }

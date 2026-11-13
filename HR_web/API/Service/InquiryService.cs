@@ -438,8 +438,9 @@ public class InquiryService
     public Task<string> GetReminderPreviewRawAsync()     => GetRawOrFailAsync("Inquiry/admin/reminder/preview");
     public Task<string> GetTriageQueueRawAsync(string query) => GetRawOrFailAsync("Inquiry/triage/queue", query);
     public Task<string> TriageConfirmRawAsync(object payload) => DraftPostRawAsync("Inquiry/triage/confirm", payload);
-    public Task<string> GetRepeatDetailRawAsync(string? from, string? to)
-        => GetRawOrFailAsync("Inquiry/dashboard/repeat", $"from={Uri.EscapeDataString(from ?? "")}&to={Uri.EscapeDataString(to ?? "")}");
+    public Task<string> GetRepeatDetailRawAsync(string? from, string? to, int min = 2, bool sameTopic = true)
+        => GetRawOrFailAsync("Inquiry/dashboard/repeat",
+            $"from={Uri.EscapeDataString(from ?? "")}&to={Uri.EscapeDataString(to ?? "")}&min={min}&same_topic={(sameTopic ? "true" : "false")}");
     public Task<string> GetDashboardRawAsync(string? from, string? to)
         => GetRawOrFailAsync("Inquiry/dashboard", $"from={Uri.EscapeDataString(from ?? "")}&to={Uri.EscapeDataString(to ?? "")}");
 

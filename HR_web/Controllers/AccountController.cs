@@ -81,12 +81,17 @@ public class AccountController : Controller
 
         if (user.RequirePasswordChange)
         {
-            TempData["InfoMessage"] = "Bảo mật hệ thống: Vui lòng đổi mật khẩu để bảo vệ tài khoản của bạn!";
+            // Expat (Anh/Hàn) phải ra đúng ngôn ngữ — đây là thông báo ĐẦU TIÊN họ thấy sau khi đăng nhập.
+            TempData["InfoMessage"] = HR_web.Helpers.ExpatText.Dual(user.UiLang,
+                "Bảo mật hệ thống: Vui lòng đổi mật khẩu để bảo vệ tài khoản của bạn!",
+                "Security: please change your password to protect your account.");
             return RedirectToAction("ProfileUser", "Profile");
         }
         if (user.SIGNATUREBLOB == "N")
         {
-            TempData["InfoMessage"] = "Bảo mật hệ thống: Vui lòng cập nhật hình ảnh chữ ký để có thể tiếp tục thao tác!";
+            TempData["InfoMessage"] = HR_web.Helpers.ExpatText.Dual(user.UiLang,
+                "Bảo mật hệ thống: Vui lòng cập nhật hình ảnh chữ ký để có thể tiếp tục thao tác!",
+                "Security: please upload your signature image to continue.");
             return RedirectToAction("ProfileUser", "Profile");
         }
 

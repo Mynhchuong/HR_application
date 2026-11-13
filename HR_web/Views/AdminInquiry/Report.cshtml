@@ -161,6 +161,20 @@
     .db-box { background: #fff; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06); padding: 1rem 1.1rem; }
     .db-box h6 { font-weight: 800; color: #1e293b; margin: 0 0 .15rem; font-size: .95rem; }
     .db-note { font-size: .74rem; color: #94a3b8; margin-bottom: .7rem; line-height: 1.4; }
+    .rp-cond {
+        display: flex; align-items: center; gap: .45rem; flex-wrap: wrap;
+        background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 12px;
+        padding: .6rem .8rem; margin-bottom: .8rem; font-size: .82rem; color: #4c1d95; font-weight: 600;
+    }
+    .rp-cond input[type=number] {
+        width: 62px; border: 1.5px solid #c4b5fd; border-radius: 8px; padding: .25rem .4rem;
+        font-size: .85rem; font-weight: 700; color: #4c1d95; text-align: center;
+    }
+    .rp-cond label { display: inline-flex; align-items: center; gap: .3rem; margin: 0; cursor: pointer; }
+    .rp-cond-reset {
+        margin-left: auto; border: 1px solid #c4b5fd; background: #fff; color: #6d28d9;
+        border-radius: 8px; padding: .25rem .6rem; font-size: .76rem; font-weight: 700;
+    }
     .db-bar-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; font-size: .82rem; }
     .db-bar-name { width: 150px; flex: none; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .db-bar-track { flex: 1; background: #f1f5f9; border-radius: 6px; height: 14px; overflow: hidden; }
@@ -641,9 +655,9 @@ function renderPage(data, d, f, t) {
         ${dashCard(dashHours(r.avgHours), 'TG giải quyết TB', 'Trung vị ' + dashHours(r.medianHours))}
         ${dashCard(dashHours(fr.avgHours), 'TG phản hồi đầu TB', 'Trung vị ' + dashHours(fr.medianHours))}
         ${dashCard(s.avgRating != null ? '&#9733; ' + Number(s.avgRating).toFixed(1) + '<span style="font-size:1rem;color:#94a3b8">/5</span>' : '—', 'Sao trung bình', `${dashPct((s.cntSatisfied ?? 0) + (s.cntUnrated ?? 0), closed)} hài lòng<br>😊 ${dashN((s.cntSatisfied ?? 0) + (s.cntUnrated ?? 0))} · 😐 ${dashN(s.cntNormal)} · 😞 ${dashN(s.cntNotSatisfied)}`, '#d97706')}
-        <div class="db-card" style="cursor:pointer" onclick="openRepeat()" title="Xem chi tiết">
-            <div class="db-val" style="color:#7c3aed">${dashN(d.repeat.employees)}</div><div class="db-lbl">Người lặp lại</div>
-            <div class="db-sub">${dashN(d.repeat.cases)} hội thoại · <b style="color:#7c3aed">Xem chi tiết ›</b></div></div>
+        <div class="db-card" style="cursor:pointer" onclick="openRepeat()" title="Bấm để xem chi tiết và sửa điều kiện tính">
+            <div class="db-val" style="color:#7c3aed" id="rpCardVal">${dashN(d.repeat.employees)}</div><div class="db-lbl">Người lặp lại</div>
+            <div class="db-sub" id="rpCardSub">${dashN(d.repeat.cases)} hội thoại · <b style="color:#7c3aed">Xem chi tiết ›</b></div></div>
     </div>`;
 
     // ─── Ai đóng hội thoại
@@ -794,6 +808,7 @@ function renderPage(data, d, f, t) {
 
     document.getElementById('rptContent').innerHTML = html;
     renderCharts(d, f, t);
+    refreshRepeatCard();
 }
 
 function renderCharts(d, f, t) {
@@ -874,37 +889,83 @@ function renderCharts(d, f, t) {
 }
 
 // ── Chi tiết "người lặp lại" (popup): giới tính, loại báo cáo, danh sách ──
+// Điều kiện tính SỬA ĐƯỢC ngay trong popup (CSR yêu cầu 2026-11-13): số lần tối thiểu + có bắt buộc
+// cùng 1 chủ đề hay không. Lựa chọn nhớ theo trình duyệt của từng người, số trên thẻ cập nhật theo.
 const URL_REPEAT = '@Url.Action("GetRepeatDetail","AdminInquiry")';
 let repeatRows = [];
 const SEX_NAME = { M: 'Nam', F: 'Nữ', '?': 'Không rõ' };
+const RP_DEF_MIN = 2, RP_DEF_SAME = true;
+let rpMin = RP_DEF_MIN, rpSame = RP_DEF_SAME;
+try {
+    const sv = JSON.parse(localStorage.getItem('rpt_repeat_cond') || 'null');
+    if (sv) { rpMin = Math.min(20, Math.max(2, parseInt(sv.min, 10) || RP_DEF_MIN)); rpSame = sv.same !== false; }
+} catch (e) { /* trình duyệt chặn localStorage thì dùng mặc định */ }
+function rpIsDefault() { return rpMin === RP_DEF_MIN && rpSame === RP_DEF_SAME; }
+function rpCondText() { return `từ ${rpMin} lần` + (rpSame ? ' · cùng 1 chủ đề' : ' · mọi chủ đề'); }
 function closeRepeat() { document.getElementById('rpBack').classList.remove('show'); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRepeat(); });
-async function openRepeat() {
+
+function rpFetch() {
     const f = document.getElementById('fldFrom').value, t = document.getElementById('fldTo').value;
-    const body = document.getElementById('rpBody');
+    return fetch(`${URL_REPEAT}?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}&min=${rpMin}&sameTopic=${rpSame}`).then(r => r.json());
+}
+function rpUpdateCard(sm) {
+    const v = document.getElementById('rpCardVal'), sub = document.getElementById('rpCardSub');
+    if (!v || !sub) return;
+    v.textContent = dashN(sm.people);
+    sub.innerHTML = `${dashN(sm.cases)} hội thoại${rpIsDefault() ? '' : ` · <span style="color:#7c3aed">${esc(rpCondText())}</span>`} · <b style="color:#7c3aed">Xem chi tiết ›</b>`;
+}
+// Mở trang mà CSR đã từng đổi điều kiện -> thẻ đang hiện số theo mặc định, tải lại cho khớp
+async function refreshRepeatCard() {
+    if (rpIsDefault()) return;
+    try { const d = await rpFetch(); if (d.success) rpUpdateCard(d.summary); } catch (e) { }
+}
+function applyRepeatCond() {
+    const n = parseInt(document.getElementById('rpMin').value, 10);
+    rpMin  = Math.min(20, Math.max(2, isNaN(n) ? RP_DEF_MIN : n));
+    rpSame = document.getElementById('rpSame').checked;
+    try { localStorage.setItem('rpt_repeat_cond', JSON.stringify({ min: rpMin, same: rpSame })); } catch (e) { }
+    loadRepeat();
+}
+function resetRepeatCond() { rpMin = RP_DEF_MIN; rpSame = RP_DEF_SAME; try { localStorage.removeItem('rpt_repeat_cond'); } catch (e) { } loadRepeat(); }
+
+async function openRepeat() {
     document.getElementById('rpBack').classList.add('show');
+    loadRepeat();
+}
+async function loadRepeat() {
+    const body = document.getElementById('rpBody');
     body.innerHTML = '<div class="db-empty">Đang tải...</div>';
     try {
-        const d = await (await fetch(`${URL_REPEAT}?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}`)).json();
+        const d = await rpFetch();
         if (!d.success) { body.innerHTML = `<div class="rpt-err">${esc(d.message || 'Không tải được')}</div>`; return; }
         repeatRows = d.rows || [];
         const sm = d.summary, ppl = sm.people || 0;
+        rpUpdateCard(sm);
         const typeRows = dashBars([['Kiến nghị', sm.grievance], ['Ý kiến', sm.opinion], ['Chưa phân loại (đơn cũ)', sm.unclassified]], x => x[0], x => x[1], null,
             x => `${dashN(x[1])} · ${dashPct(x[1], sm.cases)}`);
         body.innerHTML = `
+            <div class="rp-cond">
+                <span>Tính là lặp lại khi nhân viên gửi từ</span>
+                <input type="number" id="rpMin" min="2" max="20" value="${rpMin}" onchange="applyRepeatCond()">
+                <span>hội thoại trở lên</span>
+                <label><input type="checkbox" id="rpSame" ${rpSame ? 'checked' : ''} onchange="applyRepeatCond()"> và phải cùng 1 chủ đề</label>
+                ${rpIsDefault() ? '' : '<button type="button" class="rp-cond-reset" onclick="resetRepeatCond()">Về mặc định</button>'}
+            </div>
             <div class="rp-sum">
-                <div class="db-box"><h6>Tổng</h6><div class="db-val">${dashN(ppl)}</div><div class="db-lbl">người</div><div class="db-sub">${dashN(sm.cases)} hội thoại · cùng chủ đề từ 2 lần</div></div>
+                <div class="db-box"><h6>Tổng</h6><div class="db-val">${dashN(ppl)}</div><div class="db-lbl">người</div><div class="db-sub">${dashN(sm.cases)} hội thoại · ${esc(rpCondText())}</div></div>
                 <div class="db-box"><h6>Loại báo cáo</h6>${typeRows}</div>
             </div>
             <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.6rem;flex-wrap:wrap">
                 <input type="text" id="rpSearch" placeholder="Tìm mã NV, tên, chủ đề..." oninput="renderRepeatRows()" style="border:1.5px solid #e2e8f0;border-radius:10px;padding:.4rem .7rem;font-size:.85rem;min-width:240px">
                 <span style="font-size:.74rem;color:#94a3b8">${repeatRows.length < ppl ? `Hiển thị ${repeatRows.length} dòng nhiều nhất` : `${repeatRows.length} dòng`}</span>
             </div>
-            <div class="rpt-table-wrap" style="max-height:48vh;overflow:auto"><table class="rpt-table compact">
+            <div class="rpt-table-wrap" style="max-height:44vh;overflow:auto"><table class="rpt-table compact">
                 <thead><tr><th>Nhân viên</th><th>Giới tính</th><th>Phòng ban</th><th>Chủ đề</th><th class="num">Số hội thoại</th><th class="num">Kiến nghị / Ý kiến</th><th>Gần nhất</th></tr></thead>
-                <tbody id="rpRows"></tbody></table></div>`;
+                <tbody id="rpRows"></tbody></table></div>
+            ${rpIsDefault() ? '' : '<div class="db-note" style="margin-top:.5rem">Cột <b>Lặp lại</b> ở bảng “Chi tiết theo chủ đề” vẫn tính theo mặc định (từ 2 lần, cùng chủ đề), không đổi theo điều kiện ở đây.</div>'}`;
         renderRepeatRows();
-    } catch (e) { body.innerHTML = `<div class="rpt-err">Lỗi: ${esc(e.message)}</div>`; }
+    } catch (e) { document.getElementById('rpBody').innerHTML = `<div class="rpt-err">Lỗi: ${esc(e.message)}</div>`; }
 }
 function renderRepeatRows() {
     const q = (document.getElementById('rpSearch')?.value || '').trim().toLowerCase();

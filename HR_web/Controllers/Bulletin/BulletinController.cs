@@ -52,20 +52,20 @@ public class BulletinController : BaseController
 
         if (item == null)
         {
-            TempData["ErrorMessage"] = "Không tìm thấy bản tin";
+            TempData["ErrorMessage"] = HR_web.Helpers.ExpatText.Dual(CurrentUser?.UiLang, "Không tìm thấy bản tin", "Bulletin not found.");
             return RedirectToAction("Index");
         }
 
         // Fix G10: worker không được xem DRAFT — HR vẫn cho qua (Preview riêng).
         if (item.IS_PUBLISHED == 0 && !IsHrAdmin())
         {
-            TempData["ErrorMessage"] = "Bản tin chưa được đăng";
+            TempData["ErrorMessage"] = HR_web.Helpers.ExpatText.Dual(CurrentUser?.UiLang, "Bản tin chưa được đăng", "This bulletin has not been published yet.");
             return RedirectToAction("Index");
         }
 
         if (item.IS_ACTIVE == 0)
         {
-            TempData["ErrorMessage"] = "Bản tin đã bị ẩn";
+            TempData["ErrorMessage"] = HR_web.Helpers.ExpatText.Dual(CurrentUser?.UiLang, "Bản tin đã bị ẩn", "This bulletin has been hidden.");
             return RedirectToAction("Index");
         }
 

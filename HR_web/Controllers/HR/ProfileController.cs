@@ -76,39 +76,33 @@ public class ProfileController : BaseController
     [HttpPost]
     public async Task<IActionResult> ChangePassword(string oldPassword, string newPassword, string confirmPassword)
     {
-        bool isExpat = CurrentUser?.RoleName == "Expat";
+        // UiLang là nguồn duy nhất quyết định ngôn ngữ (vi / en / ko) — trước đây chỉ phân biệt Expat hay không
+        // nên Expat người Hàn vẫn nhận thông báo tiếng Anh.
+        string uiLang = CurrentUser?.UiLang ?? "vi";
 
         if (string.IsNullOrWhiteSpace(oldPassword) ||
             string.IsNullOrWhiteSpace(newPassword) ||
             newPassword != confirmPassword)
         {
-            TempData["ErrorMessage"] = isExpat
-                ? "Invalid input or passwords do not match!"
-                : "Dữ liệu không hợp lệ hoặc mật khẩu mới không khớp!";
+            TempData["ErrorMessage"] = HR_web.Helpers.ExpatText.Dual(uiLang, "Dữ liệu không hợp lệ hoặc mật khẩu mới không khớp!", "Invalid input or passwords do not match!");
             return RedirectToAction("ProfileUser");
         }
 
         if (newPassword == "123456")
         {
-            TempData["ErrorMessage"] = isExpat
-                ? "Cannot use the default password 123456!"
-                : "Không được dùng mật khẩu mặc định 123456!";
+            TempData["ErrorMessage"] = HR_web.Helpers.ExpatText.Dual(uiLang, "Không được dùng mật khẩu mặc định 123456!", "Cannot use the default password 123456!");
             return RedirectToAction("ProfileUser");
         }
 
         if (newPassword == oldPassword)
         {
-            TempData["ErrorMessage"] = isExpat
-                ? "New password must be different from current password!"
-                : "Mật khẩu mới phải khác mật khẩu cũ!";
+            TempData["ErrorMessage"] = HR_web.Helpers.ExpatText.Dual(uiLang, "Mật khẩu mới phải khác mật khẩu cũ!", "New password must be different from current password!");
             return RedirectToAction("ProfileUser");
         }
 
         if (CurrentUser == null)
         {
-            TempData["ErrorMessage"] = isExpat
-                ? "Session expired, please log in again!"
-                : "Phiên đăng nhập hết hạn, vui lòng đăng nhập lại!";
+            TempData["ErrorMessage"] = HR_web.Helpers.ExpatText.Dual(uiLang, "Phiên đăng nhập hết hạn, vui lòng đăng nhập lại!", "Session expired, please log in again!");
             return RedirectToAction("ProfileUser");
         }
 
@@ -118,9 +112,7 @@ public class ProfileController : BaseController
 
             if (result)
             {
-                TempData["SuccessMessage"] = isExpat
-                    ? "Password changed successfully!"
-                    : "Đổi mật khẩu thành công!";
+                TempData["SuccessMessage"] = HR_web.Helpers.ExpatText.Dual(uiLang, "Đổi mật khẩu thành công!", "Password changed successfully!");
 
                 var updatedUser = CurrentUser;
                 updatedUser.RequirePasswordChange = false;
@@ -128,16 +120,13 @@ public class ProfileController : BaseController
             }
             else
             {
-                TempData["ErrorMessage"] = isExpat
-                    ? "Password change failed. Please check your current password."
-                    : "Đổi mật khẩu thất bại!";
+                TempData["ErrorMessage"] = HR_web.Helpers.ExpatText.Dual(uiLang, "Đổi mật khẩu thất bại!", "Password change failed. Please check your current password.");
             }
         }
         catch (Exception ex)
         {
-            TempData["ErrorMessage"] = isExpat
-                ? $"An error occurred: {ex.Message}"
-                : $"Có lỗi xảy ra: {ex.Message}";
+            TempData["ErrorMessage"] = HR_web.Helpers.ExpatText.Dual(uiLang,
+                $"Có lỗi xảy ra: {ex.Message}", $"An error occurred: {ex.Message}");
         }
 
         return RedirectToAction("ProfileUser");

@@ -2888,28 +2888,38 @@ public class InquiryController : ControllerBase
     }
 
 
-    // GET /apiHR/Inquiry/dashboard/repeat?from&to — chi tiết "người lặp lại": cùng nhân viên, cùng chủ đề, từ 2 hội thoại trong kỳ.
+    // GET /apiHR/Inquiry/dashboard/repeat?from&to&min&same_topic — chi tiết "người lặp lại".
     // CHỈ hội thoại công khai (ẩn danh không nối với người). Tóm tắt theo giới tính (so với toàn bộ nhân viên) + loại báo cáo, kèm danh sách.
+    // Điều kiện tính SỬA ĐƯỢC từ trang báo cáo (CSR yêu cầu 2026-11-13):
+    //   min        = số hội thoại tối thiểu mới tính là lặp lại (mặc định 2, chặn trong khoảng 2–20)
+    //   same_topic = true  -> phải cùng 1 chủ đề (mặc định, gom theo EMPCD + TOPIC_CD)
+    //                false -> mọi chủ đề, chỉ gom theo EMPCD; cột chủ đề khi đó ghi "(mọi chủ đề)"
     [HttpGet("dashboard/repeat")]
-    public async Task<IActionResult> DashboardRepeat(string? from = null, string? to = null)
+    public async Task<IActionResult> DashboardRepeat(string? from = null, string? to = null, int min = 2, bool same_topic = true)
     {
         try
         {
+            if (min < 2)  min = 2;
+            if (min > 20) min = 20;
             DateTime endDay   = DateTime.TryParse(to,   out var e) ? e.Date : DateTime.Today;
             DateTime startDay = DateTime.TryParse(from, out var s) ? s.Date : endDay.AddDays(-29);
             if (startDay > endDay) (startDay, endDay) = (endDay, startDay);
             if ((endDay - startDay).TotalDays > 400) startDay = endDay.AddDays(-400);
-            OracleParameter[] P() => new[] { new OracleParameter("START_DT", startDay), new OracleParameter("END_DT", endDay.AddDays(1)) };
+            // MIN_C phải có trong MỌI query dùng :MIN_C — cả 3 query dưới đều lồng pairs nên thêm chung vào P() là đủ.
+            OracleParameter[] P() => new[] { new OracleParameter("START_DT", startDay), new OracleParameter("END_DT", endDay.AddDays(1)), new OracleParameter("MIN_C", min) };
             static int I(object v) => v == DBNull.Value ? 0 : Convert.ToInt32(v);
 
-            const string pairs = @"
-                SELECT EMPCD, TOPIC_CD, COUNT(*) AS C, MAX(INST_DT) AS LAST_DT, MAX(EMP_NAME) AS EMP_NAME,
+            // Không cùng chủ đề: gom theo mỗi nhân viên, cột chủ đề để nhãn cố định cho UI hiển thị.
+            string topicSel = same_topic ? "TOPIC_CD" : "'(mọi chủ đề)' AS TOPIC_CD";
+            string topicGrp = same_topic ? ", TOPIC_CD" : "";
+            string pairs = $@"
+                SELECT EMPCD, {topicSel}, COUNT(*) AS C, MAX(INST_DT) AS LAST_DT, MAX(EMP_NAME) AS EMP_NAME,
                        SUM(CASE WHEN REPORT_TYPE = 'GRIEVANCE' THEN 1 ELSE 0 END) AS NG,
                        SUM(CASE WHEN REPORT_TYPE = 'OPINION'   THEN 1 ELSE 0 END) AS NO_,
                        SUM(CASE WHEN REPORT_TYPE IS NULL       THEN 1 ELSE 0 END) AS NN
                 FROM HRMS.HR_INQUIRY
                 WHERE CHAT_TYPE = 'DIRECT' AND EMPCD IS NOT NULL AND INST_DT >= :START_DT AND INST_DT < :END_DT
-                GROUP BY EMPCD, TOPIC_CD HAVING COUNT(*) >= 2";
+                GROUP BY EMPCD{topicGrp} HAVING COUNT(*) >= :MIN_C";
 
             var types = (await _db.ExecuteQueryAsync($@"
                 SELECT COUNT(DISTINCT EMPCD) AS PEOPLE, NVL(SUM(C), 0) AS CASES, NVL(SUM(NG), 0) AS NG, NVL(SUM(NO_), 0) AS NOP, NVL(SUM(NN), 0) AS NN FROM ({pairs})",
@@ -2942,7 +2952,8 @@ public class InquiryController : ControllerBase
                     grievance = I(r["NG"]), opinion = I(r["NO_"]), unclassified = I(r["NN"])
                 }, P());
 
-            return Ok(new { success = true, from = startDay.ToString("yyyy-MM-dd"), to = endDay.ToString("yyyy-MM-dd"), summary = types, bySex, baseline, rows });
+            return Ok(new { success = true, from = startDay.ToString("yyyy-MM-dd"), to = endDay.ToString("yyyy-MM-dd"),
+                            min, sameTopic = same_topic, summary = types, bySex, baseline, rows });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }

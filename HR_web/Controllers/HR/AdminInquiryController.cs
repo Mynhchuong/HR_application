@@ -1809,10 +1809,10 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     public IActionResult Dashboard() => RedirectToAction("Report");
 
     [HttpGet]
-    public async Task<IActionResult> GetRepeatDetail(string? from = null, string? to = null)
+    public async Task<IActionResult> GetRepeatDetail(string? from = null, string? to = null, int min = 2, bool sameTopic = true)
     {
         if (!CanViewReport) return Json(new { success = false, message = "Không có quyền" });
-        return Content(await _inquiry.GetRepeatDetailRawAsync(from, to), "application/json");
+        return Content(await _inquiry.GetRepeatDetailRawAsync(from, to, min, sameTopic), "application/json");
     }
 
     [HttpGet]

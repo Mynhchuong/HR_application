@@ -299,6 +299,8 @@ public class InquiryReportRawRowDto
     public int       HrMsgCount     { get; set; }   // số tin trả lời của HR/GA/CSR (0 = chưa ai phản hồi)
     public DateTime? DeadlineDt     { get; set; }
     public string?   PicName        { get; set; }
+    public string?   ReportType     { get; set; }          // GRIEVANCE | OPINION | null (đơn cũ chưa phân loại)
+    public string?   SeverityName   { get; set; }          // tên mức độ tiếng Việt (HR_INQUIRY_SEVERITY.NAME_VI)
     public int       DraftPending   { get; set; }   // bản nháp đang chờ CSR duyệt
     public string?   Sex            { get; set; }   // M | F (ECM100.SEXGB); null nếu ẩn danh
 }

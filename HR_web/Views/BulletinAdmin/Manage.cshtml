@@ -1,6 +1,10 @@
 @model List<HR_web.Models.Bulletin.BulletinModel>
 @{
     ViewData["Title"] = "Quản lý bản tin";
+    // CSR thấy toàn bộ bản tin nhưng chỉ SỬA được bài do role mình tạo (xem BulletinAdminController.Manage).
+    // Bài của role khác: chỉ còn nút "Xem trước", kèm nhãn role tạo để biết vì sao không sửa được.
+    var me = HR_web.Helpers.AuthHelper.GetCurrentUser(User);
+    bool meAllRoles = me.HasAnyRole("HR", "Admin");
 }
 
 @section Styles {
@@ -9,6 +13,10 @@
     .blt-row-expired   { background: #fef2f2; }
     .blt-row-inactive  { opacity: .55; }
     .blt-pin           { color: #f59e0b; font-size: 18px; }
+    .blt-role-tag {
+        display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 999px;
+        background: #eef2ff; color: #4f46e5; font-size: .68rem; font-weight: 700;
+    }
     .blt-badge-st {
         font-size: .72rem; padding: 2px 8px; border-radius: 999px;
         font-weight: 600; display: inline-block;
@@ -156,6 +164,10 @@
                                         <div class="fw-bold text-dark text-sm blt-title-cell" title="@item.TITLE">@item.TITLE</div>
                                         <div class="text-xs text-secondary">
                                             Tạo @(item.INST_DT?.ToString("dd/MM/yyyy HH:mm")) bởi @item.INST_ID
+                                            @if (!string.IsNullOrEmpty(item.CREATED_ROLE))
+                                            {
+                                                <span class="blt-role-tag">@item.CREATED_ROLE</span>
+                                            }
                                         </div>
                                     </td>
                                     <td class="px-2 d-none d-md-table-cell text-xs">
@@ -172,7 +184,22 @@
                                         <span class="text-sm fw-bold">@item.COMMENT_COUNT</span>
                                     </td>
                                     <td class="px-2 text-center">
-                                        @if (!isInactive)
+                                        @{
+                                            bool canManage = meAllRoles
+                                                || string.IsNullOrEmpty(item.CREATED_ROLE)
+                                                || me.HasRole(item.CREATED_ROLE);
+                                        }
+                                        @if (!isInactive && !canManage)
+                                        {
+                                            <div class="blt-actions">
+                                                <a href="@Url.Action("Preview", "BulletinAdmin", new { id = item.ID })"
+                                                   class="btn btn-primary" title="Xem trước">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                            </div>
+                                            <div class="text-xs text-secondary mt-1">Bài của @item.CREATED_ROLE</div>
+                                        }
+                                        else if (!isInactive)
                                         {
                                             <div class="blt-actions">
                                                 <a href="@Url.Action("Edit", "BulletinAdmin", new { id = item.ID })"

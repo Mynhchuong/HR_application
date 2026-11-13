@@ -297,6 +297,8 @@ public class InquiryReportRawRow
     public int       hrMsgCount     { get; set; }
     public DateTime? deadlineDt     { get; set; }
     public string?   picName        { get; set; }
+    public string?   reportType     { get; set; }
+    public string?   severityName   { get; set; }
     public int       draftPending   { get; set; }
     public string?   sex            { get; set; }
 }

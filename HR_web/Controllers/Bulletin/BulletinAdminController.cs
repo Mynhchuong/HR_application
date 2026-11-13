@@ -25,9 +25,14 @@ public class BulletinAdminController : BaseController
     // ─────────────────────────────────────────────
     public async Task<IActionResult> Manage()
     {
-        var list = await _service.GetAdminListAsync(CurrentUser?.EmpCd);
+        var list = await _service.GetAdminListAsync(CanViewAll ? null : CurrentUser?.EmpCd);
         return View(list);
     }
+
+    // XEM: HR/Admin/CSR thấy & xem trước được MỌI bản tin (CSR yêu cầu 2026-11-13 "muốn thấy hết");
+    // Lean vẫn chỉ thấy bài role mình. Đây chỉ là quyền NHÌN — sửa/xóa/đăng vẫn theo CanManageAsync bên dưới,
+    // nên CSR mở bài của Lean ra đọc được nhưng không đụng vào được (trang Manage cũng ẩn luôn nút sửa).
+    private bool CanViewAll => CurrentUser.HasAnyRole("HR", "Admin", "CSR");
 
     // ROLE TẠO: HR/Admin quản lý được mọi bản tin; Lean/CSR chỉ bản tin do role mình tạo (CREATED_ROLE do API suy ra
     // từ role của người tạo). Bản tin không tồn tại -> cho qua để tầng dưới tự báo "không tìm thấy".
@@ -207,7 +212,7 @@ public class BulletinAdminController : BaseController
             TempData["ErrorMessage"] = "Không tìm thấy bản tin";
             return RedirectToAction("Manage");
         }
-        if (!CurrentUser.HasAnyRole("HR", "Admin") && !string.IsNullOrEmpty(item.CREATED_ROLE) && !CurrentUser.HasRole(item.CREATED_ROLE))
+        if (!CanViewAll && !string.IsNullOrEmpty(item.CREATED_ROLE) && !CurrentUser.HasRole(item.CREATED_ROLE))
         {
             TempData["ErrorMessage"] = NoScopeMsg;
             return RedirectToAction("Manage");

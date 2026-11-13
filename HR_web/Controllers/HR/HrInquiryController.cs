@@ -46,6 +46,10 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
     // Chỉ CSR được phân loại case (yêu cầu 2026-11-06: "chỉ có csr mới dc phân loại thôi") — HR/GA/... chỉ xử lý.
     private bool CanClassify => IsCsr;
 
+    // Gửi thẳng cho công nhân không qua bản nháp: CSR và HR (yêu cầu 2026-11-12: "hr nhắn tin trả lời ko cần csr duyệt").
+    // GA vẫn soạn bản nháp chờ CSR duyệt.
+    private bool CanSendDirect => IsCsr || CurrentUser.HasRole("HR");
+
     // Vai trò xử lý hộp thư ("HR" | "CSR") — role chính HOẶC role dept. KHÔNG dùng RoleName thô: sau khi
     // đổi role chính của HR về Worker, RoleName = "Worker" sẽ làm sai câu trả lời mẫu và vi phạm
     // constraint CHK_INQUIRY_CLOSED_TYPE (chỉ nhận HR/CSR/ADMIN/EMP). GA được ghi nhận là "HR" (phòng xử lý);
@@ -209,6 +213,7 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
         ViewBag.IsAiSource   = isAi;
         ViewBag.CanClassify  = CanClassify;
         ViewBag.IsCsr        = IsCsr;
+        ViewBag.CanSendDirect = CanSendDirect;
 
         if (isAi)
         {
@@ -409,15 +414,15 @@ public class HrInquiryController : HR_web.Controllers.Inquiry.InquiryBaseControl
             finalFiles = MoveFilesToFinal(req.Files!, no, DateTime.Now.Year.ToString());
         }
 
-        // HR/GA (không phải CSR): KHÔNG gửi thẳng cho công nhân — lưu thành BẢN NHÁP chờ CSR duyệt/sửa (2026-11-06).
-        if (!IsCsr)
+        // GA (không phải CSR/HR): KHÔNG gửi thẳng cho công nhân — lưu thành BẢN NHÁP chờ CSR duyệt/sửa (2026-11-06).
+        if (!CanSendDirect)
         {
             var created = await _inquiry.DraftPostRawAsync("Inquiry/draft/create", new
             {
                 inquiryId  = req.InquiryId,
                 authorCd   = CurrentUser!.EmpCd,
                 authorName = CurrentUser.FullName,
-                authorRole = CurrentUser.HasRole("HR") ? "HR" : "GA",
+                authorRole = "GA",
                 content    = hasContent ? req.Content : null,
                 filesJson  = finalFiles.Count > 0 ? JsonConvert.SerializeObject(finalFiles) : null,
                 refsJson   = hasRefs ? JsonConvert.SerializeObject(req.Refs) : null

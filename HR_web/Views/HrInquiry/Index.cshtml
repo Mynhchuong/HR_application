@@ -6,6 +6,37 @@
 
 @section Styles {
 <style>
+    /* Thanh công cụ danh sách */
+    .lf-top{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;justify-content:space-between;padding:1rem 1.5rem .6rem}
+    .lf-tabs{display:inline-flex;gap:2px;padding:3px;background:#f1f5f9;border-radius:10px}
+    .vpill{display:inline-flex;align-items:center;gap:.3rem;border:0;background:transparent;color:#64748b;border-radius:8px;padding:.35rem .8rem;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+    .vpill .material-symbols-rounded{font-size:1rem}
+    .vpill:hover{color:#1e293b}
+    .vpill.active{background:#fff;color:#0284c7;box-shadow:0 1px 3px rgba(15,23,42,.12)}
+    .vpill-draft{color:#b45309}
+    .vpill-draft.active{color:#b45309}
+    .vcount{display:inline-block;min-width:1.2rem;padding:0 .35rem;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.7rem;font-weight:700;text-align:center;line-height:1.2rem}
+    .vpill-draft .vcount.has{background:#f59e0b;color:#fff}
+    .vpill .vcount.has{background:#0ea5e9;color:#fff}
+    .vpill-draft .vcount.has{background:#f59e0b}
+    .lf-right{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+    .lf-search{display:flex;align-items:center;gap:.4rem;height:34px;padding:0 .7rem;border:1px solid #e2e8f0;border-radius:8px;background:#fff;min-width:260px}
+    .lf-search:focus-within{border-color:#38bdf8;box-shadow:0 0 0 3px rgba(56,189,248,.15)}
+    .lf-search .material-symbols-rounded{font-size:1.05rem;color:#94a3b8}
+    .lf-search input{border:0;outline:0;background:transparent;font-size:.82rem;width:100%;padding:0}
+    .lf-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#64748b;cursor:pointer}
+    .lf-icon-btn:hover{color:#0284c7;border-color:#bae6fd}
+    .lf-icon-btn .material-symbols-rounded{font-size:1.1rem}
+    .lf-auto{display:inline-flex;align-items:center;gap:.35rem;margin:0;font-size:.78rem;color:#64748b;cursor:pointer;white-space:nowrap}
+    .lf-auto .form-check-input{margin:0;float:none}
+    .lf-auto-status{font-size:.72rem;color:#94a3b8}
+    .lf-filters{display:flex;flex-wrap:wrap;gap:.5rem;padding:.2rem 1.5rem 1rem;border-bottom:1px solid #f1f5f9}
+    .lf-select{height:34px;padding:0 1.9rem 0 .7rem;border:1px solid #e2e8f0;border-radius:8px;background-color:#fff;color:#334155;font-size:.8rem;font-weight:500;appearance:none;-webkit-appearance:none;
+        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat:no-repeat;background-position:right .55rem center;background-size:14px;cursor:pointer}
+    .lf-select:focus{outline:0;border-color:#38bdf8;box-shadow:0 0 0 3px rgba(56,189,248,.15)}
+    .lf-select:disabled{opacity:.5;cursor:not-allowed}
+    .lf-topic{max-width:220px}
     .skeleton { background: linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size:200% 100%; animation:shimmer 1.2s infinite; border-radius:4px; height:14px; }
     @@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
     #inqTableBody tr { cursor: pointer; }
@@ -86,14 +117,43 @@
             </div>
         </div>
 
-        <!-- Filter bar -->
-        <div class="px-4 pt-3 pb-2 d-flex flex-wrap gap-2 align-items-center">
-            <select class="form-select form-select-sm" id="fStatus" style="width:auto" onchange="loadData(1)">
-                <option value="">Tất cả trạng thái</option>
+        <!-- Thanh công cụ: tab nhanh (trái) · tìm kiếm + làm mới (phải) -->
+        <div class="lf-top">
+            <div class="lf-tabs" id="viewPills">
+                <button type="button" class="vpill" data-view="all" onclick="setView('all')">Tất cả</button>
+                <button type="button" class="vpill" data-view="unassigned" onclick="setView('unassigned')">Chưa phụ trách<span class="vcount" id="unassignedCount">0</span></button>
+                <button type="button" class="vpill" data-view="mine" onclick="setView('mine')">Của tôi</button>
+                <button type="button" class="vpill vpill-draft" data-view="draft" onclick="setView('draft')"
+                        title="@(ViewBag.IsCsr is true ? "Câu trả lời do GA soạn đang chờ bạn duyệt/sửa rồi gửi" : "Câu trả lời bạn soạn đang chờ CSR duyệt")">
+                    <span class="material-symbols-rounded">edit_note</span>@(ViewBag.IsCsr is true ? "Chờ duyệt trả lời" : "Chờ CSR duyệt")<span class="vcount" id="draftCount">0</span>
+                </button>
+            </div>
+            <div class="lf-right">
+                <div class="lf-search">
+                    <span class="material-symbols-rounded">search</span>
+                    <input type="text" id="fSearch" placeholder="Mã NV, tên, INQ-NO, chủ đề…" oninput="debounceLoad()">
+                </div>
+                <button type="button" class="lf-icon-btn" id="btnRefresh" onclick="loadData(currentPage)" title="Làm mới">
+                    <span class="material-symbols-rounded">refresh</span>
+                </button>
+                <label class="lf-auto" title="Tự động làm mới mỗi 30 giây">
+                    <input class="form-check-input" type="checkbox" id="cbAutoReload" checked onchange="toggleAutoReload(this.checked)">
+                    <span>Tự động</span>
+                </label>
+                <span id="autoStatus" class="lf-auto-status"></span>
+            </div>
+        </div>
+
+        <!-- Bộ lọc -->
+        <div class="lf-filters">
+            <input type="hidden" id="fAssigned" value="">
+            <input type="hidden" id="fDraft" value="">
+            <select class="lf-select" id="fStatus" onchange="loadData(1)" title="Trạng thái">
+                <option value="">Mọi trạng thái</option>
                 <option value="OPEN">Đang mở</option>
                 <option value="CLOSED">Đã đóng</option>
             </select>
-            <select class="form-select form-select-sm" id="fChatType" style="width:auto" onchange="onChatTypeChange()">
+            <select class="lf-select" id="fChatType" onchange="onChatTypeChange()" title="Loại hội thoại">
                 <option value="">Trực tiếp &amp; Ẩn danh</option>
                 <option value="DIRECT">Trực tiếp</option>
                 <option value="ANON">Ẩn danh</option>
@@ -102,41 +162,13 @@
                     <option value="AI">🤖 AI SAMHO - CSR</option>
                 }
             </select>
-            <select class="form-select form-select-sm" id="fTopic" style="width:auto;min-width:130px" onchange="loadData(1)">
+            <select class="lf-select lf-topic" id="fTopic" onchange="loadData(1)" title="Chủ đề">
                 <option value="">Tất cả chủ đề</option>
             </select>
-            <select class="form-select form-select-sm" id="fAssigned" style="width:auto" onchange="loadData(1)">
-                <option value="">Tất cả phụ trách</option>
-                <option value="@(me?.EmpCd ?? "")">Của tôi</option>
-                <option value="UNASSIGNED">Chưa phụ trách</option>
-            </select>
-            <select class="form-select form-select-sm" id="fDraft" style="width:auto" onchange="loadData(1)" title="Bản nháp trả lời của HR/GA chờ CSR duyệt">
-                <option value="">Mọi bản nháp</option>
-                <option value="1">✍ Có bản nháp chờ duyệt</option>
-            </select>
-            <select class="form-select form-select-sm" id="fSort" style="width:auto" onchange="loadData(1)">
+            <select class="lf-select" id="fSort" onchange="loadData(1)" title="Sắp xếp">
                 <option value="newest">Mới nhất trước</option>
                 <option value="oldest">Cũ nhất trước</option>
             </select>
-            <div class="input-group input-group-sm" style="min-width:200px;flex:1">
-                <span class="input-group-text"><span class="material-symbols-rounded" style="font-size:.9rem">search</span></span>
-                <input type="text" class="form-control" id="fSearch" placeholder="Mã NV, tên, INQ-NO, chủ đề..."
-                       oninput="debounceLoad()">
-            </div>
-            <select class="form-select form-select-sm" id="fPageSize" style="width:auto" onchange="changePageSize(this.value)">
-                <option value="10">10 / trang</option>
-                <option value="30" selected>30 / trang</option>
-                <option value="50">50 / trang</option>
-                <option value="100">100 / trang</option>
-            </select>
-            <button type="button" class="btn btn-sm btn-outline-info mb-0" id="btnRefresh" onclick="loadData(currentPage)" title="Làm mới">
-                <span class="material-symbols-rounded" style="font-size:1rem;vertical-align:middle">refresh</span>
-            </button>
-            <div class="form-check form-switch mb-0 ms-1" title="Tự động làm mới mỗi 30 giây">
-                <input class="form-check-input" type="checkbox" id="cbAutoReload" checked onchange="toggleAutoReload(this.checked)">
-                <label class="form-check-label text-sm" for="cbAutoReload">Tự động</label>
-            </div>
-            <span id="autoStatus" class="text-xs text-secondary ms-1"></span>
         </div>
 
         <div class="card-body px-0 pt-0 pb-2">
@@ -159,7 +191,15 @@
                 </table>
             </div>
             <div class="d-flex justify-content-between align-items-center px-4 mt-3 mb-2">
-                <div id="pageCount" class="text-sm text-secondary"></div>
+                <div class="d-flex align-items-center gap-2">
+                    <div id="pageCount" class="text-sm text-secondary"></div>
+                    <select class="lf-select" id="fPageSize" onchange="changePageSize(this.value)" title="Số dòng mỗi trang">
+                        <option value="10">10 / trang</option>
+                        <option value="30" selected>30 / trang</option>
+                        <option value="50">50 / trang</option>
+                        <option value="100">100 / trang</option>
+                    </select>
+                </div>
                 <nav><ul class="pagination pagination-sm mb-0" id="paginationBar"></ul></nav>
             </div>
         </div>
@@ -182,6 +222,7 @@ const GET_AI_CONFIG_URL = '@Url.Action("GetAiConfig","HrInquiry")';
 const SET_AI_CONFIG_URL = '@Url.Action("SetAiConfig","HrInquiry")';
 const TOKEN     = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 const MY_EMPCD  = '@(me?.EmpCd ?? "")';
+const IS_CSR    = @(ViewBag.IsCsr is true ? "true" : "false");
 let pageSize    = 30;
 let currentPage = 1, totalPages = 1, totalRecords = 0, isLoading = false;
 
@@ -230,6 +271,34 @@ let prevUnread      = null;
 let titleFlashTimer = null;
 const ORIG_TITLE    = document.title;
 
+// Tab nhanh → đặt fAssigned / fDraft rồi tải lại
+let autoOpenStatus = false;   // "Chưa phụ trách" chỉ có nghĩa với hội thoại còn mở → tự chọn Đang mở, rời tab thì trả lại
+function setView(v) {
+    const st = document.getElementById('fStatus');
+    if (v === 'unassigned') { if (!st.value) { st.value = 'OPEN'; autoOpenStatus = true; } }
+    else if (autoOpenStatus) { if (st.value === 'OPEN') st.value = ''; autoOpenStatus = false; }
+    document.getElementById('fAssigned').value = v === 'unassigned' ? 'UNASSIGNED' : (v === 'mine' ? MY_EMPCD : '');
+    document.getElementById('fDraft').value    = v === 'draft' ? '1' : '';
+    syncPills();
+    loadData(1);
+}
+function syncPills() {
+    const a = document.getElementById('fAssigned').value, d = document.getElementById('fDraft').value;
+    const cur = d === '1' ? 'draft' : (a === 'UNASSIGNED' ? 'unassigned' : (a && a === MY_EMPCD ? 'mine' : (a ? '' : 'all')));
+    document.querySelectorAll('#viewPills .vpill').forEach(b => b.classList.toggle('active', b.dataset.view === cur));
+}
+// Số trên các tab (đếm riêng, không phụ thuộc bộ lọc đang chọn): chưa phụ trách (đang mở) + có bản nháp chờ duyệt
+async function loadTabCounts() {
+    const set = (id, n) => { const el = document.getElementById(id); el.textContent = n.toLocaleString(); el.classList.toggle('has', n > 0); };
+    const count = async q => {
+        try { const d = await (await fetch(`${LIST_URL}?page=1&pageSize=1&${q}`)).json(); return d.success ? (d.total ?? 0) : null; }
+        catch { return null; }
+    };
+    const [un, dr] = await Promise.all([count('assignedTo=UNASSIGNED&status=OPEN'), count('draftPending=1')]);
+    if (un !== null) set('unassignedCount', un);
+    if (dr !== null) set('draftCount', dr);
+}
+
 function changePageSize(v) { pageSize = parseInt(v,10) || 30; loadData(1); }
 
 function esc(s) { return (s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -268,6 +337,7 @@ function onChatTypeChange() {
     const isAi = document.getElementById('fChatType').value === 'AI';
     document.getElementById('fTopic').disabled    = isAi;
     document.getElementById('fAssigned').disabled = isAi;
+    document.getElementById('viewPills').style.display = isAi ? 'none' : '';
     document.getElementById('fSort').disabled     = isAi;
     loadData(1);
 }
@@ -329,8 +399,11 @@ async function loadNormalData(page = 1, silent = false) {
                     : '<span class="text-muted" style="font-size:.78rem">Chưa có</span>';
                 const topicStyle = i.topicColor ? `background:${i.topicColor}22;color:${i.topicColor}` : 'background:#e0e7ff;color:#4f46e5';
                 const canClose = i.status === 'OPEN' && i.assignedTo === MY_EMPCD;
-                const actionCell = canClose
-                    ? `<button class="row-close-btn" onclick="event.stopPropagation();closeRow(${i.id})" title="Đóng hội thoại"><span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">close</span> Đóng</button>`
+                const reviewBtn = (i.draftPending > 0 && IS_CSR)
+                    ? `<button class="row-close-btn" style="background:#f59e0b;color:#fff;border-color:#f59e0b" onclick="event.stopPropagation();window.location.href='${CHAT_URL}?id=${i.id}'" title="Xem và duyệt câu trả lời"><span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">task_alt</span> Duyệt</button> `
+                    : '';
+                const actionCell = (reviewBtn || canClose)
+                    ? reviewBtn + (canClose ? `<button class="row-close-btn" onclick="event.stopPropagation();closeRow(${i.id})" title="Đóng hội thoại"><span class="material-symbols-rounded" style="font-size:.85rem;vertical-align:middle">close</span> Đóng</button>` : '')
                     : '<span class="text-muted" style="font-size:.78rem">—</span>';
                 return `<tr onclick="window.location.href='${CHAT_URL}?id=${i.id}'">
                     <td class="px-2">
@@ -351,6 +424,8 @@ async function loadNormalData(page = 1, silent = false) {
         renderPagination();
         updateAutoStatus();
         saveListState();
+        syncPills();
+        loadTabCounts();
     } catch { if (!silent) showToast('Lỗi kết nối', 'error'); }
     finally { isLoading = false; }
 }

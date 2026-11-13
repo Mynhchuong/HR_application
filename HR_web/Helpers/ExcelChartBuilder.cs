@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security;
 using System.Text;
 using DocumentFormat.OpenXml.Packaging;
@@ -49,12 +50,15 @@ public static class ExcelChartBuilder
             var ws = (WorksheetPart)wb.GetPartById(sheet.Id!);
             var dp = ws.AddNewPart<DrawingsPart>();
 
+            var sheetCache = new Dictionary<string, Dictionary<string, string>>();
+            Func<string, List<string>> readRange = rf => ReadRange(wb, rf, sheetCache);
+
             var anchors = new StringBuilder();
             int n = 1;
             foreach (var sp in specs)
             {
                 var cp = dp.AddNewPart<ChartPart>();
-                using (var w = new StreamWriter(cp.GetStream(FileMode.Create), new UTF8Encoding(false))) w.Write(ChartXml(sp));
+                using (var w = new StreamWriter(cp.GetStream(FileMode.Create), new UTF8Encoding(false))) w.Write(ChartXml(sp, readRange));
                 string rid = dp.GetIdOfPart(cp);
                 anchors.Append($@"<xdr:twoCellAnchor><xdr:from><xdr:col>{sp.Col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{sp.Row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>
 <xdr:to><xdr:col>{sp.Col + sp.ColSpan}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{sp.Row + sp.RowSpan}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>
@@ -67,7 +71,23 @@ public static class ExcelChartBuilder
 <xdr:wsDr xmlns:xdr=""http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"" xmlns:a=""http://schemas.openxmlformats.org/drawingml/2006/main"">{anchors}</xdr:wsDr>";
             using (var w = new StreamWriter(dp.GetStream(FileMode.Create), new UTF8Encoding(false))) w.Write(drawing);
 
-            ws.Worksheet.Append(new DocumentFormat.OpenXml.Spreadsheet.Drawing { Id = ws.GetIdOfPart(dp) });
+            // <drawing> PHẢI đứng trước tableParts/legacyDrawing/picture/oleObjects/controls/extLst theo thứ tự
+            // schema CT_Worksheet. ClosedXML luôn ghi sẵn <tableParts count="0"/>, nên Append() sẽ đặt <drawing>
+            // SAU tableParts → file sai thứ tự: Excel tự vá nên vẫn thấy biểu đồ, nhưng Numbers (macOS) và
+            // một số trình xem khác bỏ qua luôn, sheet "Biểu đồ" hiện trắng (lỗi phát hiện 2026-11-13).
+            var dwg = new DocumentFormat.OpenXml.Spreadsheet.Drawing { Id = ws.GetIdOfPart(dp) };
+            var mustFollow = ws.Worksheet.ChildElements.FirstOrDefault(e =>
+                   e is DocumentFormat.OpenXml.Spreadsheet.TableParts
+                || e is DocumentFormat.OpenXml.Spreadsheet.LegacyDrawing
+                || e is DocumentFormat.OpenXml.Spreadsheet.LegacyDrawingHeaderFooter
+                || e is DocumentFormat.OpenXml.Spreadsheet.DrawingHeaderFooter
+                || e is DocumentFormat.OpenXml.Spreadsheet.Picture
+                || e is DocumentFormat.OpenXml.Spreadsheet.OleObjects
+                || e is DocumentFormat.OpenXml.Spreadsheet.Controls
+                || e is DocumentFormat.OpenXml.Spreadsheet.WebPublishItems
+                || e is DocumentFormat.OpenXml.Spreadsheet.WorksheetExtensionList);
+            if (mustFollow != null) ws.Worksheet.InsertBefore(dwg, mustFollow);
+            else                    ws.Worksheet.Append(dwg);
             ws.Worksheet.Save();
         }
         return ms.ToArray();
@@ -75,7 +95,104 @@ public static class ExcelChartBuilder
 
     private static string E(string s) => SecurityElement.Escape(s) ?? "";
 
-    private static string SerXml(Spec sp, Series se, int idx, bool line)
+    // ── Cache dữ liệu trong chart ────────────────────────────────────────────
+    // Excel tự tính lại số từ công thức nên chart vẫn hiện dù không có cache; NHƯNG Numbers (macOS)
+    // và nhiều trình xem khác chỉ đọc phần cache, không tính công thức → chart ra TRẮNG
+    // (lỗi người dùng báo 2026-11-13). Vì vậy mỗi chuỗi số liệu phải kèm <c:strCache>/<c:numCache>.
+    private static string StrRef(string refStr, Func<string, List<string>> read)
+    {
+        var vals = read(refStr);
+        var sb = new StringBuilder();
+        sb.Append($"<c:strRef><c:f>{E(refStr)}</c:f><c:strCache><c:ptCount val=\"{vals.Count}\"/>");
+        for (int i = 0; i < vals.Count; i++) sb.Append($"<c:pt idx=\"{i}\"><c:v>{E(vals[i])}</c:v></c:pt>");
+        sb.Append("</c:strCache></c:strRef>");
+        return sb.ToString();
+    }
+
+    private static string NumRef(string refStr, Func<string, List<string>> read)
+    {
+        var vals = read(refStr);
+        var sb = new StringBuilder();
+        sb.Append($"<c:numRef><c:f>{E(refStr)}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val=\"{vals.Count}\"/>");
+        for (int i = 0; i < vals.Count; i++)
+            if (double.TryParse(vals[i], NumberStyles.Any, CultureInfo.InvariantCulture, out var d))
+                sb.Append($"<c:pt idx=\"{i}\"><c:v>{d.ToString(CultureInfo.InvariantCulture)}</c:v></c:pt>");
+        sb.Append("</c:numCache></c:numRef>");
+        return sb.ToString();
+    }
+
+    // Đọc giá trị các ô của 1 vùng dạng 'Tên sheet'!$A$2:$A$8 ngay trong file vừa lưu.
+    // Làm ở đây để mọi nơi gọi AddCharts không phải truyền thêm dữ liệu — chart luôn khớp đúng ô đang trỏ tới.
+    private static List<string> ReadRange(WorkbookPart wb, string refStr, Dictionary<string, Dictionary<string, string>> cache)
+    {
+        var result = new List<string>();
+        try
+        {
+            int bang = refStr.LastIndexOf('!');
+            if (bang < 0) return result;
+            string sheetName = refStr.Substring(0, bang).Trim();
+            if (sheetName.StartsWith("'") && sheetName.EndsWith("'"))
+                sheetName = sheetName.Substring(1, sheetName.Length - 2).Replace("''", "'");
+
+            string rng = refStr.Substring(bang + 1).Replace("$", "");
+            var parts = rng.Split(':');
+            if (!TryCell(parts[0], out int c1, out int r1)) return result;
+            if (!TryCell(parts.Length > 1 ? parts[1] : parts[0], out int c2, out int r2)) return result;
+
+            if (!cache.TryGetValue(sheetName, out var map))
+            {
+                map = new Dictionary<string, string>();
+                var sh = wb.Workbook.Descendants<Sheet>().FirstOrDefault(x => x.Name == sheetName);
+                if (sh != null)
+                {
+                    var wsp = (WorksheetPart)wb.GetPartById(sh.Id!);
+                    var sst = wb.SharedStringTablePart?.SharedStringTable;
+                    foreach (var cell in wsp.Worksheet.Descendants<Cell>())
+                    {
+                        var cr = cell.CellReference?.Value;
+                        if (cr != null) map[cr] = CellText(cell, sst);
+                    }
+                }
+                cache[sheetName] = map;
+            }
+
+            for (int r = r1; r <= r2; r++)
+                for (int c = c1; c <= c2; c++)
+                    result.Add(map.TryGetValue(ColName(c) + r, out var v) ? v : "");
+        }
+        catch { }
+        return result;
+    }
+
+    private static string CellText(Cell cell, SharedStringTable? sst)
+    {
+        if (cell.DataType?.Value == CellValues.SharedString)
+        {
+            if (sst != null && int.TryParse(cell.CellValue?.Text, out int ix) && ix >= 0 && ix < sst.ChildElements.Count)
+                return sst.ChildElements[ix].InnerText;
+            return "";
+        }
+        if (cell.DataType?.Value == CellValues.InlineString) return cell.InlineString?.Text?.Text ?? "";
+        return cell.CellValue?.Text ?? "";
+    }
+
+    private static bool TryCell(string a1, out int col, out int row)
+    {
+        col = 0; row = 0;
+        int i = 0;
+        while (i < a1.Length && char.IsLetter(a1[i])) { col = col * 26 + (char.ToUpperInvariant(a1[i]) - 'A' + 1); i++; }
+        return col > 0 && int.TryParse(a1.Substring(i), out row) && row > 0;
+    }
+
+    private static string ColName(int col)
+    {
+        var sb = new StringBuilder();
+        while (col > 0) { int m = (col - 1) % 26; sb.Insert(0, (char)('A' + m)); col = (col - 1) / 26; }
+        return sb.ToString();
+    }
+
+
+    private static string SerXml(Spec sp, Series se, int idx, bool line, Func<string, List<string>> read)
     {
         var sb = new StringBuilder();
         sb.Append($"<c:ser><c:idx val=\"{idx}\"/><c:order val=\"{idx}\"/><c:tx><c:v>{E(se.Name)}</c:v></c:tx>");
@@ -87,13 +204,13 @@ public static class ExcelChartBuilder
             sb.Append("<c:dLbls><c:numFmt formatCode=\"#,##0\" sourceLinked=\"0\"/><c:spPr><a:noFill/></c:spPr><c:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr sz=\"800\"/></a:pPr><a:endParaRPr lang=\"vi-VN\"/></a:p></c:txPr>"
                     + (line ? "<c:dLblPos val=\"t\"/>" : "<c:dLblPos val=\"outEnd\"/>")
                     + "<c:showLegendKey val=\"0\"/><c:showVal val=\"1\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"0\"/><c:showBubbleSize val=\"0\"/></c:dLbls>");
-        sb.Append($"<c:cat><c:strRef><c:f>{E(sp.CatRef)}</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>{E(se.ValRef)}</c:f></c:numRef></c:val>");
+        sb.Append($"<c:cat>{StrRef(sp.CatRef, read)}</c:cat><c:val>{NumRef(se.ValRef, read)}</c:val>");
         if (line) sb.Append("<c:smooth val=\"0\"/>");
         sb.Append("</c:ser>");
         return sb.ToString();
     }
 
-    private static string ChartXml(Spec sp)
+    private static string ChartXml(Spec sp, Func<string, List<string>> read)
     {
         var plot = new StringBuilder();
         bool pie = sp.Kind is Kind.Pie or Kind.Doughnut;
@@ -107,7 +224,7 @@ public static class ExcelChartBuilder
             string ser = $"<c:ser><c:idx val=\"0\"/><c:order val=\"0\"/><c:tx><c:v>{E(se.Name)}</c:v></c:tx>{dpts}" +
                 "<c:dLbls><c:numFmt formatCode=\"0%\" sourceLinked=\"0\"/><c:spPr><a:noFill/></c:spPr><c:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr sz=\"900\" b=\"1\"/></a:pPr><a:endParaRPr lang=\"vi-VN\"/></a:p></c:txPr>" +
                 "<c:showLegendKey val=\"0\"/><c:showVal val=\"0\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"1\"/><c:showBubbleSize val=\"0\"/><c:showLeaderLines val=\"1\"/></c:dLbls>" +
-                $"<c:cat><c:strRef><c:f>{E(sp.CatRef)}</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>{E(se.ValRef)}</c:f></c:numRef></c:val></c:ser>";
+                $"<c:cat>{StrRef(sp.CatRef, read)}</c:cat><c:val>{NumRef(se.ValRef, read)}</c:val></c:ser>";
             plot.Append(sp.Kind == Kind.Pie
                 ? $"<c:pieChart><c:varyColors val=\"1\"/>{ser}<c:firstSliceAng val=\"0\"/></c:pieChart>"
                 : $"<c:doughnutChart><c:varyColors val=\"1\"/>{ser}<c:firstSliceAng val=\"0\"/><c:holeSize val=\"55\"/></c:doughnutChart>");
@@ -116,7 +233,7 @@ public static class ExcelChartBuilder
         {
             int i = 0;
             plot.Append("<c:lineChart><c:grouping val=\"standard\"/><c:varyColors val=\"0\"/>");
-            foreach (var se in sp.Series) plot.Append(SerXml(sp, se, i++, true));
+            foreach (var se in sp.Series) plot.Append(SerXml(sp, se, i++, true, read));
             plot.Append("<c:marker val=\"1\"/><c:axId val=\"111\"/><c:axId val=\"112\"/></c:lineChart>");
         }
         else
@@ -125,13 +242,13 @@ public static class ExcelChartBuilder
             string grouping = sp.Kind == Kind.ColStacked ? "stacked" : "clustered";
             int i = 0;
             plot.Append($"<c:barChart><c:barDir val=\"{dir}\"/><c:grouping val=\"{grouping}\"/><c:varyColors val=\"0\"/>");
-            foreach (var se in sp.Series.Where(x => !x.AsLine)) plot.Append(SerXml(sp, se, i++, false));
+            foreach (var se in sp.Series.Where(x => !x.AsLine)) plot.Append(SerXml(sp, se, i++, false, read));
             plot.Append($"<c:gapWidth val=\"60\"/>{(sp.Kind == Kind.ColStacked ? "<c:overlap val=\"100\"/>" : "")}<c:axId val=\"111\"/><c:axId val=\"112\"/></c:barChart>");
             var lines = sp.Series.Where(x => x.AsLine).ToList();
             if (lines.Count > 0)
             {
                 plot.Append("<c:lineChart><c:grouping val=\"standard\"/><c:varyColors val=\"0\"/>");
-                foreach (var se in lines) plot.Append(SerXml(sp, se, i++, true));
+                foreach (var se in lines) plot.Append(SerXml(sp, se, i++, true, read));
                 plot.Append("<c:marker val=\"1\"/><c:axId val=\"111\"/><c:axId val=\"112\"/></c:lineChart>");
             }
         }

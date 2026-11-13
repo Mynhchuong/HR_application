@@ -2375,8 +2375,10 @@ public class InquiryController : ControllerBase
                        lm.CONTENT AS LAST_HANDLER_MSG,
                        (SELECT COUNT(*) FROM HRMS.HR_INQUIRY_MSG hm WHERE hm.INQUIRY_ID = i.ID AND hm.SENDER_TYPE = 'HR' AND hm.IS_DELETED = 0) AS HR_MSGS,
                        i.DEADLINE_DT, pr.ROLE_NAME AS PIC_NAME,
+                       i.REPORT_TYPE, sv.NAME_VI AS SEVERITY_NAME,
                        (SELECT EC.SEXGB FROM HRMS.ECM100 EC WHERE EC.EMPCD = i.EMPCD AND ROWNUM = 1) AS SEXGB{draftSelRaw}
                 FROM HRMS.HR_INQUIRY i
+                LEFT JOIN HRMS.HR_INQUIRY_SEVERITY sv ON sv.SEVERITY_CD = i.SEVERITY_CD
                 LEFT JOIN HRMS.HR_DEPT_ROLES pr ON pr.ID = i.PIC_DEPT_ROLE_ID
                 LEFT JOIN HRMS.HR_INQUIRY_TOPIC t ON t.TOPIC_CD = i.TOPIC_CD
                 LEFT JOIN (
@@ -2430,6 +2432,8 @@ public class InquiryController : ControllerBase
                         HrMsgCount     = N(r["HR_MSGS"]) ?? 0,
                         DeadlineDt     = Dt(r["DEADLINE_DT"]),
                         PicName        = S(r["PIC_NAME"]),
+                        ReportType     = S(r["REPORT_TYPE"]),
+                        SeverityName   = S(r["SEVERITY_NAME"]),
                         DraftPending   = N(r["DRAFT_PENDING"]) ?? 0,
                         Sex            = r["CHAT_TYPE"]?.ToString() == "ANON" ? null : S(r["SEXGB"])
                     };

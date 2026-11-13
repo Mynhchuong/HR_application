@@ -14,13 +14,14 @@
     // phải trỏ qua endpoint Ai* riêng (xem cuối trang) thay vì endpoint Inquiry thường.
     bool isAiSource = ViewBag.IsAiSource is true;
     bool canClassify = ViewBag.CanClassify is true && !isAiSource;
-    // HR/GA không gửi thẳng cho công nhân mà soạn BẢN NHÁP chờ CSR duyệt (2026-11-06) → luật "đang có người phụ trách"
+    // GA không gửi thẳng cho công nhân mà soạn BẢN NHÁP chờ CSR duyệt (2026-11-06; HR được gửi thẳng từ 2026-11-12) → luật "đang có người phụ trách"
     // chỉ chặn ô soạn của CSR / chat AI; HR/GA vẫn soạn được (CSR duyệt mới là cổng gửi thật).
     bool isCsrView   = ViewBag.IsCsr is true;
     // CSR là cổng duyệt nên KHÔNG bị khóa ô soạn khi chat đang do người soạn (HR/GA) phụ trách: CSR vẫn phải sửa được bản nháp.
     // Gửi tin trực tiếp (không qua bản nháp) khi chat đang do người khác giữ vẫn bị API từ chối như cũ.
     bool lockedForMe = isLocked && isAiSource;
-    bool draftMode   = !isCsrView && !isAiSource;
+    bool canSendDirect = ViewBag.CanSendDirect is true;   // CSR + HR gửi thẳng; GA soạn nháp
+    bool draftMode   = !canSendDirect && !isAiSource;
 
     string Cls(string st)    => st == "SYS" ? "sys" : (st == "HR" ? "mine" : "theirs");
     string AvCls(string st)  => st == "HR" ? "av-mine" : "av-theirs";
@@ -99,6 +100,7 @@
             <span class="material-symbols-rounded">lock</span>
             Đang phụ trách bởi <strong class="ms-1 vni-font">@inq.AssignedName</strong> —
             @if (isAiSource) { <text>Bạn chỉ có thể đọc.</text> }
+            else if (canSendDirect && !isCsrView) { <text>nhắn trực tiếp cần người phụ trách nhả quyền.</text> }
             else if (isCsrView) { <text>bạn vẫn duyệt/sửa được bản nháp; nhắn trực tiếp cần người phụ trách nhả quyền.</text> }
             else { <text>tin bạn soạn sẽ thành bản nháp chờ CSR duyệt.</text> }
         </div>

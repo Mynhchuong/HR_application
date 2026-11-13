@@ -810,6 +810,108 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         var unresolved = rawResult.data.Where(d => d.status == "OPEN" && d.hrMsgCount == 0).OrderBy(d => d.instDt).ToList();   // chưa ai phản hồi (đã có tin trả lời thì không còn "chưa xử lý")
 
         using var wb = new XLWorkbook();
+        BuildUnresolvedSheet(wb, unresolved);
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return File(ms.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"HoiThoaiChuaXuLy_{from}_{to}.xlsx");
+    }
+
+    // Sheet "Hướng dẫn tạo biểu đồ" (yêu cầu 2026-11-13: "chỉ người ta cách tạo chart trên Excel luôn").
+    // File đã có biểu đồ Excel thật ở sheet "Biểu đồ" (sửa/đổi màu/copy sang PowerPoint được) — sheet này
+    // chỉ hướng dẫn CSR tự dựng thêm biểu đồ khác từ dữ liệu có trong file.
+    private static void BuildChartGuideSheet(XLWorkbook wb)
+    {
+        var ws = wb.Worksheets.Add("Hướng dẫn tạo biểu đồ");
+        int r = 1;
+
+        void Title(string t)
+        {
+            var c = ws.Cell(r, 1); c.Value = t;
+            c.Style.Font.Bold = true; c.Style.Font.FontSize = 14;
+            ws.Range(r, 1, r, 3).Merge(); r += 2;
+        }
+        void Head(string t)
+        {
+            var c = ws.Cell(r, 1); c.Value = t;
+            c.Style.Font.Bold = true; c.Style.Font.FontColor = XLColor.White;
+            c.Style.Fill.BackgroundColor = XLColor.FromHtml("#dc2626");
+            ws.Range(r, 1, r, 3).Merge(); r++;
+        }
+        void Line(string a, string b = "", string c = "")
+        {
+            ws.Cell(r, 1).Value = a; ws.Cell(r, 2).Value = b; ws.Cell(r, 3).Value = c;
+            ws.Cell(r, 1).Style.Alignment.WrapText = true;
+            ws.Cell(r, 2).Style.Alignment.WrapText = true;
+            ws.Cell(r, 3).Style.Alignment.WrapText = true;
+            ws.Range(r, 1, r, 3).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+            r++;
+        }
+        void Gap() => r++;
+
+        Title("HƯỚNG DẪN TẠO BIỂU ĐỒ TRONG EXCEL");
+
+        Head("1. File này ĐÃ CÓ biểu đồ sẵn — xem sheet \"Biểu đồ\"");
+        Line("Sheet \"Biểu đồ\" có sẵn 13 biểu đồ Excel thật (không phải ảnh): diễn biến theo ngày, theo tháng, "
+           + "chủ đề theo thời gian, công khai/ẩn danh, giới tính, thiết bị, thời gian giải quyết, loại báo cáo, "
+           + "mức độ, top chủ đề, top người xử lý.");
+        Line("Vì là biểu đồ thật nên bấm vào là sửa được: đổi màu, đổi loại biểu đồ, thêm/bớt số liệu, "
+           + "và copy dán thẳng sang PowerPoint hoặc Word mà không bị mờ.");
+        Line("Số liệu dùng để vẽ các biểu đồ đó nằm ở sheet \"Dữ liệu biểu đồ\". Sửa số ở đó thì biểu đồ tự đổi theo.");
+        Gap();
+
+        Head("2. Tự tạo biểu đồ mới — 4 bước");
+        Line("Bước 1", "Mở sheet có bảng số muốn vẽ (xem bảng gợi ý ở mục 3).");
+        Line("Bước 2", "Bấm vào 1 ô bất kỳ trong bảng, rồi nhấn Ctrl + Shift + * để chọn trọn bảng "
+                     + "(hoặc kéo chuột chọn cả dòng tiêu đề + các dòng số).");
+        Line("Bước 3", "Thẻ Insert (Chèn) → Recommended Charts (Biểu đồ đề xuất) → chọn mẫu Excel gợi ý → OK.");
+        Line("Bước 4", "Bấm vào biểu đồ → dấu + bên phải để thêm Tên biểu đồ (Chart Title) và "
+                     + "Nhãn số (Data Labels) cho dễ đọc khi in.");
+        Gap();
+
+        Head("3. Nên dùng loại biểu đồ nào cho bảng nào");
+        Line("SHEET / BẢNG", "CÂU HỎI TRẢ LỜI ĐƯỢC", "LOẠI BIỂU ĐỒ NÊN DÙNG");
+        ws.Range(r - 1, 1, r - 1, 3).Style.Font.Bold = true;
+        ws.Range(r - 1, 1, r - 1, 3).Style.Fill.BackgroundColor = XLColor.FromHtml("#fef2f2");
+        Line("Dashboard — bảng \"Theo ngày\"", "Ngày nào công nhân phản ánh nhiều nhất?", "Cột (Column) hoặc Đường (Line)");
+        Line("Dashboard — bảng \"Loại báo cáo\"", "Kiến nghị và Ý kiến chiếm bao nhiêu phần?", "Tròn (Pie)");
+        Line("Dashboard — bảng \"Mức độ\"", "Mức độ nào nhiều nhất?", "Tròn (Pie)");
+        Line("Dashboard — \"Thời gian xử lý\"", "Bao nhiêu ca giải quyết nhanh / chậm?", "Cột ngang (Bar)");
+        Line("Theo chủ đề", "Chủ đề nào bị phản ánh nhiều nhất?", "Cột ngang (Bar), sắp xếp giảm dần");
+        Line("Theo chủ đề — cột % hài lòng", "Chủ đề nào công nhân kém hài lòng nhất?", "Cột ngang (Bar)");
+        Line("Người xử lý", "Ai xử lý nhiều / hài lòng cao?", "Cột ngang (Bar). ĐỪNG chọn dòng \"TẤT CẢ nhân viên\" "
+                                                            + "vào biểu đồ — đó là dòng tổng, sẽ lấn hết các cột khác");
+        Line("Chi tiết đánh giá", "Phân bố số sao", "Cột (Column) sau khi dùng PivotTable đếm theo số sao");
+        Gap();
+
+        Head("4. Mẹo hay dùng");
+        Line("Lọc trước khi vẽ", "Bảng nào có mũi tên lọc ở dòng tiêu đề thì lọc bớt dòng rồi hãy vẽ — "
+                               + "biểu đồ sẽ chỉ hiện phần đang lọc, gọn hơn nhiều.");
+        Line("Bảng tổng hợp", "Muốn tự gộp số theo chủ đề / theo tháng / theo người: chọn bảng → Insert → "
+                            + "PivotTable, rồi Insert → PivotChart.");
+        Line("Đưa vào báo cáo", "Bấm biểu đồ → Ctrl + C → sang PowerPoint/Word → Ctrl + V. "
+                              + "Muốn giữ nguyên hình không đổi thì dán kiểu Picture (Dán đặc biệt → Hình ảnh).");
+        Line("Tên tiếng Việt bị lỗi font", "Một số tên nhân viên lưu theo font cũ VNI. Nếu thấy chữ lạ, "
+                                         + "chọn ô đó và đổi font thành Vnitbi__ là đọc được.");
+        Gap();
+
+        Line("Lưu ý: mọi số trong file này đều tính theo đúng khoảng ngày ghi ở sheet \"Tổng quan\". "
+           + "Đổi khoảng ngày thì xuất lại file trên web, đừng sửa tay vào đây.");
+        ws.Cell(r - 1, 1).Style.Font.Italic = true;
+        ws.Cell(r - 1, 1).Style.Font.FontColor = XLColor.FromHtml("#64748b");
+
+        ws.Column(1).Width = 42;
+        ws.Column(2).Width = 52;
+        ws.Column(3).Width = 52;
+    }
+
+    // Sheet "Chưa xử lý" — dùng cho CẢ nút xuất riêng (ExportUnresolved) và sheet trong file báo cáo
+    // đầy đủ (ExportReport, yêu cầu 2026-11-13 "xuất Excel đủ thông tin như trên web"). Một chỗ duy nhất
+    // để 2 bản không lệch cột nhau.
+    private static void BuildUnresolvedSheet(XLWorkbook wb, List<InquiryReportRawRow> unresolved)
+    {
         var ws = wb.Worksheets.Add("Chưa xử lý");
         string[] headers =
         {
@@ -860,15 +962,11 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         }
         if (unresolved.Count > 0)
             ws.Range(1, 1, 1, headers.Length).SetAutoFilter();
+        else
+            ws.Cell(2, 1).Value = "Không có hội thoại nào chưa được phản hồi trong kỳ.";
         ws.SheetView.FreezeRows(1);
         ws.Columns().AdjustToContents();
         ws.Column(11).Width = 60;
-
-        using var ms = new MemoryStream();
-        wb.SaveAs(ms);
-        return File(ms.ToArray(),
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            $"HoiThoaiChuaXuLy_{from}_{to}.xlsx");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1007,10 +1105,12 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         wsSum.Column(2).Width = 55;
 
         var chartSpecs = new List<ExcelChartBuilder.Spec>();
+        JObject? dashJson = null;   // giữ lại ngoài try để sheet "Theo chủ đề" bên dưới lấy số "Lặp lại"
         // ─── Sheet Dashboard (gộp chung báo cáo + dashboard): hoạt động, thời gian giải quyết, thiết bị, case lặp lại, theo ngày ───
         try
         {
             var dj = JObject.Parse(await _inquiry.GetDashboardRawAsync(from, to));
+            dashJson = dj;
             if (dj["success"]?.Value<bool>() == true)
             {
                 var wsDash = wb.Worksheets.Add("Dashboard");
@@ -1182,7 +1282,14 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
 
         // ─── Sheet 2: Theo chủ đề ────────────────────────────────────────────
         var wsTopic = wb.Worksheets.Add("Theo chủ đề");
-        string[] topicHeaders = { "STT", "Chủ đề", "Tổng", "Đang mở", "Đã đóng", "Sao TB (/5)", "Số lượt chấm", "Hài lòng (4-5 sao)", "Bình thường (3 sao)", "Không hài lòng (1-2 sao)", "Chưa đánh giá", "% hài lòng" };
+        // Cột "Lặp lại" bổ sung 2026-11-13 cho khớp bảng trên web: cùng nhân viên + cùng chủ đề, từ 2 hội thoại
+        // trong kỳ (CHỈ hội thoại công khai — ẩn danh không nối được với người). Nguồn: dashboard repeat.topics.
+        string[] topicHeaders = { "STT", "Chủ đề", "Tổng", "Đang mở", "Đã đóng", "Lặp lại (hội thoại)", "Lặp lại (người)", "Sao TB (/5)", "Số lượt chấm", "Hài lòng (4-5 sao)", "Bình thường (3 sao)", "Không hài lòng (1-2 sao)", "Chưa đánh giá", "% hài lòng" };
+        var repeatByTopic = ((dashJson?["repeat"]?["topics"] as JArray) ?? new JArray())
+            .Where(x => x["topicCd"]?.Value<string>() != null)
+            .GroupBy(x => x["topicCd"]!.Value<string>()!)
+            .ToDictionary(g => g.Key, g => (cases: g.Sum(x => x["cases"]?.Value<int>() ?? 0),
+                                            emps:  g.Sum(x => x["employees"]?.Value<int>() ?? 0)));
         for (int i = 0; i < topicHeaders.Length; i++)
         {
             var c = wsTopic.Cell(1, i + 1);
@@ -1201,7 +1308,13 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             wsTopic.Cell(row, 3).Value = t.total;
             wsTopic.Cell(row, 4).Value = t.cntOpen;
             wsTopic.Cell(row, 5).Value = t.cntClosed;
-            RatingCols(wsTopic, row, 6, t.avgRating, t.cntSatisfied, t.cntNormal, t.cntNotSatisfied, t.cntUnrated, t.cntClosed);
+            if (repeatByTopic.TryGetValue(t.topicCd ?? "", out var rp))
+            {
+                wsTopic.Cell(row, 6).Value = rp.cases;
+                wsTopic.Cell(row, 7).Value = rp.emps;
+            }
+            else { wsTopic.Cell(row, 6).Value = 0; wsTopic.Cell(row, 7).Value = 0; }
+            RatingCols(wsTopic, row, 8, t.avgRating, t.cntSatisfied, t.cntNormal, t.cntNotSatisfied, t.cntUnrated, t.cntClosed);
             row++;
         }
         if (result.byTopic.Count > 0)
@@ -1236,9 +1349,33 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             else                          wsHr.Cell(row, 13).Value = "—";
             row++;
         }
+        // Dòng tổng "TẤT CẢ nhân viên" (khớp dòng tfoot trên web, yêu cầu 2026-11-13).
+        // Lấy từ summary toàn kỳ, KHÔNG cộng các dòng trên: hội thoại NV tự đóng không có ai trong HR/CSR
+        // tham gia nên không nằm ở dòng nào, còn hội thoại nhiều người xử lý thì bị đếm ở nhiều dòng.
+        {
+            var tr = wsHr.Row(row);
+            wsHr.Cell(row, 1).Value = "";
+            wsHr.Cell(row, 2).Value = "";
+            wsHr.Cell(row, 3).Value = "TẤT CẢ nhân viên";
+            wsHr.Cell(row, 4).Value = s.total;
+            wsHr.Cell(row, 5).Value = s.cntClosed;
+            RatingCols(wsHr, row, 6, s.avgRating, s.cntSatisfied, s.cntNormal, s.cntNotSatisfied, s.cntUnrated, s.cntClosed);
+            if (s.avgHandleMin.HasValue) wsHr.Cell(row, 13).Value = Math.Round(s.avgHandleMin.Value, 1);
+            else                          wsHr.Cell(row, 13).Value = "—";
+            tr.Style.Font.Bold = true;
+            tr.Style.Fill.BackgroundColor = XLColor.FromHtml("#f1f5f9");
+            row++;
+            wsHr.Cell(row, 3).Value = "Dòng TẤT CẢ tính trên toàn bộ hội thoại trong kỳ (gồm cả hội thoại NV tự đóng, không ai trong HR/CSR tham gia) nên không bằng tổng các dòng trên.";
+            wsHr.Cell(row, 3).Style.Font.Italic = true;
+            wsHr.Cell(row, 3).Style.Font.FontColor = XLColor.FromHtml("#64748b");
+        }
         if (result.byHr.Count > 0)
             wsHr.Range(1, 1, 1, hrHeaders.Length).SetAutoFilter();
         wsHr.Columns().AdjustToContents();
+
+        // ─── Sheet: Chưa xử lý — trên web là mục "Hội thoại chưa có phản hồi"; trước đây chỉ có ở nút
+        // xuất riêng nên file báo cáo thiếu mục này (bổ sung 2026-11-13). Cùng điều kiện lọc với web.
+        BuildUnresolvedSheet(wb, rawResult.data.Where(d => d.status == "OPEN" && d.hrMsgCount == 0).OrderBy(d => d.instDt).ToList());
 
         // Sheet "Raw Data" (chi tiết thô từng hội thoại) đã bỏ theo yêu cầu 2026-10-16 — dữ liệu
         // thô giờ xem qua danh sách "Chưa xử lý" riêng (ExportUnresolved) + sheet "Nội dung chat"
@@ -1301,12 +1438,21 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         var infoById   = rawResult.data.ToDictionary(d => d.id, d => d);
         // Mỗi ID chat = 1 DÒNG: toàn bộ nội dung trong 1 ô, tên người gửi trong 1 ô (yêu cầu CSR 2026-11-09)
         var wsChat     = wb.Worksheets.Add("Nội dung chat");
+        // Yêu cầu 2026-11-13: sheet này xuất kèm PHÂN LOẠI (loại báo cáo / mức độ / phòng phụ trách / hạn)
+        // và ĐÁNH GIÁ của từng hội thoại, để CSR không phải mở thêm sheet khác đối chiếu.
+        // Thứ tự cột dưới đây khớp đúng thứ tự ghi ô bên dưới (dùng biến đếm cc, đừng chèn cột giữa mà không sửa cả 2 chỗ).
         string[] chatHeaders =
         {
-            "ID chat", "Tiêu đề trò chuyện", "Chủ đề", "Mã NV", "Họ và tên", "Giới tính",
-            "Thời gian tạo", "Số tin", "Tên người gửi (HR/CSR)", "Nội dung",
-            "Người kết thúc", "TG kết thúc"
+            "ID chat", "Tiêu đề trò chuyện", "Chủ đề", "Loại báo cáo", "Mức độ", "Phòng phụ trách", "Hình thức",
+            "Mã NV", "Họ và tên", "Giới tính", "Thời gian tạo", "Hạn phản hồi", "Trạng thái", "Số tin",
+            "Tên người gửi (HR/CSR)", "Nội dung", "Bên nhân viên", "Bên trả lời (HR/CSR)",
+            "Người kết thúc", "TG kết thúc", "Thời gian xử lý (giờ)",
+            "Số sao", "Mức hài lòng", "Nhận xét đánh giá"
         };
+        // Yêu cầu CSR 2026-11-13: ngoài ô "Nội dung" gộp cả 2 bên, tách thêm 2 ô chỉ tin NV và chỉ tin HR/CSR.
+        const int ChatColContent = 16;   // "Nội dung" (gộp)
+        const int ChatColEmp     = 17;   // "Bên nhân viên"
+        const int ChatColStaff   = 18;   // "Bên trả lời (HR/CSR)"
         for (int i = 0; i < chatHeaders.Length; i++)
         {
             var c = wsChat.Cell(1, i + 1);
@@ -1324,42 +1470,81 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             infoById.TryGetValue(grp.Key, out var info);
             var msgsOfChat = grp.OrderBy(x => x.sentDt).ToList();
 
-            wsChat.Cell(row, 1).Value = info?.inquiryNo ?? grp.Key.ToString();
+            int cc = 0;
+            wsChat.Cell(row, ++cc).Value = info?.inquiryNo ?? grp.Key.ToString();
 
-            var subjectCell = wsChat.Cell(row, 2);
+            var subjectCell = wsChat.Cell(row, ++cc);
             subjectCell.Value = info?.subject ?? "";
             subjectCell.Style.Font.FontName = "Vnitbi__";
 
-            wsChat.Cell(row, 3).Value = info?.topicName ?? "";
-            wsChat.Cell(row, 4).Value = info?.empCd ?? "";
+            wsChat.Cell(row, ++cc).Value = info?.topicName ?? "";
 
-            var nameCell = wsChat.Cell(row, 5);
+            // ── Phân loại hội thoại
+            wsChat.Cell(row, ++cc).Value = info?.reportType switch
+            {
+                "GRIEVANCE" => "Kiến nghị",
+                "OPINION"   => "Ý kiến",
+                _           => "Chưa phân loại"
+            };
+            wsChat.Cell(row, ++cc).Value = info?.severityName ?? "Chưa phân loại";
+            wsChat.Cell(row, ++cc).Value = info?.picName ?? "Chưa gán";
+            wsChat.Cell(row, ++cc).Value = info?.chatType == "ANON" ? "Ẩn danh" : "Công khai";
+
+            wsChat.Cell(row, ++cc).Value = info?.empCd ?? "";
+
+            var nameCell = wsChat.Cell(row, ++cc);
             nameCell.Value = info?.empDisplay ?? "";
             nameCell.Style.Font.FontName = "Vnitbi__";
 
-            wsChat.Cell(row, 6).Value = info?.sex == "F" ? "Nữ" : info?.sex == "M" ? "Nam" : "";
+            wsChat.Cell(row, ++cc).Value = info?.sex == "F" ? "Nữ" : info?.sex == "M" ? "Nam" : "";
 
-            if (info?.instDt != null) { wsChat.Cell(row, 7).Value = info.instDt.Value; wsChat.Cell(row, 7).Style.DateFormat.Format = "dd/MM/yyyy HH:mm"; }
-            wsChat.Cell(row, 8).Value = msgsOfChat.Count;
+            var instCell = wsChat.Cell(row, ++cc);
+            if (info?.instDt != null) { instCell.Value = info.instDt.Value; instCell.Style.DateFormat.Format = "dd/MM/yyyy HH:mm"; }
+
+            var dlCell = wsChat.Cell(row, ++cc);
+            if (info?.deadlineDt != null) { dlCell.Value = info.deadlineDt.Value; dlCell.Style.DateFormat.Format = "dd/MM/yyyy"; }
+            else dlCell.Value = "—";
+
+            wsChat.Cell(row, ++cc).Value = info?.status == "CLOSED" ? "Đã đóng" : info?.status == "OPEN" ? "Đang mở" : (info?.status ?? "");
+            wsChat.Cell(row, ++cc).Value = msgsOfChat.Count;
 
             // Tên người gửi phía HR/CSR (font riêng Vnitbi__ nên để ô riêng, không trộn vào nội dung)
             var staff = msgsOfChat.Where(x => x.senderType == "HR" && !string.IsNullOrWhiteSpace(x.senderName)).Select(x => x.senderName!.Trim()).Distinct().ToList();
-            var senderNamesCell = wsChat.Cell(row, 9);
+            var senderNamesCell = wsChat.Cell(row, ++cc);
             senderNamesCell.Value = string.Join("\n", staff);
             senderNamesCell.Style.Font.FontName = "Vnitbi__";
 
             // Nội dung: mỗi tin 1 dòng "[dd/MM HH:mm] Nhân viên|HR/CSR|Hệ thống: nội dung"; quá giới hạn ô thì sang DÒNG TIẾP THEO (cùng ID chat)
+            string MsgBody(InquiryReportMsgRow m)
+                => m.msgType switch { "IMAGE" => "[Hình ảnh]", "FILE" => "[Tệp đính kèm]", _ => StripHtml(m.content) };
+            string MsgStamp(InquiryReportMsgRow m) => m.sentDt?.ToString("dd/MM HH:mm") ?? "—";
+
             var lines = msgsOfChat.Select(m =>
             {
                 string who = m.senderType switch { "EMP" => "Nhân viên", "HR" => "HR/CSR", "SYS" => "Hệ thống", _ => m.senderType };
-                string body = m.msgType switch { "IMAGE" => "[Hình ảnh]", "FILE" => "[Tệp đính kèm]", _ => StripHtml(m.content) };
-                return $"[{(m.sentDt?.ToString("dd/MM HH:mm") ?? "—")}] {who}: {body}";
+                return $"[{MsgStamp(m)}] {who}: {MsgBody(m)}";
             });
-            var chunks = SplitChatLines(lines, CellMax);
-            var contentCell = wsChat.Cell(row, 10);
+            // 2 ô tách riêng: chỉ tin NV / chỉ tin HR-CSR. KHÔNG ghi tên người gửi vào đây — tên người gửi dùng
+            // font Vnitbi__ riêng nên phải để ở ô "Tên người gửi", trộn vào đây sẽ hiện sai font.
+            var empLines   = msgsOfChat.Where(m => m.senderType == "EMP").Select(m => $"[{MsgStamp(m)}] {MsgBody(m)}");
+            var staffLines = msgsOfChat.Where(m => m.senderType == "HR").Select(m => $"[{MsgStamp(m)}] {MsgBody(m)}");
+
+            var chunks      = SplitChatLines(lines, CellMax);
+            var empChunks   = SplitChatLines(empLines, CellMax);
+            var staffChunks = SplitChatLines(staffLines, CellMax);
+
+            var contentCell = wsChat.Cell(row, ++cc);
             contentCell.Value = chunks[0];
             contentCell.Style.Alignment.WrapText = true;
             senderNamesCell.Style.Alignment.WrapText = true;
+
+            var empCell = wsChat.Cell(row, ++cc);
+            empCell.Value = empChunks[0];
+            empCell.Style.Alignment.WrapText = true;
+
+            var staffCell = wsChat.Cell(row, ++cc);
+            staffCell.Value = staffChunks[0];
+            staffCell.Style.Alignment.WrapText = true;
 
             string closedByLabel = info?.closedByType switch
             {
@@ -1369,21 +1554,54 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
                 "ADMIN" => "Admin",
                 _       => ""
             };
-            var closedByCell = wsChat.Cell(row, 11);
+            var closedByCell = wsChat.Cell(row, ++cc);
             closedByCell.Value = string.IsNullOrEmpty(info?.closedByName) ? closedByLabel : $"{info!.closedByName} ({closedByLabel})";
             closedByCell.Style.Font.FontName = "Vnitbi__";
 
-            if (info?.closedDt != null) { wsChat.Cell(row, 12).Value = info.closedDt.Value; wsChat.Cell(row, 12).Style.DateFormat.Format = "dd/MM/yyyy HH:mm"; }
-            else wsChat.Cell(row, 12).Value = "—";
+            var closedDtCell = wsChat.Cell(row, ++cc);
+            if (info?.closedDt != null) { closedDtCell.Value = info.closedDt.Value; closedDtCell.Style.DateFormat.Format = "dd/MM/yyyy HH:mm"; }
+            else closedDtCell.Value = "—";
+
+            // Thời gian xử lý = từ lúc NV tạo hội thoại tới lúc đóng (yêu cầu CSR 2026-11-13).
+            // Để dạng SỐ GIỜ (không phải chữ "2 ngày 3 giờ") để CSR sắp xếp được, tìm ngay ca xử lý lâu nhất.
+            var durCell = wsChat.Cell(row, ++cc);
+            if (info?.instDt != null && info?.closedDt != null)
+            {
+                durCell.Value = Math.Round((info.closedDt.Value - info.instDt.Value).TotalHours, 1);
+                durCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+            }
+            else durCell.Value = "—";   // chưa đóng thì chưa tính được
+
+            // ── Đánh giá của nhân viên. Chưa đóng thì chưa tới lượt chấm; đã đóng mà bỏ qua thì ghi rõ "Chưa đánh giá"
+            // (báo cáo tính nhóm này là Hài lòng, xem sheet Tổng quan) — đừng để trống kẻo CSR tưởng mất dữ liệu.
+            var starCell = wsChat.Cell(row, ++cc);
+            if (info?.rating != null) { starCell.Value = info.rating.Value; starCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center; }
+            else starCell.Value = "—";
+            wsChat.Cell(row, ++cc).Value = info?.rating != null
+                ? HR_web.Helpers.InquiryRatingHelper.Label(info.rating)
+                : (info?.status == "CLOSED" ? "Chưa đánh giá" : "Chưa đóng");
+            var noteCell = wsChat.Cell(row, ++cc);
+            noteCell.Value = StripHtml(info?.ratingNote);
+            noteCell.Style.Alignment.WrapText = true;
 
             wsChat.Range(row, 1, row, chatHeaders.Length).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
             row++;
-            for (int k = 1; k < chunks.Count; k++)   // phần nội dung tiếp theo: lặp ID chat + ghi chú, các cột khác để trống
+            // Tràn ô 32.000 ký tự ở BẤT KỲ cột nội dung nào (gộp / NV / HR-CSR) đều xuống dòng kế cùng ID chat,
+            // nên số dòng phụ lấy theo cột dài nhất, không chỉ theo cột gộp.
+            int extraRows = Math.Max(chunks.Count, Math.Max(empChunks.Count, staffChunks.Count));
+            for (int k = 1; k < extraRows; k++)   // phần nội dung tiếp theo: lặp ID chat + ghi chú, các cột khác để trống
             {
                 wsChat.Cell(row, 1).Value = info?.inquiryNo ?? grp.Key.ToString();
-                wsChat.Cell(row, 2).Value = $"(nội dung tiếp theo, phần {k + 1}/{chunks.Count})";
+                wsChat.Cell(row, 2).Value = $"(nội dung tiếp theo, phần {k + 1}/{extraRows})";
                 wsChat.Cell(row, 2).Style.Font.Italic = true;
-                var cc = wsChat.Cell(row, 10); cc.Value = chunks[k]; cc.Style.Alignment.WrapText = true;
+                void Cont(int col, List<string> src)
+                {
+                    if (k >= src.Count) return;
+                    var c2 = wsChat.Cell(row, col); c2.Value = src[k]; c2.Style.Alignment.WrapText = true;
+                }
+                Cont(ChatColContent, chunks);
+                Cont(ChatColEmp,     empChunks);
+                Cont(ChatColStaff,   staffChunks);
                 wsChat.Range(row, 1, row, chatHeaders.Length).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
                 row++;
             }
@@ -1392,9 +1610,12 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             wsChat.Range(1, 1, 1, chatHeaders.Length).SetAutoFilter();
         wsChat.SheetView.FreezeRows(1);
         wsChat.Columns().AdjustToContents();
-        wsChat.Column(2).Width = 30;
-        wsChat.Column(9).Width = 28;
-        wsChat.Column(10).Width = 90;
+        wsChat.Column(2).Width  = 30;   // Tiêu đề
+        wsChat.Column(15).Width = 28;   // Tên người gửi HR/CSR
+        wsChat.Column(16).Width = 90;   // Nội dung (gộp)
+        wsChat.Column(17).Width = 70;   // Bên nhân viên
+        wsChat.Column(18).Width = 70;   // Bên trả lời (HR/CSR)
+        wsChat.Column(24).Width = 45;   // Nhận xét đánh giá
 
         // ─── Sheet 6: AI SAMHO - CSR (yêu cầu 2026-10-01: "báo cáo tính luôn AI, xuất Excel luôn
         // AI") — nguồn HR_AI_CHAT tách hẳn khỏi HR_INQUIRY nên query/sheet riêng, không gộp chung
@@ -1554,10 +1775,13 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             }
         }
 
+        BuildChartGuideSheet(wb);   // phải gọi TRƯỚC SaveAs, thêm sheet sau khi lưu thì không vào file
+
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         byte[] xlsxBytes = ms.ToArray();
         // Biểu đồ Excel thật (ClosedXML không có) — lỗi thì vẫn trả file không biểu đồ, không làm hỏng báo cáo
+
         if (chartSpecs.Count > 0)
         {
             try { xlsxBytes = ExcelChartBuilder.AddCharts(xlsxBytes, "Biểu đồ", chartSpecs); }

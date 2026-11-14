@@ -270,7 +270,6 @@ public static class ExpatText
         ["many"] = "많음",
 
         // ── Thông báo ──────────────────────────────────────────────────────
-        ["Notifications"] = "알림",
         ["Push notifications"] = "푸시 알림",
         ["When off, your phone will not show new notifications (you can still see them in this list). Important (high priority) notifications are always sent."]
             = "끄면 휴대폰에 새 알림이 표시되지 않습니다 (이 목록에서는 계속 확인 가능). 중요(높은 우선순위) 알림은 항상 발송됩니다.",
@@ -563,6 +562,38 @@ public static class ExpatText
         ["Bulletin not found."] = "공지사항을 찾을 수 없습니다.",
         ["This bulletin has not been published yet."] = "아직 게시되지 않은 공지사항입니다.",
         ["This bulletin has been hidden."] = "숨김 처리된 공지사항입니다.",
+        // ── Trang Cài đặt cá nhân (Settings/Index) ──
+        ["Security"] = "보안",
+        ["This phone has no Face ID or fingerprint set up yet. Turn it on in your phone settings first."] = "이 기기에 Face ID·지문이 등록되어 있지 않습니다. 휴대폰 설정에서 먼저 등록해 주세요.",
+        ["Ready. Next time you reach the sign-in screen it will ask for Face ID / fingerprint."] = "준비되었습니다. 다음에 로그인 화면이 나오면 Face ID·지문을 요청합니다.",
+        ["Not saved yet. Sign out and sign in with your password once (keep the Face ID box ticked)."] = "아직 저장되지 않았습니다. 로그아웃 후 비밀번호로 한 번 로그인해 주세요 (Face ID 체크 유지).",
+
+        ["On. Next time you open the app it will ask for Face ID / fingerprint (your phone must have one set up)."] = "켜짐. 다음에 앱을 열 때 Face ID·지문을 요청합니다 (기기에 등록되어 있어야 합니다).",
+        ["Will turn on after you sign in with your password once."] = "비밀번호로 한 번 로그인하면 켜집니다.",
+        ["Off. You will type your password every time."] = "꺼짐. 매번 비밀번호를 입력해야 합니다.",
+        ["Turned on. Sign in with your password once more to finish."] = "켰습니다. 비밀번호로 한 번 더 로그인하면 완료됩니다.",
+
+
+        ["Quick sign-in with Face ID / fingerprint"] = "Face ID·지문으로 빠른 로그인",
+        ["Turned on automatically after you sign in once in the app."] = "앱에서 한 번 로그인하면 자동으로 켜집니다.",
+        ["Forget sign-in on this device"] = "이 기기에서 로그인 정보 삭제",
+        ["Forgotten the saved sign-in on this device."] = "이 기기에 저장된 로그인 정보를 삭제했습니다.",
+        ["Forgot password"] = "비밀번호 찾기",
+        ["Reset it with your ID card number"] = "주민등록번호(신분증 번호)로 재설정",
+
+        ["Settings"] = "설정",
+        ["Notifications"] = "알림",
+        ["Receive notifications on your phone"] = "휴대폰으로 알림 받기",
+        ["Urgent items are still sent even when this is off."] = "이 설정을 꺼도 긴급 알림은 계속 발송됩니다.",
+        ["This option is not enabled on the system yet."] = "이 기능은 아직 시스템에서 활성화되지 않았습니다.",
+        ["Language"] = "언어",
+        ["Interface language"] = "화면 언어",
+        ["Account"] = "계정",
+        ["Change password"] = "비밀번호 변경",
+        ["Signature image"] = "서명 이미지",
+        ["Open the profile page"] = "프로필 화면 열기",
+        ["Saved"] = "저장되었습니다.",
+        ["Could not save, please try again."] = "저장하지 못했습니다. 다시 시도해 주세요.",
         // ── Thông báo hệ thống / API (dùng qua ExpatMsg, xem ViToEn bên dưới) ──
         ["You are not allowed to approve gate passes."] = "게이트패스를 승인할 권한이 없습니다.",
         ["You are not allowed to approve leave requests."] = "휴가 신청을 승인할 권한이 없습니다.",

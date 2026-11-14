@@ -113,6 +113,10 @@ public class ProfileController : BaseController
             if (result)
             {
                 TempData["SuccessMessage"] = HR_web.Helpers.ExpatText.Dual(uiLang, "Đổi mật khẩu thành công!", "Password changed successfully!");
+                // Mật khẩu CŨ đang được lưu trong máy cho đăng nhập Face ID/vân tay -> giờ đã sai.
+                // Không xoá thì lần mở app sau: quét mặt OK -> app điền mật khẩu cũ -> đăng nhập THẤT BẠI,
+                // còn bị cộng dồn số lần sai. Cờ này để view gọi clearCredentials (xem ProfileUser.cshtml).
+                TempData["ClearBioCredentials"] = true;
 
                 var updatedUser = CurrentUser;
                 updatedUser.RequirePasswordChange = false;

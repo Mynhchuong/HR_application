@@ -282,7 +282,17 @@
         }
 
         @@keyframes spin { to { transform: rotate(360deg); } }
-    </style>
+    
+        /* Menu tài khoản: 3 mục cao bằng nhau, đủ lớn để bấm trên điện thoại (NV hay bấm nhầm
+           Đăng xuất khi định vào Cài đặt — phản ánh 2026-11-13). Bỏ đường kẻ ngăn vì nó làm
+           khoảng cách giữa 3 mục không đều. */
+        .acct-menu { border-radius: 16px; padding: .35rem; min-width: 210px; }
+        .acct-menu .dropdown-item {
+            min-height: 48px; padding: .6rem .85rem; border-radius: 12px; font-weight: 600;
+        }
+        .acct-menu .dropdown-item + .dropdown-item { margin-top: 2px; }
+        .acct-menu .material-symbols-rounded { font-size: 1.35rem; }
+</style>
 </head>
 <body class="bg-gray-100">
 
@@ -328,14 +338,18 @@
                         </span>
                         <span class="header-user-name vni-font" title="@rawName">@displayName</span>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg" style="border-radius: 16px;">
+                    <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg acct-menu">
                         <li>
                             <a class="dropdown-item d-flex align-items-center gap-2 py-2" asp-controller="Profile" asp-action="ProfileUser">
                                 <span class="material-symbols-rounded text-primary" style="font-size: 1.2rem;">account_circle</span> Hồ sơ
                             </a>
                         </li>
-                        <li><hr class="dropdown-divider"></li>
                         <li>
+                            <a class="dropdown-item d-flex align-items-center gap-2 py-2" asp-controller="Settings" asp-action="Index">
+                                <span class="material-symbols-rounded text-primary" style="font-size: 1.2rem;">settings</span> Cài đặt
+                            </a>
+                        </li>
+                                                <li>
                             <a class="dropdown-item text-danger d-flex align-items-center gap-2 py-2" href="javascript:;" data-bs-toggle="modal" data-bs-target="#logoutModal">
                                 <span class="material-symbols-rounded" style="font-size: 1.2rem;">logout</span> Đăng xuất
                             </a>
@@ -800,14 +814,22 @@
                                 } catch (e) {}
                                 // Clear session flag để login lần sau vẫn thấy hero popup
                                 try { sessionStorage.removeItem('home_hero_popup_dismissed'); } catch (e) {}
-                                // Xoá tài khoản/mật khẩu đã lưu cho đăng nhập Face ID/vân tay (yêu cầu
-                                // 2026-10-26) — logout chủ động nghĩa là KHÔNG muốn tự đăng nhập lại nữa.
+                                // Xoá tài khoản/mật khẩu đã lưu cho đăng nhập Face ID/vân tay.
+                                // 2026-10-26 xoá VÔ ĐIỀU KIỆN với lý do "logout = không muốn tự đăng nhập nữa".
+                                // 2026-11-13 BỎ cách đó: giờ NV đã tự tick chọn "lần sau đăng nhập bằng Face ID",
+                                // mà đăng xuất rồi đăng nhập lại chính là lúc người ta mong Face ID hiện ra nhất.
+                                // Xoá lúc này làm tính năng như hỏng. Muốn xoá thì tắt công tắc ở trang Cài đặt
+                                // (chỗ đó mới gọi clearCredentials) — đúng ý NV, không đoán thay.
                                 try {
-                                    if (window.Android && typeof window.Android.clearCredentials === 'function')
-                                        window.Android.clearCredentials();
-                                    else if (window.webkit && window.webkit.messageHandlers
-                                        && window.webkit.messageHandlers.clearCredentials)
-                                        window.webkit.messageHandlers.clearCredentials.postMessage(null);
+                                    var bioOn = true;
+                                    try { bioOn = localStorage.getItem('bio_login_v2') !== '0'; } catch (e) {}
+                                    if (!bioOn) {
+                                        if (window.Android && typeof window.Android.clearCredentials === 'function')
+                                            window.Android.clearCredentials();
+                                        else if (window.webkit && window.webkit.messageHandlers
+                                            && window.webkit.messageHandlers.clearCredentials)
+                                            window.webkit.messageHandlers.clearCredentials.postMessage(null);
+                                    }
                                 } catch (e) {}
                                 // Không gọi preventDefault → form vẫn submit bình thường
                             });

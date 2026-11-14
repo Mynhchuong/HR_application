@@ -23,7 +23,13 @@ if (target) {
             TextStyle, Color,
             Highlight.configure({ multicolor: false }),
             Link.configure({ openOnClick: false, autolink: true }),
-            Placeholder.configure({ placeholder: 'Nhập tin nhắn... (Enter để gửi, Shift+Enter để xuống dòng)' }),
+            // Điện thoại: ô gõ hẹp, câu dài bị cắt cụt trông như lỗi (phản ánh 2026-11-13) -> rút gọn.
+            // Mẹo Enter/Shift+Enter chỉ có ý nghĩa với bàn phím rời, trên điện thoại không cần.
+            Placeholder.configure({
+                placeholder: window.matchMedia('(max-width: 991.98px)').matches
+                    ? 'Nhập tin nhắn...'
+                    : 'Nhập tin nhắn... (Enter để gửi, Shift+Enter để xuống dòng)'
+            }),
             // Không có node "image" trong schema thì insertContent() sẽ âm thầm loại bỏ thẻ <img>
             // ngay lúc chèn — đúng bug thật: chèn Câu trả lời mẫu có ảnh vào ô chat, ảnh biến mất
             // trước cả khi gửi (2026-09-22). allowBase64: false — ảnh canned reply luôn là URL

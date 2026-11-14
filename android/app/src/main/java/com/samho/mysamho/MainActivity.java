@@ -232,7 +232,16 @@ public class MainActivity extends AppCompatActivity {
                     pendingNotiId = null;
                     view.loadUrl(notiUrl);
                 }
-                handleBiometricLoginState(url);
+                // Nhận diện trang Đăng nhập bằng NỘI DUNG TRANG, không dựa vào URL — sau khi đăng
+                // xuất, server trả trang Đăng nhập ngay tại .../HR_Web, URL không chứa
+                // "/Account/Login" nên cách so chuỗi cũ luôn sai (xác minh bằng log máy thật iOS
+                // 2026-11-13; Android dùng chung web nên dính y hệt).
+                view.evaluateJavascript(
+                        "(document.querySelector('.login-body form') && document.getElementById('passwordInput')) ? 1 : 0",
+                        value -> {
+                            handleBiometricLoginState("1".equals(value));
+                            injectBioState();
+                        });
             }
         });
         
@@ -944,11 +953,39 @@ public class MainActivity extends AppCompatActivity {
         webView.evaluateJavascript(js, null);
     }
 
+    // Báo cho web TRẠNG THÁI THẬT của đăng nhập sinh trắc học trên máy này. Trước đây web mù tịt:
+    // trang Cài đặt chỉ đọc lựa chọn trong localStorage nên luôn ghi "Đang bật" kể cả khi máy chưa lưu
+    // mật khẩu nào -> NV bật xong, đăng xuất, không thấy vân tay và không hiểu vì sao (lỗi 2026-11-13).
+    // Xem ghi chú ở bioLog() bên iOS — chỉ in ở bản Debug.
+    // Không dùng BuildConfig.DEBUG vì AGP 8 mặc định không sinh lớp BuildConfig; đọc cờ debuggable
+    // của chính app là đủ và không phải bật thêm tính năng build nào.
+    private static void bioLog(Context ctx, String msg) {
+        if (ctx != null && (ctx.getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0)
+            android.util.Log.d("BIO", msg);
+    }
+
+    private void injectBioState() {
+        if (webView == null) return;
+        int allowed = BiometricManager.Authenticators.BIOMETRIC_STRONG
+                | BiometricManager.Authenticators.BIOMETRIC_WEAK;
+        boolean canBio = BiometricManager.from(this).canAuthenticate(allowed) == BiometricManager.BIOMETRIC_SUCCESS;
+        boolean hasCreds = BiometricCredentialHelper.hasStoredCredentials(this);
+        String js = "window.__bioState={supported:true,canBiometric:" + canBio + ",hasCreds:" + hasCreds + "};"
+                + "window.dispatchEvent(new Event('biostate'));";
+        webView.evaluateJavascript(js, null);
+    }
+
     // Đăng nhập vân tay/Face Unlock — tự xác nhận/huỷ pendingCredentials dựa vào trang vừa tải xong
     // có còn là Login không, và tự kích hoạt sinh trắc học khi vừa landing lại trang Login (session
     // hết hạn) mà đã có credentials lưu sẵn.
-    private void handleBiometricLoginState(String url) {
-        boolean isLoginPage = url != null && url.contains("/Account/Login");
+    private void handleBiometricLoginState(boolean isLoginPage) {
+
+        // BUG 2026-11-13: hasTriedBiometricLogin chỉ bật 1 lần rồi KHÔNG BAO GIỜ tắt -> NV bấm Đăng xuất
+        // rồi quay lại Login trong cùng lần mở app thì vân tay không hiện nữa, phải tắt hẳn app mới hỏi
+        // lại. Rời khỏi Login (đã đăng nhập xong) thì cho phép hỏi lại ở lần quay về Login kế tiếp.
+        if (!isLoginPage) hasTriedBiometricLogin = false;
+        bioLog(this, "onPageFinished isLogin=" + isLoginPage + " pending=" + (pendingCredEmpcd != null)
+                + " tried=" + hasTriedBiometricLogin + " hasCreds=" + BiometricCredentialHelper.hasStoredCredentials(this));
 
         if (pendingCredEmpcd != null) {
             String empcd = pendingCredEmpcd, password = pendingCredPassword;
@@ -957,19 +994,28 @@ public class MainActivity extends AppCompatActivity {
             if (!isLoginPage) {
                 // Vừa submit xong, điều hướng sang trang khác Login -> đăng nhập đúng -> lưu thật.
                 BiometricCredentialHelper.save(this, empcd, password);
+                bioLog(this, "da luu, doc lai hasCreds=" + BiometricCredentialHelper.hasStoredCredentials(this));
             }
             // Vẫn còn ở Login -> đăng nhập sai -> KHÔNG lưu (tránh lưu nhầm mật khẩu sai).
             return;
         }
 
         if (!isLoginPage || hasTriedBiometricLogin || !BiometricCredentialHelper.hasStoredCredentials(this)) return;
-        if (BiometricManager.from(this).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-                != BiometricManager.BIOMETRIC_SUCCESS) return;
+        // Trước chỉ nhận BIOMETRIC_STRONG: rất nhiều máy Android xếp mở khoá KHUÔN MẶT là WEAK, nên máy
+        // chỉ có face unlock thì hàm này trả về khác SUCCESS -> thoát im lặng, NV bật xong chờ hoài
+        // không thấy gì. Nhận thêm WEAK để các máy đó dùng được (vân tay vẫn là STRONG như cũ).
+        final int allowed = BiometricManager.Authenticators.BIOMETRIC_STRONG
+                | BiometricManager.Authenticators.BIOMETRIC_WEAK;
+        int can = BiometricManager.from(this).canAuthenticate(allowed);
+        bioLog(this, "canAuthenticate(STRONG|WEAK)=" + can + " (0=OK, 1=tam thoi loi, 11=chua dang ky, 12=khong co phan cung)");
+        if (can != BiometricManager.BIOMETRIC_SUCCESS) return;
         hasTriedBiometricLogin = true;
+        bioLog(this, "dang bat sinh trac hoc...");
 
         BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
                 .setTitle("Đăng nhập My Samho")
                 .setNegativeButtonText("Huỷ")
+                .setAllowedAuthenticators(allowed)
                 .build();
         BiometricPrompt prompt = new BiometricPrompt(this, ContextCompat.getMainExecutor(this),
                 new BiometricPrompt.AuthenticationCallback() {
@@ -1020,6 +1066,7 @@ public class MainActivity extends AppCompatActivity {
         // tự xác nhận/huỷ ở onPageFinished (xem handleBiometricLoginState).
         @android.webkit.JavascriptInterface
         public void saveCredentials(String empcd, String password) {
+            bioLog(mContext, "web goi saveCredentials");
             if (mContext instanceof MainActivity && empcd != null && !empcd.isEmpty()
                     && password != null && !password.isEmpty()) {
                 MainActivity a = (MainActivity) mContext;
@@ -1033,6 +1080,7 @@ public class MainActivity extends AppCompatActivity {
         // Web gọi lúc đăng xuất chủ động (_Layout.cshtml logoutForm) — KHÔNG muốn tự đăng nhập lại nữa.
         @android.webkit.JavascriptInterface
         public void clearCredentials() {
+            bioLog(mContext, "web goi clearCredentials  <-- xoa mat khau da luu");
             BiometricCredentialHelper.clear(mContext);
             if (mContext instanceof MainActivity) {
                 MainActivity a = (MainActivity) mContext;

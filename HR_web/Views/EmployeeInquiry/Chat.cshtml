@@ -17,6 +17,20 @@
 <style>
     .chat-wrap { --chat-accent: #4f46e5; --chat-accent-2: #7c3aed; }
 
+    /* ── Khung soạn tin trên ĐIỆN THOẠI (phản ánh 2026-11-13: khó dùng, chiếm hết màn hình) ──
+       Thanh định dạng 14 nút tự xuống 2 hàng, cộng ô gõ + dòng đếm ký tự -> chiếm gần nửa màn hình,
+       đẩy tin nhắn lên khuất. Công nhân chỉ gõ chữ thường, không cần in đậm/màu/danh sách/link,
+       nên ẩn hẳn thanh này trên điện thoại. Máy tính vẫn giữ đủ.
+       CHỈ áp cho trang công nhân (file này), KHÔNG đụng chat của HR/CSR trong inquiry-chat.css. */
+    @@media (max-width: 991.98px) {
+        .chat-input-wrap .editor-toolbar { display: none; }
+        .chat-input-wrap .editor-footer  { padding: .1rem .5rem; font-size: .64rem; }
+        .chat-input-wrap .editor-content { min-height: 44px; max-height: 96px; padding: .5rem .7rem; }
+        /* Nút đính kèm / gửi to hơn cho dễ bấm, bằng chiều cao ô gõ */
+        .chat-input-wrap .btn-attach,
+        .chat-input-wrap .btn-send { width: 44px; height: 44px; }
+    }
+
     /* Rating modal (employee-only) */
     .stars { display: flex; gap: .25rem; justify-content: center; margin: .5rem 0; }
     .star  { font-size: 1.8rem; cursor: pointer; color: #e2e8f0; transition: color .15s; }

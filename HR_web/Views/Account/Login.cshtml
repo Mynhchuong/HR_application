@@ -224,11 +224,23 @@
                         </div>
                     </div>
 
-                    <div class="d-flex align-items-center justify-content-between mb-4">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
                         <div class="form-check">
                             <input asp-for="RememberMe" class="form-check-input" id="rememberMe" />
                             <label class="form-check-label" for="rememberMe">Lưu tài khoản / Remember me</label>
                         </div>
+                    </div>
+
+                    @* Chỉ hiện khi mở trong app (JS ở cuối trang bỏ d-none) — trình duyệt thường
+                       không có Face ID/vân tay nên hiện ra chỉ gây khó hiểu. *@
+                    <div class="form-check mb-4 d-none" id="bioOptIn">
+                        <input class="form-check-input" type="checkbox" id="bioOptInCheck" />
+                        <label class="form-check-label" for="bioOptInCheck">
+                            Lần sau đăng nhập bằng Face ID / vân tay
+                            <span class="d-block text-muted" style="font-size:.78rem;line-height:1.3">
+                                Sign in with Face ID / fingerprint next time
+                            </span>
+                        </label>
                     </div>
 
                     @* Thông báo đẩy từ nơi khác sang (vd phiên hết hạn -> AntiforgeryExpiredFilter).
@@ -343,12 +355,53 @@
         // Gửi mã NV + mật khẩu cho app native lưu an toàn (Keychain/Keystore, gắn Face ID/vân tay) để
         // tự đăng nhập lại lần sau khỏi gõ tay — session web hết hạn cứng sau 24h (Program.cs,
         // SlidingExpiration=false) nên NV bị văng ra đăng nhập lại MỖI NGÀY (yêu cầu 2026-10-26).
+        //
+        // 2026-11-13: TRƯỚC ĐÂY LƯU LUÔN KHÔNG HỎI — NV không biết mật khẩu mình đang được lưu trên máy
+        // và không có chỗ nào tắt. Giờ phải có ô tick, NV tự chọn; tắt được lại ở trang Cài đặt.
+        // Lựa chọn lưu trong localStorage (theo từng MÁY, đúng bản chất — Face ID gắn với máy đó),
+        // Settings/Index đọc ghi đúng khoá này.
         // Không chặn submit dù bridge lỗi gì — đây chỉ là tiện ích phụ, đăng nhập thường vẫn phải chạy.
         (function () {
             var form = document.querySelector('.login-body form');
             if (!form) return;
+
+            var hasBridge =
+                (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.saveCredentials) ||
+                (window.Android && typeof window.Android.saveCredentials === 'function');
+
+            // Khoá ĐỔI TÊN sang _v2 có chủ ý (2026-11-13): bản trước có đoạn dò sinh trắc học bằng
+            // PublicKeyCredential — trong WKWebView nó luôn trả false nên đã GHI NHẦM '0' (tắt) vào máy
+            // của mọi NV mở trang Cài đặt lúc đó. Giữ nguyên khoá cũ thì họ cứ thấy "Đang tắt" mãi mà
+            // không hiểu vì sao. Dùng khoá mới = bỏ qua giá trị rác đó, ai cũng về mặc định bật lại.
+            var KEY = 'bio_login_v2';
+            function prefOn() {
+                try { return localStorage.getItem(KEY) !== '0'; } catch (e) { return true; }
+            }
+
+            // Chỉ hiện ô tick khi đang chạy trong app — trình duyệt thường không có Face ID/vân tay.
+            var box = document.getElementById('bioOptIn');
+            if (hasBridge && box) {
+                box.classList.remove('d-none');
+                var cb = document.getElementById('bioOptInCheck');
+                cb.checked = prefOn();
+                cb.addEventListener('change', function () {
+                    try { localStorage.setItem(KEY, cb.checked ? '1' : '0'); } catch (e) {}
+                    // Bỏ tick = không muốn nữa -> xoá luôn thông tin đã lưu trước đó trên máy này.
+                    if (!cb.checked) {
+                        try {
+                            if (window.Android && typeof window.Android.clearCredentials === 'function')
+                                window.Android.clearCredentials();
+                            else if (window.webkit && window.webkit.messageHandlers
+                                && window.webkit.messageHandlers.clearCredentials)
+                                window.webkit.messageHandlers.clearCredentials.postMessage(null);
+                        } catch (e) {}
+                    }
+                });
+            }
+
             form.addEventListener('submit', function () {
                 try {
+                    if (!hasBridge || !prefOn()) return;   // NV không chọn -> KHÔNG lưu gì cả
                     var empcd = document.getElementById('EMPCD')?.value || '';
                     var pwd   = document.getElementById('passwordInput')?.value || '';
                     if (!empcd || !pwd) return;

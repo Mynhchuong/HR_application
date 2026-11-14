@@ -31,6 +31,10 @@ public class ExpatMessageFilter : IAlwaysRunResultFilter
 
     public void OnResultExecuting(ResultExecutingContext context)
     {
+        // Chặn SỚM bằng claim Role (rẻ) trước khi gọi GetCurrentUser — hàm đó parse JSON cả object
+        // UserInfoModel, mà filter này chạy ở MỌI request. Chỉ Expat mới phải trả cái giá đó.
+        if (!context.HttpContext.User.IsInRole("Expat")) return;
+
         UserInfoModel? user;
         try { user = AuthHelper.GetCurrentUser(context.HttpContext.User); }
         catch { return; }
@@ -49,8 +53,9 @@ public class ExpatMessageFilter : IAlwaysRunResultFilter
                 case JsonResult jr when jr.Value is not null:
                     // Dựng lại bằng JObject: app cấu hình Newtonsoft + DefaultContractResolver nên
                     // JObject serialize ra y hệt object gốc, không đổi tên thuộc tính (res.message bên JS).
-                    var jo = JObject.FromObject(jr.Value);
-                    if (Patch(jo, lang)) jr.Value = jo;
+                    // JToken.FromObject chứ không JObject.FromObject: nhiều endpoint trả thẳng mảng
+                    // (List<...>), JObject.FromObject sẽ ném lỗi -> rơi vào catch và phí công vô ích.
+                    if (JToken.FromObject(jr.Value) is JObject jo && Patch(jo, lang)) jr.Value = jo;
                     break;
 
                 case ContentResult cr when cr.Content is { Length: > 0 }

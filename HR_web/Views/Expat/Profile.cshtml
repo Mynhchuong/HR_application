@@ -426,3 +426,20 @@
     });
 })();
 </script>
+
+@* Vừa đổi mật khẩu xong -> xoá thông tin đăng nhập Face ID/vân tay đã lưu trong máy, vì mật khẩu
+   lưu ở đó đã là mật khẩu CŨ. Để nguyên thì lần mở app sau quét mặt xong app điền mật khẩu cũ,
+   đăng nhập thất bại và còn bị tính là nhập sai. NV chỉ cần đăng nhập bằng mật khẩu mới 1 lần
+   (có tick ô Face ID) là lưu lại bình thường. *@
+@if (TempData["ClearBioCredentials"] is bool clearBio && clearBio)
+{
+    <script>
+        try {
+            if (window.Android && typeof window.Android.clearCredentials === 'function')
+                window.Android.clearCredentials();
+            else if (window.webkit && window.webkit.messageHandlers
+                && window.webkit.messageHandlers.clearCredentials)
+                window.webkit.messageHandlers.clearCredentials.postMessage(null);
+        } catch (e) { }
+    </script>
+}

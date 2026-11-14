@@ -1,0 +1,287 @@
+@using HR_web.Helpers
+@{
+    // Trang dùng CHUNG cho NV Việt Nam và Expat: _ViewStart gốc tự chọn _Layout hay _LayoutExpat
+    // theo UiLang, nên ở đây chỉ cần lo phần chữ.
+    // L(vi, en): NV thường -> tiếng Việt; Expat -> Anh hoặc Hàn (từ điển ExpatText).
+    var me     = AuthHelper.GetCurrentUser(User);
+    var uiLang = me?.UiLang ?? "vi";
+    Func<string, string, string> L = (vi, en) => ExpatText.Dual(uiLang, vi, en);
+
+    bool pushAvailable = ViewBag.PushAvailable == true;
+    bool pushMuted     = ViewBag.PushMuted == true;
+    bool isExpat       = me?.IsExpatUi == true;
+    bool isKo          = uiLang == "ko";
+
+    ViewData["Title"] = L("Cài đặt", "Settings");
+}
+
+@section Styles {
+<style>
+    .st-wrap  { max-width: 640px; margin: 0 auto; }
+    .st-group { background: #fff; border-radius: 18px; border: 1px solid rgba(0,0,0,.05);
+                box-shadow: 0 4px 15px rgba(0,0,0,.03); overflow: hidden; margin-bottom: 1rem; }
+    .st-head  { font-size: .72rem; font-weight: 800; text-transform: uppercase; color: #64748b;
+                letter-spacing: .05em; padding: .9rem 1.25rem .4rem; }
+    .st-row   { display: flex; align-items: center; gap: .9rem; padding: .95rem 1.25rem;
+                border-bottom: 1px solid #f8fafc; text-decoration: none; color: inherit; }
+    .st-row:last-child { border-bottom: none; }
+    .st-icon  { width: 36px; height: 36px; border-radius: 11px; background: #f1f5f9; flex-shrink: 0;
+                display: flex; align-items: center; justify-content: center; color: #4f46e5; }
+    .st-body  { flex: 1; min-width: 0; }
+    .st-label { font-size: .95rem; font-weight: 600; color: #1e293b; }
+    .st-desc  { font-size: .78rem; color: #94a3b8; margin-top: 2px; line-height: 1.35; }
+    .st-row .form-check-input { width: 2.6rem; height: 1.4rem; margin: 0; flex-shrink: 0; cursor: pointer; }
+    .st-chev  { color: #cbd5e1; flex-shrink: 0; }
+    .st-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 1080;
+                background: #1e293b; color: #fff; padding: .55rem 1.1rem; border-radius: 999px;
+                font-size: .85rem; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .st-toast.show { opacity: 1; }
+</style>
+}
+
+<div class="container-fluid py-4">
+    <div class="st-wrap">
+        @* Token cho lời gọi AJAX lưu công tắc. Phải đặt ngoài mọi @@if: khối ngôn ngữ bên dưới chỉ
+           hiện với Expat, nếu chỉ dựa vào token trong form đó thì NV Việt Nam bấm gạt sẽ bị 400. *@
+        @Html.AntiForgeryToken()
+        <h5 class="fw-bold mb-3">@L("Cài đặt", "Settings")</h5>
+
+        @* ── Thông báo ───────────────────────────────────────────────────── *@
+        <div class="st-group">
+            <div class="st-head">@L("Thông báo", "Notifications")</div>
+            @if (pushAvailable)
+            {
+                <div class="st-row">
+                    <div class="st-icon"><span class="material-symbols-rounded">notifications</span></div>
+                    <div class="st-body">
+                        <div class="st-label">@L("Nhận thông báo trên điện thoại", "Receive notifications on your phone")</div>
+                        <div class="st-desc">@L("Việc gấp vẫn báo cho bạn dù đã tắt.", "Urgent items are still sent even when this is off.")</div>
+                    </div>
+                    @* checked = ĐANG BẬT nhận, tức PUSH_MUTED = 0 *@
+                    <input class="form-check-input" type="checkbox" role="switch" id="swPush" @(pushMuted ? "" : "checked")>
+                </div>
+            }
+            else
+            {
+                <div class="st-row">
+                    <div class="st-icon"><span class="material-symbols-rounded">notifications_off</span></div>
+                    <div class="st-body">
+                        <div class="st-label">@L("Nhận thông báo trên điện thoại", "Receive notifications on your phone")</div>
+                        <div class="st-desc">@L("Tính năng chưa được bật trên hệ thống.", "This option is not enabled on the system yet.")</div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Ngôn ngữ: chỉ Expat mới đổi được (NV Việt Nam luôn là tiếng Việt) ── *@
+        @if (isExpat)
+        {
+            <div class="st-group">
+                <div class="st-head">@L("Ngôn ngữ", "Language")</div>
+                <form method="post" asp-controller="Account" asp-action="SetLanguage" class="m-0">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="lang" value="@(isKo ? "en" : "ko")" />
+                    <input type="hidden" name="returnUrl" value="@(Context.Request.PathBase + Context.Request.Path)" />
+                    <button type="submit" class="st-row w-100 border-0 bg-transparent text-start">
+                        <div class="st-icon"><span class="material-symbols-rounded">language</span></div>
+                        <div class="st-body">
+                            <div class="st-label">@ExpatText.T(uiLang, "Interface language")</div>
+                            <div class="st-desc">@(isKo ? "한국어" : "English")</div>
+                        </div>
+                        <span class="badge bg-light text-dark border">@(isKo ? "Switch to English" : "한국어로 전환")</span>
+                    </button>
+                </form>
+            </div>
+        }
+
+        @* ── Bảo mật / đăng nhập nhanh ──────────────────────────────────────
+           Face ID / vân tay ĐÃ CHẠY SẴN trong app từ 2026-10-26: Login.cshtml gọi bridge
+           saveCredentials lúc đăng nhập, native lưu vào Keychain (iOS) / Keystore (Android) rồi
+           lần sau tự hỏi sinh trắc học. KHÔNG cần viết thêm gì ở native.
+           Ở đây chỉ bổ sung thứ còn thiếu: chỗ để NV TỰ XOÁ thông tin đã lưu trên máy
+           (trước đây chỉ xoá được bằng cách bấm Đăng xuất). Khối này ẩn khi mở bằng trình duyệt
+           thường vì lúc đó không có bridge native nào để gọi. *@
+        <div class="st-group d-none" id="stSecurity">
+            <div class="st-head">@L("Bảo mật", "Security")</div>
+            <div class="st-row">
+                <div class="st-icon"><span class="material-symbols-rounded">fingerprint</span></div>
+                <div class="st-body">
+                    <div class="st-label">@L("Đăng nhập bằng Face ID / vân tay", "Quick sign-in with Face ID / fingerprint")</div>
+                    <div class="st-desc" id="bioDesc"></div>
+                </div>
+                <input class="form-check-input" type="checkbox" role="switch" id="swBio">
+            </div>
+        </div>
+
+        @* ── Tài khoản: trỏ sang trang Hồ sơ, KHÔNG làm lại chức năng đã có ── *@
+        <div class="st-group">
+            <div class="st-head">@L("Tài khoản", "Account")</div>
+            <a class="st-row" asp-controller="Profile" asp-action="ProfileUser">
+                <div class="st-icon"><span class="material-symbols-rounded">lock</span></div>
+                <div class="st-body">
+                    <div class="st-label">@L("Đổi mật khẩu", "Change password")</div>
+                    <div class="st-desc">@L("Mở trang Hồ sơ", "Open the profile page")</div>
+                </div>
+                <span class="material-symbols-rounded st-chev">chevron_right</span>
+            </a>
+            @* Trang quên mật khẩu đã có sẵn (/Account/ForgotPassword, xác minh bằng số CCCD + ngày cấp,
+               giới hạn 1 lần/tuần) — trước đây chỉ vào được từ màn hình Đăng nhập. *@
+            <a class="st-row" asp-controller="Account" asp-action="ForgotPassword">
+                <div class="st-icon"><span class="material-symbols-rounded">key_off</span></div>
+                <div class="st-body">
+                    <div class="st-label">@L("Quên mật khẩu", "Forgot password")</div>
+                    <div class="st-desc">@L("Đặt lại bằng số CCCD", "Reset it with your ID card number")</div>
+                </div>
+                <span class="material-symbols-rounded st-chev">chevron_right</span>
+            </a>
+            <a class="st-row" asp-controller="Profile" asp-action="ProfileUser">
+                <div class="st-icon"><span class="material-symbols-rounded">draw</span></div>
+                <div class="st-body">
+                    <div class="st-label">@L("Ảnh chữ ký", "Signature image")</div>
+                    <div class="st-desc">@L("Mở trang Hồ sơ", "Open the profile page")</div>
+                </div>
+                <span class="material-symbols-rounded st-chev">chevron_right</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="st-toast" id="stToast"></div>
+
+@section Scripts {
+<script>
+    // Toast dùng chung cho cả khối Bảo mật lẫn công tắc thông báo
+    function stToastMsg(msg) {
+        const el = document.getElementById('stToast');
+        if (!el) return;
+        el.textContent = msg;
+        el.classList.add('show');
+        setTimeout(() => el.classList.remove('show'), 1800);
+    }
+
+    // Lưu ngay khi gạt, không cần nút Lưu. Lỗi thì gạt trả lại vị trí cũ để không hiểu nhầm là đã lưu.
+    // Chỉ app (WebView) mới có bridge native — trình duyệt thường không có Face ID/vân tay nên ẩn khối.
+    // Dùng CHUNG khoá localStorage 'bio_login_v2' với ô tick ở trang Đăng nhập (Login.cshtml), để 2 nơi
+    // không nói 2 kiểu. Đây là lựa chọn THEO MÁY, đúng bản chất: vân tay gắn với đúng máy đó.
+    (function () {
+        const hasBridge =
+            (window.Android && typeof window.Android.clearCredentials === 'function') ||
+            (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.clearCredentials);
+        const box = document.getElementById('stSecurity');
+        if (!hasBridge || !box) return;
+        box.classList.remove('d-none');
+
+        // Khoá ĐỔI TÊN sang _v2 có chủ ý (2026-11-13): bản trước có đoạn dò sinh trắc học bằng
+        // PublicKeyCredential — trong WKWebView nó luôn trả false nên đã GHI NHẦM '0' (tắt) vào máy
+        // của mọi NV mở trang Cài đặt lúc đó. Giữ nguyên khoá cũ thì họ cứ thấy "Đang tắt" mãi mà
+        // không hiểu vì sao. Dùng khoá mới = bỏ qua giá trị rác đó, ai cũng về mặc định bật lại.
+        const KEY = 'bio_login_v2';
+        const sw  = document.getElementById('swBio');
+        const desc = document.getElementById('bioDesc');
+        const D_ON  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+            L("Đang bật. Lần tới vào app sẽ hỏi Face ID / vân tay (máy phải có cài sẵn).",
+              "On. Next time you open the app it will ask for Face ID / fingerprint (your phone must have one set up).")));
+        const D_NEXT = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+            L("Sẽ bật sau khi bạn đăng nhập bằng mật khẩu 1 lần.", "Will turn on after you sign in with your password once.")));
+        const D_OFF = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+            L("Đang tắt. Mỗi lần vào vẫn phải gõ mật khẩu.", "Off. You will type your password every time.")));
+        const MSG_OFF = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+            L("Đã tắt và xoá thông tin đăng nhập trên máy này.", "Forgotten the saved sign-in on this device.")));
+        const D_NOBIO = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+            L("Máy này chưa cài Face ID / vân tay. Bật trong Cài đặt điện thoại trước đã.",
+              "This phone has no Face ID or fingerprint set up yet. Turn it on in your phone settings first.")));
+        const D_READY = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+            L("Đã sẵn sàng. Lần tới ra màn hình đăng nhập sẽ hỏi Face ID / vân tay.",
+              "Ready. Next time you reach the sign-in screen it will ask for Face ID / fingerprint.")));
+        const D_NEEDLOGIN = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+            L("CHƯA lưu được. Hãy đăng xuất rồi đăng nhập lại bằng mật khẩu 1 lần (nhớ tick ô Face ID).",
+              "Not saved yet. Sign out and sign in with your password once (keep the Face ID box ticked).")));
+        const MSG_ON = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+            L("Đã bật. Đăng nhập bằng mật khẩu 1 lần nữa để hoàn tất.", "Turned on. Sign in with your password once more to finish.")));
+
+        function read() { try { return localStorage.getItem(KEY) !== '0'; } catch (e) { return true; } }
+        function paint(on, justTurnedOn) {
+            sw.checked = on;
+            desc.textContent = !on ? D_OFF : (justTurnedOn ? D_NEXT : D_ON);
+        }
+        paint(read(), false);
+
+        // App (từ bản iOS 4.8 / Android 11.0) bơm window.__bioState = {canBiometric, hasCreds}.
+        // Nhờ đó nói ĐÚNG tình trạng thay vì chỉ đọc lựa chọn trong localStorage — trước đây luôn ghi
+        // "Đang bật" dù máy chưa lưu mật khẩu nào, NV đăng xuất không thấy Face ID mà không hiểu vì sao.
+        // App cũ không bơm gì -> giữ nguyên cách hiển thị cũ, không vỡ.
+        function paintFromNative() {
+            const st = window.__bioState;
+            if (!st || !st.supported) return;
+            if (!st.canBiometric) {
+                sw.checked = false; sw.disabled = true; desc.textContent = D_NOBIO; return;
+            }
+            sw.disabled = false;
+            if (!read()) { desc.textContent = D_OFF; return; }
+            desc.textContent = st.hasCreds ? D_READY : D_NEEDLOGIN;
+        }
+        paintFromNative();
+        window.addEventListener('biostate', paintFromNative);
+
+        // KHÔNG dò bằng PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable():
+        // đó là API WebAuthn/passkey, trong WKWebView của app nó trả FALSE kể cả iPhone có Face ID
+        // (đã thử trên máy thật 2026-11-13, báo nhầm "máy chưa cài vân tay"). Web không có cách nào
+        // hỏi được máy có sinh trắc học hay không — chỉ native biết (BiometricManager.canAuthenticate
+        // / LAContext.canEvaluatePolicy) mà native lại chưa có bridge trả lời về web.
+        // Vì vậy cứ cho bật; máy không có sinh trắc học thì native lặng lẽ không hiện hộp thoại,
+        // phần mô tả bên dưới đã nói rõ điều kiện để NV không hiểu nhầm là hỏng.
+
+        sw.addEventListener('change', function () {
+            const on = sw.checked;
+            try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) { }
+            if (!on) {
+                // Tắt = xoá luôn thông tin đã lưu, không để nằm lại trên máy.
+                try {
+                    if (window.Android && typeof window.Android.clearCredentials === 'function')
+                        window.Android.clearCredentials();
+                    else window.webkit.messageHandlers.clearCredentials.postMessage(null);
+                } catch (e) { }
+                stToastMsg(MSG_OFF);
+            } else {
+                // Bật lại: web KHÔNG giữ mật khẩu sau khi đã đăng nhập, nên chỉ ghi nhận mong muốn;
+                // lần đăng nhập bằng mật khẩu kế tiếp mới thực sự lưu được.
+                stToastMsg(MSG_ON);
+            }
+            paint(on, on);
+        });
+    })();
+
+    (function () {
+        const sw = document.getElementById('swPush');
+        if (!sw) return;
+        const token = document.querySelector('input[name="__RequestVerificationToken"]');
+        const MSG_OK   = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(L("Đã lưu", "Saved")));
+        const MSG_FAIL = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(L("Không lưu được, thử lại nhé.", "Could not save, please try again.")));
+
+
+        sw.addEventListener('change', async function () {
+            const want = sw.checked;          // true = muốn NHẬN thông báo
+            sw.disabled = true;
+            try {
+                const body = new URLSearchParams({ muted: (!want).toString() });
+                const res = await fetch('@Url.Action("SetPush", "Settings")', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'RequestVerificationToken': token ? token.value : ''
+                    },
+                    body
+                });
+                const d = await res.json();
+                if (d && d.success) stToastMsg(MSG_OK);
+                else { sw.checked = !want; stToastMsg((d && d.message) || MSG_FAIL); }
+            } catch {
+                sw.checked = !want;
+                stToastMsg(MSG_FAIL);
+            } finally {
+                sw.disabled = false;
+            }
+        });
+    })();
+</script>
+}

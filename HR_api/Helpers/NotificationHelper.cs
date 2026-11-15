@@ -290,9 +290,9 @@ public class NotificationHelper
             if (!string.IsNullOrEmpty(model.LINK_ACTION)) data["link_action"] = model.LINK_ACTION;
             if (!string.IsNullOrEmpty(model.PRIORITY))   data["priority"]    = model.PRIORITY!;
             if (!string.IsNullOrEmpty(model.SOURCE))     data["source"]      = model.SOURCE!;
-            // target: app ghép vào /Notification/Go để nhảy đúng bài bản tin / phiếu khảo sát
-            // (LINK_ACTION chỉ là mã, id nằm ở TARGET_VAL — xem ResolveLink bên HR_web).
-            if (!string.IsNullOrEmpty(model.TARGET_VAL)) data["target"]      = model.TARGET_VAL!;
+            // KHÔNG có "target" ở đường gửi nhiều người: lần gửi này ứng với NHIỀU đích
+            // (SendMultiNotificationRequest.TARGETS là 1 danh sách, không có 1 TARGET_VAL duy nhất).
+            // Các thông báo cần id cụ thể (bản tin, phiếu khảo sát) đều đi đường gửi đơn lẻ bên dưới.
             data["noti_id"] = notiId.ToString();
 
             foreach (var batch in tokens.Chunk(500))

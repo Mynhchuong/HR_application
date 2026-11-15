@@ -396,13 +396,13 @@ function renderImportErrors(errors) {
         <ul class="mb-0">${errors.map(e => `<li><strong>${e.location}</strong>: ${e.message}</li>`).join('')}</ul></div>`;
 }
 
-async function finalizeWeekImport(fromDate, toDate, items, resolved) {
+async function finalizeWeekImport(fromDate, toDate, items, resolved, reactivateFoodIds) {
     const resultEl = document.getElementById('importWeekResult');
     const autoPublish = document.getElementById('chkAutoPublish').checked;
     const res  = await fetch('@Url.Action("FinalizeWeekImport")', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgery },
-        body: JSON.stringify({ FromDate: fromDate, ToDate: toDate, Items: items, Resolved: resolved, AutoPublish: autoPublish })
+        body: JSON.stringify({ FromDate: fromDate, ToDate: toDate, Items: items, Resolved: resolved, AutoPublish: autoPublish, ReactivateFoodIds: reactivateFoodIds || [] })
     });
     const data = await res.json();
     if (data.success) {
@@ -447,10 +447,10 @@ document.getElementById('btnImportWeek').addEventListener('click', async () => {
                     Shift: r._src.shift, DayNo: r._src.dayNo, MealType: r._src.mealType, DisplayOrder: r._src.displayOrder,
                     TypedName: r._src.typedName, MatchedId: r._src.matchedId, Decision: r.decision
                 }));
-                finalizeWeekImport(data.fromDate, data.toDate, data.items, payload);
+                finalizeWeekImport(data.fromDate, data.toDate, data.items, payload, data.reactivateFoodIds);
             });
         } else {
-            await finalizeWeekImport(data.fromDate, data.toDate, data.items, []);
+            await finalizeWeekImport(data.fromDate, data.toDate, data.items, [], data.reactivateFoodIds);
         }
     } catch (e) {
         resultEl.innerHTML = `<div class="alert alert-danger py-2">Lỗi kết nối: ${e.message}</div>`;

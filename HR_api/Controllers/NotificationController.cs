@@ -337,34 +337,9 @@ public class NotificationController : ControllerBase
             if (_cache.TryGetValue(UnreadCountCacheKey(empcd), out int cachedCount))
                 return Ok(new { success = true, count = cachedCount });
 
-            string sql = @"
-                WITH ME AS (
-                    SELECT DEPTCD, LINECD, WORKCD FROM HRMS.ECM100
-                    WHERE EMPCD = :EMPCD3 AND ROWNUM = 1
-                )
-                SELECT COUNT(*) CNT
-                FROM HRMS.HR_NOTIFICATIONS N
-                WHERE ( N.NOTI_TYPE = 'COMPANY'
-                     OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD)
-                     OR (N.NOTI_TYPE = 'DEPT'  AND N.TARGET_VAL = (SELECT DEPTCD FROM ME))
-                     OR (N.NOTI_TYPE = 'LINE'  AND N.TARGET_VAL = (SELECT LINECD FROM ME))
-                     OR (N.NOTI_TYPE = 'WORK'  AND N.TARGET_VAL = (SELECT WORKCD FROM ME))
-                     OR (N.NOTI_TYPE = 'MULTI' AND EXISTS (
-                         SELECT 1 FROM HRMS.HR_NOTIFICATION_TARGET T
-                         WHERE T.NOTI_ID = N.ID
-                           AND ( (T.TARGET_TYPE = 'EMPCD' AND T.TARGET_VAL = :EMPCD4)
-                              OR (T.TARGET_TYPE = 'DEPT'  AND T.TARGET_VAL = (SELECT DEPTCD FROM ME))
-                              OR (T.TARGET_TYPE = 'LINE'  AND T.TARGET_VAL = (SELECT LINECD FROM ME))
-                              OR (T.TARGET_TYPE = 'WORK'  AND T.TARGET_VAL = (SELECT WORKCD FROM ME)) )
-                     ))
-                     OR (N.NOTI_TYPE = 'SURVEY' AND EXISTS (
-                         SELECT 1 FROM HRMS.HR_SURVEY_RECIPIENT R
-                          WHERE TO_CHAR(R.SURVEY_ID) = N.TARGET_VAL AND R.EMPCD = :EMPCD5
-                     )) )
-                  AND NOT EXISTS (
-                      SELECT 1 FROM HRMS.HR_NOTIFICATION_LOG L
-                      WHERE L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD2 AND L.IS_READ = 1
-                  )";
+            // SQL đếm chưa đọc đặt ở NotificationHelper để dùng CHUNG với badge đẩy lên icon
+            // app — 1 nơi duy nhất, sửa điều kiện là cả 2 chỗ cùng đổi, khỏi lệch số.
+            string sql = HR_api.Helpers.NotificationHelper.UnreadCountSql;
 
             var rows = await _oracleService.ExecuteQueryAsync(sql,
                 r => Convert.ToInt32(r["CNT"]),

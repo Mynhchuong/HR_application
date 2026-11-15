@@ -1420,9 +1420,19 @@ public class OTController : ControllerBase
             if (pendingEmpCds.Count == 0)
                 return Ok(new { success = true, message = "Không có nhân viên nào đang chờ ký", sent = 0 });
 
-            _notiSvc.OTSignReminderToEmployees(pendingEmpCds, clerkEmpCd, workDate.ToString("dd/MM/yyyy"));
+            var skipped = await OtAlreadyRemindedAsync(workDate);
+            var toSend  = pendingEmpCds.Where(x => !skipped.Contains(x)).ToList();
+            int skipCnt = pendingEmpCds.Count - toSend.Count;
 
-            return Ok(new { success = true, message = $"Đã gửi nhắc nhở cho {pendingEmpCds.Count} nhân viên", sent = pendingEmpCds.Count });
+            if (toSend.Count == 0)
+                return Ok(new { success = true, sent = 0, skipped = skipCnt,
+                    message = $"Tất cả {skipCnt} nhân viên đã được nhắc đủ {OtRemindMaxPerDay} lần cho ngày này" });
+
+            _notiSvc.OTSignReminderToEmployees(toSend, clerkEmpCd, workDate.ToString("dd/MM/yyyy"));
+
+            return Ok(new { success = true, sent = toSend.Count, skipped = skipCnt,
+                message = $"Đã gửi nhắc nhở cho {toSend.Count} nhân viên"
+                        + (skipCnt > 0 ? $" (bỏ qua {skipCnt} người đã nhắc đủ {OtRemindMaxPerDay} lần)" : "") });
         }
         catch (Exception ex)
         {
@@ -1482,9 +1492,19 @@ public class OTController : ControllerBase
             if (pendingEmpCds.Count == 0)
                 return Ok(new { success = true, message = "Không có nhân viên nào đang chờ ký", sent = 0 });
 
-            _notiSvc.OTSignReminderToEmployees(pendingEmpCds, createdBy, workDate.ToString("dd/MM/yyyy"));
+            var skipped2 = await OtAlreadyRemindedAsync(workDate);
+            var toSend2  = pendingEmpCds.Where(x => !skipped2.Contains(x)).ToList();
+            int skipCnt2 = pendingEmpCds.Count - toSend2.Count;
 
-            return Ok(new { success = true, message = $"Đã gửi nhắc nhở cho {pendingEmpCds.Count} nhân viên", sent = pendingEmpCds.Count });
+            if (toSend2.Count == 0)
+                return Ok(new { success = true, sent = 0, skipped = skipCnt2,
+                    message = $"Tất cả {skipCnt2} nhân viên đã được nhắc đủ {OtRemindMaxPerDay} lần cho ngày này" });
+
+            _notiSvc.OTSignReminderToEmployees(toSend2, createdBy, workDate.ToString("dd/MM/yyyy"));
+
+            return Ok(new { success = true, sent = toSend2.Count, skipped = skipCnt2,
+                message = $"Đã gửi nhắc nhở cho {toSend2.Count} nhân viên"
+                        + (skipCnt2 > 0 ? $" (bỏ qua {skipCnt2} người đã nhắc đủ {OtRemindMaxPerDay} lần)" : "") });
         }
         catch (Exception ex)
         {
@@ -2271,4 +2291,35 @@ public class OTController : ControllerBase
         var deptRole = await DeptRoleHelper.GetDeptRoleNameAsync(_oracleService, empCd);
         return !string.IsNullOrEmpty(deptRole) && await _approvalConfig.IsRequestTypeRoleAllowedAsync("OT", deptRole);
     }
+
+    // Giới hạn số lần nhắc ký OT cho CÙNG 1 nhân viên + CÙNG 1 ngày tăng ca (yêu cầu 2026-11-14).
+    // Số liệu 30 ngày: 81.217 thông báo "Nhắc xác nhận tăng ca", trong đó 8.283 trường hợp bị nhắc
+    // từ 2 lần trở lên cho đúng một ngày -> ~15.800 cái là nhắc lại. Nhắc 8 lần mà chưa ký thì lần
+    // thứ 9 cũng không giúp gì, chỉ làm NV bỏ qua luôn mọi thông báo khác.
+    // Vẫn giữ nút bấm tay của Clerk (HR muốn Clerk chủ động) — chỉ lọc bớt người đã nhắc đủ.
+    private const int OtRemindMaxPerDay = 2;
+
+    // Trả về danh sách EMPCD đã được nhắc đủ số lần cho ngày OT này.
+    // Nhận diện bằng LINK_ACTION='OT_SIGN' + nội dung có chứa chuỗi ngày (template OT_SIGN_EMPLOYEE
+    // ghi "... tăng ca ngày {workDate}"). Không thêm cột mới nên không phải đụng DDL.
+    private async Task<HashSet<string>> OtAlreadyRemindedAsync(DateTime workDate)
+    {
+        var wd = workDate.ToString("dd/MM/yyyy");
+        // Chỉ đếm ĐÚNG thông báo của nút nhắc (template OT_SIGN_EMPLOYEE). Nếu đếm theo
+        // LINK_ACTION='OT_SIGN' chung thì "Yêu cầu xác nhận bổ sung" (OT_SUPP_REQUEST) của Admin —
+        // nội dung cũng có "ngày {workDate}" — sẽ ăn vào hạn mức, Admin gửi 2 lần là Clerk hết lượt nhắc.
+        var rows = await _oracleService.ExecuteQueryAsync(@"
+            SELECT TARGET_VAL FROM HRMS.HR_NOTIFICATIONS
+             WHERE NOTI_TYPE = 'EMPCD' AND LINK_ACTION = 'OT_SIGN'
+               AND BODY LIKE '%ngày ' || :WD || '%'
+               AND TITLE = (SELECT TITLE_VI FROM HRMS.HR_NOTI_TEMPLATES
+                             WHERE TEMPLATE_KEY = 'OT_SIGN_EMPLOYEE' AND ROWNUM = 1)
+             GROUP BY TARGET_VAL
+            HAVING COUNT(*) >= :MAXN",
+            r => r["TARGET_VAL"]?.ToString() ?? "",
+            new OracleParameter("WD", wd),
+            new OracleParameter("MAXN", OtRemindMaxPerDay));
+        return new HashSet<string>(rows, StringComparer.OrdinalIgnoreCase);
+    }
+
 }

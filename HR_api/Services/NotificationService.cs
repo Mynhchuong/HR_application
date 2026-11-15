@@ -45,18 +45,24 @@ public class NotificationService
     //  LEAVE
     // ═══════════════════════════════════════════════════════════════
 
-    public void LeaveSubmitted(string empCd, string empName, string leaveTypeName)
+    // CỐ Ý KHÔNG LÀM GÌ (2026-11-14). Trước đây hàm này bắn ngay 1 thông báo cho TỪNG người duyệt
+    // mỗi khi có đơn mới: 24.024 thông báo/30 ngày cho 379 người, 1 người từng nhận 119 cái trong
+    // 1 ngày, và chỉ 22,7% được mở. Giờ thay bằng bản tóm tắt 2 lần/ngày — xem LeaveApprovalDigestService.
+    //
+    // Giữ lại hàm rỗng (thay vì xoá) để chỗ gọi ở LeaveController.SubmitLeave không phải sửa, và nếu
+    // HR muốn bật lại kiểu báo ngay thì chỉ thêm code vào đây. Tham số giữ nguyên vì lý do đó.
+    public void LeaveSubmitted(string empCd, string empName, string leaveTypeName) { }
+
+    // Bản TÓM TẮT gửi cho người duyệt 2 lần/ngày thay cho việc bắn từng đơn một.
+    // Số liệu 30 ngày trước khi đổi: 24.024 thông báo "Yêu cầu nghỉ phép ... cần phê duyệt" cho 379
+    // người duyệt (63 cái/người/tháng), cá biệt 1 người nhận 119 cái TRONG 1 NGÀY — và đây là loại bị
+    // bỏ qua nhiều nhất (chỉ 22,7% được mở). Xem LeaveApprovalDigestService.
+    public void LeaveApprovalDigest(string approverEmpCd, int pendingCount)
         => FireAndForget(async () =>
         {
-            var ph = new Dictionary<string, string>
-            {
-                ["empName"]   = empName,
-                ["leaveType"] = leaveTypeName,
-            };
-            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("LEAVE_SUBMITTED", ph);
-            var approvers = await _helper.GetApproverEmpCdsAsync(empCd);
-            foreach (var ap in approvers)
-                await _helper.SendNotificationAsync(Personal(ap, empCd, title, body, "LEAVE_MANAGE", titleEn, bodyEn));
+            var ph = new Dictionary<string, string> { ["count"] = pendingCount.ToString() };
+            var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("LEAVE_APPROVAL_DIGEST", ph);
+            await _helper.SendNotificationAsync(Personal(approverEmpCd, "SYSTEM", title, body, "LEAVE_MANAGE", titleEn, bodyEn));
         });
 
     public void LeaveApproved(string requesterEmpCd, string approverEmpCd)

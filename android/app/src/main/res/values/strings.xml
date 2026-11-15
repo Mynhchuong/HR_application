@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">My Samho</string>
+    <!-- Widget màn hình chính. Nhãn trong widget đổi theo ngôn ngữ người dùng ngay trong code
+         (provider đọc "lang" từ server), nên ở đây chỉ để các chuỗi cố định/không phụ thuộc role. -->
+    <string name="widget_title">My Samho</string>
+    <string name="widget_desc">Việc cần làm và thông báo mới</string>
 </resources>

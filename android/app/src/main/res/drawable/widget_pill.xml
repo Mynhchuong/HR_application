@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ô số của quản lý: nền nhạt bo tròn cho 3 con số đứng tách nhau rõ. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_pill" />
+    <corners android:radius="14dp" />
+</shape>

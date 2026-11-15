@@ -239,8 +239,12 @@ public class MainActivity extends AppCompatActivity {
                 view.evaluateJavascript(
                         "(document.querySelector('.login-body form') && document.getElementById('passwordInput')) ? 1 : 0",
                         value -> {
-                            handleBiometricLoginState("1".equals(value));
+                            boolean isLogin = "1".equals(value);
+                            handleBiometricLoginState(isLogin);
                             injectBioState();
+                            // Đang ở trang đăng nhập thì chưa có phiên, gọi /Widget/Data cũng 302;
+                            // chỉ làm mới khi đã vào được bên trong.
+                            if (!isLogin) MySamhoWidgetProvider.requestRefresh(MainActivity.this);
                         });
             }
         });
@@ -389,6 +393,8 @@ public class MainActivity extends AppCompatActivity {
                 if (isFinishing() || isDestroyed() || webView == null) return;
                 boolean changed = !base.equals(selectedBaseUrl);
                 selectedBaseUrl = base;
+                // Widget chạy ở tiến trình khác, không thấy biến này -> phải ghi ra SharedPreferences
+                WidgetData.saveBaseUrl(MainActivity.this, base);
                 layoutNoInternet.setVisibility(View.GONE);
                 webView.setVisibility(View.VISIBLE);
                 String cur = webView.getUrl();
@@ -737,6 +743,9 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         activeInstance = this;
         if (webView != null) webView.onResume();
+        // Quay lại app sau khi làm việc ở nơi khác (duyệt đơn trên web, sếp ký trên máy khác...)
+        // -> số trên widget có thể đã cũ, làm mới luôn.
+        MySamhoWidgetProvider.requestRefresh(this);
     }
 
     @Override
@@ -1082,6 +1091,10 @@ public class MainActivity extends AppCompatActivity {
         public void clearCredentials() {
             bioLog(mContext, "web goi clearCredentials  <-- xoa mat khau da luu");
             BiometricCredentialHelper.clear(mContext);
+            // Đăng xuất -> xoá snapshot, không để số liệu của người cũ nằm lại trên màn hình chính
+            // của máy (máy dùng chung giữa các ca là chuyện có thật ở xưởng).
+            WidgetData.clear(mContext);
+            MySamhoWidgetProvider.requestRefresh(mContext);
             if (mContext instanceof MainActivity) {
                 MainActivity a = (MainActivity) mContext;
                 a.runOnUiThread(() -> { a.pendingCredEmpcd = null; a.pendingCredPassword = null; });

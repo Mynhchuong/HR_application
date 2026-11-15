@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  updatePeriodMillis: Android ép tối thiểu 30 phút và GOM lịch của mọi widget để tiết kiệm pin, nên
+  đặt nhỏ hơn cũng không chạy nhanh hơn. Đây chỉ là lưới an toàn — đường làm mới chính là lúc mở app,
+  lúc app chạy nền trở lại, và lúc có thông báo đẩy (xem MySamhoWidgetProvider).
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_mysamho"
+    android:previewLayout="@layout/widget_mysamho"
+    android:description="@string/widget_desc"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

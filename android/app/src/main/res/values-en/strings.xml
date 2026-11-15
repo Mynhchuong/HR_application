@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tên/mô tả widget trong THƯ VIỆN WIDGET của hệ điều hành. Chỗ này theo ngôn ngữ của MÁY,
+     không theo ngôn ngữ tài khoản — người dùng chưa mở app cũng thấy, nên phải dịch sẵn. -->
+<resources>
+    <string name="widget_desc">Tasks to handle and new notifications</string>
+</resources>

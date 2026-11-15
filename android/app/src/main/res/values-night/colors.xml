@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nền tối: widget phải đổi màu theo máy, nếu không chữ đen trên nền trắng sẽ chói giữa màn hình tối. -->
+<resources>
+    <color name="widget_bg">#FF1F2937</color>
+    <color name="widget_pill">#FF374151</color>
+    <color name="widget_text">#FFF9FAFB</color>
+    <color name="widget_muted">#FF9CA3AF</color>
+    <color name="widget_accent">#FFF87171</color>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nền thẻ widget. Dùng màu đặc (không trong suốt) để chữ đọc được trên mọi hình nền máy. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_bg" />
+    <corners android:radius="20dp" />
+</shape>

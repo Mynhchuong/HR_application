@@ -190,7 +190,8 @@ public class HomeController : BaseController
     }
 
     // "0600" → "06:00", "1430" → "14:30"
-    private static string? FormatShiftTime(string? hhmm)
+    // internal: WidgetController dùng lại để widget hiện giờ ca GIỐNG HỆT trang chủ ('0730' -> '07:30')
+    internal static string? FormatShiftTime(string? hhmm)
     {
         if (string.IsNullOrEmpty(hhmm) || hhmm.Length != 4) return hhmm;
         return $"{hhmm[..2]}:{hhmm[2..]}";

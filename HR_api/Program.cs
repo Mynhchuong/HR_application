@@ -105,6 +105,7 @@ builder.Services.AddHostedService<HR_api.HostedServices.TrainingNotificationWork
 
 // Leave — nhắc nộp giấy tờ (Đám tang/Đám cưới/Vợ sanh/Khám thai)
 builder.Services.AddHostedService<HR_api.HostedServices.LeaveDocReminderService>();
+builder.Services.AddHostedService<HR_api.HostedServices.LeaveApprovalDigestService>();
 builder.Services.AddHostedService<HR_api.HostedServices.KaizenWeeklyMailService>();
 builder.Services.AddHostedService<HR_api.HostedServices.InquiryReminderBackgroundService>();
 

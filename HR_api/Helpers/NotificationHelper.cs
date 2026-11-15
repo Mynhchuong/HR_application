@@ -339,6 +339,15 @@ public class NotificationHelper
                 body  = model.BODY_EN ?? model.BODY;
             }
 
+            // Badge trên icon app: CHỈ tính được khi thông báo gửi tới đúng 1 người (NOTI_TYPE=EMPCD)
+            // — badge là số riêng của từng người. Thông báo tới cả công ty/phòng/tổ dùng chung 1 lần
+            // gửi cho hàng nghìn token nên không thể gắn số riêng; app tự chỉnh lại badge khi mở
+            // (xem WidgetBridge.refreshBadge bên iOS). Thông báo đã lưu DB TRƯỚC khi gửi nên số này
+            // đã bao gồm cả cái vừa tạo.
+            int? badge = null;
+            if (model.NOTI_TYPE == "EMPCD" && !string.IsNullOrEmpty(model.TARGET_VAL))
+                badge = await BadgeCountAsync(model.TARGET_VAL);
+
             // noti_id để app mở đúng thông báo vừa bấm (/Notification?open={id}) — trước đây thiếu ở đường gửi đơn lẻ.
             Dictionary<string, string>? data = null;
             if (!string.IsNullOrEmpty(model.LINK_ACTION))
@@ -361,11 +370,13 @@ public class NotificationHelper
                         {
                             ChannelId = "mysamho_noti",
                             Sound     = "default",
+                            // Android: launcher hiện số này lên icon (Samsung/Pixel đều đọc).
+                            NotificationCount = badge
                         }
                     },
                     Apns = new ApnsConfig
                     {
-                        Aps = new Aps { Sound = "default" }
+                        Aps = new Aps { Sound = "default", Badge = badge }
                     }
                 };
                 await FirebaseMessaging.DefaultInstance.SendEachForMulticastAsync(message);
@@ -388,6 +399,61 @@ public class NotificationHelper
             return rows.FirstOrDefault() ?? empCd;
         }
         catch { return empCd; }
+    }
+
+    /// <summary>
+    /// SQL đếm thông báo CHƯA ĐỌC của 1 nhân viên. Nguồn DUY NHẤT — dùng cho cả endpoint
+    /// unread-count (NotificationController) lẫn số badge đẩy lên icon app ở đây. Bind:
+    /// EMPCD, EMPCD2, EMPCD3, EMPCD4, EMPCD5 (cùng 1 mã, đặt tên khác vì Oracle lặp bind trong IN/EXISTS).
+    /// </summary>
+    public const string UnreadCountSql = @"
+                WITH ME AS (
+                    SELECT DEPTCD, LINECD, WORKCD FROM HRMS.ECM100
+                    WHERE EMPCD = :EMPCD3 AND ROWNUM = 1
+                )
+                SELECT COUNT(*) CNT
+                FROM HRMS.HR_NOTIFICATIONS N
+                WHERE ( N.NOTI_TYPE = 'COMPANY'
+                     OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD)
+                     OR (N.NOTI_TYPE = 'DEPT'  AND N.TARGET_VAL = (SELECT DEPTCD FROM ME))
+                     OR (N.NOTI_TYPE = 'LINE'  AND N.TARGET_VAL = (SELECT LINECD FROM ME))
+                     OR (N.NOTI_TYPE = 'WORK'  AND N.TARGET_VAL = (SELECT WORKCD FROM ME))
+                     OR (N.NOTI_TYPE = 'MULTI' AND EXISTS (
+                         SELECT 1 FROM HRMS.HR_NOTIFICATION_TARGET T
+                         WHERE T.NOTI_ID = N.ID
+                           AND ( (T.TARGET_TYPE = 'EMPCD' AND T.TARGET_VAL = :EMPCD4)
+                              OR (T.TARGET_TYPE = 'DEPT'  AND T.TARGET_VAL = (SELECT DEPTCD FROM ME))
+                              OR (T.TARGET_TYPE = 'LINE'  AND T.TARGET_VAL = (SELECT LINECD FROM ME))
+                              OR (T.TARGET_TYPE = 'WORK'  AND T.TARGET_VAL = (SELECT WORKCD FROM ME)) )
+                     ))
+                     OR (N.NOTI_TYPE = 'SURVEY' AND EXISTS (
+                         SELECT 1 FROM HRMS.HR_SURVEY_RECIPIENT R
+                          WHERE TO_CHAR(R.SURVEY_ID) = N.TARGET_VAL AND R.EMPCD = :EMPCD5
+                     )) )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM HRMS.HR_NOTIFICATION_LOG L
+                      WHERE L.NOTI_ID = N.ID AND L.EMPCD = :EMPCD2 AND L.IS_READ = 1
+                  )";
+
+    /// <summary>
+    /// Số chưa đọc để đặt lên badge icon app. Chỉ gọi cho thông báo gửi tới ĐÚNG 1 người —
+    /// badge là số riêng của từng người, không thể dùng chung cho 1 lần gửi hàng loạt.
+    /// Lỗi thì trả null (bỏ badge) chứ không làm hỏng cả lần gửi thông báo.
+    /// </summary>
+    private async Task<int?> BadgeCountAsync(string empCd)
+    {
+        try
+        {
+            var rows = await _oracleService.ExecuteQueryAsync(UnreadCountSql,
+                r => Convert.ToInt32(r["CNT"]),
+                new OracleParameter("EMPCD",  empCd),
+                new OracleParameter("EMPCD2", empCd),
+                new OracleParameter("EMPCD3", empCd),
+                new OracleParameter("EMPCD4", empCd),
+                new OracleParameter("EMPCD5", empCd));
+            return rows.FirstOrDefault();
+        }
+        catch { return null; }
     }
 
     private async Task<bool> IsExpatAsync(string empCd)

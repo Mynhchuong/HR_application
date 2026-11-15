@@ -32,6 +32,19 @@ public class MenuController : BaseController
         { 3, "MAN" }, { 4, "DU_KIEN" }, { 5, "NHE" }, { 6, "CHAY" }, { 7, "BANH" }
     };
 
+    // Chuẩn hoá tên món GIỐNG HỆT HR_api MenuFoodController.Save (gộp space kép, "," -> " + ",
+    // chuẩn khoảng trắng quanh dấu +). Bắt buộc phải khớp 2 bên: import so tên theo chuỗi thô, còn
+    // API chặn trùng theo tên ĐÃ chuẩn hoá — lệch nhau thì ô "A+ B" không khớp món "A + B" có sẵn,
+    // bị coi là món mới, rồi API chặn vì trùng -> fail cả file (ca thật 2026-11-14).
+    private static string NormalizeFoodName(string raw)
+    {
+        var name = System.Text.RegularExpressions.Regex.Replace((raw ?? "").Trim(), " +", " ");
+        name = System.Text.RegularExpressions.Regex.Replace(name, @"\s*,\s*", " + ");
+        name = System.Text.RegularExpressions.Regex.Replace(name, @"\s*\+\s*", " + ");
+        var parts = name.Split(" + ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return string.Join(" + ", parts);
+    }
+
 
     public MenuController(MenuService svc, IWebHostEnvironment env)
     {
@@ -257,8 +270,9 @@ public class MenuController : BaseController
     public async Task<IActionResult> ImportExcel(IFormFile file)
     {
         var errors  = new List<ImportRowError>();
-        var items   = new List<SaveDetailItem>();
-        var pending = new List<WeekImportPendingItem>();
+        var items      = new List<SaveDetailItem>();
+        var pending    = new List<WeekImportPendingItem>();
+        var reactivate = new HashSet<int>();   // món đang ẩn được HR gõ lại -> bật hiện khi Finalize
 
         // JSON trả về theo convention lowercase của HR_web (Newtonsoft DefaultContractResolver giữ
         // nguyên tên property C# — phải tự map object ẩn danh, không trả thẳng model PascalCase).
@@ -294,7 +308,11 @@ public class MenuController : BaseController
             // ── Đọc từng ca / ngày / ô món ─────────────────────────────────
             if (!errors.Any())
             {
-                var foods = await _svc.GetActiveFoodsAsync();
+                // Lấy TOÀN BỘ danh mục (kể cả món đang ẩn IS_ACTIVE=0): API chặn trùng tên trên cả
+                // bảng, không lọc theo IS_ACTIVE — nếu ở đây chỉ so với món đang hiện thì món đã ẩn
+                // sẽ không khớp được, bị coi là món mới, rồi API chặn vì trùng -> fail cả file.
+                var allFoods = await _svc.GetFoodListAsync();
+                var foods    = allFoods.Where(f => f.IS_ACTIVE == 1).ToList();
                 foreach (var (shift, dataStart) in Sections)
                 {
                     for (int dayOffset = 0; dayOffset < 6; dayOffset++)
@@ -344,10 +362,15 @@ public class MenuController : BaseController
                                 }
                                 else
                                 {
-                                    var matched = foods.FirstOrDefault(f =>
-                                        f.FOOD_NAME.Equals(line, StringComparison.OrdinalIgnoreCase));
+                                    // So khớp trên tên ĐÃ chuẩn hoá (xem NormalizeFoodName) và trên
+                                    // TOÀN BỘ danh mục, kể cả món đang ẩn.
+                                    var lineNorm = NormalizeFoodName(line);
+                                    var matched  = allFoods.FirstOrDefault(f =>
+                                        NormalizeFoodName(f.FOOD_NAME).Equals(lineNorm, StringComparison.OrdinalIgnoreCase));
                                     if (matched != null)
                                     {
+                                        // Món đã ẩn mà HR gõ lại tên -> tức là dùng lại, bật hiện lên.
+                                        if (matched.IS_ACTIVE != 1) reactivate.Add(matched.ID);
                                         items.Add(new SaveDetailItem
                                         {
                                             DAY_NO        = dayNo,
@@ -399,6 +422,7 @@ public class MenuController : BaseController
             return Json(new
             {
                 success = true, fromDate, toDate, items,
+                reactivateFoodIds = reactivate.ToArray(),
                 pending = pending.Select(p => new
                 {
                     shift = p.Shift, dayNo = p.DayNo, mealType = p.MealType, displayOrder = p.DisplayOrder,
@@ -424,6 +448,26 @@ public class MenuController : BaseController
             var items = new List<SaveDetailItem>(req.Items ?? new());
             int newFoodCount = 0;
 
+            // Món đang ẩn được HR gõ lại tên trong file -> bật hiện lại. Dùng SaveFoodAsync với ID
+            // (update) thay vì ToggleFoodAsync: toggle là "đảo trạng thái", nếu ai đó vừa bật tay
+            // trong lúc HR đang import thì toggle lại tắt đi — set thẳng IS_ACTIVE=1 mới chắc chắn.
+            // Dup-check bên API có loại trừ chính dòng đang sửa nên không tự chặn mình.
+            var allFoodsNow = (req.ReactivateFoodIds?.Count ?? 0) > 0
+                ? await _svc.GetFoodListAsync() : null;
+            foreach (var fid in req.ReactivateFoodIds ?? new())
+            {
+                var f = allFoodsNow!.FirstOrDefault(x => x.ID == fid);
+                if (f == null || f.IS_ACTIVE == 1) continue;
+                await _svc.SaveFoodAsync(new SaveFoodRequest
+                {
+                    ID         = f.ID,
+                    FOOD_NAME  = f.FOOD_NAME,
+                    FOOD_TYPE  = f.FOOD_TYPE,
+                    IS_ACTIVE  = 1,
+                    LOGIN_USER = CurrentUser!.EmpCd
+                });
+            }
+
             // Cùng 1 tên món hoàn toàn mới có thể xuất hiện ở NHIỀU ô trong cùng 1 file (vd cùng món
             // nấu 2 ngày khác nhau trong tuần) — món mới tự tạo "không hỏi" (xem ImportExcel 2026-11-10)
             // xử lý từng dòng độc lập, nếu không track lại sẽ gọi SaveFoodAsync 2 lần cho cùng 1 tên,
@@ -438,7 +482,7 @@ public class MenuController : BaseController
                 {
                     foodId = r.MatchedId;
                 }
-                else if (createdInThisRequest.TryGetValue(r.TypedName.Trim(), out var reuseId))
+                else if (createdInThisRequest.TryGetValue(NormalizeFoodName(r.TypedName), out var reuseId))
                 {
                     foodId = reuseId;
                 }
@@ -458,7 +502,7 @@ public class MenuController : BaseController
                     });
                     if (!ok) return Json(new { success = false, message = $"Không tạo được món \"{r.TypedName}\": {createMsg}" });
                     foodId = newId;
-                    createdInThisRequest[r.TypedName.Trim()] = foodId;
+                    createdInThisRequest[NormalizeFoodName(r.TypedName)] = foodId;
                     if (r.Decision == "createNewCopyImage")
                         await CopyFoodImageAsync(r.MatchedId, foodId);
                 }

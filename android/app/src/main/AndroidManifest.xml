@@ -54,6 +54,36 @@
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="barcode_ui" />
+
+        <!-- Khi app bị TẮT HẲN hoặc chạy nền, FCM tự hiện thông báo và KHÔNG chạy qua
+             MySamhoFirebaseService.showNotification() — nó lấy icon/màu/kênh từ 3 khai báo dưới đây.
+             Thiếu chúng thì Android lấy tạm ic_launcher (ảnh màu) và tô trắng thành Ô VUÔNG TRẮNG
+             trên thanh trạng thái (lỗi phát hiện 2026-11-14). Khai báo để 2 trường hợp
+             (app đang mở / app đã tắt) hiện GIỐNG HỆT nhau. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_noti" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/noti_accent" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="mysamho_noti" />
+
+
+        <!-- Widget màn hình chính (công nhân / quản lý / expat) -->
+        <receiver
+            android:name=".MySamhoWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- Tự bắn khi app đăng nhập xong / nhận push / quay lại foreground -->
+                <action android:name="com.samho.mysamho.WIDGET_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_mysamho_info" />
+        </receiver>
     </application>
 
 </manifest>

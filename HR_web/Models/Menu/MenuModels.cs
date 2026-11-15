@@ -129,6 +129,8 @@ public class FinalizeWeekImportRequest
     public List<SaveDetailItem>        Items    { get; set; } = new();
     public List<WeekImportResolvedItem> Resolved { get; set; } = new();
     public bool AutoPublish { get; set; }
+    // ID món đang ẩn (IS_ACTIVE=0) mà HR gõ lại tên trong file -> bật hiện lại khi lưu tuần.
+    public List<int> ReactivateFoodIds { get; set; } = new();
 }
 
 public class UserTodayMealModel

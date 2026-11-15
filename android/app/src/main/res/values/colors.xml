@@ -2,4 +2,11 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="noti_accent">#DC2626</color>
+    <!-- Widget màn hình chính -->
+    <color name="widget_bg">#FFFFFFFF</color>
+    <color name="widget_pill">#FFF3F4F6</color>
+    <color name="widget_text">#FF111827</color>
+    <color name="widget_muted">#FF6B7280</color>
+    <color name="widget_accent">#FFDC2626</color>
 </resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Xem chú thích ở values-en/strings.xml -->
+<resources>
+    <string name="widget_desc">처리할 업무와 새 알림</string>
+</resources>

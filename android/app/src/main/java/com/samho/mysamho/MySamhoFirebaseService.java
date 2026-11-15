@@ -47,6 +47,10 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
         String notiId     = remoteMessage.getData().get("noti_id");
         showNotification(title, body, linkAction, notiId);
 
+        // Có thông báo mới = có thể vừa có đơn được duyệt / đơn mới cần duyệt -> cập nhật widget.
+        // Đây là đường làm mới quan trọng nhất khi app KHÔNG mở: FCM đánh thức tiến trình sẵn rồi.
+        MySamhoWidgetProvider.requestRefresh(getApplicationContext());
+
         // App đang mở (chỉ lúc này onMessageReceived mới chạy) -> báo WebView tự refresh badge ngay,
         // không cần NV F5/chuyển trang mới thấy số mới (yêu cầu 2026-10-26).
         MainActivity.notifyForegroundPush();
@@ -74,7 +78,10 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
             PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            // KHÔNG dùng ic_launcher: ảnh màu nền đặc -> Android tô trắng toàn bộ thành ô vuông trắng.
+            // ic_stat_noti là hình bóng trắng, đúng chuẩn thanh trạng thái (xem chú thích trong file đó).
+            .setSmallIcon(R.drawable.ic_stat_noti)
+            .setColor(0xFFDC2626)      // màu nhấn của thông báo (đỏ Samho)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)

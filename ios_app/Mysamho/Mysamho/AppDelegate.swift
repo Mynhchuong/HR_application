@@ -19,6 +19,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // Khi app bị kill và user tap notification → save flag để ViewController consume sau khi load
     static var pendingNotificationTap: Bool = false
     static var pendingNotiId: String?
+    /// Mã LINK_ACTION + TARGET_VAL của thông báo vừa bấm — ghép vào /Notification/Go để nhảy
+    /// THẲNG tới màn hình của nó thay vì đổ về hộp thư chung.
+    static var pendingNotiAction: String?
+    static var pendingNotiTarget: String?
 
     func application(
         _ application: UIApplication,
@@ -34,7 +38,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         if let notiOptions = launchOptions?[.remoteNotification] as? [AnyHashable: Any],
            notiOptions["link_action"] != nil {
             AppDelegate.pendingNotificationTap = true
-            AppDelegate.pendingNotiId = notiOptions["noti_id"] as? String
+            AppDelegate.pendingNotiId     = notiOptions["noti_id"] as? String
+            AppDelegate.pendingNotiAction = notiOptions["link_action"] as? String
+            AppDelegate.pendingNotiTarget = notiOptions["target"] as? String
         }
 
         #if DEBUG
@@ -128,7 +134,9 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         if userInfo["link_action"] != nil {
             // Lưu flag cho trường hợp ViewController chưa load (cold launch from killed)
             AppDelegate.pendingNotificationTap = true
-            AppDelegate.pendingNotiId = userInfo["noti_id"] as? String
+            AppDelegate.pendingNotiId     = userInfo["noti_id"] as? String
+            AppDelegate.pendingNotiAction = userInfo["link_action"] as? String
+            AppDelegate.pendingNotiTarget = userInfo["target"] as? String
             NotificationCenter.default.post(name: .didTapPushNotification, object: nil)
         }
         completionHandler()

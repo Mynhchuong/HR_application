@@ -45,7 +45,8 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
 
         String linkAction = remoteMessage.getData().get("link_action");
         String notiId     = remoteMessage.getData().get("noti_id");
-        showNotification(title, body, linkAction, notiId);
+        String target     = remoteMessage.getData().get("target");
+        showNotification(title, body, linkAction, notiId, target);
 
         // Có thông báo mới = có thể vừa có đơn được duyệt / đơn mới cần duyệt -> cập nhật widget.
         // Đây là đường làm mới quan trọng nhất khi app KHÔNG mở: FCM đánh thức tiến trình sẵn rồi.
@@ -56,7 +57,7 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
         MainActivity.notifyForegroundPush();
     }
 
-    private void showNotification(String title, String body, String linkAction, String notiId) {
+    private void showNotification(String title, String body, String linkAction, String notiId, String target) {
         NotificationManager mgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -72,6 +73,9 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
         }
         if (notiId != null && !notiId.isEmpty()) {
             intent.putExtra("noti_id", notiId);
+        }
+        if (target != null && !target.isEmpty()) {
+            intent.putExtra("target", target);
         }
         int uniqueId = NOTI_ID_GEN.incrementAndGet();
         PendingIntent pi = PendingIntent.getActivity(this, uniqueId, intent,

@@ -14,6 +14,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        // App đang tắt hẳn mà bấm nút tắt: iOS giao item qua đây chứ KHÔNG gọi performActionFor.
+        // Giữ lại đường dẫn để loadWebApp mở thẳng, khỏi ghé trang chủ.
+        if let item = connectionOptions.shortcutItem,
+           let path = item.userInfo?[AppShortcuts.pathKey] as? String {
+            ViewController.pendingOpenPath = path
+        }
         // Use this method to optionally configure and attach the UIWindow `window` to the provided UIWindowScene `scene`.
         // If using a storyboard, the `window` property will automatically be initialized and attached to the scene.
         // This delegate does not imply the connecting scene or session are new (see `application:configurationForConnectingSceneSession` instead).
@@ -25,6 +31,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // This occurs shortly after the scene enters the background, or when its session is discarded.
         // Release any resources associated with this scene that can be re-created the next time the scene connects.
         // The scene may re-connect later, as its session was not necessarily discarded (see `application:didDiscardSceneSessions` instead).
+    }
+
+    // Người dùng bấm nút tắt khi app đang chạy nền
+    func windowScene(_ windowScene: UIWindowScene,
+                     performActionFor shortcutItem: UIApplicationShortcutItem,
+                     completionHandler: @escaping (Bool) -> Void) {
+        completionHandler(AppShortcuts.handle(shortcutItem))
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {

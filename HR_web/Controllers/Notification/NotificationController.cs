@@ -23,6 +23,67 @@ public class NotificationController : BaseController
     // GET /Notification/IndexForExpat
     public IActionResult IndexForExpat() => View(ExpatViews.Notification);
 
+    // GET /Notification/Go?action=...&target=...&noti=...
+    //
+    // Điểm chuyển hướng DUY NHẤT từ 1 thông báo đẩy tới đúng màn hình của nó.
+    //
+    // Trước đây app native bấm thông báo nào cũng chỉ vào hộp thư chung, người nhận phải tự đi tìm
+    // đơn — quản lý nhận thông báo "có 5 đơn chờ duyệt" vẫn phải lục menu. Bảng ánh xạ mã ->
+    // đường dẫn vốn nằm trong JS của Notification/Index.cshtml, nếu chép sang iOS + Android nữa là
+    // thành 3 bản, sửa 1 chỗ quên 2 chỗ. Đặt ở server thì native chỉ cần mở đúng 1 URL này.
+    [HttpGet]
+    public async Task<IActionResult> Go(string? action, string? target, decimal? noti)
+    {
+        // Bấm vào thông báo = đã đọc, giống hệt khi bấm trong hộp thư.
+        if (noti.HasValue && noti.Value > 0 && CurrentUser?.EmpCd is string emp && emp.Length > 0)
+        {
+            try { await _notiSvc.MarkReadAsync(noti.Value, emp); } catch { }
+        }
+
+        return Redirect(Url.Content(ResolveLink(action, target)));
+    }
+
+    // Giữ ĐÚNG thứ tự nhánh như JS trong Notification/Index.cshtml — sửa 1 bên phải sửa cả 2.
+    private static string ResolveLink(string? action, string? target)
+    {
+        var a = action ?? "";
+
+        if (a.StartsWith("BULLETIN_CMT:"))
+            return "~/Bulletin/Detail/" + Uri.EscapeDataString(a["BULLETIN_CMT:".Length..]);
+
+        if (a == "BULLETIN" && !string.IsNullOrEmpty(target))
+            return "~/Bulletin/Detail/" + Uri.EscapeDataString(target);
+
+        if (a == "SURVEY" && !string.IsNullOrEmpty(target))
+            return "~/Survey/Do/" + Uri.EscapeDataString(target);
+
+        if (a.StartsWith("inquiry/"))
+            return "~/EmployeeInquiry/Chat?id=" + Uri.EscapeDataString(a["inquiry/".Length..]);
+
+        // Link ngoài: KHÔNG chuyển tiếp thẳng (hở lỗ chuyển hướng mở — ai gửi được thông báo là
+        // dắt người dùng đi đâu cũng được). Đưa về hộp thư, người dùng tự bấm như trên web.
+        if (a.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+         || a.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return "~/Notification/Index";
+
+        return a switch
+        {
+            "GP_MY"               => "~/GatePass/GpMyRequests",
+            "GP_MANAGE"           => "~/GatePass/GpListForSupervisor",
+            "LEAVE_MY"            => "~/Leave/LeaveMyRequests",
+            "LEAVE_MANAGE"        => "~/Leave/LeaveApprovalList",
+            "LEAVE_TEAM"          => "~/Leave/TeamSchedule",
+            "LEAVE_ASSIGNED"      => "~/Leave/LeaveMyRequests",
+            "OT_SIGN"             => "~/OT/OtConfirmForm",
+            "ATT_CONFIRM_WORKER"  => "~/AttendanceConfirm/WorkerForm",
+            "ATT_CONFIRM_MANAGER" => "~/AttendanceConfirm/Index",
+            "GIFT_MY"             => "~/Gift/MyGifts",
+            "PAYSLIP"             => "~/Payslip/Index",
+            "AI_CSR"              => "~/AiCsr/Chat",
+            _                     => "~/Notification/Index"   // mã lạ/không có -> hộp thư như cũ
+        };
+    }
+
     // GET /Notification/GetPage  (AJAX)
     [HttpGet]
     public async Task<IActionResult> GetPage(int page = 1, int page_size = 20)

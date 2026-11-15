@@ -59,6 +59,9 @@ public class MySamhoWidgetProvider extends AppWidgetProvider {
         IO.execute(() -> {
             WidgetData.refreshBlocking(app);
             renderAll(app, true);
+            // Nút tắt giữ icon app đặt theo role, mà role nằm trong chính bản chụp vừa lấy về —
+            // làm mới chung một lượt, khỏi gọi mạng lần nữa.
+            AppShortcuts.refresh(app);
         });
     }
 

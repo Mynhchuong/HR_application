@@ -290,6 +290,9 @@ public class NotificationHelper
             if (!string.IsNullOrEmpty(model.LINK_ACTION)) data["link_action"] = model.LINK_ACTION;
             if (!string.IsNullOrEmpty(model.PRIORITY))   data["priority"]    = model.PRIORITY!;
             if (!string.IsNullOrEmpty(model.SOURCE))     data["source"]      = model.SOURCE!;
+            // target: app ghép vào /Notification/Go để nhảy đúng bài bản tin / phiếu khảo sát
+            // (LINK_ACTION chỉ là mã, id nằm ở TARGET_VAL — xem ResolveLink bên HR_web).
+            if (!string.IsNullOrEmpty(model.TARGET_VAL)) data["target"]      = model.TARGET_VAL!;
             data["noti_id"] = notiId.ToString();
 
             foreach (var batch in tokens.Chunk(500))
@@ -353,6 +356,7 @@ public class NotificationHelper
             if (!string.IsNullOrEmpty(model.LINK_ACTION))
             {
                 data = new Dictionary<string, string> { { "link_action", model.LINK_ACTION } };
+                if (!string.IsNullOrEmpty(model.TARGET_VAL)) data["target"] = model.TARGET_VAL!;
                 if (notiId.HasValue && notiId.Value > 0) data["noti_id"] = notiId.Value.ToString();
             }
 

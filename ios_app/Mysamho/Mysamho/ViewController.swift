@@ -479,18 +479,55 @@ class ViewController: UIViewController {
 
     // MARK: - Web Loading
 
+    /// Đường dẫn tương đối cần mở THẲNG khi vào app (vd "/Leave/LeaveMyRequests").
+    /// Dùng chung cho nút tắt giữ icon app và cho thông báo đẩy muốn nhảy đúng màn hình.
+    static var pendingOpenPath: String?
+
     private func loadWebApp() {
-        let target = pendingNotificationTap ? notificationURL() : appURL
+        // Mở thẳng trang đích, không ghé trang chủ rồi mới nhảy — tránh nháy 2 lần và tránh tải
+        // thừa cả trang chủ trên mạng xưởng vốn đã chậm.
+        let target: String
+        if let path = ViewController.pendingOpenPath {
+            ViewController.pendingOpenPath = nil
+            target = appURL + path
+        } else {
+            target = pendingNotificationTap ? notificationURL() : appURL
+        }
         guard let url = URL(string: target) else { return }
         diagLog("loadWebApp -> \(target)")
         webView.load(URLRequest(url: url))
     }
 
-    private func notificationURL() -> String {
-        if let id = pendingNotiId, !id.isEmpty {
-            return "\(appURL)/Notification?open=\(id)"
+    /// App đang chạy sẵn, người dùng bấm nút tắt -> điều hướng ngay.
+    func openPath(_ path: String) {
+        guard let url = URL(string: appURL + path) else { return }
+        if webView != nil {
+            webView.load(URLRequest(url: url))
+        } else {
+            ViewController.pendingOpenPath = path
         }
-        return "\(appURL)/Notification"
+    }
+
+    /// Địa chỉ nhảy THẲNG tới màn hình của thông báo vừa bấm.
+    ///
+    /// Bảng đổi mã -> trang nằm ở server (NotificationController.Go bên HR_web), app chỉ ghép tham
+    /// số. Chép bảng đó sang cả iOS lẫn Android nữa là thành 3 bản, sửa 1 chỗ quên 2 chỗ; mà app
+    /// đã phát hành rồi thì không sửa lại được ngay.
+    private func notificationURL() -> String {
+        guard let action = AppDelegate.pendingNotiAction, !action.isEmpty else {
+            // Không có mã (thông báo cũ gửi trước bản này) -> về hộp thư như trước.
+            if let id = pendingNotiId, !id.isEmpty { return "\(appURL)/Notification?open=\(id)" }
+            return "\(appURL)/Notification"
+        }
+        func esc(_ v: String) -> String {
+            v.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? v
+        }
+        var url = "\(appURL)/Notification/Go?action=\(esc(action))"
+        if let t = AppDelegate.pendingNotiTarget, !t.isEmpty { url += "&target=\(esc(t))" }
+        if let id = pendingNotiId, !id.isEmpty             { url += "&noti=\(esc(id))" }
+        AppDelegate.pendingNotiAction = nil
+        AppDelegate.pendingNotiTarget = nil
+        return url
     }
 
     // MARK: - Actions

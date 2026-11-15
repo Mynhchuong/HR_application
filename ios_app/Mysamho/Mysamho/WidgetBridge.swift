@@ -36,6 +36,8 @@ enum WidgetBridge {
             store?.set(baseURL, forKey: kBase)
             WidgetCenter.shared.reloadAllTimelines()
             refreshBadge()
+            // Nút tắt đặt theo role, mà role nằm trong bản chụp widget vừa lấy — làm mới cùng lượt.
+            DispatchQueue.main.async { AppShortcuts.refresh() }
         }
     }
 
@@ -72,6 +74,7 @@ enum WidgetBridge {
     /// Đăng xuất -> xoá sạch, không để số liệu người cũ nằm lại trên màn hình chính.
     static func clearSession() {
         UNUserNotificationCenter.current().setBadgeCount(0)
+        DispatchQueue.main.async { AppShortcuts.clear() }
         store?.removeObject(forKey: kCookie)
         store?.removeObject(forKey: "widget_snapshot")
         store?.removeObject(forKey: "widget_snapshot_at")

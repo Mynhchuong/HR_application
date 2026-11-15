@@ -97,6 +97,9 @@ public class MainActivity extends AppCompatActivity {
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 102;
     private static final int AUDIO_PERMISSION_REQUEST_CODE = 103;
     private String pendingLinkAction = null; // từ FCM notification tap
+    // Đường dẫn tương đối cần mở thẳng khi vào app (vd "/Leave/LeaveMyRequests").
+    // Dùng chung cho nút tắt giữ icon app VÀ thông báo đẩy muốn nhảy đúng màn hình.
+    private String pendingOpenPath = null;
     private String pendingNotiId = null;
     private boolean pendingVideoCaptureAfterPermission = false;
 
@@ -164,6 +167,12 @@ public class MainActivity extends AppCompatActivity {
         // Lưu link_action + noti_id từ notification tap (nếu có)
         pendingLinkAction = getIntent().getStringExtra("link_action");
         pendingNotiId     = getIntent().getStringExtra("noti_id");
+        pendingOpenPath   = getIntent().getStringExtra("open_path");
+        if (pendingLinkAction != null) {
+            pendingOpenPath = goPath(pendingLinkAction, getIntent().getStringExtra("target"), pendingNotiId);
+            pendingLinkAction = null;
+            pendingNotiId     = null;
+        }
 
         // Expose FCM token to web app via Android.getFcmToken()
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
@@ -223,15 +232,9 @@ public class MainActivity extends AppCompatActivity {
                 super.onPageFinished(view, url);
                 dismissSplash();
                 // Nếu user tap notification khi app đang tắt → navigate tới trang thông báo sau khi load xong
-                if (pendingLinkAction != null && url != null && !url.contains("/Notification")) {
-                    String notiUrl = selectedBaseUrl + "/Notification";
-                    if (pendingNotiId != null && !pendingNotiId.isEmpty()) {
-                        notiUrl += "?open=" + pendingNotiId;
-                    }
-                    pendingLinkAction = null;
-                    pendingNotiId = null;
-                    view.loadUrl(notiUrl);
-                }
+                // (Trước đây chỗ này điều hướng sang /Notification sau khi trang chủ tải xong.
+                //  Giờ thông báo đã được đổi thành pendingOpenPath ngay ở onCreate và mở THẲNG
+                //  trang đích, không ghé trang chủ nữa — xem goPath.)
                 // Nhận diện trang Đăng nhập bằng NỘI DUNG TRANG, không dựa vào URL — sau khi đăng
                 // xuất, server trả trang Đăng nhập ngay tại .../HR_Web, URL không chứa
                 // "/Account/Login" nên cách so chuỗi cũ luôn sai (xác minh bằng log máy thật iOS
@@ -353,15 +356,31 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        String openPath = intent.getStringExtra("open_path");
+        if (openPath != null && webView != null && selectedBaseUrl != null) {
+            webView.loadUrl(selectedBaseUrl + openPath);
+            return;
+        }
         String linkAction = intent.getStringExtra("link_action");
         if (linkAction != null && webView != null && selectedBaseUrl != null) {
-            String notiId = intent.getStringExtra("noti_id");
-            String url = selectedBaseUrl + "/Notification";
-            if (notiId != null && !notiId.isEmpty()) {
-                url += "?open=" + notiId;
-            }
-            webView.loadUrl(url);
+            webView.loadUrl(selectedBaseUrl
+                    + goPath(linkAction, intent.getStringExtra("target"), intent.getStringExtra("noti_id")));
         }
+    }
+
+    /**
+     * Đường dẫn nhảy THẲNG tới màn hình của thông báo vừa bấm.
+     *
+     * Bảng đổi mã -> trang nằm ở server (NotificationController.Go bên HR_web), app chỉ ghép tham
+     * số. Chép bảng đó sang iOS + Android nữa là thành 3 bản, sửa 1 chỗ quên 2 chỗ; mà app đã phát
+     * hành rồi thì không sửa lại được ngay.
+     */
+    private static String goPath(String linkAction, String target, String notiId) {
+        StringBuilder sb = new StringBuilder("/Notification/Go?action=");
+        sb.append(android.net.Uri.encode(linkAction == null ? "" : linkAction));
+        if (target != null && !target.isEmpty()) sb.append("&target=").append(android.net.Uri.encode(target));
+        if (notiId != null && !notiId.isEmpty()) sb.append("&noti=").append(android.net.Uri.encode(notiId));
+        return sb.toString();
     }
 
     // Nút "Thử lại" và tự động khi có mạng trở lại: dò lại mạng nội bộ/ngoài (đổi wifi công ty <-> 4G thì chọn lại
@@ -399,7 +418,13 @@ public class MainActivity extends AppCompatActivity {
                 webView.setVisibility(View.VISIBLE);
                 String cur = webView.getUrl();
                 boolean hasPage = cur != null && cur.startsWith("http");
-                if (keepPageIfSame && !changed && hasPage) {
+                if (pendingOpenPath != null) {
+                    // Mở THẲNG trang đích, không ghé trang chủ rồi mới nhảy — tránh nháy 2 lần và
+                    // tránh tải thừa cả trang chủ trên mạng xưởng vốn đã chậm.
+                    String target = selectedBaseUrl + pendingOpenPath;
+                    pendingOpenPath = null;
+                    webView.loadUrl(target);
+                } else if (keepPageIfSame && !changed && hasPage) {
                     webView.reload();
                 } else {
                     webView.loadUrl(selectedBaseUrl);
@@ -1094,6 +1119,7 @@ public class MainActivity extends AppCompatActivity {
             // Đăng xuất -> xoá snapshot, không để số liệu của người cũ nằm lại trên màn hình chính
             // của máy (máy dùng chung giữa các ca là chuyện có thật ở xưởng).
             WidgetData.clear(mContext);
+            AppShortcuts.clear(mContext);
             MySamhoWidgetProvider.requestRefresh(mContext);
             if (mContext instanceof MainActivity) {
                 MainActivity a = (MainActivity) mContext;

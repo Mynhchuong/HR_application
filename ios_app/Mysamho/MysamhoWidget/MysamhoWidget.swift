@@ -213,12 +213,28 @@ struct MysamhoWidgetView: View {
     // ── Chân thẻ ────────────────────────────────────────────────────────────
     @ViewBuilder
     private func footer(_ s: WidgetSnapshot) -> some View {
-        // Số cũ thì nói thẳng là cũ, đừng để người dùng tin đó là số thật lúc này.
+        // Số cũ thì nói thẳng là cũ, VÀ nói luôn phải làm gì — chỉ ghi "số liệu cũ" thì ngay tại
+        // xưởng ai cũng tưởng widget hỏng, trong khi thật ra chỉ vì đang bắt wifi công ty.
         if s.isStale {
-            Label(L(lang, "Số liệu cũ — mở app để cập nhật",
-                          "Outdated — open app to refresh",
-                          "오래된 정보 — 앱에서 새로고침"), systemImage: "wifi.slash")
-                .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+            switch s.failReason {
+            case "companyWifi":
+                // App iOS chỉ chạy qua máy chủ ngoài, wifi công ty không ra tới đó được.
+                Label(L(lang, "Wifi công ty không xem được — bật 4G hoặc wifi cá nhân",
+                              "Company Wi-Fi can't load this — use 4G or personal Wi-Fi",
+                              "회사 Wi-Fi로는 불러올 수 없음 — 4G 또는 개인 Wi-Fi 사용"),
+                      systemImage: "wifi.exclamationmark")
+                    .font(.system(size: 9)).foregroundStyle(P.amber).lineLimit(2)
+            case "session":
+                Label(L(lang, "Phiên đã hết — mở app đăng nhập lại",
+                              "Session expired — open app to sign in",
+                              "세션 만료 — 앱에서 다시 로그인"), systemImage: "person.crop.circle.badge.exclamationmark")
+                    .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(2)
+            default:
+                Label(L(lang, "Mất mạng — đang hiện số liệu cũ",
+                              "No connection — showing old data",
+                              "연결 없음 — 이전 정보 표시"), systemImage: "wifi.slash")
+                    .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(2)
+            }
         } else if let at = s.updatedAt {
             Text(agoText(at))
                 .font(.system(size: 9)).foregroundStyle(.secondary).opacity(0.75).lineLimit(1)

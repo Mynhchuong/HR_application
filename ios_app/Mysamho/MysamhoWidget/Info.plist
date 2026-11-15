@@ -7,5 +7,28 @@
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.widgetkit-extension</string>
 	</dict>
+
+	<!--
+	  Toàn app đang để NSAllowsArbitraryLoads=false (chặn mọi kết nối http thường). Widget cần
+	  CHẠM THỬ máy chủ nội bộ công ty để biết máy có đang trong mạng công ty hay không, nhằm báo
+	  đúng "hãy bật 4G" thay vì báo nhầm "mất mạng" — mà máy chủ đó chỉ chạy http.
+
+	  Mở ngoại lệ hẹp nhất có thể: ĐÚNG 1 tên miền, không gồm tên miền con, và chỉ trong widget
+	  (app chính vẫn chặn như cũ). Widget KHÔNG gửi dữ liệu gì qua đường này — chỉ gửi 1 yêu cầu
+	  HEAD rỗng để xem có chạm tới được không.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>sa1-hanaro.esamho.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+			</dict>
+		</dict>
+	</dict>
 </dict>
 </plist>

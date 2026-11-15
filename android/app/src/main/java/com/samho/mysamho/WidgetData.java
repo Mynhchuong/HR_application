@@ -2,7 +2,6 @@ package com.samho.mysamho;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.webkit.CookieManager;
 
 import org.json.JSONObject;
 
@@ -14,10 +13,14 @@ import java.net.URL;
 /**
  * Kho dữ liệu dùng chung giữa app và widget màn hình chính.
  *
- * Xác thực: dùng LẠI cookie phiên đăng nhập của WebView (CookieManager), không nhúng API key.
+ * Xác thực: dùng LẠI cookie phiên đăng nhập mà app chép sang (xem saveCookie), không nhúng API key.
  * HR_api chỉ chặn bằng 1 API key dùng chung nên nếu widget gọi thẳng API thì key nằm trong APK,
  * ai dịch ngược cũng tra được dữ liệu của mọi mã NV. Gọi qua /Widget/Data của HR_web thì server tự
  * nhận ra người đăng nhập từ cookie, widget chỉ thấy đúng dữ liệu của chính chủ máy.
+ *
+ * Chọn mạng: widget TỰ dò mỗi lần làm mới (nội bộ công ty trước, không được thì ra mạng ngoài),
+ * không dùng địa chỉ mà app chọn lần cuối — nhân viên rời công ty ra về thì địa chỉ cũ đã sai, mà
+ * widget phải chạy được cả lúc app đang tắt hẳn.
  *
  * Luôn ghi lại bản chụp (snapshot) gần nhất: mất mạng hay hết phiên thì widget vẫn hiện số cũ kèm
  * mốc thời gian, không bị trắng trơn.
@@ -28,10 +31,15 @@ public final class WidgetData {
     private static final String K_JSON    = "snapshot_json";
     private static final String K_AT      = "snapshot_at";      // epoch millis lúc lấy được
     private static final String K_STALE   = "snapshot_stale";   // true = lần gọi gần nhất thất bại
-    private static final String K_BASE    = "base_url";
+    // Khớp với MainActivity — widget không đọc được biến của Activity nên phải khai lại.
+    public static final String INTERNAL_BASE = "http://sa1-hanaro.esamho.com/hr_Web";
+    public static final String EXTERNAL_BASE = "https://hr.esamho.com/HR_Web";
 
-    // Khớp với MainActivity — widget chạy ở tiến trình khác, không đọc được biến của Activity.
-    private static final String FALLBACK_BASE = "https://hr.esamho.com/HR_Web";
+    // Cookie lưu RIÊNG theo từng địa chỉ: 2 địa chỉ là 2 tên miền khác nhau nên trình duyệt giữ 2
+    // cookie khác nhau, lấy cookie của bên này gắn cho bên kia thì server không nhận ra phiên.
+    private static String cookieKey(String base) {
+        return INTERNAL_BASE.equals(base) ? "cookie_internal" : "cookie_external";
+    }
 
     private WidgetData() {}
 
@@ -39,14 +47,19 @@ public final class WidgetData {
         return c.getApplicationContext().getSharedPreferences(PREF, Context.MODE_PRIVATE);
     }
 
-    /** MainActivity gọi mỗi khi chọn xong mạng nội bộ/ngoài, để widget gọi đúng địa chỉ. */
-    public static void saveBaseUrl(Context c, String baseUrl) {
-        if (baseUrl == null || baseUrl.isEmpty()) return;
-        prefs(c).edit().putString(K_BASE, baseUrl).apply();
-    }
-
-    public static String baseUrl(Context c) {
-        return prefs(c).getString(K_BASE, FALLBACK_BASE);
+    /**
+     * MainActivity chép cookie phiên của WebView sang đây sau mỗi lần tải xong trang, kèm địa chỉ
+     * mà cookie đó thuộc về.
+     *
+     * KHÔNG để widget tự gọi CookieManager.getInstance(): widget chạy ở luồng nền, và tiến trình
+     * app có thể vừa bị thông báo đẩy đánh thức dậy — lúc đó chưa có Activity nào, WebView chưa hề
+     * được khởi tạo. Gọi CookieManager trong hoàn cảnh đó không lấy được gì (có máy còn ném lỗi),
+     * nên widget sẽ không bao giờ làm mới được khi app đang tắt — đúng tình huống cần nó nhất.
+     * Làm giống bản iOS: app chủ động đẩy cookie ra chỗ dùng chung.
+     */
+    public static void saveCookie(Context c, String base, String cookie) {
+        if (base == null || cookie == null || cookie.isEmpty()) return;
+        prefs(c).edit().putString(cookieKey(base), cookie).apply();
     }
 
     public static JSONObject cached(Context c) {
@@ -63,25 +76,33 @@ public final class WidgetData {
      * @return true nếu lấy được bản mới (đã lưu), false nếu thất bại (giữ nguyên bản cũ).
      */
     public static boolean refreshBlocking(Context c) {
+        // Thứ tự thử: mạng nội bộ công ty trước (nhanh hơn, và là đường app vẫn ưu tiên), rồi tới
+        // mạng ngoài. Đang dùng 4G/5G thì chắc chắn không với tới mạng nội bộ -> bỏ qua luôn cho
+        // khỏi phải chờ hết thời gian chờ. Đúng cách autoSelectNetworkAndStart bên MainActivity làm.
+        boolean mobile = isOnMobileData(c);
+        if (!mobile && tryBase(c, INTERNAL_BASE, 2500)) return true;
+        if (tryBase(c, EXTERNAL_BASE, 8000)) return true;
+
+        markStale(c);
+        return false;
+    }
+
+    /** Gọi 1 địa chỉ bằng đúng cookie của chính nó. true = lấy được bản mới và đã lưu. */
+    private static boolean tryBase(Context c, String base, int timeoutMs) {
+        String cookie = prefs(c).getString(cookieKey(base), null);
+        if (cookie == null || cookie.isEmpty()) return false;   // chưa từng đăng nhập ở mạng này
+
         HttpURLConnection conn = null;
         try {
-            String base   = baseUrl(c);
-            String cookie = CookieManager.getInstance().getCookie(base);
-            if (cookie == null || cookie.isEmpty()) {   // chưa đăng nhập bao giờ
-                markStale(c);
-                return false;
-            }
-
             conn = (HttpURLConnection) new URL(base + "/Widget/Data").openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Cookie", cookie);
             conn.setRequestProperty("Accept", "application/json");
             conn.setInstanceFollowRedirects(false);   // hết phiên -> 302 về trang login, KHÔNG đi theo
-            conn.setConnectTimeout(8000);
-            conn.setReadTimeout(8000);
+            conn.setConnectTimeout(timeoutMs);
+            conn.setReadTimeout(timeoutMs);
 
-            int code = conn.getResponseCode();
-            if (code != 200) { markStale(c); return false; }
+            if (conn.getResponseCode() != 200) return false;
 
             StringBuilder sb = new StringBuilder();
             try (BufferedReader r = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"))) {
@@ -90,7 +111,7 @@ public final class WidgetData {
             }
 
             JSONObject jo = new JSONObject(sb.toString());
-            if (!jo.optBoolean("ok", false)) { markStale(c); return false; }
+            if (!jo.optBoolean("ok", false)) return false;
 
             // Badge trên icon Android = SỐ THÔNG BÁO còn trong khay (launcher tự đếm), không phải
             // một con số ta đặt được. Nên khi người dùng đã đọc hết trên web/app thì phải dọn khay,
@@ -108,10 +129,27 @@ public final class WidgetData {
                     .apply();
             return true;
         } catch (Exception e) {
-            markStale(c);
             return false;
         } finally {
             if (conn != null) conn.disconnect();
+        }
+    }
+
+    /** 4G/5G (không kèm wifi/ethernet) thì khỏi thử mạng nội bộ. */
+    private static boolean isOnMobileData(Context c) {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager)
+                    c.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return false;
+            android.net.Network n = cm.getActiveNetwork();
+            if (n == null) return false;
+            android.net.NetworkCapabilities caps = cm.getNetworkCapabilities(n);
+            return caps != null
+                    && caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR)
+                    && !caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+                    && !caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET);
+        } catch (Exception e) {
+            return false;
         }
     }
 
@@ -121,6 +159,7 @@ public final class WidgetData {
 
     /** Đăng xuất -> xoá sạch, không để số liệu của người cũ nằm lại trên màn hình chính. */
     public static void clear(Context c) {
-        prefs(c).edit().remove(K_JSON).remove(K_AT).remove(K_STALE).apply();
+        prefs(c).edit().remove(K_JSON).remove(K_AT).remove(K_STALE)
+                .remove(cookieKey(INTERNAL_BASE)).remove(cookieKey(EXTERNAL_BASE)).apply();
     }
 }

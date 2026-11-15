@@ -99,11 +99,61 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <ImageView
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:scaleType="fitCenter"
-            android:src="@mipmap/ic_launcher" />
+        <!--
+          Cụm logo của màn hình mở app. Thứ tự vẽ: đĩa (icon app) -> vòng đen -> vòng đỏ -> chữ S.
+          Tất cả chồng lên nhau cùng một chỗ để "biến hình" bằng cách mờ chồng, xem
+          MainActivity.startSplashAnimation(). Kích thước vòng theo đúng tỉ lệ logo gốc của công ty
+          (3231 x 2724 -> 172dp x 145dp), vòng Samho hơi dẹt chứ không tròn đều.
+        -->
+        <FrameLayout
+            android:id="@+id/splashGroup"
+            android:layout_width="172dp"
+            android:layout_height="145dp">
+
+            <View
+                android:id="@+id/splashDisc"
+                android:layout_width="104dp"
+                android:layout_height="104dp"
+                android:layout_gravity="center" />
+
+            <ImageView
+                android:id="@+id/splashRingDark"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/logo_ring"
+                android:scaleType="fitXY"
+                android:alpha="0"
+                android:contentDescription="@null" />
+
+            <ImageView
+                android:id="@+id/splashRingRed"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/logo_ring"
+                android:scaleType="fitXY"
+                android:alpha="0"
+                android:contentDescription="@null" />
+
+            <!-- Chữ S đặt theo tỉ lệ đo từ file logo gốc: x=22.75% y=19.16% w=55.4% h=59.73% -->
+            <ImageView
+                android:id="@+id/splashS"
+                android:layout_width="95dp"
+                android:layout_height="87dp"
+                android:layout_marginStart="39dp"
+                android:layout_marginTop="28dp"
+                android:src="@drawable/logo_s"
+                android:scaleType="fitXY"
+                android:alpha="0"
+                android:contentDescription="@null" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/splashName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:textSize="26sp"
+            android:alpha="0" />
 
     </LinearLayout>
 

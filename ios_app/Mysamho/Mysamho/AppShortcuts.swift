@@ -18,15 +18,13 @@ enum AppShortcuts {
         }
     }
 
-    /// Gọi sau mỗi lần đồng bộ phiên — role có thể đổi (máy dùng chung giữa các ca).
-    static func refresh() {
-        let store = UserDefaults(suiteName: WidgetBridge.appGroup)
-        var role = "worker", lang = "vi"
-        if let data = store?.data(forKey: "widget_snapshot"),
-           let jo = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            role = jo["role"] as? String ?? "worker"
-            lang = jo["lang"] as? String ?? "vi"
-        }
+    /// Đặt lại nút tắt theo role.
+    ///
+    /// PHẢI truyền role/lang từ lần gọi /Widget/Data của app. Trước đây hàm này tự đọc bản chụp
+    /// `widget_snapshot` trong App Group — nhưng bản chụp đó CHỈ do tiến trình widget ghi, nên ai
+    /// không kéo widget ra màn hình chính thì nó không bao giờ tồn tại, role luôn rơi về "worker"
+    /// và quản lý/Expat nhận nhầm bộ nút tắt của công nhân.
+    static func apply(role: String, lang: String) {
 
         var items: [UIApplicationShortcutItem] = []
         if role == "worker" {

@@ -76,14 +76,21 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private LinearLayout layoutNoInternet;
     private View layoutSplash;
+    private View splashGroup, splashDisc;
+    private android.widget.ImageView splashRingDark, splashRingRed, splashS;
+    private android.widget.TextView splashName;
+    /// Mốc hoạt ảnh mở màn chạy xong — trang web tải nhanh hơn thì chờ nốt, đừng cắt ngang.
+    private long splashIntroEndsAt = 0L;
     private Button btnRetry;
     private ProgressBar progressBar;
     // 2 domain khác nhau, path case KHÁC NHAU (xác nhận thật 2026-10-30) — sa1-hanaro (wifi nội bộ
     // công ty) dùng "hr_Web" (h thường, W hoa); hr.esamho.com (4G/wifi ngoài) dùng "HR_Web" (hoa hết).
     // Apache phía server phân biệt hoa/thường, sai case là "Forbidden" ngay — ĐỪNG tự ý đồng bộ 2 cái
     // này về cùng 1 kiểu case, chúng CỐ Ý khác nhau.
-    private static final String INTERNAL_BASE_URL = "http://sa1-hanaro.esamho.com/hr_Web";
-    private static final String EXTERNAL_BASE_URL = "https://hr.esamho.com/HR_Web";
+    // Khai ở WidgetData để widget (chạy tiến trình nền, không thấy Activity) dùng CHUNG đúng 2
+    // địa chỉ này — trước đây mỗi bên giữ 1 bản, đổi địa chỉ là quên mất 1 bên.
+    private static final String INTERNAL_BASE_URL = WidgetData.INTERNAL_BASE;
+    private static final String EXTERNAL_BASE_URL = WidgetData.EXTERNAL_BASE;
     private String selectedBaseUrl = INTERNAL_BASE_URL; // Mặc định là mạng nội bộ; thật sự chọn bằng autoSelectNetworkAndStart()
     private ConnectivityManager.NetworkCallback networkCallback;   // tự tải lại khi có mạng trở lại
     private volatile boolean autoSelecting = false;                // chặn chạy chồng nhiều lần dò mạng
@@ -133,7 +140,14 @@ public class MainActivity extends AppCompatActivity {
 
         webView = findViewById(R.id.webView);
         layoutNoInternet = findViewById(R.id.layoutNoInternet);
-        layoutSplash = findViewById(R.id.layoutSplash);
+        layoutSplash   = findViewById(R.id.layoutSplash);
+        splashGroup    = findViewById(R.id.splashGroup);
+        splashDisc     = findViewById(R.id.splashDisc);
+        splashRingDark = findViewById(R.id.splashRingDark);
+        splashRingRed  = findViewById(R.id.splashRingRed);
+        splashS        = findViewById(R.id.splashS);
+        splashName     = findViewById(R.id.splashName);
+        startSplashAnimation();
         btnRetry = findViewById(R.id.btnRetry);
         progressBar = findViewById(R.id.progressBar);
 
@@ -247,7 +261,16 @@ public class MainActivity extends AppCompatActivity {
                             injectBioState();
                             // Đang ở trang đăng nhập thì chưa có phiên, gọi /Widget/Data cũng 302;
                             // chỉ làm mới khi đã vào được bên trong.
-                            if (!isLogin) MySamhoWidgetProvider.requestRefresh(MainActivity.this);
+                            if (!isLogin) {
+                                // Chép cookie phiên ra chỗ dùng chung TRƯỚC khi bảo widget làm mới
+                                // — widget chạy luồng nền, không tự đọc CookieManager được.
+                                // Đọc ở đây là luồng chính, WebView chắc chắn đã sẵn sàng.
+                                try {
+                                    WidgetData.saveCookie(MainActivity.this, selectedBaseUrl,
+                                            CookieManager.getInstance().getCookie(selectedBaseUrl));
+                                } catch (Exception ignored) {}
+                                MySamhoWidgetProvider.requestRefresh(MainActivity.this);
+                            }
                         });
             }
         });
@@ -412,8 +435,6 @@ public class MainActivity extends AppCompatActivity {
                 if (isFinishing() || isDestroyed() || webView == null) return;
                 boolean changed = !base.equals(selectedBaseUrl);
                 selectedBaseUrl = base;
-                // Widget chạy ở tiến trình khác, không thấy biến này -> phải ghi ra SharedPreferences
-                WidgetData.saveBaseUrl(MainActivity.this, base);
                 layoutNoInternet.setVisibility(View.GONE);
                 webView.setVisibility(View.VISIBLE);
                 String cur = webView.getUrl();
@@ -509,9 +530,104 @@ public class MainActivity extends AppCompatActivity {
     // Che khoảng trắng chớp giữa lúc WebView bắt đầu tải và trang Home vẽ xong lần đầu (yêu cầu tối
     // ưu UX 2026-10-26, cùng cơ chế với iOS ViewController.showSplash/dismissSplash). Idempotent —
     // gọi lại nhiều lần (onPageFinished bắn mỗi lần điều hướng) không sao vì đã GONE từ lần đầu.
+    /**
+     * Màn hình mở app: icon app (ô vuông bo tròn đỏ) bo dần thành ĐĨA ĐEN, đĩa rỗng ruột thành
+     * VÒNG đen, rồi chữ S nhô ra và cả vòng chuyển sang ĐỎ — thành logo công ty, cuối cùng hiện
+     * "My SAMHO". Giống hệt bản iOS (ViewController.showSplash), chỉ bỏ bước bảng thông báo vì
+     * Android không có bảng đó (nó tự dò mạng nội bộ nên không cần nhắc dùng 4G).
+     *
+     * Mấu chốt để không bị "thô": mọi hình đều BIẾN THÀNH hình kế tiếp — cùng chỗ, cùng cỡ, mờ
+     * chồng lên nhau — chứ không phải hình này tắt rồi hình kia bật.
+     */
+    private void startSplashAnimation() {
+        if (splashGroup == null) return;
+
+        final int crimson = 0xFFC82128;   // đỏ logo, lấy từ chính file logo công ty
+        final int dark    = 0xFF1A1A1A;
+
+        float d = getResources().getDisplayMetrics().density;
+        final float startRadius = 23 * d;              // bo góc của icon app
+        final float endRadius   = 52 * d;              // bo tròn hẳn thành đĩa
+
+        final android.graphics.drawable.GradientDrawable disc = new android.graphics.drawable.GradientDrawable();
+        disc.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        disc.setColor(crimson);
+        disc.setCornerRadius(startRadius);
+        splashDisc.setBackground(disc);
+
+        splashRingDark.setImageTintList(android.content.res.ColorStateList.valueOf(dark));
+        splashRingRed.setImageTintList(android.content.res.ColorStateList.valueOf(crimson));
+        splashS.setImageTintList(android.content.res.ColorStateList.valueOf(crimson));
+
+        // "My" đỏ + "SAMHO" xanh đen — đúng như chữ trên trang Đăng nhập.
+        android.text.SpannableString t = new android.text.SpannableString("My SAMHO");
+        t.setSpan(new android.text.style.ForegroundColorSpan(0xFFDA3832), 0, 2, 0);
+        t.setSpan(new android.text.style.ForegroundColorSpan(0xFF20293A), 3, 8, 0);
+        t.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, 8, 0);
+        splashName.setText(t);
+
+        // Icon bật lên kiểu lò xo nhẹ
+        splashDisc.setAlpha(0f);
+        splashDisc.setScaleX(0.72f); splashDisc.setScaleY(0.72f);
+        splashDisc.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                .setStartDelay(60).setDuration(320)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+
+        // 0.42s: icon bo góc thành đĩa, giãn ra ĐÚNG khung của cái vòng, và đỏ chuyển sang đen.
+        // Phải giãn cho khớp khung vòng (172x145dp) chứ không giữ nguyên 104dp — lệch cỡ thì lúc
+        // đĩa nhường chỗ cho vòng sẽ thấy nhảy một nhịp. Kéo 2 chiều khác nhau còn làm đĩa thành
+        // hình bầu dục, đúng kiểu vòng Samho vốn hơi dẹt.
+        final float toScaleX = 172f / 104f, toScaleY = 145f / 104f;
+        android.animation.ValueAnimator morph = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        morph.setStartDelay(420); morph.setDuration(440);
+        morph.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+        morph.addUpdateListener(a -> {
+            float f = (float) a.getAnimatedValue();
+            disc.setCornerRadius(startRadius + (endRadius - startRadius) * f);
+            disc.setColor((Integer) new android.animation.ArgbEvaluator().evaluate(f, crimson, dark));
+            splashDisc.setScaleX(1f + (toScaleX - 1f) * f);
+            splashDisc.setScaleY(1f + (toScaleY - 1f) * f);
+        });
+        morph.start();
+
+        // 0.86s: đĩa đen mờ đi ĐÚNG LÚC vòng đen hiện lên -> mắt thấy đĩa "rỗng ruột" thành vòng
+        splashDisc.animate().alpha(0f).setStartDelay(860).setDuration(300).start();
+        splashRingDark.animate().alpha(1f).setStartDelay(860).setDuration(300).start();
+
+        // 1.16s: chữ S nhô ra + vòng chuyển sang đỏ -> thành logo công ty
+        splashS.setScaleX(0.55f); splashS.setScaleY(0.55f);
+        splashS.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                .setStartDelay(1160).setDuration(420)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.1f)).start();
+        splashRingRed.animate().alpha(1f).setStartDelay(1160).setDuration(480).start();
+
+        // 1.6s: tên hiện khi logo đã thành hình
+        splashName.setTranslationY(10 * d);
+        splashName.animate().alpha(1f).translationY(0f).setStartDelay(1600).setDuration(340).start();
+
+        splashIntroEndsAt = System.currentTimeMillis() + 2000;
+    }
+
     private void dismissSplash() {
         if (layoutSplash != null && layoutSplash.getVisibility() != View.GONE) {
-            layoutSplash.animate().alpha(0f).setDuration(250).withEndAction(() ->
+            // Trang tải xong trước khi hoạt ảnh chạy hết -> chờ nốt rồi mới tắt, đừng cắt ngang.
+            long remain = splashIntroEndsAt - System.currentTimeMillis();
+            if (remain > 0) {
+                layoutSplash.postDelayed(this::dismissSplash, remain);
+                return;
+            }
+            // Thu nhỏ bay lên đúng chỗ logo trang Đăng nhập, trang hiện dần phía sau — chứ không
+            // phải màn hình trắng mờ đi rồi trang bật ra.
+            if (splashGroup != null) {
+                float dy = layoutSplash.getHeight() * 0.13f - splashGroup.getY() - splashGroup.getHeight() / 2f;
+                splashGroup.animate().scaleX(0.46f).scaleY(0.46f).translationY(dy)
+                        .setDuration(560)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+                if (splashName != null) {
+                    splashName.animate().alpha(0f).setDuration(260).start();
+                }
+            }
+            layoutSplash.animate().alpha(0f).setStartDelay(200).setDuration(340).withEndAction(() ->
                 layoutSplash.setVisibility(View.GONE)
             ).start();
         }

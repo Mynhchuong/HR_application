@@ -46,14 +46,18 @@ public class WidgetController : BaseController
     }
 
     // Gom trạng thái đơn về 3 nhóm widget hiện được: chờ duyệt / đã duyệt / từ chối.
-    // Chuỗi STATUS thật trong DB khác nhau giữa Leave và GatePass nên quy về 1 bộ ở đây.
-    private static string NormStatus(string? s)
+    //
+    // Liệt kê TƯỜNG MINH theo giá trị thật đang có trong DB, không dò chuỗi con: dò chuỗi thì một
+    // trạng thái mới thêm sau này sẽ âm thầm bị xếp vào "chờ duyệt" mà không ai biết, và widget
+    // báo sai cho công nhân. Gặp giá trị lạ thì cũng về "chờ duyệt" nhưng đó là mặc định có chủ ý.
+    private static string NormStatus(string? s) => (s ?? "").Trim().ToUpperInvariant() switch
     {
-        var v = (s ?? "").Trim().ToUpperInvariant();
-        if (v.Contains("REJECT") || v.Contains("DENY") || v.Contains("CANCEL")) return "REJECTED";
-        if (v.Contains("APPROVE") || v == "DONE" || v == "CONFIRMED")           return "APPROVED";
-        return "PENDING";
-    }
+        "APPROVED" or "CONFIRMED"                              => "APPROVED",
+        "REJECTED"                                             => "REJECTED",
+        "PENDING" or "ASSIGNED" or "SUBMITTED"
+            or "PARTIALLY_SUBMITTED" or "RESUBMIT_REQUESTED"   => "PENDING",
+        _                                                      => "PENDING"
+    };
 
     // GET /Widget/Data — JSON gọn cho widget. Mỗi khối bọc try riêng: thiếu 1 ô thì widget vẫn
     // dùng được, còn ném lỗi ra ngoài thì widget trắng trơn.
@@ -127,7 +131,9 @@ public class WidgetController : BaseController
             }
             catch { }
 
-            // ── Bản tin Samho mới nhất ────────────────────────────────────────
+            // ── Bản tin Samho ─────────────────────────────────────────────────
+            // Lấy bài ĐẦU danh sách, tức là đúng bài công nhân thấy trên cùng khi mở trang Bản tin
+            // (API xếp bài ghim lên trước rồi mới tới ngày đăng) — KHÔNG phải luôn là bài mới nhất.
             try
             {
                 var list = await _bulletinSvc.GetListAsync(u.EmpCd);

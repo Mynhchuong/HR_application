@@ -36,8 +36,6 @@ enum WidgetBridge {
             store?.set(baseURL, forKey: kBase)
             WidgetCenter.shared.reloadAllTimelines()
             refreshBadge()
-            // Nút tắt đặt theo role, mà role nằm trong bản chụp widget vừa lấy — làm mới cùng lượt.
-            DispatchQueue.main.async { AppShortcuts.refresh() }
         }
     }
 
@@ -67,7 +65,15 @@ enum WidgetBridge {
                   let jo = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let unread = jo["unread"] as? Int else { return }
 
-            UNUserNotificationCenter.current().setBadgeCount(unread)
+            // Nút tắt đặt theo role, mà role nằm ngay trong câu trả lời này — đặt luôn cùng lượt,
+            // khỏi gọi mạng lần nữa và khỏi phụ thuộc bản chụp của tiến trình widget.
+            let role = jo["role"] as? String ?? "worker"
+            let lang = jo["lang"] as? String ?? "vi"
+
+            DispatchQueue.main.async {
+                UNUserNotificationCenter.current().setBadgeCount(unread)
+                AppShortcuts.apply(role: role, lang: lang)
+            }
         }.resume()
     }
 

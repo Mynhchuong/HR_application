@@ -1,0 +1,20 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "My Samho" : {
+      "comment" : "Tên widget trong thư viện widget của iOS — theo ngôn ngữ MÁY, không theo tài khoản",
+      "localizations" : {
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "My Samho" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "My Samho" } }
+      }
+    },
+    "Tasks to handle and new notifications" : {
+      "comment" : "Mô tả widget trong thư viện widget của iOS",
+      "localizations" : {
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "처리할 업무와 새 알림" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Việc cần làm và thông báo mới" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

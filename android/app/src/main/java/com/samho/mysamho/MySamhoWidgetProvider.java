@@ -108,9 +108,13 @@ public class MySamhoWidgetProvider extends AppWidgetProvider {
             rv.setTextViewText(R.id.wHeader, ctx.getString(R.string.widget_title));
             rv.setViewVisibility(R.id.wManager, View.GONE);
             rv.setViewVisibility(R.id.wWorker, View.VISIBLE);
+            rv.setImageViewResource(R.id.wIcoNotice, R.drawable.ic_w_logo);
             rv.setTextViewText(R.id.wNotice, L(lang,
                     "Chạm để đăng nhập", "Tap to sign in", "탭하여 로그인"));
-            rv.setTextViewText(R.id.wMyReq, "");
+            rv.setTextViewText(R.id.wMyReq, L(lang,
+                    "Xem thông báo và đơn của bạn ngay trên màn hình chính",
+                    "See your notifications and requests right here",
+                    "알림과 신청 현황을 홈 화면에서 바로 확인"));
             rv.setTextViewText(R.id.wBulletin, "");
             rv.setTextViewText(R.id.wFooter, "");
             rv.setViewVisibility(R.id.wUnread, View.GONE);
@@ -151,13 +155,18 @@ public class MySamhoWidgetProvider extends AppWidgetProvider {
             JSONObject n = notices.optJSONObject(0);
             String title = n != null ? n.optString("title", "") : "";
             boolean high = n != null && n.optBoolean("high", false);
-            noticeText = (high ? "⚠ " : "") + title;
+            // Icon thay cho ký tự "⚠" dán vào chuỗi: cùng tác dụng báo gấp nhưng không ăn mất
+            // chỗ của tiêu đề, và không bị font thiết bị vẽ thành ô vuông.
+            rv.setImageViewResource(R.id.wIcoNotice,
+                    high ? R.drawable.ic_w_alert : R.drawable.ic_w_logo);
+            noticeText = title;
             if (notices.length() > 1)
                 noticeText += L(lang,
                         "  (+" + (notices.length() - 1) + " nữa)",
                         "  (+" + (notices.length() - 1) + " more)",
                         "  (+" + (notices.length() - 1) + "건)");
         } else {
+            rv.setImageViewResource(R.id.wIcoNotice, R.drawable.ic_w_logo);
             noticeText = L(lang, "Không có thông báo mới", "No new notifications", "새 알림 없음");
         }
         rv.setTextViewText(R.id.wNotice, noticeText);
@@ -188,8 +197,8 @@ public class MySamhoWidgetProvider extends AppWidgetProvider {
         // ── Bản tin Samho ───────────────────────────────────────────────────
         JSONObject b = d.optJSONObject("bulletin");
         rv.setTextViewText(R.id.wBulletin, b != null
-                ? "📰 " + b.optString("title", "")
-                : L(lang, "📰 Chưa có bản tin mới", "📰 No new bulletin", "📰 새 소식 없음"));
+                ? b.optString("title", "")
+                : L(lang, "Chưa có bản tin mới", "No new bulletin", "새 소식 없음"));
     }
 
     private static void buildManager(RemoteViews rv, JSONObject d, String lang) {

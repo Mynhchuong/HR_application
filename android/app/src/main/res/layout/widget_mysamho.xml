@@ -2,9 +2,9 @@
 <!--
   Widget màn hình chính My Samho.
 
-  RemoteViews KHÔNG cho phép inflate động theo role, nên 2 bố cục (công nhân / quản lý) nằm sẵn
-  trong cùng 1 layout, provider chỉ bật-tắt visibility. Chỉ dùng các view RemoteViews hỗ trợ
-  (LinearLayout/TextView/ImageView) — ConstraintLayout KHÔNG dùng được trong widget.
+  RemoteViews KHÔNG inflate động theo role được, nên 2 bố cục (công nhân / quản lý) nằm sẵn trong
+  cùng 1 layout, provider chỉ bật-tắt visibility. Chỉ dùng view mà RemoteViews hỗ trợ
+  (LinearLayout / TextView / ImageView) — ConstraintLayout KHÔNG dùng được trong widget.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/wRoot"
@@ -12,9 +12,12 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/widget_bg"
-    android:padding="14dp">
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="10dp">
 
-    <!-- ── Đầu thẻ: tên app · người dùng · chuông chưa đọc ───────────────── -->
+    <!-- ── Đầu thẻ ───────────────────────────────────────────────────────── -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -22,167 +25,229 @@
         android:gravity="center_vertical">
 
         <ImageView
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:src="@drawable/ic_stat_noti"
-            android:contentDescription="@string/widget_title"
-            android:tint="@color/widget_accent" />
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_w_logo"
+            android:contentDescription="@string/widget_title" />
 
         <TextView
             android:id="@+id/wHeader"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="7dp"
             android:text="@string/widget_title"
             android:textColor="@color/widget_text"
             android:textSize="13sp"
             android:textStyle="bold"
+            android:letterSpacing="0.01"
             android:maxLines="1"
             android:ellipsize="end" />
 
+        <!-- Badge số chưa đọc: nền đỏ đặc, chữ trắng — đọc được từ xa hơn nền nhạt chữ đỏ -->
         <TextView
             android:id="@+id/wUnread"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp"
-            android:paddingTop="2dp"
-            android:paddingBottom="2dp"
-            android:background="@drawable/widget_pill"
-            android:textColor="@color/widget_accent"
-            android:textSize="11sp"
+            android:minWidth="18dp"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp"
+            android:background="@drawable/widget_badge"
+            android:gravity="center"
+            android:textColor="#FFFFFFFF"
+            android:textSize="10sp"
             android:textStyle="bold"
             android:visibility="gone" />
     </LinearLayout>
 
-    <!-- ══ Bố cục CÔNG NHÂN ══════════════════════════════════════════════ -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="9dp"
+        android:background="@drawable/widget_divider" />
+
+    <!-- ══ Bố cục CÔNG NHÂN — 3 dòng, mỗi dòng 1 icon dẫn mắt ════════════ -->
     <LinearLayout
         android:id="@+id/wWorker"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:layout_marginTop="8dp">
+        android:layout_marginTop="4dp">
 
-        <!-- Thông báo quan trọng -->
-        <TextView
-            android:id="@+id/wNotice"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/widget_text"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:maxLines="2"
-            android:ellipsize="end" />
+            android:orientation="horizontal"
+            android:layout_weight="1"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/wIcoNotice"
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:layout_marginTop="1dp"
+                android:src="@drawable/ic_w_alert"
+                android:contentDescription="@null" />
+            <TextView
+                android:id="@+id/wNotice"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:textColor="@color/widget_text"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:lineSpacingExtra="1dp"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
 
-        <!-- Đơn của mình: duyệt chưa -->
-        <TextView
-            android:id="@+id/wMyReq"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:textColor="@color/widget_muted"
-            android:textSize="12sp"
-            android:maxLines="2"
-            android:ellipsize="end" />
+            android:orientation="horizontal"
+            android:layout_weight="1"
+            android:gravity="center_vertical">
+            <ImageView
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:src="@drawable/ic_w_task"
+                android:contentDescription="@null" />
+            <TextView
+                android:id="@+id/wMyReq"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:textColor="@color/widget_muted"
+                android:textSize="11sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
 
-        <!-- Bản tin Samho mới nhất -->
-        <TextView
-            android:id="@+id/wBulletin"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:textColor="@color/widget_muted"
-            android:textSize="12sp"
-            android:maxLines="2"
-            android:ellipsize="end" />
+            android:orientation="horizontal"
+            android:layout_weight="1"
+            android:gravity="center_vertical">
+            <ImageView
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:src="@drawable/ic_w_news"
+                android:contentDescription="@null" />
+            <TextView
+                android:id="@+id/wBulletin"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:textColor="@color/widget_muted"
+                android:textSize="11sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
     </LinearLayout>
 
-    <!-- ══ Bố cục QUẢN LÝ / EXPAT — 3 ô số ═══════════════════════════════ -->
+    <!-- ══ Bố cục QUẢN LÝ / EXPAT — 3 ô số, mỗi ô 1 màu riêng ════════════ -->
     <LinearLayout
         android:id="@+id/wManager"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="horizontal"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="9dp"
+        android:baselineAligned="false"
         android:visibility="gone">
 
         <LinearLayout
-            android:id="@+id/wCellApprove"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="vertical"
             android:gravity="center"
-            android:background="@drawable/widget_pill">
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:background="@drawable/widget_cell_red">
+            <ImageView
+                android:layout_width="14dp" android:layout_height="14dp"
+                android:src="@drawable/ic_w_approve" android:contentDescription="@null" />
             <TextView android:id="@+id/wNumApprove"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:textColor="@color/widget_accent" android:textSize="22sp" android:textStyle="bold" />
+                android:layout_marginTop="1dp"
+                android:textColor="@color/widget_accent" android:textSize="20sp" android:textStyle="bold" />
             <TextView android:id="@+id/wLblApprove"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:textColor="@color/widget_muted" android:textSize="10sp"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:paddingStart="2dp" android:paddingEnd="2dp"
+                android:textColor="@color/widget_muted" android:textSize="9sp"
                 android:gravity="center" android:maxLines="2"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="7sp"
-                android:autoSizeMaxTextSize="10sp"
-                android:autoSizeStepGranularity="1sp" />
+                android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp"
+                android:autoSizeMaxTextSize="9sp" android:autoSizeStepGranularity="1sp" />
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/wCellGate"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="7dp"
             android:orientation="vertical"
             android:gravity="center"
-            android:background="@drawable/widget_pill">
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:background="@drawable/widget_cell_blue">
+            <ImageView
+                android:layout_width="14dp" android:layout_height="14dp"
+                android:src="@drawable/ic_w_gate" android:contentDescription="@null" />
             <TextView android:id="@+id/wNumGate"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:textColor="@color/widget_text" android:textSize="22sp" android:textStyle="bold" />
+                android:layout_marginTop="1dp"
+                android:textColor="@color/widget_blue" android:textSize="20sp" android:textStyle="bold" />
             <TextView android:id="@+id/wLblGate"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:textColor="@color/widget_muted" android:textSize="10sp"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:paddingStart="2dp" android:paddingEnd="2dp"
+                android:textColor="@color/widget_muted" android:textSize="9sp"
                 android:gravity="center" android:maxLines="2"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="7sp"
-                android:autoSizeMaxTextSize="10sp"
-                android:autoSizeStepGranularity="1sp" />
+                android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp"
+                android:autoSizeMaxTextSize="9sp" android:autoSizeStepGranularity="1sp" />
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/wCellLeave"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="7dp"
             android:orientation="vertical"
             android:gravity="center"
-            android:background="@drawable/widget_pill">
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:background="@drawable/widget_cell_amber">
+            <ImageView
+                android:layout_width="14dp" android:layout_height="14dp"
+                android:src="@drawable/ic_w_leave" android:contentDescription="@null" />
             <TextView android:id="@+id/wNumLeave"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:textColor="@color/widget_text" android:textSize="22sp" android:textStyle="bold" />
+                android:layout_marginTop="1dp"
+                android:textColor="@color/widget_amber" android:textSize="20sp" android:textStyle="bold" />
             <TextView android:id="@+id/wLblLeave"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:textColor="@color/widget_muted" android:textSize="10sp"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:paddingStart="2dp" android:paddingEnd="2dp"
+                android:textColor="@color/widget_muted" android:textSize="9sp"
                 android:gravity="center" android:maxLines="2"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="7sp"
-                android:autoSizeMaxTextSize="10sp"
-                android:autoSizeStepGranularity="1sp" />
+                android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp"
+                android:autoSizeMaxTextSize="9sp" android:autoSizeStepGranularity="1sp" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Chân thẻ: mốc cập nhật / nhắc đăng nhập lại -->
     <TextView
         android:id="@+id/wFooter"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="5dp"
         android:textColor="@color/widget_muted"
-        android:textSize="10sp"
+        android:textSize="9sp"
+        android:alpha="0.75"
         android:maxLines="1"
         android:ellipsize="end" />
 </LinearLayout>

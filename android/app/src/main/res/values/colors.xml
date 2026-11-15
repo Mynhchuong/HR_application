@@ -9,4 +9,12 @@
     <color name="widget_text">#FF111827</color>
     <color name="widget_muted">#FF6B7280</color>
     <color name="widget_accent">#FFDC2626</color>
+    <color name="widget_blue">#FF2563EB</color>
+    <color name="widget_amber">#FFD97706</color>
+    <color name="widget_green">#FF059669</color>
+    <!-- Nền ô số: cùng tông với icon nhưng rất nhạt, để con số nổi mà không chói -->
+    <color name="widget_cell_red">#14DC2626</color>
+    <color name="widget_cell_blue">#142563EB</color>
+    <color name="widget_cell_amber">#14D97706</color>
+    <color name="widget_divider">#1A000000</color>
 </resources>

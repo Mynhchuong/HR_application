@@ -182,6 +182,8 @@ public class HomePinnedDto
     public string? TITLE_EN   { get; set; }
     public string? COVER_IMG  { get; set; }
     public int     PIN_ORDER  { get; set; }
+    public int     IS_PINNED  { get; set; }
+    public int     IS_UNREAD  { get; set; }
 }
 
 // ─── Summary
@@ -195,6 +197,8 @@ public class HomeSummaryResponse
 public class HomeSummaryData
 {
     public int      LEAVE_PENDING       { get; set; }
+    /// <summary>Đơn nghỉ phép chờ duyệt, CHỈ tính đơn tạo trong tháng này — widget dùng ô này.</summary>
+    public int      LEAVE_PENDING_MONTH { get; set; }
     public int      GP_PENDING          { get; set; }
     public int      OT_NEED_SIGN        { get; set; }
     public int      OT_SIGNED           { get; set; }

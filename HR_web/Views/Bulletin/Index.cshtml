@@ -32,6 +32,23 @@
     }
     .fb-card.pinned { border: 2px solid #f59e0b; }
 
+    /* Bài chưa xem: viền xanh + nhãn, để công nhân lướt là nhận ra ngay bài nào còn chưa đọc.
+       Bài chưa xem đã được máy chủ đẩy lên đầu danh sách (xem BulletinController.GetList). */
+    .fb-card.unread { border: 2px solid #2563eb; }
+
+    .fb-unread-badge {
+        position: absolute; top: 10px; right: 10px; z-index: 2;
+        background: #2563eb; color: #fff;
+        padding: 4px 10px; border-radius: 999px;
+        font-size: .72rem; font-weight: 700;
+        display: flex; align-items: center; gap: 4px;
+        box-shadow: 0 2px 6px rgba(37,99,235,.4);
+    }
+    .fb-unread-dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: #fff; display: inline-block;
+    }
+
     .fb-pin-badge {
         position: absolute; top: 10px; left: 10px; z-index: 2;
         background: #f59e0b; color: #fff;
@@ -145,10 +162,17 @@ else
         @foreach (var item in Model)
         {
             var detailUrl = Url.Action("Detail", "Bulletin", new { id = item.ID });
-            <div class="fb-card @(item.IS_PINNED == 1 ? "pinned" : "")" data-id="@item.ID">
+            @* Ghim và chưa xem có thể cùng lúc: nhãn Ghim nằm trái, nhãn Chưa xem nằm phải. *@
+            <div class="fb-card @(item.IS_PINNED == 1 ? "pinned" : "") @(item.IS_UNREAD == 1 ? "unread" : "")" data-id="@item.ID">
                 @if (item.IS_PINNED == 1)
                 {
                     <div class="fb-pin-badge"><i class="bi bi-pin-angle-fill"></i> Ghim</div>
+                }
+                @if (item.IS_UNREAD == 1)
+                {
+                    <div class="fb-unread-badge">
+                        <span class="fb-unread-dot"></span> @D("Chưa xem", "Unread")
+                    </div>
                 }
                 <img src="@(string.IsNullOrEmpty(item.COVER_IMG)
                             ? Url.Content("~/assets/img/bulletin-default-cover.png")

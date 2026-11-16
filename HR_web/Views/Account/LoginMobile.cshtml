@@ -1,0 +1,363 @@
+@model HR_web.Models.Account.LoginModel
+@{
+    ViewData["Title"] = "Đăng nhập / Sign in";
+    Layout = null;
+}
+@*
+    Trang đăng nhập dành riêng cho ĐIỆN THOẠI + app My Samho (WebView).
+    AccountController chọn trang theo DeviceDetector: WEB_DESKTOP -> Login.cshtml, còn lại -> trang này.
+
+    Vì sao tách khỏi Login.cshtml (yêu cầu 2026-11-16): 1 trang gánh cả 2 khổ màn hình nên chỗ nào cũng
+    phải nhân nhượng. Tách ra thì bản điện thoại tối ưu được những thứ KHÔNG áp dụng cho máy tính:
+      - Bỏ backdrop-filter (nhoè kính): nặng nhất trong WebView máy cấu hình thấp (vd tablet SM-T225).
+      - Ô nhập cao 56px, cỡ chữ 16px: dưới 16px Safari iOS tự phóng to trang khi bấm vào ô.
+      - Chèn safe-area (tai thỏ / vạch Home) qua viewport-fit=cover + env(safe-area-inset-*).
+      - Trải hết màn hình, không thẻ nổi lọt giữa — đỡ 1 lớp viền/bóng vô nghĩa trên màn hình nhỏ.
+      - Bỏ mọi :hover (điện thoại không có chuột), chỉ giữ phản hồi :active.
+    Giữ NGUYÊN name/id các ô nhập và cấu trúc .login-body form — đoạn JS lưu Face ID/vân tay dùng
+    đúng các khoá đó, và trang Cài đặt đọc cùng khoá localStorage 'bio_login_v2'.
+*@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a" />
+    <title>HR Application | Login</title>
+    <link rel="icon" type="image/png" href="~/assets/img/samho-logo.png" />
+
+    <link href="~/lib/googlefonts/inter.css" rel="stylesheet" />
+    <link href="~/lib/googlefonts/material-symbols.css" rel="stylesheet" />
+
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #4338ca;
+        }
+
+        * { -webkit-tap-highlight-color: transparent; }
+
+        html, body {
+            margin: 0; padding: 0;
+            min-height: 100%;
+            font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        .login-screen {
+            min-height: 100vh;
+            min-height: 100dvh;                 /* tránh thanh địa chỉ che mất nút Đăng nhập */
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(rgba(10, 15, 28, 0.62), rgba(10, 15, 28, 0.88)),
+                        url('@Url.Content("~/assets/img/Login.jpg")');
+            background-size: cover;
+            background-position: center;
+            padding: calc(env(safe-area-inset-top) + 36px) 22px calc(env(safe-area-inset-bottom) + 24px);
+        }
+
+        .login-head {
+            text-align: center;
+            padding-bottom: 26px;
+        }
+
+        .login-logo {
+            width: 72px; height: 72px;
+            margin: 0 auto 16px;
+            display: flex; align-items: center; justify-content: center;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+        }
+
+        .login-logo img { width: 44px; height: auto; }
+
+        .login-head h1 {
+            font-size: 1.7rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin: 0;
+        }
+
+        .login-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+        .field { margin-bottom: 18px; }
+
+        .field label {
+            display: block;
+            font-size: .8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: #e2e8f0;
+            margin-bottom: 8px;
+        }
+
+        /* Ô nhập để NỀN TRẮNG, không phải nền tối mờ (phản ánh 2026-11-16: công nhân không thấy
+           ô nhập ở đâu). Nền tối + viền mờ trông "chìm" vào ảnh nền, nhất là khi xem ngoài trời
+           hoặc trên màn hình cũ đã bạc màu. Trắng đục trên nền tối là tương phản cao nhất. */
+        .field input[type="text"],
+        .field input[type="password"] {
+            width: 100%;
+            height: 56px;
+            box-sizing: border-box;
+            background: #fff;
+            border: 2px solid transparent;
+            border-radius: 16px;
+            padding: 0 18px;
+            font-size: 16px;                    /* <16px là iOS tự phóng to trang khi focus */
+            font-weight: 600;
+            font-family: inherit;
+            color: #0f172a;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+            transition: border-color .15s ease;
+        }
+
+        .field input::placeholder { color: #94a3b8; font-weight: 500; }
+
+        .field input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.35);
+        }
+
+        .password-wrap { position: relative; }
+
+        .password-toggle {
+            position: absolute; right: 8px; top: 50%;
+            transform: translateY(-50%);
+            color: #64748b;
+            padding: 12px;                      /* vùng bấm ≥44px cho ngón tay */
+            cursor: pointer;
+        }
+
+        .btn-login {
+            width: 100%;
+            height: 56px;
+            margin-top: 8px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 16px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            font-family: inherit;
+            box-shadow: 0 10px 20px -6px rgba(79, 70, 229, 0.6);
+        }
+
+        .btn-login:active { transform: scale(0.98); background: var(--primary-dark); }
+
+        .check-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .check-row input[type="checkbox"] {
+            width: 22px; height: 22px;
+            margin: 0;
+            flex: 0 0 auto;
+            accent-color: var(--primary);
+        }
+
+        .check-row label {
+            font-size: .92rem;
+            font-weight: 500;
+            color: #cbd5e1;
+            line-height: 1.4;
+        }
+
+        .check-row label .sub {
+            display: block;
+            font-size: .78rem;
+            color: #8d9bb0;
+            margin-top: 2px;
+        }
+
+        .link-forgot {
+            display: block;
+            text-align: center;
+            margin-top: 18px;
+            font-size: .9rem;
+            font-weight: 700;
+            color: #fca5a5;
+            text-decoration: none;
+            padding: 10px;                      /* vùng bấm thoải mái */
+        }
+
+        .notice {
+            border-radius: 12px;
+            padding: .7rem .85rem;
+            font-size: .85rem;
+            line-height: 1.45;
+            margin-bottom: 1rem;
+        }
+
+        .notice-ok  { background: rgba(34, 197, 94, 0.16);  border: 1.5px solid rgba(134, 239, 172, 0.5); color: #bbf7d0; }
+        .notice-err { background: rgba(239, 68, 68, 0.16);  border: 1.5px solid rgba(252, 165, 165, 0.45); color: #fecaca; }
+
+        .d-none { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="login-screen">
+
+        <div class="login-head">
+            <div class="login-logo">
+                <img src="~/assets/img/samho-logo.png" alt="Samho" />
+            </div>
+            <h1>
+                <span style="color:#ed1c24;">My</span>
+                <span style="color:#fff;">SAMHO</span>
+            </h1>
+        </div>
+
+        <div class="login-body">
+            <form asp-controller="Account" asp-action="Login" method="post" autocomplete="off">
+                @Html.AntiForgeryToken()
+
+                @if (TempData["InfoMessage"] != null)
+                {
+                    <div class="notice notice-ok">✅ @TempData["InfoMessage"]</div>
+                }
+
+                @* Phiên hết hạn bị đá về đây (AntiforgeryExpiredFilter) — phải nói rõ lý do. *@
+                @if (TempData["ErrorMessage"] is string loginNotice && !string.IsNullOrWhiteSpace(loginNotice))
+                {
+                    <div class="notice notice-err">
+                        <span class="material-symbols-rounded align-middle" style="font-size:1.05rem;vertical-align:-3px;">info</span>
+                        @loginNotice
+                    </div>
+                }
+
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div class="notice notice-err">
+                        <span class="material-symbols-rounded align-middle" style="font-size:1.05rem;vertical-align:-3px;">error</span>
+                        Sai tài khoản hoặc mật khẩu / Incorrect ID or password
+                    </div>
+                }
+
+                <div class="field">
+                    <label asp-for="EMPCD">Mã số nhân viên / Employee ID</label>
+                    <input asp-for="EMPCD" type="text" inputmode="numeric"
+                           placeholder="VD / e.g. 11292522"
+                           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+                </div>
+
+                <div class="field">
+                    <label asp-for="Password">Mật khẩu / Password</label>
+                    <div class="password-wrap">
+                        <input asp-for="Password" type="password" id="passwordInput"
+                               placeholder="••••••••" autocomplete="new-password" />
+                        <span class="password-toggle material-symbols-rounded" onclick="togglePassword()">visibility</span>
+                    </div>
+                </div>
+
+                <div class="check-row">
+                    <input asp-for="RememberMe" type="checkbox" id="rememberMe" />
+                    <label for="rememberMe">Lưu tài khoản / Remember me</label>
+                </div>
+
+                @* Chỉ hiện khi mở trong app (JS cuối trang bỏ d-none) — trình duyệt thường
+                   không có Face ID/vân tay nên hiện ra chỉ gây khó hiểu. *@
+                <div class="check-row d-none" id="bioOptIn">
+                    <input type="checkbox" id="bioOptInCheck" />
+                    <label for="bioOptInCheck">
+                        Lần sau đăng nhập bằng Face ID / vân tay
+                        <span class="sub">Sign in with Face ID / fingerprint next time</span>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn-login">Đăng nhập / Sign in</button>
+
+                <a href="@Url.Action("ForgotPassword","Account")" class="link-forgot">
+                    🔑 Quên mật khẩu? / Forgot password?
+                </a>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function togglePassword() {
+            const input = document.getElementById("passwordInput");
+            const icon = document.querySelector(".password-toggle");
+            if (input.type === "password") {
+                input.type = "text";
+                icon.textContent = "visibility_off";
+            } else {
+                input.type = "password";
+                icon.textContent = "visibility";
+            }
+        }
+
+        // Chặn phóng to bằng 2 ngón trên iOS
+        document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+
+        // Gửi mã NV + mật khẩu cho app native lưu an toàn (Keychain/Keystore, gắn Face ID/vân tay) để
+        // tự đăng nhập lại lần sau khỏi gõ tay — session web hết hạn cứng sau 24h (Program.cs,
+        // SlidingExpiration=false) nên NV bị văng ra đăng nhập lại MỖI NGÀY (yêu cầu 2026-10-26).
+        //
+        // 2026-11-13: TRƯỚC ĐÂY LƯU LUÔN KHÔNG HỎI — NV không biết mật khẩu mình đang được lưu trên máy
+        // và không có chỗ nào tắt. Giờ phải có ô tick, NV tự chọn; tắt được lại ở trang Cài đặt.
+        // Lựa chọn lưu trong localStorage (theo từng MÁY, đúng bản chất — Face ID gắn với máy đó),
+        // Settings/Index đọc ghi đúng khoá này.
+        // Không chặn submit dù bridge lỗi gì — đây chỉ là tiện ích phụ, đăng nhập thường vẫn phải chạy.
+        (function () {
+            var form = document.querySelector('.login-body form');
+            if (!form) return;
+
+            var hasBridge =
+                (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.saveCredentials) ||
+                (window.Android && typeof window.Android.saveCredentials === 'function');
+
+            // Khoá ĐỔI TÊN sang _v2 có chủ ý (2026-11-13): bản trước có đoạn dò sinh trắc học bằng
+            // PublicKeyCredential — trong WKWebView nó luôn trả false nên đã GHI NHẦM '0' (tắt) vào máy
+            // của mọi NV mở trang Cài đặt lúc đó. Giữ nguyên khoá cũ thì họ cứ thấy "Đang tắt" mãi mà
+            // không hiểu vì sao. Dùng khoá mới = bỏ qua giá trị rác đó, ai cũng về mặc định bật lại.
+            var KEY = 'bio_login_v2';
+            function prefOn() {
+                try { return localStorage.getItem(KEY) !== '0'; } catch (e) { return true; }
+            }
+
+            // Chỉ hiện ô tick khi đang chạy trong app — trình duyệt thường không có Face ID/vân tay.
+            var box = document.getElementById('bioOptIn');
+            if (hasBridge && box) {
+                box.classList.remove('d-none');
+                var cb = document.getElementById('bioOptInCheck');
+                cb.checked = prefOn();
+                cb.addEventListener('change', function () {
+                    try { localStorage.setItem(KEY, cb.checked ? '1' : '0'); } catch (e) {}
+                    // Bỏ tick = không muốn nữa -> xoá luôn thông tin đã lưu trước đó trên máy này.
+                    if (!cb.checked) {
+                        try {
+                            if (window.Android && typeof window.Android.clearCredentials === 'function')
+                                window.Android.clearCredentials();
+                            else if (window.webkit && window.webkit.messageHandlers
+                                && window.webkit.messageHandlers.clearCredentials)
+                                window.webkit.messageHandlers.clearCredentials.postMessage(null);
+                        } catch (e) {}
+                    }
+                });
+            }
+
+            form.addEventListener('submit', function () {
+                try {
+                    if (!hasBridge || !prefOn()) return;   // NV không chọn -> KHÔNG lưu gì cả
+                    var empcd = document.getElementById('EMPCD')?.value || '';
+                    var pwd   = document.getElementById('passwordInput')?.value || '';
+                    if (!empcd || !pwd) return;
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.saveCredentials) {
+                        window.webkit.messageHandlers.saveCredentials.postMessage({ empcd: empcd, password: pwd });
+                    } else if (window.Android && typeof window.Android.saveCredentials === 'function') {
+                        window.Android.saveCredentials(empcd, pwd);
+                    }
+                } catch (e) {}
+            });
+        })();
+    </script>
+</body>
+</html>

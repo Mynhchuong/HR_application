@@ -1261,6 +1261,40 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // ── Thêm widget vào màn hình chính ngay từ trang Cài đặt ────────────────────────────
+        // Lý do: phần lớn người dùng là công nhân, không ai biết phải nhấn giữ màn hình rồi mò trong
+        // danh sách tiện ích. Android 8.0 trở lên có sẵn hộp thoại hệ thống làm việc này.
+        //
+        // canPinWidget() để web TỰ QUYẾT hiện hay ẩn nút: Android 7 không có hàm, và vài launcher
+        // (kể cả một số launcher hãng) trả về không hỗ trợ. Thà ẩn nút còn hơn để nút bấm không ăn.
+        @android.webkit.JavascriptInterface
+        public boolean canPinWidget() {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false;
+            try {
+                android.appwidget.AppWidgetManager m =
+                        (android.appwidget.AppWidgetManager) mContext.getSystemService(Context.APPWIDGET_SERVICE);
+                return m != null && m.isRequestPinAppWidgetSupported();
+            } catch (Throwable t) {
+                return false;
+            }
+        }
+
+        /** Trả true nếu ĐÃ bật được hộp thoại. Người dùng bấm Huỷ trong hộp thoại thì Android
+         *  không báo lại cho app biết — đó là giới hạn của hệ điều hành, không phải thiếu sót ở đây. */
+        @android.webkit.JavascriptInterface
+        public boolean pinWidget() {
+            if (!canPinWidget()) return false;
+            try {
+                android.appwidget.AppWidgetManager m =
+                        (android.appwidget.AppWidgetManager) mContext.getSystemService(Context.APPWIDGET_SERVICE);
+                android.content.ComponentName cn =
+                        new android.content.ComponentName(mContext, MySamhoWidgetProvider.class);
+                return m.requestPinAppWidget(cn, null, null);
+            } catch (Throwable t) {
+                return false;
+            }
+        }
+
         // Gọi khi user logout — xoá hết noti FCM còn trong tray của thiết bị
         @android.webkit.JavascriptInterface
         public void clearAllNotifications() {

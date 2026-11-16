@@ -96,12 +96,21 @@ public class BulletinController : ControllerBase
                        (SELECT COUNT(*) FROM HRMS.HR_BULLETIN_REACTION R
                         WHERE R.BULLETIN_ID = B.ID) AS REACTION_COUNT,
                        (SELECT MAX(R.REACTION) FROM HRMS.HR_BULLETIN_REACTION R
-                        WHERE R.BULLETIN_ID = B.ID AND R.EMPCD = :EMPCD) AS MY_REACTION
+                        WHERE R.BULLETIN_ID = B.ID AND R.EMPCD = :EMPCD) AS MY_REACTION,
+                       -- 1 = chưa mở bài này lần nào. Oracle KHÔNG cho EXISTS trong danh sách SELECT
+                       -- nên phải đếm; khoá chính (BULLETIN_ID, EMPCD) nên đếm rất nhẹ.
+                       CASE WHEN (SELECT COUNT(*) FROM HRMS.HR_BULLETIN_VIEW V
+                                  WHERE V.BULLETIN_ID = B.ID AND V.EMPCD = :EMPCD) > 0
+                            THEN 0 ELSE 1 END AS IS_UNREAD
                 FROM HRMS.HR_BULLETIN B
                 WHERE B.IS_PUBLISHED = 1
                   AND B.IS_ACTIVE    = 1
                   AND SYSDATE >= B.PUBLISH_FROM AND SYSDATE < TRUNC(B.PUBLISH_TO) + 1   -- ngày kết thúc còn hiệu lực HẾT ngày đó (PUBLISH_TO lưu 00:00)
-                ORDER BY B.IS_PINNED DESC, B.PIN_ORDER ASC,
+                -- Bài CHƯA XEM lên trước (yêu cầu 2026-11-16: công nhân vào là thấy ngay bài mới,
+                -- không phải lướt qua đống đã đọc). Trong cùng nhóm thì vẫn giữ thứ tự cũ: ghim
+                -- trước, rồi theo ngày đăng.
+                ORDER BY IS_UNREAD DESC,
+                         B.IS_PINNED DESC, B.PIN_ORDER ASC,
                          B.PUBLISH_FROM DESC, B.ID DESC";
 
             var result = await _oracleService.ExecuteQueryAsync(sql, MapLight,
@@ -885,6 +894,7 @@ public class BulletinController : ControllerBase
         COMMENT_COUNT  = HasColumn(r, "COMMENT_COUNT") && r["COMMENT_COUNT"] != DBNull.Value ? Convert.ToInt32(r["COMMENT_COUNT"]) : 0,
         REACTION_COUNT = HasColumn(r, "REACTION_COUNT") && r["REACTION_COUNT"] != DBNull.Value ? Convert.ToInt32(r["REACTION_COUNT"]) : 0,
         MY_REACTION    = HasColumn(r, "MY_REACTION") && r["MY_REACTION"] != DBNull.Value ? r["MY_REACTION"].ToString() : null,
+        IS_UNREAD      = HasColumn(r, "IS_UNREAD") && r["IS_UNREAD"] != DBNull.Value ? Convert.ToInt32(r["IS_UNREAD"]) : 0,
         INST_ID        = r["INST_ID"]?.ToString(),
         INST_DT        = r["INST_DT"] == DBNull.Value ? null : Convert.ToDateTime(r["INST_DT"]),
         UPDT_ID        = r["UPDT_ID"]?.ToString(),

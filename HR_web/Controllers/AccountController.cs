@@ -37,6 +37,22 @@ public class AccountController : Controller
         _logger  = logger;
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Trang Đăng nhập tách làm 2 bản (yêu cầu 2026-11-16): máy tính và điện thoại khác nhau quá
+    // nhiều để 1 trang gánh cả hai cho tối ưu.
+    //   Login.cshtml       — web máy tính (bố cục 2 cột).
+    //   LoginMobile.cshtml — điện thoại + app My Samho trong WebView (một cột, ô nhập to, safe-area,
+    //                        bỏ hiệu ứng nhoè kính cho máy cấu hình thấp).
+    // Dùng lại DeviceDetector đang chạy sẵn ở bước đăng nhập — app tự ghi đè User-Agent nên phân biệt
+    // "mở bằng app" vs "mở bằng trình duyệt điện thoại" là chắc chắn, không đoán theo bề rộng màn hình.
+    // POST khi sai mật khẩu cũng phải trả về ĐÚNG bản này, nếu không NV bấm sai 1 lần là nhảy sang
+    // giao diện của khổ màn hình kia.
+    // ─────────────────────────────────────────────────────────────────────────
+    private string LoginViewName()
+        => DeviceDetector.Classify(Request.Headers.UserAgent.ToString()) == DeviceDetector.WebDesktop
+            ? "Login"
+            : "LoginMobile";
+
     // ─────────────────────────────────────────────
     // GET: /Account/Login
     // ─────────────────────────────────────────────
@@ -55,7 +71,7 @@ public class AccountController : Controller
             model.RememberMe = true;
         }
 
-        return View(model);
+        return View(LoginViewName(), model);
     }
 
     // ─────────────────────────────────────────────
@@ -67,7 +83,7 @@ public class AccountController : Controller
     public async Task<IActionResult> Login(LoginModel model)
     {
         if (!ModelState.IsValid)
-            return View(model);
+            return View(LoginViewName(), model);
 
         var deviceType = DeviceDetector.Classify(Request.Headers.UserAgent.ToString());
         var user = await _service.LoginAsync(model.EMPCD, model.Password, deviceType);
@@ -80,7 +96,7 @@ public class AccountController : Controller
             ModelState.AddModelError(string.Empty, fails >= 3
                 ? $"Sai tài khoản hoặc mật khẩu (lần {fails}). Nếu quên mật khẩu, vui lòng liên hệ phòng HR để được hỗ trợ."
                 : "Sai tài khoản hoặc mật khẩu.");
-            return View(model);
+            return View(LoginViewName(), model);
         }
 
         HttpContext.Session.Remove("LoginFails");

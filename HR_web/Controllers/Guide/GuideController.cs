@@ -21,14 +21,15 @@ public class GuideController : BaseController
         _appLinkSvc = appLinkSvc;
     }
 
-    [AllowAnonymous]
+    // 2026-11-16: bỏ [AllowAnonymous] — sếp yêu cầu phải đăng nhập mới xem được hướng dẫn
+    // (lối vào ở trang Đăng nhập cũng đã bỏ). RequestAppLink/ReassignAppLink bên dưới VẪN phải
+    // anonymous vì chạy trước lúc đăng nhập (NV bấm link tải app).
     public async Task<IActionResult> Index()
     {
         var list = await _service.GetListAsync();
         return View(list);
     }
 
-    [AllowAnonymous]
     public async Task<IActionResult> Detail(int id)
     {
         var model = await _service.GetByIdAsync(id);

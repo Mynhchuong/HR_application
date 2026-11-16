@@ -508,8 +508,22 @@ body.home-hero-popup-open { overflow: hidden; }
     padding: 12px;
 }
 .home-pinned-heading { font-size: 0.9rem; font-weight: 600; color: #4b5563; margin-bottom: 10px; }
-.home-pinned-list { display: grid; grid-template-columns: 1fr; gap: 10px; }
-@media (min-width: 768px) { .home-pinned-list { grid-template-columns: 1fr 1fr; } }
+
+/* Dải bản tin chạy ngang (2026-11-16). Trước đây xếp lưới dọc nên thêm vài bài là trang chủ dài
+   ngoằng; giờ gom vào 1 hàng vuốt ngang, chiếm đúng 1 thẻ chiều cao dù có bao nhiêu bài.
+   Dùng cuộn thật + scroll-snap của trình duyệt, KHÔNG dựng thư viện trượt: vuốt mượt sẵn trên
+   điện thoại, và nếu JS tự chạy có hỏng thì vẫn vuốt tay được bình thường. */
+.home-pinned-track {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    /* KHÔNG đặt scroll-behavior: smooth — phần tự trượt tự vẽ chuyển động bằng
+       requestAnimationFrame, để đây nữa thì 2 bên giành nhau và dải đứng im. */
+}
+.home-pinned-track::-webkit-scrollbar { display: none; }
 
 .home-pinned-card {
     display: flex; align-items: center; gap: 12px;
@@ -517,8 +531,32 @@ body.home-hero-popup-open { overflow: hidden; }
     text-decoration: none; color: #1f2937;
     background: #f9fafb;
     transition: background .2s;
+    flex: 0 0 86%;                 /* ló một phần thẻ sau để người ta biết còn vuốt được */
+    scroll-snap-align: start;
+    position: relative;
 }
+@media (min-width: 768px) { .home-pinned-card { flex-basis: calc(50% - 5px); } }
 .home-pinned-card:hover { background: #f3f4f6; color: #1f2937; }
+
+/* Bài chưa xem: nổi hẳn lên để công nhân biết cái nào cần đọc */
+.home-pinned-card.is-unread { background: #eff6ff; box-shadow: inset 0 0 0 1.5px #bfdbfe; }
+
+.home-pinned-flags { position: absolute; top: 6px; right: 8px; display: flex; gap: 4px; }
+.home-pinned-flag {
+    font-size: .62rem; font-weight: 700; line-height: 1;
+    padding: 3px 7px; border-radius: 999px; color: #fff;
+    white-space: nowrap;
+}
+.home-pinned-flag.pin    { background: #f59e0b; }
+.home-pinned-flag.unread { background: #2563eb; }
+
+/* Chấm chỉ vị trí — chỉ hiện khi có nhiều hơn 1 thẻ (JS tự ẩn) */
+.home-pinned-dots { display: flex; gap: 5px; justify-content: center; margin-top: 8px; }
+.home-pinned-dot {
+    width: 6px; height: 6px; border-radius: 999px;
+    background: #d1d5db; transition: all .2s;
+}
+.home-pinned-dot.on { background: #2563eb; width: 16px; }
 
 .home-pinned-thumb {
     width: 80px; height: 80px; flex-shrink: 0;
@@ -539,7 +577,7 @@ body.home-hero-popup-open { overflow: hidden; }
     .home-pinned-card { padding: 8px; gap: 10px; }
     .home-pinned-thumb { width: 56px; height: 56px; }
     .home-pinned-placeholder { font-size: 1.4rem; }
-    .home-pinned-title { font-size: .65rem; }
+    .home-pinned-title { font-size: .8rem; }
 }
 
 /* ─── FEATURE GRID ─────────────────────────────────────────── */

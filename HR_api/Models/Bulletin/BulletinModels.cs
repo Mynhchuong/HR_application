@@ -23,6 +23,9 @@ public class BulletinModel
     public int       VIEW_COUNT     { get; set; }
     public int       COMMENT_COUNT  { get; set; }              // computed
     public int       REACTION_COUNT { get; set; }              // computed — feed Index
+    /// <summary>1 = người đang xem CHƯA mở bài này lần nào (HR_BULLETIN_VIEW không có dòng).
+    /// Chỉ có nghĩa khi gọi list kèm empcd; không truyền empcd thì luôn 0.</summary>
+    public int       IS_UNREAD      { get; set; }              // computed
     public string?   INST_ID        { get; set; }
     public string?   CREATED_ROLE   { get; set; }              // HR | CSR | Lean — suy ra từ role của INST_ID (chỉ trả ở trang quản lý / chi tiết)
     public DateTime? INST_DT        { get; set; }

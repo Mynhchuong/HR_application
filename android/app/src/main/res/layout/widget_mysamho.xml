@@ -62,11 +62,16 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <View
+    <!-- Đường kẻ ngang. PHẢI là ImageView, KHÔNG được dùng thẻ View: RemoteViews (widget) chỉ cho
+         phép một danh sách lớp cố định, android.view.View không nằm trong đó nên cả widget hỏng
+         với lỗi "Không thể tải tiện ích" (gặp thật trên tablet SM-T225, 2026-11-16). -->
+    <ImageView
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_marginTop="9dp"
-        android:background="@drawable/widget_divider" />
+        android:scaleType="fitXY"
+        android:contentDescription="@null"
+        android:src="@drawable/widget_divider" />
 
     <!-- ══ Bố cục CÔNG NHÂN — 3 dòng, mỗi dòng 1 icon dẫn mắt ════════════ -->
     <LinearLayout

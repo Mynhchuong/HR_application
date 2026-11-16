@@ -183,7 +183,9 @@ public class HomeController : BaseController
             Id       = p.ID,
             // NV nước ngoài đọc tiêu đề tiếng Anh; bài cũ chưa có bản dịch thì giữ tiếng Việt.
             Title    = vm.Lang != "vi" && !string.IsNullOrWhiteSpace(p.TITLE_EN) ? p.TITLE_EN! : p.TITLE,
-            CoverImg = p.COVER_IMG
+            CoverImg = p.COVER_IMG,
+            IsPinned = p.IS_PINNED == 1,
+            IsUnread = p.IS_UNREAD == 1
         }).ToList();
 
         return vm;

@@ -78,6 +78,7 @@ public class HomeSummaryService
 
         // Chạy song song các query độc lập
         var leaveTask       = CountLeavePendingAsync(user.EMPCD);
+        var leaveMonthTask  = CountLeavePendingThisMonthAsync(user.EMPCD);
         var gpTask          = CountGpPendingAsync(user.EMPCD);
         var otTask          = CountOtAsync(user.EMPCD);
         var bdTask          = _birthdayService.GetTeamBirthdayAsync(user);
@@ -87,9 +88,10 @@ public class HomeSummaryService
         var docMissingTask  = CountLeaveDocMissingAsync(user);
         var hrDashTask      = isHrCsr ? CountHrDashboardAsync(user.EMPCD) : Task.FromResult(new HrDashCounts());
 
-        await Task.WhenAll(leaveTask, gpTask, otTask, bdTask, leaveTodayTask, gpTodayTask, trainingTodayTask, docMissingTask, hrDashTask);
+        await Task.WhenAll(leaveTask, leaveMonthTask, gpTask, otTask, bdTask, leaveTodayTask, gpTodayTask, trainingTodayTask, docMissingTask, hrDashTask);
 
         result.LEAVE_PENDING        = leaveTask.Result;
+        result.LEAVE_PENDING_MONTH  = leaveMonthTask.Result;
         result.GP_PENDING           = gpTask.Result;
         result.OT_NEED_SIGN         = otTask.Result.NeedSign;
         result.OT_SIGNED            = otTask.Result.Signed;
@@ -288,6 +290,36 @@ public class HomeSummaryService
     // Đếm khớp với mặc định của trang duyệt GpListForSupervisor (date_from=date_to=hôm nay)
     // để số trên Home KPI luôn bằng số NV thấy khi bấm vào duyệt — trước đây dùng khoảng
     // ±7 ngày nên số bị lệch (VD Home báo 9 nhưng trang duyệt hôm nay chỉ có 2).
+    // Giống CountLeavePendingAsync nhưng CHỈ đếm đơn tạo trong tháng này.
+    //
+    // Vì sao cần (2026-11-16): widget của quản lý đang cộng dồn mọi đơn chờ duyệt từ trước tới giờ,
+    // có đơn tồn từ mấy tháng trước, nên con số to mà không nói lên việc của tháng này. Chủ dự án
+    // chốt: widget chỉ đếm đơn phát sinh trong tháng.
+    //
+    // CỐ Ý tách thành hàm riêng thay vì sửa CountLeavePendingAsync: thẻ tổng hợp ở TRANG CHỦ vẫn
+    // phải đếm tất cả, nếu không quản lý sẽ không thấy đơn tồn tháng trước và đơn đó chìm luôn.
+    private async Task<int> CountLeavePendingThisMonthAsync(string empcd)
+    {
+        var scope = OTScopeFilterHelper.ForScopeByTuple(empcd, empAlias: "EC", prefix: "ME");
+        string sql = $@"
+            SELECT COUNT(*) AS CNT
+            FROM HRMS.HR_LEAVE_REQUEST L
+            JOIN HRMS.HR_REQUEST R  ON R.REQUEST_ID = L.REQUEST_ID
+            JOIN HRMS.ECM100    EC ON EC.EMPCD     = L.EMPCD
+            WHERE R.REQUEST_TYPE = 'LEAVE'
+              AND L.SOURCE       = 'SELF'
+              AND R.STATUS       = 'PENDING'
+              AND R.CREATED_DATE >= TRUNC(SYSDATE, 'MM')
+              AND R.CREATED_DATE <  ADD_MONTHS(TRUNC(SYSDATE, 'MM'), 1)
+              AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+              {scope.SqlClause}";
+
+        var rows = await _oracleService.ExecuteQueryAsync(sql,
+            r => Convert.ToInt32(r["CNT"]),
+            scope.Params.ToArray());
+        return rows.FirstOrDefault();
+    }
+
     private async Task<int> CountGpPendingAsync(string empcd)
     {
         var scope = OTScopeFilterHelper.ForScopeByTuple(empcd, empAlias: "EC", prefix: "ME");

@@ -87,4 +87,8 @@ public class HomePinnedItemVm
     public int     Id       { get; set; }
     public string  Title    { get; set; } = "";
     public string? CoverImg { get; set; }
+    /// <summary>Bài đang được HR ghim — vẽ nhãn 📌.</summary>
+    public bool    IsPinned { get; set; }
+    /// <summary>Người đang đăng nhập chưa mở bài này lần nào — vẽ nhãn "Chưa xem".</summary>
+    public bool    IsUnread { get; set; }
 }

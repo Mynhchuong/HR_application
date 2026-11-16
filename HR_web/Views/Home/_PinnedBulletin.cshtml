@@ -1,17 +1,36 @@
 @model HR_web.ViewModels.Home.HomeIndexViewModel
 
+@*
+    Dải bản tin trên trang chủ (NV thường + Expat).
+
+    2026-11-16 đổi 2 điểm theo yêu cầu:
+      1. Không chỉ còn bài GHIM — máy chủ kéo thêm những bài NGƯỜI NÀY chưa xem mà còn hạn
+         (xem HomeService.GetPinnedBulletinsAsync), để họ thấy ngay chứ không phải vào trang Bản tin.
+      2. Xếp dọc đổi thành hàng vuốt ngang, tự chạy — thêm bài cũng không làm trang chủ dài thêm.
+*@
+
 @{
     if (Model.Pinned == null || Model.Pinned.Count == 0) { return; }
     var isEn = Model.Lang != "vi";
-    var stripLabel = isEn ? ExpatText.T(Model.Lang, "Pinned bulletins") : "Bản tin ghim";
+    Func<string, string, string> P = (vi, en) => isEn ? HR_web.Helpers.ExpatText.T(Model.Lang, en) : vi;
+    var stripLabel = isEn ? ExpatText.T(Model.Lang, "Pinned bulletins") : "Bản tin";
+    var unreadCount = Model.Pinned.Count(x => x.IsUnread);
 }
 
 <section class="home-pinned-strip">
-    <div class="home-pinned-heading">📌 @stripLabel</div>
-    <div class="home-pinned-list">
+    <div class="home-pinned-heading">
+        📌 @stripLabel
+        @if (unreadCount > 0)
+        {
+            <span class="home-pinned-flag unread ms-1">@unreadCount @P("chưa xem", "unread")</span>
+        }
+    </div>
+
+    <div class="home-pinned-track" id="pinnedTrack">
         @foreach (var p in Model.Pinned)
         {
-            <a href="@Url.Action("Detail", "Bulletin", new { id = p.Id })" class="home-pinned-card">
+            <a href="@Url.Action("Detail", "Bulletin", new { id = p.Id })"
+               class="home-pinned-card @(p.IsUnread ? "is-unread" : "")">
                 <div class="home-pinned-thumb">
                     @if (!string.IsNullOrEmpty(p.CoverImg))
                     {
@@ -25,7 +44,92 @@
                     }
                 </div>
                 <div class="home-pinned-title">@p.Title</div>
+                @if (p.IsPinned || p.IsUnread)
+                {
+                    <div class="home-pinned-flags">
+                        @if (p.IsPinned) { <span class="home-pinned-flag pin">📌</span> }
+                        @if (p.IsUnread) { <span class="home-pinned-flag unread">@P("Chưa xem", "Unread")</span> }
+                    </div>
+                }
             </a>
         }
     </div>
+
+    <div class="home-pinned-dots" id="pinnedDots"></div>
 </section>
+
+<script>
+    // Tự trượt sang thẻ kế tiếp.
+    //
+    // 2026-11-16: bản đầu dùng track.scrollTo({behavior:'smooth'}) thì dải ĐỨNG IM — đã dựng lại
+    // bằng Chrome và đo scrollLeft suốt 19 giây, không nhúc nhích. Lý do: hoạt ảnh của lệnh cuộn
+    // mượt không phải chỗ nào cũng chạy (WebView đời cũ, iOS trước 15.4, vài môi trường không có
+    // bộ dựng hình). Nên giờ TỰ VẼ chuyển động bằng requestAnimationFrame và gán thẳng scrollLeft —
+    // thứ chạy được ở mọi nơi. CSS cũng đã bỏ scroll-behavior:smooth để không có 2 bên cùng giành.
+    //
+    // Vẫn chỉ là trang trí: đoạn này hỏng thì người dùng vẫn vuốt tay được bình thường.
+    (function () {
+        var track = document.getElementById('pinnedTrack');
+        var dots  = document.getElementById('pinnedDots');
+        if (!track || !dots) return;
+
+        var cards = track.querySelectorAll('.home-pinned-card');
+        if (cards.length < 2) { dots.style.display = 'none'; return; }
+
+        for (var i = 0; i < cards.length; i++) {
+            var d = document.createElement('span');
+            d.className = 'home-pinned-dot' + (i === 0 ? ' on' : '');
+            dots.appendChild(d);
+        }
+        var dotEls = dots.querySelectorAll('.home-pinned-dot');
+
+        function step()    { return cards[0].offsetWidth + 10; }   // 10 = khoảng cách giữa 2 thẻ
+        function current() { return Math.min(cards.length - 1, Math.round(track.scrollLeft / step())); }
+        function paint() {
+            var c = current();
+            for (var i = 0; i < dotEls.length; i++) dotEls[i].classList.toggle('on', i === c);
+        }
+        track.addEventListener('scroll', paint, { passive: true });
+
+        // Máy đang bật "giảm chuyển động" thì KHÔNG tự chạy — tôn trọng cài đặt trợ năng.
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        var anim = null, paused = 0;
+        function cancel() { if (anim) { cancelAnimationFrame(anim); anim = null; } }
+
+        // Người ta vừa chạm/vuốt thì ngưng tự chạy 10 giây, tránh giật khỏi tay.
+        ['touchstart', 'pointerdown', 'wheel'].forEach(function (ev) {
+            track.addEventListener(ev, function () { paused = Date.now() + 10000; cancel(); }, { passive: true });
+        });
+
+        function slideTo(target) {
+            cancel();
+            var from = track.scrollLeft, dist = target - from;
+            if (Math.abs(dist) < 1) { track.scrollLeft = target; return; }
+
+            // Môi trường không có requestAnimationFrame thì nhảy thẳng — thà đổi thẻ không mượt
+            // còn hơn dải đứng im.
+            if (typeof requestAnimationFrame !== 'function') { track.scrollLeft = target; paint(); return; }
+
+            // Tắt bắt-điểm trong lúc chạy, nếu không mỗi khung hình nó lại kéo về thẻ gần nhất.
+            var snap = track.style.scrollSnapType;
+            track.style.scrollSnapType = 'none';
+
+            var t0 = null, dur = 450;
+            function frame(ts) {
+                if (t0 === null) t0 = ts;
+                var p = Math.min(1, (ts - t0) / dur);
+                var e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;   // vào/ra đều
+                track.scrollLeft = from + dist * e;
+                if (p < 1) { anim = requestAnimationFrame(frame); }
+                else { anim = null; track.style.scrollSnapType = snap; paint(); }
+            }
+            anim = requestAnimationFrame(frame);
+        }
+
+        setInterval(function () {
+            if (document.hidden || Date.now() < paused || anim) return;
+            slideTo(((current() + 1) % cards.length) * step());
+        }, 4000);
+    })();
+</script>

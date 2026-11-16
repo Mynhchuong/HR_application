@@ -73,6 +73,37 @@
             }
         </div>
 
+        @* ── Màn hình chính: thêm widget ───────────────────────────────────
+           Phần lớn người dùng là công nhân, không ai biết nhấn giữ màn hình rồi mò trong danh sách
+           tiện ích — nên đưa hẳn lối vào ra đây.
+             Android 8.0+ : bấm là hiện hộp thoại hệ thống "Thêm vào màn hình chính" (bridge pinWidget).
+             iOS          : Apple KHÔNG cho app tự thêm widget, không có API nào cả -> chỉ hướng dẫn.
+             Android cũ / launcher không hỗ trợ / trình duyệt thường: xem phần JS bên dưới.
+           Mặc định ẩn, JS mới quyết định hiện cái gì — tránh hiện nút bấm không ăn. *@
+        <div class="st-group d-none" id="stWidget">
+            <div class="st-head">@L("Màn hình chính", "Home screen")</div>
+
+            <button type="button" class="st-row w-100 border-0 bg-transparent text-start d-none" id="btnPinWidget">
+                <div class="st-icon"><span class="material-symbols-rounded">widgets</span></div>
+                <div class="st-body">
+                    <div class="st-label">@L("Thêm widget ra màn hình chính", "Add the widget to your home screen")</div>
+                    <div class="st-desc">
+                        @L("Xem nhanh việc cần duyệt và thông báo, không cần mở app.",
+                           "See what needs approving and your notifications without opening the app.")
+                    </div>
+                </div>
+                <span class="material-symbols-rounded st-chev">add_circle</span>
+            </button>
+
+            <div class="st-row d-none" id="widgetHelp" style="align-items:flex-start;">
+                <div class="st-icon"><span class="material-symbols-rounded">widgets</span></div>
+                <div class="st-body">
+                    <div class="st-label">@L("Thêm widget ra màn hình chính", "Add the widget to your home screen")</div>
+                    <ol class="st-desc mb-0 ps-3" id="widgetSteps" style="line-height:1.7;"></ol>
+                </div>
+            </div>
+        </div>
+
         @* ── Ngôn ngữ: chỉ Expat mới đổi được (NV Việt Nam luôn là tiếng Việt) ── *@
         @if (isExpat)
         {
@@ -158,6 +189,68 @@
         el.classList.add('show');
         setTimeout(() => el.classList.remove('show'), 1800);
     }
+
+    // ── Thêm widget ra màn hình chính ───────────────────────────────────────────────────────
+    // Android 8.0+: gọi bridge pinWidget() -> hệ điều hành hiện hộp thoại "Thêm vào màn hình chính".
+    // iOS: Apple không cho app tự thêm widget (không có API), nên chỉ hướng dẫn từng bước.
+    // Android cũ hoặc launcher không hỗ trợ: cũng hướng dẫn tay, KHÔNG hiện nút bấm không ăn.
+    // Trình duyệt thường (không phải app): ẩn cả mục, vì không có màn hình chính nào để thêm.
+    (function () {
+        const box = document.getElementById('stWidget');
+        if (!box) return;
+
+        const canAndroid = !!(window.Android && typeof window.Android.pinWidget === 'function');
+        const isIos = !!(window.webkit && window.webkit.messageHandlers
+                      && window.webkit.messageHandlers.clearCredentials);
+        if (!canAndroid && !isIos) return;          // mở bằng trình duyệt -> không liên quan
+
+        const STEPS_IOS = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new[] {
+            L("Thoát app, quay về màn hình chính.", "Leave the app and go to your home screen."),
+            L("Nhấn giữ vào chỗ trống trên màn hình đến khi các biểu tượng rung.",
+              "Touch and hold an empty spot until the icons start to jiggle."),
+            L("Bấm dấu + ở góc trên bên trái.", "Tap the + button in the top-left corner."),
+            L("Tìm My SAMHO rồi bấm Thêm tiện ích.", "Find My SAMHO, then tap Add Widget."),
+        }));
+        const STEPS_ANDROID = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new[] {
+            L("Thoát app, quay về màn hình chính.", "Leave the app and go to your home screen."),
+            L("Nhấn giữ vào chỗ trống trên màn hình.", "Touch and hold an empty spot on the screen."),
+            L("Chọn Tiện ích (Widget).", "Choose Widgets."),
+            L("Tìm My SAMHO rồi kéo ra màn hình.", "Find My SAMHO and drag it onto the screen."),
+        }));
+        const MSG_OK = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+            L("Bấm Thêm trong hộp thoại vừa hiện ra là xong.", "Tap Add in the dialog that just appeared.")));
+
+        box.classList.remove('d-none');
+
+        function showSteps(list) {
+            const ol = document.getElementById('widgetSteps');
+            ol.innerHTML = '';
+            list.forEach(function (t) {
+                const li = document.createElement('li');
+                li.textContent = t;
+                ol.appendChild(li);
+            });
+            document.getElementById('widgetHelp').classList.remove('d-none');
+        }
+
+        // canPinWidget() hỏi chính hệ điều hành, không đoán theo phiên bản Android.
+        let supported = false;
+        if (canAndroid) {
+            try { supported = window.Android.canPinWidget() === true; } catch (e) { supported = false; }
+        }
+
+        if (!supported) { showSteps(isIos ? STEPS_IOS : STEPS_ANDROID); return; }
+
+        const btn = document.getElementById('btnPinWidget');
+        btn.classList.remove('d-none');
+        btn.addEventListener('click', function () {
+            let ok = false;
+            try { ok = window.Android.pinWidget() === true; } catch (e) { ok = false; }
+            // Bật được hộp thoại thì nhắc bấm Thêm; không bật được thì chuyển sang chỉ dẫn tay.
+            if (ok) stToastMsg(MSG_OK);
+            else { btn.classList.add('d-none'); showSteps(STEPS_ANDROID); }
+        });
+    })();
 
     // Lưu ngay khi gạt, không cần nút Lưu. Lỗi thì gạt trả lại vị trí cũ để không hiểu nhầm là đã lưu.
     // Chỉ app (WebView) mới có bridge native — trình duyệt thường không có Face ID/vân tay nên ẩn khối.

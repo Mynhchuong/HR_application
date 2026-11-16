@@ -153,26 +153,37 @@
             text-align: center;
         }
 
-        .btn-guide {
-            width: 100%;
-            height: 52px;
-            background: transparent;
-            border: 2px solid rgba(79,70,229,0.35);
-            color: #4f46e5;
-            font-size: 0.95rem;
-            font-weight: 700;
-            cursor: pointer;
-            border-radius: 16px;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            margin-top: 12px;
-        }
-        .btn-guide:hover, .btn-guide:active {
-            background: rgba(79,70,229,0.08);
-            border-color: var(--primary);
+        /* Máy tính: trang này CHỈ dành cho web desktop (điện thoại/app đi LoginMobile.cshtml),
+           nên trải thẻ ra 2 cột cho đỡ trống trải thay vì 1 thẻ 400px lọt giữa màn hình rộng. */
+        @@media (min-width: 992px) {
+            .login-card {
+                max-width: 880px;
+                display: grid;
+                grid-template-columns: 0.85fr 1.15fr;
+                background: rgba(255, 255, 255, 0.92);
+            }
+
+            .login-header {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                padding: 56px 36px;
+                background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
+            }
+
+            .login-header h4 span:last-child { color: #fff !important; }
+
+            .login-tagline { display: block; }
+
+            .login-body {
+                padding: 52px 48px;
+                display: flex;
+                align-items: center;
+            }
+
+            .login-body > form { width: 100%; }
         }
 
         @@media (max-width: 480px) {
@@ -195,6 +206,11 @@
                     <span style="color: #ed1c24;">My</span> 
                     <span style="color: #1e293b;">SAMHO</span>
                 </h4>
+                <p class="login-tagline"
+                   style="display:none;color:#94a3b8;font-size:.9rem;line-height:1.6;margin:14px 0 0;">
+                    Cổng thông tin nhân sự Samho<br />
+                    <span style="color:#64748b;">Samho HR portal</span>
+                </p>
             </div>
 
             <div class="login-body">
@@ -268,47 +284,7 @@
                        style="display:block;text-align:center;font-size:.85rem;color:#dc2626;font-weight:700;text-decoration:none;margin-top:.65rem;">
                         🔑 Quên mật khẩu? / Forgot password?
                     </a>
-
-                    <a href="@Url.Action("Index", "Guide")" class="btn-guide">
-                        <span class="material-symbols-rounded" style="font-size:1.15rem;">menu_book</span>
-                        Xem hướng dẫn / View user guide
-                    </a>
-
-                    <a href="@Url.Action("Index", "Directory")" class="btn-guide">
-                        <span class="material-symbols-rounded" style="font-size:1.15rem;">qr_code_scanner</span>
-                        Check Employee Info
-                    </a>
                 </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal hướng dẫn -->
-    <div id="guideModal" onclick="closeGuideOutside(event)"
-         style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.8);
-                align-items:center;justify-content:center;padding:16px;">
-        <div style="width:100%;max-width:760px;background:#0f172a;border-radius:20px;
-                    overflow:hidden;box-shadow:0 30px 60px rgba(0,0,0,0.6);position:relative;"
-             onclick="event.stopPropagation()">
-            <div style="display:flex;align-items:center;justify-content:space-between;
-                        padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.1);">
-                <span style="color:#fff;font-weight:700;font-size:1rem;">
-                    <span class="material-symbols-rounded" style="vertical-align:-4px;color:#4f46e5;margin-right:6px;">play_circle</span>
-                    Hướng dẫn sử dụng My SAMHO / User Guide
-                </span>
-                <button onclick="closeGuide()"
-                        style="background:rgba(255,255,255,0.1);border:none;color:#fff;
-                               border-radius:50%;width:32px;height:32px;cursor:pointer;
-                               font-size:1.1rem;display:flex;align-items:center;justify-content:center;">
-                    <span class="material-symbols-rounded" style="font-size:1.1rem;">close</span>
-                </button>
-            </div>
-            <div style="background:#000;aspect-ratio:16/9;">
-                <video id="guideVideo" controls style="width:100%;height:100%;display:block;"
-                       src="@Url.Content("~/video/my_samho.mp4")"
-                       preload="none">
-                    Trình duyệt không hỗ trợ video. / Your browser does not support video.
-                </video>
             </div>
         </div>
     </div>
@@ -329,27 +305,6 @@
         // Prevent iOS zoom on input focus
         document.addEventListener('gesturestart', function (e) {
             e.preventDefault();
-        });
-
-        function openGuide() {
-            const modal = document.getElementById('guideModal');
-            modal.style.display = 'flex';
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeGuide() {
-            const modal = document.getElementById('guideModal');
-            modal.style.display = 'none';
-            document.getElementById('guideVideo').pause();
-            document.body.style.overflow = '';
-        }
-
-        function closeGuideOutside(e) {
-            if (e.target === document.getElementById('guideModal')) closeGuide();
-        }
-
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') closeGuide();
         });
 
         // Gửi mã NV + mật khẩu cho app native lưu an toàn (Keychain/Keystore, gắn Face ID/vân tay) để

@@ -35,6 +35,8 @@ public class BulletinModel
     public int       VIEW_COUNT     { get; set; }
     public int       COMMENT_COUNT  { get; set; }
     public int       REACTION_COUNT { get; set; }
+    /// <summary>1 = người đang đăng nhập CHƯA mở bài này lần nào (xem HR_BULLETIN_VIEW).</summary>
+    public int       IS_UNREAD      { get; set; }
     public string?   INST_ID        { get; set; }
     public string?   CREATED_ROLE   { get; set; }
     public DateTime? INST_DT        { get; set; }

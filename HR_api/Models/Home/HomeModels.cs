@@ -58,12 +58,21 @@ public class HomePinnedBulletinModel
     public string? TITLE_EN   { get; set; }
     public string? COVER_IMG  { get; set; }
     public int     PIN_ORDER  { get; set; }
+    /// <summary>1 = bài đang ghim nhưng người này CHƯA mở, hoặc bài không ghim được kéo vào
+    /// đúng vì chưa xem mà còn hạn (xem HomeService.GetHomeBulletinsAsync).</summary>
+    public int     IS_UNREAD  { get; set; }
+    /// <summary>1 = bài đang ghim. Dùng để vẽ nhãn 📌 phân biệt với bài "chưa xem" kéo thêm vào.</summary>
+    public int     IS_PINNED  { get; set; }
 }
 
 // Response cho GET /Home/summary
 public class HomeSummaryModel
 {
     public int      LEAVE_PENDING { get; set; }
+    /// <summary>Đơn nghỉ phép chờ duyệt NHƯNG chỉ tính đơn tạo trong tháng hiện tại.
+    /// Chỉ widget dùng (yêu cầu 2026-11-16) — thẻ tổng hợp trang chủ vẫn dùng LEAVE_PENDING
+    /// đếm tất cả, KHÔNG đổi.</summary>
+    public int      LEAVE_PENDING_MONTH { get; set; }
     public int      GP_PENDING    { get; set; }
     public int      OT_NEED_SIGN  { get; set; }
     public int      OT_SIGNED     { get; set; }

@@ -211,7 +211,7 @@ public class MySamhoWidgetProvider extends AppWidgetProvider {
         int leave = c != null ? c.optInt("leaveToday", 0)  : 0;
 
         rv.setTextViewText(R.id.wNumApprove, String.valueOf(need));
-        rv.setTextViewText(R.id.wLblApprove, L(lang, "Cần bạn duyệt", "To approve", "결재 대기"));
+        rv.setTextViewText(R.id.wLblApprove, L(lang, "Cần duyệt tháng này", "To approve (month)", "이달 결재 대기"));
 
         rv.setTextViewText(R.id.wNumGate, String.valueOf(gate));
         rv.setTextViewText(R.id.wLblGate, L(lang, "Ra cổng chờ ký", "Gate passes", "외출 결재"));

@@ -180,7 +180,7 @@ struct MysamhoWidgetView: View {
     @ViewBuilder
     private func managerBody(_ s: WidgetSnapshot) -> some View {
         HStack(spacing: 7) {
-            cell("\(s.needApprove)", L(lang, "Cần bạn duyệt", "To approve", "결재 대기"),
+            cell("\(s.needApprove)", L(lang, "Cần duyệt tháng này", "To approve (month)", "이달 결재 대기"),
                  icon: "checklist", tint: P.accent)
             cell("\(s.gatePass)", L(lang, "Ra cổng chờ ký", "Gate passes", "외출 결재"),
                  icon: "arrow.right.square.fill", tint: P.blue)

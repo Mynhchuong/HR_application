@@ -38,7 +38,7 @@ public class HomeService
         var birthdayTask = SafeAsync(() => _birthdayService.CheckSelfBirthdayAsync(user),      "birthday");
         var shiftTask    = SafeAsync(() => GetShiftIfApplicableAsync(user),                    "shift");
         var bannerTask   = SafeAsync(() => GetActiveBannerAsync(user.EMPCD, user.ROLENAME, user.LANG), "banner");
-        var pinnedTask   = SafeAsync(() => GetPinnedBulletinsAsync(),                          "pinned");
+        var pinnedTask   = SafeAsync(() => GetPinnedBulletinsAsync(user.EMPCD),               "pinned");
         var paydayTask   = SafeAsync(() => BuildPaydayIfTodayAsync(user),                      "payday");
 
         await Task.WhenAll(greetingTask, birthdayTask, shiftTask, bannerTask, pinnedTask, paydayTask);
@@ -289,24 +289,46 @@ public class HomeService
     }
 
     // ============================================================
-    // 5. PINNED BULLETIN — max 2 bài
+    // 5. BẢN TIN TRÊN TRANG CHỦ — bài ghim + bài chưa xem còn hạn
+    //
+    // Trước 2026-11-16 chỗ này chỉ lấy 2 bài GHIM và dùng chung 1 bản nhớ tạm cho mọi người. Yêu cầu
+    // mới: kéo thêm những bài NGƯỜI NÀY chưa xem mà còn hạn, để họ thấy ngay trên trang chủ thay vì
+    // phải vào hẳn trang Bản tin. "Chưa xem" là thông tin riêng từng người nên bản nhớ tạm phải tách
+    // theo mã NV, không dùng chung được nữa.
+    //
+    // Hệ quả đã cân nhắc: InvalidateHomePinnedCache() giờ không xoá được các khoá theo từng người.
+    // Nên hạ thời gian nhớ xuống 60 giây — HR ghim/bỏ ghim thì chậm nhất 1 phút là mọi người thấy,
+    // đổi lại không phải gọi DB mỗi lần mở trang chủ (hàng nghìn công nhân).
     // ============================================================
-    private async Task<List<HomePinnedBulletinModel>> GetPinnedBulletinsAsync()
+    private const int HomeBulletinMax = 8;
+
+    private async Task<List<HomePinnedBulletinModel>> GetPinnedBulletinsAsync(string? empCd)
     {
-        const string cacheKey = "home:bulletin:pinned";
+        var cacheKey = "home:bulletin:pinned:" + (empCd ?? "-");
         return await _cache.GetOrCreateAsync(cacheKey, async entry =>
         {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2);
-            const string sql = @"
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60);
+
+            // Lấy bài ĐANG GHIM (giữ nguyên hành vi cũ) HOẶC bài chưa xem còn hạn.
+            // Oracle KHÔNG cho dùng EXISTS trong danh sách SELECT nên cờ IS_UNREAD phải tính bằng
+            // COUNT; khoá chính HR_BULLETIN_VIEW là (BULLETIN_ID, EMPCD) nên đếm rất nhẹ.
+            // Thứ tự: ghim trước (đúng ý HR), trong mỗi nhóm thì bài chưa xem lên trên.
+            var sql = @"
                 SELECT * FROM (
-                    SELECT B.ID, B.TITLE, B.TITLE_EN, B.COVER_IMG, B.PIN_ORDER
+                    SELECT B.ID, B.TITLE, B.TITLE_EN, B.COVER_IMG, B.PIN_ORDER, B.IS_PINNED,
+                           CASE WHEN (SELECT COUNT(*) FROM HRMS.HR_BULLETIN_VIEW V
+                                      WHERE V.BULLETIN_ID = B.ID AND V.EMPCD = :EMPCD) > 0
+                                THEN 0 ELSE 1 END AS IS_UNREAD
                     FROM HRMS.HR_BULLETIN B
                     WHERE B.IS_PUBLISHED = 1
                       AND B.IS_ACTIVE    = 1
-                      AND B.IS_PINNED    = 1
                       AND SYSDATE >= B.PUBLISH_FROM AND SYSDATE < TRUNC(B.PUBLISH_TO) + 1
-                    ORDER BY B.PIN_ORDER ASC, B.PUBLISH_FROM DESC
-                ) WHERE ROWNUM <= 2";
+                      AND ( B.IS_PINNED = 1
+                            OR (SELECT COUNT(*) FROM HRMS.HR_BULLETIN_VIEW V2
+                                WHERE V2.BULLETIN_ID = B.ID AND V2.EMPCD = :EMPCD) = 0 )
+                    ORDER BY B.IS_PINNED DESC, IS_UNREAD DESC,
+                             B.PIN_ORDER ASC, B.PUBLISH_FROM DESC, B.ID DESC
+                ) WHERE ROWNUM <= " + HomeBulletinMax;
 
             return await _oracleService.ExecuteQueryAsync(sql, r => new HomePinnedBulletinModel
             {
@@ -314,8 +336,11 @@ public class HomeService
                 TITLE     = r["TITLE"]?.ToString() ?? "",
                 TITLE_EN  = r["TITLE_EN"] == DBNull.Value ? null : r["TITLE_EN"].ToString(),
                 COVER_IMG = r["COVER_IMG"]?.ToString(),
-                PIN_ORDER = r["PIN_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["PIN_ORDER"])
-            });
+                PIN_ORDER = r["PIN_ORDER"] == DBNull.Value ? 0 : Convert.ToInt32(r["PIN_ORDER"]),
+                IS_PINNED = r["IS_PINNED"] == DBNull.Value ? 0 : Convert.ToInt32(r["IS_PINNED"]),
+                IS_UNREAD = r["IS_UNREAD"] == DBNull.Value ? 0 : Convert.ToInt32(r["IS_UNREAD"])
+            },
+            new OracleParameter("EMPCD", (object?)empCd ?? DBNull.Value));
         }) ?? new();
     }
 

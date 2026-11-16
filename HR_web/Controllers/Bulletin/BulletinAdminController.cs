@@ -77,6 +77,10 @@ public class BulletinAdminController : BaseController
             ID           = item.ID,
             TITLE        = item.TITLE,
             CONTENT      = item.CONTENT ?? "",
+            // Thiếu 2 dòng này thì mở bài cũ ra tab English trống trơn, HR tưởng mất bản dịch;
+            // lưu lại còn bị chặn vì server bắt buộc phải có tiếng Anh (hoặc HR gõ đè lên bản cũ).
+            TITLE_EN     = item.TITLE_EN,
+            CONTENT_EN   = item.CONTENT_EN ?? "",
             COVER_IMG    = item.COVER_IMG,
             PUBLISH_FROM = item.PUBLISH_FROM,
             PUBLISH_TO   = item.PUBLISH_TO,

@@ -1141,12 +1141,20 @@ END;";
             return Ok(new { success = false, message = "Không có phiếu nào được chọn" });
         try
         {
+            // HR được xoá như Admin (user chốt 2026-11-16). Lấy CẢ role chính lẫn role phòng ban:
+            // có người role chính là Manager nhưng DEPT_ROLE_ID = HR (vd 18042301) — chỉ xét role
+            // chính thì họ vẫn bị chặn, lệch với tầng web vốn dùng HasAnyRole (xét cả hai).
             var roleRows = await _oracleService.ExecuteQueryAsync(
-                "SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
-                r => r["ROLE_NAME"]?.ToString(),
+                @"SELECT RR.ROLE_NAME AS R1, DR.ROLE_NAME AS R2
+                    FROM HRMS.HR_USERS U
+                    LEFT JOIN HRMS.HR_ROLES      RR ON RR.ID = U.ROLE_ID
+                    LEFT JOIN HRMS.HR_DEPT_ROLES DR ON DR.ID = U.DEPT_ROLE_ID
+                   WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => (r["R1"]?.ToString() ?? "") + "|" + (r["R2"]?.ToString() ?? ""),
                 new OracleParameter("EMPCD", model.ACTOR_EMPCD));
-            if (roleRows.FirstOrDefault() != "Admin")
-                return Ok(new { success = false, message = "Chỉ Admin mới có quyền xóa" });
+            var actorRoles = (roleRows.FirstOrDefault() ?? "").Split('|');
+            if (!actorRoles.Contains("Admin") && !actorRoles.Contains("HR"))
+                return Ok(new { success = false, message = "Chỉ Admin hoặc HR mới có quyền xóa" });
 
             // Mỗi lần gọi ExecuteQueryAsync/ExecuteNonQueryAsync phải dùng OracleParameter MỚI —
             // ODP.NET không cho 1 object OracleParameter tham gia 2 OracleCommand khác nhau (ném

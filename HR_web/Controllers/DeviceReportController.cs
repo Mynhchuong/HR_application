@@ -7,7 +7,10 @@ namespace HR_web.Controllers;
 // Trang báo cáo "ai đã cài app My Samho, ai còn dùng web" — dựa vào HR_USERS.LAST_DEVICE_TYPE (tự ghi
 // mỗi lần đăng nhập, xem DeviceDetector.cs + HR_api/Controllers/DeviceReportController.cs). Mục đích:
 // tìm NV còn dùng web mobile (chưa cài app) để HR chủ động nhắc tải (yêu cầu 2026-10-26).
-[Authorize(Roles = "Admin")]   // chỉ Admin xem (yêu cầu 2026-10-28), HR không còn vào được
+// 2026-10-28 từng thu về chỉ Admin (HR bị gỡ quyền). 2026-11-16 user yêu cầu mở lại toàn bộ
+// quyền admin cho HR nên cho HR vào lại — nếu lần trước gỡ là có lý do nghiệp vụ thì cần hỏi lại
+// người đã yêu cầu.
+[Authorize(Roles = "Admin,HR")]
 public class DeviceReportController : BaseController
 {
     private readonly ApiService _api;

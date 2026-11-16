@@ -11,7 +11,7 @@ namespace HR_web.Controllers.Kaizen;
 /// read-only vì các action ở đây (GetList/Export) vốn đã chỉ đọc; MailAdd/MailRemove/MailTest (sửa
 /// danh sách nhận mail hàng tuần) CSR cũng đụng được, nhưng đây là field hiếm khi chỉnh và không có
 /// cơ chế tách quyền đọc/ghi theo controller nào khác trong codebase để làm khác đi.</summary>
-[Authorize(Roles = "Admin,Lean,CSR")]
+[Authorize(Roles = "Admin,Lean,CSR,HR")]   // mở cho HR (yêu cầu 2026-11-16)
 public class KaizenAdminController : BaseController
 {
     private readonly KaizenService _svc;

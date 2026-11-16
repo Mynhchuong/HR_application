@@ -77,10 +77,11 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout layoutNoInternet;
     private View layoutSplash;
     private View splashGroup, splashDisc;
-    private android.widget.ImageView splashRingDark, splashRingRed, splashS;
+    private android.widget.ImageView splashRingDark, splashRingRed, splashS, splashIconS;
     private android.widget.TextView splashName;
     /// Mốc hoạt ảnh mở màn chạy xong — trang web tải nhanh hơn thì chờ nốt, đừng cắt ngang.
     private long splashIntroEndsAt = 0L;
+    private boolean splashAnimStarted = false;
     private Button btnRetry;
     private ProgressBar progressBar;
     // 2 domain khác nhau, path case KHÁC NHAU (xác nhận thật 2026-10-30) — sa1-hanaro (wifi nội bộ
@@ -146,6 +147,7 @@ public class MainActivity extends AppCompatActivity {
         splashRingDark = findViewById(R.id.splashRingDark);
         splashRingRed  = findViewById(R.id.splashRingRed);
         splashS        = findViewById(R.id.splashS);
+        splashIconS    = findViewById(R.id.splashIconS);
         splashName     = findViewById(R.id.splashName);
         startSplashAnimation();
         btnRetry = findViewById(R.id.btnRetry);
@@ -545,7 +547,7 @@ public class MainActivity extends AppCompatActivity {
         final int crimson = 0xFFC82128;   // đỏ logo, lấy từ chính file logo công ty
         final int dark    = 0xFF1A1A1A;
 
-        float d = getResources().getDisplayMetrics().density;
+        final float d = getResources().getDisplayMetrics().density;
         final float startRadius = 23 * d;              // bo góc của icon app
         final float endRadius   = 52 * d;              // bo tròn hẳn thành đĩa
 
@@ -558,6 +560,7 @@ public class MainActivity extends AppCompatActivity {
         splashRingDark.setImageTintList(android.content.res.ColorStateList.valueOf(dark));
         splashRingRed.setImageTintList(android.content.res.ColorStateList.valueOf(crimson));
         splashS.setImageTintList(android.content.res.ColorStateList.valueOf(crimson));
+        splashIconS.setImageTintList(android.content.res.ColorStateList.valueOf(0xFFFFFFFF));
 
         // "My" đỏ + "SAMHO" xanh đen — đúng như chữ trên trang Đăng nhập.
         android.text.SpannableString t = new android.text.SpannableString("My SAMHO");
@@ -566,51 +569,104 @@ public class MainActivity extends AppCompatActivity {
         t.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, 8, 0);
         splashName.setText(t);
 
-        // Icon bật lên kiểu lò xo nhẹ
+        // CẨN THẬN: view.animate() trả về CÙNG một đối tượng cho mỗi view — gọi lần thứ hai là
+        // huỷ luôn lần trước. Trước đây đặt cả hoạt ảnh hiện ra lẫn hoạt ảnh mờ đi của cái đĩa
+        // ngay trong một lượt, nên lệnh sau xoá lệnh trước và cái đĩa không bao giờ hiện ra —
+        // màn hình trắng trơn (phát hiện khi chạy thật trên tablet 16/11).
+        // Vì vậy MỖI MỐC đặt trong một postDelayed riêng, tới lúc đó mới gọi animate().
+        final View root = layoutSplash;
+
+        // Bọc TẤT CẢ trong root.post(): lúc onCreate chạy thì view chưa gắn vào cửa sổ, Android
+        // còn đang hiện màn hình chờ trắng của hệ thống. Trên tablet SM-T225 mất tới ~1 giây mới
+        // vẽ được khung hình đầu — đặt lịch từ onCreate thì hoạt ảnh chạy mất 1 giây sau tấm màn
+        // trắng đó, rồi bị tắt giữa chừng vì đồng hồ giữ splash cũng tính từ onCreate.
+        // Đo từ lúc gắn vào cửa sổ mới khớp với cái người dùng thật sự nhìn thấy.
+        root.post(() -> startSplashStages(root, disc, startRadius, endRadius, crimson, dark, d));
+    }
+
+    private void startSplashStages(final View root,
+                                   final android.graphics.drawable.GradientDrawable disc,
+                                   final float startRadius, final float endRadius,
+                                   final int crimson, final int dark, final float d) {
+
+        // 0.06s: icon bật lên kiểu lò xo nhẹ
         splashDisc.setAlpha(0f);
         splashDisc.setScaleX(0.72f); splashDisc.setScaleY(0.72f);
-        splashDisc.animate().alpha(1f).scaleX(1f).scaleY(1f)
-                .setStartDelay(60).setDuration(320)
-                .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+        splashIconS.setAlpha(0f);
+        splashIconS.setScaleX(0.72f); splashIconS.setScaleY(0.72f);
+        root.postDelayed(() -> {
+            splashDisc.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(320)
+                    .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+            splashIconS.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(320)
+                    .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+        }, 60);
 
         // 0.42s: icon bo góc thành đĩa, giãn ra ĐÚNG khung của cái vòng, và đỏ chuyển sang đen.
         // Phải giãn cho khớp khung vòng (172x145dp) chứ không giữ nguyên 104dp — lệch cỡ thì lúc
         // đĩa nhường chỗ cho vòng sẽ thấy nhảy một nhịp. Kéo 2 chiều khác nhau còn làm đĩa thành
         // hình bầu dục, đúng kiểu vòng Samho vốn hơi dẹt.
         final float toScaleX = 172f / 104f, toScaleY = 145f / 104f;
-        android.animation.ValueAnimator morph = android.animation.ValueAnimator.ofFloat(0f, 1f);
-        morph.setStartDelay(420); morph.setDuration(440);
-        morph.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
-        morph.addUpdateListener(a -> {
-            float f = (float) a.getAnimatedValue();
-            disc.setCornerRadius(startRadius + (endRadius - startRadius) * f);
-            disc.setColor((Integer) new android.animation.ArgbEvaluator().evaluate(f, crimson, dark));
-            splashDisc.setScaleX(1f + (toScaleX - 1f) * f);
-            splashDisc.setScaleY(1f + (toScaleY - 1f) * f);
-        });
-        morph.start();
+        root.postDelayed(() -> {
+            android.animation.ValueAnimator morph = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            morph.setDuration(440);
+            morph.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+            morph.addUpdateListener(a -> {
+                float f = (float) a.getAnimatedValue();
+                disc.setCornerRadius(startRadius + (endRadius - startRadius) * f);
+                disc.setColor((Integer) new android.animation.ArgbEvaluator().evaluate(f, crimson, dark));
+                splashDisc.setScaleX(1f + (toScaleX - 1f) * f);
+                splashDisc.setScaleY(1f + (toScaleY - 1f) * f);
+                // Chữ S của icon giãn theo ô vuông rồi mờ hẳn ở nửa đầu — nhường chỗ cho chữ S
+                // NGHIÊNG của logo công ty sắp hiện ra, tránh 2 chữ S chồng nhau.
+                splashIconS.setScaleX(1f + (toScaleX - 1f) * f);
+                splashIconS.setScaleY(1f + (toScaleY - 1f) * f);
+                splashIconS.setAlpha(Math.max(0f, 1f - f * 2.2f));
+            });
+            morph.start();
+        }, 420);
 
-        // 0.86s: đĩa đen mờ đi ĐÚNG LÚC vòng đen hiện lên -> mắt thấy đĩa "rỗng ruột" thành vòng
-        splashDisc.animate().alpha(0f).setStartDelay(860).setDuration(300).start();
-        splashRingDark.animate().alpha(1f).setStartDelay(860).setDuration(300).start();
+        // 0.86s: đĩa ĐỤC RUỘT ngay thành vòng (bỏ ruột, chỉ còn viền) — không mờ dần.
+        //
+        // Bản đầu cho đĩa mờ đi trong lúc vòng hiện lên. Trên tablet SM-T225 (máy yếu, lại đang
+        // tải WebView cùng lúc) hai hoạt ảnh bị giãn nhịp, có lúc đĩa còn 15% độ đục mà vòng chưa
+        // kịp tới -> hiện ra một cục XÁM NHẠT suốt gần 0,7 giây. Đục ruột thì hình luôn đặc, máy
+        // chậm cỡ nào cũng không hở khoảng xám (phát hiện khi quay màn hình tablet 16/11).
+        final int strokePx = Math.round(8 * d);
+        root.postDelayed(() -> {
+            disc.setColor(android.graphics.Color.TRANSPARENT);
+            disc.setStroke(strokePx, dark);
+        }, 860);
+
+        // 0.94s: đổi từ vòng tự vẽ (viền đều) sang ẢNH vòng thật của logo (viền chỗ dày chỗ mỏng).
+        // Cùng màu, cùng chỗ nên mắt gần như không nhận ra lúc đổi.
+        root.postDelayed(() -> {
+            splashRingDark.animate().alpha(1f).setDuration(260).start();
+            splashDisc.animate().alpha(0f).setStartDelay(120).setDuration(200).start();
+        }, 940);
 
         // 1.16s: chữ S nhô ra + vòng chuyển sang đỏ -> thành logo công ty
         splashS.setScaleX(0.55f); splashS.setScaleY(0.55f);
-        splashS.animate().alpha(1f).scaleX(1f).scaleY(1f)
-                .setStartDelay(1160).setDuration(420)
-                .setInterpolator(new android.view.animation.OvershootInterpolator(1.1f)).start();
-        splashRingRed.animate().alpha(1f).setStartDelay(1160).setDuration(480).start();
+        root.postDelayed(() -> {
+            splashS.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(420)
+                    .setInterpolator(new android.view.animation.OvershootInterpolator(1.1f)).start();
+            splashRingRed.animate().alpha(1f).setDuration(480).start();
+        }, 1160);
 
         // 1.6s: tên hiện khi logo đã thành hình
         splashName.setTranslationY(10 * d);
-        splashName.animate().alpha(1f).translationY(0f).setStartDelay(1600).setDuration(340).start();
+        root.postDelayed(() -> splashName.animate().alpha(1f).translationY(0f)
+                .setDuration(340).start(), 1600);
 
         splashIntroEndsAt = System.currentTimeMillis() + 2000;
+        splashAnimStarted = true;
     }
 
     private void dismissSplash() {
         if (layoutSplash != null && layoutSplash.getVisibility() != View.GONE) {
             // Trang tải xong trước khi hoạt ảnh chạy hết -> chờ nốt rồi mới tắt, đừng cắt ngang.
+            // Hoạt ảnh chưa kịp bắt đầu (view chưa gắn vào cửa sổ) -> chờ, đừng tắt khi người
+            // dùng còn chưa thấy gì.
+            if (!splashAnimStarted) { layoutSplash.postDelayed(this::dismissSplash, 120); return; }
             long remain = splashIntroEndsAt - System.currentTimeMillis();
             if (remain > 0) {
                 layoutSplash.postDelayed(this::dismissSplash, remain);

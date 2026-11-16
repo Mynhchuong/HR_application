@@ -76,6 +76,14 @@
             for (var m = 0; m < 60; m += 5) { if (withinRange(h, m, min, max)) { hasValidMinute = true; break; } }
             if (hasValidMinute) hourSel.appendChild(makeHourOption(h));
         }
+
+        // Lưới an toàn: khoảng min/max mâu thuẫn (VD min 14:00 > max 01:01 do tăng ca qua nửa đêm)
+        // sẽ không sinh được giờ nào -> ô rỗng, điện thoại hiện "No Options" và người dùng KẸT
+        // hẳn, không khai được. Thà bỏ giới hạn còn hơn để người dùng không làm gì được; phía
+        // server vẫn kiểm tra lại giờ gửi lên.
+        if (!hourSel.options.length) {
+            for (var h2 = 0; h2 < 24; h2++) hourSel.appendChild(makeHourOption(h2));
+        }
     }
 
     function buildMinuteOptions(minSel, hour, range) {
@@ -87,6 +95,15 @@
             var mm = String(m).padStart(2, '0');
             o.value = mm; o.text = mm;
             minSel.appendChild(o);
+        }
+        // Cùng lý do với buildHourOptions — không để ô Phút rỗng.
+        if (!minSel.options.length) {
+            for (var m2 = 0; m2 < 60; m2 += 5) {
+                var o2 = document.createElement('option');
+                var mm2 = String(m2).padStart(2, '0');
+                o2.value = mm2; o2.text = mm2;
+                minSel.appendChild(o2);
+            }
         }
     }
 

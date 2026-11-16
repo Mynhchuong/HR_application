@@ -426,7 +426,7 @@ public class LeaveController : BaseController
     // ─────────────────────────────────────────────
     public IActionResult AdminAssignLeave()
     {
-        if (CurrentUser?.RoleName != "Admin")
+        if (!CurrentUser.HasAnyRole("Admin", "HR"))
             return Forbid();
         ViewBag.CurrentEmpCd = CurrentUser.EmpCd;
         return View();
@@ -442,7 +442,7 @@ public class LeaveController : BaseController
     {
         try
         {
-            if (CurrentUser?.RoleName != "Admin")
+            if (!CurrentUser.HasAnyRole("Admin", "HR"))
                 return Json(new { success = false, message = "Không có quyền truy cập" });
             var result = await _leaveService.GetAdminEmpListAsync(search, dept_id, line_id, work_id);
             return Json(result);
@@ -458,7 +458,7 @@ public class LeaveController : BaseController
     {
         try
         {
-            if (CurrentUser?.RoleName != "Admin")
+            if (!CurrentUser.HasAnyRole("Admin", "HR"))
                 return Json(new { success = false, message = "Không có quyền truy cập" });
             model.ASSIGNER_EMPCD = CurrentUser.EmpCd;
             var result = await _leaveService.AdminAssignAsync(model);
@@ -528,7 +528,7 @@ public class LeaveController : BaseController
     // ─────────────────────────────────────────────
     public IActionResult AdminManageRequests()
     {
-        if (CurrentUser?.RoleName != "Admin") return Forbid();
+        if (!CurrentUser.HasAnyRole("Admin", "HR")) return Forbid();
         ViewBag.CurrentEmpCd = CurrentUser.EmpCd;
         return View();
     }
@@ -540,7 +540,7 @@ public class LeaveController : BaseController
         string? search = null,
         int page = 1, int page_size = 100)
     {
-        if (CurrentUser?.RoleName != "Admin") return Forbid();
+        if (!CurrentUser.HasAnyRole("Admin", "HR")) return Forbid();
         var result = await _leaveService.GetAdminConfirmedLeavesAsync(dept_id, line_id, work_id, date_from, date_to, status, search, page, page_size);
         return Json(result);
     }
@@ -548,7 +548,7 @@ public class LeaveController : BaseController
     [HttpPost]
     public async Task<IActionResult> AdminDeleteLeaves([FromBody] AdminBulkDeleteRequest model)
     {
-        if (CurrentUser?.RoleName != "Admin") return Forbid();
+        if (!CurrentUser.HasAnyRole("Admin", "HR")) return Forbid();
         model.ACTOR_EMPCD = CurrentUser.EmpCd ?? "";
         var result = await _leaveService.AdminDeleteLeavesAsync(model);
         return Json(result);
@@ -693,7 +693,7 @@ public class LeaveController : BaseController
         string? dept_id = null, string? line_id = null, string? work_id = null,
         string? date_from = null, string? date_to = null, int page = 1, int page_size = 100)
     {
-        if (CurrentUser?.RoleName != "Admin") return Forbid();
+        if (!CurrentUser.HasAnyRole("Admin", "HR")) return Forbid();
         var result = await _gatePassService.GetAdminConfirmedGpAsync(dept_id, line_id, work_id, date_from, date_to, page, page_size);
         return Json(result);
     }
@@ -701,7 +701,7 @@ public class LeaveController : BaseController
     [HttpPost]
     public async Task<IActionResult> AdminDeleteGp([FromBody] AdminBulkDeleteRequest model)
     {
-        if (CurrentUser?.RoleName != "Admin") return Forbid();
+        if (!CurrentUser.HasAnyRole("Admin", "HR")) return Forbid();
         model.ACTOR_EMPCD = CurrentUser.EmpCd ?? "";
         var result = await _gatePassService.AdminDeleteGpAsync(model);
         return Json(result);

@@ -43,3 +43,23 @@ body {
 }
 .adm-hero h5 { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
 .adm-hero small { font-size: .75rem; opacity: .85; color: #fff; }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Ô CHỌN NGÀY TRÊN ĐIỆN THOẠI
+   Hầu hết trang dùng class .form-control của Bootstrap (width:100%, display:block) nên ô ngày
+   kéo dài hết bề ngang màn hình trong khi nội dung chỉ là "11/11/2026" — vừa thừa chỗ vừa
+   chiếm chiều cao, đẩy nội dung chính xuống dưới (phản ánh 16/11, gặp ở nhiều trang).
+   Cho nó co đúng bằng nội dung và bớt đệm. Chỉ áp dưới 576px; máy tính giữ nguyên vì ở đó ô
+   ngày thường nằm trong hàng bộ lọc nhiều cột, cần rộng bằng nhau cho thẳng hàng.
+   Bộ chọn này (0,1,1) thắng .form-control (0,1,0) nên không cần !important.
+   ─────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 575.98px) {
+    input[type="date"],
+    input[type="month"] {
+        display: inline-block;   /* .form-control là block -> width:auto vẫn tràn hết hàng */
+        width: auto;
+        max-width: 100%;
+        padding-top: .35rem;
+        padding-bottom: .35rem;
+    }
+}

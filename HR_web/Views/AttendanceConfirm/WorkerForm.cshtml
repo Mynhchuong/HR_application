@@ -73,6 +73,26 @@
     }
     .wf-card .time-picker select.hour-select { padding-left: .55rem; }
     .wf-card .time-colon { font-size: 1.3rem; }
+
+    /* Trên điện thoại ô chọn ngày chiếm quá nhiều chiều cao, đẩy phần thông tin ca xuống dưới
+       màn hình (phản ánh 16/11). Thu gọn đệm + bo góc, vẫn đủ lớn để bấm bằng ngón tay
+       (cao ~40px, trên ngưỡng 36px khuyến nghị). */
+    @@media (max-width: 575.98px) {
+        .wf-date-picker { margin-bottom: 10px; }
+        /* Trang này tự đặt width:100% ở rule riêng (0,2,1) nên quy tắc chung trong site.css
+           không với tới — phải ghi đè ngay tại đây. */
+        .wf-date-picker input[type="date"] {
+            width: auto;
+            max-width: 100%;
+            padding: 8px 12px 8px 38px;
+            font-size: .95rem;
+            border-radius: 10px;
+        }
+        .wf-date-picker i.bi-calendar3 {
+            left: 12px;
+            font-size: 1.05rem;
+        }
+    }
 </style>
 }
 
@@ -247,8 +267,17 @@ async function loadDay() {
         // Ưu tiên SUGGESTED_TIME_IN/OUT (đã cộng giờ tăng ca thật) trước khi rơi về giờ ca gốc — thiếu
         // bước này làm trần/sàn chéo bị chặn sai đúng ở case tăng ca (review 2026-09-22, cùng lỗi với
         // 26072207 nhưng ở phía WorkerForm thay vì Index.cshtml — khớp với sửa bên đó).
-        const crossMaxIn  = !d.IS_NIGHT_SHIFT ? (d.ERP_TIME_OUT || d.SUGGESTED_TIME_OUT || d.SHIFT_ETIME || null) : null;
-        const crossMinOut = !d.IS_NIGHT_SHIFT ? (d.ERP_TIME_IN  || d.SUGGESTED_TIME_IN  || d.SHIFT_STIME || null) : null;
+        let crossMaxIn  = !d.IS_NIGHT_SHIFT ? (d.ERP_TIME_OUT || d.SUGGESTED_TIME_OUT || d.SHIFT_ETIME || null) : null;
+        let crossMinOut = !d.IS_NIGHT_SHIFT ? (d.ERP_TIME_IN  || d.SUGGESTED_TIME_IN  || d.SHIFT_STIME || null) : null;
+
+        // Ca KHÔNG phải ca đêm nhưng TĂNG CA qua nửa đêm thì giờ ra rơi sang hôm sau (VD ca D1
+        // 14:00-22:00, quẹt ra 01:01). Lúc đó "trần chéo" cho Giờ vào = 01:01 lại NHỎ HƠN sàn
+        // 14:00 -> khoảng hợp lệ rỗng -> ô chọn giờ không còn lựa chọn nào, điện thoại hiện
+        // "No Options" và công nhân không khai giờ được (lỗi thật 16/11, NV ca D1 ngày 11/11).
+        // Mốc chéo nào mâu thuẫn thì BỎ, chứ không để danh sách trống.
+        const _hm = v => { if (!v) return null; const p = String(v).split(':'); return (+p[0]) * 60 + (+p[1]); };
+        if (crossMaxIn  && curBounds.minIn  && _hm(crossMaxIn)  <= _hm(curBounds.minIn))  crossMaxIn  = null;
+        if (crossMinOut && curBounds.maxOut && _hm(crossMinOut) >= _hm(curBounds.maxOut)) crossMinOut = null;
         TimePickerHelper.setRange('wfTimeIn',  { min: curBounds.minIn, max: crossMaxIn });
         TimePickerHelper.setRange('wfTimeOut', { min: crossMinOut, max: (!d.IS_NIGHT_SHIFT && curBounds.maxOut) ? curBounds.maxOut : null });
 

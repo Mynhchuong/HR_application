@@ -372,6 +372,10 @@
 </div>
 
 @section Scripts {
+@* Soạn bản tin hay kéo dài cả tiếng — giữ phiên + xin token mới định kỳ để lúc bấm Lưu không bị
+   "Thao tác đã hết hiệu lực" và mất bài đang gõ (phản ánh HR 2026-11-16). *@
+<script src="~/js/form-keepalive.js" asp-append-version="true"></script>
+<script>window.KEEPALIVE_URL = '@Url.Action("KeepAlive", "Account")';</script>
 <script type="module">
 import { Editor }  from 'https://esm.sh/@@tiptap/core@@2';
 import StarterKit  from 'https://esm.sh/@@tiptap/starter-kit@@2';

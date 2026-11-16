@@ -18,7 +18,9 @@ public class CanteenBreadController : BaseController
         || CurrentUser?.RoleName == "Canteen";
 
     // Danh sách cố định (roster) cấp Bánh cả tuần — chỉ Admin thao tác, không mở cho HR/Canteen.
-    private bool IsAdmin => CurrentUser?.RoleName == "Admin";
+    // Cấp Bánh hàng loạt + danh sách cố định: HR đã có mục "Phiếu Bánh" trong menu nhưng các
+    // thao tác này trước đây chỉ Admin bấm được (user yêu cầu mở hết quyền admin cho HR, 2026-11-16).
+    private bool IsAdmin => CurrentUser.HasAnyRole("Admin", "HR");
 
     private bool CanViewLog =>
            CurrentUser?.RoleName == "Admin"

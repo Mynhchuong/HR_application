@@ -40,7 +40,7 @@ public class VideoController : BaseController
     // AJAX upload — lưu file, trả { success, message, url }
     // Module gọi endpoint này xong tự update DB với ext trả về
     [HttpPost("/Video/Upload/{folder}/{id:int}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,HR")]   // HR quản lý Hướng dẫn/Bản tin nên cần tải & xoá video (2026-11-16)
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(524_288_000)]
     public async Task<IActionResult> Upload(string folder, int id, IFormFile file)
@@ -55,7 +55,7 @@ public class VideoController : BaseController
     // POST /Video/Delete/{folder}/{id}
     // AJAX xóa file — module tự update DB sau khi nhận success
     [HttpPost("/Video/Delete/{folder}/{id:int}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,HR")]   // HR quản lý Hướng dẫn/Bản tin nên cần tải & xoá video (2026-11-16)
     [ValidateAntiForgeryToken]
     public IActionResult Delete(string folder, int id)
     {

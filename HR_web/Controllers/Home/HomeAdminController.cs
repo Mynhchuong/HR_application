@@ -18,7 +18,9 @@ public class HomeAdminController : BaseController
     public HomeAdminController(HomeAdminApiService api) { _api = api; }
 
     private bool IsHrOrAdmin() => CurrentUser.HasAnyRole("HR", "Admin", "CSR");
-    private bool IsAdmin()     => CurrentUser?.RoleName == "Admin";
+    // HR đã có mục "Cấu hình Trang chủ" trong menu nhưng trước đây chỉ XEM được, mọi nút sửa
+    // đều khoá vì cờ này chỉ nhận Admin (user yêu cầu mở hết quyền admin cho HR, 2026-11-16).
+    private bool IsAdmin()     => CurrentUser.HasAnyRole("Admin", "HR");
 
     private IActionResult Forbid403() =>
         Json(new { success = false, message = "Bạn không có quyền sử dụng chức năng này" });

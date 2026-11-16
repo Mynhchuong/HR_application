@@ -17,13 +17,15 @@ namespace HR_web.Controllers.HR;
 ///   - Close: đóng bất kỳ conversation nào
 ///   - Unlock: mở khóa conversation bị HR giữ
 /// </summary>
-[Authorize(Roles = "Admin,CSR")]
+[Authorize(Roles = "Admin,CSR,HR")]   // HR dùng chung bộ công cụ hội thoại với Admin/CSR (yêu cầu 2026-11-16)
 public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseController
 {
     private readonly AiCsrService _aiCsr;
     public AdminInquiryController(InquiryService inquiry, AiCsrService aiCsr) : base(inquiry) { _aiCsr = aiCsr; }
 
-    private bool IsAdmin => CurrentUser?.RoleName == "Admin";
+    // HR dùng chung bộ công cụ quản trị hội thoại với Admin (yêu cầu 2026-11-16). Dùng HasAnyRole
+    // để bắt cả role chính lẫn role phòng ban, giống AdminNotiController.IsAdmin().
+    private bool IsAdmin => CurrentUser.HasAnyRole("Admin", "HR");
 
     // Report/GetReport/ExportReport (thống kê, read-only) mở thêm cho CSR xem — các action khác vẫn Admin-only
     // Sheet "Dữ liệu biểu đồ" (bảng số) + sheet "Biểu đồ" (biểu đồ Excel thật) — giống các biểu đồ trên trang Báo cáo.
@@ -214,7 +216,9 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
     private bool CanViewReport => IsAdmin || CurrentUser.HasRole("CSR");
 
     // Catalog loại kiến nghị (Topics): Admin + CSR (khách yêu cầu CSR tự chỉnh mức độ / PIC của từng loại, 2026-11-06)
-    private bool CanManageTopics => IsAdmin || CurrentUser.HasRole("CSR");
+    // Chủ đề hội thoại + Email nhắc hạn là phần CẤU HÌNH kênh chat của CSR — HR không đụng vào
+    // (user chốt 2026-11-16). Nên KHÔNG dùng IsAdmin ở đây vì IsAdmin đã mở cho cả HR.
+    private bool CanManageTopics => CurrentUser.HasAnyRole("Admin", "CSR");
 
     // Tin nhắn phía HR/Admin gõ qua rich-text editor nên CONTENT lưu kèm thẻ HTML (<p>..</p>) —
     // bỏ thẻ cho dễ đọc khi xuất raw data ra Excel.

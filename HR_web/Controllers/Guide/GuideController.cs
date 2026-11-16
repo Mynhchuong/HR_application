@@ -78,7 +78,7 @@ public class GuideController : BaseController
         return Json(result);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,HR")]
     public async Task<IActionResult> Manage()
     {
         var list = await _service.GetAdminListAsync();
@@ -86,7 +86,7 @@ public class GuideController : BaseController
     }
 
     // GET /Guide/Edit?id=
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,HR")]
     public async Task<IActionResult> Edit(int? id)
     {
         if (id == null || id == 0)
@@ -105,7 +105,7 @@ public class GuideController : BaseController
     // Video upload chỉ xử lý ở đây khi tạo mới (ID=0) — cần save trước để có ID.
     // Item đã có ID dùng UploadVideo (AJAX) để upload mà không reload trang.
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,HR")]
     [ValidateAntiForgeryToken]
     [DisableRequestSizeLimit]
     public async Task<IActionResult> Edit(GuideModel model, IFormFile? VideoFile)
@@ -159,7 +159,7 @@ public class GuideController : BaseController
     // POST /Guide/UploadVideo?id=
     // AJAX upload cho item đã có ID — lưu file rồi update VIDEO_PATH trong DB
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,HR")]
     [ValidateAntiForgeryToken]
     [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadVideo(int id, IFormFile file)
@@ -174,7 +174,7 @@ public class GuideController : BaseController
     // POST /Guide/SaveChunk?id=
     // Chunked upload: client splits file into 4MB chunks, each request is small → bypasses IIS maxAllowedContentLength
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,HR")]
     [ValidateAntiForgeryToken]
     [DisableRequestSizeLimit]
     [RequestFormLimits(MultipartBodyLengthLimit = 6_000_000)]
@@ -234,7 +234,7 @@ public class GuideController : BaseController
 
     // POST /Guide/RemoveVideo?id=
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,HR")]
     public async Task<IActionResult> RemoveVideo(int id)
     {
         _videoSvc.DeleteAll(VideoFolder, id);
@@ -244,7 +244,7 @@ public class GuideController : BaseController
 
     // POST /Guide/Toggle?id=
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,HR")]
     public async Task<IActionResult> Toggle(int id)
     {
         var (success, message) = await _service.ToggleAsync(id, CurrentUser!.EmpCd);
@@ -254,7 +254,7 @@ public class GuideController : BaseController
 
     // POST /Guide/Delete?id=
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,HR")]
     public async Task<IActionResult> Delete(int id)
     {
         var (success, message) = await _service.DeleteAsync(id);

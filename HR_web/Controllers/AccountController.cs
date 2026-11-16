@@ -8,6 +8,26 @@ namespace HR_web.Controllers;
 
 public class AccountController : Controller
 {
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /Account/KeepAlive — giữ phiên sống + cấp token chống giả mạo MỚI.
+    //
+    // Ca thật: HR soạn bản tin cả tiếng đồng hồ rồi bấm Lưu thì bị "Thao tác đã hết hiệu lực",
+    // mất sạch bài đang gõ (phản ánh 2026-11-16). Trang mở lâu mà không gọi server lần nào thì
+    // token nhúng trong form cũ dần, trong khi SessionValidator cứ 15 phút lại cấp lại cookie
+    // đăng nhập — lệch nhau là Antiforgery từ chối.
+    //
+    // Trang nào có form soạn thảo lâu thì gọi định kỳ hàm này rồi thay token mới vào form.
+    // Trả token mới thay vì chỉ "ping" để sửa tận gốc, không chỉ gia hạn phiên.
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet]
+    [Microsoft.AspNetCore.Authorization.Authorize]   // lớp này không có [Authorize] cấp class (còn trang Đăng nhập)
+    public IActionResult KeepAlive([FromServices] Microsoft.AspNetCore.Antiforgery.IAntiforgery antiforgery)
+    {
+        var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+        return Json(new { ok = true, token = tokens.RequestToken });
+    }
+
     private readonly AccountService _service;
     private readonly ILogger<AccountController> _logger;
 

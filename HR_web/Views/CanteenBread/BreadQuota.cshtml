@@ -1,7 +1,9 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "Phiếu Bánh - Quản lý Quota";
-    var isAdmin = (ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel)?.RoleName == "Admin";
+    @* Phải khớp với CanteenBreadController.IsAdmin (đã mở cho HR 2026-11-16) — chỉ mở ở
+       controller mà quên view thì nút vẫn bị ẩn, HR tưởng chưa được cấp quyền. *@
+    var isAdmin = (ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel).HasAnyRole("Admin", "HR");
 }
 
 @section Styles {

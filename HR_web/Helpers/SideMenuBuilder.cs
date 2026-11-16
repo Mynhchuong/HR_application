@@ -183,10 +183,16 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Danh sách Nghỉ phép",  Url = "~/Leave/LeaveListForHR",       Icon = "event_busy",             Group = "leave" },
                     new SideMenuItem { Title = "Sửa Absent Code ERP",  Url = "~/Leave/ErpAbsentManage",      Icon = "edit_note",              Group = "leave" },
                     new SideMenuItem { Title = "DS làm Chủ Nhật",       Url = "~/SundayLeave/Index",           Icon = "wb_sunny",               Group = "leave" },
+                    // Dưới đây là các mục vốn chỉ Admin mới có. HR cần dùng luôn (yêu cầu 2026-11-16)
+                    // nên gộp thẳng vào đây thay vì hiện thêm cụm "Quản trị" riêng — hiện 2 cụm thì
+                    // 4 mục bị lặp y hệt nhau. Quyền ở controller cũng đã mở cho HR tương ứng.
+                    new SideMenuItem { Title = "Sắp Lịch Toàn Công Ty", Url = "~/Leave/AdminAssignLeave",    Icon = "event_available",        Group = "leave", VisibleWhen = () => !isAdmin },
+                    new SideMenuItem { Title = "Theo Dõi Yêu Cầu",      Url = "~/Leave/AdminManageRequests", Icon = "manage_history",         Group = "leave", VisibleWhen = () => !isAdmin },
 
                     new SideMenuItem { Title = "Danh sách Tăng ca",    Url = "~/OT/OtListForHR",             Icon = "view_list",              Group = "attendance" },
                     new SideMenuItem { Title = "Phiếu Ra Vào",          Url = "~/GatePass/GpListForHR",       Icon = "door_front",             Group = "attendance" },
                     new SideMenuItem { Title = "Xác nhận chấm công",   Url = "~/AttendanceConfirm/Index",    Icon = "schedule",                Group = "attendance" },
+                    new SideMenuItem { Title = "Quản lý Tăng ca",      Url = "~/OT/OtListForAdmin",          Icon = "edit_calendar",          Group = "attendance", VisibleWhen = () => !isAdmin },
 
                     new SideMenuItem { Title = "Đợt quà",              Url = "~/GiftAdmin/BatchList",        Icon = "card_giftcard",          Group = "gift" },
                     new SideMenuItem { Title = "Danh mục Quà",         Url = "~/GiftAdmin/Catalog",          Icon = "redeem",                 Group = "gift" },
@@ -204,6 +210,11 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum",                 Group = "chat" },
                     new SideMenuItem { Title = "Câu trả lời mẫu",       Url = "~/HrInquiry/CannedReplies",     Icon = "quickreply",            Group = "chat" },
                     new SideMenuItem { Title = "Báo cáo & Dashboard",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",              Group = "chat" },
+                    // "toàn công ty" để phân biệt với 2 mục cùng tên ở trên — 2 mục kia chỉ xem
+                    // được hội thoại thuộc phòng mình (phạm vi PIC), 2 mục này xem được hết.
+                    new SideMenuItem { Title = "Quản lý hội thoại (toàn công ty)", Url = "~/AdminInquiry/Index",     Icon = "forum",            Group = "chat", VisibleWhen = () => !isAdmin },
+                    new SideMenuItem { Title = "Câu trả lời mẫu (toàn công ty)",   Url = "~/AdminInquiry/CannedReplies", Icon = "quickreply",   Group = "chat", VisibleWhen = () => !isAdmin },
+                    new SideMenuItem { Title = "Đóng hội thoại hàng loạt", Url = "~/AdminInquiry/BulkClose",  Icon = "playlist_add_check",     Group = "chat", VisibleWhen = () => !isAdmin },
 
                     new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",               Group = "system" },
                     new SideMenuItem { Title = "Thông báo",             Url = "~/AdminNoti/Index",            Icon = "campaign",               Group = "system" },
@@ -217,6 +228,10 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",           Icon = "poll",                   Group = "system" },
                 //    new SideMenuItem { Title = "DS miễn làm Survey",    Url = "~/SurveyExempt/Index",          Icon = "person_off"             },
                     new SideMenuItem { Title = "Kho link cài app",      Url = "~/AppLinkAdmin/Index",          Icon = "phone_iphone",           Group = "system" },
+                    new SideMenuItem { Title = "Quản lý Hướng dẫn",     Url = "~/Guide/Manage",                Icon = "menu_book",              Group = "system", VisibleWhen = () => !isAdmin },
+                    new SideMenuItem { Title = "Quản lý Mẫu thông báo", Url = "~/NotiTemplate/Index",          Icon = "notifications",          Group = "system", VisibleWhen = () => !isAdmin },
+                    new SideMenuItem { Title = "Quản lý Kaizen",        Url = "~/KaizenAdmin/Index",           Icon = "tips_and_updates",       Group = "system", VisibleWhen = () => !isAdmin },
+                    new SideMenuItem { Title = "Báo cáo thiết bị",      Url = "~/DeviceReport/Index",          Icon = "devices",                Group = "system", VisibleWhen = () => !isAdmin },
                 }
             },
 

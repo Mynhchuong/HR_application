@@ -552,11 +552,12 @@ public class TrainingAdminController : BaseController
     // ═══════════════════════════════════════════════════════════════
 
     [HttpGet]
-    public async Task<IActionResult> GetClassList(string? status = null, string? search = null, int? courseId = null, string? createdRole = null)
+    public async Task<IActionResult> GetClassList(string? status = null, string? search = null, int? courseId = null, string? createdRole = null, string? dateFrom = null, string? dateTo = null)
     {
         // login_user + created_role: lọc theo ROLE TẠO (Lean/CSR chỉ thấy của role mình, HR/Admin thấy tất cả + ô lọc).
         var qs = $"status={status}&search={Uri.EscapeDataString(search ?? "")}&courseId={courseId}" +
-                 $"&login_user={Uri.EscapeDataString(CurrentUser?.EmpCd ?? "")}&created_role={Uri.EscapeDataString(createdRole ?? "")}";
+                 $"&login_user={Uri.EscapeDataString(CurrentUser?.EmpCd ?? "")}&created_role={Uri.EscapeDataString(createdRole ?? "")}" +
+                 $"&date_from={Uri.EscapeDataString(dateFrom ?? "")}&date_to={Uri.EscapeDataString(dateTo ?? "")}";
         var res = await _training.GetFromApiAsync<object>("TrainingAdmin/class/list", qs);
         return Json(res);
     }

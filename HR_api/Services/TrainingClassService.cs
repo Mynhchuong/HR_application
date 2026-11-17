@@ -28,7 +28,7 @@ public class TrainingClassService
     //  LIST + DETAIL
     // ═══════════════════════════════════════════════════════════════
 
-    public async Task<List<ClassModel>> ListAsync(string? status, int? courseId, string? search)
+    public async Task<List<ClassModel>> ListAsync(string? status, int? courseId, string? search, DateTime? dateFrom = null, DateTime? dateTo = null)
     {
         const string sql = @"
             SELECT CL.ID, CL.COURSE_ID, CL.CLASS_NAME, CL.DESCRIPTION, CL.STATUS,
@@ -62,12 +62,16 @@ public class TrainingClassService
              WHERE (:P_STATUS IS NULL OR CL.STATUS    = :P_STATUS)
                AND (:P_COURSE IS NULL OR CL.COURSE_ID = :P_COURSE)
                AND (:P_SEARCH IS NULL OR UPPER(CL.CLASS_NAME) LIKE '%' || UPPER(:P_SEARCH) || '%')
+               AND (:P_TO   IS NULL OR CL.START_DATE IS NULL OR CL.START_DATE <  :P_TO)
+               AND (:P_FROM IS NULL OR CL.END_DATE   IS NULL OR CL.END_DATE   >= :P_FROM)
              ORDER BY CL.ID DESC";
 
         return await _db.ExecuteQueryAsync(sql, MapClassLight,
             new OracleParameter("P_STATUS", (object?)status   ?? DBNull.Value),
             new OracleParameter("P_COURSE", (object?)courseId ?? DBNull.Value),
-            new OracleParameter("P_SEARCH", (object?)search   ?? DBNull.Value));
+            new OracleParameter("P_SEARCH", (object?)search   ?? DBNull.Value),
+            new OracleParameter("P_FROM", OracleDbType.Date) { Value = (object?)dateFrom?.Date ?? DBNull.Value },
+            new OracleParameter("P_TO",   OracleDbType.Date) { Value = (object?)dateTo?.Date.AddDays(1) ?? DBNull.Value });
     }
 
     public async Task<ClassModel?> GetDetailAsync(int id, string? empcd = null)

@@ -111,10 +111,15 @@
                 </div>
                 <!-- Filters for Classes -->
                 <div class="filter-bar row g-2 mb-3">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <input type="text" id="class-filter-search" class="form-control form-control-sm" placeholder="Tìm theo tên lớp học..." oninput="loadClasses()" style="border-radius: 8px;" />
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-3 d-flex align-items-center gap-1">
+                        <input type="date" id="class-filter-from" class="form-control form-control-sm" onchange="loadClasses()" style="border-radius: 8px;" title="Từ ngày" />
+                        <span class="text-secondary">→</span>
+                        <input type="date" id="class-filter-to" class="form-control form-control-sm" onchange="loadClasses()" style="border-radius: 8px;" title="Đến ngày" />
+                    </div>
+                    <div class="col-md-2">
                         <select id="class-filter-status" class="form-select form-select-sm" onchange="classesPage = 1; renderClassTable();" style="border-radius: 8px;">
                             <option value="">-- Tất cả trạng thái lớp --</option>
                             <option value="DRAFT">Nháp</option>
@@ -128,7 +133,7 @@
                             <option value="CANCELLED">Đã hủy</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <select id="class-filter-course" class="form-select form-select-sm" onchange="loadClasses()" style="border-radius: 8px;">
                             <option value="">-- Tất cả khóa học --</option>
                         </select>
@@ -382,6 +387,11 @@
             modalCourse = new bootstrap.Modal(document.getElementById('createCourseModal'));
             modalClass = new bootstrap.Modal(document.getElementById('createClassModal'));
 
+            const now = new Date();
+            const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            document.getElementById('class-filter-from').value = iso(new Date(now.getFullYear(), now.getMonth(), 1));
+            document.getElementById('class-filter-to').value = iso(now);
+
             loadCourses();
             loadClasses();
             MobileTableHelper.init('course-grid');
@@ -526,8 +536,10 @@
         function loadClasses() {
             const search = document.getElementById('class-filter-search')?.value || '';
             const courseId = document.getElementById('class-filter-course')?.value || '';
+            const dateFrom = document.getElementById('class-filter-from')?.value || '';
+            const dateTo = document.getElementById('class-filter-to')?.value || '';
 
-            const url = `${window.TRAINING_URLS.getClassList}?search=${encodeURIComponent(search)}&courseId=${courseId}&createdRole=${encodeURIComponent(createdRoleFilter)}`;
+            const url = `${window.TRAINING_URLS.getClassList}?search=${encodeURIComponent(search)}&courseId=${courseId}&createdRole=${encodeURIComponent(createdRoleFilter)}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
             fetch(url)
                 .then(r => r.json())
                 .then(res => {

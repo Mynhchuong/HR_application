@@ -227,9 +227,11 @@ public partial class TrainingAdminController : ControllerBase
         [FromQuery] int? courseId,
         [FromQuery] string? search,
         [FromQuery] string? login_user = null,
-        [FromQuery] string? created_role = null)
+        [FromQuery] string? created_role = null,
+        [FromQuery] DateTime? date_from = null,
+        [FromQuery] DateTime? date_to = null)
     {
-        var data = await _class.ListAsync(status, courseId, search);
+        var data = await _class.ListAsync(status, courseId, search, date_from, date_to);
 
         // Lớp theo ROLE TẠO của KHÓA HỌC chứa nó (xem TrainingScopeHelper). Không có login_user = không lọc.
         if (!string.IsNullOrWhiteSpace(login_user))

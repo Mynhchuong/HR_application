@@ -224,10 +224,7 @@
             Áp dụng
         </button>
         <div class="rpt-quick" style="margin-left:auto">
-            <button class="rpt-quick-btn" onclick="quickRange('week')">Tuần này</button>
-            <button class="rpt-quick-btn" onclick="quickRange('lastweek')">Tuần trước</button>
             <button class="rpt-quick-btn" onclick="quickRange('month')">Tháng này</button>
-            <button class="rpt-quick-btn" onclick="quickRange('lastmonth')">Tháng trước</button>
         </div>
     </div>
 
@@ -266,11 +263,6 @@ function fmtDateISO(d) {
     const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
     return `${y}-${m}-${dd}`;
 }
-function startOfWeek(d) {
-    const x = new Date(d); const dow = x.getDay(); const diff = dow === 0 ? -6 : 1 - dow;
-    x.setDate(x.getDate() + diff); x.setHours(0,0,0,0); return x;
-}
-function endOfWeek(d) { const s = startOfWeek(d); const e = new Date(s); e.setDate(e.getDate() + 6); return e; }
 function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 function endOfMonth(d)   { return new Date(d.getFullYear(), d.getMonth()+1, 0); }
 function fmtMinutes(min) {
@@ -300,16 +292,7 @@ function esc(s) { return (s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 function quickRange(kind) {
     const now = new Date();
     let s, e;
-    if (kind === 'week')      { s = startOfWeek(now); e = endOfWeek(now); }
-    else if (kind === 'lastweek') {
-        const last = new Date(now); last.setDate(last.getDate() - 7);
-        s = startOfWeek(last); e = endOfWeek(last);
-    }
-    else if (kind === 'month')     { s = startOfMonth(now); e = endOfMonth(now); }
-    else if (kind === 'lastmonth') {
-        const last = new Date(now.getFullYear(), now.getMonth()-1, 15);
-        s = startOfMonth(last); e = endOfMonth(last);
-    }
+    if (kind === 'month') { s = startOfMonth(now); e = endOfMonth(now); }
     document.getElementById('fldFrom').value = fmtDateISO(s);
     document.getElementById('fldTo').value   = fmtDateISO(e);
     loadReport();
@@ -355,11 +338,11 @@ async function exportExcel() {
     }
 }
 
-// Init = current week
+// Init = ngày 1 tháng này → hôm nay
 (function initRange() {
     const now = new Date();
-    document.getElementById('fldFrom').value = fmtDateISO(startOfWeek(now));
-    document.getElementById('fldTo').value   = fmtDateISO(endOfWeek(now));
+    document.getElementById('fldFrom').value = fmtDateISO(startOfMonth(now));
+    document.getElementById('fldTo').value   = fmtDateISO(now);
 })();
 
 // ═══ Dashboard gộp chung báo cáo: mỗi chỉ số CHỈ xuất hiện 1 lần ═══

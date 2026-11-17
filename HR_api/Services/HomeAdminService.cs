@@ -131,9 +131,11 @@ public class HomeAdminService
         // Sanitize LINK_URL — chỉ chấp nhận http(s):// hoặc /...
         var linkUrl = SanitizeLinkUrl(req.LINK_URL);
 
-        // HR VÀ CSR đều bị giới hạn field (chỉ image/overlay/publish) — chỉ Admin được set
-        // link/target/roles/dismissible. Trước đây chỉ chặn "HR" nên CSR lọt qua nhánh full-field.
-        bool isRestricted = !string.Equals(req.LOGIN_ROLE, "Admin", StringComparison.OrdinalIgnoreCase);
+        // Chỉ CSR bị giới hạn field (chỉ image/overlay/publish); Admin và HR được set đủ
+        // link/target/roles/dismissible.
+        // 2026-11-16: mở cho HR — trước đây HR cũng bị chặn, mà banner trang chủ chính là việc của HR.
+        bool isRestricted = !(string.Equals(req.LOGIN_ROLE, "Admin", StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(req.LOGIN_ROLE, "HR",    StringComparison.OrdinalIgnoreCase));
 
         // Nạp bản ghi cũ TRƯỚC overlap check (cần TARGET_ROLES cũ khi restricted-update)
         HomeAdminBannerListItem? oldRow = null;
@@ -297,9 +299,10 @@ public class HomeAdminService
 
     public async Task<(bool ok, string message)> DeleteBannerAsync(BannerActionRequest req)
     {
-        // Chỉ Admin mới xoá (soft delete IS_ACTIVE=0)
-        if (!string.Equals(req.LOGIN_ROLE, "Admin", StringComparison.OrdinalIgnoreCase))
-            return (false, "Chỉ Admin được xoá banner");
+        // Admin và HR được xoá (soft delete IS_ACTIVE=0) — 2026-11-16 mở thêm cho HR.
+        if (!(string.Equals(req.LOGIN_ROLE, "Admin", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(req.LOGIN_ROLE, "HR",    StringComparison.OrdinalIgnoreCase)))
+            return (false, "Chỉ Admin hoặc HR được xoá banner");
 
         var oldRow = (await ListBannersAsync()).FirstOrDefault(b => b.ID == req.ID);
         if (oldRow == null) return (false, "Không tìm thấy banner");

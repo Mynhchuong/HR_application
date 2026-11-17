@@ -68,6 +68,7 @@ builder.Services.AddScoped<HR_api.Services.HomeService>();
 builder.Services.AddScoped<HR_api.Services.HomeMyCalendarService>();
 builder.Services.AddScoped<HR_api.Services.HomeAdminService>();
 builder.Services.AddScoped<HR_api.Services.ApprovalConfigService>();
+builder.Services.AddScoped<HR_api.Services.PopupGateService>();
 
 // ============================================================
 // Survey — HR gửi khảo sát / trắc nghiệm cho NV
@@ -108,6 +109,7 @@ builder.Services.AddHostedService<HR_api.HostedServices.LeaveDocReminderService>
 builder.Services.AddHostedService<HR_api.HostedServices.LeaveApprovalDigestService>();
 builder.Services.AddHostedService<HR_api.HostedServices.KaizenWeeklyMailService>();
 builder.Services.AddHostedService<HR_api.HostedServices.InquiryReminderBackgroundService>();
+builder.Services.AddHostedService<HR_api.HostedServices.InquiryEmptyCleanupService>();
 
 builder.Services.AddCors(options =>
 {

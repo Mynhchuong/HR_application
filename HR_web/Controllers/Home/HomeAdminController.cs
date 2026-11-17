@@ -13,6 +13,14 @@ namespace HR_web.Controllers.Home;
 [Authorize]
 public class HomeAdminController : BaseController
 {
+
+    // API phân quyền banner theo LOGIN_ROLE gửi lên. Người của HR có thể mang role CHÍNH là Worker
+    // và role phòng ban mới là HR — gửi thẳng RoleName thì họ bị xếp nhầm vào nhóm bị giới hạn.
+    private string EffectiveRole =>
+        CurrentUser.HasAnyRole("Admin") ? "Admin"
+        : CurrentUser.HasAnyRole("HR")  ? "HR"
+        : (CurrentUser?.RoleName ?? "");
+
     private readonly HomeAdminApiService _api;
 
     public HomeAdminController(HomeAdminApiService api) { _api = api; }
@@ -98,7 +106,7 @@ public class HomeAdminController : BaseController
             RECUR_DAY       = req.RecurDay,
             LOGIN_USER      = CurrentUser?.EmpCd,
             LOGIN_NAME      = CurrentUser?.FullName,
-            LOGIN_ROLE      = CurrentUser?.RoleName
+            LOGIN_ROLE      = EffectiveRole
         };
         var raw = await _api.BannerSaveRawAsync(payload);
 
@@ -128,7 +136,7 @@ public class HomeAdminController : BaseController
             ID         = req.Id,
             LOGIN_USER = CurrentUser?.EmpCd,
             LOGIN_NAME = CurrentUser?.FullName,
-            LOGIN_ROLE = CurrentUser?.RoleName
+            LOGIN_ROLE = EffectiveRole
         });
         return Content(raw, "application/json");
     }
@@ -158,7 +166,7 @@ public class HomeAdminController : BaseController
             IS_ACTIVE  = req.IsActive,
             LOGIN_USER = CurrentUser?.EmpCd,
             LOGIN_NAME = CurrentUser?.FullName,
-            LOGIN_ROLE = CurrentUser?.RoleName
+            LOGIN_ROLE = EffectiveRole
         });
         return Content(raw, "application/json");
     }
@@ -174,7 +182,7 @@ public class HomeAdminController : BaseController
             ID         = req.Id,
             LOGIN_USER = CurrentUser?.EmpCd,
             LOGIN_NAME = CurrentUser?.FullName,
-            LOGIN_ROLE = CurrentUser?.RoleName
+            LOGIN_ROLE = EffectiveRole
         });
         return Content(raw, "application/json");
     }

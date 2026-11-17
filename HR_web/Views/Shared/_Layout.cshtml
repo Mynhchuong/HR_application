@@ -874,6 +874,7 @@
 
     @if (User.Identity?.IsAuthenticated == true)
     {
+        @await Html.PartialAsync("_PopupGate")
         <script>
         // ── Helper dùng chung cho MỌI badge số trên menu (bottom-nav mobile + sidebar desktop) ──
         // Sau này thêm badge mới chỉ cần gọi loadBadge(...), khỏi viết lại fetch/set từng chỗ.

@@ -245,7 +245,7 @@ public class LeaveController : ControllerBase
     // duyệt riêng), nhưng bản chất đã chốt lịch nghỉ y như đã duyệt nên vẫn tính là được cập nhật
     // (yêu cầu 2026-09-10: "quản lý, admin sắp lịch tính là đã duyệt nha").
     private static readonly HashSet<string> DocEditableStatuses = new() { "APPROVED", "ASSIGNED" };
-    private static readonly Dictionary<string, string> NewLeaveTypeNames = new()
+    internal static readonly Dictionary<string, string> NewLeaveTypeNames = new()
     {
         ["AL"] = "Phép năm", ["NL"] = "Không lương", ["SI"] = "Bệnh có giấy",
         ["DT"] = "Đám tang", ["DC"] = "Đám cưới", ["CT"] = "Công tác",
@@ -3691,16 +3691,22 @@ END;";
                     return Ok(new { success = false, message = "Giờ đi phải trước giờ về" });
             }
 
+            // 2026-11-16: mở cho HR, không chỉ Admin — HR mới là người thật sự sắp lịch nghỉ toàn
+            // công ty, trước đây bị chặn ở đây (ảnh chụp từ HR). Đọc CẢ role chính lẫn role phòng ban
+            // như chỗ xoá đơn nghỉ phép/ra cổng, vì người của HR có thể mang role phòng ban HR.
             var assignerRoleRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT RR.ROLE_NAME FROM HRMS.HR_USERS U
-                LEFT JOIN HRMS.HR_ROLES RR ON RR.ID = U.ROLE_ID
-                WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
-                r => r["ROLE_NAME"]?.ToString(),
+                SELECT RR.ROLE_NAME AS R1, DR.ROLE_NAME AS R2
+                  FROM HRMS.HR_USERS U
+                  LEFT JOIN HRMS.HR_ROLES      RR ON RR.ID = U.ROLE_ID
+                  LEFT JOIN HRMS.HR_DEPT_ROLES DR ON DR.ID = U.DEPT_ROLE_ID
+                 WHERE U.EMPCD = :EMPCD AND ROWNUM = 1",
+                r => (r["R1"]?.ToString() ?? "") + "|" + (r["R2"]?.ToString() ?? ""),
                 new OracleParameter("EMPCD", model.ASSIGNER_EMPCD));
 
-            string? assignerRole = assignerRoleRows.FirstOrDefault();
-            if (!string.Equals(assignerRole, "Admin", StringComparison.OrdinalIgnoreCase))
-                return Ok(new { success = false, message = "Chỉ Admin mới có quyền sắp lịch toàn công ty" });
+            var assignerRoles = (assignerRoleRows.FirstOrDefault() ?? "").Split('|');
+            if (!assignerRoles.Any(x => string.Equals(x, "Admin", StringComparison.OrdinalIgnoreCase)
+                                     || string.Equals(x, "HR",    StringComparison.OrdinalIgnoreCase)))
+                return Ok(new { success = false, message = "Chỉ Admin hoặc HR mới có quyền sắp lịch toàn công ty" });
 
             string erpCd         = model.LEAVE_TYPE switch { "AL" => "PN", "CL" => "BH", "CT" => "CT", _ => "CP" };
             string erpRemark     = await BuildErpRemarkAsync(model.LEAVE_TYPE, model.REASON, isAssignFlow: true);

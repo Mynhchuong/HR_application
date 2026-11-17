@@ -26,7 +26,7 @@ public static class AppGateRegistry
     // dropdown metadata (report/filter cần gọi được dù đang bị gate nào đó chặn).
     public static readonly HashSet<string> CommonWhitelist = new(StringComparer.OrdinalIgnoreCase)
     {
-        "account", "profile", "notification", "adminnoti", "image", "video", "dropdown",
+        "account", "profile", "notification", "adminnoti", "image", "video", "dropdown", "popupgate",
     };
 
     // Trang ĐÍCH của mỗi gate (nơi BuildRedirect() đưa NV tới, vd "survey"/"gift") — PHẢI miễn trừ

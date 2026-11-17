@@ -1,0 +1,117 @@
+@* Popup nhắc việc khi mở app — mỗi lần tối đa 1 popup, server quyết định ưu tiên (PopupGateService bên HR_api). *@
+<div class="modal fade" id="popupGateModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px;padding:0 16px">
+        <div class="modal-content" style="border-radius:20px;border:none">
+            <div class="modal-body text-center" style="padding:1.75rem 1.5rem 1.25rem">
+                <div id="pgIconWrap" style="width:64px;height:64px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center">
+                    <span class="material-symbols-rounded" id="pgIcon" style="font-size:34px"></span>
+                </div>
+                <h5 class="fw-bold mb-2" id="pgTitle"></h5>
+                <div id="pgBody" style="font-size:.95rem;color:#475569;line-height:1.55"></div>
+            </div>
+            <div class="d-flex gap-2" style="padding:0 1.5rem 1.5rem">
+                <button type="button" class="btn btn-light fw-bold mb-0" id="pgSecondary" style="flex:1;border-radius:12px"></button>
+                <button type="button" class="btn fw-bold mb-0 text-white" id="pgPrimary" style="flex:2;border-radius:12px"></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    // Trang đích của các gate khác / trang đã có sẵn thao tác tương ứng thì không chồng thêm popup.
+    var path = window.location.pathname.toLowerCase();
+    if (/\/(gift|survey|profile)(\/|$)/.test(path)) return;
+    if (path.indexOf('/leave/leavemyrequests') !== -1 || path.indexOf('/employeeinquiry/chat') !== -1) return;
+
+    var SNOOZE_HOURS = 4;
+    function snoozeKey(type) { return 'popupGate.snooze.' + type; }
+    function isSnoozed(type) {
+        try { return Date.now() < Number(localStorage.getItem(snoozeKey(type)) || 0); } catch (e) { return false; }
+    }
+    function snooze(type) {
+        try { localStorage.setItem(snoozeKey(type), String(Date.now() + SNOOZE_HOURS * 3600 * 1000)); } catch (e) {}
+    }
+
+    var el = document.getElementById('popupGateModal');
+    var modal = null;
+    function show(cfg) {
+        document.getElementById('pgIcon').textContent = cfg.icon;
+        document.getElementById('pgIcon').style.color = cfg.color;
+        document.getElementById('pgIconWrap').style.background = cfg.bg;
+        document.getElementById('pgTitle').textContent = cfg.title;
+        var body = document.getElementById('pgBody');
+        body.innerHTML = '';
+        cfg.lines.forEach(function (l) {
+            var p = document.createElement('div');
+            p.textContent = l.text;
+            if (l.strong) { p.style.fontWeight = '700'; p.style.color = '#0f172a'; p.style.fontSize = '1.05rem'; p.style.margin = '6px 0'; }
+            body.appendChild(p);
+        });
+        var pri = document.getElementById('pgPrimary');
+        pri.textContent = cfg.primaryText;
+        pri.style.background = cfg.color;
+        pri.onclick = cfg.onPrimary;
+        var sec = document.getElementById('pgSecondary');
+        sec.textContent = cfg.secondaryText;
+        sec.onclick = cfg.onSecondary;
+        modal = bootstrap.Modal.getOrCreateInstance(el);
+        modal.show();
+    }
+    function hide() { if (modal) modal.hide(); }
+
+    var renderers = {
+        LEAVE_ASSIGNED: function (item) {
+            var d = item.DATA || {};
+            var range = d.fromDate === d.toDate ? d.fromDate : (d.fromDate + ' → ' + d.toDate);
+            show({
+                icon: 'event_available', color: '#16a34a', bg: '#dcfce7',
+                title: 'Bạn được sắp lịch nghỉ',
+                lines: [
+                    { text: (d.assignerName ? 'Quản lý ' + d.assignerName : 'Quản lý') + ' đã sắp lịch nghỉ ' + (d.leaveType || '') + ' cho bạn:' },
+                    { text: range + (d.totalDays ? ' (' + d.totalDays + ' ngày)' : ''), strong: true },
+                    { text: 'Vui lòng bấm xác nhận đã biết.' }
+                ],
+                primaryText: 'Tôi đã biết',
+                onPrimary: function () {
+                    var btn = this;
+                    btn.disabled = true;
+                    $.ajax({ url: '@Url.Action("ConfirmLeave", "Leave")', type: 'POST', data: { request_id: item.REF_ID } })
+                        .done(function (res) {
+                            if (res && res.success) { hide(); if (window.showToast) showToast('Đã xác nhận lịch nghỉ', 'success'); }
+                            else { btn.disabled = false; if (window.showToast) showToast((res && res.message) || 'Lỗi xác nhận', 'error'); }
+                        })
+                        .fail(function () { btn.disabled = false; if (window.showToast) showToast('Lỗi kết nối', 'error'); });
+                },
+                secondaryText: 'Xem chi tiết',
+                onSecondary: function () { window.location.href = '@Url.Action("LeaveMyRequests", "Leave")'; }
+            });
+        },
+        CHAT_RATING: function (item) {
+            if (isSnoozed('CHAT_RATING')) return;
+            var d = item.DATA || {};
+            show({
+                icon: 'star', color: '#f59e0b', bg: '#fef3c7',
+                title: 'Đánh giá hội thoại',
+                lines: [
+                    { text: 'Phản ánh của bạn đã được xử lý xong:' },
+                    { text: d.subject || d.topicName || d.inquiryNo || '', strong: true },
+                    { text: 'Bạn dành vài giây đánh giá mức độ hài lòng giúp nhé.' }
+                ],
+                primaryText: 'Đánh giá ngay',
+                onPrimary: function () { window.location.href = '@Url.Action("Chat", "EmployeeInquiry")?id=' + encodeURIComponent(item.REF_ID); },
+                secondaryText: 'Để sau',
+                onSecondary: function () { snooze('CHAT_RATING'); hide(); }
+            });
+        }
+    };
+
+    fetch('@Url.Action("Next", "PopupGate")', { headers: { 'Accept': 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            var item = res && res.success ? res.data : null;
+            if (item && renderers[item.TYPE]) renderers[item.TYPE](item);
+        })
+        .catch(function () {});
+})();
+</script>

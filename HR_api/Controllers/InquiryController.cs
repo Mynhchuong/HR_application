@@ -2040,7 +2040,7 @@ public class InquiryController : ControllerBase
                         LEFT JOIN HRMS.HR_INQUIRY_READER rd ON rd.INQUIRY_ID = i.ID AND rd.VIEWER_EMPCD = :VIEWER_EMPCD
                         LEFT JOIN HRMS.ECM100 ec ON ec.EMPCD = i.EMPCD
                         LEFT JOIN HRMS.EAM410 b  ON b.DEPTCD = ec.DEPTCD AND b.LINECD = ec.LINECD AND b.WORKCD = ec.WORKCD
-                        WHERE 1=1
+                        WHERE NVL(i.MSG_COUNT, 0) > 0
                         {whereStatus}
                         {whereTopic}
                         {whereChatType}
@@ -2090,7 +2090,7 @@ public class InquiryController : ControllerBase
                        NVL(SUM({unreadHrExpr}), 0)                                   AS TOTAL_UNREAD
                 FROM HRMS.HR_INQUIRY i
                 LEFT JOIN HRMS.HR_INQUIRY_READER rd ON rd.INQUIRY_ID = i.ID AND rd.VIEWER_EMPCD = :VIEWER_EMPCD
-                WHERE 1=1
+                WHERE NVL(i.MSG_COUNT, 0) > 0
                 {whereStatus}
                 {whereTopic}
                 {whereChatType}

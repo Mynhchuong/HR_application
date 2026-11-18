@@ -12,18 +12,15 @@ namespace HR_api.Services;
 public class HomeSummaryService
 {
     private readonly OracleService       _oracleService;
-    private readonly HomeBirthdayService _birthdayService;
     private readonly TrainingTeamService _trainingTeam;
     private readonly IMemoryCache        _cache;
 
     public HomeSummaryService(
         OracleService       oracleService,
-        HomeBirthdayService birthdayService,
         TrainingTeamService trainingTeam,
         IMemoryCache        cache)
     {
         _oracleService   = oracleService;
-        _birthdayService = birthdayService;
         _trainingTeam    = trainingTeam;
         _cache           = cache;
     }
@@ -63,15 +60,15 @@ public class HomeSummaryService
         var hasScope = isAdmin || await HasScopeAsync(user.EMPCD);
         if (!hasScope)
         {
-            // Vẫn count team birthday (không cần scope) + dashboard HR/CSR (không phụ thuộc scope phòng ban)
-            var teamBd = await _birthdayService.GetTeamBirthdayAsync(user);
-            result.TEAM_BIRTHDAY_COUNT = teamBd.Count;
+            // Dashboard HR/CSR không phụ thuộc scope phòng ban
             if (isHrCsr)
             {
                 var hr = await CountHrDashboardAsync(user.EMPCD);
                 result.HR_UNREAD_MSG       = hr.UnreadMsg;
                 result.HR_OPEN_INQ         = hr.OpenInq;
                 result.HR_NEW_BULLETIN_CMT = hr.NewBulletinCmt;
+                result.HR_LAST_CMT_BULLETIN_ID = hr.LastCmtBulletinId;
+                result.HR_LAST_CMT_ID          = hr.LastCmtId;
             }
             return result;
         }
@@ -81,14 +78,13 @@ public class HomeSummaryService
         var leaveMonthTask  = CountLeavePendingThisMonthAsync(user.EMPCD);
         var gpTask          = CountGpPendingAsync(user.EMPCD);
         var otTask          = CountOtAsync(user.EMPCD);
-        var bdTask          = _birthdayService.GetTeamBirthdayAsync(user);
         var leaveTodayTask  = CountLeaveTodayAsync(user.EMPCD);
         var gpTodayTask     = CountGpTodayAsync(user.EMPCD);
         var trainingTodayTask = _trainingTeam.CountTodayInScopeAsync(user.EMPCD);
         var docMissingTask  = CountLeaveDocMissingAsync(user);
         var hrDashTask      = isHrCsr ? CountHrDashboardAsync(user.EMPCD) : Task.FromResult(new HrDashCounts());
 
-        await Task.WhenAll(leaveTask, leaveMonthTask, gpTask, otTask, bdTask, leaveTodayTask, gpTodayTask, trainingTodayTask, docMissingTask, hrDashTask);
+        await Task.WhenAll(leaveTask, leaveMonthTask, gpTask, otTask, leaveTodayTask, gpTodayTask, trainingTodayTask, docMissingTask, hrDashTask);
 
         result.LEAVE_PENDING        = leaveTask.Result;
         result.LEAVE_PENDING_MONTH  = leaveMonthTask.Result;
@@ -96,7 +92,6 @@ public class HomeSummaryService
         result.OT_NEED_SIGN         = otTask.Result.NeedSign;
         result.OT_SIGNED            = otTask.Result.Signed;
         result.OT_TOTAL             = otTask.Result.Total;
-        result.TEAM_BIRTHDAY_COUNT  = bdTask.Result.Count;
         result.LEAVE_TODAY_TOTAL    = leaveTodayTask.Result;
         result.GP_TODAY_TOTAL       = gpTodayTask.Result;
         result.TRAINING_TODAY_TOTAL = trainingTodayTask.Result;
@@ -104,6 +99,8 @@ public class HomeSummaryService
         result.HR_UNREAD_MSG        = hrDashTask.Result.UnreadMsg;
         result.HR_OPEN_INQ          = hrDashTask.Result.OpenInq;
         result.HR_NEW_BULLETIN_CMT  = hrDashTask.Result.NewBulletinCmt;
+        result.HR_LAST_CMT_BULLETIN_ID = hrDashTask.Result.LastCmtBulletinId;
+        result.HR_LAST_CMT_ID          = hrDashTask.Result.LastCmtId;
 
         return result;
     }
@@ -129,7 +126,12 @@ public class HomeSummaryService
                  LEFT JOIN HRMS.HR_INQUIRY_READER rd ON rd.INQUIRY_ID = i.ID AND rd.VIEWER_EMPCD = :E2)     AS UNREAD_MSG,
                 (SELECT COUNT(*) FROM HRMS.HR_INQUIRY WHERE STATUS = 'OPEN' AND ASSIGNED_TO IS NULL)        AS OPEN_INQ,
                 (SELECT COUNT(DISTINCT BULLETIN_ID) FROM HRMS.HR_BULLETIN_COMMENT
-                  WHERE IS_DELETED = 0 AND INST_DT >= SYSDATE - 1)                                          AS NEW_CMT_BULL
+                  WHERE IS_DELETED = 0 AND INST_DT >= SYSDATE - 1)                                          AS NEW_CMT_BULL,
+                -- Bình luận mới nhất trong 24h: ô Bản tin có bình luận mới mở thẳng tới bình luận đó
+                (SELECT MAX(BULLETIN_ID) KEEP (DENSE_RANK LAST ORDER BY INST_DT, ID) FROM HRMS.HR_BULLETIN_COMMENT
+                  WHERE IS_DELETED = 0 AND INST_DT >= SYSDATE - 1)                                          AS LAST_CMT_BID,
+                (SELECT MAX(ID) KEEP (DENSE_RANK LAST ORDER BY INST_DT, ID) FROM HRMS.HR_BULLETIN_COMMENT
+                  WHERE IS_DELETED = 0 AND INST_DT >= SYSDATE - 1)                                          AS LAST_CMT_ID
             FROM DUAL";
 
         var rows = await _oracleService.ExecuteQueryAsync(sql, r => new HrDashCounts
@@ -137,6 +139,8 @@ public class HomeSummaryService
             UnreadMsg      = Convert.ToInt32(r["UNREAD_MSG"]),
             OpenInq        = Convert.ToInt32(r["OPEN_INQ"]),
             NewBulletinCmt = Convert.ToInt32(r["NEW_CMT_BULL"]),
+            LastCmtBulletinId = r["LAST_CMT_BID"] == DBNull.Value ? null : Convert.ToInt32(r["LAST_CMT_BID"]),
+            LastCmtId         = r["LAST_CMT_ID"]  == DBNull.Value ? null : Convert.ToInt32(r["LAST_CMT_ID"]),
         }, new OracleParameter("E1", empcd), new OracleParameter("E2", empcd));
 
         return rows.FirstOrDefault() ?? new HrDashCounts();
@@ -147,6 +151,8 @@ public class HomeSummaryService
         public int UnreadMsg      { get; set; }
         public int OpenInq        { get; set; }
         public int NewBulletinCmt { get; set; }
+        public int? LastCmtBulletinId { get; set; }
+        public int? LastCmtId         { get; set; }
     }
 
     // Đếm số đơn nghỉ Đám tang/Đám cưới/Vợ sanh/Khám thai (tháng hiện tại) đã duyệt mà chưa nộp giấy tờ

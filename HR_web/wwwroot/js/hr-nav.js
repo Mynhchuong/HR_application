@@ -234,3 +234,35 @@
         initSidenavSearch();
     });
 })();
+
+// Bàn phím ảo trong WebView (iOS + Android): đóng bàn phím xong WebView đôi khi không tính lại vị
+// trí phần tử position:fixed -> thanh menu dưới kẹt lơ lửng giữa màn hình (báo lỗi 2026-11-18).
+// Bàn phím mở: ẩn thanh menu. Bàn phím đóng: cuộn 1px rồi trả lại để ép tính lại bố cục.
+(function () {
+    var vv = window.visualViewport;
+    if (!vv) return;
+    var fullH = vv.height;
+
+    function relayout() {
+        window.scrollBy(0, 1);
+        window.scrollBy(0, -1);
+    }
+
+    vv.addEventListener('resize', function () {
+        if (vv.height > fullH) fullH = vv.height;
+        var open = vv.height < fullH - 150;
+        var wasOpen = document.body.classList.contains('kb-open');
+        document.body.classList.toggle('kb-open', open);
+        if (wasOpen && !open) setTimeout(relayout, 60);
+    });
+
+    window.addEventListener('orientationchange', function () {
+        setTimeout(function () { fullH = vv.height; }, 400);
+    });
+
+    document.addEventListener('focusout', function (e) {
+        if (e.target && e.target.matches && e.target.matches('input, textarea, select, [contenteditable="true"]')) {
+            setTimeout(relayout, 120);
+        }
+    });
+})();

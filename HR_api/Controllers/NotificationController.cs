@@ -138,13 +138,14 @@ public class NotificationController : ControllerBase
     // 2. GET MY NOTIFICATIONS (For Mobile App)
     // ============================================================
     [HttpGet("my")]
-    public async Task<IActionResult> GetMyNotifications(string empcd, int page = 1, int page_size = 20)
+    public async Task<IActionResult> GetMyNotifications(string empcd, int page = 1, int page_size = 20,
+        DateTime? date_from = null, DateTime? date_to = null)
     {
         try
         {
             if (string.IsNullOrEmpty(empcd)) return Ok(new { success = false, message = "Thiếu mã nhân viên" });
 
-            // Admin/CSR/HR hầu như không mở màn thông báo (yêu cầu 2026-09-12) — trả rỗng luôn, kể
+            // Admin hầu như không mở màn thông báo (yêu cầu 2026-09-12; HR/CSR nhận lại từ 2026-11-18) — trả rỗng luôn, kể
             // cả với thông báo broadcast (COMPANY/DEPT/MULTI...) vẫn còn lưu chung cho người khác.
             if (await _notiHelper.IsNoNotiRoleAsync(empcd))
                 return Ok(new { success = true, data = new List<NotificationModel>() });
@@ -163,11 +164,12 @@ public class NotificationController : ControllerBase
                            N.NOTI_TYPE, N.TARGET_VAL, N.LINK_ACTION, N.CREATED_DATE,
                            N.PRIORITY, N.SOURCE,
                            NVL(L.IS_READ, 0) IS_READ_VAL,
-                           U.FULL_NAME SENDER_NAME,
-                           N.CREATED_BY SENDER_EMPCD,
-                           SEA.DEPTNM SENDER_DEPT_NAME,
-                           SEA.TEAMNM SENDER_LINE_NAME,
-                           SEA.WORKNM SENDER_WORK_NAME,
+                           -- Thông báo hộp thư / chat AI-CSR: NV không được thấy ai đã trả lời (quy tắc khách hàng)
+                           CASE WHEN N.LINK_ACTION LIKE 'inquiry/%' OR N.LINK_ACTION = 'AI_CSR' THEN NULL ELSE U.FULL_NAME  END SENDER_NAME,
+                           CASE WHEN N.LINK_ACTION LIKE 'inquiry/%' OR N.LINK_ACTION = 'AI_CSR' THEN NULL ELSE N.CREATED_BY END SENDER_EMPCD,
+                           CASE WHEN N.LINK_ACTION LIKE 'inquiry/%' OR N.LINK_ACTION = 'AI_CSR' THEN NULL ELSE SEA.DEPTNM   END SENDER_DEPT_NAME,
+                           CASE WHEN N.LINK_ACTION LIKE 'inquiry/%' OR N.LINK_ACTION = 'AI_CSR' THEN NULL ELSE SEA.TEAMNM   END SENDER_LINE_NAME,
+                           CASE WHEN N.LINK_ACTION LIKE 'inquiry/%' OR N.LINK_ACTION = 'AI_CSR' THEN NULL ELSE SEA.WORKNM   END SENDER_WORK_NAME,
                            ROW_NUMBER() OVER (ORDER BY
                                CASE WHEN NVL(L.IS_READ,0) = 0 AND N.PRIORITY = 'HIGH' THEN 0 ELSE 1 END,
                                N.CREATED_DATE DESC) RN
@@ -177,7 +179,9 @@ public class NotificationController : ControllerBase
                     LEFT JOIN HRMS.ECM100 SEC ON SEC.EMPCD = N.CREATED_BY
                     LEFT JOIN HRMS.EAM410 SEA
                         ON SEA.DEPTCD = SEC.DEPTCD AND SEA.LINECD = SEC.LINECD AND SEA.WORKCD = SEC.WORKCD
-                    WHERE N.NOTI_TYPE = 'COMPANY'
+                    WHERE (:D_FROM IS NULL OR N.CREATED_DATE >= :D_FROM)
+                      AND (:D_TO   IS NULL OR N.CREATED_DATE <  :D_TO)
+                      AND ( N.NOTI_TYPE = 'COMPANY'
                        OR (N.NOTI_TYPE = 'EMPCD' AND N.TARGET_VAL = :EMPCD2)
                        OR (N.NOTI_TYPE = 'DEPT'  AND N.TARGET_VAL = (SELECT DEPTCD FROM ME))
                        OR (N.NOTI_TYPE = 'LINE'  AND N.TARGET_VAL = (SELECT LINECD FROM ME))
@@ -193,7 +197,7 @@ public class NotificationController : ControllerBase
                        OR (N.NOTI_TYPE = 'SURVEY' AND EXISTS (
                            SELECT 1 FROM HRMS.HR_SURVEY_RECIPIENT R
                             WHERE TO_CHAR(R.SURVEY_ID) = N.TARGET_VAL AND R.EMPCD = :EMPCD5
-                       ))
+                       )) )
                 ) WHERE RN > :OFFSET AND RN <= :OFFSET + :PAGE_SIZE";
 
             var list = await _oracleService.ExecuteQueryAsync(sql, r => new NotificationModel
@@ -221,6 +225,8 @@ public class NotificationController : ControllerBase
             new OracleParameter("EMPCD3", empcd),
             new OracleParameter("EMPCD4", empcd),
             new OracleParameter("EMPCD5", empcd),
+            new OracleParameter("D_FROM", OracleDbType.Date) { Value = (object?)date_from?.Date ?? DBNull.Value },
+            new OracleParameter("D_TO",   OracleDbType.Date) { Value = (object?)date_to?.Date.AddDays(1) ?? DBNull.Value },
             new OracleParameter("OFFSET", offset),
             new OracleParameter("PAGE_SIZE", page_size));
 
@@ -330,7 +336,7 @@ public class NotificationController : ControllerBase
             if (string.IsNullOrEmpty(empcd))
                 return Ok(new { success = false, count = 0 });
 
-            // Admin/CSR/HR hầu như không mở màn thông báo (yêu cầu 2026-09-12) — luôn trả 0.
+            // Admin hầu như không mở màn thông báo (yêu cầu 2026-09-12; HR/CSR nhận lại từ 2026-11-18) — luôn trả 0.
             if (await _notiHelper.IsNoNotiRoleAsync(empcd))
                 return Ok(new { success = true, count = 0 });
 

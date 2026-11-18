@@ -155,7 +155,7 @@ public class NotificationHelper
     {
         try
         {
-            // Admin/CSR/HR không nhận thông báo cá nhân nữa (yêu cầu 2026-09-12) — bỏ qua ngay từ
+            // Admin không nhận thông báo cá nhân (yêu cầu 2026-09-12; HR/CSR nhận lại từ 2026-11-18) — bỏ qua ngay từ
             // đầu, không insert vào HR_NOTIFICATIONS, để bảng đỡ phình vì họ hầu như không đọc.
             if (model.NOTI_TYPE == "EMPCD" && await IsNoNotiRoleAsync(model.TARGET_VAL))
                 return 0;
@@ -475,8 +475,8 @@ public class NotificationHelper
         catch { return false; }
     }
 
-    // Admin/CSR/HR hầu như không mở màn thông báo (yêu cầu 2026-09-12) — chặn toàn bộ thông báo cá
-    // nhân gửi tới 3 role này ngay từ lúc insert để đỡ phình bảng HR_NOTIFICATIONS, thay vì tạo ra
+    // Admin hầu như không mở màn thông báo (yêu cầu 2026-09-12; HR + CSR được nhận lại từ 2026-11-18
+    // theo yêu cầu HR) — chặn toàn bộ thông báo cá nhân gửi tới Admin ngay từ lúc insert để đỡ phình bảng HR_NOTIFICATIONS, thay vì tạo ra
     // rồi không ai đọc. Dùng chung cho SendNotificationAsync (chặn insert) + SendFcmAsync (lọc push
     // broadcast) + NotificationController.GetMyNotifications/GetUnreadCount (ẩn hẳn khi tự mở app).
     public async Task<bool> IsNoNotiRoleAsync(string? empCd)
@@ -485,7 +485,7 @@ public class NotificationHelper
         try
         {
             // Role chính HOẶC role dept (HR/CSR) — xem Helpers/DeptRoleHelper.cs.
-            return await DeptRoleHelper.HasAnyRoleAsync(_oracleService, empCd, "Admin", "CSR", "HR");
+            return await DeptRoleHelper.HasAnyRoleAsync(_oracleService, empCd, "Admin");
         }
         catch { return false; }
     }
@@ -505,13 +505,11 @@ public class NotificationHelper
 
         try
         {
-            // Admin/CSR/HR không nhận push kể cả thông báo broadcast (yêu cầu 2026-09-12) — dòng
-            // HR_NOTIFICATIONS vẫn giữ 1 dòng chung cho cả công ty (không phình DB), chỉ loại token
-            // của 3 role này ra khỏi danh sách push thực tế.
-            // Tính cả người có role dept HR/CSR (không chỉ role chính).
+            // Admin không nhận push kể cả thông báo broadcast (yêu cầu 2026-09-12; HR/CSR nhận lại từ
+            // 2026-11-18) — dòng HR_NOTIFICATIONS vẫn giữ 1 dòng chung, chỉ loại token Admin khỏi push.
             var mf  = await MutedFilterAsync(priority, "EMPCD");     // dùng khi câu SQL không có alias
             var mfT = await MutedFilterAsync(priority, "T.EMPCD");   // dùng khi bảng token có alias T
-            string noNotiRoleSql = $"EMPCD NOT IN ({await DeptRoleHelper.EmpcdInRolesSqlAsync(_oracleService, "Admin", "CSR", "HR")})";
+            string noNotiRoleSql = $"EMPCD NOT IN ({await DeptRoleHelper.EmpcdInRolesSqlAsync(_oracleService, "Admin")})";
 
             return notiType switch
             {

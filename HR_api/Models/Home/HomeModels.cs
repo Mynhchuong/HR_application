@@ -94,6 +94,8 @@ public class HomeSummaryModel
     public int      HR_UNREAD_MSG      { get; set; }
     public int      HR_OPEN_INQ        { get; set; }
     public int      HR_NEW_BULLETIN_CMT { get; set; }
+    public int?     HR_LAST_CMT_BULLETIN_ID { get; set; }
+    public int?     HR_LAST_CMT_ID          { get; set; }
 
     public DateTime AS_OF         { get; set; } = DateTime.Now;
 }

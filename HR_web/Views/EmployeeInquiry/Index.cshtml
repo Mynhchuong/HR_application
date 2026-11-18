@@ -110,8 +110,8 @@
 }
 .rate-star:hover { transform: scale(1.15); color: #fbbf24; }
 .rate-star.on    { color: #f59e0b; }
-.rate-reason { display: none; gap: .4rem; align-items: center; }
-.rate-reason input { flex: 1; border: 1.5px solid #fbbf24; border-radius: 10px; padding: .35rem .6rem; font-size: .82rem; }
+.rate-reason { display: none; gap: .4rem; align-items: flex-end; }
+.rate-reason textarea { flex: 1; border: 1.5px solid #fbbf24; border-radius: 10px; padding: .45rem .6rem; font-size: .85rem; resize: none; min-height: 64px; }
 .rate-reason button { border: 0; background: #dc2626; color: #fff; border-radius: 10px; padding: .38rem .8rem; font-size: .8rem; font-weight: 800; }
 .rate-banner-skip {
     background: transparent; border: none; color: #92400e; font-size: .78rem;
@@ -567,27 +567,27 @@ function renderRateBanners(items) {
                 <button class="rate-banner-skip" onclick="skipRating(${i.id})">Để sau</button>
             </div>
             <div class="rate-reason" id="reason_${i.id}">
-                <input type="text" id="reasonTx_${i.id}" maxlength="300" placeholder="Lý do chưa hài lòng (bắt buộc)">
+                <textarea id="reasonTx_${i.id}" maxlength="300" rows="3" placeholder="Nhận xét của bạn (không bắt buộc)"></textarea>
                 <button onclick="sendRating(${i.id}, parseInt(this.closest('.rate-banner').dataset.stars || '1', 10), ${isAnon ? 1 : 0}, document.getElementById('reasonTx_${i.id}').value)">Gửi</button>
             </div>
         </div>`;
     }).join('');
 }
 
-// Chọn sao: 3–5 sao gửi ngay; 1–2 sao (Không hài lòng) phải nhập lý do rồi mới gửi
+// Chọn sao xong luôn hiện ô nhận xét (tự nguyện, 1–2 sao mới bắt buộc nêu lý do), bấm "Gửi" mới gửi
 function pickStar(inqId, val, el, isAnon) {
     el.parentElement.querySelectorAll('.rate-star').forEach((st, idx) => st.classList.toggle('on', idx < val));
     const banner = document.querySelector(`.rate-banner[data-inq-id="${inqId}"]`);
     if (banner) banner.dataset.stars = val;
     const box = document.getElementById('reason_' + inqId);
-    if (val <= 2) { if (box) { box.style.display = 'flex'; document.getElementById('reasonTx_' + inqId)?.focus(); } return; }
-    if (box) box.style.display = 'none';
-    sendRating(inqId, val, isAnon, null);
+    const tx  = document.getElementById('reasonTx_' + inqId);
+    if (tx) tx.placeholder = val <= 2 ? 'Lý do chưa hài lòng (bắt buộc)' : 'Nhận xét của bạn (không bắt buộc)';
+    if (box) { box.style.display = 'flex'; tx?.focus(); }
 }
 
 async function sendRating(inqId, stars, isAnon, note) {
     note = (note || '').trim() || null;
-    if (stars <= 2 && (!note || note.length < 3)) { if (window.showToast) showToast('Chưa nhập lý do', 'warning'); return; }
+    if (stars <= 2 && (!note || note.length < 3)) { if (window.showToast) showToast('Vui lòng cho biết lý do chưa hài lòng', 'warning'); document.getElementById('reasonTx_' + inqId)?.focus(); return; }
     const banner = document.querySelector(`.rate-banner[data-inq-id="${inqId}"]`);
     try {
         const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
@@ -608,6 +608,7 @@ async function sendRating(inqId, stars, isAnon, note) {
             banner.innerHTML = `<div class="rate-banner-done">
                 <span class="material-symbols-rounded" style="font-size:1rem;vertical-align:middle">check_circle</span>
                 Cảm ơn bạn đã đánh giá ${stars} sao!
+                ${note ? `<div style="font-weight:500;margin-top:.2rem">“${esc(note)}”</div>` : ''}
             </div>`;
             setTimeout(() => {
                 banner.style.transition = 'opacity .4s, max-height .4s';

@@ -86,12 +86,12 @@ public class NotificationController : BaseController
 
     // GET /Notification/GetPage  (AJAX)
     [HttpGet]
-    public async Task<IActionResult> GetPage(int page = 1, int page_size = 20)
+    public async Task<IActionResult> GetPage(int page = 1, int page_size = 20, string? date_from = null, string? date_to = null)
     {
         if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
             return Json(new { success = false });
 
-        var itemsTask  = _notiSvc.GetMyAsync(CurrentUser.EmpCd, page, page_size);
+        var itemsTask  = _notiSvc.GetMyAsync(CurrentUser.EmpCd, page, page_size, date_from, date_to);
         var unreadTask = page == 1 ? _notiSvc.GetUnreadCountAsync(CurrentUser.EmpCd) : Task.FromResult(0);
         await Task.WhenAll(itemsTask, unreadTask);
 

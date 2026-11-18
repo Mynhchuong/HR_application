@@ -394,6 +394,9 @@ class ViewController: UIViewController {
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
+        // Giữ lâu link không mở bản xem trước — bản xem trước không có phiên đăng nhập nên hiện
+        // trang Login kèm popup điền mật khẩu của iOS (báo lỗi 2026-11-18).
+        webView.allowsLinkPreview = false
         // 2026-10-30: đã thử đổi sang "giữ UA gốc + nối hậu tố" (nghi ngờ UA thay hẳn bị 1 WAF chặn),
         // nhưng test thật cho kết quả NGƯỢC LẠI — bản 10.1/10.2 bên Android (UA thay hẳn, cùng pattern
         // với dòng dưới) chạy ổn định trên wifi ngoài, còn bản UA-nối-thêm mới bị "Forbidden" trên

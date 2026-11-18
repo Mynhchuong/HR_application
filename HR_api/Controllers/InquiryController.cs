@@ -1096,11 +1096,13 @@ public class InquiryController : ControllerBase
                        -- EMP/HR/SYS — CSR và Admin đều lưu là 'HR' nên không phân biệt được từ đó,
                        -- phải tra role phòng ban theo SENDER_CD (yêu cầu 2026-11-12).
                        -- LEFT JOIN nên DB chưa chạy script dept-role thì chỉ ra NULL, không vỡ.
-                       dr.ROLE_NAME AS SENDER_ROLE
+                       -- Không có role phòng ban thì lấy role chính (vd Admin, HR).
+                       NVL(dr.ROLE_NAME, sr.ROLE_NAME) AS SENDER_ROLE
                 FROM HRMS.HR_INQUIRY_MSG m
                 LEFT JOIN HRMS.HR_INQUIRY_ATTACH a ON a.MSG_ID = m.ID
                 LEFT JOIN HRMS.HR_USERS su      ON su.EMPCD = m.SENDER_CD
                 LEFT JOIN HRMS.HR_DEPT_ROLES dr ON dr.ID = su.DEPT_ROLE_ID
+                LEFT JOIN HRMS.HR_ROLES sr      ON sr.ID = su.ROLE_ID
                 WHERE m.INQUIRY_ID = :ID
                   AND (:AFTER = 0 OR m.ID > :AFTER2)
                 ORDER BY m.ID ASC",

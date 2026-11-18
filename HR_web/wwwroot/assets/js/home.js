@@ -172,15 +172,30 @@
             setNum('ot-need',      data.OT_NEED_SIGN);
             setNum('ot-signed',    data.OT_SIGNED);
             setNum('ot-total',     data.OT_TOTAL);
-            setNum('bd',           data.TEAM_BIRTHDAY_COUNT);
             setNum('leave-doc-missing', data.LEAVE_DOC_MISSING_COUNT);
             setNum('hr-msg',       data.HR_UNREAD_MSG);
             setNum('hr-inq',       data.HR_OPEN_INQ);
             setNum('hr-bull',      data.HR_NEW_BULLETIN_CMT);
+            // Có bình luận mới → mở thẳng bài viết và cuộn tới đúng bình luận mới nhất
+            const bullTile = body.querySelector('.home-kpi-hrbull');
+            if (bullTile && data.HR_LAST_CMT_BULLETIN_ID && data.HR_LAST_CMT_ID) {
+                bullTile.href = bullTile.dataset.detailBase + '/' + data.HR_LAST_CMT_BULLETIN_ID + '#cmt-' + data.HR_LAST_CMT_ID;
+            }
             // Training today — chỉ show card khi > 0 (tránh clutter khi không có session)
             setNum('training-today', data.TRAINING_TODAY_TOTAL);
             const trainingCard = body.querySelector('[data-kpi-card="training-today"]');
             if (trainingCard) trainingCard.hidden = !(data.TRAINING_TODAY_TOTAL > 0);
+
+            // Điện thoại chỉ hiện mục có số > 0 (CSS ẩn .is-zero) — đánh dấu ở đây
+            const kpis = body.querySelectorAll('.home-kpi');
+            let anyNonZero = false;
+            kpis.forEach(k => {
+                const zero = [...k.querySelectorAll('[data-kpi]')].every(n => (parseInt(n.textContent, 10) || 0) === 0);
+                k.classList.toggle('is-zero', zero);
+                if (!zero && !k.hidden) anyNonZero = true;
+            });
+            const grid = body.querySelector('.home-summary-grid');
+            if (grid) grid.classList.toggle('all-zero', !anyNonZero);
 
             const a = asofEl();
             if (a && data.AS_OF) {
@@ -234,69 +249,6 @@
         startPolling();
     })();
 
-    // ─── 5. TEAM BIRTHDAY MODAL ────────────────────────────────
-    (function initTeamBirthdayModal() {
-        const modal = $('#homeTeamBirthdayModal');
-        if (!modal) return;
-
-        const modalBody = $('[data-modal-body]', modal);
-        const card      = $('#homeSummaryCard');
-        const emptyLbl  = card ? (card.dataset.labelEmpty || 'Không có SN nào hôm nay') : 'Không có SN nào hôm nay';
-        const errorLbl  = card ? (card.dataset.labelError || 'Không tải được danh sách') : 'Không tải được danh sách';
-
-        function openModal() {
-            modal.hidden = false;
-            loadList();
-        }
-        function closeModal() { modal.hidden = true; }
-
-        async function loadList() {
-            try {
-                const res = await fetch(ROOT + 'Home/TeamBirthday', {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    credentials: 'same-origin'
-                });
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const json = await res.json();
-                if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-                    modalBody.innerHTML = json.data.map(renderItem).join('');
-                } else {
-                    modalBody.innerHTML = '<div class="home-modal-loading">' + escapeHtml(emptyLbl) + '</div>';
-                }
-            } catch (e) {
-                modalBody.innerHTML = '<div class="home-modal-loading">' + escapeHtml(errorLbl) + '</div>';
-                console.warn('[home] team birthday fetch error:', e);
-            }
-        }
-
-        function renderItem(item) {
-            const initial = (item.CNAME || '?').charAt(0).toUpperCase();
-            const orgParts = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(x => x).join(' · ');
-            return `<div class="home-bd-item">
-                <div class="home-bd-avatar">${initial}</div>
-                <div>
-                    <div class="home-bd-name vni-font">${escapeHtml(item.CNAME || '')}</div>
-                    <div class="home-bd-meta"><strong>${escapeHtml(item.EMPCD || '')}</strong>${orgParts ? ' · ' + escapeHtml(orgParts) : ''}</div>
-                </div>
-            </div>`;
-        }
-
-        function escapeHtml(s) {
-            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-        }
-
-        document.addEventListener('click', (e) => {
-            const opener = e.target.closest('[data-open="team-birthday"]');
-            if (opener) { e.preventDefault(); openModal(); return; }
-            const closer = e.target.closest('[data-close="team-birthday"]');
-            if (closer) { e.preventDefault(); closeModal(); return; }
-        });
-
-        // ESC to close
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !modal.hidden) closeModal();
-        });
-    })();
 
     // ─── 6. LEAVE DOC MISSING MODAL ─────────────────────────────
     (function initLeaveDocMissingModal() {

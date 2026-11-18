@@ -69,6 +69,7 @@ public class InquiryMsgDto
     public string    SenderType  { get; set; } = "";
     public string?   SenderCd    { get; set; }
     public string?   SenderName  { get; set; }
+    public string?   SenderRole  { get; set; }
     public string    MsgType     { get; set; } = "TEXT";
     public string?   Content     { get; set; }
     public bool      IsReadHr    { get; set; }

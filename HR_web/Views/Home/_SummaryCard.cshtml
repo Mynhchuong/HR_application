@@ -29,11 +29,9 @@
     var otSubNeed    = isEn ? ExpatText.T(Model.Lang, "need sign") : "cần ký";
     var otSubSigned  = isEn ? ExpatText.T(Model.Lang, "signed") : "đã ký";
     var otSubTotal   = isEn ? ExpatText.T(Model.Lang, "total") : "tổng";
-    var bdLabel      = isEn ? ExpatText.T(Model.Lang, "Team birthdays") : "SN đồng nghiệp";
     var docMissingLabel = isEn ? ExpatText.T(Model.Lang, "Docs not submitted") : "Chưa nộp giấy tờ";
     var refreshLabel = isEn ? ExpatText.T(Model.Lang, "Refresh") : "Làm mới";
     var loadingLabel = isEn ? ExpatText.T(Model.Lang, "Loading…") : "Đang tải…";
-    var emptyLabel   = isEn ? ExpatText.T(Model.Lang, "No birthdays today") : "Không có SN nào hôm nay";
     var errorLabel   = isEn ? ExpatText.T(Model.Lang, "Failed to load list") : "Không tải được danh sách";
 
     // Route KPI — role-specific
@@ -58,7 +56,6 @@
          data-empcd="@Model.EmpCd"
          data-role="@Model.RoleName"
          data-lang="@Model.Lang"
-         data-label-empty="@emptyLabel"
          data-label-error="@errorLabel">
     <div class="home-summary-header">
         <div class="home-summary-title">📊 @title</div>
@@ -112,10 +109,6 @@
                     @otLabel <small>(@otSubNeed / @otSubSigned / @otSubTotal)</small>
                 </div>
             </a>
-            <button type="button" data-open="team-birthday" class="home-kpi home-kpi-bd">
-                <div class="home-kpi-number" data-kpi="bd">0</div>
-                <div class="home-kpi-label">🎂 @bdLabel</div>
-            </button>
             @if (!isExpat)
             {
                 <button type="button" data-open="leave-doc-missing" class="home-kpi home-kpi-docmissing">
@@ -133,28 +126,18 @@
                     <div class="home-kpi-number" data-kpi="hr-inq">0</div>
                     <div class="home-kpi-label">📥 @inqLabel</div>
                 </a>
-                <a href="@Url.Action("Index", "Bulletin")" class="home-kpi home-kpi-hrbull">
+                <a href="@Url.Action("Index", "Bulletin")" class="home-kpi home-kpi-hrbull"
+                   data-detail-base="@Url.Action("Detail", "Bulletin")">
                     <div class="home-kpi-number" data-kpi="hr-bull">0</div>
                     <div class="home-kpi-label">📣 @bullCmtLabel</div>
                 </a>
             }
         </div>
+        <div class="home-summary-empty">✓ @(isEn ? ExpatText.T(Model.Lang, "Nothing to handle today") : "Hôm nay không có việc cần xử lý")</div>
         <div class="home-summary-asof" data-summary-asof></div>
     </template>
 </section>
 
-<div id="homeTeamBirthdayModal" class="home-modal" hidden>
-    <div class="home-modal-backdrop" data-close="team-birthday"></div>
-    <div class="home-modal-panel">
-        <div class="home-modal-header">
-            <div class="home-modal-title">🎂 @bdLabel</div>
-            <button type="button" class="home-modal-close" data-close="team-birthday" aria-label="@(isEn ? ExpatText.T(Model.Lang, "Close") : "Đóng")">×</button>
-        </div>
-        <div class="home-modal-body" data-modal-body>
-            <div class="home-modal-loading">@loadingLabel</div>
-        </div>
-    </div>
-</div>
 
 <div id="homeLeaveDocMissingModal" class="home-modal" hidden>
     <div class="home-modal-backdrop" data-close="leave-doc-missing"></div>

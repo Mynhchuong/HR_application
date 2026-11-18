@@ -31,24 +31,24 @@
 }
 
 <section class="home-feature-grid">
-    <div class="home-feature-heading">🚀 @L("Chức năng", "Features")</div>
+    <div class="home-feature-heading">@L("Chức năng", "Features")</div>
     <div class="home-feature-tiles">
-        <a href="@Url.Action("LeaveMyRequests", "Leave")" class="home-tile"><span class="home-tile-icon">📅</span><span class="home-tile-label">@L("Nghỉ phép", "Leave")</span></a>
-        <a href="@Url.Action("GpRequestForm", "GatePass")" class="home-tile"><span class="home-tile-icon">🚪</span><span class="home-tile-label">@L("Ra cổng", "Gate Pass")</span></a>
+        <a href="@Url.Action("LeaveMyRequests", "Leave")" class="home-tile" data-c="sky"><span class="home-tile-icon">📅</span><span class="home-tile-label">@L("Nghỉ phép", "Leave")</span></a>
+        <a href="@Url.Action("GpRequestForm", "GatePass")" class="home-tile" data-c="amber"><span class="home-tile-icon">🚪</span><span class="home-tile-label">@L("Ra cổng", "Gate Pass")</span></a>
         @* Expat KHÔNG có: Overtime, Payslip, Menu *@
         @* Hỏi đáp HR + Thông báo đã có ở bottom nav — bỏ khỏi grid *@
         @if (!isExpat)
         {
-            <a href="@Url.Action("OtConfirmForm", "OT")" class="home-tile"><span class="home-tile-icon">⏰</span><span class="home-tile-label">@L("Tăng ca", "Overtime")</span></a>
-            <a href="@Url.Action("Index", "Payslip")" class="home-tile"><span class="home-tile-icon">💰</span><span class="home-tile-label">@L("Phiếu lương", "Payslip")</span></a>
-            <a href="@Url.Action("Today", "Menu")" class="home-tile"><span class="home-tile-icon">🍱</span><span class="home-tile-label">@L("Thực đơn", "Menu")</span></a>
+            <a href="@Url.Action("OtConfirmForm", "OT")" class="home-tile" data-c="rose"><span class="home-tile-icon">⏰</span><span class="home-tile-label">@L("Tăng ca", "Overtime")</span></a>
+            <a href="@Url.Action("Index", "Payslip")" class="home-tile" data-c="green"><span class="home-tile-icon">💰</span><span class="home-tile-label">@L("Phiếu lương", "Payslip")</span></a>
+            <a href="@Url.Action("Today", "Menu")" class="home-tile" data-c="orange"><span class="home-tile-icon">🍱</span><span class="home-tile-label">@L("Thực đơn", "Menu")</span></a>
         }
-        <a href="@Url.Action("Index", "Policy")" class="home-tile"><span class="home-tile-icon">📖</span><span class="home-tile-label">@L("Nội quy", "Policy")</span></a>
-        <a href="@Url.Action("Index", "Guide")" class="home-tile"><span class="home-tile-icon">❓</span><span class="home-tile-label">@L("Hướng dẫn", "Guide")</span></a>
+        <a href="@Url.Action("Index", "Policy")" class="home-tile" data-c="indigo"><span class="home-tile-icon">📖</span><span class="home-tile-label">@L("Nội quy", "Policy")</span></a>
+        <a href="@Url.Action("Index", "Guide")" class="home-tile" data-c="violet"><span class="home-tile-icon">❓</span><span class="home-tile-label">@L("Hướng dẫn", "Guide")</span></a>
         @* Expat không có "Hộp thư" ở thanh dưới (slot 4 là Lịch nhóm) nên không vào được nút Kaizen trong Hộp thư -> có tile riêng *@
         @if (isExpat)
         {
-            <a href="@Url.Action("Index", "Kaizen")" class="home-tile"><span class="home-tile-icon">💡</span><span class="home-tile-label">@L("Đăng ký Kaizen", "Kaizen")</span></a>
+            <a href="@Url.Action("Index", "Kaizen")" class="home-tile" data-c="yellow"><span class="home-tile-icon">💡</span><span class="home-tile-label">@L("Đăng ký Kaizen", "Kaizen")</span></a>
         }
 
         @* HR/Admin KHÔNG hiện các tile duyệt — họ có HR Tools section riêng ở dưới *@
@@ -62,7 +62,7 @@
 
     @if (isHrAdmin)
     {
-        <div class="home-feature-heading home-feature-heading-hr">🏢 @L("HR Tools", "HR Tools")</div>
+        <div class="home-feature-heading home-feature-heading-hr">@L("HR Tools", "HR Tools")</div>
         <div class="home-feature-tiles">
             <a href="@Url.Action("Manage", "BulletinAdmin")" class="home-tile home-tile-hr"><span class="home-tile-icon">📢</span><span class="home-tile-label">@L("Quản lý bản tin", "Manage Bulletin")</span></a>
             <a href="@Url.Action("Index", "HrInquiry")" class="home-tile home-tile-hr"><span class="home-tile-icon">💼</span><span class="home-tile-label">@L("Inquiry HR", "HR Inquiry")</span></a>

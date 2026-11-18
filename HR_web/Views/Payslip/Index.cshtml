@@ -46,11 +46,17 @@
     }
 
     .custom-select {
-        flex: 1;
+        /* min-width/width 0: select co theo khung, kỳ lương tên dài không kéo tràn ngang cả trang */
+        flex: 1 1 0;
+        min-width: 0;
+        width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
         height: 52px;
         border-radius: 16px;
         border: 2px solid #f1f5f9;
-        padding: 0 1rem;
+        padding: 0 2.75rem 0 1rem;
         font-weight: 700;
         background: #f8fafc;
         color: var(--app-text);
@@ -62,6 +68,7 @@
     }
 
     .btn-search {
+        flex-shrink: 0;
         width: 52px;
         height: 52px;
         border-radius: 16px;

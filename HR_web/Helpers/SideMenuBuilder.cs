@@ -32,7 +32,6 @@ public static class SideMenuBuilder
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Tổng quan",           Url = "~/Home/Index",           Icon = "dashboard"     },
-                    new SideMenuItem { Title = "Thông báo",           Url = "~/Notification/Index",   Icon = "notifications", BadgeId = "sideBellBadge" },
                     new SideMenuItem { Title = "Thực đơn",   Url = "~/Menu/Today",    Icon = "restaurant"  },
                     new SideMenuItem { Title = "Bản tin",            Url = "~/Bulletin/Index",       Icon = "campaign"      },
                     new SideMenuItem { Title = "Quy định công ty",   Url = "~/Policy/Index",         Icon = "policy"        },
@@ -210,10 +209,6 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum",                 Group = "chat" },
                     new SideMenuItem { Title = "Câu trả lời mẫu",       Url = "~/HrInquiry/CannedReplies",     Icon = "quickreply",            Group = "chat" },
                     new SideMenuItem { Title = "Báo cáo & Dashboard",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",              Group = "chat" },
-                    // "toàn công ty" để phân biệt với 2 mục cùng tên ở trên — 2 mục kia chỉ xem
-                    // được hội thoại thuộc phòng mình (phạm vi PIC), 2 mục này xem được hết.
-                    new SideMenuItem { Title = "Quản lý hội thoại (toàn công ty)", Url = "~/AdminInquiry/Index",     Icon = "forum",            Group = "chat", VisibleWhen = () => !isAdmin },
-                    new SideMenuItem { Title = "Câu trả lời mẫu (toàn công ty)",   Url = "~/AdminInquiry/CannedReplies", Icon = "quickreply",   Group = "chat", VisibleWhen = () => !isAdmin },
                     new SideMenuItem { Title = "Đóng hội thoại hàng loạt", Url = "~/AdminInquiry/BulkClose",  Icon = "playlist_add_check",     Group = "chat", VisibleWhen = () => !isAdmin },
 
                     new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",               Group = "system" },

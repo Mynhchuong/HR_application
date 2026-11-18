@@ -452,3 +452,6 @@ body.hr-menu-hidden .main-content {
 #sidenavFavorites.d-none {
     display: none !important;
 }
+
+/* Bàn phím ảo đang mở (hr-nav.js gắn body.kb-open): ẩn thanh menu dưới, tránh lơ lửng trên bàn phím */
+body.kb-open .mobile-bottom-nav { display: none !important; }

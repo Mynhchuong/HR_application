@@ -9,11 +9,12 @@ public class NotificationService
 
     public NotificationService(ApiService api) { _api = api; }
 
-    public async Task<List<NotificationItem>> GetMyAsync(string empCd, int page = 1, int pageSize = 20)
+    public async Task<List<NotificationItem>> GetMyAsync(string empCd, int page = 1, int pageSize = 20, string? dateFrom = null, string? dateTo = null)
     {
         try
         {
-            var q = $"empcd={Uri.EscapeDataString(empCd)}&page={page}&page_size={pageSize}";
+            var q = $"empcd={Uri.EscapeDataString(empCd)}&page={page}&page_size={pageSize}" +
+                    $"&date_from={Uri.EscapeDataString(dateFrom ?? "")}&date_to={Uri.EscapeDataString(dateTo ?? "")}";
             var r = await _api.GetAsync_Raw("Notification/my", q);
             if (r == null || !r.IsSuccessStatusCode) return new();
             var json  = await r.Content.ReadAsStringAsync();

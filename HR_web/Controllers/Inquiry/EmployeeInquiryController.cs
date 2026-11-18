@@ -28,6 +28,7 @@ public class EmployeeInquiryController : InquiryBaseController
     public async Task<IActionResult> GetMyList()
     {
         var result = await _inquiry.GetMyListAsync(CurrentUser!.EmpCd);
+        result.data.ForEach(HideResponderNames);
         return Json(result);
     }
 
@@ -41,6 +42,7 @@ public class EmployeeInquiryController : InquiryBaseController
         if (string.IsNullOrWhiteSpace(token))
             return Json(new { success = false, message = "Thiếu token" });
         var result = await _inquiry.GetAnonListAsync(token);
+        result.data.ForEach(HideResponderNames);
         return Json(result);
     }
 
@@ -145,6 +147,8 @@ public class EmployeeInquiryController : InquiryBaseController
         string? tokenForRead = isAnon ? anonToken : null;
         _ = _inquiry.MarkReadAsync(id, "EMP", tokenForRead);
 
+        HideResponderNames(result);
+
         ViewBag.IsAnon     = isAnon;
         ViewBag.AnonToken  = anonToken;   // truyền vào View để JS dùng cho polling/send
         ViewBag.EmpCd      = CurrentUser!.EmpCd;
@@ -180,7 +184,29 @@ public class EmployeeInquiryController : InquiryBaseController
             // Không trả token về client để tránh lộ qua AJAX polling
             result.inquiry.AnonToken = null;
         }
+        HideResponderNames(result);
         return Json(result);
+    }
+
+    // Công nhân chỉ được thấy role người trả lời (HR/CSR/GA...), không thấy họ tên — quy tắc của khách hàng.
+    private static void HideResponderNames(InquiryListItemDto i)
+    {
+        i.AssignedTo   = null;
+        i.AssignedName = null;
+        i.ClosedByName = null;
+    }
+
+    private static void HideResponderNames(InquiryMessagesResponse r)
+    {
+        if (r.inquiry != null) HideResponderNames(r.inquiry);
+        // Tin "Admin <tên> đã mở khóa hội thoại" là thao tác nội bộ, có kèm tên
+        r.messages.RemoveAll(m => m.SenderType == "SYS" && (m.Content ?? "").Contains("đã mở khóa hội thoại"));
+        foreach (var m in r.messages)
+        {
+            if (m.SenderType == "EMP" || m.SenderType == "AI") continue;
+            m.SenderCd   = null;
+            m.SenderName = m.SenderType == "SYS" ? null : (string.IsNullOrWhiteSpace(m.SenderRole) ? "HR" : m.SenderRole);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

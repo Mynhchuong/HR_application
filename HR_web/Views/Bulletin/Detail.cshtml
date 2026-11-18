@@ -137,6 +137,8 @@
     /* Bình luận của chính mình — nền vàng nhạt + viền trái cam + tag "Bạn" */
     .cmt-item.cmt-mine { background: #fffbeb; border-left: 3px solid #f59e0b; }
     .cmt-replies .cmt-item.cmt-mine { background: #fffbeb; border-color: #fcd34d; }
+    .cmt-item.cmt-focus { animation: cmtFocus 2.4s ease; }
+    @@keyframes cmtFocus { 0%, 60% { background: #dbeafe; box-shadow: 0 0 0 2px #60a5fa; } 100% { box-shadow: 0 0 0 0 transparent; } }
     .cmt-mine-tag {
         display: inline-block; background: #f59e0b; color: #fff;
         font-size: .58rem; font-weight: 700; border-radius: 6px;
@@ -178,7 +180,7 @@
     .cmt-reply-box textarea {
         flex: 1; resize: none; border: 1.5px solid #d1d5db;
         border-radius: 14px; padding: 6px 12px; font-size: .9rem;
-        max-height: 80px; min-height: 32px; line-height: 1.4;
+        max-height: 140px; min-height: 38px; line-height: 1.4;
         outline: none;
     }
     .cmt-reply-box textarea:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.12); }
@@ -253,13 +255,13 @@
         .bd-title { font-size: 1.3rem; }
     }
 
-    /* ─── Desktop ≥992px: chia 7.5 (bài viết) : 2.5 (reaction + bình luận) ─── */
+    /* ─── Desktop ≥992px: chia 6.5 (bài viết) : 3.5 (reaction + bình luận) ─── */
     @@media (min-width: 992px) {
         .bd-container { max-width: 1320px; padding-bottom: 24px; }
         .bd-back-row  { max-width: 1320px; }
         .bd-layout {
             display: grid;
-            grid-template-columns: minmax(0, 7.5fr) minmax(0, 2.5fr);
+            grid-template-columns: minmax(0, 6.5fr) minmax(0, 3.5fr);
             gap: 28px;
             align-items: start;
         }
@@ -487,12 +489,11 @@ const LBL = {
                 </div>
                 <div class="cmt-content">${escapeHtml(c.CONTENT)}</div>
                 <div class="cmt-time">${fmtTime(c.INST_DT)}</div>
-                ${!isReply ? `
                 <div class="cmt-actions">
-                    <button class="cmt-action-btn" onclick="openReply(${c.ID})">
+                    <button class="cmt-action-btn" onclick="openReply(${isReply ? c.PARENT_ID : c.ID}, ${c.ID})">
                         <i class="bi bi-reply-fill"></i> ${LBL.reply}
                     </button>
-                </div>` : ''}
+                </div>
             </div>`;
     }
 
@@ -626,30 +627,40 @@ const LBL = {
     }
 
     // ── Reply ──
-    function openReply(parentId) {
+    // parentId = bình luận gốc (chỗ đặt ô trả lời); targetId = bình luận đang được trả lời — gửi lên
+    // API để báo đúng người (API tự gom câu trả lời về luồng gốc).
+    function openReply(parentId, targetId) {
         const box = document.getElementById('replyBox-' + parentId);
         if (!box) return;
-        if (box.dataset.open === '1') { box.innerHTML = ''; box.dataset.open = '0'; return; }
+        box.dataset.target = targetId || parentId;
+        if (box.dataset.open === '1') { document.getElementById('replyInput-' + parentId)?.focus(); return; }
         box.dataset.open = '1';
         box.innerHTML = `
             <div class="cmt-reply-box">
                 <button type="button" class="emoji-btn" onclick="toggleEmojiPop('replyInput-${parentId}', this)" title="Emoji">
                     <i class="bi bi-emoji-smile"></i>
                 </button>
-                <textarea id="replyInput-${parentId}" placeholder="${LBL.writeReply}" rows="1" maxlength="1000"></textarea>
-                <button onclick="sendReply(${parentId})" title="Gửi"><i class="bi bi-send-fill"></i></button>
+                <textarea id="replyInput-${parentId}" placeholder="${LBL.writeReply}" rows="1" maxlength="1000" oninput="autoResize(this)"></textarea>
+                <button id="replySend-${parentId}" onclick="sendReply(${parentId})" title="Gửi"><i class="bi bi-send-fill"></i></button>
             </div>`;
-        document.getElementById('replyInput-' + parentId)?.focus();
+        const input = document.getElementById('replyInput-' + parentId);
+        input?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendReply(parentId); }
+        });
+        box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        input?.focus();
     }
 
     async function sendReply(parentId) {
         const input = document.getElementById('replyInput-' + parentId);
         const content = input?.value.trim();
-        if (!content) return;
+        const btn = document.getElementById('replySend-' + parentId);
+        if (!content || btn?.disabled) return;
+        if (btn) btn.disabled = true;
         try {
             const fd = new FormData();
             fd.append('bulletinId', BULLETIN_ID);
-            fd.append('parentId', parentId);
+            fd.append('parentId', document.getElementById('replyBox-' + parentId)?.dataset.target || parentId);
             fd.append('content', content);
             fd.append('__RequestVerificationToken', token);
             const res = await fetch('@Url.Action("AddComment", "Bulletin")', { method: 'POST', body: fd });
@@ -662,6 +673,8 @@ const LBL = {
             }
         } catch (e) {
             showToast('Lỗi kết nối: ' + e.message, 'error');
+        } finally {
+            if (btn) btn.disabled = false;
         }
     }
 
@@ -778,7 +791,25 @@ const LBL = {
     });
 
     // Initial load
-    loadComments(true);
+    loadComments(true).then(focusCommentFromHash);
+
+    // Mở từ link ".../Detail/{id}#cmt-{commentId}" (vd ô "Bản tin có bình luận mới" ở trang chủ):
+    // bung luồng chứa bình luận đó, cuộn tới và tô sáng.
+    function focusCommentFromHash() {
+        const m = /^#cmt-(\d+)$/.exec(location.hash);
+        if (!m) return;
+        const id = m[1];
+        const c = _allComments.find(x => String(x.ID) === id);
+        if (!c) return;
+        const rootId = c.PARENT_ID || c.ID;
+        _expandedThreadIds.add(rootId);
+        _showAllComments = true;
+        renderSortedComments();
+        const el = document.querySelector(`.cmt-item[data-id="${id}"]`);
+        if (!el) return;
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.classList.add('cmt-focus');
+    }
 
     // Enter to send (Shift+Enter newline)
     document.getElementById('cmtInput').addEventListener('keydown', (e) => {

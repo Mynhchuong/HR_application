@@ -13,338 +13,173 @@
 
 @section Styles {
 <style>
-    /* ─── Feed kiểu Facebook: 1 cột giữa màn hình ─── */
-    .fb-feed {
-        max-width: 640px;
-        margin: 0 auto;
-        padding: 12px 10px 40px;
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-    }
+    /* ─── Danh sách gọn (2026-11-19): ảnh nhỏ bên trái + tiêu đề, bấm cả thẻ để đọc.
+       Ghim KHÔNG ưu tiên ở đây (ghim chỉ cho trang Home); bài chưa xem lên đầu. ─── */
+    .bl-wrap { max-width: 720px; margin: 0 auto; padding: 0 12px 40px; }
 
-    .fb-card {
-        background: #fff;
-        border-radius: 14px;
-        box-shadow: 0 1px 4px rgba(0,0,0,.08);
-        overflow: hidden;
-        position: relative;
-    }
-    .fb-card.pinned { border: 2px solid #f59e0b; }
+    .bl-head { padding: 12px 0 8px; }
+    .bl-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .bl-title { font-size: 1.15rem; font-weight: 800; color: #111827; display: flex; align-items: center; gap: 8px; margin: 0; }
+    .bl-unread-total { font-size: .78rem; font-weight: 700; color: #2563eb; background: #dbeafe; padding: 3px 10px; border-radius: 999px; }
 
-    /* Bài chưa xem: viền xanh + nhãn, để công nhân lướt là nhận ra ngay bài nào còn chưa đọc.
-       Bài chưa xem đã được máy chủ đẩy lên đầu danh sách (xem BulletinController.GetList). */
-    .fb-card.unread { border: 2px solid #2563eb; }
-
-    .fb-unread-badge {
-        position: absolute; top: 10px; right: 10px; z-index: 2;
-        background: #2563eb; color: #fff;
-        padding: 4px 10px; border-radius: 999px;
-        font-size: .72rem; font-weight: 700;
-        display: flex; align-items: center; gap: 4px;
-        box-shadow: 0 2px 6px rgba(37,99,235,.4);
-    }
-    .fb-unread-dot {
-        width: 7px; height: 7px; border-radius: 50%;
-        background: #fff; display: inline-block;
-    }
-
-    .fb-pin-badge {
-        position: absolute; top: 10px; left: 10px; z-index: 2;
-        background: #f59e0b; color: #fff;
-        padding: 4px 9px; border-radius: 999px;
-        font-size: .72rem; font-weight: 700;
-        display: flex; align-items: center; gap: 4px;
-        box-shadow: 0 2px 6px rgba(245,158,11,.4);
-    }
-
-    .fb-cover {
-        width: 100%; aspect-ratio: 16/9;
-        object-fit: cover; background: #f3f4f6;
-        display: block; cursor: pointer;
-    }
-
-    .fb-body { padding: 12px 14px 8px; }
-    .fb-title {
-        font-size: 1.02rem; font-weight: 700; color: #111827;
-        line-height: 1.35; margin-bottom: 4px; cursor: pointer;
-        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-    .fb-title:hover { text-decoration: underline; }
-    .fb-meta { color: #6b7280; font-size: .75rem; display: flex; gap: 12px; flex-wrap: wrap; }
-
-    /* Hàng đếm reaction / bình luận */
-    .fb-counts {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 8px 14px; color: #6b7280; font-size: .8rem;
-    }
-    .fb-counts .rx { display: inline-flex; align-items: center; gap: 4px; }
-
-    /* Hàng nút hành động */
-    .fb-actions {
-        display: flex; border-top: 1px solid #e5e7eb;
-    }
-    .fb-action-btn {
-        flex: 1; background: none; border: none;
-        padding: 9px 4px; cursor: pointer;
-        color: #6b7280; font-weight: 700; font-size: .85rem;
-        display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    .bl-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .bl-chips::-webkit-scrollbar { display: none; }
+    .bl-chip {
+        flex-shrink: 0; border: 1.5px solid #e5e7eb; background: #fff; color: #374151;
+        border-radius: 999px; padding: 7px 14px; font-size: .88rem; font-weight: 700;
+        display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
         -webkit-tap-highlight-color: transparent;
     }
-    .fb-action-btn:active { background: #f3f4f6; }
-    .fb-action-btn.liked { color: #f59e0b; }
+    .bl-chip .n { font-size: .75rem; color: #6b7280; font-weight: 700; }
+    .bl-chip.active { background: #111827; border-color: #111827; color: #fff; }
+    .bl-chip.active .n { color: #d1d5db; }
 
-    /* Khu bình luận inline */
-    .fb-cmt-area { border-top: 1px solid #e5e7eb; padding: 10px 14px; display: none; }
-    .fb-cmt-area.open { display: block; }
-    .fb-cmt-item {
-        background: #f3f4f6; border-radius: 12px;
-        padding: 7px 11px; margin-bottom: 6px;
+    .bl-list { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+    .bl-item {
+        display: flex; gap: 12px; align-items: stretch;
+        background: #fff; border-radius: 14px; padding: 10px;
+        box-shadow: 0 1px 3px rgba(0,0,0,.07); text-decoration: none; color: inherit;
+        border: 1.5px solid transparent; position: relative;
+        -webkit-tap-highlight-color: transparent; transition: transform .1s;
     }
-    .fb-cmt-item.mine { background: #fffbeb; border-left: 3px solid #f59e0b; }
-    .fb-cmt-name { font-weight: 700; font-size: .78rem; color: #111827; }
-    .fb-cmt-text { font-size: .85rem; color: #1f2937; white-space: pre-wrap; word-break: break-word; }
-    .fb-cmt-more {
-        display: inline-block; color: #f59e0b; font-weight: 700;
-        font-size: .78rem; margin: 2px 0 8px; text-decoration: none;
+    .bl-item:active { transform: scale(.985); background: #f9fafb; }
+    .bl-item.unread { border-color: #93c5fd; background: #f8fbff; }
+    .bl-thumb {
+        width: 96px; height: 96px; flex-shrink: 0; border-radius: 10px;
+        object-fit: cover; object-position: top; background: #f3f4f6;
     }
-    .fb-cmt-more:hover { color: #d97706; text-decoration: underline; }
-    .fb-cmt-empty { color: #9ca3af; font-size: .8rem; margin-bottom: 8px; }
+    .bl-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .bl-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .bl-tag { font-size: .68rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; letter-spacing: .2px; }
+    .bl-tag.HR   { background: #fef3c7; color: #92400e; }
+    .bl-tag.CSR  { background: #dcfce7; color: #166534; }
+    .bl-tag.Lean { background: #ede9fe; color: #5b21b6; }
+    .bl-new { font-size: .68rem; font-weight: 800; color: #fff; background: #2563eb; padding: 2px 8px; border-radius: 6px; }
+    .bl-date { font-size: .74rem; color: #9ca3af; margin-left: auto; white-space: nowrap; }
+    .bl-name {
+        font-size: .95rem; font-weight: 600; color: #1f2937; line-height: 1.35;
+        display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .bl-item.unread .bl-name { font-weight: 800; color: #111827; }
+    .bl-stats { margin-top: auto; display: flex; gap: 14px; font-size: .78rem; color: #6b7280; }
+    .bl-stats span { display: inline-flex; align-items: center; gap: 4px; }
+    .bl-stats .liked { color: #f59e0b; font-weight: 700; }
 
-    .fb-cmt-input-row { display: flex; gap: 6px; align-items: flex-end; }
-    .fb-cmt-input-row textarea {
-        flex: 1; resize: none; border: 1.5px solid #d1d5db;
-        border-radius: 16px; padding: 7px 12px; font-size: .88rem;
-        max-height: 80px; min-height: 34px; line-height: 1.4; outline: none;
-    }
-    .fb-cmt-input-row textarea:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.12); }
-    .fb-cmt-input-row button {
-        background: #f59e0b; color: #fff; border: none;
-        border-radius: 50%; width: 34px; height: 34px;
-        display: flex; align-items: center; justify-content: center;
-        cursor: pointer; flex-shrink: 0;
-    }
-    .fb-cmt-input-row button:disabled { background: #d1d5db; }
+    .bl-empty { text-align: center; padding: 50px 20px; color: #9ca3af; }
+    .bl-filter-empty { display: none; text-align: center; padding: 40px 20px; color: #9ca3af; font-size: .9rem; }
 
-    .blt-empty { text-align: center; padding: 60px 20px; color: #9ca3af; }
-
-    .blt-page-header {
-        background: linear-gradient(120deg,#fef3c7,#fde68a);
-        padding: 18px 20px; margin: 0; color: #92400e;
-        font-weight: 800; display: flex; align-items: center; gap: 8px;
+    @@media (min-width: 768px) {
+        .bl-thumb { width: 140px; height: 105px; }
+        .bl-name { font-size: 1.02rem; -webkit-line-clamp: 2; }
     }
 </style>
 }
 
-@Html.AntiForgeryToken()
-
-<div class="blt-page-header">
-    <i class="bi bi-megaphone-fill"></i>
-    <span>@D("Bản tin nội bộ", "Internal bulletin")</span>
-</div>
-
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-warning mx-3 mt-3">@TempData["ErrorMessage"]</div>
+@{
+    // Tên phòng đăng bài — CREATED_ROLE do API tính theo role người tạo (HR/CSR/Lean).
+    Func<string?, string> RoleLabel = r => r switch
+    {
+        "CSR"  => "CSR",
+        "Lean" => "Lean",
+        _      => D("Nhân sự", "HR")
+    };
+    string RoleKey(HR_web.Models.Bulletin.BulletinModel b) => b.CREATED_ROLE is "CSR" or "Lean" ? b.CREATED_ROLE! : "HR";
+    int unreadTotal = Model.Count(x => x.IS_UNREAD == 1);
 }
 
-@if (!Model.Any())
-{
-    <div class="blt-empty">
-        <img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:150px;display:block;margin:0 auto 12px;opacity:.9;" />
-        <p>@D("Chưa có bản tin nào.", "No bulletins yet.")</p>
-    </div>
-}
-else
-{
-    <div class="fb-feed">
-        @foreach (var item in Model)
+<div class="bl-wrap">
+    <div class="bl-head">
+        <div class="bl-title-row">
+            <h1 class="bl-title"><i class="bi bi-megaphone-fill" style="color:#f59e0b"></i> @D("Bản tin nội bộ", "Internal bulletin")</h1>
+            @if (unreadTotal > 0)
+            {
+                <span class="bl-unread-total">@unreadTotal @D("bài chưa xem", "unread")</span>
+            }
+        </div>
+        @if (Model.Any())
         {
-            var detailUrl = Url.Action("Detail", "Bulletin", new { id = item.ID });
-            @* Ghim và chưa xem có thể cùng lúc: nhãn Ghim nằm trái, nhãn Chưa xem nằm phải. *@
-            <div class="fb-card @(item.IS_PINNED == 1 ? "pinned" : "") @(item.IS_UNREAD == 1 ? "unread" : "")" data-id="@item.ID">
-                @if (item.IS_PINNED == 1)
-                {
-                    <div class="fb-pin-badge"><i class="bi bi-pin-angle-fill"></i> Ghim</div>
-                }
-                @if (item.IS_UNREAD == 1)
-                {
-                    <div class="fb-unread-badge">
-                        <span class="fb-unread-dot"></span> @D("Chưa xem", "Unread")
-                    </div>
-                }
-                <img src="@(string.IsNullOrEmpty(item.COVER_IMG)
-                            ? Url.Content("~/assets/img/bulletin-default-cover.png")
-                            : Url.Action("GetBulletinImage", "Image", new { fileName = item.COVER_IMG }))"
-                     class="fb-cover" alt="cover" onclick="location.href='@detailUrl'" />
-                <div class="fb-body">
-                    <div class="fb-title" onclick="location.href='@detailUrl'">@item.TitleFor(bLang)</div>
-                    <div class="fb-meta">
-                        <span><i class="bi bi-calendar3 me-1"></i>@D("đến hết", "until") @item.PUBLISH_TO.ToString("dd/MM/yyyy")</span>
-                        <span><i class="bi bi-eye me-1"></i>@item.VIEW_COUNT</span>
-                    </div>
-                </div>
-                <div class="fb-counts">
-                    <span class="rx">👍❤️ <span id="rxCount-@item.ID">@item.REACTION_COUNT</span></span>
-                    <span><span id="cmtCount-@item.ID">@item.COMMENT_COUNT</span> @D("bình luận", "comments")</span>
-                </div>
-                <div class="fb-actions">
-                    <button type="button" class="fb-action-btn @(item.MY_REACTION != null ? "liked" : "")"
-                            id="likeBtn-@item.ID" onclick="quickLike(@item.ID)">
-                        <i class="bi @(item.MY_REACTION != null ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i> @D("Thích", "Like")
-                    </button>
-                    <button type="button" class="fb-action-btn" onclick="toggleComments(@item.ID)">
-                        <i class="bi bi-chat"></i> @D("Bình luận", "Comment")
-                    </button>
-                    <button type="button" class="fb-action-btn" onclick="location.href='@detailUrl'">
-                        <i class="bi bi-book"></i> @D("Xem bài", "View post")
-                    </button>
-                </div>
-                <div class="fb-cmt-area" id="cmtArea-@item.ID">
-                    <div id="cmtPreview-@item.ID"><div class="fb-cmt-empty">@D("Đang tải...", "Loading...")</div></div>
-                    <div class="fb-cmt-input-row">
-                        <textarea id="cmtInput-@item.ID" placeholder="@D("Viết bình luận...", "Write a comment...")" maxlength="1000" rows="1"></textarea>
-                        <button type="button" id="cmtSend-@item.ID" onclick="sendFeedComment(@item.ID)" title="Gửi">
-                            <i class="bi bi-send-fill"></i>
-                        </button>
-                    </div>
-                </div>
+            <div class="bl-chips" id="blChips">
+                <button type="button" class="bl-chip active" data-f="all">@D("Tất cả", "All") <span class="n">@Model.Count</span></button>
+                <button type="button" class="bl-chip" data-f="unread">@D("Chưa xem", "Unread") <span class="n">@unreadTotal</span></button>
+                <button type="button" class="bl-chip" data-f="HR">@D("Nhân sự", "HR") <span class="n">@Model.Count(x => RoleKey(x) == "HR")</span></button>
+                <button type="button" class="bl-chip" data-f="CSR">CSR <span class="n">@Model.Count(x => RoleKey(x) == "CSR")</span></button>
+                <button type="button" class="bl-chip" data-f="Lean">Lean <span class="n">@Model.Count(x => RoleKey(x) == "Lean")</span></button>
             </div>
         }
     </div>
-}
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-warning mt-2">@TempData["ErrorMessage"]</div>
+    }
+
+    @if (!Model.Any())
+    {
+        <div class="bl-empty">
+            <img src="@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))" alt="" style="max-width:150px;display:block;margin:0 auto 12px;opacity:.9;" />
+            <p>@D("Chưa có bản tin nào.", "No bulletins yet.")</p>
+        </div>
+    }
+    else
+    {
+        <div class="bl-list" id="blList">
+            @foreach (var item in Model)
+            {
+                var rk = RoleKey(item);
+                var posted = item.PUBLISHED_DT ?? item.PUBLISH_FROM;
+                <a class="bl-item @(item.IS_UNREAD == 1 ? "unread" : "")" href="@Url.Action("Detail", "Bulletin", new { id = item.ID })"
+                   data-role="@rk" data-unread="@item.IS_UNREAD">
+                    <img class="bl-thumb" loading="lazy" alt="" onerror="this.onerror=null;this.src='@Url.Content("~/assets/img/bulletin-default-cover.png")'"
+                         src="@(string.IsNullOrEmpty(item.COVER_IMG)
+                                ? Url.Content("~/assets/img/bulletin-default-cover.png")
+                                : Url.Action("GetBulletinImage", "Image", new { fileName = item.COVER_IMG }))" />
+                    <div class="bl-info">
+                        <div class="bl-tags">
+                            @if (item.IS_UNREAD == 1)
+                            {
+                                <span class="bl-new">@D("MỚI", "NEW")</span>
+                            }
+                            <span class="bl-tag @rk">@RoleLabel(item.CREATED_ROLE)</span>
+                            <span class="bl-date">@posted.ToString("dd/MM")</span>
+                        </div>
+                        <div class="bl-name">@item.TitleFor(bLang)</div>
+                        <div class="bl-stats">
+                            <span class="@(item.MY_REACTION != null ? "liked" : "")"><i class="bi @(item.MY_REACTION != null ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up") no-ic3d"></i>@item.REACTION_COUNT</span>
+                            <span><i class="bi bi-chat no-ic3d"></i>@item.COMMENT_COUNT</span>
+                            <span><i class="bi bi-eye no-ic3d"></i>@item.VIEW_COUNT</span>
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+        <div class="bl-filter-empty" id="blFilterEmpty">@D("Không có bản tin nào trong mục này.", "No bulletins in this filter.")</div>
+    }
+</div>
 
 @section Scripts {
 <script>
-// Nhãn cho chuỗi dựng trong template literal — gom 1 chỗ cho dễ đọc (xem Detail.cshtml).
-const FB_LBL = { viewAll: @DJ("Xem tất cả {n} bình luận trong bài viết →", "View all {n} comments in the post →") };
-
-    const CURRENT_EMPCD = '@(user?.EmpCd ?? "")';
-    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
-    const commentsBase = '@Url.Action("Comments", "Bulletin")';
-    const addCommentUrl = '@Url.Action("AddComment", "Bulletin")';
-    const reactUrl = '@Url.Action("React", "Bulletin")';
-    const detailBase = '@Url.Action("Detail", "Bulletin")';
-
-    function esc(s) {
-        return (s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-
-    // ── Thích nhanh (toggle LIKE) ──
-    async function quickLike(id) {
-        const fd = new FormData();
-        fd.append('bulletinId', id);
-        fd.append('reaction', 'LIKE');
-        fd.append('__RequestVerificationToken', token);
-        try {
-            const res = await fetch(reactUrl, { method: 'POST', body: fd });
-            const data = await res.json();
-            if (!data.success) { showToast(data.message || 'Lỗi', 'error'); return; }
-            const btn = document.getElementById('likeBtn-' + id);
-            const cntEl = document.getElementById('rxCount-' + id);
-            let cnt = parseInt(cntEl.textContent) || 0;
-            if (data.action === 'removed') {
-                btn.classList.remove('liked');
-                btn.querySelector('i').className = 'bi bi-hand-thumbs-up';
-                cntEl.textContent = Math.max(0, cnt - 1);
-            } else {
-                // added hoặc changed (đổi từ reaction khác sang LIKE thì tổng không tăng)
-                const wasLiked = btn.classList.contains('liked');
-                btn.classList.add('liked');
-                btn.querySelector('i').className = 'bi bi-hand-thumbs-up-fill';
-                if (data.action === 'added' && !wasLiked) cntEl.textContent = cnt + 1;
-            }
-        } catch (e) { showToast('Lỗi kết nối', 'error'); }
-    }
-
-    // ── Bình luận inline ──
-    const _loadedCmt = new Set();
-    function toggleComments(id) {
-        const area = document.getElementById('cmtArea-' + id);
-        const isOpen = area.classList.toggle('open');
-        if (isOpen && !_loadedCmt.has(id)) loadFeedComments(id);
-        if (isOpen) document.getElementById('cmtInput-' + id)?.focus();
-    }
-
-    async function loadFeedComments(id) {
-        const wrap = document.getElementById('cmtPreview-' + id);
-        try {
-            const res = await fetch(commentsBase + '/' + id);
-            const data = await res.json();
-            const items = data.data || [];
-            _loadedCmt.add(id);
-            renderFeedComments(id, items);
-        } catch (e) {
-            wrap.innerHTML = '<div class="fb-cmt-empty">' + @DJ("Không tải được bình luận.", "Could not load comments.") + '</div>';
+    // Bộ lọc nhanh (Tất cả / Chưa xem / Nhân sự / CSR / Lean) — lọc ngay trên máy, nhớ lựa chọn lần trước.
+    (function () {
+        const chips = document.querySelectorAll('#blChips .bl-chip');
+        if (!chips.length) return;
+        const items = document.querySelectorAll('#blList .bl-item');
+        const empty = document.getElementById('blFilterEmpty');
+        function apply(f) {
+            let shown = 0;
+            items.forEach(el => {
+                const ok = f === 'all' || (f === 'unread' ? el.dataset.unread === '1' : el.dataset.role === f);
+                el.style.display = ok ? '' : 'none';
+                if (ok) shown++;
+            });
+            chips.forEach(c => c.classList.toggle('active', c.dataset.f === f));
+            empty.style.display = shown ? 'none' : 'block';
+            try { localStorage.setItem('blFilter', f); } catch (e) { }
         }
-    }
-
-    function renderFeedComments(id, items) {
-        const wrap = document.getElementById('cmtPreview-' + id);
-        document.getElementById('cmtCount-' + id).textContent = items.length;
-        if (items.length === 0) {
-            wrap.innerHTML = '<div class="fb-cmt-empty">' + @DJ("Chưa có bình luận. Hãy là người đầu tiên!", "No comments yet. Be the first!") + '</div>';
-            return;
-        }
-        // Ưu tiên bình luận của mình, sau đó mới nhất — hiện tối đa 3
-        const roots = items.filter(c => !c.PARENT_ID);
-        roots.sort((a, b) => {
-            const am = a.EMPCD === CURRENT_EMPCD ? 0 : 1;
-            const bm = b.EMPCD === CURRENT_EMPCD ? 0 : 1;
-            if (am !== bm) return am - bm;
-            return new Date(b.INST_DT) - new Date(a.INST_DT);
-        });
-        const top = roots.slice(0, 3);
-        let html = top.map(c => {
-            const name = c.FULL_NAME || c.EMP_CNAME || c.EMPCD;
-            const mine = c.EMPCD === CURRENT_EMPCD;
-            return `<div class="fb-cmt-item${mine ? ' mine' : ''}">
-                        <div class="fb-cmt-name vni-font">${esc(name)}</div>
-                        <div class="fb-cmt-text">${esc(c.CONTENT)}</div>
-                    </div>`;
-        }).join('');
-        if (items.length > top.length) {
-            html += `<a class="fb-cmt-more" href="${detailBase}/${id}">${FB_LBL.viewAll.replace('{n}', items.length)}</a>`;
-        }
-        wrap.innerHTML = html;
-    }
-
-    async function sendFeedComment(id) {
-        const input = document.getElementById('cmtInput-' + id);
-        const content = input.value.trim();
-        if (!content) return;
-        const btn = document.getElementById('cmtSend-' + id);
-        btn.disabled = true;
-        try {
-            const fd = new FormData();
-            fd.append('bulletinId', id);
-            fd.append('content', content);
-            fd.append('__RequestVerificationToken', token);
-            const res = await fetch(addCommentUrl, { method: 'POST', body: fd });
-            const data = await res.json();
-            if (data.success) {
-                input.value = '';
-                await loadFeedComments(id);
-            } else {
-                showToast(data.message || @DJ("Lỗi gửi bình luận", "Failed to send comment"), 'error');
-            }
-        } catch (e) {
-            showToast('Lỗi kết nối: ' + e.message, 'error');
-        } finally {
-            btn.disabled = false;
-        }
-    }
-
-    // Enter để gửi (Shift+Enter xuống dòng)
-    document.querySelectorAll('.fb-cmt-input-row textarea').forEach(ta => {
-        ta.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                const id = ta.id.replace('cmtInput-', '');
-                sendFeedComment(parseInt(id));
-            }
-        });
-    });
+        chips.forEach(c => c.addEventListener('click', () => apply(c.dataset.f)));
+        let saved = 'all';
+        try { saved = localStorage.getItem('blFilter') || 'all'; } catch (e) { }
+        if (![...chips].some(c => c.dataset.f === saved)) saved = 'all';
+        apply(saved);
+    })();
 </script>
 }

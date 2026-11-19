@@ -28,15 +28,17 @@
         { "PACMAN", pacmanImg },
     };
     int GetCount(string k) => Model.REACTIONS.FirstOrDefault(r => r.REACTION == k)?.CNT ?? 0;
+    // Phòng đăng bài (HR/CSR/Lean) — API tính theo role người tạo
+    string roleKey = Model.CREATED_ROLE is "CSR" or "Lean" ? Model.CREATED_ROLE! : "HR";
 }
 
 @section Styles {
 <style>
-    .bd-container { max-width: 820px; margin: 0 auto; padding: 16px 14px 120px; }
+    .bd-container { max-width: 820px; margin: 0 auto; padding: 10px 14px 150px; }
 
-    .bd-back-row { max-width: 820px; margin: 0 auto; padding: 12px 14px 0; }
+    .bd-back-row { max-width: 820px; margin: 0 auto; padding: 10px 14px 0; }
     .bd-back-btn {
-        width: 40px; height: 40px; border-radius: 12px;
+        width: 36px; height: 36px; border-radius: 10px;
         background: #fff; border: 1.5px solid #fde68a;
         display: inline-flex; align-items: center; justify-content: center;
         color: #92400e; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,.06);
@@ -44,19 +46,30 @@
     }
     .bd-back-btn:hover, .bd-back-btn:active { background: #fef3c7; color: #92400e; }
 
-    .bd-cover { width: 100%; max-height: 360px; object-fit: cover; border-radius: 12px; margin-bottom: 16px; }
+    /* Ảnh bìa thường là infographic → hiện ĐỦ ảnh (contain), không cắt mất chữ */
+    .bd-cover { width: 100%; max-height: 70vh; object-fit: contain; background: #f3f4f6; border-radius: 12px; margin-bottom: 14px; display: block; }
+    .bd-tags { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .bd-tag { font-size: .72rem; font-weight: 800; padding: 3px 9px; border-radius: 6px; }
+    .bd-tag.HR   { background: #fef3c7; color: #92400e; }
+    .bd-tag.CSR  { background: #dcfce7; color: #166534; }
+    .bd-tag.Lean { background: #ede9fe; color: #5b21b6; }
     .bd-title { font-size: clamp(1.15rem, 4.5vw, 1.55rem); font-weight: 700; color: #111827; line-height: 1.4; margin-bottom: 6px; }
     .bd-meta  { color: #6b7280; font-size: .82rem; margin-bottom: 14px; display: flex; gap: 14px; flex-wrap: wrap; }
 
     .bd-updated-banner {
-        background: #fef3c7; color: #92400e;
-        padding: 8px 12px; border-radius: 8px;
-        font-size: .82rem; font-weight: 600;
-        display: flex; align-items: center; gap: 6px;
-        margin-bottom: 16px;
+        color: #92400e; font-size: .78rem; font-weight: 600;
+        margin: -2px 0 12px;
     }
 
-    .bd-content { font-size: 1rem; line-height: 1.7; color: #1f2937; }
+    .bd-content { font-size: 1rem; line-height: 1.65; color: #1f2937; overflow-wrap: anywhere; }
+    /* HR hay dán nội dung "căn đều" + tiêu đề to từ Word → trên điện thoại chữ giãn cách xấu và quá to.
+       Ép căn trái + cỡ tiêu đề vừa phải cho dễ đọc. */
+    .bd-content, .bd-content * { text-align: left !important; }
+    .bd-content h1 { font-size: 1.2rem !important; }
+    .bd-content h2 { font-size: 1.1rem !important; }
+    .bd-content h3, .bd-content h4 { font-size: 1.02rem !important; }
+    .bd-content h1, .bd-content h2, .bd-content h3, .bd-content h4 { font-weight: 800; line-height: 1.4; margin: 1.1rem 0 .4rem; color: #111827; }
+    .bd-content p { margin-bottom: .6rem; }
     .bd-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block; }
 
     .img-dl-btn {
@@ -68,22 +81,23 @@
         margin: 4px 0 14px;
     }
     .img-dl-btn:hover { background: #d97706; color: #fff; }
-    .bd-content h1, .bd-content h2, .bd-content h3 { margin-top: 1.2rem; }
     .bd-content ul, .bd-content ol { padding-left: 1.5rem; }
 
     .video-block { margin: 16px 0; }
     .video-block video { width: 100%; border-radius: 10px; background: #000; }
 
     /* ─── Reaction bar ─── */
+    /* 1 hàng cuộn ngang — không chiếm 2-3 dòng trên điện thoại */
     .reaction-bar {
-        display: flex; gap: 8px; flex-wrap: wrap;
-        padding: 14px 0; margin: 18px 0;
+        display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+        padding: 10px 0; margin: 16px 0;
         border-top: 1px solid #e5e7eb;
         border-bottom: 1px solid #e5e7eb;
     }
+    .reaction-bar::-webkit-scrollbar { display: none; }
     .reaction-btn {
-        display: inline-flex; align-items: center; gap: 6px;
-        padding: 6px 12px; border-radius: 999px;
+        display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+        padding: 5px 10px; border-radius: 999px;
         border: 1.5px solid #e5e7eb; background: #fff;
         cursor: pointer; font-size: .95rem;
         transition: all .15s;
@@ -119,8 +133,8 @@
         border-color: #f59e0b;
     }
     .cmt-item {
-        background: #f9fafb; border-radius: 10px;
-        padding: 10px 14px; margin-bottom: 10px;
+        background: #f3f4f6; border-radius: 14px;
+        padding: 9px 13px; margin-bottom: 8px;
         position: relative;
     }
     .cmt-header {
@@ -145,7 +159,7 @@
         padding: 1px 6px; vertical-align: 2px; margin-left: 4px;
     }
     .cmt-content { font-size: .95rem; color: #1f2937; line-height: 1.5; white-space: pre-wrap; }
-    .cmt-time  { font-size: .72rem; color: #9ca3af; margin-top: 4px; }
+    .cmt-time  { font-size: .72rem; color: #9ca3af; }
     .cmt-delete {
         position: absolute; top: 8px; right: 10px;
         background: transparent; border: none; cursor: pointer;
@@ -155,12 +169,12 @@
     .cmt-empty { text-align: center; color: #9ca3af; padding: 20px; font-size: .9rem; }
 
     .cmt-actions {
-        margin-top: 6px; display: flex; gap: 12px;
-        font-size: .78rem;
+        margin-top: 4px; display: flex; gap: 14px; align-items: center;
+        font-size: .8rem;
     }
     .cmt-action-btn {
-        background: none; border: none; padding: 0;
-        color: #6b7280; font-weight: 600; cursor: pointer;
+        background: none; border: none; padding: 4px 0;
+        color: #4b5563; font-weight: 700; cursor: pointer;
     }
     .cmt-action-btn:hover { color: #f59e0b; }
 
@@ -197,9 +211,24 @@
     .cmt-input-bar {
         position: fixed; bottom: 0; left: 0; right: 0;
         background: #fff; border-top: 1px solid #e5e7eb;
-        padding: 10px 14px; display: flex; gap: 8px; align-items: flex-end;
+        padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 6px;
         z-index: 50; max-width: 820px; margin: 0 auto;
         box-shadow: 0 -4px 16px rgba(0,0,0,.06);
+    }
+    .cmt-input-row { display: flex; gap: 6px; align-items: flex-end; }
+    /* Đang trả lời ai — hiện ngay trên ô nhập, bấm ✕ để huỷ */
+    .reply-chip {
+        display: flex; align-items: center; gap: 6px;
+        background: #eff6ff; color: #1e40af; border-radius: 10px;
+        padding: 5px 10px; font-size: .8rem; font-weight: 600;
+    }
+    .reply-chip .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .reply-chip button { background: none; border: none; color: #1e40af; font-size: 1.05rem; padding: 0 2px; line-height: 1; }
+    /* Nút nhảy xuống phần bình luận (chỉ mobile) */
+    .cmt-jump-btn {
+        flex-shrink: 0; height: 38px; border-radius: 19px; border: 1.5px solid #e5e7eb; background: #fff;
+        color: #374151; font-weight: 700; font-size: .85rem; padding: 0 10px;
+        display: inline-flex; align-items: center; gap: 4px;
     }
 
     .emoji-btn {
@@ -252,7 +281,13 @@
     .cmt-show-all-btn:hover { background: #fef3c7; }
 
     @@media (max-width: 768px) {
-        .bd-title { font-size: 1.3rem; }
+        .bd-title { font-size: 1.2rem; }
+    }
+    /* Mobile: thanh menu dưới (68px, z-index 1020) che mất ô bình luận → đặt ô nhập ngay trên menu.
+       Khi bàn phím mở menu bị ẩn (body.kb-open) thì ô nhập xuống sát đáy. */
+    @@media (max-width: 991.98px) {
+        .cmt-input-bar { bottom: 68px; z-index: 1019; }
+        body.kb-open .cmt-input-bar { bottom: 0; }
     }
 
     /* ─── Desktop ≥992px: chia 6.5 (bài viết) : 3.5 (reaction + bình luận) ─── */
@@ -279,6 +314,7 @@
             position: static; box-shadow: none; border-top: 1px solid #e5e7eb;
             padding: 10px 0 0; margin-top: 10px; max-width: none;
         }
+        .cmt-jump-btn { display: none; }
     }
 </style>
 }
@@ -297,19 +333,23 @@
             <img src="@(string.IsNullOrEmpty(Model.COVER_IMG)
                         ? Url.Content("~/assets/img/bulletin-default-cover.png")
                         : Url.Action("GetBulletinImage", "Image", new { fileName = Model.COVER_IMG }))"
-                 class="bd-cover" alt="cover" />
+                 class="bd-cover" alt="" onerror="this.onerror=null;this.src='@Url.Content("~/assets/img/bulletin-default-cover.png")'" />
 
-            <h1 class="bd-title">@Model.TitleFor(bLang)</h1>
-            <div class="bd-meta">
-                <span><i class="bi bi-calendar3 me-1"></i>@D("đến hết", "until") @Model.PUBLISH_TO.ToString("dd/MM/yyyy")</span>
-                <span><i class="bi bi-eye me-1"></i>@Model.VIEW_COUNT @D("lượt xem", "views")</span>
+            <div class="bd-tags">
+                <span class="bd-tag @roleKey">@(roleKey == "HR" ? D("Nhân sự", "HR") : roleKey)</span>
+                <span class="bd-meta" style="margin:0">
+                    <span><i class="bi bi-calendar3 me-1"></i>@((Model.PUBLISHED_DT ?? Model.PUBLISH_FROM).ToString("dd/MM/yyyy"))</span>
+                    <span><i class="bi bi-eye me-1"></i>@Model.VIEW_COUNT</span>
+                </span>
             </div>
+            <h1 class="bd-title">@Model.TitleFor(bLang)</h1>
 
             @if (isUpdated && !string.IsNullOrEmpty(Model.UPDT_FULL_NAME))
             {
+                @* Bỏ tên người sửa (tên lưu font VNI, công nhân cũng không cần) — chỉ báo bài đã được cập nhật *@
                 <div class="bd-updated-banner">
-                    <i class="bi bi-pencil-square"></i>
-                    @D("Được cập nhật bởi", "Updated by") <strong>@Model.UPDT_FULL_NAME</strong> @D("lúc", "at") @Model.UPDT_DT?.ToString("HH:mm dd/MM/yyyy")
+                    <i class="bi bi-pencil-square no-ic3d"></i>
+                    @D("Đã cập nhật lúc", "Updated at") @Model.UPDT_DT?.ToString("HH:mm dd/MM/yyyy")
                 </div>
             }
 
@@ -341,7 +381,7 @@
             </div>
 
             <!-- Comments -->
-            <div class="cmt-section">
+            <div class="cmt-section" id="cmtSection">
                 <div class="cmt-header-row">
                     <div class="cmt-heading">
                         <i class="bi bi-chat-square-text me-1"></i>
@@ -349,7 +389,7 @@
                     </div>
                     <select id="cmtSortSelect" class="cmt-sort-select" onchange="renderSortedComments(true)">
                         <option value="all">@D("Tất cả", "All")</option>
-                        <option value="newest">Mới nhất</option>
+                        <option value="newest">@D("Mới nhất", "Newest")</option>
                         <option value="interacted">@D("Tương tác nhiều nhất", "Most reactions")</option>
                     </select>
                 </div>
@@ -360,14 +400,24 @@
 
             <!-- Ô nhập: mobile dính đáy màn hình (position:fixed), desktop nằm trong cột phải -->
             <div class="cmt-input-bar">
-                <button type="button" class="emoji-btn" onclick="toggleEmojiPop('cmtInput', this)" title="Emoji">
-                    <i class="bi bi-emoji-smile"></i>
-                </button>
-                <textarea id="cmtInput" class="cmt-input" placeholder="@D("Viết bình luận...", "Write a comment...")" maxlength="1000" rows="1"
-                          oninput="autoResize(this)"></textarea>
-                <button id="cmtSendBtn" class="cmt-send-btn" onclick="sendComment()" title="Gửi">
-                    <i class="bi bi-send-fill"></i>
-                </button>
+                <div class="reply-chip" id="replyChip" style="display:none">
+                    <i class="bi bi-reply-fill"></i>
+                    <span class="who">@D("Đang trả lời", "Replying to") <b id="replyWho"></b></span>
+                    <button type="button" onclick="cancelReply()" title="@D("Huỷ", "Cancel")">&times;</button>
+                </div>
+                <div class="cmt-input-row">
+                    <button type="button" class="cmt-jump-btn" onclick="jumpToComments()" title="@D("Xem bình luận", "View comments")">
+                        <i class="bi bi-chat-dots no-ic3d"></i><span id="cmtJumpCount">@Model.COMMENT_COUNT</span>
+                    </button>
+                    <button type="button" class="emoji-btn" onclick="toggleEmojiPop('cmtInput', this)" title="Emoji">
+                        <i class="bi bi-emoji-smile"></i>
+                    </button>
+                    <textarea id="cmtInput" class="cmt-input" placeholder="@D("Viết bình luận...", "Write a comment...")" maxlength="1000" rows="1"
+                              oninput="autoResize(this)"></textarea>
+                    <button id="cmtSendBtn" class="cmt-send-btn" onclick="sendComment()" title="Gửi">
+                        <i class="bi bi-send-fill"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -394,8 +444,17 @@ const LBL = {
         return (s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    // "Vừa xong / 5 phút trước / 3 giờ trước / 2 ngày trước", quá 7 ngày thì hiện ngày giờ
+    const IS_VI = @(bLang == "vi" ? "true" : "false");
     function fmtTime(dateStr) {
         const d = new Date(dateStr);
+        const m = Math.floor((Date.now() - d.getTime()) / 60000);
+        if (m < 1)  return IS_VI ? 'Vừa xong' : 'Just now';
+        if (m < 60) return m + (IS_VI ? ' phút trước' : ' min ago');
+        const h = Math.floor(m / 60);
+        if (h < 24) return h + (IS_VI ? ' giờ trước' : ' h ago');
+        const dd = Math.floor(h / 24);
+        if (dd < 7) return dd + (IS_VI ? ' ngày trước' : ' d ago');
         return d.toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
     }
 
@@ -488,11 +547,9 @@ const LBL = {
                     </span>
                 </div>
                 <div class="cmt-content">${escapeHtml(c.CONTENT)}</div>
-                <div class="cmt-time">${fmtTime(c.INST_DT)}</div>
                 <div class="cmt-actions">
-                    <button class="cmt-action-btn" onclick="openReply(${isReply ? c.PARENT_ID : c.ID}, ${c.ID})">
-                        <i class="bi bi-reply-fill"></i> ${LBL.reply}
-                    </button>
+                    <span class="cmt-time">${fmtTime(c.INST_DT)}</span>
+                    <button class="cmt-action-btn" onclick="openReply(${isReply ? c.PARENT_ID : c.ID}, ${c.ID})">${LBL.reply}</button>
                 </div>
             </div>`;
     }
@@ -508,6 +565,7 @@ const LBL = {
     function renderSortedComments(forceSort = false) {
         const list = document.getElementById('cmtList');
         document.getElementById('cmtCount').textContent = _allComments.length;
+        document.getElementById('cmtJumpCount').textContent = _allComments.length;
         if (_allComments.length === 0) {
             list.innerHTML = '<div class="cmt-empty">' + @DJ("Chưa có bình luận. Hãy là người đầu tiên!", "No comments yet. Be the first!") + '</div>';
             _sortedRootIds = null;
@@ -598,7 +656,6 @@ const LBL = {
                 <div class="cmt-thread">
                     ${commentHtml(c, false)}
                     ${repliesHtml}
-                    <div id="replyBox-${c.ID}"></div>
                 </div>`;
         }).join('');
 
@@ -627,55 +684,29 @@ const LBL = {
     }
 
     // ── Reply ──
-    // parentId = bình luận gốc (chỗ đặt ô trả lời); targetId = bình luận đang được trả lời — gửi lên
-    // API để báo đúng người (API tự gom câu trả lời về luồng gốc).
+    // Trả lời dùng chung ô nhập dưới đáy (dễ bấm trên điện thoại hơn ô nhỏ chen giữa danh sách):
+    // hiện "Đang trả lời <tên>" phía trên ô nhập, bấm ✕ để quay về bình luận thường.
+    // parentId = bình luận gốc của luồng; targetId = bình luận đang được trả lời — gửi lên API để báo
+    // đúng người (API tự gom câu trả lời về luồng gốc).
+    let _reply = null;
     function openReply(parentId, targetId) {
-        const box = document.getElementById('replyBox-' + parentId);
-        if (!box) return;
-        box.dataset.target = targetId || parentId;
-        if (box.dataset.open === '1') { document.getElementById('replyInput-' + parentId)?.focus(); return; }
-        box.dataset.open = '1';
-        box.innerHTML = `
-            <div class="cmt-reply-box">
-                <button type="button" class="emoji-btn" onclick="toggleEmojiPop('replyInput-${parentId}', this)" title="Emoji">
-                    <i class="bi bi-emoji-smile"></i>
-                </button>
-                <textarea id="replyInput-${parentId}" placeholder="${LBL.writeReply}" rows="1" maxlength="1000" oninput="autoResize(this)"></textarea>
-                <button id="replySend-${parentId}" onclick="sendReply(${parentId})" title="Gửi"><i class="bi bi-send-fill"></i></button>
-            </div>`;
-        const input = document.getElementById('replyInput-' + parentId);
-        input?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendReply(parentId); }
-        });
-        box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        input?.focus();
+        const c = _allComments.find(x => x.ID === targetId) || {};
+        _reply = { parentId, targetId: targetId || parentId };
+        const who = document.getElementById('replyWho');
+        who.textContent = c.FULL_NAME || c.EMP_CNAME || c.EMPCD || '';
+        who.className = 'vni-font';
+        document.getElementById('replyChip').style.display = 'flex';
+        const input = document.getElementById('cmtInput');
+        input.placeholder = LBL.writeReply;
+        input.focus();
     }
-
-    async function sendReply(parentId) {
-        const input = document.getElementById('replyInput-' + parentId);
-        const content = input?.value.trim();
-        const btn = document.getElementById('replySend-' + parentId);
-        if (!content || btn?.disabled) return;
-        if (btn) btn.disabled = true;
-        try {
-            const fd = new FormData();
-            fd.append('bulletinId', BULLETIN_ID);
-            fd.append('parentId', document.getElementById('replyBox-' + parentId)?.dataset.target || parentId);
-            fd.append('content', content);
-            fd.append('__RequestVerificationToken', token);
-            const res = await fetch('@Url.Action("AddComment", "Bulletin")', { method: 'POST', body: fd });
-            const data = await res.json();
-            if (data.success) {
-                _expandedThreadIds.add(parentId);
-                await loadComments();
-            } else {
-                showToast(data.message || @DJ("Lỗi gửi trả lời", "Failed to send reply"), 'error');
-            }
-        } catch (e) {
-            showToast('Lỗi kết nối: ' + e.message, 'error');
-        } finally {
-            if (btn) btn.disabled = false;
-        }
+    function cancelReply() {
+        _reply = null;
+        document.getElementById('replyChip').style.display = 'none';
+        document.getElementById('cmtInput').placeholder = @DJ("Viết bình luận...", "Write a comment...");
+    }
+    function jumpToComments() {
+        document.getElementById('cmtSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     // ── Send comment ──
@@ -689,13 +720,22 @@ const LBL = {
             const fd = new FormData();
             fd.append('bulletinId', BULLETIN_ID);
             fd.append('content', content);
+            const replying = _reply;
+            if (replying) fd.append('parentId', replying.targetId);
             fd.append('__RequestVerificationToken', token);
             const res = await fetch('@Url.Action("AddComment", "Bulletin")', { method: 'POST', body: fd });
             const data = await res.json();
             if (data.success) {
                 input.value = '';
                 autoResize(input);
+                if (replying) { _expandedThreadIds.add(replying.parentId); cancelReply(); }
                 await loadComments();
+                // Cuộn tới bình luận vừa gửi để công nhân thấy là đã gửi được
+                if (data.id) {
+                    if (!replying) { _showAllComments = true; renderSortedComments(); }
+                    const el = document.querySelector(`.cmt-item[data-id="${data.id}"]`);
+                    if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('cmt-focus'); }
+                }
             } else {
                 showToast(data.message || @DJ("Lỗi gửi bình luận", "Failed to send comment"), 'error');
             }

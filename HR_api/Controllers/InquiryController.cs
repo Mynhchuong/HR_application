@@ -1449,7 +1449,11 @@ public class InquiryController : ControllerBase
             string capInquiryNo  = conv.InquiryNo;
             string? capAssigned  = conv.AssignedTo;
             string? capEmpCd     = conv.EmpCd;
-            string capSenderName = req.SenderName ?? (senderTypeForDb == "EMP" ? "Nhân viên" : "HR");
+            // NV gửi: hiện SỐ THẺ thay họ tên — tên NV lưu font VNI nên lên thông báo bị lỗi font (2026-11-19).
+            // Hội thoại ẩn danh (có ANON_TOKEN) tuyệt đối không lộ số thẻ → "Nhân viên".
+            string capSenderName = senderTypeForDb == "EMP"
+                ? (!string.IsNullOrEmpty(conv.AnonToken) || string.IsNullOrEmpty(conv.EmpCd) ? "Nhân viên" : conv.EmpCd)
+                : req.SenderName ?? "HR";
             long   capInquiryId  = req.InquiryId;
             string? capCreatedBy = req.EmpCd;
 
@@ -1754,7 +1758,11 @@ public class InquiryController : ControllerBase
             string capCloseInqNo   = conv.InquiryNo;
             string? capCloseEmpCd  = conv.EmpCd;
             string? capCloseAssign = conv.AssignedTo;
-            string  capCloserName  = closerName;
+            // Thông báo: NV đóng → số thẻ (ẩn danh → "Nhân viên"); HR/CSR đóng → tên vai trò, không lộ tên người
+            // xử lý cho NV. Tên thật lưu font VNI nên lên thông báo bị lỗi font (2026-11-19).
+            string  capCloserName  = req.CloserType == "EMP"
+                ? (!string.IsNullOrEmpty(conv.AnonToken) || string.IsNullOrEmpty(conv.EmpCd) ? "Nhân viên" : conv.EmpCd)
+                : req.CloserType == "ADMIN" ? "HR" : req.CloserType;
             string  capCloserType  = req.CloserType;
             long    capCloseId     = req.InquiryId;
             string? capCloseBy     = req.EmpCd;

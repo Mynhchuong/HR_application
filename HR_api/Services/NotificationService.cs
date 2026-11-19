@@ -18,7 +18,7 @@ public class NotificationService
         {
             var ph = new Dictionary<string, string>
             {
-                ["empName"] = empName,
+                ["empName"] = empCd,   // số thẻ thay họ tên: tên lưu font VNI nên lỗi font trên thông báo (2026-11-19)
                 ["gpType"]  = gpTypeName,
             };
             var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("GP_SUBMITTED", ph);
@@ -95,8 +95,7 @@ public class NotificationService
     public void LeaveAcknowledged(string assignerEmpCd, string workerEmpCd)
         => FireAndForget(async () =>
         {
-            var empName = await _helper.GetEmpNameAsync(workerEmpCd);
-            var ph = new Dictionary<string, string> { ["empName"] = empName };
+            var ph = new Dictionary<string, string> { ["empName"] = workerEmpCd };   // số thẻ, xem GatePassSubmitted
             var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("LEAVE_ACKNOWLEDGED", ph);
             await _helper.SendNotificationAsync(Personal(assignerEmpCd, workerEmpCd, title, body, "LEAVE_TEAM", titleEn, bodyEn));
         });
@@ -200,7 +199,7 @@ public class NotificationService
         {
             var ph = new Dictionary<string, string>
             {
-                ["empName"]  = empName,
+                ["empName"]  = empCd,   // số thẻ, xem GatePassSubmitted
                 ["workDate"] = workDate.ToString("dd/MM/yyyy"),
             };
             var (title, body, titleEn, bodyEn) = await _helper.GetTemplateAsync("ATT_CONFIRM_SUBMITTED", ph);

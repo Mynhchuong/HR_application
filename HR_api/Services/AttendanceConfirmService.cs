@@ -726,8 +726,7 @@ public class AttendanceConfirmService
         _log.Log(AttendanceConfirmLogHelper.LogAction.WORKER_SUBMIT, confirmId, req.EMPCD, workDate,
             oldStatus, "PENDING_MANAGER", $"NV khai {req.TIME_IN}-{req.TIME_OUT}", req.EMPCD);
 
-        var empName = await _notiHelper.GetEmpNameAsync(req.EMPCD);
-        _notiSvc.AttendanceConfirmSubmitted(req.EMPCD, empName, workDate);
+        _notiSvc.AttendanceConfirmSubmitted(req.EMPCD, req.EMPCD, workDate);   // thông báo dùng số thẻ, không cần tra tên
 
         return new AttendanceConfirmActionResult { EMPCD = req.EMPCD, WORK_DATE = req.WORK_DATE, OK = true, MESSAGE = "Đã gửi khai báo, chờ quản lý xác nhận" };
     }

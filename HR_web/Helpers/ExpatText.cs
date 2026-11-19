@@ -462,6 +462,13 @@ public static class ExpatText
     {
         // ── Chung ──────────────────────────────────────────────────────────
         ["All"] = "전체",
+        // Bản tin (2026-11-19)
+        ["NEW"] = "새 글",
+        ["No bulletins in this filter."] = "이 분류에 공지가 없습니다.",
+        ["Updated at"] = "수정 시각",
+        ["Replying to"] = "답글 대상:",
+        ["View comments"] = "댓글 보기",
+        ["Newest"] = "최신순",
         ["Status"] = "상태",
         ["Date"] = "날짜",
         ["Date:"] = "날짜:",

@@ -107,14 +107,23 @@ public class BulletinController : ControllerBase
                   AND B.IS_ACTIVE    = 1
                   AND SYSDATE >= B.PUBLISH_FROM AND SYSDATE < TRUNC(B.PUBLISH_TO) + 1   -- ngày kết thúc còn hiệu lực HẾT ngày đó (PUBLISH_TO lưu 00:00)
                 -- Bài CHƯA XEM lên trước (yêu cầu 2026-11-16: công nhân vào là thấy ngay bài mới,
-                -- không phải lướt qua đống đã đọc). Trong cùng nhóm thì vẫn giữ thứ tự cũ: ghim
-                -- trước, rồi theo ngày đăng.
+                -- không phải lướt qua đống đã đọc), rồi theo ngày đăng. Ghim KHÔNG còn ưu tiên ở đây —
+                -- ghim chỉ dành cho trang Home (2026-11-19).
                 ORDER BY IS_UNREAD DESC,
-                         B.IS_PINNED DESC, B.PIN_ORDER ASC,
                          B.PUBLISH_FROM DESC, B.ID DESC";
 
             var result = await _oracleService.ExecuteQueryAsync(sql, MapLight,
                 new OracleParameter("EMPCD", (object?)empcd ?? DBNull.Value));
+
+            // Phòng đăng (HR/CSR/Lean) theo role người tạo — cho bộ lọc ở Bulletin/Index. Mỗi người tạo tra 1 lần.
+            var roleByCreator = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var b in result)
+            {
+                var key = b.INST_ID ?? "";
+                if (!roleByCreator.TryGetValue(key, out var role))
+                    roleByCreator[key] = role = await TrainingScopeHelper.GetCreatorRoleAsync(_oracleService, key);
+                b.CREATED_ROLE = role;
+            }
             return Ok(new { success = true, data = result });
         }
         catch (Exception ex)

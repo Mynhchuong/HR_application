@@ -193,6 +193,7 @@
             .login-body { padding: 0 24px 30px; }
         }
     </style>
+    <style>.ic3d{width:1.25em;height:1.25em;object-fit:contain;display:inline-block;vertical-align:-0.25em}</style>
 </head>
 <body>
     <div class="login-wrapper">
@@ -220,7 +221,7 @@
                     @if (TempData["InfoMessage"] != null)
                     {
                         <div style="background:#dcfce7;border:1.5px solid #86efac;color:#166534;border-radius:10px;padding:.6rem .8rem;font-size:.82rem;margin-bottom:1rem;line-height:1.45;">
-                            ✅ @TempData["InfoMessage"]
+                            @Html.Icon3D("success") @TempData["InfoMessage"]
                         </div>
                     }
 
@@ -282,7 +283,7 @@
 
                     <a href="@Url.Action("ForgotPassword","Account")"
                        style="display:block;text-align:center;font-size:.85rem;color:#dc2626;font-weight:700;text-decoration:none;margin-top:.65rem;">
-                        🔑 Quên mật khẩu? / Forgot password?
+                        @Html.Icon3D("login") Quên mật khẩu? / Forgot password?
                     </a>
                 </form>
             </div>

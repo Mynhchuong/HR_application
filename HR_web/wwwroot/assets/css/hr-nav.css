@@ -455,3 +455,16 @@ body.hr-menu-hidden .main-content {
 
 /* Bàn phím ảo đang mở (hr-nav.js gắn body.kb-open): ẩn thanh menu dưới, tránh lơ lửng trên bàn phím */
 body.kb-open .mobile-bottom-nav { display: none !important; }
+
+/* Icon 3D dùng chung (Icon3DHelper / window.ic3d) — cỡ theo font-size thẻ cha như emoji cũ */
+.ic3d { width: 1.25em; height: 1.25em; object-fit: contain; display: inline-block; vertical-align: -0.25em; }
+
+/* Icon 3D trong menu trái: khung nhóm đổi nền trắng cho icon 3D nổi (nền gradient cũ chỉ hợp icon trắng) */
+.menu-icon-shell.is-3d { background: #fff !important; border: 1px solid #eef2f7; }
+.menu-icon-shell .ic3d { width: 24px; height: 24px; }
+.menu-child-icon .ic3d { width: 20px; height: 20px; }
+
+/* Icon nét mảnh được hr-nav.js đổi sang 3D: cỡ theo font-size của thẻ icon gốc */
+.ic3d-sw { width: 1.1em; height: 1.1em; object-fit: contain; display: inline-block; vertical-align: -0.15em; }
+.material-symbols-rounded > .ic3d-sw { width: 1em; height: 1em; vertical-align: 0; }
+i.bi3d::before, i.fa3d::before { content: none !important; }

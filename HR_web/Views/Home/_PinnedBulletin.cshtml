@@ -19,7 +19,7 @@
 
 <section class="home-pinned-strip">
     <div class="home-pinned-heading">
-        📌 @stripLabel
+        @Html.Icon3D("pin") @stripLabel
         @if (unreadCount > 0)
         {
             <span class="home-pinned-flag unread ms-1">@unreadCount @P("chưa xem", "unread")</span>
@@ -36,18 +36,18 @@
                     {
                         <img src="@Url.Action("GetBulletinImage", "Image", new { fileName = p.CoverImg })" alt="" loading="lazy"
                              onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-                        <div class="home-pinned-placeholder" style="display:none;">📌</div>
+                        <div class="home-pinned-placeholder" style="display:none;">@Html.Icon3D("pin")</div>
                     }
                     else
                     {
-                        <div class="home-pinned-placeholder">📌</div>
+                        <div class="home-pinned-placeholder">@Html.Icon3D("pin")</div>
                     }
                 </div>
                 <div class="home-pinned-title">@p.Title</div>
                 @if (p.IsPinned || p.IsUnread)
                 {
                     <div class="home-pinned-flags">
-                        @if (p.IsPinned) { <span class="home-pinned-flag pin">📌</span> }
+                        @if (p.IsPinned) { <span class="home-pinned-flag pin">@Html.Icon3D("pin")</span> }
                         @if (p.IsUnread) { <span class="home-pinned-flag unread">@P("Chưa xem", "Unread")</span> }
                     </div>
                 }

@@ -112,7 +112,7 @@
             <h5>@T("Notifications")</h5>
             <small id="unreadLabel">@T("Loading...")</small>
         </div>
-        <span class="noti-hero-icon">🔔</span>
+        <span class="noti-hero-icon">@Html.Icon3D("bell")</span>
     </div>
 
     <div class="noti-push" id="pushSettingBox">
@@ -128,7 +128,7 @@
     </div>
 
     <div class="noti-list" id="notiList">
-        <div class="noti-empty"><span class="ei">⏳</span><p>@T("Loading notifications...")</p></div>
+        <div class="noti-empty"><span class="ei">@Html.Icon3D("loading")</span><p>@T("Loading notifications...")</p></div>
     </div>
 
     <div class="noti-load-more" id="loadMoreWrap" style="display:none;">
@@ -177,14 +177,14 @@ function timeAgo(dateStr) {
 }
 
 const typeStyle = {
-    'PAYSLIP':          { icon: '💰', bg: '#dcfce7' },
-    'LEAVE_MY':         { icon: '🏖️', bg: '#e0f2fe' },
-    'LEAVE_TEAM':       { icon: '👥', bg: '#e0f2fe' },
-    'LEAVE_ASSIGNED':   { icon: '📋', bg: '#e0f2fe' },
-    'OT_SIGN':          { icon: '⏰', bg: '#fff7ed' },
-    'GP_MY':            { icon: '🚪', bg: '#f3e8ff' },
-    'GP_MANAGE':        { icon: '🔑', bg: '#f3e8ff' },
-    'BULLETIN':         { icon: '📰', bg: '#fef3c7' },
+    'PAYSLIP':          { icon: 'payslip', bg: '#dcfce7' },
+    'LEAVE_MY':         { icon: 'leave-today', bg: '#e0f2fe' },
+    'LEAVE_TEAM':       { icon: 'team', bg: '#e0f2fe' },
+    'LEAVE_ASSIGNED':   { icon: 'assigned-leave', bg: '#e0f2fe' },
+    'OT_SIGN':          { icon: 'overtime', bg: '#fff7ed' },
+    'GP_MY':            { icon: 'gatepass', bg: '#f3e8ff' },
+    'GP_MANAGE':        { icon: 'approve-gp', bg: '#f3e8ff' },
+    'BULLETIN':         { icon: 'hr-bulletin', bg: '#fef3c7' },
 };
 
 function renderItems(items, append = false) {
@@ -192,20 +192,20 @@ function renderItems(items, append = false) {
     if (!append) list.innerHTML = '';
 
     if (items.length === 0 && !append) {
-        list.innerHTML = '<div class="noti-empty"><span class="ei">🔔</span><p>@T("No notifications yet.")</p></div>';
+        list.innerHTML = '<div class="noti-empty"><span class="ei">' + window.ic3d('bell') + '</span><p>@T("No notifications yet.")</p></div>';
         return;
     }
 
     items.forEach(n => {
         const isUnread = n.IS_READ === 0;
-        const style = typeStyle[n.LINK_ACTION] ?? { icon: '🔔', bg: '#f1f5f9' };
+        const style = typeStyle[n.LINK_ACTION] ?? { icon: 'bell', bg: '#f1f5f9' };
         const title = n.TITLE_EN || n.TITLE;
         const body  = n.BODY_EN  || n.BODY;
         const div = document.createElement('div');
         div.className = 'noti-item' + (isUnread ? ' unread' : '');
         div.dataset.id = n.ID;
         div.innerHTML = `
-            <div class="noti-icon" style="background:${style.bg}">${style.icon}</div>
+            <div class="noti-icon" style="background:${style.bg}">${window.ic3d(style.icon)}</div>
             <div class="noti-content">
                 ${n.SENDER_NAME ? `<div class="noti-sender"><span class="vni-font">${esc(n.SENDER_NAME)}</span>${n.SENDER_EMPCD ? `<span class="noti-empcd">${esc(n.SENDER_EMPCD)}</span>` : ''}</div>` : ''}
                 <div class="noti-title">${esc(title)}</div>

@@ -63,12 +63,12 @@
                             <div class="d-flex gap-2 mt-1">
                                 <label class="sa-radio-card @(Model.SURVEY_TYPE == "POLL" ? "active" : "") @(isLimitedEdit ? "disabled" : "")">
                                     <input type="radio" name="SURVEY_TYPE" value="POLL" @(Model.SURVEY_TYPE == "POLL" ? "checked" : "") @(isLimitedEdit ? "disabled" : "") />
-                                    <div class="sa-radio-title">📋 POLL</div>
+                                    <div class="sa-radio-title">@Html.Icon3D("ot-list") POLL</div>
                                     <div class="sa-radio-desc">Khảo sát, không chấm điểm</div>
                                 </label>
                                 <label class="sa-radio-card @(Model.SURVEY_TYPE == "QUIZ" ? "active" : "") @(isLimitedEdit ? "disabled" : "")">
                                     <input type="radio" name="SURVEY_TYPE" value="QUIZ" @(Model.SURVEY_TYPE == "QUIZ" ? "checked" : "") @(isLimitedEdit ? "disabled" : "") />
-                                    <div class="sa-radio-title">🎯 QUIZ</div>
+                                    <div class="sa-radio-title">@Html.Icon3D("target") QUIZ</div>
                                     <div class="sa-radio-desc">Trắc nghiệm có điểm</div>
                                 </label>
                             </div>
@@ -89,7 +89,7 @@
                                 </label>
                                 <label class="sa-radio-card @(Model.LANG == "EN" ? "active" : "") @(isNew ? "" : "disabled")">
                                     <input type="radio" name="LANG" value="EN" @(Model.LANG == "EN" ? "checked" : "") @(isNew ? "" : "disabled") />
-                                    <div class="sa-radio-title">🌐 English</div>
+                                    <div class="sa-radio-title">@Html.Icon3D("language") English</div>
                                     <div class="sa-radio-desc">Chỉ Expat</div>
                                 </label>
                             </div>

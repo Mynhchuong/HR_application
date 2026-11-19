@@ -3,7 +3,7 @@
 <div id="homeMealLockBanner" class="home-meallock-banner" style="display: none;">
     <div class="home-meallock-header">
         <div class="home-meallock-title">
-            <span class="home-meallock-icon-badge">⏰</span>
+            <span class="home-meallock-icon-badge">@Html.Icon3D("overtime")</span>
             <span>Lịch chốt suất ăn tuần này</span>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -95,7 +95,7 @@
                     } else {
                         cutLine = `<strong style="color:#dc2626;">Khoá cả ngày</strong>`;
                     }
-                    const noteLine = r.note ? `<div class="home-meallock-note">📝 ${escTxt(r.note)}</div>` : '';
+                    const noteLine = r.note ? `<div class="home-meallock-note">${window.ic3d('survey')} ${escTxt(r.note)}</div>` : '';
                     return `<div class="home-meallock-subitem">${cutLine}${noteLine}</div>`;
                 }).join('');
 

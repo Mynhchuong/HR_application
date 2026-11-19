@@ -228,7 +228,7 @@ async function loadDay() {
             setTimeFieldLocks('BOTH');
             $('#wfNote').val('');
             $('#wfDoneNote').hide();
-            $('#wfNoMissingMsg').text(res.message || 'Ngày này không thiếu chấm công 🎉');
+            $('#wfNoMissingMsg').text(res.message || 'Ngày này không thiếu chấm công').append(' ' + window.ic3d('celebrate'));
             $('#wfNoMissingHero').show();
             updateMonthHint(date);
             return;

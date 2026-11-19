@@ -1,4 +1,5 @@
 using HR_web.API.Service;
+using HR_web.Models.Account;
 using HR_web.Models.Inquiry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -131,6 +132,15 @@ public class EmployeeInquiryController : InquiryBaseController
         }
 
         bool isAnon = result.inquiry.ChatType == "ANON";
+        bool isOwner = isAnon ? result.inquiry.AnonToken == anonToken : result.inquiry.EmpCd == CurrentUser!.EmpCd;
+
+        // Thông báo hội thoại dùng chung link "inquiry/{id}" cho cả NV lẫn người xử lý — HR/CSR/GA mở hội
+        // thoại không phải của mình thì chuyển sang màn xử lý (báo lỗi 2026-11-19), Admin sang màn Admin.
+        if (!isOwner)
+        {
+            if (CurrentUser!.HasAnyRole("HR", "CSR", "GA")) return RedirectToAction("Chat", "HrInquiry", new { id });
+            if (CurrentUser.HasRole("Admin")) return RedirectToAction("Chat", "AdminInquiry", new { id });
+        }
 
         if (!isAnon && result.inquiry.EmpCd != CurrentUser!.EmpCd)
         {

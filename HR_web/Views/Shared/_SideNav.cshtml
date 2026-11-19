@@ -100,8 +100,8 @@
                    aria-expanded="@open.ToString().ToLower()">
 
                     <span class="d-flex align-items-center">
-                        <span class="menu-icon-shell">
-                            <i class="material-symbols-rounded">@menu.Icon</i>
+                        <span class="menu-icon-shell@(Icon3DHelper.HasMenu3D(menu.Icon) ? " is-3d" : "")">
+                            @Html.MenuIcon(menu.Icon)
                         </span>
                         <span class="nav-link-text">@menu.Title</span>
                     </span>
@@ -139,7 +139,7 @@
                                     <a class="nav-link text-dark rounded px-2 py-1 flex-grow-1 @(active ? "active fw-bold bg-light" : "")"
                                        href="@Url.Content(item.Url ?? "#")">
                                         <span class="menu-child-icon" style="@(itemColor != null ? $"background:{itemColor}22;" : "")">
-                                            <i class="material-symbols-rounded" style="@(itemColor != null ? $"color:{itemColor};" : "")">@item.Icon</i>
+                                            @Html.MenuIcon(item.Icon, itemColor)
                                         </span>
                                         <span class="nav-link-text">@item.Title</span>
                                         @if (!string.IsNullOrEmpty(item.BadgeId))

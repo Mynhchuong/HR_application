@@ -197,7 +197,9 @@ app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
     {
-        if (ctx.File.PhysicalPath?.Contains($"{Path.DirectorySeparatorChar}lib{Path.DirectorySeparatorChar}") == true)
+        var sep = Path.DirectorySeparatorChar;
+        if (ctx.File.PhysicalPath?.Contains($"{sep}lib{sep}") == true
+            || ctx.File.PhysicalPath?.Contains($"{sep}icons{sep}3d{sep}") == true)
         {
             ctx.Context.Response.Headers.CacheControl = "public,max-age=31536000,immutable";
         }

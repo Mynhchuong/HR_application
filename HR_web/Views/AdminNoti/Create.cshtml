@@ -317,8 +317,8 @@
                     <span>Đã tìm: <b id="empTotal">0</b> NV</span>
                     <button onclick="selectAllMatching()">☑ Chọn tất cả khớp filter</button>
                     <button onclick="selectAllVisible()">☑ Chọn trang này</button>
-                    <button onclick="downloadEmpTemplate()" style="background:#dbeafe;border-color:#93c5fd;color:#1d4ed8" title="Tải file Excel mẫu">📥 Tải mẫu</button>
-                    <button onclick="document.getElementById('empExcelInput').click()" style="background:#d1fae5;border-color:#86efac;color:#166534" title="Nhập danh sách EMPCD từ Excel">📤 Nhập Excel</button>
+                    <button onclick="downloadEmpTemplate()" style="background:#dbeafe;border-color:#93c5fd;color:#1d4ed8" title="Tải file Excel mẫu">@Html.Icon3D("inbox") Tải mẫu</button>
+                    <button onclick="document.getElementById('empExcelInput').click()" style="background:#d1fae5;border-color:#86efac;color:#166534" title="Nhập danh sách EMPCD từ Excel">@Html.Icon3D("hr-send") Nhập Excel</button>
                     <input type="file" id="empExcelInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="importEmpExcel(this)" />
                     <button onclick="clearSelection()" style="margin-left:auto">✕ Xoá đã chọn</button>
                 </div>

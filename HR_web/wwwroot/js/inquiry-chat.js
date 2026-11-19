@@ -774,7 +774,14 @@ window.InquiryChat = (function () {
     }
 
     function pickCanned(item) {
-        if (window.InquiryEditor?.insertContent) window.InquiryEditor.insertContent(item.content || '');
+        if (!window.InquiryEditor?.insertContent) {
+            alert('Ô soạn tin đang tải, vui lòng chờ vài giây rồi bấm Chèn lại.');
+            return;
+        }
+        // Mẫu soạn ở bản test lưu ảnh dạng "/HR_test/Image/..." — đổi về đúng site đang chạy, không thì ảnh không hiện.
+        const base = cfg.urls.cannedReplies.replace(/HrInquiry\/.*$/i, '');
+        const html = (item.content || '').replace(/src="\/[A-Za-z_]+\/Image\//g, 'src="' + base + 'Image/');
+        window.InquiryEditor.insertContent(html);
         closeCannedPicker();
     }
 

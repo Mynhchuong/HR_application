@@ -8,7 +8,7 @@
 <div class="admin-home-page">
     <div class="admin-home-header">
         <a href="@Url.Action("Index", "HomeAdmin")" class="admin-home-back">← Quay lại</a>
-        <h1>🖼️ Quản lý Banner</h1>
+        <h1>@Html.Icon3D("m-image") Quản lý Banner</h1>
         <p class="text-muted">
             Cùng một thời điểm chỉ có <strong>1 banner active</strong>.<br />
             <strong>Ảnh:</strong> JPG/PNG/WebP ≤ 5MB — hệ thống tự resize về 1080×1350 (4:5, ảnh dọc). Nên dùng ảnh dọc để không bị cắt nhiều.
@@ -49,7 +49,7 @@
                         <div class="admin-upload-controls">
                             <div style="display:flex; gap:.75rem; flex-wrap:wrap; align-items:center;">
                                 <label class="btn btn-secondary" style="margin:0;">
-                                    🖼️ Chọn ảnh
+                                    @Html.Icon3D("m-image") Chọn ảnh
                                     <input type="file" id="bannerFileInput" accept="image/jpeg,image/png,image/webp" hidden />
                                 </label>
                                 <label class="btn btn-secondary" style="margin:0;">
@@ -92,7 +92,7 @@
                 </div>
 
                 <div class="form-row" id="bannerRecurBirthdayNote" hidden>
-                    <small class="form-hint">🎂 Banner hiện cho từng nhân viên đúng ngày sinh của họ (theo ngày sinh trong hệ thống). 29/2 → hiện 28/2 ở năm thường.</small>
+                    <small class="form-hint">@Html.Icon3D("birthday") Banner hiện cho từng nhân viên đúng ngày sinh của họ (theo ngày sinh trong hệ thống). 29/2 → hiện 28/2 ở năm thường.</small>
                 </div>
 
                 <div class="form-row-2col">
@@ -130,7 +130,7 @@
 
                 @* Nâng cao — chỉ Admin *@
                 <div class="admin-advanced-section @(isAdmin ? "" : "admin-hr-hidden")">
-                    <div class="admin-advanced-heading">⚙️ Cấu hình nâng cao (Admin)</div>
+                    <div class="admin-advanced-heading">@Html.Icon3D("settings") Cấu hình nâng cao (Admin)</div>
 
                     <div class="form-row">
                         <label class="form-label">Link URL (click banner)</label>

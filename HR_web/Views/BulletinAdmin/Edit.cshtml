@@ -210,7 +210,7 @@
                                        @(Model.IS_PINNED == 1 ? "checked" : "")
                                        onchange="document.getElementById('IS_PINNED').value = this.checked ? 1 : 0" />
                                 <label class="form-check-label ep-label ms-1" for="isPinnedCheck" style="margin-bottom:0;">
-                                    📌 Ghim đầu trang (tối đa 2 bài)
+                                    @Html.Icon3D("pin") Ghim đầu trang (tối đa 2 bài)
                                 </label>
                             </div>
                             <input type="hidden" asp-for="IS_PINNED" id="IS_PINNED" />

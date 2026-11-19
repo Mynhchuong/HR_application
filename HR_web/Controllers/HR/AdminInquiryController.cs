@@ -1448,15 +1448,15 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         string[] chatHeaders =
         {
             "ID chat", "Tiêu đề trò chuyện", "Chủ đề", "Loại báo cáo", "Mức độ", "Phòng phụ trách", "Hình thức",
-            "Mã NV", "Họ và tên", "Giới tính", "Thời gian tạo", "Hạn phản hồi", "Trạng thái", "Số tin",
+            "Mã NV", "Họ và tên", "Phòng ban", "Line", "Work", "Giới tính", "Thời gian tạo", "Hạn phản hồi", "Trạng thái", "Số tin",
             "Tên người gửi (HR/CSR)", "Nội dung", "Bên nhân viên", "Bên trả lời (HR/CSR)",
             "Người kết thúc", "TG kết thúc", "Thời gian xử lý (giờ)",
             "Số sao", "Mức hài lòng", "Nhận xét đánh giá"
         };
         // Yêu cầu CSR 2026-11-13: ngoài ô "Nội dung" gộp cả 2 bên, tách thêm 2 ô chỉ tin NV và chỉ tin HR/CSR.
-        const int ChatColContent = 16;   // "Nội dung" (gộp)
-        const int ChatColEmp     = 17;   // "Bên nhân viên"
-        const int ChatColStaff   = 18;   // "Bên trả lời (HR/CSR)"
+        const int ChatColContent = 19;   // "Nội dung" (gộp)
+        const int ChatColEmp     = 20;   // "Bên nhân viên"
+        const int ChatColStaff   = 21;   // "Bên trả lời (HR/CSR)"
         for (int i = 0; i < chatHeaders.Length; i++)
         {
             var c = wsChat.Cell(1, i + 1);
@@ -1499,6 +1499,12 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
             var nameCell = wsChat.Cell(row, ++cc);
             nameCell.Value = info?.empDisplay ?? "";
             nameCell.Style.Font.FontName = "Vnitbi__";
+
+            // Nơi làm việc của người gửi để CSR biết NV ở đâu (yêu cầu 2026-11-19) — ẩn danh thì để trống
+            bool anonChat = info?.chatType == "ANON";
+            wsChat.Cell(row, ++cc).Value = anonChat ? "" : info?.deptName ?? "";
+            wsChat.Cell(row, ++cc).Value = anonChat ? "" : info?.lineName ?? "";
+            wsChat.Cell(row, ++cc).Value = anonChat ? "" : info?.workName ?? "";
 
             wsChat.Cell(row, ++cc).Value = info?.sex == "F" ? "Nữ" : info?.sex == "M" ? "Nam" : "";
 
@@ -1615,11 +1621,11 @@ public class AdminInquiryController : HR_web.Controllers.Inquiry.InquiryBaseCont
         wsChat.SheetView.FreezeRows(1);
         wsChat.Columns().AdjustToContents();
         wsChat.Column(2).Width  = 30;   // Tiêu đề
-        wsChat.Column(15).Width = 28;   // Tên người gửi HR/CSR
-        wsChat.Column(16).Width = 90;   // Nội dung (gộp)
-        wsChat.Column(17).Width = 70;   // Bên nhân viên
-        wsChat.Column(18).Width = 70;   // Bên trả lời (HR/CSR)
-        wsChat.Column(24).Width = 45;   // Nhận xét đánh giá
+        wsChat.Column(18).Width = 28;   // Tên người gửi HR/CSR
+        wsChat.Column(ChatColContent).Width = 90;   // Nội dung (gộp)
+        wsChat.Column(ChatColEmp).Width     = 70;   // Bên nhân viên
+        wsChat.Column(ChatColStaff).Width   = 70;   // Bên trả lời (HR/CSR)
+        wsChat.Column(chatHeaders.Length).Width = 45;   // Nhận xét đánh giá
 
         // ─── Sheet 6: AI SAMHO - CSR (yêu cầu 2026-10-01: "báo cáo tính luôn AI, xuất Excel luôn
         // AI") — nguồn HR_AI_CHAT tách hẳn khỏi HR_INQUIRY nên query/sheet riêng, không gộp chung

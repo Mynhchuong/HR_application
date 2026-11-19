@@ -141,43 +141,43 @@
     </a>
 
     <div class="cm-hero">
-        <h5>🔄 Đổi món ăn</h5>
+        <h5>@Html.Icon3D("m-history") Đổi món ăn</h5>
         <small><span class="vni-font">@Model.FullName</span> — @DateTime.Today.ToString("dd/MM/yyyy")</small>
     </div>
 
     <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:.55rem .85rem;font-size:.78rem;color:#92400e;margin-bottom:.75rem;line-height:1.5;">
-        <b>⚠️ Lưu ý:</b> Đổi món ăn phải thực hiện <b>trước ít nhất 1 ngày</b> — không thể đổi cho ngày hôm nay.
+        <b>@Html.Icon3D("warning") Lưu ý:</b> Đổi món ăn phải thực hiện <b>trước ít nhất 1 ngày</b> — không thể đổi cho ngày hôm nay.
     </div>
 
     <!-- Đổi món bữa ăn ca (LUNCH) -->
     <div class="cm-section">
         <div class="cm-section-title lunch">
-            🍱 Bữa ăn chính
+            @Html.Icon3D("menu") Bữa ăn chính
             <span class="badge-shift">Mọi ca</span>
             <span style="font-weight:400;opacity:.85;margin-left:auto;font-size:.7rem;">— <span id="mealDateLabel">ngày mai</span></span>
         </div>
         <div class="cm-section-body">
             <!-- Banner quy định bánh -->
             <div id="breadPolicyBanner" style="background:linear-gradient(135deg,#fef9c3,#fde68a);border:1px solid #f59e0b;border-radius:.6rem;padding:.7rem .9rem;margin-bottom:.8rem;font-size:.78rem;color:#78350f;">
-                <div style="font-weight:700;margin-bottom:.3rem;">🥐 Quy định Phiếu Bánh</div>
+                <div style="font-weight:700;margin-bottom:.3rem;">@Html.Icon3D("meal-bread") Quy định Phiếu Bánh</div>
                 <ul style="margin:0;padding-left:1.2rem;line-height:1.6;">
                     <li>Có thể <strong>đặt trước nhiều ngày</strong></li>
                     <li>Tối đa <strong>3 ngày/tuần</strong> có suất Bánh</li>
                     <li>Số phiếu <strong>giới hạn theo phòng ban</strong> mỗi ngày</li>
                     <li>Bánh chỉ áp dụng <strong>Bữa ăn giữa ca</strong> — không áp dụng tăng ca</li>
                 </ul>
-                <div id="breadStatusBadge" style="margin-top:.45rem;padding:.3rem .5rem;background:rgba(255,255,255,.55);border-radius:.35rem;font-size:.77rem;color:#92400e;">🔄 Đang tải...</div>
+                <div id="breadStatusBadge" style="margin-top:.45rem;padding:.3rem .5rem;background:rgba(255,255,255,.55);border-radius:.35rem;font-size:.77rem;color:#92400e;">@Html.Icon3D("loading") Đang tải...</div>
             </div>
             <div class="cm-pick-date">
-                <label>📅 Ngày đổi</label>
+                <label>@Html.Icon3D("hr-sunday") Ngày đổi</label>
                 <input type="date" id="mealDate" onchange="onMealDateChange()" />
             </div>
             <div id="currentMealBadge" style="text-align:center;margin-bottom:.6rem;font-size:.8rem;color:#64748b;min-height:1.4rem;"></div>
             <div class="cm-meal-btns">
-                <button class="cm-meal-btn man"  id="btnMAN"  onclick="submitMeal('MAN','Mặn','LUNCH')">🍖 Mặn</button>
-                <button class="cm-meal-btn nhe"  id="btnNHE"  onclick="submitMeal('NHE','Nhẹ','LUNCH')">🥗 Nhẹ</button>
-                <button class="cm-meal-btn chay" id="btnCHAY" onclick="submitMeal('CHAY','Chay','LUNCH')">🥦 Chay</button>
-                <button class="cm-meal-btn banh" id="btnBANH" onclick="submitMeal('BANH','Bánh','LUNCH')">🥐 Bánh</button>
+                <button class="cm-meal-btn man"  id="btnMAN"  onclick="submitMeal('MAN','Mặn','LUNCH')">@Html.Icon3D("meal-main") Mặn</button>
+                <button class="cm-meal-btn nhe"  id="btnNHE"  onclick="submitMeal('NHE','Nhẹ','LUNCH')">@Html.Icon3D("meal-light") Nhẹ</button>
+                <button class="cm-meal-btn chay" id="btnCHAY" onclick="submitMeal('CHAY','Chay','LUNCH')">@Html.Icon3D("meal-veg") Chay</button>
+                <button class="cm-meal-btn banh" id="btnBANH" onclick="submitMeal('BANH','Bánh','LUNCH')">@Html.Icon3D("meal-bread") Bánh</button>
             </div>
             
         </div>
@@ -186,20 +186,20 @@
     <!-- Đổi món tăng ca (OT) -->
     <div class="cm-section">
         <div class="cm-section-title ot">
-            ⏰ Bữa tăng ca (OT)
+            @Html.Icon3D("overtime") Bữa tăng ca (OT)
             <span class="badge-shift">OT</span>
             <span style="font-weight:400;opacity:.85;margin-left:auto;font-size:.7rem;">— <span id="otDateLabel">ngày mai</span></span>
         </div>
         <div class="cm-section-body">
             <div class="cm-pick-date">
-                <label>📅 Ngày đổi</label>
+                <label>@Html.Icon3D("hr-sunday") Ngày đổi</label>
                 <input type="date" id="otDate" onchange="onOtDateChange()" />
             </div>
             <div id="currentOtBadge" style="text-align:center;margin-bottom:.6rem;font-size:.8rem;color:#64748b;min-height:1.4rem;"></div>
             <div class="cm-meal-btns">
-                <button class="cm-meal-btn man"  id="otBtnMAN"  onclick="submitMeal('MAN','Mặn','OT')">🍖 Mặn</button>
-                <button class="cm-meal-btn nhe"  id="otBtnNHE"  onclick="submitMeal('NHE','Nhẹ','OT')">🥗 Nhẹ</button>
-                <button class="cm-meal-btn chay" id="otBtnCHAY" onclick="submitMeal('CHAY','Chay','OT')">🥦 Chay</button>
+                <button class="cm-meal-btn man"  id="otBtnMAN"  onclick="submitMeal('MAN','Mặn','OT')">@Html.Icon3D("meal-main") Mặn</button>
+                <button class="cm-meal-btn nhe"  id="otBtnNHE"  onclick="submitMeal('NHE','Nhẹ','OT')">@Html.Icon3D("meal-light") Nhẹ</button>
+                <button class="cm-meal-btn chay" id="otBtnCHAY" onclick="submitMeal('CHAY','Chay','OT')">@Html.Icon3D("meal-veg") Chay</button>
             </div>
           
         </div>
@@ -213,7 +213,7 @@
                 <button class="cm-special-btn" id="btnChayTruong" onclick="toggleSpecial('CHAY_TRUONG')">
                     <img src="@Url.Content("~/assets/img/icons/chaytruong.png")" style="height:2rem;vertical-align:middle;margin-right:.35rem;" alt="" />Chay trường
                 </button>
-                <button class="cm-special-btn nhe" id="btnNheTruong" onclick="toggleSpecial('NHE_TRUONG')">🥗 Món nhẹ</button>
+                <button class="cm-special-btn nhe" id="btnNheTruong" onclick="toggleSpecial('NHE_TRUONG')">@Html.Icon3D("meal-light") Món nhẹ</button>
             </div>
 
             <div class="cm-date-section" id="dateSection">
@@ -243,10 +243,10 @@ const BREAD_STATUS_URL = '@Url.Action("GetBreadStatus", "CanteenBread")';
 let selectedSpecial = '';
 
 const MEAL_INFO = {
-    MAN:  { label: '🍖 Đang ăn Mặn',  color: '#f97316' },
-    NHE:  { label: '🥗 Đang ăn Nhẹ',  color: '#0ea5e9' },
-    CHAY: { label: '🥦 Đang ăn Chay', color: '#22c55e' },
-    BANH: { label: '🥐 Đang ăn Bánh', color: '#d97706' },
+    MAN:  { label: window.ic3d('meal-main') + ' Đang ăn Mặn',  color: '#f97316' },
+    NHE:  { label: window.ic3d('meal-light') + ' Đang ăn Nhẹ',  color: '#0ea5e9' },
+    CHAY: { label: window.ic3d('meal-veg') + ' Đang ăn Chay', color: '#22c55e' },
+    BANH: { label: window.ic3d('meal-bread') + ' Đang ăn Bánh', color: '#d97706' },
 };
 
 let currentLunchType = null;
@@ -370,26 +370,26 @@ function applyLockUI(typeMeal, lockInfo, targetDate){
     const dLabel  = (y && m && d) ? `${d}/${m}/${y}` : 'ngày này';
 
     if (lockInfo.locked) {
-        const typeLabels = { MAN:'🍖 Mặn', NHE:'🥗 Nhẹ', CHAY:'🥦 Chay', BANH:'🥐 Bánh' };
+        const typeLabels = { MAN:'Mặn', NHE:'Nhẹ', CHAY:'Chay', BANH:'Bánh' };
         const typesText = typeRestricted
             ? blockedTypes.map(t => typeLabels[t]).join(', ')
             : 'mọi loại';
         const noteLine = lockInfo.note
-            ? `<div style="font-weight:500;font-size:.72rem;color:#7f1d1d;margin-top:.2rem;font-style:italic;">📝 ${esc(lockInfo.note)}</div>`
+            ? `<div style="font-weight:500;font-size:.72rem;color:#7f1d1d;margin-top:.2rem;font-style:italic;">${window.ic3d('survey')} ${esc(lockInfo.note)}</div>`
             : '';
         badge.innerHTML = `
             <div style="background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;border-radius:10px;padding:.55rem .75rem;font-size:.8rem;font-weight:700;line-height:1.5;text-align:left;">
-                🔒 Ngày <b>${dLabel}</b> đã chốt số lượng — không thể đổi sang <b>${typesText}</b>.<br>
+                ${window.ic3d('meal-locked')} Ngày <b>${dLabel}</b> đã chốt số lượng — không thể đổi sang <b>${typesText}</b>.<br>
                 <span style="font-weight:500;">Xin cảm ơn!</span>
                 ${noteLine}
             </div>`;
     } else if (lockInfo.reason && lockInfo.cutoffDt && sameWeek) {
         const cur = badge.innerHTML;
         const noteLine = lockInfo.note
-            ? `<br><span style="font-style:italic;">📝 ${esc(lockInfo.note)}</span>` : '';
+            ? `<br><span style="font-style:italic;">${window.ic3d('survey')} ${esc(lockInfo.note)}</span>` : '';
         badge.innerHTML = cur + `
             <div style="margin-top:.4rem;background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:.45rem .65rem;font-size:.75rem;text-align:left;line-height:1.5;">
-                ⏰ Ngày <b>${dLabel}</b> sẽ chốt số lượng — ${esc(lockInfo.reason)}.${noteLine}
+                ${window.ic3d('overtime')} Ngày <b>${dLabel}</b> sẽ chốt số lượng — ${esc(lockInfo.reason)}.${noteLine}
             </div>`;
     }
 }
@@ -433,17 +433,17 @@ async function onMealDateChange() {
                 if (sd.isRoster) {
                     // Danh sách cố định: miễn quota dept + cap tuần — không hiện số liệu
                     // quota cho họ (không áp dụng), tránh hiểu lầm.
-                    badge.textContent = '🥐 Bạn thuộc danh sách nhận Bánh cố định — không giới hạn.';
+                    badge.innerHTML = window.ic3d('meal-bread') + ' Bạn thuộc danh sách nhận Bánh cố định — không giới hạn.';
                     const lockedOut = lockState.LUNCH?.blockedTypes?.includes('BANH');
                     if (btnBanh && currentLunchType !== 'BANH' && !lockedOut) {
                         btnBanh.disabled = false; btnBanh.title = ''; btnBanh.style.opacity = '';
                     }
                 } else if (!sd.allowed) {
-                    badge.textContent = '🚫 Phòng ban của bạn chưa được cấp phiếu bánh.';
+                    badge.innerHTML = window.ic3d('no-permission') + ' Phòng ban của bạn chưa được cấp phiếu bánh.';
                     if (btnBanh) { btnBanh.disabled = true; btnBanh.title = 'Phòng ban chưa được cấp phiếu bánh'; btnBanh.style.opacity = '.4'; }
                 } else {
                     const remainText = sd.unlimited ? 'Không giới hạn' : `${sd.remaining} phiếu`;
-                    badge.textContent = `🔄 Tuần này: ${sd.weekCount}/3 ngày  |  Còn lại hôm nay: ${remainText}`;
+                    badge.innerHTML = window.ic3d('m-history') + ` Tuần này: ${sd.weekCount}/3 ngày  |  Còn lại hôm nay: ${remainText}`;
                     const lockedOut = lockState.LUNCH?.blockedTypes?.includes('BANH');
                     if (btnBanh && currentLunchType !== 'BANH' && !lockedOut) {
                         btnBanh.disabled = false; btnBanh.title = ''; btnBanh.style.opacity = '';
@@ -531,7 +531,7 @@ function submitMeal(type, label, typeMeal) {
                     // Danh sách cố định: miễn quota dept + cap tuần, không check số liệu.
                     window.showConfirm(`Xác nhận đổi sang Bánh (bữa ca) ngày ${dateLabel}?`,
                         () => _doFetch({ mealType: type, typeMeal: typeMeal, fromDate: dateStr, toDate: dateStr }),
-                        { title: '🥐 Phiếu Bánh', okText: 'Xác nhận', okClass: 'btn-warning',
+                        { title: 'Phiếu Bánh', okText: 'Xác nhận', okClass: 'btn-warning',
                           icon: 'bakery_dining', iconColor: '#d97706', iconBg: '#fef9c3' });
                     return;
                 }
@@ -548,7 +548,7 @@ function submitMeal(type, label, typeMeal) {
                 const confirmMsg = `Xác nhận đổi sang Bánh (bữa ca) ngày ${dateLabel}? Còn lại hôm nay: ${remainText}`;
                 window.showConfirm(confirmMsg,
                     () => _doFetch({ mealType: type, typeMeal: typeMeal, fromDate: dateStr, toDate: dateStr }),
-                    { title: '🥐 Phiếu Bánh', okText: 'Xác nhận', okClass: 'btn-warning',
+                    { title: 'Phiếu Bánh', okText: 'Xác nhận', okClass: 'btn-warning',
                       icon: 'bakery_dining', iconColor: '#d97706', iconBg: '#fef9c3' });
             })
             .catch(() => window.showToast('Lỗi kết nối, vui lòng thử lại', 'error'));

@@ -239,7 +239,7 @@ textarea.input-modern { resize: none; min-height: 120px; }
                 </div>
             </div>
             <div class="type-card ai" id="aiTypeCard" onclick="selectType('AI', this)">
-                <div class="tc-icon">🤖</div>
+                <div class="tc-icon">@Html.Icon3D("ai-csr")</div>
                 <div class="tc-text">
                     <div class="tc-title">Chat với AI</div>
                     <div class="tc-desc" style="color:#dc2626;font-weight:700">Không phải người thật trả lời, có thể sai</div>
@@ -511,7 +511,7 @@ function checkExistingTopic(cd) {
     if (existing) {
         const href = `@Url.Action("Chat","EmployeeInquiry")?id=${existing.id}`;   // chỉ có hội thoại TRỰC TIẾP; ẩn danh không dò theo thiết bị
         warn.style.display = '';
-        warn.innerHTML = `⚠️ Bạn đang có hội thoại <strong>${existing.inquiryNo}</strong> đang mở về chủ đề này. <a href="${href}" class="fw-bold">Xem hội thoại cũ →</a>`;
+        warn.innerHTML = `${window.ic3d('warning')} Bạn đang có hội thoại <strong>${existing.inquiryNo}</strong> đang mở về chủ đề này. <a href="${href}" class="fw-bold">Xem hội thoại cũ →</a>`;
     } else {
         warn.style.display = 'none';
     }

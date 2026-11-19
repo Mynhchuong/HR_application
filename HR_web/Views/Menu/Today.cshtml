@@ -19,25 +19,28 @@
         (
             Key: "CA1",
             Title: "Ca 1 — Hành Chính",
-            Icon: "🌅",
+            Icon: "shift-morning",
             BgGradient: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
-            TimeBadge: "☀️ Bữa Trưa",
+            TimeBadge: "Bữa Trưa",
+            BadgeIcon: "shift-noon",
             Desc: "Áp dụng cho mọi ca hành chính, ca 1 & ca hành chính"
         ),
         (
             Key: "CA2",
             Title: "Ca 2 — Tăng Ca",
-            Icon: "🌆",
+            Icon: "shift-afternoon",
             BgGradient: "linear-gradient(135deg, #15803d 0%, #16a34a 100%)",
-            TimeBadge: "🌇 Bữa Tăng Ca",
+            TimeBadge: "Bữa Tăng Ca",
+            BadgeIcon: "shift-afternoon",
             Desc: "Chỉ áp dụng nếu có đăng ký tăng ca  & ca 2"
         ),
         (
             Key: "CA3",
             Title: "Ca 3 — Tối & Đêm",
-            Icon: "🌙",
+            Icon: "shift-night",
             BgGradient: "linear-gradient(135deg, #b45309 0%, #d97706 100%)",
-            TimeBadge: "🌃 Bữa Đêm Ca 3",
+            TimeBadge: "Bữa Đêm Ca 3",
+            BadgeIcon: "shift-night",
             Desc: "Phục vụ nhân viên ca 3 / ca đêm"
         )
     };
@@ -51,7 +54,11 @@
     };
     var mealLabels = new Dictionary<string,string>
     {
-        { "MAN","🍖 Món mặn" }, { "DU_KIEN","📋 Dự kiến" }, { "NHE","🥗 Món nhẹ" }, { "CHAY","🥦 Món chay" }, { "BANH","🥐 Suất 2 món Bánh" }
+        { "MAN","Món mặn" }, { "DU_KIEN","Dự kiến" }, { "NHE","Món nhẹ" }, { "CHAY","Món chay" }, { "BANH","Suất 2 món Bánh" }
+    };
+    var mealIcons = new Dictionary<string,string>
+    {
+        { "MAN","meal-main" }, { "DU_KIEN","survey" }, { "NHE","meal-light" }, { "CHAY","meal-veg" }, { "BANH","meal-bread" }
     };
     bool isEmpty = !Model.Any();
 }
@@ -77,7 +84,9 @@
         overflow: hidden;
     }
     .tp-hero::after {
-        content: '🍱';
+        content: '';
+        width: 110px; height: 110px;
+        background: url('@Url.Content("~/assets/icons/3d/menu.webp")?v=1') center / contain no-repeat;
         position: absolute;
         right: -10px;
         bottom: -15px;
@@ -402,7 +411,7 @@
 
     <!-- 1. Hero Header -->
     <div class="tp-hero">
-        <div class="tp-hero-badge">🍱 THỰC ĐƠN HÔM NAY</div>
+        <div class="tp-hero-badge">@Html.Icon3D("menu") THỰC ĐƠN HÔM NAY</div>
         <div class="tp-hero-day">@todayLabel</div>
         <div class="tp-hero-full">@today.ToString("dd/MM/yyyy")</div>
     </div>
@@ -421,39 +430,39 @@
     @{
         var userMeals = ViewBag.UserMeals as List<HR_web.Models.Menu.UserTodayMealModel>;
         var mealEmoji = new Dictionary<string,string>
-        { { "MAN","🍖" }, { "NHE","🥗" }, { "CHAY","🥦" }, { "BANH","🥐" } };
+        { { "MAN","meal-main" }, { "NHE","meal-light" }, { "CHAY","meal-veg" }, { "BANH","meal-bread" } };
     }
 
     @if (userMeals != null && userMeals.Any())
     {
         var lunch = userMeals.FirstOrDefault(m => m.SHIFT == "LUNCH") ?? userMeals.First();
         var otMeal = userMeals.FirstOrDefault(m => m.SHIFT == "OT");
-        var emojiL = lunch.FOOD_TYPE != null && mealEmoji.TryGetValue(lunch.FOOD_TYPE, out var emL) ? emL : "🍽️";
-        var emojiO = otMeal?.FOOD_TYPE != null && mealEmoji.TryGetValue(otMeal.FOOD_TYPE, out var emO) ? emO : "🍽️";
+        var emojiL = lunch.FOOD_TYPE != null && mealEmoji.TryGetValue(lunch.FOOD_TYPE, out var emL) ? emL : "meal-default";
+        var emojiO = otMeal?.FOOD_TYPE != null && mealEmoji.TryGetValue(otMeal.FOOD_TYPE, out var emO) ? emO : "meal-default";
 
         <div class="tp-mymeal">
             <div class="tp-mymeal-header">
-                <div class="tp-mymeal-ttl">📌 Suất ăn bạn đã đăng ký</div>
+                <div class="tp-mymeal-ttl">@Html.Icon3D("pin") Suất ăn bạn đã đăng ký</div>
                 <span class="tp-mymeal-status">✓ Đã ghi nhận</span>
             </div>
             <div class="tp-mymeal-content">
                 <div class="tp-mymeal-left">
                     <div class="tp-mymeal-item">
                         <span class="tp-mymeal-label">Trưa: </span>
-                        <span class="tp-mymeal-val">@emojiL @lunch.FOOD_NAME</span>
+                        <span class="tp-mymeal-val">@Html.Icon3D(emojiL) @lunch.FOOD_NAME</span>
                     </div>
                     @if (otMeal != null)
                     {
                         <div class="tp-mymeal-item">
                             <span class="tp-mymeal-label">Tăng ca: </span>
-                            <span class="tp-mymeal-val">@emojiO @otMeal.FOOD_NAME</span>
+                            <span class="tp-mymeal-val">@Html.Icon3D(emojiO) @otMeal.FOOD_NAME</span>
                         </div>
                     }
                 </div>
                 @if (User.Identity?.IsAuthenticated == true)
                 {
                     <a href="@Url.Action("ChangeMeal")" class="tp-mymeal-btn">
-                        <span>🔄 Đổi món</span>
+                        <span>@Html.Icon3D("m-history") Đổi món</span>
                     </a>
                 }
             </div>
@@ -469,7 +478,7 @@
                     </div>
                 </div>
                 <a href="@Url.Action("ChangeMeal")" class="tp-mymeal-btn">
-                    <span>➕ Chọn món</span>
+                    <span>@Html.Icon3D("meal-default") Chọn món</span>
                 </a>
             </div>
         </div>
@@ -477,7 +486,7 @@
 
     <!-- 4. Feedback CTA -->
     <a href="@Url.Action("Create","EmployeeInquiry", new { topicCd = "CANTEEN", chatType = "DIRECT" })" class="tp-feedback">
-        <div class="tp-feedback-icon">💬</div>
+        <div class="tp-feedback-icon">@Html.Icon3D("message")</div>
         <div class="tp-feedback-body">
             <div class="tp-feedback-title">Món ăn hôm nay chưa vừa ý?</div>
             <div class="tp-feedback-desc">Nguội, có vị lạ, chưa ngon… Hãy phản ánh để chúng tôi cải thiện.</div>
@@ -495,7 +504,7 @@
         <div class="tp-shift">
             <div class="tp-shift-hd" style="background:linear-gradient(135deg, #b45309 0%, #eab308 100%);">
                 <div class="tp-shift-hd-left">
-                    <span class="tp-shift-icon">🥐</span>
+                    <span class="tp-shift-icon">@Html.Icon3D("meal-bread")</span>
                     <div>
                         <div class="tp-shift-title">Suất 2 món Bánh</div>
                         <div class="tp-shift-desc">Luôn có mỗi ngày</div>
@@ -524,7 +533,7 @@
                         </div>
                     }
                     <div class="tp-meal-body">
-                        <span class="tp-meal-badge" style="background:#FEF9C3;color:#78350F;">🥐 Bánh</span>
+                        <span class="tp-meal-badge" style="background:#FEF9C3;color:#78350F;">@Html.Icon3D("meal-bread") Bánh</span>
                         <div class="tp-meal-name">@b.FoodName</div>
                     </div>
                     <div class="tp-meal-action">
@@ -540,7 +549,7 @@
     @if (isEmpty)
     {
         <div class="tp-empty">
-            <span class="tp-empty-icon">🍽️</span>
+            <span class="tp-empty-icon">@Html.Icon3D("meal-default")</span>
             <p>Chưa có thực đơn hôm nay<br/>hoặc hôm nay là ngày nghỉ.</p>
         </div>
     }
@@ -564,13 +573,13 @@
             <div class="tp-shift">
                 <div class="tp-shift-hd" style="background:@shift.BgGradient;">
                     <div class="tp-shift-hd-left">
-                        <span class="tp-shift-icon">@shift.Icon</span>
+                        <span class="tp-shift-icon">@Html.Icon3D(shift.Icon)</span>
                         <div>
                             <div class="tp-shift-title">@shift.Title</div>
                             <div class="tp-shift-desc">@shift.Desc</div>
                         </div>
                     </div>
-                    <span class="tp-shift-pill">@shift.TimeBadge</span>
+                    <span class="tp-shift-pill">@Html.Icon3D(shift.BadgeIcon) @shift.TimeBadge</span>
                 </div>
                 @foreach (var grp in byMeal)
                 {
@@ -606,7 +615,7 @@
                             }
                             <div class="tp-meal-body">
                                 <span class="tp-meal-badge"
-                                      style="background:@colors.bg; color:@colors.fg;">@label</span>
+                                      style="background:@colors.bg; color:@colors.fg;">@Html.Icon3D(mealIcons.GetValueOrDefault(grp.Key, "meal-default")) @label</span>
                                 <div class="tp-meal-name">@foodName</div>
                             </div>
                             <div class="tp-meal-action">
@@ -661,23 +670,23 @@ function getWeekRangeIso() {
         if (lockedScopes.length > 0) {
             const note = (resL?.note || resO?.note);
             const noteLine = note
-                ? `<div style="font-weight:500;font-size:.76rem;color:#991b1b;margin-top:.2rem;font-style:italic;">📝 ${escTxt(note)}</div>`
+                ? `<div style="font-weight:500;font-size:.76rem;color:#991b1b;margin-top:.2rem;font-style:italic;">${window.ic3d('survey')} ${escTxt(note)}</div>`
                 : '';
             banner.style.display = 'block';
             banner.innerHTML = `
                 <div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:14px;padding:.75rem .95rem;font-size:.82rem;font-weight:700;line-height:1.5;box-shadow:0 2px 8px rgba(220,38,38,0.08);">
-                    🔒 Hôm nay (<b>${dLabel}</b>) đã khóa đổi món <span style="color:#7f1d1d">[${lockedScopes.join(' + ')}]</span> — không thể thay đổi món ăn nữa.
+                    ${window.ic3d('meal-locked')} Hôm nay (<b>${dLabel}</b>) đã khóa đổi món <span style="color:#7f1d1d">[${lockedScopes.join(' + ')}]</span> — không thể thay đổi món ăn nữa.
                     ${noteLine}
                 </div>`;
         } else if (warnScopes.length > 0) {
             const lines = warnScopes.map(w => `${w.sc}: ${escTxt(w.d.reason)}`).join('<br>');
             const note = warnScopes[0].d.note;
             const noteLine = note
-                ? `<br><span style="font-style:italic;">📝 ${escTxt(note)}</span>` : '';
+                ? `<br><span style="font-style:italic;">${window.ic3d('survey')} ${escTxt(note)}</span>` : '';
             banner.style.display = 'block';
             banner.innerHTML = `
                 <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:14px;padding:.75rem .95rem;font-size:.82rem;line-height:1.5;box-shadow:0 2px 8px rgba(217,119,6,0.08);">
-                    ⏰ Hôm nay (<b>${dLabel}</b>) sẽ chốt số lượng món:<br>${lines}${noteLine}
+                    ${window.ic3d('overtime')} Hôm nay (<b>${dLabel}</b>) sẽ chốt số lượng món:<br>${lines}${noteLine}
                 </div>`;
         }
     } catch {}
@@ -730,7 +739,7 @@ function getWeekRangeIso() {
                 cutLine = `<strong style="color:#dc2626;">Khoá đổi món cả ngày</strong>`;
             }
 
-            const noteLine = r.note ? `<div style="font-size:0.75rem;color:#9a3412;margin-top:2px;font-style:italic;">📝 ${escTxt(r.note)}</div>` : '';
+            const noteLine = r.note ? `<div style="font-size:0.75rem;color:#9a3412;margin-top:2px;font-style:italic;">${window.ic3d('survey')} ${escTxt(r.note)}</div>` : '';
 
             return `<div style="background:rgba(255,255,255,0.85);border:1px solid rgba(254,215,170,0.7);border-radius:10px;padding:8px 12px;margin-bottom:5px;">
                 <div><strong>${mealType} ${mealDayStr}</strong>: ${cutLine}</div>
@@ -743,7 +752,7 @@ function getWeekRangeIso() {
         banner.innerHTML = `
             <div style="background:linear-gradient(135deg, #fffdfa 0%, #fff7ed 100%);border:1px solid #fed7aa;border-radius:14px;padding:.75rem .95rem;color:#7c2d12;font-size:.82rem;line-height:1.5;box-shadow:0 4px 14px rgba(234,88,12,0.08);">
                 <div style="font-weight:800;color:#9a3412;margin-bottom:.4rem;display:flex;align-items:center;gap:6px;">
-                    <span>⏰</span>
+                    <span>${window.ic3d('overtime')}</span>
                     <span>Lịch chốt suất ăn tuần này</span>
                 </div>
                 ${items}

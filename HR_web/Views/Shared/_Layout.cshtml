@@ -56,6 +56,15 @@
     <!-- Menu điều hướng (sidebar + hamburger + mobile bottom-nav) — tách riêng 2026-10-13 cho dễ sửa -->
     <link href="~/assets/css/hr-nav.css" rel="stylesheet" asp-append-version="true" />
 
+    <script>
+        // Icon 3D dùng chung cho JS (xem Helpers/Icon3DHelper.cs)
+        window.IC3D_BASE = '@Url.Content("~/assets/icons/3d/")';
+        window.IC3D_EXT = '@Icon3DHelper.Ext';
+        window.MENU_IC3D = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Icon3DHelper.MenuMap));
+        window.ic3d = function (key, cls) {
+            return '<img class="ic3d' + (cls ? ' ' + cls : '') + '" src="' + window.IC3D_BASE + key + window.IC3D_EXT + '" alt="" loading="lazy" decoding="async">';
+        };
+    </script>
     @RenderSection("Styles", required: false)
     @if (MobileHelper.IsMobileApp(Context))
     {

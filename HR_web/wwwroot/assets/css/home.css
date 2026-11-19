@@ -647,6 +647,9 @@ body.home-hero-popup-open { overflow: hidden; }
     font-size: 1.4rem; margin-bottom: 6px; line-height: 1;
 }
 .home-tile-label { font-size: 0.72rem; font-weight: 600; line-height: 1.2; color: #334155; }
+.home-tile-icon .ic3d { width: 30px; height: 30px; }
+@media (min-width: 640px) { .home-tile-icon .ic3d { width: 40px; height: 40px; } }
+@media (min-width: 900px) { .home-tile-icon .ic3d { width: 44px; height: 44px; } }
 .home-tile[data-c="sky"]    { --tile-c: #e0f2fe; }
 .home-tile[data-c="amber"]  { --tile-c: #fef3c7; }
 .home-tile[data-c="rose"]   { --tile-c: #ffe4e6; }

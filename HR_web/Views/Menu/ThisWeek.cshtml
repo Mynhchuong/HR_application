@@ -233,7 +233,7 @@
             <small>@monday.ToString("dd/MM") – @monday.AddDays(5).ToString("dd/MM/yyyy")</small>
         </div>
         <div class="d-flex flex-column align-items-end gap-1">
-            <span class="food-hero-icon">📅</span>
+            <span class="food-hero-icon">@Html.Icon3D("hr-sunday")</span>
             @if (isNextWeek && !autoNextWeek)
             {
                 <a href="@Url.Action("ThisWeek","Menu")" class="btn btn-sm"
@@ -254,13 +254,13 @@
     @if (autoNextWeek)
     {
         <div class="auto-nextweek-note">
-            🗓️ Hôm nay Chủ nhật — thực đơn <b>tuần sau</b> đã được hiển thị sẵn cho bạn xem trước.
+            @Html.Icon3D("hr-sunday") Hôm nay Chủ nhật — thực đơn <b>tuần sau</b> đã được hiển thị sẵn cho bạn xem trước.
         </div>
     }
     else if (!isNextWeek && hasNextWeek)
     {
         <a href="@Url.Action("NextWeek","Menu")" class="next-week-cta">
-            <span class="cta-title">📢 Căn tin đã đăng thực đơn tuần sau!</span>
+            <span class="cta-title">@Html.Icon3D("bulletin-comment") Căn tin đã đăng thực đơn tuần sau!</span>
             <span class="cta-tap">👉 Nhấn vào đây để xem thực đơn tuần sau</span>
         </a>
     }
@@ -283,7 +283,7 @@
     @if (isEmpty)
     {
         <div class="holiday-msg">
-            <div style="font-size:2.8rem;margin-bottom:.5rem;">🍽️</div>
+            <div style="font-size:2.8rem;margin-bottom:.5rem;">@Html.Icon3D("meal-default")</div>
             @if (noNextWeekMsg)
             {
                 <p>Hôm nay Chủ nhật — căn tin <b>chưa cập nhật</b> thực đơn tuần sau.<br />Bạn vui lòng quay lại xem sau nhé!</p>
@@ -311,7 +311,7 @@
                     <span class="day-tab-name">
                         @dayName
                         @if (isToday) { <span class="dot"></span> }
-                        <span class="day-lock-ico" data-lock-day="@dayNo" style="display:none;font-size:.7rem;margin-left:2px;">🔒</span>
+                        <span class="day-lock-ico" data-lock-day="@dayNo" style="display:none;font-size:.7rem;margin-left:2px;">@Html.Icon3D("meal-locked")</span>
                     </span>
                     @if (hasData)
                     {
@@ -334,7 +334,7 @@
                 @if (!dayItems.Any())
                 {
                     <div class="holiday-msg">
-                        <div style="font-size:2.2rem;margin-bottom:.4rem;">🏖️</div>
+                        <div style="font-size:2.2rem;margin-bottom:.4rem;">@Html.Icon3D("leave-today")</div>
                         <p>Ngày nghỉ — không có thực đơn</p>
                     </div>
                 }
@@ -350,7 +350,7 @@
                     var contentCode = (!string.IsNullOrEmpty(userMealCode) && mealBadge.ContainsKey(userMealCode)) ? userMealCode : "M";
                     var badge       = mealBadge[contentCode];
                     <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.6rem;padding:.45rem .75rem;border-radius:12px;background:@badge.bg;font-size:.78rem;font-weight:700;color:@badge.fg;">
-                        <span style="font-size:1rem;">🍽️</span> Bạn đăng ký: @badge.label
+                        <span style="font-size:1rem;">@Html.Icon3D("meal-default")</span> Bạn đăng ký: @badge.label
                     </div>
 
                     @foreach (var (shiftKey, shiftLabel, shiftColor) in shifts)
@@ -385,11 +385,11 @@
                                                      src="@imgUrl"
                                                      alt="@foodName" loading="lazy"
                                                      onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-                                                <div class="meal-img-ph" style="display:none;">🍴</div>
+                                                <div class="meal-img-ph" style="display:none;">@Html.Icon3D("meal-default")</div>
                                             }
                                             else
                                             {
-                                                <div class="meal-img-ph">🍴</div>
+                                                <div class="meal-img-ph">@Html.Icon3D("meal-default")</div>
                                             }
                                             <div class="meal-info">
                                                 <div class="meal-type">@lbl</div>
@@ -474,23 +474,23 @@ function applyLockToDay(dayNo, isoDate, lockInfo) {
         if (icon) icon.style.display = '';
         if (banner) {
             const noteLine = lockInfo.note
-                ? `<div style="font-weight:500;font-size:.72rem;color:#7f1d1d;margin-top:.2rem;font-style:italic;">📝 ${escTxt(lockInfo.note)}</div>`
+                ? `<div style="font-weight:500;font-size:.72rem;color:#7f1d1d;margin-top:.2rem;font-style:italic;">${window.ic3d('survey')} ${escTxt(lockInfo.note)}</div>`
                 : '';
             banner.style.display = '';
             banner.innerHTML = `
                 <div style="background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;border-radius:10px;padding:.55rem .75rem;font-size:.8rem;font-weight:700;line-height:1.5;">
-                    🔒 Ngày <b>${dLabel}</b> có sự kiện đặc biệt nên kể từ bây giờ không thể đổi món cho ngày đó. Xin cảm ơn!
+                    ${window.ic3d('meal-locked')} Ngày <b>${dLabel}</b> có sự kiện đặc biệt nên kể từ bây giờ không thể đổi món cho ngày đó. Xin cảm ơn!
                     ${noteLine}
                 </div>`;
         }
     } else if (lockInfo.reason && lockInfo.cutoffDt) {
         if (banner) {
             const noteLine = lockInfo.note
-                ? `<br><span style="font-style:italic;">📝 ${escTxt(lockInfo.note)}</span>` : '';
+                ? `<br><span style="font-style:italic;">${window.ic3d('survey')} ${escTxt(lockInfo.note)}</span>` : '';
             banner.style.display = '';
             banner.innerHTML = `
                 <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:.5rem .75rem;font-size:.78rem;line-height:1.5;">
-                    ⏰ Ngày <b>${dLabel}</b> sẽ chốt số lượng — ${escTxt(lockInfo.reason)}.${noteLine}
+                    ${window.ic3d('overtime')} Ngày <b>${dLabel}</b> sẽ chốt số lượng — ${escTxt(lockInfo.reason)}.${noteLine}
                 </div>`;
         }
     }

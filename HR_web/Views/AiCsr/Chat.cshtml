@@ -31,6 +31,8 @@
     .msg.ai  .bub { background:#fff; border:1px solid #e2e8f0; border-bottom-left-radius:4px; }
     .msg.ai.failed .bub { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
     .msg.csr .av { background:#dcfce7; }
+    .msg .av .ic3d { width:20px;height:20px; }
+    .aic-head .bot .ic3d { width:26px;height:26px; }
     .msg.csr .bub { background:#f0fdf4; border:1px solid #bbf7d0; border-bottom-left-radius:4px; }
     .msg.csr .who { color:#15803d; }
     .msg.pending .bub { opacity:.65; }
@@ -43,7 +45,7 @@
 <div class="aic-wrap">
     @Html.AntiForgeryToken()
     <div class="aic-head">
-        <div class="bot">🤖</div>
+        <div class="bot">@Html.Icon3D("ai-csr")</div>
         <div style="flex:1">
             <h6>AI SAMHO - CSR</h6>
             <small>Hỏi nhanh — AI trả lời ngay, CSR sẽ hỗ trợ thêm nếu cần</small>
@@ -90,7 +92,7 @@ function safeHtml(html){
 function bubble(m){
     const t = m.senderType;
     const cls = (t === 'EMP' ? 'emp' : t === 'CSR' ? 'csr' : ('ai' + (m.aiFailed ? ' failed' : ''))) + (m.pending ? ' pending' : '');
-    const av  = t === 'EMP' ? '🧑' : t === 'CSR' ? '🎧' : '🤖';
+    const av  = window.ic3d(t === 'EMP' ? 'profile' : t === 'CSR' ? 'csr-agent' : 'ai-csr');
     // Không hiện tên thật của CSR/HR cho công nhân thấy — luôn hiện nhãn chung "Hỗ trợ CSR"
     // (yêu cầu 2026-10-02), dù senderName thật vẫn được lưu DB/thấy ở màn hình quản lý.
     const who = t === 'EMP' ? '' : t === 'CSR' ? `<div class="who">Hỗ trợ CSR</div>` : `<div class="who">AI SAMHO - CSR</div>`;

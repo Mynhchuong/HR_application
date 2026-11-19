@@ -461,8 +461,8 @@ const LT_POLICY_NOTE = {
         '• <b>9 ngày</b> nếu vợ sanh mổ.<br>' +
         '• <b>12 ngày</b> nếu vợ sanh đôi hoặc sanh con thứ 2 trở đi.'
 };
-const DOC_WARNING_NOTE_ALWAYS = '⚠️ <b>Lưu ý:</b> Nghỉ loại này sẽ bị tính <b>mất chuyên cần</b> và <b>mất ngày công</b>, dù có nộp giấy tờ chứng minh hay không.';
-const DOC_WARNING_NOTE_COND = '⚠️ <b>Lưu ý:</b> Phải nộp giấy tờ chứng minh cho phòng Nhân sự trong tháng này. ' +
+const DOC_WARNING_NOTE_ALWAYS = window.ic3d('warning') + ' <b>Lưu ý:</b> Nghỉ loại này sẽ bị tính <b>mất chuyên cần</b> và <b>mất ngày công</b>, dù có nộp giấy tờ chứng minh hay không.';
+const DOC_WARNING_NOTE_COND = window.ic3d('warning') + ' <b>Lưu ý:</b> Phải nộp giấy tờ chứng minh cho phòng Nhân sự trong tháng này. ' +
     'Nếu không nộp sẽ bị <b>mất chuyên cần</b>.';
 function updateLTNote(prefix) {
     const val   = document.getElementById(prefix + 'LeaveType')?.value;

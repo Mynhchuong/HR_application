@@ -50,6 +50,7 @@
         .btn-home:active { transform: scale(0.98); }
         footer { margin-top: 24px; font-size: 0.75rem; color: #a0aec0; }
     </style>
+    <style>.ic3d{width:1.25em;height:1.25em;object-fit:contain;display:inline-block;vertical-align:-0.25em}</style>
 </head>
 <body>
     <div class="error-card">
@@ -59,10 +60,10 @@
             Web/App hiện đang gặp một sự cố nhỏ ngoài ý muốn. Đừng lo lắng, dữ liệu của bạn vẫn an toàn tuyệt đối!
         </div>
         <div class="instruction-box">
-            <p>📸 Vui lòng chụp màn hình này và gửi cho bộ phận Nhân Sự ngay lập tức.</p>
+            <p>@Html.Icon3D("qr-scan") Vui lòng chụp màn hình này và gửi cho bộ phận Nhân Sự ngay lập tức.</p>
             <div class="code-snippet">
-                <strong>📍 Đường dẫn:</strong> @Context.Request.Path <br />
-                <strong>⚠️ Thời gian:</strong> @DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                <strong>@Html.Icon3D("pin") Đường dẫn:</strong> @Context.Request.Path <br />
+                <strong>@Html.Icon3D("loading") Thời gian:</strong> @DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
             </div>
         </div>
         <a href="@Url.Action("Index", "Home")" class="btn-home">Trở về Trang Chủ</a>

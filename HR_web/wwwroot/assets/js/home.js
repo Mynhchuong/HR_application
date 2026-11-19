@@ -376,17 +376,17 @@
         // dưới. priority nhỏ hơn = quan trọng hơn, ưu tiên hiện trước khi 1 ngày có nhiều loại
         // (ô ngày trên điện thoại rất nhỏ, không thể hiện hết 5-6 icon cùng lúc).
         const EVENT_TYPES = {
-            ATT_MISSING: { icon: '🔴', priority: 1 },  // cần hành động ngay -> ưu tiên cao nhất
-            PAYDAY:      { icon: '⭐', priority: 2 },  // ngày 10 mỗi tháng, tin vui nên ưu tiên cao
-            TRAINING:    { icon: '📚', priority: 3 },  // buổi học phải tham gia
-            GIFT:        { icon: '🎁', priority: 4 },
-            LEAVE:       { icon: '🌴', priority: 5 },
-            ASSIGN:      { icon: '📅', priority: 6 },
-            GP:          { icon: '🚪', priority: 7 },
-            OT:          { icon: '⏱️', priority: 8 },
+            ATT_MISSING: { icon: 'att-missing', priority: 1 },  // cần hành động ngay -> ưu tiên cao nhất
+            PAYDAY:      { icon: 'payday', priority: 2 },  // ngày 10 mỗi tháng, tin vui nên ưu tiên cao
+            TRAINING:    { icon: 'training', priority: 3 },  // buổi học phải tham gia
+            GIFT:        { icon: 'gift', priority: 4 },
+            LEAVE:       { icon: 'leave-today', priority: 5 },
+            ASSIGN:      { icon: 'assigned-leave', priority: 6 },
+            GP:          { icon: 'gatepass', priority: 7 },
+            OT:          { icon: 'overtime', priority: 8 },
         };
         const MAX_ICONS_PER_CELL = 3; // hơn số này thì gộp thành chip "+N", bấm vào ô vẫn xem đủ
-        function iconFor(type) { return EVENT_TYPES[type]?.icon || '📌'; }
+        function iconFor(type) { return window.ic3d(EVENT_TYPES[type]?.icon || 'pin'); }
         // Nhãn trạng thái nộp giấy tờ trong popup chi tiết ngày — DOC_STATUS giờ tính RIÊNG CHO
         // TỪNG NGÀY (không phải trạng thái chung cả đơn nữa), nên nhãn cũng nói rõ "ngày này".
         const DOC_STATUS_LABEL = {
@@ -447,7 +447,7 @@
                     types.slice(0, MAX_ICONS_PER_CELL).forEach(t => {
                         const span = document.createElement('span');
                         span.className = `mc-emoji mc-emoji-${t}`;
-                        span.textContent = iconFor(t);
+                        span.innerHTML = iconFor(t);
                         dots.appendChild(span);
                     });
                     const hidden = types.length - MAX_ICONS_PER_CELL;

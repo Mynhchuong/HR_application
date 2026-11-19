@@ -201,6 +201,7 @@
 
         .d-none { display: none !important; }
     </style>
+    <style>.ic3d{width:1.25em;height:1.25em;object-fit:contain;display:inline-block;vertical-align:-0.25em}</style>
 </head>
 <body>
     <div class="login-screen">
@@ -221,7 +222,7 @@
 
                 @if (TempData["InfoMessage"] != null)
                 {
-                    <div class="notice notice-ok">✅ @TempData["InfoMessage"]</div>
+                    <div class="notice notice-ok">@Html.Icon3D("success") @TempData["InfoMessage"]</div>
                 }
 
                 @* Phiên hết hạn bị đá về đây (AntiforgeryExpiredFilter) — phải nói rõ lý do. *@
@@ -275,7 +276,7 @@
                 <button type="submit" class="btn-login">Đăng nhập / Sign in</button>
 
                 <a href="@Url.Action("ForgotPassword","Account")" class="link-forgot">
-                    🔑 Quên mật khẩu? / Forgot password?
+                    @Html.Icon3D("login") Quên mật khẩu? / Forgot password?
                 </a>
             </form>
         </div>

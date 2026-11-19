@@ -98,9 +98,9 @@
         readAll: '@Url.Action("MarkAllRead", "Notification")'
     };
     const ICONS = {
-        PAYSLIP: '💰', LEAVE_MY: '🏖️', LEAVE_TEAM: '👥', LEAVE_ASSIGNED: '📋', LEAVE_MANAGE: '✅',
-        OT_SIGN: '⏰', ATT_CONFIRM_WORKER: '🕒', ATT_CONFIRM_MANAGER: '🕒', GIFT_MY: '🎁',
-        GP_MY: '🚪', GP_MANAGE: '🔑', BULLETIN: '📰', AI_CSR: '🤖', SURVEY: '📝'
+        PAYSLIP: 'payslip', LEAVE_MY: 'leave-today', LEAVE_TEAM: 'team', LEAVE_ASSIGNED: 'assigned-leave', LEAVE_MANAGE: 'approve-leave',
+        OT_SIGN: 'overtime', ATT_CONFIRM_WORKER: 'attendance', ATT_CONFIRM_MANAGER: 'attendance', GIFT_MY: 'gift',
+        GP_MY: 'gatepass', GP_MANAGE: 'approve-gp', BULLETIN: 'hr-bulletin', AI_CSR: 'ai-csr', SURVEY: 'survey'
     };
     const badge = document.getElementById('hdrNotiBadge');
     const list  = document.getElementById('hdrNotiList');
@@ -134,9 +134,9 @@
 
     function iconOf(a) {
         a = a || '';
-        if (a.indexOf('inquiry/') === 0) return '💬';
-        if (a.indexOf('BULLETIN_CMT:') === 0) return '💬';
-        return ICONS[a] || '🔔';
+        if (a.indexOf('inquiry/') === 0) return window.ic3d('message');
+        if (a.indexOf('BULLETIN_CMT:') === 0) return window.ic3d('bulletin-comment');
+        return window.ic3d(ICONS[a] || 'bell');
     }
     function timeAgo(s) {
         const d = new Date(s), sec = Math.floor((Date.now() - d) / 1000);

@@ -16,7 +16,11 @@
         return {
             pin    : ko ? '즐겨찾기에 추가' : en ? 'Pin to favourites' : 'Ghim vào Yêu thích',
             unpin  : ko ? '즐겨찾기 해제'   : en ? 'Unpin'             : 'Bỏ ghim',
-            favs   : ko ? '즐겨찾기'        : en ? 'Favourites'        : 'Yêu thích'
+            favs   : ko ? '즐겨찾기'        : en ? 'Favourites'        : 'Yêu thích',
+            freq   : ko ? '자주 사용'       : en ? 'Frequently used'   : 'Hay dùng',
+            menu   : ko ? '메뉴'            : en ? 'Menu'              : 'Tất cả chức năng',
+            search : ko ? '기능 검색...'    : en ? 'Search features...' : 'Tìm chức năng (không cần dấu)...',
+            none   : ko ? '찾을 수 없습니다' : en ? 'Nothing found'     : 'Không tìm thấy chức năng nào'
         };
     })();
 
@@ -77,6 +81,24 @@
         }
         if (backdrop) {
             backdrop.addEventListener("click", function () { setMobileSidebar(false); });
+        }
+
+        // Vuốt sang TRÁI trên menu để đóng (2026-11-19) — thêm 1 cách đóng tự nhiên trên điện thoại,
+        // ngoài nút ✕ và chạm vùng tối. Chỉ tính khi vuốt ngang rõ ràng, vuốt dọc vẫn là cuộn menu.
+        var sidebarEl = document.getElementById("hr-sidebar");
+        if (sidebarEl) {
+            var sx = 0, sy = 0, tracking = false;
+            sidebarEl.addEventListener("touchstart", function (e) {
+                if (!isMobile() || !body.classList.contains("hr-mobile-open") || e.touches.length !== 1) { tracking = false; return; }
+                sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true;
+            }, { passive: true });
+            sidebarEl.addEventListener("touchend", function (e) {
+                if (!tracking) return;
+                tracking = false;
+                var t = e.changedTouches[0];
+                var dx = t.clientX - sx, dy = t.clientY - sy;
+                if (dx < -70 && Math.abs(dy) < Math.abs(dx) * 0.6) setMobileSidebar(false);
+            }, { passive: true });
         }
         window.addEventListener("resize", function () {
             if (!isMobile()) syncDesktopState();
@@ -172,6 +194,11 @@
         });
     }
 
+    // Bỏ dấu tiếng Việt để tìm "phep" ra "Nghỉ phép" (2026-11-19 — công nhân hay gõ không dấu)
+    function fold(s) {
+        return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+    }
+
     // ───────────────────── Tìm kiếm trong sidenav (lọc theo tên) ─────────────────────
     function initSidenavSearch() {
         var input = document.getElementById('sidenavSearch');
@@ -194,7 +221,7 @@
         }
 
         input.addEventListener('input', function () {
-            var q = this.value.trim().toLowerCase();
+            var q = fold(this.value.trim());
             var groups = document.querySelectorAll('#sidenav-collapse-main > ul > .nav-item');
 
             groups.forEach(function (group) {
@@ -214,7 +241,7 @@
 
                 var matched = 0;
                 children.forEach(function (c) {
-                    var title = c.getAttribute('data-search') || '';
+                    var title = fold(c.getAttribute('data-search') || '');
                     if (title.includes(q)) { c.style.display = ''; matched++; }
                     else { c.style.display = 'none'; }
                 });
@@ -230,10 +257,206 @@
         });
     }
 
+
+    // ───────────────────── (2) "Hay dùng" — tự nhớ chức năng mở nhiều nhất ─────────────────────
+    // Đếm mỗi lần MỞ TRANG có trong menu (không cần bấm ⭐). Lưu trên máy (localStorage), tối đa 30 mục.
+    var USE_KEY = 'hr_menu_usage';
+    function getUsage() { try { return JSON.parse(localStorage.getItem(USE_KEY) || '{}'); } catch (e) { return {}; } }
+    function menuEntries() {
+        // Mỗi mục menu có nút ghim mang sẵn url/title/icon — dùng làm nguồn dữ liệu chung.
+        var seen = {}, list = [];
+        document.querySelectorAll('#sidenav-collapse-main .menu-pin-btn[data-pin-url]').forEach(function (b) {
+            var url = b.getAttribute('data-pin-url');
+            if (!url || seen[url]) return;
+            seen[url] = 1;
+            list.push({ url: url, title: b.getAttribute('data-pin-title') || '', icon: b.getAttribute('data-pin-icon') || '' });
+        });
+        return list;
+    }
+    function trackUsage() {
+        var path = location.pathname.toLowerCase().replace(/\/+$/, '');
+        var best = null;
+        menuEntries().forEach(function (m) {
+            var u = m.url.toLowerCase().replace(/\/+$/, '');
+            if (u && (path === u || path.indexOf(u + '/') === 0) && (!best || u.length > best.url.length)) best = m;
+        });
+        if (!best) return;
+        var usage = getUsage();
+        var cur = usage[best.url] || { n: 0 };
+        usage[best.url] = { t: best.title, i: best.icon, n: cur.n + 1, l: Date.now() };
+        var keys = Object.keys(usage);
+        if (keys.length > 30) {
+            keys.sort(function (a, b) { return (usage[a].l || 0) - (usage[b].l || 0); });
+            keys.slice(0, keys.length - 30).forEach(function (k) { delete usage[k]; });
+        }
+        try { localStorage.setItem(USE_KEY, JSON.stringify(usage)); } catch (e) { }
+    }
+    function topUsed(n) {
+        var usage = getUsage();
+        var valid = {};
+        menuEntries().forEach(function (m) { valid[m.url] = m; });   // chỉ mục còn trong menu (đổi role/xoá mục thì bỏ)
+        return Object.keys(usage).filter(function (u) { return valid[u]; })
+            .sort(function (a, b) { return (usage[b].n - usage[a].n) || ((usage[b].l || 0) - (usage[a].l || 0)); })
+            .slice(0, n).map(function (u) { return valid[u]; });
+    }
+    function iconHtml(icon) {
+        return window.MENU_IC3D && window.MENU_IC3D[icon] && window.ic3d
+            ? window.ic3d(window.MENU_IC3D[icon])
+            : '<i class="material-symbols-rounded no-ic3d">' + escHtml(icon || 'apps') + '</i>';
+    }
+    function tilesHtml(items) {
+        return items.map(function (m) {
+            return '<a class="hr-tile" href="' + escHtml(m.url) + '"><span class="hr-tile-ic">' + iconHtml(m.icon) +
+                   '</span><span class="hr-tile-tx">' + escHtml(m.title) + '</span></a>';
+        }).join('');
+    }
+    function renderFrequent() {
+        var fav = document.getElementById('sidenavFavorites');
+        if (!fav) return;
+        var box = document.getElementById('sidenavFrequent');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'sidenavFrequent';
+            fav.parentNode.insertBefore(box, fav);
+        }
+        var top = topUsed(4);
+        if (top.length < 2) { box.style.display = 'none'; return; }   // mới dùng 0-1 trang thì chưa cần
+        box.style.display = '';
+        box.innerHTML = '<div class="hr-freq-head">' + NAV_LBL.freq + '</div><div class="hr-tiles hr-tiles-4">' + tilesHtml(top) + '</div>';
+    }
+
+    // ───────────────────── (3) Nhớ nhóm menu đang mở ─────────────────────
+    var OPEN_KEY = 'hr_menu_open';
+    function initRememberGroups() {
+        var root = document.getElementById('sidenav-collapse-main');
+        if (!root) return;
+        var saved = [];
+        try { saved = JSON.parse(localStorage.getItem(OPEN_KEY) || '[]'); } catch (e) { }
+        saved.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (!el || !root.contains(el) || el.classList.contains('show')) return;
+            el.classList.add('show');
+            var a = root.querySelector('[href="#' + id + '"]');
+            if (a) a.setAttribute('aria-expanded', 'true');
+        });
+        function save() {
+            var ids = [];
+            root.querySelectorAll('.collapse.show[id]').forEach(function (c) { ids.push(c.id); });
+            try { localStorage.setItem(OPEN_KEY, JSON.stringify(ids)); } catch (e) { }
+        }
+        root.addEventListener('shown.bs.collapse', save);
+        root.addEventListener('hidden.bs.collapse', save);
+    }
+
+    // ───────────────────── (4) Chấm đỏ trên tiêu đề nhóm khi mục con có số chưa xử lý ─────────────────────
+    function updateGroupBadges() {
+        document.querySelectorAll('#sidenav-collapse-main > ul > .nav-item').forEach(function (g) {
+            var head = g.querySelector(':scope > .nav-link');
+            if (!head) return;
+            var total = 0;
+            g.querySelectorAll('.menu-unread-badge').forEach(function (b) {
+                if (b.style.display !== 'none') total += parseInt(b.textContent, 10) || 1;
+            });
+            var dot = head.querySelector('.menu-group-badge');
+            if (!dot) {
+                dot = document.createElement('span');
+                dot.className = 'menu-group-badge';
+                var chev = head.querySelector(':scope > .material-symbols-rounded, :scope > i');
+                head.insertBefore(dot, chev);
+            }
+            dot.textContent = total > 99 ? '99+' : total;
+            dot.style.display = total > 0 ? '' : 'none';
+        });
+    }
+    function initGroupBadges() {
+        var root = document.getElementById('sidenav-collapse-main');
+        if (!root) return;
+        updateGroupBadges();
+        var t;
+        new MutationObserver(function () { clearTimeout(t); t = setTimeout(updateGroupBadges, 50); })
+            .observe(root, { subtree: true, attributes: true, attributeFilter: ['style'], childList: true, characterData: true });
+    }
+
+    // ───────────────────── (6) Nút "Menu" ở thanh dưới: lưới ô kiểu màn hình điện thoại ─────────────────────
+    // Dựng từ chính menu trái (không khai báo lại danh sách) → thêm/bớt chức năng ở SideMenuBuilder là tự có.
+    function buildAppGrid() {
+        var sheet = document.getElementById('hrAppGrid');
+        if (sheet) return sheet;
+        sheet = document.createElement('div');
+        sheet.id = 'hrAppGrid';
+        sheet.className = 'hr-appgrid';
+        var groupsHtml = '';
+        document.querySelectorAll('#sidenav-collapse-main > ul > .nav-item').forEach(function (g) {
+            var title = (g.querySelector(':scope > .nav-link .nav-link-text') || {}).textContent || '';
+            var items = [];
+            g.querySelectorAll('.menu-child-item').forEach(function (li) {
+                var a = li.querySelector('a.nav-link');
+                if (!a) return;
+                var badge = li.querySelector('.menu-unread-badge');
+                items.push('<a class="hr-tile" href="' + escHtml(a.getAttribute('href')) + '" data-s="' + escHtml(fold(li.getAttribute('data-search') || '')) + '">' +
+                    '<span class="hr-tile-ic">' + ((li.querySelector('.menu-child-icon') || {}).innerHTML || '') +
+                    (badge && badge.style.display !== 'none' ? '<span class="hr-tile-badge">' + escHtml(badge.textContent) + '</span>' : '') +
+                    '</span><span class="hr-tile-tx">' + escHtml(((li.querySelector('.nav-link-text') || {}).textContent || '').trim()) + '</span></a>');
+            });
+            if (items.length) groupsHtml += '<section class="hr-ag-group"><h6>' + escHtml(title.trim()) + '</h6><div class="hr-tiles">' + items.join('') + '</div></section>';
+        });
+        var top = topUsed(4);
+        sheet.innerHTML =
+            '<div class="hr-ag-panel" role="dialog" aria-modal="true">' +
+                '<div class="hr-ag-head"><b>' + NAV_LBL.menu + '</b>' +
+                    '<button type="button" class="hr-ag-close" aria-label="Close"><i class="material-symbols-rounded no-ic3d">close</i></button></div>' +
+                '<div class="hr-ag-search"><i class="material-symbols-rounded no-ic3d">search</i><input type="text" placeholder="' + escHtml(NAV_LBL.search) + '" autocomplete="off"></div>' +
+                '<div class="hr-ag-body">' +
+                    (top.length >= 2 ? '<section class="hr-ag-group hr-ag-freq"><h6>⭐ ' + NAV_LBL.freq + '</h6><div class="hr-tiles">' + tilesHtml(top) + '</div></section>' : '') +
+                    groupsHtml +
+                    '<div class="hr-ag-none" style="display:none">' + NAV_LBL.none + '</div>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(sheet);
+        sheet.addEventListener('click', function (e) { if (e.target === sheet || e.target.closest('.hr-ag-close')) closeAppGrid(); });
+        var input = sheet.querySelector('.hr-ag-search input');
+        input.addEventListener('input', function () {
+            var q = fold(this.value.trim()), any = false;
+            sheet.querySelectorAll('.hr-ag-freq').forEach(function (f) { f.style.display = q ? 'none' : ''; });
+            sheet.querySelectorAll('.hr-ag-group:not(.hr-ag-freq)').forEach(function (sec) {
+                var n = 0;
+                sec.querySelectorAll('.hr-tile').forEach(function (t) {
+                    var ok = !q || (t.getAttribute('data-s') || '').indexOf(q) >= 0;
+                    t.style.display = ok ? '' : 'none';
+                    if (ok) n++;
+                });
+                sec.style.display = n ? '' : 'none';
+                if (n) any = true;
+            });
+            sheet.querySelector('.hr-ag-none').style.display = any ? 'none' : '';
+        });
+        return sheet;
+    }
+    function openAppGrid() {
+        if (!document.querySelector('#sidenav-collapse-main .menu-child-item')) { toggleSidebar(); return; }   // không có menu → dùng menu trái
+        var old = document.getElementById('hrAppGrid');
+        if (old) old.remove();                     // dựng lại mỗi lần để số đỏ/Hay dùng luôn mới
+        var sheet = buildAppGrid();
+        requestAnimationFrame(function () { sheet.classList.add('open'); });
+        body.classList.add('hr-ag-open');
+    }
+    function closeAppGrid() {
+        var sheet = document.getElementById('hrAppGrid');
+        if (!sheet) return;
+        sheet.classList.remove('open');
+        body.classList.remove('hr-ag-open');
+        setTimeout(function () { if (!sheet.classList.contains('open')) sheet.remove(); }, 250);
+    }
+    window.hrOpenAppGrid = openAppGrid;
+
     document.addEventListener('DOMContentLoaded', function () {
         initSidebarToggle();
         initPins();
         initSidenavSearch();
+        trackUsage();
+        renderFrequent();
+        initRememberGroups();
+        initGroupBadges();
     });
 })();
 

@@ -31,6 +31,43 @@
         .chat-input-wrap .btn-send { width: 44px; height: 44px; }
     }
 
+    /* Nút thoát có chữ + thanh "đã giải quyết xong" (2026-11-19) */
+    .emp-back-btn {
+        display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0;
+        background: #f1f5f9; color: #334155; border-radius: 999px;
+        padding: 6px 12px 6px 8px; font-size: .85rem; font-weight: 800; text-decoration: none;
+    }
+    .emp-back-btn .material-symbols-rounded { font-size: 1.15rem; }
+    .emp-back-btn:active, .emp-back-btn:hover { background: #e2e8f0; color: #0f172a; }
+    .emp-resolve-bar {
+        display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;
+        padding: 6px 12px; background: #f0fdf4; border-top: 1px solid #dcfce7;
+        font-size: .8rem; color: #166534; flex-shrink: 0;
+    }
+    .emp-resolve-btn {
+        background: none; border: 1.5px solid #86efac; color: #15803d; border-radius: 999px;
+        padding: 3px 12px; font-size: .78rem; font-weight: 800;
+    }
+    .emp-resolve-btn:active { background: #dcfce7; }
+
+    /* ── Dễ dùng cho công nhân lớn tuổi (2026-11-19): chữ to, nút to, nút nào cũng có chữ ── */
+    .chat-header-subj { font-size: 1.02rem; }
+    .emp-send { width: auto !important; min-width: 64px; padding: 0 12px; gap: 4px; display: inline-flex; align-items: center; justify-content: center; }
+    .emp-send-lbl { font-weight: 800; font-size: .95rem; }
+    @@media (max-width: 991.98px) {
+        .emp-back-btn { padding: 9px 14px 9px 10px; font-size: 1rem; }
+        .emp-back-btn .material-symbols-rounded { font-size: 1.3rem; }
+        .chat-header-no { display: none; }               /* mã INQ-... công nhân không cần, chừa chỗ cho tiêu đề */
+        .chat-header-subj { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .msg-bubble { font-size: 1.05rem; line-height: 1.5; }
+        .msg-time { font-size: .78rem; }
+        .emp-resolve-bar { font-size: .92rem; padding: 8px 12px; }
+        .emp-resolve-btn { font-size: .92rem; padding: 7px 16px; }
+        .chat-input-wrap .editor-content { font-size: 17px !important; }
+        .chat-input-wrap .btn-attach { width: 48px; height: 48px; }
+        .chat-input-wrap .btn-send   { height: 48px; }
+    }
+
     /* Rating modal (employee-only) */
     .stars { display: flex; gap: .25rem; justify-content: center; margin: .5rem 0; }
     .star  { font-size: 1.8rem; cursor: pointer; color: #e2e8f0; transition: color .15s; }
@@ -44,8 +81,9 @@
 <div class="chat-wrap">
     <!-- Header -->
     <div class="chat-header">
-        <a class="chat-header-back" href="@Url.Action("Index","EmployeeInquiry")">
-            <span class="material-symbols-rounded">arrow_back</span>
+        @* Nút thoát có CHỮ rõ ràng — công nhân hay nhầm mũi tên quay lại với "Kết thúc hội thoại" (2026-11-19) *@
+        <a class="emp-back-btn" href="@Url.Action("Index","EmployeeInquiry")">
+            <span class="material-symbols-rounded">arrow_back</span>Thoát
         </a>
         <div class="chat-header-info">
             <div class="chat-header-no">@inq.InquiryNo</div>
@@ -55,14 +93,6 @@
                 @if (isAnon) { <span class="anon-pill"><span class="material-symbols-rounded" style="font-size:.7rem;vertical-align:middle">visibility_off</span> Ẩn danh</span> }
             </div>
         </div>
-        @if (!isClosed)
-        {
-            <div class="chat-header-actions">
-                <button class="btn btn-sm btn-outline-danger" style="border-radius:10px;font-size:.78rem;font-weight:700" onclick="InquiryChat.confirmClose()">
-                    <span class="material-symbols-rounded me-1" style="font-size:.85rem;vertical-align:middle">close</span>Kết thúc hội thoại
-                </button>
-            </div>
-        }
     </div>
 
     <!-- Messages -->
@@ -195,6 +225,13 @@
     }
     else
     {
+        @* "Kết thúc hội thoại" dời khỏi header (nằm cạnh nút thoát nên công nhân bấm nhầm) xuống ngay
+           trên ô nhập, ghi rõ ý nghĩa "vấn đề đã giải quyết xong" — không còn trông giống nút đóng/thoát. *@
+        <div class="emp-resolve-bar">
+            <span class="material-symbols-rounded" style="font-size:1rem;color:#16a34a">task_alt</span>
+            <span>Đã giải quyết xong?</span>
+            <button type="button" class="emp-resolve-btn" onclick="InquiryChat.confirmClose()">Kết thúc hội thoại</button>
+        </div>
         <div class="chat-input-wrap">
             @* Hội thoại chưa có tin nào = công nhân vừa tạo xong, đang gõ tin ĐẦU TIÊN.
                Nhắc trước để khỏi bị FirstMessageGuard chặn rồi mới biết (yêu cầu CSR 2026-11-12). *@
@@ -232,8 +269,9 @@
                         <span id="charCounter" class="char-counter">0/2000</span>
                     </div>
                 </div>
-                <button class="btn-send" id="btnSend" onclick="InquiryChat.sendMessage()">
-                    <span class="material-symbols-rounded" style="font-size:1.2rem">send</span>
+                @* Nút gửi có chữ "Gửi" — chỉ có icon thì công nhân lớn tuổi không nhận ra (2026-11-19) *@
+                <button class="btn-send emp-send" id="btnSend" onclick="InquiryChat.sendMessage()">
+                    <span class="material-symbols-rounded no-ic3d" style="font-size:1.2rem">send</span><span class="emp-send-lbl">Gửi</span>
                 </button>
             </div>
         </div>

@@ -30,7 +30,27 @@
     .st-body  { flex: 1; min-width: 0; }
     .st-label { font-size: .95rem; font-weight: 600; color: #1e293b; }
     .st-desc  { font-size: .78rem; color: #94a3b8; margin-top: 2px; line-height: 1.35; }
-    .st-row .form-check-input { width: 2.6rem; height: 1.4rem; margin: 0; flex-shrink: 0; cursor: pointer; }
+    /* Công tắc tự vẽ (2026-11-19): công tắc mặc định lúc TẮT gần như trong suốt, khó thấy.
+       Giờ to hơn, lúc tắt nền xám đậm + núm trắng, lúc bật nền xanh lá; kèm chữ Bật/Tắt bên dưới. */
+    .st-sw { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
+    .st-row .form-check-input[role=switch] {
+        appearance: none; -webkit-appearance: none; position: relative;
+        width: 3.4rem; height: 1.95rem; margin: 0; flex-shrink: 0; cursor: pointer;
+        background: #94a3b8 !important; border: 2px solid #64748b !important; border-radius: 999px !important;
+        background-image: none !important; box-shadow: none !important; transition: background .2s, border-color .2s;
+    }
+    .st-row .form-check-input[role=switch]::after {
+        content: ''; position: absolute; top: 2px; left: 2px;
+        width: 1.45rem; height: 1.45rem; border-radius: 50%; background: #fff;
+        box-shadow: 0 1px 3px rgba(0,0,0,.35); transition: transform .2s;
+    }
+    .st-row .form-check-input[role=switch]:checked { background: #16a34a !important; border-color: #15803d !important; }
+    .st-row .form-check-input[role=switch]:checked::after { transform: translateX(1.45rem); }
+    .st-row .form-check-input[role=switch]:disabled { opacity: .5; }
+    .st-state { font-size: .72rem; font-weight: 800; color: #64748b; }
+    .st-state::after { content: attr(data-off); }
+    .form-check-input:checked + .st-state { color: #15803d; }
+    .form-check-input:checked + .st-state::after { content: attr(data-on); }
     .st-chev  { color: #cbd5e1; flex-shrink: 0; }
     .st-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 1080;
                 background: #1e293b; color: #fff; padding: .55rem 1.1rem; border-radius: 999px;
@@ -58,7 +78,10 @@
                         <div class="st-desc">@L("Việc gấp vẫn báo cho bạn dù đã tắt.", "Urgent items are still sent even when this is off.")</div>
                     </div>
                     @* checked = ĐANG BẬT nhận, tức PUSH_MUTED = 0 *@
-                    <input class="form-check-input" type="checkbox" role="switch" id="swPush" @(pushMuted ? "" : "checked")>
+                    <div class="st-sw">
+                        <input class="form-check-input" type="checkbox" role="switch" id="swPush" @(pushMuted ? "" : "checked")>
+                        <span class="st-state" data-on="@L("BẬT", "ON")" data-off="@L("TẮT", "OFF")"></span>
+                    </div>
                 </div>
             }
             else
@@ -140,7 +163,10 @@
                     <div class="st-label">@L("Đăng nhập bằng Face ID / vân tay", "Quick sign-in with Face ID / fingerprint")</div>
                     <div class="st-desc" id="bioDesc"></div>
                 </div>
-                <input class="form-check-input" type="checkbox" role="switch" id="swBio">
+                <div class="st-sw">
+                    <input class="form-check-input" type="checkbox" role="switch" id="swBio">
+                    <span class="st-state" data-on="@L("BẬT", "ON")" data-off="@L("TẮT", "OFF")"></span>
+                </div>
             </div>
         </div>
 

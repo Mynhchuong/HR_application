@@ -18,14 +18,14 @@
     // tiếng Anh thì rỗng để trExpat() fallback về chính chuỗi tiếng Anh, khỏi tải vài KB vô ích.
     var expatTrJson = isKo ? ExpatText.KoJson : "{}";   // serialize 1 lần, cache tĩnh
     var rawName = layoutUser?.FullName ?? layoutUser?.EmpCd ?? "User";
+    // Yêu cầu khách hàng 2026-11-19: máy tính hiện ĐỦ họ tên; điện thoại chỉ hiện họ + tên (chữ nhỏ).
     var displayName = rawName;
+    var shortName = rawName;
     if (!string.IsNullOrEmpty(rawName))
     {
         var nameParts = rawName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (nameParts.Length >= 3)
-        {
-            displayName = nameParts[0] + " ... " + nameParts[nameParts.Length - 1];
-        }
+            shortName = nameParts[0] + " " + nameParts[nameParts.Length - 1];
     }
 }
 <!DOCTYPE html>
@@ -194,8 +194,9 @@
             letter-spacing: -0.02em;
         }
 
+        .header-user-name-m { display: none; }
         .header-user-toggle {
-            max-width: 250px;
+            max-width: 420px;
             padding: 0.2rem 0.85rem 0.2rem 0.2rem !important;
             border-radius: 50px !important;
             border: 1.5px solid rgba(99,102,241,0.25) !important;
@@ -219,8 +220,8 @@
         }
 
         .header-user-icon {
-            width: 34px;
-            height: 34px;
+            width: 44px;   /* to hơn (khách hàng 2026-11-19, trước 34px) */
+            height: 44px;
             border-radius: 999px;
             display: inline-flex;
             align-items: center;
@@ -301,8 +302,8 @@
                (yêu cầu 2026-11-16). */
             /* Ảnh to, vòng tím ôm sát ảnh, mũi tên to (khách hàng góp ý 2026-11-18) */
             .header-user-icon {
-                width: 38px;
-                height: 38px;
+                width: 44px;   /* to hơn (khách hàng 2026-11-19, trước 38px) */
+                height: 44px;
                 font-size: 1.2rem;
             }
 
@@ -314,6 +315,11 @@
 
             .header-user-name {
                 display: none;
+            }
+            .header-user-name-m {
+                display: inline-block; max-width: 120px; margin-left: 6px;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                font-size: .74rem; font-weight: 700; color: #fff !important;
             }
 
             /* Trên điện thoại tên bị ẩn, chỉ còn mỗi ảnh -> không ai biết bấm vào ra menu.
@@ -409,6 +415,7 @@
                             <span class="material-symbols-rounded">person</span>
                         </span>
                         <span class="header-user-name vni-font" title="@rawName">@displayName</span>
+                        <span class="header-user-name-m vni-font">@shortName</span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg acct-menu">
                         <li>
@@ -465,34 +472,34 @@
     <nav class="mobile-bottom-nav">
         <a href="@Url.Content("~/Home/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Home") == true ? "active" : "")">
             <div class="icon-wrap">
-                <span class="material-symbols-rounded">home</span>
+                @Html.Icon3D("m-home")
             </div>
             <span class="nav-text">@T("Home", "홈")</span>
         </a>
         <a href="@Url.Content("~/Bulletin/Index")" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Bulletin") == true ? "active" : "")">
             <div class="icon-wrap" style="position:relative;">
-                <span class="material-symbols-rounded">campaign</span>
+                @Html.Icon3D("bulletin-comment")
                 <span id="bulletinBadge" style="display:none;position:absolute;top:-4px;right:-6px;background:#c00000;color:white;font-size:.6rem;font-weight:800;border-radius:20px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;"></span>
             </div>
             <span class="nav-text">@T("Bulletin", "공지")</span>
         </a>
         <a href="@Url.Content(notiUrl)" class="nav-item-mobile @(Context.Request.Path.Value?.Contains("/Notification") == true ? "active" : "")" id="navBell">
             <div class="icon-wrap" style="position:relative;">
-                <span class="material-symbols-rounded">notifications</span>
+                @Html.Icon3D("bell")
                 <span id="bellBadge" style="display:none;position:absolute;top:-4px;right:-6px;background:#c00000;color:white;font-size:.6rem;font-weight:800;border-radius:20px;padding:1px 5px;min-width:16px;text-align:center;line-height:1.4;"></span>
             </div>
             <span class="nav-text">@T("Notice", "알림")</span>
         </a>
         <a href="@Url.Content(inqUrl)" class="nav-item-mobile @(slot4Active ? "active" : "")">
             <div class="icon-wrap" style="position:relative;">
-                <span class="material-symbols-rounded">calendar_month</span>
+                @Html.Icon3D("team-calendar")
             </div>
             <span class="nav-text">@T("Calendar", "일정")</span>
         </a>
         <!-- Nối thẳng vào sidebar đầy đủ — trước đây bottom-nav mobile chỉ có 4 lối tắt cố định,
              tách biệt hẳn với sidebar (muốn vào chức năng khác phải mở hamburger ở header, xa tầm
              tay ngón cái) — hợp nhất 2 đường điều hướng lại (yêu cầu 2026-10-13). -->
-        <button type="button" class="nav-item-mobile" onclick="window.hrToggleSidebar && window.hrToggleSidebar()">
+        <button type="button" class="nav-item-mobile" onclick="(window.hrOpenAppGrid || window.hrToggleSidebar)()">
             <div class="icon-wrap">
                 <span class="material-symbols-rounded">menu</span>
             </div>
@@ -616,9 +623,9 @@
                         </div>
                     </div>
                     <h5 class="fw-bold mb-2" id="globalConfirmTitle">@T("Confirm", "확인")</h5>
-                    <p class="text-muted small mb-4" id="globalConfirmMessage"></p>
+                    <p class="text-muted small mb-4" id="globalConfirmMessage" style="white-space:pre-line"></p>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-light w-100 py-2 rounded-3 fw-bold" data-bs-dismiss="modal">@T("Cancel", "취소")</button>
+                        <button type="button" class="btn btn-light w-100 py-2 rounded-3 fw-bold" id="globalConfirmCancel" data-bs-dismiss="modal">@T("Cancel", "취소")</button>
                         <button type="button" class="btn btn-danger w-100 py-2 rounded-3 fw-bold" id="globalConfirmOk">@T("Delete", "삭제")</button>
                     </div>
                 </div>
@@ -807,8 +814,12 @@
         window.showConfirm = function(message, onConfirm, options) {
             const opts = options || {};
             document.getElementById('globalConfirmTitle').textContent   = opts.title   || (IS_KO_UI ? '확인' : 'Confirm');
-            document.getElementById('globalConfirmMessage').textContent = message;
+            // opts.html: message là HTML do code tự viết (KHÔNG truyền dữ liệu người dùng vào) — để tô đậm/đổi màu chỗ quan trọng
+            if (opts.html) document.getElementById('globalConfirmMessage').innerHTML = message;
+            else document.getElementById('globalConfirmMessage').textContent = message;
             document.getElementById('globalConfirmOk').textContent      = opts.okText  || (IS_KO_UI ? '삭제' : 'Delete');
+            // Nhãn nút huỷ tuỳ chỉnh (vd "Ở lại") — mặc định như cũ
+            document.getElementById('globalConfirmCancel').textContent = opts.cancelText || (IS_KO_UI ? '취소' : 'Cancel');
             document.getElementById('globalConfirmOk').className        = 'btn w-100 py-2 rounded-3 fw-bold ' + (opts.okClass || 'btn-danger');
             // Icon tuỳ chỉnh
             const iconEl   = document.getElementById('globalConfirmIcon');

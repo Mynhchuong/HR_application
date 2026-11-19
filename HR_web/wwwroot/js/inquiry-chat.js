@@ -526,8 +526,9 @@ window.InquiryChat = (function () {
     }
 
     function confirmClose() {
+        // Công nhân hay nhầm "Kết thúc" với "Thoát" → nói rõ hậu quả + chỉ cách thoát (2026-11-19)
         const msg = cfg.mySide === 'EMP'
-            ? 'Kết thúc hội thoại này? Bạn sẽ không thể gửi thêm tin nhắn.'
+            ? '<span style="display:block;background:#fef2f2;color:#b91c1c;font-weight:800;font-size:1rem;border-radius:10px;padding:10px 12px">Kết thúc rồi sẽ KHÔNG nhắn tiếp được nữa.</span>'
             : 'Đóng hội thoại này?';
         showConfirm(msg, async () => {
             const body = { inquiryId: cfg.inquiryId, closeNote: null };
@@ -542,7 +543,7 @@ window.InquiryChat = (function () {
             showToast(cfg.mySide === 'EMP' ? 'Hội thoại đã kết thúc' : 'Đã đóng hội thoại', 'success');
             setTimeout(() => location.reload(), 800);
         }, cfg.mySide === 'EMP'
-            ? { title: 'Kết thúc hội thoại', okText: 'Kết thúc', okClass: 'btn-warning', icon: 'close', iconColor: '#d97706', iconBg: '#fef3c7' }
+            ? { title: 'Kết thúc hội thoại?', html: true, okText: 'Kết thúc', cancelText: 'Ở lại', okClass: 'btn-success', icon: 'task_alt', iconColor: '#16a34a', iconBg: '#dcfce7' }
             : { title: 'Đóng hội thoại', okText: 'Đóng', okClass: 'btn-warning', icon: 'close', iconColor: '#d97706', iconBg: '#fef3c7' });
     }
 

@@ -468,3 +468,263 @@ body.kb-open .mobile-bottom-nav { display: none !important; }
 .ic3d-sw { width: 1.1em; height: 1.1em; object-fit: contain; display: inline-block; vertical-align: -0.15em; }
 .material-symbols-rounded > .ic3d-sw { width: 1em; height: 1em; vertical-align: 0; }
 i.bi3d::before, i.fa3d::before { content: none !important; }
+
+/* ═══════════ Menu trái trên ĐIỆN THOẠI — thiết kế lại cho dễ bấm (2026-11-19) ═══════════
+   Trước: tiêu đề nhóm chữ xám nhỏ + 2 mũi tên (1 của theme, 1 của mình), mục con là "viên thuốc"
+   hẹp bị thụt lề nên chữ xuống 2 dòng, nút ngôi sao lơ lửng bên ngoài.
+   Giờ: tiêu đề nhóm đậm + 1 mũi tên, mục con full ngang, cao ≥48px, chữ 1 dòng to rõ, ngôi sao mờ nằm trong hàng. */
+@media (max-width: 991.98px) {
+    /* Tiêu đề nhóm */
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"] {
+        margin: .15rem .5rem !important;
+        padding: .55rem .6rem !important;
+        border-radius: 14px;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"]::after { display: none !important; }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"] > .nav-link-text,
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"] .nav-link-text {
+        font-size: 1rem !important; font-weight: 800 !important; color: #0f172a !important;
+    }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"] > .material-symbols-rounded {
+        color: #64748b; font-size: 1.4rem; transition: transform .2s;
+    }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[aria-expanded="true"] > .material-symbols-rounded { transform: rotate(180deg); }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[aria-expanded="true"] { background: #f1f5f9 !important; }
+    #hr-sidebar .menu-icon-shell { width: 38px !important; height: 38px !important; margin-right: .65rem !important; }
+    #sidenav-collapse-main > .navbar-nav > .nav-item + .nav-item { margin-top: .5rem !important; }
+    #hr-sidebar .navbar-nav > .nav-item.mt-2 { margin-top: .25rem !important; }
+
+    /* Danh sách mục con: bỏ thụt lề để có đủ chiều ngang */
+    #hr-sidebar .navbar-nav > .nav-item > .collapse { padding-left: 0 !important; }
+    #hr-sidebar .menu-child-item > .d-flex { margin: .1rem .5rem .1rem 1rem; border-radius: 12px; }
+    #hr-sidebar .menu-child-item .nav-link {
+        margin: 0 !important; padding: .5rem .5rem !important;
+        min-height: 48px; align-items: center !important;
+        background: transparent !important; border-radius: 12px; box-shadow: none !important;
+    }
+    #hr-sidebar .menu-child-item .nav-link-text {
+        font-size: .95rem !important; font-weight: 600; color: #1e293b !important; padding-top: 0;
+    }
+    #hr-sidebar .menu-child-item .menu-child-icon {
+        width: 34px !important; height: 34px !important; border-radius: 10px; margin-right: .65rem !important;
+        display: inline-flex; align-items: center; justify-content: center;
+    }
+    #hr-sidebar .menu-child-icon .ic3d { width: 22px; height: 22px; }
+    #hr-sidebar .menu-child-item > .d-flex:active { background: #f1f5f9; }
+    /* Đang ở trang này: nền tím nhạt, chữ tím đậm (thay chữ trắng trên nền sáng khó đọc) */
+    #hr-sidebar .menu-child-item .nav-link.active { background: #eef2ff !important; }
+    #hr-sidebar .menu-child-item .nav-link.active .nav-link-text { color: #4338ca !important; font-weight: 800; }
+    #hr-sidebar .menu-pin-btn { width: 36px; height: 36px; color: #e2e8f0; }
+    #hr-sidebar .menu-pin-btn.pinned { color: #f59e0b; }
+    #hr-sidebar .menu-group-label { margin-left: 1.1rem; }
+}
+
+/* Thanh menu dưới dùng icon 3D (2026-11-19) — mục đang mở hiện rõ màu, mục khác hơi nhạt */
+.mobile-bottom-nav .icon-wrap .ic3d { width: 26px; height: 26px; vertical-align: 0; display: block; }
+.mobile-bottom-nav .nav-item-mobile:not(.active) .icon-wrap .ic3d { opacity: .8; filter: saturate(.85); }
+
+/* ═══════════ Header trên ĐIỆN THOẠI — nhìn rõ hơn (2026-11-19) ═══════════
+   Nút ☰ to + có nền, tiêu đề trang đậm/đen hơn, tên người dùng to + đậm hơn trong viên tím. */
+@media (max-width: 991.98px) {
+    .header-toggle-btn {
+        width: 42px !important; height: 42px !important; border-radius: 12px !important;
+        background: #eef2ff !important; color: #312e81 !important;
+        display: inline-flex !important; align-items: center; justify-content: center; padding: 0 !important;
+    }
+    .header-toggle-btn .material-symbols-rounded,
+    .header-toggle-btn i { font-size: 1.6rem !important; color: #312e81 !important; }
+    .header-title { font-size: 1.08rem !important; font-weight: 800 !important; color: #0f172a !important; }
+    .header-user-name-m {
+        font-size: .9rem !important; font-weight: 800 !important; max-width: 140px !important;
+        color: #fff !important; text-shadow: 0 1px 2px rgba(0,0,0,.25);
+    }
+    .header-user-toggle { padding-right: 12px !important; }
+}
+
+/* ═══════════ Menu trái điện thoại: CHỈ 1 vùng cuộn (2026-11-19) ═══════════
+   Lỗi "lúc kéo không được": #hr-sidebar (overflow-y:auto) lồng .navbar-collapse của theme
+   (overflow:auto; height: calc(100vh - 200px) + class h-100) → 2 vùng cuộn lồng nhau. Trên iOS,
+   chạm vào vùng trong khi nó đã cuộn hết thì cử chỉ không chuyển ra vùng ngoài → menu đứng im.
+   Giờ: khung ngoài không cuộn, xếp dọc (logo + ô tìm cố định ở trên), chỉ danh sách menu cuộn. */
+@media (max-width: 991.98px) {
+    #hr-sidebar {
+        display: flex !important; flex-direction: column !important;
+        flex-wrap: nowrap !important; align-items: stretch !important; justify-content: flex-start !important;
+        padding: 0 !important;
+        height: 100vh; height: 100dvh; max-height: none !important;
+        overflow: hidden !important;
+    }
+    #hr-sidebar > .sidenav-header,
+    #hr-sidebar > hr,
+    #hr-sidebar > .sidenav-search-wrap,
+    #hr-sidebar > #sidenavFavorites { flex-shrink: 0; }
+    #hr-sidebar > #sidenav-collapse-main {
+        flex: 1 1 auto; min-height: 0;
+        height: auto !important; max-height: none !important;
+        overflow-y: auto !important; overflow-x: hidden !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;      /* kéo hết danh sách không kéo luôn trang phía sau */
+        touch-action: pan-y;
+        padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    }
+    /* Nút ✕ đóng menu to hơn, dễ bấm */
+    #hr-iconSidenav { font-size: 1.35rem; opacity: .7 !important; padding: 1rem !important; z-index: 2; }
+}
+
+/* ═══════════ Menu: Hay dùng / chấm đỏ nhóm / lưới chức năng (2026-11-19) ═══════════ */
+/* Ô chức năng (dùng chung cho "Hay dùng" trong menu trái và lưới chức năng) */
+.hr-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.hr-tiles-4 { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.hr-tile {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 10px 4px 8px; border-radius: 16px; background: #f8fafc; border: 1px solid #eef2f7;
+    text-decoration: none !important; color: #1e293b !important; text-align: center; min-height: 92px;
+    -webkit-tap-highlight-color: transparent; transition: transform .1s, background .1s;
+}
+.hr-tile:active { transform: scale(.95); background: #eef2ff; }
+.hr-tile-ic {
+    position: relative; width: 46px; height: 46px; border-radius: 14px; background: #fff;
+    display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+.hr-tile-ic .ic3d { width: 30px; height: 30px; vertical-align: 0; }
+.hr-tile-ic .material-symbols-rounded { font-size: 1.6rem; color: #4f46e5; }
+.hr-tile-tx { font-size: .8rem; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hr-tile-badge {
+    position: absolute; top: -5px; right: -7px; background: #dc2626; color: #fff; font-size: .65rem; font-weight: 800;
+    border-radius: 20px; padding: 1px 6px; min-width: 18px; line-height: 1.4; border: 2px solid #fff;
+}
+.hr-tiles-4 .hr-tile { min-height: 82px; padding: 8px 2px 6px; }
+.hr-tiles-4 .hr-tile-ic { width: 40px; height: 40px; }
+.hr-tiles-4 .hr-tile-ic .ic3d { width: 26px; height: 26px; }
+.hr-tiles-4 .hr-tile-tx { font-size: .72rem; }
+
+/* "Hay dùng" trong menu trái */
+#sidenavFrequent { padding: 4px 12px 10px; flex-shrink: 0; }
+.hr-freq-head { font-size: .72rem; font-weight: 800; color: #4f46e5; text-transform: uppercase; letter-spacing: .04em; margin: 2px 4px 6px; }
+
+/* Chấm đỏ trên tiêu đề nhóm */
+.menu-group-badge {
+    margin-left: auto; margin-right: 6px; background: #dc2626; color: #fff; font-size: .68rem; font-weight: 800;
+    border-radius: 20px; padding: 1px 7px; line-height: 1.5;
+}
+
+/* Lưới chức năng (bấm "Menu" ở thanh dưới) — tấm trượt từ dưới lên */
+.hr-appgrid {
+    position: fixed; inset: 0; z-index: 1060; background: rgba(15,23,42,0); transition: background .25s;
+    display: flex; align-items: flex-end;
+}
+.hr-appgrid.open { background: rgba(15,23,42,.5); }
+.hr-ag-panel {
+    width: 100%; max-height: 88vh; max-height: 88dvh; background: #fff; border-radius: 22px 22px 0 0;
+    display: flex; flex-direction: column; transform: translateY(100%); transition: transform .25s ease;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+.hr-appgrid.open .hr-ag-panel { transform: translateY(0); }
+.hr-ag-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 6px; flex-shrink: 0; }
+.hr-ag-head b { font-size: 1.15rem; color: #0f172a; }
+.hr-ag-close { width: 40px; height: 40px; border-radius: 50%; border: none; background: #f1f5f9; display: flex; align-items: center; justify-content: center; }
+.hr-ag-close .material-symbols-rounded { font-size: 1.4rem; color: #334155; }
+.hr-ag-search { position: relative; margin: 4px 16px 8px; flex-shrink: 0; }
+.hr-ag-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.2rem; }
+.hr-ag-search input {
+    width: 100%; height: 44px; border: 1.5px solid #e2e8f0; border-radius: 14px; background: #f8fafc;
+    padding: 0 12px 0 40px; font-size: 16px; outline: none;
+}
+.hr-ag-search input:focus { border-color: #6366f1; background: #fff; }
+.hr-ag-body { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 4px 16px 20px; }
+.hr-ag-group { margin-bottom: 14px; }
+.hr-ag-group h6 { font-size: .85rem; font-weight: 800; color: #475569; margin: 6px 2px 8px; text-transform: uppercase; letter-spacing: .03em; }
+.hr-ag-freq .hr-tile { background: #eef2ff; border-color: #e0e7ff; }
+.hr-ag-none { text-align: center; color: #94a3b8; padding: 30px 0; font-weight: 600; }
+body.hr-ag-open { overflow: hidden; }
+@media (min-width: 480px) { .hr-ag-body .hr-tiles { grid-template-columns: repeat(4, 1fr); } }
+
+/* ═══════════ Phân biệt NHÓM (catalog) và TRANG (2026-11-19) ═══════════
+   Nhóm: thanh nền tím nhạt, chữ IN HOA tím đậm. Trang: thụt vào, có đường dọc nối với nhóm,
+   nền trắng, chữ thường nhỏ hơn — nhìn là biết trang nào thuộc nhóm nào. */
+@media (max-width: 991.98px) {
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"] {
+        background: #eef2ff !important; border: 1px solid #e0e7ff;
+    }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[aria-expanded="true"] { background: #e0e7ff !important; }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"] .nav-link-text {
+        text-transform: uppercase; letter-spacing: .03em; font-size: .9rem !important; color: #3730a3 !important;
+    }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"] > .material-symbols-rounded { color: #4338ca; }
+    /* Khối trang con: thụt vào + đường dọc */
+    #hr-sidebar .navbar-nav > .nav-item > .collapse > .navbar-nav {
+        margin: .35rem .5rem .2rem 1.65rem; padding-left: .35rem;
+        border-left: 2px solid #e0e7ff;
+    }
+    #hr-sidebar .menu-child-item > .d-flex { margin: 0 !important; }
+    #hr-sidebar .menu-child-item .nav-link { min-height: 44px; padding: .35rem .4rem !important; }
+    #hr-sidebar .menu-child-item .nav-link-text { font-size: .92rem !important; font-weight: 600 !important; }
+    #hr-sidebar .menu-child-item .menu-child-icon { width: 30px !important; height: 30px !important; background: transparent !important; }
+    #hr-sidebar .menu-child-icon .ic3d { width: 24px; height: 24px; }
+    #hr-sidebar .menu-group-label { margin-left: .4rem; }
+}
+
+/* ═══════════ Đường kẻ dưới logo sidebar THẲNG HÀNG với đường kẻ dưới header (2026-11-19) ═══════════
+   Header cao 74px (.main-header min-height) — khối logo cũng cao đúng 74px, 1 đường kẻ cùng màu;
+   bỏ thẻ <hr> gradient thừa nằm ngay dưới (trước đây 2 đường lệch nhau ~20px). */
+@media (min-width: 992px) {
+    #hr-sidebar .sidenav-header .navbar-brand {
+        height: 74px; padding-top: 0 !important; padding-bottom: 0 !important;
+        border-bottom: 1px solid var(--header-border, #e2e8f0) !important; box-sizing: border-box;
+    }
+    #hr-sidebar > hr.horizontal { display: none; }
+    #hr-sidebar .sidenav-search-wrap { padding-top: .75rem !important; }
+}
+
+/* ═══════════ Máy tính: sidebar và header LIỀN nhau (2026-11-19) ═══════════
+   Theme ép .sidenav max-width 14rem (224px) và ≥1200px đẩy .main-content margin 15rem (240px)
+   → hở 1 khe xám ~16px giữa menu và header, cộng bóng đổ 2 bên. Ép cùng 250px + bỏ bóng, chỉ giữ 1 đường viền. */
+@media (min-width: 992px) {
+    #hr-sidebar { width: 250px !important; max-width: none !important; box-shadow: none !important;
+                  border-right: 1px solid var(--header-border, #e2e8f0) !important; }
+    body:not(.hr-menu-hidden) #hr-sidebar + .main-content,
+    body:not(.hr-menu-hidden) .main-content { margin-left: 250px !important; }
+    .main-header.shadow-sm { box-shadow: none !important; }
+}
+
+/* ═══════════ Hiệu ứng đóng/mở menu mượt hơn (2026-11-19) ═══════════ */
+/* Máy tính: trượt bằng transform (mượt hơn đổi "left"), nội dung giãn theo cùng nhịp */
+@media (min-width: 992px) {
+    #hr-sidebar { transition: transform .32s cubic-bezier(.32,.72,0,1) !important; left: 0 !important; }
+    body.hr-menu-hidden #hr-sidebar { transform: translateX(-100%) !important; }
+    .main-content { transition: margin-left .32s cubic-bezier(.32,.72,0,1) !important; }
+}
+/* Điện thoại: trước đây lúc ĐÓNG menu bị "biến mất" ngay (visibility đổi tức thì, không chờ trượt),
+   nền tối bật/tắt cụt. Giờ menu trượt ra/vào, nền tối mờ dần, các nhóm hiện lần lượt khi mở. */
+@media (max-width: 991.98px) {
+    #hr-sidebar {
+        transition: transform .32s cubic-bezier(.32,.72,0,1), visibility 0s linear .32s, box-shadow .32s !important;
+    }
+    body.hr-mobile-open #hr-sidebar {
+        transition: transform .32s cubic-bezier(.32,.72,0,1), visibility 0s, box-shadow .32s !important;
+    }
+    .hr-backdrop {
+        display: block !important; opacity: 0; pointer-events: none;
+        backdrop-filter: none; -webkit-backdrop-filter: none;   /* không làm mờ khi đóng — đỡ nặng máy yếu */
+        transition: opacity .32s ease;
+    }
+    body.hr-mobile-open .hr-backdrop { opacity: 1; pointer-events: auto; }
+    body.hr-mobile-open #sidenav-collapse-main > .navbar-nav > .nav-item,
+    body.hr-mobile-open #sidenavFrequent {
+        animation: hrMenuIn .38s cubic-bezier(.32,.72,0,1) both;
+    }
+    body.hr-mobile-open #sidenavFrequent { animation-delay: .04s; }
+    body.hr-mobile-open #sidenav-collapse-main > .navbar-nav > .nav-item:nth-child(1) { animation-delay: .06s; }
+    body.hr-mobile-open #sidenav-collapse-main > .navbar-nav > .nav-item:nth-child(2) { animation-delay: .1s; }
+    body.hr-mobile-open #sidenav-collapse-main > .navbar-nav > .nav-item:nth-child(3) { animation-delay: .14s; }
+    body.hr-mobile-open #sidenav-collapse-main > .navbar-nav > .nav-item:nth-child(n+4) { animation-delay: .18s; }
+}
+@keyframes hrMenuIn { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+/* Nhóm con mở/đóng (Bootstrap collapse) êm hơn */
+#sidenav-collapse-main .collapsing { transition: height .28s cubic-bezier(.32,.72,0,1) !important; }
+@media (prefers-reduced-motion: reduce) {
+    #hr-sidebar, .main-content, .hr-backdrop, #sidenav-collapse-main .collapsing { transition: none !important; }
+    body.hr-mobile-open #sidenav-collapse-main > .navbar-nav > .nav-item, body.hr-mobile-open #sidenavFrequent { animation: none !important; }
+}

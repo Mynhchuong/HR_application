@@ -1,6 +1,9 @@
 @* Chuông thông báo trên header — chỉ máy tính (≥992px); điện thoại đã có mục Thông báo ở thanh dưới. *@
 <style>
-    .hdr-noti { position: relative; }
+    /* nằm sát bên phải avatar; .nav-link của theme có margin/padding phải riêng nên ép lại cho gần */
+    .hdr-noti { position: relative; margin-left: .35rem; }
+    .main-header-right .header-user-toggle { margin-right: 0 !important; }
+    .main-header-right > .dropdown { margin-right: 0 !important; }
     .hdr-noti-btn {
         position: relative; width: 44px; height: 44px; border-radius: 50%;
         border: 1px solid var(--header-border, #e2e8f0); background: #fff; color: #475569;
@@ -9,7 +12,8 @@
     }
     .hdr-noti-btn:hover, .hdr-noti.show .hdr-noti-btn { background: #eef2ff; color: #4f46e5; }
     .hdr-noti-btn .material-symbols-rounded { font-size: 1.45rem; }
-    .hdr-noti-btn.ring .material-symbols-rounded { animation: hdrNotiRing .9s ease; }
+    .hdr-noti-btn .ic3d { width: 1.7rem; height: 1.7rem; vertical-align: 0; }
+    .hdr-noti-btn.ring .ic3d, .hdr-noti-btn.ring .material-symbols-rounded { animation: hdrNotiRing .9s ease; }
     @@keyframes hdrNotiRing {
         0%, 100% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-14deg); }
         45% { transform: rotate(10deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(4deg); }
@@ -69,7 +73,8 @@
 
 <div class="hdr-noti dropdown d-none d-lg-block" id="hdrNoti">
     <button type="button" class="hdr-noti-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Thông báo">
-        <span class="material-symbols-rounded">notifications</span>
+        @* Icon 3D "bell" (bộ Fluent Emoji đã có sẵn) thay icon nét — yêu cầu khách hàng 2026-11-19 *@
+        @Html.Icon3D("bell")
         <span class="hdr-noti-badge" id="hdrNotiBadge" hidden></span>
     </button>
     <div class="dropdown-menu dropdown-menu-end hdr-noti-panel">

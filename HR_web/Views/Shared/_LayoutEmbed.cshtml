@@ -40,9 +40,9 @@
                         </div>
                     </div>
                     <h5 class="fw-bold mb-2" id="globalConfirmTitle">Xác nhận</h5>
-                    <p class="text-muted small mb-4" id="globalConfirmMessage"></p>
+                    <p class="text-muted small mb-4" id="globalConfirmMessage" style="white-space:pre-line"></p>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-light w-100 py-2 rounded-3 fw-bold" data-bs-dismiss="modal">Hủy</button>
+                        <button type="button" class="btn btn-light w-100 py-2 rounded-3 fw-bold" id="globalConfirmCancel" data-bs-dismiss="modal">Hủy</button>
                         <button type="button" class="btn btn-danger w-100 py-2 rounded-3 fw-bold" id="globalConfirmOk">Xóa</button>
                     </div>
                 </div>
@@ -70,8 +70,12 @@
         window.showConfirm = function(message, onConfirm, options) {
             const opts = options || {};
             document.getElementById('globalConfirmTitle').textContent   = opts.title   || 'Xác nhận';
-            document.getElementById('globalConfirmMessage').textContent = message;
+            // opts.html: message là HTML do code tự viết (KHÔNG truyền dữ liệu người dùng vào) — để tô đậm/đổi màu chỗ quan trọng
+            if (opts.html) document.getElementById('globalConfirmMessage').innerHTML = message;
+            else document.getElementById('globalConfirmMessage').textContent = message;
             document.getElementById('globalConfirmOk').textContent      = opts.okText  || 'Xác nhận';
+            // Nhãn nút huỷ tuỳ chỉnh (vd "Ở lại") — mặc định như cũ
+            document.getElementById('globalConfirmCancel').textContent = opts.cancelText || 'Hủy';
             document.getElementById('globalConfirmOk').className        = 'btn w-100 py-2 rounded-3 fw-bold ' + (opts.okClass || 'btn-primary');
             
             const iconEl   = document.getElementById('globalConfirmIcon');

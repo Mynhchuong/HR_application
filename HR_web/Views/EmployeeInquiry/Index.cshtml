@@ -170,16 +170,59 @@
         margin-top: -.2rem; padding-left: calc(40px + .65rem);
     }
 }
+
+/* ── Thiết kế lại cho công nhân (2026-11-19): 1 nút to "Gửi phản ánh mới", 2 tab Đang mở/Đã đóng
+   thay cho 2 ô chọn + ô tìm, thẻ gọn có mũi tên ›, bỏ nút "Kết thúc" khỏi danh sách (vào chat mới kết thúc). ── */
+.inq-new-btn {
+    display: flex; align-items: center; justify-content: center; gap: .5rem;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #fff !important;
+    border-radius: 16px; padding: .95rem 1rem; font-size: 1.05rem; font-weight: 800;
+    text-decoration: none !important; box-shadow: 0 4px 14px rgba(79,70,229,.35); margin-bottom: .6rem;
+}
+.inq-new-btn:active { transform: scale(.98); }
+.inq-top-row { display: flex; gap: .5rem; margin-bottom: .6rem; }
+.inq-top-row .inq-new-btn { flex: 1; margin-bottom: 0; }
+.inq-code-btn {
+    flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    background: #fff; border: 1.5px solid #c4b5fd; color: #6d28d9; border-radius: 16px;
+    padding: .4rem .8rem; font-size: .8rem; font-weight: 800; min-width: 76px;
+}
+.inq-code-btn .material-symbols-rounded { font-size: 1.4rem; }
+.inq-code-btn:active { background: #f5f3ff; }
+.inq-new-btn .material-symbols-rounded { font-size: 1.5rem; }
+.inq-anon-link {
+    display: flex; align-items: center; gap: .45rem; width: 100%;
+    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px;
+    padding: .7rem 1rem; margin-bottom: .6rem; color: #475569; font-weight: 700; font-size: .92rem;
+}
+.inq-tabs { display: flex; gap: .4rem; background: #eef2ff; border-radius: 14px; padding: 4px; margin-bottom: .6rem; }
+.inq-tab {
+    flex: 1; border: none; background: transparent; border-radius: 11px; padding: .6rem .4rem;
+    font-size: .95rem; font-weight: 800; color: #64748b;
+}
+.inq-tab.active { background: #fff; color: #4338ca; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.inq-tab .n { font-size: .8rem; font-weight: 700; opacity: .8; }
+.inq-card-chev { color: #cbd5e1; font-size: 1.6rem !important; flex-shrink: 0; }
+.inq-unread-txt { background: #ef4444; color: #fff; font-size: .72rem; font-weight: 800; border-radius: 20px; padding: 2px 8px; white-space: nowrap; }
+@@media (max-width: 991.98px) {
+    .inq-card-no { display: none; }
+    .inq-card { flex-wrap: nowrap !important; padding: .85rem .9rem; }
+    .inq-card-body { flex-basis: auto !important; }
+    .inq-card-subject { font-size: .98rem !important; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .inq-card-topic, .inq-card-time { font-size: .8rem; }
+    .inq-card-status { font-size: .7rem; }
+}
 </style>
 
 @{ var isExpatInq = (ViewBag.CurrentUser as HR_web.Models.Account.UserInfoModel)?.RoleName == "Expat"; }
 <div class="inq-page px-2 py-2">
-    <div class="inq-hero">
-        <div>
-            <h5>Hộp thư</h5>
-            <small id="heroSub">Đang tải...</small>
-        </div>
-        <span class="material-symbols-rounded inq-hero-icon">forum</span>
+    <div class="inq-top-row">
+        <a href="@Url.Action("Create", "EmployeeInquiry")" class="inq-new-btn">
+            <span class="material-symbols-rounded">add_circle</span>Gửi phản ánh mới
+        </a>
+        <button type="button" class="inq-code-btn" onclick="openAnonPopup(false)">
+            <span class="material-symbols-rounded">key</span><span>@(isExpatInq ? "Code" : "Nhập mã")</span>
+        </button>
     </div>
 
     @* Đã bỏ nút "Đăng ký Kaizen" khỏi Hộp thư (yêu cầu 2026-11-12). Vẫn vào được Kaizen từ
@@ -189,70 +232,44 @@
          KHÔNG thể viết "bạn có N hội thoại ẩn danh": chat ẩn danh cố ý KHÔNG lưu EMPCD
          (289/289 bản ghi có EMPCD = NULL) nên hệ thống không biết hội thoại nào của ai —
          đó chính là điều làm nó ẩn danh. Vì vậy chỉ nhắc chung + mở sẵn ô nhập mã. -->
-    <div id="anonHintOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:300;align-items:center;justify-content:center;padding:1rem;">
-        <div style="background:#fff;border-radius:18px;max-width:420px;width:100%;padding:1.2rem 1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.25);">
-            <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem;">
-                <span class="material-symbols-rounded" style="font-size:1.8rem;color:#6d28d9;">visibility_off</span>
-                <b style="font-size:1rem;color:#1e293b;">@(isExpatInq ? "Sent an anonymous report?" : "Gửi phản ánh ẩn danh?")</b>
+    <!-- Popup xem phản ánh ẩn danh bằng mã — hiện mỗi lần vào Hộp thư (yêu cầu khách hàng) + bấm nút "Nhập mã".
+         Ô nhập mã nằm NGAY trong popup (2026-11-19) — trước đây phải bấm "Nhập mã" rồi mới mở ô nhập bên dưới.
+         KHÔNG thể viết "bạn có N hội thoại ẩn danh": chat ẩn danh cố ý KHÔNG lưu EMPCD nên hệ thống không biết
+         hội thoại nào của ai — vì vậy chỉ mời nhập mã. -->
+    <div id="anonHintOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1100;align-items:center;justify-content:center;padding:1rem;">
+        <div style="background:#fff;border-radius:20px;max-width:420px;width:100%;padding:1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.25);">
+            <div style="text-align:center;margin-bottom:.8rem;">
+                <span class="material-symbols-rounded" style="font-size:2.4rem;color:#6d28d9;background:#ede9fe;border-radius:50%;padding:.5rem;">key</span>
+                <div style="font-size:1.1rem;font-weight:800;color:#1e293b;margin-top:.5rem;">@(isExpatInq ? "View anonymous report" : "Xem phản ánh ẩn danh")</div>
+                <div style="font-size:.9rem;color:#475569;margin-top:.2rem;">@(isExpatInq ? "Enter the code you got when sending" : "Nhập mã bạn nhận được lúc gửi")</div>
             </div>
-            <div style="font-size:.86rem;color:#475569;line-height:1.5;margin-bottom:.9rem;">
-                @* Câu phải NGẮN — công nhân không đọc đoạn dài (yêu cầu 2026-11-12). *@
-                @if (isExpatInq)
-                {
-                    <text>It is <b>not shown in the list</b>.<br>Enter your <b>code</b> to read the reply.</text>
-                }
-                else
-                {
-                    <text>Loại này <b>không hiện ở danh sách</b>.<br>Nhập <b>mã</b> lúc gửi để xem trả lời.</text>
-                }
-            </div>
-            <div style="display:flex;gap:.5rem;">
-                <button type="button" onclick="closeAnonHint(true)" style="flex:1;border:1.5px solid #e2e8f0;background:#fff;color:#475569;border-radius:12px;padding:.6rem;font-weight:700;font-size:.85rem;cursor:pointer;">
-                    @(isExpatInq ? "Close" : "Đóng")
+            <input type="text" id="lookupCodeInput" maxlength="10" placeholder="@(isExpatInq ? "Code (e.g. 9AZ577)" : "Mã (vd: 9AZ577)")"
+                   autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false"
+                   style="width:100%;border:2px solid #c4b5fd;border-radius:14px;padding:.8rem 1rem;font-size:1.25rem;font-weight:800;letter-spacing:3px;text-align:center;text-transform:uppercase;outline:none;"
+                   onkeydown="if(event.key==='Enter')doLookupByCode()">
+            <div id="lookupError" style="display:none;color:#dc2626;font-size:.85rem;font-weight:700;margin-top:.4rem;text-align:center;"></div>
+            <div style="display:flex;gap:.5rem;margin-top:.9rem;">
+                <button type="button" onclick="closeAnonHint(true)" style="flex:1;border:1.5px solid #e2e8f0;background:#fff;color:#475569;border-radius:12px;padding:.75rem;font-weight:800;font-size:.95rem;">
+                    @(isExpatInq ? "Skip" : "Bỏ qua")
                 </button>
-                <button type="button" onclick="closeAnonHint(true); toggleLookupBox();" style="flex:1.3;border:none;background:#6d28d9;color:#fff;border-radius:12px;padding:.6rem;font-weight:700;font-size:.85rem;cursor:pointer;">
-                    @(isExpatInq ? "Enter code" : "Nhập mã")
+                <button type="button" onclick="doLookupByCode()" style="flex:1.4;border:none;background:#6d28d9;color:#fff;border-radius:12px;padding:.75rem;font-weight:800;font-size:.95rem;">
+                    @(isExpatInq ? "View" : "Xem tin nhắn")
                 </button>
             </div>
-            <label style="display:flex;align-items:center;gap:.4rem;margin-top:.7rem;font-size:.76rem;color:#94a3b8;cursor:pointer;">
-                <input type="checkbox" id="anonHintNever"> @(isExpatInq ? "Do not show again" : "Không hiện lại")
+            <label id="anonHintNeverRow" style="display:flex;align-items:center;justify-content:center;gap:.4rem;margin-top:.8rem;font-size:.8rem;color:#94a3b8;cursor:pointer;">
+                <input type="checkbox" id="anonHintNever"> @(isExpatInq ? "Do not show again" : "Không tự hiện lại")
             </label>
         </div>
     </div>
 
-    <!-- Tra cứu hội thoại ẩn danh bằng mã (yêu cầu khách hàng 2026-11-04) — NV gửi ẩn danh ở máy
-         khác/đã xoá localStorage vẫn xem lại được, không cần đúng thiết bị đã gửi. -->
-    <button type="button" class="kaizen-btn" style="background:#f1f5f9;border-color:#cbd5e1;color:#475569 !important;width:100%;border:1.5px solid #cbd5e1;cursor:pointer;" onclick="toggleLookupBox()">
-        <span class="material-symbols-rounded">pin</span>
-        <span>Xem phản ánh ẩn danh</span>
-        <span class="material-symbols-rounded" id="lookupChevron" style="margin-left:auto;">expand_more</span>
-    </button>
-    <div id="lookupBox" style="display:none;background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:.85rem 1rem;margin-bottom:.6rem;">
-        <div style="font-size:.78rem;color:#64748b;margin-bottom:.5rem;">Mã bạn nhận được lúc gửi. Xem được ở mọi máy.</div>
-        <div style="display:flex;gap:.5rem;">
-            <input type="text" id="lookupCodeInput" maxlength="10" placeholder="Mã tra cứu (vd: 9aZ577)" autocapitalize="characters" autocomplete="off"
-                   autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
-                   style="flex:1;border:1.5px solid #e2e8f0;border-radius:10px;padding:.5rem .75rem;font-size:.9rem;text-transform:uppercase;" onkeydown="if(event.key==='Enter')doLookupByCode()">
-            <button type="button" onclick="doLookupByCode()" style="border:none;border-radius:10px;padding:.5rem 1.1rem;background:#4f46e5;color:#fff;font-weight:700;font-size:.85rem;">Xem</button>
-        </div>
-        <div id="lookupError" style="display:none;color:#dc2626;font-size:.78rem;margin-top:.4rem;"></div>
-    </div>
-
     <div id="rateBannerWrap" class="rate-banner-wrap" style="display:none"></div>
 
-    <div class="inq-filter">
-        <select id="fStatus" onchange="applyFilter()">
-            <option value="">Trạng thái</option>
-            <option value="OPEN">Đang mở</option>
-            <option value="CLOSED">Đã đóng</option>
-        </select>
-        <select id="fTopic" onchange="applyFilter()">
-            <option value="">Chủ đề</option>
-        </select>
-        <input type="text" id="fSearch" placeholder="Tìm..." oninput="applyFilter()">
-    </div>
-
     <div id="aiCardWrap" class="mb-2"></div>
+
+    <div class="inq-tabs" id="inqTabs">
+        <button type="button" class="inq-tab active" data-s="OPEN" onclick="setTab('OPEN')">Đang mở <span class="n" id="cntOpen"></span></button>
+        <button type="button" class="inq-tab" data-s="CLOSED" onclick="setTab('CLOSED')">Đã đóng <span class="n" id="cntClosed"></span></button>
+    </div>
 
     <div id="inqListWrap">
         <div class="inq-loading">Đang tải...</div>
@@ -261,9 +278,6 @@
 
 @Html.AntiForgeryToken()
 
-<a href="@Url.Action("Create", "EmployeeInquiry")" class="inq-fab">
-    <span class="material-symbols-rounded" style="font-size:1.6rem;">add</span>
-</a>
 
 @section Scripts {
 <script>
@@ -280,7 +294,8 @@ function esc(s) {
 // Hiện MỖI LẦN vào trang (yêu cầu 2026-11-12) — công nhân ít vào Hộp thư, nhắc thưa quá
 // thì không ai biết là có chức năng tra mã. Lối thoát duy nhất: tick "Không hiện lại".
 // Trước đây nhớ theo ngày, bỏ rồi.
-const ANON_HINT_KEY = 'inq_anon_hint';
+// Đổi key (v2, 2026-11-19): popup mới có ô nhập mã — ai từng tick "Không hiện lại" ở popup cũ cũng thấy lại 1 lần.
+const ANON_HINT_KEY = 'inq_anon_hint_v2';
 function shouldShowAnonHint() {
     try { return localStorage.getItem(ANON_HINT_KEY) !== 'never'; }
     catch { return true; }   // chặn localStorage thì cứ hiện, thà phiền còn hơn giấu mất chức năng
@@ -294,21 +309,19 @@ function closeAnonHint(remember) {
         if (document.getElementById('anonHintNever')?.checked) localStorage.setItem(ANON_HINT_KEY, 'never');
     } catch { }
 }
-function maybeShowAnonHint() {
-    if (!shouldShowAnonHint()) return;
+// auto = tự hiện lúc vào trang (có ô "Không tự hiện lại"); bấm nút "Nhập mã" thì ẩn ô đó + focus ô nhập.
+function openAnonPopup(auto) {
     const ov = document.getElementById('anonHintOverlay');
     if (!ov) return;
+    document.getElementById('anonHintNeverRow').style.display = auto ? 'flex' : 'none';
+    document.getElementById('lookupError').style.display = 'none';
     ov.style.display = 'flex';
-    ov.addEventListener('click', e => { if (e.target === ov) closeAnonHint(true); });
+    if (!auto) setTimeout(() => document.getElementById('lookupCodeInput').focus(), 50);
 }
-
-function toggleLookupBox() {
-    const box = document.getElementById('lookupBox');
-    const chevron = document.getElementById('lookupChevron');
-    const show = box.style.display === 'none';
-    box.style.display = show ? 'block' : 'none';
-    chevron.style.transform = show ? 'rotate(180deg)' : 'none';
-    if (show) document.getElementById('lookupCodeInput').focus();
+function maybeShowAnonHint() {
+    const ov = document.getElementById('anonHintOverlay');
+    if (ov) ov.addEventListener('click', e => { if (e.target === ov) closeAnonHint(true); });
+    if (shouldShowAnonHint()) openAnonPopup(true);
 }
 
 async function doLookupByCode() {
@@ -360,11 +373,7 @@ function buildCardHtml(i) {
     const kindBadge = isAnon
         ? `<span class="inq-card-kind kind-anon">Ẩn danh</span>`
         : `<span class="inq-card-kind kind-direct">Trực tiếp</span>`;
-    const closeBtn = i.status === 'OPEN'
-        ? `<button class="inq-card-close" onclick="event.preventDefault();event.stopPropagation();closeConv(${i.id}, ${isAnon ? 1 : 0})" title="Kết thúc hội thoại">
-               <span class="material-symbols-rounded" style="font-size:.85rem">close</span>Kết thúc
-           </button>`
-        : '';
+    // Bỏ nút "Kết thúc" trên thẻ (2026-11-19): công nhân bấm nhầm khi định mở hội thoại — muốn kết thúc thì vào chat.
     const sortDt = i.lastMsgDt || i.instDt || '';
     return `
     <a class="inq-card" href="${esc(href)}" data-status="${i.status}" data-topic="${esc(i.topicCd || '')}" data-search="${esc((i.inquiryNo||'') + ' ' + (i.subject||'') + ' ' + (i.topicName||'')).toLowerCase()}" data-sort="${esc(sortDt)}">
@@ -374,9 +383,8 @@ function buildCardHtml(i) {
         <div class="inq-card-body">
             <div class="inq-card-row1">
                 <span class="inq-card-no">${esc(i.inquiryNo)}</span>
-                ${kindBadge}
                 <span class="inq-card-status ${statusClass}">${statusText}</span>
-                ${unread > 0 ? `<span class="inq-unread ms-auto">${unread}</span>` : ''}
+                ${unread > 0 ? `<span class="inq-unread-txt ms-auto">${unread} tin mới</span>` : ''}
             </div>
             <div class="inq-card-subject">${esc(i.subject || i.topicName || 'Hội thoại mới')}</div>
             <div class="inq-card-meta">
@@ -384,7 +392,7 @@ function buildCardHtml(i) {
                 ${i.lastMsgDt ? `<span class="inq-card-time">· ${fmtTime(i.lastMsgDt)}</span>` : ''}
             </div>
         </div>
-        <div class="inq-card-actions">${closeBtn}</div>
+        <span class="material-symbols-rounded inq-card-chev no-ic3d">chevron_right</span>
     </a>`;
 }
 
@@ -397,7 +405,8 @@ function renderMergedList() {
         el.innerHTML = `<div class="inq-empty"><span class="material-symbols-rounded ei" style="font-size:3rem;color:#c7d2fe;">forum</span><p>Chưa có hội thoại nào</p></div>`;
         return;
     }
-    el.innerHTML = '<div class="inq-list">' + all.map(buildCardHtml).join('') + '</div>';
+    el.innerHTML = '<div class="inq-list">' + all.map(buildCardHtml).join('') + '</div>'
+        + '<div class="inq-empty" id="tabEmpty" style="display:none"><p>Không có hội thoại nào ở mục này</p></div>';
 }
 
 // Thẻ "Chat với AI" cố định đầu danh sách (yêu cầu 2026-09-16, gộp AI SAMHO-CSR vào chung trang
@@ -465,45 +474,35 @@ async function closeConv(inqId, isAnon) {
     }
 }
 
-// ─── Filter (status / topic / search) ────────────────────────────
-// Thẻ AI (#aiCardWrap) không có data-status/data-topic nên không bị lọc — luôn hiện cố định,
-// đúng tinh thần "lối tắt" chứ không phải 1 hội thoại theo chủ đề như Trực tiếp/Ẩn danh.
+// ─── Tab Đang mở / Đã đóng (thay 2 ô chọn + ô tìm, 2026-11-19) ─────────────
+// Thẻ AI (#aiCardWrap) nằm ngoài danh sách nên không bị lọc.
+// Mặc định tab "Đang mở"; chưa có hội thoại đang mở nào thì tự sang "Đã đóng".
+let _tab = null;
+function setTab(st) { _tab = st; applyFilter(); }
 function applyFilter() {
-    const s = document.getElementById('fStatus').value;
-    const t = document.getElementById('fTopic').value;
-    const q = document.getElementById('fSearch').value.trim().toLowerCase();
     const cards = document.querySelectorAll('#inqListWrap .inq-card');
+    const nOpen = [...cards].filter(c => c.dataset.status === 'OPEN').length;
+    const nClosed = cards.length - nOpen;
+    document.getElementById('cntOpen').textContent = '(' + nOpen + ')';
+    document.getElementById('cntClosed').textContent = '(' + nClosed + ')';
+    if (!_tab) _tab = nOpen === 0 && nClosed > 0 ? 'CLOSED' : 'OPEN';
+    document.querySelectorAll('#inqTabs .inq-tab').forEach(b => b.classList.toggle('active', b.dataset.s === _tab));
     let visible = 0;
     cards.forEach(c => {
-        const okS = !s || c.dataset.status === s;
-        const okT = !t || c.dataset.topic  === t;
-        const okQ = !q || (c.dataset.search || '').includes(q);
-        const show = okS && okT && okQ;
+        const show = c.dataset.status === _tab;
         c.style.display = show ? '' : 'none';
         if (show) visible++;
     });
-    const empty = document.querySelector('#inqListWrap .inq-empty');
-    if (empty && cards.length > 0) empty.style.display = visible === 0 ? '' : 'none';
+    const empty = document.getElementById('tabEmpty');
+    if (empty) empty.style.display = visible === 0 ? '' : 'none';
 }
 
-function rebuildTopicFilter() {
-    const sel  = document.getElementById('fTopic');
-    const prev = sel.value;
-    const all  = [...directItemsCache, ...anonItemsCache];
-    const seen = new Map();
-    all.forEach(i => {
-        if (i.topicCd && i.topicName && !seen.has(i.topicCd)) seen.set(i.topicCd, i.topicName);
-    });
-    sel.innerHTML = '<option value="">Tất cả chủ đề</option>'
-        + [...seen.entries()].map(([cd, name]) => `<option value="${esc(cd)}">${esc(name)}</option>`).join('');
-    sel.value = prev;
-}
+function rebuildTopicFilter() { /* bỏ lọc theo chủ đề (2026-11-19) */ }
 
 let countDirect = 0, countAnon = 0;
 function updateHeroSub() {
     const total = countDirect + countAnon;
-    document.getElementById('heroSub').textContent =
-        countAnon > 0 ? `${countDirect} trực tiếp · ${countAnon} ẩn danh` : `${total} hội thoại`;
+    /* bỏ khung tím đầu trang (2026-11-19) — số lượng giờ hiện trên 2 tab */
 }
 
 async function loadDirect() {

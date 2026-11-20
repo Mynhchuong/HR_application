@@ -350,9 +350,14 @@
 
     <!-- Loading Overlay -->
     <div id="pageLoadingOverlay">
-        <div class="loading-spinner-ring"></div>
+        @* Loading dùng logo My Samho (2026-11-20): logo "thở" nhẹ + vòng cung đỏ–tím chạy quanh *@
+        <div class="ms-loader">
+            <span class="ms-loader-arc"></span>
+            <span class="ms-loader-logo"><img src="~/assets/img/samho-logo.png" alt="My Samho" /></span>
+        </div>
         <div class="fw-bold text-primary">Đang tải dữ liệu...</div>
     </div>
+    <script src="~/js/page-loading.js" asp-append-version="true"></script>
 
     <!-- Toast Alerts Container -->
     <div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index: 9998;">
@@ -435,8 +440,9 @@
     <!-- Mobile Bottom Navigation -->
     @{
         var mobileRole  = layoutUser?.RoleName ?? "";
-        // Hộp thư HR dành cho người có role HR (chính HOẶC role phòng ban) — Manager thuộc nhân sự cũng vào được.
-        bool mobIsHr    = layoutUser.HasRole("HR");
+        // Hộp thư xử lý (HrInquiry) dành cho người có role HR/CSR/GA (chính HOẶC role phòng ban) — giống
+        // HrInquiryController. Trước đây chỉ HR → CSR/GA bấm "Hộp thư" ở thanh dưới lại vào hộp thư cá nhân.
+        bool mobIsHr    = layoutUser.HasAnyRole("HR", "CSR", "GA");
         bool isMobExpat = mobileRole == "Expat";
 
         string notiUrl  = isMobExpat ? "~/Notification/IndexForExpat" : "~/Notification/Index";
@@ -543,37 +549,7 @@
     </script>
 
     <script>
-        window.showLoading = function () {
-            document.getElementById('pageLoadingOverlay')?.classList.add('show');
-        };
-
-        window.hideLoading = function () {
-            document.getElementById('pageLoadingOverlay')?.classList.remove('show');
-        };
-
-        $(document).ready(function () {
-            $('a').not('[target="_blank"]').not('[href^="#"]').not('[data-bs-toggle]').not('[download]').not('.no-loading, [data-no-loading]').on('click', function(e) {
-                if (e.isDefaultPrevented()) return;
-                if (!$(this).hasClass('dropdown-toggle')) {
-                    window.showLoading();
-                }
-            });
-        });
-
-        // Hide on normal load
-        window.addEventListener('load', function () {
-            window.hideLoading();
-        });
-
-        // Hide when page is restored from bfcache (browser back/forward button)
-        window.addEventListener('pageshow', function (e) {
-            if (e.persisted) window.hideLoading();
-        });
-
-        // Hide on popstate (mobile hardware back, history navigation)
-        window.addEventListener('popstate', function () {
-            window.hideLoading();
-        });
+        // Loading toàn trang (showLoading/hideLoading, bắt click link, tắt khi tải file xong): wwwroot/js/page-loading.js
 
         // Chặn "thoát" 1 gate bắt buộc (survey chưa làm, quà chưa xác nhận, ...) qua nút back cứng
         // Android: khi WebView phục hồi trang TRƯỚC ĐÓ từ back-forward cache, request KHÔNG đi qua
@@ -966,20 +942,29 @@
             // Gift (sidebar "Xác nhận nhận quà") — số quà NV đang PENDING_CONFIRM, cùng pattern trên.
             loadBadge('@Url.Action("GetMyPending","Gift")', 'sideGiftBadge', function(d) { return d.count || 0; });
 
-            // Inquiry unread — bottom-nav mobile (#inqBadge) + sidebar desktop (#sideInqBadge, mục
-            // "Hộp thư phản ánh"). Nguồn số khác nhau theo role vì HR/Admin/NV dùng 3 controller riêng.
+            // Inquiry unread. HR/CSR/GA/Admin: số hội thoại CÔNG TY chưa đọc → nút Hộp thư ở thanh dưới
+            // (#inqBadge, mở trang xử lý) + mục "Quản lý hội thoại" (#sideHrInqBadge). Mục "Hộp thư phản ánh"
+            // (#sideInqBadge) là hộp thư CÁ NHÂN → luôn đếm hội thoại của chính mình (báo lỗi 2026-11-20:
+            // HR thấy số 5 ở hộp thư cá nhân dù 5 tin đó là của hộp thư công ty).
             @if (mobIsHr)
             {
                 <text>
-            loadBadge('@Url.Action("GetList","HrInquiry")?status=OPEN&pageSize=100', ['inqBadge', 'sideInqBadge'],
+            loadBadge('@Url.Action("GetList","HrInquiry")?status=OPEN&pageSize=100', ['inqBadge', 'sideHrInqBadge'],
                 function(d) { return (d.data || []).reduce(function(s, i) { return s + (i.unreadHr || 0); }, 0); });
                 </text>
             }
             else if (mobileRole == "Admin")
             {
                 <text>
-            loadBadge('@Url.Action("GetList","AdminInquiry")?status=OPEN&pageSize=100', ['inqBadge', 'sideInqBadge'],
+            loadBadge('@Url.Action("GetList","AdminInquiry")?status=OPEN&pageSize=100', ['inqBadge', 'sideHrInqBadge'],
                 function(d) { return (d.data || []).reduce(function(s, i) { return s + (i.unreadHr || 0); }, 0); });
+                </text>
+            }
+            @if (mobIsHr || mobileRole == "Admin")
+            {
+                <text>
+            loadBadge('@Url.Action("GetMyList","EmployeeInquiry")', 'sideInqBadge',
+                function(d) { return (d.data || []).reduce(function(s, i) { return s + (i.unreadEmp || 0); }, 0); });
                 </text>
             }
             else

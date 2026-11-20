@@ -728,3 +728,86 @@ body.hr-ag-open { overflow: hidden; }
     #hr-sidebar, .main-content, .hr-backdrop, #sidenav-collapse-main .collapsing { transition: none !important; }
     body.hr-mobile-open #sidenav-collapse-main > .navbar-nav > .nav-item, body.hr-mobile-open #sidenavFrequent { animation: none !important; }
 }
+
+/* ═══════════ Footer gọn (2026-11-19) ═══════════
+   Lỗi mobile: main-body chừa 80px + footer chừa thêm 85px cho thanh menu dưới → khoảng trống xám
+   to, footer "trôi" giữa màn hình; trang Tra cứu NV (_DirectoryContent) còn có footer riêng → 2 dòng ©.
+   Giờ: footer trong suốt, chữ nhỏ, nằm sát cuối nội dung, chỉ chừa đúng chiều cao thanh menu dưới. */
+.app-footer { background: transparent !important; opacity: .7; padding: 14px 0 !important; }
+.main-content .dir-footer { display: none !important; }   /* trong layout đã có footer chung */
+@media (max-width: 991.98px) {
+    .main-body { padding-bottom: .5rem !important; }
+    .app-footer {
+        font-size: 10px !important;
+        padding: 8px 0 calc(68px + 10px + env(safe-area-inset-bottom)) !important;
+    }
+    body.kb-open .app-footer { padding-bottom: 10px !important; }
+}
+
+/* ═══════════ Loading toàn trang dùng logo My Samho (2026-11-20) ═══════════ */
+.ms-loader { position: relative; width: 92px; height: 92px; display: flex; align-items: center; justify-content: center; }
+.ms-loader-arc {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 0deg, rgba(237,28,36,0) 0deg, #ed1c24 120deg, #6366f1 240deg, rgba(99,102,241,0) 300deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+    animation: msSpin 1s linear infinite;
+}
+.ms-loader-logo {
+    width: 64px; height: 64px; border-radius: 18px; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 20px rgba(79,70,229,.18);
+    animation: msBreath 1.6s ease-in-out infinite;
+}
+.ms-loader-logo img { width: 44px; height: auto; display: block; }
+#pageLoadingOverlay .fw-bold { color: #312e81 !important; letter-spacing: .01em; animation: msFade 1.6s ease-in-out infinite; }
+@keyframes msSpin   { to { transform: rotate(360deg); } }
+@keyframes msBreath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+@keyframes msFade   { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+/* Chỉ chạy hiệu ứng khi loading đang HIỆN — lúc ẩn không tốn CPU/pin */
+#pageLoadingOverlay:not(.show) .ms-loader-arc,
+#pageLoadingOverlay:not(.show) .ms-loader-logo,
+#pageLoadingOverlay:not(.show) .fw-bold { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+    .ms-loader-logo, #pageLoadingOverlay .fw-bold { animation: none; }
+    .ms-loader-arc { animation-duration: 2s; }
+}
+
+/* ═══════════ Menu trái trên MÁY TÍNH — dễ nhìn như điện thoại (2026-11-20, phản ánh "menu khó nhìn") ═══════════
+   Nhóm: thanh tím nhạt, chữ IN HOA tím đậm, 1 mũi tên. Trang: thụt vào, đường dọc nối nhóm, chữ đậm vừa,
+   đang mở = nền tím nhạt + chữ tím đậm (trước là chữ trắng trên nền sáng). */
+@media (min-width: 992px) {
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"] {
+        margin: .15rem .6rem !important; padding: .5rem .55rem !important; border-radius: 12px;
+        background: #eef2ff !important; border: 1px solid #e0e7ff; box-shadow: none !important;
+    }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[aria-expanded="true"] { background: #e0e7ff !important; }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"]::after { display: none !important; }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"] .nav-link-text {
+        text-transform: uppercase; letter-spacing: .03em; font-size: .8rem !important; font-weight: 800 !important; color: #3730a3 !important;
+    }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[data-bs-toggle="collapse"] > .material-symbols-rounded { color: #4338ca; font-size: 1.25rem; transition: transform .2s; }
+    #hr-sidebar .navbar-nav > .nav-item > .nav-link[aria-expanded="true"] > .material-symbols-rounded { transform: rotate(180deg); }
+    #hr-sidebar .menu-icon-shell { width: 32px !important; height: 32px !important; margin-right: .55rem !important; }
+    #sidenav-collapse-main > .navbar-nav > .nav-item + .nav-item { margin-top: .35rem !important; }
+
+    #hr-sidebar .navbar-nav > .nav-item > .collapse { padding-left: 0 !important; }
+    #hr-sidebar .navbar-nav > .nav-item > .collapse > .navbar-nav {
+        margin: .3rem .6rem .15rem 1.55rem; padding-left: .3rem; border-left: 2px solid #e0e7ff;
+    }
+    #hr-sidebar .menu-child-item > .d-flex { margin: 0 !important; border-radius: 10px; }
+    #hr-sidebar .menu-child-item .nav-link {
+        margin: 0 !important; padding: .4rem .45rem !important; min-height: 38px; align-items: center !important;
+        background: transparent !important; border-radius: 10px; box-shadow: none !important;
+    }
+    #hr-sidebar .menu-child-item .nav-link:hover { background: #f1f5f9 !important; }
+    #hr-sidebar .menu-child-item .nav-link-text { font-size: .86rem !important; font-weight: 600 !important; color: #1e293b !important; padding-top: 0; }
+    #hr-sidebar .menu-child-item .menu-child-icon { width: 26px !important; height: 26px !important; background: transparent !important; margin-right: .5rem !important; }
+    #hr-sidebar .menu-child-icon .ic3d { width: 20px; height: 20px; }
+    #hr-sidebar .menu-child-item .nav-link.active { background: #eef2ff !important; }
+    #hr-sidebar .menu-child-item .nav-link.active .nav-link-text { color: #4338ca !important; font-weight: 800 !important; }
+    #hr-sidebar .menu-pin-btn { width: 28px; height: 28px; color: #e2e8f0; opacity: 0; transition: opacity .15s; }
+    #hr-sidebar .menu-child-item:hover .menu-pin-btn, #hr-sidebar .menu-pin-btn.pinned { opacity: 1; }
+    #hr-sidebar .menu-pin-btn.pinned { color: #f59e0b; }
+    #hr-sidebar .menu-group-label { margin-left: .35rem; }
+}

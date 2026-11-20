@@ -69,6 +69,8 @@
         color: #334155; font-weight: 700; font-size: .85rem; text-decoration: none;
     }
     .hdr-noti-foot a:hover { background: #e2e8f0; }
+    .hdr-noti-item.nolink { cursor: default; }
+    .hdr-noti-item.expanded .hdr-noti-body { -webkit-line-clamp: unset !important; display: block !important; overflow: visible !important; white-space: normal !important; }
 </style>
 
 <div class="hdr-noti dropdown d-none d-lg-block" id="hdrNoti">
@@ -151,14 +153,20 @@
         if (sec < 604800) return Math.floor(sec / 86400) + ' ngày';
         return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     }
+    // Mã thông báo có trang đích (khớp NotificationController.ResolveLink). Thông báo KHÔNG có trang đích
+    // (thông báo chung HR gửi, nhắc nhở...) thì bấm vào chỉ mở rộng nội dung + đánh dấu đã đọc, KHÔNG
+    // chuyển sang trang Thông báo nữa (báo lỗi 2026-11-20).
+    const LINKED = /^(BULLETIN_CMT:|inquiry\/|TRAINING_)|^(BULLETIN|SURVEY|GP_MY|GP_MANAGE|LEAVE_MY|LEAVE_MANAGE|LEAVE_TEAM|LEAVE_ASSIGNED|OT_SIGN|ATT_CONFIRM_WORKER|ATT_CONFIRM_MANAGER|GIFT_MY|PAYSLIP|AI_CSR)$/;
     function hrefOf(n) {
         const a = n.LINK_ACTION || '';
         if (/^https?:\/\//i.test(a)) return a;
+        if (!LINKED.test(a)) return null;
         return `${URLS.go}?action=${encodeURIComponent(a)}&target=${encodeURIComponent(n.TARGET_VAL || '')}&noti=${n.ID}`;
     }
     function itemHtml(n) {
         const ext = /^https?:\/\//i.test(n.LINK_ACTION || '');
-        return `<a class="hdr-noti-item${n.IS_READ ? '' : ' unread'}" data-id="${n.ID}" href="${esc(hrefOf(n))}"${ext ? ' target="_blank" rel="noopener"' : ''}>
+        const href = hrefOf(n);
+        return `<a class="hdr-noti-item${n.IS_READ ? '' : ' unread'}${href ? '' : ' nolink'}" data-id="${n.ID}" href="${href ? esc(href) : '#'}"${ext ? ' target="_blank" rel="noopener"' : ''}>
             <span class="hdr-noti-ico">${iconOf(n.LINK_ACTION)}</span>
             <span class="hdr-noti-txt"><b>${esc(n.TITLE)}</b><span class="hdr-noti-body">${esc(n.BODY)}</span>
                 <div class="hdr-noti-time">${timeAgo(n.CREATED_DATE)}</div></span>
@@ -218,6 +226,20 @@
         markRead(a.dataset.id);
         if (tab === 'unread') render();
     }, true);
+    // Thông báo không có trang đích: bấm = xem đủ nội dung tại chỗ + đánh dấu đã đọc
+    list.addEventListener('click', e => {
+        const a = e.target.closest('.hdr-noti-item.nolink');
+        if (!a || e.target.closest('.hdr-noti-check')) return;
+        e.preventDefault();
+        a.classList.toggle('expanded');
+        if (a.classList.contains('unread')) {
+            const n = items.find(x => String(x.ID) === a.dataset.id);
+            if (n) n.IS_READ = 1;
+            a.classList.remove('unread');
+            lastCount = Math.max(0, lastCount - 1); setBadge(lastCount);
+            markRead(a.dataset.id);
+        }
+    });
     // Link ngoài mở tab mới nên không qua /Notification/Go — tự đánh dấu đã đọc
     list.addEventListener('click', e => {
         const a = e.target.closest('.hdr-noti-item');

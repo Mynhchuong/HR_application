@@ -371,9 +371,14 @@
 
     <!-- Loading Overlay -->
     <div id="pageLoadingOverlay">
-        <div class="loading-spinner-ring"></div>
+        @* Loading dùng logo My Samho (2026-11-20): logo "thở" nhẹ + vòng cung đỏ–tím chạy quanh *@
+        <div class="ms-loader">
+            <span class="ms-loader-arc"></span>
+            <span class="ms-loader-logo"><img src="~/assets/img/samho-logo.png" alt="My Samho" /></span>
+        </div>
         <div class="fw-bold text-primary">@T("Loading...", "불러오는 중...")</div>
     </div>
+    <script src="~/js/page-loading.js" asp-append-version="true"></script>
 
     <!-- Toast Alerts Container -->
     <div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index: 9998;">
@@ -545,37 +550,7 @@
     </script>
 
     <script>
-        window.showLoading = function () {
-            document.getElementById('pageLoadingOverlay')?.classList.add('show');
-        };
-
-        window.hideLoading = function () {
-            document.getElementById('pageLoadingOverlay')?.classList.remove('show');
-        };
-
-        $(document).ready(function () {
-            $('a').not('[target="_blank"]').not('[href^="#"]').not('[data-bs-toggle]').not('[download]').not('.no-loading, [data-no-loading]').on('click', function(e) {
-                if (e.isDefaultPrevented()) return;
-                if (!$(this).hasClass('dropdown-toggle')) {
-                    window.showLoading();
-                }
-            });
-        });
-
-        // Hide on normal load
-        window.addEventListener('load', function () {
-            window.hideLoading();
-        });
-
-        // Hide when page is restored from bfcache (browser back/forward button)
-        window.addEventListener('pageshow', function (e) {
-            if (e.persisted) window.hideLoading();
-        });
-
-        // Hide on popstate (mobile hardware back, history navigation)
-        window.addEventListener('popstate', function () {
-            window.hideLoading();
-        });
+        // Loading toàn trang (showLoading/hideLoading, bắt click link, tắt khi tải file xong): wwwroot/js/page-loading.js
 
         // Chặn "thoát" 1 gate bắt buộc (survey chưa làm, quà chưa xác nhận, ...) qua nút back cứng
         // Android: khi WebView phục hồi trang TRƯỚC ĐÓ từ back-forward cache, request KHÔNG đi qua

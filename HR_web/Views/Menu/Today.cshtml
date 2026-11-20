@@ -64,573 +64,252 @@
 }
 
 <style>
-    :root { 
-        --primary-red: #dc2626; 
-        --primary-red-dark: #991b1b;
-        --card-radius: 18px;
-    }
+    /* ═══ Thực đơn hôm nay — thiết kế lại 2026-11-20 (khách chê dài, khó xem) ═══
+       - Chỉ hiện 1 ca một lúc (chọn bằng nút Ca 1/Ca 2/Ca 3, tự chọn theo giờ hiện tại, nhớ lựa chọn).
+       - Món ăn dạng lưới 2 cột, ảnh to (món ăn là thứ cần nhìn hình nhất).
+       - "Suất của bạn" + trạng thái khoá đổi món gom vào 1 thẻ ở đầu trang.
+       - Ảnh món cache theo ngày (trước đây &v=giây hiện tại → tải lại ảnh MỖI lần mở trang). */
+    .tp { max-width: 720px; margin: 0 auto; padding-bottom: 1rem; }
+    .tp-top { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin: .25rem 0 .75rem; }
+    .tp-date b { display: block; font-size: 1.25rem; font-weight: 900; color: #0f172a; line-height: 1.2; }
+    .tp-date span { font-size: .8rem; color: #64748b; font-weight: 600; }
+    .tp-tabs { display: flex; background: #f1f5f9; border-radius: 12px; padding: 3px; gap: 3px; flex-shrink: 0; }
+    .tp-tab { padding: 7px 14px; border-radius: 9px; font-size: .85rem; font-weight: 800; color: #64748b; text-decoration: none !important; }
+    .tp-tab.active { background: #fff; color: #dc2626; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
 
-    .tp { max-width: 680px; margin: 0 auto; padding-bottom: 4rem; }
+    /* Thẻ suất ăn của bạn */
+    .tp-my { background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%); color: #fff; border-radius: 18px;
+             padding: .95rem 1rem; margin-bottom: .75rem; box-shadow: 0 8px 22px rgba(220,38,38,.2); }
+    .tp-my-ttl { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; opacity: .85; margin-bottom: .45rem; }
+    .tp-my-row { display: flex; align-items: center; gap: .7rem; }
+    .tp-my-meals { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .35rem; }
+    .tp-my-meal { display: flex; align-items: center; gap: .5rem; font-weight: 800; font-size: 1rem; line-height: 1.3; }
+    .tp-my-meal .ic3d { width: 1.6em; height: 1.6em; flex-shrink: 0; }
+    .tp-my-meal small { display: block; font-size: .7rem; font-weight: 700; opacity: .8; text-transform: uppercase; }
+    .tp-my-btn { flex-shrink: 0; background: #fff; color: #b91c1c !important; font-weight: 900; font-size: .88rem;
+                 padding: .6rem .95rem; border-radius: 12px; text-decoration: none !important; box-shadow: 0 3px 10px rgba(0,0,0,.15); }
+    .tp-my.empty { background: #fff; color: #334155; border: 1.5px dashed #fca5a5; box-shadow: none; }
+    .tp-my.empty .tp-my-btn { background: #dc2626; color: #fff !important; }
+    #todayLockBanner { margin-top: .6rem; }
+    .tp-lock { border-radius: 10px; padding: .45rem .65rem; font-size: .8rem; font-weight: 700; line-height: 1.45;
+               background: rgba(255,255,255,.16); }
+    .tp-my.empty .tp-lock { background: #fef2f2; color: #991b1b; }
+    .tp-lock .ic3d { width: 1.2em; height: 1.2em; }
 
-    /* Hero Header */
-    .tp-hero {
-        background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%);
-        border-radius: var(--card-radius); 
-        padding: 1.25rem 1.4rem;
-        color: #fff; 
-        margin-bottom: 0.85rem;
-        box-shadow: 0 10px 25px rgba(220, 38, 38, 0.18);
-        position: relative;
-        overflow: hidden;
-    }
-    .tp-hero::after {
-        content: '';
-        width: 110px; height: 110px;
-        background: url('@Url.Content("~/assets/icons/3d/menu.webp")?v=1') center / contain no-repeat;
-        position: absolute;
-        right: -10px;
-        bottom: -15px;
-        font-size: 5.5rem;
-        opacity: 0.18;
-        pointer-events: none;
-        transform: rotate(-10deg);
-    }
-    .tp-hero-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        font-size: 0.7rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        background: rgba(255,255,255,0.2);
-        padding: 3px 10px;
-        border-radius: 20px;
-        margin-bottom: 0.4rem;
-        backdrop-filter: blur(4px);
-    }
-    .tp-hero-day { font-size: 1.4rem; font-weight: 900; letter-spacing: -0.3px; line-height: 1.2; }
-    .tp-hero-full { font-size: 0.78rem; opacity: 0.88; font-weight: 500; margin-top: 2px; }
+    /* Lịch chốt tuần (thu gọn) */
+    .tp-week-lock { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 14px; margin-bottom: .75rem; color: #7c2d12; font-size: .82rem; }
+    .tp-week-lock summary { list-style: none; padding: .6rem .85rem; font-weight: 800; color: #9a3412; display: flex; align-items: center; gap: .4rem; cursor: pointer; }
+    .tp-week-lock summary::-webkit-details-marker { display: none; }
+    .tp-week-lock summary::after { content: '›'; margin-left: auto; font-size: 1.2rem; transition: transform .2s; }
+    .tp-week-lock[open] summary::after { transform: rotate(90deg); }
+    .tp-week-lock .wl-body { padding: 0 .85rem .7rem; line-height: 1.5; }
+    .tp-week-lock .wl-item { padding: .35rem 0; border-top: 1px dashed #fed7aa; }
 
-    /* Tabs */
-    .tp-tabs {
-        display: flex; 
-        background: #f1f5f9; 
-        border-radius: 14px;
-        padding: 4px; 
-        margin-bottom: 0.85rem; 
-        gap: 4px;
-    }
-    .tp-tab {
-        flex: 1; text-align: center; min-height: 42px;
-        display: flex; align-items: center; justify-content: center;
-        border-radius: 11px; font-size: 0.875rem; font-weight: 700;
-        text-decoration: none !important; color: #64748b;
-        transition: all 0.2s ease;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .tp-tab.active { 
-        background: white; 
-        color: #dc2626; 
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
-    }
+    /* Chọn ca */
+    .tp-shifts { display: flex; gap: .4rem; overflow-x: auto; scrollbar-width: none; margin-bottom: .6rem; }
+    .tp-shifts::-webkit-scrollbar { display: none; }
+    .tp-sbtn { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: .35rem;
+               border: 1.5px solid #e2e8f0; background: #fff; border-radius: 14px; padding: .55rem .8rem;
+               font-size: .88rem; font-weight: 800; color: #475569; white-space: nowrap; }
+    .tp-sbtn .ic3d { width: 1.35em; height: 1.35em; }
+    .tp-sbtn.active { color: #fff; border-color: transparent; box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+    .tp-shift-info { font-size: .8rem; color: #64748b; font-weight: 600; margin: 0 .15rem .6rem; }
 
-    /* Registered My Meal Card */
-    .tp-mymeal {
-        background: #ffffff;
-        border: 1.5px solid #fecaca;
-        border-radius: var(--card-radius);
-        padding: 1rem 1.15rem;
-        margin-bottom: 0.85rem;
-        box-shadow: 0 4px 15px rgba(220, 38, 38, 0.06);
-        position: relative;
-    }
-    .tp-mymeal-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 0.65rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px dashed #fee2e2;
-    }
-    .tp-mymeal-ttl { 
-        font-size: 0.72rem; 
-        font-weight: 800; 
-        color: #991b1b;
-        text-transform: uppercase; 
-        letter-spacing: 0.05em; 
-    }
-    .tp-mymeal-status {
-        font-size: 0.68rem;
-        font-weight: 800;
-        color: #166534;
-        background: #dcfce7;
-        padding: 2px 8px;
-        border-radius: 12px;
-    }
-    .tp-mymeal-content {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.85rem;
-    }
-    .tp-mymeal-left { flex: 1; min-width: 0; }
-    .tp-mymeal-item {
-        font-size: 0.92rem;
-        font-weight: 700;
-        color: #1e293b;
-        line-height: 1.4;
-        margin-bottom: 0.25rem;
-    }
-    .tp-mymeal-item:last-child { margin-bottom: 0; }
-    .tp-mymeal-label { color: #64748b; font-weight: 600; font-size: 0.85rem; }
-    .tp-mymeal-val { color: #dc2626; font-weight: 900; }
-    .tp-mymeal-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        background: #dc2626;
-        color: white !important;
-        font-size: 0.8rem;
-        font-weight: 700;
-        padding: 7px 14px;
-        border-radius: 20px;
-        text-decoration: none !important;
-        box-shadow: 0 3px 10px rgba(220, 38, 38, 0.22);
-        white-space: nowrap;
-        transition: all 0.2s ease;
-        flex-shrink: 0;
-    }
-    .tp-mymeal-btn:hover { background: #b91c1c; transform: translateY(-1px); }
+    /* Lưới món ăn */
+    .tp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin-bottom: 1rem; }
+    .tp-food { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(15,23,42,.07);
+               cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .1s; display: flex; flex-direction: column; }
+    .tp-food:active { transform: scale(.97); }
+    .tp-food-img { position: relative; aspect-ratio: 4/3; background: #f1f5f9; display: flex; align-items: center; justify-content: center; }
+    .tp-food-img > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .tp-food-ini { font-size: 2rem; font-weight: 900; }
+    .tp-food-badge { position: absolute; left: 6px; top: 6px; font-size: .68rem; font-weight: 800; padding: 2px 8px;
+                     border-radius: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.12); display: inline-flex; align-items: center; gap: 3px; }
+    .tp-food-badge .ic3d { width: 1.1em; height: 1.1em; }
+    .tp-food-name { overflow-wrap: anywhere; padding: .5rem .6rem .6rem; font-size: .9rem; font-weight: 800; color: #0f172a; line-height: 1.3; }
+    @@media (min-width: 600px) { .tp-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
-    /* Feedback CTA */
-    .tp-feedback {
-        display: flex; align-items: center; gap: 0.75rem;
-        background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
-        border: 1px solid #fed7aa; 
-        border-radius: var(--card-radius);
-        padding: 0.85rem 1.1rem; 
-        margin-bottom: 1rem;
-        text-decoration: none !important; color: inherit;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-    .tp-feedback:hover, .tp-feedback:active {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(234,88,12,0.15);
-    }
-    .tp-feedback-icon  { font-size: 1.6rem; line-height: 1; flex-shrink: 0; }
-    .tp-feedback-body  { flex: 1; min-width: 0; }
-    .tp-feedback-title { font-weight: 800; color: #9a3412; font-size: 0.88rem; line-height: 1.3; }
-    .tp-feedback-desc  { font-size: 0.72rem; color: #7c2d12; line-height: 1.4; margin-top: 1px; opacity: 0.85; }
-    .tp-feedback-arrow { font-size: 1.3rem; color: #c2410c; font-weight: 900; line-height: 1; flex-shrink: 0; }
+    .tp-empty { text-align: center; padding: 2.5rem 1rem; color: #94a3b8; }
+    .tp-empty .ic3d { width: 3rem; height: 3rem; display: block; margin: 0 auto .5rem; }
+    .tp-feedback { display: flex; align-items: center; gap: .6rem; background: #fff; border: 1px solid #fed7aa; border-radius: 14px;
+                   padding: .7rem .9rem; text-decoration: none !important; color: #9a3412; font-weight: 800; font-size: .88rem; }
+    .tp-feedback small { display: block; font-weight: 600; color: #7c2d12; opacity: .8; font-size: .74rem; }
+    .tp-feedback .arrow { margin-left: auto; font-size: 1.3rem; }
 
-    /* Shift header decoration */
-    .tp-shift {
-        border-radius: var(--card-radius);
-        overflow: hidden;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.06);
-        margin-bottom: 1rem;
-        border: 1px solid #e2e8f0;
-        background: white;
-    }
-    .tp-shift-hd {
-        padding: 0.75rem 1rem;
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-        position: relative;
-        overflow: hidden;
-    }
-    .tp-shift-hd::after {
-        content: '';
-        position: absolute;
-        top: -50%;
-        right: -10%;
-        width: 120px;
-        height: 120px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 50%;
-        pointer-events: none;
-    }
-    .tp-shift-hd-left {
-        display: flex;
-        align-items: center;
-        gap: 0.65rem;
-        min-width: 0;
-    }
-    .tp-shift-icon {
-        font-size: 1.4rem;
-        line-height: 1;
-        width: 38px;
-        height: 38px;
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.22);
-        backdrop-filter: blur(4px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .tp-shift-title {
-        font-weight: 900;
-        font-size: 0.95rem;
-        letter-spacing: 0.01em;
-        line-height: 1.25;
-        color: #fff;
-    }
-    .tp-shift-desc {
-        font-size: 0.68rem;
-        opacity: 0.9;
-        font-weight: 500;
-        margin-top: 1px;
-        color: #fff;
-    }
-    .tp-shift-pill {
-        font-size: 0.7rem;
-        font-weight: 800;
-        padding: 4px 10px;
-        border-radius: 20px;
-        background: rgba(255, 255, 255, 0.22);
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        color: white;
-        white-space: nowrap;
-        backdrop-filter: blur(4px);
-        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-        flex-shrink: 0;
-    }
-
-    /* Meal row */
-    .tp-meal {
-        display: flex; align-items: center; gap: 0.85rem;
-        padding: 0.8rem 1rem; background: white;
-        border-bottom: 1px solid #f1f5f9; min-height: 58px;
-        transition: background 0.15s ease;
-        cursor: pointer;
-    }
-    .tp-meal:last-child { border-bottom: none; }
-    .tp-meal:hover, .tp-meal:active { background: #f8fafc; }
-
-    .tp-meal-img {
-        width: 56px; height: 56px; border-radius: 12px;
-        object-fit: cover; flex-shrink: 0; background: #f1f5f9;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-    }
-    .tp-meal-ph {
-        width: 56px; height: 56px; border-radius: 12px;
-        background: #f1f5f9; flex-shrink: 0;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 1.4rem; color: #cbd5e1;
-    }
-
-    .tp-meal-body  { flex: 1; min-width: 0; }
-    .tp-meal-badge {
-        display: inline-block; font-size: 0.65rem; font-weight: 800;
-        padding: 2px 8px; border-radius: 20px; margin-bottom: 3px;
-        letter-spacing: 0.03em;
-    }
-    .tp-meal-name  { font-size: 0.92rem; font-weight: 700; color: #0f172a; line-height: 1.35; }
-    .tp-meal-action {
-        font-size: 0.75rem; color: #94a3b8; font-weight: 600;
-        display: flex; align-items: center; gap: 2px;
-        flex-shrink: 0;
-    }
-
-    /* Empty */
-    .tp-empty { text-align: center; padding: 3.5rem 1rem; color: #94a3b8; }
-    .tp-empty-icon { font-size: 3.5rem; display: block; margin-bottom: 0.6rem; }
-
-    /* Food modal bottom-sheet */
-    .food-modal-backdrop {
-        position: fixed; inset: 0; background: rgba(0,0,0,.55);
-        z-index: 1050; display: none; align-items: flex-end;
-        backdrop-filter: blur(3px);
-    }
+    /* Xem ảnh món (tấm trượt từ dưới) */
+    .food-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1050; display: none; align-items: flex-end; }
     .food-modal-backdrop.open { display: flex; }
-    .food-modal-sheet {
-        width: 100%; background: white;
-        border-radius: 24px 24px 0 0;
-        padding: 0 0 env(safe-area-inset-bottom,16px);
-        transform: translateY(100%);
-        transition: transform .3s cubic-bezier(.32,.72,0,1);
-        max-height: 92dvh; overflow-y: auto;
-    }
-    .food-modal-backdrop.open .food-modal-sheet { transform: translateY(0); }
-    .food-modal-handle {
-        width: 40px; height: 4px; background: #e2e8f0;
-        border-radius: 2px; margin: 10px auto 0;
-    }
-    .food-modal-img {
-        width: 100%; max-height: 280px; object-fit: contain;
-        border-radius: 0; display: block; background: #f8fafc;
-    }
-    .food-modal-img-ph {
-        width: 100%; max-height: 280px; object-fit: cover; display: block;
-        border-radius: 0;
-    }
-    .food-modal-body { padding: 1rem 1.25rem 1.5rem; }
-    .food-modal-name {
-        font-size: 1.1rem; font-weight: 900; color: #1e293b;
-        line-height: 1.35; margin-bottom: .5rem;
-    }
-    .food-modal-wow {
-        font-size: .95rem; font-weight: 700; font-style: italic;
-        color: var(--primary-red); display: flex; align-items: center; gap: .35rem;
-    }
-    .food-modal-close {
-        position: absolute; top: .75rem; right: .75rem;
-        width: 32px; height: 32px; border-radius: 50%;
-        background: rgba(0,0,0,.35); border: none;
-        display: flex; align-items: center; justify-content: center;
-        color: white; font-size: 1rem; cursor: pointer; z-index: 1;
-    }
+    .food-modal-sheet { width: 100%; max-width: 720px; margin: 0 auto; background: #fff; border-radius: 22px 22px 0 0;
+                        padding-bottom: env(safe-area-inset-bottom, 12px); max-height: 92dvh; overflow-y: auto; animation: fmUp .28s cubic-bezier(.32,.72,0,1); }
+    @@keyframes fmUp { from { transform: translateY(100%); } to { transform: none; } }
+    .food-modal-img { width: 100%; max-height: 60vh; object-fit: contain; display: block; background: #f8fafc; }
+    .food-modal-body { padding: .9rem 1.1rem 1.2rem; }
+    .food-modal-type { font-size: .75rem; font-weight: 800; text-transform: uppercase; color: #dc2626; letter-spacing: .04em; }
+    .food-modal-name { font-size: 1.2rem; font-weight: 900; color: #0f172a; line-height: 1.35; }
+    .food-modal-close { position: absolute; top: .7rem; right: .7rem; width: 36px; height: 36px; border-radius: 50%; background: rgba(0,0,0,.45);
+                        border: none; color: #fff; font-size: 1.05rem; z-index: 1; }
 </style>
 
-<!-- Food detail modal -->
+@{
+    var userMeals = ViewBag.UserMeals as List<HR_web.Models.Menu.UserTodayMealModel>;
+    var mealEmoji = new Dictionary<string,string> { { "MAN","meal-main" }, { "NHE","meal-light" }, { "CHAY","meal-veg" }, { "BANH","meal-bread" } };
+    var banhFixed = (ViewBag.BanhFixed as List<HR_web.Models.Menu.MenuBanhFixedSlot> ?? new()).Where(b => b.FoodId.HasValue).ToList();
+    // Ảnh món: cache theo NGÀY (HR đổi ảnh thì hôm sau thấy; trước đây &v=giây → không bao giờ cache)
+    var imgVer = today.ToString("yyyyMMdd");
+    string? FoodImg(int? id, string? isImg) => isImg == "Y" && id.HasValue
+        ? Url.Action("GetFoodImage", "Image", new { fileName = id + ".jpg" }) + "&v=" + imgVer : null;
+    var shiftColors = new Dictionary<string,string> { { "CA1", "#2563eb" }, { "CA2", "#16a34a" }, { "CA3", "#d97706" }, { "BANH", "#ca8a04" } };
+    var shiftShort  = new Dictionary<string,string> { { "CA1", "Ca 1 · Trưa" }, { "CA2", "Ca 2 · Tăng ca" }, { "CA3", "Ca 3 · Đêm" } };
+}
+
+<!-- Xem ảnh món -->
 <div class="food-modal-backdrop" id="foodModal" onclick="closeFoodModal(event)">
-    <div class="food-modal-sheet" id="foodModalSheet">
-        <div class="food-modal-handle"></div>
+    <div class="food-modal-sheet">
         <div style="position:relative;">
             <button class="food-modal-close" onclick="closeFoodModal()">✕</button>
             <img class="food-modal-img" id="foodModalImg" src="" alt=""
-                 onerror="this.style.display='none';document.getElementById('foodModalPh').style.display='block';" />
-            <img class="food-modal-img-ph" id="foodModalPh"
-                 src="@Url.Content("~/assets/img/no-food-image.jpg")" alt="Chưa cập nhật hình"
-                 style="display:none;" />
+                 onerror="this.onerror=null;this.src='@Url.Content("~/assets/img/no-food-image.jpg")';" />
         </div>
         <div class="food-modal-body">
+            <div class="food-modal-type" id="foodModalType"></div>
             <div class="food-modal-name" id="foodModalName"></div>
-            <div class="food-modal-wow">😍 waooooo nhìn ngon miệng quá</div>
         </div>
     </div>
 </div>
 
 <div class="tp px-2 py-2">
-
-    <!-- 1. Hero Header -->
-    <div class="tp-hero">
-        <div class="tp-hero-badge">@Html.Icon3D("menu") THỰC ĐƠN HÔM NAY</div>
-        <div class="tp-hero-day">@todayLabel</div>
-        <div class="tp-hero-full">@today.ToString("dd/MM/yyyy")</div>
+    <!-- Ngày + chuyển Hôm nay / Cả tuần -->
+    <div class="tp-top">
+        <div class="tp-date"><b>@todayLabel</b><span>@today.ToString("dd/MM/yyyy")</span></div>
+        <div class="tp-tabs">
+            <span class="tp-tab active">Hôm nay</span>
+            <a href="@Url.Action("ThisWeek")" class="tp-tab">Cả tuần</a>
+        </div>
     </div>
 
-    <!-- 2. Tabs Switch -->
-    <div class="tp-tabs">
-        <div class="tp-tab active">Hôm nay</div>
-        <a href="@Url.Action("ThisWeek")" class="tp-tab">Cả tuần</a>
-    </div>
-
-    <!-- Lock Banners -->
-    <div id="todayLockBanner" style="display:none;margin-bottom:.75rem;"></div>
-    <div id="upcomingLockBanner" style="display:none;margin-bottom:.75rem;"></div>
-
-    <!-- 3. Registered Meal Card (Tích hợp nút Đổi món) -->
-    @{
-        var userMeals = ViewBag.UserMeals as List<HR_web.Models.Menu.UserTodayMealModel>;
-        var mealEmoji = new Dictionary<string,string>
-        { { "MAN","meal-main" }, { "NHE","meal-light" }, { "CHAY","meal-veg" }, { "BANH","meal-bread" } };
-    }
-
+    <!-- Suất ăn của bạn + trạng thái khoá đổi món -->
     @if (userMeals != null && userMeals.Any())
     {
-        var lunch = userMeals.FirstOrDefault(m => m.SHIFT == "LUNCH") ?? userMeals.First();
+        var lunch  = userMeals.FirstOrDefault(m => m.SHIFT == "LUNCH") ?? userMeals.First();
         var otMeal = userMeals.FirstOrDefault(m => m.SHIFT == "OT");
-        var emojiL = lunch.FOOD_TYPE != null && mealEmoji.TryGetValue(lunch.FOOD_TYPE, out var emL) ? emL : "meal-default";
-        var emojiO = otMeal?.FOOD_TYPE != null && mealEmoji.TryGetValue(otMeal.FOOD_TYPE, out var emO) ? emO : "meal-default";
-
-        <div class="tp-mymeal">
-            <div class="tp-mymeal-header">
-                <div class="tp-mymeal-ttl">@Html.Icon3D("pin") Suất ăn bạn đã đăng ký</div>
-                <span class="tp-mymeal-status">✓ Đã ghi nhận</span>
-            </div>
-            <div class="tp-mymeal-content">
-                <div class="tp-mymeal-left">
-                    <div class="tp-mymeal-item">
-                        <span class="tp-mymeal-label">Trưa: </span>
-                        <span class="tp-mymeal-val">@Html.Icon3D(emojiL) @lunch.FOOD_NAME</span>
-                    </div>
+        <div class="tp-my">
+            <div class="tp-my-ttl">Suất ăn của bạn hôm nay</div>
+            <div class="tp-my-row">
+                <div class="tp-my-meals">
+                    <div class="tp-my-meal">@Html.Icon3D(lunch.FOOD_TYPE != null && mealEmoji.TryGetValue(lunch.FOOD_TYPE, out var eL) ? eL : "meal-default")
+                        <span><small>Trưa</small>@lunch.FOOD_NAME</span></div>
                     @if (otMeal != null)
                     {
-                        <div class="tp-mymeal-item">
-                            <span class="tp-mymeal-label">Tăng ca: </span>
-                            <span class="tp-mymeal-val">@Html.Icon3D(emojiO) @otMeal.FOOD_NAME</span>
-                        </div>
+                        <div class="tp-my-meal">@Html.Icon3D(otMeal.FOOD_TYPE != null && mealEmoji.TryGetValue(otMeal.FOOD_TYPE, out var eO) ? eO : "meal-default")
+                            <span><small>Tăng ca</small>@otMeal.FOOD_NAME</span></div>
                     }
                 </div>
                 @if (User.Identity?.IsAuthenticated == true)
                 {
-                    <a href="@Url.Action("ChangeMeal")" class="tp-mymeal-btn">
-                        <span>@Html.Icon3D("m-history") Đổi món</span>
-                    </a>
+                    <a href="@Url.Action("ChangeMeal")" class="tp-my-btn">Đổi món</a>
                 }
             </div>
+            <div id="todayLockBanner" style="display:none"></div>
         </div>
     }
     else if (User.Identity?.IsAuthenticated == true)
     {
-        <div class="tp-mymeal" style="border-style: dashed; background: #fafafa;">
-            <div class="tp-mymeal-content">
-                <div class="tp-mymeal-left">
-                    <div class="tp-mymeal-item" style="font-size:0.85rem; color:#64748b;">
-                        Bạn chưa đăng ký suất ăn nào cho hôm nay.
-                    </div>
-                </div>
-                <a href="@Url.Action("ChangeMeal")" class="tp-mymeal-btn">
-                    <span>@Html.Icon3D("meal-default") Chọn món</span>
-                </a>
+        <div class="tp-my empty">
+            <div class="tp-my-row">
+                <div class="tp-my-meals"><div class="tp-my-meal" style="font-size:.92rem;">Bạn chưa đăng ký suất ăn hôm nay</div></div>
+                <a href="@Url.Action("ChangeMeal")" class="tp-my-btn">Chọn món</a>
             </div>
-        </div>
-    }
-
-    <!-- 4. Feedback CTA -->
-    <a href="@Url.Action("Create","EmployeeInquiry", new { topicCd = "CANTEEN", chatType = "DIRECT" })" class="tp-feedback">
-        <div class="tp-feedback-icon">@Html.Icon3D("message")</div>
-        <div class="tp-feedback-body">
-            <div class="tp-feedback-title">Món ăn hôm nay chưa vừa ý?</div>
-            <div class="tp-feedback-desc">Nguội, có vị lạ, chưa ngon… Hãy phản ánh để chúng tôi cải thiện.</div>
-        </div>
-        <span class="tp-feedback-arrow">›</span>
-    </a>
-
-    <!-- 4b. Bánh cố định (luôn hiện, không theo lưới thực đơn ngày/ca) -->
-    @{
-        var banhFixed = (ViewBag.BanhFixed as List<HR_web.Models.Menu.MenuBanhFixedSlot> ?? new())
-            .Where(b => b.FoodId.HasValue).ToList();
-    }
-    @if (banhFixed.Any())
-    {
-        <div class="tp-shift">
-            <div class="tp-shift-hd" style="background:linear-gradient(135deg, #b45309 0%, #eab308 100%);">
-                <div class="tp-shift-hd-left">
-                    <span class="tp-shift-icon">@Html.Icon3D("meal-bread")</span>
-                    <div>
-                        <div class="tp-shift-title">Suất 2 món Bánh</div>
-                        <div class="tp-shift-desc">Luôn có mỗi ngày</div>
-                    </div>
-                </div>
-            </div>
-            @foreach (var b in banhFixed)
-            {
-                var imgUrl = b.IsImage == "Y"
-                    ? Url.Action("GetFoodImage","Image", new { fileName = b.FoodId + ".jpg" }) + "&v=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-                    : null;
-                var initial = (b.FoodName ?? "").Length > 0 ? b.FoodName![0].ToString().ToUpper() : "?";
-                <div class="tp-meal" data-food-img="@imgUrl" data-food-name="@b.FoodName" onclick="openFoodModal(this)">
-                    @if (imgUrl != null)
-                    {
-                        <img class="tp-meal-img" src="@imgUrl" alt="@b.FoodName" loading="lazy"
-                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-                        <div class="tp-meal-ph" style="display:none;background:#FEF9C3;">
-                            <span style="color:#78350F;font-size:1.1rem;font-weight:900;">@initial</span>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="tp-meal-ph" style="background:#FEF9C3;">
-                            <span style="color:#78350F;font-size:1.1rem;font-weight:900;">@initial</span>
-                        </div>
-                    }
-                    <div class="tp-meal-body">
-                        <span class="tp-meal-badge" style="background:#FEF9C3;color:#78350F;">@Html.Icon3D("meal-bread") Bánh</span>
-                        <div class="tp-meal-name">@b.FoodName</div>
-                    </div>
-                    <div class="tp-meal-action">
-                        <span>Xem</span>
-                        <i class="bi bi-chevron-right" style="font-size:.7rem;"></i>
-                    </div>
-                </div>
-            }
-        </div>
-    }
-
-    <!-- 5. Shifts Food Menu -->
-    @if (isEmpty)
-    {
-        <div class="tp-empty">
-            <span class="tp-empty-icon">@Html.Icon3D("meal-default")</span>
-            <p>Chưa có thực đơn hôm nay<br/>hoặc hôm nay là ngày nghỉ.</p>
+            <div id="todayLockBanner" style="display:none"></div>
         </div>
     }
     else
     {
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;padding:0 4px;">
-            <span style="font-size:.8rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.04em;">Thực đơn các ca</span>
-            <span style="font-size:.72rem;color:#94a3b8;">👆 Nhấn vào món ăn để xem hình</span>
+        <div id="todayLockBanner" style="display:none;margin-bottom:.75rem;"></div>
+    }
+
+    <!-- Lịch chốt suất ăn tuần này (thu gọn, bấm mới mở) -->
+    <div id="upcomingLockBanner" style="display:none"></div>
+
+    @if (isEmpty && !banhFixed.Any())
+    {
+        <div class="tp-empty">@Html.Icon3D("meal-default")<p>Chưa có thực đơn hôm nay<br/>hoặc hôm nay là ngày nghỉ.</p></div>
+    }
+    else
+    {
+        <!-- Chọn ca: chỉ hiện 1 ca một lúc -->
+        <div class="tp-shifts" id="tpShifts">
+            @foreach (var sh in shifts)
+            {
+                if (!Model.Any(m => m.SHIFT == sh.Key)) continue;
+                <button type="button" class="tp-sbtn" data-shift="@sh.Key" data-color="@shiftColors[sh.Key]">@Html.Icon3D(sh.Icon) @shiftShort[sh.Key]</button>
+            }
+            @if (banhFixed.Any())
+            {
+                <button type="button" class="tp-sbtn" data-shift="BANH" data-color="@shiftColors["BANH"]">@Html.Icon3D("meal-bread") Bánh</button>
+            }
         </div>
 
-        @foreach (var shift in shifts)
+        @foreach (var sh in shifts)
         {
-            var shiftItems = Model.Where(m => m.SHIFT == shift.Key).ToList();
-            if (!shiftItems.Any()) continue;
-
-            var byMeal = shiftItems
-                .GroupBy(m => m.MEAL_TYPE)
-                .OrderBy(g => g.Key == "MAN" ? 0 : g.Key == "DU_KIEN" ? 1 : g.Key == "NHE" ? 2 : g.Key == "CHAY" ? 3 : 4)
-                .ToList();
-
-            <div class="tp-shift">
-                <div class="tp-shift-hd" style="background:@shift.BgGradient;">
-                    <div class="tp-shift-hd-left">
-                        <span class="tp-shift-icon">@Html.Icon3D(shift.Icon)</span>
-                        <div>
-                            <div class="tp-shift-title">@shift.Title</div>
-                            <div class="tp-shift-desc">@shift.Desc</div>
-                        </div>
-                    </div>
-                    <span class="tp-shift-pill">@Html.Icon3D(shift.BadgeIcon) @shift.TimeBadge</span>
-                </div>
-                @foreach (var grp in byMeal)
-                {
-                    var label  = mealLabels.GetValueOrDefault(grp.Key, grp.Key);
-                    var colors = mealColors.GetValueOrDefault(grp.Key, (bg: "#f1f5f9", fg: "#334155"));
-                    var foods  = grp.OrderBy(f => f.DISPLAY_ORDER).ToList();
-                    @foreach (var food in foods)
+            var items = Model.Where(m => m.SHIFT == sh.Key)
+                .OrderBy(m => m.MEAL_TYPE == "MAN" ? 0 : m.MEAL_TYPE == "DU_KIEN" ? 1 : m.MEAL_TYPE == "NHE" ? 2 : m.MEAL_TYPE == "CHAY" ? 3 : 4)
+                .ThenBy(m => m.DISPLAY_ORDER).ToList();
+            if (!items.Any()) continue;
+            <section class="tp-shift-pane" data-pane="@sh.Key" hidden>
+                <div class="tp-shift-info">@sh.Desc</div>
+                <div class="tp-grid">
+                    @foreach (var food in items)
                     {
-                        var foodName = food.FOOD_NAME ?? "";
-                        var initial  = foodName.Length > 0 ? foodName[0].ToString().ToUpper() : "?";
-                        var imgUrl   = food.IS_IMAGE == "Y" && food.FOOD_ID.HasValue
-                            ? Url.Action("GetFoodImage","Image", new { fileName = food.FOOD_ID + ".jpg" }) + "&v=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-                            : null;
-                        <div class="tp-meal"
-                             data-food-img="@imgUrl"
-                             data-food-name="@foodName"
-                             onclick="openFoodModal(this)">
-                            @if (food.IS_IMAGE == "Y" && food.FOOD_ID.HasValue)
-                            {
-                                <img class="tp-meal-img"
-                                     src="@imgUrl"
-                                     alt="@foodName" loading="lazy"
-                                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-                                <div class="tp-meal-ph" style="display:none;background:@colors.bg;">
-                                    <span style="color:@colors.fg;font-size:1.1rem;font-weight:900;">@initial</span>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="tp-meal-ph" style="background:@colors.bg;">
-                                    <span style="color:@colors.fg;font-size:1.1rem;font-weight:900;">@initial</span>
-                                </div>
-                            }
-                            <div class="tp-meal-body">
-                                <span class="tp-meal-badge"
-                                      style="background:@colors.bg; color:@colors.fg;">@Html.Icon3D(mealIcons.GetValueOrDefault(grp.Key, "meal-default")) @label</span>
-                                <div class="tp-meal-name">@foodName</div>
+                        var name   = food.FOOD_NAME ?? "";
+                        var label  = mealLabels.GetValueOrDefault(food.MEAL_TYPE ?? "", food.MEAL_TYPE ?? "");
+                        var colors = mealColors.GetValueOrDefault(food.MEAL_TYPE ?? "", (bg: "#f1f5f9", fg: "#334155"));
+                        var img    = FoodImg(food.FOOD_ID, food.IS_IMAGE);
+                        <div class="tp-food" data-food-img="@img" data-food-name="@name" data-food-type="@label" onclick="openFoodModal(this)">
+                            <div class="tp-food-img" style="background:@colors.bg;">
+                                <span class="tp-food-ini" style="color:@colors.fg;">@(name.Length > 0 ? name[0].ToString().ToUpper() : "?")</span>
+                                @if (img != null)
+                                {
+                                    <img src="@img" alt="@name" loading="lazy" onerror="this.remove()" />
+                                }
+                                <span class="tp-food-badge" style="background:@colors.bg;color:@colors.fg;">@Html.Icon3D(mealIcons.GetValueOrDefault(food.MEAL_TYPE ?? "", "meal-default")) @label</span>
                             </div>
-                            <div class="tp-meal-action">
-                                <span>Xem</span>
-                                <i class="bi bi-chevron-right" style="font-size:.7rem;"></i>
-                            </div>
+                            <div class="tp-food-name">@name</div>
                         </div>
                     }
-                }
-            </div>
+                </div>
+            </section>
+        }
+        @if (banhFixed.Any())
+        {
+            <section class="tp-shift-pane" data-pane="BANH" hidden>
+                <div class="tp-shift-info">Suất 2 món Bánh — luôn có mỗi ngày</div>
+                <div class="tp-grid">
+                    @foreach (var b in banhFixed)
+                    {
+                        var img = FoodImg(b.FoodId, b.IsImage);
+                        <div class="tp-food" data-food-img="@img" data-food-name="@b.FoodName" data-food-type="Bánh" onclick="openFoodModal(this)">
+                            <div class="tp-food-img" style="background:#FEF9C3;">
+                                <span class="tp-food-ini" style="color:#78350F;">@((b.FoodName ?? "?").Substring(0, 1).ToUpper())</span>
+                                @if (img != null)
+                                {
+                                    <img src="@img" alt="@b.FoodName" loading="lazy" onerror="this.remove()" />
+                                }
+                                <span class="tp-food-badge" style="background:#FEF9C3;color:#78350F;">@Html.Icon3D("meal-bread") Bánh</span>
+                            </div>
+                            <div class="tp-food-name">@b.FoodName</div>
+                        </div>
+                    }
+                </div>
+            </section>
         }
     }
 
-    <p class="tp-tagline">✨ Chúc quý cán bộ công nhân viên một bữa ăn ngon miệng!</p>
-
+    <!-- Góp ý món ăn -->
+    <a href="@Url.Action("Create","EmployeeInquiry", new { topicCd = "CANTEEN", chatType = "DIRECT" })" class="tp-feedback">
+        @Html.Icon3D("message")
+        <span>Món ăn chưa vừa ý?<small>Nguội, vị lạ, chưa ngon… phản ánh để căn tin cải thiện</small></span>
+        <span class="arrow">›</span>
+    </a>
 </div>
 
 <script>
@@ -670,24 +349,18 @@ function getWeekRangeIso() {
         if (lockedScopes.length > 0) {
             const note = (resL?.note || resO?.note);
             const noteLine = note
-                ? `<div style="font-weight:500;font-size:.76rem;color:#991b1b;margin-top:.2rem;font-style:italic;">${window.ic3d('survey')} ${escTxt(note)}</div>`
+                ? `<div style="font-weight:500;font-size:.76rem;margin-top:.15rem;font-style:italic;">${escTxt(note)}</div>`
                 : '';
             banner.style.display = 'block';
-            banner.innerHTML = `
-                <div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:14px;padding:.75rem .95rem;font-size:.82rem;font-weight:700;line-height:1.5;box-shadow:0 2px 8px rgba(220,38,38,0.08);">
-                    ${window.ic3d('meal-locked')} Hôm nay (<b>${dLabel}</b>) đã khóa đổi món <span style="color:#7f1d1d">[${lockedScopes.join(' + ')}]</span> — không thể thay đổi món ăn nữa.
-                    ${noteLine}
-                </div>`;
+            banner.innerHTML = `<div class="tp-lock">${window.ic3d('meal-locked')} Đã khoá đổi món hôm nay (${lockedScopes.join(' + ')})${noteLine}</div>`;
+            document.querySelectorAll('.tp-my-btn').forEach(b => b.style.display = 'none');   // khoá rồi thì ẩn nút Đổi món
         } else if (warnScopes.length > 0) {
             const lines = warnScopes.map(w => `${w.sc}: ${escTxt(w.d.reason)}`).join('<br>');
             const note = warnScopes[0].d.note;
             const noteLine = note
-                ? `<br><span style="font-style:italic;">${window.ic3d('survey')} ${escTxt(note)}</span>` : '';
+                ? `<br><span style="font-style:italic;font-weight:500;">${escTxt(note)}</span>` : '';
             banner.style.display = 'block';
-            banner.innerHTML = `
-                <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:14px;padding:.75rem .95rem;font-size:.82rem;line-height:1.5;box-shadow:0 2px 8px rgba(217,119,6,0.08);">
-                    ${window.ic3d('overtime')} Hôm nay (<b>${dLabel}</b>) sẽ chốt số lượng món:<br>${lines}${noteLine}
-                </div>`;
+            banner.innerHTML = `<div class="tp-lock">${window.ic3d('overtime')} Sắp chốt đổi món hôm nay:<br>${lines}${noteLine}</div>`;
         }
     } catch {}
 })();
@@ -741,51 +414,56 @@ function getWeekRangeIso() {
 
             const noteLine = r.note ? `<div style="font-size:0.75rem;color:#9a3412;margin-top:2px;font-style:italic;">${window.ic3d('survey')} ${escTxt(r.note)}</div>` : '';
 
-            return `<div style="background:rgba(255,255,255,0.85);border:1px solid rgba(254,215,170,0.7);border-radius:10px;padding:8px 12px;margin-bottom:5px;">
-                <div><strong>${mealType} ${mealDayStr}</strong>: ${cutLine}</div>
-                ${noteLine}
-            </div>`;
+            return `<div class="wl-item"><strong>${mealType} ${mealDayStr}</strong>: ${cutLine}${noteLine}</div>`;
         }).join('');
 
         const banner = document.getElementById('upcomingLockBanner');
         banner.style.display = 'block';
-        banner.innerHTML = `
-            <div style="background:linear-gradient(135deg, #fffdfa 0%, #fff7ed 100%);border:1px solid #fed7aa;border-radius:14px;padding:.75rem .95rem;color:#7c2d12;font-size:.82rem;line-height:1.5;box-shadow:0 4px 14px rgba(234,88,12,0.08);">
-                <div style="font-weight:800;color:#9a3412;margin-bottom:.4rem;display:flex;align-items:center;gap:6px;">
-                    <span>${window.ic3d('overtime')}</span>
-                    <span>Lịch chốt suất ăn tuần này</span>
-                </div>
-                ${items}
-            </div>`;
+        // Thu gọn mặc định — bấm mới mở (trước đây khung to luôn chiếm đầu trang)
+        banner.innerHTML = `<details class="tp-week-lock"><summary>${window.ic3d('overtime')} Lịch chốt suất ăn tuần này (${upcoming.length})</summary><div class="wl-body">${items}</div></details>`;
     } catch {}
 })();
 
 function openFoodModal(el) {
-    const imgUrl   = el.getAttribute('data-food-img');
-    const foodName = el.getAttribute('data-food-name');
-    const modal    = document.getElementById('foodModal');
-    const imgEl    = document.getElementById('foodModalImg');
-    const phEl     = document.getElementById('foodModalPh');
-    const nameEl   = document.getElementById('foodModalName');
-
-    nameEl.textContent = foodName || '';
-    if (imgUrl) {
-        imgEl.src = imgUrl;
-        imgEl.style.display = 'block';
-        phEl.style.display  = 'none';
-    } else {
-        imgEl.style.display = 'none';
-        phEl.style.display  = 'block';
-    }
-    modal.classList.add('open');
+    const imgEl = document.getElementById('foodModalImg');
+    imgEl.onerror = function () { this.onerror = null; this.src = '@Url.Content("~/assets/img/no-food-image.jpg")'; };
+    imgEl.src = el.getAttribute('data-food-img') || '@Url.Content("~/assets/img/no-food-image.jpg")';
+    document.getElementById('foodModalName').textContent = el.getAttribute('data-food-name') || '';
+    document.getElementById('foodModalType').textContent = el.getAttribute('data-food-type') || '';
+    document.getElementById('foodModal').classList.add('open');
     document.body.style.overflow = 'hidden';
 }
 
 function closeFoodModal(e) {
     if (!e || e.target.id === 'foodModal' || e.target.classList.contains('food-modal-close')) {
-        const modal = document.getElementById('foodModal');
-        modal.classList.remove('open');
+        document.getElementById('foodModal').classList.remove('open');
         document.body.style.overflow = '';
     }
 }
+
+// ── Chọn ca: chỉ hiện 1 ca. Mặc định theo giờ hiện tại (trước 15h → Ca 1, 15h–21h → Ca 2, còn lại → Ca 3),
+//    bấm chọn ca khác thì nhớ trong NGÀY hôm đó (hôm sau lại tự chọn theo giờ).
+(function initShiftTabs() {
+    const btns = [...document.querySelectorAll('#tpShifts .tp-sbtn')];
+    if (!btns.length) return;
+    const KEY = 'menuTodayShift', dayKey = new Date().toDateString();
+    function pick(key) {
+        btns.forEach(b => {
+            const on = b.dataset.shift === key;
+            b.classList.toggle('active', on);
+            b.style.background = on ? b.dataset.color : '';
+        });
+        document.querySelectorAll('.tp-shift-pane').forEach(p => p.hidden = p.dataset.pane !== key);
+    }
+    btns.forEach(b => b.addEventListener('click', () => {
+        pick(b.dataset.shift);
+        try { localStorage.setItem(KEY, JSON.stringify({ d: dayKey, s: b.dataset.shift })); } catch (e) { }
+    }));
+    let saved = null;
+    try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); if (v && v.d === dayKey) saved = v.s; } catch (e) { }
+    const h = new Date().getHours();
+    const byTime = h < 15 ? 'CA1' : h < 21 ? 'CA2' : 'CA3';
+    const has = k => btns.some(b => b.dataset.shift === k);
+    pick(saved && has(saved) ? saved : has(byTime) ? byTime : btns[0].dataset.shift);
+})();
 </script>

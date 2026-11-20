@@ -206,6 +206,39 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+// (1) Báo cho trình duyệt "file đã tải xong" (2026-11-20): màn "Đang tải dữ liệu..." bật khi bấm Xuất Excel/
+//     tải mẫu nhưng tải file thì trang KHÔNG chuyển → loading treo mãi. Mọi response dạng tải file
+//     (Content-Disposition: attachment) gắn cookie hr_dl; wwwroot/js/page-loading.js thấy cookie đổi là tắt loading.
+// (2) Ghi lại request chậm (>3s) vào logs/slow-YYYYMMDD.log để biết trang nào load lâu mà tối ưu.
+//     CHỈ ghi đường dẫn, KHÔNG ghi query string: link hội thoại ẩn danh có anonToken — ghi kèm mã NV
+//     là lộ danh tính người gửi ẩn danh.
+app.Use(async (ctx, next) =>
+{
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    ctx.Response.OnStarting(() =>
+    {
+        var cd = ctx.Response.Headers.ContentDisposition.ToString();
+        if (cd.Contains("attachment", StringComparison.OrdinalIgnoreCase))
+            ctx.Response.Cookies.Append("hr_dl", DateTime.UtcNow.Ticks.ToString(),
+                new CookieOptions { Path = "/", HttpOnly = false, SameSite = SameSiteMode.Lax, IsEssential = true });
+        return Task.CompletedTask;
+    });
+    await next();
+    sw.Stop();
+    if (sw.ElapsedMilliseconds > 3000)
+    {
+        try
+        {
+            var dir = Path.Combine(app.Environment.ContentRootPath, "logs");
+            Directory.CreateDirectory(dir);
+            var user = ctx.User?.Identity?.Name ?? "-";
+            await File.AppendAllTextAsync(Path.Combine(dir, $"slow-{DateTime.Now:yyyyMMdd}.log"),
+                $"{DateTime.Now:HH:mm:ss}\t{sw.ElapsedMilliseconds}ms\t{ctx.Request.Method}\t{ctx.Request.Path}\t{ctx.Response.StatusCode}\t{user}{Environment.NewLine}");
+        }
+        catch { /* ghi log lỗi thì bỏ qua, không ảnh hưởng request */ }
+    }
+});
+
 app.UseRouting();
 
 app.UseSession();

@@ -206,7 +206,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Chứng chỉ Đào tạo",    Url = "~/TrainingAdmin/Certificates",        Icon = "card_membership", Group = "training" },
                     new SideMenuItem { Title = "Quản lý Đào tạo",      Url = "~/TrainingAdmin/Index",             Icon = "school",             Group = "training" },
 
-                    new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum",                 Group = "chat" },
+                    new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",             Icon = "forum",                 Group = "chat", BadgeId = "sideHrInqBadge" },
                     new SideMenuItem { Title = "Câu trả lời mẫu",       Url = "~/HrInquiry/CannedReplies",     Icon = "quickreply",            Group = "chat" },
                     new SideMenuItem { Title = "Báo cáo & Dashboard",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",              Group = "chat" },
                     new SideMenuItem { Title = "Đóng hội thoại hàng loạt", Url = "~/AdminInquiry/BulkClose",  Icon = "playlist_add_check",     Group = "chat", VisibleWhen = () => !isAdmin },
@@ -246,7 +246,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Quản lý Đào tạo",       Url = "~/TrainingAdmin/Index",        Icon = "school",          Group = "training" },
 
                     new SideMenuItem { Title = "Phân loại nhanh",       Url = "~/HrInquiry/Triage",           Icon = "bolt",            Group = "chat" },
-                    new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",            Icon = "forum",           Group = "chat" },
+                    new SideMenuItem { Title = "Quản lý hội thoại",     Url = "~/HrInquiry/Index",            Icon = "forum",           Group = "chat", BadgeId = "sideHrInqBadge" },
                     new SideMenuItem { Title = "Chủ đề hội thoại",      Url = "~/AdminInquiry/Topics",        Icon = "topic",           Group = "chat" },
                     new SideMenuItem { Title = "Email nhắc hạn",        Url = "~/AdminInquiry/RemindEmails",  Icon = "forward_to_inbox", Group = "chat" },
                     new SideMenuItem { Title = "Câu trả lời mẫu",       Url = "~/HrInquiry/CannedReplies",    Icon = "quickreply",      Group = "chat" },
@@ -287,7 +287,7 @@ public static class SideMenuBuilder
                 VisibleWhen = () => isGA && !isMobileApp,
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Hội thoại của phòng",  Url = "~/HrInquiry/Index",         Icon = "forum"      },
+                    new SideMenuItem { Title = "Hội thoại của phòng",  Url = "~/HrInquiry/Index",         Icon = "forum",      BadgeId = "sideHrInqBadge" },
                     new SideMenuItem { Title = "Câu trả lời mẫu",      Url = "~/HrInquiry/CannedReplies", Icon = "quickreply" },
                 }
             },

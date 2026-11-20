@@ -60,6 +60,15 @@ public class NotificationController : BaseController
         if (a.StartsWith("inquiry/"))
             return "~/EmployeeInquiry/Chat?id=" + Uri.EscapeDataString(a["inquiry/".Length..]);
 
+        // Thông báo Đào tạo (TrainingNotificationWorker.LinkFor) — trước đây không có ở đây nên rơi về
+        // hộp thư (báo lỗi 2026-11-20: bấm thông báo trên chuông lại nhảy vào trang Thông báo).
+        if (a.StartsWith("TRAINING_CLASS_REGISTER/"))
+            return "~/Training/ClassRegister/" + Uri.EscapeDataString(a["TRAINING_CLASS_REGISTER/".Length..]);
+        if (a.StartsWith("TRAINING_CLASS/"))
+            return "~/Training/ClassDetail/" + Uri.EscapeDataString(a["TRAINING_CLASS/".Length..]);
+        if (a.StartsWith("TRAINING_"))
+            return "~/Training/MyClasses";
+
         // Link ngoài: KHÔNG chuyển tiếp thẳng (hở lỗ chuyển hướng mở — ai gửi được thông báo là
         // dắt người dùng đi đâu cũng được). Đưa về hộp thư, người dùng tự bấm như trên web.
         if (a.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
@@ -80,6 +89,7 @@ public class NotificationController : BaseController
             "GIFT_MY"             => "~/Gift/MyGifts",
             "PAYSLIP"             => "~/Payslip/Index",
             "AI_CSR"              => "~/AiCsr/Chat",
+            "BULLETIN"            => "~/Bulletin/Index",
             _                     => "~/Notification/Index"   // mã lạ/không có -> hộp thư như cũ
         };
     }

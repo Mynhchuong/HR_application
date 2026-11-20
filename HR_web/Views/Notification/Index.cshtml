@@ -326,6 +326,9 @@ function onNotiClick(n) {
         // Hội thoại đóng → mở trang Chat, modal đánh giá tự bật nếu chưa rate
         // (xem EmployeeInquiry/Chat.cshtml: setTimeout(openRatingModal, 800))
         url = inquiryChatBase + '?id=' + encodeURIComponent(n.LINK_ACTION.substring('inquiry/'.length));
+    } else if ((n.LINK_ACTION || '').indexOf('TRAINING_') === 0) {
+        // Thông báo Đào tạo — đi qua /Notification/Go (map ở NotificationController.ResolveLink)
+        url = '@Url.Action("Go")?action=' + encodeURIComponent(n.LINK_ACTION);
     } else if (n.LINK_ACTION && /^https?:\/\//i.test(n.LINK_ACTION)) {
         // Link ngoài (bài báo, gov, v.v.) — mở tab mới
         window.open(n.LINK_ACTION, '_blank', 'noopener,noreferrer');

@@ -371,10 +371,24 @@
 
     <!-- Loading Overlay -->
     <div id="pageLoadingOverlay">
-        @* Loading dùng logo My Samho (2026-11-20): logo "thở" nhẹ + vòng cung đỏ–tím chạy quanh *@
+        @* Loading = logo app My Samho: khối đỏ bật ra → chữ S tự vẽ nét → xoá → vẽ lại (CSS: hr-nav.css "Loading toàn trang") *@
         <div class="ms-loader">
-            <span class="ms-loader-arc"></span>
-            <span class="ms-loader-logo"><img src="~/assets/img/samho-logo.png" alt="My Samho" /></span>
+            <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                <defs>
+                    <radialGradient id="msRed" cx="30%" cy="28%" r="85%">
+                        <stop offset="0" stop-color="#c8173a"/><stop offset=".55" stop-color="#9b0a24"/><stop offset="1" stop-color="#6a0617"/>
+                    </radialGradient>
+                    <clipPath id="msClip"><rect width="1024" height="1024" rx="230"/></clipPath>
+                    <linearGradient id="msShineG" x1="0" x2="1">
+                        <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+                    </linearGradient>
+                </defs>
+                <g class="ms-block">
+                    <rect width="1024" height="1024" rx="230" fill="url(#msRed)"/>
+                    <g clip-path="url(#msClip)"><rect class="ms-shine" x="0" y="-200" width="220" height="1500" fill="url(#msShineG)"/></g>
+                    <path class="ms-s" d="M690 238 C600 200 430 205 410 315 C395 400 470 440 540 474 C625 515 668 560 650 640 C628 740 425 772 300 690"/>
+                </g>
+            </svg>
         </div>
         <div class="fw-bold text-primary">@T("Loading...", "불러오는 중...")</div>
     </div>

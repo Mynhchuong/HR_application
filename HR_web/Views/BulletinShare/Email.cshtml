@@ -1,0 +1,184 @@
+@{
+    ViewData["Title"] = "Gửi bản tin qua Email";
+    int bulletinId = (int)(ViewBag.BulletinId ?? 0);
+    string myEmail = ViewBag.MyEmail as string ?? "";
+}
+@Html.AntiForgeryToken()
+
+<style>
+    .sh-wrap { max-width: 1400px; margin: 0 auto; padding: 1rem; }
+    .sh-top { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .sh-back { width: 38px; height: 38px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; display: inline-flex; align-items: center; justify-content: center; color: #334155; text-decoration: none; }
+    .sh-top h5 { margin: 0; font-weight: 800; color: #0f172a; }
+    .sh-top .sub { font-size: .85rem; color: #64748b; }
+    .sh-pill { font-size: .75rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; }
+    .st-NEW { background: #f1f5f9; color: #475569; } .st-DRAFT { background: #fef3c7; color: #92400e; }
+    .st-SENT { background: #dcfce7; color: #166534; } .st-FAILED { background: #fee2e2; color: #991b1b; }
+    .sh-grid { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    @@media (max-width: 991.98px) { .sh-grid { grid-template-columns: 1fr; } }
+    .sh-card { background: #fff; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); padding: 1rem 1.1rem; }
+    .sh-card h6 { font-weight: 800; color: #0f172a; margin-bottom: .75rem; }
+    .sh-card label { font-size: .8rem; font-weight: 700; color: #475569; margin-bottom: .25rem; }
+    .sh-card .form-control { border: 1.5px solid #e2e8f0 !important; border-radius: 10px; padding: .5rem .7rem !important; font-size: .9rem; background: #fff; }
+    .sh-card .form-control:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+    .sh-note { font-size: .78rem; color: #64748b; background: #f8fafc; border-radius: 10px; padding: .55rem .7rem; margin: .5rem 0 .9rem; }
+    .sh-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+    .sh-actions .btn { margin: 0; border-radius: 10px; font-weight: 700; text-transform: none; }
+    .sh-test { display: flex; gap: .4rem; margin-top: .6rem; }
+    .sh-test input { flex: 1; }
+    .sh-prev-head { display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid #f1f5f9; padding-bottom: .6rem; margin-bottom: .6rem; font-size: .85rem; }
+    .sh-prev-head b { color: #0f172a; }
+    #mailFrame { width: 100%; height: 72vh; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
+    .sh-err { background: #fef2f2; color: #991b1b; border-radius: 10px; padding: .55rem .7rem; font-size: .8rem; margin-bottom: .8rem; display: none; }
+</style>
+
+<div class="sh-wrap">
+    <div class="sh-top">
+        <a class="sh-back" href="@Url.Action("Manage", "BulletinAdmin")" title="Quay lại"><span class="material-symbols-rounded">arrow_back</span></a>
+        <div>
+            <h5>📧 Gửi bản tin qua Email</h5>
+            <div class="sub" id="bltTitle">Đang tải...</div>
+        </div>
+        <span class="sh-pill st-NEW" id="stPill">—</span>
+    </div>
+
+    <div id="ddlWarn" class="alert alert-warning" style="display:none">Chưa tạo bảng dữ liệu — cần chạy script <b>HR_api/Scripts/create_bulletin_share.sql</b>.</div>
+
+    <div class="sh-grid">
+        <!-- Soạn -->
+        <div class="sh-card">
+            <h6>Soạn email</h6>
+            <div class="sh-err" id="lastErr"></div>
+            <label>Gửi tới</label>
+            <textarea class="form-control mb-2" id="fRecipients" rows="2" placeholder="email1@esamho.com, email2@esamho.com"></textarea>
+            <label>Tiêu đề email</label>
+            <input class="form-control mb-2" id="fSubject" maxlength="500" />
+            <label>Lời dẫn (tiếng Việt)</label>
+            <input class="form-control mb-2" id="fIntroVi" maxlength="1000" />
+            <label>Lời dẫn (English)</label>
+            <input class="form-control mb-1" id="fIntroEn" maxlength="1000" />
+            <div class="sh-note">
+                Nội dung email = <b>toàn bộ bài</b> (tiếng Việt, rồi "English below:" và tiếng Anh), ảnh trong bài được đính kèm sẵn.
+                Muốn sửa nội dung bài → <a id="editLink" href="#">sửa bản tin</a> rồi quay lại.
+            </div>
+            <div class="sh-actions">
+                <button class="btn btn-outline-secondary" onclick="save(true)">💾 Lưu nháp</button>
+                <button class="btn btn-outline-primary" onclick="save(false).then(loadPreview)">🔄 Cập nhật xem trước</button>
+                <button class="btn btn-danger" onclick="sendNow()">📨 Gửi ngay</button>
+            </div>
+            <label class="mt-3">Gửi thử cho mình trước</label>
+            <div class="sh-test">
+                <input class="form-control" id="fTestTo" value="@myEmail" placeholder="email của bạn" />
+                <button class="btn btn-outline-danger mb-0" onclick="sendTest()">Gửi thử</button>
+            </div>
+        </div>
+
+        <!-- Xem trước -->
+        <div class="sh-card">
+            <h6>Xem trước — đúng như người nhận sẽ thấy</h6>
+            <div class="sh-prev-head">
+                <span>Tới: <b id="pvTo">—</b></span>
+                <span>Tiêu đề: <b id="pvSubject">—</b></span>
+            </div>
+            <iframe id="mailFrame" sandbox="allow-same-origin"></iframe>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const BID = @bulletinId;
+const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+const U = {
+    data: '@Url.Action("Data", "BulletinShare")/' + BID,
+    preview: '@Url.Action("EmailPreview", "BulletinShare")/' + BID,
+    save: '@Url.Action("Save", "BulletinShare")',
+    send: '@Url.Action("SendEmail", "BulletinShare")/' + BID,
+    edit: '@Url.Action("Edit", "BulletinAdmin")/' + BID
+};
+const ST = { NEW: 'Chưa soạn', DRAFT: 'Đang nháp', SENT: 'Đã gửi', FAILED: 'Gửi lỗi' };
+const $ = id => document.getElementById(id);
+let dirty = false;
+
+function setStatus(st, sentDt) {
+    const p = $('stPill');
+    p.className = 'sh-pill st-' + st;
+    p.textContent = (ST[st] || st) + (st === 'SENT' && sentDt ? ' · ' + new Date(sentDt).toLocaleString('vi-VN') : '');
+}
+
+async function load() {
+    $('lastErr').style.display = 'none';
+    $('editLink').href = U.edit;
+    const d = await fetch(U.data).then(r => r.json()).catch(() => ({ success: false, message: 'Không tải được dữ liệu, thử tải lại trang' }));
+    if (!d.success) {
+        if (d.needDdl) $('ddlWarn').style.display = 'block';
+        showToast(d.message || 'Không tải được', 'error'); $('bltTitle').textContent = d.message || ''; return;
+    }
+    $('bltTitle').textContent = d.bulletin.title + (d.bulletin.isPublished ? '' : '  (bài chưa đăng trên app)');
+    const e = d.email;
+    $('fRecipients').value = e.recipients || '';
+    $('fSubject').value = e.subject || '';
+    $('fIntroVi').value = e.introVi || '';
+    $('fIntroEn').value = e.introEn || '';
+    setStatus(e.status, e.sentDt);
+    if (e.status === 'FAILED' && e.lastError) { $('lastErr').style.display = 'block'; $('lastErr').textContent = 'Lần gửi trước lỗi: ' + e.lastError; }
+    loadPreview();
+}
+
+async function save(toast) {
+    const res = await fetch(U.save, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+        body: JSON.stringify({ bulletinId: BID, channel: 'EMAIL', subject: $('fSubject').value, recipients: $('fRecipients').value,
+                               introVi: $('fIntroVi').value, introEn: $('fIntroEn').value })
+    }).then(r => r.json()).catch(() => ({ success: false, message: 'Lỗi kết nối' }));
+    if (!res.success) { showToast(res.message || 'Lưu lỗi', 'error'); throw new Error('save'); }
+    dirty = false;
+    if ($('stPill').classList.contains('st-NEW')) setStatus('DRAFT');
+    if (toast) showToast('Đã lưu nháp', 'success');
+    return res;
+}
+
+async function loadPreview() {
+    const d = await fetch(U.preview).then(r => r.json()).catch(() => null);
+    if (!d || !d.success) return;
+    $('pvTo').textContent = d.recipients || '—';
+    $('pvSubject').textContent = d.subject || '—';
+    $('mailFrame').srcdoc = '<!doctype html><meta charset="utf-8"><body style="margin:12px;background:#f8fafc">' + d.html + '</body>';
+}
+
+async function post(url, body) {
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'RequestVerificationToken': token }, body })
+        .then(r => r.json()).catch(() => ({ success: false, message: 'Lỗi kết nối' }));
+}
+
+async function sendTest() {
+    const to = $('fTestTo').value.trim();
+    if (!to) { showToast('Nhập email nhận thử', 'warning'); return; }
+    try { await save(false); } catch { return; }
+    showLoading('Đang gửi thử...');
+    const r = await post(U.send, 'testTo=' + encodeURIComponent(to));
+    hideLoading();
+    showToast(r.message || (r.success ? 'Đã gửi thử' : 'Lỗi'), r.success ? 'success' : 'error');
+}
+
+function sendNow() {
+    const to = $('fRecipients').value.trim();
+    if (!to) { showToast('Chưa có người nhận', 'warning'); return; }
+    const again = $('stPill').classList.contains('st-SENT') ? '<br><b style="color:#b91c1c">Bài này đã gửi email rồi — gửi lại lần nữa?</b>' : '';
+    showConfirm(`Gửi email tới:<br><b>${to.replace(/</g,'&lt;')}</b>${again}`, async () => {
+        try { await save(false); } catch { return; }
+        showLoading('Đang gửi email...');
+        const r = await post(U.send, '');
+        hideLoading();
+        showToast(r.message || (r.success ? 'Đã gửi' : 'Lỗi'), r.success ? 'success' : 'error');
+        // Lấy lại trạng thái THẬT từ server (đã gửi / lỗi / thông báo lỗi lần gửi)
+        await load();
+        if (!r.success) { $('lastErr').style.display = 'block'; $('lastErr').textContent = r.message; }
+    }, { title: 'Gửi email', html: true, okText: 'Gửi ngay', okClass: 'btn-danger', icon: 'send', iconColor: '#b91c1c', iconBg: '#fee2e2' });
+}
+
+['fRecipients','fSubject','fIntroVi','fIntroEn'].forEach(id => $(id).addEventListener('input', () => dirty = true));
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+load();
+</script>
+}

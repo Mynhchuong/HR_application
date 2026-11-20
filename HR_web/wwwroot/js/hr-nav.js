@@ -449,6 +449,150 @@
     }
     window.hrOpenAppGrid = openAppGrid;
 
+    // ───────────────────── Tìm chức năng nhanh trên web (Ctrl/⌘+K) — 2026-11-20 ─────────────────────
+    // Menu nhiều mục quá, mở từng nhóm tìm không nổi. Gõ vài chữ (không dấu) → ra ngay, ↑↓ chọn, Enter mở.
+    // Dữ liệu lấy từ chính menu trái (nhóm + cụm + tên trang) → thêm chức năng mới là tự có.
+    var PAL_LBL = (function () {
+        var ko = window.UI_LANG === 'ko', en = window.UI_LANG === 'en';
+        return {
+            btn  : ko ? '기능 검색' : en ? 'Search features' : 'Tìm chức năng',
+            ph   : ko ? '찾을 기능을 입력하세요...' : en ? 'Type a feature name...' : 'Gõ tên chức năng (không cần dấu)...',
+            freq : NAV_LBL.freq, none: NAV_LBL.none,
+            hint : ko ? '↑↓ 선택 · Enter 열기 · Esc 닫기' : en ? '↑↓ select · Enter open · Esc close' : '↑↓ chọn · Enter mở · Esc đóng'
+        };
+    })();
+    function paletteItems() {
+        var list = [];
+        document.querySelectorAll('#sidenav-collapse-main > ul > .nav-item').forEach(function (g) {
+            var group = ((g.querySelector(':scope > .nav-link .nav-link-text') || {}).textContent || '').trim();
+            var cluster = '';
+            g.querySelectorAll('.collapse > ul > li').forEach(function (li) {
+                if (li.classList.contains('menu-group-label')) { cluster = li.textContent.trim(); return; }
+                if (!li.classList.contains('menu-child-item')) return;
+                var a = li.querySelector('a.nav-link');
+                if (!a) return;
+                var title = ((li.querySelector('.nav-link-text') || {}).textContent || '').trim();
+                list.push({
+                    url: a.getAttribute('href'), title: title, group: group, cluster: cluster,
+                    icon: (li.querySelector('.menu-child-icon') || {}).innerHTML || '',
+                    ft: fold(title + ' ' + (li.getAttribute('data-search') || '')), fg: fold(group + ' ' + cluster)
+                });
+            });
+        });
+        return list;
+    }
+    function scoreItem(it, words) {
+        var sc = 0, inTitle = false;
+        for (var i = 0; i < words.length; i++) {
+            var w = words[i], p = it.ft.indexOf(w);
+            if (p >= 0) inTitle = true;
+            if (p === 0) sc += 30;                                   // đầu tên
+            else if (p > 0 && it.ft.charAt(p - 1) === ' ') sc += 20; // đầu 1 chữ trong tên
+            else if (p > 0) sc += 10;
+            else if (it.fg.indexOf(w) >= 0) sc += 4;                 // khớp tên nhóm/cụm
+            else return 0;                                           // phải khớp ĐỦ mọi chữ
+        }
+        return inTitle ? sc : 0;                                     // ít nhất 1 chữ phải nằm trong TÊN trang
+    }
+    var pal = null, palItems = [], palSel = 0, palShown = [];
+    function buildPalette() {
+        pal = document.createElement('div');
+        pal.className = 'hr-pal';
+        pal.innerHTML =
+            '<div class="hr-pal-box" role="dialog" aria-modal="true">' +
+                '<div class="hr-pal-in"><i class="material-symbols-rounded no-ic3d">search</i>' +
+                    '<input type="text" autocomplete="off" spellcheck="false" placeholder="' + escHtml(PAL_LBL.ph) + '"><kbd>Esc</kbd></div>' +
+                '<div class="hr-pal-list"></div>' +
+                '<div class="hr-pal-foot">' + escHtml(PAL_LBL.hint) + '</div>' +
+            '</div>';
+        document.body.appendChild(pal);
+        var input = pal.querySelector('input');
+        input.addEventListener('input', function () { palSel = 0; renderPalette(this.value); });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); palSel = Math.min(palSel + 1, palShown.length - 1); markSel(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); palSel = Math.max(palSel - 1, 0); markSel(); }
+            else if (e.key === 'Enter') { e.preventDefault(); var it = palShown[palSel]; if (it) location.href = it.url; }
+            else if (e.key === 'Escape') { closePalette(); }
+        });
+        pal.addEventListener('mousedown', function (e) { if (e.target === pal) closePalette(); });
+        pal.querySelector('.hr-pal-list').addEventListener('mousemove', function (e) {
+            var r = e.target.closest('.hr-pal-row'); if (!r) return;
+            var i = +r.getAttribute('data-i'); if (i !== palSel) { palSel = i; markSel(); }
+        });
+    }
+    function rowHtml(it, i) {
+        var where = it.group + (it.cluster ? ' › ' + it.cluster : '');
+        return '<a class="hr-pal-row" data-i="' + i + '" href="' + escHtml(it.url) + '"><span class="hr-pal-ic">' + it.icon + '</span>' +
+               '<span class="hr-pal-tx"><b>' + escHtml(it.title) + '</b><small>' + escHtml(where) + '</small></span>' +
+               '<i class="material-symbols-rounded no-ic3d hr-pal-go">keyboard_return</i></a>';
+    }
+    function renderPalette(q) {
+        var listEl = pal.querySelector('.hr-pal-list');
+        var words = fold(q).split(/\s+/).filter(Boolean);
+        var html = '';
+        if (!words.length) {
+            // Chưa gõ gì: hiện chức năng hay dùng (nếu có), không thì 8 mục đầu
+            var top = topUsed(6).map(function (m) {
+                return palItems.filter(function (x) { return x.url === m.url; })[0];
+            }).filter(Boolean);
+            palShown = top.length ? top : palItems.slice(0, 8);
+            if (top.length) html += '<div class="hr-pal-sec">⭐ ' + escHtml(PAL_LBL.freq) + '</div>';
+        } else {
+            palShown = palItems.map(function (it) { return { it: it, s: scoreItem(it, words) }; })
+                .filter(function (x) { return x.s > 0; })
+                .sort(function (a, b) { return b.s - a.s || a.it.title.length - b.it.title.length; })
+                .slice(0, 12).map(function (x) { return x.it; });
+        }
+        html += palShown.map(rowHtml).join('');
+        listEl.innerHTML = palShown.length ? html : '<div class="hr-pal-none">' + escHtml(PAL_LBL.none) + '</div>';
+        markSel();
+    }
+    function markSel() {
+        pal.querySelectorAll('.hr-pal-row').forEach(function (r) {
+            var on = +r.getAttribute('data-i') === palSel;
+            r.classList.toggle('sel', on);
+            if (on) r.scrollIntoView({ block: 'nearest' });
+        });
+    }
+    function openPalette() {
+        palItems = paletteItems();
+        if (!palItems.length) return;
+        if (!pal) buildPalette();
+        pal.classList.add('open');
+        var input = pal.querySelector('input');
+        input.value = ''; palSel = 0; renderPalette('');
+        setTimeout(function () { input.focus(); }, 10);
+    }
+    function closePalette() { if (pal) pal.classList.remove('open'); }
+    window.hrOpenPalette = openPalette;
+
+    function initPalette() {
+        document.addEventListener('keydown', function (e) {
+            var k = (e.key || '').toLowerCase();
+            if ((e.ctrlKey || e.metaKey) && k === 'k') { e.preventDefault(); openPalette(); return; }
+            // "/" mở nhanh khi không đang gõ trong ô nhập
+            if (k === '/' && !e.ctrlKey && !e.metaKey && !/^(input|textarea|select)$/i.test((e.target.tagName || '')) && !e.target.isContentEditable) {
+                if (document.querySelector('#sidenav-collapse-main .menu-child-item')) { e.preventDefault(); openPalette(); }
+            }
+        });
+        // Nút "Tìm chức năng" trên thanh đầu trang (chỉ máy tính, tự chèn — không phải sửa 2 layout)
+        var left = document.querySelector('.main-header-left');
+        if (left && document.querySelector('#sidenav-collapse-main .menu-child-item')) {
+            var mac = /Mac|iPhone|iPad/.test(navigator.platform);
+            var b = document.createElement('button');
+            b.type = 'button'; b.className = 'hr-pal-btn';
+            b.innerHTML = '<i class="material-symbols-rounded no-ic3d">search</i><span>' + escHtml(PAL_LBL.btn) + '</span><kbd>' + (mac ? '⌘K' : 'Ctrl K') + '</kbd>';
+            b.addEventListener('click', openPalette);
+            left.appendChild(b);
+        }
+        // Ô tìm ở menu trái trên máy tính: bấm vào là mở bảng tìm nhanh (kết quả rõ hơn lọc trong menu)
+        var side = document.getElementById('sidenavSearch');
+        if (side) side.addEventListener('focus', function () {
+            if (isMobile()) return;
+            side.blur(); openPalette();
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         initSidebarToggle();
         initPins();
@@ -457,6 +601,7 @@
         renderFrequent();
         initRememberGroups();
         initGroupBadges();
+        initPalette();
     });
 })();
 

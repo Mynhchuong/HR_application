@@ -122,6 +122,7 @@ builder.Services.AddScoped<HR_web.API.Service.UserDeptService>();
 builder.Services.AddScoped<HR_web.API.Service.GatePassService>();
 builder.Services.AddScoped<HR_web.API.Service.PolicyService>();
 builder.Services.AddScoped<HR_web.API.Service.BulletinService>();
+builder.Services.AddScoped<HR_web.API.Service.BulletinShareService>();
 builder.Services.AddScoped<HR_web.API.Service.LeaveService>();
 builder.Services.AddScoped<HR_web.API.Service.CalendarService>();
 builder.Services.AddScoped<HR_web.API.Service.AttendanceConfirmService>();

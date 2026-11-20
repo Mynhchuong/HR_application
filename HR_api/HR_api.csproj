@@ -15,4 +15,8 @@
     <PackageReference Include="ClosedXML" Version="0.105.0" />
   </ItemGroup>
 
+  <!-- Logo nhúng vào email bản tin (BulletinShareController) -->
+  <ItemGroup>
+    <None Update="Assets\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

@@ -1,0 +1,83 @@
+@{
+    ViewData["Title"] = "Cài đặt Facebook";
+}
+@Html.AntiForgeryToken()
+
+<style>
+    .fs-wrap { max-width: 760px; margin: 0 auto; padding: 1rem; }
+    .fs-card { background: #fff; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); padding: 1.1rem 1.2rem; margin-bottom: 1rem; }
+    .fs-card h6 { font-weight: 800; color: #0f172a; }
+    .fs-card label { font-size: .82rem; font-weight: 700; color: #475569; margin-bottom: .25rem; }
+    .fs-card .form-control { border: 1.5px solid #e2e8f0 !important; border-radius: 10px; padding: .55rem .75rem !important; }
+    .fs-state { display: flex; align-items: center; gap: .6rem; padding: .7rem .85rem; border-radius: 12px; font-weight: 700; font-size: .9rem; margin-bottom: 1rem; }
+    .fs-ok { background: #dcfce7; color: #166534; } .fs-no { background: #f1f5f9; color: #475569; }
+    .fs-guide { font-size: .85rem; color: #334155; line-height: 1.6; }
+    .fs-guide ol { padding-left: 1.2rem; } .fs-guide code { background: #f1f5f9; padding: 1px 5px; border-radius: 5px; }
+</style>
+
+<div class="fs-wrap">
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <a class="btn btn-sm btn-outline-secondary mb-0" href="@Url.Action("Manage", "BulletinAdmin")">← Quản lý bản tin</a>
+        <h5 class="mb-0 fw-bold">📘 Kết nối Fanpage Facebook</h5>
+    </div>
+
+    <div id="ddlWarn" class="alert alert-warning" style="display:none">Chưa tạo bảng dữ liệu — cần chạy script <b>HR_api/Scripts/create_bulletin_share.sql</b>.</div>
+
+    <div class="fs-card">
+        <div class="fs-state fs-no" id="state">Đang tải...</div>
+        <label>Page ID</label>
+        <input class="form-control mb-2" id="fPageId" placeholder="vd 1234567890" autocomplete="off" />
+        <label>Page Access Token <span class="text-muted fw-normal">(để trống = giữ token đang dùng)</span></label>
+        <input class="form-control mb-1" id="fToken" type="password" placeholder="EAAG..." autocomplete="new-password" />
+        <div class="text-muted small mb-3">Token chỉ lưu trên máy chủ, trang này không hiển thị lại token. Ai có token là đăng được lên Fanpage — đừng gửi qua chat.</div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-primary mb-0" onclick="saveCfg()">💾 Lưu & kiểm tra</button>
+            <button class="btn btn-outline-primary mb-0" onclick="testCfg()">🔌 Kiểm tra kết nối</button>
+        </div>
+    </div>
+
+    <div class="fs-card fs-guide">
+        <h6>Cách lấy Page ID + Page Access Token (làm 1 lần, ~10 phút)</h6>
+        <ol>
+            <li>Dùng tài khoản Facebook là <b>admin Fanpage</b>, vào <code>developers.facebook.com</code> → <b>My Apps → Create App</b>, Use case <b>"Manage everything on your Page"</b>.</li>
+            <li>Vào <code>developers.facebook.com/tools/explorer</code>, chọn app vừa tạo → <b>Get User Access Token</b> với quyền
+                <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code> → <b>Generate</b>, chọn đúng Fanpage.</li>
+            <li>Vào <code>developers.facebook.com/tools/debug/accesstoken</code>, dán token → <b>Debug</b> → <b>Extend Access Token</b>, copy token mới.</li>
+            <li>Quay lại Explorer, dán token dài hạn, chạy <code>me/accounts?fields=id,name,access_token</code> → lấy <b>id</b> (Page ID) và <b>access_token</b> (Page token) của Fanpage công ty.</li>
+            <li>Dán 2 giá trị vào ô bên trên → <b>Lưu & kiểm tra</b>. Token lấy theo cách này <b>không hết hạn</b> (trừ khi đổi mật khẩu Facebook / bị gỡ quyền admin Page).</li>
+        </ol>
+        <div class="text-muted small">Máy chủ cần ra được Internet tới <code>graph.facebook.com</code> — nếu báo "không gọi được Facebook" thì nhờ IT mở.</div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+const $ = id => document.getElementById(id);
+function state(ok, text) { const s = $('state'); s.className = 'fs-state ' + (ok ? 'fs-ok' : 'fs-no'); s.textContent = text; }
+async function load() {
+    const d = await fetch('@Url.Action("FbConfig", "BulletinShare")').then(r => r.json()).catch(() => null);
+    if (!d || !d.success) { if (d && d.needDdl) $('ddlWarn').style.display = 'block'; state(false, d?.message || 'Không tải được'); return; }
+    $('fPageId').value = d.pageId || '';
+    state(d.hasToken, d.hasToken ? `✅ Đã kết nối: ${d.pageName || d.pageId} (token ${d.tokenTail})` : 'Chưa kết nối Fanpage');
+}
+async function post(url, body) {
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'RequestVerificationToken': token }, body })
+        .then(r => r.json()).catch(() => ({ success: false, message: 'Lỗi kết nối' }));
+}
+async function saveCfg() {
+    showLoading('Đang kiểm tra với Facebook...');
+    const r = await post('@Url.Action("SaveFbConfig", "BulletinShare")', 'pageId=' + encodeURIComponent($('fPageId').value.trim()) + '&token=' + encodeURIComponent($('fToken').value.trim()));
+    hideLoading();
+    showToast(r.message || (r.success ? 'Đã lưu' : 'Lỗi'), r.success ? 'success' : 'error');
+    if (r.success) { $('fToken').value = ''; load(); }
+}
+async function testCfg() {
+    showLoading('Đang kiểm tra...');
+    const r = await post('@Url.Action("TestFb", "BulletinShare")', '');
+    hideLoading();
+    showToast(r.message, r.success ? 'success' : 'error');
+}
+load();
+</script>
+}

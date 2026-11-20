@@ -68,6 +68,51 @@
     }
     .blt-actions .btn i { font-size: 13px; }
     .blt-actions form { display: inline-flex; margin: 0; }
+    /* ── Thiết kế lại 2026-11-20: tìm + lọc, nút có chữ, thao tác phụ gom vào ⋯ ── */
+    .blm-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-bottom: 1rem; }
+    .blm-search { position: relative; flex: 0 1 300px; min-width: 200px; }
+    .blm-search i { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+    .blm-search input { width: 100%; height: 38px; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 0 10px 0 32px; font-size: .88rem; background: #f8fafc; outline: none; }
+    .blm-search input:focus { border-color: #f59e0b; background: #fff; }
+    .blm-chips { display: flex; gap: .35rem; flex-wrap: wrap; flex: 1; }
+    .blm-chip { border: 1.5px solid #e2e8f0; background: #fff; border-radius: 999px; padding: .32rem .75rem; font-size: .8rem; font-weight: 700; color: #475569; }
+    .blm-chip b { color: #94a3b8; margin-left: 2px; }
+    .blm-chip.active { background: #1e293b; border-color: #1e293b; color: #fff; }
+    .blm-chip.active b { color: #cbd5e1; }
+    .blm-role { height: 38px; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 0 .6rem; font-size: .85rem; background: #fff; }
+    .blm-table thead th { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: #94a3b8; font-weight: 800; border-bottom: 1px solid #f1f5f9; padding: .5rem .5rem; }
+    .blm-table tbody td { padding: .65rem .5rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .blm-row:hover td { background: #fafbff; }
+    .blm-thumb { position: relative; display: block; width: 84px; height: 52px; border-radius: 8px; overflow: hidden; background: #f1f5f9; }
+    .blm-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .blm-thumb-empty { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; color: #cbd5e1; font-size: 1.3rem; }
+    .blm-pin { position: absolute; top: 2px; left: 2px; font-size: .85rem; filter: drop-shadow(0 1px 2px rgba(0,0,0,.3)); }
+    .blm-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 700; color: #0f172a !important; font-size: .9rem; line-height: 1.35; text-decoration: none !important; max-width: 520px; }
+    .blm-title:hover { color: #b45309 !important; }
+    .blm-meta { font-size: .74rem; color: #94a3b8; margin-top: 3px; }
+    .blm-date { font-size: .8rem; color: #334155; } .blm-date span { color: #94a3b8; }
+    .blm-stat { font-size: .78rem; color: #64748b; white-space: nowrap; }
+    .blm-share { display: inline-flex; gap: 6px; }
+    .share-btn { width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; text-decoration: none !important; }
+    .share-mail { background: #fef2f2; color: #dc2626 !important; border: 1.5px solid #fecaca; }
+    .share-fb   { background: #eff6ff; color: #1877f2 !important; border: 1.5px solid #bfdbfe; }
+    .share-mail.sent { background: #dc2626; color: #fff !important; border-color: #dc2626; }
+    .share-fb.sent   { background: #1877f2; color: #fff !important; border-color: #1877f2; }
+    .blm-actions { display: inline-flex; align-items: center; gap: .35rem; justify-content: flex-end; }
+    .blm-actions form { margin: 0; }
+    .blm-btn { margin: 0 !important; height: 34px; padding: 0 .85rem !important; border-radius: 10px !important; font-size: .82rem !important; font-weight: 700 !important; text-transform: none !important; box-shadow: none !important; display: inline-flex; align-items: center; }
+    .blm-btn-light { background: #f1f5f9 !important; color: #334155 !important; }
+    .blm-btn-light:hover { background: #e2e8f0 !important; }
+    .blm-btn-green { background: #16a34a !important; color: #fff !important; }
+    .blm-btn-more { background: #fff !important; border: 1.5px solid #e2e8f0 !important; color: #334155 !important; padding: 0 .65rem !important; font-size: 1.1rem !important; }
+    .blm-menu { border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(15,23,42,.12); padding: .35rem; min-width: 210px; }
+    .blm-menu .dropdown-item { border-radius: 8px; font-size: .86rem; font-weight: 600; padding: .5rem .7rem; width: 100%; text-align: left; background: none; border: 0; }
+    .blm-menu .dropdown-item:hover { background: #f1f5f9; }
+    .blm-menu form { margin: 0; }
+    .blm-empty { text-align: center; color: #94a3b8; padding: 2rem; font-weight: 600; }
+    .share-btn { position: relative; }
+    .share-tick { position: absolute; top: -6px; right: -6px; background: #16a34a; color: #fff; font-size: 10px; font-weight: 800;
+                  width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; }
 </style>
 }
 
@@ -76,9 +121,11 @@
         <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
             <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="text-white mb-0"><i class="bi bi-megaphone-fill me-1"></i>Quản lý bản tin</h6>
-                <a href="@Url.Action("Edit", "BulletinAdmin")" class="btn btn-sm btn-white mb-0 d-flex align-items-center">
-                    <i class="bi bi-plus-lg me-1"></i> Thêm bản tin
-                </a>
+                <div class="d-flex gap-2">
+                    <a href="@Url.Action("Edit", "BulletinAdmin")" class="btn btn-sm btn-white mb-0 d-flex align-items-center">
+                        <i class="bi bi-plus-lg me-1"></i> Thêm bản tin
+                    </a>
+                </div>
             </div>
         </div>
 
@@ -107,164 +154,173 @@
             }
             else
             {
+                var today0 = DateTime.Now.Date;
+                string StKey(HR_web.Models.Bulletin.BulletinModel x) =>
+                    x.IS_ACTIVE == 0 ? "deleted" : x.IS_PUBLISHED == 0 ? "draft" : x.PUBLISH_TO.Date < today0 ? "expired"
+                    : x.PUBLISH_FROM.Date > today0 ? "pending" : "live";
+                var cnt = Model.GroupBy(StKey).ToDictionary(g => g.Key, g => g.Count());
+                int C(string k) => cnt.GetValueOrDefault(k);
+                var roles = Model.Select(x => string.IsNullOrEmpty(x.CREATED_ROLE) ? "HR" : x.CREATED_ROLE!).Distinct().OrderBy(x => x).ToList();
+
+                @* Thanh công cụ: tìm + lọc trạng thái (+ lọc phòng nếu có nhiều phòng) — lọc ngay trên trang *@
+                <div class="blm-toolbar mx-4">
+                    <div class="blm-search">
+                        <i class="bi bi-search no-ic3d"></i>
+                        <input type="text" id="blmSearch" placeholder="Tìm theo tiêu đề..." autocomplete="off" />
+                    </div>
+                    <div class="blm-chips" id="blmChips">
+                        <button type="button" class="blm-chip active" data-f="all">Tất cả <b>@(Model.Count - C("deleted"))</b></button>
+                        <button type="button" class="blm-chip" data-f="live">🟢 Đang hiện <b>@C("live")</b></button>
+                        <button type="button" class="blm-chip" data-f="draft">📝 Nháp <b>@C("draft")</b></button>
+                        <button type="button" class="blm-chip" data-f="pending">⏳ Chờ ngày <b>@C("pending")</b></button>
+                        <button type="button" class="blm-chip" data-f="pinned">📌 Đang ghim <b>@Model.Count(x => x.IS_PINNED == 1 && x.IS_ACTIVE == 1)</b></button>
+                        <button type="button" class="blm-chip" data-f="expired">Hết hạn <b>@C("expired")</b></button>
+                        @if (C("deleted") > 0)
+                        {
+                            <button type="button" class="blm-chip" data-f="deleted">🗑 Đã xóa <b>@C("deleted")</b></button>
+                        }
+                    </div>
+                    @if (roles.Count > 1)
+                    {
+                        <select id="blmRole" class="blm-role">
+                            <option value="">Mọi phòng</option>
+                            @foreach (var r in roles) { <option value="@r">@(r == "HR" ? "Nhân sự" : r)</option> }
+                        </select>
+                    }
+                </div>
+
                 <div class="table-responsive p-0 px-4">
-                    <table class="table align-items-center mb-0 w-100 table-hover">
-                        <thead class="bg-light">
+                    <table class="table align-items-center mb-0 w-100 blm-table">
+                        <thead>
                             <tr>
-                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center" style="width:40px;"></th>
-                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2" style="width:90px;">Ảnh</th>
-                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2">Tiêu đề</th>
-                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 d-none d-md-table-cell">Thời gian hiện</th>
-                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center" style="width:80px;">Trạng thái</th>
-                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center d-none d-md-table-cell" style="width:60px;">Lượt xem</th>
-                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center d-none d-md-table-cell" style="width:60px;">CMT</th>
-                                <th class="text-uppercase text-secondary text-xxs font-weight-bolder px-2 text-center" style="width:220px;">Hành động</th>
+                                <th style="width:96px;"></th>
+                                <th>Bản tin</th>
+                                <th class="d-none d-lg-table-cell" style="width:120px;">Thời gian hiện</th>
+                                <th class="text-center" style="width:100px;">Trạng thái</th>
+                                <th class="text-center d-none d-md-table-cell" style="width:70px;">Email</th>
+                                <th class="text-center d-none d-xl-table-cell" style="width:90px;">Xem · BL</th>
+                                <th class="text-end" style="width:200px;">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var item in Model)
                             {
-                                var now = DateTime.Now.Date;
-                                bool isDraft    = item.IS_PUBLISHED == 0;
-                                bool isInactive = item.IS_ACTIVE    == 0;
-                                bool isExpired  = item.PUBLISH_TO.Date  < now;
-                                bool isPending  = item.PUBLISH_FROM.Date > now;
+                                var st         = StKey(item);
+                                bool isDraft    = st == "draft";
+                                bool isInactive = st == "deleted";
+                                string role     = string.IsNullOrEmpty(item.CREATED_ROLE) ? "HR" : item.CREATED_ROLE!;
+                                bool canManage  = meAllRoles || string.IsNullOrEmpty(item.CREATED_ROLE) || me.HasRole(item.CREATED_ROLE);
+                                var (stText, stClass) = st switch
+                                {
+                                    "deleted" => ("Đã xóa", "badge-deleted"), "draft" => ("Nháp", "badge-draft"),
+                                    "expired" => ("Hết hạn", "badge-expired"), "pending" => ("Chờ ngày", "badge-pending"),
+                                    _ => ("Đang hiện", "badge-live")
+                                };
+                                var openUrl = canManage && !isInactive ? Url.Action("Edit", "BulletinAdmin", new { id = item.ID })
+                                                                       : Url.Action("Preview", "BulletinAdmin", new { id = item.ID });
 
-                                string statusBadge;
-                                string statusClass;
-                                if (isInactive)       { statusBadge = "Đã xóa";    statusClass = "badge-deleted"; }
-                                else if (isDraft)     { statusBadge = "Nháp";      statusClass = "badge-draft";   }
-                                else if (isExpired)   { statusBadge = "Hết hạn";   statusClass = "badge-expired"; }
-                                else if (isPending)   { statusBadge = "Chờ ngày";  statusClass = "badge-pending"; }
-                                else                  { statusBadge = "Đang hiện"; statusClass = "badge-live";    }
-
-                                string rowClass = isInactive ? "blt-row-inactive"
-                                                : isExpired  ? "blt-row-expired"
-                                                : isDraft    ? "blt-row-draft" : "";
-
-                                <tr class="@rowClass">
-                                    <td class="px-2 text-center">
-                                        @if (item.IS_PINNED == 1)
+                                <tr class="blm-row @(isInactive ? "blt-row-inactive" : "")" data-st="@st" data-pin="@item.IS_PINNED"
+                                    data-role="@role" data-q="@((item.TITLE + " " + item.TITLE_EN).ToLowerInvariant())">
+                                    <td>
+                                        <a href="@openUrl" class="blm-thumb">
+                                            @if (!string.IsNullOrEmpty(item.COVER_IMG))
+                                            {
+                                                <img src="@Url.Action("GetBulletinImage", "Image", new { fileName = item.COVER_IMG })" alt="" loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <span class="blm-thumb-empty"><i class="bi bi-image no-ic3d"></i></span>
+                                            }
+                                            @if (item.IS_PINNED == 1) { <span class="blm-pin" title="Đang ghim ở trang Home (thứ tự @item.PIN_ORDER)">📌</span> }
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="@openUrl" class="blm-title" title="@item.TITLE">@item.TITLE</a>
+                                        <div class="blm-meta">
+                                            <span class="blt-role-tag">@(role == "HR" ? "Nhân sự" : role)</span>
+                                            Tạo @(item.INST_DT?.ToString("dd/MM/yyyy")) · @item.INST_ID
+                                            <span class="d-lg-none"> · @item.PUBLISH_FROM.ToString("dd/MM") → @item.PUBLISH_TO.ToString("dd/MM")</span>
+                                        </div>
+                                    </td>
+                                    <td class="d-none d-lg-table-cell blm-date">
+                                        @item.PUBLISH_FROM.ToString("dd/MM/yyyy")<br /><span>→ @item.PUBLISH_TO.ToString("dd/MM/yyyy")</span>
+                                    </td>
+                                    <td class="text-center"><span class="blt-badge-st @stClass">@stText</span></td>
+                                    <td class="text-center d-none d-md-table-cell">
+                                        @if (canManage && !isInactive)
                                         {
-                                            <i class="bi bi-pin-angle-fill blt-pin" title="Đang ghim (thứ tự @item.PIN_ORDER)"></i>
+                                            <div class="blm-share">
+                                                <a href="@Url.Action("Email", "BulletinShare", new { id = item.ID })" class="share-btn share-mail" data-share="EMAIL" data-id="@item.ID" title="Gửi qua Email">
+                                                    <i class="bi bi-envelope-fill no-ic3d"></i>
+                                                </a>
+                                            </div>
                                         }
                                     </td>
-                                    <td class="px-2">
-                                        @if (!string.IsNullOrEmpty(item.COVER_IMG))
+                                    <td class="text-center d-none d-xl-table-cell blm-stat">👁 @item.VIEW_COUNT · 💬 @item.COMMENT_COUNT</td>
+                                    <td class="text-end">
+                                        @if (isInactive)
                                         {
-                                            <img src="@Url.Action("GetBulletinImage", "Image", new { fileName = item.COVER_IMG })"
-                                                 class="blt-cover" alt="cover" />
+                                            <span class="text-xs text-secondary">—</span>
+                                        }
+                                        else if (!canManage)
+                                        {
+                                            <a href="@openUrl" class="btn blm-btn blm-btn-light">Xem</a>
+                                            <div class="text-xs text-secondary mt-1">Bài của @role</div>
                                         }
                                         else
                                         {
-                                            <div class="blt-cover blt-cover-empty"><i class="bi bi-image"></i></div>
-                                        }
-                                    </td>
-                                    <td class="px-2">
-                                        <div class="fw-bold text-dark text-sm blt-title-cell" title="@item.TITLE">@item.TITLE</div>
-                                        <div class="text-xs text-secondary">
-                                            Tạo @(item.INST_DT?.ToString("dd/MM/yyyy HH:mm")) bởi @item.INST_ID
-                                            @if (!string.IsNullOrEmpty(item.CREATED_ROLE))
-                                            {
-                                                <span class="blt-role-tag">@item.CREATED_ROLE</span>
-                                            }
-                                        </div>
-                                    </td>
-                                    <td class="px-2 d-none d-md-table-cell text-xs">
-                                        <div>@item.PUBLISH_FROM.ToString("dd/MM/yyyy")</div>
-                                        <div class="text-secondary">→ @item.PUBLISH_TO.ToString("dd/MM/yyyy")</div>
-                                    </td>
-                                    <td class="px-2 text-center">
-                                        <span class="blt-badge-st @statusClass">@statusBadge</span>
-                                    </td>
-                                    <td class="px-2 text-center d-none d-md-table-cell">
-                                        <span class="text-sm fw-bold">@item.VIEW_COUNT</span>
-                                    </td>
-                                    <td class="px-2 text-center d-none d-md-table-cell">
-                                        <span class="text-sm fw-bold">@item.COMMENT_COUNT</span>
-                                    </td>
-                                    <td class="px-2 text-center">
-                                        @{
-                                            bool canManage = meAllRoles
-                                                || string.IsNullOrEmpty(item.CREATED_ROLE)
-                                                || me.HasRole(item.CREATED_ROLE);
-                                        }
-                                        @if (!isInactive && !canManage)
-                                        {
-                                            <div class="blt-actions">
-                                                <a href="@Url.Action("Preview", "BulletinAdmin", new { id = item.ID })"
-                                                   class="btn btn-primary" title="Xem trước">
-                                                    <i class="bi bi-eye"></i>
-                                                </a>
-                                            </div>
-                                            <div class="text-xs text-secondary mt-1">Bài của @item.CREATED_ROLE</div>
-                                        }
-                                        else if (!isInactive)
-                                        {
-                                            <div class="blt-actions">
-                                                <a href="@Url.Action("Edit", "BulletinAdmin", new { id = item.ID })"
-                                                   class="btn btn-info" title="Sửa">
-                                                    <i class="bi bi-pencil-square"></i>
-                                                </a>
-                                                <a href="@Url.Action("Preview", "BulletinAdmin", new { id = item.ID })"
-                                                   class="btn btn-primary" title="Xem trước">
-                                                    <i class="bi bi-eye"></i>
-                                                </a>
-
-                                                <form asp-action="TogglePin" asp-controller="BulletinAdmin" method="post">
-                                                    @Html.AntiForgeryToken()
-                                                    <input type="hidden" name="id" value="@item.ID" />
-                                                    <button type="submit"
-                                                            class="btn @(item.IS_PINNED == 1 ? "btn-warning" : "btn-outline-warning")"
-                                                            title="@(item.IS_PINNED == 1 ? "Bỏ ghim" : "Ghim")">
-                                                        <i class="bi bi-pin-angle@(item.IS_PINNED == 1 ? "-fill" : "")"></i>
-                                                    </button>
-                                                </form>
-
+                                            <div class="blm-actions">
+                                                <a href="@Url.Action("Edit", "BulletinAdmin", new { id = item.ID })" class="btn blm-btn blm-btn-light">Sửa</a>
                                                 @if (isDraft)
                                                 {
-                                                    <form asp-action="Publish" asp-controller="BulletinAdmin" method="post"
-                                                          class="confirm-form"
-                                                          data-confirm="Đăng bản tin này? Sẽ gửi thông báo FCM cho toàn bộ nhân viên (lần đầu)."
-                                                          data-title="Đăng bản tin"
-                                                          data-ok="Đăng" data-ok-class="btn-success"
+                                                    <form asp-action="Publish" asp-controller="BulletinAdmin" method="post" class="confirm-form"
+                                                          data-confirm="Đăng bản tin này? Sẽ gửi thông báo cho toàn bộ nhân viên (lần đầu)."
+                                                          data-title="Đăng bản tin" data-ok="Đăng" data-ok-class="btn-success"
                                                           data-icon="cloud_upload" data-icon-color="#16a34a" data-icon-bg="#dcfce7">
                                                         @Html.AntiForgeryToken()
                                                         <input type="hidden" name="id" value="@item.ID" />
-                                                        <button type="submit" class="btn btn-success" title="Đăng">
-                                                            <i class="bi bi-cloud-upload-fill"></i>
-                                                            <span class="d-none d-lg-inline">Đăng</span>
-                                                        </button>
+                                                        <button type="submit" class="btn blm-btn blm-btn-green">Đăng</button>
                                                     </form>
                                                 }
-                                                else
-                                                {
-                                                    <form asp-action="Unpublish" asp-controller="BulletinAdmin" method="post"
-                                                          class="confirm-form"
-                                                          data-confirm="Rút bài này khỏi danh sách hiển thị?"
-                                                          data-title="Rút bài"
-                                                          data-ok="Rút bài" data-ok-class="btn-warning"
-                                                          data-icon="cloud_off" data-icon-color="#d97706" data-icon-bg="#fef3c7">
-                                                        @Html.AntiForgeryToken()
-                                                        <input type="hidden" name="id" value="@item.ID" />
-                                                        <button type="submit" class="btn btn-outline-secondary" title="Rút bài">
-                                                            <i class="bi bi-cloud-slash"></i>
-                                                        </button>
-                                                    </form>
-                                                }
-
-                                                <form asp-action="Delete" asp-controller="BulletinAdmin" method="post"
-                                                      class="confirm-form"
-                                                      data-confirm="Xóa bản tin này?"
-                                                      data-title="Xóa bản tin"
-                                                      data-ok="Xóa" data-ok-class="btn-danger"
-                                                      data-icon="delete" data-icon-color="#dc2626" data-icon-bg="#fee2e2">
-                                                    @Html.AntiForgeryToken()
-                                                    <input type="hidden" name="id" value="@item.ID" />
-                                                    <button type="submit" class="btn btn-danger" title="Xóa">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                </form>
+                                                <div class="dropdown">
+                                                    <button type="button" class="btn blm-btn blm-btn-more" data-bs-toggle="dropdown"
+                                                            data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" title="Thêm thao tác">⋯</button>
+                                                    <ul class="dropdown-menu dropdown-menu-end blm-menu">
+                                                        <li><a class="dropdown-item" href="@Url.Action("Preview", "BulletinAdmin", new { id = item.ID })">👁 Xem trước</a></li>
+                                                        <li class="d-md-none"><a class="dropdown-item" href="@Url.Action("Email", "BulletinShare", new { id = item.ID })">📧 Gửi Email</a></li>
+                                                        <li>
+                                                            <form asp-action="TogglePin" asp-controller="BulletinAdmin" method="post">
+                                                                @Html.AntiForgeryToken()
+                                                                <input type="hidden" name="id" value="@item.ID" />
+                                                                <button type="submit" class="dropdown-item">@(item.IS_PINNED == 1 ? "📌 Bỏ ghim khỏi Home" : "📌 Ghim lên Home")</button>
+                                                            </form>
+                                                        </li>
+                                                        @if (!isDraft)
+                                                        {
+                                                            <li>
+                                                                <form asp-action="Unpublish" asp-controller="BulletinAdmin" method="post" class="confirm-form"
+                                                                      data-confirm="Rút bài này khỏi danh sách hiển thị? (chuyển về Nháp)" data-title="Rút bài"
+                                                                      data-ok="Rút bài" data-ok-class="btn-warning"
+                                                                      data-icon="cloud_off" data-icon-color="#d97706" data-icon-bg="#fef3c7">
+                                                                    @Html.AntiForgeryToken()
+                                                                    <input type="hidden" name="id" value="@item.ID" />
+                                                                    <button type="submit" class="dropdown-item">☁️ Rút bài (về Nháp)</button>
+                                                                </form>
+                                                            </li>
+                                                        }
+                                                        <li><hr class="dropdown-divider" /></li>
+                                                        <li>
+                                                            <form asp-action="Delete" asp-controller="BulletinAdmin" method="post" class="confirm-form"
+                                                                  data-confirm="Xóa bản tin này?" data-title="Xóa bản tin"
+                                                                  data-ok="Xóa" data-ok-class="btn-danger"
+                                                                  data-icon="delete" data-icon-color="#dc2626" data-icon-bg="#fee2e2">
+                                                                @Html.AntiForgeryToken()
+                                                                <input type="hidden" name="id" value="@item.ID" />
+                                                                <button type="submit" class="dropdown-item text-danger">🗑 Xóa</button>
+                                                            </form>
+                                                        </li>
+                                                    </ul>
+                                                </div>
                                             </div>
                                         }
                                     </td>
@@ -272,6 +328,7 @@
                             }
                         </tbody>
                     </table>
+                    <div class="blm-empty" id="blmEmpty" style="display:none">Không có bản tin nào khớp bộ lọc.</div>
                 </div>
             }
         </div>
@@ -280,6 +337,61 @@
 
 @section Scripts {
 <script>
+    // Trạng thái gửi Email / Facebook trên từng bài: Nháp = viền, Đã gửi = nền đặc + dấu ✓, Lỗi = đỏ
+    (function () {
+        const btns = [...document.querySelectorAll('.share-btn')];
+        if (!btns.length) return;
+        const ids = [...new Set(btns.map(b => b.dataset.id))].join(',');
+        fetch('@Url.Action("Status", "BulletinShare")?ids=' + ids).then(r => r.json()).then(d => {
+            if (!d.success || !d.available) return;
+            (d.data || []).forEach(x => {
+                const b = document.querySelector(`.share-btn[data-id="${x.bulletinId}"][data-share="${x.channel}"]`);
+                if (!b) return;
+                const name = x.channel === 'EMAIL' ? 'Email' : 'Facebook';
+                if (x.status === 'SENT') {
+                    b.classList.add('sent');
+                    b.insertAdjacentHTML('beforeend', '<span class="share-tick">✓</span>');
+                    b.title = `${name}: đã gửi ${new Date(x.sentDt).toLocaleString('vi-VN')}`;
+                } else if (x.status === 'FAILED') {
+                    b.insertAdjacentHTML('beforeend', '<span class="share-tick" style="background:#dc2626">!</span>');
+                    b.title = `${name}: gửi lỗi — bấm để xem`;
+                } else {
+                    b.insertAdjacentHTML('beforeend', '<span class="share-tick" style="background:#f59e0b">•</span>');
+                    b.title = `${name}: đang lưu nháp`;
+                }
+            });
+        }).catch(() => {});
+    })();
+
+    // Tìm + lọc (trạng thái / phòng) ngay trên trang — nhớ lựa chọn lần trước
+    (function () {
+        const rows = [...document.querySelectorAll('.blm-row')];
+        if (!rows.length) return;
+        const q = document.getElementById('blmSearch'), role = document.getElementById('blmRole');
+        const chips = [...document.querySelectorAll('#blmChips .blm-chip')];
+        let f = 'all';
+        try { const v = JSON.parse(localStorage.getItem('blmFilter') || '{}'); if (v.f && chips.some(c => c.dataset.f === v.f)) f = v.f; if (role && v.r) role.value = v.r; } catch (e) { }
+        const fold = t => (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+        function apply() {
+            const text = fold(q.value.trim()), r = role ? role.value : '';
+            let n = 0;
+            rows.forEach(tr => {
+                const st = tr.dataset.st;
+                const okF = f === 'all' ? st !== 'deleted' : f === 'pinned' ? tr.dataset.pin === '1' && st !== 'deleted' : st === f;
+                const ok = okF && (!r || tr.dataset.role === r) && (!text || fold(tr.dataset.q).includes(text));
+                tr.style.display = ok ? '' : 'none';
+                if (ok) n++;
+            });
+            chips.forEach(c => c.classList.toggle('active', c.dataset.f === f));
+            document.getElementById('blmEmpty').style.display = n ? 'none' : 'block';
+            try { localStorage.setItem('blmFilter', JSON.stringify({ f, r: role ? role.value : '' })); } catch (e) { }
+        }
+        chips.forEach(c => c.addEventListener('click', () => { f = c.dataset.f; apply(); }));
+        q.addEventListener('input', apply);
+        if (role) role.addEventListener('change', apply);
+        apply();
+    })();
+
     // Intercept confirm-form submits → dùng showConfirm modal global
     document.querySelectorAll('form.confirm-form').forEach(f => {
         f.addEventListener('submit', e => {

@@ -744,33 +744,31 @@ body.hr-ag-open { overflow: hidden; }
     body.kb-open .app-footer { padding-bottom: 10px !important; }
 }
 
-/* ═══════════ Loading toàn trang dùng logo My Samho (2026-11-20) ═══════════ */
-.ms-loader { position: relative; width: 92px; height: 92px; display: flex; align-items: center; justify-content: center; }
-.ms-loader-arc {
-    position: absolute; inset: 0; border-radius: 50%;
-    background: conic-gradient(from 0deg, rgba(237,28,36,0) 0deg, #ed1c24 120deg, #6366f1 240deg, rgba(99,102,241,0) 300deg);
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
-            mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
-    animation: msSpin 1s linear infinite;
+/* ═══════════ Loading toàn trang = logo app My Samho (duyệt 2026-11-20) ═══════════
+   Khối đỏ bật ra có độ nảy → chữ S trắng tự vẽ nét → giữ → xoá theo chiều viết → vẽ lại (2,4s/vòng);
+   vệt sáng lướt qua khối đỏ, bóng đỏ "thở". Chỉ chạy khi overlay đang hiện (đỡ tốn pin). */
+.ms-loader { position: relative; width: 88px; height: 88px; }
+.ms-loader svg { width: 100%; height: 100%; overflow: visible; display: block; }
+.ms-loader::before {
+    content: ''; position: absolute; inset: 6px; border-radius: 22px; z-index: -1;
+    box-shadow: 0 10px 28px rgba(185,28,28,.35);
 }
-.ms-loader-logo {
-    width: 64px; height: 64px; border-radius: 18px; background: #fff;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 6px 20px rgba(79,70,229,.18);
-    animation: msBreath 1.6s ease-in-out infinite;
-}
-.ms-loader-logo img { width: 44px; height: auto; display: block; }
-#pageLoadingOverlay .fw-bold { color: #312e81 !important; letter-spacing: .01em; animation: msFade 1.6s ease-in-out infinite; }
-@keyframes msSpin   { to { transform: rotate(360deg); } }
-@keyframes msBreath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
-@keyframes msFade   { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
-/* Chỉ chạy hiệu ứng khi loading đang HIỆN — lúc ẩn không tốn CPU/pin */
-#pageLoadingOverlay:not(.show) .ms-loader-arc,
-#pageLoadingOverlay:not(.show) .ms-loader-logo,
-#pageLoadingOverlay:not(.show) .fw-bold { animation: none; }
+.ms-block { transform-origin: 512px 512px; transform-box: view-box; }
+.ms-s { fill: none; stroke: #fff; stroke-width: 96; stroke-linecap: round; stroke-linejoin: round;
+        stroke-dasharray: 1400; stroke-dashoffset: 1400; }
+#pageLoadingOverlay.show .ms-block { animation: msPop .55s cubic-bezier(.34,1.56,.64,1) both, msBreathe 2.4s ease-in-out .6s infinite; }
+#pageLoadingOverlay.show .ms-loader::before { animation: msGlow 2.4s ease-in-out .6s infinite; }
+#pageLoadingOverlay.show .ms-s { animation: msDraw 2.4s cubic-bezier(.65,0,.35,1) .35s infinite; }
+#pageLoadingOverlay.show .ms-shine { animation: msShine 2.4s ease-in-out .6s infinite; }
+#pageLoadingOverlay .fw-bold { color: #7f1d1d !important; font-size: 15px; letter-spacing: .02em; }
+@keyframes msPop     { 0% { transform: scale(.4) rotate(-12deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+@keyframes msBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+@keyframes msGlow    { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes msDraw    { 0% { stroke-dashoffset: 1400; } 45% { stroke-dashoffset: 0; } 70% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -1400; } }
+@keyframes msShine   { 0%, 40% { transform: translateX(-700px) rotate(20deg); } 75%, 100% { transform: translateX(900px) rotate(20deg); } }
 @media (prefers-reduced-motion: reduce) {
-    .ms-loader-logo, #pageLoadingOverlay .fw-bold { animation: none; }
-    .ms-loader-arc { animation-duration: 2s; }
+    #pageLoadingOverlay.show .ms-block, #pageLoadingOverlay.show .ms-shine, #pageLoadingOverlay.show .ms-loader::before { animation: none; }
+    #pageLoadingOverlay.show .ms-s { animation: none; stroke-dashoffset: 0; }
 }
 
 /* ═══════════ Menu trái trên MÁY TÍNH — dễ nhìn như điện thoại (2026-11-20, phản ánh "menu khó nhìn") ═══════════
@@ -834,3 +832,44 @@ body.hr-ag-open { overflow: hidden; }
 /* Nhãn cụm nhỏ trong nhóm (vd "TĂNG CA / RA VÀO CỔNG") — rõ hơn */
 #hr-sidebar .menu-group-label { font-size: .68rem !important; font-weight: 800 !important; opacity: 1 !important; padding: 8px 6px 3px !important; }
 #hr-sidebar .menu-group-dot { width: 7px; height: 7px; }
+
+/* ═══════════ Tìm chức năng nhanh (Ctrl/⌘+K) — 2026-11-20 ═══════════ */
+.hr-pal-btn {
+    display: none; align-items: center; gap: .45rem; margin-left: 1rem;
+    border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; border-radius: 12px;
+    padding: .45rem .7rem; font-size: .85rem; font-weight: 600; min-width: 240px; cursor: pointer;
+}
+.hr-pal-btn:hover { border-color: #c7d2fe; background: #fff; color: #4338ca; }
+.hr-pal-btn i { font-size: 1.15rem; }
+.hr-pal-btn kbd, .hr-pal-in kbd {
+    margin-left: auto; font-family: inherit; font-size: .7rem; font-weight: 700; color: #64748b;
+    background: #fff; border: 1px solid #e2e8f0; border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; box-shadow: none;
+}
+@media (min-width: 992px) { .hr-pal-btn { display: inline-flex; } }
+
+.hr-pal { position: fixed; inset: 0; z-index: 1070; background: rgba(15,23,42,.45); display: none;
+          align-items: flex-start; justify-content: center; padding: 12vh 16px 16px; }
+.hr-pal.open { display: flex; animation: palFade .15s ease; }
+@keyframes palFade { from { opacity: 0; } to { opacity: 1; } }
+.hr-pal-box { width: 100%; max-width: 620px; background: #fff; border-radius: 16px; overflow: hidden;
+              box-shadow: 0 24px 60px rgba(15,23,42,.3); animation: palIn .18s cubic-bezier(.32,.72,0,1); }
+@keyframes palIn { from { transform: translateY(-8px) scale(.98); } to { transform: none; } }
+.hr-pal-in { display: flex; align-items: center; gap: .6rem; padding: .85rem 1rem; border-bottom: 1px solid #f1f5f9; }
+.hr-pal-in i { color: #6366f1; font-size: 1.4rem; }
+.hr-pal-in input { flex: 1; border: none; outline: none; font-size: 1.05rem; color: #0f172a; background: transparent; }
+.hr-pal-list { max-height: 56vh; overflow-y: auto; padding: .35rem; }
+.hr-pal-sec { font-size: .72rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; padding: .5rem .6rem .25rem; }
+.hr-pal-row { display: flex; align-items: center; gap: .7rem; padding: .55rem .6rem; border-radius: 10px;
+              text-decoration: none !important; color: #1e293b !important; }
+.hr-pal-row.sel { background: #eef2ff; }
+.hr-pal-ic { width: 34px; height: 34px; border-radius: 10px; background: #f8fafc; flex-shrink: 0;
+             display: flex; align-items: center; justify-content: center; }
+.hr-pal-ic > span { background: none !important; width: auto !important; height: auto !important; margin: 0 !important; }
+.hr-pal-ic .ic3d { width: 22px; height: 22px; vertical-align: 0; }
+.hr-pal-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.hr-pal-tx b { font-size: .95rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hr-pal-tx small { font-size: .74rem; color: #94a3b8; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hr-pal-go { color: #c7d2fe; font-size: 1.1rem; opacity: 0; }
+.hr-pal-row.sel .hr-pal-go { opacity: 1; color: #6366f1; }
+.hr-pal-none { text-align: center; color: #94a3b8; padding: 1.6rem; font-weight: 600; }
+.hr-pal-foot { font-size: .72rem; color: #94a3b8; padding: .5rem 1rem; border-top: 1px solid #f1f5f9; background: #fafafa; }

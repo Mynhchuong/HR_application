@@ -1,0 +1,179 @@
+@{
+    ViewData["Title"] = "Đăng bản tin lên Facebook";
+    int bulletinId = (int)(ViewBag.BulletinId ?? 0);
+    bool isHrAdmin = ViewBag.IsHrAdmin is bool b && b;
+}
+@Html.AntiForgeryToken()
+
+<style>
+    .sh-wrap { max-width: 1300px; margin: 0 auto; padding: 1rem; }
+    .sh-top { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .sh-back { width: 38px; height: 38px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; display: inline-flex; align-items: center; justify-content: center; color: #334155; text-decoration: none; }
+    .sh-top h5 { margin: 0; font-weight: 800; color: #0f172a; }
+    .sh-top .sub { font-size: .85rem; color: #64748b; }
+    .sh-pill { font-size: .75rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; }
+    .st-NEW { background: #f1f5f9; color: #475569; } .st-DRAFT { background: #fef3c7; color: #92400e; }
+    .st-SENT { background: #dcfce7; color: #166534; } .st-FAILED { background: #fee2e2; color: #991b1b; }
+    .sh-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); gap: 1rem; align-items: start; }
+    @@media (max-width: 991.98px) { .sh-grid { grid-template-columns: 1fr; } }
+    .sh-card { background: #fff; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); padding: 1rem 1.1rem; }
+    .sh-card h6 { font-weight: 800; color: #0f172a; margin-bottom: .75rem; }
+    #fMsg { width: 100%; min-height: 52vh; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: .75rem .85rem; font-size: .92rem; line-height: 1.55; resize: vertical; }
+    #fMsg:focus { outline: none; border-color: #1877f2; box-shadow: 0 0 0 3px rgba(24,119,242,.12); }
+    .sh-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin: .5rem 0; font-size: .82rem; color: #64748b; }
+    .sh-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }
+    .sh-actions .btn { margin: 0; border-radius: 10px; font-weight: 700; text-transform: none; }
+    .btn-fb { background: #1877f2; color: #fff; } .btn-fb:hover { background: #166fe5; color: #fff; }
+    .sh-warn { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: 12px; padding: .65rem .8rem; font-size: .85rem; margin-bottom: 1rem; }
+    .sh-err { background: #fef2f2; color: #991b1b; border-radius: 10px; padding: .55rem .7rem; font-size: .8rem; margin-bottom: .8rem; display: none; }
+    /* Khung giống bài đăng Facebook */
+    .fb-post { border: 1px solid #e4e6eb; border-radius: 10px; overflow: hidden; background: #fff; font-family: Helvetica, Arial, sans-serif; }
+    .fb-head { display: flex; align-items: center; gap: .55rem; padding: .7rem .8rem; }
+    .fb-av { width: 40px; height: 40px; border-radius: 50%; background: #fff; border: 1px solid #e4e6eb; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .fb-av img { width: 30px; }
+    .fb-name { font-weight: 700; color: #050505; font-size: .92rem; line-height: 1.2; }
+    .fb-time { font-size: .76rem; color: #65676b; }
+    .fb-text { padding: 0 .8rem .7rem; font-size: .92rem; color: #050505; white-space: pre-wrap; word-break: break-word; line-height: 1.45; }
+    .fb-text.clamp { max-height: 12.5em; overflow: hidden; position: relative; }
+    .fb-more { color: #65676b; font-weight: 700; font-size: .88rem; padding: 0 .8rem .6rem; cursor: pointer; display: none; }
+    .fb-img { width: 100%; display: block; background: #f0f2f5; }
+    .fb-bar { display: flex; justify-content: space-around; border-top: 1px solid #e4e6eb; padding: .4rem 0; color: #65676b; font-weight: 700; font-size: .85rem; }
+</style>
+
+<div class="sh-wrap">
+    <div class="sh-top">
+        <a class="sh-back" href="@Url.Action("Manage", "BulletinAdmin")" title="Quay lại"><span class="material-symbols-rounded">arrow_back</span></a>
+        <div>
+            <h5>📘 Đăng bản tin lên Facebook</h5>
+            <div class="sub" id="bltTitle">Đang tải...</div>
+        </div>
+        <span class="sh-pill st-NEW" id="stPill">—</span>
+        <a class="btn btn-sm btn-outline-danger mb-0 ms-auto" href="@Url.Action("Email", "BulletinShare", new { id = bulletinId })">📧 Sang trang Email</a>
+    </div>
+
+    <div id="ddlWarn" class="alert alert-warning" style="display:none">Chưa tạo bảng dữ liệu — cần chạy script <b>HR_api/Scripts/create_bulletin_share.sql</b>.</div>
+    <div id="cfgWarn" class="sh-warn" style="display:none">
+        ⚠️ Chưa kết nối Fanpage nên chưa đăng được — vẫn soạn và lưu nháp bình thường.
+        @if (isHrAdmin) { <a href="@Url.Action("FacebookSettings", "BulletinShare")"><b>Vào Cài đặt Facebook</b></a> }
+        else { <span>Nhờ HR/Admin kết nối Fanpage.</span> }
+    </div>
+    <div class="sh-warn">🌐 Bài trên Fanpage là <b>CÔNG KHAI</b> — ai cũng xem được. Kiểm tra kỹ nội dung (lương, thông tin nội bộ...) trước khi đăng.</div>
+
+    <div class="sh-grid">
+        <div class="sh-card">
+            <h6>Nội dung bài đăng</h6>
+            <div class="sh-err" id="lastErr"></div>
+            <textarea id="fMsg" oninput="renderPreview(); dirty = true;"></textarea>
+            <div class="sh-row">
+                <label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;color:#334155;font-weight:700;">
+                    <input type="checkbox" id="fImg" onchange="renderPreview(); dirty = true;" checked> Đăng kèm ảnh bìa
+                </label>
+                <span id="charCount"></span>
+            </div>
+            <div class="sh-row" style="justify-content:flex-start">
+                Facebook không hiện định dạng (in đậm, bảng...) — nội dung đã chuyển sang chữ thường.
+                <a href="#" onclick="resetMsg();return false;" style="margin-left:auto;white-space:nowrap">↺ Lấy lại từ bài</a>
+            </div>
+            <div class="sh-actions">
+                <button class="btn btn-outline-secondary" onclick="save(true)">💾 Lưu nháp</button>
+                <button class="btn btn-fb" id="btnPost" onclick="postNow()">📘 Đăng lên Facebook</button>
+            </div>
+        </div>
+
+        <div class="sh-card">
+            <h6>Xem trước trên Fanpage</h6>
+            <div class="fb-post">
+                <div class="fb-head">
+                    <div class="fb-av"><img src="@Url.Content("~/assets/img/samho-logo.png")" alt="" /></div>
+                    <div><div class="fb-name" id="pvPage">Fanpage công ty</div><div class="fb-time">Vừa xong · 🌐</div></div>
+                </div>
+                <div class="fb-text clamp" id="pvText"></div>
+                <div class="fb-more" id="pvMore" onclick="this.style.display='none';document.getElementById('pvText').classList.remove('clamp')">Xem thêm</div>
+                <img class="fb-img" id="pvImg" alt="" style="display:none" />
+                <div class="fb-bar"><span>👍 Thích</span><span>💬 Bình luận</span><span>↗ Chia sẻ</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const BID = @bulletinId;
+const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+const U = {
+    data: '@Url.Action("Data", "BulletinShare")/' + BID,
+    save: '@Url.Action("Save", "BulletinShare")',
+    post: '@Url.Action("PostFb", "BulletinShare")/' + BID,
+    img:  '@Url.Action("GetBulletinImage", "Image")?fileName='
+};
+const ST = { NEW: 'Chưa soạn', DRAFT: 'Đang nháp', SENT: 'Đã đăng', FAILED: 'Đăng lỗi' };
+const $ = id => document.getElementById(id);
+let cover = null, fbDefault = '', configured = false, dirty = false;
+
+function setStatus(st, dt) {
+    const p = $('stPill'); p.className = 'sh-pill st-' + st;
+    p.textContent = (ST[st] || st) + (st === 'SENT' && dt ? ' · ' + new Date(dt).toLocaleString('vi-VN') : '');
+}
+function renderPreview() {
+    const t = $('fMsg').value;
+    $('pvText').textContent = t;
+    $('pvText').classList.add('clamp');
+    $('pvMore').style.display = t.split('\n').length > 8 || t.length > 480 ? 'block' : 'none';
+    $('charCount').textContent = t.length.toLocaleString('vi-VN') + ' ký tự';
+    const img = $('pvImg');
+    if (cover && $('fImg').checked) { img.src = U.img + encodeURIComponent(cover); img.style.display = 'block'; }
+    else img.style.display = 'none';
+}
+async function load() {
+    $('lastErr').style.display = 'none';
+    const d = await fetch(U.data).then(r => r.json()).catch(() => ({ success: false, message: 'Không tải được dữ liệu, thử tải lại trang' }));
+    if (!d.success) {
+        if (d.needDdl) $('ddlWarn').style.display = 'block';
+        showToast(d.message || 'Không tải được', 'error'); $('bltTitle').textContent = d.message || ''; return;
+    }
+    $('bltTitle').textContent = d.bulletin.title;
+    cover = d.bulletin.coverImg; fbDefault = d.fbDefault || '';
+    configured = !!d.fbConfigured;
+    if (!configured) $('cfgWarn').style.display = 'block';
+    if (d.fbPageName) $('pvPage').textContent = d.fbPageName;
+    $('fMsg').value = d.fb.fbMessage || fbDefault;
+    $('fImg').checked = d.fb.fbWithImage !== false;
+    if (!cover) { $('fImg').checked = false; $('fImg').disabled = true; }
+    setStatus(d.fb.status, d.fb.sentDt);
+    if (d.fb.status === 'FAILED' && d.fb.lastError) { $('lastErr').style.display = 'block'; $('lastErr').textContent = 'Lần đăng trước lỗi: ' + d.fb.lastError; }
+    renderPreview();
+}
+function resetMsg() {
+    showConfirm('Thay nội dung đang soạn bằng nội dung lấy lại từ bài?', () => { $('fMsg').value = fbDefault; dirty = true; renderPreview(); },
+        { title: 'Lấy lại từ bài', okText: 'Lấy lại', okClass: 'btn-primary', icon: 'restart_alt', iconColor: '#2563eb', iconBg: '#dbeafe' });
+}
+async function save(toast) {
+    const res = await fetch(U.save, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+        body: JSON.stringify({ bulletinId: BID, channel: 'FB', fbMessage: $('fMsg').value, fbWithImage: $('fImg').checked })
+    }).then(r => r.json()).catch(() => ({ success: false, message: 'Lỗi kết nối' }));
+    if (!res.success) { showToast(res.message || 'Lưu lỗi', 'error'); throw new Error('save'); }
+    dirty = false;
+    if ($('stPill').classList.contains('st-NEW')) setStatus('DRAFT');
+    if (toast) showToast('Đã lưu nháp', 'success');
+}
+function postNow() {
+    if (!configured) { showToast('Chưa kết nối Fanpage', 'warning'); return; }
+    if (!$('fMsg').value.trim()) { showToast('Nội dung trống', 'warning'); return; }
+    const again = $('stPill').classList.contains('st-SENT') ? '<br><b style="color:#b91c1c">Bài này đã đăng rồi — đăng thêm 1 bài nữa?</b>' : '';
+    showConfirm('Đăng bài này lên Fanpage? Bài sẽ <b>công khai</b> ngay.' + again, async () => {
+        try { await save(false); } catch { return; }
+        showLoading('Đang đăng lên Facebook...');
+        const r = await fetch(U.post, { method: 'POST', headers: { 'RequestVerificationToken': token } })
+            .then(x => x.json()).catch(() => ({ success: false, message: 'Lỗi kết nối' }));
+        hideLoading();
+        showToast(r.message || (r.success ? 'Đã đăng' : 'Lỗi'), r.success ? 'success' : 'error');
+        // Lấy lại trạng thái THẬT từ server (đã gửi / lỗi / thông báo lỗi lần gửi)
+        await load();
+        if (!r.success) { $('lastErr').style.display = 'block'; $('lastErr').textContent = r.message; }
+    }, { title: 'Đăng Facebook', html: true, okText: 'Đăng ngay', okClass: 'btn-primary', icon: 'public', iconColor: '#1877f2', iconBg: '#e7f0fd' });
+}
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+load();
+</script>
+}

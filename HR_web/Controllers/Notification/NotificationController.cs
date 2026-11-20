@@ -40,58 +40,13 @@ public class NotificationController : BaseController
             try { await _notiSvc.MarkReadAsync(noti.Value, emp); } catch { }
         }
 
-        return Redirect(Url.Content(ResolveLink(action, target)));
-    }
-
-    // Giữ ĐÚNG thứ tự nhánh như JS trong Notification/Index.cshtml — sửa 1 bên phải sửa cả 2.
-    private static string ResolveLink(string? action, string? target)
-    {
-        var a = action ?? "";
-
-        if (a.StartsWith("BULLETIN_CMT:"))
-            return "~/Bulletin/Detail/" + Uri.EscapeDataString(a["BULLETIN_CMT:".Length..]);
-
-        if (a == "BULLETIN" && !string.IsNullOrEmpty(target))
-            return "~/Bulletin/Detail/" + Uri.EscapeDataString(target);
-
-        if (a == "SURVEY" && !string.IsNullOrEmpty(target))
-            return "~/Survey/Do/" + Uri.EscapeDataString(target);
-
-        if (a.StartsWith("inquiry/"))
-            return "~/EmployeeInquiry/Chat?id=" + Uri.EscapeDataString(a["inquiry/".Length..]);
-
-        // Thông báo Đào tạo (TrainingNotificationWorker.LinkFor) — trước đây không có ở đây nên rơi về
-        // hộp thư (báo lỗi 2026-11-20: bấm thông báo trên chuông lại nhảy vào trang Thông báo).
-        if (a.StartsWith("TRAINING_CLASS_REGISTER/"))
-            return "~/Training/ClassRegister/" + Uri.EscapeDataString(a["TRAINING_CLASS_REGISTER/".Length..]);
-        if (a.StartsWith("TRAINING_CLASS/"))
-            return "~/Training/ClassDetail/" + Uri.EscapeDataString(a["TRAINING_CLASS/".Length..]);
-        if (a.StartsWith("TRAINING_"))
-            return "~/Training/MyClasses";
-
-        // Link ngoài: KHÔNG chuyển tiếp thẳng (hở lỗ chuyển hướng mở — ai gửi được thông báo là
-        // dắt người dùng đi đâu cũng được). Đưa về hộp thư, người dùng tự bấm như trên web.
-        if (a.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-         || a.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            return "~/Notification/Index";
-
-        return a switch
-        {
-            "GP_MY"               => "~/GatePass/GpMyRequests",
-            "GP_MANAGE"           => "~/GatePass/GpListForSupervisor",
-            "LEAVE_MY"            => "~/Leave/LeaveMyRequests",
-            "LEAVE_MANAGE"        => "~/Leave/LeaveApprovalList",
-            "LEAVE_TEAM"          => "~/Leave/TeamSchedule",
-            "LEAVE_ASSIGNED"      => "~/Leave/LeaveMyRequests",
-            "OT_SIGN"             => "~/OT/OtConfirmForm",
-            "ATT_CONFIRM_WORKER"  => "~/AttendanceConfirm/WorkerForm",
-            "ATT_CONFIRM_MANAGER" => "~/AttendanceConfirm/Index",
-            "GIFT_MY"             => "~/Gift/MyGifts",
-            "PAYSLIP"             => "~/Payslip/Index",
-            "AI_CSR"              => "~/AiCsr/Chat",
-            "BULLETIN"            => "~/Bulletin/Index",
-            _                     => "~/Notification/Index"   // mã lạ/không có -> hộp thư như cũ
-        };
+        // Bảng mã -> trang: Helpers/NotificationLinkHelper (nguồn duy nhất cho web + app điện thoại).
+        // Không có trang đích / link ngoài (không chuyển tiếp thẳng — chống chuyển hướng mở) → mở trang
+        // Thông báo và tự bung đúng thông báo đó (?open=).
+        var path = NotificationLinkHelper.ResolvePath(action, target, CurrentUser?.RoleName == "Expat");
+        if (path == null)
+            return Redirect(Url.Content("~/Notification/Index") + (noti.HasValue ? "?open=" + noti.Value : ""));
+        return Redirect(Url.Content(path));
     }
 
     // GET /Notification/GetPage  (AJAX)
@@ -107,6 +62,16 @@ public class NotificationController : BaseController
 
         var items  = itemsTask.Result;
         var unread = page == 1 ? unreadTask.Result : 0;
+        // Tính sẵn đường dẫn mở cho từng thông báo — chuông + trang Thông báo chỉ việc dùng (không tự map nữa)
+        bool isExpat = CurrentUser.RoleName == "Expat";
+        foreach (var n in items)
+        {
+            if (NotificationLinkHelper.IsExternal(n.LINK_ACTION)) { n.LINK_URL = n.LINK_ACTION; n.LINK_EXT = true; continue; }
+            if (NotificationLinkHelper.ResolvePath(n.LINK_ACTION, n.TARGET_VAL, isExpat) != null)
+                // Ghép tay: route value tên "action" sẽ bị Url.Action hiểu là TÊN ACTION
+                n.LINK_URL = Url.Content("~/Notification/Go") + "?action=" + Uri.EscapeDataString(n.LINK_ACTION ?? "")
+                           + "&target=" + Uri.EscapeDataString(n.TARGET_VAL ?? "") + "&noti=" + n.ID;
+        }
         return Json(new { success = true, data = items, unread });
     }
 

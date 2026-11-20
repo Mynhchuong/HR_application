@@ -180,25 +180,6 @@
 @section Scripts {
 <script>
 const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
-const linkMap = {
-    'GP_MY':       '@Url.Action("GpMyRequests", "GatePass")',
-    'GP_MANAGE':   '@Url.Action("GpListForSupervisor", "GatePass")',
-    'LEAVE_MY':    '@Url.Action("LeaveMyRequests", "Leave")',
-    'LEAVE_MANAGE':'@Url.Action("LeaveApprovalList", "Leave")',
-    'LEAVE_TEAM':  '@Url.Action("TeamSchedule", "Leave")',
-    'LEAVE_ASSIGNED': '@Url.Action("LeaveMyRequests", "Leave")',
-    'OT_SIGN':     '@Url.Action("OtConfirmForm", "OT")',
-    'ATT_CONFIRM_WORKER':  '@Url.Action("WorkerForm", "AttendanceConfirm")',
-    'ATT_CONFIRM_MANAGER': '@Url.Action("Index", "AttendanceConfirm")',
-    'GIFT_MY':     '@Url.Action("MyGifts", "Gift")',
-    'PAYSLIP':     '@Url.Action("Index", "Payslip")',
-    'BULLETIN':    '@Url.Action("Index", "Bulletin")',   // fallback
-    'SURVEY':      '@Url.Action("Index", "SurveyAdmin")',// fallback
-    'AI_CSR':      '@Url.Action("Chat", "AiCsr")',
-};
-const bulletinDetailBase = '@Url.Action("Detail", "Bulletin")';
-const surveyDoBase       = '@Url.Action("Do", "Survey")';
-const inquiryChatBase    = '@Url.Action("Chat", "EmployeeInquiry")';
 
 let page = 1;
 const PAGE_SIZE = 20;
@@ -312,31 +293,9 @@ function onNotiClick(n) {
         if (el) el.classList.remove('unread');
         updateUnreadBadge(-1);
     }
-    // Đặc biệt: BULLETIN + SURVEY → build URL với TARGET_VAL
-    let url;
-    if ((n.LINK_ACTION || '').indexOf('BULLETIN_CMT:') === 0) {
-        // Noti trả lời bình luận (cá nhân): TARGET_VAL là EMPCD người nhận nên
-        // bulletinId nằm trong chính LINK_ACTION theo pattern BULLETIN_CMT:{id}
-        url = bulletinDetailBase + '/' + encodeURIComponent(n.LINK_ACTION.substring('BULLETIN_CMT:'.length));
-    } else if (n.LINK_ACTION === 'BULLETIN' && n.TARGET_VAL) {
-        url = bulletinDetailBase + '/' + encodeURIComponent(n.TARGET_VAL);
-    } else if (n.LINK_ACTION === 'SURVEY' && n.TARGET_VAL) {
-        url = surveyDoBase + '/' + encodeURIComponent(n.TARGET_VAL);
-    } else if ((n.LINK_ACTION || '').indexOf('inquiry/') === 0) {
-        // Hội thoại đóng → mở trang Chat, modal đánh giá tự bật nếu chưa rate
-        // (xem EmployeeInquiry/Chat.cshtml: setTimeout(openRatingModal, 800))
-        url = inquiryChatBase + '?id=' + encodeURIComponent(n.LINK_ACTION.substring('inquiry/'.length));
-    } else if ((n.LINK_ACTION || '').indexOf('TRAINING_') === 0) {
-        // Thông báo Đào tạo — đi qua /Notification/Go (map ở NotificationController.ResolveLink)
-        url = '@Url.Action("Go")?action=' + encodeURIComponent(n.LINK_ACTION);
-    } else if (n.LINK_ACTION && /^https?:\/\//i.test(n.LINK_ACTION)) {
-        // Link ngoài (bài báo, gov, v.v.) — mở tab mới
-        window.open(n.LINK_ACTION, '_blank', 'noopener,noreferrer');
-        return;
-    } else {
-        url = n.LINK_ACTION && linkMap[n.LINK_ACTION];
-    }
-    if (url) location.href = url;
+    // Đường dẫn do server tính sẵn (Helpers/NotificationLinkHelper — dùng chung với chuông + app điện thoại)
+    if (n.LINK_EXT && n.LINK_URL) { window.open(n.LINK_URL, '_blank', 'noopener,noreferrer'); return; }
+    if (n.LINK_URL) location.href = n.LINK_URL;
 }
 
 let unreadCount = 0;

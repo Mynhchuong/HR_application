@@ -142,19 +142,6 @@
 @section Scripts {
 <script>
 const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
-const linkMap = {
-    'GP_MY':          '@Url.Action("GpMyRequests",        "GatePass")',
-    'GP_MANAGE':      '@Url.Action("GpListForExpat",       "GatePass")',
-    'LEAVE_MY':       '@Url.Action("LeaveMyRequests",      "Leave")',
-    'LEAVE_TEAM':     '@Url.Action("LeaveApprovalForExpat","Leave")',
-    'LEAVE_ASSIGNED': '@Url.Action("LeaveMyRequests",      "Leave")',
-    'OT_SIGN':        '@Url.Action("OtListForExpat",       "OT")',
-    'PAYSLIP':        '@Url.Action("Index",                "Payslip")',
-    'BULLETIN':       '@Url.Action("Index",                "Bulletin")',
-    'SURVEY':         '@Url.Action("Index",                "SurveyAdmin")',// fallback
-};
-const bulletinDetailBase = '@Url.Action("Detail", "Bulletin")';
-const surveyDoBase       = '@Url.Action("Do", "Survey")';
 
 let page = 1;
 const PAGE_SIZE = 20;
@@ -236,20 +223,9 @@ function onNotiClick(n) {
         if (el) el.classList.remove('unread');
         updateUnreadBadge(-1);
     }
-    // BULLETIN → build URL Detail với TARGET_VAL (mobile/web cùng pattern)
-    let url;
-    if (n.LINK_ACTION === 'BULLETIN' && n.TARGET_VAL) {
-        url = bulletinDetailBase + '/' + encodeURIComponent(n.TARGET_VAL);
-    } else if (n.LINK_ACTION === 'SURVEY' && n.TARGET_VAL) {
-        url = surveyDoBase + '/' + encodeURIComponent(n.TARGET_VAL);
-    } else if (n.LINK_ACTION && /^https?:\/\//i.test(n.LINK_ACTION)) {
-        // External link (article, government info, etc.) — open new tab
-        window.open(n.LINK_ACTION, '_blank', 'noopener,noreferrer');
-        return;
-    } else {
-        url = n.LINK_ACTION && linkMap[n.LINK_ACTION];
-    }
-    if (url) location.href = url;
+    // Đường dẫn do server tính sẵn (Helpers/NotificationLinkHelper — dùng chung với chuông + app điện thoại)
+    if (n.LINK_EXT && n.LINK_URL) { window.open(n.LINK_URL, '_blank', 'noopener,noreferrer'); return; }
+    if (n.LINK_URL) location.href = n.LINK_URL;
 }
 
 let unreadCount = 0;

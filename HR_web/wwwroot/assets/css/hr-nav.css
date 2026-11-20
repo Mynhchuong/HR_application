@@ -661,7 +661,7 @@ body.hr-ag-open { overflow: hidden; }
     #hr-sidebar .menu-child-item > .d-flex { margin: 0 !important; }
     #hr-sidebar .menu-child-item .nav-link { min-height: 44px; padding: .35rem .4rem !important; }
     #hr-sidebar .menu-child-item .nav-link-text { font-size: .92rem !important; font-weight: 600 !important; }
-    #hr-sidebar .menu-child-item .menu-child-icon { width: 30px !important; height: 30px !important; background: transparent !important; }
+    #hr-sidebar .menu-child-item .menu-child-icon { width: 30px !important; height: 30px !important; border-radius: 9px; }
     #hr-sidebar .menu-child-icon .ic3d { width: 24px; height: 24px; }
     #hr-sidebar .menu-group-label { margin-left: .4rem; }
 }
@@ -802,7 +802,7 @@ body.hr-ag-open { overflow: hidden; }
     }
     #hr-sidebar .menu-child-item .nav-link:hover { background: #f1f5f9 !important; }
     #hr-sidebar .menu-child-item .nav-link-text { font-size: .86rem !important; font-weight: 600 !important; color: #1e293b !important; padding-top: 0; }
-    #hr-sidebar .menu-child-item .menu-child-icon { width: 26px !important; height: 26px !important; background: transparent !important; margin-right: .5rem !important; }
+    #hr-sidebar .menu-child-item .menu-child-icon { width: 26px !important; height: 26px !important; border-radius: 8px; margin-right: .5rem !important; }
     #hr-sidebar .menu-child-icon .ic3d { width: 20px; height: 20px; }
     #hr-sidebar .menu-child-item .nav-link.active { background: #eef2ff !important; }
     #hr-sidebar .menu-child-item .nav-link.active .nav-link-text { color: #4338ca !important; font-weight: 800 !important; }
@@ -811,3 +811,26 @@ body.hr-ag-open { overflow: hidden; }
     #hr-sidebar .menu-pin-btn.pinned { color: #f59e0b; }
     #hr-sidebar .menu-group-label { margin-left: .35rem; }
 }
+
+
+/* ═══════════ Khôi phục MÀU THEO CỤM (2026-11-20) ═══════════
+   Mỗi nhóm lại có màu riêng như trước (cam = Cá nhân/Trang chủ, xanh dương, tím, xanh lá — theo
+   menu-theme-* của _SideNav), áp cho thanh tiêu đề nhóm + đường dọc + chữ nhãn cụm; ô icon của từng
+   trang lấy lại nền nhạt theo màu cụm (style inline từ MenuGroupCatalog). */
+#hr-sidebar .menu-theme-personal { --mt: #ea580c; --mt-bg: #fff7ed; --mt-bd: #fed7aa; --mt-line: #fdba74; }
+#hr-sidebar .menu-theme-clerk    { --mt: #0369a1; --mt-bg: #f0f9ff; --mt-bd: #bae6fd; --mt-line: #7dd3fc; }
+#hr-sidebar .menu-theme-manager  { --mt: #6d28d9; --mt-bg: #f5f3ff; --mt-bd: #ddd6fe; --mt-line: #c4b5fd; }
+#hr-sidebar .menu-theme-hr       { --mt: #047857; --mt-bg: #ecfdf5; --mt-bd: #a7f3d0; --mt-line: #6ee7b7; }
+#hr-sidebar .navbar-nav > [class*="menu-theme-"] > .nav-link[data-bs-toggle="collapse"] {
+    background: var(--mt-bg) !important; border: 1px solid var(--mt-bd) !important;
+    border-left: 4px solid var(--mt) !important;
+}
+#hr-sidebar .navbar-nav > [class*="menu-theme-"] > .nav-link[aria-expanded="true"] { background: var(--mt-bd) !important; }
+#hr-sidebar .navbar-nav > [class*="menu-theme-"] > .nav-link[data-bs-toggle="collapse"] .nav-link-text,
+#hr-sidebar .navbar-nav > [class*="menu-theme-"] > .nav-link[data-bs-toggle="collapse"] > .material-symbols-rounded { color: var(--mt) !important; }
+#hr-sidebar .navbar-nav > [class*="menu-theme-"] > .collapse > .navbar-nav { border-left-color: var(--mt-line) !important; }
+#hr-sidebar [class*="menu-theme-"] .menu-child-item .nav-link.active { background: var(--mt-bg) !important; }
+#hr-sidebar [class*="menu-theme-"] .menu-child-item .nav-link.active .nav-link-text { color: var(--mt) !important; }
+/* Nhãn cụm nhỏ trong nhóm (vd "TĂNG CA / RA VÀO CỔNG") — rõ hơn */
+#hr-sidebar .menu-group-label { font-size: .68rem !important; font-weight: 800 !important; opacity: 1 !important; padding: 8px 6px 3px !important; }
+#hr-sidebar .menu-group-dot { width: 7px; height: 7px; }

@@ -153,18 +153,11 @@
         if (sec < 604800) return Math.floor(sec / 86400) + ' ngày';
         return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     }
-    // Mã thông báo có trang đích (khớp NotificationController.ResolveLink). Thông báo KHÔNG có trang đích
-    // (thông báo chung HR gửi, nhắc nhở...) thì bấm vào chỉ mở rộng nội dung + đánh dấu đã đọc, KHÔNG
-    // chuyển sang trang Thông báo nữa (báo lỗi 2026-11-20).
-    const LINKED = /^(BULLETIN_CMT:|inquiry\/|TRAINING_)|^(BULLETIN|SURVEY|GP_MY|GP_MANAGE|LEAVE_MY|LEAVE_MANAGE|LEAVE_TEAM|LEAVE_ASSIGNED|OT_SIGN|ATT_CONFIRM_WORKER|ATT_CONFIRM_MANAGER|GIFT_MY|PAYSLIP|AI_CSR)$/;
-    function hrefOf(n) {
-        const a = n.LINK_ACTION || '';
-        if (/^https?:\/\//i.test(a)) return a;
-        if (!LINKED.test(a)) return null;
-        return `${URLS.go}?action=${encodeURIComponent(a)}&target=${encodeURIComponent(n.TARGET_VAL || '')}&noti=${n.ID}`;
-    }
+    // Đường dẫn mở do server tính sẵn (Helpers/NotificationLinkHelper — dùng chung với app điện thoại).
+    // null = thông báo không có trang đích → bấm chỉ bung nội dung + đánh dấu đã đọc.
+    function hrefOf(n) { return n.LINK_URL || null; }
     function itemHtml(n) {
-        const ext = /^https?:\/\//i.test(n.LINK_ACTION || '');
+        const ext = !!n.LINK_EXT;
         const href = hrefOf(n);
         return `<a class="hdr-noti-item${n.IS_READ ? '' : ' unread'}${href ? '' : ' nolink'}" data-id="${n.ID}" href="${href ? esc(href) : '#'}"${ext ? ' target="_blank" rel="noopener"' : ''}>
             <span class="hdr-noti-ico">${iconOf(n.LINK_ACTION)}</span>

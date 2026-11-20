@@ -19,6 +19,10 @@ public class NotificationItem
     public string? PRIORITY     { get; set; }   // HIGH / NORMAL
     public string? SOURCE       { get; set; }   // ADMIN / HR / SYSTEM
     public string? NOTI_TYPE    { get; set; }
+    /// <summary>Do HR_web tính (NotificationLinkHelper) — đường dẫn mở khi bấm; null = không có trang đích.</summary>
+    public string? LINK_URL     { get; set; }
+    /// <summary>true = LINK_URL là link ngoài, mở tab mới.</summary>
+    public bool    LINK_EXT     { get; set; }
 }
 
 public class NotificationPagedResponse
